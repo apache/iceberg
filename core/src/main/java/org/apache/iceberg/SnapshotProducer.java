@@ -301,11 +301,22 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
 
     List<ManifestFile> manifests = apply(base, parentSnapshot);
 
+    int formatVersion = base.formatVersion();
+
+    if (formatVersion >= 4) {
+      return applyV4(manifests, parentSnapshot, sequenceNumber, formatVersion);
+    } else {
+      return applyV3(manifests, parentSnapshotId, sequenceNumber, formatVersion);
+    }
+  }
+
+  private Snapshot applyV3(
+      List<ManifestFile> manifests, Long parentSnapshotId, long sequenceNumber, int formatVersion) {
     OutputFile manifestList = manifestListPath();
 
     ManifestListWriter writer =
         ManifestLists.write(
-            ops.current().formatVersion(),
+            formatVersion,
             manifestList,
             ops.encryption(),
             snapshotId(),
@@ -332,7 +343,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
 
     Long nextRowId = null;
     Long assignedRows = null;
-    if (base.formatVersion() >= 3) {
+    if (formatVersion >= 3) {
       nextRowId = base.nextRowId();
       assignedRows = writer.nextRowId() - base.nextRowId();
     }
@@ -355,6 +366,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
     }
 
     return new BaseSnapshot(
+        formatVersion,
         sequenceNumber,
         snapshotId(),
         parentSnapshotId,
@@ -363,9 +375,163 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
         summary(base),
         base.currentSchemaId(),
         manifestList.location(),
+        null,
         nextRowId,
         assignedRows,
         writer.toManifestListFile().encryptionKeyID());
+  }
+
+  private Snapshot applyV4(
+      List<ManifestFile> manifests,
+      Snapshot parentSnapshot,
+      long sequenceNumber,
+      int formatVersion) {
+    Long parentSnapshotId = parentSnapshot == null ? null : parentSnapshot.snapshotId();
+
+    // No-op detection: if this commit's manifest set is identical to the parent's (same paths),
+    // none of the manifests were written by this snapshot and we can reuse the parent's root
+    // manifest. Writing a new root manifest in that case leaves an orphan file that the cleanup
+    // path deletes, and which would be referenced by the new snapshot's rootManifestLocation if
+    // the commit went through unchanged.
+    if (parentSnapshot != null
+        && parentSnapshot.rootManifestLocation() != null
+        && isNoOp(manifests, parentSnapshot.allManifests(ops.io()))) {
+      return new BaseSnapshot(
+          formatVersion,
+          sequenceNumber,
+          snapshotId(),
+          parentSnapshotId,
+          System.currentTimeMillis(),
+          operation(),
+          summary(base),
+          base.currentSchemaId(),
+          null,
+          parentSnapshot.rootManifestLocation(),
+          base.nextRowId(),
+          0L,
+          parentSnapshot.keyId());
+    }
+
+    OutputFile rootManifest = rootManifestPath();
+
+    RootManifestWriter writer =
+        RootManifests.write(
+            formatVersion,
+            rootManifest,
+            ops.encryption(),
+            snapshotId(),
+            parentSnapshotId,
+            sequenceNumber,
+            base.nextRowId(),
+            base.schema(),
+            base.specsById());
+
+    ManifestFile[] manifestFiles = new ManifestFile[manifests.size()];
+
+    // keep track of the root manifest paths created so unused ones can be cleaned up
+    manifestLists.add(rootManifest.location());
+
+    try (writer) {
+      // Enrich manifest metadata in parallel (same pattern as v3).
+      Tasks.range(manifestFiles.length)
+          .stopOnFailure()
+          .throwFailureWhenFinished()
+          .executeWith(workerPool())
+          .run(index -> manifestFiles[index] = manifestsWithMetadata.get(manifests.get(index)));
+
+      // Determine which manifests are ADDED (written by this snapshot) vs EXISTING (carried over
+      // from a prior snapshot). format_version is always 1 for v4 leaf manifests.
+      // TODO (Phase 5 follow-up): when a v3 table is upgraded to v4 the first commit will carry
+      // over v3 leaf manifests; those should use format_version=0. The upgrade detection
+      // path is deferred to a production-migration phase; for now all leaf manifests are v4.
+      long currentSnapshotId = snapshotId();
+      for (ManifestFile manifest : manifestFiles) {
+        EntryStatus status =
+            manifest.snapshotId() != null && manifest.snapshotId() == currentSnapshotId
+                ? EntryStatus.ADDED
+                : EntryStatus.EXISTING;
+        writer.add(manifest, status);
+      }
+    } catch (IOException e) {
+      throw new RuntimeIOException(e, "Failed to write root manifest file");
+    }
+
+    Map<String, String> summary = summary();
+    String operation = operation();
+
+    if (summary != null && DataOperations.REPLACE.equals(operation)) {
+      long addedRecords =
+          PropertyUtil.propertyAsLong(summary, SnapshotSummary.ADDED_RECORDS_PROP, 0L);
+      long replacedRecords =
+          PropertyUtil.propertyAsLong(summary, SnapshotSummary.DELETED_RECORDS_PROP, 0L);
+
+      // added may be less than replaced when records are already deleted by delete files
+      Preconditions.checkArgument(
+          addedRecords <= replacedRecords,
+          "Invalid REPLACE operation: %s added records > %s replaced records",
+          addedRecords,
+          replacedRecords);
+    }
+
+    // v4 snapshots must carry first-row-id and added-rows for row lineage tracking.
+    Long firstRowId = base.nextRowId();
+    Long addedRows = computeAssignedRows(manifestFiles);
+
+    return new BaseSnapshot(
+        formatVersion,
+        sequenceNumber,
+        snapshotId(),
+        parentSnapshotId,
+        System.currentTimeMillis(),
+        operation(),
+        summary(base),
+        base.currentSchemaId(),
+        null,
+        rootManifest.location(),
+        firstRowId,
+        addedRows,
+        writer.toRootManifestFile().encryptionKeyID());
+  }
+
+  /**
+   * Returns true when the v4 commit's manifest set is identical to the parent snapshot's manifest
+   * set by path. In that case no new manifest content was produced and the parent's root manifest
+   * can be reused, avoiding orphan root-manifest files for no-op commits.
+   */
+  private static boolean isNoOp(List<ManifestFile> manifests, List<ManifestFile> parentManifests) {
+    if (manifests.size() != parentManifests.size()) {
+      return false;
+    }
+    Set<String> manifestPaths = Sets.newHashSetWithExpectedSize(manifests.size());
+    for (ManifestFile manifest : manifests) {
+      manifestPaths.add(manifest.path());
+    }
+    for (ManifestFile parentManifest : parentManifests) {
+      if (!manifestPaths.contains(parentManifest.path())) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  /**
+   * Computes the number of rows assigned across the given manifests. Mirrors the row-ID accumulator
+   * in {@code ManifestListWriter.V3Writer}: each DATA manifest contributes {@code existingRowsCount
+   * + addedRowsCount} toward the total assignment.
+   */
+  private static long computeAssignedRows(ManifestFile[] manifestFiles) {
+    long total = 0L;
+    for (ManifestFile manifest : manifestFiles) {
+      if (manifest.content() == ManifestContent.DATA) {
+        if (manifest.existingRowsCount() != null) {
+          total += manifest.existingRowsCount();
+        }
+        if (manifest.addedRowsCount() != null) {
+          total += manifest.addedRowsCount();
+        }
+      }
+    }
+    return total;
   }
 
   private void runValidations(Snapshot parentSnapshot) {
@@ -545,9 +711,14 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
             cleanUncommitted(Sets.newHashSet(saved.allManifests(ops.io())));
           }
 
-          // also clean up unused manifest lists created by multiple attempts
+          // also clean up unused manifest lists (or root manifests for v4) created by multiple
+          // attempts. For v4, manifestListLocation() is null; use rootManifestLocation() instead.
+          String committedLocation =
+              saved.manifestListLocation() != null
+                  ? saved.manifestListLocation()
+                  : saved.rootManifestLocation();
           for (String manifestList : manifestLists) {
-            if (!saved.manifestListLocation().equals(manifestList)) {
+            if (!manifestList.equals(committedLocation)) {
               deleteFile(manifestList);
             }
           }
@@ -621,6 +792,19 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
                         commitUUID))));
   }
 
+  protected OutputFile rootManifestPath() {
+    return ops.io()
+        .newOutputFile(
+            ops.metadataFileLocation(
+                FileFormat.PARQUET.addExtension(
+                    String.format(
+                        Locale.ROOT,
+                        "snap-%d-%d-%s",
+                        snapshotId(),
+                        attempt.incrementAndGet(),
+                        commitUUID))));
+  }
+
   protected EncryptedOutputFile newManifestOutputFile() {
     String manifestFileLocation =
         ops.metadataFileLocation(
@@ -630,21 +814,32 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   }
 
   protected ManifestWriter<DataFile> newManifestWriter(PartitionSpec spec) {
+    TableMetadata current = ops.current();
+    if (current.formatVersion() >= 4) {
+      return ManifestFiles.newV4Writer(
+          spec,
+          Partitioning.partitionType(current.schema(), current.specsById().values()),
+          newManifestOutputFile(),
+          snapshotId(),
+          null /* firstRowId is assigned at the leaf manifest reference layer */,
+          manifestWriterProps);
+    }
     return ManifestFiles.write(
-        ops.current().formatVersion(),
-        spec,
-        newManifestOutputFile(),
-        snapshotId(),
-        manifestWriterProps);
+        current.formatVersion(), spec, newManifestOutputFile(), snapshotId(), manifestWriterProps);
   }
 
   protected ManifestWriter<DeleteFile> newDeleteManifestWriter(PartitionSpec spec) {
+    TableMetadata current = ops.current();
+    if (current.formatVersion() >= 4) {
+      return ManifestFiles.newV4DeleteWriter(
+          spec,
+          Partitioning.partitionType(current.schema(), current.specsById().values()),
+          newManifestOutputFile(),
+          snapshotId(),
+          manifestWriterProps);
+    }
     return ManifestFiles.writeDeleteManifest(
-        ops.current().formatVersion(),
-        spec,
-        newManifestOutputFile(),
-        snapshotId(),
-        manifestWriterProps);
+        current.formatVersion(), spec, newManifestOutputFile(), snapshotId(), manifestWriterProps);
   }
 
   protected RollingManifestWriter<DataFile> newRollingManifestWriter(PartitionSpec spec) {

@@ -123,6 +123,9 @@ public class TestEntriesMetadataTable extends TestBase {
   @TestTemplate
   public void testEntriesTableWithDeleteManifests() {
     assumeThat(formatVersion).as("Only V2 Tables Support Deletes").isGreaterThanOrEqualTo(2);
+    // v4 has no separate delete manifests; DVs are colocated in data manifests
+    // (Phase 10 architectural follow-up).
+    assumeThat(formatVersion).isLessThan(4);
     table.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
     table.newRowDelta().addDeletes(fileADeletes()).commit();

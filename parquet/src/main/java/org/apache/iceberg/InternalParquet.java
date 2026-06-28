@@ -32,6 +32,16 @@ public class InternalParquet {
         FileFormat.PARQUET, InternalParquet::writeInternal, InternalParquet::readInternal);
   }
 
+  /**
+   * Reads only the file schema from a Parquet file footer. Used by {@code ManifestFiles} to
+   * dispatch between the legacy {@code manifest_entry} reader and the v4 {@code content_entry}
+   * reader without committing to a projection schema upfront. Invoked reflectively via {@code
+   * DynMethods} from the core module so core does not have a hard dependency on Parquet.
+   */
+  public static Schema readSchema(InputFile inputFile) {
+    return Parquet.readSchema(inputFile);
+  }
+
   private static Parquet.WriteBuilder writeInternal(OutputFile outputFile) {
     return Parquet.write(outputFile).createWriterFunc(InternalWriter::createWriter);
   }

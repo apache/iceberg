@@ -251,9 +251,12 @@ class IncrementalFileCleanup extends FileCleanupStrategy {
                       e, "Failed to close manifest list: %s", snapshot.manifestListLocation());
                 }
 
-                // add the manifest list to the delete set, if present
+                // add the manifest list (v1–v3) or root manifest (v4) to the delete set
                 if (snapshot.manifestListLocation() != null) {
                   manifestListsToDelete.add(snapshot.manifestListLocation());
+                }
+                if (snapshot.rootManifestLocation() != null) {
+                  manifestListsToDelete.add(snapshot.rootManifestLocation());
                 }
               }
             });

@@ -50,6 +50,7 @@ public class SnapshotParser {
   private static final String OPERATION = "operation";
   private static final String MANIFESTS = "manifests";
   private static final String MANIFEST_LIST = "manifest-list";
+  private static final String ROOT_MANIFEST = "root-manifest";
   private static final String SCHEMA_ID = "schema-id";
   private static final String FIRST_ROW_ID = "first-row-id";
   private static final String ADDED_ROWS = "added-rows";
@@ -83,7 +84,10 @@ public class SnapshotParser {
     }
 
     String manifestList = snapshot.manifestListLocation();
-    if (manifestList != null) {
+    String rootManifest = snapshot.rootManifestLocation();
+    if (rootManifest != null) {
+      generator.writeStringField(ROOT_MANIFEST, rootManifest);
+    } else if (manifestList != null) {
       // write just the location. manifests should not be embedded in JSON along with a list
       generator.writeStringField(MANIFEST_LIST, manifestList);
     } else {
@@ -122,6 +126,10 @@ public class SnapshotParser {
   }
 
   static Snapshot fromJson(JsonNode node) {
+    return fromJson(node, 2);
+  }
+
+  static Snapshot fromJson(JsonNode node, int formatVersion) {
     Preconditions.checkArgument(
         node.isObject(), "Cannot parse table version from a non-object: %s", node);
 
@@ -176,7 +184,26 @@ public class SnapshotParser {
 
     String keyId = JsonUtil.getStringOrNull(KEY_ID, node);
 
-    if (node.has(MANIFEST_LIST)) {
+    if (node.has(ROOT_MANIFEST)) {
+      // v4+ snapshot: uses root-manifest instead of manifest-list
+      String rootManifest = JsonUtil.getString(ROOT_MANIFEST, node);
+      int resolvedFormatVersion = formatVersion >= 4 ? formatVersion : 4;
+      return new BaseSnapshot(
+          resolvedFormatVersion,
+          sequenceNumber,
+          snapshotId,
+          parentId,
+          timestamp,
+          operation,
+          summary,
+          schemaId,
+          null,
+          rootManifest,
+          firstRowId,
+          addedRows,
+          keyId);
+
+    } else if (node.has(MANIFEST_LIST)) {
       // the manifest list is stored in a manifest list file
       String manifestList = JsonUtil.getString(MANIFEST_LIST, node);
       return new BaseSnapshot(

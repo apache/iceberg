@@ -37,6 +37,11 @@ import org.junit.jupiter.api.TestTemplate;
 
 public class TestManifestReader extends TestBase {
 
+  // The v4 skips below (assumeThat(...).isLessThan(4)) on tests that write standalone
+  // position-delete files or DV-as-DeleteFile will be removed once PR #16677 (or its successor)
+  // gates v4 out of the broad parameterized test suite during incubation. Phase 10 of the v4 plan
+  // re-enables broad v4 testing.
+
   private static final RecursiveComparisonConfiguration FILE_COMPARISON_CONFIG =
       RecursiveComparisonConfiguration.builder()
           .withIgnoredFields(
@@ -166,6 +171,10 @@ public class TestManifestReader extends TestBase {
     assumeThat(formatVersion)
         .as("Delete files only work for format version 2 or higher")
         .isGreaterThanOrEqualTo(2);
+    assumeThat(formatVersion)
+        .as(
+            "v4 spec forbids content_type=POSITION_DELETES; standalone position-delete files cannot be written as v4 manifests")
+        .isLessThan(4);
     ManifestFile manifest =
         writeDeleteManifest(formatVersion, 1000L, FILE_A_DELETES, FILE_B_DELETES);
     try (ManifestReader<DeleteFile> reader =
@@ -179,6 +188,10 @@ public class TestManifestReader extends TestBase {
   @TestTemplate
   public void testDeleteFilesWithReferences() throws IOException {
     assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
+    assumeThat(formatVersion)
+        .as(
+            "v4 spec forbids content_type=POSITION_DELETES; standalone position-delete files cannot be written as v4 manifests")
+        .isLessThan(4);
     DeleteFile deleteFile1 = newDeleteFileWithRef(FILE_A);
     DeleteFile deleteFile2 = newDeleteFileWithRef(FILE_B);
     ManifestFile manifest = writeDeleteManifest(formatVersion, 1000L, deleteFile1, deleteFile2);
@@ -197,6 +210,10 @@ public class TestManifestReader extends TestBase {
   @TestTemplate
   public void testDVs() throws IOException {
     assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
+    assumeThat(formatVersion)
+        .as(
+            "v4 colocates DVs in data manifests via the deletion_vector struct; standalone DV delete files have no v4 representation")
+        .isLessThan(4);
     DeleteFile dv1 = newDV(FILE_A);
     DeleteFile dv2 = newDV(FILE_B);
     ManifestFile manifest = writeDeleteManifest(formatVersion, 1000L, dv1, dv2);

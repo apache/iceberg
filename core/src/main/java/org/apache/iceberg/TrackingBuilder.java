@@ -27,7 +27,7 @@ class TrackingBuilder {
   private final Long snapshotId;
   private final Long dataSequenceNumber;
   private final Long fileSequenceNumber;
-  private final Long firstRowId;
+  private Long firstRowId;
   private EntryStatus status;
   private Long dvSnapshotId;
   private byte[] deletedPositions;
@@ -72,6 +72,35 @@ class TrackingBuilder {
     return terminal(EntryStatus.REPLACED, source, newSnapshotId);
   }
 
+  /**
+   * Returns a {@link TrackingBuilder} for a v4 {@code content_entry} row whose tracking values are
+   * provided by the caller — used when values come from outside the writer: a root-manifest entry's
+   * commit sequence number, or a legacy {@link ManifestEntry}'s sequence numbers projected into v4
+   * shape. Unlike {@link #added(long)}, which defaults to {@code ADDED} status with null sequence
+   * numbers, and {@link #from(Tracking, long)}, which derives from a prior tracking row, this
+   * factory takes every field explicitly.
+   *
+   * @param status entry status (typically {@link EntryStatus#ADDED} for newly written manifest
+   *     references, {@link EntryStatus#EXISTING} for carried-over references and projected legacy
+   *     entries, or {@link EntryStatus#DELETED} for terminal entries)
+   * @param snapshotId snapshot ID for this commit
+   * @param dataSequenceNumber the data sequence number for the entry
+   * @param fileSequenceNumber the file sequence number for the entry
+   * @param firstRowId first-row-id for ADDED data files within a referenced manifest, or carried-
+   *     over first-row-id for EXISTING/DELETED data file projections; null for delete files and
+   *     entries that will inherit at read time
+   */
+  static TrackingBuilder forContentEntry(
+      EntryStatus status,
+      long snapshotId,
+      long dataSequenceNumber,
+      long fileSequenceNumber,
+      Long firstRowId) {
+    Preconditions.checkArgument(status != null, "Invalid status: null");
+    return new TrackingBuilder(
+        status, snapshotId, dataSequenceNumber, fileSequenceNumber, firstRowId);
+  }
+
   private TrackingBuilder(long newSnapshotId) {
     this.status = EntryStatus.ADDED;
     this.snapshotId = newSnapshotId;
@@ -94,6 +123,26 @@ class TrackingBuilder {
     this.fileSequenceNumber = source.fileSequenceNumber();
     this.firstRowId = source.firstRowId();
     this.dvSnapshotId = source.dvSnapshotId();
+    this.deletedPositions = null;
+    this.replacedPositions = null;
+  }
+
+  // Constructor for explicit tracking rows used by forContentEntry.
+  // The tracking-mutator setters (dvUpdated / deletedPositions / replacedPositions) are not
+  // intended to be used with explicit tracking — the TrackedFileBuilder guards that combination.
+  private TrackingBuilder(
+      EntryStatus status,
+      long snapshotId,
+      Long dataSequenceNumber,
+      Long fileSequenceNumber,
+      Long firstRowId) {
+    this.status = status;
+    this.snapshotId = snapshotId;
+    this.newSnapshotId = snapshotId;
+    this.dataSequenceNumber = dataSequenceNumber;
+    this.fileSequenceNumber = fileSequenceNumber;
+    this.firstRowId = firstRowId;
+    this.dvSnapshotId = null;
     this.deletedPositions = null;
     this.replacedPositions = null;
   }

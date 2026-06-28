@@ -29,6 +29,7 @@ import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.types.Types;
 
 /**
  * Writer for manifest files.
@@ -59,6 +60,19 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
   private long existingRows = 0L;
   private int deletedFiles = 0;
   private long deletedRows = 0L;
+  // v4: total number of entries appended via addEntry, across every status. Used by V4 writers to
+  // populate the leaf manifest's record_count on the root-manifest content_entry row. Tracked
+  // separately from the per-status counters above because v4 status counts (added/existing/deleted/
+  // replaced/modified) are not all surfaced via this writer's accessors (e.g. MODIFIED gets folded
+  // into existing in toManifestFile), and the on-disk record_count must equal the row count of
+  // the leaf manifest file regardless.
+  private int entriesWritten = 0;
+  private int replacedFiles = 0;
+  private long replacedRows = 0L;
+  // MODIFIED entries are live (like EXISTING) — tracked separately so toManifestFile() can
+  // fold them into existingFilesCount/existingRowsCount without double-counting.
+  private int modifiedFiles = 0;
+  private long modifiedRows = 0L;
   private Long minDataSequenceNumber = null;
 
   private ManifestWriter(
@@ -108,6 +122,19 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
     return ManifestContent.DATA;
   }
 
+  protected Long writerSnapshotId() {
+    return snapshotId;
+  }
+
+  protected GenericManifestEntry<F> reusedEntry() {
+    return reused;
+  }
+
+  /** Total number of entries appended to this writer via {@link #addEntry}, across every status. */
+  protected int entriesWritten() {
+    return entriesWritten;
+  }
+
   void addEntry(ManifestEntry<F> entry) {
     switch (entry.status()) {
       case ADDED:
@@ -123,6 +150,7 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
         deletedRows += entry.file().recordCount();
         break;
     }
+    entriesWritten += 1;
 
     stats.update(entry.file().partition());
 
@@ -133,6 +161,87 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
     }
 
     writer.add(prepare(entry));
+  }
+
+  // Protected helpers for subclasses that need to bypass prepare() and directly drive counters.
+  protected void incrementAdded(long recordCount) {
+    addedFiles += 1;
+    addedRows += recordCount;
+  }
+
+  protected void updateStats(StructLike partition) {
+    stats.update(partition);
+  }
+
+  protected void updateMinDataSequenceNumber(Long seqNum) {
+    if (seqNum != null && (minDataSequenceNumber == null || seqNum < minDataSequenceNumber)) {
+      minDataSequenceNumber = seqNum;
+    }
+  }
+
+  @SuppressWarnings("unchecked")
+  protected void writeRaw(ManifestEntry<?> entry) {
+    writer.add((ManifestEntry<F>) entry);
+  }
+
+  // Tracks a REPLACED entry (not live): increments replacedFiles/replacedRows counters and writes
+  // the entry directly (already prepared by V4Writer.prepareWithStatus). Must NOT call prepare()
+  // again — that would overwrite the REPLACED EntryStatus with the original ManifestEntry.Status.
+  void addReplacedEntry(ManifestEntry<F> entry) {
+    replacedFiles += 1;
+    replacedRows += entry.file().recordCount();
+    entriesWritten += 1;
+    stats.update(entry.file().partition());
+    writeRaw(entry);
+  }
+
+  // Tracks a MODIFIED entry (live): increments modifiedFiles/modifiedRows counters and updates
+  // minDataSequenceNumber. Must NOT call prepare() again — the entry is already prepared.
+  void addModifiedEntry(ManifestEntry<F> entry) {
+    modifiedFiles += 1;
+    modifiedRows += entry.file().recordCount();
+    entriesWritten += 1;
+    stats.update(entry.file().partition());
+
+    if (entry.dataSequenceNumber() != null
+        && (minDataSequenceNumber == null || entry.dataSequenceNumber() < minDataSequenceNumber)) {
+      this.minDataSequenceNumber = entry.dataSequenceNumber();
+    }
+
+    writeRaw(entry);
+  }
+
+  /**
+   * Write an entry marking the prior state of a data file in a v4 REPLACED/MODIFIED pair.
+   *
+   * <p>Only meaningful for v4 data manifests; non-v4 writers throw {@link
+   * UnsupportedOperationException}. The pair must be followed immediately by a {@link
+   * #modifiedEntry(ManifestEntry, DeletionVector)} call for the same data file.
+   *
+   * @param entry the manifest entry for the data file in its prior live state
+   * @param priorDv the deletion vector attached to the data file before this commit, or null if the
+   *     prior state had no DV. Preserving the prior DV on the REPLACED row lets readers (e.g.
+   *     {@code SnapshotChanges.removedDeleteFiles}) identify the DV that was superseded by the
+   *     paired MODIFIED row without consulting the parent manifest.
+   */
+  void replacedEntry(ManifestEntry<F> entry, DeletionVector priorDv) {
+    throw new UnsupportedOperationException(
+        "REPLACED entries require a v4 manifest writer; use V4Writer");
+  }
+
+  /**
+   * Write an entry marking the new live state of a data file in a v4 REPLACED/MODIFIED pair.
+   *
+   * <p>Only meaningful for v4 data manifests; non-v4 writers throw {@link
+   * UnsupportedOperationException}. Must follow a {@link #replacedEntry(ManifestEntry)} call for
+   * the same data file.
+   *
+   * @param entry the manifest entry for the data file
+   * @param dv the new deletion vector to attach to the MODIFIED entry
+   */
+  void modifiedEntry(ManifestEntry<F> entry, DeletionVector dv) {
+    throw new UnsupportedOperationException(
+        "MODIFIED entries require a v4 manifest writer; use V4Writer");
   }
 
   /**
@@ -230,23 +339,32 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
     // so the min data sequence number is the one that will be assigned when this is committed.
     // pass UNASSIGNED_SEQ to inherit it.
     long minSeqNumber = minDataSequenceNumber != null ? minDataSequenceNumber : UNASSIGNED_SEQ;
-    return new GenericManifestFile(
-        file.location(),
-        writer.length(),
-        specId,
-        content(),
-        UNASSIGNED_SEQ,
-        minSeqNumber,
-        snapshotId,
-        stats.summaries(),
-        keyMetadataBuffer,
-        addedFiles,
-        addedRows,
-        existingFiles,
-        existingRows,
-        deletedFiles,
-        deletedRows,
-        firstRowId);
+    // MODIFIED entries are live (v4 REPLACED/MODIFIED pairs); fold into existing counts so that
+    // ManifestFilterManager.hasExistingFiles() remains correct.
+    GenericManifestFile result =
+        new GenericManifestFile(
+            file.location(),
+            writer.length(),
+            specId,
+            content(),
+            UNASSIGNED_SEQ,
+            minSeqNumber,
+            snapshotId,
+            stats.summaries(),
+            keyMetadataBuffer,
+            addedFiles,
+            addedRows,
+            existingFiles + modifiedFiles,
+            existingRows + modifiedRows,
+            deletedFiles,
+            deletedRows,
+            firstRowId);
+    if (replacedFiles > 0 || modifiedFiles > 0) {
+      result.replacedFilesCount = replacedFiles;
+      result.replacedRowsCount = replacedRows;
+    }
+
+    return result;
   }
 
   private ByteBuffer keyMetadataBuffer() {
@@ -268,32 +386,288 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
     writer.close();
   }
 
+  /**
+   * A {@link ManifestEntry} wrapper that delegates {@link StructLike} access to a {@code
+   * TrackedFile} struct for writing content_entry rows in v4 leaf manifests.
+   */
+  private static class ContentEntryWriterEntry<F extends ContentFile<F>>
+      implements ManifestEntry<F>, StructLike {
+    private ManifestEntry<F> wrapped;
+    private StructLike trackedStruct;
+
+    ContentEntryWriterEntry<F> wrap(ManifestEntry<F> entry, TrackedFile trackedFile) {
+      this.wrapped = entry;
+      // TrackedFile is package-private and has a single impl (TrackedFileStruct) that implements
+      // StructLike via SupportsIndexProjection. Keeping StructLike off the TrackedFile interface
+      // matches the convention in V1/V2/V3 metadata (ContentFile, ManifestEntry, ManifestFile are
+      // all kept clean of StructLike — their internal wrappers add it).
+      this.trackedStruct = (StructLike) trackedFile;
+      return this;
+    }
+
+    @Override
+    public int size() {
+      return trackedStruct.size();
+    }
+
+    @Override
+    public <T> T get(int pos, Class<T> javaClass) {
+      return trackedStruct.get(pos, javaClass);
+    }
+
+    @Override
+    public <T> void set(int pos, T value) {
+      throw new UnsupportedOperationException("ContentEntryWriterEntry is read-only");
+    }
+
+    @Override
+    public Status status() {
+      return wrapped.status();
+    }
+
+    @Override
+    public Long snapshotId() {
+      return wrapped.snapshotId();
+    }
+
+    @Override
+    public Long dataSequenceNumber() {
+      return wrapped.dataSequenceNumber();
+    }
+
+    @Override
+    public Long fileSequenceNumber() {
+      return wrapped.fileSequenceNumber();
+    }
+
+    @Override
+    public F file() {
+      return wrapped.file();
+    }
+
+    @Override
+    public ManifestEntry<F> copy() {
+      return wrapped.copy();
+    }
+
+    @Override
+    public ManifestEntry<F> copyWithoutStats() {
+      return wrapped.copyWithoutStats();
+    }
+
+    @Override
+    public void setSnapshotId(long snapshotId) {
+      wrapped.setSnapshotId(snapshotId);
+    }
+
+    @Override
+    public void setDataSequenceNumber(long dataSequenceNumber) {
+      wrapped.setDataSequenceNumber(dataSequenceNumber);
+    }
+
+    @Override
+    public void setFileSequenceNumber(long fileSequenceNumber) {
+      wrapped.setFileSequenceNumber(fileSequenceNumber);
+    }
+  }
+
   static class V4Writer extends ManifestWriter<DataFile> {
-    private final V4Metadata.ManifestEntryWrapper<DataFile> entryWrapper;
+    /**
+     * Placeholder partition struct used when the union partition type is empty (i.e., every live
+     * spec in the table is unpartitioned). Parquet cannot encode an empty {@code
+     * Types.StructType.of()} as a physical column, so a single dummy optional boolean field is used
+     * instead. This field is always written as null and is ignored on read. Mirrors the placeholder
+     * used by {@code RootManifestWriter} so the on-disk schema shape stays consistent across the v4
+     * metadata tree.
+     */
+    static final Types.StructType EMPTY_PARTITION_PLACEHOLDER =
+        Types.StructType.of(
+            Types.NestedField.optional(99999, "_unpartitioned", Types.BooleanType.get()));
+
+    /** Replaces an empty partition type with the placeholder; otherwise returns the input. */
+    static Types.StructType emptyPartitionPlaceholderIfNeeded(Types.StructType partitionType) {
+      return partitionType.fields().isEmpty() ? EMPTY_PARTITION_PLACEHOLDER : partitionType;
+    }
+
+    // ManifestWriter's super-constructor calls newAppender() before V4Writer's constructor body
+    // sets fields, so unionPartitionType must be available to newAppender via a side channel. A
+    // ThreadLocal is the simplest unobtrusive option that does not require restructuring the
+    // ManifestWriter hierarchy. Each V4Writer constructor stashes the union type before super(...)
+    // and clears it on its first use inside newAppender().
+    private static final ThreadLocal<Types.StructType> PENDING_UNION_PARTITION_TYPE =
+        new ThreadLocal<>();
+
+    private final Schema tableSchema;
+    private final Types.StructType unionPartitionType;
+    private final ContentEntryWriterEntry<DataFile> writerEntry;
 
     V4Writer(
         PartitionSpec spec,
+        Types.StructType unionPartitionType,
         EncryptedOutputFile file,
         Long snapshotId,
         Long firstRowId,
         Map<String, String> writerProperties) {
-      super(spec, file, snapshotId, firstRowId, writerProperties);
-      this.entryWrapper = new V4Metadata.ManifestEntryWrapper<>(snapshotId, spec.partitionType());
+      super(
+          stashUnionPartitionType(spec, unionPartitionType),
+          file,
+          snapshotId,
+          firstRowId,
+          writerProperties);
+      this.tableSchema = spec.schema();
+      this.unionPartitionType = unionPartitionType;
+      this.writerEntry = new ContentEntryWriterEntry<>();
+    }
+
+    private static PartitionSpec stashUnionPartitionType(
+        PartitionSpec spec, Types.StructType unionPartitionType) {
+      PENDING_UNION_PARTITION_TYPE.set(unionPartitionType);
+      return spec;
     }
 
     @Override
     protected ManifestEntry<DataFile> prepare(ManifestEntry<DataFile> entry) {
-      return entryWrapper.wrap(entry);
+      TrackedFile trackedFile =
+          ContentEntryAdapters.fromDataFile(
+              entry, tableSchema, unionPartitionType, toEntryStatus(entry.status()));
+      return writerEntry.wrap(entry, trackedFile);
+    }
+
+    @Override
+    public void add(DataFile addedFile) {
+      // v4 stores firstRowId per-entry in the tracking struct; do not suppress it.
+      addEntry(reusedEntry().wrapAppendPreservingFirstRowId(writerSnapshotId(), null, addedFile));
+    }
+
+    /** Adds a data file that was born with a DV in the same commit as a single ADDED entry. */
+    void addWithDV(DataFile addedFile, DeletionVector dv) {
+      Long snapshotId = writerSnapshotId();
+      ManifestEntry<DataFile> entry =
+          reusedEntry().wrapAppendPreservingFirstRowId(snapshotId, null, addedFile);
+      // Born-with-DV is an ADDED entry with the DV attached in the same commit. Build via the
+      // TrackedFileBuilder.data() chain directly because ContentEntryAdapters.fromDataFile(...)
+      // does not take a DV parameter.
+      TrackedFileBuilder builder =
+          TrackedFileBuilder.data(snapshotId != null ? snapshotId : 0L)
+              .formatVersion(ContentEntryAdapters.V4_FORMAT_VERSION)
+              .location(addedFile.location())
+              .fileFormat(addedFile.format())
+              .partition((PartitionData) addedFile.partition())
+              .recordCount(addedFile.recordCount())
+              .fileSizeInBytes(addedFile.fileSizeInBytes())
+              .specId(addedFile.specId())
+              .deletionVector(dv);
+      if (addedFile.sortOrderId() != null) {
+        builder.sortOrderId(addedFile.sortOrderId());
+      }
+      if (addedFile.keyMetadata() != null) {
+        builder.keyMetadata(addedFile.keyMetadata());
+      }
+      if (addedFile.splitOffsets() != null) {
+        builder.splitOffsets(addedFile.splitOffsets());
+      }
+      TrackedFile trackedFile = builder.build();
+      // Write directly using the DV-carrying trackedFile, bypassing prepare() which would
+      // overwrite the TrackedFile without the DV.
+      writeRawEntry(writerEntry.wrap(entry, trackedFile), addedFile.recordCount(), true);
+    }
+
+    /**
+     * Writes a pre-prepared entry (already wrapped in a {@code TrackedFile} struct) without calling
+     * prepare() again. Used when the TrackedFile has already been set up by the caller.
+     */
+    private void writeRawEntry(
+        ManifestEntry<DataFile> prepared, long recordCount, boolean isAdded) {
+      if (isAdded) {
+        incrementAdded(recordCount);
+      }
+
+      updateStats(prepared.file().partition());
+      updateMinDataSequenceNumber(prepared.dataSequenceNumber());
+      writeRaw(prepared);
+    }
+
+    @Override
+    void replacedEntry(ManifestEntry<DataFile> entry, DeletionVector priorDv) {
+      // Emit the prior-state row (REPLACED — not live), preserving the prior DV when present so
+      // downstream change-detection (e.g. SnapshotChanges.removedDeleteFiles) can identify the DV
+      // that was superseded by the paired MODIFIED row.
+      addReplacedEntry(prepareReplaced(entry, priorDv));
+    }
+
+    @Override
+    void modifiedEntry(ManifestEntry<DataFile> entry, DeletionVector dv) {
+      // Emit the new live row (MODIFIED) with the attached DV.
+      addModifiedEntry(prepareModified(entry, dv));
+    }
+
+    // Builds a MODIFIED row by promoting EXISTING → MODIFIED via TrackedFileBuilder.from(source)
+    // and attaching the new DV. TrackingBuilder.build() resets snapshot_id to the new commit's id.
+    private ManifestEntry<DataFile> prepareModified(
+        ManifestEntry<DataFile> entry, DeletionVector dv) {
+      Preconditions.checkArgument(dv != null, "Invalid deletion vector for MODIFIED row: null");
+      TrackedFile source =
+          ContentEntryAdapters.fromDataFile(
+              entry, tableSchema, unionPartitionType, EntryStatus.EXISTING);
+      long snapshotId = writerSnapshotId() != null ? writerSnapshotId() : 0L;
+      TrackedFile trackedFile =
+          TrackedFileBuilder.from(source, snapshotId).deletionVector(dv).build();
+      return writerEntry.wrap(entry, trackedFile);
+    }
+
+    // Builds a REPLACED row from the prior live state. The prior DV (if any) is preserved on the
+    // row so downstream consumers can identify removed DVs without consulting the parent manifest.
+    private ManifestEntry<DataFile> prepareReplaced(
+        ManifestEntry<DataFile> entry, DeletionVector priorDv) {
+      TrackedFile source =
+          ContentEntryAdapters.fromDataFile(
+              entry, tableSchema, unionPartitionType, EntryStatus.EXISTING);
+      long snapshotId = writerSnapshotId() != null ? writerSnapshotId() : 0L;
+      TrackedFile trackedFile;
+      if (priorDv != null) {
+        // Attach the prior DV to a transient EXISTING TrackedFile, then mark REPLACED via
+        // TrackedFileBuilder.replaced(...). TrackedFileBuilder.from(...).deletionVector(...) flips
+        // status to MODIFIED, but the subsequent replaced(...) overrides it with REPLACED. The DV
+        // is preserved through the terminal transition.
+        TrackedFile sourceWithDv =
+            TrackedFileBuilder.from(source, snapshotId).deletionVector(priorDv).build();
+        trackedFile = TrackedFileBuilder.replaced(sourceWithDv, snapshotId);
+      } else {
+        // REPLACED: terminal transition; the new row records the current commit's snapshot id.
+        trackedFile = TrackedFileBuilder.replaced(source, snapshotId);
+      }
+
+      return writerEntry.wrap(entry, trackedFile);
+    }
+
+    @Override
+    public ManifestFile toManifestFile() {
+      // Set the on-disk record_count for the leaf manifest reference so the v4 root manifest's
+      // content_entry row at field id 103 carries the actual entry count (including any statuses
+      // not surfaced through the per-status accessors on ManifestFile).
+      GenericManifestFile result = (GenericManifestFile) super.toManifestFile();
+      result.setRecordCount(entriesWritten());
+      result.setFormatVersion(ContentEntryAdapters.V4_FORMAT_VERSION);
+      return result;
     }
 
     @Override
     protected FileAppender<ManifestEntry<DataFile>> newAppender(
         PartitionSpec spec, OutputFile file) {
-      Schema manifestSchema = V4Metadata.entrySchema(spec.partitionType());
+      Types.StructType partitionType = PENDING_UNION_PARTITION_TYPE.get();
+      PENDING_UNION_PARTITION_TYPE.remove();
+      Preconditions.checkArgument(
+          partitionType != null, "Invalid union partition type: null (writer mis-initialized)");
+      Schema contentEntrySchema =
+          new Schema(
+              TrackedFile.schemaWithContentStats(
+                      emptyPartitionPlaceholderIfNeeded(partitionType),
+                      StatsUtil.contentStatsFor(spec.schema()).type().asStructType())
+                  .fields());
       try {
         return InternalData.write(format(), file)
-            .schema(manifestSchema)
-            .named("manifest_entry")
+            .schema(contentEntrySchema)
+            .named("content_entry")
             .meta("schema", SchemaParser.toJson(spec.schema()))
             .meta("partition-spec", PartitionSpecParser.toJsonFields(spec))
             .meta("partition-spec-id", String.valueOf(spec.specId()))
@@ -310,30 +684,72 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
   }
 
   static class V4DeleteWriter extends ManifestWriter<DeleteFile> {
-    private final V4Metadata.ManifestEntryWrapper<DeleteFile> entryWrapper;
+    // See V4Writer.PENDING_UNION_PARTITION_TYPE for why a ThreadLocal is necessary.
+    private static final ThreadLocal<Types.StructType> PENDING_UNION_PARTITION_TYPE =
+        new ThreadLocal<>();
+
+    private final Schema tableSchema;
+    private final Types.StructType unionPartitionType;
+    private final ContentEntryWriterEntry<DeleteFile> writerEntry;
 
     V4DeleteWriter(
         PartitionSpec spec,
+        Types.StructType unionPartitionType,
         EncryptedOutputFile file,
         Long snapshotId,
         Map<String, String> writerProperties) {
-      super(spec, file, snapshotId, null, writerProperties);
-      this.entryWrapper = new V4Metadata.ManifestEntryWrapper<>(snapshotId, spec.partitionType());
+      super(
+          stashUnionPartitionType(spec, unionPartitionType),
+          file,
+          snapshotId,
+          null,
+          writerProperties);
+      this.tableSchema = spec.schema();
+      this.unionPartitionType = unionPartitionType;
+      this.writerEntry = new ContentEntryWriterEntry<>();
+    }
+
+    private static PartitionSpec stashUnionPartitionType(
+        PartitionSpec spec, Types.StructType unionPartitionType) {
+      PENDING_UNION_PARTITION_TYPE.set(unionPartitionType);
+      return spec;
     }
 
     @Override
     protected ManifestEntry<DeleteFile> prepare(ManifestEntry<DeleteFile> entry) {
-      return entryWrapper.wrap(entry);
+      TrackedFile trackedFile =
+          ContentEntryAdapters.fromDeleteFile(
+              entry, tableSchema, unionPartitionType, toEntryStatus(entry.status()));
+      return writerEntry.wrap(entry, trackedFile);
+    }
+
+    @Override
+    public ManifestFile toManifestFile() {
+      // See V4Writer.toManifestFile for why record_count is set explicitly on v4 leaf writers.
+      GenericManifestFile result = (GenericManifestFile) super.toManifestFile();
+      result.setRecordCount(entriesWritten());
+      result.setFormatVersion(ContentEntryAdapters.V4_FORMAT_VERSION);
+      return result;
     }
 
     @Override
     protected FileAppender<ManifestEntry<DeleteFile>> newAppender(
         PartitionSpec spec, OutputFile file) {
-      Schema manifestSchema = V4Metadata.entrySchema(spec.partitionType());
+      Types.StructType partitionType = PENDING_UNION_PARTITION_TYPE.get();
+      PENDING_UNION_PARTITION_TYPE.remove();
+      Preconditions.checkArgument(
+          partitionType != null,
+          "Invalid union partition type: null (delete writer mis-initialized)");
+      Schema contentEntrySchema =
+          new Schema(
+              TrackedFile.schemaWithContentStats(
+                      V4Writer.emptyPartitionPlaceholderIfNeeded(partitionType),
+                      StatsUtil.contentStatsFor(spec.schema()).type().asStructType())
+                  .fields());
       try {
         return InternalData.write(format(), file)
-            .schema(manifestSchema)
-            .named("manifest_entry")
+            .schema(contentEntrySchema)
+            .named("content_entry")
             .meta("schema", SchemaParser.toJson(spec.schema()))
             .meta("partition-spec", PartitionSpecParser.toJsonFields(spec))
             .meta("partition-spec-id", String.valueOf(spec.specId()))
@@ -351,6 +767,19 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
     @Override
     protected ManifestContent content() {
       return ManifestContent.DELETES;
+    }
+  }
+
+  private static EntryStatus toEntryStatus(ManifestEntry.Status status) {
+    switch (status) {
+      case EXISTING:
+        return EntryStatus.EXISTING;
+      case ADDED:
+        return EntryStatus.ADDED;
+      case DELETED:
+        return EntryStatus.DELETED;
+      default:
+        throw new IllegalArgumentException("Unknown manifest entry status: " + status);
     }
   }
 

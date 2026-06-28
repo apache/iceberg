@@ -151,7 +151,7 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
     this.recordCount = toCopy.recordCount;
     this.fileSizeInBytes = toCopy.fileSizeInBytes;
     this.specId = toCopy.specId;
-    this.partitionData = toCopy.partitionData.copy();
+    this.partitionData = toCopy.partitionData != null ? toCopy.partitionData.copy() : null;
     this.tracking = toCopy.tracking != null ? toCopy.tracking.copy() : null;
     this.sortOrderId = toCopy.sortOrderId;
     this.deletionVector = toCopy.deletionVector != null ? toCopy.deletionVector.copy() : null;
