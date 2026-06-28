@@ -493,6 +493,13 @@ class RemoveEncryptionKeyUpdate(BaseUpdate):
     key_id: str = Field(..., alias='key-id')
 
 
+class OperationType(RootModel[str]):
+    root: str = Field(
+        ...,
+        description='The type of an operation. The standard operation types defined by this specification are listed below. This set may grow in future versions of the specification, so clients should ignore (discard) events with unknown operation types.\nImplementation-specific operation types SHOULD use an `x-` prefix (for example, `x-mycatalog.archive-snapshot`) to avoid colliding with current or future standard operation types. This mirrors the `X-` convention for HTTP headers and is a naming convention rather than a schema constraint.\nKnown standard operation types: `create-table`, `register-table`, `drop-table`, `update-table`, `rename-table`, `create-view`, `drop-view`, `update-view`, `rename-view`, `create-namespace`, `update-namespace-properties`, `drop-namespace`.\n',
+    )
+
+
 class TableRequirement(BaseModel):
     type: str
 
@@ -619,6 +626,50 @@ class EmptyPlanningResult(BaseModel):
 class PlanStatus(RootModel[Literal['completed', 'submitted', 'cancelled', 'failed']]):
     root: Literal['completed', 'submitted', 'cancelled', 'failed'] = Field(
         ..., description='Status of a server-side planning operation'
+    )
+
+
+class QueryEventsRequest(BaseModel):
+    continuation_token: str | None = Field(
+        None,
+        alias='continuation-token',
+        description='A continuation token returned by a previous response. Clients should treat the token as an opaque value and pass it unmodified. If not provided, events are returned from the beginning of the event log subject to other filters.\n',
+    )
+    page_size: int | None = Field(
+        None,
+        alias='page-size',
+        description='The maximum number of events to return in a single response. If not provided, the server may choose a default page size. Servers may return less results than requested for various reasons, such as server side limits, payload size or processing time.\n',
+        ge=1,
+    )
+    since_timestamp_ms: int | None = Field(
+        None,
+        alias='since-timestamp-ms',
+        description='Optional starting timestamp (seek-to-timestamp) for the initial request. The client consumes events that occurred at or after the specified timestamp, in milliseconds (inclusive), without iterating the full history. If not provided, no filtering based on timestamp values is applied. This applies only to the initial request. When a `continuation-token` is provided, it determines the resume position and `since-timestamp-ms` is ignored.\n',
+    )
+    operation_types: list[OperationType] | None = Field(
+        None,
+        alias='operation-types',
+        description='Filter events by the type of operation. If not provided, all types are returned.\n',
+    )
+    catalog_objects_by_name: list[CatalogObjectIdentifier] | None = Field(
+        None,
+        alias='catalog-objects-by-name',
+        description='Filter events by catalog object name. Each entry is an ordered list of namespace/object levels and matches by prefix: an event matches when the entry equals the object\'s name path, or is a leading prefix of it (compared level by level). For example `["a","b"]` matches the namespace `a.b` itself and every object beneath it - the table `a.b.t1`, the view `a.b.v1`, the sub-namespace `a.b.c` and its contents - but not the sibling namespace `a.c`. Because matching is purely by name path, it is independent of object kind: the server does not resolve whether a path denotes a namespace, table, or view. Use `object-types` to restrict matches to specific kinds. If not provided, events for all objects must be returned subject to other filters.\n',
+    )
+    catalog_objects_by_uuid: list[UUID] | None = Field(
+        None,
+        alias='catalog-objects-by-uuid',
+        description='Filter events by the list of catalog object UUIDs (tables, views). Combine with `object-types` to narrow to a specific object kind.\n',
+    )
+    object_types: list[Literal['namespace', 'table', 'view']] | None = Field(
+        None,
+        alias='object-types',
+        description='Filter events by the type of catalog object. If not provided, events for all object types must be returned.\n',
+    )
+    custom_filters: dict[str, str] | None = Field(
+        None,
+        alias='custom-filters',
+        description='Implementation-specific filter extensions. Implementations may define custom filter properties beyond the standard ones defined in this specification.\n',
     )
 
 
@@ -850,6 +901,61 @@ class UpdateNamespacePropertiesResponse(BaseModel):
         None,
         description="List of properties requested for removal that were not found in the namespace's properties. Represents a partial success response. Server's do not need to implement this.",
     )
+
+
+class Actor(BaseModel):
+    """
+    The actor who performed the operation, such as a user or service account. Implementations may add arbitrary additional fields; the optional `id` field is recommended as a portable identifier that consumers can render and key on.
+
+    """
+
+    id: str | None = Field(
+        None,
+        description='Recommended, optional. Stable identifier of the actor (e.g. a user or service account). Provided when the server can attribute the operation.\n',
+    )
+
+
+class BaseOperation(BaseModel):
+    """
+    Base type for all catalog operations carried by an `Event`. The `operation-type` discriminator selects the concrete operation schema. Standard operation types are enumerated in `OperationType`; implementation-specific operation types use an `x-` prefix (see `OperationType`). The schema enumerates only the standard operations; validation behavior for other `operation-type` values is implementation-defined. The typical Iceberg pattern is for parsers to switch on `operation-type` and route unknown values (including `x-` prefixed types) to a default handler.
+
+    """
+
+    operation_type: OperationType = Field(..., alias='operation-type')
+
+
+class DropTableOperation(BaseOperation):
+    operation_type: Literal['drop-table'] = Field(..., alias='operation-type')
+    identifier: TableIdentifier
+    table_uuid: UUID = Field(..., alias='table-uuid')
+    purge: bool | None = Field(
+        None,
+        description="Whether the originating drop request specified the purge flag, indicating that the table's data files should also be deleted, not just the catalog entry.\n",
+    )
+
+
+class DropViewOperation(BaseOperation):
+    operation_type: Literal['drop-view'] = Field(..., alias='operation-type')
+    identifier: TableIdentifier
+    view_uuid: UUID = Field(..., alias='view-uuid')
+
+
+class CreateNamespaceOperation(CreateNamespaceResponse, BaseOperation):
+    operation_type: Literal['create-namespace'] = Field(..., alias='operation-type')
+
+
+class UpdateNamespacePropertiesOperation(
+    UpdateNamespacePropertiesResponse, BaseOperation
+):
+    operation_type: Literal['update-namespace-properties'] = Field(
+        ..., alias='operation-type'
+    )
+    namespace: Namespace
+
+
+class DropNamespaceOperation(BaseOperation):
+    operation_type: Literal['drop-namespace'] = Field(..., alias='operation-type')
+    namespace: Namespace
 
 
 class BlobMetadata(BaseModel):
@@ -1185,6 +1291,16 @@ class FunctionDefinitionLogEntry(BaseModel):
         alias='definition-versions',
         description='Mapping of each definition to its selected version at this time.',
     )
+
+
+class RenameTableOperation(RenameTableRequest, BaseOperation):
+    operation_type: Literal['rename-table'] = Field(..., alias='operation-type')
+    table_uuid: UUID = Field(..., alias='table-uuid')
+
+
+class RenameViewOperation(RenameTableRequest, BaseOperation):
+    operation_type: Literal['rename-view'] = Field(..., alias='operation-type')
+    view_uuid: UUID = Field(..., alias='view-uuid')
 
 
 class StatisticsFile(BaseModel):
@@ -1841,6 +1957,113 @@ class CommitTableResponse(BaseModel):
     metadata: TableMetadata
 
 
+class QueryEventsResponse(BaseModel):
+    continuation_token: str = Field(
+        ...,
+        alias='continuation-token',
+        description="An opaque continuation token to fetch the next page of events. This token encodes the server's cursor position and filter state. Clients should treat this as an opaque value and pass it unmodified in subsequent requests. When no more events are currently available, the server returns an empty `events` array and a `continuation-token` that the client can re-issue later to receive events that occur after this point.\n",
+    )
+    events: list[Event]
+
+
+class Event(BaseModel):
+    event_id: str = Field(
+        ...,
+        alias='event-id',
+        description='Unique ID of this event. Clients should perform deduplication based on this ID.',
+    )
+    request_id: str = Field(
+        ...,
+        alias='request-id',
+        description='Opaque identifier of the catalog request that produced this event. Some catalog endpoints (e.g. updateTable, commitTransaction) apply multiple updates atomically and emit one event per update; all such events share the same `request-id`, allowing clients to group them.\n',
+    )
+    request_event_count: int = Field(
+        ...,
+        alias='request-event-count',
+        description='Number of events produced by the originating catalog request (e.g. updateTable or commitTransaction) that generated this event. Such requests can apply multiple updates atomically, each surfaced as a separate event sharing the same `request-id`; this count reports how many events that originating request produced in total.\n',
+    )
+    timestamp_ms: int = Field(
+        ...,
+        alias='timestamp-ms',
+        description='Timestamp when this event occurred (epoch milliseconds). Timestamps are not guaranteed to be unique. Typically all events in a transaction will have the same timestamp.\n',
+    )
+    actor: Actor | None = Field(
+        None,
+        description='The actor who performed the operation, such as a user or service account. Implementations may add arbitrary additional fields; the optional `id` field is recommended as a portable identifier that consumers can render and key on.\n',
+    )
+    operation: (
+        CreateTableOperation
+        | RegisterTableOperation
+        | DropTableOperation
+        | UpdateTableOperation
+        | RenameTableOperation
+        | CreateViewOperation
+        | DropViewOperation
+        | UpdateViewOperation
+        | RenameViewOperation
+        | CreateNamespaceOperation
+        | UpdateNamespacePropertiesOperation
+        | DropNamespaceOperation
+    ) = Field(
+        ...,
+        description='The operation that was performed, such as creating or updating a table. The concrete type is selected by the `operation-type` discriminator defined on `BaseOperation`. Parsers should route events with unknown `operation-type` values to a default handler rather than failing. Operations are emitted only when the underlying change is committed; staged changes are not surfaced.\n',
+    )
+
+
+class CreateTableOperation(BaseOperation):
+    """
+    Operation to create a new table in the catalog.
+
+    """
+
+    operation_type: Literal['create-table'] = Field(..., alias='operation-type')
+    identifier: TableIdentifier
+    table_uuid: UUID = Field(..., alias='table-uuid')
+    updates: list[TableUpdate]
+
+
+class RegisterTableOperation(BaseOperation):
+    operation_type: Literal['register-table'] = Field(..., alias='operation-type')
+    identifier: TableIdentifier
+    table_uuid: UUID = Field(..., alias='table-uuid')
+    updates: list[TableUpdate] | None = None
+
+
+class UpdateTableOperation(BaseOperation):
+    operation_type: Literal['update-table'] = Field(..., alias='operation-type')
+    identifier: TableIdentifier
+    table_uuid: UUID = Field(..., alias='table-uuid')
+    updates: list[TableUpdate]
+    requirements: (
+        list[
+            AssertCreate
+            | AssertTableUUID
+            | AssertRefSnapshotId
+            | AssertLastAssignedFieldId
+            | AssertCurrentSchemaId
+            | AssertLastAssignedPartitionId
+            | AssertDefaultSpecId
+            | AssertDefaultSortOrderId
+        ]
+        | None
+    ) = None
+
+
+class CreateViewOperation(BaseOperation):
+    operation_type: Literal['create-view'] = Field(..., alias='operation-type')
+    identifier: TableIdentifier
+    view_uuid: UUID = Field(..., alias='view-uuid')
+    updates: list[ViewUpdate]
+
+
+class UpdateViewOperation(BaseOperation):
+    operation_type: Literal['update-view'] = Field(..., alias='operation-type')
+    identifier: TableIdentifier
+    view_uuid: UUID = Field(..., alias='view-uuid')
+    updates: list[ViewUpdate]
+    requirements: list[ViewRequirement] | None = None
+
+
 class PlanTableScanRequest(BaseModel):
     snapshot_id: int | None = Field(
         None,
@@ -2105,6 +2328,13 @@ FunctionListType.model_rebuild()
 FunctionMapType.model_rebuild()
 FunctionStructType.model_rebuild()
 FunctionStructField.model_rebuild()
+QueryEventsResponse.model_rebuild()
+Event.model_rebuild()
+CreateTableOperation.model_rebuild()
+RegisterTableOperation.model_rebuild()
+UpdateTableOperation.model_rebuild()
+CreateViewOperation.model_rebuild()
+UpdateViewOperation.model_rebuild()
 PlanTableScanRequest.model_rebuild()
 FileScanTask.model_rebuild()
 CompletedPlanningResult.model_rebuild()
