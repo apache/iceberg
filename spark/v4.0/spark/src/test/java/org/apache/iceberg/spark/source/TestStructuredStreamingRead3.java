@@ -30,6 +30,7 @@ import java.util.Map;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
+import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.DataFile;
@@ -272,6 +273,61 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
         ImmutableMap.of(SparkReadOptions.STREAMING_MAX_ROWS_PER_MICRO_BATCH, "4"),
         List.of(4L, 3L),
         Trigger.AvailableNow());
+  }
+
+  @TestTemplate
+  public void testReadStreamWithNoRowLimitPlansMultiTrillionBackfill() throws Exception {
+    appendDataFilesWithRecordCounts(1_500_000_000_000L, 1_500_000_000_000L, 2_000_000_000_000L);
+
+    SparkMicroBatchStream stream =
+        newMicroBatchStream(ImmutableMap.of(), "multi-trillion-backfill-checkpoint");
+
+    try {
+      Offset startOffset = stream.initialOffset();
+      Offset endOffset = stream.latestOffset(startOffset, stream.getDefaultReadLimit());
+
+      assertThat(endOffset).isNotNull();
+      assertThat(((StreamingOffset) endOffset).position()).isEqualTo(3L);
+
+      List<FileScanTask> tasks = plannedTasks(stream, startOffset, endOffset);
+      assertThat(tasks).hasSize(3);
+      assertThat(plannedRecordCount(tasks)).isEqualTo(5_000_000_000_000L);
+    } finally {
+      stream.stop();
+    }
+  }
+
+  @TestTemplate
+  public void testReadStreamWithLongBackfillRowLimitUsesSoftLimit() throws Exception {
+    appendDataFilesWithRecordCounts(
+        1_000_000_000_000L, 1_000_000_000_000L, 1_500_000_000_000L, 1_000_000_000_000L);
+
+    SparkMicroBatchStream stream =
+        newMicroBatchStream(
+            ImmutableMap.of(SparkReadOptions.STREAMING_MAX_ROWS_PER_MICRO_BATCH, "3000000000000"),
+            "long-backfill-row-limit-checkpoint");
+
+    try {
+      Offset startOffset = stream.initialOffset();
+      Offset firstEndOffset = stream.latestOffset(startOffset, stream.getDefaultReadLimit());
+
+      assertThat(firstEndOffset).isNotNull();
+      assertThat(((StreamingOffset) firstEndOffset).position()).isEqualTo(3L);
+
+      List<FileScanTask> firstBatchTasks = plannedTasks(stream, startOffset, firstEndOffset);
+      assertThat(firstBatchTasks).hasSize(3);
+      assertThat(plannedRecordCount(firstBatchTasks)).isEqualTo(3_500_000_000_000L);
+
+      Offset secondEndOffset = stream.latestOffset(firstEndOffset, stream.getDefaultReadLimit());
+      assertThat(secondEndOffset).isNotNull();
+      assertThat(((StreamingOffset) secondEndOffset).position()).isEqualTo(4L);
+
+      List<FileScanTask> secondBatchTasks = plannedTasks(stream, firstEndOffset, secondEndOffset);
+      assertThat(secondBatchTasks).hasSize(1);
+      assertThat(plannedRecordCount(secondBatchTasks)).isEqualTo(1_000_000_000_000L);
+    } finally {
+      stream.stop();
+    }
   }
 
   @TestTemplate
@@ -1087,6 +1143,24 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
         .save(tableName);
   }
 
+  private void appendDataFilesWithRecordCounts(long... recordCounts) throws IOException {
+    AppendFiles append = table.newFastAppend();
+
+    for (long recordCount : recordCounts) {
+      DataFile dataFile =
+          DataFiles.builder(table.spec())
+              .withPath(File.createTempFile("junit", null, temp.toFile()).getPath())
+              .withFileSizeInBytes(10)
+              .withRecordCount(recordCount)
+              .withFormat(FileFormat.PARQUET)
+              .build();
+
+      append.appendFile(dataFile);
+    }
+
+    append.commit();
+  }
+
   private static final String MEMORY_TABLE = "_stream_view_mem";
 
   private StreamingQuery startStream(Map<String, String> options) throws TimeoutException {
@@ -1173,5 +1247,28 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
         new SparkReadConf(spark, table, allOptions),
         table.schema(),
         temp.resolve(checkpointDirName).toString());
+  }
+
+  private List<FileScanTask> plannedTasks(
+      SparkMicroBatchStream stream, Offset startOffset, Offset endOffset) {
+    List<FileScanTask> tasks = Lists.newArrayList();
+
+    for (InputPartition partition : stream.planInputPartitions(startOffset, endOffset)) {
+      SparkInputPartition sparkInputPartition = (SparkInputPartition) partition;
+      for (FileScanTask task : sparkInputPartition.<FileScanTask>taskGroup().tasks()) {
+        tasks.add(task);
+      }
+    }
+
+    return tasks;
+  }
+
+  private long plannedRecordCount(List<FileScanTask> tasks) {
+    long recordCount = 0;
+    for (FileScanTask task : tasks) {
+      recordCount += task.file().recordCount();
+    }
+
+    return recordCount;
   }
 }

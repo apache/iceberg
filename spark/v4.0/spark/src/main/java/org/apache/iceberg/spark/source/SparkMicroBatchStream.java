@@ -76,7 +76,7 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
   private final StreamingOffset initialOffset;
   private final long fromTimestamp;
   private final int maxFilesPerMicroBatch;
-  private final int maxRecordsPerMicroBatch;
+  private final long maxRecordsPerMicroBatch;
   private final boolean cacheDeleteFilesOnExecutors;
   private SparkMicroBatchPlanner planner;
   private StreamingOffset lastOffsetForTriggerAvailableNow;
@@ -102,7 +102,7 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
     this.splitOpenFileCost = readConf.splitOpenFileCost();
     this.fromTimestamp = readConf.streamFromTimestamp();
     this.maxFilesPerMicroBatch = readConf.maxFilesPerMicroBatch();
-    this.maxRecordsPerMicroBatch = readConf.maxRecordsPerMicroBatch();
+    this.maxRecordsPerMicroBatch = readConf.maxRecordsPerMicroBatchLong();
     this.cacheDeleteFilesOnExecutors = readConf.cacheDeleteFilesOnExecutors();
 
     InitialOffsetStore initialOffsetStore =
@@ -232,15 +232,14 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
 
   @Override
   public ReadLimit getDefaultReadLimit() {
-    if (maxFilesPerMicroBatch != Integer.MAX_VALUE
-        && maxRecordsPerMicroBatch != Integer.MAX_VALUE) {
+    if (maxFilesPerMicroBatch != Integer.MAX_VALUE && maxRecordsPerMicroBatch != Long.MAX_VALUE) {
       ReadLimit[] readLimits = new ReadLimit[2];
       readLimits[0] = ReadLimit.maxFiles(maxFilesPerMicroBatch);
       readLimits[1] = ReadLimit.maxRows(maxRecordsPerMicroBatch);
       return ReadLimit.compositeLimit(readLimits);
     } else if (maxFilesPerMicroBatch != Integer.MAX_VALUE) {
       return ReadLimit.maxFiles(maxFilesPerMicroBatch);
-    } else if (maxRecordsPerMicroBatch != Integer.MAX_VALUE) {
+    } else if (maxRecordsPerMicroBatch != Long.MAX_VALUE) {
       return ReadLimit.maxRows(maxRecordsPerMicroBatch);
     } else {
       return ReadLimit.allAvailable();

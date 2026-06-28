@@ -118,7 +118,7 @@ abstract class BaseSparkMicroBatchPlanner implements SparkMicroBatchPlanner {
   }
 
   static class UnpackedLimits {
-    private long maxRows = Integer.MAX_VALUE;
+    private long maxRows = Long.MAX_VALUE;
     private long maxFiles = Integer.MAX_VALUE;
 
     UnpackedLimits(ReadLimit limit) {
