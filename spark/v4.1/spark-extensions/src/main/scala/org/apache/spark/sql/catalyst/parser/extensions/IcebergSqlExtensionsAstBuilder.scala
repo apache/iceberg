@@ -328,6 +328,18 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface)
       toSeq(ctx.order.fields).map(typedVisit[(Term, SortDirection, NullOrder)])
     }
 
+  /**
+   * Parse the head of an `INSERT INTO t REPLACE USING (cols) <query>` statement into the target
+   * table name and its replace-scope columns. The trailing `<query>` is split off by the parser
+   * and delegated to Spark, so it is not part of this rule.
+   */
+  override def visitSingleScopedReplaceHead(
+      ctx: SingleScopedReplaceHeadContext): (Seq[String], Seq[Seq[String]]) = withOrigin(ctx) {
+    val table = typedVisit[Seq[String]](ctx.multipartIdentifier)
+    val scopeColumns = toSeq(ctx.fieldList.fields).map(typedVisit[Seq[String]])
+    (table, scopeColumns)
+  }
+
   override def visitSingleStatement(ctx: SingleStatementContext): LogicalPlan = withOrigin(ctx) {
     visit(ctx.statement).asInstanceOf[LogicalPlan]
   }

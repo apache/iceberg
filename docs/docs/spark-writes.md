@@ -29,18 +29,20 @@ Iceberg uses Apache Spark's DataSourceV2 API for data source and catalog impleme
 | Feature support                                  | Spark | Notes                                                                       |
 |--------------------------------------------------|---------|-----------------------------------------------------------------------------|
 | [SQL insert into](#insert-into)                  | ✔️      | ⚠ Requires `spark.sql.storeAssignmentPolicy=ANSI` (default since Spark 3.0) |
+| [SQL scoped replace](#insert-into--replace-using) | ✔️      | ⚠ Requires Iceberg Spark extensions and Spark 4.1 or higher                 |
 | [SQL merge into](#merge-into)                    | ✔️      | ⚠ Requires Iceberg Spark extensions                                         |
 | [SQL insert overwrite](#insert-overwrite)        | ✔️      | ⚠ Requires `spark.sql.storeAssignmentPolicy=ANSI` (default since Spark 3.0) |
 | [SQL delete from](#delete-from)                  | ✔️      | ⚠ Row-level delete requires Iceberg Spark extensions                        |
 | [SQL update](#update)                            | ✔️      | ⚠ Requires Iceberg Spark extensions                                         |
 | [DataFrame append](#appending-data)              | ✔️      |                                                                             |
 | [DataFrame overwrite](#overwriting-data)         | ✔️      |                                                                             |
+| [DataFrame scoped replace](#scoped-replacement)  | ✔️      | ⚠ Requires Iceberg Spark extensions and Spark 4.1 or higher                 |
 | [DataFrame CTAS and RTAS](#creating-tables)      | ✔️      | ⚠ Requires DSv2 API                                                         |
 | [DataFrame merge into](#merging-data)            | ✔️      | ⚠ Requires DSv2 API (Spark 4.0 and later)                                   |
 
 ## Writing with SQL
 
-Spark supports SQL `INSERT INTO`, `MERGE INTO`, and `INSERT OVERWRITE`, as well as the new `DataFrameWriterV2` API.
+Spark supports SQL `INSERT INTO`, `INSERT INTO ... REPLACE USING`, `MERGE INTO`, and `INSERT OVERWRITE`, as well as the new `DataFrameWriterV2` API.
 
 ### `INSERT INTO`
 
@@ -52,6 +54,31 @@ INSERT INTO prod.db.table VALUES (1, 'a'), (2, 'b')
 ```sql
 INSERT INTO prod.db.table SELECT ...
 ```
+
+### `INSERT INTO ... REPLACE USING`
+
+Iceberg supports scoped replacement writes with Iceberg Spark extensions in Spark 4.1 and higher. A scoped replace deletes existing target rows whose replacement scope appears in the source query, then inserts all rows from the source query in the same commit.
+
+```sql
+INSERT INTO prod.db.table
+REPLACE USING (scope_col_1, scope_col_2)
+SELECT ...
+```
+
+The columns listed in `REPLACE USING` define the replacement scope. For each distinct tuple of scope values produced by the source query, matching target rows are removed using null-safe equality, and the full source query output is appended.
+
+For example, this query replaces all existing rows for categories present in `prod.db.staged_rows` and keeps rows for other categories:
+
+```sql
+INSERT INTO prod.db.sample
+REPLACE USING (category)
+SELECT id, data, category, ts
+FROM prod.db.staged_rows
+```
+
+`REPLACE USING` is useful when incoming data contains complete replacement slices for one or more logical groups, such as tenants, departments, dates, or regions. Unlike `INSERT OVERWRITE`, the replacement scope is based on table columns in the source data and does not depend on the table's partition spec.
+
+The source query must produce the same number of columns as the target table, using the same assignment rules as `INSERT INTO`. Each `REPLACE USING` column must exist in both the target table and the source query output.
 
 ### `MERGE INTO`
 
@@ -312,6 +339,34 @@ To explicitly overwrite partitions, use `overwrite` to supply a filter:
 ```scala
 data.writeTo("prod.db.table").overwrite($"level" === "INFO")
 ```
+
+### Scoped replacement
+
+Iceberg Spark extensions in Spark 4.1 and higher support scoped replacement writes through the
+`DataFrameWriterV2` API. A scoped replace deletes existing target rows whose replacement scope
+appears in the source `DataFrame`, then inserts all rows from the source in the same commit.
+
+```scala
+val staged: DataFrame = ...
+
+staged.writeTo("prod.db.sample")
+    .option("replace-using", "category")
+    .overwrite(lit(true))
+```
+
+Use the `replace-using` write option to list the target columns that define the replacement scope.
+Multiple columns are comma-separated:
+
+```scala
+staged.writeTo("prod.db.sample")
+    .option("replace-using", "tenant_id,business_date")
+    .option("target-file-size-bytes", "134217728")
+    .overwrite(lit(true))
+```
+
+The `overwrite(lit(true))` call is required so Spark applies overwrite privileges and Iceberg can
+replace matching target rows. Other Iceberg write options, such as target file size, compression,
+distribution, snapshot properties, and branch selection, can be supplied with `option` as usual.
 
 ### Creating tables
 
