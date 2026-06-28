@@ -131,8 +131,8 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
    * <p>This is used for the {@code deleteFiles} collection in ManifestFilterManager because worker
    * threads may read this set during parallel manifest filtering (e.g., {@code
    * manifestHasDeletedFiles} checks {@code deleteFiles.contains(file)}). While the current fix
-   * removes concurrent writes to this set, using a thread-safe backing collection provides defense in
-   * depth against future regressions (see issue #16978).
+   * removes concurrent writes to this set, using a thread-safe backing collection provides defense
+   * in depth against future regressions (see issue #16978).
    *
    * <p>The default implementation returns a {@link ThreadSafeFileSet}. Subclasses may override this
    * if they require different thread-safe semantics.
@@ -289,10 +289,9 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
   /**
    * Merges per-manifest deleted files into the shared {@code deleteFiles} set.
    *
-   * <p>This method must be called after all parallel manifest filtering has
-   * completed. It is not safe to call while worker threads are still
-   * processing manifests because {@code deleteFiles} is backed by a
-   * non-thread-safe LinkedHashSet.
+   * <p>This method must be called after all parallel manifest filtering has completed. It is not
+   * safe to call while worker threads are still processing manifests because {@code deleteFiles} is
+   * backed by a non-thread-safe LinkedHashSet.
    *
    * @param concurrentDeletedFiles map from filtered manifest to its deleted files
    */

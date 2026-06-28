@@ -61,8 +61,7 @@ public class TestManifestFilterManagerConcurrency extends TestBase {
 
   private static final Schema SCHEMA =
       new Schema(
-          required(1, "id", Types.IntegerType.get()),
-          optional(2, "data", Types.StringType.get()));
+          required(1, "id", Types.IntegerType.get()), optional(2, "data", Types.StringType.get()));
 
   private static final PartitionSpec SPEC =
       PartitionSpec.builderFor(SCHEMA).identity("data").build();
@@ -96,14 +95,12 @@ public class TestManifestFilterManagerConcurrency extends TestBase {
     }
 
     // Verify we have the expected number of manifests
-    assertThat(table.currentSnapshot().allManifests(table.io()))
-        .hasSize(MANIFEST_COUNT);
+    assertThat(table.currentSnapshot().allManifests(table.io())).hasSize(MANIFEST_COUNT);
 
     // Perform a full overwrite using a row filter that matches all rows.
     // This triggers parallel manifest filtering and previously caused
     // concurrent mutation of the shared deleteFiles set.
-    OverwriteFiles overwrite =
-        table.newOverwrite().overwriteByRowFilter(Expressions.alwaysTrue());
+    OverwriteFiles overwrite = table.newOverwrite().overwriteByRowFilter(Expressions.alwaysTrue());
 
     // The overwrite should complete without throwing ClassCastException
     // or any other concurrent modification error
