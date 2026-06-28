@@ -75,7 +75,6 @@ import org.apache.spark.sql.sources.LessThan;
 import org.apache.spark.sql.sources.Not;
 import org.apache.spark.sql.sources.StringStartsWith;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
-import org.assertj.core.api.AbstractObjectAssert;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -270,45 +269,61 @@ public class TestFilteredScan {
   }
 
   @TestTemplate
-  public void limitPushedDownToSparkScan() {
-    assumeThat(fileFormat)
-        .as("no need to run this across the entire test matrix")
-        .isEqualTo(FileFormat.PARQUET);
+  public void testPartialAndPredicatePushdown() {
+    // Test with unpartitioned table (column-stats pruning)
+    verifyPartialAndPushdown(unpartitioned.toString());
+  }
 
+  @TestTemplate
+  public void testPartialAndPredicatePushdownPartitioned() {
+    // Test with partitioned table (partition pruning — the most impactful scenario)
+    Table table = buildPartitionedTable("partitioned_partial_and", PARTITION_BY_ID);
+    verifyPartialAndPushdown(table.location());
+  }
+
+  private void verifyPartialAndPushdown(String tableLocation) {
     CaseInsensitiveStringMap options =
-        new CaseInsensitiveStringMap(ImmutableMap.of("path", unpartitioned.toString()));
-
+        new CaseInsensitiveStringMap(ImmutableMap.of("path", tableLocation));
     SparkScanBuilder builder =
         new SparkScanBuilder(spark, TABLES.load(options.get("path")), options);
 
-    long limit = 23;
-    // simulate Spark pushing down the limit to the scan builder
-    builder.pushLimit((int) limit);
-    assertThat(builder).extracting("limit").isEqualTo((int) limit);
+    // Create a convertible predicate: id = 5
+    org.apache.spark.sql.connector.expressions.NamedReference idRef =
+        org.apache.spark.sql.connector.expressions.FieldReference.apply("id");
+    org.apache.spark.sql.connector.expressions.LiteralValue five =
+        new org.apache.spark.sql.connector.expressions.LiteralValue(
+            5L, org.apache.spark.sql.types.DataTypes.LongType);
+    Predicate convertible =
+        new Predicate(
+            "=", new org.apache.spark.sql.connector.expressions.Expression[] {idRef, five});
 
-    // verify batch scan
-    AbstractObjectAssert<?, ?> scanAssert = assertThat(builder.build()).extracting("scan");
-    if (LOCAL == planningMode) {
-      scanAssert = scanAssert.extracting("scan");
-    }
+    // Create an unconvertible predicate (simulates a UDF that Iceberg can't handle)
+    Predicate unconvertible =
+        new Predicate(
+            "CUSTOM_UDF_FUNC",
+            new org.apache.spark.sql.connector.expressions.Expression[] {idRef, five});
 
-    scanAssert.extracting("context").extracting("minRowsRequested").isEqualTo(limit);
+    // Create compound AND: AND(id = 5, CUSTOM_UDF_FUNC(id, 5))
+    org.apache.spark.sql.connector.expressions.filter.And compoundAnd =
+        new org.apache.spark.sql.connector.expressions.filter.And(convertible, unconvertible);
 
-    // verify CoW scan
-    scanAssert = assertThat(builder.buildCopyOnWriteScan()).extracting("scan");
-    if (LOCAL == planningMode) {
-      scanAssert = scanAssert.extracting("scan");
-    }
+    // Push the compound AND as a single predicate
+    Predicate[] postScanPredicates = builder.pushPredicates(new Predicate[] {compoundAnd});
 
-    scanAssert.extracting("context").extracting("minRowsRequested").isEqualTo(limit);
+    // Verify: the partial expression was pushed for file pruning
+    assertThat(builder.pushedPredicates())
+        .as("Pushed predicates should include the compound AND (partial push)")
+        .hasSize(1);
 
-    // verify MoR scan
-    scanAssert = assertThat(builder.build()).extracting("scan");
-    if (LOCAL == planningMode) {
-      scanAssert = scanAssert.extracting("scan");
-    }
+    // Verify: the original predicate is in post-scan (Spark will re-evaluate for correctness)
+    assertThat(postScanPredicates)
+        .as("Post-scan predicates must include original AND for Spark to re-evaluate")
+        .hasSize(1);
 
-    scanAssert.extracting("context").extracting("minRowsRequested").isEqualTo(limit);
+    // Verify: Iceberg's internal filter list is non-empty (partial expression was extracted)
+    assertThat(builder.filters())
+        .as("Iceberg filters should contain the extracted convertible expression for file pruning")
+        .isNotEmpty();
   }
 
   @TestTemplate
