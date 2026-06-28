@@ -25,7 +25,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * A thread-safe set implementation for Iceberg {@link ContentFile} objects.
+ * A thread-safe set implementation for Iceberg {@link org.apache.iceberg.ContentFile} objects.
  *
  * <p>This class provides a concurrent alternative to {@link DataFileSet} and {@link DeleteFileSet}
  * for scenarios where files must be collected from multiple worker threads. The standard {@link
