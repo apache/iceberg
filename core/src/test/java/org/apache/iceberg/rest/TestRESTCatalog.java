@@ -91,7 +91,6 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.inmemory.InMemoryCatalog;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.StorageCredential;
-import org.apache.iceberg.io.SupportsStorageCredentials;
 import org.apache.iceberg.metrics.CommitReport;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -3829,7 +3828,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
           }
         };
 
-    AtomicReference<FileIO> createdFileIO = new AtomicReference<>();
+    AtomicReference<List<StorageCredential>> capturedCredentials = new AtomicReference<>();
 
     try (RESTCatalog catalog =
         catalog(
@@ -3837,22 +3836,18 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             clientBuilder ->
                 new RESTSessionCatalog(
                     clientBuilder,
-                    (context, config) -> {
-                      TestCatalogUtil.TestFileIOWithStorageCredentials fileIO =
-                          new TestCatalogUtil.TestFileIOWithStorageCredentials();
-                      createdFileIO.set(fileIO);
-                      return fileIO;
-                    }))) {
+                    (FileIOBuilder)
+                        (context, config, credentials) -> {
+                          capturedCredentials.set(credentials);
+                          return new TestCatalogUtil.TestFileIONoArg();
+                        }))) {
       catalog.createNamespace(NS);
       catalog.createTable(TABLE, SCHEMA);
       catalog.loadTable(TABLE);
 
-      assertThat(createdFileIO.get()).isInstanceOf(SupportsStorageCredentials.class);
-      List<StorageCredential> creds =
-          ((SupportsStorageCredentials) createdFileIO.get()).credentials();
-      assertThat(creds).hasSize(1);
-      assertThat(creds.get(0).prefix()).isEqualTo("s3://test-bucket/");
-      assertThat(creds.get(0).config())
+      assertThat(capturedCredentials.get()).hasSize(1);
+      assertThat(capturedCredentials.get().get(0).prefix()).isEqualTo("s3://test-bucket/");
+      assertThat(capturedCredentials.get().get(0).config())
           .containsEntry("s3.access-key-id", "test-access-key")
           .containsEntry("s3.secret-access-key", "test-secret-key");
     } catch (IOException e) {

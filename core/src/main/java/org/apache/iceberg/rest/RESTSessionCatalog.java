@@ -158,7 +158,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
           .build();
 
   private final Function<Map<String, String>, RESTClient> clientBuilder;
-  private final BiFunction<SessionContext, Map<String, String>, FileIO> ioBuilder;
+  private final FileIOBuilder ioBuilder;
   private FileIOTracker fileIOTracker = null;
   private AuthSession catalogAuth = null;
   private AuthManager authManager;
@@ -186,15 +186,35 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
                 .uri(config.get(CatalogProperties.URI))
                 .withHeaders(RESTUtil.configHeaders(config))
                 .build(),
-        null);
+        (FileIOBuilder) null);
   }
 
   public RESTSessionCatalog(
-      Function<Map<String, String>, RESTClient> clientBuilder,
-      BiFunction<SessionContext, Map<String, String>, FileIO> ioBuilder) {
+      Function<Map<String, String>, RESTClient> clientBuilder, FileIOBuilder ioBuilder) {
     Preconditions.checkNotNull(clientBuilder, "Invalid client builder: null");
     this.clientBuilder = clientBuilder;
     this.ioBuilder = ioBuilder;
+  }
+
+  /**
+   * @deprecated Use {@link #RESTSessionCatalog(Function, FileIOBuilder)} instead.
+   */
+  @Deprecated
+  public RESTSessionCatalog(
+      Function<Map<String, String>, RESTClient> clientBuilder,
+      BiFunction<SessionContext, Map<String, String>, FileIO> ioBuilder) {
+    this(
+        clientBuilder,
+        ioBuilder == null
+            ? null
+            : (context, properties, credentials) -> {
+              FileIO fileIO = ioBuilder.apply(context, properties);
+              if (!credentials.isEmpty()
+                  && fileIO instanceof SupportsStorageCredentials ioWithCredentials) {
+                ioWithCredentials.setCredentials(credentials);
+              }
+              return fileIO;
+            });
   }
 
   @Override
@@ -1204,25 +1224,16 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
   private FileIO newFileIO(
       SessionContext context, Map<String, String> properties, List<Credential> storageCredentials) {
+    List<StorageCredential> credentials =
+        storageCredentials.stream()
+            .map(c -> StorageCredential.create(c.prefix(), c.config()))
+            .collect(Collectors.toList());
+
     if (null != ioBuilder) {
-      FileIO fileIO = ioBuilder.apply(context, properties);
-      if (!storageCredentials.isEmpty()
-          && fileIO instanceof SupportsStorageCredentials ioWithCredentials) {
-        ioWithCredentials.setCredentials(
-            storageCredentials.stream()
-                .map(c -> StorageCredential.create(c.prefix(), c.config()))
-                .collect(Collectors.toList()));
-      }
-      return fileIO;
+      return ioBuilder.build(context, properties, credentials);
     } else {
       String ioImpl = properties.getOrDefault(CatalogProperties.FILE_IO_IMPL, DEFAULT_FILE_IO_IMPL);
-      return CatalogUtil.loadFileIO(
-          ioImpl,
-          properties,
-          conf,
-          storageCredentials.stream()
-              .map(c -> StorageCredential.create(c.prefix(), c.config()))
-              .collect(Collectors.toList()));
+      return CatalogUtil.loadFileIO(ioImpl, properties, conf, credentials);
     }
   }
 
