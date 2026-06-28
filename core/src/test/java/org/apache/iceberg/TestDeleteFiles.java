@@ -742,14 +742,22 @@ public class TestDeleteFiles extends TestBase {
 
   @TestTemplate
   public void testConcurrentManifestFilteringWithExpression() {
-    // append each file in a separate commit so each gets its own manifest,
-    // ensuring all 4 manifests are processed concurrently by the worker pool
-    commit(table, table.newAppend().appendFile(FILE_A), branch);
-    commit(table, table.newAppend().appendFile(FILE_B), branch);
-    commit(table, table.newAppend().appendFile(FILE_C), branch);
-    commit(table, table.newAppend().appendFile(FILE_D), branch);
+    // each file gets its own manifest so all manifests are processed concurrently by the worker
+    // pool; colliding paths share a String.hashCode() value, concentrating concurrent adds into
+    // the same DataFileSet hash bucket to expose races in unfixed code deterministically
+    int fileCount = 128;
+    for (int i = 0; i < fileCount; i++) {
+      DataFile file =
+          DataFiles.builder(SPEC)
+              .withPath(collidingPath(i))
+              .withFileSizeInBytes(10)
+              .withPartitionPath("data_bucket=" + (i % BUCKETS_NUMBER))
+              .withRecordCount(1)
+              .build();
+      commit(table, table.newAppend().appendFile(file), branch);
+    }
 
-    ExecutorService pool = Executors.newFixedThreadPool(4);
+    ExecutorService pool = Executors.newFixedThreadPool(16);
     try {
       commit(
           table,
@@ -763,7 +771,17 @@ public class TestDeleteFiles extends TestBase {
     }
 
     assertThat(latestSnapshot(table, branch).summary())
-        .containsEntry(SnapshotSummary.DELETED_FILES_PROP, "4");
+        .containsEntry(SnapshotSummary.DELETED_FILES_PROP, String.valueOf(fileCount));
+  }
+
+  // "Aa" and "BB" are a classic Java hash-collision pair (both hash to 2112), so all generated
+  // paths share the same String.hashCode() and land in the same DataFileSet hash bucket
+  private static String collidingPath(int index) {
+    StringBuilder path = new StringBuilder("/path/to/collide-");
+    for (int bit = 0; bit < 7; bit++) {
+      path.append(((index >> bit) & 1) == 0 ? "Aa" : "BB");
+    }
+    return path.append(".parquet").toString();
   }
 
   private static ByteBuffer longToBuffer(long value) {
