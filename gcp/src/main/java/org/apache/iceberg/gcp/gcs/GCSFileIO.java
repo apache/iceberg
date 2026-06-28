@@ -23,6 +23,7 @@ import com.google.api.client.util.Maps;
 import com.google.cloud.storage.Blob;
 import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.Storage;
+import com.google.cloud.storage.StorageException;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -34,12 +35,16 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.gcp.GCPProperties;
 import org.apache.iceberg.io.BulkDeletionFailureException;
 import org.apache.iceberg.io.DelegateFileIO;
+import org.apache.iceberg.io.FailureCategory;
+import org.apache.iceberg.io.FailureHandler;
+import org.apache.iceberg.io.FileFailure;
 import org.apache.iceberg.io.FileInfo;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
@@ -317,26 +322,54 @@ public class GCSFileIO implements DelegateFileIO, SupportsStorageCredentials {
   public void deletePrefix(String prefix) {
     internalDeleteFiles(
         Streams.stream(listPrefix(prefix))
-            .map(fileInfo -> BlobId.fromGsUtilUri(fileInfo.location())));
+            .map(fileInfo -> BlobId.fromGsUtilUri(fileInfo.location())),
+        FailureHandler.NOOP);
   }
 
   @Override
   public void deleteFiles(Iterable<String> pathsToDelete) throws BulkDeletionFailureException {
-    internalDeleteFiles(Streams.stream(pathsToDelete).map(BlobId::fromGsUtilUri));
+    deleteFiles(pathsToDelete, FailureHandler.NOOP);
+  }
+
+  @Override
+  public void deleteFiles(Iterable<String> pathsToDelete, FailureHandler failureHandler)
+      throws BulkDeletionFailureException {
+    FailureHandler handler = failureHandler != null ? failureHandler : FailureHandler.NOOP;
+    internalDeleteFiles(Streams.stream(pathsToDelete).map(BlobId::fromGsUtilUri), handler);
   }
 
   @SuppressWarnings("resource")
-  private void internalDeleteFiles(Stream<BlobId> blobIdsToDelete) {
+  private void internalDeleteFiles(Stream<BlobId> blobIdsToDelete, FailureHandler handler) {
+    AtomicInteger failureCount = new AtomicInteger();
     Streams.stream(
             Iterators.partition(
                 blobIdsToDelete.iterator(),
                 clientForStoragePath(ROOT_STORAGE_PREFIX).gcpProperties().deleteBatchSize()))
         .forEach(
             batch -> {
-              if (!batch.isEmpty()) {
-                clientForStoragePath(batch.get(0).toGsUtilUri()).storage().delete(batch);
+              if (batch.isEmpty()) {
+                return;
+              }
+              Storage storage = clientForStoragePath(batch.get(0).toGsUtilUri()).storage();
+              try {
+                // A false result means the object did not exist. For a delete that is the desired
+                // end state, so it is treated as success and not reported to the handler.
+                storage.delete(batch);
+              } catch (StorageException e) {
+                LOG.warn("Encountered failure when deleting GCS batch", e);
+                FailureCategory category = GCSErrorInterpreter.categorize(e);
+                String rawCode = GCSErrorInterpreter.rawErrorCode(e);
+                for (BlobId id : batch) {
+                  FailureHandler.safeNotify(
+                      LOG, handler, new FileFailure(id.toGsUtilUri(), category, rawCode, e));
+                }
+                failureCount.addAndGet(batch.size());
               }
             });
+
+    if (failureCount.get() > 0) {
+      throw new BulkDeletionFailureException(failureCount.get());
+    }
   }
 
   @Override
