@@ -30,9 +30,10 @@ import org.apache.iceberg.types.Types.UUIDType;
 import org.apache.iceberg.util.DateTimeUtil;
 
 /**
- * A control event payload for events sent by a coordinator that indicates it has completed a commit
- * cycle. Events with this payload are not consumed by the sink, they are informational and can be
- * used by consumers to trigger downstream processes.
+ * A control event payload for events sent by a coordinator that indicates it has committed data to
+ * a table during a commit cycle. One event is sent per committed table and carries the table
+ * reference and resulting snapshot ID. Events with this payload are not consumed by the sink, they
+ * are informational and can be used by consumers to trigger downstream processes.
  */
 public class CommitToTable implements Payload {
 
