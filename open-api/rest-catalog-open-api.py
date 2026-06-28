@@ -368,17 +368,17 @@ class AssignUUIDUpdate(BaseUpdate):
     Assigning a UUID to a table/view should only be done when creating the table/view. It is not safe to re-assign the UUID if a table/view already has a UUID assigned
     """
 
-    action: Literal['assign-uuid'] = 'assign-uuid'
+    action: Literal['assign-uuid'] | None = None
     uuid: str
 
 
 class UpgradeFormatVersionUpdate(BaseUpdate):
-    action: Literal['upgrade-format-version'] = 'upgrade-format-version'
+    action: Literal['upgrade-format-version'] | None = None
     format_version: int = Field(..., alias='format-version')
 
 
 class SetCurrentSchemaUpdate(BaseUpdate):
-    action: Literal['set-current-schema'] = 'set-current-schema'
+    action: Literal['set-current-schema'] | None = None
     schema_id: int = Field(
         ...,
         alias='schema-id',
@@ -387,12 +387,12 @@ class SetCurrentSchemaUpdate(BaseUpdate):
 
 
 class AddPartitionSpecUpdate(BaseUpdate):
-    action: Literal['add-spec'] = 'add-spec'
+    action: Literal['add-spec'] | None = None
     spec: PartitionSpec
 
 
 class SetDefaultSpecUpdate(BaseUpdate):
-    action: Literal['set-default-spec'] = 'set-default-spec'
+    action: Literal['set-default-spec'] | None = None
     spec_id: int = Field(
         ...,
         alias='spec-id',
@@ -401,12 +401,12 @@ class SetDefaultSpecUpdate(BaseUpdate):
 
 
 class AddSortOrderUpdate(BaseUpdate):
-    action: Literal['add-sort-order'] = 'add-sort-order'
+    action: Literal['add-sort-order'] | None = None
     sort_order: SortOrder = Field(..., alias='sort-order')
 
 
 class SetDefaultSortOrderUpdate(BaseUpdate):
-    action: Literal['set-default-sort-order'] = 'set-default-sort-order'
+    action: Literal['set-default-sort-order'] | None = None
     sort_order_id: int = Field(
         ...,
         alias='sort-order-id',
@@ -415,47 +415,47 @@ class SetDefaultSortOrderUpdate(BaseUpdate):
 
 
 class AddSnapshotUpdate(BaseUpdate):
-    action: Literal['add-snapshot'] = 'add-snapshot'
+    action: Literal['add-snapshot'] | None = None
     snapshot: Snapshot
 
 
 class SetSnapshotRefUpdate(BaseUpdate, SnapshotReference):
-    action: Literal['set-snapshot-ref'] = 'set-snapshot-ref'
+    action: Literal['set-snapshot-ref'] | None = None
     ref_name: str = Field(..., alias='ref-name')
 
 
 class RemoveSnapshotsUpdate(BaseUpdate):
-    action: Literal['remove-snapshots'] = 'remove-snapshots'
+    action: Literal['remove-snapshots'] | None = None
     snapshot_ids: list[int] = Field(..., alias='snapshot-ids')
 
 
 class RemoveSnapshotRefUpdate(BaseUpdate):
-    action: Literal['remove-snapshot-ref'] = 'remove-snapshot-ref'
+    action: Literal['remove-snapshot-ref'] | None = None
     ref_name: str = Field(..., alias='ref-name')
 
 
 class SetLocationUpdate(BaseUpdate):
-    action: Literal['set-location'] = 'set-location'
+    action: Literal['set-location'] | None = None
     location: str
 
 
 class SetPropertiesUpdate(BaseUpdate):
-    action: Literal['set-properties'] = 'set-properties'
+    action: Literal['set-properties'] | None = None
     updates: dict[str, str]
 
 
 class RemovePropertiesUpdate(BaseUpdate):
-    action: Literal['remove-properties'] = 'remove-properties'
+    action: Literal['remove-properties'] | None = None
     removals: list[str]
 
 
 class AddViewVersionUpdate(BaseUpdate):
-    action: Literal['add-view-version'] = 'add-view-version'
+    action: Literal['add-view-version'] | None = None
     view_version: ViewVersion = Field(..., alias='view-version')
 
 
 class SetCurrentViewVersionUpdate(BaseUpdate):
-    action: Literal['set-current-view-version'] = 'set-current-view-version'
+    action: Literal['set-current-view-version'] | None = None
     view_version_id: int = Field(
         ...,
         alias='view-version-id',
@@ -464,32 +464,32 @@ class SetCurrentViewVersionUpdate(BaseUpdate):
 
 
 class RemoveStatisticsUpdate(BaseUpdate):
-    action: Literal['remove-statistics'] = 'remove-statistics'
+    action: Literal['remove-statistics'] | None = None
     snapshot_id: int = Field(..., alias='snapshot-id')
 
 
 class RemovePartitionStatisticsUpdate(BaseUpdate):
-    action: Literal['remove-partition-statistics'] = 'remove-partition-statistics'
+    action: Literal['remove-partition-statistics'] | None = None
     snapshot_id: int = Field(..., alias='snapshot-id')
 
 
 class RemovePartitionSpecsUpdate(BaseUpdate):
-    action: Literal['remove-partition-specs'] = 'remove-partition-specs'
+    action: Literal['remove-partition-specs'] | None = None
     spec_ids: list[int] = Field(..., alias='spec-ids')
 
 
 class RemoveSchemasUpdate(BaseUpdate):
-    action: Literal['remove-schemas'] = 'remove-schemas'
+    action: Literal['remove-schemas'] | None = None
     schema_ids: list[int] = Field(..., alias='schema-ids')
 
 
 class AddEncryptionKeyUpdate(BaseUpdate):
-    action: Literal['add-encryption-key'] = 'add-encryption-key'
+    action: Literal['add-encryption-key'] | None = None
     encryption_key: EncryptedKey = Field(..., alias='encryption-key')
 
 
 class RemoveEncryptionKeyUpdate(BaseUpdate):
-    action: Literal['remove-encryption-key'] = 'remove-encryption-key'
+    action: Literal['remove-encryption-key'] | None = None
     key_id: str = Field(..., alias='key-id')
 
 
@@ -522,7 +522,7 @@ class AssertRefSnapshotId(TableRequirement):
 
     """
 
-    type: Literal['assert-ref-snapshot-id'] = 'assert-ref-snapshot-id'
+    type: Literal['assert-ref-snapshot-id'] | None = None
     ref: str
     snapshot_id: int = Field(..., alias='snapshot-id')
 
@@ -532,7 +532,7 @@ class AssertLastAssignedFieldId(TableRequirement):
     The table's last assigned column id must match the requirement's `last-assigned-field-id`
     """
 
-    type: Literal['assert-last-assigned-field-id'] = 'assert-last-assigned-field-id'
+    type: Literal['assert-last-assigned-field-id'] | None = None
     last_assigned_field_id: int = Field(..., alias='last-assigned-field-id')
 
 
@@ -541,7 +541,7 @@ class AssertCurrentSchemaId(TableRequirement):
     The table's current schema id must match the requirement's `current-schema-id`
     """
 
-    type: Literal['assert-current-schema-id'] = 'assert-current-schema-id'
+    type: Literal['assert-current-schema-id'] | None = None
     current_schema_id: int = Field(..., alias='current-schema-id')
 
 
@@ -550,9 +550,7 @@ class AssertLastAssignedPartitionId(TableRequirement):
     The table's last assigned partition id must match the requirement's `last-assigned-partition-id`
     """
 
-    type: Literal['assert-last-assigned-partition-id'] = (
-        'assert-last-assigned-partition-id'
-    )
+    type: Literal['assert-last-assigned-partition-id'] | None = None
     last_assigned_partition_id: int = Field(..., alias='last-assigned-partition-id')
 
 
@@ -561,7 +559,7 @@ class AssertDefaultSpecId(TableRequirement):
     The table's default spec id must match the requirement's `default-spec-id`
     """
 
-    type: Literal['assert-default-spec-id'] = 'assert-default-spec-id'
+    type: Literal['assert-default-spec-id'] | None = None
     default_spec_id: int = Field(..., alias='default-spec-id')
 
 
@@ -570,7 +568,7 @@ class AssertDefaultSortOrderId(TableRequirement):
     The table's default sort order id must match the requirement's `default-sort-order-id`
     """
 
-    type: Literal['assert-default-sort-order-id'] = 'assert-default-sort-order-id'
+    type: Literal['assert-default-sort-order-id'] | None = None
     default_sort_order_id: int = Field(..., alias='default-sort-order-id')
 
 
@@ -1144,7 +1142,7 @@ class TransformTerm(BaseModel):
 
 
 class SetPartitionStatisticsUpdate(BaseUpdate):
-    action: Literal['set-partition-statistics'] = 'set-partition-statistics'
+    action: Literal['set-partition-statistics'] | None = None
     partition_statistics: PartitionStatisticsFile = Field(
         ..., alias='partition-statistics'
     )
@@ -1254,7 +1252,7 @@ class Term(RootModel[Reference | TransformTerm]):
 
 
 class SetStatisticsUpdate(BaseUpdate):
-    action: Literal['set-statistics'] = 'set-statistics'
+    action: Literal['set-statistics'] | None = None
     snapshot_id: int | None = Field(
         None,
         alias='snapshot-id',
@@ -1518,7 +1516,7 @@ class ViewMetadata(BaseModel):
 
 
 class AddSchemaUpdate(BaseUpdate):
-    action: Literal['add-schema'] = 'add-schema'
+    action: Literal['add-schema'] | None = None
     schema_: Schema = Field(..., alias='schema')
     last_column_id: int | None = Field(
         None,
