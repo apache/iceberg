@@ -3093,6 +3093,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
       required:
+        - action
         - uuid
       properties:
         action:
@@ -3105,6 +3106,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
       required:
+        - action
         - format-version
       properties:
         action:
@@ -3117,6 +3119,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
       required:
+        - action
         - schema
       properties:
         action:
@@ -3138,6 +3141,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
       required:
+        - action
         - schema-id
       properties:
         action:
@@ -3151,6 +3155,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
       required:
+        - action
         - spec
       properties:
         action:
@@ -3163,6 +3168,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
       required:
+        - action
         - spec-id
       properties:
         action:
@@ -3176,6 +3182,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
       required:
+        - action
         - sort-order
       properties:
         action:
@@ -3188,6 +3195,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
       required:
+        - action
         - sort-order-id
       properties:
         action:
@@ -3201,6 +3209,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
       required:
+        - action
         - snapshot
       properties:
         action:
@@ -3214,6 +3223,7 @@ components:
         - $ref: '#/components/schemas/BaseUpdate'
         - $ref: '#/components/schemas/SnapshotReference'
       required:
+        - action
         - ref-name
       properties:
         action:
@@ -3226,6 +3236,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
       required:
+        - action
         - snapshot-ids
       properties:
         action:
@@ -3241,6 +3252,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
       required:
+        - action
         - ref-name
       properties:
         action:
@@ -3253,6 +3265,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
       required:
+        - action
         - location
       properties:
         action:
@@ -3265,6 +3278,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
       required:
+        - action
         - updates
       properties:
         action:
@@ -3279,6 +3293,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
       required:
+        - action
         - removals
       properties:
         action:
@@ -3293,6 +3308,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
       required:
+        - action
         - view-version
       properties:
         action:
@@ -3305,6 +3321,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
       required:
+        - action
         - view-version-id
       properties:
         action:
@@ -3318,6 +3335,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
       required:
+        - action
         - statistics
       properties:
         action:
@@ -3337,6 +3355,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
       required:
+        - action
         - snapshot-id
       properties:
         action:
@@ -3350,6 +3369,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
       required:
+        - action
         - partition-statistics
       properties:
         action:
@@ -3362,6 +3382,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
       required:
+        - action
         - snapshot-id
       properties:
         action:
@@ -3375,6 +3396,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
       required:
+        - action
         - spec-ids
       properties:
         action:
@@ -3389,6 +3411,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
       required:
+        - action
         - schema-ids
       properties:
         action:
@@ -3403,6 +3426,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
       required:
+        - action
         - encryption-key
       properties:
         action:
@@ -3415,6 +3439,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
       required:
+        - action
         - key-id
       properties:
         action:
@@ -3513,6 +3538,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/TableRequirement'
       required:
+        - type
         - ref
         - snapshot-id
       properties:
@@ -3532,6 +3558,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/TableRequirement'
       required:
+        - type
         - last-assigned-field-id
       properties:
         type:
@@ -3546,6 +3573,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/TableRequirement'
       required:
+        - type
         - current-schema-id
       properties:
         type:
@@ -3560,6 +3588,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/TableRequirement'
       required:
+        - type
         - last-assigned-partition-id
       properties:
         type:
@@ -3574,6 +3603,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/TableRequirement'
       required:
+        - type
         - default-spec-id
       properties:
         type:
@@ -3588,6 +3618,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/TableRequirement'
       required:
+        - type
         - default-sort-order-id
       properties:
         type:
