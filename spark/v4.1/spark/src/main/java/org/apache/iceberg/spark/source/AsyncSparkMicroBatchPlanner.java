@@ -87,7 +87,7 @@ class AsyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner implements 
       StreamingOffset lastOffsetForTriggerAvailableNow) {
     super(table, readConf);
     this.minQueuedFiles = readConf().maxFilesPerMicroBatch();
-    this.minQueuedRows = readConf().maxRecordsPerMicroBatch();
+    this.minQueuedRows = readConf().maxRecordsPerMicroBatchLong();
     this.lastOffsetForTriggerAvailableNow = lastOffsetForTriggerAvailableNow;
     this.planFilesCache = Caffeine.newBuilder().maximumSize(PLAN_FILES_CACHE_MAX_SIZE).build();
     this.queue = new LinkedBlockingDeque<>();
