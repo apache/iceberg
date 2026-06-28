@@ -59,4 +59,11 @@ public class TestEcsURI {
         .isInstanceOf(ValidationException.class)
         .hasMessage("Invalid ecs location: http://bucket/a");
   }
+
+  @Test
+  public void testNullLocation() {
+    assertThatThrownBy(() -> new EcsURI(null))
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("Location can not be null");
+  }
 }
