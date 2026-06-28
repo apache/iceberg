@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg;
 
+import static org.apache.iceberg.expressions.Expressions.alwaysTrue;
 import static org.apache.iceberg.expressions.Expressions.and;
 import static org.apache.iceberg.expressions.Expressions.equal;
 import static org.apache.iceberg.expressions.Expressions.lessThan;
@@ -334,5 +335,56 @@ public class TestOverwrite extends TestBase {
         .hasMessageStartingWith("Cannot append file with rows that do not match filter");
 
     assertThat(latestSnapshot(base, branch).snapshotId()).isEqualTo(baseId);
+  }
+
+  @TestTemplate
+  public void testFullOverwriteAcrossManyManifests() {
+    // A full overwrite filters existing manifests in parallel and records every removed file in
+    // ManifestFilterManager's shared deleteFiles set. The colliding file locations below
+    // concentrate many concurrent adds in the same hash bucket, guarding against regressions that
+    // mutate the
+    // set without synchronization.
+    table.updateProperties().set(TableProperties.MANIFEST_MERGE_ENABLED, "false").commit();
+
+    int manifestCount = 16;
+    int filesPerManifest = 64;
+
+    // FILE_0_TO_4 and FILE_5_TO_9 were appended together in createTestTable.
+    int liveFiles = 2;
+    int globalIndex = 0;
+    for (int i = 0; i < manifestCount; i++) {
+      AppendFiles append = table.newAppend();
+      for (int j = 0; j < filesPerManifest; j++) {
+        append.appendFile(
+            DataFiles.builder(PARTITION_BY_DATE)
+                .withPath(collidingLocation(globalIndex))
+                .withFormat(FileFormat.PARQUET)
+                .withFileSizeInBytes(10)
+                .withRecordCount(1)
+                .withPartitionPath("date=2018-06-08")
+                .build());
+        liveFiles += 1;
+        globalIndex += 1;
+      }
+      commit(table, append, branch);
+    }
+
+    Snapshot overwriteSnapshot =
+        commit(table, table.newOverwrite().overwriteByRowFilter(alwaysTrue()), branch);
+
+    assertThat(overwriteSnapshot.operation()).isEqualTo(DataOperations.DELETE);
+    assertThat(overwriteSnapshot.summary())
+        .containsEntry(SnapshotSummary.DELETED_FILES_PROP, String.valueOf(liveFiles))
+        .doesNotContainKey(SnapshotSummary.DELETED_DUPLICATE_FILES);
+  }
+
+  // Builds unique file locations with identical String.hashCode() values. DataFileSet hashes by
+  // location, so these paths exercise contention in ManifestFilterManager's shared deleteFiles set.
+  private static String collidingLocation(int index) {
+    StringBuilder location = new StringBuilder("/path/to/collide-");
+    for (int bit = 0; bit < 12; bit++) {
+      location.append(((index >> bit) & 1) == 0 ? "Aa" : "BB");
+    }
+    return location.toString();
   }
 }
