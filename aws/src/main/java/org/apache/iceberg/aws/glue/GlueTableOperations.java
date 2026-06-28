@@ -224,12 +224,14 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
     }
   }
 
-  private boolean createGlueTempTableIfNecessary(TableMetadata base, String metadataLocation) {
+  @VisibleForTesting
+  boolean createGlueTempTableIfNecessary(TableMetadata base, String metadataLocation) {
     if (awsProperties.glueLakeFormationEnabled() && base == null) {
       // LakeFormation credential require TableArn as input，so creating a dummy table
       // beforehand for create table scenario
       glue.createTable(
           CreateTableRequest.builder()
+              .catalogId(awsProperties.glueCatalogId())
               .databaseName(databaseName)
               .tableInput(
                   TableInput.builder()
@@ -245,11 +247,15 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
     return false;
   }
 
-  private void cleanupGlueTempTableIfNecessary(
-      boolean glueTempTableCreated, CommitStatus commitStatus) {
+  @VisibleForTesting
+  void cleanupGlueTempTableIfNecessary(boolean glueTempTableCreated, CommitStatus commitStatus) {
     if (glueTempTableCreated && commitStatus != CommitStatus.SUCCESS) {
       glue.deleteTable(
-          DeleteTableRequest.builder().databaseName(databaseName).name(tableName).build());
+          DeleteTableRequest.builder()
+              .catalogId(awsProperties.glueCatalogId())
+              .databaseName(databaseName)
+              .name(tableName)
+              .build());
     }
   }
 
