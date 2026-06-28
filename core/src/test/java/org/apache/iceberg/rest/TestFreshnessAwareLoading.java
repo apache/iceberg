@@ -547,7 +547,8 @@ public class TestFreshnessAwareLoading extends TestBaseWithRESTServer {
   public void tableCacheWithMultiSessions() {
     RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
 
-    RESTSessionCatalog sessionCatalog = new RESTSessionCatalog(config -> adapter, null);
+    RESTSessionCatalog sessionCatalog =
+        new RESTSessionCatalog(config -> adapter, (FileIOBuilder) null);
     sessionCatalog.initialize("test_session_catalog", Map.of());
 
     SessionCatalog.SessionContext otherSessionContext =
