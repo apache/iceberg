@@ -29,6 +29,7 @@ import java.util.List;
 import java.util.stream.StreamSupport;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
+import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.MetadataTableUtils;
 import org.apache.iceberg.PartitionSpec;
@@ -36,6 +37,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.TestTables;
 import org.apache.iceberg.types.Types;
@@ -251,6 +253,74 @@ public class TestSnapshotUtil {
 
     assertThat(table.schema().asStruct()).isEqualTo(expected.asStruct());
     assertThat(SnapshotUtil.schemaFor(table, tag).asStruct()).isEqualTo(initialSchema.asStruct());
+  }
+
+  @Test
+  public void schemaForTagWithMetadata() {
+    // Evolve the schema twice and tag the snapshot written under the middle schema.
+    table.updateSchema().addColumn("col1", Types.IntegerType.get()).commit();
+    appendFileToMain();
+    long taggedSnapshotId = table.currentSnapshot().snapshotId();
+    table.updateSchema().addColumn("col2", Types.IntegerType.get()).commit();
+    appendFileToMain();
+
+    String tag = "tag";
+    table.manageSnapshots().createTag(tag, taggedSnapshotId).commit();
+
+    // Drop the branches set up in before() so the oldest snapshots become unreferenced.
+    table.manageSnapshots().removeBranch("b1").removeBranch("fork").commit();
+
+    // Drop the unreferenced oldest schema so schema ids no longer match list positions:
+    // the tagged snapshot keeps schema id 1, which now sits at list index 0.
+    table
+        .expireSnapshots()
+        .cleanExpiredMetadata(true)
+        .expireOlderThan(table.snapshot(taggedSnapshotId).timestampMillis())
+        .retainLast(2)
+        .commit();
+
+    TableMetadata metadata = ((HasTableOperations) table).operations().current();
+    Schema expected =
+        new Schema(
+            required(1, "id", Types.IntegerType.get()),
+            required(2, "data", Types.StringType.get()),
+            optional(3, "col1", Types.IntegerType.get()));
+
+    assertThat(metadata.snapshot(taggedSnapshotId).schemaId()).isEqualTo(1);
+    assertThat(SnapshotUtil.schemaFor(metadata, tag).asStruct()).isEqualTo(expected.asStruct());
+  }
+
+  @Test
+  public void schemaForTagWithMetadataSchemaIdBeyondListSize() {
+    // Tag the latest schema, then drop the oldest unreferenced schema so the schemas list shrinks
+    // while the tagged snapshot keeps the highest schema id, which is now beyond the list size.
+    table.updateSchema().addColumn("col1", Types.IntegerType.get()).commit();
+    appendFileToMain();
+    table.updateSchema().addColumn("col2", Types.IntegerType.get()).commit();
+    appendFileToMain();
+    long taggedSnapshotId = table.currentSnapshot().snapshotId();
+
+    String tag = "tag";
+    table.manageSnapshots().createTag(tag, taggedSnapshotId).commit();
+
+    table
+        .expireSnapshots()
+        .cleanExpiredMetadata(true)
+        .expireOlderThan(table.snapshot(taggedSnapshotId).timestampMillis())
+        .retainLast(1)
+        .commit();
+
+    TableMetadata metadata = ((HasTableOperations) table).operations().current();
+    Schema expected =
+        new Schema(
+            required(1, "id", Types.IntegerType.get()),
+            required(2, "data", Types.StringType.get()),
+            optional(3, "col1", Types.IntegerType.get()),
+            optional(4, "col2", Types.IntegerType.get()));
+
+    assertThat(metadata.snapshot(taggedSnapshotId).schemaId())
+        .isGreaterThanOrEqualTo(metadata.schemas().size());
+    assertThat(SnapshotUtil.schemaFor(metadata, tag).asStruct()).isEqualTo(expected.asStruct());
   }
 
   @Test
