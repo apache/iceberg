@@ -485,8 +485,8 @@ public class RewriteTablePathUtil {
    * @return a copy plan of content files in the manifest that was rewritten
    * @deprecated since 1.12.0, will be removed in 1.13.0; use {@link
    *     #rewriteDeleteManifestWithLength}, which accepts the map of rewritten position delete file
-   *     sizes and also returns the rewritten manifest length so that {@code file_size_in_bytes}
-   *     and {@code manifest_length} stay consistent with the rewritten files on disk.
+   *     sizes and also returns the rewritten manifest length so that {@code file_size_in_bytes} and
+   *     {@code manifest_length} stay consistent with the rewritten files on disk.
    */
   @Deprecated
   public static RewriteResult<DeleteFile> rewriteDeleteManifest(
