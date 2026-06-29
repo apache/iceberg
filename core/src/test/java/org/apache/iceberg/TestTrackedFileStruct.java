@@ -129,9 +129,7 @@ class TestTrackedFileStruct {
     assertThat(file.keyMetadata()).isEqualTo(ByteBuffer.wrap(new byte[] {1, 2, 3}));
     assertThat(file.splitOffsets()).containsExactly(100L, 200L);
     assertThat(file.equalityIds()).containsExactly(1, 2, 3);
-    // should return EMPTY_PARTITION_DATA
-    assertThat(file.partition()).isNotNull();
-    assertThat(file.partition().size()).isEqualTo(0);
+    assertThat(file.partition()).isNull();
   }
 
   @Test
@@ -161,9 +159,7 @@ class TestTrackedFileStruct {
 
     TrackedFileStruct file = new TrackedFileStruct(projection);
     assertThat(file.size()).isEqualTo(2);
-    // should return EMPTY_PARTITION_DATA
-    assertThat(file.partition()).isNotNull();
-    assertThat(file.partition().size()).isEqualTo(0);
+    assertThat(file.partition()).isNull();
   }
 
   @Test

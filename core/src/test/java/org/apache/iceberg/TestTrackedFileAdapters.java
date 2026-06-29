@@ -311,7 +311,7 @@ class TestTrackedFileAdapters {
     DataFile dataFile = TrackedFileAdapters.asDataFile(file, UNPARTITIONED);
 
     assertThat(dataFile.specId()).isEqualTo(UNPARTITIONED_SPEC_ID);
-    assertThat(dataFile.partition().size()).isEqualTo(0);
+    assertThat(dataFile.partition()).isEqualTo(PartitionData.EMPTY);
   }
 
   @Test
