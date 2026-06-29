@@ -24,6 +24,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.iceberg.BlobMetadata;
 import org.apache.iceberg.ScanTask;
 import org.apache.iceberg.ScanTaskGroup;
@@ -32,8 +33,11 @@ import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.StatisticsFile;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.ExpressionVisitors;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.metrics.ScanReport;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
@@ -93,6 +97,7 @@ import org.apache.spark.sql.connector.read.colstats.ColumnStatistics;
 import org.apache.spark.sql.connector.read.streaming.MicroBatchStream;
 import org.apache.spark.sql.internal.SQLConf;
 import org.apache.spark.sql.types.StructType;
+import org.apache.spark.util.Pair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -158,6 +163,10 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
 
   protected Expression filter() {
     return filters.stream().reduce(Expressions.alwaysTrue(), Expressions::and);
+  }
+
+  protected String filtersDescForEqualsAndHashCode() {
+    return createOrderedExprString(filters.stream());
   }
 
   protected String filtersDesc() {
@@ -382,6 +391,85 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
       return adjustedSplitSize;
     } else {
       return splitSize;
+    }
+  }
+
+  protected static String createOrderedExprString(Stream<Expression> exprStream) {
+    return exprStream
+        .flatMap(x -> ExpressionVisitors.visit(x, ExpressionFlattener.INSTANCE).stream())
+        .map(Spark3Util::describe)
+        .sorted()
+        .collect(Collectors.joining(", "));
+  }
+
+  private static class ExpressionFlattener
+      extends ExpressionVisitors.ExpressionVisitor<List<Expression>> {
+
+    private static final ExpressionFlattener INSTANCE = new ExpressionFlattener();
+
+    private ExpressionFlattener() {}
+
+    @Override
+    public List<Expression> alwaysTrue() {
+      return List.of(Expressions.alwaysTrue());
+    }
+
+    @Override
+    public List<Expression> alwaysFalse() {
+      return List.of(Expressions.alwaysFalse());
+    }
+
+    @Override
+    public List<Expression> not(List<Expression> result) {
+      // since its a list of expressions created by And, if more than 1, so it will already be
+      // sorted.
+      return List.of(Expressions.not(mergeExpressions(result)));
+    }
+
+    @Override
+    public List<Expression> and(List<Expression> leftResult, List<Expression> rightResult) {
+      List<Expression> flattened = Lists.newArrayList(leftResult);
+      flattened.addAll(rightResult);
+      // sort the flattened stream back else otherwise the subtree may have ordering issue, when
+      // calculating hashCode
+      // The transform to Pair for comparing is done for performance aspects, to evaluate the String
+      // representation only
+      // once for each Expression. Not using sorted(Comparator.comparing(Spark3Util::describe)) as
+      // it would result in
+      // String eval each comparison
+      return flattened.stream()
+          .map(expr -> Pair.of(Spark3Util.describe(expr), expr))
+          .sorted((o1, o2) -> o1.getLeft().compareTo(o2.getLeft()))
+          .map(Pair::getRight)
+          .toList();
+    }
+
+    @Override
+    public List<Expression> or(List<Expression> leftResult, List<Expression> rightResult) {
+      Expression leftMerged = mergeExpressions(leftResult);
+      Expression rightMerged = mergeExpressions(rightResult);
+      String leftMergedAsString = Spark3Util.describe(leftMerged);
+      String rightMergedAsString = Spark3Util.describe(rightMerged);
+      int leftCompRight = leftMergedAsString.compareTo(rightMergedAsString);
+      if (leftCompRight < 0) {
+        return List.of(Expressions.or(leftMerged, rightMerged));
+      } else {
+        return List.of(Expressions.or(rightMerged, leftMerged));
+      }
+    }
+
+    @Override
+    public <T> List<Expression> predicate(BoundPredicate<T> pred) {
+      return List.of(pred);
+    }
+
+    @Override
+    public <T> List<Expression> predicate(UnboundPredicate<T> pred) {
+      return List.of(pred);
+    }
+
+    private Expression mergeExpressions(List<Expression> toMerge) {
+      return toMerge.stream().reduce(Expressions.alwaysTrue(), Expressions::and);
     }
   }
 }

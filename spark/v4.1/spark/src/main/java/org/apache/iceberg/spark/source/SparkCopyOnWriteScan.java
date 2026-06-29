@@ -139,7 +139,7 @@ class SparkCopyOnWriteScan extends SparkPartitioningAwareScan<FileScanTask>
         && Objects.equals(snapshot, that.snapshot)
         && Objects.equals(branch, that.branch)
         && readSchema().equals(that.readSchema()) // compare Spark schemas to ignore field ids
-        && filtersDesc().equals(that.filtersDesc())
+        && filtersDescForEqualsAndHashCode().equals(that.filtersDescForEqualsAndHashCode())
         && Objects.equals(filteredLocations, that.filteredLocations);
   }
 
@@ -151,7 +151,7 @@ class SparkCopyOnWriteScan extends SparkPartitioningAwareScan<FileScanTask>
         snapshot,
         branch,
         readSchema(),
-        filtersDesc(),
+        filtersDescForEqualsAndHashCode(),
         filteredLocations);
   }
 
