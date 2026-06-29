@@ -3726,6 +3726,10 @@ components:
               return the masked value as field-id `9` in the query output.
 
             3. A column must appear at most once in required-column-projections.
+
+            4. A projection must not target a map's key field-id. Applying an action
+              to keys can produce duplicate or null keys, which readers silently
+              coalesce or reject, causing data loss.
           type: array
           items:
             $ref: '#/components/schemas/Action'
