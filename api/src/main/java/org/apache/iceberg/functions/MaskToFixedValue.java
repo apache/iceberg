@@ -23,12 +23,14 @@ import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Collections;
 import java.util.UUID;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.iceberg.util.SerializableFunction;
+import org.apache.iceberg.variants.Variant;
 
 /** Returns a spec-defined fixed value for the column's type. */
 public final class MaskToFixedValue extends IcebergFunction.BaseFunction<Object, Object> {
@@ -48,6 +50,20 @@ public final class MaskToFixedValue extends IcebergFunction.BaseFunction<Object,
       DateTimeUtil.nanosFromTimestamp(LocalDateTime.of(1970, 1, 1, 0, 0));
   private static final UUID UUID_DEFAULT = UUID.fromString("00000000-0000-0000-0000-000000000000");
   private static final ByteBuffer EMPTY_BUFFER = ByteBuffer.allocate(0).asReadOnlyBuffer();
+
+  // WKB POINT EMPTY: byte order (little-endian) | type=POINT | X=NaN | Y=NaN
+  private static final ByteBuffer POINT_EMPTY =
+      ByteBuffer.wrap(
+              new byte[] {
+                0x01, 0x01, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, (byte) 0xF8, 0x7F,
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, (byte) 0xF8, 0x7F
+              })
+          .asReadOnlyBuffer();
+
+  // Empty Variant: V1 metadata with no entries + empty object value.
+  private static final Variant EMPTY_VARIANT =
+      Variant.from(ByteBuffer.wrap(new byte[] {0x01, 0x00, 0x00, 0x02, 0x00, 0x00}));
 
   public MaskToFixedValue(int fieldId) {
     super(fieldId);
@@ -75,7 +91,13 @@ public final class MaskToFixedValue extends IcebergFunction.BaseFunction<Object,
       case FIXED:
       case BINARY:
       case DECIMAL:
+      case VARIANT:
+      case GEOMETRY:
+      case GEOGRAPHY:
+      case LIST:
+      case MAP:
         return true;
+      // TODO: support STRUCT (recursive type-specific defaults). Tracked as follow-up.
       default:
         return false;
     }
@@ -121,6 +143,15 @@ public final class MaskToFixedValue extends IcebergFunction.BaseFunction<Object,
         return EMPTY_BUFFER;
       case DECIMAL:
         return new BigDecimal(BigInteger.ZERO, ((Types.DecimalType) type).scale());
+      case VARIANT:
+        return EMPTY_VARIANT;
+      case GEOMETRY:
+      case GEOGRAPHY:
+        return POINT_EMPTY;
+      case LIST:
+        return Collections.emptyList();
+      case MAP:
+        return Collections.emptyMap();
       default:
         throw new IllegalStateException("unreachable: canBind should have rejected " + type);
     }
