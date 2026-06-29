@@ -100,7 +100,6 @@ public class FlinkCatalog extends AbstractCatalog {
   private final Namespace baseNamespace;
   private final SupportsNamespaces asNamespaceCatalog;
   private final Closeable closeable;
-  private final Map<String, String> catalogProps;
   private final boolean cacheEnabled;
 
   public FlinkCatalog(
@@ -108,12 +107,10 @@ public class FlinkCatalog extends AbstractCatalog {
       String defaultDatabase,
       Namespace baseNamespace,
       CatalogLoader catalogLoader,
-      Map<String, String> catalogProps,
       boolean cacheEnabled,
       long cacheExpirationIntervalMs) {
     super(catalogName, defaultDatabase);
     this.catalogLoader = catalogLoader;
-    this.catalogProps = catalogProps;
     this.baseNamespace = baseNamespace;
     this.cacheEnabled = cacheEnabled;
 
@@ -340,13 +337,12 @@ public class FlinkCatalog extends AbstractCatalog {
     Table table = loadIcebergTable(tablePath);
 
     // Flink's CREATE TABLE LIKE clause relies on properties sent back here to create new table.
-    // Inorder to create such table in non iceberg catalog, we need to send across catalog
-    // properties also.
     // As Flink API accepts only Map<String, String> for props, here we are serializing catalog
-    // props as json string to distinguish between catalog and table properties in createTable.
+    // name, database, table as json string to distinguish between catalog info
+    // and table properties in createTable.
     String srcCatalogProps =
         FlinkCreateTableOptions.toJson(
-            getName(), tablePath.getDatabaseName(), tablePath.getObjectName(), catalogProps);
+            getName(), tablePath.getDatabaseName(), tablePath.getObjectName());
 
     Map<String, String> tableProps = table.properties();
     if (tableProps.containsKey(FlinkCreateTableOptions.CONNECTOR_PROPS_KEY)
