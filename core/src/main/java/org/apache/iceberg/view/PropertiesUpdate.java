@@ -35,6 +35,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
+import org.apache.iceberg.util.Tasks.RetryExhaustedException;
 
 class PropertiesUpdate implements UpdateViewProperties {
   private final ViewOperations ops;
@@ -60,20 +61,28 @@ class PropertiesUpdate implements UpdateViewProperties {
 
   @Override
   public void commit() {
-    Tasks.foreach(ops)
-        .retry(
-            PropertyUtil.propertyAsInt(
-                base.properties(), COMMIT_NUM_RETRIES, COMMIT_NUM_RETRIES_DEFAULT))
-        .exponentialBackoff(
-            PropertyUtil.propertyAsInt(
-                base.properties(), COMMIT_MIN_RETRY_WAIT_MS, COMMIT_MIN_RETRY_WAIT_MS_DEFAULT),
-            PropertyUtil.propertyAsInt(
-                base.properties(), COMMIT_MAX_RETRY_WAIT_MS, COMMIT_MAX_RETRY_WAIT_MS_DEFAULT),
-            PropertyUtil.propertyAsInt(
-                base.properties(), COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT),
-            2.0 /* exponential */)
-        .onlyRetryOn(CommitFailedException.class)
-        .run(taskOps -> taskOps.commit(base, internalApply()));
+    int numRetries =
+        PropertyUtil.propertyAsInt(
+            base.properties(), COMMIT_NUM_RETRIES, COMMIT_NUM_RETRIES_DEFAULT);
+    int totalTimeoutMs =
+        PropertyUtil.propertyAsInt(
+            base.properties(), COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT);
+    try {
+      Tasks.foreach(ops)
+          .retry(numRetries)
+          .exponentialBackoff(
+              PropertyUtil.propertyAsInt(
+                  base.properties(), COMMIT_MIN_RETRY_WAIT_MS, COMMIT_MIN_RETRY_WAIT_MS_DEFAULT),
+              PropertyUtil.propertyAsInt(
+                  base.properties(), COMMIT_MAX_RETRY_WAIT_MS, COMMIT_MAX_RETRY_WAIT_MS_DEFAULT),
+              totalTimeoutMs,
+              2.0 /* exponential */)
+          .onlyRetryOn(CommitFailedException.class)
+          .throwRetryExhaustedException()
+          .run(taskOps -> taskOps.commit(base, internalApply()));
+    } catch (RetryExhaustedException e) {
+      throw ViewCommitRetry.toCommitFailedException(e, numRetries, totalTimeoutMs);
+    }
   }
 
   @Override

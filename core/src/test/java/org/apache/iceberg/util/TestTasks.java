@@ -19,7 +19,10 @@
 package org.apache.iceberg.util;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.util.Collections;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
 import org.apache.iceberg.metrics.Counter;
 import org.apache.iceberg.metrics.DefaultMetricsContext;
@@ -56,5 +59,51 @@ public class TestTasks {
     Tasks.foreach(IntStream.range(0, 10)).countAttempts(counter).run(x -> {});
 
     assertThat(counter.value()).isOne();
+  }
+
+  @Test
+  public void retryExhaustionIncludesReason() {
+    assertThatThrownBy(
+            () ->
+                Tasks.foreach(Collections.singleton(1))
+                    .retry(1)
+                    .exponentialBackoff(0, 0, 5000, 0)
+                    .onlyRetryOn(IllegalStateException.class)
+                    .throwRetryExhaustedException()
+                    .run(
+                        item -> {
+                          throw new IllegalStateException("Retryable failure");
+                        }))
+        .isInstanceOf(Tasks.RetryExhaustedException.class)
+        .hasCauseInstanceOf(IllegalStateException.class)
+        .hasMessage("java.lang.IllegalStateException: Retryable failure")
+        .satisfies(
+            thrown ->
+                assertThat(((Tasks.RetryExhaustedException) thrown).reason())
+                    .isEqualTo(Tasks.RetryExhaustedException.Reason.RETRY_LIMIT_EXCEEDED));
+  }
+
+  @Test
+  public void retryExhaustionDoesNotWrapNonRetryableFailure() {
+    AtomicInteger attempts = new AtomicInteger();
+
+    assertThatThrownBy(
+            () ->
+                Tasks.foreach(Collections.singleton(1))
+                    .retry(1)
+                    .exponentialBackoff(0, 0, 5000, 0)
+                    .onlyRetryOn(IllegalStateException.class)
+                    .run(
+                        item -> {
+                          if (attempts.incrementAndGet() == 1) {
+                            throw new IllegalStateException("Retryable failure");
+                          }
+
+                          throw new IllegalArgumentException("Not retryable");
+                        }))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Not retryable");
+
+    assertThat(attempts).hasValue(2);
   }
 }

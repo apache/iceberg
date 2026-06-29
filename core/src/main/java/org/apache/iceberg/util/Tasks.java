@@ -58,6 +58,47 @@ public class Tasks {
     }
   }
 
+  /**
+   * Exception thrown when retry is exhausted due to either retry limit or timeout.
+   *
+   * <p>This exception wraps the original failure as its cause and provides a {@link Reason} to
+   * distinguish between retry limit exceeded and timeout exceeded, allowing callers to produce
+   * actionable messages that tell operators which table property to tune.
+   */
+  public static class RetryExhaustedException extends RuntimeException {
+    private static final long serialVersionUID = 1L;
+
+    /** Reason why retry was exhausted. */
+    public enum Reason {
+      /** The maximum number of retry attempts was reached. */
+      RETRY_LIMIT_EXCEEDED,
+      /** The total retry timeout duration was exceeded. */
+      TIMEOUT_EXCEEDED
+    }
+
+    private final Reason reason;
+
+    /**
+     * Creates a new retry exhausted exception.
+     *
+     * @param cause the underlying failure that caused retries
+     * @param reason the reason why retry was exhausted
+     */
+    public RetryExhaustedException(Throwable cause, Reason reason) {
+      super(cause);
+      this.reason = reason;
+    }
+
+    /**
+     * Returns the reason why retry was exhausted.
+     *
+     * @return the exhaustion reason
+     */
+    public Reason reason() {
+      return reason;
+    }
+  }
+
   public interface FailureTask<I, E extends Exception> {
     void run(I item, Exception exception) throws E;
   }
@@ -88,6 +129,7 @@ public class Tasks {
     private long maxDurationMs = 600000; // 10 minutes
     private double scaleFactor = 2.0; // exponential
     private Counter attemptsCounter;
+    private boolean throwRetryExhaustedException = false;
 
     public Builder(Iterable<I> items) {
       this.items = items;
@@ -177,6 +219,11 @@ public class Tasks {
 
     public Builder<I> countAttempts(Counter counter) {
       this.attemptsCounter = counter;
+      return this;
+    }
+
+    public Builder<I> throwRetryExhaustedException() {
+      this.throwRetryExhaustedException = true;
       return this;
     }
 
@@ -415,38 +462,30 @@ public class Tasks {
 
         } catch (Exception e) {
           long durationMs = System.currentTimeMillis() - start;
-          if (attempt >= maxAttempts || (durationMs > maxDurationMs && attempt > 1)) {
-            if (durationMs > maxDurationMs) {
-              LOG.info("Stopping retries after {} ms", durationMs);
-            }
+          boolean retryLimitExceeded = attempt >= maxAttempts;
+          boolean timeoutExceeded = durationMs > maxDurationMs && attempt > 1;
+
+          if (!shouldRetry(e)) {
             throw e;
           }
 
-          if (shouldRetryPredicate != null) {
-            if (!shouldRetryPredicate.test(e)) {
+          if (retryLimitExceeded || timeoutExceeded) {
+            if (attempt <= 1) {
               throw e;
             }
-
-          } else if (onlyRetryExceptions != null) {
-            // if onlyRetryExceptions are present, then this retries if one is found
-            boolean matchedRetryException = false;
-            for (Class<? extends Exception> exClass : onlyRetryExceptions) {
-              if (exClass.isInstance(e)) {
-                matchedRetryException = true;
-                break;
-              }
-            }
-            if (!matchedRetryException) {
-              throw e;
+            RetryExhaustedException.Reason reason;
+            if (timeoutExceeded) {
+              LOG.info("Stopping retries after {} ms", durationMs);
+              reason = RetryExhaustedException.Reason.TIMEOUT_EXCEEDED;
+            } else {
+              reason = RetryExhaustedException.Reason.RETRY_LIMIT_EXCEEDED;
             }
 
-          } else {
-            // otherwise, always retry unless one of the stop exceptions is found
-            for (Class<? extends Exception> exClass : stopRetryExceptions) {
-              if (exClass.isInstance(e)) {
-                throw e;
-              }
+            if (throwRetryExhaustedException) {
+              throw new RetryExhaustedException(e, reason);
             }
+
+            throw e;
           }
 
           int delayMs =
@@ -467,6 +506,30 @@ public class Tasks {
           }
         }
       }
+    }
+
+    private boolean shouldRetry(Exception exception) {
+      if (shouldRetryPredicate != null) {
+        return shouldRetryPredicate.test(exception);
+      }
+
+      if (onlyRetryExceptions != null) {
+        for (Class<? extends Exception> exClass : onlyRetryExceptions) {
+          if (exClass.isInstance(exception)) {
+            return true;
+          }
+        }
+
+        return false;
+      }
+
+      for (Class<? extends Exception> exClass : stopRetryExceptions) {
+        if (exClass.isInstance(exception)) {
+          return false;
+        }
+      }
+
+      return true;
     }
   }
 
