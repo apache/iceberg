@@ -20,6 +20,7 @@ package org.apache.iceberg.spark;
 
 import java.util.List;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.types.EdgeAlgorithm;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.types.ArrayType;
@@ -177,10 +178,10 @@ class SparkTypeToType extends SparkTypeVisitor<Type> {
         throw new UnsupportedOperationException(
             "Cannot convert Spark geography with mixed SRID to Iceberg");
       }
-      // Spark only supports the spherical edge-interpolation algorithm, which matches the Iceberg
-      // default, so the Spark algorithm is intentionally not propagated here. Revisit if Spark
-      // starts supporting additional algorithms.
-      return Types.GeographyType.of(geography.crs());
+      // Propagate the edge algorithm, translating by name since Iceberg and Spark share algorithm
+      // names.
+      return Types.GeographyType.of(
+          geography.crs(), EdgeAlgorithm.fromName(geography.algorithm().toString()));
     } else if (atomic instanceof NullType) {
       return Types.UnknownType.get();
     }

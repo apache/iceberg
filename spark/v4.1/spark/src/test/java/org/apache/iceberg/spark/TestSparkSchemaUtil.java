@@ -111,6 +111,14 @@ public class TestSparkSchemaUtil {
         .isEqualTo(Types.GeometryType.DEFAULT_CRS);
     assertThat(SparkSchemaUtil.convert(sparkDefaultGeometry)).isEqualTo(defaultGeometry);
 
+    // a default-CRS geography round-trips through the null <-> OGC:CRS84 normalization
+    Types.GeographyType defaultGeography = Types.GeographyType.crs84();
+    DataType sparkDefaultGeography = SparkSchemaUtil.convert(defaultGeography);
+    assertThat(sparkDefaultGeography).isInstanceOf(GeographyType.class);
+    assertThat(((GeographyType) sparkDefaultGeography).crs())
+        .isEqualTo(Types.GeographyType.DEFAULT_CRS);
+    assertThat(SparkSchemaUtil.convert(sparkDefaultGeography)).isEqualTo(defaultGeography);
+
     Types.GeometryType geometry = Types.GeometryType.of("EPSG:3857");
     DataType sparkGeometry = SparkSchemaUtil.convert(geometry);
     assertThat(sparkGeometry).isInstanceOf(GeometryType.class);

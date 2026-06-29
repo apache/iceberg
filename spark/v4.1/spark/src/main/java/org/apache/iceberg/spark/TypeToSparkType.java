@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark;
 
 import java.util.List;
+import java.util.function.Supplier;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -35,6 +36,8 @@ import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.DateType$;
 import org.apache.spark.sql.types.DecimalType$;
 import org.apache.spark.sql.types.DoubleType$;
+import org.apache.spark.sql.types.EdgeInterpolationAlgorithm;
+import org.apache.spark.sql.types.EdgeInterpolationAlgorithm$;
 import org.apache.spark.sql.types.FloatType$;
 import org.apache.spark.sql.types.GeographyType$;
 import org.apache.spark.sql.types.GeometryType$;
@@ -55,6 +58,11 @@ class TypeToSparkType extends TypeUtil.SchemaVisitor<DataType> {
   TypeToSparkType() {}
 
   public static final String METADATA_COL_ATTR_KEY = "__metadata_col";
+
+  // Spark's only edge-interpolation algorithm. Spark exposes no Java-accessible constant for it, so
+  // it is resolved once by name through the companion's case-insensitive parser.
+  private static final EdgeInterpolationAlgorithm SPARK_SPHERICAL =
+      EdgeInterpolationAlgorithm$.MODULE$.fromString("SPHERICAL").get();
 
   @Override
   public DataType schema(Schema schema, DataType structType) {
@@ -150,15 +158,9 @@ class TypeToSparkType extends TypeUtil.SchemaVisitor<DataType> {
       case BINARY:
         return BinaryType$.MODULE$;
       case GEOMETRY:
-        Types.GeometryType geometry = (Types.GeometryType) primitive;
-        return geometryType(geometry.crs());
+        return geometryType((Types.GeometryType) primitive);
       case GEOGRAPHY:
-        Types.GeographyType geography = (Types.GeographyType) primitive;
-        if (geography.algorithm() != EdgeAlgorithm.SPHERICAL) {
-          throw new UnsupportedOperationException(
-              "Spark does not support geography edge algorithm: " + geography.algorithm());
-        }
-        return geographyType(geography.crs());
+        return geographyType((Types.GeographyType) primitive);
       case DECIMAL:
         Types.DecimalType decimal = (Types.DecimalType) primitive;
         return DecimalType$.MODULE$.apply(decimal.precision(), decimal.scale());
@@ -170,21 +172,41 @@ class TypeToSparkType extends TypeUtil.SchemaVisitor<DataType> {
     }
   }
 
-  private DataType geometryType(String crs) {
-    // Iceberg allows any non-empty CRS, but Spark only recognizes a fixed set and throws an opaque
-    // ST_INVALID_CRS_VALUE for the rest; surface it as a clear unsupported-CRS error instead.
+  private DataType geometryType(Types.GeometryType geometry) {
+    // The spec lets a geometry CRS be any string identifying a CRS, but Spark recognizes only a
+    // fixed set; a CRS Spark cannot resolve becomes a clear unsupported-CRS error below.
+    String crs = geometry.crs();
+    return convertAndValidate("geometry", crs, () -> GeometryType$.MODULE$.apply(crs));
+  }
+
+  private DataType geographyType(Types.GeographyType geography) {
+    // The spec requires a geography CRS to be geographic; Spark recognizes only OGC:CRS84, so any
+    // other CRS becomes a clear unsupported-CRS error below.
+    EdgeInterpolationAlgorithm algorithm = convertAlgorithm(geography.algorithm());
+    String crs = geography.crs();
+    return convertAndValidate("geography", crs, () -> GeographyType$.MODULE$.apply(crs, algorithm));
+  }
+
+  // Builds a Spark geo type, translating Spark's opaque ST_INVALID_CRS_VALUE for an unrecognized
+  // CRS into a clear Iceberg error.
+  private static DataType convertAndValidate(
+      String kind, String crs, Supplier<DataType> conversion) {
     try {
-      return GeometryType$.MODULE$.apply(crs);
+      return conversion.get();
     } catch (SparkIllegalArgumentException e) {
-      throw new UnsupportedOperationException("Spark does not support geometry CRS: " + crs, e);
+      throw new UnsupportedOperationException("Spark does not support " + kind + " CRS: " + crs, e);
     }
   }
 
-  private DataType geographyType(String crs) {
-    try {
-      return GeographyType$.MODULE$.apply(crs);
-    } catch (SparkIllegalArgumentException e) {
-      throw new UnsupportedOperationException("Spark does not support geography CRS: " + crs, e);
+  // Translates Iceberg's edge-interpolation algorithm to Spark's. Spark supports only the spherical
+  // algorithm (the Iceberg default); every other algorithm is rejected with a clear error.
+  private static EdgeInterpolationAlgorithm convertAlgorithm(EdgeAlgorithm algorithm) {
+    switch (algorithm) {
+      case SPHERICAL:
+        return SPARK_SPHERICAL;
+      default:
+        throw new UnsupportedOperationException(
+            "Spark does not support geography edge algorithm: " + algorithm);
     }
   }
 
