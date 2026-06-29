@@ -136,6 +136,36 @@ public class TestSparkSchemaUtil {
   }
 
   @Test
+  public void testGeospatialCrsUnsupportedBySparkIsRejected() {
+    // Iceberg permits any non-empty CRS, but Spark only recognizes a fixed set; a CRS Spark cannot
+    // resolve must fail with a clear Iceberg error rather than an opaque Spark exception.
+    Types.GeometryType geometry = Types.GeometryType.of("EPSG:4269");
+    assertThatThrownBy(() -> SparkSchemaUtil.convert(geometry))
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage("Spark does not support geometry CRS: EPSG:4269");
+
+    Types.GeographyType geography = Types.GeographyType.of("EPSG:4269");
+    assertThatThrownBy(() -> SparkSchemaUtil.convert(geography))
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage("Spark does not support geography CRS: EPSG:4269");
+  }
+
+  @Test
+  public void testGeospatialMixedSridIsRejected() {
+    // Spark models a mixed-SRID column with a sentinel CRS ("SRID:ANY"); Iceberg requires a
+    // concrete column-level CRS, so a mixed-SRID Spark type must be rejected, not persisted.
+    DataType mixedGeometry = GeometryType$.MODULE$.apply("ANY");
+    assertThatThrownBy(() -> SparkSchemaUtil.convert(mixedGeometry))
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage("Cannot convert Spark geometry with mixed SRID to Iceberg");
+
+    DataType mixedGeography = GeographyType$.MODULE$.apply("ANY");
+    assertThatThrownBy(() -> SparkSchemaUtil.convert(mixedGeography))
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage("Cannot convert Spark geography with mixed SRID to Iceberg");
+  }
+
+  @Test
   public void testPruneGeospatialTypes() {
     Schema schema =
         new Schema(

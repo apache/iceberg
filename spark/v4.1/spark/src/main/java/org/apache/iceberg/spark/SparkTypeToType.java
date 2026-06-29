@@ -165,12 +165,22 @@ class SparkTypeToType extends SparkTypeVisitor<Type> {
     } else if (atomic instanceof BinaryType) {
       return Types.BinaryType.get();
     } else if (atomic instanceof GeometryType) {
-      return Types.GeometryType.of(((GeometryType) atomic).crs());
+      GeometryType geometry = (GeometryType) atomic;
+      if (geometry.isMixedSrid()) {
+        throw new UnsupportedOperationException(
+            "Cannot convert Spark geometry with mixed SRID to Iceberg");
+      }
+      return Types.GeometryType.of(geometry.crs());
     } else if (atomic instanceof GeographyType) {
+      GeographyType geography = (GeographyType) atomic;
+      if (geography.isMixedSrid()) {
+        throw new UnsupportedOperationException(
+            "Cannot convert Spark geography with mixed SRID to Iceberg");
+      }
       // Spark only supports the spherical edge-interpolation algorithm, which matches the Iceberg
       // default, so the Spark algorithm is intentionally not propagated here. Revisit if Spark
       // starts supporting additional algorithms.
-      return Types.GeographyType.of(((GeographyType) atomic).crs());
+      return Types.GeographyType.of(geography.crs());
     } else if (atomic instanceof NullType) {
       return Types.UnknownType.get();
     }

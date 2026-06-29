@@ -26,6 +26,7 @@ import org.apache.iceberg.types.EdgeAlgorithm;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
+import org.apache.spark.SparkIllegalArgumentException;
 import org.apache.spark.sql.catalyst.expressions.Literal$;
 import org.apache.spark.sql.types.ArrayType$;
 import org.apache.spark.sql.types.BinaryType$;
@@ -150,14 +151,14 @@ class TypeToSparkType extends TypeUtil.SchemaVisitor<DataType> {
         return BinaryType$.MODULE$;
       case GEOMETRY:
         Types.GeometryType geometry = (Types.GeometryType) primitive;
-        return GeometryType$.MODULE$.apply(geometry.crs());
+        return geometryType(geometry.crs());
       case GEOGRAPHY:
         Types.GeographyType geography = (Types.GeographyType) primitive;
         if (geography.algorithm() != EdgeAlgorithm.SPHERICAL) {
           throw new UnsupportedOperationException(
               "Spark does not support geography edge algorithm: " + geography.algorithm());
         }
-        return GeographyType$.MODULE$.apply(geography.crs());
+        return geographyType(geography.crs());
       case DECIMAL:
         Types.DecimalType decimal = (Types.DecimalType) primitive;
         return DecimalType$.MODULE$.apply(decimal.precision(), decimal.scale());
@@ -166,6 +167,24 @@ class TypeToSparkType extends TypeUtil.SchemaVisitor<DataType> {
       default:
         throw new UnsupportedOperationException(
             "Cannot convert unsupported type to Spark: " + primitive);
+    }
+  }
+
+  private DataType geometryType(String crs) {
+    // Iceberg allows any non-empty CRS, but Spark only recognizes a fixed set and throws an opaque
+    // ST_INVALID_CRS_VALUE for the rest; surface it as a clear unsupported-CRS error instead.
+    try {
+      return GeometryType$.MODULE$.apply(crs);
+    } catch (SparkIllegalArgumentException e) {
+      throw new UnsupportedOperationException("Spark does not support geometry CRS: " + crs, e);
+    }
+  }
+
+  private DataType geographyType(String crs) {
+    try {
+      return GeographyType$.MODULE$.apply(crs);
+    } catch (SparkIllegalArgumentException e) {
+      throw new UnsupportedOperationException("Spark does not support geography CRS: " + crs, e);
     }
   }
 
