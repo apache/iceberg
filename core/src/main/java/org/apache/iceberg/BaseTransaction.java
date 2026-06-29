@@ -48,6 +48,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
 import org.slf4j.Logger;
@@ -72,6 +73,7 @@ public class BaseTransaction implements Transaction {
       Sets.newHashSet(); // keep track of files deleted in the most recent commit
   private final Consumer<String> enqueueDelete = deletedFiles::add;
   private final TransactionType type;
+  private final TableMetadata start;
   private TableMetadata base;
   private TableMetadata current;
   private boolean hasLastOpCommitted;
@@ -91,6 +93,7 @@ public class BaseTransaction implements Transaction {
     this.tableName = tableName;
     this.ops = ops;
     this.transactionTable = new TransactionTable();
+    this.start = start;
     this.current = start;
     this.transactionOps = new TransactionTableOperations();
     this.updates = Lists.newArrayList();
@@ -258,15 +261,9 @@ public class BaseTransaction implements Transaction {
         break;
 
       case REPLACE_TABLE:
-        commitReplaceTransaction(false);
-        break;
-
       case CREATE_OR_REPLACE_TABLE:
-        commitReplaceTransaction(true);
-        break;
-
       case SIMPLE:
-        commitSimpleTransaction();
+        commitWithRetry();
         break;
     }
   }
@@ -295,8 +292,17 @@ public class BaseTransaction implements Transaction {
     }
   }
 
-  private void commitReplaceTransaction(boolean orCreate) {
+  private void commitWithRetry() {
+    if (base == current) {
+      return;
+    }
+
     Map<String, String> props = base != null ? base.properties() : current.properties();
+
+    Set<Long> startingSnapshots =
+        base != null
+            ? base.snapshots().stream().map(Snapshot::snapshotId).collect(Collectors.toSet())
+            : ImmutableSet.of();
 
     try {
       Tasks.foreach(ops)
@@ -312,63 +318,7 @@ public class BaseTransaction implements Transaction {
           .onlyRetryOn(CommitFailedException.class)
           .run(
               underlyingOps -> {
-                try {
-                  underlyingOps.refresh();
-                } catch (NoSuchTableException e) {
-                  if (!orCreate) {
-                    throw e;
-                  }
-                }
-
-                // because this is a replace table, it will always completely replace the table
-                // metadata. even if it was just updated.
-                if (base != underlyingOps.current()) {
-                  this.base = underlyingOps.current(); // just refreshed
-                }
-
-                underlyingOps.commit(base, current);
-              });
-
-    } catch (CommitStateUnknownException e) {
-      throw e;
-
-    } catch (RuntimeException e) {
-      // the commit failed and no files were committed. clean up each update.
-      if (!ops.requireStrictCleanup() || e instanceof CleanableFailure) {
-        cleanAllUpdates();
-      }
-
-      throw e;
-
-    } finally {
-      // replace table never needs to retry because the table state is completely replaced. because
-      // retries are not
-      // a concern, it is safe to delete all the deleted files from individual operations
-      deleteUncommittedFiles(deletedFiles);
-    }
-  }
-
-  private void commitSimpleTransaction() {
-    // if there were no changes, don't try to commit
-    if (base == current) {
-      return;
-    }
-
-    Set<Long> startingSnapshots =
-        base.snapshots().stream().map(Snapshot::snapshotId).collect(Collectors.toSet());
-    try {
-      Tasks.foreach(ops)
-          .retry(base.propertyAsInt(COMMIT_NUM_RETRIES, COMMIT_NUM_RETRIES_DEFAULT))
-          .exponentialBackoff(
-              base.propertyAsInt(COMMIT_MIN_RETRY_WAIT_MS, COMMIT_MIN_RETRY_WAIT_MS_DEFAULT),
-              base.propertyAsInt(COMMIT_MAX_RETRY_WAIT_MS, COMMIT_MAX_RETRY_WAIT_MS_DEFAULT),
-              base.propertyAsInt(COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT),
-              2.0 /* exponential */)
-          .onlyRetryOn(CommitFailedException.class)
-          .run(
-              underlyingOps -> {
                 applyUpdates(underlyingOps);
-
                 underlyingOps.commit(base, current);
               });
 
@@ -378,6 +328,7 @@ public class BaseTransaction implements Transaction {
     } catch (PendingUpdateFailedException e) {
       cleanUp();
       throw e.wrapped();
+
     } catch (RuntimeException e) {
       if (!ops.requireStrictCleanup() || e instanceof CleanableFailure) {
         cleanUp();
@@ -386,8 +337,10 @@ public class BaseTransaction implements Transaction {
       throw e;
     }
 
-    // the commit succeeded
+    cleanUpAfterCommitSuccess(startingSnapshots);
+  }
 
+  private void cleanUpAfterCommitSuccess(Set<Long> startingSnapshots) {
     try {
       // clean up the data files that were deleted by each operation. first, get the list of
       // committed manifests to ensure that no committed manifest is deleted.
@@ -441,12 +394,36 @@ public class BaseTransaction implements Transaction {
   }
 
   private void applyUpdates(TableOperations underlyingOps) {
-    if (base != underlyingOps.refresh()) {
-      // use refreshed the metadata
-      this.base = underlyingOps.current();
-      this.current = underlyingOps.current();
+    try {
+      underlyingOps.refresh();
+    } catch (NoSuchTableException e) {
+      if (type == TransactionType.CREATE_OR_REPLACE_TABLE) {
+        this.base = null;
+        return;
+      }
+      throw e;
+    }
+
+    if (underlyingOps.current() == null) {
+      if (type == TransactionType.CREATE_OR_REPLACE_TABLE) {
+        this.base = null;
+        return;
+      }
+      throw new NoSuchTableException("Table metadata is not available after refresh");
+    }
+
+    if (base != underlyingOps.current()) {
+      TableMetadata refreshed = underlyingOps.current();
+
+      try {
+        this.current = startingMetadataFor(refreshed);
+      } catch (CommitFailedException e) {
+        throw new PendingUpdateFailedException(e);
+      }
+
+      this.base = refreshed;
+
       for (PendingUpdate update : updates) {
-        // re-commit each update in the chain to apply it and update current
         try {
           update.commit();
         } catch (CommitFailedException e) {
@@ -454,6 +431,34 @@ public class BaseTransaction implements Transaction {
           // retry-loop.
           throw new PendingUpdateFailedException(e);
         }
+      }
+    }
+  }
+
+  private TableMetadata startingMetadataFor(TableMetadata refreshed) {
+    return switch (type) {
+      case REPLACE_TABLE, CREATE_OR_REPLACE_TABLE -> {
+        validateFieldIds(start.schema(), refreshed.schema());
+        yield refreshed.buildReplacementPreservingIds(
+            start.schema(), start.spec(), start.sortOrder(), start.location(), start.properties());
+      }
+      case SIMPLE -> refreshed;
+      default -> throw new IllegalStateException("Unexpected transaction type for update: " + type);
+    };
+  }
+
+  /**
+   * Validates that field IDs in the start schema don't conflict with the refreshed schema. A
+   * conflict exists when both schemas use the same field ID for columns with different names.
+   */
+  private static void validateFieldIds(Schema startSchema, Schema refreshedSchema) {
+    for (Types.NestedField startField : startSchema.columns()) {
+      Types.NestedField refreshedField = refreshedSchema.findField(startField.fieldId());
+      if (refreshedField != null && !refreshedField.name().equals(startField.name())) {
+        throw new CommitFailedException(
+            "Cannot commit replace transaction: field ID %d is '%s' in the replace schema "
+                + "but '%s' in the current table schema",
+            startField.fieldId(), startField.name(), refreshedField.name());
       }
     }
   }
