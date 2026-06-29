@@ -380,23 +380,10 @@ public class TestRewriteTablePathsAction extends TestBase {
             sourceLocation);
 
     // Two appends produce two snapshots so the older snapshot is exercised as a historical one.
-    for (int snapshotNo = 0; snapshotNo < 2; snapshotNo++) {
-      List<ThreeColumnRecord> records = Lists.newArrayList();
-      for (int i = 0; i < 30; i++) {
-        int id = snapshotNo * 100 + i;
-        records.add(new ThreeColumnRecord(id, "row-" + id, "data-" + id));
-      }
-      spark
-          .createDataFrame(records, ThreeColumnRecord.class)
-          .repartition(30)
-          .select("c1", "c2", "c3")
-          .write()
-          .format("iceberg")
-          .mode("append")
-          .save(sourceLocation);
-    }
+    appendManifestLengthRecords(sourceLocation, 0);
+    appendManifestLengthRecords(sourceLocation, 1);
     sourceTable.refresh();
-    assertThat(sourceTable.snapshots()).hasSizeGreaterThan(1);
+    assertThat(sourceTable.snapshots()).hasSize(2);
 
     String targetLocation =
         targetTableLocation() + "this/is/a/much/longer/nested/target/prefix/than/the/source";
@@ -410,6 +397,34 @@ public class TestRewriteTablePathsAction extends TestBase {
     copyTableFiles(result);
 
     Table targetTable = TABLES.load(targetLocation);
+    // snapshot 1 references its own manifest, snapshot 2 references both
+    assertThat(assertManifestLengthsMatchOnDisk(targetTable))
+        .as("should validate manifests across all (current and historical) snapshots")
+        .isEqualTo(3);
+    assertRewriteChangedManifestLength(sourceTable, targetTable);
+  }
+
+  private void appendManifestLengthRecords(String location, int batch) {
+    List<ThreeColumnRecord> records = Lists.newArrayList();
+    for (int i = 0; i < 30; i++) {
+      int id = batch * 100 + i;
+      records.add(new ThreeColumnRecord(id, "row-" + id, "data-" + id));
+    }
+    spark
+        .createDataFrame(records, ThreeColumnRecord.class)
+        .repartition(30)
+        .select("c1", "c2", "c3")
+        .write()
+        .format("iceberg")
+        .mode("append")
+        .save(location);
+  }
+
+  /**
+   * Assert that every manifest referenced by any snapshot of the target table records a
+   * manifest_length matching the file on disk, and return how many entries were checked.
+   */
+  private int assertManifestLengthsMatchOnDisk(Table targetTable) {
     FileIO io = targetTable.io();
     int checkedManifests = 0;
     for (Snapshot snapshot : targetTable.snapshots()) {
@@ -423,9 +438,34 @@ public class TestRewriteTablePathsAction extends TestBase {
         checkedManifests++;
       }
     }
-    assertThat(checkedManifests)
-        .as("should validate manifests across all (current and historical) snapshots")
-        .isGreaterThan(1);
+    return checkedManifests;
+  }
+
+  /**
+   * Guard against the length assertions degenerating into a tautology: if the prefix change did not
+   * move the byte size of any manifest, they would hold even without stamping the measured length.
+   */
+  private void assertRewriteChangedManifestLength(Table sourceTable, Table targetTable) {
+    Map<String, Long> sourceLengths = manifestLengthsByFileName(sourceTable);
+    Map<String, Long> targetLengths = manifestLengthsByFileName(targetTable);
+    // compare like with like: a target manifest missing from the source map would otherwise satisfy
+    // the check below for the wrong reason, since Long.equals(null) is false
+    assertThat(targetLengths.keySet())
+        .as("target manifests should be the source manifests under a new prefix")
+        .isEqualTo(sourceLengths.keySet());
+    assertThat(targetLengths.entrySet())
+        .as("rewriting to a longer prefix must change at least one manifest's byte size")
+        .anyMatch(entry -> !entry.getValue().equals(sourceLengths.get(entry.getKey())));
+  }
+
+  private Map<String, Long> manifestLengthsByFileName(Table tbl) {
+    Map<String, Long> lengths = Maps.newHashMap();
+    for (Snapshot snapshot : tbl.snapshots()) {
+      for (ManifestFile manifest : snapshot.allManifests(tbl.io())) {
+        lengths.put(fileName(manifest.path()), manifest.length());
+      }
+    }
+    return lengths;
   }
 
   @TestTemplate
@@ -905,7 +945,14 @@ public class TestRewriteTablePathsAction extends TestBase {
     copyTableFiles(result);
 
     Table targetTable = TABLES.load(targetTableLocation());
-    for (ManifestFile manifest : targetTable.currentSnapshot().deleteManifests(targetTable.io())) {
+    List<ManifestFile> deleteManifests =
+        targetTable.currentSnapshot().deleteManifests(targetTable.io());
+    assertThat(deleteManifests).isNotEmpty();
+    for (ManifestFile manifest : deleteManifests) {
+      // the delete manifest itself is rewritten, so its manifest_length must be measured too
+      assertThat(manifest.length())
+          .as("manifest_length of the rewritten delete manifest %s", manifest.path())
+          .isEqualTo(targetTable.io().newInputFile(manifest.path()).getLength());
       try (ManifestReader<DeleteFile> reader =
           ManifestFiles.readDeleteManifest(manifest, targetTable.io(), targetTable.specs())) {
         for (DeleteFile df : reader) {

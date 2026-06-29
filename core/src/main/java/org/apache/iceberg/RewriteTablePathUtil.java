@@ -251,12 +251,11 @@ public class RewriteTablePathUtil {
   /**
    * Rewrite a manifest list representing a snapshot, replacing path references.
    *
-   * @deprecated since 1.11.0, will be removed in 1.12.0; use {@link #rewriteManifestList(Snapshot,
-   *     FileIO, TableMetadata, Set, String, String, String, String, Map)}, which records the
-   *     rewritten manifest length so that manifest_length stays consistent with the rewritten
-   *     manifest file on disk.
+   * <p>Every entry keeps its source {@code manifest_length}, which does not match the rewritten
+   * manifest when the target prefix differs in length from the source. Callers that rewrite to a
+   * different-length prefix should use {@link #rewriteManifestList(Snapshot, FileIO, TableMetadata,
+   * List, Set, String, String, String, String, Map)} and pass the measured lengths.
    */
-  @Deprecated
   public static RewriteResult<ManifestFile> rewriteManifestList(
       Snapshot snapshot,
       FileIO io,
@@ -270,6 +269,7 @@ public class RewriteTablePathUtil {
         snapshot,
         io,
         tableMetadata,
+        manifestsInSnapshot(snapshot, io, sourcePrefix),
         manifestsToRewrite,
         sourcePrefix,
         targetPrefix,
@@ -281,16 +281,30 @@ public class RewriteTablePathUtil {
   /**
    * Rewrite a manifest list representing a snapshot, replacing path references.
    *
+   * <p>Each entry's {@code manifest_length} is taken from {@code rewrittenManifestLengths}, because
+   * replacing the path prefix changes the byte length of the rewritten manifest.
+   *
+   * <p>Known gap: an entry whose manifest is absent from the map keeps its source length, which
+   * does not match the rewritten file. This is reachable in an incremental run, where a manifest
+   * carried over from an earlier run is still referenced by the new snapshot's manifest list but is
+   * not rewritten again. Re-measuring it here does not help, because the length of the file the
+   * earlier run produced depends on the table metadata as it was then: the manifest header embeds
+   * the current schema, so re-measuring after schema evolution yields a different length. Closing
+   * the gap needs either read access to the target, which this action deliberately does not have,
+   * or state carried between runs.
+   *
    * @param snapshot snapshot represented by the manifest list
    * @param io file io
    * @param tableMetadata metadata of table
+   * @param manifestFiles the manifests referenced by the snapshot's manifest list, as returned by
+   *     {@link #manifestsInSnapshot(Snapshot, FileIO, String)}
    * @param manifestsToRewrite a list of manifest files to filter for rewrite
    * @param sourcePrefix source prefix that will be replaced
    * @param targetPrefix target prefix that will replace it
    * @param stagingDir staging directory
    * @param outputPath location to write the manifest list
    * @param rewrittenManifestLengths map from source manifest path to the byte length of its
-   *     rewritten manifest; entries absent from the map keep their original length
+   *     rewritten manifest
    * @return a copy plan for manifest files whose metadata were contained in the rewritten manifest
    *     list
    */
@@ -298,6 +312,7 @@ public class RewriteTablePathUtil {
       Snapshot snapshot,
       FileIO io,
       TableMetadata tableMetadata,
+      List<ManifestFile> manifestFiles,
       Set<String> manifestsToRewrite,
       String sourcePrefix,
       String targetPrefix,
@@ -306,15 +321,6 @@ public class RewriteTablePathUtil {
       Map<String, Long> rewrittenManifestLengths) {
     RewriteResult<ManifestFile> result = new RewriteResult<>();
     OutputFile outputFile = io.newOutputFile(outputPath);
-
-    List<ManifestFile> manifestFiles = manifestFilesInSnapshot(io, snapshot);
-    manifestFiles.forEach(
-        mf ->
-            Preconditions.checkArgument(
-                mf.path().startsWith(sourcePrefix),
-                "Encountered manifest file %s not under the source prefix %s",
-                mf.path(),
-                sourcePrefix));
 
     EncryptionManager encryptionManager =
         (io instanceof EncryptingFileIO)
@@ -334,8 +340,15 @@ public class RewriteTablePathUtil {
       for (ManifestFile file : manifestFiles) {
         ManifestFile newFile = file.copy();
         ((StructLike) newFile).set(0, newPath(newFile.path(), sourcePrefix, targetPrefix));
-        ((StructLike) newFile)
-            .set(1, rewrittenManifestLengths.getOrDefault(file.path(), file.length()));
+        Long rewrittenLength = rewrittenManifestLengths.get(file.path());
+        if (rewrittenLength == null && !rewrittenManifestLengths.isEmpty()) {
+          LOG.warn(
+              "No measured length for manifest {}; recording its source length {}, which will not "
+                  + "match the rewritten file at the target",
+              file.path(),
+              file.length());
+        }
+        ((StructLike) newFile).set(1, rewrittenLength != null ? rewrittenLength : file.length());
         writer.add(newFile);
 
         if (manifestsToRewrite.contains(file.path())) {
@@ -364,22 +377,33 @@ public class RewriteTablePathUtil {
   }
 
   /**
-   * Identify the manifest files in a snapshot's manifest list that are selected for rewrite.
+   * Read the manifests referenced by a snapshot's manifest list, without writing anything.
    *
-   * <p>Reads the snapshot's manifest list and filters it by {@code manifestsToRewrite} without
-   * writing anything, so callers can enumerate the manifests to rewrite before producing the
-   * rewritten manifest list (which needs the rewritten manifest lengths).
+   * <p>Callers need this before producing the rewritten manifest list, which records each
+   * referenced manifest's rewritten length. Reading once here and passing the result to {@link
+   * #rewriteManifestList(Snapshot, FileIO, TableMetadata, List, Set, String, String, String,
+   * String, Map)} also avoids reading the manifest list twice.
+   *
+   * <p>An unreadable manifest list is logged and treated as empty, matching the behaviour this
+   * method was extracted from.
    *
    * @param snapshot snapshot whose manifest list is read
    * @param io file io
-   * @param manifestsToRewrite paths of manifests selected for rewrite
-   * @return the manifest files in the snapshot that are selected for rewrite
+   * @param sourcePrefix source prefix every referenced manifest must live under
+   * @return the manifests referenced by the snapshot's manifest list, or an empty list if the
+   *     manifest list could not be read
    */
-  public static Set<ManifestFile> manifestsToRewriteForSnapshot(
-      Snapshot snapshot, FileIO io, Set<String> manifestsToRewrite) {
-    return manifestFilesInSnapshot(io, snapshot).stream()
-        .filter(manifestFile -> manifestsToRewrite.contains(manifestFile.path()))
-        .collect(Collectors.toSet());
+  public static List<ManifestFile> manifestsInSnapshot(
+      Snapshot snapshot, FileIO io, String sourcePrefix) {
+    List<ManifestFile> manifestFiles = manifestFilesInSnapshot(io, snapshot);
+    manifestFiles.forEach(
+        manifestFile ->
+            Preconditions.checkArgument(
+                manifestFile.path().startsWith(sourcePrefix),
+                "Encountered manifest file %s not under the source prefix %s",
+                manifestFile.path(),
+                sourcePrefix));
+    return manifestFiles;
   }
 
   /**
@@ -394,11 +418,9 @@ public class RewriteTablePathUtil {
    * @param sourcePrefix source prefix that will be replaced
    * @param targetPrefix target prefix that will replace it
    * @return a copy plan of content files in the manifest that was rewritten
-   * @deprecated since 1.11.0, will be removed in 1.12.0; use {@link
-   *     #rewriteDataManifestWithLength}, which also returns the rewritten manifest length so that
-   *     manifest_length can be recorded accurately in the manifest list.
+   * @see #rewriteDataManifestAndMeasureLength which also returns the rewritten manifest length, for
+   *     callers that need to record manifest_length in the manifest list
    */
-  @Deprecated
   public static RewriteResult<DataFile> rewriteDataManifest(
       ManifestFile manifestFile,
       Set<Long> snapshotIds,
@@ -409,7 +431,7 @@ public class RewriteTablePathUtil {
       String sourcePrefix,
       String targetPrefix)
       throws IOException {
-    return rewriteDataManifestWithLength(
+    return rewriteDataManifestAndMeasureLength(
             manifestFile,
             snapshotIds,
             outputFile,
@@ -425,10 +447,10 @@ public class RewriteTablePathUtil {
    * Rewrite a data manifest, replacing path references, and return the rewritten manifest's byte
    * length.
    *
-   * <p>The length is measured from the manifest writer after it is closed (rather than via a
-   * separate {@code getLength()}/HEAD call) so it is accurate even on file systems where the length
-   * of an in-progress write underreports. Callers record this length as the {@code manifest_length}
-   * of the rewritten manifest in the manifest list.
+   * <p>The length is read from the closed manifest writer rather than via a separate {@code
+   * getLength()} call, which would cost a stat request per manifest against object storage. Callers
+   * record this length as the {@code manifest_length} of the rewritten manifest in the manifest
+   * list.
    *
    * @param manifestFile source manifest file to rewrite
    * @param snapshotIds snapshot ids for filtering returned data manifest entries
@@ -441,7 +463,7 @@ public class RewriteTablePathUtil {
    * @return the copy plan of content files in the rewritten manifest, paired with the rewritten
    *     manifest's byte length
    */
-  public static Pair<RewriteResult<DataFile>, Long> rewriteDataManifestWithLength(
+  public static Pair<RewriteResult<DataFile>, Long> rewriteDataManifestAndMeasureLength(
       ManifestFile manifestFile,
       Set<Long> snapshotIds,
       OutputFile outputFile,
@@ -484,9 +506,10 @@ public class RewriteTablePathUtil {
    *     rewritten here)
    * @return a copy plan of content files in the manifest that was rewritten
    * @deprecated since 1.12.0, will be removed in 1.13.0; use {@link
-   *     #rewriteDeleteManifestWithLength}, which accepts the map of rewritten position delete file
-   *     sizes and also returns the rewritten manifest length so that {@code file_size_in_bytes} and
-   *     {@code manifest_length} stay consistent with the rewritten files on disk.
+   *     #rewriteDeleteManifestAndMeasureLength}, which accepts the map of rewritten position delete
+   *     file sizes and also returns the rewritten manifest length so that {@code
+   *     file_size_in_bytes} and {@code manifest_length} stay consistent with the rewritten files on
+   *     disk.
    */
   @Deprecated
   public static RewriteResult<DeleteFile> rewriteDeleteManifest(
@@ -500,26 +523,22 @@ public class RewriteTablePathUtil {
       String targetPrefix,
       String stagingLocation)
       throws IOException {
-    return rewriteDeleteManifest(
-        manifestFile,
-        snapshotIds,
-        outputFile,
-        io,
-        format,
-        specsById,
-        sourcePrefix,
-        targetPrefix,
-        stagingLocation,
-        ImmutableMap.of());
+    return rewriteDeleteManifestAndMeasureLength(
+            manifestFile,
+            snapshotIds,
+            outputFile,
+            io,
+            format,
+            specsById,
+            sourcePrefix,
+            targetPrefix,
+            stagingLocation,
+            ImmutableMap.of())
+        .first();
   }
 
   /**
    * Rewrite a delete manifest, replacing path references.
-   *
-   * <p>This is a metadata-only operation: position delete file content is rewritten separately (see
-   * {@link #rewritePositionDelete}). The actual sizes of those rewritten files are supplied via
-   * {@code rewrittenDeleteFileSizes} and recorded in the manifest so that {@code
-   * file_size_in_bytes} stays consistent with the rewritten file on disk.
    *
    * @param manifestFile source delete manifest to rewrite
    * @param snapshotIds snapshot ids for filtering returned delete manifest entries
@@ -533,11 +552,9 @@ public class RewriteTablePathUtil {
    * @param rewrittenDeleteFileSizes map from source position delete file path to the actual size of
    *     the rewritten file; entries absent from the map keep their original size
    * @return a copy plan of content files in the manifest that was rewritten
-   * @deprecated since 1.12.0, will be removed in 1.13.0; use {@link
-   *     #rewriteDeleteManifestWithLength}, which also returns the rewritten manifest length so that
-   *     manifest_length can be recorded accurately in the manifest list.
+   * @see #rewriteDeleteManifestAndMeasureLength which also returns the rewritten manifest length,
+   *     for callers that need to record manifest_length in the manifest list
    */
-  @Deprecated
   public static RewriteResult<DeleteFile> rewriteDeleteManifest(
       ManifestFile manifestFile,
       Set<Long> snapshotIds,
@@ -550,7 +567,7 @@ public class RewriteTablePathUtil {
       String stagingLocation,
       Map<String, Long> rewrittenDeleteFileSizes)
       throws IOException {
-    return rewriteDeleteManifestWithLength(
+    return rewriteDeleteManifestAndMeasureLength(
             manifestFile,
             snapshotIds,
             outputFile,
@@ -573,10 +590,10 @@ public class RewriteTablePathUtil {
    * {@code rewrittenDeleteFileSizes} and recorded in the manifest so that {@code
    * file_size_in_bytes} stays consistent with the rewritten file on disk.
    *
-   * <p>The manifest length is measured from the manifest writer after it is closed (rather than via
-   * a separate {@code getLength()}/HEAD call) so it is accurate even on file systems where the
-   * length of an in-progress write underreports. Callers record this length as the {@code
-   * manifest_length} of the rewritten manifest in the manifest list.
+   * <p>The manifest length is read from the closed manifest writer rather than via a separate
+   * {@code getLength()} call, which would cost a stat request per manifest against object storage.
+   * Callers record this length as the {@code manifest_length} of the rewritten manifest in the
+   * manifest list.
    *
    * @param manifestFile source delete manifest to rewrite
    * @param snapshotIds snapshot ids for filtering returned delete manifest entries
@@ -592,7 +609,7 @@ public class RewriteTablePathUtil {
    * @return the copy plan of content files in the rewritten manifest, paired with the rewritten
    *     manifest's byte length
    */
-  public static Pair<RewriteResult<DeleteFile>, Long> rewriteDeleteManifestWithLength(
+  public static Pair<RewriteResult<DeleteFile>, Long> rewriteDeleteManifestAndMeasureLength(
       ManifestFile manifestFile,
       Set<Long> snapshotIds,
       OutputFile outputFile,
