@@ -369,22 +369,29 @@ class RecordConverter {
           : schema.field(fieldName);
     }
 
-    return structNameMap
-        .computeIfAbsent(structFieldId, notUsed -> createStructNameMap(schema))
-        .get(fieldName);
+    Map<String, NestedField> nameMap =
+        structNameMap.computeIfAbsent(structFieldId, notUsed -> createStructNameMap(schema));
+    String lookupKey =
+        config.schemaCaseInsensitive() ? fieldName.toLowerCase(Locale.ROOT) : fieldName;
+    return nameMap.get(lookupKey);
   }
 
   private Map<String, NestedField> createStructNameMap(StructType schema) {
     Map<String, NestedField> map = Maps.newHashMap();
+    boolean caseInsensitive = config.schemaCaseInsensitive();
     schema
         .fields()
         .forEach(
             col -> {
               MappedField mappedField = nameMapping.find(col.fieldId());
               if (mappedField != null && !mappedField.names().isEmpty()) {
-                mappedField.names().forEach(name -> map.put(name, col));
+                mappedField
+                    .names()
+                    .forEach(
+                        name ->
+                            map.put(caseInsensitive ? name.toLowerCase(Locale.ROOT) : name, col));
               } else {
-                map.put(col.name(), col);
+                map.put(caseInsensitive ? col.name().toLowerCase(Locale.ROOT) : col.name(), col);
               }
             });
     return map;
