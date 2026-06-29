@@ -18,7 +18,7 @@
 from __future__ import annotations
 
 from datetime import date, timedelta
-from typing import Literal
+from typing import Dict, Literal
 from uuid import UUID
 
 from pydantic import Base64Str, BaseModel, ConfigDict, Field, RootModel
@@ -275,6 +275,10 @@ class Summary(BaseModel):
     operation: Literal['append', 'replace', 'overwrite', 'delete']
 
 
+Summary.__annotations__['__pydantic_extra__'] = Dict[str, str]
+Summary.model_rebuild(force=True)
+
+
 class Snapshot(BaseModel):
     snapshot_id: int = Field(..., alias='snapshot-id')
     parent_snapshot_id: int | None = Field(None, alias='parent-snapshot-id')
@@ -367,17 +371,17 @@ class AssignUUIDUpdate(BaseUpdate):
     Assigning a UUID to a table/view should only be done when creating the table/view. It is not safe to re-assign the UUID if a table/view already has a UUID assigned
     """
 
-    action: Literal['assign-uuid'] = 'assign-uuid'
+    action: Literal['assign-uuid']
     uuid: str
 
 
 class UpgradeFormatVersionUpdate(BaseUpdate):
-    action: Literal['upgrade-format-version'] = 'upgrade-format-version'
+    action: Literal['upgrade-format-version']
     format_version: int = Field(..., alias='format-version')
 
 
 class SetCurrentSchemaUpdate(BaseUpdate):
-    action: Literal['set-current-schema'] = 'set-current-schema'
+    action: Literal['set-current-schema']
     schema_id: int = Field(
         ...,
         alias='schema-id',
@@ -386,12 +390,12 @@ class SetCurrentSchemaUpdate(BaseUpdate):
 
 
 class AddPartitionSpecUpdate(BaseUpdate):
-    action: Literal['add-spec'] = 'add-spec'
+    action: Literal['add-spec']
     spec: PartitionSpec
 
 
 class SetDefaultSpecUpdate(BaseUpdate):
-    action: Literal['set-default-spec'] = 'set-default-spec'
+    action: Literal['set-default-spec']
     spec_id: int = Field(
         ...,
         alias='spec-id',
@@ -400,12 +404,12 @@ class SetDefaultSpecUpdate(BaseUpdate):
 
 
 class AddSortOrderUpdate(BaseUpdate):
-    action: Literal['add-sort-order'] = 'add-sort-order'
+    action: Literal['add-sort-order']
     sort_order: SortOrder = Field(..., alias='sort-order')
 
 
 class SetDefaultSortOrderUpdate(BaseUpdate):
-    action: Literal['set-default-sort-order'] = 'set-default-sort-order'
+    action: Literal['set-default-sort-order']
     sort_order_id: int = Field(
         ...,
         alias='sort-order-id',
@@ -414,47 +418,47 @@ class SetDefaultSortOrderUpdate(BaseUpdate):
 
 
 class AddSnapshotUpdate(BaseUpdate):
-    action: Literal['add-snapshot'] = 'add-snapshot'
+    action: Literal['add-snapshot']
     snapshot: Snapshot
 
 
 class SetSnapshotRefUpdate(BaseUpdate, SnapshotReference):
-    action: Literal['set-snapshot-ref'] = 'set-snapshot-ref'
+    action: Literal['set-snapshot-ref']
     ref_name: str = Field(..., alias='ref-name')
 
 
 class RemoveSnapshotsUpdate(BaseUpdate):
-    action: Literal['remove-snapshots'] = 'remove-snapshots'
+    action: Literal['remove-snapshots']
     snapshot_ids: list[int] = Field(..., alias='snapshot-ids')
 
 
 class RemoveSnapshotRefUpdate(BaseUpdate):
-    action: Literal['remove-snapshot-ref'] = 'remove-snapshot-ref'
+    action: Literal['remove-snapshot-ref']
     ref_name: str = Field(..., alias='ref-name')
 
 
 class SetLocationUpdate(BaseUpdate):
-    action: Literal['set-location'] = 'set-location'
+    action: Literal['set-location']
     location: str
 
 
 class SetPropertiesUpdate(BaseUpdate):
-    action: Literal['set-properties'] = 'set-properties'
+    action: Literal['set-properties']
     updates: dict[str, str]
 
 
 class RemovePropertiesUpdate(BaseUpdate):
-    action: Literal['remove-properties'] = 'remove-properties'
+    action: Literal['remove-properties']
     removals: list[str]
 
 
 class AddViewVersionUpdate(BaseUpdate):
-    action: Literal['add-view-version'] = 'add-view-version'
+    action: Literal['add-view-version']
     view_version: ViewVersion = Field(..., alias='view-version')
 
 
 class SetCurrentViewVersionUpdate(BaseUpdate):
-    action: Literal['set-current-view-version'] = 'set-current-view-version'
+    action: Literal['set-current-view-version']
     view_version_id: int = Field(
         ...,
         alias='view-version-id',
@@ -463,32 +467,32 @@ class SetCurrentViewVersionUpdate(BaseUpdate):
 
 
 class RemoveStatisticsUpdate(BaseUpdate):
-    action: Literal['remove-statistics'] = 'remove-statistics'
+    action: Literal['remove-statistics']
     snapshot_id: int = Field(..., alias='snapshot-id')
 
 
 class RemovePartitionStatisticsUpdate(BaseUpdate):
-    action: Literal['remove-partition-statistics'] = 'remove-partition-statistics'
+    action: Literal['remove-partition-statistics']
     snapshot_id: int = Field(..., alias='snapshot-id')
 
 
 class RemovePartitionSpecsUpdate(BaseUpdate):
-    action: Literal['remove-partition-specs'] = 'remove-partition-specs'
+    action: Literal['remove-partition-specs']
     spec_ids: list[int] = Field(..., alias='spec-ids')
 
 
 class RemoveSchemasUpdate(BaseUpdate):
-    action: Literal['remove-schemas'] = 'remove-schemas'
+    action: Literal['remove-schemas']
     schema_ids: list[int] = Field(..., alias='schema-ids')
 
 
 class AddEncryptionKeyUpdate(BaseUpdate):
-    action: Literal['add-encryption-key'] = 'add-encryption-key'
+    action: Literal['add-encryption-key']
     encryption_key: EncryptedKey = Field(..., alias='encryption-key')
 
 
 class RemoveEncryptionKeyUpdate(BaseUpdate):
-    action: Literal['remove-encryption-key'] = 'remove-encryption-key'
+    action: Literal['remove-encryption-key']
     key_id: str = Field(..., alias='key-id')
 
 
@@ -521,7 +525,7 @@ class AssertRefSnapshotId(TableRequirement):
 
     """
 
-    type: Literal['assert-ref-snapshot-id'] = 'assert-ref-snapshot-id'
+    type: Literal['assert-ref-snapshot-id']
     ref: str
     snapshot_id: int = Field(..., alias='snapshot-id')
 
@@ -531,7 +535,7 @@ class AssertLastAssignedFieldId(TableRequirement):
     The table's last assigned column id must match the requirement's `last-assigned-field-id`
     """
 
-    type: Literal['assert-last-assigned-field-id'] = 'assert-last-assigned-field-id'
+    type: Literal['assert-last-assigned-field-id']
     last_assigned_field_id: int = Field(..., alias='last-assigned-field-id')
 
 
@@ -540,7 +544,7 @@ class AssertCurrentSchemaId(TableRequirement):
     The table's current schema id must match the requirement's `current-schema-id`
     """
 
-    type: Literal['assert-current-schema-id'] = 'assert-current-schema-id'
+    type: Literal['assert-current-schema-id']
     current_schema_id: int = Field(..., alias='current-schema-id')
 
 
@@ -549,9 +553,7 @@ class AssertLastAssignedPartitionId(TableRequirement):
     The table's last assigned partition id must match the requirement's `last-assigned-partition-id`
     """
 
-    type: Literal['assert-last-assigned-partition-id'] = (
-        'assert-last-assigned-partition-id'
-    )
+    type: Literal['assert-last-assigned-partition-id']
     last_assigned_partition_id: int = Field(..., alias='last-assigned-partition-id')
 
 
@@ -560,7 +562,7 @@ class AssertDefaultSpecId(TableRequirement):
     The table's default spec id must match the requirement's `default-spec-id`
     """
 
-    type: Literal['assert-default-spec-id'] = 'assert-default-spec-id'
+    type: Literal['assert-default-spec-id']
     default_spec_id: int = Field(..., alias='default-spec-id')
 
 
@@ -569,7 +571,7 @@ class AssertDefaultSortOrderId(TableRequirement):
     The table's default sort order id must match the requirement's `default-sort-order-id`
     """
 
-    type: Literal['assert-default-sort-order-id'] = 'assert-default-sort-order-id'
+    type: Literal['assert-default-sort-order-id']
     default_sort_order_id: int = Field(..., alias='default-sort-order-id')
 
 
@@ -616,7 +618,7 @@ class MaskAlphanum(Action):
 
     """
 
-    action: Literal['mask-alphanum'] = 'mask-alphanum'
+    action: Literal['mask-alphanum'] | None = None
 
 
 class MaskToFixedValue(Action):
@@ -628,7 +630,7 @@ class MaskToFixedValue(Action):
 
     """
 
-    action: Literal['mask-to-fixed-value'] = 'mask-to-fixed-value'
+    action: Literal['mask-to-fixed-value'] | None = None
 
 
 class ReplaceWithNull(Action):
@@ -638,7 +640,7 @@ class ReplaceWithNull(Action):
 
     """
 
-    action: Literal['replace-with-null'] = 'replace-with-null'
+    action: Literal['replace-with-null'] | None = None
 
 
 class ShowFirst4(Action):
@@ -650,7 +652,7 @@ class ShowFirst4(Action):
 
     """
 
-    action: Literal['show-first-4'] = 'show-first-4'
+    action: Literal['show-first-4'] | None = None
 
 
 class ShowLast4(Action):
@@ -662,7 +664,7 @@ class ShowLast4(Action):
 
     """
 
-    action: Literal['show-last-4'] = 'show-last-4'
+    action: Literal['show-last-4'] | None = None
 
 
 class TruncateToYear(Action):
@@ -674,7 +676,7 @@ class TruncateToYear(Action):
 
     """
 
-    action: Literal['truncate-to-year'] = 'truncate-to-year'
+    action: Literal['truncate-to-year'] | None = None
 
 
 class TruncateToMonth(Action):
@@ -686,7 +688,7 @@ class TruncateToMonth(Action):
 
     """
 
-    action: Literal['truncate-to-month'] = 'truncate-to-month'
+    action: Literal['truncate-to-month'] | None = None
 
 
 class Sha256Global(Action):
@@ -712,7 +714,7 @@ class Sha256Global(Action):
 
     """
 
-    action: Literal['sha-256-global'] = 'sha-256-global'
+    action: Literal['sha-256-global'] | None = None
 
 
 class Sha256QueryLocal(Action):
@@ -735,7 +737,7 @@ class Sha256QueryLocal(Action):
 
     """
 
-    action: Literal['sha-256-query-local'] = 'sha-256-query-local'
+    action: Literal['sha-256-query-local'] | None = None
 
 
 class LoadCredentialsResponse(BaseModel):
@@ -1306,7 +1308,7 @@ class TransformTerm(BaseModel):
 
 
 class SetPartitionStatisticsUpdate(BaseUpdate):
-    action: Literal['set-partition-statistics'] = 'set-partition-statistics'
+    action: Literal['set-partition-statistics']
     partition_statistics: PartitionStatisticsFile = Field(
         ..., alias='partition-statistics'
     )
@@ -1416,7 +1418,7 @@ class Term(RootModel[Reference | TransformTerm]):
 
 
 class SetStatisticsUpdate(BaseUpdate):
-    action: Literal['set-statistics'] = 'set-statistics'
+    action: Literal['set-statistics']
     snapshot_id: int | None = Field(
         None,
         alias='snapshot-id',
@@ -1680,7 +1682,7 @@ class ViewMetadata(BaseModel):
 
 
 class AddSchemaUpdate(BaseUpdate):
-    action: Literal['add-schema'] = 'add-schema'
+    action: Literal['add-schema']
     schema_: Schema = Field(..., alias='schema')
     last_column_id: int | None = Field(
         None,
@@ -1715,7 +1717,7 @@ class ReadRestrictions(BaseModel):
     ) = Field(
         None,
         alias='required-column-projections',
-        description='A list of columns that require specific actions to be applied when reading. A server must not return an action for a column whose type is not listed in that action\'s "Applicable to" set. If absent or empty, no required actions apply; columns not listed are not subject to any required action.\n1. For each column listed, the reader must apply the specified action before\n  returning values for that column.\n\n2. The reader must replace all output references to the column with the result\n  of the action, presenting the result under the original field-id. For\n  example, if the action for field-id `9` is mask-alphanum, the reader must\n  return the masked value as field-id `9` in the query output.\n\n3. A column must appear at most once in required-column-projections.\n\n4. A projection must not target a map\'s key field-id. Applying an action\n  to keys can produce duplicate or null keys, which readers silently\n  coalesce or reject, causing data loss.\n',
+        description='A list of columns that require specific actions to be applied when reading. A server must not return an action for a column whose type is not listed in that action\'s "Applicable to" set. If absent or empty, no required actions apply; columns not listed are not subject to any required action.\n1. For each column listed, the reader must apply the specified action before\n  returning values for that column.\n\n2. The reader must replace all output references to the column with the result\n  of the action, presenting the result under the original field-id. For\n  example, if the action for field-id `9` is mask-alphanum, the reader must\n  return the masked value as field-id `9` in the query output.\n\n3. A column must appear at most once in required-column-projections.\n4. A projection must not target a map\'s key field-id. Applying an action\n  to keys can produce duplicate or null keys, which readers silently\n  coalesce or reject, causing data loss.\n',
     )
     required_row_filter: Expression | None = Field(
         None,
