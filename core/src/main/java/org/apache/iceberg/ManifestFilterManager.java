@@ -20,6 +20,7 @@ package org.apache.iceberg;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -71,7 +72,10 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
 
   private final Map<Integer, PartitionSpec> specsById;
   private final PartitionSet deleteFilePartitions;
-  private final Set<F> deleteFiles = newFileSet();
+  // Manifests are filtered in parallel and workers add expression-deleted files to this set.
+  // SynchronizedSet protects individual operations; iteration must remain after filtering completes
+  // or be guarded by synchronized(deleteFiles).
+  private final Set<F> deleteFiles = Collections.synchronizedSet(newFileSet());
   private final Set<String> manifestsWithDeletes = Sets.newHashSet();
   private final PartitionSet dropPartitions;
   private final CharSequenceSet deletePaths = CharSequenceSet.empty();
@@ -82,7 +86,7 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
   private long minSequenceNumber = 0;
   private boolean failAnyDelete = false;
   private boolean failMissingDeletePaths = false;
-  private int duplicateDeleteCount = 0;
+  private final AtomicInteger duplicateDeleteCount = new AtomicInteger(0);
   private boolean caseSensitive = true;
   private boolean allDeletesReferenceManifests = true;
   // this is only being used for the DeleteManifestFilterManager to detect orphaned DVs for removed
@@ -264,7 +268,7 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
       }
     }
 
-    summaryBuilder.incrementDuplicateDeletes(duplicateDeleteCount);
+    summaryBuilder.incrementDuplicateDeletes(duplicateDeleteCount.get());
 
     return summaryBuilder;
   }
@@ -542,7 +546,7 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
                             "Deleting a duplicate path from manifest {}: {}",
                             manifest.path(),
                             file.location());
-                        duplicateDeleteCount += 1;
+                        duplicateDeleteCount.incrementAndGet();
                       } else {
                         // only add the file to deletes if it is a new delete
                         // this keeps the snapshot summary accurate for non-duplicate data
