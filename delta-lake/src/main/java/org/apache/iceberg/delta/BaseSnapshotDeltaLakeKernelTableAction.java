@@ -226,7 +226,9 @@ class BaseSnapshotDeltaLakeKernelTableAction implements SnapshotDeltaLakeTable {
         newTableIdentifier,
         deltaTableLocation,
         processedDataFiles.size());
-    return processedDataFiles::size;
+    return ImmutableSnapshotDeltaLakeTable.Result.builder()
+            .snapshotDataFilesCount(processedDataFiles.size())
+            .build();
   }
 
   private void commitDeltaSnapshotToIcebergTransaction(

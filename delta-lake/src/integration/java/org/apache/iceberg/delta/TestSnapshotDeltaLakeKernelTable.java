@@ -79,7 +79,6 @@ public class TestSnapshotDeltaLakeKernelTable extends SparkDeltaLakeSnapshotTest
   private static Dataset<Row> genericDataFrame;
 
   @TempDir private File sourceLocation;
-  @TempDir private File destinationLocation;
 
   public TestSnapshotDeltaLakeKernelTable() {
     super(ICEBERG_CATALOG_NAME, SparkCatalog.class.getName(), BASE_SPARK_CONFIG);
