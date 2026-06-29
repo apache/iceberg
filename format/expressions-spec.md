@@ -77,7 +77,7 @@ The context in which an expression is used determines the type of references tha
 
 An apply expression represents the result of a function applied to (or called on) zero or more values produced by child value expressions or predicates.
 
-Functions are referenced using a catalog and a function identifier (list of strings).
+Functions are referenced using a catalog and a function identifier.
 
 * The function identifier consists of 0 or more namespace names followed by the function name. At least one part, the function name, is required.
 * Catalog is optional and is assumed to be the catalog in which the referencing object is stored if it is not present or is null
@@ -127,7 +127,7 @@ Tests are predicates that test a single value expression, optionally using a con
 | `STARTS WITH const`     | string        | string        | true iff the constant is a prefix of the value |
 | `NOT STARTS WITH const` | string        | string        | true iff the constant is not a prefix of the value |
 | `IN (constant set)`     | any primitive | same as value | true iff the value is equal to any constant |
-| `NOT IN (constant set)` | any primitive | same as value | true iff the value is not equal to all constants |
+| `NOT IN (constant set)` | any primitive | same as value | true iff the value is not equal to any constant |
 
 
 #### Comparisons
@@ -181,7 +181,7 @@ For floating point values, comparison with NaN behaves similarly to comparison o
 
 * `a = b` is true if both are NaN, or both are non-NaN and equal; false otherwise
 * `a != b` is the boolean negation of `a = b`
-* `a < b` and `a > b` are false when either operand is NaN; otherwise the IEEE 754 total order is used
+* `a < b` and `a > b` are false when either operand is NaN; otherwise the IEEE 754 order is used
 * `a <= b` is `(a = b) OR (a < b)`; `a >= b` is `(a = b) OR (a > b)`; both are true when both operands are NaN and false when only one operand is NaN
 
 
@@ -189,7 +189,7 @@ For floating point values, comparison with NaN behaves similarly to comparison o
 
 Predicates must use 2-valued boolean logic. Evaluation of all predicates must produce `true` or `false`.
 
-Engines that implement SQL 3-valued boolean logic must add `IS NULL` and `NOT NULL` to produce the 2-valued equivalent. This avoids bugs in engines and languages that do not natively implement 3-valued logic. For example, the SQL predicate `x < 10` should be passed as `x < 10 AND x IS NOT NULL` for a SQL `WHERE` condition (or `x < 10`; see null-safe comparisons below). For a `CHECK` constraint, the expression is passed as `x < 10 OR x IS NULL`. This ensures that implementations will make the correct determination, rather than depending on context to interpret a null result (`WHERE` vs `CHECK`).
+Engines that implement SQL 3-valued boolean logic must add `IS NULL` and `IS NOT NULL` to produce the 2-valued equivalent. This avoids bugs in engines and languages that do not natively implement 3-valued logic. For example, the SQL predicate `x < 10` should be passed as `x < 10 AND x IS NOT NULL` for a SQL `WHERE` condition (or `x < 10`; see null-safe comparisons below). For a `CHECK` constraint, the expression is passed as `x < 10 OR x IS NULL`. This ensures that implementations will make the correct determination, rather than depending on context to interpret a null result (`WHERE` vs `CHECK`).
 
 Logical combinations are boolean operators applied to predicates. `AND` and `OR` are binary operations and `NOT` is a unary operation. `AND`, `OR`, and `NOT` do not accept null values because predicates cannot produce them.
 
@@ -255,6 +255,7 @@ LITERAL: VALUE
     | { "type": "literal", "value": VALUE }
     | { "type": "literal", "value": VALUE, "data-type": DATA_TYPE }
 LITERALS: [ LITERAL* ]
+    | { "type": "literals", "values": [ VALUE* ], "data-type": DATA_TYPE }
 
 REFERENCE: BOUND_REF | UNBOUND_REF
 BOUND_REF: { "type": "reference", "id": ID }
