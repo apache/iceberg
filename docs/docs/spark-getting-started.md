@@ -38,20 +38,43 @@ spark-shell --packages org.apache.iceberg:iceberg-spark-runtime-{{ sparkVersionM
     <!-- markdown-link-check-disable-next-line -->
     If you want to include Iceberg in your Spark installation, add the [`iceberg-spark-runtime-{{ sparkVersionMajor }}` Jar](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-spark-runtime-{{ sparkVersionMajor }}/{{ icebergVersion }}/iceberg-spark-runtime-{{ sparkVersionMajor }}-{{ icebergVersion }}.jar) to Spark's `jars` folder.
 
-### Adding catalogs
+### Configuring catalogs
 
-Iceberg comes with [catalogs](spark-configuration.md#catalogs) that enable SQL commands to manage tables and load them by name. Catalogs are configured using properties under `spark.sql.catalog.(catalog_name)`.
+Iceberg uses [catalogs](https://iceberg.apache.org/concepts/catalog/) to track and manage table metadata and enable SQL operations. Iceberg provides several [catalog implementations](spark-configuration.md#catalogs), which can be configured using properties under `spark.sql.catalog.(catalog_name)`.
 
-This command creates a path-based catalog named `local` for tables under `$PWD/warehouse` and adds support for Iceberg tables to Spark's built-in catalog:
+The following command creates a JDBC-based catalog named `local` for tables under `$PWD/warehouse`, using SQLite as the catalog backend:
 
 ```sh
-spark-sql --packages org.apache.iceberg:iceberg-spark-runtime-{{ sparkVersionMajor }}:{{ icebergVersion }}\
+spark-sql --packages org.apache.iceberg:iceberg-spark-runtime-{{ sparkVersionMajor }}:{{ icebergVersion }},org.xerial:sqlite-jdbc:3.53.1.0\
     --conf spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions \
     --conf spark.sql.catalog.spark_catalog=org.apache.iceberg.spark.SparkSessionCatalog \
     --conf spark.sql.catalog.spark_catalog.type=hive \
     --conf spark.sql.catalog.local=org.apache.iceberg.spark.SparkCatalog \
-    --conf spark.sql.catalog.local.type=hadoop \
-    --conf spark.sql.catalog.local.warehouse=$PWD/warehouse
+    --conf spark.sql.catalog.local.type=jdbc \
+    --conf spark.sql.catalog.local.jdbc-driver=org.sqlite.JDBC \
+    --conf spark.sql.catalog.local.uri=jdbc:sqlite:$PWD/iceberg_catalog_db.sqlite \
+    --conf spark.sql.catalog.local.warehouse=$PWD/warehouse \
+    --conf spark.sql.defaultCatalog=local
+```
+
+You can also configure a REST-based catalog. The REST catalog provides a language-agnostic way to manage Iceberg tables through a RESTful service. The following example assumes a REST catalog server running at `localhost:8181` and a MinIO instance at `localhost:9000` for S3-compatible storage:
+
+```sh
+spark-sql --packages org.apache.iceberg:iceberg-spark-runtime-{{ sparkVersionMajor }}:{{ icebergVersion }},org.apache.iceberg:iceberg-aws-bundle:{{ icebergVersion }}\
+    --conf spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions \
+    --conf spark.sql.catalog.spark_catalog=org.apache.iceberg.spark.SparkSessionCatalog \
+    --conf spark.sql.catalog.spark_catalog.type=hive \
+    --conf spark.sql.catalog.rest=org.apache.iceberg.spark.SparkCatalog \
+    --conf spark.sql.catalog.rest.type=rest \
+    --conf spark.sql.catalog.rest.uri=http://localhost:8181 \
+    --conf spark.sql.catalog.rest.warehouse=s3://warehouse/ \
+    --conf spark.sql.catalog.rest.io-impl=org.apache.iceberg.aws.s3.S3FileIO \
+    --conf spark.sql.catalog.rest.s3.endpoint=http://localhost:9000 \
+    --conf spark.sql.catalog.rest.s3.path-style-access=true \
+    --conf spark.sql.catalog.rest.s3.access-key-id=admin \
+    --conf spark.sql.catalog.rest.s3.secret-access-key=password \
+    --conf spark.sql.catalog.rest.client.region=us-east-1 \
+    --conf spark.sql.defaultCatalog=rest
 ```
 
 ### Creating a table
@@ -59,7 +82,7 @@ spark-sql --packages org.apache.iceberg:iceberg-spark-runtime-{{ sparkVersionMaj
 To create your first Iceberg table in Spark, use the `spark-sql` shell or `spark.sql(...)` to run a [`CREATE TABLE`](spark-ddl.md#create-table) command:
 
 ```sql
--- local is the path-based catalog defined above
+-- local is the JDBC-based catalog defined above
 CREATE TABLE local.db.table (id bigint, data string) USING iceberg;
 CREATE TABLE source (id bigint, data string) USING parquet;
 CREATE TABLE updates (id bigint, data string) USING parquet;
