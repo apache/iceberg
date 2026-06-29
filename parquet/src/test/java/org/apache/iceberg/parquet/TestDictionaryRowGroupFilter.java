@@ -1267,7 +1267,7 @@ public class TestDictionaryRowGroupFilter {
   @TestTemplate
   public void testTransformFilter() {
     boolean shouldRead =
-        new ParquetDictionaryRowGroupFilter(SCHEMA, equal(truncate("required", 2), "some_value"))
+        new ParquetDictionaryRowGroupFilter(SCHEMA, equal(truncate("required", 2), "s"))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
     assertThat(shouldRead)
         .as("Should read: filter contains non-reference evaluate as True")

@@ -272,6 +272,20 @@ public class Transforms {
   }
 
   /**
+   * Returns the width of a truncate transform, or null if the transform is not truncate.
+   *
+   * @param transform a transform
+   * @return the width of the truncate transform, or null
+   */
+  public static Integer truncateWidth(Transform<?, ?> transform) {
+    if (transform instanceof Truncate) {
+      return ((Truncate<?>) transform).width();
+    }
+
+    return null;
+  }
+
+  /**
    * Returns a {@link Transform} that always produces null.
    *
    * @param <T> Java type accepted by the transform.

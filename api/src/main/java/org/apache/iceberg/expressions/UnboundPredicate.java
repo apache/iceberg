@@ -26,6 +26,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
@@ -207,8 +208,40 @@ public class UnboundPredicate<T> extends Predicate<T, UnboundTerm<T>>
       }
     }
 
-    // TODO: translate truncate(col) == value to startsWith(value)
+    Expression boundTransformExpression = bindTransformExpression(boundTerm, lit);
+    if (boundTransformExpression != null) {
+      return boundTransformExpression;
+    }
+
     return new BoundLiteralPredicate<>(op(), boundTerm, lit);
+  }
+
+  private Expression bindTransformExpression(BoundTerm<T> boundTerm, Literal<T> lit) {
+    if (op() == Operation.EQ
+        && boundTerm instanceof BoundTransform
+        && boundTerm.type().equals(Types.StringType.get())) {
+      BoundTransform<?, ?> boundTransform = (BoundTransform<?, ?>) boundTerm;
+      Integer width = Transforms.truncateWidth(boundTransform.transform());
+      if (width == null) {
+        return null;
+      }
+
+      String value = lit.value().toString();
+      int length = value.codePointCount(0, value.length());
+      if (length == width) {
+        return startsWithPredicate(boundTransform.ref(), lit);
+      } else if (length > width) {
+        return Expressions.alwaysFalse();
+      }
+    }
+
+    return null;
+  }
+
+  @SuppressWarnings("unchecked")
+  private Expression startsWithPredicate(BoundReference<?> ref, Literal<T> lit) {
+    return new BoundLiteralPredicate<>(
+        Operation.STARTS_WITH, (BoundReference<CharSequence>) ref, (Literal<CharSequence>) lit);
   }
 
   private Expression bindInOperation(BoundTerm<T> boundTerm) {
