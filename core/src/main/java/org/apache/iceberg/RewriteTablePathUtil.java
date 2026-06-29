@@ -251,7 +251,7 @@ public class RewriteTablePathUtil {
   /**
    * Rewrite a manifest list representing a snapshot, replacing path references.
    *
-   * @deprecated since 1.11.0, will be removed in 1.12.0; use {@link #rewriteManifestList(Snapshot,
+   * @deprecated since 1.12.0, will be removed in 1.13.0; use {@link #rewriteManifestList(Snapshot,
    *     FileIO, TableMetadata, Set, String, String, String, String, Map)}, which records the
    *     rewritten manifest length so that manifest_length stays consistent with the rewritten
    *     manifest file on disk.
@@ -394,7 +394,7 @@ public class RewriteTablePathUtil {
    * @param sourcePrefix source prefix that will be replaced
    * @param targetPrefix target prefix that will replace it
    * @return a copy plan of content files in the manifest that was rewritten
-   * @deprecated since 1.11.0, will be removed in 1.12.0; use {@link
+   * @deprecated since 1.12.0, will be removed in 1.13.0; use {@link
    *     #rewriteDataManifestWithLength}, which also returns the rewritten manifest length so that
    *     manifest_length can be recorded accurately in the manifest list.
    */
