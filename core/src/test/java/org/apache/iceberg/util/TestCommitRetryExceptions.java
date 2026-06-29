@@ -76,7 +76,7 @@ class TestCommitRetryExceptions {
         new CommitFailedException(
             new RetryableValidationException("stale values"),
             "Commit failed: %s stale values",
-            CommitRetryExceptions.RETRYABLE_VALIDATION_FAILURE_PREFIX);
+            CommitFailureMessages.RETRYABLE_VALIDATION_FAILURE_PREFIX);
 
     CommitFailedException wrapped =
         CommitRetryExceptions.retryExhaustedException(
@@ -90,7 +90,7 @@ class TestCommitRetryExceptions {
     CommitFailedException original =
         new CommitFailedException(
             "Commit failed: %s stale values",
-            CommitRetryExceptions.RETRYABLE_VALIDATION_FAILURE_PREFIX);
+            CommitFailureMessages.RETRYABLE_VALIDATION_FAILURE_PREFIX);
 
     CommitFailedException wrapped =
         CommitRetryExceptions.retryExhaustedException(

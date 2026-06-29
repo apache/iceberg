@@ -26,13 +26,6 @@ import org.apache.iceberg.exceptions.CommitFailedException;
 
 /** Internal helper for converting exhausted commit retries into user-facing commit exceptions. */
 public class CommitRetryExceptions {
-  static final String RETRYABLE_VALIDATION_FAILURE_PREFIX = "Validation failed, please retry:";
-  private static final String REST_RETRYABLE_VALIDATION_FAILURE_PREFIX =
-      "Commit failed: " + RETRYABLE_VALIDATION_FAILURE_PREFIX;
-  private static final String REQUIREMENT_FAILURE_PREFIX = "Requirement failed:";
-  private static final String REST_REQUIREMENT_FAILURE_PREFIX =
-      "Commit failed: " + REQUIREMENT_FAILURE_PREFIX;
-
   private CommitRetryExceptions() {}
 
   public static CommitFailedException retryExhaustedException(
@@ -54,18 +47,8 @@ public class CommitRetryExceptions {
   private static boolean shouldKeepOriginalCommitFailure(Exception cause) {
     return isRetryableValidationCommitFailure(cause)
         || (cause instanceof CommitFailedException
-            && (isRestRetryableValidationFailure(cause.getMessage())
-                || isRequirementFailureMessage(cause.getMessage())));
-  }
-
-  private static boolean isRestRetryableValidationFailure(String message) {
-    return message != null && message.startsWith(REST_RETRYABLE_VALIDATION_FAILURE_PREFIX);
-  }
-
-  private static boolean isRequirementFailureMessage(String message) {
-    return message != null
-        && (message.startsWith(REQUIREMENT_FAILURE_PREFIX)
-            || message.startsWith(REST_REQUIREMENT_FAILURE_PREFIX));
+            && (CommitFailureMessages.isRestRetryableValidationFailure(cause.getMessage())
+                || CommitFailureMessages.isRequirementFailure(cause.getMessage())));
   }
 
   private static String retryExhaustionMessage(Tasks.RetryExhaustionReason reason) {
