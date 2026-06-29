@@ -206,6 +206,28 @@ public class TestIcebergFunctions {
   }
 
   @Test
+  public void truncateToYearTimestampNanoTz() {
+    long inputNanos =
+        LocalDateTime.of(2024, 7, 15, 13, 45, 30).toEpochSecond(ZoneOffset.UTC) * 1_000_000_000L;
+    long expectedNanos =
+        LocalDateTime.of(2024, 1, 1, 0, 0, 0).toEpochSecond(ZoneOffset.UTC) * 1_000_000_000L;
+    SerializableFunction<Object, Object> fn =
+        new TruncateToYear(1).bind(Types.TimestampNanoType.withZone());
+    assertThat(fn.apply(inputNanos)).isEqualTo(expectedNanos);
+  }
+
+  @Test
+  public void truncateToMonthTimestampNanoTz() {
+    long inputNanos =
+        LocalDateTime.of(2024, 7, 15, 13, 45, 30).toEpochSecond(ZoneOffset.UTC) * 1_000_000_000L;
+    long expectedNanos =
+        LocalDateTime.of(2024, 7, 1, 0, 0, 0).toEpochSecond(ZoneOffset.UTC) * 1_000_000_000L;
+    SerializableFunction<Object, Object> fn =
+        new TruncateToMonth(1).bind(Types.TimestampNanoType.withZone());
+    assertThat(fn.apply(inputNanos)).isEqualTo(expectedNanos);
+  }
+
+  @Test
   public void sha256GlobalStringIsDeterministic() {
     SerializableFunction<Object, Object> fn = new Sha256Global(1).bind(Types.StringType.get());
     String first = (String) fn.apply("hello");
