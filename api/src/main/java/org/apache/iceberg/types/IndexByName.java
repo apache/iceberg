@@ -32,20 +32,26 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 public class IndexByName extends TypeUtil.SchemaVisitor<Map<String, Integer>> {
-  private static final Joiner DOT = Joiner.on(".");
-
   private final Deque<String> fieldNames = Lists.newLinkedList();
   private final Deque<String> shortFieldNames = Lists.newLinkedList();
   private final Map<String, Integer> nameToId = Maps.newHashMap();
   private final Map<String, Integer> shortNameToId = Maps.newHashMap();
+  private final Joiner joiner;
   private final Function<String, String> quotingFunc;
+  private final boolean useShortNames;
 
   public IndexByName() {
     this(Function.identity());
   }
 
   public IndexByName(Function<String, String> quotingFunc) {
+    this(".", quotingFunc, false);
+  }
+
+  IndexByName(String separator, Function<String, String> quotingFunc, boolean useShortNames) {
+    this.joiner = Joiner.on(separator);
     this.quotingFunc = quotingFunc;
+    this.useShortNames = useShortNames;
   }
 
   /**
@@ -76,9 +82,15 @@ public class IndexByName extends TypeUtil.SchemaVisitor<Map<String, Integer>> {
    * @return a map from field ID to name
    */
   public Map<Integer, String> byId() {
+    // a builder is used to swap key and value
     ImmutableMap.Builder<Integer, String> builder = ImmutableMap.builder();
     nameToId.forEach((key, value) -> builder.put(value, key));
-    return builder.build();
+
+    if (useShortNames) {
+      shortNameToId.forEach((key, value) -> builder.put(value, key));
+    }
+
+    return builder.buildKeepingLast();
   }
 
   @Override
@@ -193,7 +205,7 @@ public class IndexByName extends TypeUtil.SchemaVisitor<Map<String, Integer>> {
     if (!fieldNames.isEmpty()) {
       Iterator<String> quotedFieldNames =
           Iterators.transform(fieldNames.descendingIterator(), quotingFunc::apply);
-      fullName = DOT.join(DOT.join(quotedFieldNames), quotedName);
+      fullName = joiner.join(joiner.join(quotedFieldNames), quotedName);
     }
 
     Integer existingFieldId = nameToId.put(fullName, fieldId);
@@ -208,7 +220,7 @@ public class IndexByName extends TypeUtil.SchemaVisitor<Map<String, Integer>> {
     if (!shortFieldNames.isEmpty()) {
       Iterator<String> quotedShortFieldNames =
           Iterators.transform(shortFieldNames.descendingIterator(), quotingFunc::apply);
-      String shortName = DOT.join(DOT.join(quotedShortFieldNames), quotedName);
+      String shortName = joiner.join(joiner.join(quotedShortFieldNames), quotedName);
       if (!shortNameToId.containsKey(shortName)) {
         shortNameToId.put(shortName, fieldId);
       }

@@ -196,6 +196,19 @@ public class TypeUtil {
   }
 
   /**
+   * Indexes the fields of a struct from ID to a flattened name that can be used for stats struct
+   * field names.
+   *
+   * @param struct a struct type
+   * @return an index from field ID to short names, joined by _
+   */
+  public static Map<Integer, String> indexStatsNames(Types.StructType struct) {
+    IndexByName indexer = new IndexByName("_", Function.identity(), true /* use short names */);
+    visit(struct, indexer);
+    return indexer.byId();
+  }
+
+  /**
    * Creates a mapping from lower-case field names to their corresponding field IDs.
    *
    * <p>This method iterates over the fields of the provided struct and maps each field's name
