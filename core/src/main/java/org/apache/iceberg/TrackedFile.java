@@ -35,6 +35,9 @@ interface TrackedFile {
           "content_type",
           Types.IntegerType.get(),
           "Type of content: 0=DATA, 2=EQUALITY_DELETES, 3=DATA_MANIFEST, 4=DELETE_MANIFEST");
+  Types.NestedField FORMAT_VERSION =
+      Types.NestedField.required(
+          157, "format_version", Types.IntegerType.get(), "Format version of this file");
   Types.NestedField LOCATION =
       Types.NestedField.required(100, "location", Types.StringType.get(), "Location of the file");
   Types.NestedField FILE_FORMAT =
@@ -97,6 +100,7 @@ interface TrackedFile {
     return Types.StructType.of(
         TRACKING,
         CONTENT_TYPE,
+        FORMAT_VERSION,
         LOCATION,
         FILE_FORMAT,
         RECORD_COUNT,
@@ -118,6 +122,9 @@ interface TrackedFile {
 
   /** Returns the type of content stored by this entry. */
   FileContent contentType();
+
+  /** Returns the format version of this file. */
+  int formatVersion();
 
   /** Returns the location of the file. */
   String location();

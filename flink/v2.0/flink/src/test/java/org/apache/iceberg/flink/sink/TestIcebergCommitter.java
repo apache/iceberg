@@ -170,6 +170,8 @@ class TestIcebergCommitter extends TestBase {
 
     String tablePath = warehouse.concat("/test");
     assertThat(new File(tablePath).mkdir()).as("Should create the table path correctly.").isTrue();
+    // v4 table metadata requires an absolute (scheme-qualified) location
+    String tableLocation = "file:" + tablePath;
 
     Map<String, String> props =
         ImmutableMap.of(
@@ -179,8 +181,8 @@ class TestIcebergCommitter extends TestBase {
             flinkManifestFolder.getAbsolutePath(),
             IcebergCommitter.MAX_CONTINUOUS_EMPTY_COMMITS,
             "1");
-    table = SimpleDataUtil.createTable(tablePath, props, false);
-    tableLoader = TableLoader.fromHadoopTable(tablePath);
+    table = SimpleDataUtil.createTable(tableLocation, props, false);
+    tableLoader = TableLoader.fromHadoopTable(tableLocation);
   }
 
   @TestTemplate

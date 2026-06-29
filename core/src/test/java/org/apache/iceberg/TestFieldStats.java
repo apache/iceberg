@@ -18,12 +18,11 @@
  */
 package org.apache.iceberg;
 
-import static org.apache.iceberg.FieldStatistic.AVG_VALUE_SIZE;
-import static org.apache.iceberg.FieldStatistic.EXACT_BOUNDS;
+import static org.apache.iceberg.FieldStatistic.AVG_VALUE_SIZE_IN_BYTES;
 import static org.apache.iceberg.FieldStatistic.LOWER_BOUND;
-import static org.apache.iceberg.FieldStatistic.MAX_VALUE_SIZE;
 import static org.apache.iceberg.FieldStatistic.NAN_VALUE_COUNT;
 import static org.apache.iceberg.FieldStatistic.NULL_VALUE_COUNT;
+import static org.apache.iceberg.FieldStatistic.TIGHT_BOUNDS;
 import static org.apache.iceberg.FieldStatistic.UPPER_BOUND;
 import static org.apache.iceberg.FieldStatistic.VALUE_COUNT;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -47,13 +46,13 @@ public class TestFieldStats {
     BaseFieldStats<?> empty = BaseFieldStats.builder().build();
     assertThat(empty.fieldId()).isEqualTo(0);
     assertThat(empty.type()).isNull();
+    assertThat(empty.lowerBound()).isNull();
+    assertThat(empty.upperBound()).isNull();
+    assertThat(empty.tightBounds()).isFalse();
     assertThat(empty.valueCount()).isNull();
     assertThat(empty.nullValueCount()).isNull();
     assertThat(empty.nanValueCount()).isNull();
-    assertThat(empty.avgValueSize()).isNull();
-    assertThat(empty.maxValueSize()).isNull();
-    assertThat(empty.lowerBound()).isNull();
-    assertThat(empty.upperBound()).isNull();
+    assertThat(empty.avgValueSizeInBytes()).isNull();
   }
 
   @Test
@@ -65,11 +64,10 @@ public class TestFieldStats {
             .valueCount(10L)
             .nullValueCount(2L)
             .nanValueCount(3L)
-            .avgValueSize(30)
-            .maxValueSize(70)
+            .avgValueSizeInBytes(30)
             .lowerBound(5)
             .upperBound(20)
-            .hasExactBounds()
+            .tightBounds()
             .build();
 
     assertThat(fieldStats.type()).isEqualTo(Types.IntegerType.get());
@@ -77,11 +75,10 @@ public class TestFieldStats {
     assertThat(fieldStats.valueCount()).isEqualTo(10L);
     assertThat(fieldStats.nullValueCount()).isEqualTo(2L);
     assertThat(fieldStats.nanValueCount()).isEqualTo(3L);
-    assertThat(fieldStats.avgValueSize()).isEqualTo(30);
-    assertThat(fieldStats.maxValueSize()).isEqualTo(70);
+    assertThat(fieldStats.avgValueSizeInBytes()).isEqualTo(30);
     assertThat(fieldStats.lowerBound()).isEqualTo(5);
     assertThat(fieldStats.upperBound()).isEqualTo(20);
-    assertThat(fieldStats.hasExactBounds()).isTrue();
+    assertThat(fieldStats.tightBounds()).isTrue();
   }
 
   @Test
@@ -94,26 +91,24 @@ public class TestFieldStats {
                     .valueCount(10L)
                     .nullValueCount(2L)
                     .nanValueCount(3L)
-                    .avgValueSize(30)
-                    .maxValueSize(70)
+                    .avgValueSizeInBytes(30)
                     .lowerBound(5)
                     .upperBound(20)
                     .build())
             .lowerBound(2)
             .upperBound(50)
-            .maxValueSize(90)
-            .hasExactBounds()
+            .avgValueSizeInBytes(90)
+            .tightBounds()
             .build();
     assertThat(fieldStats.type()).isEqualTo(Types.IntegerType.get());
     assertThat(fieldStats.fieldId()).isEqualTo(23);
     assertThat(fieldStats.valueCount()).isEqualTo(10L);
     assertThat(fieldStats.nullValueCount()).isEqualTo(2L);
     assertThat(fieldStats.nanValueCount()).isEqualTo(3L);
-    assertThat(fieldStats.avgValueSize()).isEqualTo(30);
-    assertThat(fieldStats.maxValueSize()).isEqualTo(90);
+    assertThat(fieldStats.avgValueSizeInBytes()).isEqualTo(90);
     assertThat(fieldStats.lowerBound()).isEqualTo(2);
     assertThat(fieldStats.upperBound()).isEqualTo(50);
-    assertThat(fieldStats.hasExactBounds()).isTrue();
+    assertThat(fieldStats.tightBounds()).isTrue();
   }
 
   @Test
@@ -124,8 +119,7 @@ public class TestFieldStats {
     assertThat(BaseFieldStats.builder().nullValueCount(3L).build()).isNotNull();
     assertThat(BaseFieldStats.builder().nanValueCount(3L).build()).isNotNull();
     assertThat(BaseFieldStats.builder().type(Types.IntegerType.get()).build()).isNotNull();
-    assertThat(BaseFieldStats.builder().avgValueSize(3).build()).isNotNull();
-    assertThat(BaseFieldStats.builder().maxValueSize(3).build()).isNotNull();
+    assertThat(BaseFieldStats.builder().avgValueSizeInBytes(3).build()).isNotNull();
 
     assertThat(BaseFieldStats.builder().type(Types.LongType.get()).lowerBound(3L).build())
         .isNotNull();
@@ -193,29 +187,28 @@ public class TestFieldStats {
             .valueCount(10L)
             .nullValueCount(2L)
             .nanValueCount(3L)
-            .avgValueSize(30)
-            .maxValueSize(70)
+            .avgValueSizeInBytes(30)
             .lowerBound(5)
             .upperBound(20)
-            .hasExactBounds()
+            .tightBounds()
             .build();
 
+    assertThat(fieldStats.get(LOWER_BOUND.position(), Integer.class)).isEqualTo(5);
+    assertThat(fieldStats.get(UPPER_BOUND.position(), Integer.class)).isEqualTo(20);
+    assertThat(fieldStats.get(TIGHT_BOUNDS.position(), Boolean.class)).isEqualTo(true);
     assertThat(fieldStats.get(VALUE_COUNT.position(), Long.class)).isEqualTo(10L);
     assertThat(fieldStats.get(NULL_VALUE_COUNT.position(), Long.class)).isEqualTo(2L);
     assertThat(fieldStats.get(NAN_VALUE_COUNT.position(), Long.class)).isEqualTo(3L);
-    assertThat(fieldStats.get(AVG_VALUE_SIZE.position(), Integer.class)).isEqualTo(30);
-    assertThat(fieldStats.get(MAX_VALUE_SIZE.position(), Integer.class)).isEqualTo(70);
-    assertThat(fieldStats.get(LOWER_BOUND.position(), Integer.class)).isEqualTo(5);
-    assertThat(fieldStats.get(UPPER_BOUND.position(), Integer.class)).isEqualTo(20);
-    assertThat(fieldStats.get(EXACT_BOUNDS.position(), Boolean.class)).isEqualTo(true);
+    assertThat(fieldStats.get(AVG_VALUE_SIZE_IN_BYTES.position(), Integer.class)).isEqualTo(30);
 
     assertThatThrownBy(() -> assertThat(fieldStats.get(10, Long.class)))
         .isInstanceOf(ArrayIndexOutOfBoundsException.class)
-        .hasMessage("Index 10 out of bounds for length 8");
+        .hasMessage("Index 10 out of bounds for length 7");
     assertThatThrownBy(() -> assertThat(fieldStats.get(VALUE_COUNT.position(), Double.class)))
         .isInstanceOf(ClassCastException.class)
         .hasMessage("Cannot cast java.lang.Long to java.lang.Double");
-    assertThatThrownBy(() -> assertThat(fieldStats.get(AVG_VALUE_SIZE.position(), Long.class)))
+    assertThatThrownBy(
+            () -> assertThat(fieldStats.get(AVG_VALUE_SIZE_IN_BYTES.position(), Long.class)))
         .isInstanceOf(ClassCastException.class)
         .hasMessage("Cannot cast java.lang.Integer to java.lang.Long");
   }

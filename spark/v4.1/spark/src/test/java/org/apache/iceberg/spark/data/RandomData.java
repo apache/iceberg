@@ -56,6 +56,12 @@ public class RandomData {
   // Default percentage of number of values that are null for optional fields
   public static final float DEFAULT_NULL_PERCENTAGE = 0.05f;
 
+  // Exclusive upper bound on the number of elements generated for each list/map.
+  // Zero-length collections are in range, so this is a cap and not a minimum.
+  // Applied per nesting level, so deeply-nested schemas multiply quickly; keep
+  // this small enough to avoid combinatorial blow-up in heavily-nested tests.
+  private static final int COLLECTION_SIZE_BOUND = 10;
+
   private RandomData() {}
 
   public static List<Record> generateList(Schema schema, int numRecords, long seed) {
@@ -182,7 +188,7 @@ public class RandomData {
 
     @Override
     public Object list(Types.ListType list, Supplier<Object> elementResult) {
-      int numElements = random.nextInt(20);
+      int numElements = random.nextInt(COLLECTION_SIZE_BOUND);
 
       List<Object> result = Lists.newArrayListWithExpectedSize(numElements);
       for (int i = 0; i < numElements; i += 1) {
@@ -198,7 +204,7 @@ public class RandomData {
 
     @Override
     public Object map(Types.MapType map, Supplier<Object> keyResult, Supplier<Object> valueResult) {
-      int numEntries = random.nextInt(20);
+      int numEntries = random.nextInt(COLLECTION_SIZE_BOUND);
 
       Map<Object, Object> result = Maps.newLinkedHashMap();
       Set<Object> keySet = Sets.newHashSet();
@@ -294,7 +300,7 @@ public class RandomData {
 
     @Override
     public GenericArrayData list(Types.ListType list, Supplier<Object> elementResult) {
-      int numElements = random.nextInt(20);
+      int numElements = random.nextInt(COLLECTION_SIZE_BOUND);
       Object[] arr = new Object[numElements];
       GenericArrayData result = new GenericArrayData(arr);
 
@@ -311,7 +317,7 @@ public class RandomData {
 
     @Override
     public Object map(Types.MapType map, Supplier<Object> keyResult, Supplier<Object> valueResult) {
-      int numEntries = random.nextInt(20);
+      int numEntries = random.nextInt(COLLECTION_SIZE_BOUND);
 
       Object[] keysArr = new Object[numEntries];
       Object[] valuesArr = new Object[numEntries];

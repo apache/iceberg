@@ -133,7 +133,7 @@ public class SparkDistributedDataScan extends BaseDistributedDataScan {
     JavaRDD<DataFile> dataFileRDD =
         sparkContext
             .parallelize(toBeans(dataManifests), dataManifests.size())
-            .flatMap(new ReadDataManifest(tableBroadcast(), context(), withColumnStats));
+            .flatMap(new ReadDataManifest(tableBroadcast(), specs(), context(), withColumnStats));
     List<List<DataFile>> dataFileGroups = collectPartitions(dataFileRDD);
 
     int matchingFilesCount = dataFileGroups.stream().mapToInt(List::size).sum();
@@ -160,7 +160,7 @@ public class SparkDistributedDataScan extends BaseDistributedDataScan {
     List<DeleteFile> deleteFiles =
         sparkContext
             .parallelize(toBeans(deleteManifests), deleteManifests.size())
-            .flatMap(new ReadDeleteManifest(tableBroadcast(), context()))
+            .flatMap(new ReadDeleteManifest(tableBroadcast(), specs(), context()))
             .collect();
 
     int skippedFilesCount = liveFilesCount(deleteManifests) - deleteFiles.size();
@@ -168,7 +168,7 @@ public class SparkDistributedDataScan extends BaseDistributedDataScan {
 
     return DeleteFileIndex.builderFor(deleteFiles)
         .schemasById(schemas())
-        .specsById(table().specs())
+        .specsById(specs())
         .caseSensitive(isCaseSensitive())
         .scanMetrics(scanMetrics())
         .build();
@@ -223,12 +223,18 @@ public class SparkDistributedDataScan extends BaseDistributedDataScan {
   private static class ReadDataManifest implements FlatMapFunction<ManifestFileBean, DataFile> {
 
     private final Broadcast<Table> table;
+    private final Map<Integer, PartitionSpec> specs;
     private final Expression filter;
     private final boolean withStats;
     private final boolean isCaseSensitive;
 
-    ReadDataManifest(Broadcast<Table> table, TableScanContext context, boolean withStats) {
+    ReadDataManifest(
+        Broadcast<Table> table,
+        Map<Integer, PartitionSpec> specs,
+        TableScanContext context,
+        boolean withStats) {
       this.table = table;
+      this.specs = specs;
       this.filter = context.rowFilter();
       this.withStats = withStats;
       this.isCaseSensitive = context.caseSensitive();
@@ -237,7 +243,6 @@ public class SparkDistributedDataScan extends BaseDistributedDataScan {
     @Override
     public Iterator<DataFile> call(ManifestFileBean manifest) throws Exception {
       FileIO io = table.value().io();
-      Map<Integer, PartitionSpec> specs = table.value().specs();
       return new ClosingIterator<>(
           ManifestFiles.read(manifest, io, specs)
               .select(withStats ? SCAN_WITH_STATS_COLUMNS : SCAN_COLUMNS)
@@ -250,11 +255,14 @@ public class SparkDistributedDataScan extends BaseDistributedDataScan {
   private static class ReadDeleteManifest implements FlatMapFunction<ManifestFileBean, DeleteFile> {
 
     private final Broadcast<Table> table;
+    private final Map<Integer, PartitionSpec> specs;
     private final Expression filter;
     private final boolean isCaseSensitive;
 
-    ReadDeleteManifest(Broadcast<Table> table, TableScanContext context) {
+    ReadDeleteManifest(
+        Broadcast<Table> table, Map<Integer, PartitionSpec> specs, TableScanContext context) {
       this.table = table;
+      this.specs = specs;
       this.filter = context.ignoreResiduals() ? Expressions.alwaysTrue() : context.rowFilter();
       this.isCaseSensitive = context.caseSensitive();
     }
@@ -262,7 +270,6 @@ public class SparkDistributedDataScan extends BaseDistributedDataScan {
     @Override
     public Iterator<DeleteFile> call(ManifestFileBean manifest) throws Exception {
       FileIO io = table.value().io();
-      Map<Integer, PartitionSpec> specs = table.value().specs();
       return new ClosingIterator<>(
           ManifestFiles.readDeleteManifest(manifest, io, specs)
               .select(DELETE_SCAN_WITH_STATS_COLUMNS)

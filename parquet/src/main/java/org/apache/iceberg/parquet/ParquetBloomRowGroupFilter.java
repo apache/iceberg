@@ -97,11 +97,12 @@ public class ParquetBloomRowGroupFilter {
     private boolean eval(
         MessageType fileSchema, BlockMetaData rowGroup, BloomFilterReader bloomFilterReader) {
       this.bloomReader = bloomFilterReader;
+      int columnCount = rowGroup.getColumns().size();
       this.fieldsWithBloomFilter = Sets.newHashSet();
-      this.columnMetaMap = Maps.newHashMap();
+      this.columnMetaMap = Maps.newHashMapWithExpectedSize(columnCount);
       this.bloomCache = Maps.newHashMap();
-      this.parquetPrimitiveTypes = Maps.newHashMap();
-      this.types = Maps.newHashMap();
+      this.parquetPrimitiveTypes = Maps.newHashMapWithExpectedSize(columnCount);
+      this.types = Maps.newHashMapWithExpectedSize(columnCount);
 
       for (ColumnChunkMetaData meta : rowGroup.getColumns()) {
         PrimitiveType colType = fileSchema.getType(meta.getPath().toArray()).asPrimitiveType();

@@ -267,6 +267,22 @@ abstract class BaseParquetWriter<T> {
 
     @Override
     public Optional<ParquetValueWriter<?>> visit(
+        LogicalTypeAnnotation.GeometryLogicalTypeAnnotation geometryType) {
+      // reject geometry so it does not silently fall through to the generic binary writer; the
+      // geospatial value path is a separate follow-up
+      throw new UnsupportedOperationException("Cannot write geometry value to Parquet");
+    }
+
+    @Override
+    public Optional<ParquetValueWriter<?>> visit(
+        LogicalTypeAnnotation.GeographyLogicalTypeAnnotation geographyType) {
+      // reject geography so it does not silently fall through to the generic binary writer; the
+      // geospatial value path is a separate follow-up
+      throw new UnsupportedOperationException("Cannot write geography value to Parquet");
+    }
+
+    @Override
+    public Optional<ParquetValueWriter<?>> visit(
         LogicalTypeAnnotation.UUIDLogicalTypeAnnotation uuidLogicalType) {
       return Optional.of(ParquetValueWriters.uuids(desc));
     }

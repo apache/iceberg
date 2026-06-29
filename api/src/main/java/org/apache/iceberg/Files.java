@@ -40,6 +40,9 @@ public class Files {
   }
 
   public static OutputFile localOutput(String file) {
+    if (file.startsWith("file:")) {
+      return localOutput(new File(file.replaceFirst("file:", "")));
+    }
     return localOutput(Paths.get(file).toAbsolutePath().toFile());
   }
 

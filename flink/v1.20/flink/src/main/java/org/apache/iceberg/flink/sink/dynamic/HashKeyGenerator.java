@@ -20,7 +20,6 @@ package org.apache.iceberg.flink.sink.dynamic;
 
 import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE;
 
-import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -79,6 +78,11 @@ class HashKeyGenerator {
       @Nullable PartitionSpec tableSpec,
       @Nullable RowData overrideRowData) {
     String tableIdent = dynamicRecord.tableIdentifier().toString();
+    Schema effectiveSchema = MoreObjects.firstNonNull(tableSchema, dynamicRecord.schema());
+    Set<String> effectiveEqualityFields =
+        DynamicSinkUtil.resolveEqualityFieldNames(dynamicRecord.equalityFields(), effectiveSchema);
+    DistributionMode effectiveDistributionMode =
+        MoreObjects.firstNonNull(dynamicRecord.distributionMode(), DistributionMode.NONE);
     SelectorKey cacheKey =
         new SelectorKey(
             tableIdent,
@@ -87,8 +91,8 @@ class HashKeyGenerator {
             tableSpec != null ? tableSpec.specId() : null,
             dynamicRecord.schema(),
             dynamicRecord.spec(),
-            dynamicRecord.equalityFields(),
-            dynamicRecord.distributionMode(),
+            effectiveEqualityFields,
+            effectiveDistributionMode,
             Math.min(dynamicRecord.writeParallelism(), maxWriteParallelism));
     KeySelector<RowData, Integer> keySelector =
         keySelectorCache.computeIfAbsent(
@@ -96,11 +100,10 @@ class HashKeyGenerator {
             k ->
                 getKeySelector(
                     tableIdent,
-                    MoreObjects.firstNonNull(tableSchema, dynamicRecord.schema()),
+                    effectiveSchema,
                     MoreObjects.firstNonNull(tableSpec, dynamicRecord.spec()),
-                    dynamicRecord.distributionMode(),
-                    MoreObjects.firstNonNull(
-                        dynamicRecord.equalityFields(), Collections.emptySet()),
+                    effectiveDistributionMode,
+                    effectiveEqualityFields,
                     Math.min(dynamicRecord.writeParallelism(), maxWriteParallelism)));
     try {
       return keySelector.getKey(

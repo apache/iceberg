@@ -133,7 +133,7 @@ public class RemoteSignRequestParser {
         .forEach(
             entry -> {
               String key = entry.getKey();
-              List<String> values = Arrays.asList(JsonUtil.getStringArray(entry.getValue()));
+              List<String> values = Arrays.asList(JsonUtil.getStringArray(key, headersNode));
               headers.put(key, values);
             });
     return headers;

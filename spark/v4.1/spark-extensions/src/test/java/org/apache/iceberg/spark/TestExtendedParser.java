@@ -20,6 +20,8 @@ package org.apache.iceberg.spark;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -27,14 +29,19 @@ import static org.mockito.Mockito.when;
 import java.lang.reflect.Field;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import org.apache.iceberg.NullOrder;
 import org.apache.iceberg.SortDirection;
 import org.apache.iceberg.expressions.Term;
+import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.parser.AbstractSqlParser;
 import org.apache.spark.sql.catalyst.parser.AstBuilder;
+import org.apache.spark.sql.catalyst.parser.ParameterContext;
 import org.apache.spark.sql.catalyst.parser.ParserInterface;
 import org.apache.spark.sql.catalyst.parser.extensions.IcebergSparkSqlExtensionsParser;
+import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan;
+import org.apache.spark.sql.catalyst.plans.logical.OneRowRelation;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
@@ -182,6 +189,47 @@ public class TestExtendedParser {
         ExtendedParser.parseSortOrder(spark, "id ASC NULLS FIRST");
     assertThat(result).isSameAs(expected);
     verify(icebergParser).parseSortOrder("id ASC NULLS FIRST");
+  }
+
+  /** Tests that non-Iceberg SQL delegates with the parameter context intact. */
+  @Test
+  public void testParsePlanWithParametersDelegatesForNonIcebergSql() throws Exception {
+    ParserInterface delegate = mock(ParserInterface.class);
+    ParameterContext context = mock(ParameterContext.class);
+    LogicalPlan plan = new OneRowRelation();
+    when(delegate.parsePlanWithParameters(anyString(), any(ParameterContext.class)))
+        .thenReturn(plan);
+
+    IcebergSparkSqlExtensionsParser parser = new IcebergSparkSqlExtensionsParser(delegate);
+
+    parser.parsePlanWithParameters("SELECT 1 WHERE 1 = ?", context);
+
+    verify(delegate).parsePlanWithParameters("SELECT 1 WHERE 1 = ?", context);
+  }
+
+  /** Tests that a positional parameter binds through a real Iceberg-extended parser. */
+  @Test
+  public void testParsePlanWithParametersBindsPositionalParameter() throws Exception {
+    IcebergSparkSqlExtensionsParser parser = new IcebergSparkSqlExtensionsParser(originalParser);
+    setSessionStateParser(spark.sessionState(), parser);
+
+    List<Row> rows = spark.sql("SELECT ? AS id", new Object[] {42}).collectAsList();
+
+    assertThat(rows).hasSize(1);
+    assertThat(rows.get(0).get(0)).isEqualTo(42);
+  }
+
+  /** Tests that a named parameter binds through a real Iceberg-extended parser. */
+  @Test
+  public void testParsePlanWithParametersBindsNamedParameter() throws Exception {
+    IcebergSparkSqlExtensionsParser parser = new IcebergSparkSqlExtensionsParser(originalParser);
+    setSessionStateParser(spark.sessionState(), parser);
+
+    Map<String, Object> args = Collections.singletonMap("id", 42);
+    List<Row> rows = spark.sql("SELECT :id AS id", args).collectAsList();
+
+    assertThat(rows).hasSize(1);
+    assertThat(rows.get(0).get(0)).isEqualTo(42);
   }
 
   private static void setSessionStateParser(Object sessionState, ParserInterface parser)

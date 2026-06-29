@@ -49,8 +49,6 @@ github:
     issues: true
     projects: true
   collaborators:  # Note: the number of collaborators is limited to 10
-    - chenjunjiedada
-    - jun-he
     - marton-bod
     - samarthjain
     - SreeramGarlapati
@@ -59,6 +57,8 @@ github:
     - ajantha-bhat
     - jbonofre
     - manuzhang
+    - anuragmantri
+    - nssalian
   ghp_branch: gh-pages
   ghp_path: /
 

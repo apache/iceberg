@@ -23,6 +23,7 @@ import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.util.ByteBuffers;
 import org.apache.iceberg.util.UUIDUtil;
 
 class SerializedPrimitive implements VariantPrimitive<Object>, SerializedValue {
@@ -61,52 +62,52 @@ class SerializedPrimitive implements VariantPrimitive<Object>, SerializedValue {
       case BOOLEAN_FALSE:
         return false;
       case INT8:
-        return VariantUtil.readLittleEndianInt8(value, PRIMITIVE_OFFSET);
+        return ByteBuffers.readLittleEndianInt8(value, PRIMITIVE_OFFSET);
       case INT16:
-        return VariantUtil.readLittleEndianInt16(value, PRIMITIVE_OFFSET);
+        return ByteBuffers.readLittleEndianInt16(value, PRIMITIVE_OFFSET);
       case INT32:
       case DATE:
-        return VariantUtil.readLittleEndianInt32(value, PRIMITIVE_OFFSET);
+        return ByteBuffers.readLittleEndianInt32(value, PRIMITIVE_OFFSET);
       case INT64:
       case TIMESTAMPTZ:
       case TIMESTAMPNTZ:
       case TIME:
       case TIMESTAMPTZ_NANOS:
       case TIMESTAMPNTZ_NANOS:
-        return VariantUtil.readLittleEndianInt64(value, PRIMITIVE_OFFSET);
+        return ByteBuffers.readLittleEndianInt64(value, PRIMITIVE_OFFSET);
       case FLOAT:
         return VariantUtil.readFloat(value, PRIMITIVE_OFFSET);
       case DOUBLE:
         return VariantUtil.readDouble(value, PRIMITIVE_OFFSET);
       case DECIMAL4:
         {
-          int scale = VariantUtil.readByte(value, PRIMITIVE_OFFSET);
-          int unscaled = VariantUtil.readLittleEndianInt32(value, PRIMITIVE_OFFSET + 1);
+          int scale = ByteBuffers.readByte(value, PRIMITIVE_OFFSET);
+          int unscaled = ByteBuffers.readLittleEndianInt32(value, PRIMITIVE_OFFSET + 1);
           return new BigDecimal(BigInteger.valueOf(unscaled), scale);
         }
       case DECIMAL8:
         {
-          int scale = VariantUtil.readByte(value, PRIMITIVE_OFFSET);
-          long unscaled = VariantUtil.readLittleEndianInt64(value, PRIMITIVE_OFFSET + 1);
+          int scale = ByteBuffers.readByte(value, PRIMITIVE_OFFSET);
+          long unscaled = ByteBuffers.readLittleEndianInt64(value, PRIMITIVE_OFFSET + 1);
           return new BigDecimal(BigInteger.valueOf(unscaled), scale);
         }
       case DECIMAL16:
         {
-          int scale = VariantUtil.readByte(value, PRIMITIVE_OFFSET);
+          int scale = ByteBuffers.readByte(value, PRIMITIVE_OFFSET);
           byte[] unscaled = new byte[16];
           for (int i = 0; i < 16; i += 1) {
-            unscaled[i] = (byte) VariantUtil.readByte(value, PRIMITIVE_OFFSET + 16 - i);
+            unscaled[i] = (byte) ByteBuffers.readByte(value, PRIMITIVE_OFFSET + 16 - i);
           }
           return new BigDecimal(new BigInteger(unscaled), scale);
         }
       case BINARY:
         {
-          int size = VariantUtil.readLittleEndianInt32(value, PRIMITIVE_OFFSET);
+          int size = ByteBuffers.readLittleEndianInt32(value, PRIMITIVE_OFFSET);
           return VariantUtil.slice(value, PRIMITIVE_OFFSET + 4, size);
         }
       case STRING:
         {
-          int size = VariantUtil.readLittleEndianInt32(value, PRIMITIVE_OFFSET);
+          int size = ByteBuffers.readLittleEndianInt32(value, PRIMITIVE_OFFSET);
           return VariantUtil.readString(value, PRIMITIVE_OFFSET + 4, size);
         }
       case UUID:

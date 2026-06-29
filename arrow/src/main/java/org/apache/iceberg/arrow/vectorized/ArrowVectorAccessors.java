@@ -99,7 +99,9 @@ final class ArrowVectorAccessors {
 
     @Override
     public BigDecimal ofBigDecimal(BigDecimal value, int precision, int scale) {
-      return BigDecimal.valueOf(value.unscaledValue().longValue(), scale);
+      // Return the value unchanged: it already has the correct unscaled value and scale. The
+      // unscaled value can exceed the range of a long, so it must not be narrowed to one.
+      return value;
     }
   }
 }

@@ -28,6 +28,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.util.ByteBuffers;
 import org.apache.iceberg.util.SortedMerge;
 
 /**
@@ -216,8 +217,8 @@ public class ShreddedObject implements VariantObject {
       int dataOffset = offsetListOffset + ((1 + numElements) * offsetSize);
       byte header = VariantUtil.objectHeader(isLarge, fieldIdSize, offsetSize);
 
-      VariantUtil.writeByte(buffer, header, offset);
-      VariantUtil.writeLittleEndianUnsigned(buffer, numElements, offset + 1, isLarge ? 4 : 1);
+      ByteBuffers.writeByte(buffer, header, offset);
+      ByteBuffers.writeLittleEndianUnsigned(buffer, numElements, offset + 1, isLarge ? 4 : 1);
 
       // neither iterable is closeable, so it is okay to use Iterable
       Iterable<String> fields =
@@ -231,10 +232,10 @@ public class ShreddedObject implements VariantObject {
         // write the field ID from the metadata dictionary
         int id = metadata.id(field);
         Preconditions.checkState(id >= 0, "Invalid metadata, missing: %s", field);
-        VariantUtil.writeLittleEndianUnsigned(
+        ByteBuffers.writeLittleEndianUnsigned(
             buffer, id, fieldIdListOffset + (index * fieldIdSize), fieldIdSize);
         // write the data offset
-        VariantUtil.writeLittleEndianUnsigned(
+        ByteBuffers.writeLittleEndianUnsigned(
             buffer, nextValueOffset, offsetListOffset + (index * offsetSize), offsetSize);
 
         // copy or serialize the value into the data section
@@ -243,9 +244,13 @@ public class ShreddedObject implements VariantObject {
         if (shreddedValue != null) {
           valueSize = shreddedValue.writeTo(buffer, dataOffset + nextValueOffset);
         } else {
-          valueSize =
-              VariantUtil.writeBufferAbsolute(
-                  buffer, dataOffset + nextValueOffset, unshreddedFields.get(field));
+          ByteBuffer unshreddedValue = unshreddedFields.get(field);
+          buffer.put(
+              dataOffset + nextValueOffset,
+              unshreddedValue,
+              unshreddedValue.position(),
+              unshreddedValue.remaining());
+          valueSize = unshreddedValue.remaining();
         }
 
         // update tracking
@@ -254,7 +259,7 @@ public class ShreddedObject implements VariantObject {
       }
 
       // write the final size of the data section
-      VariantUtil.writeLittleEndianUnsigned(
+      ByteBuffers.writeLittleEndianUnsigned(
           buffer, nextValueOffset, offsetListOffset + (index * offsetSize), offsetSize);
 
       // return the total size

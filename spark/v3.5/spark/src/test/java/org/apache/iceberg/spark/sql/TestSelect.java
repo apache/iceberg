@@ -697,6 +697,81 @@ public class TestSelect extends CatalogTestBase {
   }
 
   @TestTemplate
+  public void testTimeTravelFilterOnRenamedColumn() {
+    String ttTableName = tableName("tt_rename_table");
+    sql("DROP TABLE IF EXISTS %s", ttTableName);
+    sql(
+        "CREATE TABLE %s (id BIGINT, col DOUBLE) USING iceberg TBLPROPERTIES ("
+            + "'read.data-planning-mode'='distributed',"
+            + "'read.delete-planning-mode'='distributed')",
+        ttTableName);
+    sql("INSERT INTO %s VALUES (1, 100.0), (2, 200.0), (3, 0.0)", ttTableName);
+
+    TableIdentifier ttTableIdent = TableIdentifier.of(tableIdent.namespace(), "tt_rename_table");
+    long snapshotId = validationCatalog.loadTable(ttTableIdent).currentSnapshot().snapshotId();
+
+    sql("ALTER TABLE %s RENAME COLUMN col TO value", ttTableName);
+    sql("INSERT INTO %s VALUES (4, 400.0)", ttTableName);
+
+    Dataset<Row> df =
+        spark
+            .read()
+            .format("iceberg")
+            .option(SparkReadOptions.VERSION_AS_OF, snapshotId)
+            .load(ttTableName);
+
+    assertThat(df.columns()).containsExactly("id", "col");
+
+    List<Object[]> results =
+        rowsToJava(df.filter(df.col("col").gt(0)).orderBy("id").collectAsList());
+    assertEquals(
+        "Should return rows where col > 0",
+        ImmutableList.of(row(1L, 100.0), row(2L, 200.0)),
+        results);
+
+    List<Object[]> sqlResults =
+        sql("SELECT * FROM %s VERSION AS OF %s WHERE col > 0 ORDER BY id", ttTableName, snapshotId);
+    assertEquals(
+        "SQL time-travel filter should also work",
+        ImmutableList.of(row(1L, 100.0), row(2L, 200.0)),
+        sqlResults);
+
+    sql("DROP TABLE IF EXISTS %s", ttTableName);
+  }
+
+  @TestTemplate
+  public void testTimeTravelFilterOnRenamedColumnWithDeleteFiles() {
+    String ttTableName = tableName("tt_rename_delete_table");
+    sql("DROP TABLE IF EXISTS %s", ttTableName);
+    sql(
+        "CREATE TABLE %s (id BIGINT, col DOUBLE) USING iceberg PARTITIONED BY (col) TBLPROPERTIES ("
+            + "'format-version'='2',"
+            + "'write.delete.mode'='merge-on-read',"
+            + "'read.data-planning-mode'='distributed',"
+            + "'read.delete-planning-mode'='distributed')",
+        ttTableName);
+    sql("INSERT INTO %s VALUES (1, 100.0), (2, 200.0), (3, 0.0)", ttTableName);
+
+    sql("DELETE FROM %s WHERE id = 3", ttTableName);
+
+    TableIdentifier ttTableIdent =
+        TableIdentifier.of(tableIdent.namespace(), "tt_rename_delete_table");
+    long snapshotId = validationCatalog.loadTable(ttTableIdent).currentSnapshot().snapshotId();
+
+    sql("ALTER TABLE %s RENAME COLUMN col TO value", ttTableName);
+    sql("INSERT INTO %s VALUES (4, 400.0)", ttTableName);
+
+    List<Object[]> results =
+        sql("SELECT * FROM %s VERSION AS OF %s WHERE col > 0 ORDER BY id", ttTableName, snapshotId);
+    assertEquals(
+        "Should return rows where col > 0, excluding deleted row",
+        ImmutableList.of(row(1L, 100.0), row(2L, 200.0)),
+        results);
+
+    sql("DROP TABLE IF EXISTS %s", ttTableName);
+  }
+
+  @TestTemplate
   public void simpleTypesInFilter() {
     String tableName = tableName("simple_types_table");
     sql(

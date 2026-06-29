@@ -43,6 +43,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Conversions;
+import org.apache.iceberg.types.Type.TypeID;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.BinaryUtil;
 import org.apache.iceberg.util.NaNUtil;
@@ -264,11 +265,17 @@ class ParquetMetrics {
         int truncateLength) {
       if (primitive.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.INT96) {
         return null;
-      } else if (truncateLength <= 0) {
+      } else if (truncateLength <= 0
+          || (icebergType != null && isGeospatial(icebergType.typeId()))) {
+        // Parquet lexicographic min/max is not meaningful for spatial WKB.
         return counts(fieldId);
       } else {
         return bounds(fieldId, icebergType, primitive, truncateLength);
       }
+    }
+
+    private static boolean isGeospatial(TypeID typeId) {
+      return typeId == TypeID.GEOMETRY || typeId == TypeID.GEOGRAPHY;
     }
 
     private FieldMetrics<ByteBuffer> counts(int fieldId) {
@@ -475,6 +482,11 @@ class ParquetMetrics {
         if (null == valueResult) {
           // a value field was not present so the typed metrics can be used
           return typedResult;
+        }
+
+        if (Iterables.isEmpty(valueResult)) {
+          // missing value stats invalidate typed bounds
+          return ImmutableList.of();
         }
 
         ParquetVariantUtil.VariantMetrics valueMetrics = Iterables.getOnlyElement(valueResult);

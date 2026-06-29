@@ -32,38 +32,35 @@ class BaseFieldStats<T> extends SupportsIndexProjection implements FieldStats<T>
   private static final int[] IDENTITY_MAPPING = identityMapping();
   private final int fieldId;
   private final Type type;
+  private final T lowerBound;
+  private final T upperBound;
+  private final boolean tightBounds;
   private final Long valueCount;
   private final Long nullValueCount;
   private final Long nanValueCount;
-  private final Integer avgValueSize;
-  private final Integer maxValueSize;
-  private final T lowerBound;
-  private final T upperBound;
-  private final boolean hasExactBounds;
+  private final Integer avgValueSizeInBytes;
 
   private BaseFieldStats(
       int fieldId,
       int[] fromProjectionPos,
       Type type,
+      T lowerBound,
+      T upperBound,
+      boolean tightBounds,
       Long valueCount,
       Long nullValueCount,
       Long nanValueCount,
-      Integer avgValueSize,
-      Integer maxValueSize,
-      T lowerBound,
-      T upperBound,
-      boolean hasExactBounds) {
+      Integer avgValueSizeInBytes) {
     super(fromProjectionPos != null ? fromProjectionPos : IDENTITY_MAPPING);
     this.fieldId = fieldId;
     this.type = type;
+    this.lowerBound = lowerBound;
+    this.upperBound = upperBound;
+    this.tightBounds = tightBounds;
     this.valueCount = valueCount;
     this.nullValueCount = nullValueCount;
     this.nanValueCount = nanValueCount;
-    this.avgValueSize = avgValueSize;
-    this.maxValueSize = maxValueSize;
-    this.lowerBound = lowerBound;
-    this.upperBound = upperBound;
-    this.hasExactBounds = hasExactBounds;
+    this.avgValueSizeInBytes = avgValueSizeInBytes;
   }
 
   private static int[] identityMapping() {
@@ -77,7 +74,7 @@ class BaseFieldStats<T> extends SupportsIndexProjection implements FieldStats<T>
   }
 
   /**
-   * Computes a position mapping from the column-specific stats struct to the full 8-field struct.
+   * Computes a position mapping from the column-specific stats struct to the full stats struct.
    * Each entry maps a projected position to its base position (0-based) using the field ID offsets
    * from the column's base stats field ID.
    */
@@ -122,13 +119,8 @@ class BaseFieldStats<T> extends SupportsIndexProjection implements FieldStats<T>
   }
 
   @Override
-  public Integer avgValueSize() {
-    return avgValueSize;
-  }
-
-  @Override
-  public Integer maxValueSize() {
-    return maxValueSize;
+  public Integer avgValueSizeInBytes() {
+    return avgValueSizeInBytes;
   }
 
   @SuppressWarnings("unchecked")
@@ -173,21 +165,20 @@ class BaseFieldStats<T> extends SupportsIndexProjection implements FieldStats<T>
   }
 
   @Override
-  public boolean hasExactBounds() {
-    return hasExactBounds;
+  public boolean tightBounds() {
+    return tightBounds;
   }
 
   @Override
   protected <X> X internalGet(int pos, Class<X> javaClass) {
     return switch (FieldStatistic.fromPosition(pos)) {
+      case LOWER_BOUND -> javaClass.cast(lowerBound());
+      case UPPER_BOUND -> javaClass.cast(upperBound());
+      case TIGHT_BOUNDS -> javaClass.cast(tightBounds);
       case VALUE_COUNT -> javaClass.cast(valueCount);
       case NULL_VALUE_COUNT -> javaClass.cast(nullValueCount);
       case NAN_VALUE_COUNT -> javaClass.cast(nanValueCount);
-      case AVG_VALUE_SIZE -> javaClass.cast(avgValueSize);
-      case MAX_VALUE_SIZE -> javaClass.cast(maxValueSize);
-      case LOWER_BOUND -> javaClass.cast(lowerBound());
-      case UPPER_BOUND -> javaClass.cast(upperBound());
-      case EXACT_BOUNDS -> javaClass.cast(hasExactBounds);
+      case AVG_VALUE_SIZE_IN_BYTES -> javaClass.cast(avgValueSizeInBytes);
       default -> throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
     };
   }
@@ -202,14 +193,13 @@ class BaseFieldStats<T> extends SupportsIndexProjection implements FieldStats<T>
     return MoreObjects.toStringHelper(this)
         .add("fieldId", fieldId)
         .add("type", type)
+        .add("lowerBound", lowerBound)
+        .add("upperBound", upperBound)
+        .add("tightBounds", tightBounds)
         .add("valueCount", valueCount)
         .add("nullValueCount", nullValueCount)
         .add("nanValueCount", nanValueCount)
-        .add("avgValueSize", avgValueSize)
-        .add("maxValueSize", maxValueSize)
-        .add("lowerBound", lowerBound)
-        .add("upperBound", upperBound)
-        .add("hasExactBounds", hasExactBounds)
+        .add("avgValueSizeInBytes", avgValueSizeInBytes)
         .toString();
   }
 
@@ -221,15 +211,14 @@ class BaseFieldStats<T> extends SupportsIndexProjection implements FieldStats<T>
 
     BaseFieldStats<?> that = (BaseFieldStats<?>) o;
     return fieldId == that.fieldId
+        && tightBounds == that.tightBounds
         && Objects.equals(type, that.type)
+        && Objects.deepEquals(lowerBound, that.lowerBound)
+        && Objects.deepEquals(upperBound, that.upperBound)
         && Objects.equals(valueCount, that.valueCount)
         && Objects.equals(nullValueCount, that.nullValueCount)
         && Objects.equals(nanValueCount, that.nanValueCount)
-        && Objects.equals(avgValueSize, that.avgValueSize)
-        && Objects.equals(maxValueSize, that.maxValueSize)
-        && Objects.deepEquals(lowerBound, that.lowerBound)
-        && Objects.deepEquals(upperBound, that.upperBound)
-        && hasExactBounds == that.hasExactBounds;
+        && Objects.equals(avgValueSizeInBytes, that.avgValueSizeInBytes);
   }
 
   @Override
@@ -237,14 +226,13 @@ class BaseFieldStats<T> extends SupportsIndexProjection implements FieldStats<T>
     return Objects.hash(
         fieldId,
         type,
+        lowerBound,
+        upperBound,
+        tightBounds,
         valueCount,
         nullValueCount,
         nanValueCount,
-        avgValueSize,
-        maxValueSize,
-        lowerBound,
-        upperBound,
-        hasExactBounds);
+        avgValueSizeInBytes);
   }
 
   public static <X> Builder<X> builder() {
@@ -256,28 +244,26 @@ class BaseFieldStats<T> extends SupportsIndexProjection implements FieldStats<T>
     return BaseFieldStats.<X>builder()
         .type(value.type())
         .fieldId(value.fieldId())
+        .lowerBound(value.lowerBound())
+        .upperBound(value.upperBound())
+        .tightBounds(value.tightBounds())
         .valueCount(value.valueCount())
         .nullValueCount(value.nullValueCount())
         .nanValueCount(value.nanValueCount())
-        .avgValueSize(value.avgValueSize())
-        .maxValueSize(value.maxValueSize())
-        .lowerBound(value.lowerBound())
-        .upperBound(value.upperBound())
-        .hasExactBounds(value.hasExactBounds());
+        .avgValueSizeInBytes(value.avgValueSizeInBytes());
   }
 
   public static class Builder<T> {
     private int fieldId;
     private int[] fromProjectionPos;
     private Type type;
+    private T lowerBound;
+    private T upperBound;
+    private boolean tightBounds;
     private Long valueCount;
     private Long nullValueCount;
     private Long nanValueCount;
-    private Integer avgValueSize;
-    private Integer maxValueSize;
-    private T lowerBound;
-    private T upperBound;
-    private boolean hasExactBounds;
+    private Integer avgValueSizeInBytes;
 
     private Builder() {}
 
@@ -306,13 +292,8 @@ class BaseFieldStats<T> extends SupportsIndexProjection implements FieldStats<T>
       return this;
     }
 
-    public Builder<T> avgValueSize(Integer newAvgValueSize) {
-      this.avgValueSize = newAvgValueSize;
-      return this;
-    }
-
-    public Builder<T> maxValueSize(Integer newMaxValueSize) {
-      this.maxValueSize = newMaxValueSize;
+    public Builder<T> avgValueSizeInBytes(Integer newAvgValueSizeInBytes) {
+      this.avgValueSizeInBytes = newAvgValueSizeInBytes;
       return this;
     }
 
@@ -331,13 +312,13 @@ class BaseFieldStats<T> extends SupportsIndexProjection implements FieldStats<T>
       return this;
     }
 
-    public Builder<T> hasExactBounds(boolean newHasExactBounds) {
-      this.hasExactBounds = newHasExactBounds;
+    public Builder<T> tightBounds(boolean newTightBounds) {
+      this.tightBounds = newTightBounds;
       return this;
     }
 
-    public Builder<T> hasExactBounds() {
-      this.hasExactBounds = true;
+    public Builder<T> tightBounds() {
+      this.tightBounds = true;
       return this;
     }
 
@@ -370,14 +351,13 @@ class BaseFieldStats<T> extends SupportsIndexProjection implements FieldStats<T>
           fieldId,
           fromProjectionPos,
           type,
+          lowerBound,
+          upperBound,
+          tightBounds,
           valueCount,
           nullValueCount,
           nanValueCount,
-          avgValueSize,
-          maxValueSize,
-          lowerBound,
-          upperBound,
-          hasExactBounds);
+          avgValueSizeInBytes);
     }
   }
 }

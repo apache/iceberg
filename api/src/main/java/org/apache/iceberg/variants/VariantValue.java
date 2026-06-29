@@ -19,6 +19,7 @@
 package org.apache.iceberg.variants;
 
 import java.nio.ByteBuffer;
+import org.apache.iceberg.util.ByteBuffers;
 
 /** A variant value. */
 public interface VariantValue {
@@ -61,7 +62,7 @@ public interface VariantValue {
   }
 
   static VariantValue from(VariantMetadata metadata, ByteBuffer value) {
-    int header = VariantUtil.readByte(value, 0);
+    int header = ByteBuffers.readByte(value, 0);
     BasicType basicType = VariantUtil.basicType(header);
     switch (basicType) {
       case PRIMITIVE:

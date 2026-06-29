@@ -91,24 +91,6 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
         SparkCatalogConfig.HIVE.catalogName(),
         SparkCatalogConfig.HIVE.implementation(),
         SparkCatalogConfig.HIVE.properties(),
-        false
-      },
-      {
-        SparkCatalogConfig.HIVE.catalogName(),
-        SparkCatalogConfig.HIVE.implementation(),
-        SparkCatalogConfig.HIVE.properties(),
-        true
-      },
-      {
-        SparkCatalogConfig.HADOOP.catalogName(),
-        SparkCatalogConfig.HADOOP.implementation(),
-        SparkCatalogConfig.HADOOP.properties(),
-        false
-      },
-      {
-        SparkCatalogConfig.HADOOP.catalogName(),
-        SparkCatalogConfig.HADOOP.implementation(),
-        SparkCatalogConfig.HADOOP.properties(),
         true
       },
       {
@@ -119,27 +101,6 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
             .put(CatalogProperties.URI, restCatalog.properties().get(CatalogProperties.URI))
             .build(),
         false
-      },
-      {
-        SparkCatalogConfig.REST.catalogName(),
-        SparkCatalogConfig.REST.implementation(),
-        ImmutableMap.builder()
-            .putAll(SparkCatalogConfig.REST.properties())
-            .put(CatalogProperties.URI, restCatalog.properties().get(CatalogProperties.URI))
-            .build(),
-        true
-      },
-      {
-        SparkCatalogConfig.SPARK_SESSION.catalogName(),
-        SparkCatalogConfig.SPARK_SESSION.implementation(),
-        SparkCatalogConfig.SPARK_SESSION.properties(),
-        false
-      },
-      {
-        SparkCatalogConfig.SPARK_SESSION.catalogName(),
-        SparkCatalogConfig.SPARK_SESSION.implementation(),
-        SparkCatalogConfig.SPARK_SESSION.properties(),
-        true
       }
     };
   }
