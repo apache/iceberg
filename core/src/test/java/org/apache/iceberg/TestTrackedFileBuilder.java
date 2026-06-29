@@ -91,8 +91,68 @@ public class TestTrackedFileBuilder {
         Arguments.of("location", "Missing required field: location"),
         Arguments.of("fileFormat", "Missing required field: file format"),
         Arguments.of("recordCount", "Missing required field: record count"),
-        Arguments.of("fileSizeInBytes", "Missing required field: file size in bytes"),
-        Arguments.of("partition", "Missing required field: partition data"));
+        Arguments.of("fileSizeInBytes", "Missing required field: file size in bytes"));
+  }
+
+  @Test
+  public void buildDataFileWithNullSnapshotId() {
+    // Staged-write ADDED pattern: null snapshot ID means the snapshot will be inherited from the
+    // manifest list's added_snapshot_id at read time.
+    TrackedFile trackedFile =
+        TrackedFileBuilder.data((Long) null)
+            .formatVersion(FORMAT_VERSION_V4)
+            .location("s3://bucket/data/file.parquet")
+            .fileFormat(FileFormat.PARQUET)
+            .recordCount(2000L)
+            .fileSizeInBytes(12345L)
+            .partition(PARTITION_DATA)
+            .build();
+
+    assertThat(trackedFile.tracking().status()).isEqualTo(EntryStatus.ADDED);
+    assertThat(trackedFile.tracking().snapshotId()).isNull();
+    assertThat(trackedFile.tracking().dataSequenceNumber()).isNull();
+    assertThat(trackedFile.tracking().fileSequenceNumber()).isNull();
+    assertThat(trackedFile.tracking().dvSnapshotId()).isNull();
+  }
+
+  @Test
+  public void buildEqualityDeleteFileWithNullSnapshotId() {
+    // Staged-write ADDED pattern for equality delete files.
+    TrackedFile trackedFile =
+        TrackedFileBuilder.equalityDelete((Long) null)
+            .formatVersion(FORMAT_VERSION_V4)
+            .location("s3://bucket/data/eq_delete.parquet")
+            .fileFormat(FileFormat.PARQUET)
+            .recordCount(2000L)
+            .fileSizeInBytes(12345L)
+            .partition(PARTITION_DATA)
+            .equalityIds(ImmutableList.of(1))
+            .build();
+
+    assertThat(trackedFile.tracking().status()).isEqualTo(EntryStatus.ADDED);
+    assertThat(trackedFile.tracking().snapshotId()).isNull();
+    assertThat(trackedFile.tracking().dataSequenceNumber()).isNull();
+    assertThat(trackedFile.tracking().fileSequenceNumber()).isNull();
+  }
+
+  @Test
+  public void rejectDeletionVectorOnNullSnapshotIdBuilder() {
+    // A staged-write ADDED entry has no known commit snapshot, so the DV-update path (which would
+    // record dvSnapshotId from the commit snapshot) cannot be used. Reject early with a clear
+    // message rather than persisting a null dvSnapshotId.
+    assertThatThrownBy(
+            () ->
+                TrackedFileBuilder.data((Long) null)
+                    .formatVersion(FORMAT_VERSION_V4)
+                    .location("s3://bucket/data/file.parquet")
+                    .fileFormat(FileFormat.PARQUET)
+                    .recordCount(2000L)
+                    .fileSizeInBytes(12345L)
+                    .partition(PARTITION_DATA)
+                    .deletionVector(DELETION_VECTOR)
+                    .build())
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("Cannot mark DV updated without a known commit snapshot ID");
   }
 
   @ParameterizedTest
@@ -119,6 +179,37 @@ public class TestTrackedFileBuilder {
     assertThatThrownBy(deleteManifestBuilder::build)
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(expectedMessage);
+  }
+
+  @Test
+  public void missingPartitionFailsOnlyForDataAndEqualityDelete() {
+    // Partition is optional on content_entry rows; the builder rejects a null partition only when
+    // the content type is DATA or EQUALITY_DELETES. Manifest references (DATA_MANIFEST /
+    // DELETE_MANIFEST) leave partition null.
+    TrackedFileBuilder dataBuilder =
+        builderWithMissingRequiredField(TrackedFileBuilder.data(50L), "partition");
+    TrackedFileBuilder equalityDeleteBuilder =
+        builderWithMissingRequiredField(TrackedFileBuilder.equalityDelete(50L), "partition");
+    assertThatThrownBy(dataBuilder::build)
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Partition is required for content type DATA");
+    assertThatThrownBy(equalityDeleteBuilder::build)
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Partition is required for content type EQUALITY_DELETES");
+
+    // Manifest builders should not complain about a missing partition; they fail with the next
+    // missing required field (manifest info). Manifest reference rows leave the partition as the
+    // builder's empty-struct default (interpreted by readers as null per the optional schema).
+    TrackedFile dataManifest =
+        builderWithMissingRequiredField(TrackedFileBuilder.dataManifest(50L), "partition")
+            .manifestInfo(MANIFEST_INFO)
+            .build();
+    TrackedFile deleteManifest =
+        builderWithMissingRequiredField(TrackedFileBuilder.deleteManifest(50L), "partition")
+            .manifestInfo(MANIFEST_INFO)
+            .build();
+    assertThat(dataManifest.partition().size()).isEqualTo(0);
+    assertThat(deleteManifest.partition().size()).isEqualTo(0);
   }
 
   private TrackedFileBuilder builderWithMissingRequiredField(
@@ -182,11 +273,13 @@ public class TestTrackedFileBuilder {
         Arguments.of(TrackedFileBuilder.data(10L), FileContent.DATA),
         Arguments.of(TrackedFileBuilder.dataManifest(10L), FileContent.DATA_MANIFEST),
         Arguments.of(TrackedFileBuilder.deleteManifest(10L), FileContent.DELETE_MANIFEST),
-        Arguments.of(TrackedFileBuilder.from(sourceData(12L), 20L), FileContent.DATA),
+        Arguments.of(TrackedFileBuilder.from(inheritedSourceData(12L, 5L), 20L), FileContent.DATA),
         Arguments.of(
-            TrackedFileBuilder.from(sourceDataManifest(21L), 25L), FileContent.DATA_MANIFEST),
+            TrackedFileBuilder.from(inheritedSourceDataManifest(21L, 5L), 25L),
+            FileContent.DATA_MANIFEST),
         Arguments.of(
-            TrackedFileBuilder.from(sourceDeleteManifest(12L), 20L), FileContent.DELETE_MANIFEST));
+            TrackedFileBuilder.from(inheritedSourceDeleteManifest(12L, 5L), 20L),
+            FileContent.DELETE_MANIFEST));
   }
 
   @ParameterizedTest
@@ -206,11 +299,14 @@ public class TestTrackedFileBuilder {
         Arguments.of(TrackedFileBuilder.dataManifest(10L), FileContent.DATA_MANIFEST),
         Arguments.of(TrackedFileBuilder.deleteManifest(10L), FileContent.DELETE_MANIFEST),
         Arguments.of(
-            TrackedFileBuilder.from(sourceEqualityDelete(12L), 20L), FileContent.EQUALITY_DELETES),
+            TrackedFileBuilder.from(inheritedSourceEqualityDelete(12L, 5L), 20L),
+            FileContent.EQUALITY_DELETES),
         Arguments.of(
-            TrackedFileBuilder.from(sourceDataManifest(21L), 25L), FileContent.DATA_MANIFEST),
+            TrackedFileBuilder.from(inheritedSourceDataManifest(21L, 5L), 25L),
+            FileContent.DATA_MANIFEST),
         Arguments.of(
-            TrackedFileBuilder.from(sourceDeleteManifest(12L), 20L), FileContent.DELETE_MANIFEST));
+            TrackedFileBuilder.from(inheritedSourceDeleteManifest(12L, 5L), 20L),
+            FileContent.DELETE_MANIFEST));
   }
 
   @ParameterizedTest
@@ -247,9 +343,10 @@ public class TestTrackedFileBuilder {
     return Stream.of(
         Arguments.of(TrackedFileBuilder.data(10L), FileContent.DATA),
         Arguments.of(TrackedFileBuilder.equalityDelete(10L), FileContent.EQUALITY_DELETES),
-        Arguments.of(TrackedFileBuilder.from(sourceData(12L), 20L), FileContent.DATA),
+        Arguments.of(TrackedFileBuilder.from(inheritedSourceData(12L, 5L), 20L), FileContent.DATA),
         Arguments.of(
-            TrackedFileBuilder.from(sourceEqualityDelete(12L), 20L), FileContent.EQUALITY_DELETES));
+            TrackedFileBuilder.from(inheritedSourceEqualityDelete(12L, 5L), 20L),
+            FileContent.EQUALITY_DELETES));
   }
 
   @ParameterizedTest
@@ -721,6 +818,44 @@ public class TestTrackedFileBuilder {
         .hasMessage("The same deletion vector already added");
   }
 
+  @Test
+  public void buildWithExplicitTrackingFields() {
+    // Build a tracking row via the explicitTracking factory (e.g., for a manifest reference with
+    // explicit data/file seq numbers), bypassing the added()/from(source) tracking-derivation
+    // path. build() resolves the supplied TrackingBuilder.
+    TrackedFile result =
+        TrackedFileBuilder.explicitTracking(
+                FileContent.DATA_MANIFEST,
+                TrackingBuilder.forContentEntry(EntryStatus.EXISTING, 100L, 7L, 9L, 1000L))
+            .formatVersion(FORMAT_VERSION_V4)
+            .location("s3://bucket/data/manifest.avro")
+            .fileFormat(FileFormat.AVRO)
+            .recordCount(420L)
+            .fileSizeInBytes(556L)
+            .partition(PARTITION_DATA)
+            .manifestInfo(MANIFEST_INFO)
+            .build();
+
+    assertThat(result.tracking().status()).isEqualTo(EntryStatus.EXISTING);
+    assertThat(result.tracking().snapshotId()).isEqualTo(100L);
+    assertThat(result.tracking().dataSequenceNumber()).isEqualTo(7L);
+    assertThat(result.tracking().fileSequenceNumber()).isEqualTo(9L);
+    assertThat(result.tracking().firstRowId()).isEqualTo(1000L);
+    assertThat(result.tracking().dvSnapshotId()).isNull();
+    assertThat(result.tracking().deletedPositions()).isNull();
+    assertThat(result.tracking().replacedPositions()).isNull();
+  }
+
+  @Test
+  public void explicitTrackingRejectsNull() {
+    assertThatThrownBy(() -> TrackedFileBuilder.explicitTracking(FileContent.DATA, null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid tracking builder: null");
+    assertThatThrownBy(() -> TrackedFileBuilder.explicitTracking(null, TrackingBuilder.added(100L)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid content type: null");
+  }
+
   private static Stream<Arguments> nonManifestSources() {
     return Stream.of(
         Arguments.of(sourceData(10L), FileContent.DATA),
@@ -828,6 +963,22 @@ public class TestTrackedFileBuilder {
 
     ((TrackingStruct) entry.tracking()).inheritFrom(manifestTrackingToInheritFrom);
     return entry;
+  }
+
+  private static TrackedFile inheritedSourceData(long snapshotId, long sequenceNumber) {
+    return entryWithInheritedSeqNums(sourceData(snapshotId), sequenceNumber);
+  }
+
+  private static TrackedFile inheritedSourceEqualityDelete(long snapshotId, long sequenceNumber) {
+    return entryWithInheritedSeqNums(sourceEqualityDelete(snapshotId), sequenceNumber);
+  }
+
+  private static TrackedFile inheritedSourceDataManifest(long snapshotId, long sequenceNumber) {
+    return entryWithInheritedSeqNums(sourceDataManifest(snapshotId), sequenceNumber);
+  }
+
+  private static TrackedFile inheritedSourceDeleteManifest(long snapshotId, long sequenceNumber) {
+    return entryWithInheritedSeqNums(sourceDeleteManifest(snapshotId), sequenceNumber);
   }
 
   /**
