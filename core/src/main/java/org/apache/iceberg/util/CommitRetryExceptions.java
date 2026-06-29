@@ -52,10 +52,10 @@ public class CommitRetryExceptions {
 
   // Keep specific commit failures as the primary error instead of replacing them with retry tuning.
   private static boolean shouldKeepOriginalCommitFailure(Exception cause) {
-    return cause instanceof CommitFailedException
-        && (cause.getCause() instanceof RetryableValidationException
-            || isRestRetryableValidationFailure(cause.getMessage())
-            || isRequirementFailureMessage(cause.getMessage()));
+    return isRetryableValidationCommitFailure(cause)
+        || (cause instanceof CommitFailedException
+            && (isRestRetryableValidationFailure(cause.getMessage())
+                || isRequirementFailureMessage(cause.getMessage())));
   }
 
   private static boolean isRestRetryableValidationFailure(String message) {
