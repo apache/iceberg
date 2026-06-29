@@ -1704,7 +1704,7 @@ class ReadRestrictions(BaseModel):
     required_row_filter: Expression | None = Field(
         None,
         alias='required-row-filter',
-        description='An expression that filters rows in the table that the authenticated principal does not have access to.\n1. The expression must evaluate to a boolean (TRUE or FALSE; Iceberg expressions\n  never produce NULL). A reader must discard any row for which the filter\n  evaluates to FALSE, and no information derived from discarded rows may be\n  included in the query result.\n\n2. If this property is absent, null, or always true then no mandatory filtering is required.\n',
+        description='An expression that filters rows in the table that the authenticated principal does not have access to.\n1. The expression must evaluate to a boolean (TRUE or FALSE; Iceberg predicates\n  never produce NULL). A reader must discard any row for which the filter\n  evaluates to FALSE, and no information derived from discarded rows may be\n  included in the query result.\n\n2. If this property is absent, null, or always true then no mandatory filtering is required.\n',
     )
 
 

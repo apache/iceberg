@@ -3737,7 +3737,7 @@ components:
           description: >
             An expression that filters rows in the table that the authenticated principal does not have access to.
 
-            1. The expression must evaluate to a boolean (TRUE or FALSE; Iceberg expressions
+            1. The expression must evaluate to a boolean (TRUE or FALSE; Iceberg predicates
               never produce NULL). A reader must discard any row for which the filter
               evaluates to FALSE, and no information derived from discarded rows may be
               included in the query result.
