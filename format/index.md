@@ -42,11 +42,9 @@ Indexes are stored as a collection of files with some Iceberg table like semanti
 
 Like Iceberg tables, views, and functions:
 
-- Metadata and data files are immutable
+- Metadata files (index metadata and tracking files) and data files (leaf files) are immutable
 - Updates create new metadata files
 - Catalogs perform atomic metadata swaps
-
-Index data is stored separately from metadata.
 
 Each index snapshot references a tracking file which describes the leaf files belonging to the snapshot.
 
@@ -152,6 +150,7 @@ The index metadata file stores the index definition and snapshot history.
 | required    | key-column-ids      | list<int>                | Indexed columns                                 |
 | optional    | included-column-ids | list<int>                | Included columns                                |
 | optional    | properties          | map<string,string>       | Index properties applicable for every snapshot  |
+| optional    | current-snapshot-id | long                     | ID of the current index snapshot                |
 | required    | snapshots           | list<index-snapshot>     | Index snapshots                                 |
 
 ## Index Snapshot
