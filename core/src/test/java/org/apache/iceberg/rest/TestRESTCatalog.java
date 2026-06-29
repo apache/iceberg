@@ -4013,13 +4013,13 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     combined.report(excluded);
     combined.report(included);
 
-    // RESTMetricsReporter.report() submits to its executor and waits for completion via
-    // Tasks.range(1).run(...), so by the time both report() calls above have returned, all
-    // resulting client.post() invocations have already happened. The included report should
-    // produce exactly one post; the excluded one should produce none because the
-    // FilteringMetricsReporter wrapping the RESTMetricsReporter drops it before it reaches the
-    // REST client.
-    verify(mockClient, times(1))
+    // RESTMetricsReporter dispatches each report to a single-threaded executor asynchronously, so
+    // the resulting client.post() happens off-thread. The excluded report is submitted first and
+    // dropped by the FilteringMetricsReporter before it reaches the REST client; the included one
+    // is submitted next and produces exactly one post. Because the executor is single-threaded and
+    // FIFO, observing the included post (waited for via timeout) guarantees the excluded report has
+    // already been processed, so times(1) confirms the filter suppressed it.
+    verify(mockClient, timeout(5000).times(1))
         .post(eq(metricsEndpoint), any(RESTRequest.class), any(), any(Supplier.class), any());
 
     catalog.close();
