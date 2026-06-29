@@ -23,21 +23,24 @@ import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
- * A decorator that collapses multiple object-store requests into one by fetching the entire file on
- * the first call when the file size is at or below the configured threshold.
+ * A decorator that collapses multiple object-store requests into one by fetching the entire file
+ * eagerly on the first call.
  */
 public class EagerInputFile implements InputFile {
 
   private final InputFile delegate;
   private final long fileSize;
-  private final long threshold;
 
-  public EagerInputFile(InputFile delegate, long fileSize, long threshold) {
+  public EagerInputFile(InputFile delegate, long fileSize) {
     Preconditions.checkNotNull(delegate, "delegate is null");
     Preconditions.checkArgument(fileSize >= 0, "fileSize is negative: %s", fileSize);
+    Preconditions.checkArgument(
+        fileSize <= Integer.MAX_VALUE,
+        "Cannot eagerly load file because fileSize exceeds eager loading capacity, consider reducing eager fetch threshold below %s bytes: %s",
+        Integer.MAX_VALUE,
+        fileSize);
     this.delegate = delegate;
     this.fileSize = fileSize;
-    this.threshold = threshold;
   }
 
   @Override
@@ -57,10 +60,6 @@ public class EagerInputFile implements InputFile {
 
   @Override
   public SeekableInputStream newStream() {
-    if (threshold <= 0 || fileSize > threshold || fileSize > Integer.MAX_VALUE) {
-      return delegate.newStream();
-    }
-
     byte[] bytes = new byte[(int) fileSize];
     try (SeekableInputStream src = delegate.newStream()) {
       IOUtil.readFully(src, bytes, 0, bytes.length);
