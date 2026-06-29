@@ -37,7 +37,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.StructProjection;
 
-/** Reader that reads a v4 manifest file as {@link TrackedFile}s. */
+/** Reader that reads a v4+ manifest file as {@link TrackedFile}s. */
 class V4ManifestReader extends CloseableGroup implements CloseableIterable<TrackedFile> {
   private final InputFile file;
   private final Types.StructType partitionType;
