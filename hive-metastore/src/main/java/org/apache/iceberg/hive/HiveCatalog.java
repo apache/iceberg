@@ -102,6 +102,25 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
 
   public HiveCatalog() {}
 
+  /**
+   * Convenience constructor that uses the passed configuration and properties to initialize the
+   * catalog under the name {@code "hive"}, equivalent to calling {@link #setConf(Configuration)}
+   * followed by {@link #initialize(String, Map)}.
+   *
+   * @param conf The Hadoop configuration
+   * @param properties The catalog properties
+   */
+  public HiveCatalog(Configuration conf, Map<String, String> properties) {
+    setConf(conf);
+    initialize("hive", properties);
+  }
+
+  /**
+   * {@inheritDoc}
+   *
+   * <p>When instantiating {@code HiveCatalog} directly, prefer {@link #HiveCatalog(Configuration,
+   * Map)}, which combines {@code setConf(...)} and this call.
+   */
   @Override
   public void initialize(String inputName, Map<String, String> properties) {
     this.catalogProperties = ImmutableMap.copyOf(properties);
@@ -824,6 +843,12 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
         .toString();
   }
 
+  /**
+   * {@inheritDoc}
+   *
+   * <p>When instantiating {@code HiveCatalog} directly, prefer {@link #HiveCatalog(Configuration,
+   * Map)}, which combines this call and {@code initialize(...)}.
+   */
   @Override
   public void setConf(Configuration conf) {
     this.conf = new Configuration(conf);

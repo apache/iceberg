@@ -287,6 +287,23 @@ public class TestHiveCatalog extends CatalogTests<HiveCatalog> {
   }
 
   @Test
+  public void testConstructorWithConfAndProperties() {
+    Configuration conf = new Configuration();
+    conf.set("custom.caller.key", "custom-value");
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put("uri", "thrift://examplehost:9083");
+    properties.put("warehouse", "/user/hive/testwarehouse");
+
+    HiveCatalog hiveCatalog = new HiveCatalog(conf, properties);
+
+    assertThat(hiveCatalog.getConf().get("hive.metastore.uris")).isEqualTo(properties.get("uri"));
+    assertThat(hiveCatalog.getConf().get("hive.metastore.warehouse.dir"))
+        .isEqualTo(properties.get("warehouse"));
+    assertThat(hiveCatalog.getConf().get("custom.caller.key"))
+        .isEqualTo(conf.get("custom.caller.key"));
+  }
+
+  @Test
   public void testCreateTableTxnBuilder() throws Exception {
     Schema schema = getTestSchema();
     TableIdentifier tableIdent = TableIdentifier.of(DB_NAME, "tbl");
