@@ -78,7 +78,12 @@ jobs:
     strategy:
       max-parallel: 15
       matrix:
-        jvm: ${{ fromJson((github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'full-ci') == false) && '[17]' || '[17,21]') }}
+        jvm: [17, 21]
+        event_name: ['${{ github.event_name }}']
+        exclude:
+          # Pull requests run the baseline JDK only.
+          - event_name: pull_request
+            jvm: 21
     env:
       SPARK_LOCAL_IP: localhost
     steps:
@@ -107,7 +112,12 @@ jobs:
     strategy:
       max-parallel: 15
       matrix:
-        jvm: ${{ fromJson((github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'full-ci') == false) && '[17]' || '[17,21]') }}
+        jvm: [17, 21]
+        event_name: ['${{ github.event_name }}']
+        exclude:
+          # Pull requests run the baseline JDK only.
+          - event_name: pull_request
+            jvm: 21
     env:
       SPARK_LOCAL_IP: localhost
     steps:
