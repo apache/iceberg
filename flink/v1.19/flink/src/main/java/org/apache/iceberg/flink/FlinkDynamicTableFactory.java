@@ -194,13 +194,13 @@ public class FlinkDynamicTableFactory
   }
 
   /**
-   * Merges source catalog properties with connector properties. Iceberg Catalog properties are
-   * serialized as json in FlinkCatalog#getTable to be able to isolate catalog props from iceberg
-   * table props, Here, we flatten and merge them back to use to create catalog.
+   * Merges source catalog properties (catalog name, database, table) with connector properties.
+   * Source catalog name, database, table are serialized as json in FlinkCatalog#getTable to be able
+   * to isolate them from iceberg table props, Here, we flatten and merge them back.
    *
    * @param tableProps the existing table properties
-   * @return a map of merged properties, with source catalog properties taking precedence when keys
-   *     conflict
+   * @return a map of merged properties, defaulting to source catalog name, database and table
+   *     unless overridden.
    */
   private static Map<String, String> mergeSrcCatalogProps(Map<String, String> tableProps) {
     String srcCatalogProps = tableProps.get(FlinkCreateTableOptions.SRC_CATALOG_PROPS_KEY);
@@ -214,7 +214,6 @@ public class FlinkDynamicTableFactory
           FlinkCreateTableOptions.CATALOG_DATABASE.key(), createTableOptions.catalogDb());
       mergedProps.put(
           FlinkCreateTableOptions.CATALOG_TABLE.key(), createTableOptions.catalogTable());
-      mergedProps.putAll(createTableOptions.catalogProps());
 
       tableProps.forEach(
           (k, v) -> {
