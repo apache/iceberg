@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.apache.hadoop.conf.Configuration;
@@ -46,6 +47,7 @@ import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.Pair;
+import org.apache.iceberg.util.Tasks;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -313,41 +315,151 @@ public class HadoopTableOperations implements TableOperations {
   int findVersion() {
     Path versionHintFile = versionHintFile();
     FileSystem fs = getFileSystem(versionHintFile, conf);
+    VersionHintRetryState retryState = new VersionHintRetryState();
 
+    try {
+      return retryReadVersionHint(fs, versionHintFile, retryState);
+
+    } catch (RuntimeException e) {
+      if (e.getCause() instanceof InterruptedException) {
+        throw e;
+      }
+
+      return findVersionFromMetadataDirectory(
+          fs, versionHintFile, e, retryState.metadataRootExists);
+    } catch (IOException e) {
+      return findVersionFromMetadataDirectory(
+          fs, versionHintFile, e, retryState.metadataRootExists);
+    }
+  }
+
+  private int findVersionFromMetadataDirectory(
+      FileSystem fs,
+      Path versionHintFile,
+      Exception versionHintFailure,
+      Boolean knownMetadataRootExists) {
+    try {
+      if (Boolean.FALSE.equals(knownMetadataRootExists)) {
+        return 0;
+      } else if (!Boolean.TRUE.equals(knownMetadataRootExists)
+          && !metadataRootPresent(fs, versionHintFailure)) {
+        return 0;
+      }
+
+      LOG.warn(
+          "Error reading version hint file {}; falling back to metadata directory scan",
+          versionHintFile,
+          versionHintFailure);
+
+      return scanMetadataDirectory(fs);
+    } catch (IOException e) {
+      LOG.warn("Error trying to recover the latest version number for {}", versionHintFile, e);
+      return 0;
+    }
+  }
+
+  private int scanMetadataDirectory(FileSystem fs) throws IOException {
+    FileStatus[] files =
+        fs.listStatus(metadataRoot(), name -> VERSION_PATTERN.matcher(name.getName()).matches());
+    int maxVersion = 0;
+
+    for (FileStatus file : files) {
+      int currentVersion = version(file.getPath().getName());
+      if (currentVersion > maxVersion && getMetadataFile(currentVersion) != null) {
+        maxVersion = currentVersion;
+      }
+    }
+
+    return maxVersion;
+  }
+
+  private int retryReadVersionHint(
+      FileSystem fs, Path versionHintFile, VersionHintRetryState retryState) throws IOException {
+    AtomicInteger recoveredVersion = new AtomicInteger();
+    int numRetries = versionHintNumRetries();
+
+    Tasks.foreach(versionHintFile)
+        .retry(numRetries)
+        .exponentialBackoff(
+            versionHintRetryMinWaitMs(),
+            versionHintRetryMaxWaitMs(),
+            versionHintRetryTotalTimeoutMs(),
+            2.0)
+        .shouldRetryTest(failure -> shouldRetryReadVersionHint(fs, failure, retryState))
+        .run(path -> recoveredVersion.set(readVersionHint(fs, path)), IOException.class);
+
+    return recoveredVersion.get();
+  }
+
+  private boolean shouldRetryReadVersionHint(
+      FileSystem fs, Exception failure, VersionHintRetryState retryState) {
+    if (!(failure instanceof IOException)) {
+      return false;
+    } else if (Boolean.TRUE.equals(retryState.metadataRootExists)) {
+      return true;
+    } else if (Boolean.FALSE.equals(retryState.metadataRootExists)) {
+      return false;
+    }
+
+    try {
+      retryState.metadataRootExists = metadataRootPresent(fs, failure);
+      return retryState.metadataRootExists;
+    } catch (IOException e) {
+      return false;
+    }
+  }
+
+  private boolean metadataRootPresent(FileSystem fs, Exception cause) throws IOException {
+    boolean exists = fs.exists(metadataRoot());
+    if (!exists) {
+      LOG.debug("Metadata for table not found in directory {}", metadataRoot(), cause);
+    }
+
+    return exists;
+  }
+
+  private int readVersionHint(FileSystem fs, Path versionHintFile) throws IOException {
     try (InputStreamReader fsr =
             new InputStreamReader(fs.open(versionHintFile), StandardCharsets.UTF_8);
         BufferedReader in = new BufferedReader(fsr)) {
-      return Integer.parseInt(in.readLine().replace("\n", ""));
-
-    } catch (Exception e) {
-      try {
-        if (fs.exists(metadataRoot())) {
-          LOG.warn("Error reading version hint file {}", versionHintFile, e);
-        } else {
-          LOG.debug("Metadata for table not found in directory {}", metadataRoot(), e);
-          return 0;
-        }
-
-        // List the metadata directory to find the version files, and try to recover the max
-        // available version
-        FileStatus[] files =
-            fs.listStatus(
-                metadataRoot(), name -> VERSION_PATTERN.matcher(name.getName()).matches());
-        int maxVersion = 0;
-
-        for (FileStatus file : files) {
-          int currentVersion = version(file.getPath().getName());
-          if (currentVersion > maxVersion && getMetadataFile(currentVersion) != null) {
-            maxVersion = currentVersion;
-          }
-        }
-
-        return maxVersion;
-      } catch (IOException io) {
-        LOG.warn("Error trying to recover the latest version number for {}", versionHintFile, io);
-        return 0;
-      }
+      return Integer.parseInt(in.readLine());
     }
+  }
+
+  private static class VersionHintRetryState {
+    private Boolean metadataRootExists;
+  }
+
+  private int versionHintNumRetries() {
+    return Math.max(
+        0,
+        conf.getInt(
+            ConfigProperties.VERSION_HINT_NUM_RETRIES,
+            ConfigProperties.VERSION_HINT_NUM_RETRIES_DEFAULT));
+  }
+
+  private long versionHintRetryMinWaitMs() {
+    return Math.max(
+        0L,
+        conf.getLong(
+            ConfigProperties.VERSION_HINT_RETRY_MIN_WAIT_MS,
+            ConfigProperties.VERSION_HINT_RETRY_MIN_WAIT_MS_DEFAULT));
+  }
+
+  private long versionHintRetryMaxWaitMs() {
+    return Math.max(
+        0L,
+        conf.getLong(
+            ConfigProperties.VERSION_HINT_RETRY_MAX_WAIT_MS,
+            ConfigProperties.VERSION_HINT_RETRY_MAX_WAIT_MS_DEFAULT));
+  }
+
+  private long versionHintRetryTotalTimeoutMs() {
+    return Math.max(
+        0L,
+        conf.getLong(
+            ConfigProperties.VERSION_HINT_RETRY_TOTAL_TIMEOUT_MS,
+            ConfigProperties.VERSION_HINT_RETRY_TOTAL_TIMEOUT_MS_DEFAULT));
   }
 
   /**
