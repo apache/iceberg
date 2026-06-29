@@ -22,7 +22,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.Set;
-import com.google.common.collect.Maps;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -57,7 +56,7 @@ public class ThreadSafeFileSet<F> implements Set<F> {
   }
 
   private ThreadSafeFileSet() {
-    this.delegate = Collections.newSetFromMap(Maps.newConcurrentMap());
+    this.delegate = Collections.newSetFromMap(new ConcurrentHashMap<>());
   }
 
   @Override
