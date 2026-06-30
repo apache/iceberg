@@ -1469,7 +1469,7 @@ public class TestRewriteDataFilesAction extends TestBase {
     assertEquals("We shouldn't have changed the data", originalData, postRewriteData);
 
     // With 10 original groups and max commits of 7, we have 2 groups per commit.
-    // Hence, there will be 1 + 5 commits in total
+    // That produces 5 rewrite commits plus the initial snapshot (6 snapshots total).
     shouldHaveSnapshots(table, 6);
     shouldHaveNoOrphans(table);
     shouldHaveACleanCache(table);
