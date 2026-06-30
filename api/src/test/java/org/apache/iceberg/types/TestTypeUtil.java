@@ -1007,7 +1007,8 @@ public class TestTypeUtil {
                         required(20, "street", Types.StringType.get()),
                         optional(21, "city", Types.StringType.get()),
                         optional(22, "state", Types.StringType.get()),
-                        required(23, "zip", Types.IntegerType.get())))));
+                        required(23, "zip", Types.IntegerType.get()),
+                        required(24, "value", Types.IntegerType.get())))));
 
     Map<Integer, String> statsNameIndex = TypeUtil.indexStatsNames(schema.asStruct());
 
@@ -1033,6 +1034,7 @@ public class TestTypeUtil {
         .containsEntry(21, "addresses_city")
         .containsEntry(22, "addresses_state")
         .containsEntry(23, "addresses_zip")
-        .hasSize(21);
+        .containsEntry(24, "addresses_value") // the leaf takes precedence
+        .hasSize(22);
   }
 }
