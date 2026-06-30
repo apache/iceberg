@@ -103,6 +103,16 @@ public class FlinkReadOptions {
           .intType()
           .defaultValue(Integer.MAX_VALUE);
 
+  public static final String LAZY_INITIAL_BULK_SCAN_PAGE_SIZE = "lazy-initial-bulk-scan-page-size";
+  public static final ConfigOption<Integer> LAZY_INITIAL_BULK_SCAN_PAGE_SIZE_OPTION =
+      ConfigOptions.key(PREFIX + LAZY_INITIAL_BULK_SCAN_PAGE_SIZE)
+          .intType()
+          .defaultValue(0)
+          .withDescription(
+              "When > 0, the streaming TABLE_SCAN_THEN_INCREMENTAL initial scan paginates with "
+                  + "this many splits per planSplits() call. Bounds checkpoint state for tables "
+                  + "with millions of data files. Default 0 keeps the existing eager behaviour.");
+
   public static final String LIMIT = "limit";
   public static final ConfigOption<Long> LIMIT_OPTION =
       ConfigOptions.key(PREFIX + LIMIT).longType().defaultValue(-1L);

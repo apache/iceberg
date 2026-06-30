@@ -81,7 +81,14 @@ public class FlinkSplitPlanner {
     }
   }
 
-  static CloseableIterable<CombinedScanTask> planTasks(
+  /**
+   * Returns a lazily-evaluated iterable over {@link CombinedScanTask}s for the given scan context.
+   * The iterable is not drained eagerly — callers iterate as needed and close when done. {@link
+   * #planIcebergSourceSplits} wraps this for the common materialised-list case; {@code
+   * LazyContinuousSplitPlanner} consumes it directly to page through the initial {@code
+   * TABLE_SCAN_THEN_INCREMENTAL} scan without materialising every split up front.
+   */
+  public static CloseableIterable<CombinedScanTask> planTasks(
       Table table, ScanContext context, ExecutorService workerPool) {
     ScanMode scanMode = checkScanMode(context);
     if (scanMode == ScanMode.INCREMENTAL_APPEND_SCAN) {

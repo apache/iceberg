@@ -40,6 +40,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestIcebergEnumeratorStateSerializer {
+
   @TempDir protected Path temporaryFolder;
 
   private final IcebergEnumeratorStateSerializer serializer =
@@ -50,7 +51,9 @@ public class TestIcebergEnumeratorStateSerializer {
 
   @Parameters(name = "version={0}")
   public static Object[][] parameters() {
-    return new Object[][] {new Object[] {1}, new Object[] {2}};
+    return new Object[][] {
+      new Object[] {1}, new Object[] {2}, new Object[] {3},
+    };
   }
 
   @TestTemplate
@@ -89,7 +92,7 @@ public class TestIcebergEnumeratorStateSerializer {
 
   @TestTemplate
   public void testEnumerationSplitCountHistory() throws Exception {
-    if (version == 2) {
+    if (version >= 2) {
       IcebergEnumeratorPosition position =
           IcebergEnumeratorPosition.of(2L, System.currentTimeMillis());
       List<IcebergSourceSplit> splits =
@@ -111,10 +114,18 @@ public class TestIcebergEnumeratorStateSerializer {
 
   private void testSerializer(IcebergEnumeratorState enumeratorState) throws IOException {
     byte[] result;
-    if (version == 1) {
-      result = serializer.serializeV1(enumeratorState);
-    } else {
-      result = serializer.serialize(enumeratorState);
+    switch (version) {
+      case 1:
+        result = serializer.serializeV1(enumeratorState);
+        break;
+      case 2:
+        result = serializer.serializeV2(enumeratorState);
+        break;
+      case 3:
+        result = serializer.serialize(enumeratorState);
+        break;
+      default:
+        throw new IllegalArgumentException("Unsupported version: " + version);
     }
 
     IcebergEnumeratorState deserialized = serializer.deserialize(version, result);
@@ -142,5 +153,62 @@ public class TestIcebergEnumeratorStateSerializer {
 
     assertThat(actual.enumerationSplitCountHistory())
         .containsExactly(expected.enumerationSplitCountHistory());
+
+    if (expected.lazyBulkScanCursor() == null) {
+      assertThat(actual.lazyBulkScanCursor()).isNull();
+    } else {
+      assertThat(actual.lazyBulkScanCursor()).isNotNull();
+      assertThat(actual.lazyBulkScanCursor().bulkSnapshotId())
+          .isEqualTo(expected.lazyBulkScanCursor().bulkSnapshotId());
+      assertThat(actual.lazyBulkScanCursor().combinedTasksEnumerated())
+          .isEqualTo(expected.lazyBulkScanCursor().combinedTasksEnumerated());
+      assertThat(actual.lazyBulkScanCursor().rollingHash())
+          .isEqualTo(expected.lazyBulkScanCursor().rollingHash());
+    }
+  }
+
+  // ----------------------------------------------------------------------------------------
+  // v3-only tests for the lazy bulk-scan cursor
+
+  @TestTemplate
+  public void testLazyBulkScanCursorRoundTrip() throws Exception {
+    if (version != 3) {
+      return;
+    }
+    IcebergEnumeratorPosition position =
+        IcebergEnumeratorPosition.of(2L, System.currentTimeMillis());
+    LazyBulkScanCursor cursor = new LazyBulkScanCursor(1234567890L, 42L, 0xCAFEBABEDEADBEEFL);
+    IcebergEnumeratorState enumeratorState =
+        new IcebergEnumeratorState(position, Collections.emptyList(), new int[0], cursor);
+    testSerializer(enumeratorState);
+  }
+
+  @TestTemplate
+  public void testLazyBulkScanCursorAbsent() throws Exception {
+    if (version != 3) {
+      return;
+    }
+    // v3 state without a cursor should round-trip with cursor=null (lazy planner not in use, or
+    // already past the bulk phase).
+    IcebergEnumeratorPosition position =
+        IcebergEnumeratorPosition.of(3L, System.currentTimeMillis());
+    IcebergEnumeratorState enumeratorState =
+        new IcebergEnumeratorState(position, Collections.emptyList(), new int[0], null);
+    testSerializer(enumeratorState);
+  }
+
+  @TestTemplate
+  public void testV2DeserializedAsV3HasNullCursor() throws Exception {
+    if (version != 3) {
+      return;
+    }
+    // Write with v2, read with the v3-aware deserializer.
+    IcebergEnumeratorPosition position =
+        IcebergEnumeratorPosition.of(4L, System.currentTimeMillis());
+    IcebergEnumeratorState v2State = new IcebergEnumeratorState(position, Collections.emptyList());
+
+    byte[] v2Bytes = serializer.serializeV2(v2State);
+    IcebergEnumeratorState restored = serializer.deserialize(2, v2Bytes);
+    assertThat(restored.lazyBulkScanCursor()).isNull();
   }
 }

@@ -209,6 +209,25 @@ env.execute("Test Iceberg Streaming Read");
 There are other options that could be set by Java API, please see the
 [IcebergSource#Builder](../../javadoc/{{ icebergVersion }}/org/apache/iceberg/flink/source/IcebergSource.html).
 
+### Lazy initial scan for very large tables
+
+For tables with millions of data files, the default `TABLE_SCAN_THEN_INCREMENTAL` strategy materialises the entire file list in a single planning call. The resulting pending-split collection then has to be serialised into the enumerator checkpoint, which is bounded by the 2GB Java array cap and can fail for sufficiently large tables.
+
+Enable lazy initial scan via the `lazyInitialBulkScanPageSize` builder option (or the `connector.iceberg.lazy-initial-bulk-scan-page-size` config). When set to a positive value, the source pages through `planTasks()` one bounded batch at a time:
+
+```java
+IcebergSource source = IcebergSource.forRowData()
+    .tableLoader(tableLoader)
+    .streaming(true)
+    .streamingStartingStrategy(StreamingStartingStrategy.TABLE_SCAN_THEN_INCREMENTAL)
+    .lazyInitialBulkScanPageSize(10_000)
+    .build();
+```
+
+The enumerator checkpoint then stays bounded regardless of table size. The existing `EnumerationHistory` throttling caps how many pages can be in flight in the assigner. After the initial bulk phase completes, all subsequent split discovery uses the regular incremental path.
+
+The option has no effect for batch reads or for starting strategies other than `TABLE_SCAN_THEN_INCREMENTAL`. The default value `0` keeps the existing eager behaviour.
+
 ### Reading branches and tags with DataStream
 Branches and tags can also be read via the DataStream API
 

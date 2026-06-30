@@ -63,6 +63,8 @@ import org.apache.iceberg.flink.source.enumerator.ContinuousSplitPlanner;
 import org.apache.iceberg.flink.source.enumerator.ContinuousSplitPlannerImpl;
 import org.apache.iceberg.flink.source.enumerator.IcebergEnumeratorState;
 import org.apache.iceberg.flink.source.enumerator.IcebergEnumeratorStateSerializer;
+import org.apache.iceberg.flink.source.enumerator.LazyBulkScanCursor;
+import org.apache.iceberg.flink.source.enumerator.LazyContinuousSplitPlanner;
 import org.apache.iceberg.flink.source.enumerator.StaticIcebergEnumerator;
 import org.apache.iceberg.flink.source.reader.ColumnStatsWatermarkExtractor;
 import org.apache.iceberg.flink.source.reader.ConverterReaderFunction;
@@ -87,6 +89,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEnumeratorState> {
+
   private static final Logger LOG = LoggerFactory.getLogger(IcebergSource.class);
 
   // This table loader can be closed, and it is only safe to use this instance for resource
@@ -101,6 +104,7 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
   private final SerializableComparator<IcebergSourceSplit> splitComparator;
   private final SerializableRecordEmitter<T> emitter;
   private final String tableName;
+  private final int lazyInitialBulkScanPageSize;
 
   // cache the discovered splits by planSplitsForBatch, which can be called twice. And they come
   // from two different threads: (1) source/stream construction by main thread (2) enumerator
@@ -114,7 +118,8 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
       SplitAssignerFactory assignerFactory,
       SerializableComparator<IcebergSourceSplit> splitComparator,
       Table table,
-      SerializableRecordEmitter<T> emitter) {
+      SerializableRecordEmitter<T> emitter,
+      int lazyInitialBulkScanPageSize) {
     Preconditions.checkNotNull(tableLoader, "tableLoader is required.");
     Preconditions.checkNotNull(readerFunction, "readerFunction is required.");
     Preconditions.checkNotNull(assignerFactory, "assignerFactory is required.");
@@ -126,6 +131,7 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
     this.splitComparator = splitComparator;
     this.emitter = emitter;
     this.tableName = table.name();
+    this.lazyInitialBulkScanPageSize = lazyInitialBulkScanPageSize;
   }
 
   String name() {
@@ -218,8 +224,54 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
       assigner = assignerFactory.createAssigner(enumState.pendingSplits());
     }
     if (scanContext.isStreaming()) {
-      ContinuousSplitPlanner splitPlanner =
-          new ContinuousSplitPlannerImpl(tableLoader, scanContext, planningThreadName());
+      ContinuousSplitPlanner splitPlanner;
+      LazyBulkScanCursor restoredCursor = enumState != null ? enumState.lazyBulkScanCursor() : null;
+      // Page size sanity: negative is always invalid, zero means "eager". Caught here so we
+      // don't construct a lazy planner whose Preconditions check is the same.
+      Preconditions.checkArgument(
+          lazyInitialBulkScanPageSize >= 0,
+          "lazyInitialBulkScanPageSize must be >= 0, got: %s",
+          lazyInitialBulkScanPageSize);
+      // Reject mid-bulk recovery into an eager planner. The eager ContinuousSplitPlannerImpl
+      // can't make sense of a lazy-mode cursor and would silently drop it; it would also
+      // interpret the bulk-sentinel lastPosition as "initial scan" and materialise the full
+      // file list, overflowing the 2 GB checkpoint cap on the next checkpoint — the exact
+      // failure mode lazy mode exists to prevent.
+      Preconditions.checkArgument(
+          enumState == null || !enumState.isInLazyBulkPhase() || lazyInitialBulkScanPageSize > 0,
+          "Cannot recover from a lazy-bulk-scan checkpoint (cursor=%s) with lazy mode disabled. "
+              + "Re-enable lazyInitialBulkScanPageSize (>0), or discard the checkpoint to start "
+              + "fresh.",
+          restoredCursor);
+      // A lazy-bulk-phase checkpoint pins to a specific snapshot via the cursor, and the lazy
+      // planner only consults the cursor when the starting strategy is TABLE_SCAN_THEN_INCREMENTAL
+      // (other strategies are pure passthroughs to the incremental delegate). Recovering with a
+      // mid-bulk state but a different strategy would silently drop the cursor and route empty()
+      // through the eager incremental scan path — a full-table appendsBetween(null, current) that
+      // overflows the 2GB checkpoint, the exact failure mode lazy mode exists to prevent.
+      Preconditions.checkArgument(
+          enumState == null
+              || !enumState.isInLazyBulkPhase()
+              || scanContext.streamingStartingStrategy()
+                  == StreamingStartingStrategy.TABLE_SCAN_THEN_INCREMENTAL,
+          "Cannot recover from a lazy-bulk-scan checkpoint (cursor=%s) with a different starting "
+              + "strategy (%s). The bulk-scan cursor only applies to TABLE_SCAN_THEN_INCREMENTAL. "
+              + "Either keep the strategy unchanged until the bulk phase completes, or discard "
+              + "the checkpoint to start fresh.",
+          restoredCursor,
+          scanContext.streamingStartingStrategy());
+      if (lazyInitialBulkScanPageSize > 0) {
+        splitPlanner =
+            new LazyContinuousSplitPlanner(
+                tableLoader,
+                scanContext,
+                lazyInitialBulkScanPageSize,
+                planningThreadName(),
+                restoredCursor);
+      } else {
+        splitPlanner =
+            new ContinuousSplitPlannerImpl(tableLoader, scanContext, planningThreadName());
+      }
       return new ContinuousIcebergEnumerator(
           enumContext, assigner, scanContext, splitPlanner, enumState);
     } else {
@@ -284,6 +336,7 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
   }
 
   public static class Builder<T> {
+
     private TableLoader tableLoader;
     private Table table;
     private SplitAssignerFactory splitAssignerFactory;
@@ -450,6 +503,22 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
       if (newMonitorInterval != null) {
         readOptions.put(FlinkReadOptions.MONITOR_INTERVAL, newMonitorInterval.toNanos() + " ns");
       }
+      return this;
+    }
+
+    /**
+     * Enable lazy paging of the initial bulk scan for {@link
+     * StreamingStartingStrategy#TABLE_SCAN_THEN_INCREMENTAL}. When set to a positive value, the
+     * enumerator emits at most {@code pageSize} splits per planning call instead of materialising
+     * the full file list up front. This keeps the enumerator checkpoint state bounded regardless of
+     * table size — required for tables with millions of data files.
+     *
+     * <p>Has no effect for other starting strategies or batch reads. Set to {@code 0} (default) to
+     * keep the existing eager behaviour.
+     */
+    public Builder<T> lazyInitialBulkScanPageSize(int pageSize) {
+      readOptions.put(
+          FlinkReadOptions.LAZY_INITIAL_BULK_SCAN_PAGE_SIZE, Integer.toString(pageSize));
       return this;
     }
 
@@ -629,7 +698,8 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
           splitAssignerFactory,
           splitComparator,
           table,
-          emitter);
+          emitter,
+          flinkReadConf.lazyInitialBulkScanPageSize());
     }
 
     /**
