@@ -327,6 +327,9 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
     Map<String, Long> rewrittenDeleteFileSizes = rewritePositionDeletes(deleteFilesToRewrite);
 
     // rebuild manifest files
+    // The size map holds one entry per distinct rewritten delete-file location. It is collected to
+    // the driver and broadcast to the manifest-rewrite tasks, so its footprint scales with the
+    // number of distinct delete files being rewritten rather than the table's total file count.
     RewriteContentFileResult rewriteManifestResult =
         rewriteManifests(
             deltaSnapshots,
