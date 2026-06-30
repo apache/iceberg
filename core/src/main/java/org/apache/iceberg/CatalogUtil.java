@@ -407,14 +407,7 @@ public class CatalogUtil {
           String.format("Cannot initialize FileIO implementation %s: %s", impl, e.getMessage()), e);
     }
 
-    FileIO fileIO;
-    try {
-      fileIO = ctor.newInstance();
-    } catch (ClassCastException e) {
-      throw new IllegalArgumentException(
-          String.format("Cannot initialize FileIO, %s does not implement FileIO.", impl), e);
-    }
-
+    FileIO fileIO = ctor.newInstance();
     configureHadoopConf(fileIO, hadoopConf);
     if (fileIO instanceof SupportsStorageCredentials) {
       ((SupportsStorageCredentials) fileIO).setCredentials(storageCredentials);

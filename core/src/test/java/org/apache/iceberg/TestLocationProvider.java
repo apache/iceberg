@@ -183,8 +183,7 @@ public class TestLocationProvider extends TestBase {
     assertThatThrownBy(() -> table.locationProvider())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
-            "Provided implementation for dynamic instantiation should implement %s.",
-            LocationProvider.class);
+            "Cannot use org.apache.iceberg.TestLocationProvider$InvalidNoInterfaceDynamicallyLoadedLocationProvider as an implementation of org.apache.iceberg.io.LocationProvider");
   }
 
   @TestTemplate
