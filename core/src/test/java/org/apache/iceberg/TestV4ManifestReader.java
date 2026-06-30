@@ -23,7 +23,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -80,7 +79,7 @@ public class TestV4ManifestReader {
   private final FileIO fileIO = new TestTables.LocalFileIO();
 
   @TestTemplate
-  public void testRoundTrip() {
+  public void testRoundTrip() throws IOException {
     DeletionVector dv =
         DeletionVectorStruct.builder()
             .location("s3://bucket/dv.puffin")
@@ -130,7 +129,7 @@ public class TestV4ManifestReader {
   }
 
   @TestTemplate
-  public void testEqualityDeleteRoundTrip() {
+  public void testEqualityDeleteRoundTrip() throws IOException {
     TrackedFile delete =
         TrackedFileBuilder.equalityDelete(SNAPSHOT_ID)
             .formatVersion(FORMAT_VERSION_V4)
@@ -151,7 +150,7 @@ public class TestV4ManifestReader {
   }
 
   @TestTemplate
-  public void testLiveFilesExcludesDeletedAndReplaced() {
+  public void testLiveFilesExcludesDeletedAndReplaced() throws IOException {
     List<TrackedFile> files =
         ImmutableList.of(
             fileWithStatus(EntryStatus.ADDED, "s3://bucket/added.parquet"),
@@ -175,13 +174,11 @@ public class TestV4ManifestReader {
       assertThat(reader.liveFiles())
           .extracting(file -> file.tracking().status())
           .containsExactly(EntryStatus.ADDED, EntryStatus.EXISTING, EntryStatus.MODIFIED);
-    } catch (IOException e) {
-      throw new UncheckedIOException(e);
     }
   }
 
   @TestTemplate
-  public void testManifestLocationAndPosition() {
+  public void testManifestLocationAndPosition() throws IOException {
     List<TrackedFile> files =
         ImmutableList.of(
             dataFile("s3://bucket/a.parquet", EMPTY_PARTITION_DATA),
@@ -198,8 +195,7 @@ public class TestV4ManifestReader {
   }
 
   @TestTemplate
-  public void testProjectionRestrictsFields() {
-    // sort_order_id is written but not projected below, so it must not be read back
+  public void testProjectionRestrictsFields() throws IOException {
     TrackedFile file =
         dataFileBuilder("s3://bucket/file.parquet", EMPTY_PARTITION_DATA).sortOrderId(7).build();
 
@@ -209,20 +205,19 @@ public class TestV4ManifestReader {
     try (V4ManifestReader reader =
         newReader(manifest, UNPARTITIONED_SPECS).project(projection).build()) {
       TrackedFile actual = Lists.newArrayList(reader.allFiles()).get(0);
-      assertThat(actual.location()).isEqualTo("s3://bucket/file.parquet");
-      // tracking is always projected even when the caller omits it
+      assertThat(actual.location()).isEqualTo(file.location());
+      // a minimal status-only tracking is force-added when the caller omits tracking
       assertThat(actual.tracking()).isNotNull();
       assertThat(actual.tracking().status()).isEqualTo(EntryStatus.ADDED);
-      assertThat(actual.tracking().manifestPos()).isEqualTo(0L);
-      // sort_order_id was written but not projected, so it should not be read
+      // sort_order_id, file_format, and spec_id are null because they were not projected
       assertThat(actual.sortOrderId()).isNull();
-    } catch (IOException e) {
-      throw new UncheckedIOException(e);
+      assertThat(actual.fileFormat()).isNull();
+      assertThat(actual.specId()).isNull();
     }
   }
 
   @TestTemplate
-  public void testUnpartitioned() {
+  public void testUnpartitioned() throws IOException {
     TrackedFile file = dataFile("s3://bucket/file.parquet", EMPTY_PARTITION_DATA);
 
     InputFile manifest = writeManifest(EMPTY_PARTITION, ImmutableList.of(file));
@@ -233,7 +228,7 @@ public class TestV4ManifestReader {
   }
 
   @TestTemplate
-  public void testPartitionFilterPrunesNonMatchingFiles() {
+  public void testPartitionFilterPrunesNonMatchingFiles() throws IOException {
     TrackedFile keep = dataFile("keep.parquet", partition(1));
     TrackedFile prune = dataFile("prune.parquet", partition(2));
 
@@ -247,16 +242,14 @@ public class TestV4ManifestReader {
             .build()) {
       assertThat(reader.allFiles())
           .extracting(TrackedFile::location)
-          .containsExactly("keep.parquet");
-    } catch (IOException e) {
-      throw new UncheckedIOException(e);
+          .containsExactly(keep.location());
     }
 
     assertThat(metrics.skippedDataFiles().value()).isEqualTo(1L);
   }
 
   @TestTemplate
-  public void testPartitionFilterCountsSkippedDeleteFiles() {
+  public void testPartitionFilterCountsSkippedDeleteFiles() throws IOException {
     TrackedFile delete =
         TrackedFileBuilder.equalityDelete(SNAPSHOT_ID)
             .formatVersion(FORMAT_VERSION_V4)
@@ -278,8 +271,6 @@ public class TestV4ManifestReader {
             .scanMetrics(metrics)
             .build()) {
       assertThat(reader.allFiles()).isEmpty();
-    } catch (IOException e) {
-      throw new UncheckedIOException(e);
     }
 
     assertThat(metrics.skippedDeleteFiles().value()).isEqualTo(1L);
@@ -287,7 +278,7 @@ public class TestV4ManifestReader {
   }
 
   @TestTemplate
-  public void testPartitionFilterKeepsManifestReferences() {
+  public void testPartitionFilterKeepsManifestReferences() throws IOException {
     TrackedFile keep = dataFile("data-1.parquet", partition(1));
     TrackedFile prune = dataFile("data-2.parquet", partition(2));
     ManifestInfo info =
@@ -320,14 +311,12 @@ public class TestV4ManifestReader {
         newReader(manifest, PARTITIONED_SPECS).filterRows(Expressions.equal("id", 1)).build()) {
       assertThat(reader.allFiles())
           .extracting(TrackedFile::location)
-          .containsExactlyInAnyOrder("data-1.parquet", "leaf.parquet");
-    } catch (IOException e) {
-      throw new UncheckedIOException(e);
+          .containsExactlyInAnyOrder(keep.location(), manifestRef.location());
     }
   }
 
   @TestTemplate
-  public void testCaseInsensitivePartitionFilter() {
+  public void testCaseInsensitivePartitionFilter() throws IOException {
     TrackedFile keep = dataFile("keep.parquet", partition(1));
     TrackedFile prune = dataFile("prune.parquet", partition(2));
 
@@ -340,14 +329,12 @@ public class TestV4ManifestReader {
             .build()) {
       assertThat(reader.allFiles())
           .extracting(TrackedFile::location)
-          .containsExactly("keep.parquet");
-    } catch (IOException e) {
-      throw new UncheckedIOException(e);
+          .containsExactly(keep.location());
     }
   }
 
   @TestTemplate
-  public void testMultiSpecPartitionPruning() {
+  public void testMultiSpecPartitionPruning() throws IOException {
     PartitionSpec spec0 =
         PartitionSpec.builderFor(TABLE_SCHEMA).withSpecId(0).identity("id").build();
     PartitionSpec spec1 =
@@ -377,19 +364,17 @@ public class TestV4ManifestReader {
       // spec0 entries are pruned by id; the spec1 entry is not partitioned by id so it survives
       assertThat(reader.allFiles())
           .extracting(TrackedFile::location)
-          .containsExactlyInAnyOrder("spec0-id1.parquet", "spec1-data.parquet");
-    } catch (IOException e) {
-      throw new UncheckedIOException(e);
+          .containsExactlyInAnyOrder(keepById.location(), keptOtherSpec.location());
     }
   }
 
   @TestTemplate
-  public void testIteratorReturnsLiveCopies() {
+  public void testIteratorReturnsLiveCopies() throws IOException {
+    TrackedFile added1 = dataFile("s3://bucket/added-1.parquet", EMPTY_PARTITION_DATA);
+    TrackedFile added2 = dataFile("s3://bucket/added-2.parquet", EMPTY_PARTITION_DATA);
     List<TrackedFile> files =
         ImmutableList.of(
-            dataFile("s3://bucket/added-1.parquet", EMPTY_PARTITION_DATA),
-            dataFile("s3://bucket/added-2.parquet", EMPTY_PARTITION_DATA),
-            fileWithStatus(EntryStatus.DELETED, "s3://bucket/deleted.parquet"));
+            added1, added2, fileWithStatus(EntryStatus.DELETED, "s3://bucket/deleted.parquet"));
 
     InputFile manifest = writeManifest(EMPTY_PARTITION, files);
 
@@ -398,12 +383,10 @@ public class TestV4ManifestReader {
       assertThat(read)
           .hasSize(2)
           .extracting(TrackedFile::location)
-          .containsExactly("s3://bucket/added-1.parquet", "s3://bucket/added-2.parquet");
+          .containsExactly(added1.location(), added2.location());
       // iterator() copies each entry, so the collected instances are independent of the reused
       // container (they would be the same object if iterator() did not copy)
       assertThat(read.get(0)).isNotSameAs(read.get(1));
-    } catch (IOException e) {
-      throw new UncheckedIOException(e);
     }
   }
 
@@ -483,7 +466,8 @@ public class TestV4ManifestReader {
     return partition;
   }
 
-  private InputFile writeManifest(Types.StructType partitionType, Iterable<TrackedFile> files) {
+  private InputFile writeManifest(Types.StructType partitionType, Iterable<TrackedFile> files)
+      throws IOException {
     // Parquet cannot write empty groups, so v4 writers omit the partition and content_stats fields
     // entirely when they would be empty (unpartitioned tables, no stats).
     List<Types.NestedField> writeFields = Lists.newArrayList();
@@ -508,8 +492,6 @@ public class TestV4ManifestReader {
       for (TrackedFile file : files) {
         appender.add(toWriteRow(file, writeSchema));
       }
-    } catch (IOException e) {
-      throw new UncheckedIOException(e);
     }
 
     return fileIO.newInputFile(out.location());
@@ -549,12 +531,11 @@ public class TestV4ManifestReader {
     return V4ManifestReader.builder(manifest, TABLE_SCHEMA, specsById);
   }
 
-  private List<TrackedFile> read(InputFile manifest, Map<Integer, PartitionSpec> specsById) {
+  private List<TrackedFile> read(InputFile manifest, Map<Integer, PartitionSpec> specsById)
+      throws IOException {
     // allFiles() returns reused instances, so copy each entry before collecting.
     try (V4ManifestReader reader = newReader(manifest, specsById).build()) {
       return Lists.newArrayList(CloseableIterable.transform(reader.allFiles(), TrackedFile::copy));
-    } catch (IOException e) {
-      throw new UncheckedIOException(e);
     }
   }
 
