@@ -507,7 +507,8 @@ public class CatalogHandlers {
     // catalog implementations should preserve the table's metadata/data files
     boolean dropped = catalog.dropTable(ident, false /* do not purge */);
     if (!dropped) {
-      throw new NoSuchTableException("Table does not exist: %s", ident);
+      throw new IllegalStateException(
+          String.format("Unregister failed. Table not dropped: %s", ident));
     }
 
     return ImmutableUnregisterTableResponse.builder()

@@ -19,6 +19,7 @@
 package org.apache.iceberg.rest.responses;
 
 import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.rest.RESTResponse;
 import org.immutables.value.Value;
 
@@ -36,6 +37,7 @@ public interface UnregisterTableResponse extends RESTResponse {
 
   @Override
   default void validate() {
-    // nothing to validate as it's not possible to create an invalid instance
+    Preconditions.checkArgument(metadataLocation() != null, "Invalid metadata location: null");
+    Preconditions.checkArgument(metadata() != null, "Invalid metadata: null");
   }
 }

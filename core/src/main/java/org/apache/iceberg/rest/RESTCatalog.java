@@ -28,6 +28,7 @@ import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
@@ -250,12 +251,13 @@ public class RESTCatalog
    * Unregister a table from the catalog.
    *
    * <p>This is the opposite of {@link #registerTable(TableIdentifier, String)}. The underlying data
-   * and metadata files should be left in place so that the table can be registered in another catalog.
+   * and metadata files should be left in place so that the table can be registered in another
+   * catalog.
    *
    * @param ident a table identifier
-   * @return the last metadata location for the unregistered table
+   * @return the last metadata for the unregistered table
    */
-  public String unregisterTable(TableIdentifier ident) {
+  public TableMetadata unregisterTable(TableIdentifier ident) {
     return sessionCatalog.unregisterTable(context, ident);
   }
 

@@ -736,14 +736,14 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
    * Unregister a table from the catalog without removing its data or metadata files.
    *
    * <p>This is the opposite of {@link #registerTable(SessionContext, TableIdentifier, String)}. On
-   * success, the table no longer exists in the catalog and the returned metadata location can be
-   * used to register the table in another catalog.
+   * success, the table no longer exists in the catalog and the returned metadata can be used to
+   * register the table in another catalog.
    *
    * @param context session context
    * @param identifier a table identifier
-   * @return the last metadata location for the unregistered table
+   * @return the last metadata for the unregistered table
    */
-  public String unregisterTable(SessionContext context, TableIdentifier identifier) {
+  public TableMetadata unregisterTable(SessionContext context, TableIdentifier identifier) {
     Endpoint.check(endpoints, Endpoint.V1_UNREGISTER_TABLE);
     checkIdentifierIsValid(identifier);
 
@@ -758,7 +758,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
                   UnregisterTableResponse.class,
                   mutationHeaders,
                   ErrorHandlers.tableErrorHandler());
-      return response.metadataLocation();
+      return response.metadata();
     } finally {
       invalidateTable(context, identifier);
     }
