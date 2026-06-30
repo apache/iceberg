@@ -857,6 +857,44 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
         .isEmpty();
   }
 
+  @TestTemplate
+  public void testRewriteSharedV2PositionDeletesToV3DVsRemovesLegacyDeleteFiles()
+      throws IOException {
+    Table table = createTableUnpartitioned(2, SCALE);
+    List<DataFile> dataFiles = TestHelpers.dataFiles(table);
+    writePosDeletesForFiles(table, 1, DELETES_SCALE, dataFiles);
+    assertThat(dataFiles).hasSize(2);
+
+    List<DeleteFile> deleteFiles = deleteFiles(table);
+    assertThat(deleteFiles).hasSize(1).allMatch(file -> file.format() == FileFormat.PARQUET);
+
+    List<Object[]> expectedRecords = records(table);
+    List<Object[]> expectedDeletes = deleteRecords(table);
+    assertThat(expectedRecords).hasSize(2000);
+    assertThat(expectedDeletes).hasSize(2000);
+    assertThat(dvRecords(table)).isEmpty();
+
+    table.updateProperties().set(TableProperties.FORMAT_VERSION, "3").commit();
+
+    Result result =
+        SparkActions.get(spark)
+            .rewritePositionDeletes(table)
+            .option(SizeBasedFileRewritePlanner.REWRITE_ALL, "true")
+            .execute();
+
+    List<DeleteFile> newDeleteFiles = deleteFiles(table);
+    assertThat(result.rewrittenDeleteFilesCount()).isEqualTo(1);
+    assertThat(result.addedDeleteFilesCount()).isEqualTo(2);
+    assertThat(newDeleteFiles).hasSize(2).allMatch(file -> file.format() == FileFormat.PUFFIN);
+    assertThat(newDeleteFiles).noneMatch(file -> file.format() == FileFormat.PARQUET);
+    assertThat(dvRecords(table)).hasSize(2);
+
+    List<Object[]> actualRecords = records(table);
+    List<Object[]> actualDeletes = deleteRecords(table);
+    assertEquals("Rows must match", expectedRecords, actualRecords);
+    assertEquals("Position deletes must match", expectedDeletes, actualDeletes);
+  }
+
   private List<Row> dvRecords(Table table) {
     return spark
         .read()
