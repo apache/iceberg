@@ -595,6 +595,15 @@ class LoadCredentialsResponse(BaseModel):
     )
 
 
+class ColumnLabels(BaseModel):
+    field_id: int = Field(
+        ..., alias='field-id', description="Field ID from the table's current schema"
+    )
+    labels: dict[str, str] = Field(
+        ..., description='Flat key-value labels for this column'
+    )
+
+
 class AsyncPlanningResult(BaseModel):
     status: Literal['submitted'] = Field(
         ..., description='Status of a server-side planning operation'
@@ -799,15 +808,6 @@ class CreateNamespaceResponse(BaseModel):
         {},
         description='Properties stored on the namespace, if supported by the server.',
         examples=[{'owner': 'Ralph', 'created_at': '1452120468'}],
-    )
-
-
-class GetNamespaceResponse(BaseModel):
-    namespace: Namespace
-    properties: dict[str, str] | None = Field(
-        {},
-        description='Properties stored on the namespace, if supported by the server. If the server does not support namespace properties, it should return null for this field. If namespace properties are supported, but none are set, it should return an empty object.',
-        examples=[{'owner': 'Ralph', 'transient_lastDdlTime': '1452120468'}],
     )
 
 
@@ -1152,6 +1152,44 @@ class ViewRequirement(RootModel[AssertViewUUID]):
     root: AssertViewUUID = Field(..., discriminator='type')
 
 
+class Labels(BaseModel):
+    """
+    Catalog-specific metadata enrichment returned alongside catalog objects
+    (tables, views, namespaces). Labels are ephemeral API-level annotations
+    — they are NOT part of object state, do not modify underlying metadata
+    files, and do not create commits or snapshots.
+
+    Catalogs MAY populate labels in API responses to provide operational
+    context such as ownership, data classification, cost attribution, or
+    semantic hints. Engines MAY use labels for operational decisions or
+    ignore them entirely.
+
+    Labels are scoped to the catalog that serves them. Different catalogs
+    serving the same object may return different labels, reflecting each
+    catalog's context.
+
+    The spec defines no registry of label keys. Each catalog publishes its
+    own label schema. Interoperability comes from bilateral agreements and
+    community conventions, not a centralized registry.
+
+    Labels are split into two scopes on the wire: `table` carries flat
+    key-value pairs attached to the entity as a whole (table, view, or
+    namespace); `columns` carries column-level labels keyed by field-id
+    for stability across schema evolution. `columns` is empty or omitted
+    for non-table entities.
+
+    """
+
+    table: dict[str, str] | None = Field(
+        None,
+        description='Top-level entity labels (attached to the catalog object as a whole).',
+    )
+    columns: list[ColumnLabels] | None = Field(
+        None,
+        description='Column-level labels, keyed by field-id. Empty or omitted for views and namespaces.',
+    )
+
+
 class FailedPlanningResult(IcebergErrorResponse):
     """
     Failed server-side planning result
@@ -1164,6 +1202,16 @@ class FailedPlanningResult(IcebergErrorResponse):
 
 class ReportMetricsRequest2(CommitReport):
     report_type: str = Field(..., alias='report-type')
+
+
+class GetNamespaceResponse(BaseModel):
+    namespace: Namespace
+    properties: dict[str, str] | None = Field(
+        {},
+        description='Properties stored on the namespace, if supported by the server. If the server does not support namespace properties, it should return null for this field. If namespace properties are supported, but none are set, it should return an empty object.',
+        examples=[{'owner': 'Ralph', 'transient_lastDdlTime': '1452120468'}],
+    )
+    labels: Labels | None = None
 
 
 class FunctionRepresentation(RootModel[FunctionSQLRepresentation]):
@@ -1580,6 +1628,7 @@ class LoadTableResult(BaseModel):
     storage_credentials: list[StorageCredential] | None = Field(
         None, alias='storage-credentials'
     )
+    labels: Labels | None = None
 
 
 class ScanTasks(BaseModel):
@@ -1691,6 +1740,7 @@ class LoadViewResult(BaseModel):
     metadata_location: str = Field(..., alias='metadata-location')
     metadata: ViewMetadata
     config: dict[str, str] | None = None
+    labels: Labels | None = None
 
 
 class ScanReport(BaseModel):

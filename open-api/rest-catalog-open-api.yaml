@@ -3732,6 +3732,61 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/StorageCredential'
+        labels:
+          $ref: '#/components/schemas/Labels'
+
+    Labels:
+      type: object
+      description: |
+        Catalog-specific metadata enrichment returned alongside catalog objects
+        (tables, views, namespaces). Labels are ephemeral API-level annotations
+        — they are NOT part of object state, do not modify underlying metadata
+        files, and do not create commits or snapshots.
+
+        Catalogs MAY populate labels in API responses to provide operational
+        context such as ownership, data classification, cost attribution, or
+        semantic hints. Engines MAY use labels for operational decisions or
+        ignore them entirely.
+
+        Labels are scoped to the catalog that serves them. Different catalogs
+        serving the same object may return different labels, reflecting each
+        catalog's context.
+
+        The spec defines no registry of label keys. Each catalog publishes its
+        own label schema. Interoperability comes from bilateral agreements and
+        community conventions, not a centralized registry.
+
+        Labels are split into two scopes on the wire: `table` carries flat
+        key-value pairs attached to the entity as a whole (table, view, or
+        namespace); `columns` carries column-level labels keyed by field-id
+        for stability across schema evolution. `columns` is empty or omitted
+        for non-table entities.
+      properties:
+        table:
+          type: object
+          description: Top-level entity labels (attached to the catalog object as a whole).
+          additionalProperties:
+            type: string
+        columns:
+          type: array
+          description: Column-level labels, keyed by field-id. Empty or omitted for views and namespaces.
+          items:
+            $ref: '#/components/schemas/ColumnLabels'
+
+    ColumnLabels:
+      type: object
+      required:
+        - field-id
+        - labels
+      properties:
+        field-id:
+          type: integer
+          description: Field ID from the table's current schema
+        labels:
+          type: object
+          description: Flat key-value labels for this column
+          additionalProperties:
+            type: string
 
     ScanTasks:
       type: object
@@ -4031,6 +4086,8 @@ components:
           type: object
           additionalProperties:
             type: string
+        labels:
+          $ref: '#/components/schemas/Labels'
 
     RegisterViewRequest:
       type: object
@@ -4406,6 +4463,8 @@ components:
           example: { "owner": "Ralph", 'transient_lastDdlTime': '1452120468' }
           default: { }
           nullable: true
+        labels:
+          $ref: '#/components/schemas/Labels'
 
     ListTablesResponse:
       type: object
