@@ -21,6 +21,7 @@ package org.apache.iceberg;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 import org.apache.iceberg.expressions.Evaluator;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
@@ -39,6 +40,9 @@ import org.apache.iceberg.util.StructProjection;
 
 /** Reader that reads a v4+ manifest file as {@link TrackedFile}s. */
 class V4ManifestReader extends CloseableGroup implements CloseableIterable<TrackedFile> {
+  // minimal tracking projection used when the caller does not request tracking
+  private static final Types.StructType STATUS_TRACKING = Types.StructType.of(Tracking.STATUS);
+
   private final InputFile file;
   private final Types.StructType partitionType;
   private final Schema fileProjection;
@@ -165,16 +169,19 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
     boolean unpartitioned = partitionType.fields().isEmpty();
 
     Set<Integer> projectedIds = null;
+    boolean fullTracking = true;
     if (fileProjection != null) {
-      projectedIds = Sets.newHashSet();
-      for (Types.NestedField field : fileProjection.asStruct().fields()) {
-        projectedIds.add(field.fieldId());
-      }
+      projectedIds =
+          fileProjection.asStruct().fields().stream()
+              .map(Types.NestedField::fieldId)
+              .collect(Collectors.toCollection(Sets::newHashSet));
 
-      // tracking carries the status used to filter live files and is always projected
+      // read the full tracking struct only when the caller requests it; otherwise force-add a
+      // minimal tracking carrying just the status used to filter live files
+      fullTracking = projectedIds.contains(TrackedFile.TRACKING.fieldId());
       projectedIds.add(TrackedFile.TRACKING.fieldId());
 
-      // spec_id is required to resolve each entry's partition spec when pruning
+      // project spec_id for partition filtering
       if (!partitionEvaluators.isEmpty()) {
         projectedIds.add(TrackedFile.SPEC_ID.fieldId());
       }
@@ -187,7 +194,12 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
       }
 
       if (field.fieldId() == TrackedFile.TRACKING.fieldId()) {
-        fields.add(trackingWithRowPosition());
+        fields.add(
+            Types.NestedField.required(
+                TrackedFile.TRACKING.fieldId(),
+                TrackedFile.TRACKING.name(),
+                fullTracking ? TrackingStruct.BASE_TYPE : STATUS_TRACKING,
+                TrackedFile.TRACKING.doc()));
       } else if (field.fieldId() == TrackedFile.CONTENT_STATS_ID) {
         // content_stats are omitted for now
       } else if (field.fieldId() == TrackedFile.PARTITION_ID && unpartitioned) {
@@ -200,21 +212,9 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
     return new Schema(fields);
   }
 
-  /**
-   * Builds the tracking field from the read schema, which includes {@code ROW_POSITION} so the
-   * reader populates the manifest position of each entry.
-   */
-  private static Types.NestedField trackingWithRowPosition() {
-    return Types.NestedField.required(
-        TrackedFile.TRACKING.fieldId(),
-        TrackedFile.TRACKING.name(),
-        TrackingStruct.BASE_TYPE,
-        TrackedFile.TRACKING.doc());
-  }
-
   static class Builder {
     private final InputFile file;
-    private final Schema tableSchema;
+    private final Types.StructType partitionType;
     private final Map<Integer, PartitionSpec> specsById;
     private Expression rowFilter = Expressions.alwaysTrue();
     private boolean caseSensitive = true;
@@ -223,13 +223,13 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
 
     private Builder(InputFile file, Schema tableSchema, Map<Integer, PartitionSpec> specsById) {
       this.file = file;
-      this.tableSchema = tableSchema;
+      this.partitionType = Partitioning.partitionType(tableSchema, specsById.values());
       this.specsById = specsById;
     }
 
     /** Sets a row filter; files that cannot match the expression are skipped. */
     Builder filterRows(Expression expr) {
-      Preconditions.checkNotNull(expr, "Row filter cannot be null");
+      Preconditions.checkArgument(expr != null, "Invalid row filter: null");
       this.rowFilter = expr;
       return this;
     }
@@ -245,13 +245,12 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
     }
 
     Builder scanMetrics(ScanMetrics newScanMetrics) {
-      Preconditions.checkNotNull(newScanMetrics, "Scan metrics cannot be null");
+      Preconditions.checkArgument(newScanMetrics != null, "Invalid scan metrics: null");
       this.scanMetrics = newScanMetrics;
       return this;
     }
 
     V4ManifestReader build() {
-      Types.StructType partitionType = Partitioning.partitionType(tableSchema, specsById.values());
       Map<Integer, Evaluator> partitionEvaluators = Maps.newHashMap();
       Map<Integer, StructProjection> partitionProjections = Maps.newHashMap();
       if (rowFilter != Expressions.alwaysTrue() && !partitionType.fields().isEmpty()) {
