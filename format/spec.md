@@ -276,6 +276,8 @@ Supported primitive types are defined in the table below. Primitive types added 
 | [v3](#version-3) | **`timestamp_ns`** | Timestamp, nanosecond precision, without timezone                        | [1]                                              |
 | [v3](#version-3) | **`timestamptz_ns`** | Timestamp, nanosecond precision, with timezone                         | [2]                                              |
 |                  | **`string`**       | Arbitrary-length character sequences                                     | Encoded with UTF-8 [3]                           |
+| [v4](#version-4) | **`varchar(N)`**   | Variable-length UTF-8 character sequences with max length N              | Encoded with UTF-8; N is max number of UTF-8 characters [4] |
+| [v4](#version-4) | **`char(N)`**      | Fixed-length UTF-8 character sequences with length N                     | Encoded with UTF-8; padded with spaces to N characters [4] |
 |                  | **`uuid`**         | Universally unique identifiers                                           | Should use 16-byte fixed                         |
 |                  | **`fixed(L)`**     | Fixed-length byte array of length L                                      |                                                  |
 |                  | **`binary`**       | Arbitrary-length byte array                                              |                                                  |
@@ -287,6 +289,7 @@ Notes:
 1. Timestamp values _without time zone_ represent a date and time of day regardless of zone: the time value is independent of zone adjustments (`2017-11-16 17:10:34` is always retrieved as `2017-11-16 17:10:34`).
 2. Timestamp values _with time zone_ represent a point in time: values are stored as UTC and do not retain a source time zone (`2017-11-16 17:10:34 PST` is stored/retrieved as `2017-11-17 01:10:34 UTC` and these values are considered identical).
 3. Character strings must be stored as UTF-8 encoded byte arrays.
+4. For `varchar(N)` and `char(N)`, N specifies the maximum number of UTF-8 characters (code points), not bytes. Values in `char(N)` are right-padded with spaces to exactly N characters for comparison operations. Implementations should preserve trailing spaces when storing values but may need to pad during reads for comparison semantics. `varchar(N)` does not pad and stores values up to N characters.
 
 For details on how to serialize a schema to JSON, see Appendix C.
 
@@ -353,13 +356,15 @@ Evolution applies changes to the table's current schema to produce a new schema 
 
 Valid primitive type promotions are:
 
-| Primitive type   | v1, v2 valid type promotions | v3+ valid type promotions    | Requirements |
-|------------------|------------------------------|------------------------------|--------------|
-| `unknown`        |                              | _any type_                   | |
-| `int`            | `long`                       | `long`                       | |
-| `date`           |                              | `timestamp`, `timestamp_ns`  | Promotion to `timestamptz` or `timestamptz_ns` is **not** allowed; values outside the promoted type's range must result in a runtime failure |
-| `float`          | `double`                     | `double`                     | |
-| `decimal(P, S)`  | `decimal(P', S)` if `P' > P` | `decimal(P', S)` if `P' > P` | Widen precision only |
+| Primitive type   | v1, v2 valid type promotions | v3+ valid type promotions    | v4+ valid type promotions    | Requirements |
+|------------------|------------------------------|------------------------------|------------------------------|--------------|
+| `unknown`        |                              | _any type_                   | _any type_                   | |
+| `int`            | `long`                       | `long`                       | `long`                       | |
+| `date`           |                              | `timestamp`, `timestamp_ns`  | `timestamp`, `timestamp_ns`  | Promotion to `timestamptz` or `timestamptz_ns` is **not** allowed; values outside the promoted type's range must result in a runtime failure |
+| `float`          | `double`                     | `double`                     | `double`                     | |
+| `decimal(P, S)`  | `decimal(P', S)` if `P' > P` | `decimal(P', S)` if `P' > P` | `decimal(P', S)` if `P' > P` | Widen precision only |
+| `varchar(N)`     |                              |                              | `varchar(N')` if `N' > N`, `string` | Widen length only; can promote to unbounded `string` |
+| `char(N)`        |                              |                              | `char(N')` if `N' > N`, `varchar(N')` if `N' >= N`, `string` | Can widen length or promote to `varchar` with equal or greater length, or to unbounded `string` |
 
 Iceberg's Avro manifest format does not store the type of lower and upper bounds, and type promotion does not rewrite existing bounds. For example, when a `float` is promoted to `double`, existing data file bounds are encoded as 4 little-endian bytes rather than 8 little-endian bytes for `double`. To correctly decode the value, the original type at the time the file was written must be inferred according to the following table:
 
@@ -568,8 +573,8 @@ Partition field IDs must be reused if an existing partition spec contains an equ
 | Transform name    | Description                                                  | Source types                                                                                              | Result type |
 |-------------------|--------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------|-------------|
 | **`identity`**    | Source value, unmodified                                     | Any except for `geometry`, `geography`, and `variant`                                                     | Source type |
-| **`bucket[N]`**   | Hash of value, mod `N` (see below)                           | `int`, `long`, `decimal`, `date`, `time`, `timestamp`, `timestamptz`, `timestamp_ns`, `timestamptz_ns`, `string`, `uuid`, `fixed`, `binary` | `int`       |
-| **`truncate[W]`** | Value truncated to width `W` (see below)                     | `int`, `long`, `decimal`, `string`, `binary`                                                              | Source type |
+| **`bucket[N]`**   | Hash of value, mod `N` (see below)                           | `int`, `long`, `decimal`, `date`, `time`, `timestamp`, `timestamptz`, `timestamp_ns`, `timestamptz_ns`, `string`, `varchar`, `char`, `uuid`, `fixed`, `binary` | `int`       |
+| **`truncate[W]`** | Value truncated to width `W` (see below)                     | `int`, `long`, `decimal`, `string`, `varchar`, `char`, `binary`                                           | Source type |
 | **`year`**        | Extract a date or timestamp year, as years from 1970         | `date`, `timestamp`, `timestamptz`, `timestamp_ns`, `timestamptz_ns`                                      | `int`       |
 | **`month`**       | Extract a date or timestamp month, as months from 1970-01-01 | `date`, `timestamp`, `timestamptz`, `timestamp_ns`, `timestamptz_ns`                                      | `int`       |
 | **`day`**         | Extract a date or timestamp day, as days from 1970-01-01     | `date`, `timestamp`, `timestamptz`, `timestamp_ns`, `timestamptz_ns`                                      | `date` [1]  |
@@ -608,6 +613,8 @@ For hash function details by type, see Appendix B.
 | **`long`**    | `W`, width            | `v - (v % W)` remainders must be positive [1]                    | `W=10`: `1` ￫ `0`, `-1` ￫ `-10`  |
 | **`decimal`** | `W`, width (no scale) | `scaled_W = decimal(W, scale(v))` `v - (v % scaled_W)`        [1, 2] | `W=50`, `s=2`: `10.65` ￫ `10.50` |
 | **`string`**  | `L`, length           | Substring of length `L`: `v.substring(0, L)` [3]                    | `L=3`: `iceberg` ￫ `ice`         |
+| **`varchar(N)`**  | `L`, length       | Substring of length `L`: `v.substring(0, L)` [3]                    | `L=3`: `iceberg` ￫ `ice`         |
+| **`char(N)`**  | `L`, length          | Substring of length `L`: `v.substring(0, L)` [3]                    | `L=3`: `iceberg` ￫ `ice`         |
 | **`binary`**  | `L`, length           | Sub array of length `L`: `v.subarray(0, L)`  [4]                    | `L=3`: `\x01\x02\x03\x04\x05` ￫ `\x01\x02\x03` |
 
 Notes:
@@ -1494,6 +1501,8 @@ Maps with non-string keys must use an array representation with the `map` logica
 |**`timestamp_ns`**   | `{ "type": "long",`<br />&nbsp;&nbsp;`"logicalType": "timestamp-nanos",`<br />&nbsp;&nbsp;`"adjust-to-utc": false }`  | Stores nanoseconds from 1970-01-01 00:00:00.000000000. [1], [2]     |
 |**`timestamptz_ns`** | `{ "type": "long",`<br />&nbsp;&nbsp;`"logicalType": "timestamp-nanos",`<br />&nbsp;&nbsp;`"adjust-to-utc": true }`   | Stores nanoseconds from 1970-01-01 00:00:00.000000000 UTC. [1], [2] |
 |**`string`**|`string`||
+|**`varchar(N)`**|`{ "type": "string",`<br />&nbsp;&nbsp;`"logicalType": "varchar",`<br />&nbsp;&nbsp;`"maxLength": N }`|Stored as UTF-8 string with max length validation.|
+|**`char(N)`**|`{ "type": "string",`<br />&nbsp;&nbsp;`"logicalType": "char",`<br />&nbsp;&nbsp;`"length": N }`|Stored as UTF-8 string with fixed length semantics.|
 |**`uuid`**|`{ "type": "fixed",`<br />&nbsp;&nbsp;`"size": 16,`<br />&nbsp;&nbsp;`"logicalType": "uuid" }`||
 |**`fixed(L)`**|`{ "type": "fixed",`<br />&nbsp;&nbsp;`"size": L }`||
 |**`binary`**|`bytes`||
@@ -1549,6 +1558,8 @@ Lists must use the [3-level representation](https://github.com/apache/parquet-fo
 | **`timestamp_ns`**   | `int64`                                                                                                                                      | `TIMESTAMP_NANOS` with `adjustToUtc=false`  | Stores nanoseconds from 1970-01-01 00:00:00.000000000.         |
 | **`timestamptz_ns`** | `int64`                                                                                                                                      | `TIMESTAMP_NANOS` with `adjustToUtc=true`   | Stores nanoseconds from 1970-01-01 00:00:00.000000000 UTC.     |
 | **`string`**       | `binary`                                                                                                                                     | `UTF8`                                      | Encoding must be UTF-8.                                        |
+| **`varchar(N)`**   | `binary`                                                                                                                                     | `STRING` with `maxLength=N` annotation      | Encoding must be UTF-8. Max length in characters.              |
+| **`char(N)`**      | `binary`                                                                                                                                     | `STRING` with `length=N` annotation         | Encoding must be UTF-8. Fixed length in characters.            |
 | **`uuid`**         | `fixed_len_byte_array[16]`                                                                                                                   | `UUID`                                      |                                                                |
 | **`fixed(L)`**     | `fixed_len_byte_array[L]`                                                                                                                    |                                             |                                                                |
 | **`binary`**       | `binary`                                                                                                                                     |                                             |                                                                |
@@ -1580,7 +1591,9 @@ When reading an `unknown` column, any corresponding column must be ignored and r
 | **`timestamptz`**  | `timestamp_instant` | `iceberg.timestamp-unit`=`MICROS`                    | Stores microseconds from 2015-01-01 00:00:00.000000 UTC. [1], [2]                       |
 | **`timestamp_ns`** | `timestamp`         | `iceberg.timestamp-unit`=`NANOS`                     | Stores nanoseconds from 2015-01-01 00:00:00.000000000. [1]                              |
 | **`timestamptz_ns`** | `timestamp_instant` | `iceberg.timestamp-unit`=`NANOS`                   | Stores nanoseconds from 2015-01-01 00:00:00.000000000 UTC. [1]                          |
-| **`string`**       | `string`            |                                                      | ORC `varchar` and `char` would also map to **`string`**.                                |
+| **`string`**       | `string`            |                                                      |                                                                                         |
+| **`varchar(N)`**   | `varchar(N)`        |                                                      | ORC native varchar with max length N characters.                                        |
+| **`char(N)`**      | `char(N)`           |                                                      | ORC native char with fixed length N characters.                                         |
 | **`uuid`**         | `binary`            | `iceberg.binary-type`=`UUID`                         |                                                                                         |
 | **`fixed(L)`**     | `binary`            | `iceberg.binary-type`=`FIXED` & `iceberg.length`=`L` | The length would not be checked by the ORC reader and should be checked by the adapter. |
 | **`binary`**       | `binary`            |                                                      |                                                                                         |
@@ -1623,6 +1636,8 @@ The 32-bit hash implementation is 32-bit Murmur3 hash, x86 variant, seeded with 
 | **`timestamp_ns`** | `hashLong(microsecsFromUnixEpoch(v))` [3] | `2017-11-16T22:31:08` ￫ `-2047944441`<br />`2017-11-16T22:31:08.000001001` ￫ `-1207196810` |
 | **`timestamptz_ns`** | `hashLong(microsecsFromUnixEpoch(v))` [3]| `2017-11-16T14:31:08-08:00` ￫ `-2047944441`<br />`2017-11-16T14:31:08.000001001-08:00` ￫ `-1207196810` |
 | **`string`**       | `hashBytes(utf8Bytes(v))`                 | `iceberg` ￫ `1210000089`                   |
+| **`varchar(N)`**   | `hashBytes(utf8Bytes(v))`                 | `iceberg` ￫ `1210000089`                   |
+| **`char(N)`**      | `hashBytes(utf8Bytes(v))`        [6]      | `iceberg` ￫ `1210000089`                   |
 | **`uuid`**         | `hashBytes(uuidBytes(v))`        [4]      | `f79c3e09-677c-4bbd-a479-3f349cb785e7` ￫ `1488055340`               |
 | **`fixed(L)`**     | `hashBytes(v)`                            | `00 01 02 03` ￫ `-188683207`               |
 | **`binary`**       | `hashBytes(v)`                            | `00 01 02 03` ￫ `-188683207`               |
@@ -1647,6 +1662,7 @@ Hash results are not dependent on decimal scale, which is part of the type, not 
 4. UUIDs are encoded using big endian. The test UUID for the example above is: `f79c3e09-677c-4bbd-a479-3f349cb785e7`. This UUID encoded as a byte array is:
 `F7 9C 3E 09 67 7C 4B BD A4 79 3F 34 9C B7 85 E7`
 5. `doubleToLongBits` must give the IEEE 754 compliant bit representation of the double value. All `NaN` bit patterns must be canonicalized to `0x7ff8000000000000L`. Negative zero (`-0.0`) must be canonicalized to positive zero (`0.0`). Float hash values are the result of hashing the float cast to double to ensure that schema evolution does not change hash values if float types are promoted.
+6. `char(N)` values are hashed using the stored UTF-8 bytes without padding. Hash results must be identical for `string`, `varchar(N)`, and `char(N)` with the same byte content to support schema evolution between these types.
 
 ## Appendix C: JSON serialization
 
@@ -1676,6 +1692,8 @@ Types are serialized according to this table:
 |**`timestamp, nanoseconds, without zone`**|`JSON string: "timestamp_ns"`|`"timestamp_ns"`|
 |**`timestamp, nanoseconds, with zone`**|`JSON string: "timestamptz_ns"`|`"timestamptz_ns"`|
 |**`string`**|`JSON string: "string"`|`"string"`|
+|**`varchar(N)`**|`JSON string: "varchar(<N>)"`|`"varchar(255)"`,<br />`"varchar(255)"`|
+|**`char(N)`**|`JSON string: "char(<N>)"`|`"char(10)"`,<br />`"char(10)"`|
 |**`uuid`**|`JSON string: "uuid"`|`"uuid"`|
 |**`fixed(L)`**|`JSON string: "fixed[<L>]"`|`"fixed[16]"`|
 |**`binary`**|`JSON string: "binary"`|`"binary"`|
@@ -1833,6 +1851,8 @@ This serialization scheme is for storing single values as individual binary valu
 | **`timestamp_ns`**           | Stores nanoseconds from 1970-01-01 00:00:00.000000000 in an 8-byte little-endian long                        |
 | **`timestamptz_ns`**         | Stores nanoseconds from 1970-01-01 00:00:00.000000000 UTC in an 8-byte little-endian long                    |
 | **`string`**                 | UTF-8 bytes (without length)                                                                                 |
+| **`varchar(N)`**             | UTF-8 bytes (without length)                                                                                 |
+| **`char(N)`**                | UTF-8 bytes (without length); padding spaces should not be included                                          |
 | **`uuid`**                   | 16-byte big-endian value, see example in Appendix B                                                          |
 | **`fixed(L)`**               | Binary value                                                                                                 |
 | **`binary`**                 | Binary value (without length)                                                                                |
@@ -1873,6 +1893,8 @@ The binary single-value serialization can be used to store the lower and upper b
 | **`timestamp_ns`** | **`JSON string`**                         | `"2017-11-16T22:31:08.123456789"`          | Stores ISO-8601 standard timestamp with nanosecond precision; must not include a zone offset |
 | **`timestamptz_ns`** | **`JSON string`**                       | `"2017-11-16T22:31:08.123456789+00:00"`    | Stores ISO-8601 standard timestamp with nanosecond precision; must include a zone offset and it must be '+00:00' |
 | **`string`**       | **`JSON string`**                         | `"iceberg"`                                | |
+| **`varchar(N)`**   | **`JSON string`**                         | `"iceberg"`                                | |
+| **`char(N)`**      | **`JSON string`**                         | `"iceberg"`                                | Stored without padding spaces |
 | **`uuid`**         | **`JSON string`**                         | `"f79c3e09-677c-4bbd-a479-3f349cb785e7"`   | Stores the lowercase uuid string |
 | **`fixed(L)`**     | **`JSON string`**                         | `"000102ff"`                               | Stored as a hexadecimal string |
 | **`binary`**       | **`JSON string`**                         | `"000102ff"`                               | Stored as a hexadecimal string |
@@ -1901,6 +1923,8 @@ Writing v4 metadata:
 * Location fields in all metadata structures may contain relative paths
 * Writers should produce relative paths by default for files that reside under the table location
 * Absolute paths must be used for files that do not share a common prefix with the table location
+
+Types `varchar`, and `char` are added in v4.
 
 Reading v4 metadata:
 
