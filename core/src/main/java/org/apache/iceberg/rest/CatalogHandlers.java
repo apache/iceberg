@@ -492,6 +492,10 @@ public class CatalogHandlers {
   }
 
   public static UnregisterTableResponse unregisterTable(Catalog catalog, TableIdentifier ident) {
+    if (MetadataTableType.from(ident.name()) != null) {
+      throw new NoSuchTableException("Table does not exist: %s", ident);
+    }
+
     // capture the last metadata before dropping so it can be returned for re-registration
     Table table = catalog.loadTable(ident);
     if (!(table instanceof BaseTable)) {
