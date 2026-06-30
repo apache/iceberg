@@ -60,7 +60,10 @@ public class MetricsModes {
    * <p>Implementations must be immutable.
    */
   public interface MetricsMode extends Serializable {
-    boolean hasBounds();
+    default boolean hasBounds() {
+      throw new UnsupportedOperationException(
+          "Unexpected implementation of MetricsMode without hasBounds");
+    }
   }
 
   /**
