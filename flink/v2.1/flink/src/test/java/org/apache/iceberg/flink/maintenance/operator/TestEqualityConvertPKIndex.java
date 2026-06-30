@@ -19,6 +19,7 @@
 package org.apache.iceberg.flink.maintenance.operator;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.tuple;
 
 import java.util.Collections;
 import java.util.List;
@@ -42,6 +43,8 @@ class TestEqualityConvertPKIndex {
   // Data-row sequence below the delete sequence, so existing tests still tombstone on resolve.
   private static final long DATA_SEQ = 1L;
   private static final long DELETE_SEQ = 2L;
+  // Default delete scope for the single-spec tests: global, so it resolves rows of any spec.
+  private static final int GLOBAL = IndexCommand.GLOBAL_DELETE_SPEC_ID;
 
   @Test
   void addDataRowProducesNoOutput() throws Exception {
@@ -90,7 +93,7 @@ class TestEqualityConvertPKIndex {
               0));
       harness.processElement(
           new StreamRecord<>(
-              IndexCommand.resolveDelete(MAIN_SNAPSHOT, MAIN_SEQ, KEY_1, DELETE_SEQ), 1));
+              IndexCommand.resolveDelete(MAIN_SNAPSHOT, MAIN_SEQ, KEY_1, DELETE_SEQ, GLOBAL), 1));
 
       harness.watermark(1);
 
@@ -136,7 +139,7 @@ class TestEqualityConvertPKIndex {
               0));
       harness.processElement(
           new StreamRecord<>(
-              IndexCommand.resolveDelete(MAIN_SNAPSHOT, MAIN_SEQ, KEY_1, DELETE_SEQ), 1));
+              IndexCommand.resolveDelete(MAIN_SNAPSHOT, MAIN_SEQ, KEY_1, DELETE_SEQ, GLOBAL), 1));
 
       harness.watermark(1);
 
@@ -154,6 +157,64 @@ class TestEqualityConvertPKIndex {
                 assertThat(pos.position()).isEqualTo(3);
               });
     }
+  }
+
+  @Test
+  void partitionedDeleteResolvesOnlySameSpecRows() throws Exception {
+    try (KeyedBroadcastOperatorTestHarness<
+            SerializedEqualityValues, IndexCommand, IndexCommand, DVPosition>
+        harness = createHarness()) {
+      harness.open();
+
+      // Same key, two rows under different specs (partition evolution).
+      harness.processElement(new StreamRecord<>(addRow("spec0.parquet", 0, 0), 0));
+      harness.processElement(new StreamRecord<>(addRow("spec1.parquet", 1, 1), 0));
+      // A partitioned delete under spec 1 must resolve only the spec-1 row.
+      harness.processElement(
+          new StreamRecord<>(
+              IndexCommand.resolveDelete(MAIN_SNAPSHOT, MAIN_SEQ, KEY_1, DELETE_SEQ, 1), 1));
+      harness.watermark(1);
+
+      List<DVPosition> output = harness.extractOutputValues();
+      assertThat(output).hasSize(1);
+      assertThat(output.get(0).dataFilePath()).isEqualTo("spec1.parquet");
+      assertThat(output.get(0).specId()).isEqualTo(1);
+    }
+  }
+
+  @Test
+  void unpartitionedDeleteResolvesAllSpecs() throws Exception {
+    try (KeyedBroadcastOperatorTestHarness<
+            SerializedEqualityValues, IndexCommand, IndexCommand, DVPosition>
+        harness = createHarness()) {
+      harness.open();
+
+      harness.processElement(new StreamRecord<>(addRow("spec0.parquet", 0, 0), 0));
+      harness.processElement(new StreamRecord<>(addRow("spec1.parquet", 1, 1), 0));
+      // A global (unpartitioned) delete resolves rows of every spec.
+      harness.processElement(
+          new StreamRecord<>(
+              IndexCommand.resolveDelete(MAIN_SNAPSHOT, MAIN_SEQ, KEY_1, DELETE_SEQ, GLOBAL), 1));
+      harness.watermark(1);
+
+      List<DVPosition> output = harness.extractOutputValues();
+      assertThat(output)
+          .extracting(DVPosition::dataFilePath, DVPosition::specId)
+          .containsExactlyInAnyOrder(tuple("spec0.parquet", 0), tuple("spec1.parquet", 1));
+    }
+  }
+
+  private static IndexCommand addRow(String filePath, long position, int specId) {
+    return IndexCommand.addDataRow(
+        MAIN_SNAPSHOT,
+        MAIN_SEQ,
+        KEY_1,
+        filePath,
+        position,
+        specId,
+        EMPTY_PARTITION,
+        DATA_SEQ,
+        false);
   }
 
   @Test
@@ -178,13 +239,13 @@ class TestEqualityConvertPKIndex {
               0));
       harness.processElement(
           new StreamRecord<>(
-              IndexCommand.resolveDelete(MAIN_SNAPSHOT, MAIN_SEQ, KEY_1, DELETE_SEQ), 1));
+              IndexCommand.resolveDelete(MAIN_SNAPSHOT, MAIN_SEQ, KEY_1, DELETE_SEQ, GLOBAL), 1));
       harness.watermark(1);
       assertThat(harness.extractOutputValues()).hasSize(1);
 
       harness.processElement(
           new StreamRecord<>(
-              IndexCommand.resolveDelete(MAIN_SNAPSHOT, MAIN_SEQ, KEY_1, DELETE_SEQ), 2));
+              IndexCommand.resolveDelete(MAIN_SNAPSHOT, MAIN_SEQ, KEY_1, DELETE_SEQ, GLOBAL), 2));
       harness.watermark(2);
       assertThat(harness.extractOutputValues()).hasSize(1);
     }
@@ -199,7 +260,7 @@ class TestEqualityConvertPKIndex {
 
       harness.processElement(
           new StreamRecord<>(
-              IndexCommand.resolveDelete(MAIN_SNAPSHOT, MAIN_SEQ, KEY_1, DELETE_SEQ), 1));
+              IndexCommand.resolveDelete(MAIN_SNAPSHOT, MAIN_SEQ, KEY_1, DELETE_SEQ, GLOBAL), 1));
       harness.watermark(1);
 
       assertThat(harness.extractOutputValues()).isEmpty();
@@ -229,7 +290,9 @@ class TestEqualityConvertPKIndex {
 
       harness.processElement(
           new StreamRecord<>(
-              IndexCommand.resolveDelete(NEW_MAIN_SNAPSHOT, NEW_MAIN_SEQ, KEY_1, DELETE_SEQ), 1));
+              IndexCommand.resolveDelete(
+                  NEW_MAIN_SNAPSHOT, NEW_MAIN_SEQ, KEY_1, DELETE_SEQ, GLOBAL),
+              1));
       harness.watermark(1);
 
       assertThat(harness.extractOutputValues()).isEmpty();
@@ -266,7 +329,9 @@ class TestEqualityConvertPKIndex {
       // Resolving KEY_1 against the (now-empty) index emits nothing.
       harness.processElement(
           new StreamRecord<>(
-              IndexCommand.resolveDelete(NEW_MAIN_SNAPSHOT, NEW_MAIN_SEQ, KEY_1, DELETE_SEQ), 2));
+              IndexCommand.resolveDelete(
+                  NEW_MAIN_SNAPSHOT, NEW_MAIN_SEQ, KEY_1, DELETE_SEQ, GLOBAL),
+              2));
       harness.watermark(2);
 
       assertThat(harness.extractOutputValues()).isEmpty();
@@ -299,7 +364,9 @@ class TestEqualityConvertPKIndex {
 
       harness.processElement(
           new StreamRecord<>(
-              IndexCommand.resolveDelete(NEW_MAIN_SNAPSHOT, NEW_MAIN_SEQ, KEY_1, DELETE_SEQ), 2));
+              IndexCommand.resolveDelete(
+                  NEW_MAIN_SNAPSHOT, NEW_MAIN_SEQ, KEY_1, DELETE_SEQ, GLOBAL),
+              2));
       harness.watermark(2);
 
       List<DVPosition> output = harness.extractOutputValues();
@@ -350,7 +417,9 @@ class TestEqualityConvertPKIndex {
 
       harness.processElement(
           new StreamRecord<>(
-              IndexCommand.resolveDelete(NEW_MAIN_SNAPSHOT, NEW_MAIN_SEQ, KEY_1, DELETE_SEQ), 3));
+              IndexCommand.resolveDelete(
+                  NEW_MAIN_SNAPSHOT, NEW_MAIN_SEQ, KEY_1, DELETE_SEQ, GLOBAL),
+              3));
       harness.watermark(3);
 
       List<DVPosition> output = harness.extractOutputValues();
@@ -383,7 +452,7 @@ class TestEqualityConvertPKIndex {
           new StreamRecord<>(IndexCommand.clearBeforeReindex(999L, 10L), 1));
 
       harness.processElement(
-          new StreamRecord<>(IndexCommand.resolveDelete(50L, 20L, KEY_1, DELETE_SEQ), 2));
+          new StreamRecord<>(IndexCommand.resolveDelete(50L, 20L, KEY_1, DELETE_SEQ, GLOBAL), 2));
       harness.watermark(2);
 
       List<DVPosition> output = harness.extractOutputValues();
@@ -429,7 +498,7 @@ class TestEqualityConvertPKIndex {
 
       harness.processElement(
           new StreamRecord<>(
-              IndexCommand.resolveDelete(MAIN_SNAPSHOT, MAIN_SEQ, KEY_1, DELETE_SEQ), 1));
+              IndexCommand.resolveDelete(MAIN_SNAPSHOT, MAIN_SEQ, KEY_1, DELETE_SEQ, GLOBAL), 1));
       harness.watermark(1);
 
       List<DVPosition> output = harness.extractOutputValues();
@@ -463,7 +532,7 @@ class TestEqualityConvertPKIndex {
               0));
       harness.processElement(
           new StreamRecord<>(
-              IndexCommand.resolveDelete(MAIN_SNAPSHOT, MAIN_SEQ, KEY_1, DELETE_SEQ), 1));
+              IndexCommand.resolveDelete(MAIN_SNAPSHOT, MAIN_SEQ, KEY_1, DELETE_SEQ, GLOBAL), 1));
       harness.processElement(
           new StreamRecord<>(
               IndexCommand.addDataRow(
@@ -487,7 +556,7 @@ class TestEqualityConvertPKIndex {
       // A later cycle's delete (ts 3) removes the now-indexed new row.
       harness.processElement(
           new StreamRecord<>(
-              IndexCommand.resolveDelete(MAIN_SNAPSHOT, MAIN_SEQ, KEY_1, DELETE_SEQ), 3));
+              IndexCommand.resolveDelete(MAIN_SNAPSHOT, MAIN_SEQ, KEY_1, DELETE_SEQ, GLOBAL), 3));
       harness.watermark(3);
       assertThat(harness.extractOutputValues()).hasSize(2);
       assertThat(harness.extractOutputValues().get(1).dataFilePath()).isEqualTo("new.parquet");
@@ -518,7 +587,7 @@ class TestEqualityConvertPKIndex {
               2));
       harness.processElement(
           new StreamRecord<>(
-              IndexCommand.resolveDelete(MAIN_SNAPSHOT, MAIN_SEQ, KEY_1, DELETE_SEQ), 1));
+              IndexCommand.resolveDelete(MAIN_SNAPSHOT, MAIN_SEQ, KEY_1, DELETE_SEQ, GLOBAL), 1));
       harness.watermark(2);
 
       assertThat(harness.extractOutputValues()).isEmpty();
@@ -560,7 +629,7 @@ class TestEqualityConvertPKIndex {
               0));
       harness.processElement(
           new StreamRecord<>(
-              IndexCommand.resolveDelete(MAIN_SNAPSHOT, MAIN_SEQ, KEY_1, DELETE_SEQ), 1));
+              IndexCommand.resolveDelete(MAIN_SNAPSHOT, MAIN_SEQ, KEY_1, DELETE_SEQ, GLOBAL), 1));
 
       harness.watermark(1);
 
@@ -601,7 +670,8 @@ class TestEqualityConvertPKIndex {
 
       // Delete at seq 2 tombstones only the older row; the re-insert (seq 3) survives.
       harness.processElement(
-          new StreamRecord<>(IndexCommand.resolveDelete(MAIN_SNAPSHOT, MAIN_SEQ, KEY_1, 2L), 1));
+          new StreamRecord<>(
+              IndexCommand.resolveDelete(MAIN_SNAPSHOT, MAIN_SEQ, KEY_1, 2L, GLOBAL), 1));
       harness.watermark(1);
 
       List<DVPosition> output = harness.extractOutputValues();
@@ -610,7 +680,8 @@ class TestEqualityConvertPKIndex {
 
       // The survivor stays indexed: a later delete with a higher sequence removes it.
       harness.processElement(
-          new StreamRecord<>(IndexCommand.resolveDelete(MAIN_SNAPSHOT, MAIN_SEQ, KEY_1, 4L), 2));
+          new StreamRecord<>(
+              IndexCommand.resolveDelete(MAIN_SNAPSHOT, MAIN_SEQ, KEY_1, 4L, GLOBAL), 2));
       harness.watermark(2);
 
       List<DVPosition> afterSecond = harness.extractOutputValues();
@@ -644,7 +715,8 @@ class TestEqualityConvertPKIndex {
                   false),
               0));
       harness.processElement(
-          new StreamRecord<>(IndexCommand.resolveDelete(MAIN_SNAPSHOT, MAIN_SEQ, KEY_1, 2L), 1));
+          new StreamRecord<>(
+              IndexCommand.resolveDelete(MAIN_SNAPSHOT, MAIN_SEQ, KEY_1, 2L, GLOBAL), 1));
       harness.watermark(1);
 
       List<DVPosition> output = harness.extractOutputValues();

@@ -97,6 +97,8 @@ public class EqualityConvertPKIndex
       new ValueStateDescriptor<>("resolveTimestamp", Types.LONG);
   private static final ValueStateDescriptor<Long> RESOLVE_SEQUENCE_NUMBER_DESCRIPTOR =
       new ValueStateDescriptor<>("resolveSequenceNumber", Types.LONG);
+  private static final ValueStateDescriptor<Integer> RESOLVE_SPEC_ID_DESCRIPTOR =
+      new ValueStateDescriptor<>("resolveSpecId", Types.INT);
 
   private transient ValueState<Long> mainSequenceVersion;
   // Resolvable rows for this key. Populated immediately for main data, or from onTimer for
@@ -111,6 +113,9 @@ public class EqualityConvertPKIndex
   // Maximum sequence number among the cycle's RESOLVE_DELETEs for this key. Deletes a
   // data row only when the row's sequence number is below it.
   private transient ValueState<Long> resolveSequenceNumber;
+  // Spec id of the pending RESOLVE_DELETE: GLOBAL_DELETE_SPEC_ID for an unpartitioned (global)
+  // delete, else the delete's own spec id, which scopes resolution to same-spec rows.
+  private transient ValueState<Integer> resolveSpecId;
 
   private transient Counter resolvedDeleteNumCounter;
   private transient Counter indexedKeyNumCounter;
@@ -130,6 +135,7 @@ public class EqualityConvertPKIndex
     bufferedRows = getRuntimeContext().getListState(BUFFERED_ROWS_DESCRIPTOR);
     resolveTimestamp = getRuntimeContext().getState(RESOLVE_TIMESTAMP_DESCRIPTOR);
     resolveSequenceNumber = getRuntimeContext().getState(RESOLVE_SEQUENCE_NUMBER_DESCRIPTOR);
+    resolveSpecId = getRuntimeContext().getState(RESOLVE_SPEC_ID_DESCRIPTOR);
     resolvedDeleteNumCounter =
         getRuntimeContext().getMetricGroup().counter(RESOLVED_DELETE_NUM_METRIC);
     indexedKeyNumCounter = getRuntimeContext().getMetricGroup().counter(INDEXED_KEY_NUM_METRIC);
@@ -173,6 +179,8 @@ public class EqualityConvertPKIndex
         if (currentSeq == null || cmd.deleteSequenceNumber() > currentSeq) {
           resolveSequenceNumber.update(cmd.deleteSequenceNumber());
         }
+
+        resolveSpecId.update(cmd.deleteSpecId());
 
         ctx.timerService().registerEventTimeTimer(ts);
       } else {
@@ -223,6 +231,7 @@ public class EqualityConvertPKIndex
         resolveDeletes(out);
         resolveTimestamp.clear();
         resolveSequenceNumber.clear();
+        resolveSpecId.clear();
       } else {
         applyBufferedRows();
       }
@@ -250,14 +259,21 @@ public class EqualityConvertPKIndex
     // indexed sequence is not comparable to the staging delete's; event-time ordering already
     // prevents false deletion.
     Long deleteSeq = resolveSequenceNumber.value();
+    int deleteSpecId = resolveSpecId.value();
+    // A partitioned delete applies only to data rows of the same spec; an unpartitioned delete
+    // applies to every spec.
+    boolean globalDelete = deleteSpecId == IndexCommand.GLOBAL_DELETE_SPEC_ID;
     List<DVPosition> nonEligible = Lists.newArrayList();
     int count = 0;
     for (DVPosition pos : dataRowPositions.get()) {
-      if (stagingOnTargetBranch && deleteSeq != null && pos.dataSequenceNumber() >= deleteSeq) {
-        nonEligible.add(pos);
-      } else {
+      boolean specMatch = globalDelete || pos.specId() == deleteSpecId;
+      boolean sequenceMatch =
+          !stagingOnTargetBranch || deleteSeq == null || pos.dataSequenceNumber() < deleteSeq;
+      if (specMatch && sequenceMatch) {
         out.collect(pos);
         count++;
+      } else {
+        nonEligible.add(pos);
       }
     }
 
@@ -270,5 +286,6 @@ public class EqualityConvertPKIndex
     bufferedRows.clear();
     resolveTimestamp.clear();
     resolveSequenceNumber.clear();
+    resolveSpecId.clear();
   }
 }

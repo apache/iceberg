@@ -167,8 +167,7 @@ public class EqualityConvertReader extends ProcessFunction<ReadCommand, IndexCom
           continue;
         }
 
-        SerializedEqualityValues key =
-            fieldSerializer.serializeKey(record, keySchema.asStruct(), specId);
+        SerializedEqualityValues key = fieldSerializer.serializeKey(record, keySchema.asStruct());
         out.collect(
             IndexCommand.addDataRow(
                 mainSnapshotId,
@@ -194,17 +193,20 @@ public class EqualityConvertReader extends ProcessFunction<ReadCommand, IndexCom
     ContentFile<?> file = task.file();
 
     int specId = file.specId();
+    // An unpartitioned equality delete applies globally; a partitioned one applies only within its
+    // own spec. Scope accordingly, so the index resolves correctly across specs.
+    int deleteSpecId =
+        table.specs().get(specId).isUnpartitioned() ? IndexCommand.GLOBAL_DELETE_SPEC_ID : specId;
 
     InputFile input = table.io().newInputFile(file.location());
     ReadBuilder<Record, Schema> builder =
         FormatModelRegistry.readBuilder(file.format(), Record.class, input);
     try (CloseableIterable<Record> records = builder.project(keySchema).reuseContainers().build()) {
       for (Record record : records) {
-        SerializedEqualityValues key =
-            fieldSerializer.serializeKey(record, keySchema.asStruct(), specId);
+        SerializedEqualityValues key = fieldSerializer.serializeKey(record, keySchema.asStruct());
         out.collect(
             IndexCommand.resolveDelete(
-                mainSnapshotId, mainSequenceNumber, key, dataSequenceNumber));
+                mainSnapshotId, mainSequenceNumber, key, dataSequenceNumber, deleteSpecId));
       }
     }
   }
