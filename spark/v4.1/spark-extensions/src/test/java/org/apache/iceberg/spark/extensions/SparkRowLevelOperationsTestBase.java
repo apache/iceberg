@@ -34,11 +34,11 @@ import static org.apache.iceberg.TableProperties.DELETE_PLANNING_MODE;
 import static org.apache.iceberg.TableProperties.FORMAT_VERSION;
 import static org.apache.iceberg.TableProperties.ORC_VECTORIZATION_ENABLED;
 import static org.apache.iceberg.TableProperties.PARQUET_VECTORIZATION_ENABLED;
-import static org.apache.iceberg.TableProperties.SPARK_WRITE_PARTITIONED_FANOUT_ENABLED;
 import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE;
 import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE_HASH;
 import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE_NONE;
 import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE_RANGE;
+import static org.apache.iceberg.spark.SparkTableProperties.WRITE_PARTITIONED_FANOUT_ENABLED;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
@@ -172,7 +172,7 @@ public abstract class SparkRowLevelOperationsTestBase extends ExtensionsTestBase
         fileFormat,
         WRITE_DISTRIBUTION_MODE,
         distributionMode,
-        SPARK_WRITE_PARTITIONED_FANOUT_ENABLED,
+        WRITE_PARTITIONED_FANOUT_ENABLED,
         String.valueOf(fanoutEnabled),
         DATA_PLANNING_MODE,
         planningMode.modeName(),
