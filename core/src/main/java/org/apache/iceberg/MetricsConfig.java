@@ -143,7 +143,7 @@ public final class MetricsConfig implements Serializable {
       Types.NestedField field = schema.findField(column);
       ValidationException.check(
           field != null,
-          "Cannot find column %s from table prop %s in schema %s",
+          "Invalid metrics config, could not find column %s from table prop %s in schema %s",
           column,
           METRICS_MODE_COLUMN_CONF_PREFIX + column,
           schema);
