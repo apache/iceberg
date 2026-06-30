@@ -27,8 +27,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.iceberg.exceptions.CommitFailedException;
@@ -203,6 +205,106 @@ public class TestRewriteFiles extends TestBase {
 
     // We should only get the 3 manifests that this test is expected to add.
     assertThat(listManifestFiles()).hasSize(3);
+  }
+
+  @TestTemplate
+  public void testReplaceDuplicateDataFileInSameManifestCountsAllRemovedRecords()
+      throws IOException {
+    assertThat(listManifestFiles()).isEmpty();
+
+    // Build a single manifest that references the same data file location twice. This models a
+    // table that accumulated duplicate data files (e.g. a duplicated/retried ingest) where both
+    // entries are live, so the table logically contains FILE_A's records twice.
+    ManifestFile manifestWithDuplicates = writeManifest(FILE_A, FILE_A);
+    commit(table, table.newAppend().appendManifest(manifestWithDuplicates), branch);
+
+    TableMetadata base = readMetadata();
+    assertThat(latestSnapshot(base, branch).allManifests(table.io())).hasSize(1);
+
+    // A compaction reads both live entries (2 records) and rewrites them into one file, so the
+    // replacement holds 2 records, exactly matching the 2 records removed.
+    DataFile compacted =
+        DataFiles.builder(SPEC)
+            .withPath("/path/to/data-a-compacted.parquet")
+            .withFileSizeInBytes(20)
+            .withPartitionPath("data_bucket=0")
+            .withRecordCount(2)
+            .build();
+
+    // Previously, deleted-records counted FILE_A only once (the duplicate path was dropped from the
+    // summary), so the REPLACE failed the addedRecords <= replacedRecords precondition in
+    // SnapshotProducer with "Invalid REPLACE operation: 2 added records > 1 replaced records".
+    Snapshot pending =
+        apply(table.newRewrite().rewriteFiles(Sets.newSet(FILE_A), Sets.newSet(compacted)), branch);
+    long pendingId = pending.snapshotId();
+
+    assertThat(pending.allManifests(table.io())).hasSize(2);
+    validateManifestEntries(
+        pending.allManifests(table.io()).get(0), ids(pendingId), files(compacted), statuses(ADDED));
+    // both duplicate entries for FILE_A must be marked deleted, not just the first occurrence
+    validateManifestEntries(
+        pending.allManifests(table.io()).get(1),
+        ids(pendingId, pendingId),
+        files(FILE_A, FILE_A),
+        statuses(DELETED, DELETED));
+
+    Map<String, String> summary = pending.summary();
+    assertThat(summary)
+        .containsEntry(SnapshotSummary.ADDED_RECORDS_PROP, "2")
+        // both removed entries must be counted, not just the unique path
+        .containsEntry(SnapshotSummary.DELETED_RECORDS_PROP, "2")
+        .containsEntry(SnapshotSummary.ADDED_FILES_PROP, "1")
+        .containsEntry(SnapshotSummary.DELETED_FILES_PROP, "2")
+        // the second occurrence of the path is still surfaced as a duplicate delete
+        .containsEntry(SnapshotSummary.DELETED_DUPLICATE_FILES, "1")
+        // a row-preserving rewrite must not drift the running total (added 2, removed 2)
+        .containsEntry(SnapshotSummary.TOTAL_RECORDS_PROP, "2");
+  }
+
+  @TestTemplate
+  public void testReplaceDuplicateDataFileAcrossManifests() {
+    assertThat(listManifestFiles()).isEmpty();
+
+    // Two separate appends of the same file produce two separate manifests, each with one live
+    // entry for FILE_A. The summary dedup is per-manifest, so each manifest already contributes
+    // its records independently and this case was never miscounted.
+    commit(table, table.newAppend().appendFile(FILE_A), branch);
+    commit(table, table.newAppend().appendFile(FILE_A), branch);
+
+    TableMetadata base = readMetadata();
+    assertThat(latestSnapshot(base, branch).allManifests(table.io())).hasSize(2);
+
+    DataFile compacted =
+        DataFiles.builder(SPEC)
+            .withPath("/path/to/data-a-compacted.parquet")
+            .withFileSizeInBytes(20)
+            .withPartitionPath("data_bucket=0")
+            .withRecordCount(2)
+            .build();
+
+    Snapshot pending =
+        apply(table.newRewrite().rewriteFiles(Sets.newSet(FILE_A), Sets.newSet(compacted)), branch);
+    long pendingId = pending.snapshotId();
+
+    // one manifest holds the added file; each of the two source manifests is rewritten with its
+    // FILE_A entry marked deleted, so both removals are counted independently
+    assertThat(pending.allManifests(table.io())).hasSize(3);
+    validateManifestEntries(
+        pending.allManifests(table.io()).get(0), ids(pendingId), files(compacted), statuses(ADDED));
+    validateManifestEntries(
+        pending.allManifests(table.io()).get(1), ids(pendingId), files(FILE_A), statuses(DELETED));
+    validateManifestEntries(
+        pending.allManifests(table.io()).get(2), ids(pendingId), files(FILE_A), statuses(DELETED));
+
+    Map<String, String> summary = pending.summary();
+    assertThat(summary)
+        .containsEntry(SnapshotSummary.ADDED_RECORDS_PROP, "2")
+        .containsEntry(SnapshotSummary.DELETED_RECORDS_PROP, "2")
+        .containsEntry(SnapshotSummary.ADDED_FILES_PROP, "1")
+        .containsEntry(SnapshotSummary.DELETED_FILES_PROP, "2")
+        .containsEntry(SnapshotSummary.TOTAL_RECORDS_PROP, "2")
+        // no two entries share a manifest, so nothing is reported as a duplicate delete
+        .doesNotContainKey(SnapshotSummary.DELETED_DUPLICATE_FILES);
   }
 
   @TestTemplate
