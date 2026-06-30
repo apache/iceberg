@@ -54,6 +54,7 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
 
   private final Set<ManifestFile> deletedManifests = Sets.newHashSet();
   private final List<ManifestFile> addedManifests = Lists.newArrayList();
+  private final List<ManifestFile> pendingAddedManifests = Lists.newArrayList();
   private final List<ManifestFile> rewrittenAddedManifests = Lists.newArrayList();
 
   private final Collection<ManifestFile> keptManifests = new ConcurrentLinkedQueue<>();
@@ -144,8 +145,8 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
       addedManifests.add(manifest);
     } else {
       // the manifest must be rewritten with this update's snapshot ID
-      ManifestFile copiedManifest = copyManifest(manifest);
-      rewrittenAddedManifests.add(copiedManifest);
+      // Defer rewrite/copy so added manifests can be copied in parallel during apply.
+      pendingAddedManifests.add(manifest);
     }
 
     return this;
@@ -179,6 +180,15 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
       keepActiveManifests(currentManifests);
     }
 
+    if (rewrittenAddedManifests.isEmpty() && !pendingAddedManifests.isEmpty()) {
+      ManifestFile[] copiedManifests = new ManifestFile[pendingAddedManifests.size()];
+      Tasks.range(copiedManifests.length)
+          .stopOnFailure()
+          .throwFailureWhenFinished()
+          .executeWith(workerPool())
+          .run(index -> copiedManifests[index] = copyManifest(pendingAddedManifests.get(index)));
+      Collections.addAll(rewrittenAddedManifests, copiedManifests);
+    }
     validateFilesCounts();
 
     Iterable<ManifestFile> newManifestsWithMetadata =
