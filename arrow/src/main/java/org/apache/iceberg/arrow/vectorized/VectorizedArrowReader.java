@@ -965,4 +965,57 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     @Override
     public void setBatchSize(int batchSize) {}
   }
+
+  public static class VectorizedVariantReader extends VectorizedArrowReader {
+    private final VectorizedArrowReader metadataReader;
+    private final VectorizedArrowReader valueReader;
+
+    public VectorizedVariantReader(
+        Types.NestedField icebergField,
+        VectorizedArrowReader metadataReader,
+        VectorizedArrowReader valueReader) {
+      super(icebergField);
+      this.metadataReader = metadataReader;
+      this.valueReader = valueReader;
+    }
+
+    @Override
+    public VectorHolder read(VectorHolder reuse, int numValsToRead) {
+      VectorHolder reuseMetadata = null;
+      VectorHolder reuseValue = null;
+      if (reuse instanceof VectorHolder.VariantVectorHolder) {
+        VectorHolder.VariantVectorHolder variantReuse = (VectorHolder.VariantVectorHolder) reuse;
+        reuseMetadata = variantReuse.metadataHolder();
+        reuseValue = variantReuse.valueHolder();
+      }
+      VectorHolder metadataHolder = metadataReader.read(reuseMetadata, numValsToRead);
+      VectorHolder valueHolder = valueReader.read(reuseValue, numValsToRead);
+      return new VectorHolder.VariantVectorHolder(
+          icebergField(), numValsToRead, metadataHolder, valueHolder);
+    }
+
+    @Override
+    public void setRowGroupInfo(
+        PageReadStore source, Map<ColumnPath, ColumnChunkMetaData> metadata) {
+      metadataReader.setRowGroupInfo(source, metadata);
+      valueReader.setRowGroupInfo(source, metadata);
+    }
+
+    @Override
+    public void setBatchSize(int batchSize) {
+      metadataReader.setBatchSize(batchSize);
+      valueReader.setBatchSize(batchSize);
+    }
+
+    @Override
+    public void close() {
+      metadataReader.close();
+      valueReader.close();
+    }
+
+    @Override
+    public String toString() {
+      return "VectorizedVariantReader";
+    }
+  }
 }

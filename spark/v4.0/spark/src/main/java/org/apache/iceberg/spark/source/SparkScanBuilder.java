@@ -481,6 +481,11 @@ public class SparkScanBuilder
 
     if (withStats) {
       scan = scan.includeColumnStats();
+    } else {
+      List<String> variantColumns = variantColumnNames(expectedSchema);
+      if (!variantColumns.isEmpty()) {
+        scan = scan.includeColumnStats(variantColumns);
+      }
     }
 
     if (snapshotId != null) {
@@ -515,6 +520,11 @@ public class SparkScanBuilder
 
     if (withStats) {
       scan = scan.includeColumnStats();
+    } else {
+      List<String> variantColumns = variantColumnNames(expectedSchema);
+      if (!variantColumns.isEmpty()) {
+        scan = scan.includeColumnStats(variantColumns);
+      }
     }
 
     if (endSnapshotId != null) {
@@ -522,6 +532,13 @@ public class SparkScanBuilder
     }
 
     return configureSplitPlanning(scan);
+  }
+
+  private List<String> variantColumnNames(Schema projection) {
+    return projection.columns().stream()
+        .filter(field -> field.type().isVariantType())
+        .map(Types.NestedField::name)
+        .collect(Collectors.toList());
   }
 
   @SuppressWarnings("CyclomaticComplexity")
