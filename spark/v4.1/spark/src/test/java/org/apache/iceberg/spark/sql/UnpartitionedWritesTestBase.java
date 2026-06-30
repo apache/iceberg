@@ -24,6 +24,9 @@ import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.util.List;
 import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.Table;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.spark.CatalogTestBase;
 import org.apache.iceberg.spark.source.SimpleRecord;
@@ -162,6 +165,36 @@ public abstract class UnpartitionedWritesTestBase extends CatalogTestBase {
 
     assertEquals(
         "Row data should match expected",
+        expected,
+        sql("SELECT * FROM %s ORDER BY id", selectTarget()));
+  }
+
+  @TestTemplate
+  public void testEmptyDynamicOverwriteCommitsSnapshot() throws NoSuchTableException {
+    Table table = validationCatalog.loadTable(tableIdent);
+    long snapshotIdBefore = table.currentSnapshot().snapshotId();
+
+    Dataset<Row> empty = spark.createDataFrame(ImmutableList.of(), SimpleRecord.class);
+    empty.writeTo(commitTarget()).overwritePartitions();
+
+    table.refresh();
+
+    Snapshot latestSnapshot = Iterables.getLast(table.snapshots());
+    assertThat(latestSnapshot.snapshotId())
+        .as("Empty dynamic overwrite should commit a new snapshot")
+        .isNotEqualTo(snapshotIdBefore);
+
+    assertThat(latestSnapshot.summary())
+        .as("Snapshot should be a replace-partitions operation")
+        .containsEntry("replace-partitions", "true");
+
+    assertThat(scalarSql("SELECT count(*) FROM %s", selectTarget()))
+        .as("Row count should be unchanged after empty overwrite")
+        .isEqualTo(3L);
+
+    List<Object[]> expected = ImmutableList.of(row(1L, "a"), row(2L, "b"), row(3L, "c"));
+    assertEquals(
+        "Row data should be unchanged after empty overwrite",
         expected,
         sql("SELECT * FROM %s ORDER BY id", selectTarget()));
   }
