@@ -16,29 +16,29 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.variants;
+package org.apache.iceberg.util;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.nio.ByteBuffer;
 import org.junit.jupiter.api.Test;
 
-public class TestVariantUtil {
+public class TestByteBuffers {
   @Test
   public void testReadByteUnsigned() {
     ByteBuffer buffer = ByteBuffer.wrap(new byte[] {(byte) 0xFF});
-    assertThat(VariantUtil.readByte(buffer, 0)).isEqualTo(255);
+    assertThat(ByteBuffers.readByte(buffer, 0)).isEqualTo(255);
   }
 
   @Test
   public void testRead2ByteUnsigned() {
     ByteBuffer buffer = ByteBuffer.wrap(new byte[] {(byte) 0xFF, (byte) 0xFF});
-    assertThat(VariantUtil.readLittleEndianUnsigned(buffer, 0, 2)).isEqualTo(65535);
+    assertThat(ByteBuffers.readLittleEndianUnsigned(buffer, 0, 2)).isEqualTo(65535);
   }
 
   @Test
   public void testRead3ByteUnsigned() {
     ByteBuffer buffer = ByteBuffer.wrap(new byte[] {(byte) 0xFF, (byte) 0xFF, (byte) 0xFF});
-    assertThat(VariantUtil.readLittleEndianUnsigned(buffer, 0, 3)).isEqualTo(16777215);
+    assertThat(ByteBuffers.readLittleEndianUnsigned(buffer, 0, 3)).isEqualTo(16777215);
   }
 }

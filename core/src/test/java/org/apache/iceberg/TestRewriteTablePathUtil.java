@@ -24,6 +24,9 @@ import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.IOException;
 import java.util.Set;
+import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -277,7 +280,8 @@ public class TestRewriteTablePathUtil extends TestBase {
             table.specs(),
             sourcePrefix,
             targetPrefix,
-            stagingDir);
+            stagingDir,
+            ImmutableMap.of());
 
     assertThat(deleteFileRewriteResult.toRewrite()).hasSize(2);
   }
@@ -324,5 +328,96 @@ public class TestRewriteTablePathUtil extends TestBase {
         .hasSize(1)
         .extracting(DeleteFile::location)
         .containsExactly(FILE_A_DELETES.location());
+  }
+
+  // A position delete entry that is not rewritten (e.g. a DELETED entry not copied to the target)
+  // is absent from the measured-size map and must keep its original file_size_in_bytes.
+  @TestTemplate
+  public void testRewriteDeleteManifestFallsBackToOriginalSizeForDeletedEntries()
+      throws IOException {
+    assumeThat(formatVersion)
+        .as("Delete files only work for format version 2+")
+        .isGreaterThanOrEqualTo(2);
+
+    String sourcePrefix = "/path/to/";
+    String targetPrefix = "/path/new/";
+    String stagingDir = "/staging/";
+
+    // FILE_A_DELETES is live, so its rewritten size is measured and supplied; FILE_B_DELETES is a
+    // DELETED entry, absent from the size map.
+    ManifestFile manifest = deleteManifestWithLiveAndDeletedEntry(FILE_A_DELETES, FILE_B_DELETES);
+
+    long measuredSizeForA = 9999L;
+    OutputFile output =
+        Files.localOutput(
+            FileFormat.AVRO.addExtension(
+                temp.resolve("junit" + System.nanoTime()).toFile().toString()));
+    RewriteTablePathUtil.rewriteDeleteManifest(
+        manifest,
+        Set.of(1000L),
+        output,
+        table.io(),
+        formatVersion,
+        table.specs(),
+        sourcePrefix,
+        targetPrefix,
+        stagingDir,
+        ImmutableMap.of(FILE_A_DELETES.location(), measuredSizeForA));
+
+    InputFile rewrittenInput = output.toInputFile();
+    ManifestFile rewritten =
+        new GenericManifestFile(
+            rewrittenInput.location(),
+            rewrittenInput.getLength(),
+            SPEC.specId(),
+            ManifestContent.DELETES,
+            0L,
+            0L,
+            1000L,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null);
+    int seen = 0;
+    try (ManifestReader<DeleteFile> reader =
+        ManifestFiles.readDeleteManifest(rewritten, table.io(), table.specs())) {
+      for (ManifestEntry<DeleteFile> entry : reader.entries()) {
+        seen++;
+        if (entry.status() == ManifestEntry.Status.DELETED) {
+          assertThat(entry.file().fileSizeInBytes())
+              .as("DELETED entry should fall back to its original size")
+              .isEqualTo(FILE_B_DELETES.fileSizeInBytes());
+        } else {
+          assertThat(entry.file().fileSizeInBytes())
+              .as("Live entry should use the measured rewritten size")
+              .isEqualTo(measuredSizeForA);
+        }
+      }
+    }
+
+    assertThat(seen).as("Both the live and deleted entries should be present").isEqualTo(2);
+  }
+
+  private ManifestFile deleteManifestWithLiveAndDeletedEntry(DeleteFile live, DeleteFile deleted)
+      throws IOException {
+    OutputFile manifestFile =
+        Files.localOutput(
+            FileFormat.AVRO.addExtension(
+                temp.resolve("junit" + System.nanoTime()).toFile().toString()));
+    ManifestWriter<DeleteFile> writer =
+        ManifestFiles.writeDeleteManifest(formatVersion, SPEC, manifestFile, 1000L);
+    try {
+      writer.add(live);
+      writer.delete(deleted, 1, null);
+    } finally {
+      writer.close();
+    }
+
+    return writer.toManifestFile();
   }
 }

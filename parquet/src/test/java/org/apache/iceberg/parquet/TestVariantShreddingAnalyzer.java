@@ -23,6 +23,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Locale;
+import java.util.UUID;
 import java.util.function.Function;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.variants.ShreddedObject;
@@ -133,6 +134,9 @@ public class TestVariantShreddingAnalyzer {
     assertThat(schema).isInstanceOf(GroupType.class);
     GroupType typedValue = (GroupType) schema;
     assertThat(typedValue.getFieldCount()).isLessThanOrEqualTo(300).isGreaterThan(0);
+    assertThat(typedValue.containsField("field_0000")).isTrue();
+    assertThat(typedValue.containsField("field_0299")).isTrue();
+    assertThat(typedValue.containsField("field_0300")).isFalse();
   }
 
   @Test
@@ -406,6 +410,28 @@ public class TestVariantShreddingAnalyzer {
     assertThat(elementGroup.containsField("typed_value")).isTrue();
     GroupType elementFields = elementGroup.getType("typed_value").asGroupType();
     assertThat(elementFields.containsField("key")).isTrue();
+  }
+
+  @Test
+  public void testUuidFieldIsTrackedAndShredded() {
+    VariantMetadata meta = Variants.metadata("id");
+    List<VariantValue> rows = Lists.newArrayList();
+    for (int i = 0; i < 100; i++) {
+      ShreddedObject obj = Variants.object(meta);
+      obj.put("id", Variants.ofUUID(UUID.randomUUID()));
+      rows.add(obj);
+    }
+
+    DirectAnalyzer analyzer = new DirectAnalyzer();
+    Type schema = analyzer.analyzeAndCreateSchema(rows, 0);
+
+    assertThat(schema).isNotNull();
+    GroupType typedValue = (GroupType) schema;
+    assertThat(typedValue.containsField("id")).isTrue();
+    GroupType idGroup = typedValue.getType("id").asGroupType();
+    PrimitiveType idTyped = idGroup.getType("typed_value").asPrimitiveType();
+    assertThat(idTyped.getLogicalTypeAnnotation())
+        .isInstanceOf(LogicalTypeAnnotation.UUIDLogicalTypeAnnotation.class);
   }
 
   /**
