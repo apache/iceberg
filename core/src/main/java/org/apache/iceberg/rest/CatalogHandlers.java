@@ -504,7 +504,7 @@ public class CatalogHandlers {
 
     TableMetadata metadata = ((BaseTable) table).operations().current();
 
-    // unregister without removing the underlying data and metadata files
+    // catalog implementations should preserve the table's metadata/data files
     boolean dropped = catalog.dropTable(ident, false /* do not purge */);
     if (!dropped) {
       throw new NoSuchTableException("Table does not exist: %s", ident);
