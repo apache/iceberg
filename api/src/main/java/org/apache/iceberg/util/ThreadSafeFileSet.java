@@ -22,7 +22,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 /**
  * A thread-safe set implementation for Iceberg {@link org.apache.iceberg.ContentFile} objects.
@@ -56,7 +56,7 @@ public class ThreadSafeFileSet<F> implements Set<F> {
   }
 
   private ThreadSafeFileSet() {
-    this.delegate = Collections.newSetFromMap(new ConcurrentHashMap<>());
+    this.delegate = Collections.newSetFromMap(Maps.newConcurrentMap());
   }
 
   @Override
