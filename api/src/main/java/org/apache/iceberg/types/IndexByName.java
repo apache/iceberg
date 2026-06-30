@@ -88,9 +88,10 @@ public class IndexByName extends TypeUtil.SchemaVisitor<Map<String, Integer>> {
 
     if (useShortNames) {
       shortNameToId.forEach((key, value) -> builder.put(value, key));
+      return builder.buildKeepingLast();
     }
 
-    return builder.buildKeepingLast();
+    return builder.build();
   }
 
   @Override
