@@ -1131,12 +1131,12 @@ class RemoteSigningConfig(BaseModel):
     base_uri: str = Field(
         ...,
         alias='base-uri',
-        description='The base URI of the signing service as perceived by the client, incorporating X-Forwarded-* headers set by proxies. When present, takes precedence over the deprecated `signer.uri` config property.\n',
+        description='The base URI of the signing service as perceived by the client, incorporating X-Forwarded-* headers set by proxies. Takes precedence over the deprecated `signer.uri` config property.\n',
     )
     endpoint_path: str = Field(
         ...,
         alias='endpoint-path',
-        description='Relative path to be resolved against `base-uri` to form the full signing endpoint URI. When present, overrides the deprecated `signer.endpoint` config property. The endpoint path SHOULD end with the canonical signing endpoint path defined in this specification, that is: `/v1/{prefix}/namespaces/{namespace}/tables/{table}/sign`.\n',
+        description='Relative path to be resolved against `base-uri` to form the full signing endpoint URI. Overrides the deprecated `signer.endpoint` config property. Convention exposes the signing endpoint at `/v1/{prefix}/namespaces/{namespace}/tables/{table}/sign`, but clients SHOULD NOT assume this structure or recompose it themselves.\n',
     )
     properties: dict[str, str] | None = Field(
         None,
