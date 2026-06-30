@@ -23,7 +23,6 @@ import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
 import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT_DEFAULT;
 import static org.apache.iceberg.TableProperties.FORMAT_VERSION;
 
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.BaseTable;
@@ -31,10 +30,8 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableOperations;
-import org.apache.iceberg.TableUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.spark.sql.SparkSession;
@@ -133,20 +130,7 @@ abstract class BaseSparkTable
 
   @Override
   public MetadataColumn[] metadataColumns() {
-    List<SparkMetadataColumn> cols = Lists.newArrayList();
-
-    cols.add(SparkMetadataColumns.SPEC_ID);
-    cols.add(SparkMetadataColumns.partition(table));
-    cols.add(SparkMetadataColumns.FILE_PATH);
-    cols.add(SparkMetadataColumns.ROW_POSITION);
-    cols.add(SparkMetadataColumns.IS_DELETED);
-
-    if (TableUtil.supportsRowLineage(table)) {
-      cols.add(SparkMetadataColumns.ROW_ID);
-      cols.add(SparkMetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER);
-    }
-
-    return cols.toArray(SparkMetadataColumn[]::new);
+    return SparkMetadataColumns.metadataColumnArray(table);
   }
 
   private String fileFormat() {
