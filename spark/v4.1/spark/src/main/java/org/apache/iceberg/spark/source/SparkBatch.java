@@ -36,6 +36,8 @@ import org.apache.iceberg.spark.OrcBatchReadConf;
 import org.apache.iceberg.spark.ParquetBatchReadConf;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkUtil;
+import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.broadcast.Broadcast;
@@ -169,15 +171,30 @@ class SparkBatch implements Batch {
   }
 
   private boolean supportsParquetBatchReads(Types.NestedField field) {
+    // The vectorized Parquet reader exposes time values through Arrow's TimeMicroVector, which
+    // returns microseconds, while Spark's TimeType expects nanoseconds. Until the vectorized path
+    // performs that conversion, fall back to row-based reads when a time column is projected.
+    if (field.type().typeId() == Type.TypeID.TIME) {
+      return false;
+    }
+
     return field.type().isPrimitiveType() || MetadataColumns.isMetadataColumn(field.fieldId());
   }
 
   // conditions for using ORC batch reads:
   // - ORC vectorization is enabled
+  // - no projected column has a time type
   // - all tasks are of type FileScanTask and read only ORC files with no delete files
   private boolean useOrcBatchReads() {
     return readConf.orcVectorizationEnabled()
+        && projection.columns().stream().allMatch(this::supportsOrcBatchReads)
         && taskGroups.stream().allMatch(this::supportsOrcBatchReads);
+  }
+
+  private boolean supportsOrcBatchReads(Types.NestedField field) {
+    // Spark 4.1's ColumnarBatch cannot expose time values (ColumnarBatchRow#get does not support
+    // TimeType), so fall back to row-based reads when a time column is projected.
+    return TypeUtil.find(field.type(), type -> type.typeId() == Type.TypeID.TIME) == null;
   }
 
   private boolean supportsOrcBatchReads(ScanTask task) {
