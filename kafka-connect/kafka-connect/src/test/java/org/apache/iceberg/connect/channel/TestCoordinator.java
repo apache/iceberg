@@ -371,4 +371,42 @@ public class TestCoordinator extends ChannelTestBase {
     assertThat(table.snapshots()).hasSize(2);
     assertThat(table.currentSnapshot().summary()).containsEntry(OFFSETS_SNAPSHOT_PROP, "{\"0\":7}");
   }
+
+  @Test
+  public void testCoordinatorCommittedOffsetResetAfterClusterRecreation() {
+    // Simulate a Kafka cluster recreation scenario.  The snapshot stores a high control
+    // topic offset from the old cluster ({0:100}).  After recreation the new cluster's
+    // control topic starts at offset 0, so all incoming DataWritten events carry offsets
+    // below 100.  Without the fix, every event would be filtered as "already committed"
+    // and the connector would log "nothing to commit" indefinitely.
+
+    table
+        .newAppend()
+        .appendFile(EventTestUtil.createDataFile())
+        .set(OFFSETS_SNAPSHOT_PROP, "{\"0\":100}")
+        .commit();
+
+    table.refresh();
+    assertThat(table.snapshots()).hasSize(1);
+    assertThat(table.currentSnapshot().summary())
+        .containsEntry(OFFSETS_SNAPSHOT_PROP, "{\"0\":100}");
+
+    // coordinatorTest adds DataWritten at consumer offset 1 and DataComplete at offset 2,
+    // making controlTopicOffsets = {0:3}.  Since 3 < 100 the reset is detected and
+    // deduplication is skipped, so the data file is committed.
+    OffsetDateTime ts = EventTestUtil.now();
+    UUID commitId =
+        coordinatorTest(ImmutableList.of(EventTestUtil.createDataFile()), ImmutableList.of(), ts);
+
+    table.refresh();
+    assertThat(table.snapshots()).hasSize(2);
+
+    // The snapshot offset baseline must be reset to the current (new-cluster) offsets,
+    // not the stale old-cluster value of 100.
+    assertThat(table.currentSnapshot().summary()).containsEntry(OFFSETS_SNAPSHOT_PROP, "{\"0\":3}");
+
+    assertThat(producer.history()).hasSize(3);
+    assertCommitTable(1, commitId, ts);
+    assertCommitComplete(2, commitId, ts);
+  }
 }
