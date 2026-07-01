@@ -28,12 +28,16 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Paths;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import javax.annotation.Nonnull;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
+import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -90,6 +94,108 @@ public class TestSnapshotProducer extends TestBase {
       int workerPoolSize, int fileCount, int expectedManifestWriterCount, String errMsg) {
     int writerCount = SnapshotProducer.manifestWriterCount(workerPoolSize, fileCount);
     assertThat(writerCount).as(errMsg).isEqualTo(expectedManifestWriterCount);
+  }
+
+  @Test
+  public void testComputeFlushThreshold() {
+    // Formula: ceil((workerPoolSize * targetManifestSize) / (30 * min(schemaCols, metricsMaxCols)))
+    // Defaults: targetManifestSize=8MB (8388608), metricsMaxCols=100
+    Schema smallSchema = createSchemaWithColumns(2);
+    Schema mediumSchema = createSchemaWithColumns(8);
+    Schema largeSchema =
+        createSchemaWithColumns(TableProperties.METRICS_MAX_INFERRED_COLUMN_DEFAULTS_DEFAULT);
+    Schema hugeSchema = createSchemaWithColumns(1500);
+
+    assertFlushThreshold(
+        4 /* worker pool size */,
+        smallSchema,
+        ImmutableMap.of(),
+        // 2 cols: (4 * 8388608) / (30 * 2) = 33554432 / 60 = 559240
+        559241L,
+        "Small schema should yield high threshold due to small per-entry size");
+
+    assertFlushThreshold(
+        8 /* worker pool size */,
+        smallSchema,
+        ImmutableMap.of(),
+        559241L * 2,
+        "Threshold should scale linearly with worker pool size");
+
+    assertFlushThreshold(
+        4 /* worker pool size */,
+        mediumSchema,
+        ImmutableMap.of(),
+        // 8 cols: ceil((4 * 8388608) / (30 * 8)) = ceil(33554432 / 240) = 139811
+        139811L,
+        "Medium schema should yield moderate threshold proportional to schema size");
+
+    assertFlushThreshold(
+        4 /* worker pool size */,
+        largeSchema,
+        ImmutableMap.of(),
+        // 100 cols: ceil((4 * 8388608) / (30 * 100)) = ceil(33554432 / 3000) = 11185
+        11185L,
+        "Large schema should yield lower threshold due to large per-entry size");
+
+    assertFlushThreshold(
+        4 /* worker pool size */,
+        hugeSchema,
+        ImmutableMap.of(),
+        11185L,
+        "Huge schema should be capped at metricsMaxColumns default of 100");
+  }
+
+  @Test
+  public void testComputeFlushThresholdEdgeCases() {
+    // empty schema has 1 projected ID (the root struct), so effectiveColumns = max(1, min(1,100))=1
+    Schema emptySchema = new Schema();
+    assertFlushThreshold(
+        4 /* worker pool size */,
+        emptySchema,
+        ImmutableMap.of(),
+        // ceil((4 * 8388608) / (30 * 1)) = 1118482
+        1118482L,
+        "Empty schema should use effectiveColumns=1 due to max(1,...) guard");
+
+    // single column schema: projectedIds includes the field itself → size=1
+    Schema singleColSchema = createSchemaWithColumns(1);
+    assertFlushThreshold(
+        4 /* worker pool size */,
+        singleColSchema,
+        ImmutableMap.of(),
+        // 1 col: ceil((4 * 8388608) / (30 * 1)) = 1118482
+        1118482L,
+        "Single column schema threshold should reflect 1 metrics column");
+
+    // very small target manifest size should enforce minimum threshold (MIN_FILE_GROUP_SIZE=10000)
+    Schema normalSchema = createSchemaWithColumns(10);
+    assertFlushThreshold(
+        1 /* worker pool size */,
+        normalSchema,
+        ImmutableMap.of(TableProperties.MANIFEST_TARGET_SIZE_BYTES, "1024"),
+        SnapshotProducer.MIN_FILE_GROUP_SIZE,
+        "Tiny manifest target size should fall back to minimum flush threshold");
+  }
+
+  private void assertFlushThreshold(
+      int workerPoolSize,
+      Schema schema,
+      Map<String, String> properties,
+      long expectedThreshold,
+      String errMsg) {
+    TableMetadata metadata =
+        TableMetadata.newTableMetadata(
+            schema, PartitionSpec.unpartitioned(), "file:///tmp/test", properties);
+    long threshold = MergingSnapshotProducer.computeFlushThreshold(workerPoolSize, metadata);
+    assertThat(threshold).as(errMsg).isEqualTo(expectedThreshold);
+  }
+
+  private static Schema createSchemaWithColumns(int numColumns) {
+    Types.NestedField[] fields =
+        IntStream.range(1, numColumns + 1)
+            .mapToObj(i -> Types.NestedField.required(i, "col_" + i, Types.IntegerType.get()))
+            .toArray(Types.NestedField[]::new);
+    return new Schema(fields);
   }
 
   @TestTemplate
