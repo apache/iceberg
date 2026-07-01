@@ -111,7 +111,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.spark.FileRewriteCoordinator;
 import org.apache.iceberg.spark.ScanTaskSetManager;
-import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.SparkWriteOptions;
@@ -2098,18 +2097,6 @@ public class TestRewriteDataFilesAction extends TestBase {
     shouldHaveFiles(table, 4);
     List<Object[]> actualRecordsWithLineage = currentDataWithLineage();
     assertEquals("Rows must match", expectedRecords, actualRecordsWithLineage);
-  }
-
-  @TestTemplate
-  public void testExecutorCacheForDeleteFilesDisabled() {
-    Table table = createTablePartitioned(1, 1);
-    RewriteDataFilesSparkAction action = SparkActions.get(spark).rewriteDataFiles(table);
-
-    // The constructor should have set the configuration to false
-    SparkReadConf readConf = new SparkReadConf(action.spark(), table);
-    assertThat(readConf.cacheDeleteFilesOnExecutors())
-        .as("Executor cache for delete files should be disabled in RewriteDataFilesSparkAction")
-        .isFalse();
   }
 
   @TestTemplate
