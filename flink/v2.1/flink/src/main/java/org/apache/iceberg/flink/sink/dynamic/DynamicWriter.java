@@ -36,8 +36,8 @@ import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.FlinkWriteConf;
-import org.apache.iceberg.flink.sink.RowDataTaskWriterFactory;
 import org.apache.iceberg.flink.sink.SinkUtil;
+import org.apache.iceberg.flink.sink.TaskWriterFactory;
 import org.apache.iceberg.io.TaskWriter;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
@@ -56,7 +56,7 @@ class DynamicWriter implements CommittingSinkWriter<DynamicRecordInternal, Dynam
 
   private static final Logger LOG = LoggerFactory.getLogger(DynamicWriter.class);
 
-  private final Map<WriteTarget, RowDataTaskWriterFactory> taskWriterFactories;
+  private final Map<WriteTarget, TaskWriterFactory<RowData>> taskWriterFactories;
   private final Map<WriteTarget, TaskWriter<RowData>> writers;
   private final Configuration flinkConfig;
   private final Map<String, String> commonWriteProperties;
@@ -64,6 +64,7 @@ class DynamicWriter implements CommittingSinkWriter<DynamicRecordInternal, Dynam
   private final int subTaskId;
   private final int attemptId;
   private final Catalog catalog;
+  private final DynamicTaskWriterFactoryProvider taskWriterFactoryProvider;
 
   DynamicWriter(
       Catalog catalog,
@@ -72,13 +73,15 @@ class DynamicWriter implements CommittingSinkWriter<DynamicRecordInternal, Dynam
       int cacheMaximumSize,
       DynamicWriterMetrics metrics,
       int subTaskId,
-      int attemptId) {
+      int attemptId,
+      DynamicTaskWriterFactoryProvider taskWriterFactoryProvider) {
     this.catalog = catalog;
     this.commonWriteProperties = commonWriteProperties;
     this.flinkConfig = flinkConfig;
     this.metrics = metrics;
     this.subTaskId = subTaskId;
     this.attemptId = attemptId;
+    this.taskWriterFactoryProvider = taskWriterFactoryProvider;
     this.taskWriterFactories = new LRUCache<>(cacheMaximumSize);
     this.writers = Maps.newHashMap();
 
@@ -98,7 +101,7 @@ class DynamicWriter implements CommittingSinkWriter<DynamicRecordInternal, Dynam
                 element.upsertMode(),
                 element.equalityFields()),
             writerKey -> {
-              RowDataTaskWriterFactory taskWriterFactory =
+              TaskWriterFactory<RowData> taskWriterFactory =
                   taskWriterFactories.computeIfAbsent(
                       writerKey,
                       factoryKey -> {
@@ -130,8 +133,8 @@ class DynamicWriter implements CommittingSinkWriter<DynamicRecordInternal, Dynam
                                 flinkWriteConf.dataFileFormat(), flinkWriteConf, table);
 
                         LOG.debug("Creating new writer factory for table '{}'", table.name());
-                        return new RowDataTaskWriterFactory(
-                            () -> table,
+                        return taskWriterFactoryProvider.create(
+                            table,
                             FlinkSchemaUtil.convert(element.schema()),
                             flinkWriteConf.targetDataFileSize(),
                             flinkWriteConf.dataFileFormat(),
@@ -217,7 +220,7 @@ class DynamicWriter implements CommittingSinkWriter<DynamicRecordInternal, Dynam
   }
 
   @VisibleForTesting
-  Map<WriteTarget, RowDataTaskWriterFactory> getTaskWriterFactories() {
+  Map<WriteTarget, TaskWriterFactory<RowData>> getTaskWriterFactories() {
     return taskWriterFactories;
   }
 }
