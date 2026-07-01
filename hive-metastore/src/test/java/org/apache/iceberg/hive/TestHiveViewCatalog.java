@@ -119,6 +119,8 @@ public class TestHiveViewCatalog extends ViewCatalogTests<HiveCatalog> {
     int afterSeconds = (int) (System.currentTimeMillis() / 1000);
 
     Table hmsView = HIVE_METASTORE_EXTENSION.metastoreClient().getTable(dbName, identifier.name());
+    // HMS overwrites createTime server-side in create_table_core, so only the client-supplied
+    // lastAccessTime reflects the value set by newHMSView; asserting createTime would test HMS.
     assertThat(hmsView.getLastAccessTime()).isBetween(beforeSeconds, afterSeconds);
   }
 

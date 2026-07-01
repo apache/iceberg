@@ -182,6 +182,8 @@ public class TestHiveCatalog extends CatalogTests<HiveCatalog> {
 
     org.apache.hadoop.hive.metastore.api.Table hmsTable =
         HIVE_METASTORE_EXTENSION.metastoreClient().getTable(DB_NAME, "create_time_tbl");
+    // HMS overwrites createTime server-side in create_table_core, so only the client-supplied
+    // lastAccessTime reflects the value set by newHmsTable; asserting createTime would test HMS.
     assertThat(hmsTable.getLastAccessTime()).isBetween(beforeSeconds, afterSeconds);
   }
 

@@ -206,6 +206,8 @@ interface HiveOperationsBase {
 
   default Table newHmsTable(String hmsTableOwner) {
     Preconditions.checkNotNull(hmsTableOwner, "'hmsOwner' parameter can't be null");
+    // createTime and lastAccessTime are HMS Thrift i32 fields (epoch seconds), so the value must be
+    // narrowed to int here; the width is dictated by the metastore protocol and cannot be widened.
     final int currentTimeSeconds = (int) (System.currentTimeMillis() / 1000L);
 
     Table newTable =
