@@ -284,7 +284,9 @@ final class HiveViewOperations extends BaseViewOperations implements HiveOperati
   }
 
   private Table newHMSView(ViewMetadata metadata) {
-    final long currentTimeMillis = System.currentTimeMillis();
+    // createTime and lastAccessTime are HMS Thrift i32 fields (epoch seconds), so the value must be
+    // narrowed to int here; the width is dictated by the metastore protocol and cannot be widened.
+    final int currentTimeSeconds = (int) (System.currentTimeMillis() / 1000L);
     String hmsTableOwner =
         PropertyUtil.propertyAsString(
             metadata.properties(), HiveCatalog.HMS_TABLE_OWNER, HiveHadoopUtil.currentUser());
@@ -294,8 +296,8 @@ final class HiveViewOperations extends BaseViewOperations implements HiveOperati
         table(),
         database(),
         hmsTableOwner,
-        (int) currentTimeMillis / 1000,
-        (int) currentTimeMillis / 1000,
+        currentTimeSeconds,
+        currentTimeSeconds,
         Integer.MAX_VALUE,
         null,
         Collections.emptyList(),
