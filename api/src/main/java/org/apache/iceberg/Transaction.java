@@ -183,4 +183,18 @@ public interface Transaction {
    * @throws CommitFailedException If the updates cannot be committed due to conflicts.
    */
   void commitTransaction();
+
+  /**
+   * Roll back all pending changes and clean up any uncommitted files written by this transaction.
+   *
+   * <p>This is a best-effort operation intended to be called when a transaction will not be
+   * committed (for example, in a {@code finally} or {@code catch} block of a failed atomic
+   * create/replace operation). It deletes uncommitted manifest lists, manifests, and other files
+   * staged by operations in this transaction. It does not throw if some files cannot be deleted.
+   *
+   * <p>After this method is called, the transaction must not be committed or reused.
+   *
+   * <p>The default implementation does nothing.
+   */
+  default void abortTransaction() {}
 }
