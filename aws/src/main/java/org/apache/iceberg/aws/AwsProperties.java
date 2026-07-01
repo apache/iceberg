@@ -265,6 +265,8 @@ public class AwsProperties implements Serializable {
   private EncryptionAlgorithmSpec kmsEncryptionAlgorithmSpec;
   private DataKeySpec kmsDataKeySpec;
 
+  private final UUID uuid;
+
   public AwsProperties() {
     this.stsClientAssumeRoleTags = Sets.newHashSet();
 
@@ -291,6 +293,8 @@ public class AwsProperties implements Serializable {
     this.kmsEndpoint = null;
     this.kmsEncryptionAlgorithmSpec = KMS_ENCRYPTION_ALGORITHM_SPEC_DEFAULT;
     this.kmsDataKeySpec = KMS_DATA_KEY_SPEC_DEFAULT;
+
+    this.uuid = UUID.randomUUID();
   }
 
   @SuppressWarnings("MethodLength")
@@ -342,6 +346,8 @@ public class AwsProperties implements Serializable {
     this.kmsDataKeySpec =
         DataKeySpec.fromValue(
             properties.getOrDefault(KMS_DATA_KEY_SPEC, KMS_DATA_KEY_SPEC_DEFAULT.toString()));
+
+    this.uuid = UUID.randomUUID();
   }
 
   public Set<software.amazon.awssdk.services.sts.model.Tag> stsClientAssumeRoleTags() {
@@ -527,7 +533,7 @@ public class AwsProperties implements Serializable {
     String sessionName =
         this.clientAssumeRoleSessionName != null
             ? this.clientAssumeRoleSessionName
-            : String.format("iceberg-aws-%s", UUID.randomUUID());
+            : String.format("iceberg-aws-%s", uuid);
 
     return StsAssumeRoleCredentialsProvider.builder()
         .stsClient(
