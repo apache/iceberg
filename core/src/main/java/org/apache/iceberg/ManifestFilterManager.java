@@ -82,7 +82,6 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
   private long minSequenceNumber = 0;
   private boolean failAnyDelete = false;
   private boolean failMissingDeletePaths = false;
-  private int duplicateDeleteCount = 0;
   private boolean caseSensitive = true;
   private boolean allDeletesReferenceManifests = true;
   // this is only being used for the DeleteManifestFilterManager to detect orphaned DVs for removed
@@ -93,7 +92,7 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
   private final Map<ManifestFile, ManifestFile> filteredManifests = Maps.newConcurrentMap();
 
   // tracking where files were deleted to validate retries quickly
-  private final Map<ManifestFile, Iterable<F>> filteredManifestToDeletedFiles =
+  private final Map<ManifestFile, FilterResult<F>> filteredManifestResults =
       Maps.newConcurrentMap();
 
   private final Supplier<ExecutorService> workerPoolSupplier;
@@ -229,6 +228,15 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
               filtered[index] = manifest;
             });
 
+    for (ManifestFile manifest : filtered) {
+      FilterResult<F> result = filteredManifestResults.get(manifest);
+      if (result != null) {
+        for (F file : result.deletedFiles()) {
+          deleteFiles.add(file);
+        }
+      }
+    }
+
     validateRequiredDeletes(filtered);
 
     return Arrays.asList(filtered);
@@ -256,15 +264,14 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
 
     for (ManifestFile manifest : manifests) {
       PartitionSpec manifestSpec = specsById.get(manifest.partitionSpecId());
-      Iterable<F> manifestDeletes = filteredManifestToDeletedFiles.get(manifest);
-      if (manifestDeletes != null) {
-        for (F file : manifestDeletes) {
+      FilterResult<F> result = filteredManifestResults.get(manifest);
+      if (result != null) {
+        for (F file : result.deletedFiles()) {
           summaryBuilder.deletedFile(manifestSpec, file);
         }
+        summaryBuilder.incrementDuplicateDeletes(result.duplicateDeleteCount());
       }
     }
-
-    summaryBuilder.incrementDuplicateDeletes(duplicateDeleteCount);
 
     return summaryBuilder;
   }
@@ -305,9 +312,9 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
 
     if (manifests != null) {
       for (ManifestFile manifest : manifests) {
-        Iterable<F> manifestDeletes = filteredManifestToDeletedFiles.get(manifest);
-        if (manifestDeletes != null) {
-          for (F file : manifestDeletes) {
+        FilterResult<F> result = filteredManifestResults.get(manifest);
+        if (result != null) {
+          for (F file : result.deletedFiles()) {
             deletedFiles.add(file);
           }
         }
@@ -353,6 +360,7 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
 
         // remove the entry from the cache
         filteredManifests.remove(manifest);
+        filteredManifestResults.remove(filtered);
       }
     }
   }
@@ -501,6 +509,7 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
     // when this point is reached, there is at least one file that will be deleted in the
     // manifest. produce a copy of the manifest with all deleted files removed.
     Set<F> deletedFiles = newFileSet();
+    AtomicInteger duplicateDeleteCount = new AtomicInteger(0);
 
     try {
       ManifestWriter<F> writer = newManifestWriter(reader.spec());
@@ -533,16 +542,13 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
                     if (allRowsMatch) {
                       writer.delete(entry);
                       F fileCopy = file.copyWithoutStats();
-                      // add the file here in case it was deleted using an expression. The
-                      // DeleteManifestFilterManager will then remove its matching DV
-                      deleteFiles.add(fileCopy);
 
                       if (deletedFiles.contains(file)) {
                         LOG.warn(
                             "Deleting a duplicate path from manifest {}: {}",
                             manifest.path(),
                             file.location());
-                        duplicateDeleteCount += 1;
+                        duplicateDeleteCount.incrementAndGet();
                       } else {
                         // only add the file to deletes if it is a new delete
                         // this keeps the snapshot summary accurate for non-duplicate data
@@ -565,12 +571,31 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
 
       // update caches
       filteredManifests.put(manifest, filtered);
-      filteredManifestToDeletedFiles.put(filtered, deletedFiles);
+      filteredManifestResults.put(
+          filtered, new FilterResult<>(deletedFiles, duplicateDeleteCount.get()));
 
       return filtered;
 
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to close manifest writer");
+    }
+  }
+
+  private static class FilterResult<T> {
+    private final Iterable<T> deletedFiles;
+    private final int duplicateDeleteCount;
+
+    private FilterResult(Iterable<T> deletedFiles, int duplicateDeleteCount) {
+      this.deletedFiles = deletedFiles;
+      this.duplicateDeleteCount = duplicateDeleteCount;
+    }
+
+    private Iterable<T> deletedFiles() {
+      return deletedFiles;
+    }
+
+    private int duplicateDeleteCount() {
+      return duplicateDeleteCount;
     }
   }
 
