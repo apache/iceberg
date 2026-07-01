@@ -120,35 +120,44 @@ abstract class Channel {
   protected abstract boolean receive(Envelope envelope);
 
   protected void consumeAvailable(Duration pollDuration) {
-    ConsumerRecords<String, byte[]> records = consumer.poll(pollDuration);
-    while (!records.isEmpty()) {
-      for (ConsumerRecord<String, byte[]> record : records) {
-        Long nextOffset = controlTopicOffsets.get(record.partition());
-        // A rebalance can rewind the consumer to the committed offset, which can lag the in-memory
-        // position. Skip already-processed records.
-        if (nextOffset != null && record.offset() < nextOffset) {
-          LOG.debug(
-              "Skipping already-consumed control topic offset {} for partition {}",
-              record.offset(),
-              record.partition());
-          continue;
-        }
+    long start = System.currentTimeMillis();
+    try {
+      ConsumerRecords<String, byte[]> records = consumer.poll(pollDuration);
+      while (!records.isEmpty()) {
+        for (ConsumerRecord<String, byte[]> record : records) {
+          Long nextOffset = controlTopicOffsets.get(record.partition());
+          // A rebalance can rewind the consumer to the committed offset, which can lag the in-memory
+          // position. Skip already-processed records.
+          if (nextOffset != null && record.offset() < nextOffset) {
+            LOG.debug(
+                "Skipping already-consumed control topic offset {} for partition {}",
+                record.offset(),
+                record.partition());
+            continue;
+          }
 
-        // The consumer stores the offset of the next record to consume, so increment the record
-        // offset by one and keep the highest position seen.
-        controlTopicOffsets.merge(record.partition(), record.offset() + 1, Long::max);
+          // The consumer stores the offset of the next record to consume, so increment the record
+          // offset by one and keep the highest position seen.
+          controlTopicOffsets.merge(record.partition(), record.offset() + 1, Long::max);
 
-        Event event = AvroUtil.decode(record.value());
+          Event event = AvroUtil.decode(record.value());
 
-        if (event.groupId().equals(connectGroupId)) {
-          LOG.debug("Received event of type: {}", event.type().name());
-          if (receive(new Envelope(event, record.partition(), record.offset()))) {
-            LOG.info("Handled event of type: {}", event.type().name());
+          if (event.groupId().equals(connectGroupId)) {
+            LOG.debug("Received event of type: {}", event.type().name());
+            if (receive(new Envelope(event, record.partition(), record.offset()))) {
+              LOG.info("Handled event of type: {}", event.type().name());
+            }
           }
         }
+        records = consumer.poll(pollDuration);
       }
-      records = consumer.poll(pollDuration);
+    } finally {
+      recordConsumeTime(System.currentTimeMillis() - start);
     }
+  }
+
+  protected void recordConsumeTime(long elapsedMs) {
+    // default no-op; subclasses override to forward to their metrics
   }
 
   protected Map<Integer, Long> controlTopicOffsets() {

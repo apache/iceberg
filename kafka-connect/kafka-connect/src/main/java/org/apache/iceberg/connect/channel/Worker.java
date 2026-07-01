@@ -41,6 +41,7 @@ class Worker extends Channel {
   private final IcebergSinkConfig config;
   private final SinkTaskContext context;
   private final SinkWriter sinkWriter;
+  private final WorkerMetrics workerMetrics;
 
   Worker(
       IcebergSinkConfig config,
@@ -58,10 +59,17 @@ class Worker extends Channel {
     this.config = config;
     this.context = context;
     this.sinkWriter = sinkWriter;
+    this.workerMetrics =
+        new WorkerMetrics(config.connectorName(), config.connectorName() + "-" + config.taskId());
   }
 
   void process() {
     consumeAvailable(Duration.ZERO);
+  }
+
+  @Override
+  protected void recordConsumeTime(long elapsedMs) {
+    workerMetrics.recordConsume(elapsedMs);
   }
 
   @Override
@@ -110,6 +118,9 @@ class Worker extends Channel {
 
     send(events, results.sourceOffsets());
 
+    workerMetrics.incDataWritten(results.writerResults().size());
+    workerMetrics.incDataComplete();
+
     return true;
   }
 
@@ -117,9 +128,15 @@ class Worker extends Channel {
   void stop() {
     super.stop();
     sinkWriter.close();
+    workerMetrics.close();
   }
 
   void save(Collection<SinkRecord> sinkRecords) {
-    sinkWriter.save(sinkRecords);
+    long start = System.currentTimeMillis();
+    try {
+      sinkWriter.save(sinkRecords);
+    } finally {
+      workerMetrics.recordSave(System.currentTimeMillis() - start);
+    }
   }
 }
