@@ -3732,6 +3732,9 @@ components:
             4. A projection must not target a map's key field-id. Applying an action
               to keys can produce duplicate or null keys, which readers silently
               coalesce or reject, causing data loss.
+
+            5. The reader must fail the query if a projection references a field-id
+              that is not present in the read schema.
           type: array
           items:
             $ref: '#/components/schemas/Action'
