@@ -60,6 +60,72 @@ import org.joda.time.Days;
  */
 public class DataGenerators {
 
+  private static org.apache.avro.Schema rewriteLocalTimestampForFlink(
+      org.apache.avro.Schema schema) {
+    switch (schema.getType()) {
+      case UNION:
+        List<org.apache.avro.Schema> rewritten =
+            schema.getTypes().stream()
+                .map(DataGenerators::rewriteLocalTimestampForFlink)
+                .collect(Collectors.toList());
+        return org.apache.avro.Schema.createUnion(rewritten);
+      case ARRAY:
+        return org.apache.avro.Schema.createArray(
+            rewriteLocalTimestampForFlink(schema.getElementType()));
+      case MAP:
+        return org.apache.avro.Schema.createMap(
+            rewriteLocalTimestampForFlink(schema.getValueType()));
+      case RECORD:
+        List<org.apache.avro.Schema.Field> fields =
+            schema.getFields().stream()
+                .map(
+                    f ->
+                        new org.apache.avro.Schema.Field(
+                            f.name(),
+                            rewriteLocalTimestampForFlink(f.schema()),
+                            f.doc(),
+                            f.defaultVal()))
+                .collect(Collectors.toList());
+        org.apache.avro.Schema record =
+            org.apache.avro.Schema.createRecord(
+                schema.getName(), schema.getDoc(), schema.getNamespace(), schema.isError(), fields);
+        schema.getObjectProps().forEach(record::addProp);
+        return record;
+      default:
+        return rewriteLocalTimestampPrimitive(schema);
+    }
+  }
+
+  private static org.apache.avro.Schema rewriteLocalTimestampPrimitive(
+      org.apache.avro.Schema schema) {
+    org.apache.avro.LogicalType logical = schema.getLogicalType();
+    if (logical instanceof LogicalTypes.LocalTimestampMicros) {
+      org.apache.avro.Schema rewritten =
+          LogicalTypes.timestampMicros()
+              .addToSchema(org.apache.avro.Schema.create(org.apache.avro.Schema.Type.LONG));
+      rewritten.addProp(AvroSchemaUtil.ADJUST_TO_UTC_PROP, false);
+      return rewritten;
+    }
+    if (logical instanceof LogicalTypes.LocalTimestampNanos) {
+      org.apache.avro.Schema rewritten =
+          LogicalTypes.timestampNanos()
+              .addToSchema(org.apache.avro.Schema.create(org.apache.avro.Schema.Type.LONG));
+      rewritten.addProp(AvroSchemaUtil.ADJUST_TO_UTC_PROP, false);
+      return rewritten;
+    }
+    return schema;
+  }
+
+  private static org.apache.avro.Schema.Field rewriteLocalTimestampForFlink(
+      org.apache.avro.Schema.Field field) {
+    org.apache.avro.Schema rewritten = rewriteLocalTimestampForFlink(field.schema());
+    if (rewritten == field.schema()) {
+      return field;
+    }
+    return new org.apache.avro.Schema.Field(
+        field.name(), rewritten, field.doc(), field.defaultVal());
+  }
+
   public static class Primitives implements DataGenerator {
     private static final DateTime JODA_DATETIME_EPOC =
         new DateTime(1970, 1, 1, 0, 0, 0, 0, DateTimeZone.UTC);
@@ -134,6 +200,8 @@ public class DataGenerators {
                               .addToSchema(
                                   org.apache.avro.Schema.create(org.apache.avro.Schema.Type.INT));
                       updatedField = new org.apache.avro.Schema.Field("time_field", fieldSchema);
+                    } else {
+                      updatedField = rewriteLocalTimestampForFlink(updatedField);
                     }
 
                     return new org.apache.avro.Schema.Field(updatedField, updatedField.schema());
@@ -580,7 +648,7 @@ public class DataGenerators {
     private final RowType flinkRowType = FlinkSchemaUtil.convert(icebergSchema);
 
     private final org.apache.avro.Schema avroSchema =
-        AvroSchemaUtil.convert(icebergSchema, "table");
+        rewriteLocalTimestampForFlink(AvroSchemaUtil.convert(icebergSchema, "table"));
 
     @Override
     public Schema icebergSchema() {
@@ -867,7 +935,7 @@ public class DataGenerators {
     private final RowType flinkRowType = FlinkSchemaUtil.convert(icebergSchema);
 
     private final org.apache.avro.Schema avroSchema =
-        AvroSchemaUtil.convert(icebergSchema, "table");
+        rewriteLocalTimestampForFlink(AvroSchemaUtil.convert(icebergSchema, "table"));
 
     @Override
     public Schema icebergSchema() {

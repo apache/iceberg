@@ -122,9 +122,11 @@ public class FlinkAvroWriter implements MetricsAwareDatumWriter<RowData> {
             return FlinkValueWriters.timeMicros();
 
           case "timestamp-micros":
+          case "local-timestamp-micros":
             return FlinkValueWriters.timestampMicros();
 
           case "timestamp-nanos":
+          case "local-timestamp-nanos":
             return FlinkValueWriters.timestampNanos();
 
           case "decimal":

@@ -43,11 +43,11 @@ abstract class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
   private static final Schema TIME_SCHEMA =
       LogicalTypes.timeMicros().addToSchema(Schema.create(Schema.Type.LONG));
   private static final Schema TIMESTAMP_SCHEMA =
-      LogicalTypes.timestampMicros().addToSchema(Schema.create(Schema.Type.LONG));
+      LogicalTypes.localTimestampMicros().addToSchema(Schema.create(Schema.Type.LONG));
   private static final Schema TIMESTAMPTZ_SCHEMA =
       LogicalTypes.timestampMicros().addToSchema(Schema.create(Schema.Type.LONG));
   private static final Schema TIMESTAMP_NANO_SCHEMA =
-      LogicalTypes.timestampNanos().addToSchema(Schema.create(Schema.Type.LONG));
+      LogicalTypes.localTimestampNanos().addToSchema(Schema.create(Schema.Type.LONG));
   private static final Schema TIMESTAMPTZ_NANO_SCHEMA =
       LogicalTypes.timestampNanos().addToSchema(Schema.create(Schema.Type.LONG));
   private static final Schema STRING_SCHEMA = Schema.create(Schema.Type.STRING);
@@ -56,9 +56,7 @@ abstract class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
   private static final Schema BINARY_SCHEMA = Schema.create(Schema.Type.BYTES);
 
   static {
-    TIMESTAMP_SCHEMA.addProp(AvroSchemaUtil.ADJUST_TO_UTC_PROP, false);
     TIMESTAMPTZ_SCHEMA.addProp(AvroSchemaUtil.ADJUST_TO_UTC_PROP, true);
-    TIMESTAMP_NANO_SCHEMA.addProp(AvroSchemaUtil.ADJUST_TO_UTC_PROP, false);
     TIMESTAMPTZ_NANO_SCHEMA.addProp(AvroSchemaUtil.ADJUST_TO_UTC_PROP, true);
   }
 

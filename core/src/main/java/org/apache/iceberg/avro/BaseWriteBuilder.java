@@ -82,9 +82,11 @@ abstract class BaseWriteBuilder extends AvroSchemaVisitor<ValueWriter<?>> {
           return ValueWriters.longs();
 
         case "timestamp-micros":
+        case "local-timestamp-micros":
           return ValueWriters.longs();
 
         case "timestamp-nanos":
+        case "local-timestamp-nanos":
           return ValueWriters.longs();
 
         case "decimal":
