@@ -202,5 +202,6 @@ Add the following block at the bottom of PR descriptions:
 - **Never** break public API without an approved `revapi.yml` exception.
 - **Never** add Hadoop dependencies where `FileIO` abstractions exist.
 - **Never** commit secrets, credentials, or cloud-specific tokens.
+- **Never** use em-dashes (U+2014) or other non-ASCII Unicode characters in source code. The only exception is tests or sample data that specifically exercise Unicode or UTF handling.
 - **Ask first** before adding new third-party dependencies (license compatibility matters).
 - **Ask first** before promoting package-private classes/methods to public.
