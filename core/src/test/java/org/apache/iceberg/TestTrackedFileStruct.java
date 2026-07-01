@@ -41,8 +41,6 @@ class TestTrackedFileStruct {
       TrackedFile.schemaWithContentStats(Types.StructType.of(), Types.StructType.of()).fields();
   private static final int TRACKING_ORDINAL = SCHEMA_FIELDS.indexOf(TrackedFile.TRACKING);
   private static final int CONTENT_TYPE_ORDINAL = SCHEMA_FIELDS.indexOf(TrackedFile.CONTENT_TYPE);
-  private static final int FORMAT_VERSION_ORDINAL =
-      SCHEMA_FIELDS.indexOf(TrackedFile.FORMAT_VERSION);
   private static final int LOCATION_ORDINAL = SCHEMA_FIELDS.indexOf(TrackedFile.LOCATION);
   private static final int FILE_FORMAT_ORDINAL = SCHEMA_FIELDS.indexOf(TrackedFile.FILE_FORMAT);
   private static final int RECORD_COUNT_ORDINAL = SCHEMA_FIELDS.indexOf(TrackedFile.RECORD_COUNT);
@@ -50,13 +48,6 @@ class TestTrackedFileStruct {
       SCHEMA_FIELDS.indexOf(TrackedFile.FILE_SIZE_IN_BYTES);
   private static final int SPEC_ID_ORDINAL = SCHEMA_FIELDS.indexOf(TrackedFile.SPEC_ID);
   private static final int PARTITION_ORDINAL = ordinalOf(TrackedFile.PARTITION_ID);
-  private static final int SORT_ORDER_ID_ORDINAL = SCHEMA_FIELDS.indexOf(TrackedFile.SORT_ORDER_ID);
-  private static final int DELETION_VECTOR_ORDINAL =
-      SCHEMA_FIELDS.indexOf(TrackedFile.DELETION_VECTOR);
-  private static final int MANIFEST_INFO_ORDINAL = SCHEMA_FIELDS.indexOf(TrackedFile.MANIFEST_INFO);
-  private static final int KEY_METADATA_ORDINAL = SCHEMA_FIELDS.indexOf(TrackedFile.KEY_METADATA);
-  private static final int SPLIT_OFFSETS_ORDINAL = SCHEMA_FIELDS.indexOf(TrackedFile.SPLIT_OFFSETS);
-  private static final int EQUALITY_IDS_ORDINAL = SCHEMA_FIELDS.indexOf(TrackedFile.EQUALITY_IDS);
 
   // Ordinal of MetadataColumns.ROW_POSITION within TrackingStruct's BASE_TYPE,
   // which appends ROW_POSITION after the Tracking schema fields.
@@ -71,48 +62,61 @@ class TestTrackedFileStruct {
     throw new IllegalArgumentException("Field not found in TrackedFile schema: " + fieldId);
   }
 
+  private static final DeletionVectorStruct DELETION_VECTOR =
+      DeletionVectorStruct.builder()
+          .location("s3://bucket/dv.puffin")
+          .offset(100L)
+          .sizeInBytes(50L)
+          .cardinality(5L)
+          .build();
+
+  private static final ManifestInfoStruct MANIFEST_INFO =
+      ManifestInfoStruct.builder()
+          .addedFilesCount(10)
+          .existingFilesCount(20)
+          .deletedFilesCount(3)
+          .replacedFilesCount(2)
+          .addedRowsCount(1000L)
+          .existingRowsCount(2000L)
+          .deletedRowsCount(300L)
+          .replacedRowsCount(200L)
+          .minSequenceNumber(5L)
+          .build();
+
+  private static final ContentStats CONTENT_STATS =
+      BaseContentStats.builder()
+          .withTableSchema(
+              new Schema(
+                  Types.NestedField.optional(1, "id", Types.IntegerType.get()),
+                  Types.NestedField.optional(2, "data", Types.FloatType.get())))
+          .withFieldStats(BaseFieldStats.builder().fieldId(1).build())
+          .withFieldStats(BaseFieldStats.builder().fieldId(2).build())
+          .build();
+
   @Test
   void testFieldAccess() {
-    TrackedFileStruct file = new TrackedFileStruct();
     Tracking tracking = TrackingBuilder.added(42L).build();
-    DeletionVectorStruct dv =
-        DeletionVectorStruct.builder()
-            .location("s3://bucket/dv.puffin")
-            .offset(100L)
-            .sizeInBytes(50L)
-            .cardinality(5L)
-            .build();
-    ManifestInfoStruct info =
-        ManifestInfoStruct.builder()
-            .addedFilesCount(10)
-            .existingFilesCount(20)
-            .deletedFilesCount(3)
-            .replacedFilesCount(2)
-            .addedRowsCount(1000L)
-            .existingRowsCount(2000L)
-            .deletedRowsCount(300L)
-            .replacedRowsCount(200L)
-            .minSequenceNumber(5L)
-            .build();
 
-    file.set(TRACKING_ORDINAL, tracking);
-    file.set(CONTENT_TYPE_ORDINAL, FileContent.EQUALITY_DELETES.id());
-    file.set(FORMAT_VERSION_ORDINAL, FORMAT_VERSION_V4);
-    file.set(LOCATION_ORDINAL, "s3://bucket/data/eq-delete.avro");
-    file.set(FILE_FORMAT_ORDINAL, "avro");
-    file.set(RECORD_COUNT_ORDINAL, 50L);
-    file.set(FILE_SIZE_IN_BYTES_ORDINAL, 512L);
-    file.set(SPEC_ID_ORDINAL, 1);
-    file.set(SORT_ORDER_ID_ORDINAL, 5);
-    file.set(DELETION_VECTOR_ORDINAL, dv);
-    file.set(MANIFEST_INFO_ORDINAL, info);
-    file.set(KEY_METADATA_ORDINAL, ByteBuffer.wrap(new byte[] {1, 2, 3}));
-    file.set(SPLIT_OFFSETS_ORDINAL, ImmutableList.of(100L, 200L));
-    file.set(EQUALITY_IDS_ORDINAL, ImmutableList.of(1, 2, 3));
+    TrackedFileStruct file =
+        new TrackedFileStruct(
+            tracking,
+            FileContent.EQUALITY_DELETES,
+            FORMAT_VERSION_V4,
+            "s3://bucket/data/eq-delete.avro",
+            FileFormat.AVRO,
+            null,
+            50L,
+            512L,
+            1,
+            null,
+            5,
+            DELETION_VECTOR,
+            MANIFEST_INFO,
+            ByteBuffer.wrap(new byte[] {1, 2, 3}),
+            ImmutableList.of(100L, 200L),
+            ImmutableList.of(1, 2, 3));
 
-    assertThat(file.tracking()).isNotNull();
-    assertThat(file.tracking().status()).isEqualTo(EntryStatus.ADDED);
-    assertThat(file.tracking().snapshotId()).isEqualTo(42L);
+    assertThat(file.tracking()).isSameAs(tracking);
     assertThat(file.contentType()).isEqualTo(FileContent.EQUALITY_DELETES);
     assertThat(file.formatVersion()).isEqualTo(FORMAT_VERSION_V4);
     assertThat(file.location()).isEqualTo("s3://bucket/data/eq-delete.avro");
@@ -121,14 +125,97 @@ class TestTrackedFileStruct {
     assertThat(file.fileSizeInBytes()).isEqualTo(512L);
     assertThat(file.specId()).isEqualTo(1);
     assertThat(file.sortOrderId()).isEqualTo(5);
-    assertThat(file.deletionVector()).isSameAs(dv);
-    assertThat(file.manifestInfo()).isSameAs(info);
+    assertThat(file.deletionVector()).isSameAs(DELETION_VECTOR);
+    assertThat(file.manifestInfo()).isSameAs(MANIFEST_INFO);
     assertThat(file.keyMetadata()).isEqualTo(ByteBuffer.wrap(new byte[] {1, 2, 3}));
     assertThat(file.splitOffsets()).containsExactly(100L, 200L);
     assertThat(file.equalityIds()).containsExactly(1, 2, 3);
-    // should return EMPTY_PARTITION_DATA
+    // partition defaults to EMPTY_PARTITION_DATA when not provided
     assertThat(file.partition()).isNotNull();
     assertThat(file.partition().size()).isEqualTo(0);
+  }
+
+  @Test
+  void testSetByPosition() {
+    Tracking tracking = TrackingBuilder.added(42L).build();
+    PartitionData partition = newPartition(7, "music");
+
+    TrackedFileStruct file = new TrackedFileStruct();
+    file.set(0, tracking);
+    file.set(1, FileContent.EQUALITY_DELETES.id());
+    file.set(2, FORMAT_VERSION_V4);
+    file.set(3, "s3://bucket/data/eq-delete.avro");
+    file.set(4, "avro");
+    file.set(5, 50L);
+    file.set(6, 512L);
+    file.set(7, 1);
+    file.set(8, partition);
+    file.set(9, CONTENT_STATS);
+    file.set(10, 5);
+    file.set(11, DELETION_VECTOR);
+    file.set(12, MANIFEST_INFO);
+    file.set(13, ByteBuffer.wrap(new byte[] {1, 2, 3}));
+    file.set(14, ImmutableList.of(100L, 200L));
+    file.set(15, ImmutableList.of(1, 2, 3));
+
+    assertThat(file.tracking()).isSameAs(tracking);
+    assertThat(file.contentType()).isEqualTo(FileContent.EQUALITY_DELETES);
+    assertThat(file.formatVersion()).isEqualTo(FORMAT_VERSION_V4);
+    assertThat(file.location()).isEqualTo("s3://bucket/data/eq-delete.avro");
+    assertThat(file.fileFormat()).isEqualTo(FileFormat.AVRO);
+    assertThat(file.recordCount()).isEqualTo(50L);
+    assertThat(file.fileSizeInBytes()).isEqualTo(512L);
+    assertThat(file.specId()).isEqualTo(1);
+    assertThat(file.partition()).isSameAs(partition);
+    assertThat(file.contentStats()).isSameAs(CONTENT_STATS);
+    assertThat(file.sortOrderId()).isEqualTo(5);
+    assertThat(file.deletionVector()).isSameAs(DELETION_VECTOR);
+    assertThat(file.manifestInfo()).isSameAs(MANIFEST_INFO);
+    assertThat(file.keyMetadata()).isEqualTo(ByteBuffer.wrap(new byte[] {1, 2, 3}));
+    assertThat(file.splitOffsets()).containsExactly(100L, 200L);
+    assertThat(file.equalityIds()).containsExactly(1, 2, 3);
+  }
+
+  @Test
+  void testGetByPosition() {
+    Tracking tracking = TrackingBuilder.added(42L).build();
+    PartitionData partition = newPartition(7, "music");
+
+    TrackedFileStruct file =
+        new TrackedFileStruct(
+            tracking,
+            FileContent.EQUALITY_DELETES,
+            FORMAT_VERSION_V4,
+            "s3://bucket/data/eq-delete.avro",
+            FileFormat.AVRO,
+            partition,
+            50L,
+            512L,
+            1,
+            CONTENT_STATS,
+            5,
+            DELETION_VECTOR,
+            MANIFEST_INFO,
+            ByteBuffer.wrap(new byte[] {1, 2, 3}),
+            ImmutableList.of(100L, 200L),
+            ImmutableList.of(1, 2, 3));
+
+    assertThat(file.get(0, Tracking.class)).isSameAs(tracking);
+    assertThat(file.get(1, Integer.class)).isEqualTo(FileContent.EQUALITY_DELETES.id());
+    assertThat(file.get(2, Integer.class)).isEqualTo(FORMAT_VERSION_V4);
+    assertThat(file.get(3, String.class)).isEqualTo("s3://bucket/data/eq-delete.avro");
+    assertThat(file.get(4, String.class)).isEqualTo(FileFormat.AVRO.toString());
+    assertThat(file.get(5, Long.class)).isEqualTo(50L);
+    assertThat(file.get(6, Long.class)).isEqualTo(512L);
+    assertThat(file.get(7, Integer.class)).isEqualTo(1);
+    assertThat(file.get(8, PartitionData.class)).isSameAs(partition);
+    assertThat(file.get(9, ContentStats.class)).isSameAs(CONTENT_STATS);
+    assertThat(file.get(10, Integer.class)).isEqualTo(5);
+    assertThat(file.get(11, DeletionVector.class)).isSameAs(DELETION_VECTOR);
+    assertThat(file.get(12, ManifestInfo.class)).isSameAs(MANIFEST_INFO);
+    assertThat(file.get(13, ByteBuffer.class)).isEqualTo(ByteBuffer.wrap(new byte[] {1, 2, 3}));
+    assertThat(file.get(14, List.class)).containsExactly(100L, 200L);
+    assertThat(file.get(15, List.class)).containsExactly(1, 2, 3);
   }
 
   @Test
@@ -177,16 +264,14 @@ class TestTrackedFileStruct {
 
   @Test
   void partitionIsCopied() {
-    PartitionData partition = newPartition(5, "books");
     TrackedFileStruct file = createFullTrackedFile();
-    file.set(PARTITION_ORDINAL, partition);
 
     TrackedFile copy = file.copy();
 
-    assertThat(copy.partition()).isNotNull().isNotSameAs(partition);
-    assertThat(copy.partition()).isEqualTo(partition);
-    assertThat(copy.partition().get(0, Integer.class)).isEqualTo(5);
-    assertThat(copy.partition().get(1, String.class)).isEqualTo("books");
+    assertThat(copy.partition()).isNotNull().isNotSameAs(file.partition());
+    assertThat(copy.partition()).isEqualTo(newPartition(7, "music"));
+    assertThat(copy.partition().get(0, Integer.class)).isEqualTo(7);
+    assertThat(copy.partition().get(1, String.class)).isEqualTo("music");
   }
 
   @Test
@@ -202,7 +287,7 @@ class TestTrackedFileStruct {
     assertThat(copy.tracking().status()).isEqualTo(EntryStatus.ADDED);
     assertThat(copy.tracking().snapshotId()).isEqualTo(42L);
     assertThat(copy.deletionVector().location()).isEqualTo("s3://bucket/dv.puffin");
-    assertThat(copy.specId()).isEqualTo(0);
+    assertThat(copy.specId()).isEqualTo(7);
     assertThat(copy.sortOrderId()).isEqualTo(1);
     assertThat(copy.recordCount()).isEqualTo(100L);
     assertThat(copy.fileSizeInBytes()).isEqualTo(1024L);
@@ -254,23 +339,6 @@ class TestTrackedFileStruct {
   void testStructLikeSize() {
     TrackedFileStruct file = new TrackedFileStruct();
     assertThat(file.size()).isEqualTo(16);
-  }
-
-  @Test
-  void testStructLikeGetSet() {
-    TrackedFileStruct file = new TrackedFileStruct();
-
-    file.set(CONTENT_TYPE_ORDINAL, FileContent.DATA.id());
-    assertThat(file.get(CONTENT_TYPE_ORDINAL, Integer.class)).isEqualTo(FileContent.DATA.id());
-
-    file.set(LOCATION_ORDINAL, "test-location");
-    assertThat(file.get(LOCATION_ORDINAL, String.class)).isEqualTo("test-location");
-
-    file.set(RECORD_COUNT_ORDINAL, 999L);
-    assertThat(file.get(RECORD_COUNT_ORDINAL, Long.class)).isEqualTo(999L);
-
-    file.set(SORT_ORDER_ID_ORDINAL, 3);
-    assertThat(file.get(SORT_ORDER_ID_ORDINAL, Integer.class)).isEqualTo(3);
   }
 
   @Test
@@ -334,7 +402,7 @@ class TestTrackedFileStruct {
     assertThat(deserialized.fileFormat()).isEqualTo(FileFormat.PARQUET);
     assertThat(deserialized.recordCount()).isEqualTo(100L);
     assertThat(deserialized.fileSizeInBytes()).isEqualTo(1024L);
-    assertThat(deserialized.specId()).isEqualTo(0);
+    assertThat(deserialized.specId()).isEqualTo(7);
     assertThat(deserialized.sortOrderId()).isEqualTo(1);
     assertThat(deserialized.tracking().status()).isEqualTo(EntryStatus.ADDED);
     assertThat(deserialized.tracking().snapshotId()).isEqualTo(42L);
@@ -358,7 +426,7 @@ class TestTrackedFileStruct {
     assertThat(deserialized.fileFormat()).isEqualTo(FileFormat.PARQUET);
     assertThat(deserialized.recordCount()).isEqualTo(100L);
     assertThat(deserialized.fileSizeInBytes()).isEqualTo(1024L);
-    assertThat(deserialized.specId()).isEqualTo(0);
+    assertThat(deserialized.specId()).isEqualTo(7);
     assertThat(deserialized.sortOrderId()).isEqualTo(1);
     assertThat(deserialized.tracking().status()).isEqualTo(EntryStatus.ADDED);
     assertThat(deserialized.tracking().snapshotId()).isEqualTo(42L);
@@ -371,35 +439,47 @@ class TestTrackedFileStruct {
   }
 
   static TrackedFileStruct createFullTrackedFile() {
-    DeletionVectorStruct dv =
-        DeletionVectorStruct.builder()
-            .location("s3://bucket/dv.puffin")
-            .offset(100L)
-            .sizeInBytes(50L)
-            .cardinality(5L)
-            .build();
-
-    TrackedFileStruct file =
-        (TrackedFileStruct)
-            TrackedFileBuilder.data(42L)
-                .formatVersion(FORMAT_VERSION_V4)
-                .location("s3://bucket/data/file.parquet")
-                .fileFormat(FileFormat.PARQUET)
-                .partition(newPartition(7, "music"))
-                .recordCount(100L)
-                .fileSizeInBytes(1024L)
-                .specId(0)
-                .sortOrderId(1)
-                .deletionVector(dv)
-                .keyMetadata(ByteBuffer.wrap(new byte[] {1, 2, 3}))
-                .splitOffsets(ImmutableList.of(50L))
-                .build();
-
-    TrackingStruct tracking = (TrackingStruct) file.tracking();
+    TrackingStruct tracking = (TrackingStruct) TrackingBuilder.added(42L).build();
     tracking.setManifestLocation("s3://bucket/manifest.avro");
     tracking.set(MANIFEST_POS_ORDINAL, 3L);
 
-    return file;
+    return new TrackedFileStruct(
+        tracking,
+        FileContent.DATA,
+        FORMAT_VERSION_V4,
+        "s3://bucket/data/file.parquet",
+        FileFormat.PARQUET,
+        newPartition(7, "music"),
+        100L,
+        1024L,
+        7,
+        null,
+        1,
+        DELETION_VECTOR,
+        null,
+        ByteBuffer.wrap(new byte[] {1, 2, 3}),
+        ImmutableList.of(50L),
+        null);
+  }
+
+  static TrackedFileStruct createTrackedFileWithStats() {
+    return new TrackedFileStruct(
+        null,
+        FileContent.DATA,
+        FORMAT_VERSION_V4,
+        "s3://bucket/data/file.parquet",
+        FileFormat.PARQUET,
+        new PartitionData(Types.StructType.of()),
+        100L,
+        1024L,
+        0,
+        CONTENT_STATS,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null);
   }
 
   private static PartitionData newPartition(int idBucket, String category) {
@@ -407,66 +487,5 @@ class TestTrackedFileStruct {
     partition.set(0, idBucket);
     partition.set(1, category);
     return partition;
-  }
-
-  static TrackedFileStruct createTrackedFileWithStats() {
-    Types.StructType statsStruct =
-        Types.StructType.of(
-            Types.NestedField.optional(
-                10000,
-                "1",
-                Types.StructType.of(
-                    Types.NestedField.optional(10001, "lower_bound", Types.IntegerType.get()),
-                    Types.NestedField.optional(10002, "upper_bound", Types.IntegerType.get()),
-                    Types.NestedField.optional(10004, "value_count", Types.LongType.get()),
-                    Types.NestedField.optional(10005, "null_value_count", Types.LongType.get()),
-                    Types.NestedField.optional(10006, "nan_value_count", Types.LongType.get()))),
-            Types.NestedField.optional(
-                20000,
-                "2",
-                Types.StructType.of(
-                    Types.NestedField.optional(20001, "lower_bound", Types.FloatType.get()),
-                    Types.NestedField.optional(20002, "upper_bound", Types.FloatType.get()),
-                    Types.NestedField.optional(20004, "value_count", Types.LongType.get()),
-                    Types.NestedField.optional(20005, "null_value_count", Types.LongType.get()),
-                    Types.NestedField.optional(20006, "nan_value_count", Types.LongType.get()))));
-
-    List<FieldStats<?>> fieldStatsList =
-        ImmutableList.of(
-            BaseFieldStats.<Integer>builder()
-                .fieldId(1)
-                .type(Types.IntegerType.get())
-                .valueCount(100L)
-                .nullValueCount(5L)
-                .lowerBound(1)
-                .upperBound(1000)
-                .build(),
-            BaseFieldStats.<Float>builder()
-                .fieldId(2)
-                .type(Types.FloatType.get())
-                .valueCount(200L)
-                .nullValueCount(10L)
-                .nanValueCount(3L)
-                .lowerBound(1.0f)
-                .upperBound(100.0f)
-                .build());
-
-    BaseContentStats stats =
-        BaseContentStats.builder()
-            .withStatsStruct(statsStruct)
-            .withFieldStats(fieldStatsList)
-            .build();
-
-    return (TrackedFileStruct)
-        TrackedFileBuilder.data(0L)
-            .formatVersion(FORMAT_VERSION_V4)
-            .location("s3://bucket/data/file.parquet")
-            .fileFormat(FileFormat.PARQUET)
-            .partition(new PartitionData(Types.StructType.of()))
-            .recordCount(100L)
-            .fileSizeInBytes(1024L)
-            .specId(0)
-            .contentStats(stats)
-            .build();
   }
 }
