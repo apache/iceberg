@@ -39,6 +39,7 @@ import org.apache.iceberg.inmemory.InMemoryOutputFile;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.mapping.MappingUtil;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
@@ -166,6 +167,7 @@ public class TestGenericData extends DataTestBase {
     try (CloseableIterable<Record> reader =
         Parquet.read(Files.localInput(testFile))
             .project(schema)
+            .withNameMapping(MappingUtil.create(schema))
             .reuseContainers()
             .createReaderFunc(fileSchema -> GenericParquetReaders.buildReader(schema, fileSchema))
             .build()) {
@@ -175,6 +177,48 @@ public class TestGenericData extends DataTestBase {
       }
 
       assertThat(Lists.newArrayList(reader)).hasSize(1);
+    }
+  }
+
+  @Test
+  public void testReadWithoutFieldIdsOrNameMappingReturnsNullFields() throws IOException {
+    Schema schema =
+        new Schema(
+            optional(1, "arraybytes", Types.ListType.ofRequired(3, Types.BinaryType.get())),
+            optional(2, "topbytes", Types.BinaryType.get()));
+    org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(schema.asStruct());
+
+    File testFile = temp.resolve("test-file" + System.nanoTime()).toFile();
+
+    ParquetWriter<org.apache.avro.generic.GenericRecord> writer =
+        AvroParquetWriter.<org.apache.avro.generic.GenericRecord>builder(
+                new LocalOutputFile(testFile.toPath()))
+            .withDataModel(GenericData.get())
+            .withSchema(avroSchema)
+            .config("parquet.avro.add-list-element-records", "true")
+            .config("parquet.avro.write-old-list-structure", "true")
+            .build();
+
+    GenericRecordBuilder recordBuilder = new GenericRecordBuilder(avroSchema);
+    byte[] writtenByte = {0x00, 0x01};
+    ByteBuffer writtenBinary = ByteBuffer.wrap(writtenByte);
+    List<ByteBuffer> writtenByteList = new ArrayList();
+    writtenByteList.add(writtenBinary);
+    recordBuilder.set("arraybytes", writtenByteList);
+    recordBuilder.set("topbytes", writtenBinary);
+    writer.write(recordBuilder.build());
+    writer.close();
+
+    // No field IDs in the file metadata and no NameMapping provided.
+    try (CloseableIterable<Record> reader =
+        Parquet.read(Files.localInput(testFile))
+            .project(schema)
+            .createReaderFunc(fileSchema -> GenericParquetReaders.buildReader(schema, fileSchema))
+            .build()) {
+      for (Record actualRecord : reader) {
+        assertThat(actualRecord.get(0)).isNull();
+        assertThat(actualRecord.get(1)).isNull();
+      }
     }
   }
 }

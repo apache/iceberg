@@ -18,6 +18,10 @@
  */
 package org.apache.iceberg.spark.source;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
+import java.nio.ByteBuffer;
+import java.util.Map;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.io.FileWriterFactory;
@@ -38,7 +42,6 @@ public class TestSparkWriterMetrics extends TestWriterMetrics<InternalRow> {
         .dataSchema(sourceTable.schema())
         .dataFileFormat(fileFormat)
         .deleteFileFormat(fileFormat)
-        .positionDeleteRowSchema(sourceTable.schema())
         .build();
   }
 
@@ -63,5 +66,15 @@ public class TestSparkWriterMetrics extends TestWriterMetrics<InternalRow> {
       row.update(i, value);
     }
     return row;
+  }
+
+  @Override
+  protected void checkRowStatistics(Map<Integer, ByteBuffer> bounds) {
+    assertThat(bounds).hasSize(2);
+  }
+
+  @Override
+  protected void checkNotExistingRowStatistics(Map<Integer, ByteBuffer> bounds) {
+    assertThat(bounds).isNull();
   }
 }

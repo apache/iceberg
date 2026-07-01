@@ -108,8 +108,8 @@ public class TestRESTUtil {
   @Test
   public void encodeAsOldClientAndDecodeAsNewServer() {
     Namespace namespace = Namespace.of("first", "second", "third");
-    // old client would call encodeNamespace without specifying a separator
-    String encodedNamespace = RESTUtil.encodeNamespace(namespace);
+    // old client would call encodeNamespace with the legacy separator
+    String encodedNamespace = RESTUtil.encodeNamespace(namespace, "%1F");
     assertThat(encodedNamespace).contains(RESTUtil.NAMESPACE_SEPARATOR_URLENCODED_UTF_8);
 
     // old client would also call namespaceToQueryParam without specifying a separator
@@ -130,11 +130,11 @@ public class TestRESTUtil {
   @Test
   public void testNamespaceUrlEncodeDecodeDoesNotAllowNull() {
     assertThatExceptionOfType(IllegalArgumentException.class)
-        .isThrownBy(() -> RESTUtil.encodeNamespace(null))
+        .isThrownBy(() -> RESTUtil.encodeNamespace(null, "%1F"))
         .withMessage("Invalid namespace: null");
 
     assertThatExceptionOfType(IllegalArgumentException.class)
-        .isThrownBy(() -> RESTUtil.decodeNamespace(null))
+        .isThrownBy(() -> RESTUtil.decodeNamespace(null, "%1F"))
         .withMessage("Invalid namespace: null");
   }
 

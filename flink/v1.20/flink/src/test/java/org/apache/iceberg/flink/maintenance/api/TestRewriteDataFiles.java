@@ -521,7 +521,7 @@ class TestRewriteDataFiles extends MaintenanceTaskTestBase {
             .minFileSizeBytes(500_000L)
             .minInputFiles(2)
             // Only rewrite data files where id is 1 or 2 for testing rewrite
-            .filter(Expressions.in("id", 1, 2))
+            .filter(() -> Expressions.in("id", 1, 2))
             .partialProgressEnabled(true)
             .partialProgressMaxCommits(1)
             .maxRewriteBytes(100_000L)
