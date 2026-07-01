@@ -38,6 +38,7 @@ The Apache Iceberg Sink Connector for Kafka Connect is a sink connector for writ
 * Commit coordination for centralized Iceberg commits
 * Exactly-once delivery semantics
 * Multi-table fan-out
+* Change data capture
 * Automatic table creation and schema evolution
 * Field name mapping via Iceberg’s column mapping functionality
 
@@ -70,17 +71,19 @@ for exactly-once semantics. This requires Kafka 2.5 or later.
 | iceberg.tables.evolve-schema-enabled       | Set to `true` to add any missing record fields to the table schema, default is `false`                           |
 | iceberg.tables.schema-force-optional       | Set to `true` to set columns as optional during table create and evolution, default is `false` to respect schema |
 | iceberg.tables.schema-case-insensitive     | Set to `true` to look up table columns by case-insensitive name, default is `false` for case-sensitive           |
+| iceberg.tables.cdc-field                   | Source record field that identifies the type of operation (insert, update, or delete)                            |
+| iceberg.tables.upsert-mode-enabled         | Set to true to treat all appends as upserts, false otherwise.                                                    |
 | iceberg.tables.auto-create-props.*         | Properties set on new tables during auto-create                                                                  |
 | iceberg.tables.write-props.*               | Properties passed through to Iceberg writer initialization, these take precedence                                |
-| iceberg.table.<_table-name_\>.commit-branch | Table-specific branch for commits, use `iceberg.tables.default-commit-branch` if not specified                   |
-| iceberg.table.<_table-name_\>.id-columns    | Comma-separated list of columns that identify a row in the table (primary key)                                   |
-| iceberg.table.<_table-name_\>.partition-by  | Comma-separated list of partition fields to use when creating the table                                          |
-| iceberg.table.<_table-name_\>.route-regex   | The regex used to match a record's `routeField` to a table                                                       |
+| iceberg.table.<_table-name_\>.commit-branch | Table-specific branch for commits, use `iceberg.tables.default-commit-branch` if not specified                  |
+| iceberg.table.<_table-name_\>.id-columns    | Comma-separated list of columns that identify a row in the table (primary key)                                  |
+| iceberg.table.<_table-name_\>.partition-by  | Comma-separated list of partition fields to use when creating the table                                         |
+| iceberg.table.<_table-name_\>.route-regex   | The regex used to match a record's `routeField` to a table                                                      |
 | iceberg.control.topic                      | Name of the control topic, default is `control-iceberg`                                                          |
 | iceberg.control.group-id-prefix            | Prefix for the control consumer group, default is `cg-control`                                                   |
 | iceberg.control.commit.interval-ms         | Commit interval in msec, default is 300,000 (5 min)                                                              |
 | iceberg.control.commit.timeout-ms          | Commit timeout interval in msec, default is 30,000 (30 sec)                                                      |
-| iceberg.control.commit.threads             | Number of threads to use for commits, default is (`cores * 2`)                                                     |
+| iceberg.control.commit.threads             | Number of threads to use for commits, default is (`cores * 2`)                                                   |
 | iceberg.coordinator.transactional.prefix   | Prefix for the transactional id to use for the coordinator producer, default is to use no/empty prefix           |
 | iceberg.catalog                            | Name of the catalog, default is `iceberg`                                                                        |
 | iceberg.catalog.*                          | Properties passed through to Iceberg catalog initialization                                                      |
@@ -364,6 +367,136 @@ See above for creating two tables.
 }
 ```
 
+### Change data capture
+This example applies inserts, updates, and deletes based on the value of a field in the record.
+For example, if the `cdc-field` is set to `I` or `R` then the record is inserted, if `U` then it is
+upserted, and if `D` then it is deleted. This requires that the table `format-version` to be greater
+than or equal to 2.  
+The Iceberg identifier field(s) are used to identify a row, if that is not set for the table,
+then the `iceberg.tables.default-id-columns` or `iceberg.table.\<table name\>.id-columns` configuration
+can be set instead. CDC can be combined with multi-table fan-out.
+
+CDC mode writes equality deletes to handle updates and deletes. During reads, the query engine must
+apply equality deletes by scanning data files that may contain matching rows based on the identifier columns.
+
+#### Delete behavior by table format version
+
+| Table Format | Same-Batch Duplicates | Prior-Batch Updates/Deletes | Delete Vectors |
+| ------------ | --------------------- | --------------------------- | -------------- |
+| V2           | Position deletes      | Equality deletes            | No             |
+| V3+          | Delete vectors        | Equality deletes            | Yes            |
+
+Within a single commit batch, the writer uses position deletes (or delete vectors on V3+) for
+efficient same-key deduplication. Across batches, equality deletes ensure record-level correctness
+by removing stale rows from prior snapshots. Compaction resolves equality deletes at read time.
+
+#### Exactly-once semantics
+
+The connector provides exactly-once delivery through three layers:
+
+1. **Transactional source offset commits**: Source offsets are committed atomically with control
+   topic events via `sendOffsetsToTransaction()`, preventing the Kafka Connect framework from
+   re-delivering records after a successful commit.
+2. **Control topic offset filtering**: The coordinator stores committed control topic offsets in
+   Iceberg snapshot properties. On recovery, it filters already-committed file sets, preventing
+   duplicate table commits.
+3. **Equality deletes for record-level correctness**: In upsert/CDC mode, each INSERT emits an
+   equality delete targeting the key's prior value (if any). This ensures that even if a key is
+   re-inserted across commit cycles, only the latest version survives after compaction.
+
+#### Production recommendations
+
+**Table format-version >= 2 required**: CDC mode writes equality deletes, which require
+format-version 2 or later. Tables using format-version 1 do not support CDC.
+
+**Use merge-on-read (MOR) mode**: The connector writes equality deletes — it does not perform copy-on-write
+rewrites. Tables configured with `write.delete.mode=copy-on-write` will still receive equality delete files from
+the connector, and compaction will be the only path to resolving them into rewritten data files. Set
+`write.delete.mode=merge-on-read`for CDC workloads.
+
+**Compaction is required**: For production CDC workloads, periodic compaction is essential to maintain
+query performance. Compaction merges equality deletes with their corresponding data files, reducing
+the number of delete files that need to be processed during reads.
+
+**Table partitioning**: Proper partitioning significantly reduces the scan overhead of equality deletes.
+When a table is partitioned, equality deletes only need to be applied to data files within the same
+partition. Choose partition columns that align with your CDC data patterns (e.g., date columns for
+time-series data).
+
+**Identifier column selection**: The identifier columns define which rows are matched for updates and
+deletes. These should be:
+
+* Unique or form a composite unique key for the data
+* Not nullable — null values in identifier columns will cause incorrect delete behavior
+* Included in the table's partition spec when possible to limit delete scope
+
+**Commit interval tuning**: Longer commit intervals (`iceberg.control.commit.interval-ms`) group
+more records per batch, increasing within-batch deduplication via position deletes and reducing
+the number of equality delete files written across batches.
+
+**Kafka partition routing**: In multi-task deployments, records for the same key must route to the
+same Kafka partition. Use a key-based partitioner in your source connector to ensure that updates and deletes for
+a given key are processed by the same sink task. Note that increasing `tasks.max` only helps if the source topic
+has enough partitions to distribute across tasks — if all keys for a table land in a single Kafka partition, only
+one task will process that table's records.
+
+**Monitor delete file accumulation**: Track the number and size of equality delete files per
+partition. A growing ratio of delete files to data files indicates compaction is falling behind, which degrades
+read performance. Most Iceberg catalogs expose snapshot-level metadata that can be queried to monitor this.
+
+#### Compaction
+
+Run compaction when the ratio of delete files to data files exceeds a threshold (e.g., `delete-file-threshold` of
+10), or on a time-based interval aligned with your commit frequency.
+This can be done using Spark:
+
+```sql
+-- Run compaction on the table
+CALL catalog_name.system.rewrite_data_files('db.events')
+
+-- Compaction with specific options
+CALL catalog_name.system.rewrite_data_files(
+  table => 'db.events',
+  options => map('delete-file-threshold', '10')
+)
+
+-- Consolidate small delete files after compaction
+CALL catalog_name.system.rewrite_deletes('db.events')
+```
+
+Or using the Iceberg Actions API:
+
+```java
+SparkActions.get(spark)
+    .rewriteDataFiles(table)
+    .option("delete-file-threshold", "10")
+    .execute();
+```
+
+For automated compaction, consider scheduling these operations via a workflow orchestrator or
+using managed Iceberg services that provide automatic compaction.
+
+#### Create the destination table
+See above for creating the table
+
+#### Connector config
+```json
+{
+"name": "events-sink",
+"config": {
+    "connector.class": "org.apache.iceberg.connect.IcebergSinkConnector",
+    "tasks.max": "2",
+    "topics": "events",
+    "iceberg.tables": "default.events",
+    "iceberg.tables.cdc-field": "_cdc_op",
+    "iceberg.catalog.type": "rest",
+    "iceberg.catalog.uri": "https://localhost",
+    "iceberg.catalog.credential": "<credential>",
+    "iceberg.catalog.warehouse": "<warehouse name>"
+    }
+}
+```
+
 ## SMTs for the Apache Iceberg Sink Connector
 
 This project contains some SMTs that could be useful when transforming Kafka data for use by
@@ -462,10 +595,10 @@ Example json:
 Will become the following if `json.root` is true:
 
 ```
-SinkRecord.schema: 
+SinkRecord.schema:
   "payload" : (Optional) Map<String, String>
   
-Sinkrecord.value (Struct): 
+Sinkrecord.value (Struct):
   "payload"  : Map(
     "key" : "1",
     "array" : "[1,"two",3]"
@@ -477,15 +610,15 @@ Sinkrecord.value (Struct):
 Will become the following if `json.root` is false
 
 ```
-SinkRecord.schema: 
+SinkRecord.schema:
   "key": (Optional) Int32,
   "array": (Optional) Array<String>,
   "nested_object": (Optional) Map<string, String>
   
 SinkRecord.value (Struct):
-  "key" 1, 
-  "array" ["1", "two", "3"] 
-  "nested_object" Map ("some_key" : "["one", "two"]") 
+  "key" 1,
+  "array" ["1", "two", "3"]
+  "nested_object" Map ("some_key" : "["one", "two"]")
 ```
 
 ### KafkaMetadataTransform
