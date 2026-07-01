@@ -117,25 +117,34 @@ abstract class Channel {
   protected abstract boolean receive(Envelope envelope);
 
   protected void consumeAvailable(Duration pollDuration) {
-    ConsumerRecords<String, byte[]> records = consumer.poll(pollDuration);
-    while (!records.isEmpty()) {
-      records.forEach(
-          record -> {
-            // the consumer stores the offsets that corresponds to the next record to consume,
-            // so increment the record offset by one
-            controlTopicOffsets.put(record.partition(), record.offset() + 1);
+    long start = System.currentTimeMillis();
+    try {
+      ConsumerRecords<String, byte[]> records = consumer.poll(pollDuration);
+      while (!records.isEmpty()) {
+        records.forEach(
+            record -> {
+              // the consumer stores the offsets that corresponds to the next record to consume,
+              // so increment the record offset by one
+              controlTopicOffsets.put(record.partition(), record.offset() + 1);
 
-            Event event = AvroUtil.decode(record.value());
+              Event event = AvroUtil.decode(record.value());
 
-            if (event.groupId().equals(connectGroupId)) {
-              LOG.debug("Received event of type: {}", event.type().name());
-              if (receive(new Envelope(event, record.partition(), record.offset()))) {
-                LOG.info("Handled event of type: {}", event.type().name());
+              if (event.groupId().equals(connectGroupId)) {
+                LOG.debug("Received event of type: {}", event.type().name());
+                if (receive(new Envelope(event, record.partition(), record.offset()))) {
+                  LOG.info("Handled event of type: {}", event.type().name());
+                }
               }
-            }
-          });
-      records = consumer.poll(pollDuration);
+            });
+        records = consumer.poll(pollDuration);
+      }
+    } finally {
+      recordConsumeTime(System.currentTimeMillis() - start);
     }
+  }
+
+  protected void recordConsumeTime(long elapsedMs) {
+    // default no-op; subclasses override to forward to their metrics
   }
 
   protected Map<Integer, Long> controlTopicOffsets() {

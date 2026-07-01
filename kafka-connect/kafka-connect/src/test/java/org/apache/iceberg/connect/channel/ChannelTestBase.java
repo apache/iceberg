@@ -102,6 +102,8 @@ public class ChannelTestBase {
     when(config.commitThreads()).thenReturn(1);
     when(config.connectGroupId()).thenReturn(CONNECT_CONSUMER_GROUP_ID);
     when(config.tableConfig(any())).thenReturn(mock(TableSinkConfig.class));
+    when(config.connectorName()).thenReturn("test-connector");
+    when(config.taskId()).thenReturn("0");
 
     TopicPartitionInfo partitionInfo = mock(TopicPartitionInfo.class);
     when(partitionInfo.partition()).thenReturn(0);

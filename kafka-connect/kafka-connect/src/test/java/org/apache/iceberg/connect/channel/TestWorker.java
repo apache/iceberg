@@ -113,4 +113,24 @@ public class TestWorker extends ChannelTestBase {
       assertThat(dataComplete.assignments().get(0).offset()).isEqualTo(1L);
     }
   }
+
+  @Test
+  public void testWorkerRegistersJmxMetrics() throws Exception {
+    when(config.connectorName()).thenReturn("jmx-test-connector");
+    when(config.taskId()).thenReturn("3");
+
+    SinkTaskContext taskContext = mock(SinkTaskContext.class);
+    Worker worker = new Worker(config, clientFactory, mock(SinkWriter.class), taskContext);
+    try {
+      javax.management.MBeanServer server =
+          java.lang.management.ManagementFactory.getPlatformMBeanServer();
+      javax.management.ObjectName name =
+          new javax.management.ObjectName(
+              "iceberg-kafka-connect-metrics:type=worker-metrics,"
+                  + "connector=jmx-test-connector,task=jmx-test-connector-3");
+      assertThat(server.queryNames(name, null)).isNotEmpty();
+    } finally {
+      worker.stop();
+    }
+  }
 }
