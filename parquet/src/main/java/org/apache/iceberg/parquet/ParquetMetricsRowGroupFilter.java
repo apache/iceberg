@@ -28,6 +28,7 @@ import java.util.stream.Collectors;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.Binder;
 import org.apache.iceberg.expressions.Bound;
+import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.BoundReference;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ExpressionVisitors;
@@ -37,6 +38,7 @@ import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.BinaryUtil;
 import org.apache.parquet.column.statistics.Statistics;
@@ -51,6 +53,7 @@ public class ParquetMetricsRowGroupFilter {
 
   private final Schema schema;
   private final Expression expr;
+  private final Map<Integer, Object> initialDefaults;
 
   public ParquetMetricsRowGroupFilter(Schema schema, Expression unbound) {
     this(schema, unbound, true);
@@ -60,6 +63,12 @@ public class ParquetMetricsRowGroupFilter {
     this.schema = schema;
     StructType struct = schema.asStruct();
     this.expr = Binder.bind(struct, Expressions.rewriteNot(unbound), caseSensitive);
+    this.initialDefaults = Maps.newHashMap();
+    for (Types.NestedField field : schema.columns()) {
+      if (field.initialDefault() != null) {
+        initialDefaults.put(field.fieldId(), field.initialDefault());
+      }
+    }
   }
 
   /**
@@ -127,6 +136,22 @@ public class ParquetMetricsRowGroupFilter {
     @Override
     public Boolean or(Boolean leftResult, Boolean rightResult) {
       return leftResult || rightResult;
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public <T> Boolean predicate(BoundPredicate<T> pred) {
+      // a column absent from the file reads as its initial-default, so evaluate the predicate
+      // against that default
+      if (pred.term() instanceof BoundReference) {
+        int id = ((BoundReference<T>) pred.term()).fieldId();
+        Object initialDefault = initialDefaults.get(id);
+        if (initialDefault != null && !valueCounts.containsKey(id)) {
+          return pred.test((T) initialDefault) ? ROWS_MIGHT_MATCH : ROWS_CANNOT_MATCH;
+        }
+      }
+
+      return super.predicate(pred);
     }
 
     @Override
