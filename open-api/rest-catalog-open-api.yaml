@@ -2451,6 +2451,9 @@ components:
           $ref: "#/components/schemas/PrimitiveTypeValue"
         write-default:
           $ref: "#/components/schemas/PrimitiveTypeValue"
+        collation:
+          type: string
+          description: Provider-qualified collation for a string field, e.g. icu.en_US-ci; absent means UTF-8 byte order
 
     StructType:
       type: object
