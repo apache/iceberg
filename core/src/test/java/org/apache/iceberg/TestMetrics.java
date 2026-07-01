@@ -326,7 +326,7 @@ public abstract class TestMetrics {
             MetricsModes.None.get().toString(),
             TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "nestedStructCol.longCol",
             MetricsModes.Full.get().toString());
-    MetricsConfig config = MetricsConfig.fromProperties(properties);
+    MetricsConfig config = MetricsConfig.from(properties, NESTED_SCHEMA, null);
 
     Metrics metrics = getMetrics(NESTED_SCHEMA, config, buildNestedTestRecord());
     MetricsWithStats metricsWithStats =
@@ -590,7 +590,8 @@ public abstract class TestMetrics {
     Metrics metrics =
         getMetrics(
             NESTED_SCHEMA,
-            MetricsConfig.fromProperties(ImmutableMap.of("write.metadata.metrics.default", "none")),
+            MetricsConfig.from(
+                ImmutableMap.of("write.metadata.metrics.default", "none"), NESTED_SCHEMA, null),
             buildNestedTestRecord());
     MetricsWithStats metricsWithStats =
         new MetricsWithStats(metrics, MetricsUtil.fromMetrics(NESTED_SCHEMA, metrics));
@@ -613,8 +614,8 @@ public abstract class TestMetrics {
     Metrics metrics =
         getMetrics(
             NESTED_SCHEMA,
-            MetricsConfig.fromProperties(
-                ImmutableMap.of("write.metadata.metrics.default", "counts")),
+            MetricsConfig.from(
+                ImmutableMap.of("write.metadata.metrics.default", "counts"), NESTED_SCHEMA, null),
             buildNestedTestRecord());
     MetricsWithStats metricsWithStats =
         new MetricsWithStats(metrics, MetricsUtil.fromMetrics(NESTED_SCHEMA, metrics));
@@ -638,7 +639,8 @@ public abstract class TestMetrics {
     Metrics metrics =
         getMetrics(
             NESTED_SCHEMA,
-            MetricsConfig.fromProperties(ImmutableMap.of("write.metadata.metrics.default", "full")),
+            MetricsConfig.from(
+                ImmutableMap.of("write.metadata.metrics.default", "full"), NESTED_SCHEMA, null),
             buildNestedTestRecord());
     MetricsWithStats metricsWithStats =
         new MetricsWithStats(metrics, MetricsUtil.fromMetrics(NESTED_SCHEMA, metrics));
@@ -675,8 +677,10 @@ public abstract class TestMetrics {
     Metrics metrics =
         getMetrics(
             singleStringColSchema,
-            MetricsConfig.fromProperties(
-                ImmutableMap.of("write.metadata.metrics.default", "truncate(10)")),
+            MetricsConfig.from(
+                ImmutableMap.of("write.metadata.metrics.default", "truncate(10)"),
+                singleStringColSchema,
+                null),
             record);
     MetricsWithStats metricsWithStats =
         new MetricsWithStats(metrics, MetricsUtil.fromMetrics(singleStringColSchema, metrics));
@@ -702,8 +706,10 @@ public abstract class TestMetrics {
     Metrics metrics =
         getMetrics(
             singleBinaryColSchema,
-            MetricsConfig.fromProperties(
-                ImmutableMap.of("write.metadata.metrics.default", "truncate(5)")),
+            MetricsConfig.from(
+                ImmutableMap.of("write.metadata.metrics.default", "truncate(5)"),
+                singleBinaryColSchema,
+                null),
             record);
     MetricsWithStats metricsWithStats =
         new MetricsWithStats(metrics, MetricsUtil.fromMetrics(singleBinaryColSchema, metrics));
