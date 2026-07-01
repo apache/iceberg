@@ -47,15 +47,17 @@ subprojects {
         from sourceSets.test.output
       }
 
+      def sourceArtifactTask = tasks.findByName('shadowSourceJar') ?: sourceJar
+
       artifacts {
-        archives sourceJar
+        archives sourceArtifactTask
         archives javadocJar
         archives testJar
         testArtifacts testJar
       }
 
       // add LICENSE and NOTICE
-      [jar, sourceJar, javadocJar, testJar].each { task ->
+      [jar, sourceArtifactTask, javadocJar, testJar].each { task ->
         task.dependsOn rootProject.tasks.buildInfo
         task.from("${rootDir}/build") {
           include 'iceberg-build.properties'
@@ -81,8 +83,12 @@ subprojects {
             } else {
               project.shadow.component(it)
             }
+            if (tasks.matching({task -> task.name == 'shadowSourceJar'}).isEmpty()) {
+                artifact sourceJar
+            } else {
+                artifact shadowSourceJar
+            }
 
-            artifact sourceJar
             artifact javadocJar
             artifact testJar
 
