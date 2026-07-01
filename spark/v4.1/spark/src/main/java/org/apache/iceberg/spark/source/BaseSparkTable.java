@@ -38,6 +38,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.connector.catalog.CatalogV2Util;
+import org.apache.spark.sql.connector.catalog.Column;
 import org.apache.spark.sql.connector.catalog.MetadataColumn;
 import org.apache.spark.sql.connector.catalog.SupportsMetadataColumns;
 import org.apache.spark.sql.connector.expressions.Transform;
@@ -66,6 +68,7 @@ abstract class BaseSparkTable
 
   private SparkSession lazySpark = null;
   private StructType lazySparkSchema = null;
+  private Column[] lazySparkColumns = null;
 
   protected BaseSparkTable(Table table, Schema schema) {
     this.table = table;
@@ -88,11 +91,29 @@ abstract class BaseSparkTable
     return table.toString();
   }
 
+  /**
+   * @deprecated since 1.12.0, use {@link #columns()} instead
+   */
+  @Deprecated
   @Override
   public StructType schema() {
+    return sparkSchema();
+  }
+
+  @Override
+  public Column[] columns() {
+    if (lazySparkColumns == null) {
+      this.lazySparkColumns = CatalogV2Util.structTypeToV2Columns(sparkSchema());
+    }
+
+    return lazySparkColumns;
+  }
+
+  private StructType sparkSchema() {
     if (lazySparkSchema == null) {
       this.lazySparkSchema = SparkSchemaUtil.convert(schema);
     }
+
     return lazySparkSchema;
   }
 
