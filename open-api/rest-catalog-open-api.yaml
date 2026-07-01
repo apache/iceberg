@@ -1053,11 +1053,11 @@ paths:
         key. For example, "urn:ietf:params:oauth:token-type:jwt=<JWT-token>".
 
 
-        The response may include a read-restrictions field. A client should support this field;
-        if it does, it must fail any read against the loaded table when it cannot apply a returned
-        restriction. This includes unrecognized action or expression types, and actions whose
-        definition cannot be loaded, parsed, or evaluated. These restrictions apply to every read
-        performed using this response (including subsequent planTableScan and fetchScanTasks
+        The response may include a read-restrictions field. A reader that supports read
+        restrictions must fail any read against the loaded table that cannot apply a returned
+        restriction in full. This includes unrecognized action or expression types, and actions
+        whose definition cannot be loaded, parsed, or evaluated. These restrictions apply to every
+        read performed using this response (including subsequent planTableScan and fetchScanTasks
         calls), only to the authenticated principal associated with the request, and must not be
         interpreted as global policy.
       parameters:
@@ -3686,7 +3686,7 @@ components:
 
           If a projection targets a nested-typed field (struct, list, or map),
           other projections in the same ReadRestrictions must not target any
-          descendant field-id (struct subfields, list elements, or map keys/values)
+          nested field-id (struct subfields, list elements, or map keys/values)
           at any depth. This avoids ambiguity about which action governs a given
           leaf value.
 
@@ -3725,7 +3725,9 @@ components:
               example, if the action for field-id `9` is mask-alphanum, the reader must
               return the masked value as field-id `9` in the query output.
 
-            3. A column must appear at most once in required-column-projections.
+            3. A server must not return more than one projection for the same field-id
+              in required-column-projections. If a duplicate field-id appears, the reader
+              must fail the query.
 
             4. A projection must not target a map's key field-id. Applying an action
               to keys can produce duplicate or null keys, which readers silently
@@ -3828,6 +3830,9 @@ components:
         NULL input is also replaced with the type-specific fixed value; NULL is not preserved.
 
         Applicable to: all data types except unknown, geometry, and geography.
+        Because those three types have no fixed value defined above, a catalog server
+        must not return mask-to-fixed-value for a struct, list, or map that contains a
+        field of type unknown, geometry, or geography at any nesting depth.
       allOf:
         - $ref: '#/components/schemas/Action'
       properties:

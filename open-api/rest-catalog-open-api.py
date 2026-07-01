@@ -623,7 +623,7 @@ class MaskToFixedValue(Action):
     Replaces the column value with a type-specific fixed value. Readers must use exactly the values listed below to ensure consistency across implementations.
     Fixed values by type: - boolean: false - int: 0 - long: 0 - float: 0.0 - double: 0.0 - decimal(p, s): 0 (the unscaled value is 0) - string: "XXXXXXXX" - date: 1970-01-01 - time: 00:00:00 - timestamp: 1970-01-01T00:00:00 - timestamptz: 1970-01-01T00:00:00+00:00 - timestamp_ns: 1970-01-01T00:00:00.000000000 - timestamptz_ns: 1970-01-01T00:00:00.000000000+00:00 - uuid: 00000000-0000-0000-0000-000000000000 - fixed(n): n zero bytes - binary: empty byte sequence - variant: {} - list: empty list [] - map: empty map {} - struct: struct with each field set to its type-specific default (applied recursively)
     NULL input is also replaced with the type-specific fixed value; NULL is not preserved.
-    Applicable to: all data types except unknown, geometry, and geography.
+    Applicable to: all data types except unknown, geometry, and geography. Because those three types have no fixed value defined above, a catalog server must not return mask-to-fixed-value for a struct, list, or map that contains a field of type unknown, geometry, or geography at any nesting depth.
 
     """
 
@@ -1678,7 +1678,7 @@ class ReadRestrictions(BaseModel):
     """
     Read restrictions for a table.
     A reader evaluates the row filter against original, untransformed column values, then applies required-column-projections to the surviving rows. Each action must produce a value of the same type as the input column. If a reader cannot apply any returned restriction (a filter expression or an action), it must fail the query and must not silently return raw, partial, or empty results.
-    If a projection targets a nested-typed field (struct, list, or map), other projections in the same ReadRestrictions must not target any descendant field-id (struct subfields, list elements, or map keys/values) at any depth. This avoids ambiguity about which action governs a given leaf value.
+    If a projection targets a nested-typed field (struct, list, or map), other projections in the same ReadRestrictions must not target any nested field-id (struct subfields, list elements, or map keys/values) at any depth. This avoids ambiguity about which action governs a given leaf value.
     An empty ReadRestrictions object (no required-column-projections and no required-row-filter) imposes no restrictions and is equivalent to the field being absent from the response.
 
     """
@@ -1699,7 +1699,7 @@ class ReadRestrictions(BaseModel):
     ) = Field(
         None,
         alias='required-column-projections',
-        description='A list of columns that require specific actions to be applied when reading. A server must not return an action for a column whose type is not listed in that action\'s "Applicable to" set. If absent or empty, no required actions apply; columns not listed are not subject to any required action.\n1. For each column listed, the reader must apply the specified action before\n  returning values for that column.\n\n2. The reader must replace all output references to the column with the result\n  of the action, presenting the result under the original field-id. For\n  example, if the action for field-id `9` is mask-alphanum, the reader must\n  return the masked value as field-id `9` in the query output.\n\n3. A column must appear at most once in required-column-projections.\n4. A projection must not target a map\'s key field-id. Applying an action\n  to keys can produce duplicate or null keys, which readers silently\n  coalesce or reject, causing data loss.\n',
+        description='A list of columns that require specific actions to be applied when reading. A server must not return an action for a column whose type is not listed in that action\'s "Applicable to" set. If absent or empty, no required actions apply; columns not listed are not subject to any required action.\n1. For each column listed, the reader must apply the specified action before\n  returning values for that column.\n\n2. The reader must replace all output references to the column with the result\n  of the action, presenting the result under the original field-id. For\n  example, if the action for field-id `9` is mask-alphanum, the reader must\n  return the masked value as field-id `9` in the query output.\n\n3. A server must not return more than one projection for the same field-id\n  in required-column-projections. If a duplicate field-id appears, the reader\n  must fail the query.\n\n4. A projection must not target a map\'s key field-id. Applying an action\n  to keys can produce duplicate or null keys, which readers silently\n  coalesce or reject, causing data loss.\n',
     )
     required_row_filter: Expression | None = Field(
         None,
