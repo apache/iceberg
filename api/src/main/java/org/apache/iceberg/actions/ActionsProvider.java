@@ -94,4 +94,12 @@ public interface ActionsProvider {
     throw new UnsupportedOperationException(
         this.getClass().getName() + " does not implement removeDanglingDeleteFiles");
   }
+
+  /**
+   * Instantiates an action to validate that a rewritten table copy is complete at the destination.
+   */
+  default ValidateRewriteTablePath validateRewriteTablePath(Table sourceTable) {
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " does not implement validateRewriteTablePath");
+  }
 }
