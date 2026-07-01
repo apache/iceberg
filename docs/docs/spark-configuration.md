@@ -196,6 +196,7 @@ val spark = SparkSession.builder()
 | spark.sql.iceberg.compression-codec                    | Table default                                                  | Write compression codec (e.g., `zstd`, `snappy`)                                                                                |
 | spark.sql.iceberg.compression-level                    | Table default                                                  | Compression level for Parquet/Avro                                                                                              |
 | spark.sql.iceberg.compression-strategy                 | Table default                                                  | Compression strategy for ORC                                                                                                    |
+| spark.sql.iceberg.parquet-format-version               | Table default                                                  | Parquet writer format version for writes (v1 or v2)                                                                               |
 | spark.sql.iceberg.data-planning-mode                   | AUTO                                                           | Scan planning mode for data files (`AUTO`, `LOCAL`, `DISTRIBUTED`)                                                              |
 | spark.sql.iceberg.delete-planning-mode                 | AUTO                                                           | Scan planning mode for delete files (`AUTO`, `LOCAL`, `DISTRIBUTED`)                                                            |
 | spark.sql.iceberg.advisory-partition-size              | Table default                                                  | Advisory size (bytes) used for writing to the Table when Spark's Adaptive Query Execution is enabled. Used to size output files |
@@ -266,6 +267,7 @@ df.writeTo("catalog.db.table")
 | compression-strategy   | Table write.orc.compression-strategy       | Overrides this table's compression strategy for ORC tables for this write |
 | distribution-mode | See [Spark Writes](spark-writes.md#writing-distribution-modes) for defaults | Override this table's distribution mode for this write |
 | delete-granularity | file | Override this table's delete granularity for this write |
+| parquet-format-version | Table write.parquet.format-version | Overrides this table's Parquet writer format version for this write (v1 or v2) |
 | shred-variants | false | Overrides this table's write.parquet.shred-variants for this write |
 | variant-inference-buffer-size | 100 | Overrides this table's write.parquet.variant-inference-buffer-size for this write |
 

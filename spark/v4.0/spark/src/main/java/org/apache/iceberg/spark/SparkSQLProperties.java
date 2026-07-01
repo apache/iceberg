@@ -128,4 +128,6 @@ public class SparkSQLProperties {
   // This determines how many rows are buffered before inferring shredded schema
   public static final String VARIANT_INFERENCE_BUFFER_SIZE =
       "spark.sql.iceberg.variant-inference-buffer-size";
+
+  public static final String PARQUET_FORMAT_VERSION = "spark.sql.iceberg.parquet-format-version";
 }

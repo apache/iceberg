@@ -262,4 +262,13 @@ public class FlinkWriteConf {
         .flinkConfig(FlinkWriteOptions.TABLE_REFRESH_INTERVAL)
         .parseOptional();
   }
+
+  public String parquetFormatVersion() {
+    return confParser
+        .stringConf()
+        .option(FlinkWriteOptions.PARQUET_FORMAT_VERSION.key())
+        .tableProperty(TableProperties.PARQUET_FORMAT_VERSION)
+        .defaultValue(TableProperties.PARQUET_FORMAT_VERSION_DEFAULT)
+        .parse();
+  }
 }

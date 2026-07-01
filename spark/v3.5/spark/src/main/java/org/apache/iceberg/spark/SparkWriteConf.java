@@ -29,10 +29,12 @@ import static org.apache.iceberg.TableProperties.DELETE_ORC_COMPRESSION;
 import static org.apache.iceberg.TableProperties.DELETE_ORC_COMPRESSION_STRATEGY;
 import static org.apache.iceberg.TableProperties.DELETE_PARQUET_COMPRESSION;
 import static org.apache.iceberg.TableProperties.DELETE_PARQUET_COMPRESSION_LEVEL;
+import static org.apache.iceberg.TableProperties.DELETE_PARQUET_FORMAT_VERSION;
 import static org.apache.iceberg.TableProperties.ORC_COMPRESSION;
 import static org.apache.iceberg.TableProperties.ORC_COMPRESSION_STRATEGY;
 import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION;
 import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION_LEVEL;
+import static org.apache.iceberg.TableProperties.PARQUET_FORMAT_VERSION;
 import static org.apache.spark.sql.connector.write.RowLevelOperation.Command.DELETE;
 
 import java.util.Locale;
@@ -525,6 +527,7 @@ public class SparkWriteConf {
         if (parquetCompressionLevel != null) {
           writeProperties.put(PARQUET_COMPRESSION_LEVEL, parquetCompressionLevel);
         }
+        writeProperties.put(PARQUET_FORMAT_VERSION, parquetFormatVersion());
         break;
 
       case AVRO:
@@ -558,6 +561,7 @@ public class SparkWriteConf {
         if (deleteParquetCompressionLevel != null) {
           writeProperties.put(DELETE_PARQUET_COMPRESSION_LEVEL, deleteParquetCompressionLevel);
         }
+        writeProperties.put(DELETE_PARQUET_FORMAT_VERSION, deleteParquetFormatVersion());
         break;
 
       case AVRO:
@@ -743,6 +747,26 @@ public class SparkWriteConf {
         .option(SparkWriteOptions.DELETE_GRANULARITY)
         .tableProperty(TableProperties.DELETE_GRANULARITY)
         .defaultValue(DeleteGranularity.FILE)
+        .parse();
+  }
+
+  private String parquetFormatVersion() {
+    return confParser
+        .stringConf()
+        .option(SparkWriteOptions.PARQUET_FORMAT_VERSION)
+        .sessionConf(SparkSQLProperties.PARQUET_FORMAT_VERSION)
+        .tableProperty(TableProperties.PARQUET_FORMAT_VERSION)
+        .defaultValue(TableProperties.PARQUET_FORMAT_VERSION_DEFAULT)
+        .parse();
+  }
+
+  private String deleteParquetFormatVersion() {
+    return confParser
+        .stringConf()
+        .option(SparkWriteOptions.PARQUET_FORMAT_VERSION)
+        .sessionConf(SparkSQLProperties.PARQUET_FORMAT_VERSION)
+        .tableProperty(TableProperties.DELETE_PARQUET_FORMAT_VERSION)
+        .defaultValue(parquetFormatVersion())
         .parse();
   }
 }

@@ -48,7 +48,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-class TestParquetPageVersion {
+class TestParquetFormatVersion {
   private static final Schema SCHEMA =
       new Schema(
           Types.NestedField.required(1, "id", Types.LongType.get()),
@@ -72,7 +72,7 @@ class TestParquetPageVersion {
   }
 
   @Test
-  void testWriterDefaultsToPageVersion1() throws IOException {
+  void testWriterDefaultsToFormatVersion1() throws IOException {
     OutputFile outputFile = newOutputFile();
 
     try (FileAppender<Record> writer =
@@ -87,13 +87,13 @@ class TestParquetPageVersion {
   }
 
   @Test
-  void testWriterUsesConfiguredPageVersion() throws IOException {
+  void testWriterUsesConfiguredFormatVersion() throws IOException {
     OutputFile outputFile = newOutputFile();
 
     try (FileAppender<Record> writer =
         Parquet.write(outputFile)
             .schema(SCHEMA)
-            .set(TableProperties.PARQUET_PAGE_VERSION, "v2")
+            .set(TableProperties.PARQUET_FORMAT_VERSION, "v2")
             .createWriterFunc(GenericParquetWriter::create)
             .build()) {
       writer.addAll(records);
@@ -103,13 +103,14 @@ class TestParquetPageVersion {
   }
 
   @Test
-  void testDeleteWriterUsesConfiguredPageVersion() throws IOException {
+  void testDeleteWriterUsesDeleteSpecificFormatVersion() throws IOException {
     OutputFile outputFile = newOutputFile();
 
     EqualityDeleteWriter<Record> deleteWriter =
         Parquet.writeDeletes(outputFile)
             .createWriterFunc(GenericParquetWriter::create)
-            .set(TableProperties.PARQUET_PAGE_VERSION, "v2")
+            .set(TableProperties.PARQUET_FORMAT_VERSION, "v1")
+            .set(TableProperties.DELETE_PARQUET_FORMAT_VERSION, "v2")
             .overwrite()
             .rowSchema(SCHEMA)
             .withSpec(PartitionSpec.unpartitioned())
@@ -124,36 +125,14 @@ class TestParquetPageVersion {
   }
 
   @Test
-  void testDeleteWriterUsesDeleteSpecificPageVersion() throws IOException {
-    OutputFile outputFile = newOutputFile();
-
-    EqualityDeleteWriter<Record> deleteWriter =
-        Parquet.writeDeletes(outputFile)
-            .createWriterFunc(GenericParquetWriter::create)
-            .set(TableProperties.PARQUET_PAGE_VERSION, "v1")
-            .set(TableProperties.DELETE_PARQUET_PAGE_VERSION, "v2")
-            .overwrite()
-            .rowSchema(SCHEMA)
-            .withSpec(PartitionSpec.unpartitioned())
-            .equalityFieldIds(1)
-            .buildEqualityWriter();
-
-    try (EqualityDeleteWriter<Record> writer = deleteWriter) {
-      writer.write(records);
-    }
-
-    assertThat(firstDataPage(outputFile)).isInstanceOf(DataPageV2.class);
-  }
-
-  @Test
-  void testExplicitWriterVersion2OverridesPageVersionProperty() throws IOException {
+  void testFormatVersionOverridesPageVersionProperty() throws IOException {
     OutputFile outputFile = newOutputFile();
 
     try (FileAppender<Record> writer =
         Parquet.write(outputFile)
             .schema(SCHEMA)
             .set(TableProperties.PARQUET_PAGE_VERSION, "v1")
-            .writerVersion(WriterVersion.PARQUET_2_0)
+            .set(TableProperties.PARQUET_FORMAT_VERSION, "v2")
             .createWriterFunc(GenericParquetWriter::create)
             .build()) {
       writer.addAll(records);
@@ -163,89 +142,76 @@ class TestParquetPageVersion {
   }
 
   @Test
-  void testExplicitWriterVersion1OverridesPageVersionProperty() throws IOException {
-    OutputFile outputFile = newOutputFile();
-
-    try (FileAppender<Record> writer =
-        Parquet.write(outputFile)
-            .schema(SCHEMA)
-            .set(TableProperties.PARQUET_PAGE_VERSION, "v2")
-            .writerVersion(WriterVersion.PARQUET_1_0)
-            .createWriterFunc(GenericParquetWriter::create)
-            .build()) {
-      writer.addAll(records);
-    }
-
-    assertThat(firstDataPage(outputFile)).isInstanceOf(DataPageV1.class);
-  }
-
-  @Test
-  void testPageVersionDoesNotOverrideWriterVersionFormatVersion() throws IOException {
+  void testFormatVersionPropertyAfterWriterVersionSetsVersion() throws IOException {
     OutputFile outputFile = newOutputFile();
 
     try (FileAppender<Record> writer =
         Parquet.write(outputFile)
             .schema(SCHEMA)
             .writerVersion(WriterVersion.PARQUET_1_0)
-            .set(TableProperties.PARQUET_PAGE_VERSION, "v2")
+            .set(TableProperties.PARQUET_FORMAT_VERSION, "v2")
             .createWriterFunc(GenericParquetWriter::create)
             .build()) {
       writer.addAll(records);
     }
 
-    assertThat(firstDataPage(outputFile)).isInstanceOf(DataPageV1.class);
+    assertThat(firstDataPage(outputFile)).isInstanceOf(DataPageV2.class);
   }
 
   @Test
-  void testInvalidNumericPageVersionFails() throws IOException {
+  void testInvalidNumericFormatVersionFails() {
     OutputFile outputFile = newOutputFile();
 
     assertThatThrownBy(
             () ->
                 Parquet.write(outputFile)
                     .schema(SCHEMA)
-                    .set(TableProperties.PARQUET_PAGE_VERSION, "2.0")
+                    .set(TableProperties.PARQUET_FORMAT_VERSION, "2.0")
                     .createWriterFunc(GenericParquetWriter::create)
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Unsupported Parquet page version: 2.0 (must be v1 or v2)");
+        .hasMessage("Unsupported Parquet format version: 2.0 (must be v1 or v2)");
   }
 
   @Test
-  void testInvalidPageVersionFails() throws IOException {
+  void testInvalidFormatVersionFails() {
     OutputFile outputFile = newOutputFile();
 
     assertThatThrownBy(
             () ->
                 Parquet.write(outputFile)
                     .schema(SCHEMA)
-                    .set(TableProperties.PARQUET_PAGE_VERSION, "3")
+                    .set(TableProperties.PARQUET_FORMAT_VERSION, "3")
                     .createWriterFunc(GenericParquetWriter::create)
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Unsupported Parquet page version: 3 (must be v1 or v2)");
+        .hasMessage("Unsupported Parquet format version: 3 (must be v1 or v2)");
   }
 
   @Test
-  void testInvalidDeletePageVersionFails() throws IOException {
+  void testInvalidDeleteFormatVersionFails() {
     OutputFile outputFile = newOutputFile();
 
     assertThatThrownBy(
             () ->
                 Parquet.writeDeletes(outputFile)
                     .createWriterFunc(GenericParquetWriter::create)
-                    .set(TableProperties.DELETE_PARQUET_PAGE_VERSION, "3")
+                    .set(TableProperties.DELETE_PARQUET_FORMAT_VERSION, "3")
                     .overwrite()
                     .rowSchema(SCHEMA)
                     .withSpec(PartitionSpec.unpartitioned())
                     .equalityFieldIds(1)
                     .buildEqualityWriter())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Unsupported Parquet page version: 3 (must be v1 or v2)");
+        .hasMessage("Unsupported Parquet format version: 3 (must be v1 or v2)");
   }
 
-  private OutputFile newOutputFile() throws IOException {
-    return Files.localOutput(createTempFile(temp));
+  private OutputFile newOutputFile() {
+    try {
+      return Files.localOutput(createTempFile(temp));
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
   }
 
   private DataPage firstDataPage(OutputFile outputFile) throws IOException {

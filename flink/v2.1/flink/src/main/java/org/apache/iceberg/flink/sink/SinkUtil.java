@@ -24,6 +24,7 @@ import static org.apache.iceberg.TableProperties.ORC_COMPRESSION;
 import static org.apache.iceberg.TableProperties.ORC_COMPRESSION_STRATEGY;
 import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION;
 import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION_LEVEL;
+import static org.apache.iceberg.TableProperties.PARQUET_FORMAT_VERSION;
 import static org.apache.iceberg.TableProperties.PARQUET_SHRED_VARIANTS;
 import static org.apache.iceberg.TableProperties.PARQUET_VARIANT_BUFFER_SIZE;
 
@@ -133,6 +134,7 @@ public class SinkUtil {
         writeProperties.put(PARQUET_SHRED_VARIANTS, String.valueOf(conf.parquetShredVariants()));
         writeProperties.put(
             PARQUET_VARIANT_BUFFER_SIZE, String.valueOf(conf.parquetVariantInferenceBufferSize()));
+        writeProperties.put(PARQUET_FORMAT_VERSION, conf.parquetFormatVersion());
 
         break;
       case AVRO:

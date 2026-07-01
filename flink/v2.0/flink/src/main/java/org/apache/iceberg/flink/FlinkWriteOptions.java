@@ -105,4 +105,7 @@ public class FlinkWriteOptions {
   //  specify the uidSuffix to be used for the underlying IcebergSink
   public static final ConfigOption<String> UID_SUFFIX =
       ConfigOptions.key("uid-suffix").stringType().defaultValue("");
+
+  public static final ConfigOption<String> PARQUET_FORMAT_VERSION =
+      ConfigOptions.key("parquet-format-version").stringType().noDefaultValue();
 }

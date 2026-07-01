@@ -92,4 +92,6 @@ public class SparkWriteOptions {
 
   // Controls the buffer size for variant schema inference during writes
   public static final String VARIANT_INFERENCE_BUFFER_SIZE = "variant-inference-buffer-size";
+
+  public static final String PARQUET_FORMAT_VERSION = "parquet-format-version";
 }
