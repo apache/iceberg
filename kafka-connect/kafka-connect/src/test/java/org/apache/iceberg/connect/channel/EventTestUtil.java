@@ -64,6 +64,10 @@ class EventTestUtil {
   }
 
   static DataFile createDataFile() {
+    return createDataFile("path/to/file.parquet");
+  }
+
+  static DataFile createDataFile(String path) {
     PartitionData data = new PartitionData(SPEC.partitionType());
     data.set(0, 1L);
 
@@ -73,13 +77,17 @@ class EventTestUtil {
         .withFormat(FileFormat.PARQUET)
         .withMetrics(METRICS)
         .withPartition(data)
-        .withPath("path/to/file.parquet")
+        .withPath(path)
         .withSortOrder(ORDER)
         .withSplitOffsets(ImmutableList.of(4L))
         .build();
   }
 
   static DeleteFile createDeleteFile() {
+    return createDeleteFile("path/to/file.parquet");
+  }
+
+  static DeleteFile createDeleteFile(String path) {
     PartitionData data = new PartitionData(SPEC.partitionType());
     data.set(0, 1L);
 
@@ -90,7 +98,7 @@ class EventTestUtil {
         .withFormat(FileFormat.PARQUET)
         .withMetrics(METRICS)
         .withPartition(data)
-        .withPath("path/to/file.parquet")
+        .withPath(path)
         .withSortOrder(ORDER)
         .withSplitOffsets(ImmutableList.of(4L))
         .build();
