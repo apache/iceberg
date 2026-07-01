@@ -198,47 +198,52 @@ public class TestCoordinator extends ChannelTestBase {
     SinkTaskContext context = mock(SinkTaskContext.class);
     Coordinator coordinator =
         new Coordinator(catalog, config, ImmutableList.of(), clientFactory, context);
-    coordinator.start();
+    try {
+      coordinator.start();
 
-    // init consumer after subscribe()
-    initConsumer();
+      // init consumer after subscribe()
+      initConsumer();
 
-    coordinator.process();
+      coordinator.process();
 
-    assertThat(producer.transactionCommitted()).isTrue();
-    assertThat(producer.history()).hasSize(1);
+      assertThat(producer.transactionCommitted()).isTrue();
+      assertThat(producer.history()).hasSize(1);
 
-    byte[] bytes = producer.history().get(0).value();
-    Event commitRequest = AvroUtil.decode(bytes);
-    assertThat(commitRequest.type()).isEqualTo(PayloadType.START_COMMIT);
+      byte[] bytes = producer.history().get(0).value();
+      Event commitRequest = AvroUtil.decode(bytes);
+      assertThat(commitRequest.type()).isEqualTo(PayloadType.START_COMMIT);
 
-    UUID commitId = ((StartCommit) commitRequest.payload()).commitId();
+      UUID commitId = ((StartCommit) commitRequest.payload()).commitId();
 
-    Event commitResponse =
-        new Event(
-            config.connectGroupId(),
-            new DataWritten(
-                StructType.of(),
-                commitId,
-                TableReference.of("catalog", TableIdentifier.of("db", "tbl"), null),
-                dataFiles,
-                deleteFiles));
-    bytes = AvroUtil.encode(commitResponse);
-    consumer.addRecord(new ConsumerRecord<>(CTL_TOPIC_NAME, 0, 1, "key", bytes));
+      Event commitResponse =
+          new Event(
+              config.connectGroupId(),
+              new DataWritten(
+                  StructType.of(),
+                  commitId,
+                  TableReference.of("catalog", TableIdentifier.of("db", "tbl"), null),
+                  dataFiles,
+                  deleteFiles));
+      bytes = AvroUtil.encode(commitResponse);
+      consumer.addRecord(new ConsumerRecord<>(CTL_TOPIC_NAME, 0, 1, "key", bytes));
 
-    Event commitReady =
-        new Event(
-            config.connectGroupId(),
-            new DataComplete(
-                commitId, ImmutableList.of(new TopicPartitionOffset("topic", 1, 1L, ts))));
-    bytes = AvroUtil.encode(commitReady);
-    consumer.addRecord(new ConsumerRecord<>(CTL_TOPIC_NAME, 0, 2, "key", bytes));
+      Event commitReady =
+          new Event(
+              config.connectGroupId(),
+              new DataComplete(
+                  commitId, ImmutableList.of(new TopicPartitionOffset("topic", 1, 1L, ts))));
+      bytes = AvroUtil.encode(commitReady);
+      consumer.addRecord(new ConsumerRecord<>(CTL_TOPIC_NAME, 0, 2, "key", bytes));
 
-    when(config.commitIntervalMs()).thenReturn(0);
+      when(config.commitIntervalMs()).thenReturn(0);
 
-    coordinator.process();
+      coordinator.process();
 
-    return commitId;
+      return commitId;
+    } finally {
+      coordinator.terminate();
+      coordinator.stop();
+    }
   }
 
   @Test
@@ -370,5 +375,26 @@ public class TestCoordinator extends ChannelTestBase {
     table.refresh();
     assertThat(table.snapshots()).hasSize(2);
     assertThat(table.currentSnapshot().summary()).containsEntry(OFFSETS_SNAPSHOT_PROP, "{\"0\":7}");
+  }
+
+  @Test
+  public void testCoordinatorRegistersJmxMetrics() throws Exception {
+    when(config.connectorName()).thenReturn("jmx-coord-connector");
+
+    SinkTaskContext taskContext = mock(SinkTaskContext.class);
+    Coordinator coordinator =
+        new Coordinator(catalog, config, ImmutableList.of(), clientFactory, taskContext);
+    try {
+      javax.management.MBeanServer server =
+          java.lang.management.ManagementFactory.getPlatformMBeanServer();
+      javax.management.ObjectName name =
+          new javax.management.ObjectName(
+              "iceberg-kafka-connect-metrics:type=coordinator-metrics,"
+                  + "connector=jmx-coord-connector");
+      assertThat(server.queryNames(name, null)).isNotEmpty();
+    } finally {
+      coordinator.terminate();
+      coordinator.stop();
+    }
   }
 }
