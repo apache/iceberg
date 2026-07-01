@@ -22,8 +22,8 @@ import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.AssertionsForInterfaceTypes.assertThat;
 
+import java.lang.reflect.Method;
 import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.util.Pair;
@@ -89,62 +89,27 @@ class TestFormatModelRegistry {
   }
 
   @Test
-  void registerDoesNotFailWhenClassThrowsNoClassDefFoundOnInvoke() {
-    assertThatNoException()
-        .isThrownBy(
-            () -> {
-              try {
-                DynMethods.StaticMethod method =
-                    DynMethods.builder("register").impl(ThrowsOnInvoke.class).buildStaticChecked();
-                method.invoke();
-              } catch (NoSuchMethodException
-                  | NoClassDefFoundError
-                  | ExceptionInInitializerError e) {
-                // same catch pattern used in InternalData.registerSupportedFormats and
-                // FormatModelRegistry.registerSupportedFormats
-              }
-            });
+  void registerToleratesMissingClass() {
+    assertThatNoException().isThrownBy(() -> register("org.apache.iceberg.formats.DoesNotExist"));
+    assertThat(FormatModelRegistry.models()).isEmpty();
   }
 
   @Test
-  void registerDoesNotFailWhenClassThrowsInitErrorOnInvoke() {
-    assertThatNoException()
-        .isThrownBy(
-            () -> {
-              try {
-                DynMethods.StaticMethod method =
-                    DynMethods.builder("register")
-                        .impl(ThrowsInitErrorOnInvoke.class)
-                        .buildStaticChecked();
-                method.invoke();
-              } catch (NoSuchMethodException
-                  | NoClassDefFoundError
-                  | ExceptionInInitializerError e) {
-                // same catch pattern used in InternalData.registerSupportedFormats and
-                // FormatModelRegistry.registerSupportedFormats
-              }
-            });
+  void registerToleratesNoClassDefFoundErrorOnInvoke() {
+    assertThatNoException().isThrownBy(() -> register(ThrowsOnInvoke.class.getName()));
+    assertThat(FormatModelRegistry.models()).isEmpty();
   }
 
   @Test
-  void invokeCanThrowNoClassDefFoundError() throws NoSuchMethodException {
-    DynMethods.StaticMethod method =
-        DynMethods.builder("register").impl(ThrowsOnInvoke.class).buildStaticChecked();
-
-    assertThatThrownBy(method::invoke)
-        .isInstanceOf(NoClassDefFoundError.class)
-        .hasMessage("some/missing/TransitiveDependency");
+  void registerToleratesExceptionInInitializerErrorOnInvoke() {
+    assertThatNoException().isThrownBy(() -> register(ThrowsInitErrorOnInvoke.class.getName()));
+    assertThat(FormatModelRegistry.models()).isEmpty();
   }
 
-  @Test
-  void invokeCanThrowExceptionInInitializerError() throws NoSuchMethodException {
-    DynMethods.StaticMethod method =
-        DynMethods.builder("register").impl(ThrowsInitErrorOnInvoke.class).buildStaticChecked();
-
-    assertThatThrownBy(method::invoke)
-        .isInstanceOf(ExceptionInInitializerError.class)
-        .hasCauseInstanceOf(RuntimeException.class)
-        .hasMessage(null);
+  private static void register(String className) throws ReflectiveOperationException {
+    Method register = FormatModelRegistry.class.getDeclaredMethod("register", String.class);
+    register.setAccessible(true);
+    register.invoke(null, className);
   }
 
   public static class ThrowsOnInvoke {
