@@ -90,13 +90,15 @@ public class DebeziumTransform<R extends ConnectRecord<R>> implements Transforma
 
     // create the CDC metadata
     Schema cdcSchema = makeCdcSchema(record.keySchema());
+    Struct source = value.getStruct("source");
     Struct cdcMetadata = new Struct(cdcSchema);
     cdcMetadata.put(CdcConstants.COL_OP, op);
     cdcMetadata.put(CdcConstants.COL_TS, new java.util.Date(value.getInt64("ts_ms")));
+    cdcMetadata.put(CdcConstants.COL_SOURCE_TS, new java.util.Date(source.getInt64("ts_ms")));
     if (record instanceof SinkRecord) {
       cdcMetadata.put(CdcConstants.COL_OFFSET, ((SinkRecord) record).kafkaOffset());
     }
-    setTableAndTargetFromSourceStruct(value.getStruct("source"), cdcMetadata);
+    setTableAndTargetFromSourceStruct(source, cdcMetadata);
 
     if (record.keySchema() != null) {
       cdcMetadata.put(CdcConstants.COL_KEY, record.key());
@@ -143,6 +145,9 @@ public class DebeziumTransform<R extends ConnectRecord<R>> implements Transforma
     Map<String, Object> cdcMetadata = Maps.newHashMap();
     cdcMetadata.put(CdcConstants.COL_OP, op);
     cdcMetadata.put(CdcConstants.COL_TS, value.get("ts_ms"));
+    cdcMetadata.put(
+        CdcConstants.COL_SOURCE_TS,
+        Requirements.requireMap(value.get("source"), "Debezium transform").get("ts_ms"));
     if (record instanceof SinkRecord) {
       cdcMetadata.put(CdcConstants.COL_OFFSET, ((SinkRecord) record).kafkaOffset());
     }
@@ -219,6 +224,7 @@ public class DebeziumTransform<R extends ConnectRecord<R>> implements Transforma
         SchemaBuilder.struct()
             .field(CdcConstants.COL_OP, Schema.STRING_SCHEMA)
             .field(CdcConstants.COL_TS, Timestamp.SCHEMA)
+            .field(CdcConstants.COL_SOURCE_TS, Timestamp.SCHEMA)
             .field(CdcConstants.COL_OFFSET, Schema.OPTIONAL_INT64_SCHEMA)
             .field(CdcConstants.COL_SOURCE, Schema.STRING_SCHEMA)
             .field(CdcConstants.COL_TARGET, Schema.STRING_SCHEMA);

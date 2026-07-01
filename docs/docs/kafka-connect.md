@@ -406,7 +406,9 @@ _(Experimental)_
 
 The `DebeziumTransform` SMT transforms a Debezium formatted message for use by the sink's CDC feature.
 It will promote the `before` or `after` element fields to top level and add the following metadata fields:
-`_cdc.op`, `_cdc.ts`, `_cdc.offset`, `_cdc.source`, `_cdc.target`, and `_cdc.key`.
+`_cdc.op`, `_cdc.ts`, `_cdc.source_ts`, `_cdc.offset`, `_cdc.source`, `_cdc.target`, and `_cdc.key`.
+`_cdc.ts` is set from the timestamp the connector processed the event (`ts_ms`), while `_cdc.source_ts`
+is set from the timestamp the change was made in the source database (`source.ts_ms`).
 
 ##### Configuration
 
