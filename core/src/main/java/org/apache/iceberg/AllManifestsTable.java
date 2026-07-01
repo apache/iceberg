@@ -144,9 +144,14 @@ public class AllManifestsTable extends BaseMetadataTable {
                       filter,
                       snap.snapshotId());
                 } else {
+                  // v4+ snapshots address the manifest tree via a root manifest; legacy snapshots
+                  // without a manifest list (synthetic) fall back to the table metadata file.
+                  String inputLocation =
+                      snap.rootManifestLocation() != null
+                          ? snap.rootManifestLocation()
+                          : ((BaseTable) table()).operations().current().metadataFileLocation();
                   return StaticDataTask.of(
-                      io.newInputFile(
-                          ((BaseTable) table()).operations().current().metadataFileLocation()),
+                      io.newInputFile(inputLocation),
                       MANIFEST_FILE_SCHEMA,
                       schema(),
                       snap.allManifests(io),

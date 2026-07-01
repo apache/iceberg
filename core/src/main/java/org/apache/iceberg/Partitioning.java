@@ -244,6 +244,21 @@ public class Partitioning {
   }
 
   /**
+   * Builds a unified partition type from a schema and a collection of partition specs.
+   *
+   * <p>Behaves identically to {@link #partitionType(Table)} but accepts a schema and specs
+   * directly, for callers without a {@link Table} reference. Throws when the provided specs assign
+   * the same partition field id to incompatible fields.
+   *
+   * @param schema schema used to filter partition fields whose source column is present
+   * @param specs one or many specs
+   * @return the constructed unified partition type
+   */
+  public static StructType partitionType(Schema schema, Collection<PartitionSpec> specs) {
+    return buildPartitionProjectionType("table partition", specs, allActiveFieldIds(schema, specs));
+  }
+
+  /**
    * Checks if any of the specs in a table is partitioned.
    *
    * @param table the table to check.

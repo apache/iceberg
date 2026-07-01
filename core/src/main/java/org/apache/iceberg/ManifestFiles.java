@@ -47,6 +47,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.math.IntMath;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
@@ -154,6 +155,9 @@ public class ManifestFiles {
   /**
    * Returns a new {@link ManifestReader} for a {@link ManifestFile}.
    *
+   * <p>Routes to the v4+ {@code content_entry} reader when {@link ManifestFile#formatVersion()} is
+   * {@link ManifestFile#V4_FORMAT_VERSION} or higher, otherwise to the legacy reader.
+   *
    * @param manifest a {@link ManifestFile}
    * @param io a {@link FileIO}
    * @param specsById a Map from spec ID to partition spec
@@ -175,6 +179,21 @@ public class ManifestFiles {
         manifest);
     InputFile file = newInputFile(io, manifest);
     InheritableMetadata inheritableMetadata = InheritableMetadataFactory.fromManifest(manifest);
+
+    if (manifest.formatVersion() >= ManifestFile.V4_FORMAT_VERSION) {
+      ContentEntryReader reader =
+          ContentEntryReader.forData(
+              file, manifest.partitionSpecId(), specsById, inheritableMetadata);
+      return new ContentEntryManifestReaderAdapter<>(
+          file,
+          manifest.partitionSpecId(),
+          specsById,
+          reader,
+          ManifestContent.DATA,
+          manifest.firstRowId(),
+          isCommitted);
+    }
+
     return new ManifestReader<>(
         file,
         manifest.partitionSpecId(),
@@ -183,6 +202,116 @@ public class ManifestFiles {
         manifest.firstRowId(),
         isCommitted,
         FileType.DATA_FILES);
+  }
+
+  /**
+   * Returns the colocated deletion vectors carried by live data rows in a v4+ leaf data manifest as
+   * {@link DeleteFile} instances. Legacy (pre-v4) manifests are not inspected — the returned
+   * iterable is empty for them.
+   *
+   * <p>Used by scan planning to feed v4+ colocated DVs into the {@link DeleteFileIndex} alongside
+   * delete-manifest contents.
+   */
+  static CloseableIterable<DeleteFile> readColocatedDVs(
+      ManifestFile manifest, FileIO io, Map<Integer, PartitionSpec> specsById) {
+    Preconditions.checkArgument(
+        manifest.content() == ManifestContent.DATA,
+        "Cannot read colocated deletion vectors from a delete manifest: %s",
+        manifest);
+
+    if (manifest.formatVersion() < ManifestFile.V4_FORMAT_VERSION) {
+      return CloseableIterable.empty();
+    }
+
+    InputFile file = newInputFile(io, manifest);
+    InheritableMetadata inheritableMetadata = InheritableMetadataFactory.fromManifest(manifest);
+    ContentEntryReader reader =
+        ContentEntryReader.forData(
+            file, manifest.partitionSpecId(), specsById, inheritableMetadata);
+    CloseableIterable<DeleteFile> dvs = reader.colocatedDVDeleteFiles();
+    // Ownership: the reader registers Parquet read state as closeables. Close it when the iterable
+    // is closed so we don't leak the underlying Parquet row iterator.
+    return CloseableIterable.combine(dvs, reader);
+  }
+
+  /**
+   * Returns colocated DV changes for a v4+ leaf data manifest as {@code (status, DeleteFile)}
+   * pairs: {@link ManifestEntry.Status#ADDED} for newly-live DVs (born-with-DV or DV added/updated)
+   * and {@link ManifestEntry.Status#DELETED} for prior DVs that were superseded (preserved on
+   * REPLACED rows). Legacy (pre-v4) manifests have no colocated DVs and produce an empty iterable.
+   *
+   * <p>Used by {@code SnapshotChanges} and {@code BaseSnapshot} to report v4+ DV changes as
+   * delete-file deltas alongside legacy delete-manifest entries.
+   */
+  static CloseableIterable<Pair<ManifestEntry.Status, DeleteFile>> readColocatedDVChanges(
+      ManifestFile manifest, FileIO io, Map<Integer, PartitionSpec> specsById) {
+    Preconditions.checkArgument(
+        manifest.content() == ManifestContent.DATA,
+        "Cannot read colocated deletion vector changes from a delete manifest: %s",
+        manifest);
+
+    if (manifest.formatVersion() < ManifestFile.V4_FORMAT_VERSION) {
+      return CloseableIterable.empty();
+    }
+
+    InputFile file = newInputFile(io, manifest);
+    InheritableMetadata inheritableMetadata = InheritableMetadataFactory.fromManifest(manifest);
+    ContentEntryReader reader =
+        ContentEntryReader.forData(
+            file, manifest.partitionSpecId(), specsById, inheritableMetadata);
+    CloseableIterable<Pair<ManifestEntry.Status, DeleteFile>> changes = reader.colocatedDVChanges();
+    return CloseableIterable.combine(changes, reader);
+  }
+
+  /**
+   * Returns true if the manifest uses the v4+ {@code content_entry} schema shape (Parquet with the
+   * tracking struct), false for legacy Avro {@code manifest_entry} manifests. Visible for {@link
+   * SnapshotChanges} and {@link BaseSnapshot} to dispatch between v4+-aware and legacy read paths.
+   */
+  static boolean isV4ContentEntryManifest(ManifestFile manifest, FileIO io) {
+    return manifest.formatVersion() >= ManifestFile.V4_FORMAT_VERSION;
+  }
+
+  /**
+   * Returns data-file changes from a v4+ leaf data manifest as {@code (v4+ status, DataFile)}
+   * pairs. Unlike {@link #read(ManifestFile, FileIO, Map)}, which collapses REPLACED → DELETED and
+   * MODIFIED → EXISTING for legacy consumers, this path surfaces the v4+ tracking status directly
+   * so callers can distinguish data-file changes (ADDED, DELETED) from DV-state transitions
+   * (REPLACED, MODIFIED). Returns an empty iterable for legacy (pre-v4) manifests; callers should
+   * dispatch via {@link #isV4ContentEntryManifest(ManifestFile, FileIO)} before invoking.
+   */
+  static CloseableIterable<Pair<ManifestEntry.Status, DataFile>> readDataFileChanges(
+      ManifestFile manifest, FileIO io, Map<Integer, PartitionSpec> specsById) {
+    Preconditions.checkArgument(
+        manifest.content() == ManifestContent.DATA,
+        "Cannot read data file changes from a delete manifest: %s",
+        manifest);
+
+    if (manifest.formatVersion() < ManifestFile.V4_FORMAT_VERSION) {
+      return CloseableIterable.empty();
+    }
+
+    InputFile file = newInputFile(io, manifest);
+    InheritableMetadata inheritableMetadata = InheritableMetadataFactory.fromManifest(manifest);
+    ContentEntryReader reader =
+        ContentEntryReader.forData(
+            file, manifest.partitionSpecId(), specsById, inheritableMetadata);
+
+    // Surface only ADDED and DELETED rows from the v4+ tracking; REPLACED and MODIFIED are
+    // DV-state transitions and not data-file changes. Project the v4+ EntryStatus to the legacy
+    // ManifestEntry.Status (ADDED → ADDED, DELETED → DELETED) so callers can switch on a single
+    // enum.
+    CloseableIterable<Pair<ManifestEntry.Status, DataFile>> changes =
+        CloseableIterable.transform(
+            reader.dataFileChanges(),
+            pair -> {
+              ManifestEntry.Status status =
+                  pair.first() == EntryStatus.ADDED
+                      ? ManifestEntry.Status.ADDED
+                      : ManifestEntry.Status.DELETED;
+              return Pair.of(status, pair.second());
+            });
+    return CloseableIterable.combine(changes, reader);
   }
 
   /**
@@ -303,6 +432,29 @@ public class ManifestFiles {
       Long snapshotId,
       Long firstRowId,
       Map<String, String> writerProperties) {
+    return newWriter(
+        formatVersion,
+        spec,
+        v4UnionPartitionType(formatVersion, spec),
+        encryptedOutputFile,
+        snapshotId,
+        firstRowId,
+        writerProperties);
+  }
+
+  /**
+   * Internal factory used by v4+ callers that already know the table's union partition type
+   * (computed from {@code Partitioning.partitionType(schema, specs)}). All v1/v2/v3 callers ignore
+   * {@code unionPartitionType}; pass {@code null} for those code paths.
+   */
+  static ManifestWriter<DataFile> newWriter(
+      int formatVersion,
+      PartitionSpec spec,
+      Types.StructType unionPartitionType,
+      EncryptedOutputFile encryptedOutputFile,
+      Long snapshotId,
+      Long firstRowId,
+      Map<String, String> writerProperties) {
     switch (formatVersion) {
       case 1:
         return new ManifestWriter.V1Writer(spec, encryptedOutputFile, snapshotId, writerProperties);
@@ -313,14 +465,66 @@ public class ManifestFiles {
             spec, encryptedOutputFile, snapshotId, firstRowId, writerProperties);
       case 4:
         return new ManifestWriter.V4Writer(
-            spec, encryptedOutputFile, snapshotId, firstRowId, writerProperties);
+            spec,
+            unionPartitionType,
+            encryptedOutputFile,
+            snapshotId,
+            firstRowId,
+            writerProperties);
     }
     throw new UnsupportedOperationException(
         "Cannot write manifest for table version: " + formatVersion);
   }
 
   /**
-   * Returns a new {@link ManifestReader} for a {@link ManifestFile}.
+   * v4+: returns the union partition type the writer must encode. For v1/v2/v3 returns null.
+   * Single-spec callers fall back to {@code spec.partitionType()} (the table's single live spec is
+   * trivially the union). Callers that know the table has multiple historical specs must use the
+   * {@link #newV4Writer} or {@link #newV4DeleteWriter} overloads and supply the full union type.
+   */
+  private static Types.StructType v4UnionPartitionType(int formatVersion, PartitionSpec spec) {
+    return formatVersion == 4 ? spec.partitionType() : null;
+  }
+
+  /**
+   * v4+: opens a content_entry data manifest writer with the table's union partition type
+   * (typically computed via {@code Partitioning.partitionType(tableSchema, specsById.values())}).
+   * Use this on any v4+ table that has had its spec evolved so multi-spec carry-overs encode with a
+   * single common schema.
+   */
+  static ManifestWriter<DataFile> newV4Writer(
+      PartitionSpec spec,
+      Types.StructType unionPartitionType,
+      EncryptedOutputFile encryptedOutputFile,
+      Long snapshotId,
+      Long firstRowId,
+      Map<String, String> writerProperties) {
+    Preconditions.checkArgument(
+        unionPartitionType != null,
+        "Invalid union partition type: null (compute via Partitioning.partitionType)");
+    return new ManifestWriter.V4Writer(
+        spec, unionPartitionType, encryptedOutputFile, snapshotId, firstRowId, writerProperties);
+  }
+
+  /** v4+: opens a content_entry delete manifest writer with the table's union partition type. */
+  static ManifestWriter<DeleteFile> newV4DeleteWriter(
+      PartitionSpec spec,
+      Types.StructType unionPartitionType,
+      EncryptedOutputFile encryptedOutputFile,
+      Long snapshotId,
+      Map<String, String> writerProperties) {
+    Preconditions.checkArgument(
+        unionPartitionType != null,
+        "Invalid union partition type: null (compute via Partitioning.partitionType)");
+    return new ManifestWriter.V4DeleteWriter(
+        spec, unionPartitionType, encryptedOutputFile, snapshotId, writerProperties);
+  }
+
+  /**
+   * Returns a new {@link ManifestReader} for a delete {@link ManifestFile}.
+   *
+   * <p>Routes to the v4+ {@code content_entry} reader when {@link ManifestFile#formatVersion()} is
+   * {@link ManifestFile#V4_FORMAT_VERSION} or higher, otherwise to the legacy reader.
    *
    * @param manifest a {@link ManifestFile}
    * @param io a {@link FileIO}
@@ -335,6 +539,15 @@ public class ManifestFiles {
         manifest);
     InputFile file = newInputFile(io, manifest);
     InheritableMetadata inheritableMetadata = InheritableMetadataFactory.fromManifest(manifest);
+
+    if (manifest.formatVersion() >= ManifestFile.V4_FORMAT_VERSION) {
+      ContentEntryReader reader =
+          ContentEntryReader.forDelete(
+              file, manifest.partitionSpecId(), specsById, inheritableMetadata);
+      return new ContentEntryManifestReaderAdapter<>(
+          file, manifest.partitionSpecId(), specsById, reader, ManifestContent.DELETES);
+    }
+
     return new ManifestReader<>(
         file, manifest.partitionSpecId(), specsById, inheritableMetadata, FileType.DELETE_FILES);
   }
@@ -416,7 +629,8 @@ public class ManifestFiles {
       case 3:
         return new ManifestWriter.V3DeleteWriter(spec, outputFile, snapshotId, writerProperties);
       case 4:
-        return new ManifestWriter.V4DeleteWriter(spec, outputFile, snapshotId, writerProperties);
+        return new ManifestWriter.V4DeleteWriter(
+            spec, spec.partitionType(), outputFile, snapshotId, writerProperties);
     }
     throw new UnsupportedOperationException(
         "Cannot write manifest for table version: " + formatVersion);

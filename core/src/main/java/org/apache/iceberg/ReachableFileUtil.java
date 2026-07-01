@@ -111,6 +111,11 @@ public class ReachableFileUtil {
   /**
    * Returns locations of manifest lists in a table.
    *
+   * <p>For v1–v3 snapshots, this returns the manifest list location. For v4+ snapshots, the
+   * equivalent file is the root manifest, so this returns its location too: the public method is
+   * the union of all top-level snapshot files (manifest lists and root manifests) so callers that
+   * rely on it for cleanup or copying continue to work across format versions.
+   *
    * @param table table for which manifestList needs to be fetched
    * @param snapshotIds ids of snapshots for which manifest lists will be returned
    * @return the location of manifest lists
@@ -126,6 +131,10 @@ public class ReachableFileUtil {
       String manifestListLocation = snapshot.manifestListLocation();
       if (manifestListLocation != null) {
         manifestListLocations.add(manifestListLocation);
+      }
+      String rootManifestLocation = snapshot.rootManifestLocation();
+      if (rootManifestLocation != null) {
+        manifestListLocations.add(rootManifestLocation);
       }
     }
     return manifestListLocations;

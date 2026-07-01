@@ -297,6 +297,66 @@ class TestTrackingStruct {
   }
 
   @Test
+  void testForContentEntryManifestReference() {
+    // Manifest references carry explicit (not inherited) data/file sequence numbers and an
+    // optional first-row-id. DV and position-bitmap fields are always null for a manifest
+    // reference.
+    Tracking tracking =
+        TrackingBuilder.forContentEntry(EntryStatus.ADDED, 42L, 7L, 9L, 1000L).build();
+
+    assertThat(tracking.status()).isEqualTo(EntryStatus.ADDED);
+    assertThat(tracking.snapshotId()).isEqualTo(42L);
+    assertThat(tracking.dataSequenceNumber()).isEqualTo(7L);
+    assertThat(tracking.fileSequenceNumber()).isEqualTo(9L);
+    assertThat(tracking.firstRowId()).isEqualTo(1000L);
+    assertThat(tracking.dvSnapshotId()).isNull();
+    assertThat(tracking.deletedPositions()).isNull();
+    assertThat(tracking.replacedPositions()).isNull();
+  }
+
+  @Test
+  void testForContentEntryManifestReferenceNullFirstRowId() {
+    // Delete manifests carry null first-row-id (row lineage is data-only).
+    Tracking tracking =
+        TrackingBuilder.forContentEntry(EntryStatus.ADDED, 42L, 7L, 9L, null).build();
+
+    assertThat(tracking.firstRowId()).isNull();
+  }
+
+  @Test
+  void testForContentEntryLegacyProjection() {
+    // Content-file rows projected from a legacy ManifestEntry carry sequence numbers from the
+    // legacy entry. DV and position-bitmap fields are always null for the projected row.
+    Tracking tracking =
+        TrackingBuilder.forContentEntry(EntryStatus.EXISTING, 42L, 7L, 9L, 1000L).build();
+
+    assertThat(tracking.status()).isEqualTo(EntryStatus.EXISTING);
+    assertThat(tracking.snapshotId()).isEqualTo(42L);
+    assertThat(tracking.dataSequenceNumber()).isEqualTo(7L);
+    assertThat(tracking.fileSequenceNumber()).isEqualTo(9L);
+    assertThat(tracking.firstRowId()).isEqualTo(1000L);
+    assertThat(tracking.dvSnapshotId()).isNull();
+    assertThat(tracking.deletedPositions()).isNull();
+    assertThat(tracking.replacedPositions()).isNull();
+  }
+
+  @Test
+  void testForContentEntryLegacyProjectionNullFirstRowId() {
+    // Delete files and entries that inherit from the manifest counter carry null first-row-id.
+    Tracking tracking =
+        TrackingBuilder.forContentEntry(EntryStatus.EXISTING, 42L, 7L, 9L, null).build();
+
+    assertThat(tracking.firstRowId()).isNull();
+  }
+
+  @Test
+  void testForContentEntryRejectsNullStatus() {
+    assertThatThrownBy(() -> TrackingBuilder.forContentEntry(null, 42L, 7L, 9L, null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid status: null");
+  }
+
+  @Test
   void testDvUpdatedProducesModifiedAndAdvancesDvSnapshotId() {
     Tracking source = sourceTracking();
     Tracking modified = TrackingBuilder.from(source, 999L).dvUpdated().build();
