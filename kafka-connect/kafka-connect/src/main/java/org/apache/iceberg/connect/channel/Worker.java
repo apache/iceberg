@@ -115,8 +115,23 @@ class Worker extends Channel {
 
   @Override
   void stop() {
-    super.stop();
-    sinkWriter.close();
+    RuntimeException failure = null;
+
+    try {
+      super.stop();
+    } catch (RuntimeException e) {
+      failure = Channel.appendFailure(failure, e);
+    }
+
+    try {
+      sinkWriter.close();
+    } catch (RuntimeException e) {
+      failure = Channel.appendFailure(failure, e);
+    }
+
+    if (failure != null) {
+      throw failure;
+    }
   }
 
   void save(Collection<SinkRecord> sinkRecords) {

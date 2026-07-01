@@ -30,7 +30,6 @@ import org.apache.iceberg.connect.events.Event;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
@@ -50,7 +49,6 @@ abstract class Channel {
   private final Producer<String, byte[]> producer;
   private final Consumer<String, byte[]> consumer;
   private final SinkTaskContext context;
-  private final Admin admin;
   private final Map<Integer, Long> controlTopicOffsets = Maps.newHashMap();
   private final String producerId;
 
@@ -67,7 +65,6 @@ abstract class Channel {
     String transactionalId = config.transactionalPrefix() + name + config.transactionalSuffix();
     this.producer = clientFactory.createProducer(transactionalId);
     this.consumer = clientFactory.createConsumer(consumerGroupId);
-    this.admin = clientFactory.createAdmin();
 
     this.producerId = UUID.randomUUID().toString();
   }
@@ -160,8 +157,33 @@ abstract class Channel {
 
   void stop() {
     LOG.info("Channel stopping");
-    producer.close();
-    consumer.close();
-    admin.close();
+    RuntimeException failure = null;
+
+    try {
+      producer.close();
+    } catch (RuntimeException e) {
+      failure = appendFailure(failure, e);
+      LOG.warn("Error closing channel producer", e);
+    }
+
+    try {
+      consumer.close();
+    } catch (RuntimeException e) {
+      failure = appendFailure(failure, e);
+      LOG.warn("Error closing channel consumer", e);
+    }
+
+    if (failure != null) {
+      throw failure;
+    }
+  }
+
+  static RuntimeException appendFailure(RuntimeException failure, RuntimeException next) {
+    if (failure == null) {
+      return next;
+    }
+
+    failure.addSuppressed(next);
+    return failure;
   }
 }

@@ -159,31 +159,75 @@ public class CommitterImpl implements Committer {
 
   @Override
   public void close(Collection<TopicPartition> closedPartitions) {
+    RuntimeException failure = null;
+
     // Always try to stop the worker to avoid duplicates.
-    stopWorker();
+    try {
+      stopWorker();
+    } catch (RuntimeException e) {
+      failure = Channel.appendFailure(failure, e);
+      LOG.warn("Committer {} failed to stop worker, continuing cleanup", taskId, e);
+    }
 
     // Defensive: close called without prior initialization (should not happen).
     if (!isInitialized.get()) {
       LOG.warn("Close unexpectedly called on committer {} without partition assignment", taskId);
+      if (failure != null) {
+        throw failure;
+      }
       return;
     }
 
-    // Empty partitions → task was stopped explicitly. Stop coordinator if running.
+    // Empty partitions: task was stopped explicitly. Stop coordinator if running.
     if (closedPartitions.isEmpty()) {
       LOG.info("Committer {} stopped. Closing coordinator.", taskId);
-      stopCoordinator();
+      try {
+        stopCoordinator();
+      } catch (RuntimeException e) {
+        failure = Channel.appendFailure(failure, e);
+        LOG.warn("Committer {} failed to stop coordinator", taskId, e);
+      }
+      if (failure != null) {
+        throw failure;
+      }
       return;
     }
 
     // Normal close: if leader partition is lost, stop coordinator.
-    if (hasLeaderPartition(closedPartitions)) {
+    boolean shouldStopCoordinator = false;
+    try {
+      shouldStopCoordinator = hasLeaderPartition(closedPartitions);
+    } catch (RuntimeException e) {
+      failure = Channel.appendFailure(failure, e);
+      shouldStopCoordinator = true;
+      LOG.warn(
+          "Committer {} could not determine whether leader partition was lost, stopping coordinator",
+          taskId,
+          e);
+    }
+
+    if (shouldStopCoordinator) {
       LOG.info("Committer {} lost leader partition. Stopping coordinator.", taskId);
-      stopCoordinator();
+      try {
+        stopCoordinator();
+      } catch (RuntimeException e) {
+        failure = Channel.appendFailure(failure, e);
+        LOG.warn("Committer {} failed to stop coordinator", taskId, e);
+      }
     }
 
     // Reset offsets to last committed to avoid data loss.
     LOG.info("Seeking to last committed offsets for worker {}.", taskId);
-    KafkaUtils.seekToLastCommittedOffsets(context);
+    try {
+      KafkaUtils.seekToLastCommittedOffsets(context);
+    } catch (RuntimeException e) {
+      failure = Channel.appendFailure(failure, e);
+      LOG.warn("Committer {} failed to seek to last committed offsets", taskId, e);
+    }
+
+    if (failure != null) {
+      throw failure;
+    }
   }
 
   @Override

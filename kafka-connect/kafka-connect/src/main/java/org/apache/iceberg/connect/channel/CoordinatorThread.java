@@ -18,12 +18,14 @@
  */
 package org.apache.iceberg.connect.channel;
 
+import org.apache.kafka.connect.errors.ConnectException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 class CoordinatorThread extends Thread {
   private static final Logger LOG = LoggerFactory.getLogger(CoordinatorThread.class);
   private static final String THREAD_NAME = "iceberg-coord";
+  private static final long TERMINATION_JOIN_TIMEOUT_MS = 60_000L;
 
   private final Coordinator coordinator;
   private volatile boolean terminated;
@@ -64,6 +66,32 @@ class CoordinatorThread extends Thread {
 
   void terminate() {
     this.terminated = true;
-    coordinator.terminate();
+    RuntimeException failure = null;
+
+    try {
+      coordinator.terminate();
+    } catch (RuntimeException e) {
+      failure = Channel.appendFailure(failure, e);
+    }
+
+    if (Thread.currentThread() != this) {
+      try {
+        join(TERMINATION_JOIN_TIMEOUT_MS);
+        if (isAlive()) {
+          ConnectException timeout =
+              new ConnectException("Timed out waiting for coordinator thread shutdown");
+          failure = Channel.appendFailure(failure, timeout);
+        }
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+        ConnectException interrupted =
+            new ConnectException("Interrupted while waiting for coordinator thread shutdown", e);
+        failure = Channel.appendFailure(failure, interrupted);
+      }
+    }
+
+    if (failure != null) {
+      throw failure;
+    }
   }
 }
