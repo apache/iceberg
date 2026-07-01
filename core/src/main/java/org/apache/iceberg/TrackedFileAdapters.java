@@ -418,7 +418,7 @@ class TrackedFileAdapters {
   }
 
   /**
-   * Adapts a TrackedFile DATA_MANIFEST or DELETE_MANIFEST entry to the {@link ManifestFile}
+   * Adapts a TrackedFile to {@link ManifestFile}
    * interface.
    */
   private static class TrackedManifestFile implements ManifestFile {
