@@ -38,6 +38,8 @@ import org.apache.spark.sql.types.DateType$;
 import org.apache.spark.sql.types.DecimalType;
 import org.apache.spark.sql.types.DoubleType$;
 import org.apache.spark.sql.types.FloatType$;
+import org.apache.spark.sql.types.GeographyType;
+import org.apache.spark.sql.types.GeometryType;
 import org.apache.spark.sql.types.IntegerType$;
 import org.apache.spark.sql.types.LongType$;
 import org.apache.spark.sql.types.MapType;
@@ -244,6 +246,8 @@ public class PruneColumnsWithoutReordering extends TypeUtil.CustomOrderSchemaVis
           .put(TypeID.STRING, ImmutableSet.of(StringType$.class))
           .put(TypeID.FIXED, ImmutableSet.of(BinaryType$.class))
           .put(TypeID.BINARY, ImmutableSet.of(BinaryType$.class))
+          .put(TypeID.GEOMETRY, ImmutableSet.of(GeometryType.class))
+          .put(TypeID.GEOGRAPHY, ImmutableSet.of(GeographyType.class))
           .put(TypeID.UNKNOWN, ImmutableSet.of(NullType$.class))
           .buildOrThrow();
 }

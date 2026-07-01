@@ -20,6 +20,7 @@ package org.apache.iceberg.spark;
 
 import java.util.List;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.types.EdgeAlgorithm;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.types.ArrayType;
@@ -32,6 +33,8 @@ import org.apache.spark.sql.types.DateType;
 import org.apache.spark.sql.types.DecimalType;
 import org.apache.spark.sql.types.DoubleType;
 import org.apache.spark.sql.types.FloatType;
+import org.apache.spark.sql.types.GeographyType;
+import org.apache.spark.sql.types.GeometryType;
 import org.apache.spark.sql.types.IntegerType;
 import org.apache.spark.sql.types.LongType;
 import org.apache.spark.sql.types.MapType;
@@ -162,6 +165,23 @@ class SparkTypeToType extends SparkTypeVisitor<Type> {
           ((DecimalType) atomic).precision(), ((DecimalType) atomic).scale());
     } else if (atomic instanceof BinaryType) {
       return Types.BinaryType.get();
+    } else if (atomic instanceof GeometryType) {
+      GeometryType geometry = (GeometryType) atomic;
+      if (geometry.isMixedSrid()) {
+        throw new UnsupportedOperationException(
+            "Cannot convert Spark geometry with mixed SRID to Iceberg");
+      }
+      return Types.GeometryType.of(geometry.crs());
+    } else if (atomic instanceof GeographyType) {
+      GeographyType geography = (GeographyType) atomic;
+      if (geography.isMixedSrid()) {
+        throw new UnsupportedOperationException(
+            "Cannot convert Spark geography with mixed SRID to Iceberg");
+      }
+      // Propagate the edge algorithm, translating by name since Iceberg and Spark share algorithm
+      // names.
+      return Types.GeographyType.of(
+          geography.crs(), EdgeAlgorithm.fromName(geography.algorithm().toString()));
     } else if (atomic instanceof NullType) {
       return Types.UnknownType.get();
     }
