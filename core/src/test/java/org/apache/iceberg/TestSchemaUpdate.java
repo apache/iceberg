@@ -612,6 +612,58 @@ public class TestSchemaUpdate {
   }
 
   @Test
+  public void testUpdateColumnAddedToMapValueOrListElementInSameTransaction() {
+    // A column added to a map value struct or a list element struct is addressed by its
+    // user-facing short name ("locations.alt", "points.z"), which drops the synthetic
+    // "value"/"element" segment. A later operation in the same transaction that
+    // references the just-added column by that short name must resolve it.
+    Schema updated =
+        new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID)
+            .addColumn("locations", "alt", Types.FloatType.get()) // into map value struct
+            .updateColumnDoc("locations.alt", "altitude")
+            .addColumn("points", "z", Types.LongType.get()) // into list element struct
+            .updateColumnDoc("points.z", "z coordinate")
+            .apply();
+
+    Types.StructType locationsValue =
+        updated.findField("locations").type().asMapType().valueType().asStructType();
+    assertThat(locationsValue.field("alt")).isNotNull();
+    assertThat(locationsValue.field("alt").doc()).isEqualTo("altitude");
+
+    Types.StructType pointsElement =
+        updated.findField("points").type().asListType().elementType().asStructType();
+    assertThat(pointsElement.field("z")).isNotNull();
+    assertThat(pointsElement.field("z").doc()).isEqualTo("z coordinate");
+  }
+
+  @Test
+  public void testAddedNestedShortNameDoesNotShadowSiblingCanonicalName() {
+    // Field names may contain dots (the parent-qualified addColumn overload allows them),
+    // so a nested add's short name (parent + "." + name) can equal the canonical name of
+    // another column added earlier into the same list/map in the same transaction. Here
+    // "z" added into list "points" owns the canonical name "points.element.z"; a sibling
+    // literally named "element.z" produces the same short name. That short-name alias
+    // must not shadow the canonical owner: "points.element.z" still resolves to "z".
+    Schema updated =
+        new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID)
+            // canonical owner of "points.element.z"
+            .addColumn("points", "z", Types.LongType.get())
+            // its short name is also "points.element.z" but must not shadow "z" above
+            .addColumn("points", "element.z", Types.IntegerType.get())
+            .updateColumnDoc("points.element.z", "the canonical z column")
+            .apply();
+
+    Types.StructType pointsElement =
+        updated.findField("points").type().asListType().elementType().asStructType();
+    // The doc update by the canonical name resolved to "z", not the "element.z" alias.
+    assertThat(pointsElement.field("z")).isNotNull();
+    assertThat(pointsElement.field("z").doc()).isEqualTo("the canonical z column");
+    // The "element.z" field was still added and carries no doc.
+    assertThat(pointsElement.field("element.z")).isNotNull();
+    assertThat(pointsElement.field("element.z").doc()).isNull();
+  }
+
+  @Test
   public void testAddNestedStruct() {
     Schema schema = new Schema(required(1, "id", Types.IntegerType.get()));
     Types.StructType struct =
