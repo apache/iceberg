@@ -19,15 +19,18 @@
 package org.apache.iceberg.flink.maintenance.operator;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.tuple;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.stream.Stream;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.streaming.api.operators.co.CoBroadcastWithKeyedOperator;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.util.KeyedBroadcastOperatorTestHarness;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 class TestEqualityConvertPKIndex {
 
@@ -159,49 +162,46 @@ class TestEqualityConvertPKIndex {
     }
   }
 
-  @Test
-  void partitionedDeleteResolvesOnlySameSpecRows() throws Exception {
+  @ParameterizedTest(name = "deleteSpecs={0} resolvedSpecs={1}")
+  @MethodSource("deleteSpecScopes")
+  void resolvesDeletesScopedBySpec(List<Integer> deleteSpecIds, List<Integer> resolvedSpecIds)
+      throws Exception {
     try (KeyedBroadcastOperatorTestHarness<
             SerializedEqualityValues, IndexCommand, IndexCommand, DVPosition>
         harness = createHarness()) {
       harness.open();
 
-      // Same key, two rows under different specs (partition evolution).
+      // Same key, one row under each of two specs. Partition evolution co-locates them on one
+      // shard.
       harness.processElement(new StreamRecord<>(addRow("spec0.parquet", 0, 0), 0));
       harness.processElement(new StreamRecord<>(addRow("spec1.parquet", 1, 1), 0));
-      // A partitioned delete under spec 1 must resolve only the spec-1 row.
-      harness.processElement(
-          new StreamRecord<>(
-              IndexCommand.resolveDelete(MAIN_SNAPSHOT, MAIN_SEQ, KEY_1, DELETE_SEQ, 1), 1));
+      // All deletes fall in one delete phase (ts 1), so their scopes accumulate.
+      for (int deleteSpecId : deleteSpecIds) {
+        harness.processElement(
+            new StreamRecord<>(
+                IndexCommand.resolveDelete(
+                    MAIN_SNAPSHOT, MAIN_SEQ, KEY_1, DELETE_SEQ, deleteSpecId),
+                1));
+      }
+
       harness.watermark(1);
 
-      List<DVPosition> output = harness.extractOutputValues();
-      assertThat(output).hasSize(1);
-      assertThat(output.get(0).dataFilePath()).isEqualTo("spec1.parquet");
-      assertThat(output.get(0).specId()).isEqualTo(1);
+      assertThat(harness.extractOutputValues())
+          .extracting(DVPosition::specId)
+          .containsExactlyInAnyOrderElementsOf(resolvedSpecIds);
     }
   }
 
-  @Test
-  void unpartitionedDeleteResolvesAllSpecs() throws Exception {
-    try (KeyedBroadcastOperatorTestHarness<
-            SerializedEqualityValues, IndexCommand, IndexCommand, DVPosition>
-        harness = createHarness()) {
-      harness.open();
-
-      harness.processElement(new StreamRecord<>(addRow("spec0.parquet", 0, 0), 0));
-      harness.processElement(new StreamRecord<>(addRow("spec1.parquet", 1, 1), 0));
-      // A global (unpartitioned) delete resolves rows of every spec.
-      harness.processElement(
-          new StreamRecord<>(
-              IndexCommand.resolveDelete(MAIN_SNAPSHOT, MAIN_SEQ, KEY_1, DELETE_SEQ, GLOBAL), 1));
-      harness.watermark(1);
-
-      List<DVPosition> output = harness.extractOutputValues();
-      assertThat(output)
-          .extracting(DVPosition::dataFilePath, DVPosition::specId)
-          .containsExactlyInAnyOrder(tuple("spec0.parquet", 0), tuple("spec1.parquet", 1));
-    }
+  private static Stream<Arguments> deleteSpecScopes() {
+    return Stream.of(
+        // A partitioned delete resolves only same-spec rows.
+        Arguments.of(List.of(1), List.of(1)),
+        // An unpartitioned (global) delete resolves rows of every spec.
+        Arguments.of(List.of(GLOBAL), List.of(0, 1)),
+        // Two partitioned deletes from different specs in one phase both apply.
+        Arguments.of(List.of(0, 1), List.of(0, 1)),
+        // A global delete scope affects a later partitioned delete in the same phase.
+        Arguments.of(List.of(GLOBAL, 0), List.of(0, 1)));
   }
 
   private static IndexCommand addRow(String filePath, long position, int specId) {
