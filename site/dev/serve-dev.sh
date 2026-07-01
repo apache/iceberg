@@ -16,7 +16,7 @@
 # limitations under the License.
 #
 
-# Development mode serve script - only builds nightly and latest for fast iteration
+# Development mode serve script - only builds nightly and the configured version for fast iteration
 
 source dev/common.sh
 
@@ -26,7 +26,7 @@ export ICEBERG_DEV_MODE=true
 
 echo "=========================================="
 echo "RUNNING IN DEVELOPMENT MODE"
-echo "Only building nightly and latest versions"
+echo "Only building nightly and the configured version"
 echo "=========================================="
 echo ""
 
