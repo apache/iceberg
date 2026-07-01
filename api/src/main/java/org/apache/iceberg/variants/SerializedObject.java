@@ -89,11 +89,12 @@ class SerializedObject implements VariantObject, SerializedValue {
         dataStart <= value.remaining(),
         "Invalid variant object: element count %s exceeds buffer",
         numElements);
-    this.offsetListOffset = fieldIdListOffset + (numElements * fieldIdSize);
+    this.offsetListOffset =
+        Math.toIntExact((long) fieldIdListOffset + (long) numElements * fieldIdSize);
     this.fieldIds = new Integer[numElements];
     this.offsets = new int[numElements];
     this.lengths = new int[numElements];
-    this.dataOffset = offsetListOffset + ((1 + numElements) * offsetSize);
+    this.dataOffset = Math.toIntExact(dataStart);
     this.values = new VariantValue[numElements];
 
     if (numElements > 0) {

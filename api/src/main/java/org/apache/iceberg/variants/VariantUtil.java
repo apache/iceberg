@@ -34,13 +34,16 @@ class VariantUtil {
 
   /**
    * Maximum permitted nesting depth of a Variant value. The top-level value is depth 0, so a
-   * Variant may contain up to {@code MAX_VARIANT_DEPTH} nested levels.
+   * Variant may contain up to {@code MAX_VARIANT_DEPTH + 1} nested levels.
    */
   static final int MAX_VARIANT_DEPTH = 500;
 
   private VariantUtil() {}
 
-  /** Parses a variant value from {@code value} using {@code metadata} for field-name resolution. */
+  /**
+   * Parses a variant value from {@code value} using {@code metadata} for field-name resolution.
+   * Validates the input and enforces {@link #MAX_VARIANT_DEPTH}.
+   */
   static VariantValue fromBuffer(VariantMetadata metadata, ByteBuffer value, int depth) {
     Preconditions.checkArgument(
         depth <= MAX_VARIANT_DEPTH,

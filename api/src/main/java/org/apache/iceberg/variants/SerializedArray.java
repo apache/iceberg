@@ -75,7 +75,7 @@ class SerializedArray implements VariantArray, SerializedValue {
         offsetTableEnd <= value.remaining(),
         "Invalid variant array: element count %s exceeds buffer",
         numElements);
-    this.dataOffset = offsetListOffset + ((1 + numElements) * offsetSize);
+    this.dataOffset = Math.toIntExact(offsetTableEnd);
     this.array = new VariantValue[numElements];
   }
 

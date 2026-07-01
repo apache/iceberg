@@ -39,6 +39,16 @@ public class TestMalformedVariant {
   }
 
   @Test
+  public void testUnsupportedMetadataVersionRejected() {
+    // header low 4 bits = version; spec version is 1. 0x02 = version 2, must be rejected.
+    byte[] bytes = new byte[] {0x02, 0x00, 0x00};
+
+    assertThatThrownBy(() -> SerializedMetadata.from(bytes))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Unsupported version");
+  }
+
+  @Test
   public void testOversizedArrayNumElements() {
     ByteBuffer value =
         ByteBuffer.wrap(new byte[] {(byte) 0b10011, 0x00, 0x00, 0x00, 0x10, 0x00})
@@ -166,6 +176,32 @@ public class TestMalformedVariant {
     // numElements * offsetSize would overflow signed int
     ByteBuffer value =
         ByteBuffer.wrap(new byte[] {0x4E, 0x33, 0x33, 0x33, 0x33, (byte) 0xFF, (byte) 0xFF, 0x3F})
+            .order(ByteOrder.LITTLE_ENDIAN);
+
+    assertThatThrownBy(() -> VariantValue.from(SerializedMetadata.from(EMPTY_METADATA), value))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("element count");
+  }
+
+  @Test
+  public void testArrayDataOffsetIntOverflow() {
+    // large array, offsetSize=4, numElements=0x20000000 (~536M).
+    // (1+numElements)*offsetSize overflows signed int; long guard must fire first.
+    ByteBuffer value =
+        ByteBuffer.wrap(new byte[] {(byte) 0b11111, 0x00, 0x00, 0x00, 0x20, 0x00})
+            .order(ByteOrder.LITTLE_ENDIAN);
+
+    assertThatThrownBy(() -> VariantValue.from(SerializedMetadata.from(EMPTY_METADATA), value))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("element count");
+  }
+
+  @Test
+  public void testObjectDataOffsetIntOverflow() {
+    // large object, offsetSize=4, fieldIdSize=4, numElements=0x20000000 (~536M).
+    // int sub-expressions for offsetListOffset and dataOffset overflow; long guard fires first.
+    ByteBuffer value =
+        ByteBuffer.wrap(new byte[] {(byte) 0b1111110, 0x00, 0x00, 0x00, 0x20, 0x00})
             .order(ByteOrder.LITTLE_ENDIAN);
 
     assertThatThrownBy(() -> VariantValue.from(SerializedMetadata.from(EMPTY_METADATA), value))
