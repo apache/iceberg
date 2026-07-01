@@ -24,8 +24,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.util.List;
 import org.apache.flink.table.catalog.CatalogPartitionSpec;
 import org.apache.flink.table.catalog.ObjectPath;
+import org.apache.flink.table.catalog.exceptions.PartitionNotExistException;
 import org.apache.flink.table.catalog.exceptions.TableNotExistException;
 import org.apache.flink.table.catalog.exceptions.TableNotPartitionedException;
+import org.apache.flink.types.Row;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Parameter;
@@ -115,5 +117,114 @@ public class TestFlinkCatalogTablePartitions extends CatalogTestBase {
     expected.add(partitionSpec1);
     expected.add(partitionSpec2);
     assertThat(list).as("Should produce the expected catalog partition specs.").isEqualTo(expected);
+  }
+
+  @TestTemplate
+  public void testDropPartitionIdentity() {
+    sql(
+        "CREATE TABLE %s (id INT, data VARCHAR) PARTITIONED BY (data) "
+            + "with ('write.format.default'='%s')",
+        tableName, format.name());
+    sql("INSERT INTO %s SELECT 1,'a'", tableName);
+    sql("INSERT INTO %s SELECT 2,'b'", tableName);
+    sql("INSERT INTO %s SELECT 3,'c'", tableName);
+
+    sql("ALTER TABLE %s DROP PARTITION (data='b')", tableName);
+
+    List<Row> remaining = sql("SELECT id, data FROM %s ORDER BY id", tableName);
+    assertThat(remaining).containsExactly(Row.of(1, "a"), Row.of(3, "c"));
+  }
+
+  @TestTemplate
+  public void testDropPartitionMultipleColumns() {
+    sql(
+        "CREATE TABLE %s (id INT, region VARCHAR, dt VARCHAR) PARTITIONED BY (region, dt) "
+            + "with ('write.format.default'='%s')",
+        tableName, format.name());
+    sql(
+        "INSERT INTO %s VALUES (1, 'us', '2024-01-01'), (2, 'us', '2024-01-02'), (3, 'eu', '2024-01-01')",
+        tableName);
+
+    sql("ALTER TABLE %s DROP PARTITION (region='us', dt='2024-01-01')", tableName);
+
+    List<Row> remaining = sql("SELECT id, region, dt FROM %s ORDER BY id", tableName);
+    assertThat(remaining)
+        .containsExactly(Row.of(2, "us", "2024-01-02"), Row.of(3, "eu", "2024-01-01"));
+  }
+
+  @TestTemplate
+  public void testDropPartitionIgnoreIfNotExistsOnMissingPartition() {
+    sql(
+        "CREATE TABLE %s (id INT, data VARCHAR) PARTITIONED BY (data) "
+            + "with ('write.format.default'='%s')",
+        tableName, format.name());
+    sql("INSERT INTO %s SELECT 1,'a'", tableName);
+
+    sql("ALTER TABLE %s DROP IF EXISTS PARTITION (data='z')", tableName);
+
+    List<Row> remaining = sql("SELECT id, data FROM %s", tableName);
+    assertThat(remaining).containsExactly(Row.of(1, "a"));
+  }
+
+  @TestTemplate
+  public void testDropPartitionMissingPartitionFails() {
+    sql(
+        "CREATE TABLE %s (id INT, data VARCHAR) PARTITIONED BY (data) "
+            + "with ('write.format.default'='%s')",
+        tableName, format.name());
+    sql("INSERT INTO %s SELECT 1,'a'", tableName);
+
+    assertThatThrownBy(() -> sql("ALTER TABLE %s DROP PARTITION (data='z')", tableName))
+        .rootCause()
+        .isInstanceOf(PartitionNotExistException.class)
+        .hasMessageContaining(
+            "Partition CatalogPartitionSpec{{data=z}} of table db.test_table in catalog");
+
+    List<Row> remaining = sql("SELECT id, data FROM %s", tableName);
+    assertThat(remaining).containsExactly(Row.of(1, "a"));
+  }
+
+  @TestTemplate
+  public void testDropPartitionRejectsPartialKey() {
+    sql(
+        "CREATE TABLE %s (id INT, region VARCHAR, dt VARCHAR) PARTITIONED BY (region, dt) "
+            + "with ('write.format.default'='%s')",
+        tableName, format.name());
+    sql("INSERT INTO %s VALUES (1, 'us', '2024-01-01')", tableName);
+
+    assertThatThrownBy(() -> sql("ALTER TABLE %s DROP PARTITION (region='us')", tableName))
+        .rootCause()
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining(
+            "DROP PARTITION requires values for partition columns [region, dt] but got [region]");
+  }
+
+  @TestTemplate
+  public void testDropPartitionRejectsUnknownColumn() {
+    sql(
+        "CREATE TABLE %s (id INT, data VARCHAR) PARTITIONED BY (data) "
+            + "with ('write.format.default'='%s')",
+        tableName, format.name());
+    sql("INSERT INTO %s SELECT 1,'a'", tableName);
+
+    assertThatThrownBy(() -> sql("ALTER TABLE %s DROP PARTITION (id='1')", tableName))
+        .rootCause()
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining(
+            "DROP PARTITION requires values for partition columns [data] but got [id]");
+  }
+
+  @TestTemplate
+  public void testDropPartitionUnpartitionedTable() {
+    sql(
+        "CREATE TABLE %s (id INT, data VARCHAR) with ('write.format.default'='%s')",
+        tableName, format.name());
+    sql("INSERT INTO %s SELECT 1,'a'", tableName);
+
+    assertThatThrownBy(() -> sql("ALTER TABLE %s DROP PARTITION (data='a')", tableName))
+        .rootCause()
+        .isInstanceOf(PartitionNotExistException.class)
+        .hasMessageContaining(
+            "Partition CatalogPartitionSpec{{data=a}} of table db.test_table in catalog");
   }
 }
