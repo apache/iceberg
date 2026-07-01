@@ -79,6 +79,36 @@ public class SparkVariantExtractionUtil {
   }
 
   /**
+   * Returns the {@code failOnError} flag for the extraction (false when absent). Spark sets this to
+   * true for {@code variant_get} and false for {@code try_variant_get}; the selective readers honor
+   * it on numeric narrowing overflow.
+   */
+  public static boolean failOnError(StructField field) {
+    Preconditions.checkArgument(
+        field.metadata().contains(VARIANT_METADATA_KEY),
+        "Missing %s on field %s",
+        VARIANT_METADATA_KEY,
+        field.name());
+    Metadata variantMetadata = field.metadata().getMetadata(VARIANT_METADATA_KEY);
+    return variantMetadata.contains("failOnError") && variantMetadata.getBoolean("failOnError");
+  }
+
+  /**
+   * Returns the {@code timeZoneId} for the extraction, or {@code null} when absent. Spark sets this
+   * from the session time zone; the selective readers pass it to Spark's {@code VariantGet.cast}
+   * when delegating zone-sensitive casts (e.g. timestamp {@code TZ <-> NTZ}).
+   */
+  public static String timeZoneId(StructField field) {
+    Preconditions.checkArgument(
+        field.metadata().contains(VARIANT_METADATA_KEY),
+        "Missing %s on field %s",
+        VARIANT_METADATA_KEY,
+        field.name());
+    Metadata variantMetadata = field.metadata().getMetadata(VARIANT_METADATA_KEY);
+    return variantMetadata.contains("timeZoneId") ? variantMetadata.getString("timeZoneId") : null;
+  }
+
+  /**
    * Returns true when the selective Parquet reader can handle the extraction path. Delegates to
    * {@link PathUtil#parse} for RFC 9535-compliant validation; any path that fails to parse is
    * declined.
