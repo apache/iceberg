@@ -273,6 +273,15 @@ public class TestExpressionHelpers {
     assertInvalidateNaNThrows(() -> predicate(Expression.Operation.EQ, "a", Double.NaN));
   }
 
+  @Test
+  @SuppressWarnings("unchecked")
+  public void testInvalidateNullLiteralInPredicate() {
+    Literal<Object> nullLit = (Literal<Object>) Literal.ofNull();
+    assertThatThrownBy(() -> predicate(Expression.Operation.EQ, "a", nullLit))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid expression literal: null, use isNull or notNull instead");
+  }
+
   private void assertInvalidateNaNThrows(Callable<UnboundPredicate<Double>> callable) {
     assertThatThrownBy(callable::call)
         .isInstanceOf(IllegalArgumentException.class)

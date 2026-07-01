@@ -251,6 +251,9 @@ public class Expressions {
         "Cannot create %s predicate inclusive a value",
         op);
     Preconditions.checkArgument(
+        !(lit instanceof Literals.NullLiteral),
+        "Invalid expression literal: null, use isNull or notNull instead");
+    Preconditions.checkArgument(
         !NaNUtil.isNaN(lit.value()),
         "Invalid expression literal: NaN, use isNaN or notNaN instead");
     return new UnboundPredicate<T>(op, ref(name), lit);
