@@ -34,6 +34,7 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 import org.apache.iceberg.hadoop.Util;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -72,8 +73,17 @@ public class FlinkSplitPlanner {
   /** This returns splits for the FLIP-27 source */
   public static List<IcebergSourceSplit> planIcebergSourceSplits(
       Table table, ScanContext context, ExecutorService workerPool) {
+    return planIcebergSourceSplits(table, context, workerPool, null);
+  }
+
+  /** This returns splits for the FLIP-27 source with optional metrics reporting */
+  public static List<IcebergSourceSplit> planIcebergSourceSplits(
+      Table table,
+      ScanContext context,
+      ExecutorService workerPool,
+      MetricsReporter metricsReporter) {
     try (CloseableIterable<CombinedScanTask> tasksIterable =
-        planTasks(table, context, workerPool)) {
+        planTasks(table, context, workerPool, metricsReporter)) {
       return Lists.newArrayList(
           CloseableIterable.transform(tasksIterable, IcebergSourceSplit::fromCombinedScanTask));
     } catch (IOException e) {
@@ -83,10 +93,18 @@ public class FlinkSplitPlanner {
 
   static CloseableIterable<CombinedScanTask> planTasks(
       Table table, ScanContext context, ExecutorService workerPool) {
+    return planTasks(table, context, workerPool, null);
+  }
+
+  static CloseableIterable<CombinedScanTask> planTasks(
+      Table table,
+      ScanContext context,
+      ExecutorService workerPool,
+      MetricsReporter metricsReporter) {
     ScanMode scanMode = checkScanMode(context);
     if (scanMode == ScanMode.INCREMENTAL_APPEND_SCAN) {
       IncrementalAppendScan scan = table.newIncrementalAppendScan();
-      scan = refineScanWithBaseConfigs(scan, context, workerPool);
+      scan = refineScanWithBaseConfigs(scan, context, workerPool, metricsReporter);
 
       if (context.startTag() != null) {
         Preconditions.checkArgument(
@@ -119,7 +137,7 @@ public class FlinkSplitPlanner {
       return scan.planTasks();
     } else {
       TableScan scan = table.newScan();
-      scan = refineScanWithBaseConfigs(scan, context, workerPool);
+      scan = refineScanWithBaseConfigs(scan, context, workerPool, metricsReporter);
 
       if (context.snapshotId() != null) {
         scan = scan.useSnapshot(context.snapshotId());
@@ -157,7 +175,7 @@ public class FlinkSplitPlanner {
 
   /** refine scan with common configs */
   private static <T extends Scan<T, FileScanTask, CombinedScanTask>> T refineScanWithBaseConfigs(
-      T scan, ScanContext context, ExecutorService workerPool) {
+      T scan, ScanContext context, ExecutorService workerPool, MetricsReporter metricsReporter) {
     T refinedScan =
         scan.caseSensitive(context.caseSensitive()).project(context.project()).planWith(workerPool);
 
@@ -182,6 +200,10 @@ public class FlinkSplitPlanner {
       for (Expression filter : context.filters()) {
         refinedScan = refinedScan.filter(filter);
       }
+    }
+
+    if (metricsReporter != null) {
+      refinedScan = refinedScan.metricsReporter(metricsReporter);
     }
 
     return refinedScan;
