@@ -771,4 +771,19 @@ public class TestSparkWriteConf extends TestBaseWithCatalog {
     assertThat(writeProperties).containsEntry(PARQUET_SHRED_VARIANTS, "true");
     assertThat(writeProperties).containsEntry(TableProperties.PARQUET_VARIANT_BUFFER_SIZE, "200");
   }
+
+  @TestTemplate
+  public void testExtraSnapshotMetadataOnMetadataOnlyDelete() {
+    sql(
+        "INSERT INTO %s VALUES (1, 'a', DATE '2021-01-01', TIMESTAMP '2021-01-01 00:00:00')",
+        tableName);
+
+    withSQLConf(
+        ImmutableMap.of("spark.sql.iceberg.snapshot-property.test-key", "test-value"),
+        () -> {
+          sql("DELETE FROM %s WHERE date = DATE '2021-01-01'", tableName);
+          Table table = validationCatalog.loadTable(tableIdent);
+          assertThat(table.currentSnapshot().summary()).containsEntry("test-key", "test-value");
+        });
+  }
 }

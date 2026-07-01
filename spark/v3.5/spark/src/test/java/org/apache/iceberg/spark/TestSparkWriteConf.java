@@ -629,6 +629,21 @@ public class TestSparkWriteConf extends TestBaseWithCatalog {
         });
   }
 
+  @TestTemplate
+  public void testExtraSnapshotMetadataOnMetadataOnlyDelete() {
+    sql(
+        "INSERT INTO %s VALUES (1, 'a', DATE '2021-01-01', TIMESTAMP '2021-01-01 00:00:00')",
+        tableName);
+
+    withSQLConf(
+        ImmutableMap.of("spark.sql.iceberg.snapshot-property.test-key", "test-value"),
+        () -> {
+          sql("DELETE FROM %s WHERE date = DATE '2021-01-01'", tableName);
+          Table table = validationCatalog.loadTable(tableIdent);
+          assertThat(table.currentSnapshot().summary()).containsEntry("test-key", "test-value");
+        });
+  }
+
   private void checkMode(DistributionMode expectedMode, SparkWriteConf writeConf) {
     assertThat(writeConf.distributionMode()).isEqualTo(expectedMode);
     assertThat(writeConf.copyOnWriteDistributionMode(DELETE)).isEqualTo(expectedMode);
