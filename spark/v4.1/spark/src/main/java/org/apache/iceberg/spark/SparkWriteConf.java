@@ -239,7 +239,7 @@ public class SparkWriteConf {
     return confParser
         .booleanConf()
         .option(SparkWriteOptions.FANOUT_ENABLED)
-        .tableProperty(TableProperties.SPARK_WRITE_PARTITIONED_FANOUT_ENABLED)
+        .tableProperty(SparkTableProperties.WRITE_PARTITIONED_FANOUT_ENABLED)
         .defaultValue(defaultValue)
         .parse();
   }
@@ -706,7 +706,7 @@ public class SparkWriteConf {
         .longConf()
         .option(SparkWriteOptions.ADVISORY_PARTITION_SIZE)
         .sessionConf(SparkSQLProperties.ADVISORY_PARTITION_SIZE)
-        .tableProperty(TableProperties.SPARK_WRITE_ADVISORY_PARTITION_SIZE_BYTES)
+        .tableProperty(SparkTableProperties.WRITE_ADVISORY_PARTITION_SIZE_BYTES)
         .defaultValue(defaultValue)
         .parse();
   }

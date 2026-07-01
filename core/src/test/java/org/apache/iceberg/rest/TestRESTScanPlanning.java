@@ -75,6 +75,7 @@ import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
@@ -1575,5 +1576,85 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
 
     assertThat(table).isNotInstanceOf(RESTTable.class);
     assertThat(table).isInstanceOf(BaseTable.class);
+  }
+
+  @Test
+  public void defaultPlanningModeWhenNoneSpecified() {
+    CatalogWithAdapter catalogWithAdapter = catalogWithModes(null, null);
+    catalogWithAdapter.catalog.createNamespace(NS);
+
+    Table table =
+        catalogWithAdapter
+            .catalog
+            .buildTable(TableIdentifier.of(NS, "default_mode_test"), SCHEMA)
+            .create();
+
+    assertThat(table).isNotInstanceOf(RESTTable.class).isInstanceOf(BaseTable.class);
+  }
+
+  @Test
+  public void invalidPlanningModeConfiguredForClient() {
+    assertThatThrownBy(
+            () ->
+                catalogWithModes(
+                    "invalid_mode", RESTCatalogProperties.ScanPlanningMode.CLIENT.modeName()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Invalid scan planning mode: invalid_mode");
+  }
+
+  @Test
+  public void invalidPlanningModeConfiguredForServer() {
+    CatalogWithAdapter catalogWithAdapter =
+        catalogWithModes(RESTCatalogProperties.ScanPlanningMode.CLIENT.modeName(), "invalid_mode");
+    catalogWithAdapter.catalog.createNamespace(NS);
+
+    assertThatThrownBy(
+            () ->
+                catalogWithAdapter
+                    .catalog
+                    .buildTable(TableIdentifier.of(NS, "invalid_server_mode_test"), SCHEMA)
+                    .create())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Invalid scan planning mode: invalid_mode");
+  }
+
+  @ParameterizedTest
+  @ValueSource(
+      strings = {"client", "CLIENT", "Client", "cLiEnT", "server", "SERVER", "Server", "sErVeR"})
+  public void planningModeWithDifferentCasesOnClient(String planningMode) {
+    CatalogWithAdapter catalogWithAdapter = catalogWithModes(planningMode, null);
+    catalogWithAdapter.catalog.createNamespace(NS);
+
+    Table table =
+        catalogWithAdapter
+            .catalog
+            .buildTable(TableIdentifier.of(NS, "client_case_test_" + planningMode), SCHEMA)
+            .create();
+
+    verifyTableTypeForPlanningMode(planningMode, table);
+  }
+
+  @ParameterizedTest
+  @ValueSource(
+      strings = {"client", "CLIENT", "Client", "cLiEnT", "server", "SERVER", "Server", "sErVeR"})
+  public void planningModeWithDifferentCasesOnServer(String serverMode) {
+    CatalogWithAdapter catalogWithAdapter = catalogWithModes(null, serverMode);
+    catalogWithAdapter.catalog.createNamespace(NS);
+
+    Table table =
+        catalogWithAdapter
+            .catalog
+            .buildTable(TableIdentifier.of(NS, "server_case_test_" + serverMode), SCHEMA)
+            .create();
+
+    verifyTableTypeForPlanningMode(serverMode, table);
+  }
+
+  private void verifyTableTypeForPlanningMode(String planingMode, Table table) {
+    if (planingMode.equalsIgnoreCase("client")) {
+      assertThat(table).isNotInstanceOf(RESTTable.class).isInstanceOf(BaseTable.class);
+    } else {
+      assertThat(table).isInstanceOf(RESTTable.class);
+    }
   }
 }
