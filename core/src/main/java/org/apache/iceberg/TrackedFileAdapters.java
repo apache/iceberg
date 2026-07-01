@@ -419,7 +419,6 @@ class TrackedFileAdapters {
 
   /**
    * Adapts a TrackedFile to {@link ManifestFile}
-   * interface.
    */
   private static class TrackedManifestFile implements ManifestFile {
     private final TrackedFile file;
