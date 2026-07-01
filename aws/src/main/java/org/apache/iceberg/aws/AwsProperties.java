@@ -529,26 +529,33 @@ public class AwsProperties implements Serializable {
     return DefaultCredentialsProvider.builder().build();
   }
 
-  private StsAssumeRoleCredentialsProvider assumeRoleCredentialsProvider() {
-    String sessionName =
-        this.clientAssumeRoleSessionName != null
-            ? this.clientAssumeRoleSessionName
-            : String.format("iceberg-aws-%s", uuid);
-
+  StsAssumeRoleCredentialsProvider assumeRoleCredentialsProvider() {
+    Preconditions.checkNotNull(
+        this.clientAssumeRoleRegion,
+        "Cannot create StsAssumeRoleCredentialsProvider with null region");
     return StsAssumeRoleCredentialsProvider.builder()
         .stsClient(
             StsClient.builder()
                 .applyMutation(httpClientProperties::applyHttpClientConfigurations)
                 .region(Region.of(this.clientAssumeRoleRegion))
                 .build())
-        .refreshRequest(
-            AssumeRoleRequest.builder()
-                .roleArn(this.clientAssumeRoleArn)
-                .roleSessionName(sessionName)
-                .durationSeconds(this.clientAssumeRoleTimeoutSec)
-                .externalId(this.clientAssumeRoleExternalId)
-                .tags(this.stsClientAssumeRoleTags)
-                .build())
+        .refreshRequest(createAssumeRoleRequest())
+        .build();
+  }
+
+  private AssumeRoleRequest createAssumeRoleRequest() {
+    Preconditions.checkNotNull(
+        this.clientAssumeRoleArn, "Cannot create AssumeRoleRequest with null role ARN");
+    String sessionName =
+        this.clientAssumeRoleSessionName != null
+            ? this.clientAssumeRoleSessionName
+            : String.format("iceberg-aws-%s", uuid);
+    return AssumeRoleRequest.builder()
+        .roleArn(this.clientAssumeRoleArn)
+        .roleSessionName(sessionName)
+        .durationSeconds(this.clientAssumeRoleTimeoutSec)
+        .externalId(this.clientAssumeRoleExternalId)
+        .tags(this.stsClientAssumeRoleTags)
         .build();
   }
 
