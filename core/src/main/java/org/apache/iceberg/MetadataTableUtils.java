@@ -70,6 +70,8 @@ public class MetadataTableUtils {
         return new SnapshotsTable(baseTable, metadataTableName);
       case METADATA_LOG_ENTRIES:
         return new MetadataLogEntriesTable(baseTable, metadataTableName);
+      case TABLE_PROPERTIES_LOG:
+        return new TablePropertiesLogTable(baseTable, metadataTableName);
       case REFS:
         return new RefsTable(baseTable, metadataTableName);
       case MANIFESTS:
