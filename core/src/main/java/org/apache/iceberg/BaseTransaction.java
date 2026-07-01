@@ -33,6 +33,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Consumer;
+import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.exceptions.CleanableFailure;
@@ -72,6 +73,9 @@ public class BaseTransaction implements Transaction {
       Sets.newHashSet(); // keep track of files deleted in the most recent commit
   private final Consumer<String> enqueueDelete = deletedFiles::add;
   private final TransactionType type;
+  // for replace transactions, rebuilds the replacement metadata from the latest table metadata so a
+  // concurrent writer's snapshots are preserved when the commit is retried; null otherwise
+  private final UnaryOperator<TableMetadata> replacement;
   private TableMetadata base;
   private TableMetadata current;
   private boolean hasLastOpCommitted;
@@ -79,7 +83,7 @@ public class BaseTransaction implements Transaction {
 
   BaseTransaction(
       String tableName, TableOperations ops, TransactionType type, TableMetadata start) {
-    this(tableName, ops, type, start, LoggingMetricsReporter.instance());
+    this(tableName, ops, type, start, null, LoggingMetricsReporter.instance());
   }
 
   BaseTransaction(
@@ -87,6 +91,25 @@ public class BaseTransaction implements Transaction {
       TableOperations ops,
       TransactionType type,
       TableMetadata start,
+      MetricsReporter reporter) {
+    this(tableName, ops, type, start, null, reporter);
+  }
+
+  BaseTransaction(
+      String tableName,
+      TableOperations ops,
+      TransactionType type,
+      TableMetadata start,
+      UnaryOperator<TableMetadata> replacement) {
+    this(tableName, ops, type, start, replacement, LoggingMetricsReporter.instance());
+  }
+
+  BaseTransaction(
+      String tableName,
+      TableOperations ops,
+      TransactionType type,
+      TableMetadata start,
+      UnaryOperator<TableMetadata> replacement,
       MetricsReporter reporter) {
     this.tableName = tableName;
     this.ops = ops;
@@ -96,6 +119,7 @@ public class BaseTransaction implements Transaction {
     this.updates = Lists.newArrayList();
     this.base = ops.current();
     this.type = type;
+    this.replacement = replacement;
     this.hasLastOpCommitted = true;
     this.reporter = reporter;
   }
@@ -312,20 +336,7 @@ public class BaseTransaction implements Transaction {
           .onlyRetryOn(CommitFailedException.class)
           .run(
               underlyingOps -> {
-                try {
-                  underlyingOps.refresh();
-                } catch (NoSuchTableException e) {
-                  if (!orCreate) {
-                    throw e;
-                  }
-                }
-
-                // because this is a replace table, it will always completely replace the table
-                // metadata. even if it was just updated.
-                if (base != underlyingOps.current()) {
-                  this.base = underlyingOps.current(); // just refreshed
-                }
-
+                refreshReplacement(underlyingOps, orCreate);
                 underlyingOps.commit(base, current);
               });
 
@@ -345,6 +356,42 @@ public class BaseTransaction implements Transaction {
       // retries are not
       // a concern, it is safe to delete all the deleted files from individual operations
       deleteUncommittedFiles(deletedFiles);
+    }
+  }
+
+  // refreshes the underlying table before a replace commit. if a concurrent writer changed the
+  // table, rebuilds the replacement metadata on top of the refreshed table so the concurrent
+  // writer's snapshots are preserved in history (the replacement still becomes the current state),
+  // then re-applies the pending updates to recreate this transaction's snapshot on top. catalogs
+  // that merge changes server-side (e.g. REST) pass no replacement builder and keep their existing
+  // behavior of completely replacing the table metadata.
+  private void refreshReplacement(TableOperations underlyingOps, boolean orCreate) {
+    try {
+      underlyingOps.refresh();
+    } catch (NoSuchTableException e) {
+      if (!orCreate) {
+        throw e;
+      }
+    }
+
+    if (base == underlyingOps.current()) {
+      return;
+    }
+
+    this.base = underlyingOps.current(); // just refreshed
+    if (replacement == null || base == null) {
+      return;
+    }
+
+    TableMetadata rebuilt = replacement.apply(base);
+    // only rebuild when the concurrent change preserves this replacement's schema and spec.
+    // otherwise rebuilding would reassign field ids and break data this transaction already wrote,
+    // so fall back to replacing the table outright (last writer wins).
+    if (rebuilt.schema().sameSchema(current.schema()) && rebuilt.spec().equals(current.spec())) {
+      this.current = rebuilt;
+      for (PendingUpdate update : updates) {
+        update.commit();
+      }
     }
   }
 
