@@ -340,4 +340,19 @@ public class TestSchemaUtils {
     Schema uuidSchema = SchemaBuilder.string().name("uuid").build();
     assertThat(SchemaUtils.toIcebergType(uuidSchema, config)).isInstanceOf(UUIDType.class);
   }
+
+  @Test
+  public void testInferIcebergTypeSmallDecimal() {
+    IcebergSinkConfig config = mock(IcebergSinkConfig.class);
+
+    // BigDecimal("0.001") has precision 1, smaller than its scale 3;
+    // Iceberg requires scale <= precision, so precision is widened to the scale
+    assertThat(SchemaUtils.inferIcebergType(new BigDecimal("0.001"), config))
+        .isEqualTo(DecimalType.of(3, 3));
+
+    // BigDecimal("1E+2") has a negative scale (-2); normalized to scale 0,
+    // the same decimal(3, 0) as new BigDecimal("100")
+    assertThat(SchemaUtils.inferIcebergType(new BigDecimal("1E+2"), config))
+        .isEqualTo(DecimalType.of(3, 0));
+  }
 }
