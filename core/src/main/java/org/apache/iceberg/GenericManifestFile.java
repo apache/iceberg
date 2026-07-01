@@ -60,6 +60,16 @@ public class GenericManifestFile extends SupportsIndexProjection
   private PartitionFieldSummary[] partitions = null;
   private byte[] keyMetadata = null;
   private Long firstRowId = null;
+  // v4+: total number of entries persisted at the root-manifest content_entry level. Null for
+  // pre-v4 manifest list entries where the count is not directly tracked at the manifest reference
+  // level. Populated via the v4+ constructor variant by V4Writer.toManifestFile and by
+  // RootManifestReader when projecting a content_entry row.
+  private Long recordCount = null;
+  // v4+: format version of the manifest file. LEGACY_FORMAT_VERSION (0) for pre-v4 manifests;
+  // V4_FORMAT_VERSION (4) for v4+ manifests. Populated via the v4+ constructor variant by v4+
+  // writers/readers; pre-v4 manifest list serialization does not carry this field, so it stays at
+  // the default for any manifest read from a v1-v3 manifest list.
+  private int formatVersion = LEGACY_FORMAT_VERSION;
 
   /** Used by Avro reflection to instantiate this class when reading manifest files. */
   public GenericManifestFile(Schema avroSchema) {
@@ -112,6 +122,51 @@ public class GenericManifestFile extends SupportsIndexProjection
       Integer deletedFilesCount,
       Long deletedRowsCount,
       Long firstRowId) {
+    this(
+        path,
+        length,
+        specId,
+        content,
+        sequenceNumber,
+        minSequenceNumber,
+        snapshotId,
+        partitions,
+        keyMetadata,
+        addedFilesCount,
+        addedRowsCount,
+        existingFilesCount,
+        existingRowsCount,
+        deletedFilesCount,
+        deletedRowsCount,
+        firstRowId,
+        null /* recordCount */,
+        LEGACY_FORMAT_VERSION);
+  }
+
+  /**
+   * v4+ constructor variant that accepts the v4+ {@code recordCount} and {@code formatVersion}
+   * fields. Pre-v4 callers should use the constructor without these parameters (which defaults
+   * recordCount to null and formatVersion to {@link #LEGACY_FORMAT_VERSION}).
+   */
+  GenericManifestFile(
+      String path,
+      long length,
+      int specId,
+      ManifestContent content,
+      long sequenceNumber,
+      long minSequenceNumber,
+      Long snapshotId,
+      List<PartitionFieldSummary> partitions,
+      ByteBuffer keyMetadata,
+      Integer addedFilesCount,
+      Long addedRowsCount,
+      Integer existingFilesCount,
+      Long existingRowsCount,
+      Integer deletedFilesCount,
+      Long deletedRowsCount,
+      Long firstRowId,
+      Long recordCount,
+      int formatVersion) {
     super(ManifestFile.schema().columns().size());
     this.avroSchema = AVRO_SCHEMA;
     this.manifestPath = path;
@@ -130,6 +185,8 @@ public class GenericManifestFile extends SupportsIndexProjection
     this.partitions = partitions == null ? null : partitions.toArray(new PartitionFieldSummary[0]);
     this.keyMetadata = ByteBuffers.toByteArray(keyMetadata);
     this.firstRowId = firstRowId;
+    this.recordCount = recordCount;
+    this.formatVersion = formatVersion;
   }
 
   /**
@@ -172,6 +229,8 @@ public class GenericManifestFile extends SupportsIndexProjection
             ? null
             : Arrays.copyOf(toCopy.keyMetadata, toCopy.keyMetadata.length);
     this.firstRowId = toCopy.firstRowId;
+    this.recordCount = toCopy.recordCount;
+    this.formatVersion = toCopy.formatVersion;
   }
 
   /** Constructor for Java serialization. */
@@ -270,6 +329,16 @@ public class GenericManifestFile extends SupportsIndexProjection
   @Override
   public Long firstRowId() {
     return firstRowId;
+  }
+
+  @Override
+  public Long recordCount() {
+    return recordCount;
+  }
+
+  @Override
+  public int formatVersion() {
+    return formatVersion;
   }
 
   @Override
