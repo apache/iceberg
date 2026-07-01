@@ -114,7 +114,7 @@ When `rest.access-key-id`, `rest.secret-access-key`, and optionally `rest.sessio
 
 When basic or session credentials are provided, the provided credentials will be used instead of `client.credentials-provider`. `client.credentials-provider` must contain a static `create` or `create(Map<String, String>)` method to be used by REST catalog requests.
 
-When `client.assume-role.arn` and `client.assume-role.region` are configured, Iceberg will assume the role using the default credential chain to sign REST Catalog requests. These parameters will have no effect if `rest.access-key-id`, `rest.secret-access-key`, or `client.credentials-provider` are configured.
+When `client.assume-role.arn` and `client.assume-role.region` are configured, Iceberg will assume the role using the default credential chain to sign REST catalog requests. These parameters will have no effect if `rest.access-key-id`, `rest.secret-access-key`, or `client.credentials-provider` are configured.
 
 #### Google auth properties
 Required and optional properties to include while using `google` authentication

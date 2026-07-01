@@ -31,15 +31,11 @@ import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.S3AsyncClientBuilder;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3CrtAsyncClientBuilder;
-import software.amazon.awssdk.services.sts.StsClient;
-import software.amazon.awssdk.services.sts.auth.StsAssumeRoleCredentialsProvider;
-import software.amazon.awssdk.services.sts.model.AssumeRoleRequest;
 
 public class AssumeRoleAwsClientFactory implements AwsClientFactory {
   private AwsProperties awsProperties;
   private HttpClientProperties httpClientProperties;
   private S3FileIOProperties s3FileIOProperties;
-  private String roleSessionName;
   private AwsClientProperties awsClientProperties;
 
   @Override
@@ -120,21 +116,21 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
   protected <T extends AwsClientBuilder & AwsSyncClientBuilder> T applyAssumeRoleConfigurations(
       T clientBuilder) {
     clientBuilder
-        .credentialsProvider(createCredentialsProvider())
+        .credentialsProvider(awsProperties.assumeRoleCredentialsProvider())
         .region(Region.of(awsProperties.clientAssumeRoleRegion()));
     return clientBuilder;
   }
 
   protected S3AsyncClientBuilder applyAssumeRoleConfigurations(S3AsyncClientBuilder clientBuilder) {
     return clientBuilder
-        .credentialsProvider(createCredentialsProvider())
+        .credentialsProvider(awsProperties.assumeRoleCredentialsProvider())
         .region(Region.of(awsProperties.clientAssumeRoleRegion()));
   }
 
   protected S3CrtAsyncClientBuilder applyAssumeRoleConfigurations(
       S3CrtAsyncClientBuilder clientBuilder) {
     return clientBuilder
-        .credentialsProvider(createCredentialsProvider())
+        .credentialsProvider(awsProperties.assumeRoleCredentialsProvider())
         .region(Region.of(awsProperties.clientAssumeRoleRegion()));
   }
 
@@ -156,28 +152,5 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
 
   protected AwsClientProperties awsClientProperties() {
     return awsClientProperties;
-  }
-
-  private StsClient sts() {
-    return StsClient.builder()
-        .applyMutation(httpClientProperties::applyHttpClientConfigurations)
-        .build();
-  }
-
-  private StsAssumeRoleCredentialsProvider createCredentialsProvider() {
-    return StsAssumeRoleCredentialsProvider.builder()
-        .stsClient(sts())
-        .refreshRequest(createAssumeRoleRequest())
-        .build();
-  }
-
-  private AssumeRoleRequest createAssumeRoleRequest() {
-    return AssumeRoleRequest.builder()
-        .roleArn(awsProperties.clientAssumeRoleArn())
-        .roleSessionName(awsProperties.clientAssumeRoleSessionName())
-        .durationSeconds(awsProperties.clientAssumeRoleTimeoutSec())
-        .externalId(awsProperties.clientAssumeRoleExternalId())
-        .tags(awsProperties.stsClientAssumeRoleTags())
-        .build();
   }
 }
