@@ -31,6 +31,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Binder;
 import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -42,6 +43,7 @@ import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalog.Column;
 import org.apache.spark.sql.types.DataType;
+import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 
@@ -126,6 +128,40 @@ public class SparkSchemaUtil {
   public static Schema convert(StructType sparkType) {
     Type converted = SparkTypeVisitor.visit(sparkType, new SparkTypeToType(sparkType));
     return new Schema(converted.asNestedType().asStructType().fields());
+  }
+
+  public static Schema convert(org.apache.spark.sql.connector.catalog.Column[] columns) {
+    StructField[] fields = new StructField[columns.length];
+    for (int index = 0; index < columns.length; index += 1) {
+      org.apache.spark.sql.connector.catalog.Column column = columns[index];
+      StructField field =
+          StructField.apply(column.name(), column.dataType(), column.nullable(), Metadata.empty());
+      if (column.comment() != null) {
+        field = field.withComment(column.comment());
+      }
+
+      fields[index] = field;
+    }
+
+    Schema schema = convert(new StructType(fields));
+    List<Types.NestedField> newFields = Lists.newArrayListWithExpectedSize(columns.length);
+    for (int index = 0; index < columns.length; index += 1) {
+      org.apache.spark.sql.connector.catalog.Column column = columns[index];
+      Types.NestedField field = schema.columns().get(index);
+      Literal<?> defaultValue =
+          SparkDefaultValues.toIcebergLiteral(column.name(), field.type(), column.defaultValue());
+      if (defaultValue != null) {
+        field =
+            Types.NestedField.from(field)
+                .withInitialDefault(defaultValue)
+                .withWriteDefault(defaultValue)
+                .build();
+      }
+
+      newFields.add(field);
+    }
+
+    return new Schema(newFields);
   }
 
   /**
