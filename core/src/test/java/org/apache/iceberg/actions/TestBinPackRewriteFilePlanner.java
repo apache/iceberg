@@ -126,6 +126,37 @@ class TestBinPackRewriteFilePlanner {
   }
 
   @Test
+  void testPartitionSpecEvolutionGrouping() {
+    addFiles();
+
+    table.updateSpec().addField(Expressions.bucket("id", 16)).commit();
+    BinPackRewriteFilePlanner planner = new BinPackRewriteFilePlanner(table);
+    planner.init(ImmutableMap.of(BinPackRewriteFilePlanner.REWRITE_ALL, "true"));
+    FileRewritePlan<FileGroupInfo, FileScanTask, DataFile, RewriteFileGroup> plan = planner.plan();
+    List<RewriteFileGroup> groups = Lists.newArrayList(plan.groups().iterator());
+    assertThat(groups)
+        .describedAs(
+            "adding a field will satisfy the old spec thus files will be grouped by partition values.")
+        .hasSize(3);
+    assertThat(groups.stream().mapToInt(RewriteGroupBase::inputFileNum).sum())
+        .describedAs("All files should be in plan irrespective of the spec")
+        .isEqualTo(6);
+
+    table.updateSpec().removeField("data_bucket").commit();
+    table.refresh();
+    FileRewritePlan<FileGroupInfo, FileScanTask, DataFile, RewriteFileGroup> newPlan =
+        planner.plan();
+    List<RewriteFileGroup> allGroups = Lists.newArrayList(newPlan.groups().iterator());
+    assertThat(allGroups)
+        .describedAs(
+            "removing a field from partition spec won't satisfy the old spec thus all files will be grouped into one group.")
+        .hasSize(1);
+    assertThat(allGroups.stream().mapToInt(RewriteGroupBase::inputFileNum).sum())
+        .describedAs("All files should be in plan irrespective of the spec")
+        .isEqualTo(6);
+  }
+
+  @Test
   void testEmptyTable() {
     BinPackRewriteFilePlanner planner = new BinPackRewriteFilePlanner(table);
     planner.init(REWRITE_ALL);
