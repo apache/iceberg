@@ -21,6 +21,7 @@ package org.apache.iceberg;
 import java.io.IOException;
 import java.util.List;
 import org.apache.iceberg.encryption.EncryptionManager;
+import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
@@ -51,7 +52,8 @@ class ManifestLists {
             .build()) {
 
       return Lists.newArrayList(files);
-
+    } catch (NotFoundException e) {
+      throw new NotFoundException(e, "Failed to read manifest list file: %s", s);
     } catch (IOException e) {
       throw new RuntimeIOException(
           e, "Cannot read manifest list file: %s", manifestList.location());
