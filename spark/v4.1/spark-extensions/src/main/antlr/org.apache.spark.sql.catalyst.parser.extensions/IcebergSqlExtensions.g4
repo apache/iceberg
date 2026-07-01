@@ -131,6 +131,13 @@ singleOrder
     : order EOF
     ;
 
+// Parses only the command head of `INSERT INTO t REPLACE USING (cols) <query>`.
+// The query tail remains Spark SQL and is delegated to Spark's parser until this syntax
+// can be represented directly in Spark's `insertInto` grammar.
+singleScopedReplaceHead
+    : INSERT INTO TABLE? multipartIdentifier REPLACE USING '(' fieldList ')' EOF
+    ;
+
 order
     : fields+=orderField (',' fields+=orderField)*
     | '(' fields+=orderField (',' fields+=orderField)* ')'
@@ -211,6 +218,7 @@ nonReserved
     | DISTRIBUTED | LOCALLY | MINUTES | MONTHS | UNORDERED | REPLACE | RETAIN | VERSION | WITH | IDENTIFIER_KW | FIELDS | SET | SNAPSHOT | SNAPSHOTS
     | TAG | TRUE | FALSE
     | MAP
+    | INSERT | INTO | USING
     ;
 
 snapshotId
@@ -243,6 +251,8 @@ FIELDS: 'FIELDS';
 FIRST: 'FIRST';
 HOURS: 'HOURS';
 IF : 'IF';
+INSERT: 'INSERT';
+INTO: 'INTO';
 LAST: 'LAST';
 LOCALLY: 'LOCALLY';
 MINUTES: 'MINUTES';
@@ -264,6 +274,7 @@ SNAPSHOTS: 'SNAPSHOTS';
 TABLE: 'TABLE';
 TAG: 'TAG';
 UNORDERED: 'UNORDERED';
+USING: 'USING';
 VERSION: 'VERSION';
 WITH: 'WITH';
 WRITE: 'WRITE';
