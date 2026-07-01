@@ -23,7 +23,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
-import static org.mockito.Mockito.withSettings;
 
 import java.util.Collections;
 import org.apache.spark.sql.catalyst.analysis.NoSuchNamespaceException;
@@ -114,27 +113,57 @@ public class TestSparkSessionCatalog extends TestBase {
   public void listViewsReturnsSessionCatalogViews() throws NoSuchNamespaceException {
     Identifier viewIdent = Identifier.of(new String[] {"default"}, "session_catalog_list_views");
     Identifier[] views = new Identifier[] {viewIdent};
-    TableCatalog sessionCatalog =
-        mock(
-            TableCatalog.class,
-            withSettings()
-                .extraInterfaces(
-                    FunctionCatalog.class, SupportsNamespaces.class, ViewCatalog.class));
-    when(((ViewCatalog) sessionCatalog).listViews("default")).thenReturn(views);
-
-    SparkSessionCatalog<?> catalog = new NoViewCatalog<>();
-    catalog.initialize("spark_catalog", new CaseInsensitiveStringMap(Collections.emptyMap()));
-    catalog.setDelegateCatalog(sessionCatalog);
+    SessionCatalog sessionCatalog = sessionCatalogWithViews(views);
+    SparkSessionCatalog<?> catalog =
+        catalogWithIcebergCatalog(mock(TableCatalog.class), sessionCatalog);
 
     assertThat(catalog.listViews("default")).containsExactly(viewIdent);
   }
 
-  private static class NoViewCatalog<
-          T extends TableCatalog & FunctionCatalog & SupportsNamespaces & ViewCatalog>
-      extends SparkSessionCatalog<T> {
+  @Test
+  public void listViewsMergesIcebergAndSessionCatalogViews() throws NoSuchNamespaceException {
+    Identifier icebergView =
+        Identifier.of(new String[] {"default"}, "list_views_merge_view_catalog");
+    Identifier sessionCatalogView =
+        Identifier.of(new String[] {"default"}, "list_views_merge_session_catalog");
+    IcebergViewCatalog icebergCatalog = mock(IcebergViewCatalog.class);
+    when(icebergCatalog.listViews("default")).thenReturn(new Identifier[] {icebergView});
+    SessionCatalog sessionCatalog = sessionCatalogWithViews(new Identifier[] {sessionCatalogView});
+    SparkSessionCatalog<?> catalog = catalogWithIcebergCatalog(icebergCatalog, sessionCatalog);
+
+    assertThat(catalog.listViews("default")).containsExactly(icebergView, sessionCatalogView);
+  }
+
+  private static SparkSessionCatalog<?> catalogWithIcebergCatalog(
+      TableCatalog icebergCatalog, SessionCatalog sessionCatalog) {
+    SparkSessionCatalog<?> catalog = new TestableSparkSessionCatalog(icebergCatalog);
+    catalog.initialize("test", new CaseInsensitiveStringMap(Collections.emptyMap()));
+    catalog.setDelegateCatalog(sessionCatalog);
+    return catalog;
+  }
+
+  private static SessionCatalog sessionCatalogWithViews(Identifier[] views)
+      throws NoSuchNamespaceException {
+    SessionCatalog sessionCatalog = mock(SessionCatalog.class);
+    when(sessionCatalog.listViews("default")).thenReturn(views);
+    return sessionCatalog;
+  }
+
+  private interface IcebergViewCatalog extends TableCatalog, ViewCatalog {}
+
+  private interface SessionCatalog
+      extends TableCatalog, FunctionCatalog, SupportsNamespaces, ViewCatalog {}
+
+  private static class TestableSparkSessionCatalog extends SparkSessionCatalog<SessionCatalog> {
+    private final TableCatalog icebergCatalog;
+
+    TestableSparkSessionCatalog(TableCatalog icebergCatalog) {
+      this.icebergCatalog = icebergCatalog;
+    }
+
     @Override
     protected TableCatalog buildSparkCatalog(String name, CaseInsensitiveStringMap options) {
-      return mock(TableCatalog.class);
+      return icebergCatalog;
     }
   }
 }
