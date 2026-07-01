@@ -43,6 +43,7 @@ import java.io.StringWriter;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
@@ -52,12 +53,14 @@ import java.util.Random;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.apache.iceberg.TableMetadata.MetadataLogEntry;
 import org.apache.iceberg.TableMetadata.SnapshotLogEntry;
 import org.apache.iceberg.encryption.PlaintextEncryptionManager;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.exceptions.RetryableValidationException;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -68,6 +71,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.JsonUtil;
+import org.apache.iceberg.util.SerializableSupplier;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -2185,5 +2189,74 @@ public class TestTableMetadata {
             .setRef("tag1", SnapshotRef.tagBuilder(snapshot.snapshotId()).build())
             .build();
     assertThat(withTag.ref("tag1").isTag()).isTrue();
+  }
+
+  @Test
+  public void testSetSnapshotsSupplierPreservesMetadata() {
+    TableMetadata base =
+        TableMetadata.newTableMetadata(
+            ManifestFile.schema(),
+            PartitionSpec.unpartitioned(),
+            SortOrder.unsorted().toString(),
+            Collections.emptyMap());
+
+    AtomicBoolean supplierInvoked = new AtomicBoolean(false);
+    SerializableSupplier<List<Snapshot>> snapshotsSupplier =
+        () -> {
+          supplierInvoked.set(true);
+          return new ArrayList<>();
+        };
+
+    TableMetadata builtWithSupplier =
+        TableMetadata.buildFrom(base).setSnapshotsSupplier(snapshotsSupplier).build();
+
+    TableMetadata.buildFrom(builtWithSupplier);
+
+    assertThat(supplierInvoked.get()).isTrue();
+    assertThat(builtWithSupplier)
+        .extracting(
+            TableMetadata::lastAssignedPartitionId,
+            TableMetadata::formatVersion,
+            TableMetadata::defaultSpecId,
+            TableMetadata::nextSequenceNumber)
+        .containsExactly(
+            base.lastAssignedPartitionId(),
+            base.formatVersion(),
+            base.defaultSpecId(),
+            base.nextSequenceNumber());
+  }
+
+  @Test
+  public void testBuildReplacementPreservesMetadataLogAndDefaults() {
+    Schema schema = ManifestFile.schema();
+    PartitionSpec spec = PartitionSpec.unpartitioned();
+    SortOrder sortOrder = SortOrder.unsorted();
+    Map<String, String> properties = Collections.emptyMap();
+    TableMetadata metadata =
+        TableMetadata.newTableMetadata(schema, spec, sortOrder, "table-location", properties);
+    TableMetadata built =
+        TableMetadata.buildFrom(metadata)
+            .addSchema(schema)
+            .setPreviousFileLocation("previous-metadata-location")
+            .build();
+    TableMetadata replacement =
+        built.buildReplacement(schema, spec, sortOrder, "[nF", properties);
+
+    assertThat(metadata.defaultSortOrderId()).isEqualTo(0);
+    assertThat(built.previousFiles())
+        .hasSize(1)
+        .extracting(TableMetadata.MetadataLogEntry::file)
+        .containsExactly("previous-metadata-location");
+    assertThat(replacement)
+        .extracting(
+            TableMetadata::formatVersion,
+            TableMetadata::defaultSpecId,
+            TableMetadata::lastAssignedPartitionId,
+            TableMetadata::nextSequenceNumber)
+        .containsExactly(
+            built.formatVersion(),
+            built.defaultSpecId(),
+            built.lastAssignedPartitionId(),
+            built.nextSequenceNumber());
   }
 }
