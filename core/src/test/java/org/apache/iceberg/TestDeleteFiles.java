@@ -26,6 +26,8 @@ import static org.assertj.core.api.Assumptions.assumeThat;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.iceberg.ManifestEntry.Status;
@@ -736,6 +738,50 @@ public class TestDeleteFiles extends TestBase {
         ids(deleteSnap.snapshotId(), deleteSnap.snapshotId()),
         files(dv1, dv2),
         statuses(Status.DELETED, Status.DELETED));
+  }
+
+  @TestTemplate
+  public void testConcurrentManifestFilteringWithExpression() {
+    // each file gets its own manifest so all manifests are processed concurrently by the worker
+    // pool; colliding paths share a String.hashCode() value, concentrating concurrent adds into
+    // the same DataFileSet hash bucket to expose races in unfixed code deterministically
+    int fileCount = 128;
+    for (int i = 0; i < fileCount; i++) {
+      DataFile file =
+          DataFiles.builder(SPEC)
+              .withPath(collidingPath(i))
+              .withFileSizeInBytes(10)
+              .withPartitionPath("data_bucket=" + (i % BUCKETS_NUMBER))
+              .withRecordCount(1)
+              .build();
+      commit(table, table.newAppend().appendFile(file), branch);
+    }
+
+    ExecutorService pool = Executors.newFixedThreadPool(16);
+    try {
+      commit(
+          table,
+          table
+              .newOverwrite()
+              .overwriteByRowFilter(Expressions.alwaysTrue())
+              .scanManifestsWith(pool),
+          branch);
+    } finally {
+      pool.shutdown();
+    }
+
+    assertThat(latestSnapshot(table, branch).summary())
+        .containsEntry(SnapshotSummary.DELETED_FILES_PROP, String.valueOf(fileCount));
+  }
+
+  // "Aa" and "BB" are a classic Java hash-collision pair (both hash to 2112), so all generated
+  // paths share the same String.hashCode() and land in the same DataFileSet hash bucket
+  private static String collidingPath(int index) {
+    StringBuilder path = new StringBuilder("/path/to/collide-");
+    for (int bit = 0; bit < 7; bit++) {
+      path.append(((index >> bit) & 1) == 0 ? "Aa" : "BB");
+    }
+    return path.append(".parquet").toString();
   }
 
   private static ByteBuffer longToBuffer(long value) {
