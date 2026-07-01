@@ -612,6 +612,44 @@ public class TestSchemaUpdate {
   }
 
   @Test
+  public void testUpdateColumnAddedToMapValueOrListElementInSameTransaction() {
+    // A column added to a map value or list element struct is referenced by its short name
+    // ("locations.alt", not "locations.value.alt") later in the same transaction.
+    Schema updated =
+        new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID)
+            .addColumn("locations", "alt", Types.FloatType.get())
+            .updateColumnDoc("locations.alt", "altitude")
+            .addColumn("points", "z", Types.LongType.get())
+            .updateColumnDoc("points.z", "z coordinate")
+            .apply();
+
+    Types.StructType locationsValue =
+        updated.findField("locations").type().asMapType().valueType().asStructType();
+    assertThat(locationsValue.field("alt").doc()).isEqualTo("altitude");
+
+    Types.StructType pointsElement =
+        updated.findField("points").type().asListType().elementType().asStructType();
+    assertThat(pointsElement.field("z").doc()).isEqualTo("z coordinate");
+  }
+
+  @Test
+  public void testAddedNestedShortNameDoesNotShadowSiblingCanonicalName() {
+    // "z" owns the canonical name "points.element.z"; a sibling named "element.z" has the
+    // same short name but must not shadow it, so "points.element.z" still resolves to "z".
+    Schema updated =
+        new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID)
+            .addColumn("points", "z", Types.LongType.get())
+            .addColumn("points", "element.z", Types.IntegerType.get())
+            .updateColumnDoc("points.element.z", "the canonical z column")
+            .apply();
+
+    Types.StructType pointsElement =
+        updated.findField("points").type().asListType().elementType().asStructType();
+    assertThat(pointsElement.field("z").doc()).isEqualTo("the canonical z column");
+    assertThat(pointsElement.field("element.z").doc()).isNull();
+  }
+
+  @Test
   public void testAddNestedStruct() {
     Schema schema = new Schema(required(1, "id", Types.IntegerType.get()));
     Types.StructType struct =
