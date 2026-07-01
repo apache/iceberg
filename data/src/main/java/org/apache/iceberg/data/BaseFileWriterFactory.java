@@ -79,6 +79,16 @@ public abstract class BaseFileWriterFactory<T> implements FileWriterFactory<T>, 
     this.equalityDeleteSortOrder = equalityDeleteSortOrder;
     this.writerProperties = writerProperties;
     this.positionDeleteRowSchema = null;
+    validateEqualityFieldIds();
+  }
+
+  private void validateEqualityFieldIds() {
+    if (equalityFieldIds != null) {
+      Schema validationSchema = dataSchema != null ? dataSchema : equalityDeleteRowSchema;
+      if (validationSchema != null) {
+        EqualityDeleteWriter.validateEqualityFieldIds(equalityFieldIds, validationSchema);
+      }
+    }
   }
 
   protected BaseFileWriterFactory(
@@ -102,6 +112,7 @@ public abstract class BaseFileWriterFactory<T> implements FileWriterFactory<T>, 
     this.equalityDeleteSortOrder = equalityDeleteSortOrder;
     this.positionDeleteRowSchema = positionDeleteRowSchema;
     this.writerProperties = writerProperties;
+    validateEqualityFieldIds();
   }
 
   @Deprecated
@@ -125,6 +136,7 @@ public abstract class BaseFileWriterFactory<T> implements FileWriterFactory<T>, 
     this.equalityDeleteSortOrder = equalityDeleteSortOrder;
     this.positionDeleteRowSchema = positionDeleteRowSchema;
     this.writerProperties = ImmutableMap.of();
+    validateEqualityFieldIds();
   }
 
   protected abstract void configureDataWrite(Avro.DataWriteBuilder builder);

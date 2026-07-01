@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.data;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import java.io.IOException;
 import java.util.List;
 import org.apache.iceberg.Schema;
@@ -58,6 +60,55 @@ public class TestGenericFileWriterFactory extends TestFileWriterFactory<Record> 
     StructLikeSet set = StructLikeSet.create(table.schema().asStruct());
     records.forEach(set::add);
     return set;
+  }
+
+  @TestTemplate
+  void testEmptyEqualityFieldIdsRejected() {
+    Schema equalityDeleteRowSchema = table.schema().select("id");
+    assertThatThrownBy(
+            () ->
+                GenericFileWriterFactory.builderFor(table)
+                    .dataSchema(table.schema())
+                    .dataFileFormat(format())
+                    .deleteFileFormat(format())
+                    .equalityFieldIds(new int[0])
+                    .equalityDeleteRowSchema(equalityDeleteRowSchema)
+                    .build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Equality delete field ids must not be null or empty");
+  }
+
+  @TestTemplate
+  void testDuplicateEqualityFieldIdsRejected() {
+    int idFieldId = table.schema().findField("id").fieldId();
+    Schema equalityDeleteRowSchema = table.schema().select("id");
+    assertThatThrownBy(
+            () ->
+                GenericFileWriterFactory.builderFor(table)
+                    .dataSchema(table.schema())
+                    .dataFileFormat(format())
+                    .deleteFileFormat(format())
+                    .equalityFieldIds(new int[] {idFieldId, idFieldId})
+                    .equalityDeleteRowSchema(equalityDeleteRowSchema)
+                    .build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Duplicate equality delete field id: " + idFieldId);
+  }
+
+  @TestTemplate
+  void testMissingEqualityFieldIdRejected() {
+    Schema equalityDeleteRowSchema = table.schema().select("id");
+    assertThatThrownBy(
+            () ->
+                GenericFileWriterFactory.builderFor(table)
+                    .dataSchema(table.schema())
+                    .dataFileFormat(format())
+                    .deleteFileFormat(format())
+                    .equalityFieldIds(new int[] {999})
+                    .equalityDeleteRowSchema(equalityDeleteRowSchema)
+                    .build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Invalid equality delete field id: 999");
   }
 
   @Disabled("Position deletes with row data are no longer supported")

@@ -85,6 +85,13 @@ public abstract class RegistryBasedFileWriterFactory<T, S>
     this.writerProperties = writerProperties != null ? writerProperties : ImmutableMap.of();
     this.inputSchema = inputSchema;
     this.equalityDeleteInputSchema = equalityDeleteInputSchema;
+
+    if (equalityFieldIds != null) {
+      Schema validationSchema = dataSchema != null ? dataSchema : equalityDeleteRowSchema;
+      if (validationSchema != null) {
+        EqualityDeleteWriter.validateEqualityFieldIds(equalityFieldIds, validationSchema);
+      }
+    }
   }
 
   protected S inputSchema() {

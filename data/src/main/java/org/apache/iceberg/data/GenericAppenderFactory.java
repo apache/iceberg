@@ -148,6 +148,10 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
     this.equalityFieldIds = equalityFieldIds;
     this.eqDeleteRowSchema = eqDeleteRowSchema;
     this.posDeleteRowSchema = posDeleteRowSchema;
+
+    if (equalityFieldIds != null) {
+      EqualityDeleteWriter.validateEqualityFieldIds(equalityFieldIds, this.schema);
+    }
   }
 
   public GenericAppenderFactory set(String property, String value) {

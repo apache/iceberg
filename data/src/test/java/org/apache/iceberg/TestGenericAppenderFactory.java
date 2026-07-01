@@ -136,4 +136,53 @@ public class TestGenericAppenderFactory extends TestAppenderFactory<Record> {
         .hasMessageContaining(
             "Cannot set metrics properties when the table is provided, use table properties instead");
   }
+
+  @TestTemplate
+  void testEmptyEqualityFieldIdsRejected() {
+    Schema eqDeleteRowSchema = table.schema().select("id");
+    assertThatThrownBy(
+            () ->
+                new GenericAppenderFactory(
+                    table,
+                    table.schema(),
+                    table.spec(),
+                    Maps.newHashMap(),
+                    new int[0],
+                    eqDeleteRowSchema))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Equality delete field ids must not be null or empty");
+  }
+
+  @TestTemplate
+  void testDuplicateEqualityFieldIdsRejected() {
+    int idFieldId = table.schema().findField("id").fieldId();
+    Schema eqDeleteRowSchema = table.schema().select("id");
+    assertThatThrownBy(
+            () ->
+                new GenericAppenderFactory(
+                    table,
+                    table.schema(),
+                    table.spec(),
+                    Maps.newHashMap(),
+                    new int[] {idFieldId, idFieldId},
+                    eqDeleteRowSchema))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Duplicate equality delete field id: " + idFieldId);
+  }
+
+  @TestTemplate
+  void testMissingEqualityFieldIdRejected() {
+    Schema eqDeleteRowSchema = table.schema().select("id");
+    assertThatThrownBy(
+            () ->
+                new GenericAppenderFactory(
+                    table,
+                    table.schema(),
+                    table.spec(),
+                    Maps.newHashMap(),
+                    new int[] {999},
+                    eqDeleteRowSchema))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Invalid equality delete field id: 999");
+  }
 }
