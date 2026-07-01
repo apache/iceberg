@@ -111,8 +111,8 @@ public class BaseReplacePartitions extends MergingSnapshotProducer<ReplacePartit
 
   @Override
   public List<ManifestFile> apply(TableMetadata base, Snapshot snapshot) {
-    if (dataSpec().isUnpartitioned()) {
-      // replace all data in an unpartitioned table
+    if (addsDataFiles() && dataSpec().isUnpartitioned()) {
+      // replace all data in an unpartitioned table only when new files are being added
       deleteByRowFilter(Expressions.alwaysTrue());
     }
 
