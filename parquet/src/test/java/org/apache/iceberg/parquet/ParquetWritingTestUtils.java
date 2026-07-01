@@ -35,7 +35,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.parquet.schema.MessageType;
 
 /** Utilities for tests that need to write Parquet files. */
-class ParquetWritingTestUtils {
+public class ParquetWritingTestUtils {
 
   private ParquetWritingTestUtils() {}
 

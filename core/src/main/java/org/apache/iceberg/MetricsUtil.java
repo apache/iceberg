@@ -21,6 +21,7 @@ package org.apache.iceberg;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 
 import java.nio.ByteBuffer;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -477,6 +478,81 @@ public class MetricsUtil {
     public <T> void set(int pos, T value) {
       throw new UnsupportedOperationException("StructWithReadableMetrics is read only");
     }
+  }
+
+  static Map<Integer, Long> valueCounts(ContentStats stats) {
+    if (stats == null) {
+      return null;
+    }
+
+    Map<Integer, Long> result = Maps.newHashMap();
+    for (FieldStats<?> fs : stats.fieldStats()) {
+      if (fs != null && fs.valueCount() != null) {
+        result.put(fs.fieldId(), fs.valueCount());
+      }
+    }
+
+    return result.isEmpty() ? null : Collections.unmodifiableMap(result);
+  }
+
+  static Map<Integer, Long> nullValueCounts(ContentStats stats) {
+    if (stats == null) {
+      return null;
+    }
+
+    Map<Integer, Long> result = Maps.newHashMap();
+    for (FieldStats<?> fs : stats.fieldStats()) {
+      if (fs != null && fs.nullValueCount() != null) {
+        result.put(fs.fieldId(), fs.nullValueCount());
+      }
+    }
+
+    return result.isEmpty() ? null : Collections.unmodifiableMap(result);
+  }
+
+  static Map<Integer, Long> nanValueCounts(ContentStats stats) {
+    if (stats == null) {
+      return null;
+    }
+
+    Map<Integer, Long> result = Maps.newHashMap();
+    for (FieldStats<?> fs : stats.fieldStats()) {
+      if (fs != null && fs.nanValueCount() != null) {
+        result.put(fs.fieldId(), fs.nanValueCount());
+      }
+    }
+
+    return result.isEmpty() ? null : Collections.unmodifiableMap(result);
+  }
+
+  static Map<Integer, ByteBuffer> lowerBounds(ContentStats stats) {
+    if (stats == null) {
+      return null;
+    }
+
+    Map<Integer, ByteBuffer> result = Maps.newHashMap();
+    for (FieldStats<?> fs : stats.fieldStats()) {
+      if (fs != null && fs.lowerBound() != null && fs.type() != null) {
+        result.put(fs.fieldId(), Conversions.toByteBuffer(fs.type(), fs.lowerBound()));
+      }
+    }
+
+    return result.isEmpty() ? null : Collections.unmodifiableMap(result);
+  }
+
+  static Map<Integer, ByteBuffer> upperBounds(ContentStats stats) {
+    if (stats == null) {
+      return null;
+    }
+
+    Map<Integer, ByteBuffer> result = Maps.newHashMap();
+    for (FieldStats<?> fs : stats.fieldStats()) {
+      if (fs != null && fs.upperBound() != null && fs.type() != null) {
+        result.put(fs.fieldId(), Conversions.toByteBuffer(fs.type(), fs.upperBound()));
+      }
+    }
+
+    return result.isEmpty() ? null : Collections.unmodifiableMap(result);
   }
 
   static ContentStats fromMetrics(Schema schema, Metrics metrics) {

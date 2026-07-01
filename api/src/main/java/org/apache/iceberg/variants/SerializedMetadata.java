@@ -22,6 +22,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.util.ByteBuffers;
 
 class SerializedMetadata implements VariantMetadata, Serialized {
   private static final int HEADER_SIZE = 1;
@@ -42,7 +43,7 @@ class SerializedMetadata implements VariantMetadata, Serialized {
   static SerializedMetadata from(ByteBuffer metadata) {
     Preconditions.checkArgument(
         metadata.order() == ByteOrder.LITTLE_ENDIAN, "Unsupported byte order: big endian");
-    int header = VariantUtil.readByte(metadata, 0);
+    int header = ByteBuffers.readByte(metadata, 0);
     int version = header & VERSION_MASK;
     Preconditions.checkArgument(SUPPORTED_VERSION == version, "Unsupported version: %s", version);
     return new SerializedMetadata(metadata, header);
@@ -58,13 +59,13 @@ class SerializedMetadata implements VariantMetadata, Serialized {
   private SerializedMetadata(ByteBuffer metadata, int header) {
     this.isSorted = (header & SORTED_STRINGS) == SORTED_STRINGS;
     this.offsetSize = 1 + ((header & OFFSET_SIZE_MASK) >> OFFSET_SIZE_SHIFT);
-    int dictSize = VariantUtil.readLittleEndianUnsigned(metadata, HEADER_SIZE, offsetSize);
+    int dictSize = ByteBuffers.readLittleEndianUnsigned(metadata, HEADER_SIZE, offsetSize);
     this.dict = new String[dictSize];
     this.offsetListOffset = HEADER_SIZE + offsetSize;
     this.dataOffset = offsetListOffset + ((1 + dictSize) * offsetSize);
     int endOffset =
         dataOffset
-            + VariantUtil.readLittleEndianUnsigned(
+            + ByteBuffers.readLittleEndianUnsigned(
                 metadata, offsetListOffset + (offsetSize * dictSize), offsetSize);
     if (endOffset < metadata.limit()) {
       this.metadata = VariantUtil.slice(metadata, 0, endOffset);
@@ -106,10 +107,10 @@ class SerializedMetadata implements VariantMetadata, Serialized {
   public String get(int index) {
     if (null == dict[index]) {
       int offset =
-          VariantUtil.readLittleEndianUnsigned(
+          ByteBuffers.readLittleEndianUnsigned(
               metadata, offsetListOffset + (offsetSize * index), offsetSize);
       int next =
-          VariantUtil.readLittleEndianUnsigned(
+          ByteBuffers.readLittleEndianUnsigned(
               metadata, offsetListOffset + (offsetSize * (1 + index)), offsetSize);
       dict[index] = VariantUtil.readString(metadata, dataOffset + offset, next - offset);
     }
@@ -129,7 +130,7 @@ class SerializedMetadata implements VariantMetadata, Serialized {
   @Override
   public int writeTo(ByteBuffer buffer, int offset) {
     ByteBuffer value = buffer();
-    VariantUtil.writeBufferAbsolute(buffer, offset, value);
+    buffer.put(offset, value, value.position(), value.remaining());
     return value.remaining();
   }
 

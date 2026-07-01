@@ -135,6 +135,10 @@ public class TableProperties {
       "write.delete.parquet.page-size-bytes";
   public static final int PARQUET_PAGE_SIZE_BYTES_DEFAULT = 1024 * 1024; // 1 MB
 
+  public static final String PARQUET_PAGE_VERSION = "write.parquet.page-version";
+  public static final String DELETE_PARQUET_PAGE_VERSION = "write.delete.parquet.page-version";
+  public static final String PARQUET_PAGE_VERSION_DEFAULT = "v1";
+
   public static final String PARQUET_PAGE_ROW_LIMIT = "write.parquet.page-row-limit";
   public static final String DELETE_PARQUET_PAGE_ROW_LIMIT = "write.delete.parquet.page-row-limit";
   public static final int PARQUET_PAGE_ROW_LIMIT_DEFAULT = 20_000;
@@ -154,6 +158,12 @@ public class TableProperties {
       "write.delete.parquet.compression-level";
   public static final String PARQUET_COMPRESSION_LEVEL_DEFAULT = null;
 
+  public static final String PARQUET_SHRED_VARIANTS = "write.parquet.shred-variants";
+  public static final boolean PARQUET_SHRED_VARIANTS_DEFAULT = false;
+  public static final String PARQUET_VARIANT_BUFFER_SIZE =
+      "write.parquet.variant-inference-buffer-size";
+  public static final int PARQUET_VARIANT_BUFFER_SIZE_DEFAULT = 100;
+
   public static final String PARQUET_ROW_GROUP_CHECK_MIN_RECORD_COUNT =
       "write.parquet.row-group-check-min-record-count";
   public static final String DELETE_PARQUET_ROW_GROUP_CHECK_MIN_RECORD_COUNT =
@@ -165,6 +175,10 @@ public class TableProperties {
   public static final String DELETE_PARQUET_ROW_GROUP_CHECK_MAX_RECORD_COUNT =
       "write.delete.parquet.row-group-check-max-record-count";
   public static final int PARQUET_ROW_GROUP_CHECK_MAX_RECORD_COUNT_DEFAULT = 10000;
+
+  public static final String PARQUET_ROW_GROUP_SIZE_TRACK_UNCOMPRESSED =
+      "write.parquet.row-group-size-track-uncompressed";
+  public static final boolean PARQUET_ROW_GROUP_SIZE_TRACK_UNCOMPRESSED_DEFAULT = false;
 
   public static final String PARQUET_BLOOM_FILTER_MAX_BYTES =
       "write.parquet.bloom-filter-max-bytes";
@@ -188,6 +202,9 @@ public class TableProperties {
 
   public static final String PARQUET_COLUMN_COMPRESSION_LEVEL_PREFIX =
       "write.parquet.compression-level.column.";
+
+  public static final String PARQUET_DICT_ENCODING_ENABLED_COLUMN_PREFIX =
+      "write.parquet.dict-encoding-enabled.column.";
 
   public static final String AVRO_COMPRESSION = "write.avro.compression-codec";
   public static final String DELETE_AVRO_COMPRESSION = "write.delete.avro.compression-codec";
@@ -346,16 +363,51 @@ public class TableProperties {
   public static final String DELETE_TARGET_FILE_SIZE_BYTES = "write.delete.target-file-size-bytes";
   public static final long DELETE_TARGET_FILE_SIZE_BYTES_DEFAULT = 64 * 1024 * 1024; // 64 MB
 
+  /**
+   * @deprecated will be removed in 1.14.0, use
+   *     SparkTableProperties.WRITE_PARTITIONED_FANOUT_ENABLED in iceberg-spark instead.
+   */
+  @Deprecated
   public static final String SPARK_WRITE_PARTITIONED_FANOUT_ENABLED = "write.spark.fanout.enabled";
-  public static final boolean SPARK_WRITE_PARTITIONED_FANOUT_ENABLED_DEFAULT = false;
 
+  /**
+   * @deprecated will be removed in 1.14.0, use
+   *     SparkTableProperties.WRITE_PARTITIONED_FANOUT_ENABLED_DEFAULT in iceberg-spark instead.
+   */
+  @Deprecated public static final boolean SPARK_WRITE_PARTITIONED_FANOUT_ENABLED_DEFAULT = false;
+
+  /**
+   * @deprecated will be removed in 1.14.0, use SparkTableProperties.WRITE_ACCEPT_ANY_SCHEMA in
+   *     iceberg-spark instead.
+   */
+  @Deprecated
   public static final String SPARK_WRITE_ACCEPT_ANY_SCHEMA = "write.spark.accept-any-schema";
-  public static final boolean SPARK_WRITE_ACCEPT_ANY_SCHEMA_DEFAULT = false;
 
+  /**
+   * @deprecated will be removed in 1.14.0, use SparkTableProperties.WRITE_ACCEPT_ANY_SCHEMA_DEFAULT
+   *     in iceberg-spark instead.
+   */
+  @Deprecated public static final boolean SPARK_WRITE_ACCEPT_ANY_SCHEMA_DEFAULT = false;
+
+  /**
+   * @deprecated will be removed in 1.14.0, use SparkTableProperties.WRITE_AUTO_SCHEMA_EVOLUTION in
+   *     iceberg-spark instead.
+   */
+  @Deprecated
   public static final String SPARK_WRITE_AUTO_SCHEMA_EVOLUTION =
       "write.spark.auto-schema-evolution.enabled";
-  public static final boolean SPARK_WRITE_AUTO_SCHEMA_EVOLUTION_DEFAULT = true;
 
+  /**
+   * @deprecated will be removed in 1.14.0, use
+   *     SparkTableProperties.WRITE_AUTO_SCHEMA_EVOLUTION_DEFAULT in iceberg-spark instead.
+   */
+  @Deprecated public static final boolean SPARK_WRITE_AUTO_SCHEMA_EVOLUTION_DEFAULT = true;
+
+  /**
+   * @deprecated will be removed in 1.14.0, use
+   *     SparkTableProperties.WRITE_ADVISORY_PARTITION_SIZE_BYTES in iceberg-spark instead.
+   */
+  @Deprecated
   public static final String SPARK_WRITE_ADVISORY_PARTITION_SIZE_BYTES =
       "write.spark.advisory-partition-size-bytes";
 

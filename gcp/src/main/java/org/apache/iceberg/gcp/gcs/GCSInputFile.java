@@ -18,20 +18,13 @@
  */
 package org.apache.iceberg.gcp.gcs;
 
-import com.google.cloud.gcs.analyticscore.client.GcsFileInfo;
-import com.google.cloud.gcs.analyticscore.client.GcsFileSystem;
-import com.google.cloud.gcs.analyticscore.client.GcsItemId;
-import com.google.cloud.gcs.analyticscore.client.GcsItemInfo;
-import com.google.cloud.gcs.analyticscore.core.GoogleCloudStorageInputStream;
 import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.Storage;
 import java.io.IOException;
-import java.net.URI;
 import org.apache.iceberg.gcp.GCPProperties;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.metrics.MetricsContext;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -57,7 +50,9 @@ class GCSInputFile extends BaseGCSFile implements InputFile {
 
   GCSInputFile(
       Storage storage,
-      GcsFileSystem gcsFileSystem,
+      // Using AutoCloseable avoids a runtime dependency on gcs-analytics-core. Cast via
+      // AnalyticsCoreUtil.
+      AutoCloseable gcsFileSystem,
       BlobId blobId,
       Long blobSize,
       GCPProperties gcpProperties,
@@ -79,7 +74,7 @@ class GCSInputFile extends BaseGCSFile implements InputFile {
   public SeekableInputStream newStream() {
     if (gcpProperties().isGcsAnalyticsCoreEnabled()) {
       try {
-        return newGoogleCloudStorageInputStream();
+        return AnalyticsCoreUtil.newStream(gcsFileSystem(), blobId(), blobSize, metrics());
       } catch (IOException e) {
         LOG.error(
             "Failed to create GCS analytics core input stream for {}, falling back to default.",
@@ -89,36 +84,5 @@ class GCSInputFile extends BaseGCSFile implements InputFile {
     }
 
     return new GCSInputStream(storage(), blobId(), blobSize, gcpProperties(), metrics());
-  }
-
-  private SeekableInputStream newGoogleCloudStorageInputStream() throws IOException {
-    if (null == blobSize) {
-      return new GcsInputStreamWrapper(
-          GoogleCloudStorageInputStream.create(gcsFileSystem(), gcsItemId()), blobId(), metrics());
-    }
-
-    return new GcsInputStreamWrapper(
-        GoogleCloudStorageInputStream.create(gcsFileSystem(), gcsFileInfo()), blobId(), metrics());
-  }
-
-  private GcsItemId gcsItemId() {
-    BlobId blobId = blobId();
-    GcsItemId.Builder builder =
-        GcsItemId.builder().setBucketName(blobId.getBucket()).setObjectName(blobId.getName());
-    if (blobId.getGeneration() != null) {
-      builder.setContentGeneration(blobId.getGeneration());
-    }
-
-    return builder.build();
-  }
-
-  private GcsFileInfo gcsFileInfo() {
-    GcsItemId itemId = gcsItemId();
-    GcsItemInfo itemInfo = GcsItemInfo.builder().setItemId(itemId).setSize(getLength()).build();
-    return GcsFileInfo.builder()
-        .setItemInfo(itemInfo)
-        .setUri(URI.create(blobId().toGsUtilUri()))
-        .setAttributes(ImmutableMap.of())
-        .build();
   }
 }

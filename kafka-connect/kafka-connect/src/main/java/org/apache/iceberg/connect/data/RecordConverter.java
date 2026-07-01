@@ -58,6 +58,7 @@ import org.apache.iceberg.mapping.MappedField;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Type;
@@ -80,8 +81,12 @@ import org.apache.iceberg.variants.Variants;
 import org.apache.kafka.connect.data.Field;
 import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.errors.ConnectException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 class RecordConverter {
+
+  private static final Logger LOG = LoggerFactory.getLogger(RecordConverter.class);
 
   private static final ObjectMapper MAPPER = new ObjectMapper();
 
@@ -254,11 +259,19 @@ class RecordConverter {
                     hasSchemaUpdates = true;
                   }
                 }
+                Object recordFieldValue = struct.get(recordField);
+                if (recordFieldValue == null && schemaUpdateConsumer != null && !hasSchemaUpdates) {
+                  evolveSchemaFromConnectSchema(
+                      recordField.schema(),
+                      tableField.type(),
+                      tableField.fieldId(),
+                      schemaUpdateConsumer);
+                }
                 if (!hasSchemaUpdates) {
                   result.setField(
                       tableField.name(),
                       convertValue(
-                          struct.get(recordField),
+                          recordFieldValue,
                           tableField.type(),
                           tableField.fieldId(),
                           schemaUpdateConsumer));
@@ -266,6 +279,87 @@ class RecordConverter {
               }
             });
     return result;
+  }
+
+  /**
+   * Recursively traverses the Connect schema and emits all evolution events (addColumn, updateType,
+   * and makeOptional) at every nested level.
+   *
+   * <p>Unlike {@link #convertToStruct(Struct, StructType, int, SchemaUpdate.Consumer)} which skips
+   * a field's children once an update is detected (deferring nested discovery to re-conversion),
+   * this method always recurses through the full schema.
+   */
+  private void evolveSchemaFromConnectSchema(
+      org.apache.kafka.connect.data.Schema recordSchema,
+      Type tableType,
+      int tableFieldId,
+      SchemaUpdate.Consumer schemaUpdateConsumer) {
+    if (recordSchema == null) {
+      return;
+    }
+    switch (recordSchema.type()) {
+      case STRUCT:
+        if (tableType.isStructType()) {
+          StructType structType = tableType.asStructType();
+          for (Field field : recordSchema.fields()) {
+            NestedField nestedField = lookupStructField(field.name(), structType, tableFieldId);
+            if (nestedField == null) {
+              String parentFieldName =
+                  tableFieldId < 0 ? null : tableSchema.findColumnName(tableFieldId);
+              Type type = SchemaUtils.toIcebergType(field.schema(), config);
+              schemaUpdateConsumer.addColumn(parentFieldName, field.name(), type);
+            } else {
+              PrimitiveType evolveDataType =
+                  SchemaUtils.needsDataTypeUpdate(nestedField.type(), field.schema());
+              if (evolveDataType != null) {
+                String fieldName = tableSchema.findColumnName(nestedField.fieldId());
+                schemaUpdateConsumer.updateType(fieldName, evolveDataType);
+              }
+              if (nestedField.isRequired() && field.schema().isOptional()) {
+                String fieldName = tableSchema.findColumnName(nestedField.fieldId());
+                schemaUpdateConsumer.makeOptional(fieldName);
+              }
+              evolveSchemaFromConnectSchema(
+                  field.schema(), nestedField.type(), nestedField.fieldId(), schemaUpdateConsumer);
+            }
+          }
+        } else {
+          logMismatchedType(recordSchema.type(), tableType);
+        }
+        break;
+      case ARRAY:
+        if (tableType.isListType()) {
+          ListType listType = tableType.asListType();
+          evolveSchemaFromConnectSchema(
+              recordSchema.valueSchema(),
+              listType.elementType(),
+              listType.elementId(),
+              schemaUpdateConsumer);
+        } else {
+          logMismatchedType(recordSchema.type(), tableType);
+        }
+        break;
+      case MAP:
+        if (tableType.isMapType()) {
+          MapType mapType = tableType.asMapType();
+          evolveSchemaFromConnectSchema(
+              recordSchema.valueSchema(),
+              mapType.valueType(),
+              mapType.valueId(),
+              schemaUpdateConsumer);
+        } else {
+          logMismatchedType(recordSchema.type(), tableType);
+        }
+        break;
+      default:
+        break;
+    }
+  }
+
+  private void logMismatchedType(
+      org.apache.kafka.connect.data.Schema.Type recordSchemaType, Type tableType) {
+    LOG.warn(
+        "Record schema of type {} does not match table of type {}", recordSchemaType, tableType);
   }
 
   private NestedField lookupStructField(String fieldName, StructType schema, int structFieldId) {
@@ -300,28 +394,29 @@ class RecordConverter {
       Object value, ListType type, SchemaUpdate.Consumer schemaUpdateConsumer) {
     Preconditions.checkArgument(value instanceof List);
     List<?> list = (List<?>) value;
-    return list.stream()
-        .map(
-            element -> {
-              int fieldId = type.fields().get(0).fieldId();
-              return convertValue(element, type.elementType(), fieldId, schemaUpdateConsumer);
-            })
-        .collect(Collectors.toList());
+    int elementFieldId = type.fields().get(0).fieldId();
+    Type elementType = type.elementType();
+    List<Object> result = Lists.newArrayListWithCapacity(list.size());
+    for (Object element : list) {
+      result.add(convertValue(element, elementType, elementFieldId, schemaUpdateConsumer));
+    }
+    return result;
   }
 
   protected Map<Object, Object> convertMapValue(
       Object value, MapType type, SchemaUpdate.Consumer schemaUpdateConsumer) {
     Preconditions.checkArgument(value instanceof Map);
     Map<?, ?> map = (Map<?, ?>) value;
-    Map<Object, Object> result = Maps.newHashMap();
+    int keyFieldId = type.fields().get(0).fieldId();
+    int valueFieldId = type.fields().get(1).fieldId();
+    Type keyType = type.keyType();
+    Type valueType = type.valueType();
+    Map<Object, Object> result = Maps.newHashMapWithExpectedSize(map.size());
     map.forEach(
-        (k, v) -> {
-          int keyFieldId = type.fields().get(0).fieldId();
-          int valueFieldId = type.fields().get(1).fieldId();
-          result.put(
-              convertValue(k, type.keyType(), keyFieldId, schemaUpdateConsumer),
-              convertValue(v, type.valueType(), valueFieldId, schemaUpdateConsumer));
-        });
+        (k, v) ->
+            result.put(
+                convertValue(k, keyType, keyFieldId, schemaUpdateConsumer),
+                convertValue(v, valueType, valueFieldId, schemaUpdateConsumer)));
     return result;
   }
 
@@ -768,10 +863,19 @@ class RecordConverter {
     if (result.charAt(10) == ' ') {
       result = result.substring(0, 10) + 'T' + result.substring(11);
     }
-    if (result.length() > 22
-        && (result.charAt(19) == '+' || result.charAt(19) == '-')
-        && result.charAt(22) == ':') {
-      result = result.substring(0, 19) + result.substring(19).replace(":", "");
+    // Search for the timezone offset sign starting after the seconds portion (index 19+).
+    // With fractional seconds (e.g. "...T03:17:37.260514+00:00") the sign appears later
+    // than index 19, so we must locate it dynamically rather than assuming a fixed position.
+    int signIdx = -1;
+    for (int i = 19; i < result.length(); i++) {
+      char ch = result.charAt(i);
+      if (ch == '+' || ch == '-') {
+        signIdx = i;
+        break;
+      }
+    }
+    if (signIdx != -1 && signIdx + 3 < result.length() && result.charAt(signIdx + 3) == ':') {
+      result = result.substring(0, signIdx + 3) + result.substring(signIdx + 4);
     }
     return result;
   }

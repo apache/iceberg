@@ -20,11 +20,20 @@ package org.apache.iceberg.spark.sql;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.util.List;
+import java.util.Map;
+import org.apache.iceberg.Parameter;
 import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.Parameters;
+import org.apache.iceberg.RowLevelOperationMode;
+import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.CatalogTestBase;
 import org.apache.iceberg.spark.source.SimpleRecord;
@@ -37,14 +46,41 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestDeleteFrom extends CatalogTestBase {
+  @Parameter(index = 3)
+  private int formatVersion;
+
+  @Parameters(name = "catalogName = {0}, implementation = {1}, config = {2}, formatVersion = {3}")
+  protected static Object[][] parameters() {
+    List<Object[]> parameters = Lists.newArrayList();
+    for (Object[] catalogParams : CatalogTestBase.parameters()) {
+      for (int version : TestHelpers.V2_AND_ABOVE) {
+        parameters.add(
+            new Object[] {catalogParams[0], catalogParams[1], catalogParams[2], version});
+      }
+    }
+
+    return parameters.toArray(new Object[0][]);
+  }
+
   @AfterEach
   public void removeTables() {
     sql("DROP TABLE IF EXISTS %s", tableName);
   }
 
+  private String tableProperties() {
+    return tableProperties(ImmutableMap.of());
+  }
+
+  private String tableProperties(Map<String, String> additionalProperties) {
+    ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();
+    builder.putAll(additionalProperties);
+    builder.put(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion));
+    return String.format("TBLPROPERTIES (%s)", tablePropsAsString(builder.buildKeepingLast()));
+  }
+
   @TestTemplate
   public void testDeleteFromUnpartitionedTable() throws NoSuchTableException {
-    sql("CREATE TABLE %s (id bigint, data string) USING iceberg", tableName);
+    sql("CREATE TABLE %s (id bigint, data string) USING iceberg %s", tableName, tableProperties());
 
     List<SimpleRecord> records =
         Lists.newArrayList(
@@ -74,7 +110,7 @@ public class TestDeleteFrom extends CatalogTestBase {
 
   @TestTemplate
   public void testDeleteFromTableAtSnapshot() throws NoSuchTableException {
-    sql("CREATE TABLE %s (id bigint, data string) USING iceberg", tableName);
+    sql("CREATE TABLE %s (id bigint, data string) USING iceberg %s", tableName, tableProperties());
 
     List<SimpleRecord> records =
         Lists.newArrayList(
@@ -94,8 +130,9 @@ public class TestDeleteFrom extends CatalogTestBase {
     sql(
         "CREATE TABLE %s (id bigint, data string) "
             + "USING iceberg "
-            + "PARTITIONED BY (truncate(id, 2))",
-        tableName);
+            + "PARTITIONED BY (truncate(id, 2)) "
+            + "%s",
+        tableName, tableProperties());
 
     List<SimpleRecord> records =
         Lists.newArrayList(
@@ -124,7 +161,9 @@ public class TestDeleteFrom extends CatalogTestBase {
 
   @TestTemplate
   public void testDeleteFromWhereFalse() {
-    sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
+    sql(
+        "CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg %s",
+        tableName, tableProperties());
     sql("INSERT INTO TABLE %s VALUES (1, 'a'), (2, 'b'), (3, 'c')", tableName);
 
     assertEquals(
@@ -144,7 +183,9 @@ public class TestDeleteFrom extends CatalogTestBase {
 
   @TestTemplate
   public void testTruncate() {
-    sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
+    sql(
+        "CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg %s",
+        tableName, tableProperties());
     sql("INSERT INTO TABLE %s VALUES (1, 'a'), (2, 'b'), (3, 'c')", tableName);
 
     assertEquals(
@@ -166,8 +207,8 @@ public class TestDeleteFrom extends CatalogTestBase {
   @TestTemplate
   public void testDeleteFromTablePartitionedByVarbinary() {
     sql(
-        "CREATE TABLE %s (id bigint NOT NULL, data binary) USING iceberg PARTITIONED BY (data)",
-        tableName);
+        "CREATE TABLE %s (id bigint NOT NULL, data binary) USING iceberg PARTITIONED BY (data) %s",
+        tableName, tableProperties());
     sql("INSERT INTO TABLE %s VALUES(1, X'e3bcd1'), (2, X'bcd1')", tableName);
 
     assertEquals(
@@ -184,5 +225,47 @@ public class TestDeleteFrom extends CatalogTestBase {
         "Should have expected rows",
         ImmutableList.of(row(1L, new byte[] {-29, -68, -47})),
         sql("SELECT * FROM %s where data = X'e3bcd1'", tableName));
+  }
+
+  @TestTemplate
+  public void truncateWithDVs() throws NoSuchTableException {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
+
+    sql(
+        "CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg %s",
+        tableName,
+        tableProperties(
+            ImmutableMap.of(
+                TableProperties.DELETE_MODE, RowLevelOperationMode.MERGE_ON_READ.modeName())));
+    List<SimpleRecord> records =
+        ImmutableList.of(
+            new SimpleRecord(1, "a"), new SimpleRecord(2, "b"), new SimpleRecord(3, "c"));
+    Dataset<Row> df = spark.createDataFrame(records, SimpleRecord.class);
+    df.coalesce(1).writeTo(tableName).append();
+
+    assertThat(sql("SELECT * FROM %s ORDER BY id", tableName))
+        .containsExactly(row(1L, "a"), row(2L, "b"), row(3L, "c"));
+
+    sql("DELETE FROM %s WHERE id = 1", tableName);
+    assertThat(validationCatalog.loadTable(tableIdent).currentSnapshot().summary())
+        .containsEntry(SnapshotSummary.ADDED_DVS_PROP, "1")
+        .containsEntry(SnapshotSummary.ADDED_POS_DELETES_PROP, "1");
+
+    sql("DELETE FROM %s WHERE id = 2", tableName);
+    // DVs have been merged into single file
+    assertThat(validationCatalog.loadTable(tableIdent).currentSnapshot().summary())
+        .containsEntry(SnapshotSummary.ADDED_DVS_PROP, "1")
+        .containsEntry(SnapshotSummary.REMOVED_DVS_PROP, "1")
+        .containsEntry(SnapshotSummary.ADDED_POS_DELETES_PROP, "2");
+
+    assertThat(sql("SELECT * FROM %s ORDER BY id", tableName)).containsExactly(row(3L, "c"));
+
+    sql("TRUNCATE TABLE %s", tableName);
+    assertThat(validationCatalog.loadTable(tableIdent).currentSnapshot().summary())
+        .containsEntry(SnapshotSummary.REMOVED_DVS_PROP, "1")
+        .containsEntry(SnapshotSummary.REMOVED_DELETE_FILES_PROP, "1")
+        .containsEntry(SnapshotSummary.REMOVED_POS_DELETES_PROP, "2");
+
+    assertThat(sql("SELECT * FROM %s ORDER BY id", tableName)).isEmpty();
   }
 }

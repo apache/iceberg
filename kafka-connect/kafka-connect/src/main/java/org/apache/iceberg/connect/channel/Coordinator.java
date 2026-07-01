@@ -32,6 +32,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -80,6 +81,7 @@ class Coordinator extends Channel {
   private final String snapshotOffsetsProp;
   private final ExecutorService exec;
   private final CommitState commitState;
+  private final AtomicLong partialCommitFailures = new AtomicLong();
   private volatile boolean terminated;
   private final String taskId;
 
@@ -150,12 +152,18 @@ class Coordinator extends Channel {
   private void commit(boolean partialCommit) {
     try {
       doCommit(partialCommit);
-    } catch (Exception e) {
-      LOG.warn(
-          "Coordinator {} failed to commit for commit {}, will try again next cycle",
-          taskId,
-          commitState.currentCommitId(),
-          e);
+    } catch (RuntimeException e) {
+      if (partialCommit) {
+        partialCommitFailures.incrementAndGet();
+        LOG.warn(
+            "Partial commit {} failed for task {}, will retry",
+            commitState.currentCommitId(),
+            taskId,
+            e);
+      } else {
+        LOG.error("Commit {} failed for task {}", commitState.currentCommitId(), taskId, e);
+        throw e;
+      }
     } finally {
       commitState.endCurrentCommit();
     }
@@ -386,6 +394,10 @@ class Coordinator extends Channel {
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }
+  }
+
+  long partialCommitFailureCount() {
+    return partialCommitFailures.get();
   }
 
   void terminate() {

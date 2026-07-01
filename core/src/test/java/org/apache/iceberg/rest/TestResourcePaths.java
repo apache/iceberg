@@ -336,4 +336,20 @@ public class TestResourcePaths {
     assertThat(withoutPrefix.plan(complexId, "plan-xyz-789"))
         .isEqualTo("v1/namespaces/db%1Fschema/tables/my_table/plan/plan-xyz-789");
   }
+
+  @Test
+  public void testRemoteSign() {
+    TableIdentifier tableId = TableIdentifier.of("test_namespace", "test_table");
+    assertThat(withPrefix.remoteSign(tableId))
+        .isEqualTo("v1/ws/catalog/namespaces/test_namespace/tables/test_table/sign");
+    assertThat(withoutPrefix.remoteSign(tableId))
+        .isEqualTo("v1/namespaces/test_namespace/tables/test_table/sign");
+
+    // Test with different identifiers
+    TableIdentifier complexId = TableIdentifier.of(Namespace.of("db", "schema"), "my_table");
+    assertThat(withPrefix.remoteSign(complexId))
+        .isEqualTo("v1/ws/catalog/namespaces/db%1Fschema/tables/my_table/sign");
+    assertThat(withoutPrefix.remoteSign(complexId))
+        .isEqualTo("v1/namespaces/db%1Fschema/tables/my_table/sign");
+  }
 }

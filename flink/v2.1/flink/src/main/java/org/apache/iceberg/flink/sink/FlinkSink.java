@@ -732,9 +732,8 @@ public class FlinkSink {
   @Deprecated
   static RowType toFlinkRowType(Schema schema, TableSchema requestedSchema) {
     if (requestedSchema != null) {
-      // Convert the flink schema to iceberg schema firstly, then reassign ids to match the existing
-      // iceberg schema.
-      Schema writeSchema = TypeUtil.reassignIds(FlinkSchemaUtil.convert(requestedSchema), schema);
+      // Convert the flink schema to iceberg schema using the table schema as the reference.
+      Schema writeSchema = FlinkSchemaUtil.convert(schema, requestedSchema);
       TypeUtil.validateWriteSchema(schema, writeSchema, true, true);
 
       // We use this flink schema to read values from RowData. The flink's TINYINT and SMALLINT will
@@ -749,9 +748,8 @@ public class FlinkSink {
 
   static RowType toFlinkRowType(Schema schema, ResolvedSchema requestedSchema) {
     if (requestedSchema != null) {
-      // Convert the flink schema to iceberg schema firstly, then reassign ids to match the existing
-      // iceberg schema.
-      Schema writeSchema = TypeUtil.reassignIds(FlinkSchemaUtil.convert(requestedSchema), schema);
+      // Convert the flink schema to iceberg schema using the table schema as the reference.
+      Schema writeSchema = FlinkSchemaUtil.convert(schema, requestedSchema);
       TypeUtil.validateWriteSchema(schema, writeSchema, true, true);
 
       // We use this flink schema to read values from RowData. The flink's TINYINT and SMALLINT will

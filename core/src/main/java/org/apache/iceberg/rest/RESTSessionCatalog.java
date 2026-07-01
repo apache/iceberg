@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -71,6 +72,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.rest.RESTCatalogProperties.ScanPlanningMode;
 import org.apache.iceberg.rest.RESTCatalogProperties.SnapshotMode;
 import org.apache.iceberg.rest.RESTTableCache.TableWithETag;
 import org.apache.iceberg.rest.auth.AuthManager;
@@ -99,6 +101,7 @@ import org.apache.iceberg.rest.responses.LoadViewResponse;
 import org.apache.iceberg.rest.responses.UpdateNamespacePropertiesResponse;
 import org.apache.iceberg.util.EnvironmentUtil;
 import org.apache.iceberg.util.PropertyUtil;
+import org.apache.iceberg.util.ThreadPools;
 import org.apache.iceberg.view.BaseView;
 import org.apache.iceberg.view.ImmutableSQLViewRepresentation;
 import org.apache.iceberg.view.ImmutableViewVersion;
@@ -165,12 +168,14 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   private Object conf = null;
   private FileIO io = null;
   private MetricsReporter reporter = null;
+  private ExecutorService metricsExecutor = null;
   private boolean reportingViaRestEnabled;
   private Integer pageSize = null;
   private CloseableGroup closeables = null;
   private Set<Endpoint> endpoints;
   private Supplier<Map<String, String>> mutationHeaders = Map::of;
   private String namespaceSeparator = null;
+  private ScanPlanningMode clientScanPlanningMode = null;
 
   private RESTTableCache tableCache;
 
@@ -269,17 +274,28 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
                 .toUpperCase(Locale.US));
 
     this.reporter = CatalogUtil.loadMetricsReporter(mergedProps);
+    this.closeables.addCloseable(reporter);
 
     this.reportingViaRestEnabled =
         PropertyUtil.propertyAsBoolean(
             mergedProps,
             RESTCatalogProperties.METRICS_REPORTING_ENABLED,
             RESTCatalogProperties.METRICS_REPORTING_ENABLED_DEFAULT);
+
+    if (reportingViaRestEnabled) {
+      this.metricsExecutor = ThreadPools.newFixedThreadPool("rest-metrics-reporter", 1);
+      this.closeables.addCloseable(metricsExecutor::shutdown);
+    }
+
     this.namespaceSeparator =
         PropertyUtil.propertyAsString(
             mergedProps,
             RESTCatalogProperties.NAMESPACE_SEPARATOR,
             RESTCatalogProperties.NAMESPACE_SEPARATOR_DEFAULT);
+
+    String scanPlanningModeConfig = mergedProps.get(RESTCatalogProperties.SCAN_PLANNING_MODE);
+    this.clientScanPlanningMode =
+        scanPlanningModeConfig == null ? null : ScanPlanningMode.fromString(scanPlanningModeConfig);
 
     this.tableCache = createTableCache(mergedProps);
     this.closeables.addCloseable(this.tableCache);
@@ -593,31 +609,34 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       TableIdentifier finalIdentifier,
       RESTClient restClient,
       Map<String, String> tableConf) {
-    // Get client-side and server-side scan planning modes
-    String planningModeClientConfig = properties().get(RESTCatalogProperties.SCAN_PLANNING_MODE);
     String planningModeServerConfig = tableConf.get(RESTCatalogProperties.SCAN_PLANNING_MODE);
+    ScanPlanningMode serverScanPlanningMode =
+        planningModeServerConfig == null
+            ? null
+            : ScanPlanningMode.fromString(planningModeServerConfig);
 
-    // Warn if client and server configs conflict; server config takes precedence
-    if (planningModeClientConfig != null
-        && planningModeServerConfig != null
-        && !planningModeClientConfig.equalsIgnoreCase(planningModeServerConfig)) {
+    // Warn if client and server configs conflict
+    if (clientScanPlanningMode != null
+        && serverScanPlanningMode != null
+        && clientScanPlanningMode != serverScanPlanningMode) {
       LOG.warn(
           "Scan planning mode mismatch for table {}: client config={}, server config={}. "
               + "Server config will take precedence.",
           finalIdentifier,
-          planningModeClientConfig,
+          clientScanPlanningMode.modeName(),
           planningModeServerConfig);
     }
 
-    // Determine effective mode: prefer server config if present, otherwise use client config
-    String effectiveModeConfig =
-        planningModeServerConfig != null ? planningModeServerConfig : planningModeClientConfig;
-    RESTCatalogProperties.ScanPlanningMode effectiveMode =
-        effectiveModeConfig != null
-            ? RESTCatalogProperties.ScanPlanningMode.fromString(effectiveModeConfig)
-            : RESTCatalogProperties.SCAN_PLANNING_MODE_DEFAULT;
+    // Determine effective mode: prefer server config if present, otherwise use client config,
+    // fall back to default if both are null
+    ScanPlanningMode effectiveMode = RESTCatalogProperties.SCAN_PLANNING_MODE_DEFAULT;
+    if (serverScanPlanningMode != null) {
+      effectiveMode = serverScanPlanningMode;
+    } else if (clientScanPlanningMode != null) {
+      effectiveMode = clientScanPlanningMode;
+    }
 
-    if (effectiveMode == RESTCatalogProperties.ScanPlanningMode.SERVER) {
+    if (effectiveMode == ScanPlanningMode.SERVER) {
       Preconditions.checkState(
           endpoints.contains(Endpoint.V1_SUBMIT_TABLE_SCAN_PLAN),
           "Server requires server-side scan planning for table %s but does not support endpoint %s",
@@ -650,7 +669,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   private MetricsReporter metricsReporter(String metricsEndpoint, RESTClient restClient) {
     if (reportingViaRestEnabled && endpoints.contains(Endpoint.V1_REPORT_METRICS)) {
       RESTMetricsReporter restMetricsReporter =
-          new RESTMetricsReporter(restClient, metricsEndpoint, Map::of);
+          new RESTMetricsReporter(restClient, metricsEndpoint, Map::of, metricsExecutor);
       return MetricsReporters.combine(reporter, restMetricsReporter);
     } else {
       return this.reporter;
@@ -1338,7 +1357,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
                 queryParams.build(),
                 ConfigResponse.class,
                 RESTUtil.configHeaders(properties),
-                ErrorHandlers.defaultErrorHandler());
+                ErrorHandlers.configErrorHandler());
     configResponse.validate();
     return configResponse;
   }

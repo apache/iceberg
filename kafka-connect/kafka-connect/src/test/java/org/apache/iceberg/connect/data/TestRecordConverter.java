@@ -234,6 +234,37 @@ public class TestRecordConverter {
   }
 
   @Test
+  public void testUUIDStringConversion() {
+    Table table = mock(Table.class);
+    when(table.schema())
+        .thenReturn(new org.apache.iceberg.Schema(NestedField.required(1, "uuid", UUIDType.get())));
+
+    Schema connectSchema =
+        SchemaBuilder.struct().field("uuid", SchemaBuilder.string().name("uuid").build()).build();
+    Struct data = new Struct(connectSchema).put("uuid", UUID_VAL.toString());
+
+    RecordConverter converter = new RecordConverter(table, config);
+    Record record = converter.convert(data);
+
+    assertThat(record.getField("uuid")).isEqualTo(UUID_VAL);
+  }
+
+  @Test
+  public void testEmptyListAndMapConvert() {
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(SCHEMA);
+    RecordConverter converter = new RecordConverter(table, config);
+
+    Map<String, Object> data = Maps.newHashMap(createMapData());
+    data.put("li", ImmutableList.of());
+    data.put("ma", ImmutableMap.of());
+
+    Record record = converter.convert(data);
+    assertThat((List<?>) record.getField("li")).isEmpty();
+    assertThat((Map<?, ?>) record.getField("ma")).isEmpty();
+  }
+
+  @Test
   public void testUUIDConversionWithParquet() {
     Table table = mock(Table.class);
     when(table.schema())
@@ -579,6 +610,22 @@ public class TestRecordConverter {
   }
 
   @Test
+  public void testTimestampWithZoneAndFractionalSecondsConversion() {
+    // Timestamps with sub-second precision and a colon-separated UTC offset (e.g. +00:00)
+    // were previously mis-parsed because ensureTimestampFormat only checked for the timezone
+    // sign at the fixed index 19, which is only valid when there are no fractional seconds.
+    OffsetDateTime expected = OffsetDateTime.parse("2026-03-31T03:17:37.260514+00:00");
+    List<Object> inputs =
+        ImmutableList.of(
+            "2026-03-31T03:17:37.260514+00:00",
+            "2026-03-31T03:17:37.260514+0000",
+            "2026-03-31T03:17:37.260514Z",
+            "2026-03-31 03:17:37.260514+00:00",
+            "2026-03-31 03:17:37.260514+0000");
+    assertTimestampConvert(expected, inputs, TimestampType.withZone());
+  }
+
+  @Test
   public void testTimestampWithoutZoneConversion() {
     LocalDateTime expected = LocalDateTime.parse("2023-05-18T11:22:33");
     long expectedMillis = expected.atZone(ZoneOffset.UTC).toInstant().toEpochMilli();
@@ -594,6 +641,23 @@ public class TestRecordConverter {
             "2023-05-18T11:22:33-0800",
             "2023-05-18 11:22:33-0800");
     assertTimestampConvert(expected, additionalInput, TimestampType.withoutZone());
+  }
+
+  @Test
+  public void testTimestampWithoutZoneAndFractionalSecondsConversion() {
+    // Fractional seconds with a colon-separated offset: timezone must be stripped and
+    // the colon in +HH:MM must be normalized before OFFSET_TIMESTAMP_FORMAT can parse it.
+    LocalDateTime expected = LocalDateTime.parse("2026-03-31T03:17:37.260514");
+    List<Object> inputs =
+        ImmutableList.of(
+            "2026-03-31T03:17:37.260514",
+            "2026-03-31 03:17:37.260514",
+            "2026-03-31T03:17:37.260514+00:00",
+            "2026-03-31 03:17:37.260514+00:00",
+            "2026-03-31T03:17:37.260514+0000",
+            "2026-03-31 03:17:37.260514+0000",
+            "2026-03-31T03:17:37.260514Z");
+    assertTimestampConvert(expected, inputs, TimestampType.withoutZone());
   }
 
   private void assertTimestampConvert(Temporal expected, long expectedMillis, TimestampType type) {
@@ -824,6 +888,426 @@ public class TestRecordConverter {
     assertThat(fn.apply("bi")).isInstanceOf(BinaryType.class);
     assertThat(fn.apply("li")).isInstanceOf(ListType.class);
     assertThat(fn.apply("ma")).isInstanceOf(MapType.class);
+  }
+
+  @Test
+  public void testNestedSchemaEvolutionStructWithNullValue() {
+    org.apache.iceberg.Schema nestedStructSchema =
+        new org.apache.iceberg.Schema(
+            NestedField.required(1, "id", IntegerType.get()),
+            NestedField.optional(
+                2, "nested", StructType.of(NestedField.required(3, "a", IntegerType.get()))));
+
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(nestedStructSchema);
+    RecordConverter converter = new RecordConverter(table, config);
+
+    Schema connectNestedSchema =
+        SchemaBuilder.struct()
+            .optional()
+            .field("a", Schema.INT32_SCHEMA)
+            .field("b", Schema.OPTIONAL_STRING_SCHEMA)
+            .build();
+    Schema connectSchema =
+        SchemaBuilder.struct()
+            .field("id", Schema.INT32_SCHEMA)
+            .field("nested", connectNestedSchema)
+            .build();
+    Struct data = new Struct(connectSchema).put("id", 1).put("nested", null);
+
+    SchemaUpdate.Consumer consumer = new SchemaUpdate.Consumer();
+    Record result = converter.convert(data, consumer);
+
+    assertThat(result.getField("id")).isEqualTo(1);
+    assertThat(result.getField("nested")).isNull();
+
+    Collection<AddColumn> addCols = consumer.addColumns();
+    assertThat(addCols).hasSize(1);
+    AddColumn addCol = addCols.iterator().next();
+    assertThat(addCol.parentName()).isEqualTo("nested");
+    assertThat(addCol.name()).isEqualTo("b");
+    assertThat(addCol.type()).isInstanceOf(StringType.class);
+  }
+
+  @Test
+  public void testNoSchemaEvolutionStructWithNullValue() {
+    org.apache.iceberg.Schema nestedStructSchema =
+        new org.apache.iceberg.Schema(
+            NestedField.required(1, "id", IntegerType.get()),
+            NestedField.optional(
+                2, "nested", StructType.of(NestedField.required(3, "a", IntegerType.get()))));
+
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(nestedStructSchema);
+    RecordConverter converter = new RecordConverter(table, config);
+
+    Schema connectNestedSchema =
+        SchemaBuilder.struct().optional().field("a", Schema.INT32_SCHEMA).build();
+    Schema connectSchema =
+        SchemaBuilder.struct()
+            .field("id", Schema.INT32_SCHEMA)
+            .field("nested", connectNestedSchema)
+            .build();
+    Struct data = new Struct(connectSchema).put("id", 1).put("nested", null);
+
+    SchemaUpdate.Consumer consumer = new SchemaUpdate.Consumer();
+    Record result = converter.convert(data, consumer);
+
+    assertThat(result.getField("id")).isEqualTo(1);
+    assertThat(result.getField("nested")).isNull();
+
+    assertThat(consumer.addColumns()).isEmpty();
+    assertThat(consumer.makeOptionals()).isEmpty();
+    assertThat(consumer.updateTypes()).isEmpty();
+    assertThat(consumer.empty()).isTrue();
+  }
+
+  @Test
+  @SuppressWarnings("unchecked")
+  public void testNestedSchemaEvolutionListOfStructsWithNullValue() {
+    org.apache.iceberg.Schema tableSchema =
+        new org.apache.iceberg.Schema(
+            NestedField.required(
+                1,
+                "items",
+                ListType.ofRequired(
+                    2,
+                    StructType.of(
+                        NestedField.required(3, "product_id", IntegerType.get()),
+                        NestedField.optional(
+                            4,
+                            "details",
+                            StructType.of(NestedField.required(5, "name", StringType.get())))))));
+
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(tableSchema);
+    RecordConverter converter = new RecordConverter(table, config);
+
+    Schema detailsSchema =
+        SchemaBuilder.struct()
+            .optional()
+            .field("name", Schema.OPTIONAL_STRING_SCHEMA)
+            .field("price", Schema.OPTIONAL_FLOAT64_SCHEMA)
+            .build();
+    Schema itemSchema =
+        SchemaBuilder.struct()
+            .field("product_id", Schema.INT32_SCHEMA)
+            .field("details", detailsSchema)
+            .build();
+    Schema connectSchema =
+        SchemaBuilder.struct().field("items", SchemaBuilder.array(itemSchema).build()).build();
+
+    Struct item = new Struct(itemSchema).put("product_id", 101).put("details", null);
+    Struct data = new Struct(connectSchema).put("items", ImmutableList.of(item));
+
+    SchemaUpdate.Consumer consumer = new SchemaUpdate.Consumer();
+    Record result = converter.convert(data, consumer);
+
+    List<Record> items = (List<Record>) result.getField("items");
+    assertThat(items).hasSize(1);
+    assertThat(items.get(0).getField("product_id")).isEqualTo(101);
+    assertThat(items.get(0).getField("details")).isNull();
+
+    Collection<AddColumn> addCols = consumer.addColumns();
+    assertThat(addCols).hasSize(1);
+    AddColumn addCol = addCols.iterator().next();
+    assertThat(addCol.parentName()).isEqualTo("items.element.details");
+    assertThat(addCol.name()).isEqualTo("price");
+    assertThat(addCol.type()).isInstanceOf(DoubleType.class);
+  }
+
+  @Test
+  @SuppressWarnings("unchecked")
+  public void testNestedSchemaEvolutionMapOfStructsWithNullValue() {
+    org.apache.iceberg.Schema tableSchema =
+        new org.apache.iceberg.Schema(
+            NestedField.optional(
+                1,
+                "metadata",
+                MapType.ofRequired(
+                    2,
+                    3,
+                    StringType.get(),
+                    StructType.of(
+                        NestedField.required(4, "key", StringType.get()),
+                        NestedField.optional(
+                            5,
+                            "info",
+                            StructType.of(NestedField.required(6, "name", StringType.get())))))));
+
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(tableSchema);
+    RecordConverter converter = new RecordConverter(table, config);
+
+    Schema infoSchema =
+        SchemaBuilder.struct()
+            .optional()
+            .field("name", Schema.OPTIONAL_STRING_SCHEMA)
+            .field("value", Schema.OPTIONAL_STRING_SCHEMA)
+            .build();
+    Schema mapValueSchema =
+        SchemaBuilder.struct().field("key", Schema.STRING_SCHEMA).field("info", infoSchema).build();
+    Schema connectSchema =
+        SchemaBuilder.struct()
+            .field("metadata", SchemaBuilder.map(Schema.STRING_SCHEMA, mapValueSchema).build())
+            .build();
+
+    Struct mapValue = new Struct(mapValueSchema).put("key", "source_system").put("info", null);
+    Struct data = new Struct(connectSchema).put("metadata", ImmutableMap.of("source", mapValue));
+
+    SchemaUpdate.Consumer consumer = new SchemaUpdate.Consumer();
+    Record result = converter.convert(data, consumer);
+
+    Map<String, Record> metadata = (Map<String, Record>) result.getField("metadata");
+    assertThat(metadata).containsKey("source");
+    assertThat(metadata.get("source").getField("key")).isEqualTo("source_system");
+    assertThat(metadata.get("source").getField("info")).isNull();
+
+    Collection<AddColumn> addCols = consumer.addColumns();
+    assertThat(addCols).hasSize(1);
+    AddColumn addCol = addCols.iterator().next();
+    assertThat(addCol.parentName()).isEqualTo("metadata.value.info");
+    assertThat(addCol.name()).isEqualTo("value");
+    assertThat(addCol.type()).isInstanceOf(StringType.class);
+  }
+
+  @Test
+  public void testNestedSchemaEvolutionStructInStructWithNullParent() {
+    org.apache.iceberg.Schema tableSchema =
+        new org.apache.iceberg.Schema(
+            NestedField.required(1, "id", IntegerType.get()),
+            NestedField.optional(
+                2,
+                "customer",
+                StructType.of(
+                    NestedField.required(3, "customer_id", IntegerType.get()),
+                    NestedField.optional(
+                        4,
+                        "details",
+                        StructType.of(NestedField.required(5, "name", StringType.get()))))));
+
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(tableSchema);
+    RecordConverter converter = new RecordConverter(table, config);
+
+    Schema detailsSchema =
+        SchemaBuilder.struct()
+            .optional()
+            .field("name", Schema.OPTIONAL_STRING_SCHEMA)
+            .field("email", Schema.OPTIONAL_STRING_SCHEMA)
+            .build();
+    Schema customerSchema =
+        SchemaBuilder.struct()
+            .optional()
+            .field("customer_id", Schema.INT32_SCHEMA)
+            .field("details", detailsSchema)
+            .build();
+    Schema connectSchema =
+        SchemaBuilder.struct()
+            .field("id", Schema.INT32_SCHEMA)
+            .field("customer", customerSchema)
+            .build();
+    Struct data = new Struct(connectSchema).put("id", 1).put("customer", null);
+
+    SchemaUpdate.Consumer consumer = new SchemaUpdate.Consumer();
+    Record result = converter.convert(data, consumer);
+
+    assertThat(result.getField("id")).isEqualTo(1);
+    assertThat(result.getField("customer")).isNull();
+
+    Collection<AddColumn> addCols = consumer.addColumns();
+    assertThat(addCols).hasSize(1);
+    AddColumn addCol = addCols.iterator().next();
+    assertThat(addCol.parentName()).isEqualTo("customer.details");
+    assertThat(addCol.name()).isEqualTo("email");
+    assertThat(addCol.type()).isInstanceOf(StringType.class);
+  }
+
+  @Test
+  public void testNestedSchemaEvolutionTypePromotionWithNullValue() {
+    org.apache.iceberg.Schema tableSchema =
+        new org.apache.iceberg.Schema(
+            NestedField.required(1, "id", IntegerType.get()),
+            NestedField.optional(
+                2,
+                "nested",
+                StructType.of(
+                    NestedField.required(3, "a", IntegerType.get()),
+                    NestedField.required(4, "b", FloatType.get()))));
+
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(tableSchema);
+    RecordConverter converter = new RecordConverter(table, config);
+
+    Schema connectNestedSchema =
+        SchemaBuilder.struct()
+            .optional()
+            .field("a", Schema.INT64_SCHEMA)
+            .field("b", Schema.FLOAT64_SCHEMA)
+            .build();
+    Schema connectSchema =
+        SchemaBuilder.struct()
+            .field("id", Schema.INT32_SCHEMA)
+            .field("nested", connectNestedSchema)
+            .build();
+    Struct data = new Struct(connectSchema).put("id", 1).put("nested", null);
+
+    SchemaUpdate.Consumer consumer = new SchemaUpdate.Consumer();
+    Record result = converter.convert(data, consumer);
+
+    assertThat(result.getField("id")).isEqualTo(1);
+    assertThat(result.getField("nested")).isNull();
+
+    Collection<UpdateType> updates = consumer.updateTypes();
+    assertThat(updates).hasSize(2);
+    Map<String, UpdateType> updateMap = Maps.newHashMap();
+    updates.forEach(update -> updateMap.put(update.name(), update));
+    assertThat(updateMap.get("nested.a").type()).isInstanceOf(LongType.class);
+    assertThat(updateMap.get("nested.b").type()).isInstanceOf(DoubleType.class);
+  }
+
+  @Test
+  public void testNestedSchemaEvolutionMakeOptionalWithNullValue() {
+    org.apache.iceberg.Schema tableSchema =
+        new org.apache.iceberg.Schema(
+            NestedField.required(1, "id", IntegerType.get()),
+            NestedField.optional(
+                2,
+                "nested",
+                StructType.of(
+                    NestedField.required(3, "a", IntegerType.get()),
+                    NestedField.required(4, "b", StringType.get()))));
+
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(tableSchema);
+    RecordConverter converter = new RecordConverter(table, config);
+
+    Schema connectNestedSchema =
+        SchemaBuilder.struct()
+            .optional()
+            .field("a", Schema.OPTIONAL_INT32_SCHEMA)
+            .field("b", Schema.OPTIONAL_STRING_SCHEMA)
+            .build();
+    Schema connectSchema =
+        SchemaBuilder.struct()
+            .field("id", Schema.INT32_SCHEMA)
+            .field("nested", connectNestedSchema)
+            .build();
+    Struct data = new Struct(connectSchema).put("id", 1).put("nested", null);
+
+    SchemaUpdate.Consumer consumer = new SchemaUpdate.Consumer();
+    Record result = converter.convert(data, consumer);
+
+    assertThat(result.getField("id")).isEqualTo(1);
+    assertThat(result.getField("nested")).isNull();
+
+    Collection<SchemaUpdate.MakeOptional> makeOptionals = consumer.makeOptionals();
+    assertThat(makeOptionals).hasSize(2);
+    Map<String, SchemaUpdate.MakeOptional> optionalMap = Maps.newHashMap();
+    makeOptionals.forEach(mo -> optionalMap.put(mo.name(), mo));
+    assertThat(optionalMap).containsKey("nested.a");
+    assertThat(optionalMap).containsKey("nested.b");
+  }
+
+  @Test
+  public void testSchemaEvolutionForFieldAndNestedFieldsAcrossTwoRecords() {
+    org.apache.iceberg.Schema tableSchema =
+        new org.apache.iceberg.Schema(
+            NestedField.required(1, "id", IntegerType.get()),
+            NestedField.required(
+                2, "nested", StructType.of(NestedField.required(3, "x", IntegerType.get()))));
+
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(tableSchema);
+    RecordConverter converter = new RecordConverter(table, config);
+
+    Schema nestedSchema =
+        SchemaBuilder.struct()
+            .optional()
+            .field("x", Schema.INT32_SCHEMA)
+            .field("y", Schema.OPTIONAL_STRING_SCHEMA)
+            .build();
+    Schema connectSchema =
+        SchemaBuilder.struct()
+            .field("id", Schema.INT32_SCHEMA)
+            .field("nested", nestedSchema)
+            .build();
+
+    Struct data = new Struct(connectSchema).put("id", 1).put("nested", null);
+
+    SchemaUpdate.Consumer consumer = new SchemaUpdate.Consumer();
+    Record result = converter.convert(data, consumer);
+
+    assertThat(result.getField("id")).isEqualTo(1);
+    assertThat(result.getField("nested")).isNull();
+
+    Collection<SchemaUpdate.MakeOptional> makeOptionals = consumer.makeOptionals();
+    assertThat(makeOptionals).hasSize(1);
+    assertThat(makeOptionals.iterator().next().name()).isEqualTo("nested");
+
+    Collection<AddColumn> addCols = consumer.addColumns();
+    assertThat(addCols).hasSize(0);
+
+    org.apache.iceberg.Schema updatedSchema =
+        new org.apache.iceberg.Schema(
+            NestedField.required(1, "id", IntegerType.get()),
+            NestedField.optional(
+                2, "nested", StructType.of(NestedField.required(3, "x", IntegerType.get()))));
+    when(table.schema()).thenReturn(updatedSchema);
+    RecordConverter converter2 = new RecordConverter(table, config);
+
+    SchemaUpdate.Consumer consumer2 = new SchemaUpdate.Consumer();
+    Record result2 = converter2.convert(data, consumer2);
+
+    assertThat(result2.getField("id")).isEqualTo(1);
+    assertThat(result2.getField("nested")).isNull();
+
+    Collection<AddColumn> addCols2 = consumer2.addColumns();
+    assertThat(addCols2).hasSize(1);
+    AddColumn addCol2 = addCols2.iterator().next();
+    assertThat(addCol2.parentName()).isEqualTo("nested");
+    assertThat(addCol2.name()).isEqualTo("y");
+    assertThat(addCol2.type()).isInstanceOf(StringType.class);
+  }
+
+  @Test
+  public void testNoNestedSchemaEvolutionMapKeyWithNullValue() {
+    org.apache.iceberg.Schema tableSchema =
+        new org.apache.iceberg.Schema(
+            NestedField.required(1, "id", IntegerType.get()),
+            NestedField.optional(
+                2,
+                "data",
+                MapType.ofRequired(
+                    3,
+                    4,
+                    StructType.of(NestedField.required(5, "k1", StringType.get())),
+                    StringType.get())));
+
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(tableSchema);
+    RecordConverter converter = new RecordConverter(table, config);
+
+    Schema keySchema =
+        SchemaBuilder.struct()
+            .field("k1", Schema.STRING_SCHEMA)
+            .field("k2", Schema.OPTIONAL_STRING_SCHEMA)
+            .build();
+    Schema mapSchema =
+        SchemaBuilder.map(keySchema, Schema.OPTIONAL_STRING_SCHEMA).optional().build();
+    Schema connectSchema =
+        SchemaBuilder.struct().field("id", Schema.INT32_SCHEMA).field("data", mapSchema).build();
+
+    Struct data = new Struct(connectSchema).put("id", 1).put("data", null);
+
+    SchemaUpdate.Consumer consumer = new SchemaUpdate.Consumer();
+    Record result = converter.convert(data, consumer);
+
+    assertThat(result.getField("id")).isEqualTo(1);
+    assertThat(result.getField("data")).isNull();
+
+    Collection<AddColumn> addCols = consumer.addColumns();
+    assertThat(addCols).hasSize(0);
   }
 
   @Test
