@@ -224,8 +224,8 @@ public class AliyunOSSMock {
         long bytesToRead = Math.min(fileSize - 1, rangeEnd) - rangeStart + 1;
         long skipSize = rangeStart;
         if (rangeStart == -1) {
-          bytesToRead = Math.min(fileSize - 1, rangeEnd);
-          skipSize = fileSize - rangeEnd;
+          bytesToRead = Math.min(fileSize, rangeEnd);
+          skipSize = Math.max(0, fileSize - rangeEnd);
         }
         if (rangeEnd == -1) {
           bytesToRead = fileSize - rangeStart;
