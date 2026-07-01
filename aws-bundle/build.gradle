@@ -60,6 +60,10 @@ project(":iceberg-aws-bundle") {
       include 'NOTICE'
     }
 
+    // exclude dependency-provided LICENSE/NOTICE files in favor of the bundled Iceberg ones
+    exclude 'META-INF/LICENSE*'
+    exclude 'META-INF/NOTICE*'
+
     // relocate AWS-specific versions
     relocate 'org.apache.http', 'org.apache.iceberg.aws.shaded.org.apache.http'
     relocate 'io.netty', 'org.apache.iceberg.aws.shaded.io.netty'
