@@ -220,6 +220,8 @@ public class TestRecordConverter {
   public void before() {
     this.config = mock(IcebergSinkConfig.class);
     when(config.jsonConverter()).thenReturn(JSON_CONVERTER);
+    // production writeProps() is never null; default it so RecordConverter construction succeeds
+    when(config.writeProps()).thenReturn(ImmutableMap.of());
   }
 
   @Test
