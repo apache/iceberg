@@ -20,6 +20,8 @@ package org.apache.iceberg.orc;
 
 import java.io.File;
 import java.io.IOException;
+import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -166,5 +168,135 @@ public class TestOrcDataReader implements WithAssertions {
     assertThat(readRecords.get(0).get(0)).isEqualTo(3L);
     assertThat(readRecords.get(0).get(1)).isEqualTo("c");
     assertThat(readRecords.get(0).get(3)).isEqualTo(Arrays.asList(3, 4, 5));
+  }
+
+  @Test
+  public void testTimestampNanoFilterPushdownRespectsNanoseconds() throws IOException {
+    Schema schema =
+        new Schema(
+            Types.NestedField.required(1, "id", Types.LongType.get()),
+            Types.NestedField.required(2, "ts", Types.TimestampNanoType.withoutZone()));
+
+    // Five rows; ids 0..2 share the same microsecond, distinguished only by nanoseconds.
+    GenericRecord template = GenericRecord.create(schema);
+    List<Record> writeRecords =
+        Lists.newArrayList(
+            template.copy(
+                ImmutableMap.of(
+                    "id", 0L, "ts", LocalDateTime.parse("2024-01-01T00:00:00.000000000"))),
+            template.copy(
+                ImmutableMap.of(
+                    "id", 1L, "ts", LocalDateTime.parse("2024-01-01T00:00:00.000000250"))),
+            template.copy(
+                ImmutableMap.of(
+                    "id", 2L, "ts", LocalDateTime.parse("2024-01-01T00:00:00.000000750"))),
+            template.copy(
+                ImmutableMap.of(
+                    "id", 3L, "ts", LocalDateTime.parse("2024-01-01T00:00:00.000001500"))),
+            template.copy(
+                ImmutableMap.of(
+                    "id", 4L, "ts", LocalDateTime.parse("2024-01-01T00:00:00.000003000"))));
+
+    OutputFile nanoFile =
+        Files.localOutput(File.createTempFile("ts-nano", ".orc", new File(temp.getPath())));
+    DataWriter<Record> nanoWriter =
+        ORC.writeData(nanoFile)
+            .schema(schema)
+            .createWriterFunc(GenericOrcWriter::buildWriter)
+            .overwrite()
+            .withSpec(PartitionSpec.unpartitioned())
+            .build();
+    try {
+      for (Record record : writeRecords) {
+        nanoWriter.write(record);
+      }
+    } finally {
+      nanoWriter.close();
+    }
+
+    // Filter at a sub-microsecond boundary (>= 500 ns within the first microsecond). If ORC honors
+    // nanosecond precision, only ids 2 (750 ns), 3 (1500 ns), 4 (3000 ns) remain. If it truncates
+    // to micros, ids 0/1/2 are indistinguishable and the result is wrong.
+    try (CloseableIterable<Record> reader =
+        ORC.read(nanoFile.toInputFile())
+            .project(schema)
+            .createReaderFunc(fileSchema -> GenericOrcReader.buildReader(schema, fileSchema))
+            .filter(Expressions.greaterThanOrEqual("ts", "2024-01-01T00:00:00.000000500"))
+            .config(OrcConf.ALLOW_SARG_TO_FILTER.getAttribute(), String.valueOf(true))
+            .config(OrcConf.READER_USE_SELECTED.getAttribute(), String.valueOf(true))
+            .build()) {
+      List<Long> ids = Lists.newArrayList();
+      for (Record record : reader) {
+        ids.add((Long) record.getField("id"));
+      }
+      assertThat(ids).containsExactly(2L, 3L, 4L);
+    }
+  }
+
+  @Test
+  public void testTimestampTzNanoFilterAcrossTimezones() throws IOException {
+    Schema schema =
+        new Schema(
+            Types.NestedField.required(1, "id", Types.LongType.get()),
+            Types.NestedField.required(2, "tsTz", Types.TimestampNanoType.withZone()));
+
+    // Each row is written in a DIFFERENT zone offset but the instants share the same UTC second and
+    // differ only by nanoseconds: id0 +0ns, id1 +500ns, id2 +750ns, id3 +1500ns, id4 +3000ns.
+    GenericRecord template = GenericRecord.create(schema);
+    List<Record> writeRecords =
+        Lists.newArrayList(
+            template.copy(
+                ImmutableMap.of(
+                    "id", 0L, "tsTz", OffsetDateTime.parse("2024-01-01T00:00:00.000000000+00:00"))),
+            template.copy(
+                ImmutableMap.of(
+                    "id", 1L, "tsTz", OffsetDateTime.parse("2024-01-01T05:00:00.000000500+05:00"))),
+            template.copy(
+                ImmutableMap.of(
+                    "id", 2L, "tsTz", OffsetDateTime.parse("2023-12-31T16:00:00.000000750-08:00"))),
+            template.copy(
+                ImmutableMap.of(
+                    "id", 3L, "tsTz", OffsetDateTime.parse("2024-01-01T05:30:00.000001500+05:30"))),
+            template.copy(
+                ImmutableMap.of(
+                    "id",
+                    4L,
+                    "tsTz",
+                    OffsetDateTime.parse("2024-01-01T00:00:00.000003000+00:00"))));
+
+    OutputFile tzFile =
+        Files.localOutput(File.createTempFile("ts-tz-nano", ".orc", new File(temp.getPath())));
+    DataWriter<Record> tzWriter =
+        ORC.writeData(tzFile)
+            .schema(schema)
+            .createWriterFunc(GenericOrcWriter::buildWriter)
+            .overwrite()
+            .withSpec(PartitionSpec.unpartitioned())
+            .build();
+    try {
+      for (Record record : writeRecords) {
+        tzWriter.write(record);
+      }
+    } finally {
+      tzWriter.close();
+    }
+
+    // Boundary expressed in +04:00 (== 2024-01-01T00:00:00.000000500Z). Comparison is by instant at
+    // nanosecond precision, so only ids 2 (750 ns), 3 (1500 ns), 4 (3000 ns) remain regardless of
+    // the zone each value was written in.
+    try (CloseableIterable<Record> reader =
+        ORC.read(tzFile.toInputFile())
+            .project(schema)
+            .createReaderFunc(fileSchema -> GenericOrcReader.buildReader(schema, fileSchema))
+            .filter(Expressions.greaterThan("tsTz", "2024-01-01T04:00:00.000000500+04:00"))
+            .config(OrcConf.ALLOW_SARG_TO_FILTER.getAttribute(), String.valueOf(true))
+            .config(OrcConf.READER_USE_SELECTED.getAttribute(), String.valueOf(true))
+            .build()) {
+      List<Long> ids = Lists.newArrayList();
+      for (Record record : reader) {
+        ids.add((Long) record.getField("id"));
+      }
+      assertThat(ids).containsExactly(2L, 3L, 4L);
+    }
   }
 }
