@@ -22,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.Random;
 import org.apache.iceberg.util.RandomUtil;
 import org.junit.jupiter.api.Test;
@@ -55,7 +56,7 @@ public class TestSerializedArray {
 
   @Test
   public void testEmptyArray() {
-    SerializedArray array = SerializedArray.from(EMPTY_METADATA, new byte[] {0b0011, 0x00});
+    SerializedArray array = SerializedArray.from(EMPTY_METADATA, new byte[] {0b0011, 0x00, 0x00});
 
     assertThat(array.type()).isEqualTo(PhysicalType.ARRAY);
     assertThat(array.numElements()).isEqualTo(0);
@@ -64,7 +65,7 @@ public class TestSerializedArray {
   @Test
   public void testEmptyLargeArray() {
     SerializedArray array =
-        SerializedArray.from(EMPTY_METADATA, new byte[] {0b10011, 0x00, 0x00, 0x00, 0x00});
+        SerializedArray.from(EMPTY_METADATA, new byte[] {0b10011, 0x00, 0x00, 0x00, 0x00, 0x00});
 
     assertThat(array.type()).isEqualTo(PhysicalType.ARRAY);
     assertThat(array.numElements()).isEqualTo(0);
@@ -179,12 +180,25 @@ public class TestSerializedArray {
 
   @Test
   public void testLargeArraySize() {
-    SerializedArray array =
-        SerializedArray.from(
-            EMPTY_METADATA, new byte[] {0b10011, (byte) 0xFF, (byte) 0x01, 0x00, 0x00});
+    // largeSize array, offsetSize=2 (offsetSize=1 cannot represent offsets > 255), 511 NULL
+    // elements
+    int numElements = 511;
+    ByteBuffer buf =
+        ByteBuffer.allocate(1 + 4 + (numElements + 1) * 2 + numElements)
+            .order(ByteOrder.LITTLE_ENDIAN);
+    buf.put((byte) 0b10111);
+    buf.putInt(numElements);
+    for (int i = 0; i <= numElements; i += 1) {
+      buf.putShort((short) i);
+    }
+    for (int i = 0; i < numElements; i += 1) {
+      buf.put((byte) 0x00); // NULL primitive header
+    }
+    buf.flip();
 
+    SerializedArray array = SerializedArray.from(EMPTY_METADATA, buf, buf.get(0));
     assertThat(array.type()).isEqualTo(PhysicalType.ARRAY);
-    assertThat(array.numElements()).isEqualTo(511);
+    assertThat(array.numElements()).isEqualTo(numElements);
   }
 
   @Test
@@ -194,7 +208,7 @@ public class TestSerializedArray {
                 SerializedArray.from(
                     EMPTY_METADATA,
                     new byte[] {0b10011, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF}))
-        .isInstanceOf(NegativeArraySizeException.class)
-        .hasMessage("-1");
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("negative element count");
   }
 }

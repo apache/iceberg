@@ -35,13 +35,18 @@ class SerializedArray implements VariantArray, SerializedValue {
     return from(metadata, ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN), bytes[0]);
   }
 
+  @VisibleForTesting
   static SerializedArray from(VariantMetadata metadata, ByteBuffer value, int header) {
+    return from(metadata, value, header, 0);
+  }
+
+  static SerializedArray from(VariantMetadata metadata, ByteBuffer value, int header, int depth) {
     Preconditions.checkArgument(
         value.order() == ByteOrder.LITTLE_ENDIAN, "Unsupported byte order: big endian");
     BasicType basicType = VariantUtil.basicType(header);
     Preconditions.checkArgument(
         basicType == BasicType.ARRAY, "Invalid array, basic type: " + basicType);
-    return new SerializedArray(metadata, value, header);
+    return new SerializedArray(metadata, value, header, depth);
   }
 
   private final VariantMetadata metadata;
@@ -49,16 +54,28 @@ class SerializedArray implements VariantArray, SerializedValue {
   private final int offsetSize;
   private final int offsetListOffset;
   private final int dataOffset;
+  private final int depth;
   private final VariantValue[] array;
 
-  private SerializedArray(VariantMetadata metadata, ByteBuffer value, int header) {
+  private SerializedArray(VariantMetadata metadata, ByteBuffer value, int header, int depth) {
     this.metadata = metadata;
     this.value = value;
+    this.depth = depth;
     this.offsetSize = 1 + ((header & OFFSET_SIZE_MASK) >> OFFSET_SIZE_SHIFT);
     int numElementsSize = ((header & IS_LARGE) == IS_LARGE) ? 4 : 1;
+    Preconditions.checkArgument(
+        value.remaining() >= HEADER_SIZE + numElementsSize,
+        "Invalid variant array: buffer too small for element count field");
     int numElements = ByteBuffers.readLittleEndianUnsigned(value, HEADER_SIZE, numElementsSize);
+    Preconditions.checkArgument(
+        numElements >= 0, "Invalid variant array: negative element count %s", numElements);
     this.offsetListOffset = HEADER_SIZE + numElementsSize;
-    this.dataOffset = offsetListOffset + ((1 + numElements) * offsetSize);
+    long offsetTableEnd = (long) offsetListOffset + ((long) numElements + 1L) * offsetSize;
+    Preconditions.checkArgument(
+        offsetTableEnd <= value.remaining(),
+        "Invalid variant array: element count %s exceeds buffer",
+        numElements);
+    this.dataOffset = Math.toIntExact(offsetTableEnd);
     this.array = new VariantValue[numElements];
   }
 
@@ -76,8 +93,16 @@ class SerializedArray implements VariantArray, SerializedValue {
       int next =
           ByteBuffers.readLittleEndianUnsigned(
               value, offsetListOffset + (offsetSize * (1 + index)), offsetSize);
+      long dataLen = value.remaining() - (long) dataOffset;
+      Preconditions.checkArgument(
+          offset >= 0 && next >= offset && next <= dataLen,
+          "Invalid variant array: offset range [%s, %s] out of data region [0, %s]",
+          offset,
+          next,
+          dataLen);
       array[index] =
-          VariantValue.from(metadata, VariantUtil.slice(value, dataOffset + offset, next - offset));
+          VariantUtil.fromBuffer(
+              metadata, VariantUtil.slice(value, dataOffset + offset, next - offset), depth + 1);
     }
     return array[index];
   }

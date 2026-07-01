@@ -68,7 +68,7 @@ public class TestSerializedObject {
 
   @Test
   public void testEmptyObject() {
-    SerializedObject object = SerializedObject.from(EMPTY_METADATA, new byte[] {0b10, 0x00});
+    SerializedObject object = SerializedObject.from(EMPTY_METADATA, new byte[] {0b10, 0x00, 0x00});
 
     assertThat(object.type()).isEqualTo(PhysicalType.OBJECT);
     assertThat(object.numFields()).isEqualTo(0);
@@ -77,7 +77,7 @@ public class TestSerializedObject {
   @Test
   public void testEmptyLargeObject() {
     SerializedObject object =
-        SerializedObject.from(EMPTY_METADATA, new byte[] {0b1000010, 0x00, 0x00, 0x00, 0x00});
+        SerializedObject.from(EMPTY_METADATA, new byte[] {0b1000010, 0x00, 0x00, 0x00, 0x00, 0x00});
 
     assertThat(object.type()).isEqualTo(PhysicalType.OBJECT);
     assertThat(object.numFields()).isEqualTo(0);
