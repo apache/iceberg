@@ -20,6 +20,9 @@ package org.apache.iceberg.hadoop;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import java.io.IOException;
@@ -43,6 +46,7 @@ import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NoSuchTableException;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.FakeTicker;
@@ -434,6 +438,29 @@ public class TestCachingCatalog extends HadoopTableTestBase {
 
     // cache should have been invalidated by registerTable
     assertThat(catalog.cache().asMap()).doesNotContainKey(targetIdent);
+  }
+
+  @Test
+  public void testFileIOClosedOnCacheEviction() throws IOException {
+    FileIO mockIO = mock(FileIO.class);
+    Table mockTable = mock(Table.class);
+    TableIdentifier tableIdent = TableIdentifier.of("db", "tbl");
+
+    Catalog mockCatalog = mock(Catalog.class);
+    when(mockCatalog.loadTable(tableIdent)).thenReturn(mockTable);
+    when(mockTable.io()).thenReturn(mockIO);
+
+    TestableCachingCatalog catalog =
+        TestableCachingCatalog.wrap(mockCatalog, EXPIRATION_TTL, ticker);
+
+    catalog.loadTable(tableIdent);
+    assertThat(catalog.cache().asMap()).containsKey(tableIdent);
+
+    ticker.advance(EXPIRATION_TTL.plus(Duration.ofSeconds(1)));
+    catalog.cache().cleanUp();
+
+    assertThat(catalog.cache().asMap()).doesNotContainKey(tableIdent);
+    verify(mockIO).close();
   }
 
   public static TableIdentifier[] metadataTables(TableIdentifier tableIdent) {
