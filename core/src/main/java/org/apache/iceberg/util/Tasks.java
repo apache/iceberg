@@ -29,7 +29,6 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Predicate;
@@ -78,15 +77,20 @@ public class Tasks {
     private boolean stopAbortsOnFailure = false;
 
     // retry settings
+    private static final long DEFAULT_MIN_SLEEP_TIME_MS = 1000; // 1 second
+    private static final long DEFAULT_MAX_SLEEP_TIME_MS = 600000; // 10 minutes
+    private static final long DEFAULT_TOTAL_TIMEOUT_MS = 600000; // 10 minutes
+    private static final double DEFAULT_SCALE_FACTOR = 2.0;
+
     private final List<Class<? extends Exception>> stopRetryExceptions =
         Lists.newArrayList(UnrecoverableException.class);
     private List<Class<? extends Exception>> onlyRetryExceptions = null;
     private Predicate<Exception> shouldRetryPredicate = null;
     private int maxAttempts = 1; // not all operations can be retried
-    private long minSleepTimeMs = 1000; // 1 second
-    private long maxSleepTimeMs = 600000; // 10 minutes
-    private long maxDurationMs = 600000; // 10 minutes
-    private double scaleFactor = 2.0; // exponential
+    private long totalTimeoutMs = DEFAULT_TOTAL_TIMEOUT_MS;
+    private BackoffStrategy backoffStrategy =
+        new ExponentialBackoffStrategy(
+            DEFAULT_MIN_SLEEP_TIME_MS, DEFAULT_MAX_SLEEP_TIME_MS, DEFAULT_SCALE_FACTOR);
     private Counter attemptsCounter;
 
     public Builder(Iterable<I> items) {
@@ -180,15 +184,27 @@ public class Tasks {
       return this;
     }
 
-    public Builder<I> exponentialBackoff(
-        long backoffMinSleepTimeMs,
-        long backoffMaxSleepTimeMs,
-        long backoffMaxRetryTimeMs,
-        double backoffScaleFactor) {
-      this.minSleepTimeMs = backoffMinSleepTimeMs;
-      this.maxSleepTimeMs = backoffMaxSleepTimeMs;
-      this.maxDurationMs = backoffMaxRetryTimeMs;
-      this.scaleFactor = backoffScaleFactor;
+    /**
+     * Sets the total retry timeout, after which retries stop even if {@link #retry(int)} attempts
+     * remain. Corresponds to the {@code commit.retry.total-timeout-ms} family of properties.
+     */
+    public Builder<I> totalTimeoutMs(long ms) {
+      this.totalTimeoutMs = ms;
+      return this;
+    }
+
+    /**
+     * Use a custom {@link BackoffStrategy} to compute the wait between retries.
+     *
+     * <p>A non-null strategy replaces the built-in exponential backoff default. A {@code null}
+     * argument is ignored, so callers can pass {@link BackoffStrategies#from(java.util.Map)}
+     * directly without a separate null check. The total retry duration and maximum number of
+     * attempts are unaffected.
+     */
+    public Builder<I> backoffStrategy(BackoffStrategy strategy) {
+      if (strategy != null) {
+        this.backoffStrategy = strategy;
+      }
       return this;
     }
 
@@ -414,10 +430,10 @@ public class Tasks {
           break;
 
         } catch (Exception e) {
-          long durationMs = System.currentTimeMillis() - start;
-          if (attempt >= maxAttempts || (durationMs > maxDurationMs && attempt > 1)) {
-            if (durationMs > maxDurationMs) {
-              LOG.info("Stopping retries after {} ms", durationMs);
+          long elapsedMs = System.currentTimeMillis() - start;
+          if (attempt >= maxAttempts || (elapsedMs > totalTimeoutMs && attempt > 1)) {
+            if (elapsedMs > totalTimeoutMs) {
+              LOG.info("Stopping retries after {} ms", elapsedMs);
             }
             throw e;
           }
@@ -449,12 +465,7 @@ public class Tasks {
             }
           }
 
-          int delayMs =
-              (int)
-                  Math.min(
-                      minSleepTimeMs * Math.pow(scaleFactor, attempt - 1), (double) maxSleepTimeMs);
-          int jitter = ThreadLocalRandom.current().nextInt(Math.max(1, (int) (delayMs * 0.1)));
-          int sleepTimeMs = delayMs + jitter;
+          long sleepTimeMs = backoffStrategy.computeBackoff(attempt);
 
           LOG.warn(
               "Retrying task after failure: sleepTimeMs={} {}", sleepTimeMs, e.getMessage(), e);

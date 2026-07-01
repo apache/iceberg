@@ -1719,3 +1719,12 @@ acceptedBreaks:
         \ boolean)"
       justification: "IncrementalScanEvent should only be constructed by Iceberg code.\
         \ Hence the change of constructor params shouldn't affect users"
+  "1.11.0":
+    org.apache.iceberg:iceberg-core:
+      - code: "java.method.removed"
+        old: "method org.apache.iceberg.util.Tasks.Builder<I> org.apache.iceberg.util.Tasks.Builder<I>::exponentialBackoff(long,\
+          \ long, long, double)"
+        justification: "Split into Tasks.Builder.totalTimeoutMs(long) for the retry\
+          \ budget and Tasks.Builder.backoffStrategy(BackoffStrategy) for the per-attempt\
+          \ wait formula. The previous 4-arg method conflated two unrelated concerns\
+          \ and obscured operator-facing terminology (commit.retry.total-timeout-ms)."

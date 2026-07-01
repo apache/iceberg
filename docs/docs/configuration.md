@@ -120,6 +120,7 @@ See the [Encryption](encryption.md) document for additional details.
 | commit.retry.min-wait-ms           | 100              | Minimum time in milliseconds to wait before retrying a commit |
 | commit.retry.max-wait-ms           | 60000 (1 min)    | Maximum time in milliseconds to wait before retrying a commit |
 | commit.retry.total-timeout-ms      | 1800000 (30 min) | Total retry timeout period in milliseconds for a commit |
+| retry.strategy-impl                | (exponential backoff) | Fully-qualified name of a custom `org.apache.iceberg.util.BackoffStrategy` used to compute the wait between retries. Global to every `Tasks` retry site (commit, lock acquisition, status checks, REST scan polling, FileIO cleanup); there is no per-site override. Read from whichever properties map is local to the call site (table/view properties, catalog properties, FileIO properties, or Hadoop `Configuration`). When unset, the built-in exponential backoff with jitter is used |
 | commit.status-check.num-retries    | 3                | Number of times to check whether a commit succeeded after a connection is lost before failing due to an unknown commit state |
 | commit.status-check.min-wait-ms    | 1000 (1s)        | Minimum time in milliseconds to wait before retrying a status-check |
 | commit.status-check.max-wait-ms    | 60000 (1 min)    | Maximum time in milliseconds to wait before retrying a status-check |
