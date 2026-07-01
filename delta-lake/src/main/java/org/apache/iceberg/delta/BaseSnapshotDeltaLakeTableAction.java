@@ -342,13 +342,11 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
     Long nullableFileSize;
     Map<String, String> partitionValues;
 
-    if (action instanceof AddFile) {
-      AddFile addFile = (AddFile) action;
+    if (action instanceof AddFile addFile) {
       path = addFile.getPath();
       nullableFileSize = addFile.getSize();
       partitionValues = addFile.getPartitionValues();
-    } else if (action instanceof RemoveFile) {
-      RemoveFile removeFile = (RemoveFile) action;
+    } else if (action instanceof RemoveFile removeFile) {
       path = removeFile.getPath();
       nullableFileSize = removeFile.getSize().orElse(null);
       partitionValues = removeFile.getPartitionValues();
