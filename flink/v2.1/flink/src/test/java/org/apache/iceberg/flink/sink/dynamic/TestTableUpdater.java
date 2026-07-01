@@ -23,6 +23,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.nio.file.Path;
 import java.util.Map;
 import org.apache.flink.api.java.tuple.Tuple2;
+import org.apache.flink.table.data.GenericRowData;
+import org.apache.flink.table.data.RowData;
+import org.apache.flink.table.data.StringData;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SnapshotRef;
@@ -172,6 +175,52 @@ public class TestTableUpdater extends TestFlinkIcebergSinkBase {
     assertThat(updated.sameSchema(SCHEMA2)).isTrue();
     assertThat(cache.schema(tableIdentifier, SCHEMA2).resolvedTableSchema().sameSchema(SCHEMA2))
         .isTrue();
+  }
+
+  @Test
+  void testAddColumnWithResidualNarrowingEvolvesThenConverts() {
+    Catalog catalog = CATALOG_EXTENSION.catalog();
+    TableIdentifier tableIdentifier = TableIdentifier.parse("default.myTable");
+    Schema tableSchema =
+        new Schema(
+            Types.NestedField.optional(1, "id", Types.LongType.get()),
+            Types.NestedField.optional(2, "data", Types.StringType.get()));
+    catalog.createTable(tableIdentifier, tableSchema);
+
+    TableMetadataCache cache =
+        new TableMetadataCache(catalog, 10, Long.MAX_VALUE, 10, CASE_SENSITIVE, PRESERVE_COLUMNS);
+    TableUpdater tableUpdater = new TableUpdater(cache, catalog, CASE_SENSITIVE, PRESERVE_COLUMNS);
+
+    Schema rowSchema =
+        new Schema(
+            Types.NestedField.optional(1, "id", Types.IntegerType.get()),
+            Types.NestedField.optional(2, "data", Types.StringType.get()),
+            Types.NestedField.optional(3, "extra", Types.StringType.get()));
+
+    Tuple2<TableMetadataCache.ResolvedSchemaInfo, PartitionSpec> result =
+        tableUpdater.update(
+            tableIdentifier,
+            SnapshotRef.MAIN_BRANCH,
+            rowSchema,
+            PartitionSpec.unpartitioned(),
+            TableCreator.DEFAULT);
+
+    Schema evolved = catalog.loadTable(tableIdentifier).schema();
+    assertThat(evolved.findField("id").type()).isEqualTo(Types.LongType.get());
+    assertThat(evolved.findField("extra")).isNotNull();
+    assertThat(result.f0.compareResult())
+        .isEqualTo(CompareSchemasVisitor.Result.DATA_CONVERSION_NEEDED);
+
+    RowData converted =
+        (RowData)
+            result
+                .f0
+                .recordConverter()
+                .convert(
+                    GenericRowData.of(5, StringData.fromString("a"), StringData.fromString("x")));
+    assertThat(converted.getLong(0)).isEqualTo(5L);
+    assertThat(converted.getString(1)).hasToString("a");
+    assertThat(converted.getString(2)).hasToString("x");
   }
 
   @Test
