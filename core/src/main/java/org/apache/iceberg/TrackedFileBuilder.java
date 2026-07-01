@@ -23,8 +23,8 @@ import java.util.List;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 class TrackedFileBuilder {
-  private final long snapshotId;
   private final FileContent contentType;
+  private final TrackingBuilder trackingBuilder;
 
   // Required fields
   private Integer formatVersion = null;
@@ -32,10 +32,10 @@ class TrackedFileBuilder {
   private FileFormat fileFormat = null;
   private Long recordCount = null;
   private Long fileSizeInBytes = null;
-  private PartitionData partitionData = null;
 
   // optional fields
   private Integer specId = null;
+  private PartitionData partition = null;
   private ContentStats contentStats = null;
   private Integer sortOrderId = null;
   private DeletionVector deletionVector = null;
@@ -43,12 +43,6 @@ class TrackedFileBuilder {
   private ByteBuffer keyMetadata = null;
   private List<Long> splitOffsets = null;
   private List<Integer> equalityIds = null;
-
-  // tracking-related fields
-  private Tracking sourceTracking = null;
-  private boolean dvUpdated = false;
-  private ByteBuffer deletedPositions = null;
-  private ByteBuffer replacedPositions = null;
 
   /**
    * Creates a builder for a newly added data file entry.
@@ -111,7 +105,7 @@ class TrackedFileBuilder {
   /**
    * Returns a REPLACED tracked file derived from {@code source}.
    *
-   * <p>Manifest entries cannot transition to REPLACED.
+   * <p>Manifest entries cannot transition to REPLACED status.
    *
    * @param source source tracked file
    * @param newSnapshotId the snapshot ID in which the new tracked file will be committed
@@ -120,8 +114,7 @@ class TrackedFileBuilder {
     Preconditions.checkArgument(source != null, "Invalid source: null");
     Preconditions.checkArgument(
         !isLeafManifest(source.contentType()),
-        "Manifest entries cannot transition to REPLACED, but entry type is: %s",
-        source.contentType());
+        "Cannot transition manifest entries to REPLACED status");
     return terminal(source, TrackingBuilder.replaced(source.tracking(), newSnapshotId));
   }
 
@@ -147,18 +140,17 @@ class TrackedFileBuilder {
 
   private TrackedFileBuilder(FileContent contentType, long snapshotId) {
     this.contentType = contentType;
-    this.snapshotId = snapshotId;
+    this.trackingBuilder = TrackingBuilder.added(snapshotId);
   }
 
   private TrackedFileBuilder(TrackedFile source, long snapshotId) {
     this.contentType = source.contentType();
-    this.snapshotId = snapshotId;
     this.formatVersion = source.formatVersion();
     this.location = source.location();
     this.fileFormat = source.fileFormat();
     this.recordCount = source.recordCount();
     this.fileSizeInBytes = source.fileSizeInBytes();
-    this.partitionData = (PartitionData) source.partition();
+    this.partition = (PartitionData) source.partition();
     this.specId = source.specId();
     this.contentStats = source.contentStats();
     this.sortOrderId = source.sortOrderId();
@@ -167,7 +159,7 @@ class TrackedFileBuilder {
     this.keyMetadata = source.keyMetadata();
     this.splitOffsets = source.splitOffsets();
     this.equalityIds = source.equalityIds();
-    this.sourceTracking = source.tracking();
+    this.trackingBuilder = TrackingBuilder.from(source.tracking(), snapshotId);
   }
 
   TrackedFileBuilder formatVersion(int newFormatVersion) {
@@ -205,15 +197,18 @@ class TrackedFileBuilder {
     return this;
   }
 
-  TrackedFileBuilder specId(int newSpecId) {
-    Preconditions.checkArgument(newSpecId >= 0, "Invalid spec ID: %s (must be >= 0)", newSpecId);
-    this.specId = newSpecId;
-    return this;
-  }
-
-  TrackedFileBuilder partition(PartitionData newPartitionData) {
-    Preconditions.checkArgument(newPartitionData != null, "Invalid partition: null");
-    this.partitionData = newPartitionData;
+  TrackedFileBuilder partition(PartitionSpec spec, StructLike newPartition) {
+    Preconditions.checkArgument(spec != null, "Invalid spec: null");
+    Preconditions.checkArgument(
+        !isLeafManifest(contentType), "Cannot set partition for manifest entries");
+    if (spec.isUnpartitioned()) {
+      Preconditions.checkArgument(
+          newPartition == null, "Invalid partition: must be null for unpartitioned spec");
+    } else {
+      Preconditions.checkArgument(newPartition != null, "Invalid partition: null");
+      this.partition = DataFiles.copyPartitionData(spec, newPartition, null);
+    }
+    this.specId = spec.specId();
     return this;
   }
 
@@ -225,9 +220,7 @@ class TrackedFileBuilder {
 
   TrackedFileBuilder sortOrderId(int newSortOrderId) {
     Preconditions.checkArgument(
-        !isLeafManifest(contentType),
-        "Sort order ID cannot be added to manifest entries, but entry type is: %s",
-        contentType);
+        !isLeafManifest(contentType), "Cannot set sort order for manifest files");
     Preconditions.checkArgument(
         newSortOrderId >= 0, "Invalid sort order ID: %s (must be >= 0)", newSortOrderId);
     this.sortOrderId = newSortOrderId;
@@ -238,13 +231,21 @@ class TrackedFileBuilder {
     Preconditions.checkArgument(newDeletionVector != null, "Invalid deletion vector: null");
     Preconditions.checkArgument(
         contentType == FileContent.DATA,
-        "Deletion vector can only be added to DATA entries, but entry type is: %s",
+        "Cannot add deletion vector for file with content: %s",
         contentType);
-    Preconditions.checkArgument(
-        this.deletionVector == null || !this.deletionVector.equals(newDeletionVector),
-        "The same deletion vector already added");
+    if (deletionVector != null) {
+      Preconditions.checkArgument(
+          deletionVector.cardinality() < newDeletionVector.cardinality(),
+          "Invalid DV update, cardinality must increase: existing=%s, new=%s",
+          deletionVector.cardinality(),
+          newDeletionVector.cardinality());
+      Preconditions.checkArgument(
+          !deletionVector.location().equals(newDeletionVector.location())
+              || deletionVector.offset() != newDeletionVector.offset(),
+          "Invalid DV update: same location and offset");
+    }
     this.deletionVector = newDeletionVector;
-    this.dvUpdated = true;
+    trackingBuilder.dvUpdated();
     return this;
   }
 
@@ -252,7 +253,7 @@ class TrackedFileBuilder {
     Preconditions.checkArgument(newManifestInfo != null, "Invalid manifest info: null");
     Preconditions.checkArgument(
         isLeafManifest(contentType),
-        "Manifest info can only be added to manifests, but entry type is: %s",
+        "Cannot add manifest info for file with content: %s",
         contentType);
     this.manifestInfo = newManifestInfo;
     return this;
@@ -267,9 +268,7 @@ class TrackedFileBuilder {
   TrackedFileBuilder splitOffsets(List<Long> newSplitOffsets) {
     Preconditions.checkArgument(newSplitOffsets != null, "Invalid split offsets: null");
     Preconditions.checkArgument(
-        !isLeafManifest(contentType),
-        "Split offsets cannot be added to manifest entries, but entry type is: %s",
-        contentType);
+        !isLeafManifest(contentType), "Cannot set split offsets for manifest files");
     this.splitOffsets = newSplitOffsets;
     return this;
   }
@@ -278,7 +277,7 @@ class TrackedFileBuilder {
     Preconditions.checkArgument(newEqualityIds != null, "Invalid equality IDs: null");
     Preconditions.checkArgument(
         contentType == FileContent.EQUALITY_DELETES,
-        "Equality IDs can only be added to EQUALITY_DELETES entries, but entry type is: %s",
+        "Cannot add equality IDs for file with content: %s",
         contentType);
     this.equalityIds = newEqualityIds;
     return this;
@@ -288,9 +287,9 @@ class TrackedFileBuilder {
     Preconditions.checkArgument(newDeletedPositions != null, "Invalid deleted positions: null");
     Preconditions.checkArgument(
         isLeafManifest(contentType),
-        "Deleted positions can only be added to manifest entries, but entry type is: %s",
+        "Cannot add deleted positions for file with content: %s",
         contentType);
-    this.deletedPositions = newDeletedPositions;
+    trackingBuilder.deletedPositions(newDeletedPositions);
     return this;
   }
 
@@ -298,9 +297,9 @@ class TrackedFileBuilder {
     Preconditions.checkArgument(newReplacedPositions != null, "Invalid replaced positions: null");
     Preconditions.checkArgument(
         isLeafManifest(contentType),
-        "Replaced positions can only be added to manifest entries, but entry type is: %s",
+        "Cannot add replaced positions for file with content: %s",
         contentType);
-    this.replacedPositions = newReplacedPositions;
+    trackingBuilder.replacedPositions(newReplacedPositions);
     return this;
   }
 
@@ -315,7 +314,6 @@ class TrackedFileBuilder {
     Preconditions.checkArgument(recordCount != null, "Missing required field: record count");
     Preconditions.checkArgument(
         fileSizeInBytes != null, "Missing required field: file size in bytes");
-    Preconditions.checkArgument(partitionData != null, "Missing required field: partition data");
     Preconditions.checkArgument(
         !isLeafManifest(contentType) || manifestInfo != null,
         "Missing required field: manifest info");
@@ -323,30 +321,13 @@ class TrackedFileBuilder {
         contentType != FileContent.EQUALITY_DELETES || equalityIds != null,
         "Missing required field: equality IDs");
 
-    TrackingBuilder trackingBuilder =
-        sourceTracking == null
-            ? TrackingBuilder.added(snapshotId)
-            : TrackingBuilder.from(sourceTracking, snapshotId);
-
-    if (dvUpdated) {
-      trackingBuilder.dvUpdated();
-    }
-
-    if (deletedPositions != null) {
-      trackingBuilder.deletedPositions(deletedPositions);
-    }
-
-    if (replacedPositions != null) {
-      trackingBuilder.replacedPositions(replacedPositions);
-    }
-
     return new TrackedFileStruct(
         trackingBuilder.build(),
         contentType,
         formatVersion,
         location,
         fileFormat,
-        partitionData,
+        partition,
         recordCount,
         fileSizeInBytes,
         specId,

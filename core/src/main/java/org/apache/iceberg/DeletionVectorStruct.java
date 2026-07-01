@@ -19,7 +19,6 @@
 package org.apache.iceberg;
 
 import java.io.Serializable;
-import java.util.Objects;
 import org.apache.iceberg.avro.SupportsIndexProjection;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -127,26 +126,6 @@ class DeletionVectorStruct extends SupportsIndexProjection implements DeletionVe
 
   static Builder builder() {
     return new Builder();
-  }
-
-  @Override
-  public boolean equals(Object other) {
-    if (this == other) {
-      return true;
-    } else if (!(other instanceof DeletionVectorStruct)) {
-      return false;
-    }
-
-    DeletionVectorStruct that = (DeletionVectorStruct) other;
-    return Objects.equals(location, that.location)
-        && offset == that.offset
-        && sizeInBytes == that.sizeInBytes
-        && cardinality == that.cardinality;
-  }
-
-  @Override
-  public int hashCode() {
-    return Objects.hash(location, offset, sizeInBytes, cardinality);
   }
 
   @Override
