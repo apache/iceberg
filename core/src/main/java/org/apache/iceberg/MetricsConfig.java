@@ -71,7 +71,7 @@ public final class MetricsConfig implements Serializable {
 
   private final Map<String, MetricsMode> columnModes;
   private final MetricsMode defaultMode;
-  private Map<Integer, String> idToName;
+  private final Map<Integer, String> idToName;
 
   private MetricsConfig(
       Map<String, MetricsMode> columnModes,
