@@ -30,6 +30,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
 import javax.annotation.concurrent.Immutable;
+import org.apache.curator.shaded.com.google.common.base.Preconditions;
 import org.apache.iceberg.MetricsModes.MetricsMode;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -61,7 +62,7 @@ public final class MetricsConfig implements Serializable {
               MetricsModes.Full.get(),
               MetadataColumns.DELETE_FILE_POS.name(),
               MetricsModes.Full.get()),
-          DEFAULT_MODE,
+          MetricsModes.None.get(),
           ImmutableMap.of(
               MetadataColumns.DELETE_FILE_PATH.fieldId(),
               MetadataColumns.DELETE_FILE_PATH.name(),
@@ -78,9 +79,7 @@ public final class MetricsConfig implements Serializable {
       Map<Integer, String> idToName) {
     this.columnModes = SerializableMap.copyOf(columnModes).immutableMap();
     this.defaultMode = defaultMode;
-    if (idToName != null) {
-      this.idToName = SerializableMap.copyOf(idToName).immutableMap();
-    }
+    this.idToName = idToName != null ? SerializableMap.copyOf(idToName).immutableMap() : null;
   }
 
   public static MetricsConfig getDefault() {
@@ -122,10 +121,12 @@ public final class MetricsConfig implements Serializable {
   }
 
   public Iterable<Integer> metricsFieldIds() {
+    Preconditions.checkState(idToName != null, "Cannot resolve column mode by ID: missing schema");
     return idToName.keySet();
   }
 
   public MetricsMode columnMode(int id) {
+    Preconditions.checkState(idToName != null, "Cannot resolve column mode by ID: missing schema");
     String name = idToName.get(id);
     if (name != null) {
       return columnMode(name);
@@ -149,7 +150,7 @@ public final class MetricsConfig implements Serializable {
           schema);
 
       ValidationException.check(
-          null == idToName || idToName.get(field.fieldId()).equals(column),
+          null == idToName || column.equals(idToName.get(field.fieldId())),
           "Incorrect field name for id %s: %s (expected %s)",
           field.fieldId(),
           column,
