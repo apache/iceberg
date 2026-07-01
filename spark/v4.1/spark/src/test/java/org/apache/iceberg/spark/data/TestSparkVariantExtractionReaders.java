@@ -19,25 +19,34 @@
 package org.apache.iceberg.spark.data;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.time.ZoneId;
 import java.util.List;
 import org.apache.iceberg.parquet.ParquetValueReader;
 import org.apache.iceberg.parquet.ParquetVariantExtractionReaders;
 import org.apache.iceberg.parquet.ParquetVariantVisitor;
 import org.apache.iceberg.parquet.VariantReaderBuilder;
 import org.apache.iceberg.variants.Variant;
+import org.apache.iceberg.variants.VariantMetadata;
+import org.apache.iceberg.variants.VariantValue;
 import org.apache.iceberg.variants.Variants;
 import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
+import org.apache.spark.SparkRuntimeException;
+import org.apache.spark.sql.catalyst.expressions.variant.VariantCastArgs;
+import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.MetadataBuilder;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
+import org.apache.spark.unsafe.types.VariantVal;
 import org.junit.jupiter.api.Test;
 
 class TestSparkVariantExtractionReaders {
@@ -274,11 +283,53 @@ class TestSparkVariantExtractionReaders {
   }
 
   @Test
-  void doubleOutOfFloatRangeReturnsNull() {
+  void int64OverflowToIntFailOnErrorThrows() {
+    long overflowValue = (long) Integer.MAX_VALUE + 1;
+    assertThatThrownBy(
+            () ->
+                SparkVariantExtractionReaders.toSparkValueForTests(
+                    Variants.of(overflowValue), DataTypes.IntegerType, true))
+        .isInstanceOf(SparkRuntimeException.class)
+        .hasMessageContaining("INVALID_VARIANT_CAST");
+  }
+
+  @Test
+  void int64OverflowToShortFailOnErrorThrows() {
+    long overflowValue = (long) Short.MAX_VALUE + 1;
+    assertThatThrownBy(
+            () ->
+                SparkVariantExtractionReaders.toSparkValueForTests(
+                    Variants.of(overflowValue), DataTypes.ShortType, true))
+        .isInstanceOf(SparkRuntimeException.class)
+        .hasMessageContaining("INVALID_VARIANT_CAST");
+  }
+
+  @Test
+  void int64OverflowToByteFailOnErrorThrows() {
+    long overflowValue = (long) Byte.MAX_VALUE + 1;
+    assertThatThrownBy(
+            () ->
+                SparkVariantExtractionReaders.toSparkValueForTests(
+                    Variants.of(overflowValue), DataTypes.ByteType, true))
+        .isInstanceOf(SparkRuntimeException.class)
+        .hasMessageContaining("INVALID_VARIANT_CAST");
+  }
+
+  @Test
+  void int64InRangeToIntFailOnErrorReturnsValue() {
+    assertThat(
+            SparkVariantExtractionReaders.toSparkValueForTests(
+                Variants.of(42L), DataTypes.IntegerType, true))
+        .isEqualTo(42);
+  }
+
+  @Test
+  void doubleOutOfFloatRangeReturnsInfinity() {
+    // double -> float is delegated to Spark, which yields Infinity (not null) on overflow.
     assertThat(
             SparkVariantExtractionReaders.toSparkValueForTests(
                 Variants.of(Double.MAX_VALUE), DataTypes.FloatType))
-        .isNull();
+        .isEqualTo(Float.POSITIVE_INFINITY);
   }
 
   @Test
@@ -287,6 +338,109 @@ class TestSparkVariantExtractionReaders {
             SparkVariantExtractionReaders.toSparkValueForTests(
                 Variants.of(1.5d), DataTypes.FloatType))
         .isEqualTo(1.5f);
+  }
+
+  @Test
+  void stringToLongDelegatesToSpark() {
+    // STRING -> Long is not inline-owned; Spark parses the numeric string.
+    assertThat(
+            SparkVariantExtractionReaders.toSparkValueForTests(
+                Variants.of("4021"), DataTypes.LongType))
+        .isEqualTo(4021L);
+  }
+
+  @Test
+  void stringToLongUnparseableTryReturnsNull() {
+    assertThat(
+            SparkVariantExtractionReaders.toSparkValueForTests(
+                Variants.of("guest"), DataTypes.LongType))
+        .isNull();
+  }
+
+  @Test
+  void stringToLongUnparseableFailOnErrorThrows() {
+    assertThatThrownBy(
+            () ->
+                SparkVariantExtractionReaders.toSparkValueForTests(
+                    Variants.of("guest"), DataTypes.LongType, true))
+        .isInstanceOf(SparkRuntimeException.class)
+        .hasMessageContaining("INVALID_VARIANT_CAST");
+  }
+
+  @Test
+  void doubleToLongDelegatesAndTruncates() {
+    assertThat(
+            SparkVariantExtractionReaders.toSparkValueForTests(
+                Variants.of(3.9d), DataTypes.LongType))
+        .isEqualTo(3L);
+  }
+
+  @Test
+  void intToDoubleDelegatesToSpark() {
+    assertThat(
+            SparkVariantExtractionReaders.toSparkValueForTests(
+                Variants.of(7), DataTypes.DoubleType))
+        .isEqualTo(7.0d);
+  }
+
+  @Test
+  void decimalDelegatesToSpark() {
+    assertThat(
+            SparkVariantExtractionReaders.toSparkValueForTests(
+                Variants.of(new java.math.BigDecimal("123.45")), DataTypes.createDecimalType(6, 2)))
+        .isEqualTo(org.apache.spark.sql.types.Decimal.apply(new java.math.BigDecimal("123.45")));
+  }
+
+  /**
+   * Cross-check: every inline-owned pair that Spark's {@code VariantGet.cast} also supports must
+   * produce the identical value. This makes the inline set's equivalence to Spark executable, so a
+   * divergence (or a future Spark behavior change) fails loudly instead of silently returning wrong
+   * data. Deliberately excluded: nanos timestamps, {@code TIME}, and {@code UUID} sources — Spark's
+   * variant cannot represent those (its {@code getType} throws {@code UNKNOWN_PRIMITIVE_TYPE}), so
+   * they are inline-owned precisely because there is no Spark reference to compare against.
+   * Overflow behavior is covered by the dedicated overflow tests; this matrix uses in-range values.
+   */
+  @Test
+  void inlineOwnedConversionsMatchSparkVariantGet() {
+    assertInlineMatchesSpark(Variants.of((byte) 5), DataTypes.ByteType);
+    assertInlineMatchesSpark(Variants.of((byte) 5), DataTypes.ShortType);
+    assertInlineMatchesSpark(Variants.of((byte) 5), DataTypes.IntegerType);
+    assertInlineMatchesSpark(Variants.of((byte) 5), DataTypes.LongType);
+    assertInlineMatchesSpark(Variants.of((short) 300), DataTypes.ShortType);
+    assertInlineMatchesSpark(Variants.of((short) 300), DataTypes.IntegerType);
+    assertInlineMatchesSpark(Variants.of(70_000), DataTypes.IntegerType);
+    assertInlineMatchesSpark(Variants.of(70_000), DataTypes.LongType);
+    assertInlineMatchesSpark(Variants.of(5_000_000_000L), DataTypes.LongType);
+    assertInlineMatchesSpark(Variants.of("hello"), DataTypes.StringType);
+    assertInlineMatchesSpark(Variants.of(true), DataTypes.BooleanType);
+    assertInlineMatchesSpark(Variants.of(false), DataTypes.BooleanType);
+    assertInlineMatchesSpark(Variants.ofDate(12_345), DataTypes.DateType);
+    assertInlineMatchesSpark(Variants.of(3.5d), DataTypes.DoubleType);
+    assertInlineMatchesSpark(Variants.of(1.5f), DataTypes.FloatType);
+    assertInlineMatchesSpark(Variants.ofTimestamptz(1_000_000L), DataTypes.TimestampType);
+    assertInlineMatchesSpark(Variants.ofTimestampntz(2_000_000L), DataTypes.TimestampNTZType);
+    // Overflow with failOnError=false: both yield SQL NULL.
+    assertInlineMatchesSpark(Variants.of((long) Integer.MAX_VALUE + 1), DataTypes.IntegerType);
+    assertInlineMatchesSpark(Variants.of((int) Short.MAX_VALUE + 1), DataTypes.ShortType);
+  }
+
+  private static void assertInlineMatchesSpark(VariantValue value, DataType targetType) {
+    Object inline = SparkVariantExtractionReaders.toSparkValueForTests(value, targetType);
+    assertThat(inline)
+        .as("inline cast %s -> %s must equal Spark VariantGet.cast", value.type(), targetType)
+        .isEqualTo(sparkVariantGetCast(value, targetType));
+  }
+
+  private static Object sparkVariantGetCast(VariantValue value, DataType targetType) {
+    VariantMetadata metadata = VariantMetadata.empty();
+    byte[] metadataBytes = new byte[metadata.sizeInBytes()];
+    metadata.writeTo(ByteBuffer.wrap(metadataBytes).order(ByteOrder.LITTLE_ENDIAN), 0);
+    byte[] valueBytes = new byte[value.sizeInBytes()];
+    value.writeTo(ByteBuffer.wrap(valueBytes).order(ByteOrder.LITTLE_ENDIAN), 0);
+    VariantCastArgs castArgs =
+        new VariantCastArgs(false, scala.Option.apply("UTC"), ZoneId.of("UTC"));
+    return org.apache.spark.sql.catalyst.expressions.variant.VariantGet$.MODULE$.cast(
+        new VariantVal(valueBytes, metadataBytes), targetType, castArgs);
   }
 
   private static StructField extractionField(

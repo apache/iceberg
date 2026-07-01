@@ -22,6 +22,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.DataTypes;
+import org.apache.spark.sql.types.Metadata;
+import org.apache.spark.sql.types.MetadataBuilder;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.types.VariantType$;
@@ -81,5 +83,35 @@ class TestSparkVariantExtractionUtil {
     assertThat(
             SparkVariantExtractionUtil.isSupportedExtractionPath("$['issue']['labels'][0]['name']"))
         .isTrue();
+  }
+
+  @Test
+  void failOnErrorReadsMetadataFlag() {
+    assertThat(SparkVariantExtractionUtil.failOnError(extractionField(true))).isTrue();
+    assertThat(SparkVariantExtractionUtil.failOnError(extractionField(false))).isFalse();
+  }
+
+  @Test
+  void failOnErrorDefaultsFalseWhenAbsent() {
+    Metadata variantMetadata = new MetadataBuilder().putString("path", "$.size").build();
+    Metadata metadata =
+        new MetadataBuilder()
+            .putMetadata(SparkVariantExtractionUtil.VARIANT_METADATA_KEY, variantMetadata)
+            .build();
+    StructField field = DataTypes.createStructField("0", DataTypes.LongType, true, metadata);
+    assertThat(SparkVariantExtractionUtil.failOnError(field)).isFalse();
+  }
+
+  private static StructField extractionField(boolean failOnError) {
+    Metadata variantMetadata =
+        new MetadataBuilder()
+            .putString("path", "$.size")
+            .putBoolean("failOnError", failOnError)
+            .build();
+    Metadata metadata =
+        new MetadataBuilder()
+            .putMetadata(SparkVariantExtractionUtil.VARIANT_METADATA_KEY, variantMetadata)
+            .build();
+    return DataTypes.createStructField("0", DataTypes.LongType, true, metadata);
   }
 }
