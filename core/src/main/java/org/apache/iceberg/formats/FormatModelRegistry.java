@@ -199,20 +199,33 @@ public final class FormatModelRegistry {
     return model;
   }
 
-  @SuppressWarnings("CatchBlockLogException")
   private static void registerSupportedFormats() {
     // Uses dynamic methods to call the `register` for the listed classes
     for (String classToRegister : CLASSES_TO_REGISTER) {
-      try {
-        DynMethods.builder("register").impl(classToRegister).buildStaticChecked().invoke();
-      } catch (NoSuchMethodException | NoClassDefFoundError | ExceptionInInitializerError e) {
-        // failing to register a factory is normal and does not require a stack trace
-        Throwable cause = e.getCause() != null ? e.getCause() : e;
-        LOG.info(
-            "Unable to call register for ({}). Check for missing jars on the classpath: {}",
-            classToRegister,
-            cause.toString());
-      }
+      register(classToRegister);
+    }
+  }
+
+  /**
+   * Invokes the static {@code register} method of the given class, tolerating the failure modes
+   * that occur when an optional module (like {@code iceberg-parquet} or {@code iceberg-orc}) is not
+   * on the classpath.
+   *
+   * <p>Besides {@link NoSuchMethodException}, invoking {@code register} can fail with {@link
+   * NoClassDefFoundError} when its body references a missing transitive dependency, or {@link
+   * ExceptionInInitializerError} when it triggers a failing static initializer.
+   */
+  @SuppressWarnings("CatchBlockLogException")
+  private static void register(String classToRegister) {
+    try {
+      DynMethods.builder("register").impl(classToRegister).buildStaticChecked().invoke();
+    } catch (NoSuchMethodException | NoClassDefFoundError | ExceptionInInitializerError e) {
+      // failing to register a factory is normal and does not require a stack trace
+      Throwable cause = e.getCause() != null ? e.getCause() : e;
+      LOG.info(
+          "Unable to call register for ({}). Check for missing jars on the classpath: {}",
+          classToRegister,
+          cause.toString());
     }
   }
 }
