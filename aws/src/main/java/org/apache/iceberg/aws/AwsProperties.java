@@ -22,6 +22,7 @@ import java.io.Serializable;
 import java.net.URI;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import org.apache.iceberg.aws.dynamodb.DynamoDbCatalog;
 import org.apache.iceberg.aws.lakeformation.LakeFormationAwsClientFactory;
@@ -31,6 +32,8 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.PropertyUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
@@ -44,8 +47,13 @@ import software.amazon.awssdk.services.glue.GlueClientBuilder;
 import software.amazon.awssdk.services.kms.KmsClientBuilder;
 import software.amazon.awssdk.services.kms.model.DataKeySpec;
 import software.amazon.awssdk.services.kms.model.EncryptionAlgorithmSpec;
+import software.amazon.awssdk.services.sts.StsClient;
+import software.amazon.awssdk.services.sts.auth.StsAssumeRoleCredentialsProvider;
+import software.amazon.awssdk.services.sts.model.AssumeRoleRequest;
 
 public class AwsProperties implements Serializable {
+
+  private static final Logger LOG = LoggerFactory.getLogger(AwsProperties.class);
 
   /**
    * The ID of the Glue Data Catalog where the tables reside. If none is provided, Glue
@@ -237,6 +245,7 @@ public class AwsProperties implements Serializable {
   private final String clientAssumeRoleSessionName;
   private final String clientCredentialsProvider;
   private final Map<String, String> clientCredentialsProviderProperties;
+  private final HttpClientProperties httpClientProperties;
 
   private final String glueEndpoint;
   private String glueCatalogId;
@@ -266,6 +275,7 @@ public class AwsProperties implements Serializable {
     this.clientAssumeRoleSessionName = null;
     this.clientCredentialsProvider = null;
     this.clientCredentialsProviderProperties = null;
+    this.httpClientProperties = new HttpClientProperties();
 
     this.glueCatalogId = null;
     this.glueEndpoint = null;
@@ -292,12 +302,15 @@ public class AwsProperties implements Serializable {
             properties, CLIENT_ASSUME_ROLE_TIMEOUT_SEC, CLIENT_ASSUME_ROLE_TIMEOUT_SEC_DEFAULT);
     this.clientAssumeRoleExternalId = properties.get(CLIENT_ASSUME_ROLE_EXTERNAL_ID);
     this.clientAssumeRoleRegion = properties.get(CLIENT_ASSUME_ROLE_REGION);
-    this.clientAssumeRoleSessionName = properties.get(CLIENT_ASSUME_ROLE_SESSION_NAME);
+    this.clientAssumeRoleSessionName =
+        properties.getOrDefault(
+            CLIENT_ASSUME_ROLE_SESSION_NAME, String.format("iceberg-aws-%s", UUID.randomUUID()));
     this.clientCredentialsProvider =
         properties.get(AwsClientProperties.CLIENT_CREDENTIALS_PROVIDER);
     this.clientCredentialsProviderProperties =
         PropertyUtil.propertiesWithPrefix(
             properties, AwsClientProperties.CLIENT_CREDENTIAL_PROVIDER_PREFIX);
+    this.httpClientProperties = new HttpClientProperties(properties);
 
     this.glueEndpoint = properties.get(GLUE_CATALOG_ENDPOINT);
     this.glueCatalogId = properties.get(GLUE_CATALOG_ID);
@@ -493,8 +506,49 @@ public class AwsProperties implements Serializable {
       return credentialsProvider(this.clientCredentialsProvider);
     }
 
+    // When a role is configured to be assumed (e.g. via AssumeRoleAwsClientFactory), sign requests
+    // with the assumed-role credentials so that they do not diverge from the credentials used for
+    // S3, Glue, KMS and DynamoDB. See https://github.com/apache/iceberg/issues/16667.
+    if (!Strings.isNullOrEmpty(this.clientAssumeRoleArn)) {
+      if (!Strings.isNullOrEmpty(this.clientAssumeRoleRegion)) {
+        return assumeRoleCredentialsProvider();
+      }
+
+      LOG.warn(
+          "Cannot assume role {} to sign REST requests because {} is not set; "
+              + "falling back to the default credentials provider.",
+          this.clientAssumeRoleArn,
+          CLIENT_ASSUME_ROLE_REGION);
+    }
+
     // Create a new credential provider for each client
     return DefaultCredentialsProvider.builder().build();
+  }
+
+  protected StsAssumeRoleCredentialsProvider assumeRoleCredentialsProvider() {
+    Preconditions.checkNotNull(
+        this.clientAssumeRoleRegion,
+        "Cannot create StsAssumeRoleCredentialsProvider with null region");
+    return StsAssumeRoleCredentialsProvider.builder()
+        .stsClient(
+            StsClient.builder()
+                .applyMutation(httpClientProperties::applyHttpClientConfigurations)
+                .region(Region.of(this.clientAssumeRoleRegion))
+                .build())
+        .refreshRequest(createAssumeRoleRequest())
+        .build();
+  }
+
+  private AssumeRoleRequest createAssumeRoleRequest() {
+    Preconditions.checkNotNull(
+        this.clientAssumeRoleArn, "Cannot create AssumeRoleRequest with null role ARN");
+    return AssumeRoleRequest.builder()
+        .roleArn(this.clientAssumeRoleArn)
+        .roleSessionName(this.clientAssumeRoleSessionName)
+        .durationSeconds(this.clientAssumeRoleTimeoutSec)
+        .externalId(this.clientAssumeRoleExternalId)
+        .tags(this.stsClientAssumeRoleTags)
+        .build();
   }
 
   private AwsCredentialsProvider credentialsProvider(String credentialsProviderClass) {
