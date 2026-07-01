@@ -91,6 +91,19 @@ public class BinPackRewriteFilePlanner
    */
   public static final String MAX_FILES_TO_REWRITE = "max-files-to-rewrite";
 
+  /**
+   * Controls whether to rewrite files written with a partition spec different from the configured
+   * output spec.
+   *
+   * <p>This can be used to migrate files created before partition spec evolution (for example, when
+   * the spec evolved from month to month plus day).
+   *
+   * <p>Defaults to false.
+   */
+  public static final String REWRITE_PARTITION_SPEC_MISMATCH = "rewrite-partition-spec-mismatch";
+
+  public static final boolean REWRITE_PARTITION_SPEC_MISMATCH_DEFAULT = false;
+
   private static final Logger LOG = LoggerFactory.getLogger(BinPackRewriteFilePlanner.class);
 
   private final Expression filter;
@@ -101,6 +114,7 @@ public class BinPackRewriteFilePlanner
   private double deleteRatioThreshold;
   private RewriteJobOrder rewriteJobOrder;
   private Integer maxFilesToRewrite;
+  private boolean rewritePartitionSpecMismatch;
 
   public BinPackRewriteFilePlanner(Table table) {
     this(table, Expressions.alwaysTrue());
@@ -139,6 +153,7 @@ public class BinPackRewriteFilePlanner
         .add(DELETE_RATIO_THRESHOLD)
         .add(RewriteDataFiles.REWRITE_JOB_ORDER)
         .add(MAX_FILES_TO_REWRITE)
+        .add(REWRITE_PARTITION_SPEC_MISMATCH)
         .build();
   }
 
@@ -154,6 +169,7 @@ public class BinPackRewriteFilePlanner
                 RewriteDataFiles.REWRITE_JOB_ORDER,
                 RewriteDataFiles.REWRITE_JOB_ORDER_DEFAULT));
     this.maxFilesToRewrite = maxFilesToRewrite(options);
+    this.rewritePartitionSpecMismatch = rewritePartitionSpecMismatch(options);
   }
 
   private int deleteFileThreshold(Map<String, String> options) {
@@ -185,12 +201,20 @@ public class BinPackRewriteFilePlanner
     return value;
   }
 
+  private boolean rewritePartitionSpecMismatch(Map<String, String> options) {
+    return PropertyUtil.propertyAsBoolean(
+        options, REWRITE_PARTITION_SPEC_MISMATCH, REWRITE_PARTITION_SPEC_MISMATCH_DEFAULT);
+  }
+
   @Override
   protected Iterable<FileScanTask> filterFiles(Iterable<FileScanTask> tasks) {
     return Iterables.filter(
         tasks,
         task ->
-            outsideDesiredFileSizeRange(task) || tooManyDeletes(task) || tooHighDeleteRatio(task));
+            outsideDesiredFileSizeRange(task)
+                || tooManyDeletes(task)
+                || tooHighDeleteRatio(task)
+                || hasPartitionSpecMismatch(task));
   }
 
   @Override
@@ -202,7 +226,8 @@ public class BinPackRewriteFilePlanner
                 || enoughContent(group)
                 || tooMuchContent(group)
                 || group.stream().anyMatch(this::tooManyDeletes)
-                || group.stream().anyMatch(this::tooHighDeleteRatio));
+                || group.stream().anyMatch(this::tooHighDeleteRatio)
+                || group.stream().anyMatch(this::hasPartitionSpecMismatch));
   }
 
   @Override
@@ -284,6 +309,10 @@ public class BinPackRewriteFilePlanner
     double deletedRecords = (double) Math.min(knownDeletedRecordCount, task.file().recordCount());
     double deleteRatio = deletedRecords / task.file().recordCount();
     return deleteRatio >= deleteRatioThreshold;
+  }
+
+  private boolean hasPartitionSpecMismatch(FileScanTask task) {
+    return rewritePartitionSpecMismatch && task.file().specId() != outputSpecId();
   }
 
   private StructLikeMap<List<List<FileScanTask>>> planFileGroups() {
