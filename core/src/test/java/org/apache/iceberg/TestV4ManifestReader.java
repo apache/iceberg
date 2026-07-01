@@ -50,6 +50,13 @@ import org.junit.jupiter.api.io.TempDir;
 public class TestV4ManifestReader {
   private static final long SNAPSHOT_ID = 42L;
   private static final int FORMAT_VERSION_V4 = 4;
+  private static final long RECORD_COUNT = 100L;
+  private static final long FILE_SIZE_IN_BYTES = 1024L;
+  private static final int SORT_ORDER_ID = 1;
+  private static final String DV_LOCATION = "s3://bucket/dv.puffin";
+  private static final long DV_OFFSET = 100L;
+  private static final long DV_SIZE_IN_BYTES = 50L;
+  private static final long DV_CARDINALITY = 5L;
 
   private static final Schema TABLE_SCHEMA =
       new Schema(
@@ -66,6 +73,7 @@ public class TestV4ManifestReader {
 
   private static final List<Types.NestedField> SCHEMA_FIELDS =
       TrackedFile.schemaWithContentStats(Types.StructType.of(), Types.StructType.of()).fields();
+  private static final int SORT_ORDER_ID_ORDINAL = ordinalOf(TrackedFile.SORT_ORDER_ID.fieldId());
 
   @Parameter private FileFormat format;
 
@@ -80,21 +88,26 @@ public class TestV4ManifestReader {
 
   @TestTemplate
   public void testRoundTrip() throws IOException {
-    DeletionVector dv =
-        DeletionVectorStruct.builder()
-            .location("s3://bucket/dv.puffin")
-            .offset(100L)
-            .sizeInBytes(50L)
-            .cardinality(5L)
-            .build();
+    DeletionVector dv = deletionVector(DV_LOCATION, DV_OFFSET, DV_SIZE_IN_BYTES, DV_CARDINALITY);
 
     TrackedFile file =
-        dataFileBuilder("s3://bucket/data/file.parquet", partition(7))
-            .sortOrderId(1)
-            .deletionVector(dv)
-            .keyMetadata(ByteBuffer.wrap(new byte[] {1, 2, 3}))
-            .splitOffsets(ImmutableList.of(50L, 100L))
-            .build();
+        new TrackedFileStruct(
+            addedTracking(),
+            FileContent.DATA,
+            FORMAT_VERSION_V4,
+            "s3://bucket/data/file.parquet",
+            FileFormat.PARQUET,
+            partition(7),
+            RECORD_COUNT,
+            FILE_SIZE_IN_BYTES,
+            0,
+            null,
+            SORT_ORDER_ID,
+            dv,
+            null,
+            ByteBuffer.wrap(new byte[] {1, 2, 3}),
+            ImmutableList.of(50L, 100L),
+            null);
 
     InputFile manifest = writeManifest(PARTITION_TYPE, ImmutableList.of(file));
 
@@ -102,45 +115,49 @@ public class TestV4ManifestReader {
     assertThat(read).hasSize(1);
     TrackedFile actual = read.get(0);
 
-    assertThat(actual.contentType()).isEqualTo(file.contentType());
-    assertThat(actual.formatVersion()).isEqualTo(file.formatVersion());
-    assertThat(actual.location()).isEqualTo(file.location());
-    assertThat(actual.fileFormat()).isEqualTo(file.fileFormat());
-    assertThat(actual.recordCount()).isEqualTo(file.recordCount());
-    assertThat(actual.fileSizeInBytes()).isEqualTo(file.fileSizeInBytes());
-    assertThat(actual.specId()).isEqualTo(file.specId());
-    assertThat(actual.sortOrderId()).isEqualTo(file.sortOrderId());
-    assertThat(actual.keyMetadata()).isEqualTo(file.keyMetadata());
-    assertThat(actual.splitOffsets()).isEqualTo(file.splitOffsets());
-    assertThat(actual.partition().get(0, Integer.class))
-        .isEqualTo(file.partition().get(0, Integer.class));
+    assertThat(actual.contentType()).isEqualTo(FileContent.DATA);
+    assertThat(actual.formatVersion()).isEqualTo(FORMAT_VERSION_V4);
+    assertThat(actual.location()).isEqualTo("s3://bucket/data/file.parquet");
+    assertThat(actual.fileFormat()).isEqualTo(FileFormat.PARQUET);
+    assertThat(actual.recordCount()).isEqualTo(RECORD_COUNT);
+    assertThat(actual.fileSizeInBytes()).isEqualTo(FILE_SIZE_IN_BYTES);
+    assertThat(actual.specId()).isEqualTo(0);
+    assertThat(actual.sortOrderId()).isEqualTo(SORT_ORDER_ID);
+    assertThat(actual.keyMetadata()).isEqualTo(ByteBuffer.wrap(new byte[] {1, 2, 3}));
+    assertThat(actual.splitOffsets()).containsExactly(50L, 100L);
+    assertThat(actual.partition().get(0, Integer.class)).isEqualTo(7);
 
     assertThat(actual.tracking()).isNotNull();
-    assertThat(actual.tracking().status()).isEqualTo(file.tracking().status());
-    assertThat(actual.tracking().snapshotId()).isEqualTo(file.tracking().snapshotId());
+    assertThat(actual.tracking().status()).isEqualTo(EntryStatus.ADDED);
+    assertThat(actual.tracking().snapshotId()).isEqualTo(SNAPSHOT_ID);
 
     assertThat(actual.deletionVector()).isNotNull();
-    assertThat(actual.deletionVector().location()).isEqualTo(file.deletionVector().location());
-    assertThat(actual.deletionVector().offset()).isEqualTo(file.deletionVector().offset());
-    assertThat(actual.deletionVector().sizeInBytes())
-        .isEqualTo(file.deletionVector().sizeInBytes());
-    assertThat(actual.deletionVector().cardinality())
-        .isEqualTo(file.deletionVector().cardinality());
+    assertThat(actual.deletionVector().location()).isEqualTo(DV_LOCATION);
+    assertThat(actual.deletionVector().offset()).isEqualTo(DV_OFFSET);
+    assertThat(actual.deletionVector().sizeInBytes()).isEqualTo(DV_SIZE_IN_BYTES);
+    assertThat(actual.deletionVector().cardinality()).isEqualTo(DV_CARDINALITY);
   }
 
   @TestTemplate
   public void testEqualityDeleteRoundTrip() throws IOException {
     TrackedFile delete =
-        TrackedFileBuilder.equalityDelete(SNAPSHOT_ID)
-            .formatVersion(FORMAT_VERSION_V4)
-            .location("s3://bucket/eq-delete.parquet")
-            .fileFormat(FileFormat.PARQUET)
-            .recordCount(10L)
-            .fileSizeInBytes(128L)
-            .partition(EMPTY_PARTITION_DATA)
-            .specId(0)
-            .equalityIds(ImmutableList.of(1, 2))
-            .build();
+        new TrackedFileStruct(
+            addedTracking(),
+            FileContent.EQUALITY_DELETES,
+            FORMAT_VERSION_V4,
+            "s3://bucket/eq-delete.parquet",
+            FileFormat.PARQUET,
+            EMPTY_PARTITION_DATA,
+            RECORD_COUNT,
+            FILE_SIZE_IN_BYTES,
+            0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            ImmutableList.of(1, 2));
 
     InputFile manifest = writeManifest(EMPTY_PARTITION, ImmutableList.of(delete));
 
@@ -196,8 +213,8 @@ public class TestV4ManifestReader {
 
   @TestTemplate
   public void testProjectionRestrictsFields() throws IOException {
-    TrackedFile file =
-        dataFileBuilder("s3://bucket/file.parquet", EMPTY_PARTITION_DATA).sortOrderId(7).build();
+    TrackedFile file = dataFile("s3://bucket/file.parquet", EMPTY_PARTITION_DATA);
+    ((StructLike) file).set(SORT_ORDER_ID_ORDINAL, SORT_ORDER_ID);
 
     InputFile manifest = writeManifest(EMPTY_PARTITION, ImmutableList.of(file));
 
@@ -251,16 +268,23 @@ public class TestV4ManifestReader {
   @TestTemplate
   public void testPartitionFilterCountsSkippedDeleteFiles() throws IOException {
     TrackedFile delete =
-        TrackedFileBuilder.equalityDelete(SNAPSHOT_ID)
-            .formatVersion(FORMAT_VERSION_V4)
-            .location("delete.parquet")
-            .fileFormat(FileFormat.PARQUET)
-            .recordCount(100L)
-            .fileSizeInBytes(1024L)
-            .partition(partition(2))
-            .specId(0)
-            .equalityIds(ImmutableList.of(1))
-            .build();
+        new TrackedFileStruct(
+            addedTracking(),
+            FileContent.EQUALITY_DELETES,
+            FORMAT_VERSION_V4,
+            "delete.parquet",
+            FileFormat.PARQUET,
+            partition(2),
+            RECORD_COUNT,
+            FILE_SIZE_IN_BYTES,
+            0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            ImmutableList.of(1));
 
     InputFile manifest = writeManifest(PARTITION_TYPE, ImmutableList.of(delete));
 
@@ -281,29 +305,25 @@ public class TestV4ManifestReader {
   public void testPartitionFilterKeepsManifestReferences() throws IOException {
     TrackedFile keep = dataFile("data-1.parquet", partition(1));
     TrackedFile prune = dataFile("data-2.parquet", partition(2));
-    ManifestInfo info =
-        ManifestInfoStruct.builder()
-            .addedFilesCount(1)
-            .existingFilesCount(0)
-            .deletedFilesCount(0)
-            .replacedFilesCount(0)
-            .addedRowsCount(1L)
-            .existingRowsCount(0L)
-            .deletedRowsCount(0L)
-            .replacedRowsCount(0L)
-            .minSequenceNumber(1L)
-            .build();
+    ManifestInfo info = new ManifestInfoStruct(1, 0, 0, 0, 1L, 0L, 0L, 0L, 1L, null, null);
     TrackedFile manifestRef =
-        TrackedFileBuilder.dataManifest(SNAPSHOT_ID)
-            .formatVersion(FORMAT_VERSION_V4)
-            .location("leaf.parquet")
-            .fileFormat(FileFormat.PARQUET)
-            .recordCount(1L)
-            .fileSizeInBytes(100L)
-            .partition(partition(2))
-            .specId(0)
-            .manifestInfo(info)
-            .build();
+        new TrackedFileStruct(
+            addedTracking(),
+            FileContent.DATA_MANIFEST,
+            FORMAT_VERSION_V4,
+            "leaf.parquet",
+            FileFormat.PARQUET,
+            partition(2),
+            RECORD_COUNT,
+            FILE_SIZE_IN_BYTES,
+            0,
+            null,
+            null,
+            null,
+            info,
+            null,
+            null,
+            null);
 
     InputFile manifest = writeManifest(PARTITION_TYPE, ImmutableList.of(keep, prune, manifestRef));
 
@@ -345,14 +365,10 @@ public class TestV4ManifestReader {
     Map<Integer, PartitionSpec> specsById = ImmutableMap.of(0, spec0, 1, spec1);
     Types.StructType unionType = Partitioning.partitionType(TABLE_SCHEMA, specsById.values());
 
-    TrackedFile keepById =
-        dataFileBuilder("spec0-id1.parquet", unionPartition(unionType, 1, null)).specId(0).build();
-    TrackedFile prunedById =
-        dataFileBuilder("spec0-id2.parquet", unionPartition(unionType, 2, null)).specId(0).build();
+    TrackedFile keepById = dataFile("spec0-id1.parquet", unionPartition(unionType, 1, null), 0);
+    TrackedFile prunedById = dataFile("spec0-id2.parquet", unionPartition(unionType, 2, null), 0);
     TrackedFile keptOtherSpec =
-        dataFileBuilder("spec1-data.parquet", unionPartition(unionType, null, "x"))
-            .specId(1)
-            .build();
+        dataFile("spec1-data.parquet", unionPartition(unionType, null, "x"), 1);
 
     InputFile manifest =
         writeManifest(unionType, ImmutableList.of(keepById, prunedById, keptOtherSpec));
@@ -405,7 +421,7 @@ public class TestV4ManifestReader {
   @TestTemplate
   public void testFileWithUnknownSpecThrows() throws IOException {
     // spec ID 5 is not in PARTITIONED_SPECS, so pruning cannot resolve a spec for this file
-    TrackedFile file = dataFileBuilder("orphan.parquet", partition(1)).specId(5).build();
+    TrackedFile file = dataFile("orphan.parquet", partition(1), 5);
 
     InputFile manifest = writeManifest(PARTITION_TYPE, ImmutableList.of(file));
 
@@ -418,18 +434,27 @@ public class TestV4ManifestReader {
   }
 
   private static TrackedFile dataFile(String location, PartitionData partition) {
-    return dataFileBuilder(location, partition).build();
+    return dataFile(location, partition, 0);
   }
 
-  private static TrackedFileBuilder dataFileBuilder(String location, PartitionData partition) {
-    return TrackedFileBuilder.data(SNAPSHOT_ID)
-        .formatVersion(FORMAT_VERSION_V4)
-        .location(location)
-        .fileFormat(FileFormat.PARQUET)
-        .recordCount(100L)
-        .fileSizeInBytes(1024L)
-        .partition(partition)
-        .specId(0);
+  private static TrackedFile dataFile(String location, PartitionData partition, int specId) {
+    return new TrackedFileStruct(
+        addedTracking(),
+        FileContent.DATA,
+        FORMAT_VERSION_V4,
+        location,
+        FileFormat.PARQUET,
+        partition,
+        RECORD_COUNT,
+        FILE_SIZE_IN_BYTES,
+        specId,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null);
   }
 
   private static TrackedFile fileWithStatus(EntryStatus status, String location) {
@@ -441,8 +466,8 @@ public class TestV4ManifestReader {
         location,
         FileFormat.PARQUET,
         EMPTY_PARTITION_DATA,
-        100L,
-        1024L,
+        RECORD_COUNT,
+        FILE_SIZE_IN_BYTES,
         0,
         null,
         null,
@@ -451,6 +476,20 @@ public class TestV4ManifestReader {
         null,
         null,
         null);
+  }
+
+  private static Tracking addedTracking() {
+    return new TrackingStruct(EntryStatus.ADDED, SNAPSHOT_ID, null, null, null, null, null, null);
+  }
+
+  private static DeletionVector deletionVector(
+      String location, long offset, long sizeInBytes, long cardinality) {
+    DeletionVectorStruct dv = new DeletionVectorStruct(DeletionVector.schema());
+    dv.set(0, location);
+    dv.set(1, offset);
+    dv.set(2, sizeInBytes);
+    dv.set(3, cardinality);
+    return dv;
   }
 
   private static PartitionData partition(int id) {
