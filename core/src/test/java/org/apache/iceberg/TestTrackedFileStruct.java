@@ -49,10 +49,7 @@ class TestTrackedFileStruct {
   private static final int FILE_SIZE_IN_BYTES_ORDINAL =
       SCHEMA_FIELDS.indexOf(TrackedFile.FILE_SIZE_IN_BYTES);
   private static final int SPEC_ID_ORDINAL = SCHEMA_FIELDS.indexOf(TrackedFile.SPEC_ID);
-  // partition and content_stats are rebuilt with the supplied struct types inside
-  // schemaWithContentStats, so their ordinals are looked up by field ID.
   private static final int PARTITION_ORDINAL = ordinalOf(TrackedFile.PARTITION_ID);
-  private static final int CONTENT_STATS_ORDINAL = ordinalOf(TrackedFile.CONTENT_STATS_ID);
   private static final int SORT_ORDER_ID_ORDINAL = SCHEMA_FIELDS.indexOf(TrackedFile.SORT_ORDER_ID);
   private static final int DELETION_VECTOR_ORDINAL =
       SCHEMA_FIELDS.indexOf(TrackedFile.DELETION_VECTOR);
