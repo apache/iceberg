@@ -771,6 +771,7 @@ public class Types {
       private String doc = null;
       private Literal<?> initialDefault = null;
       private Literal<?> writeDefault = null;
+      private String collation = null;
 
       private Builder() {}
 
@@ -787,6 +788,7 @@ public class Types {
         this.doc = toCopy.doc;
         this.initialDefault = toCopy.initialDefault;
         this.writeDefault = toCopy.writeDefault;
+        this.collation = toCopy.collation;
       }
 
       public Builder asRequired() {
@@ -854,10 +856,17 @@ public class Types {
         return this;
       }
 
+      /** PROTOTYPE: set the field's collation (only valid on string fields). */
+      public Builder withCollation(String fieldCollation) {
+        this.collation = fieldCollation;
+        return this;
+      }
+
       public NestedField build() {
         Preconditions.checkNotNull(id, "Id cannot be null");
         // the constructor validates the other fields
-        return new NestedField(isOptional, id, name, type, doc, initialDefault, writeDefault);
+        return new NestedField(
+            isOptional, id, name, type, doc, initialDefault, writeDefault, collation);
       }
     }
 
@@ -868,6 +877,10 @@ public class Types {
     private final String doc;
     private final Literal<?> initialDefault;
     private final Literal<?> writeDefault;
+    // PROTOTYPE: optional collation for string fields. null means default UTF-8
+    // byte-order comparison. StringType is a stateless singleton, so the
+    // collation is carried on the field rather than the type.
+    private final String collation;
 
     private NestedField(
         boolean isOptional,
@@ -877,11 +890,27 @@ public class Types {
         String doc,
         Literal<?> initialDefault,
         Literal<?> writeDefault) {
+      this(isOptional, id, name, type, doc, initialDefault, writeDefault, null);
+    }
+
+    private NestedField(
+        boolean isOptional,
+        int id,
+        String name,
+        Type type,
+        String doc,
+        Literal<?> initialDefault,
+        Literal<?> writeDefault,
+        String collation) {
       Preconditions.checkNotNull(name, "Name cannot be null");
       Preconditions.checkNotNull(type, "Type cannot be null");
       Preconditions.checkArgument(
           isOptional || !type.equals(UnknownType.get()),
           "Cannot create required field with unknown type: %s",
+          name);
+      Preconditions.checkArgument(
+          collation == null || type.typeId() == Type.TypeID.STRING,
+          "Cannot set collation on non-string field: %s",
           name);
       this.isOptional = isOptional;
       this.id = id;
@@ -890,6 +919,7 @@ public class Types {
       this.doc = doc;
       this.initialDefault = castDefault(initialDefault, type);
       this.writeDefault = castDefault(writeDefault, type);
+      this.collation = collation;
     }
 
     private static Literal<?> castDefault(Literal<?> defaultValue, Type type) {
@@ -914,7 +944,7 @@ public class Types {
       if (isOptional) {
         return this;
       }
-      return new NestedField(true, id, name, type, doc, initialDefault, writeDefault);
+      return new NestedField(true, id, name, type, doc, initialDefault, writeDefault, collation);
     }
 
     public boolean isRequired() {
@@ -925,7 +955,7 @@ public class Types {
       if (!isOptional) {
         return this;
       }
-      return new NestedField(false, id, name, type, doc, initialDefault, writeDefault);
+      return new NestedField(false, id, name, type, doc, initialDefault, writeDefault, collation);
     }
 
     /**
@@ -933,7 +963,7 @@ public class Types {
      */
     @Deprecated
     public NestedField withFieldId(int newId) {
-      return new NestedField(isOptional, newId, name, type, doc, initialDefault, writeDefault);
+      return new NestedField(isOptional, newId, name, type, doc, initialDefault, writeDefault, collation);
     }
 
     public int fieldId() {
@@ -968,10 +998,16 @@ public class Types {
       return writeDefault != null ? writeDefault.value() : null;
     }
 
+    /** PROTOTYPE: the field's collation, or null for default UTF-8 byte order. */
+    public String collation() {
+      return collation;
+    }
+
     @Override
     public String toString() {
       return String.format(
               Locale.ROOT, "%d: %s: %s %s", id, name, isOptional ? "optional" : "required", type)
+          + (collation != null ? " collate " + collation : "")
           + (doc != null ? " (" + doc + ")" : "");
     }
 
@@ -998,13 +1034,15 @@ public class Types {
         return false;
       } else if (!Objects.equals(writeDefault, that.writeDefault)) {
         return false;
+      } else if (!Objects.equals(collation, that.collation)) {
+        return false;
       }
       return true;
     }
 
     @Override
     public int hashCode() {
-      return Objects.hash(NestedField.class, id, isOptional, name, type);
+      return Objects.hash(NestedField.class, id, isOptional, name, type, collation);
     }
   }
 
