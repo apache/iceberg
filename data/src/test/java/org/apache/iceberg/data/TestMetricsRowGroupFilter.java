@@ -1005,11 +1005,19 @@ public class TestMetricsRowGroupFilter {
     assumeThat(format).isEqualTo(FileFormat.PARQUET);
 
     boolean shouldRead =
+        new ParquetMetricsRowGroupFilter(SCHEMA, equal(truncate("id", 2), 12345), true)
+            .shouldRead(parquetSchema, rowGroupMetadata);
+    assertThat(shouldRead)
+        .as("Should read: opaque transform term (non-string truncate) evaluates as true")
+        .isTrue();
+
+    shouldRead =
         new ParquetMetricsRowGroupFilter(SCHEMA, equal(truncate("required", 2), "some_value"), true)
             .shouldRead(parquetSchema, rowGroupMetadata);
     assertThat(shouldRead)
-        .as("Should read: filter contains non-reference evaluate as True")
-        .isTrue();
+        .as(
+            "Should not read: string truncate equality is unsatisfiable when the literal is longer than the truncate width")
+        .isFalse();
   }
 
   @TestTemplate

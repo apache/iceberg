@@ -26,6 +26,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
@@ -207,8 +208,52 @@ public class UnboundPredicate<T> extends Predicate<T, UnboundTerm<T>>
       }
     }
 
-    // TODO: translate truncate(col) == value to startsWith(value)
+    return bindLiteralPredicate(boundTerm, lit);
+  }
+
+  private Expression bindLiteralPredicate(BoundTerm<T> boundTerm, Literal<T> lit) {
+    // Rewrite EQ/NOT_EQ on a string truncate transform term to an exactly-equivalent predicate on
+    // the source column so metrics, dictionary, and partition pruning can use the column directly.
+    if ((op() == Operation.EQ || op() == Operation.NOT_EQ)
+        && boundTerm instanceof BoundTransform
+        && lit.value() instanceof CharSequence) {
+      BoundTransform<?, ?> transformTerm = (BoundTransform<?, ?>) boundTerm;
+      Transforms.StringTruncateRewrite rewrite =
+          Transforms.stringTruncateRewrite(transformTerm, ((CharSequence) lit.value()).length());
+      if (rewrite != null) {
+        return rewriteStringTruncate(transformTerm, lit, rewrite);
+      }
+    }
+
     return new BoundLiteralPredicate<>(op(), boundTerm, lit);
+  }
+
+  /**
+   * Rewrites an EQ/NOT_EQ predicate whose term is a string {@code truncate} transform to an
+   * exactly-equivalent predicate on the untransformed source column.
+   *
+   * <p>For {@code truncate[W](col) == v}: {@code len(v) > W} is unsatisfiable; {@code len(v) == W}
+   * is equivalent to {@code col STARTS_WITH v}; {@code len(v) < W} is equivalent to {@code col ==
+   * v}. NOT_EQ is the exact negation.
+   */
+  @SuppressWarnings("unchecked")
+  private Expression rewriteStringTruncate(
+      BoundTransform<?, ?> transformTerm,
+      Literal<T> lit,
+      Transforms.StringTruncateRewrite rewrite) {
+    boolean isEq = op() == Operation.EQ;
+    BoundTerm<T> sourceRef = (BoundTerm<T>) transformTerm.ref();
+    switch (rewrite) {
+      case NONE:
+        return isEq ? Expressions.alwaysFalse() : Expressions.alwaysTrue();
+      case STARTS_WITH:
+        return new BoundLiteralPredicate<>(
+            isEq ? Operation.STARTS_WITH : Operation.NOT_STARTS_WITH, sourceRef, lit);
+      case EXACT:
+        return new BoundLiteralPredicate<>(isEq ? Operation.EQ : Operation.NOT_EQ, sourceRef, lit);
+      default:
+        throw new IllegalStateException("Unexpected string truncate rewrite: " + rewrite);
+    }
   }
 
   private Expression bindInOperation(BoundTerm<T> boundTerm) {

@@ -23,6 +23,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.expressions.BoundTransform;
 import org.apache.iceberg.types.Type;
 
 /**
@@ -279,5 +280,45 @@ public class Transforms {
    */
   public static <T> Transform<T, Void> alwaysNull() {
     return VoidTransform.get();
+  }
+
+  /**
+   * Describes how an equality predicate on a string {@code truncate} transform term can be
+   * rewritten to an exactly-equivalent predicate on the untransformed source column.
+   *
+   * <ul>
+   *   <li>{@link #NONE}: the literal is longer than the truncate width, so {@code truncate(col) ==
+   *       v} can never match (and {@code != v} always matches)
+   *   <li>{@link #STARTS_WITH}: the literal length equals the truncate width, so {@code
+   *       truncate(col) == v} is equivalent to {@code col STARTS_WITH v}
+   *   <li>{@link #EXACT}: the literal is shorter than the truncate width, so {@code truncate(col)
+   *       == v} is equivalent to {@code col == v}
+   * </ul>
+   */
+  public enum StringTruncateRewrite {
+    NONE,
+    STARTS_WITH,
+    EXACT
+  }
+
+  /**
+   * Returns how an equality predicate on a string {@code truncate} transform term can be rewritten
+   * to an exactly-equivalent predicate on the untransformed source column, or null if the term is
+   * not a string truncate transform (in which case the predicate must be left unchanged).
+   *
+   * <p>This is used during predicate binding so that metrics, dictionary, and partition pruning can
+   * use the source column directly instead of an opaque transform term.
+   *
+   * @param term a bound transform term, e.g. {@code truncate[W](col)}
+   * @param literalLength the length of the equality literal
+   * @return the rewrite kind, or null if {@code term} is not a string truncate transform
+   */
+  public static StringTruncateRewrite stringTruncateRewrite(
+      BoundTransform<?, ?> term, int literalLength) {
+    if (!(term.transform() instanceof Truncate) || term.type().typeId() != Type.TypeID.STRING) {
+      return null;
+    }
+
+    return Truncate.lengthRewrite(literalLength, ((Truncate<?>) term.transform()).width());
   }
 }

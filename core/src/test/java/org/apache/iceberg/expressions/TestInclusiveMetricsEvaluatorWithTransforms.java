@@ -591,6 +591,46 @@ public class TestInclusiveMetricsEvaluatorWithTransforms {
   }
 
   @Test
+  public void testStringTruncateEquality() {
+    // str column: lower bound "abc", upper bound "abe"
+
+    // len == width -> rewritten to startsWith; "xyz" is outside ["abc", "abe"] so the file is
+    // skipped. Before the binding rewrite this returned true (BoundTransform term was opaque).
+    assertThat(shouldRead(equal(truncate("str", 3), "xyz")))
+        .as("Should skip: truncate(str,3) == xyz rewritten to startsWith outside bounds")
+        .isFalse();
+
+    assertThat(shouldRead(equal(truncate("str", 3), "abc")))
+        .as("Should read: startsWith prefix within bounds")
+        .isTrue();
+
+    // len > width -> truncate(str,2) == "abcde" is unsatisfiable
+    assertThat(shouldRead(equal(truncate("str", 2), "abcde")))
+        .as("Should skip: equal beyond truncate width is alwaysFalse")
+        .isFalse();
+
+    // len < width -> rewritten to exact equality; "ab" sorts below lower bound "abc"
+    assertThat(shouldRead(equal(truncate("str", 5), "ab")))
+        .as("Should skip: exact equality below lower bound")
+        .isFalse();
+
+    // len < width -> exact equality; "abd" is within ["abc", "abe"]
+    assertThat(shouldRead(equal(truncate("str", 5), "abd")))
+        .as("Should read: exact equality within bounds")
+        .isTrue();
+
+    // NOT_EQ, len > width -> alwaysTrue
+    assertThat(shouldRead(notEqual(truncate("str", 2), "abcde")))
+        .as("Should read: notEqual beyond truncate width is alwaysTrue")
+        .isTrue();
+
+    // NOT_EQ, len == width -> notStartsWith; may contain null so cannot be pruned
+    assertThat(shouldRead(notEqual(truncate("str", 3), "abc")))
+        .as("Should read: notStartsWith on column that may contain null")
+        .isTrue();
+  }
+
+  @Test
   public void testIntegerIn() {
     assertThat(shouldRead(in(day("ts"), INT_MIN_VALUE - 25, INT_MIN_VALUE - 24)))
         .as("Should not read: id below lower bound (5 < 30, 6 < 30)")
