@@ -37,6 +37,11 @@ import static org.apache.spark.sql.functions.lit;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -56,8 +61,11 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.ManifestFile;
+import org.apache.iceberg.OverwriteFiles;
 import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.RowLevelOperationMode;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.SnapshotSummary;
@@ -73,6 +81,9 @@ import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecut
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkSQLProperties;
 import org.apache.iceberg.spark.data.TestHelpers;
+import org.apache.iceberg.spark.source.SparkTable;
+import org.apache.iceberg.spark.source.TestSparkCatalog;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
@@ -83,6 +94,7 @@ import org.apache.spark.sql.catalyst.parser.ParseException;
 import org.apache.spark.sql.catalyst.plans.logical.DeleteFromTableWithFilters;
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan;
 import org.apache.spark.sql.catalyst.plans.logical.RowLevelWrite;
+import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.execution.SparkPlan;
 import org.apache.spark.sql.execution.datasources.v2.OptimizeMetadataOnlyDeleteFromTable;
 import org.apache.spark.sql.internal.SQLConf;
@@ -94,6 +106,20 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 @ExtendWith(ParameterizedTestExtension.class)
 public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
+  private static final String DUMMY_CATALOG = "dummy_catalog";
+  private static final String DUMMY_TABLE_NAME = "uuid_delete_table";
+  private static final String DUMMY_TABLE = DUMMY_CATALOG + ".default." + DUMMY_TABLE_NAME;
+
+  private static final String UUID_00 = "00000000-0000-0000-0000-000000000001";
+  private static final String UUID_40 = "40000000-0000-0000-0000-000000000001";
+  private static final String UUID_80 = "80000000-0000-0000-0000-000000000001";
+
+  private static final Schema UUID_SCHEMA =
+      new Schema(
+          Types.NestedField.required(1, "id", Types.IntegerType.get()),
+          Types.NestedField.required(2, "uuid_col", Types.UUIDType.get()));
+  private static final PartitionSpec UUID_SPEC =
+      PartitionSpec.builderFor(UUID_SCHEMA).identity("uuid_col").build();
 
   @BeforeAll
   public static void setupSparkConf() {
@@ -316,6 +342,71 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
         "Should have expected rows",
         ImmutableList.of(row(1, "hardware"), row(2, "hardware")),
         sql("SELECT * FROM %s ORDER BY id", selectTarget()));
+  }
+
+  @TestTemplate
+  public void testNonUuidPartitionDeleteUsesMetadataDelete() throws NoSuchTableException {
+    createAndInitPartitionedTable();
+    append(tableName, employees("hr", 1));
+    append(tableName, employees("hardware", 11));
+    createBranchIfNeeded();
+
+    LogicalPlan parsed = parsePlan("DELETE FROM %s WHERE dep = 'hr'", commitTarget());
+    LogicalPlan analyzed = spark.sessionState().analyzer().execute(parsed);
+    assertThat(analyzed).isInstanceOf(RowLevelWrite.class);
+
+    LogicalPlan optimized = OptimizeMetadataOnlyDeleteFromTable.apply(analyzed);
+    assertThat(optimized)
+        .as("Non-UUID partition predicates should use metadata delete")
+        .isInstanceOf(DeleteFromTableWithFilters.class);
+  }
+
+  @TestTemplate
+  public void testUuidDeleteFallsBackToRowLevelOperation() {
+    validationCatalog.createTable(tableIdent, UUID_SCHEMA, UUID_SPEC);
+    initTable();
+    insertUuidRows(UUID_00, 1);
+    insertUuidRows(UUID_40, 11);
+    insertUuidRows(UUID_80, 21);
+    createBranchIfNeeded();
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    OverwriteFiles spyOverwrite = spy(table.newOverwrite());
+    Table spyTable = spy(table);
+    when(spyTable.newOverwrite()).thenReturn(spyOverwrite);
+
+    SparkTable sparkTable =
+        branch == null ? new SparkTable(spyTable) : SparkTable.create(spyTable, branch);
+    Identifier ident = Identifier.of(new String[] {"default"}, DUMMY_TABLE_NAME);
+    configureDummyCatalog();
+    TestSparkCatalog.setTable(ident, sparkTable);
+
+    try {
+      LogicalPlan parsed = parsePlan("DELETE FROM %s WHERE uuid_col = '%s'", DUMMY_TABLE, UUID_40);
+      LogicalPlan analyzed = spark.sessionState().analyzer().execute(parsed);
+      assertThat(analyzed).isInstanceOf(RowLevelWrite.class);
+
+      LogicalPlan optimized = OptimizeMetadataOnlyDeleteFromTable.apply(analyzed);
+      assertThat(optimized)
+          .as("UUID predicates must stay on the row-level delete plan")
+          .isInstanceOf(RowLevelWrite.class)
+          .isNotInstanceOf(DeleteFromTableWithFilters.class);
+
+      sql("DELETE FROM %s WHERE uuid_col = '%s'", DUMMY_TABLE, UUID_40);
+    } finally {
+      TestSparkCatalog.unsetTable(ident);
+    }
+
+    verify(spyTable, never()).newDelete();
+    verify(spyOverwrite, never()).overwriteByRowFilter(any());
+    sql("REFRESH TABLE %s", tableName);
+
+    assertEquals(
+        "Should have expected rows",
+        ImmutableList.of(row(UUID_00, 10L), row(UUID_80, 10L)),
+        sql(
+            "SELECT uuid_col, COUNT(*) FROM %s GROUP BY uuid_col ORDER BY uuid_col",
+            selectTarget()));
   }
 
   @TestTemplate
@@ -1519,6 +1610,28 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     initTable();
   }
 
+  private Employee[] employees(String dep, int firstId) {
+    Employee[] employees = new Employee[10];
+    for (int index = 0; index < employees.length; index++) {
+      employees[index] = new Employee(firstId + index, dep);
+    }
+
+    return employees;
+  }
+
+  private void insertUuidRows(String uuid, int firstId) {
+    StringBuilder values = new StringBuilder();
+    for (int index = 0; index < 10; index++) {
+      if (index > 0) {
+        values.append(", ");
+      }
+
+      values.append("(").append(firstId + index).append(", '").append(uuid).append("')");
+    }
+
+    sql("INSERT INTO %s VALUES %s", tableName, values);
+  }
+
   protected void append(Employee... employees) throws NoSuchTableException {
     append(commitTarget(), employees);
   }
@@ -1532,6 +1645,12 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
   private RowLevelOperationMode mode(Table table) {
     String modeName = table.properties().getOrDefault(DELETE_MODE, DELETE_MODE_DEFAULT);
     return RowLevelOperationMode.fromName(modeName);
+  }
+
+  private static void configureDummyCatalog() {
+    spark.conf().set("spark.sql.catalog." + DUMMY_CATALOG, TestSparkCatalog.class.getName());
+    spark.conf().set("spark.sql.catalog." + DUMMY_CATALOG + ".type", "hive");
+    spark.conf().set("spark.sql.catalog." + DUMMY_CATALOG + ".default-namespace", "default");
   }
 
   private LogicalPlan parsePlan(String query, Object... args) {

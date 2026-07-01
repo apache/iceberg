@@ -41,6 +41,7 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.util.UUID;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TestHelpers.Row;
@@ -75,7 +76,8 @@ public class TestStrictMetricsEvaluator {
               Types.StructType.of(
                   Types.NestedField.optional(16, "nested_col_no_stats", Types.IntegerType.get()),
                   Types.NestedField.optional(17, "nested_col_with_stats", Types.IntegerType.get()),
-                  Types.NestedField.optional(18, "nested_string_col", Types.StringType.get()))));
+                  Types.NestedField.optional(18, "nested_string_col", Types.StringType.get()))),
+          optional(19, "uuid", Types.UUIDType.get()));
 
   private static final int INT_MIN_VALUE = 30;
   private static final int INT_MAX_VALUE = 79;
@@ -207,6 +209,53 @@ public class TestStrictMetricsEvaluator {
           ImmutableMap.of(3, toByteBuffer(StringType.get(), "aa")),
           // upper bounds
           ImmutableMap.of(3, toByteBuffer(StringType.get(), "dC")));
+
+  // UUIDs for testing dual-comparator behavior with high-bit values
+  // These UUIDs span the signed/unsigned comparison boundary
+  private static final UUID UUID_MIN = UUID.fromString("00000000-0000-0000-0000-000000000001");
+  private static final UUID UUID_MAX = UUID.fromString("80000000-0000-0000-0000-000000000001");
+
+  private static final DataFile UUID_FILE =
+      new TestDataFile(
+          "uuid_file.avro",
+          Row.of(),
+          50,
+          ImmutableMap.of(19, 50L),
+          ImmutableMap.of(19, 0L),
+          null,
+          ImmutableMap.of(19, toByteBuffer(Types.UUIDType.get(), UUID_MIN)),
+          ImmutableMap.of(19, toByteBuffer(Types.UUIDType.get(), UUID_MAX)));
+
+  // File with single UUID value (lower == upper)
+  private static final UUID SINGLE_UUID = UUID.fromString("40000000-0000-0000-0000-000000000001");
+  private static final DataFile SINGLE_UUID_FILE =
+      new TestDataFile(
+          "single_uuid_file.avro",
+          Row.of(),
+          50,
+          ImmutableMap.of(19, 50L),
+          ImmutableMap.of(19, 0L),
+          null,
+          ImmutableMap.of(19, toByteBuffer(Types.UUIDType.get(), SINGLE_UUID)),
+          ImmutableMap.of(19, toByteBuffer(Types.UUIDType.get(), SINGLE_UUID)));
+
+  // File with inverted UUID bounds (as would be written by legacy signed comparator)
+  // In RFC unsigned order: 0x40... < 0x80..., so lower > upper when interpreted with RFC
+  private static final UUID LEGACY_UUID_LOWER =
+      UUID.fromString("80000000-0000-0000-0000-000000000001");
+  private static final UUID LEGACY_UUID_UPPER =
+      UUID.fromString("40000000-0000-0000-0000-000000000001");
+
+  private static final DataFile LEGACY_UUID_FILE =
+      new TestDataFile(
+          "legacy_uuid_file.avro",
+          Row.of(),
+          50,
+          ImmutableMap.of(19, 50L),
+          ImmutableMap.of(19, 0L),
+          null,
+          ImmutableMap.of(19, toByteBuffer(Types.UUIDType.get(), LEGACY_UUID_LOWER)),
+          ImmutableMap.of(19, toByteBuffer(Types.UUIDType.get(), LEGACY_UUID_UPPER)));
 
   @Test
   public void testAllNulls() {
@@ -920,5 +969,155 @@ public class TestStrictMetricsEvaluator {
     boolean shouldRead =
         new StrictMetricsEvaluator(SCHEMA, startsWith("struct.nested_string_col", "a")).eval(FILE);
     assertThat(shouldRead).as("Should not match: nested column is not supported").isFalse();
+  }
+
+  // Tests that StrictMetricsEvaluator does not use metrics to prove UUID predicates.
+  // UUID_FILE has bounds [UUID_MIN=0x00...01, UUID_MAX=0x80...01]
+
+  @Test
+  public void testStrictUuidGt() {
+    UUID belowMin = UUID.fromString("00000000-0000-0000-0000-000000000000");
+    boolean allMatch =
+        new StrictMetricsEvaluator(SCHEMA, greaterThan("uuid", belowMin)).eval(UUID_FILE);
+    assertThat(allMatch).as("Strict UUID gt should not match using metrics").isFalse();
+
+    // Query: uuid > UUID_MIN (lower bound) - not all values are > lower bound
+    allMatch = new StrictMetricsEvaluator(SCHEMA, greaterThan("uuid", UUID_MIN)).eval(UUID_FILE);
+    assertThat(allMatch).as("Not all UUIDs are greater than lower bound").isFalse();
+
+    // Query: uuid > middle value - not all values are > middle
+    UUID middle = UUID.fromString("40000000-0000-0000-0000-000000000001");
+    allMatch = new StrictMetricsEvaluator(SCHEMA, greaterThan("uuid", middle)).eval(UUID_FILE);
+    assertThat(allMatch).as("Not all UUIDs are greater than middle").isFalse();
+
+    // Query: uuid > UUID_MAX (upper bound) - no values are > upper bound
+    allMatch = new StrictMetricsEvaluator(SCHEMA, greaterThan("uuid", UUID_MAX)).eval(UUID_FILE);
+    assertThat(allMatch).as("No UUIDs are greater than upper bound").isFalse();
+
+    // Query: uuid > aboveMax - no values are > aboveMax
+    UUID aboveMax = UUID.fromString("ffffffff-ffff-ffff-ffff-ffffffffffff");
+    allMatch = new StrictMetricsEvaluator(SCHEMA, greaterThan("uuid", aboveMax)).eval(UUID_FILE);
+    assertThat(allMatch).as("No UUIDs are greater than aboveMax").isFalse();
+  }
+
+  @Test
+  public void testStrictUuidLt() {
+    // Query: uuid < belowMin - no values are < belowMin
+    UUID belowMin = UUID.fromString("00000000-0000-0000-0000-000000000000");
+    boolean allMatch =
+        new StrictMetricsEvaluator(SCHEMA, lessThan("uuid", belowMin)).eval(UUID_FILE);
+    assertThat(allMatch).as("No UUIDs are less than belowMin").isFalse();
+
+    // Query: uuid < UUID_MIN (lower bound) - no values are < lower bound
+    allMatch = new StrictMetricsEvaluator(SCHEMA, lessThan("uuid", UUID_MIN)).eval(UUID_FILE);
+    assertThat(allMatch).as("No UUIDs are less than lower bound").isFalse();
+
+    // Query: uuid < middle value - not all values are < middle
+    UUID middle = UUID.fromString("40000000-0000-0000-0000-000000000001");
+    allMatch = new StrictMetricsEvaluator(SCHEMA, lessThan("uuid", middle)).eval(UUID_FILE);
+    assertThat(allMatch).as("Not all UUIDs are less than middle").isFalse();
+
+    // Query: uuid < UUID_MAX (upper bound) - not all values are < upper bound
+    allMatch = new StrictMetricsEvaluator(SCHEMA, lessThan("uuid", UUID_MAX)).eval(UUID_FILE);
+    assertThat(allMatch).as("Not all UUIDs are less than upper bound").isFalse();
+
+    UUID aboveMax = UUID.fromString("ffffffff-ffff-ffff-ffff-ffffffffffff");
+    allMatch = new StrictMetricsEvaluator(SCHEMA, lessThan("uuid", aboveMax)).eval(UUID_FILE);
+    assertThat(allMatch).as("Strict UUID lt should not match using metrics").isFalse();
+  }
+
+  @Test
+  public void testStrictUuidInclusiveBoundsAndNotEqDoNotMatch() {
+    UUID belowMin = UUID.fromString("00000000-0000-0000-0000-000000000000");
+    boolean allMatch =
+        new StrictMetricsEvaluator(SCHEMA, greaterThanOrEqual("uuid", belowMin)).eval(UUID_FILE);
+    assertThat(allMatch).as("Strict UUID gtEq should not match using metrics").isFalse();
+
+    UUID aboveMax = UUID.fromString("ffffffff-ffff-ffff-ffff-ffffffffffff");
+    allMatch =
+        new StrictMetricsEvaluator(SCHEMA, lessThanOrEqual("uuid", aboveMax)).eval(UUID_FILE);
+    assertThat(allMatch).as("Strict UUID ltEq should not match using metrics").isFalse();
+
+    allMatch = new StrictMetricsEvaluator(SCHEMA, notEqual("uuid", aboveMax)).eval(UUID_FILE);
+    assertThat(allMatch).as("Strict UUID notEq should not match using metrics").isFalse();
+  }
+
+  @Test
+  public void testStrictUuidEqNeverMatchesRange() {
+    // Strict eq should never match when there's a range of values
+    UUID middle = UUID.fromString("40000000-0000-0000-0000-000000000001");
+    boolean allMatch = new StrictMetricsEvaluator(SCHEMA, equal("uuid", middle)).eval(UUID_FILE);
+    assertThat(allMatch).as("Strict eq should not match range").isFalse();
+  }
+
+  @Test
+  public void testStrictUuidInNeverMatchesRange() {
+    // Strict IN should never match when there's a range of values (lower != upper)
+    UUID middle1 = UUID.fromString("40000000-0000-0000-0000-000000000001");
+    UUID middle2 = UUID.fromString("50000000-0000-0000-0000-000000000001");
+    boolean allMatch =
+        new StrictMetricsEvaluator(SCHEMA, in("uuid", middle1, middle2)).eval(UUID_FILE);
+    assertThat(allMatch).as("Strict IN should not match range").isFalse();
+  }
+
+  @Test
+  public void testStrictUuidInDoesNotMatchSingleValue() {
+    boolean allMatch =
+        new StrictMetricsEvaluator(SCHEMA, in("uuid", SINGLE_UUID)).eval(SINGLE_UUID_FILE);
+    assertThat(allMatch).as("Strict UUID IN should not match using metrics").isFalse();
+  }
+
+  @Test
+  public void testStrictUuidInDoesNotMatchWhenValueNotInSet() {
+    // Strict IN should not match when lower == upper but the value is not in the set
+    UUID otherUuid = UUID.fromString("50000000-0000-0000-0000-000000000001");
+    boolean allMatch =
+        new StrictMetricsEvaluator(SCHEMA, in("uuid", otherUuid)).eval(SINGLE_UUID_FILE);
+    assertThat(allMatch).as("Strict IN should not match when value not in set").isFalse();
+  }
+
+  @Test
+  public void testStrictUuidNotInDoesNotMatchWhenAllValuesOutsideBounds() {
+    UUID belowMin = UUID.fromString("00000000-0000-0000-0000-000000000000");
+    UUID aboveMax = UUID.fromString("ffffffff-ffff-ffff-ffff-ffffffffffff");
+    boolean allMatch =
+        new StrictMetricsEvaluator(SCHEMA, notIn("uuid", belowMin, aboveMax)).eval(UUID_FILE);
+    assertThat(allMatch).as("Strict UUID NOT IN should not match using metrics").isFalse();
+  }
+
+  @Test
+  public void testStrictUuidNotInDoesNotMatchWhenValueInBounds() {
+    // Strict NOT IN should not match when a value in the set is within bounds
+    UUID middle = UUID.fromString("40000000-0000-0000-0000-000000000001");
+    boolean allMatch = new StrictMetricsEvaluator(SCHEMA, notIn("uuid", middle)).eval(UUID_FILE);
+    // middle is within [UUID_MIN, UUID_MAX], so some rows might match the value
+    assertThat(allMatch).as("Strict NOT IN should not match when value in bounds").isFalse();
+  }
+
+  // Tests for file with inverted UUID bounds (as would be written by legacy signed comparator)
+
+  @Test
+  public void testStrictUuidInWithLegacyInvertedBounds() {
+    // With inverted bounds [0x80..., 0x40...] where lower > upper in RFC order,
+    // strict IN should never match since lower != upper
+    UUID uuid1 = UUID.fromString("20000000-0000-0000-0000-000000000001");
+    UUID uuid2 = UUID.fromString("30000000-0000-0000-0000-000000000001");
+    boolean allMatch =
+        new StrictMetricsEvaluator(SCHEMA, in("uuid", uuid1, uuid2)).eval(LEGACY_UUID_FILE);
+    assertThat(allMatch).as("Strict IN should not match when lower != upper").isFalse();
+  }
+
+  @Test
+  public void testStrictUuidNotInWithLegacyInvertedBounds() {
+    // Query: NOT IN (0x50..., 0x60...)
+    // With inverted bounds [0x80..., 0x40...], in RFC order: 0x40... < 0x50... < 0x60... < 0x80...
+    // The values 0x50... and 0x60... are between upper (0x40...) and lower (0x80...) in RFC order
+    UUID uuid1 = UUID.fromString("50000000-0000-0000-0000-000000000001");
+    UUID uuid2 = UUID.fromString("60000000-0000-0000-0000-000000000001");
+    boolean allMatch =
+        new StrictMetricsEvaluator(SCHEMA, notIn("uuid", uuid1, uuid2)).eval(LEGACY_UUID_FILE);
+    assertThat(allMatch)
+        .as("Strict UUID NOT IN with legacy bounds should not match using metrics")
+        .isFalse();
   }
 }
