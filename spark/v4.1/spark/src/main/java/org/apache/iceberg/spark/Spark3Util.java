@@ -369,7 +369,9 @@ public class Spark3Util {
     if (expr instanceof Transform) {
       Transform transform = (Transform) expr;
       Preconditions.checkArgument(
-          "zorder".equals(transform.name()) || transform.references().length == 1,
+          "zorder".equals(transform.name())
+              || "hilbert".equals(transform.name())
+              || transform.references().length == 1,
           "Cannot convert transform with more than one column reference: %s",
           transform);
       String colName = DOT.join(transform.references()[0].fieldNames());
@@ -396,6 +398,12 @@ public class Spark3Util {
           return org.apache.iceberg.expressions.Expressions.truncate(colName, findWidth(transform));
         case "zorder":
           return new Zorder(
+              Stream.of(transform.references())
+                  .map(ref -> DOT.join(ref.fieldNames()))
+                  .map(org.apache.iceberg.expressions.Expressions::ref)
+                  .collect(Collectors.toList()));
+        case "hilbert":
+          return new org.apache.iceberg.expressions.Hilbert(
               Stream.of(transform.references())
                   .map(ref -> DOT.join(ref.fieldNames()))
                   .map(org.apache.iceberg.expressions.Expressions::ref)
