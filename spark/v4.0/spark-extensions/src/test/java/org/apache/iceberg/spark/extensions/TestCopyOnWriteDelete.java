@@ -101,7 +101,7 @@ public class TestCopyOnWriteDelete extends TestDelete {
     Future<?> deleteFuture =
         executorService.submit(
             () -> {
-              for (int numOperations = 0; numOperations < Integer.MAX_VALUE; numOperations++) {
+              for (int numOperations = 0; numOperations < MAX_OPERATIONS; numOperations++) {
                 int currentNumOperations = numOperations;
                 Awaitility.await()
                     .pollInterval(10, TimeUnit.MILLISECONDS)
@@ -122,7 +122,7 @@ public class TestCopyOnWriteDelete extends TestDelete {
               record.set(0, 1); // id
               record.set(1, "hr"); // dep
 
-              for (int numOperations = 0; numOperations < Integer.MAX_VALUE; numOperations++) {
+              for (int numOperations = 0; numOperations < MAX_OPERATIONS; numOperations++) {
                 int currentNumOperations = numOperations;
                 Awaitility.await()
                     .pollInterval(10, TimeUnit.MILLISECONDS)
@@ -148,13 +148,14 @@ public class TestCopyOnWriteDelete extends TestDelete {
             });
 
     try {
-      assertThatThrownBy(deleteFuture::get)
+      assertThatThrownBy(() -> deleteFuture.get(OPERATION_TIMEOUT_MINUTES, TimeUnit.MINUTES))
           .isInstanceOf(ExecutionException.class)
           .cause()
           .isInstanceOf(IllegalStateException.class)
           .hasMessageContaining("the table has been concurrently modified");
     } finally {
       shouldAppend.set(false);
+      deleteFuture.cancel(true);
       appendFuture.cancel(true);
     }
 

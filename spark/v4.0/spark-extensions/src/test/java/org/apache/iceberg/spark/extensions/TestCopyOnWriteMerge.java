@@ -90,7 +90,7 @@ public class TestCopyOnWriteMerge extends TestMerge {
     Future<?> mergeFuture =
         executorService.submit(
             () -> {
-              for (int numOperations = 0; numOperations < Integer.MAX_VALUE; numOperations++) {
+              for (int numOperations = 0; numOperations < MAX_OPERATIONS; numOperations++) {
                 int currentNumOperations = numOperations;
                 Awaitility.await()
                     .pollInterval(10, TimeUnit.MILLISECONDS)
@@ -116,7 +116,7 @@ public class TestCopyOnWriteMerge extends TestMerge {
               record.set(0, 1); // id
               record.set(1, "hr"); // dep
 
-              for (int numOperations = 0; numOperations < Integer.MAX_VALUE; numOperations++) {
+              for (int numOperations = 0; numOperations < MAX_OPERATIONS; numOperations++) {
                 int currentNumOperations = numOperations;
                 Awaitility.await()
                     .pollInterval(10, TimeUnit.MILLISECONDS)
@@ -137,13 +137,14 @@ public class TestCopyOnWriteMerge extends TestMerge {
             });
 
     try {
-      assertThatThrownBy(mergeFuture::get)
+      assertThatThrownBy(() -> mergeFuture.get(OPERATION_TIMEOUT_MINUTES, TimeUnit.MINUTES))
           .isInstanceOf(ExecutionException.class)
           .cause()
           .isInstanceOf(IllegalStateException.class)
           .hasMessageContaining("the table has been concurrently modified");
     } finally {
       shouldAppend.set(false);
+      mergeFuture.cancel(true);
       appendFuture.cancel(true);
     }
 
