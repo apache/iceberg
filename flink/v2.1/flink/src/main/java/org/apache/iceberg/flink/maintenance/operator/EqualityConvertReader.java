@@ -151,7 +151,9 @@ public class EqualityConvertReader extends ProcessFunction<ReadCommand, IndexCom
 
     int specId = file.specId();
     StructLike partition = file.partition();
-    Types.StructType partitionType = table.specs().get(specId).partitionType();
+    // Use the planner-serialized task spec, not the reader's table, which is loaded once and may
+    // lack specs added after startup.
+    Types.StructType partitionType = task.spec().partitionType();
     byte[] partitionBytes = fieldSerializer.encodePartition(partition, partitionType);
 
     InputFile input = table.io().newInputFile(file.location());
@@ -194,9 +196,9 @@ public class EqualityConvertReader extends ProcessFunction<ReadCommand, IndexCom
 
     int specId = file.specId();
     // An unpartitioned equality delete applies globally; a partitioned one applies only within its
-    // own spec. Scope accordingly, so the index resolves correctly across specs.
-    int deleteSpecId =
-        table.specs().get(specId).isUnpartitioned() ? IndexCommand.GLOBAL_DELETE_SPEC_ID : specId;
+    // own spec. Use the planner-serialized task spec, not the reader's table, which is loaded once
+    // and may lack specs added after startup.
+    int deleteSpecId = task.spec().isUnpartitioned() ? IndexCommand.GLOBAL_DELETE_SPEC_ID : specId;
 
     InputFile input = table.io().newInputFile(file.location());
     ReadBuilder<Record, Schema> builder =
