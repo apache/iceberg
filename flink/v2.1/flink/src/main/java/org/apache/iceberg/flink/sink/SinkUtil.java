@@ -39,6 +39,7 @@ import org.apache.iceberg.flink.FlinkWriteConf;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.util.SnapshotUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -85,9 +86,29 @@ public class SinkUtil {
   static long getMaxCommittedCheckpointId(
       Table table, String flinkJobId, String operatorId, String branch) {
     Snapshot snapshot = table.snapshot(branch);
+    Iterable<Snapshot> ancestry =
+        snapshot != null
+            ? SnapshotUtil.ancestorsOf(snapshot.snapshotId(), table::snapshot)
+            : List.of();
+    return getMaxCommittedCheckpointId(ancestry, flinkJobId, operatorId);
+  }
+
+  /**
+   * Returns the largest {@code flink.max-committed-checkpoint-id} carried by a snapshot in the
+   * given ancestry whose {@code flink.job-id} matches {@code flinkJobId} and whose {@code
+   * flink.operator-id} either matches {@code operatorId} or is absent. Returns {@code
+   * INITIAL_CHECKPOINT_ID} (-1) when no such snapshot is found.
+   *
+   * <p>Used both for the static read in {@link IcebergFilesCommitter#initializeState} (via the
+   * {@link Table}-based overload above) and for the post-refresh validation inside {@link
+   * IcebergFilesCommitter#commitOperation} that prevents the duplicate-commit race tracked in
+   * Iceberg issue #14425.
+   */
+  static long getMaxCommittedCheckpointId(
+      Iterable<Snapshot> ancestry, String flinkJobId, String operatorId) {
     long lastCommittedCheckpointId = INITIAL_CHECKPOINT_ID;
 
-    while (snapshot != null) {
+    for (Snapshot snapshot : ancestry) {
       Map<String, String> summary = snapshot.summary();
       String snapshotFlinkJobId = summary.get(FLINK_JOB_ID);
       String snapshotOperatorId = summary.get(OPERATOR_ID);
@@ -99,8 +120,6 @@ public class SinkUtil {
           break;
         }
       }
-      Long parentSnapshotId = snapshot.parentId();
-      snapshot = parentSnapshotId != null ? table.snapshot(parentSnapshotId) : null;
     }
 
     return lastCommittedCheckpointId;
