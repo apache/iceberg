@@ -164,9 +164,19 @@ abstract class BaseSparkScanBuilder implements ScanBuilder {
           Binder.bind(projection.asStruct(), expr, caseSensitive);
           expressions.add(expr);
           pushablePredicates.add(predicate);
+        } else {
+          // if the full predicate can't be converted, try to extract convertible conjuncts
+          // from compound AND predicates for file-level pruning
+          Expression partialExpr = convertAndConjuncts(predicate);
+          if (partialExpr != null) {
+            expressions.add(partialExpr);
+            pushablePredicates.add(predicate);
+          }
         }
 
         if (expr == null || !ExpressionUtil.selectsPartitions(expr, table, caseSensitive)) {
+          // always add to post-scan filters when partially converted or not fully
+          // partition-selecting
           postScanPredicates.add(predicate);
         } else {
           LOG.info("Evaluating completely on Iceberg side: {}", predicate);
@@ -182,6 +192,50 @@ abstract class BaseSparkScanBuilder implements ScanBuilder {
     this.pushedPredicates = pushablePredicates.toArray(new Predicate[0]);
 
     return postScanPredicates.toArray(new Predicate[0]);
+  }
+
+  /**
+   * Attempts to extract convertible conjuncts from compound AND predicates. When a predicate like
+   * AND(convertible, unconvertible) fails full conversion, this method extracts and converts
+   * individual AND-conjuncts that can be used for file pruning.
+   *
+   * <p>The caller must ensure the original predicate remains in post-scan filters so Spark
+   * re-evaluates the full condition row-by-row.
+   */
+  private Expression convertAndConjuncts(Predicate predicate) {
+    List<Predicate> conjuncts = Lists.newArrayList();
+    flattenAnd(predicate, conjuncts);
+
+    if (conjuncts.size() <= 1) {
+      return null;
+    }
+
+    Expression combined = null;
+    for (Predicate conjunct : conjuncts) {
+      Expression expr = SparkV2Filters.convert(conjunct);
+      if (expr != null) {
+        try {
+          Binder.bind(projection.asStruct(), expr, caseSensitive);
+          combined = combined == null ? expr : Expressions.and(combined, expr);
+        } catch (Exception e) {
+          // skip conjuncts that can't be bound
+        }
+      }
+    }
+
+    return combined;
+  }
+
+  /** Recursively flattens nested AND predicates into a list of conjuncts. */
+  private void flattenAnd(Predicate predicate, List<Predicate> conjuncts) {
+    if (predicate instanceof org.apache.spark.sql.connector.expressions.filter.And) {
+      org.apache.spark.sql.connector.expressions.filter.And and =
+          (org.apache.spark.sql.connector.expressions.filter.And) predicate;
+      flattenAnd(and.left(), conjuncts);
+      flattenAnd(and.right(), conjuncts);
+    } else {
+      conjuncts.add(predicate);
+    }
   }
 
   // logic necessary for SupportsPushDownV2Filters

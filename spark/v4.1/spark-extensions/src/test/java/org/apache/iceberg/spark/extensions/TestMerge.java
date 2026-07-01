@@ -3001,6 +3001,50 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         });
   }
 
+  @TestTemplate
+  public void testMergeWithIsNotDistinctFromAndPartitionFilter() {
+    createAndInitTable(
+        "id STRING, dep STRING, hour_index BIGINT, minute INT, value DOUBLE",
+        "PARTITIONED BY (dep)",
+        "{ \"id\": \"id-1\", \"dep\": \"hr\", \"hour_index\": 10, \"minute\": 30, \"value\": 1.0 }\n"
+            + "{ \"id\": \"id-2\", \"dep\": \"hr\", \"hour_index\": 11, \"minute\": 45, \"value\": 2.0 }\n"
+            + "{ \"id\": \"id-3\", \"dep\": \"software\", \"hour_index\": 12, \"minute\": 15, \"value\": 3.0 }");
+
+    createOrReplaceView(
+        "source",
+        "id STRING, dep STRING, hour_index BIGINT, minute INT, value DOUBLE",
+        "{ \"id\": \"id-1\", \"dep\": \"hr\", \"hour_index\": 10, \"minute\": 30, \"value\": 10.0 }\n"
+            + "{ \"id\": \"id-4\", \"dep\": \"hr\", \"hour_index\": 14, \"minute\": 0, \"value\": 4.0 }");
+
+    withSQLConf(
+        ImmutableMap.of(
+            SQLConf.V2_BUCKETING_ENABLED().key(),
+            "true",
+            SparkSQLProperties.PRESERVE_DATA_GROUPING,
+            "true"),
+        () -> {
+          sql(
+              "MERGE INTO %s AS t USING source AS s "
+                  + "ON t.id IS NOT DISTINCT FROM s.id "
+                  + "AND t.dep IS NOT DISTINCT FROM s.dep "
+                  + "AND t.hour_index IS NOT DISTINCT FROM s.hour_index "
+                  + "AND t.minute IS NOT DISTINCT FROM s.minute "
+                  + "AND t.dep BETWEEN 'hr' AND 'hr' "
+                  + "WHEN MATCHED THEN UPDATE SET * "
+                  + "WHEN NOT MATCHED THEN INSERT *",
+              commitTarget());
+        });
+
+    assertEquals(
+        "Should have expected rows",
+        ImmutableList.of(
+            row("id-1", "hr", 10L, 30, 10.0), // updated
+            row("id-2", "hr", 11L, 45, 2.0), // unchanged
+            row("id-3", "software", 12L, 15, 3.0), // unchanged
+            row("id-4", "hr", 14L, 0, 4.0)), // inserted
+        sql("SELECT * FROM %s ORDER BY id", selectTarget()));
+  }
+
   private void checkJoinAndFilterConditions(String query, String join, String icebergFilters) {
     // disable runtime filtering for easier validation
     withSQLConf(
