@@ -3680,15 +3680,16 @@ components:
 
         ## Remote Signing
 
-        If remote signing for a specific storage provider is enabled, the server SHOULD use the
-        `remote-signing-config` field to communicate all signer client settings. When the
-        `remote-signing-config` field is present, clients SHOULD use it instead of the deprecated
-        `signer.uri` and `signer.endpoint` config properties.
+        If remote signing for a specific storage provider is enabled, the server SHOULD use the `remote-signing-config`
+        field to communicate all signer client settings. When the `remote-signing-config` field is present, clients
+        SHOULD take it into account.
 
-        For backward compatibility, the following `config` properties are still supported but
-        **DEPRECATED** in favor of the `remote-signing-config` field:
-         - `signer.endpoint`: **DEPRECATED**. The remote signer endpoint. Use `remote-signing-config.endpoint-path` instead.
-         - `signer.uri`: **DEPRECATED**. The base URI of the signing service. Use `remote-signing-config.base-uri` instead.
+        For backward compatibility, the following `config` properties are still supported but **DEPRECATED**:
+         - `signer.endpoint` **DEPRECATED**.: the remote signer endpoint. Can either be a relative path (to be resolved against `signer.uri`) or an absolute URI.
+         - `signer.uri` **DEPRECATED**.: the base URI to resolve `signer.endpoint` against. Only meaningful if `signer.endpoint` is a relative path. Defaults to the catalog's base URI if not set.
+        If any of these properties is present, clients MUST use them to compute the actual remote signing endpoint URI to contact.
+        If none of these properties is present, clients MUST contact the default remote signing endpoint using the catalog's base URI.
+
       type: object
       required:
         - metadata
@@ -5256,27 +5257,12 @@ components:
           $ref: '#/components/schemas/MultiValuedMap'
 
     RemoteSigningConfig:
-      description: |
-        Configuration for the remote signer client.
-        When present, clients SHOULD use this structure instead of the deprecated `signer.uri` and
-        `signer.endpoint` properties in the `config` map.
+      description: Configuration for the remote signer client.
       type: object
       required:
         - base-uri
         - endpoint-path
       properties:
-        base-uri:
-          type: string
-          description: >
-            The base URI of the signing service as perceived by the client, incorporating X-Forwarded-*
-            headers set by proxies. Takes precedence over the deprecated `signer.uri` config property.
-        endpoint-path:
-          type: string
-          description: >
-            Relative path to be resolved against `base-uri` to form the full signing endpoint URI.
-            Overrides the deprecated `signer.endpoint` config property. Convention exposes the signing
-            endpoint at `/v1/{prefix}/namespaces/{namespace}/tables/{table}/sign`, but clients
-            SHOULD NOT assume this structure or recompose it themselves.
         properties:
           type: object
           additionalProperties:
