@@ -50,24 +50,31 @@ public class InternalData {
     READ_BUILDERS.put(format, readBuilder);
   }
 
-  @SuppressWarnings("CatchBlockLogException")
   private static void registerSupportedFormats() {
     InternalData.register(
         FileFormat.AVRO,
         outputFile -> Avro.write(outputFile).createWriterFunc(InternalWriter::create),
         inputFile -> Avro.read(inputFile).createResolvingReader(InternalReader::create));
 
+    register("org.apache.iceberg.InternalParquet");
+  }
+
+  /**
+   * Invokes the static {@code register} method of the given class, tolerating the failure modes
+   * that occur when an optional module (like {@code iceberg-parquet}) is not on the classpath.
+   *
+   * <p>Besides {@link NoSuchMethodException}, invoking {@code register} can fail with {@link
+   * NoClassDefFoundError} when its body references a missing transitive dependency, or {@link
+   * ExceptionInInitializerError} when it triggers a failing static initializer.
+   */
+  @SuppressWarnings("CatchBlockLogException")
+  private static void register(String classToRegister) {
     try {
-      DynMethods.StaticMethod registerParquet =
-          DynMethods.builder("register")
-              .impl("org.apache.iceberg.InternalParquet")
-              .buildStaticChecked();
-
-      registerParquet.invoke();
-
-    } catch (NoSuchMethodException e) {
-      // failing to load Parquet is normal and does not require a stack trace
-      LOG.info("Unable to register Parquet for metadata files: {}", e.getMessage());
+      DynMethods.builder("register").impl(classToRegister).buildStaticChecked().invoke();
+    } catch (NoSuchMethodException | NoClassDefFoundError | ExceptionInInitializerError e) {
+      // failing to load an optional format is normal and does not require a stack trace
+      Throwable cause = e.getCause() != null ? e.getCause() : e;
+      LOG.info("Unable to register {} for metadata files: {}", classToRegister, cause.toString());
     }
   }
 
