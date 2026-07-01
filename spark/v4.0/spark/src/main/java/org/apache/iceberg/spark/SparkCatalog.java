@@ -91,6 +91,8 @@ import org.apache.spark.sql.connector.catalog.ViewInfo;
 import org.apache.spark.sql.connector.expressions.Transform;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * A Spark TableCatalog implementation that wraps an Iceberg {@link Catalog}.
@@ -106,7 +108,9 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap;
  *   <li><code>io-impl</code> - a custom {@link org.apache.iceberg.io.FileIO} implementation to use
  *   <li><code>metrics-reporter-impl</code> - a custom {@link
  *       org.apache.iceberg.metrics.MetricsReporter} implementation to use
- *   <li><code>default-namespace</code> - a namespace to use as the default
+ *   <li><code>default-namespace</code> - <b>DEPRECATED:</b> use <code>defaultDatabase</code>
+ *       instead
+ *   <li><code>defaultDatabase</code> - a namespace/database to use as the default
  *   <li><code>cache-enabled</code> - whether to enable catalog cache
  *   <li><code>cache.case-sensitive</code> - whether the catalog cache should compare table
  *       identifiers in a case sensitive way
@@ -122,6 +126,8 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap;
  * <p>
  */
 public class SparkCatalog extends BaseCatalog {
+  private static final Logger LOG = LoggerFactory.getLogger(SparkCatalog.class);
+
   private static final Set<String> DEFAULT_NS_KEYS = ImmutableSet.of(TableCatalog.PROP_OWNER);
   private static final Splitter COMMA = Splitter.on(",");
   private static final Joiner COMMA_JOINER = Joiner.on(",");
@@ -783,7 +789,14 @@ public class SparkCatalog extends BaseCatalog {
             : catalog;
     if (catalog instanceof SupportsNamespaces) {
       this.asNamespaceCatalog = (SupportsNamespaces) catalog;
+      if (options.containsKey("defaultDatabase")) {
+        this.defaultNamespace =
+            Splitter.on('.').splitToList(options.get("defaultDatabase")).toArray(new String[0]);
+      }
       if (options.containsKey("default-namespace")) {
+        LOG.warn(
+            "The `default-namespace` property is deprecated and will be removed in the next major version"
+                + " Please use Spark's `defaultDatabase` instead.");
         this.defaultNamespace =
             Splitter.on('.').splitToList(options.get("default-namespace")).toArray(new String[0]);
       }
