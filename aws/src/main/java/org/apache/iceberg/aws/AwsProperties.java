@@ -302,7 +302,9 @@ public class AwsProperties implements Serializable {
             properties, CLIENT_ASSUME_ROLE_TIMEOUT_SEC, CLIENT_ASSUME_ROLE_TIMEOUT_SEC_DEFAULT);
     this.clientAssumeRoleExternalId = properties.get(CLIENT_ASSUME_ROLE_EXTERNAL_ID);
     this.clientAssumeRoleRegion = properties.get(CLIENT_ASSUME_ROLE_REGION);
-    this.clientAssumeRoleSessionName = properties.get(CLIENT_ASSUME_ROLE_SESSION_NAME);
+    this.clientAssumeRoleSessionName =
+        properties.getOrDefault(
+            CLIENT_ASSUME_ROLE_SESSION_NAME, String.format("iceberg-aws-%s", UUID.randomUUID()));
     this.clientCredentialsProvider =
         properties.get(AwsClientProperties.CLIENT_CREDENTIALS_PROVIDER);
     this.clientCredentialsProviderProperties =
@@ -524,10 +526,6 @@ public class AwsProperties implements Serializable {
   }
 
   private StsAssumeRoleCredentialsProvider assumeRoleCredentialsProvider() {
-    String sessionName =
-        this.clientAssumeRoleSessionName != null
-            ? this.clientAssumeRoleSessionName
-            : String.format("iceberg-aws-%s", UUID.randomUUID());
 
     return StsAssumeRoleCredentialsProvider.builder()
         .stsClient(
@@ -538,7 +536,7 @@ public class AwsProperties implements Serializable {
         .refreshRequest(
             AssumeRoleRequest.builder()
                 .roleArn(this.clientAssumeRoleArn)
-                .roleSessionName(sessionName)
+                .roleSessionName(this.clientAssumeRoleSessionName)
                 .durationSeconds(this.clientAssumeRoleTimeoutSec)
                 .externalId(this.clientAssumeRoleExternalId)
                 .tags(this.stsClientAssumeRoleTags)

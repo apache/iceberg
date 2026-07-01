@@ -19,7 +19,6 @@
 package org.apache.iceberg.aws;
 
 import java.util.Map;
-import java.util.UUID;
 import org.apache.iceberg.aws.s3.S3FileIOProperties;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import software.amazon.awssdk.awscore.client.builder.AwsClientBuilder;
@@ -110,7 +109,6 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
     this.s3FileIOProperties = new S3FileIOProperties(properties);
     this.httpClientProperties = new HttpClientProperties(properties);
     this.awsClientProperties = new AwsClientProperties(properties);
-    this.roleSessionName = genSessionName();
     Preconditions.checkNotNull(
         awsProperties.clientAssumeRoleArn(),
         "Cannot initialize AssumeRoleClientConfigFactory with null role ARN");
@@ -166,13 +164,6 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
         .build();
   }
 
-  private String genSessionName() {
-    if (awsProperties.clientAssumeRoleSessionName() != null) {
-      return awsProperties.clientAssumeRoleSessionName();
-    }
-    return String.format("iceberg-aws-%s", UUID.randomUUID());
-  }
-
   private StsAssumeRoleCredentialsProvider createCredentialsProvider() {
     return StsAssumeRoleCredentialsProvider.builder()
         .stsClient(sts())
@@ -183,7 +174,7 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
   private AssumeRoleRequest createAssumeRoleRequest() {
     return AssumeRoleRequest.builder()
         .roleArn(awsProperties.clientAssumeRoleArn())
-        .roleSessionName(roleSessionName)
+        .roleSessionName(awsProperties.clientAssumeRoleSessionName())
         .durationSeconds(awsProperties.clientAssumeRoleTimeoutSec())
         .externalId(awsProperties.clientAssumeRoleExternalId())
         .tags(awsProperties.stsClientAssumeRoleTags())
