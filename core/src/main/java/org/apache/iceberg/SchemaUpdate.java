@@ -167,6 +167,19 @@ class SchemaUpdate implements UpdateSchema {
 
     // update tracking for moves
     addedNameToId.put(caseSensitivityAwareName(fullName), newId);
+    if (parent != null) {
+      // fullName uses the parent's canonical name, which for a map value or list element
+      // struct includes the synthetic "value"/"element" segment (e.g. locations.value.alt).
+      // Also index the user-facing short name (locations.alt) so later operations in this
+      // transaction that reference the column by that name resolve it.
+      // Add the short name only if it is not already mapped, so a name containing dots
+      // cannot shadow another added column that already owns that name (as its canonical
+      // full name or its own short name).
+      String shortName = caseSensitivityAwareName(parent + "." + name);
+      if (!addedNameToId.containsKey(shortName)) {
+        addedNameToId.put(shortName, newId);
+      }
+    }
     if (parentId != TABLE_ROOT_ID) {
       idToParent.put(newId, parentId);
     }
