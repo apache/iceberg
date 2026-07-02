@@ -18,6 +18,8 @@ title: "Nightly Snapshots"
  - limitations under the License.
  -->
 
+{% set snapshotVersion = icebergVersion.split('.')[0] ~ '.' ~ ((icebergVersion.split('.')[1] | int) + 1) ~ '.0-SNAPSHOT' %}
+
 # Nightly Snapshots
 
 Every night, Apache Iceberg publishes a snapshot of every module to the

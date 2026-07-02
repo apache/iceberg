@@ -360,7 +360,6 @@ Once this is done, create a PR against the `javadoc` branch, similar to https://
 
 Submit a PR, following the approach in https://github.com/apache/iceberg/pull/12242,
 to update the Iceberg version, the links to the new version's documentation, and the release notes.
-Also bump `snapshotVersion` in `site/mkdocs.yml` to the next development version (the new release with its minor version incremented, suffixed with `-SNAPSHOT`) so the [nightly snapshots](nightly-snapshots.md) page stays current.
 
 Once this PR is merged, the [`site-ci`](https://github.com/apache/iceberg/blob/main/.github/workflows/site-ci.yml)
 GitHub Actions workflow is automatically triggered for any push to `main` that touches `docs/`, `site/`,
