@@ -23,7 +23,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
@@ -56,6 +55,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.RandomUtil;
 import org.apache.iceberg.variants.Variant;
 import org.apache.iceberg.variants.VariantMetadata;
 import org.apache.iceberg.variants.VariantTestUtil;
@@ -159,16 +159,7 @@ public class TestParquetDataWriter {
   }
 
   private static ByteBuffer wkbPoint(double xCoord, double yCoord) {
-    // little-endian WKB encoding of a point
-    byte[] wkb =
-        ByteBuffer.allocate(21)
-            .order(ByteOrder.LITTLE_ENDIAN)
-            .put((byte) 1) // byte order: little endian
-            .putInt(1) // WKB geometry type: Point
-            .putDouble(xCoord)
-            .putDouble(yCoord)
-            .array();
-    return ByteBuffer.wrap(wkb);
+    return ByteBuffer.wrap(RandomUtil.wkbPoint(xCoord, yCoord));
   }
 
   private void testDataWriter(Schema schema, VariantShreddingFunction variantShreddingFunc)

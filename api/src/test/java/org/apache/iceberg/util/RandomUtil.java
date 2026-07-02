@@ -221,7 +221,7 @@ public class RandomUtil {
   }
 
   /** Encodes a point as little-endian WKB, the on-disk representation for geo values. */
-  private static byte[] wkbPoint(double xCoord, double yCoord) {
+  public static byte[] wkbPoint(double xCoord, double yCoord) {
     return ByteBuffer.allocate(21)
         .order(ByteOrder.LITTLE_ENDIAN)
         .put((byte) 1) // byte order: little endian
