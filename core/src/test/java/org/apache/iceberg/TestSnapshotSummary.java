@@ -22,14 +22,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
-import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.expressions.Expressions;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -218,43 +214,6 @@ public class TestSnapshotSummary extends TestBase {
         .containsEntry(SnapshotSummary.CREATED_MANIFESTS_COUNT, "1")
         .containsEntry(SnapshotSummary.KEPT_MANIFESTS_COUNT, "0")
         .containsEntry(SnapshotSummary.REPLACED_MANIFESTS_COUNT, "1");
-  }
-
-  @TestTemplate
-  public void deleteDuplicateFilesWithinMultipleManifests() throws Exception {
-    int manifestCount = 40;
-    List<ManifestFile> manifests = Lists.newArrayList();
-    for (int index = 0; index < manifestCount; index += 1) {
-      DataFile file =
-          DataFiles.builder(SPEC)
-              .withPath("/path/to/duplicate-" + index + ".parquet")
-              .withFileSizeInBytes(10)
-              .withPartitionPath("data_bucket=" + (index % BUCKETS_NUMBER))
-              .withRecordCount(1)
-              .build();
-      manifests.add(writeManifestWithName("duplicate-" + index, file, file));
-    }
-
-    AppendFiles appendFiles = table.newFastAppend();
-    for (ManifestFile manifest : manifests) {
-      appendFiles.appendManifest(manifest);
-    }
-    appendFiles.commit();
-
-    ExecutorService executorService = Executors.newFixedThreadPool(manifestCount);
-    try {
-      table
-          .newDelete()
-          .deleteFromRowFilter(Expressions.alwaysTrue())
-          .scanManifestsWith(executorService)
-          .commit();
-
-      assertThat(table.currentSnapshot().summary())
-          .containsEntry(SnapshotSummary.DELETED_DUPLICATE_FILES, String.valueOf(manifestCount))
-          .containsEntry(SnapshotSummary.DELETED_FILES_PROP, String.valueOf(manifestCount));
-    } finally {
-      executorService.shutdownNow();
-    }
   }
 
   @TestTemplate

@@ -92,7 +92,7 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
   private final Map<ManifestFile, ManifestFile> filteredManifests = Maps.newConcurrentMap();
 
   // tracking where files were deleted to validate retries quickly
-  private final Map<ManifestFile, FilterResult<F>> filteredManifestResults =
+  private final Map<ManifestFile, Pair<Set<F>, Integer>> filteredManifestResults =
       Maps.newConcurrentMap();
 
   private final Supplier<ExecutorService> workerPoolSupplier;
@@ -228,14 +228,7 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
               filtered[index] = manifest;
             });
 
-    for (ManifestFile manifest : filtered) {
-      FilterResult<F> result = filteredManifestResults.get(manifest);
-      if (result != null) {
-        for (F file : result.deletedFiles()) {
-          deleteFiles.add(file);
-        }
-      }
-    }
+    collectDeletedFiles(deleteFiles, filtered);
 
     validateRequiredDeletes(filtered);
 
@@ -264,12 +257,12 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
 
     for (ManifestFile manifest : manifests) {
       PartitionSpec manifestSpec = specsById.get(manifest.partitionSpecId());
-      FilterResult<F> result = filteredManifestResults.get(manifest);
+      Pair<Set<F>, Integer> result = filteredManifestResults.get(manifest);
       if (result != null) {
-        for (F file : result.deletedFiles()) {
+        for (F file : result.first()) {
           summaryBuilder.deletedFile(manifestSpec, file);
         }
-        summaryBuilder.incrementDuplicateDeletes(result.duplicateDeleteCount());
+        summaryBuilder.incrementDuplicateDeletes(result.second());
       }
     }
 
@@ -285,7 +278,8 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
   @SuppressWarnings("CollectionUndefinedEquality")
   private void validateRequiredDeletes(ManifestFile... manifests) {
     if (failMissingDeletePaths) {
-      Set<F> deletedFiles = deletedFiles(manifests);
+      Set<F> deletedFiles = newFileSet();
+      collectDeletedFiles(deletedFiles, manifests);
       ValidationException.check(
           deletedFiles.containsAll(deleteFiles),
           "Missing required files to delete: %s",
@@ -307,21 +301,15 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
     }
   }
 
-  private Set<F> deletedFiles(ManifestFile[] manifests) {
-    Set<F> deletedFiles = newFileSet();
-
+  private void collectDeletedFiles(Set<F> deletedFiles, ManifestFile[] manifests) {
     if (manifests != null) {
       for (ManifestFile manifest : manifests) {
-        FilterResult<F> result = filteredManifestResults.get(manifest);
+        Pair<Set<F>, Integer> result = filteredManifestResults.get(manifest);
         if (result != null) {
-          for (F file : result.deletedFiles()) {
-            deletedFiles.add(file);
-          }
+          deletedFiles.addAll(result.first());
         }
       }
     }
-
-    return deletedFiles;
   }
 
   /**
@@ -571,31 +559,12 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
 
       // update caches
       filteredManifests.put(manifest, filtered);
-      filteredManifestResults.put(
-          filtered, new FilterResult<>(deletedFiles, duplicateDeleteCount.get()));
+      filteredManifestResults.put(filtered, Pair.of(deletedFiles, duplicateDeleteCount.get()));
 
       return filtered;
 
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to close manifest writer");
-    }
-  }
-
-  private static class FilterResult<T> {
-    private final Iterable<T> deletedFiles;
-    private final int duplicateDeleteCount;
-
-    private FilterResult(Iterable<T> deletedFiles, int duplicateDeleteCount) {
-      this.deletedFiles = deletedFiles;
-      this.duplicateDeleteCount = duplicateDeleteCount;
-    }
-
-    private Iterable<T> deletedFiles() {
-      return deletedFiles;
-    }
-
-    private int duplicateDeleteCount() {
-      return duplicateDeleteCount;
     }
   }
 
