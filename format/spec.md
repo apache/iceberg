@@ -567,7 +567,7 @@ Partition field IDs must be reused if an existing partition spec contains an equ
 
 | Transform name    | Description                                                  | Source types                                                                                              | Result type |
 |-------------------|--------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------|-------------|
-| **`identity`**    | Source value, unmodified                                     | Any primitive type except for `geometry` and `geography`                                                  | Source type |
+| **`identity`**    | Source value, unmodified                                     | Any primitive except for `geometry` and `geography`                                                       | Source type |
 | **`bucket[N]`**   | Hash of value, mod `N` (see below)                           | `int`, `long`, `decimal`, `date`, `time`, `timestamp`, `timestamptz`, `timestamp_ns`, `timestamptz_ns`, `string`, `uuid`, `fixed`, `binary` | `int`       |
 | **`truncate[W]`** | Value truncated to width `W` (see below)                     | `int`, `long`, `decimal`, `string`, `binary`                                                              | Source type |
 | **`year`**        | Extract a date or timestamp year, as years from 1970         | `date`, `timestamp`, `timestamptz`, `timestamp_ns`, `timestamptz_ns`                                      | `int`       |
@@ -818,7 +818,7 @@ Each stats struct holds statistics for one table field. It may contain the follo
 |-------------|--------|---------------------------|---------------------------|-----------------------------------------------|-------------|
 | _optional_  | 1      | `lower_bound`             | Field type or `geo_lower` | all primitives or `variant`                   | Lower bound stored as the field's type, or `geo_lower` for geo types |
 | _optional_  | 2      | `upper_bound`             | Field type or `geo_upper` | all primitives or `variant`                   | Upper bound stored as the field's type, or `geo_upper` for geo types |
-| _optional_  | 3      | `tight_bounds`            | `boolean`                 | all except `geometry`, `geography`, `variant` | When true, `lower_bound` and `upper_bound` must be equal to the min and max values |
+| _optional_  | 3      | `tight_bounds`            | `boolean`                 | all primitives except for `geometry` and `geography` | When true, `lower_bound` and `upper_bound` must be equal to the min and max values |
 | _optional_  | 4      | `value_count`             | `long`                    | all                                           | Number of values in the column (including null and NaN values) |
 | _optional_  | 5      | `null_value_count`        | `long`                    | optional fields                               | Number of null values in the column |
 | _optional_  | 6      | `nan_value_count`         | `long`                    | `float`, `double`                             | Number of NaN values in the column |
