@@ -188,7 +188,7 @@ class SparkTypeToType extends SparkTypeVisitor<Type> {
     throw new UnsupportedOperationException("Not a supported type: " + atomic.catalogString());
   }
 
-  // Translates Spark's edge-interpolation algorithm to Iceberg's, mirroring the forward direction in
+  // Translates Spark's edge-interpolation algorithm to Iceberg's, mirroring
   // TypeToSparkType#convertAlgorithm. Spark supports only the spherical algorithm today; anything
   // else is rejected loudly rather than silently defaulting, so a new Spark algorithm surfaces here
   // instead of being dropped.
