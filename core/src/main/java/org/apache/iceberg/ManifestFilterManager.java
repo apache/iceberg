@@ -105,7 +105,7 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
   // ConcurrentHashMap is used because worker threads write to this map from filterManifest()
   // while the main thread reads from it after all tasks complete (see issue #16978).
   private final ConcurrentMap<ManifestFile, Iterable<F>> filteredManifestToDeletedFiles =
-      new ConcurrentHashMap<>();
+      Maps.newConcurrentMap();
 
   private final Supplier<ExecutorService> workerPoolSupplier;
 
@@ -250,7 +250,7 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
     // Collect deleted files per-manifest during parallel filtering.
     // Using a concurrent map allows worker threads to safely append their
     // local results without mutating shared mutable state (see issue #16978).
-    ConcurrentMap<ManifestFile, List<F>> concurrentDeletedFiles = new ConcurrentHashMap<>();
+    ConcurrentMap<ManifestFile, List<F>> concurrentDeletedFiles = Maps.newConcurrentMap();
 
     // open all of the manifest files in parallel, use index to avoid reordering
     Tasks.range(filtered.length)
