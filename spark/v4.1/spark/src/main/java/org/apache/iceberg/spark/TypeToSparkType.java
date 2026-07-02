@@ -19,7 +19,6 @@
 package org.apache.iceberg.spark;
 
 import java.util.List;
-import java.util.function.Supplier;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -27,7 +26,6 @@ import org.apache.iceberg.types.EdgeAlgorithm;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
-import org.apache.spark.SparkIllegalArgumentException;
 import org.apache.spark.sql.catalyst.expressions.Literal$;
 import org.apache.spark.sql.types.ArrayType$;
 import org.apache.spark.sql.types.BinaryType$;
@@ -37,7 +35,7 @@ import org.apache.spark.sql.types.DateType$;
 import org.apache.spark.sql.types.DecimalType$;
 import org.apache.spark.sql.types.DoubleType$;
 import org.apache.spark.sql.types.EdgeInterpolationAlgorithm;
-import org.apache.spark.sql.types.EdgeInterpolationAlgorithm$;
+import org.apache.spark.sql.types.EdgeInterpolationAlgorithm.SPHERICAL$;
 import org.apache.spark.sql.types.FloatType$;
 import org.apache.spark.sql.types.GeographyType$;
 import org.apache.spark.sql.types.GeometryType$;
@@ -59,17 +57,8 @@ class TypeToSparkType extends TypeUtil.SchemaVisitor<DataType> {
 
   public static final String METADATA_COL_ATTR_KEY = "__metadata_col";
 
-  // Spark's only edge-interpolation algorithm. Spark exposes no Java-accessible constant for it, so
-  // it is resolved once by name through the companion's case-insensitive parser. If Spark ever
-  // renames this value the lookup fails fast at class-load time with a clear message.
-  private static final EdgeInterpolationAlgorithm SPARK_SPHERICAL =
-      EdgeInterpolationAlgorithm$.MODULE$
-          .fromString("SPHERICAL")
-          .getOrElse(
-              () -> {
-                throw new IllegalStateException(
-                    "Spark EdgeInterpolationAlgorithm SPHERICAL not found");
-              });
+  // Spark's only edge-interpolation algorithm.
+  private static final EdgeInterpolationAlgorithm SPARK_SPHERICAL = SPHERICAL$.MODULE$;
 
   @Override
   public DataType schema(Schema schema, DataType structType) {
@@ -181,28 +170,15 @@ class TypeToSparkType extends TypeUtil.SchemaVisitor<DataType> {
 
   private DataType geometryType(Types.GeometryType geometry) {
     // The spec lets a geometry CRS be any string identifying a CRS, but Spark recognizes only a
-    // fixed set; a CRS Spark cannot resolve becomes a clear unsupported-CRS error below.
-    String crs = geometry.crs();
-    return convertAndValidate("geometry", crs, () -> GeometryType$.MODULE$.apply(crs));
+    // fixed set; a CRS Spark cannot resolve throws SparkIllegalArgumentException (an
+    // IllegalArgumentException).
+    return GeometryType$.MODULE$.apply(geometry.crs());
   }
 
   private DataType geographyType(Types.GeographyType geography) {
     // The spec requires a geography CRS to be geographic; Spark recognizes only OGC:CRS84, so any
-    // other CRS becomes a clear unsupported-CRS error below.
-    EdgeInterpolationAlgorithm algorithm = convertAlgorithm(geography.algorithm());
-    String crs = geography.crs();
-    return convertAndValidate("geography", crs, () -> GeographyType$.MODULE$.apply(crs, algorithm));
-  }
-
-  // Builds a Spark geo type, translating Spark's opaque ST_INVALID_CRS_VALUE for an unrecognized
-  // CRS into a clear Iceberg error.
-  private static DataType convertAndValidate(
-      String kind, String crs, Supplier<DataType> conversion) {
-    try {
-      return conversion.get();
-    } catch (SparkIllegalArgumentException e) {
-      throw new UnsupportedOperationException("Spark does not support " + kind + " CRS: " + crs, e);
-    }
+    // other CRS throws SparkIllegalArgumentException (an IllegalArgumentException).
+    return GeographyType$.MODULE$.apply(geography.crs(), convertAlgorithm(geography.algorithm()));
   }
 
   // Translates Iceberg's edge-interpolation algorithm to Spark's. Spark supports only the spherical
