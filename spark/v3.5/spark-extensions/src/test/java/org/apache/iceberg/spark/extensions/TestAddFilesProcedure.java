@@ -1223,6 +1223,101 @@ public class TestAddFilesProcedure extends ExtensionsTestBase {
         sql("SELECT id, name, dept, subdept FROM %s ORDER BY id", tableName));
   }
 
+  @TestTemplate
+  public void testAddFilesWithOptimizedScanSinglePartition() {
+    createPartitionedFileTable("parquet");
+
+    createIcebergTable(
+        "id Integer, name String, dept String, subdept String", "PARTITIONED BY (id)");
+
+    List<Object[]> result =
+        sql(
+            "CALL %s.system.add_files("
+                + "table => '%s', "
+                + "source_table => '`parquet`.`%s`', "
+                + "partition_filter => map('id', 1), "
+                + "file_partition_filter_optimized_scan => true)",
+            catalogName, tableName, fileTableDir.getAbsolutePath());
+
+    assertOutput(result, 2L, 1L);
+    assertEquals(
+        "Iceberg table contains only the requested partition when pruning was applied",
+        sql("SELECT id, name, dept, subdept FROM %s WHERE id = 1 ORDER BY id", sourceTableName),
+        sql("SELECT id, name, dept, subdept FROM %s ORDER BY id", tableName));
+  }
+
+  @TestTemplate
+  public void testAddFilesWithOptimizedScanCompositePrefix() {
+    createCompositePartitionedTable("parquet");
+
+    createIcebergTable(
+        "id Integer, name String, dept String, subdept String", "PARTITIONED BY (id, dept)");
+
+    List<Object[]> result =
+        sql(
+            "CALL %s.system.add_files("
+                + "table => '%s', "
+                + "source_table => '`parquet`.`%s`', "
+                + "partition_filter => map('id', 1, 'dept', 'hr'), "
+                + "file_partition_filter_optimized_scan => true)",
+            catalogName, tableName, fileTableDir.getAbsolutePath());
+
+    assertOutput(result, 2L, 1L);
+    assertEquals(
+        "Iceberg table contains only the requested composite partition",
+        sql(
+            "SELECT id, name, dept, subdept FROM %s WHERE id = 1 AND dept = 'hr' ORDER BY id",
+            sourceTableName),
+        sql("SELECT id, name, dept, subdept FROM %s ORDER BY id", tableName));
+  }
+
+  @TestTemplate
+  public void testAddFilesWithOptimizedScanNonPrefixFilter() {
+    createCompositePartitionedTable("parquet");
+
+    createIcebergTable(
+        "id Integer, name String, dept String, subdept String", "PARTITIONED BY (id, dept)");
+
+    // 'dept' is the second on-disk partition column, so nothing can be pushed down at the top
+    // level. The optimized-scan path must still correctly filter down to dept='hr'.
+    List<Object[]> result =
+        sql(
+            "CALL %s.system.add_files("
+                + "table => '%s', "
+                + "source_table => '`parquet`.`%s`', "
+                + "partition_filter => map('dept', 'hr'), "
+                + "file_partition_filter_optimized_scan => true)",
+            catalogName, tableName, fileTableDir.getAbsolutePath());
+
+    assertOutput(result, 6L, 3L);
+    assertEquals(
+        "Iceberg table contains all rows in the requested dept regardless of pushdown ordering",
+        sql(
+            "SELECT id, name, dept, subdept FROM %s WHERE dept = 'hr' ORDER BY id",
+            sourceTableName),
+        sql("SELECT id, name, dept, subdept FROM %s ORDER BY id", tableName));
+  }
+
+  @TestTemplate
+  public void testAddFilesOptimizedScanRejectsCatalogSource() {
+    createPartitionedHiveTable();
+
+    createIcebergTable(
+        "id Integer, name String, dept String, subdept String", "PARTITIONED BY (id)");
+
+    assertThatThrownBy(
+            () ->
+                scalarSql(
+                    "CALL %s.system.add_files("
+                        + "table => '%s', "
+                        + "source_table => '%s', "
+                        + "partition_filter => map('id', 1), "
+                        + "file_partition_filter_optimized_scan => true)",
+                    catalogName, tableName, sourceTableName))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("file_partition_filter_optimized_scan");
+  }
+
   private static final List<Object[]> EMPTY_QUERY_RESULT = Lists.newArrayList();
 
   private static final StructField[] STRUCT = {
