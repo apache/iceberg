@@ -472,7 +472,7 @@ When a row is added or modified, the `_last_updated_sequence_number` field is se
 
 A data file with only new rows for the table may omit the `_last_updated_sequence_number` and `_row_id`. If the columns are missing, readers should treat both columns as if they exist and are set to null for all rows.
 
-On read, if `_last_updated_sequence_number` is `null` it is assigned the `file_sequence_number` of the data file's manifest entry. The file sequence number of a data file is documented in [Sequence Number Inheritance](#sequence-number-inheritance).
+On read, if `_last_updated_sequence_number` is `null` it is assigned the `sequence_number` of the data file's manifest entry. The data sequence number of a data file is documented in [Sequence Number Inheritance](#sequence-number-inheritance).
 
 When `null`, a row's `_row_id` field is assigned to the `first_row_id` from its containing data file plus the row position in that data file (`_pos`). A data file's `first_row_id` field is assigned using inheritance and is documented in [First Row ID Inheritance](#first-row-id-inheritance). A manifest's `first_row_id` is assigned when writing the manifest list for a snapshot and is documented in [First Row ID Assignment](#first-row-id-assignment). A snapshot's `first-row-id` is set to the table's `next-row-id` and is documented in [Snapshot Row IDs](#snapshot-row-ids).
 
@@ -1954,7 +1954,7 @@ Row lineage changes:
 * When writing an existing data file into a new manifest, its `first_row_id` must be written into the manifest
 * When a data file has a non-null `first_row_id`, readers must:
     * Replace any null or missing `_row_id` with the data file's `first_row_id` plus the row's `_pos`
-    * Replace any null or missing `_last_updated_sequence_number` with the data file's `file_sequence_number`
+    * Replace any null or missing `_last_updated_sequence_number` to the data file's `data_sequence_number`
     * Read any non-null `_row_id` or `_last_updated_sequence_number` without modification
 * When a data file has a null `first_row_id`, readers must produce null for `_row_id` and `_last_updated_sequence_number`
 * When writing an existing row into a new data file, writers must write `_row_id` and `_last_updated_sequence_number` if they are non-null
