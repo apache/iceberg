@@ -172,18 +172,17 @@ public abstract class UnpartitionedWritesTestBase extends CatalogTestBase {
   @TestTemplate
   public void testEmptyDynamicOverwriteCommitsSnapshot() throws NoSuchTableException {
     Table table = validationCatalog.loadTable(tableIdent);
-    long snapshotIdBefore = table.currentSnapshot().snapshotId();
 
     Dataset<Row> empty = spark.createDataFrame(ImmutableList.of(), SimpleRecord.class);
     empty.writeTo(commitTarget()).overwritePartitions();
 
     table.refresh();
 
-    Snapshot latestSnapshot = Iterables.getLast(table.snapshots());
-    assertThat(latestSnapshot.snapshotId())
+    assertThat(table.snapshots())
         .as("Empty dynamic overwrite should commit a new snapshot")
-        .isNotEqualTo(snapshotIdBefore);
+        .hasSize(2);
 
+    Snapshot latestSnapshot = Iterables.getLast(table.snapshots());
     assertThat(latestSnapshot.summary())
         .as("Snapshot should be a replace-partitions operation")
         .containsEntry("replace-partitions", "true");
