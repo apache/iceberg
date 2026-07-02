@@ -36,32 +36,6 @@ class TestTrackedFileStruct {
           Types.NestedField.optional(1000, "id_bucket", Types.IntegerType.get()),
           Types.NestedField.optional(1001, "category", Types.StringType.get()));
 
-  // Ordinals looked up from the TrackedFile schema so tests don't hard-code positions.
-  private static final List<Types.NestedField> SCHEMA_FIELDS =
-      TrackedFile.schemaWithContentStats(Types.StructType.of(), Types.StructType.of()).fields();
-  private static final int TRACKING_ORDINAL = SCHEMA_FIELDS.indexOf(TrackedFile.TRACKING);
-  private static final int CONTENT_TYPE_ORDINAL = SCHEMA_FIELDS.indexOf(TrackedFile.CONTENT_TYPE);
-  private static final int LOCATION_ORDINAL = SCHEMA_FIELDS.indexOf(TrackedFile.LOCATION);
-  private static final int FILE_FORMAT_ORDINAL = SCHEMA_FIELDS.indexOf(TrackedFile.FILE_FORMAT);
-  private static final int RECORD_COUNT_ORDINAL = SCHEMA_FIELDS.indexOf(TrackedFile.RECORD_COUNT);
-  private static final int FILE_SIZE_IN_BYTES_ORDINAL =
-      SCHEMA_FIELDS.indexOf(TrackedFile.FILE_SIZE_IN_BYTES);
-  private static final int SPEC_ID_ORDINAL = SCHEMA_FIELDS.indexOf(TrackedFile.SPEC_ID);
-  private static final int PARTITION_ORDINAL = ordinalOf(TrackedFile.PARTITION_ID);
-
-  // Ordinal of MetadataColumns.ROW_POSITION within TrackingStruct's BASE_TYPE,
-  // which appends ROW_POSITION after the Tracking schema fields.
-  private static final int MANIFEST_POS_ORDINAL = Tracking.schema().fields().size();
-
-  private static int ordinalOf(int fieldId) {
-    for (int i = 0; i < SCHEMA_FIELDS.size(); i++) {
-      if (SCHEMA_FIELDS.get(i).fieldId() == fieldId) {
-        return i;
-      }
-    }
-    throw new IllegalArgumentException("Field not found in TrackedFile schema: " + fieldId);
-  }
-
   private static final DeletionVectorStruct DELETION_VECTOR =
       DeletionVectorStruct.builder()
           .location("s3://bucket/dv.puffin")
@@ -95,7 +69,8 @@ class TestTrackedFileStruct {
 
   @Test
   void testFieldAccess() {
-    Tracking tracking = TrackingBuilder.added(42L).build();
+    Tracking tracking =
+        new TrackingStruct(EntryStatus.ADDED, 42L, null, null, null, null, null, null, null, -1L);
 
     TrackedFileStruct file =
         new TrackedFileStruct(
@@ -137,7 +112,8 @@ class TestTrackedFileStruct {
 
   @Test
   void testSetByPosition() {
-    Tracking tracking = TrackingBuilder.added(42L).build();
+    Tracking tracking =
+        new TrackingStruct(EntryStatus.ADDED, 42L, null, null, null, null, null, null, null, -1L);
     PartitionData partition = newPartition(7, "music");
 
     TrackedFileStruct file = new TrackedFileStruct();
@@ -178,7 +154,8 @@ class TestTrackedFileStruct {
 
   @Test
   void testGetByPosition() {
-    Tracking tracking = TrackingBuilder.added(42L).build();
+    Tracking tracking =
+        new TrackingStruct(EntryStatus.ADDED, 42L, null, null, null, null, null, null, null, -1L);
     PartitionData partition = newPartition(7, "music");
 
     TrackedFileStruct file =
@@ -220,18 +197,19 @@ class TestTrackedFileStruct {
 
   @Test
   void testReaderSideFields() {
-    TrackedFileStruct file = new TrackedFileStruct();
-
+    // manifest_location and manifest_pos are populated by readers, not written to manifests.
+    // manifest_pos is ROW_POSITION, appended after the tracking schema fields (position 8).
     TrackingStruct tracking = new TrackingStruct();
     tracking.setManifestLocation("s3://bucket/metadata/manifest.avro");
-    tracking.set(MANIFEST_POS_ORDINAL, 7L);
+    tracking.set(8, 7L);
 
-    file.set(TRACKING_ORDINAL, tracking);
-    file.set(CONTENT_TYPE_ORDINAL, FileContent.DATA.id());
-    file.set(LOCATION_ORDINAL, "test");
-    file.set(FILE_FORMAT_ORDINAL, "parquet");
-    file.set(RECORD_COUNT_ORDINAL, 0L);
-    file.set(FILE_SIZE_IN_BYTES_ORDINAL, 0L);
+    TrackedFileStruct file = new TrackedFileStruct();
+    file.set(0, tracking);
+    file.set(1, FileContent.DATA.id());
+    file.set(3, "test");
+    file.set(4, "parquet");
+    file.set(5, 0L);
+    file.set(6, 0L);
 
     assertThat(file.tracking().manifestLocation()).isEqualTo("s3://bucket/metadata/manifest.avro");
     assertThat(file.tracking().manifestPos()).isEqualTo(7L);
@@ -255,7 +233,7 @@ class TestTrackedFileStruct {
     PartitionData partition = newPartition(5, "books");
 
     TrackedFileStruct file = new TrackedFileStruct();
-    file.set(PARTITION_ORDINAL, partition);
+    file.set(8, partition);
 
     assertThat(file.partition()).isSameAs(partition);
     assertThat(file.partition().get(0, Integer.class)).isEqualTo(5);
@@ -264,7 +242,24 @@ class TestTrackedFileStruct {
 
   @Test
   void partitionIsCopied() {
-    TrackedFileStruct file = createFullTrackedFile();
+    TrackedFileStruct file =
+        new TrackedFileStruct(
+            null,
+            FileContent.DATA,
+            FORMAT_VERSION_V4,
+            "s3://bucket/data/file.parquet",
+            FileFormat.PARQUET,
+            newPartition(7, "music"),
+            100L,
+            1024L,
+            0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null);
 
     TrackedFile copy = file.copy();
 
@@ -276,7 +271,36 @@ class TestTrackedFileStruct {
 
   @Test
   void testCopy() {
-    TrackedFileStruct file = createFullTrackedFile();
+    TrackingStruct tracking =
+        new TrackingStruct(
+            EntryStatus.ADDED,
+            42L,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            "s3://bucket/manifest.avro",
+            3L);
+    TrackedFileStruct file =
+        new TrackedFileStruct(
+            tracking,
+            FileContent.DATA,
+            FORMAT_VERSION_V4,
+            "s3://bucket/data/file.parquet",
+            FileFormat.PARQUET,
+            newPartition(7, "music"),
+            100L,
+            1024L,
+            7,
+            null,
+            1,
+            DELETION_VECTOR,
+            null,
+            ByteBuffer.wrap(new byte[] {1, 2, 3}),
+            ImmutableList.of(50L),
+            null);
 
     TrackedFile copy = file.copy();
     assertThat(copy).isInstanceOf(TrackedFileStruct.class);
@@ -302,7 +326,24 @@ class TestTrackedFileStruct {
 
   @Test
   void testCopyWithoutStats() {
-    TrackedFileStruct file = createTrackedFileWithStats();
+    TrackedFileStruct file =
+        new TrackedFileStruct(
+            null,
+            FileContent.DATA,
+            FORMAT_VERSION_V4,
+            "s3://bucket/data/file.parquet",
+            FileFormat.PARQUET,
+            new PartitionData(Types.StructType.of()),
+            100L,
+            1024L,
+            0,
+            CONTENT_STATS,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null);
     assertThat(file.contentStats()).isNotNull();
 
     TrackedFile copy = file.copyWithoutStats();
@@ -314,7 +355,24 @@ class TestTrackedFileStruct {
 
   @Test
   void testCopyWithStatsFilters() {
-    TrackedFileStruct file = createTrackedFileWithStats();
+    TrackedFileStruct file =
+        new TrackedFileStruct(
+            null,
+            FileContent.DATA,
+            FORMAT_VERSION_V4,
+            "s3://bucket/data/file.parquet",
+            FileFormat.PARQUET,
+            new PartitionData(Types.StructType.of()),
+            100L,
+            1024L,
+            0,
+            CONTENT_STATS,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null);
     Set<Integer> keepFieldIds = ImmutableSet.of(1);
 
     TrackedFile copy = file.copyWithStats(keepFieldIds);
@@ -327,7 +385,24 @@ class TestTrackedFileStruct {
 
   @Test
   void testCopyIsDeep() {
-    TrackedFileStruct file = createFullTrackedFile();
+    TrackedFileStruct file =
+        new TrackedFileStruct(
+            null,
+            FileContent.DATA,
+            FORMAT_VERSION_V4,
+            "s3://bucket/data/file.parquet",
+            FileFormat.PARQUET,
+            null,
+            100L,
+            1024L,
+            0,
+            null,
+            null,
+            null,
+            null,
+            ByteBuffer.wrap(new byte[] {1, 2, 3}),
+            null,
+            null);
 
     TrackedFile copy = file.copy();
 
@@ -363,7 +438,24 @@ class TestTrackedFileStruct {
 
   @Test
   void testContentStatsReturnedWhenPresent() {
-    TrackedFileStruct file = createTrackedFileWithStats();
+    TrackedFileStruct file =
+        new TrackedFileStruct(
+            null,
+            FileContent.DATA,
+            FORMAT_VERSION_V4,
+            "s3://bucket/data/file.parquet",
+            FileFormat.PARQUET,
+            new PartitionData(Types.StructType.of()),
+            100L,
+            1024L,
+            0,
+            CONTENT_STATS,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null);
     assertThat(file.contentStats()).isNotNull();
     assertThat(file.contentStats().fieldStats()).hasSize(2);
   }
@@ -371,12 +463,12 @@ class TestTrackedFileStruct {
   @Test
   void testContentStatsNullWhenNotSet() {
     TrackedFileStruct file = new TrackedFileStruct();
-    file.set(CONTENT_TYPE_ORDINAL, FileContent.DATA.id());
-    file.set(LOCATION_ORDINAL, "test");
-    file.set(FILE_FORMAT_ORDINAL, "parquet");
-    file.set(RECORD_COUNT_ORDINAL, 0L);
-    file.set(FILE_SIZE_IN_BYTES_ORDINAL, 0L);
-    file.set(SPEC_ID_ORDINAL, 0);
+    file.set(1, FileContent.DATA.id());
+    file.set(3, "test");
+    file.set(4, "parquet");
+    file.set(5, 0L);
+    file.set(6, 0L);
+    file.set(7, 0);
 
     assertThat(file.contentStats()).isNull();
   }
@@ -385,14 +477,43 @@ class TestTrackedFileStruct {
   void testAllFileContentTypesSupported() {
     for (FileContent content : FileContent.values()) {
       TrackedFileStruct file = new TrackedFileStruct();
-      file.set(CONTENT_TYPE_ORDINAL, content.id());
+      file.set(1, content.id());
       assertThat(file.contentType()).isEqualTo(content);
     }
   }
 
   @Test
   void testJavaSerializationRoundTrip() throws IOException, ClassNotFoundException {
-    TrackedFileStruct file = createFullTrackedFile();
+    TrackingStruct tracking =
+        new TrackingStruct(
+            EntryStatus.ADDED,
+            42L,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            "s3://bucket/manifest.avro",
+            3L);
+    TrackedFileStruct file =
+        new TrackedFileStruct(
+            tracking,
+            FileContent.DATA,
+            FORMAT_VERSION_V4,
+            "s3://bucket/data/file.parquet",
+            FileFormat.PARQUET,
+            newPartition(7, "music"),
+            100L,
+            1024L,
+            7,
+            null,
+            1,
+            DELETION_VECTOR,
+            null,
+            ByteBuffer.wrap(new byte[] {1, 2, 3}),
+            ImmutableList.of(50L),
+            null);
 
     TrackedFileStruct deserialized = TestHelpers.roundTripSerialize(file);
 
@@ -416,7 +537,36 @@ class TestTrackedFileStruct {
 
   @Test
   void testKryoSerializationRoundTrip() throws IOException {
-    TrackedFileStruct file = createFullTrackedFile();
+    TrackingStruct tracking =
+        new TrackingStruct(
+            EntryStatus.ADDED,
+            42L,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            "s3://bucket/manifest.avro",
+            3L);
+    TrackedFileStruct file =
+        new TrackedFileStruct(
+            tracking,
+            FileContent.DATA,
+            FORMAT_VERSION_V4,
+            "s3://bucket/data/file.parquet",
+            FileFormat.PARQUET,
+            newPartition(7, "music"),
+            100L,
+            1024L,
+            7,
+            null,
+            1,
+            DELETION_VECTOR,
+            null,
+            ByteBuffer.wrap(new byte[] {1, 2, 3}),
+            ImmutableList.of(50L),
+            null);
 
     TrackedFileStruct deserialized = TestHelpers.KryoHelpers.roundTripSerialize(file);
 
@@ -436,50 +586,6 @@ class TestTrackedFileStruct {
     assertThat(deserialized.tracking().manifestPos()).isEqualTo(3L);
     assertThat(deserialized.tracking().manifestLocation()).isEqualTo("s3://bucket/manifest.avro");
     assertThat(deserialized.partition()).isEqualTo(newPartition(7, "music"));
-  }
-
-  static TrackedFileStruct createFullTrackedFile() {
-    TrackingStruct tracking = (TrackingStruct) TrackingBuilder.added(42L).build();
-    tracking.setManifestLocation("s3://bucket/manifest.avro");
-    tracking.set(MANIFEST_POS_ORDINAL, 3L);
-
-    return new TrackedFileStruct(
-        tracking,
-        FileContent.DATA,
-        FORMAT_VERSION_V4,
-        "s3://bucket/data/file.parquet",
-        FileFormat.PARQUET,
-        newPartition(7, "music"),
-        100L,
-        1024L,
-        7,
-        null,
-        1,
-        DELETION_VECTOR,
-        null,
-        ByteBuffer.wrap(new byte[] {1, 2, 3}),
-        ImmutableList.of(50L),
-        null);
-  }
-
-  static TrackedFileStruct createTrackedFileWithStats() {
-    return new TrackedFileStruct(
-        null,
-        FileContent.DATA,
-        FORMAT_VERSION_V4,
-        "s3://bucket/data/file.parquet",
-        FileFormat.PARQUET,
-        new PartitionData(Types.StructType.of()),
-        100L,
-        1024L,
-        0,
-        CONTENT_STATS,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null);
   }
 
   private static PartitionData newPartition(int idBucket, String category) {
