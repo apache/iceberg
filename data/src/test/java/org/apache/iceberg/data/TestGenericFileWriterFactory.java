@@ -18,6 +18,9 @@
  */
 package org.apache.iceberg.data;
 
+import static org.assertj.core.api.Assertions.assertThatNoException;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import java.io.IOException;
 import java.util.List;
 import org.apache.iceberg.Schema;
@@ -64,4 +67,31 @@ public class TestGenericFileWriterFactory extends TestFileWriterFactory<Record> 
   @Override
   @TestTemplate
   public void testPositionDeleteWriterWithRow() throws IOException {}
+
+  @TestTemplate
+  void equalityFieldIdsAreValidatedAgainstEqualityDeleteRowSchema() {
+    int equalityFieldId = table.schema().findField("id").fieldId();
+
+    assertThatNoException()
+        .isThrownBy(
+            () ->
+                newWriterFactory(
+                    table.schema().select("data"),
+                    List.of(equalityFieldId),
+                    table.schema().select("id")));
+  }
+
+  @TestTemplate
+  void equalityFieldIdsAreRejectedWhenMissingFromEqualityDeleteRowSchema() {
+    int equalityFieldId = table.schema().findField("id").fieldId();
+
+    assertThatThrownBy(
+            () ->
+                newWriterFactory(
+                    table.schema().select("id"),
+                    List.of(equalityFieldId),
+                    table.schema().select("data")))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid equality delete field ID: %s", equalityFieldId);
+  }
 }

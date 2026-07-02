@@ -35,6 +35,7 @@ import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.encryption.EncryptionUtil;
+import org.apache.iceberg.io.DeleteSchemaUtil;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.FileAppenderFactory;
 import org.apache.iceberg.io.OutputFile;
@@ -132,6 +133,10 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
       int[] equalityFieldIds,
       Schema eqDeleteRowSchema,
       Schema posDeleteRowSchema) {
+    if (eqDeleteRowSchema != null && equalityFieldIds != null) {
+      DeleteSchemaUtil.validateEqualityFieldIds(equalityFieldIds, eqDeleteRowSchema);
+    }
+
     this.table = table;
     this.config = config == null ? Maps.newHashMap() : config;
 
