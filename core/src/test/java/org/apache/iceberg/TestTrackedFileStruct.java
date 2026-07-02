@@ -75,10 +75,10 @@ class TestTrackedFileStruct {
     TrackedFileStruct file =
         new TrackedFileStruct(
             tracking,
-            FileContent.EQUALITY_DELETES,
+            FileContent.DATA,
             FORMAT_VERSION_V4,
-            "s3://bucket/data/eq-delete.avro",
-            FileFormat.AVRO,
+            "s3://bucket/data/00000-0-file.parquet",
+            FileFormat.PARQUET,
             null,
             50L,
             512L,
@@ -92,10 +92,10 @@ class TestTrackedFileStruct {
             ImmutableList.of(1, 2, 3));
 
     assertThat(file.tracking()).isSameAs(tracking);
-    assertThat(file.contentType()).isEqualTo(FileContent.EQUALITY_DELETES);
+    assertThat(file.contentType()).isEqualTo(FileContent.DATA);
     assertThat(file.formatVersion()).isEqualTo(FORMAT_VERSION_V4);
-    assertThat(file.location()).isEqualTo("s3://bucket/data/eq-delete.avro");
-    assertThat(file.fileFormat()).isEqualTo(FileFormat.AVRO);
+    assertThat(file.location()).isEqualTo("s3://bucket/data/00000-0-file.parquet");
+    assertThat(file.fileFormat()).isEqualTo(FileFormat.PARQUET);
     assertThat(file.recordCount()).isEqualTo(50L);
     assertThat(file.fileSizeInBytes()).isEqualTo(512L);
     assertThat(file.specId()).isEqualTo(1);
@@ -105,7 +105,7 @@ class TestTrackedFileStruct {
     assertThat(file.keyMetadata()).isEqualTo(ByteBuffer.wrap(new byte[] {1, 2, 3}));
     assertThat(file.splitOffsets()).containsExactly(100L, 200L);
     assertThat(file.equalityIds()).containsExactly(1, 2, 3);
-    // partition defaults to EMPTY_PARTITION_DATA when not provided
+    // should return EMPTY_PARTITION_DATA
     assertThat(file.partition()).isNotNull();
     assertThat(file.partition().size()).isEqualTo(0);
   }
@@ -118,10 +118,10 @@ class TestTrackedFileStruct {
 
     TrackedFileStruct file = new TrackedFileStruct();
     file.set(0, tracking);
-    file.set(1, FileContent.EQUALITY_DELETES.id());
+    file.set(1, FileContent.DATA.id());
     file.set(2, FORMAT_VERSION_V4);
-    file.set(3, "s3://bucket/data/eq-delete.avro");
-    file.set(4, "avro");
+    file.set(3, "s3://bucket/data/00000-0-file.parquet");
+    file.set(4, "parquet");
     file.set(5, 50L);
     file.set(6, 512L);
     file.set(7, 1);
@@ -135,10 +135,10 @@ class TestTrackedFileStruct {
     file.set(15, ImmutableList.of(1, 2, 3));
 
     assertThat(file.tracking()).isSameAs(tracking);
-    assertThat(file.contentType()).isEqualTo(FileContent.EQUALITY_DELETES);
+    assertThat(file.contentType()).isEqualTo(FileContent.DATA);
     assertThat(file.formatVersion()).isEqualTo(FORMAT_VERSION_V4);
-    assertThat(file.location()).isEqualTo("s3://bucket/data/eq-delete.avro");
-    assertThat(file.fileFormat()).isEqualTo(FileFormat.AVRO);
+    assertThat(file.location()).isEqualTo("s3://bucket/data/00000-0-file.parquet");
+    assertThat(file.fileFormat()).isEqualTo(FileFormat.PARQUET);
     assertThat(file.recordCount()).isEqualTo(50L);
     assertThat(file.fileSizeInBytes()).isEqualTo(512L);
     assertThat(file.specId()).isEqualTo(1);
@@ -161,10 +161,10 @@ class TestTrackedFileStruct {
     TrackedFileStruct file =
         new TrackedFileStruct(
             tracking,
-            FileContent.EQUALITY_DELETES,
+            FileContent.DATA,
             FORMAT_VERSION_V4,
-            "s3://bucket/data/eq-delete.avro",
-            FileFormat.AVRO,
+            "s3://bucket/data/00000-0-file.parquet",
+            FileFormat.PARQUET,
             partition,
             50L,
             512L,
@@ -178,10 +178,10 @@ class TestTrackedFileStruct {
             ImmutableList.of(1, 2, 3));
 
     assertThat(file.get(0, Tracking.class)).isSameAs(tracking);
-    assertThat(file.get(1, Integer.class)).isEqualTo(FileContent.EQUALITY_DELETES.id());
+    assertThat(file.get(1, Integer.class)).isEqualTo(FileContent.DATA.id());
     assertThat(file.get(2, Integer.class)).isEqualTo(FORMAT_VERSION_V4);
-    assertThat(file.get(3, String.class)).isEqualTo("s3://bucket/data/eq-delete.avro");
-    assertThat(file.get(4, String.class)).isEqualTo(FileFormat.AVRO.toString());
+    assertThat(file.get(3, String.class)).isEqualTo("s3://bucket/data/00000-0-file.parquet");
+    assertThat(file.get(4, String.class)).isEqualTo(FileFormat.PARQUET.toString());
     assertThat(file.get(5, Long.class)).isEqualTo(50L);
     assertThat(file.get(6, Long.class)).isEqualTo(512L);
     assertThat(file.get(7, Integer.class)).isEqualTo(1);
