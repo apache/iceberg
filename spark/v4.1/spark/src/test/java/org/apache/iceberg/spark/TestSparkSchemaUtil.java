@@ -201,6 +201,22 @@ public class TestSparkSchemaUtil {
   }
 
   @Test
+  public void testPruneGeospatialTypeWithIncompatibleCrs() {
+    // Spark normally copies the type from the table schema, so this defends against a requested geo
+    // type whose CRS disagrees with the table's rather than a case reachable through normal reads.
+    // Both CRS values must be ones Spark recognizes (else construction fails first); OGC:CRS84 and
+    // EPSG:3857 are both valid and differ, exercising the prune-time CRS check.
+    Schema schema = new Schema(optional(1, "geom", Types.GeometryType.of("EPSG:3857")));
+
+    StructType mismatchedCrs =
+        new StructType().add("geom", GeometryType$.MODULE$.apply("OGC:CRS84"), true);
+
+    assertThatThrownBy(() -> SparkSchemaUtil.prune(schema, mismatchedCrs))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot project geometry with incompatible CRS");
+  }
+
+  @Test
   public void testSchemaConversionWithOnlyWriteDefault() {
     Schema schema =
         new Schema(

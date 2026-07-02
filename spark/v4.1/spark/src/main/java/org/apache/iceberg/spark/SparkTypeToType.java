@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark;
 
 import java.util.List;
+import java.util.Locale;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.EdgeAlgorithm;
 import org.apache.iceberg.types.Type;
@@ -32,6 +33,7 @@ import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.DateType;
 import org.apache.spark.sql.types.DecimalType;
 import org.apache.spark.sql.types.DoubleType;
+import org.apache.spark.sql.types.EdgeInterpolationAlgorithm;
 import org.apache.spark.sql.types.FloatType;
 import org.apache.spark.sql.types.GeographyType;
 import org.apache.spark.sql.types.GeometryType;
@@ -178,14 +180,25 @@ class SparkTypeToType extends SparkTypeVisitor<Type> {
         throw new UnsupportedOperationException(
             "Cannot convert Spark geography with mixed SRID to Iceberg");
       }
-      // Propagate the edge algorithm, translating by name since Iceberg and Spark share algorithm
-      // names.
-      return Types.GeographyType.of(
-          geography.crs(), EdgeAlgorithm.fromName(geography.algorithm().toString()));
+      return Types.GeographyType.of(geography.crs(), convertAlgorithm(geography.algorithm()));
     } else if (atomic instanceof NullType) {
       return Types.UnknownType.get();
     }
 
     throw new UnsupportedOperationException("Not a supported type: " + atomic.catalogString());
+  }
+
+  // Translates Spark's edge-interpolation algorithm to Iceberg's, mirroring the forward direction in
+  // TypeToSparkType#convertAlgorithm. Spark supports only the spherical algorithm today; anything
+  // else is rejected loudly rather than silently defaulting, so a new Spark algorithm surfaces here
+  // instead of being dropped.
+  private static EdgeAlgorithm convertAlgorithm(EdgeInterpolationAlgorithm algorithm) {
+    switch (algorithm.toString().toUpperCase(Locale.ROOT)) {
+      case "SPHERICAL":
+        return EdgeAlgorithm.SPHERICAL;
+      default:
+        throw new UnsupportedOperationException(
+            "Iceberg does not support Spark geography edge algorithm: " + algorithm);
+    }
   }
 }

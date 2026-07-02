@@ -60,9 +60,16 @@ class TypeToSparkType extends TypeUtil.SchemaVisitor<DataType> {
   public static final String METADATA_COL_ATTR_KEY = "__metadata_col";
 
   // Spark's only edge-interpolation algorithm. Spark exposes no Java-accessible constant for it, so
-  // it is resolved once by name through the companion's case-insensitive parser.
+  // it is resolved once by name through the companion's case-insensitive parser. If Spark ever
+  // renames this value the lookup fails fast at class-load time with a clear message.
   private static final EdgeInterpolationAlgorithm SPARK_SPHERICAL =
-      EdgeInterpolationAlgorithm$.MODULE$.fromString("SPHERICAL").get();
+      EdgeInterpolationAlgorithm$.MODULE$
+          .fromString("SPHERICAL")
+          .getOrElse(
+              () -> {
+                throw new IllegalStateException(
+                    "Spark EdgeInterpolationAlgorithm SPHERICAL not found");
+              });
 
   @Override
   public DataType schema(Schema schema, DataType structType) {
@@ -199,8 +206,9 @@ class TypeToSparkType extends TypeUtil.SchemaVisitor<DataType> {
   }
 
   // Translates Iceberg's edge-interpolation algorithm to Spark's. Spark supports only the spherical
-  // algorithm (the Iceberg default); every other algorithm is rejected with a clear error.
-  private static EdgeInterpolationAlgorithm convertAlgorithm(EdgeAlgorithm algorithm) {
+  // algorithm (the Iceberg default); every other algorithm is rejected with a clear error. Shared
+  // with PruneColumnsWithoutReordering, which compares algorithms across the two type systems.
+  static EdgeInterpolationAlgorithm convertAlgorithm(EdgeAlgorithm algorithm) {
     switch (algorithm) {
       case SPHERICAL:
         return SPARK_SPHERICAL;
