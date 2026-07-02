@@ -1,5 +1,5 @@
 ---
-title: "Nightly Snapshots"
+title: "Developer Snapshot Testing"
 ---
 <!--
  - Licensed to the Apache Software Foundation (ASF) under one or more
@@ -18,43 +18,47 @@ title: "Nightly Snapshots"
  - limitations under the License.
  -->
 
-{% set snapshotVersion = icebergVersion.split('.')[0] ~ '.' ~ ((icebergVersion.split('.')[1] | int) + 1) ~ '.0-SNAPSHOT' %}
+{# Mirrors getProjectVersion() in build.gradle for released versions: bump minor, reset patch to 0, and append -SNAPSHOT. #}
+{% set icebergVersionParts = icebergVersion.split('.') %}
+{% set snapshotMinorVersion = (icebergVersionParts[1] | int) + 1 %}
+{% set snapshotVersion = icebergVersionParts[0] ~ '.' ~ snapshotMinorVersion ~ '.0-SNAPSHOT' %}
 
-# Nightly Snapshots
-
-Every night, Apache Iceberg publishes a snapshot of every module to the
-[Apache snapshot repository](https://repository.apache.org/content/repositories/snapshots/org/apache/iceberg/).
-These nightly snapshots let developers build and test against the latest unreleased
-changes on `main` before they are included in an official release.
+# Developer Snapshot Testing
 
 !!! warning "For Iceberg developers only"
 
-    Snapshots are **unreleased**, in-development builds. They are **not** an official
-    Apache release, may change or break at any time, and **must not be used in
-    production**. For production use, always depend on an official
-    [release](releases.md). Per the ASF
-    [release policy](https://apache.org/legal/release-policy#publication), unreleased
-    artifacts are intended only for developers who are actively participating in
-    Iceberg development.
+    Nightly snapshots are **unreleased** development artifacts. They are **not**
+    official Apache releases, are not intended for general use, may change or
+    break at any time, and **must not be used in production**. If you are not
+    actively participating in Iceberg development or following dev list
+    discussions, use an official [release](releases.md) instead.
+
+Every night, Apache Iceberg publishes snapshots of every module from unreleased
+changes on `main` to support active Iceberg developers, engine maintainers, and
+automated testing.
+Per the ASF [release policy](https://apache.org/legal/release-policy#publication),
+unreleased artifacts are developer resources for testing ongoing development and
+are not a substitute for official releases.
 
 ## Snapshot version
 
 Snapshots are published daily at 00:00 UTC under the version `{{ snapshotVersion }}`,
-which tracks the next unreleased version (the latest release with its minor version
-incremented). Browse the
-[snapshot repository listing](https://repository.apache.org/content/repositories/snapshots/org/apache/iceberg/)
-to see which modules and versions are available.
+which tracks the next unreleased development version by incrementing the latest
+release minor version and resetting the patch version to 0.
 
 ## Usage
 
-Add the Apache snapshot repository to your build and depend on the `{{ snapshotVersion }}`
-version of the Iceberg modules you need. The examples below use `iceberg-core`; replace
-it with the artifacts your project requires, such as an engine runtime like
-`iceberg-spark-runtime-{{ sparkVersionMajor }}`.
+Active developers who need to validate unreleased Iceberg changes can use the
+[Apache snapshot repository](https://repository.apache.org/content/repositories/snapshots/org/apache/iceberg/)
+when a development task or [dev list](community.md#mailing-lists) discussion
+calls for testing snapshots. Add snapshot dependencies only to temporary local
+test builds; do not commit them to production applications, user documentation,
+or release validation workflows.
 
-=== "Gradle"
+The examples below use `iceberg-core` as the module under test. Replace it only
+with the Iceberg module needed for the development task you are validating.
 
-    In `build.gradle`:
+=== "Gradle (development only)"
 
     ```gradle
     repositories {
@@ -69,9 +73,7 @@ it with the artifacts your project requires, such as an engine runtime like
     }
     ```
 
-=== "Maven"
-
-    In `pom.xml`:
+=== "Maven (development only)"
 
     ```xml
     <repositories>
@@ -93,9 +95,7 @@ it with the artifacts your project requires, such as an engine runtime like
     </dependencies>
     ```
 
-=== "sbt"
-
-    In `build.sbt`:
+=== "sbt (development only)"
 
     ```scala
     resolvers += "Apache Snapshots" at "https://repository.apache.org/content/repositories/snapshots"
@@ -103,10 +103,7 @@ it with the artifacts your project requires, such as an engine runtime like
     libraryDependencies += "org.apache.iceberg" % "iceberg-core" % "{{ snapshotVersion }}"
     ```
 
-=== "Spark"
-
-    Pass the snapshot repository and a snapshot runtime to `spark-shell` (or
-    `spark-sql`, `pyspark`, or `spark-submit`):
+=== "Spark (development only)"
 
     ```sh
     spark-shell \
