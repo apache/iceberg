@@ -228,7 +228,7 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
               filtered[index] = manifest;
             });
 
-    collectDeletedFiles(deleteFiles, filtered);
+    deleteFiles.addAll(collectDeletedFiles(filtered));
 
     validateRequiredDeletes(filtered);
 
@@ -278,8 +278,7 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
   @SuppressWarnings("CollectionUndefinedEquality")
   private void validateRequiredDeletes(ManifestFile... manifests) {
     if (failMissingDeletePaths) {
-      Set<F> deletedFiles = newFileSet();
-      collectDeletedFiles(deletedFiles, manifests);
+      Set<F> deletedFiles = collectDeletedFiles(manifests);
       ValidationException.check(
           deletedFiles.containsAll(deleteFiles),
           "Missing required files to delete: %s",
@@ -301,7 +300,9 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
     }
   }
 
-  private void collectDeletedFiles(Set<F> deletedFiles, ManifestFile[] manifests) {
+  private Set<F> collectDeletedFiles(ManifestFile[] manifests) {
+    Set<F> deletedFiles = newFileSet();
+
     if (manifests != null) {
       for (ManifestFile manifest : manifests) {
         Pair<Set<F>, Integer> result = filteredManifestResults.get(manifest);
@@ -310,6 +311,8 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
         }
       }
     }
+
+    return deletedFiles;
   }
 
   /**
