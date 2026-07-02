@@ -3684,11 +3684,11 @@ components:
         field to communicate all signer client settings. When the `remote-signing-config` field is present, clients
         SHOULD take it into account.
 
-        For backward compatibility, the following `config` properties are still supported but **DEPRECATED**:
+        For backward compatibility, the following `config` properties are still supported but **DEPRECATED** and SHOULD NOT be used by clients able to consume the remote signing configuration:
          - `signer.endpoint` **DEPRECATED**.: the remote signer endpoint. Can either be a relative path (to be resolved against `signer.uri`) or an absolute URI.
          - `signer.uri` **DEPRECATED**.: the base URI to resolve `signer.endpoint` against. Only meaningful if `signer.endpoint` is a relative path. Defaults to the catalog's base URI if not set.
-        If any of these properties is present, clients MUST use them to compute the actual remote signing endpoint URI to contact.
-        If none of these properties is present, clients MUST contact the default remote signing endpoint using the catalog's base URI.
+        If any of these properties is present, clients SHOULD use them to compute the actual remote signing endpoint URI to contact.
+        If none of these properties is present, clients SHOULD contact the default remote signing endpoint using the catalog's base URI.
 
       type: object
       required:
@@ -5259,9 +5259,6 @@ components:
     RemoteSigningConfig:
       description: Configuration for the remote signer client.
       type: object
-      required:
-        - base-uri
-        - endpoint-path
       properties:
         properties:
           type: object
