@@ -46,7 +46,7 @@ Snapshots are published daily at 00:00 UTC under the version `{{ snapshotVersion
 which tracks the next unreleased development version by incrementing the latest
 release minor version and resetting the patch version to 0.
 
-## Usage
+## Development-only usage
 
 Active developers who need to validate unreleased Iceberg changes can use the
 [Apache snapshot repository](https://repository.apache.org/content/repositories/snapshots/org/apache/iceberg/)
