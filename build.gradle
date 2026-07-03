@@ -1072,6 +1072,7 @@ project(':iceberg-snowflake') {
 
     testImplementation libs.mockito.junit.jupiter
     testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
+    testImplementation libs.awaitility
   }
 }
 
