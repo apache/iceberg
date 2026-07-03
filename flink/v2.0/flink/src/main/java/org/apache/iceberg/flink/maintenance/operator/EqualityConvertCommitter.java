@@ -50,6 +50,12 @@ import org.slf4j.LoggerFactory;
  *
  * <p>The commit is gated on the plan's done-timestamp watermark.
  *
+ * <p>Watermarks are forwarded only after the cycle commits, never mid-cycle. The {@link
+ * LockRemover} releases the maintenance lock once a watermark past the trigger's start epoch
+ * reaches it. The planner emits phase watermarks in the middle of a cycle; forwarding those would
+ * release the lock before this commit, letting the TriggerManager start a concurrent cycle that
+ * re-processes the same uncommitted staging snapshot.
+ *
  * <p>Emits a {@link Trigger} after each cycle (commit, no-op, or error) so the downstream {@link
  * TaskResultAggregator} can track task completion. This is the sole source of Trigger records for
  * the Aggregator.
@@ -139,27 +145,29 @@ public class EqualityConvertCommitter extends AbstractStreamOperator<Trigger>
 
   @Override
   public void processWatermark(Watermark mark) throws Exception {
-    if (planResult != null && mark.getTimestamp() >= planResult.doneTimestamp()) {
-      try {
-        commitIfNeeded();
-      } catch (Exception e) {
-        LOG.error(
-            "Failed to commit equality convert result for table {} task {}",
-            tableName,
-            taskName,
-            e);
-        output.collect(TaskResultAggregator.ERROR_STREAM, new StreamRecord<>(e));
-        errorCounter.inc();
-      }
-
-      // Emit Trigger for the Aggregator (even on error or no-op).
-      output.collect(new StreamRecord<>(Trigger.create(planResult.triggerTimestamp(), 0)));
-
-      bufferedResults.clear();
-      planResult = null;
+    if (planResult == null || mark.getTimestamp() < planResult.doneTimestamp()) {
+      // Hold back watermarks until the cycle commits so the LockRemover keeps the maintenance lock
+      // for the whole cycle. Forwarding the planner's mid-cycle phase watermarks will release the
+      // lock early and could let the next trigger run a concurrent cycle on the same staging
+      // snapshot.
+      return;
     }
 
-    // Always forward watermarks to prevent stalling downstream.
+    try {
+      commitIfNeeded();
+    } catch (Exception e) {
+      LOG.error(
+          "Failed to commit equality convert result for table {} task {}", tableName, taskName, e);
+      output.collect(TaskResultAggregator.ERROR_STREAM, new StreamRecord<>(e));
+      errorCounter.inc();
+    }
+
+    // Emit Trigger for the Aggregator (even on error or no-op).
+    output.collect(new StreamRecord<>(Trigger.create(planResult.triggerTimestamp(), 0)));
+
+    bufferedResults.clear();
+    planResult = null;
+
     super.processWatermark(mark);
   }
 
