@@ -500,7 +500,11 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
     boolean isDelete = reader.isDeleteManifestReader();
     // when this point is reached, there is at least one file that will be deleted in the
     // manifest. produce a copy of the manifest with all deleted files removed.
-    Set<F> deletedFiles = newFileSet();
+    // uniqueDeletedFiles tracks distinct deleted paths to detect duplicate deletes, while
+    // removedFiles records every deleted entry (including duplicate paths) so the snapshot
+    // summary counts records for all files actually removed from the manifest.
+    Set<F> uniqueDeletedFiles = newFileSet();
+    List<F> removedFiles = Lists.newArrayList();
 
     try {
       ManifestWriter<F> writer = newManifestWriter(reader.spec());
@@ -537,16 +541,19 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
                       // DeleteManifestFilterManager will then remove its matching DV
                       deleteFiles.add(fileCopy);
 
-                      if (deletedFiles.contains(file)) {
+                      // record every removed entry so the snapshot summary counts records for all
+                      // deleted files, even when the same path is referenced by multiple live
+                      // manifest entries (e.g. duplicate data files compacted by RewriteFiles)
+                      removedFiles.add(fileCopy);
+
+                      // Set.add returns false when an equal (same location) entry was already
+                      // removed from this manifest, i.e. the path is a duplicate
+                      if (!uniqueDeletedFiles.add(fileCopy)) {
                         LOG.warn(
                             "Deleting a duplicate path from manifest {}: {}",
                             manifest.path(),
                             file.location());
                         duplicateDeleteCount += 1;
-                      } else {
-                        // only add the file to deletes if it is a new delete
-                        // this keeps the snapshot summary accurate for non-duplicate data
-                        deletedFiles.add(fileCopy);
                       }
                     } else {
                       writer.existing(entry);
@@ -565,7 +572,7 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
 
       // update caches
       filteredManifests.put(manifest, filtered);
-      filteredManifestToDeletedFiles.put(filtered, deletedFiles);
+      filteredManifestToDeletedFiles.put(filtered, removedFiles);
 
       return filtered;
 
