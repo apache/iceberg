@@ -46,8 +46,7 @@ import org.apache.parquet.column.ParquetProperties;
 import org.apache.parquet.schema.MessageType;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
-import org.apache.spark.unsafe.types.GeographyVal;
-import org.apache.spark.unsafe.types.GeometryVal;
+import org.apache.spark.sql.catalyst.util.STUtils;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -148,8 +147,9 @@ public class TestSparkParquetWriter {
     byte[] geogWkb = new byte[] {0x04, 0x05, 0x06};
     InternalRow row = new GenericInternalRow(3);
     row.update(0, 1L);
-    row.update(1, GeometryVal.fromBytes(geomWkb));
-    row.update(2, GeographyVal.fromBytes(geogWkb));
+    // Spark's GeometryVal/GeographyVal wrap [SRID | WKB]; build them from the pure WKB.
+    row.update(1, STUtils.stGeomFromWKB(geomWkb));
+    row.update(2, STUtils.stGeogFromWKB(geogWkb));
     // second row leaves the geo columns null
     InternalRow nulls = new GenericInternalRow(3);
     nulls.update(0, 2L);
@@ -175,8 +175,8 @@ public class TestSparkParquetWriter {
             .build()) {
       List<InternalRow> rows = Lists.newArrayList(reader);
       assertThat(rows).hasSize(2);
-      assertThat(rows.get(0).getGeometry(1).getBytes()).isEqualTo(geomWkb);
-      assertThat(rows.get(0).getGeography(2).getBytes()).isEqualTo(geogWkb);
+      assertThat(STUtils.stAsBinary(rows.get(0).getGeometry(1))).isEqualTo(geomWkb);
+      assertThat(STUtils.stAsBinary(rows.get(0).getGeography(2))).isEqualTo(geogWkb);
       assertThat(rows.get(1).isNullAt(1)).isTrue();
       assertThat(rows.get(1).isNullAt(2)).isTrue();
     }

@@ -54,6 +54,7 @@ import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.util.ArrayData;
 import org.apache.spark.sql.catalyst.util.MapData;
+import org.apache.spark.sql.catalyst.util.STUtils;
 import org.apache.spark.sql.types.Decimal;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 import org.apache.spark.unsafe.types.GeographyVal;
@@ -237,12 +238,14 @@ public class GenericsHelpers {
       case GEOMETRY:
         assertThat(expected).as("Should expect a ByteBuffer").isInstanceOf(ByteBuffer.class);
         assertThat(actual).as("Should be a GeometryVal").isInstanceOf(GeometryVal.class);
-        assertThat(((GeometryVal) actual).getBytes()).isEqualTo(((ByteBuffer) expected).array());
+        assertThat(STUtils.stAsBinary((GeometryVal) actual))
+            .isEqualTo(((ByteBuffer) expected).array());
         break;
       case GEOGRAPHY:
         assertThat(expected).as("Should expect a ByteBuffer").isInstanceOf(ByteBuffer.class);
         assertThat(actual).as("Should be a GeographyVal").isInstanceOf(GeographyVal.class);
-        assertThat(((GeographyVal) actual).getBytes()).isEqualTo(((ByteBuffer) expected).array());
+        assertThat(STUtils.stAsBinary((GeographyVal) actual))
+            .isEqualTo(((ByteBuffer) expected).array());
         break;
       case TIME:
       default:
@@ -448,12 +451,14 @@ public class GenericsHelpers {
       case GEOMETRY:
         assertThat(expected).as("Should expect a ByteBuffer").isInstanceOf(ByteBuffer.class);
         assertThat(actual).as("Should be a GeometryVal").isInstanceOf(GeometryVal.class);
-        assertThat(((GeometryVal) actual).getBytes()).isEqualTo(((ByteBuffer) expected).array());
+        assertThat(STUtils.stAsBinary((GeometryVal) actual))
+            .isEqualTo(((ByteBuffer) expected).array());
         break;
       case GEOGRAPHY:
         assertThat(expected).as("Should expect a ByteBuffer").isInstanceOf(ByteBuffer.class);
         assertThat(actual).as("Should be a GeographyVal").isInstanceOf(GeographyVal.class);
-        assertThat(((GeographyVal) actual).getBytes()).isEqualTo(((ByteBuffer) expected).array());
+        assertThat(STUtils.stAsBinary((GeographyVal) actual))
+            .isEqualTo(((ByteBuffer) expected).array());
         break;
       case TIME:
       default:

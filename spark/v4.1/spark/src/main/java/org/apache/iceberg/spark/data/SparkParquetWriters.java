@@ -61,6 +61,7 @@ import org.apache.parquet.schema.Type;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.util.ArrayData;
 import org.apache.spark.sql.catalyst.util.MapData;
+import org.apache.spark.sql.catalyst.util.STUtils;
 import org.apache.spark.sql.types.ArrayType;
 import org.apache.spark.sql.types.ByteType;
 import org.apache.spark.sql.types.DataType;
@@ -495,7 +496,8 @@ public class SparkParquetWriters {
 
     @Override
     public void write(int repetitionLevel, GeometryVal value) {
-      column.writeBinary(repetitionLevel, Binary.fromReusedByteArray(value.getBytes()));
+      // Spark stores geometry as [SRID | WKB]; Iceberg stores pure WKB, so strip the SRID header.
+      column.writeBinary(repetitionLevel, Binary.fromReusedByteArray(STUtils.stAsBinary(value)));
     }
   }
 
@@ -507,7 +509,8 @@ public class SparkParquetWriters {
 
     @Override
     public void write(int repetitionLevel, GeographyVal value) {
-      column.writeBinary(repetitionLevel, Binary.fromReusedByteArray(value.getBytes()));
+      // Spark stores geography as [SRID | WKB]; Iceberg stores pure WKB, so strip the SRID header.
+      column.writeBinary(repetitionLevel, Binary.fromReusedByteArray(STUtils.stAsBinary(value)));
     }
   }
 
