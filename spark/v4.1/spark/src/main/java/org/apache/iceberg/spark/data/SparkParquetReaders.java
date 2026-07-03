@@ -53,6 +53,7 @@ import org.apache.iceberg.variants.Variant;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.schema.GroupType;
+import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.LogicalTypeAnnotation.DecimalLogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
@@ -243,6 +244,13 @@ public class SparkParquetReaders {
     public ParquetValueReader<?> primitive(
         org.apache.iceberg.types.Type.PrimitiveType expected, PrimitiveType primitive) {
       ColumnDescriptor desc = type.getColumnDescription(currentPath());
+
+      LogicalTypeAnnotation logicalType = primitive.getLogicalTypeAnnotation();
+      if (logicalType instanceof LogicalTypeAnnotation.GeometryLogicalTypeAnnotation) {
+        return new GeometryReader(desc);
+      } else if (logicalType instanceof LogicalTypeAnnotation.GeographyLogicalTypeAnnotation) {
+        return new GeographyReader(desc);
+      }
 
       if (primitive.getOriginalType() != null) {
         switch (primitive.getOriginalType()) {
@@ -534,6 +542,30 @@ public class SparkParquetReaders {
       variant.value().writeTo(valueBuffer, 0);
 
       return new VariantVal(valueBytes, metadataBytes);
+    }
+  }
+
+  /** Reads a WKB BINARY column into a Spark {@link GeometryVal}. */
+  private static class GeometryReader extends PrimitiveReader<GeometryVal> {
+    GeometryReader(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public GeometryVal read(GeometryVal ignored) {
+      return GeometryVal.fromBytes(column.nextBinary().getBytes());
+    }
+  }
+
+  /** Reads a WKB BINARY column into a Spark {@link GeographyVal}. */
+  private static class GeographyReader extends PrimitiveReader<GeographyVal> {
+    GeographyReader(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public GeographyVal read(GeographyVal ignored) {
+      return GeographyVal.fromBytes(column.nextBinary().getBytes());
     }
   }
 

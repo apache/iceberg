@@ -48,6 +48,8 @@ import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
 import org.apache.spark.sql.catalyst.util.ArrayBasedMapData;
 import org.apache.spark.sql.catalyst.util.GenericArrayData;
 import org.apache.spark.sql.types.Decimal;
+import org.apache.spark.unsafe.types.GeographyVal;
+import org.apache.spark.unsafe.types.GeometryVal;
 import org.apache.spark.unsafe.types.UTF8String;
 import org.apache.spark.unsafe.types.VariantVal;
 
@@ -371,6 +373,10 @@ public class RandomData {
           return Decimal.apply((BigDecimal) obj);
         case UUID:
           return UTF8String.fromString(UUID.nameUUIDFromBytes((byte[]) obj).toString());
+        case GEOMETRY:
+          return GeometryVal.fromBytes((byte[]) obj);
+        case GEOGRAPHY:
+          return GeographyVal.fromBytes((byte[]) obj);
         default:
           return obj;
       }
