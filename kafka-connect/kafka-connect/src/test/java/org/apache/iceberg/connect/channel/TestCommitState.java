@@ -113,7 +113,11 @@ public class TestCommitState {
 
   @Test
   public void testGetValidThroughTs() {
+    CommitState commitState = new CommitState(mock(IcebergSinkConfig.class));
+    commitState.startNewCommit();
+
     DataComplete payload1 = mock(DataComplete.class);
+    when(payload1.commitId()).thenReturn(commitState.currentCommitId());
     TopicPartitionOffset tp1 = mock(TopicPartitionOffset.class);
     OffsetDateTime ts1 = EventTestUtil.now();
     when(tp1.timestamp()).thenReturn(ts1);
@@ -124,13 +128,11 @@ public class TestCommitState {
     when(payload1.assignments()).thenReturn(ImmutableList.of(tp1, tp2));
 
     DataComplete payload2 = mock(DataComplete.class);
+    when(payload2.commitId()).thenReturn(commitState.currentCommitId());
     TopicPartitionOffset tp3 = mock(TopicPartitionOffset.class);
     OffsetDateTime ts3 = ts1.plusSeconds(2);
     when(tp3.timestamp()).thenReturn(ts3);
     when(payload2.assignments()).thenReturn(ImmutableList.of(tp3));
-
-    CommitState commitState = new CommitState(mock(IcebergSinkConfig.class));
-    commitState.startNewCommit();
 
     commitState.addReady(wrapInEnvelope(payload1));
     commitState.addReady(wrapInEnvelope(payload2));
@@ -140,6 +142,7 @@ public class TestCommitState {
 
     // null timestamp for one, so should not set a valid-through timestamp
     DataComplete payload3 = mock(DataComplete.class);
+    when(payload3.commitId()).thenReturn(commitState.currentCommitId());
     TopicPartitionOffset tp4 = mock(TopicPartitionOffset.class);
     when(tp4.timestamp()).thenReturn(null);
     when(payload3.assignments()).thenReturn(ImmutableList.of(tp4));
@@ -148,6 +151,33 @@ public class TestCommitState {
 
     assertThat(commitState.validThroughTs(false)).isNull();
     assertThat(commitState.validThroughTs(true)).isNull();
+  }
+
+  @Test
+  public void testGetValidThroughTsIgnoresZombieCoordinatorPayloads() {
+    CommitState commitState = new CommitState(mock(IcebergSinkConfig.class));
+    commitState.startNewCommit();
+
+    // Stale DataComplete from a zombie Coordinator that started a different commit, with a null
+    // timestamp that would otherwise suppress the valid-through timestamp.
+    DataComplete zombiePayload = mock(DataComplete.class);
+    when(zombiePayload.commitId()).thenReturn(UUID.randomUUID());
+    TopicPartitionOffset zombieTp = mock(TopicPartitionOffset.class);
+    when(zombieTp.timestamp()).thenReturn(null);
+    when(zombiePayload.assignments()).thenReturn(ImmutableList.of(zombieTp));
+
+    DataComplete currentPayload = mock(DataComplete.class);
+    when(currentPayload.commitId()).thenReturn(commitState.currentCommitId());
+    TopicPartitionOffset currentTp = mock(TopicPartitionOffset.class);
+    OffsetDateTime ts = EventTestUtil.now();
+    when(currentTp.timestamp()).thenReturn(ts);
+    when(currentPayload.assignments()).thenReturn(ImmutableList.of(currentTp));
+
+    commitState.addReady(wrapInEnvelope(zombiePayload));
+    commitState.addReady(wrapInEnvelope(currentPayload));
+
+    // Only the current commit's payload counts toward the valid-through timestamp.
+    assertThat(commitState.validThroughTs(false)).isEqualTo(ts);
   }
 
   private Envelope wrapInEnvelope(Payload payload) {
