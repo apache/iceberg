@@ -77,7 +77,6 @@ import org.apache.iceberg.types.Types.TimestampType;
 import org.apache.iceberg.types.Types.UUIDType;
 import org.apache.iceberg.types.Types.VariantType;
 import org.apache.iceberg.util.DateTimeUtil;
-import org.apache.iceberg.util.UUIDUtil;
 import org.apache.iceberg.variants.PhysicalType;
 import org.apache.iceberg.variants.Variant;
 import org.apache.iceberg.variants.VariantValue;
@@ -280,7 +279,7 @@ public class TestRecordConverter {
         ImmutableMap.<String, Object>builder().put("uuid", UUID_VAL.toString()).build();
 
     Record record = converter.convert(data);
-    assertThat(record.getField("uuid")).isEqualTo(UUIDUtil.convert(UUID_VAL));
+    assertThat(record.getField("uuid")).isEqualTo(UUID_VAL);
   }
 
   @Test

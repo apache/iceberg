@@ -47,7 +47,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
-import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
@@ -71,7 +70,6 @@ import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.types.Types.TimestampType;
 import org.apache.iceberg.util.ByteBuffers;
 import org.apache.iceberg.util.DateTimeUtil;
-import org.apache.iceberg.util.UUIDUtil;
 import org.apache.iceberg.variants.ShreddedObject;
 import org.apache.iceberg.variants.ValueArray;
 import org.apache.iceberg.variants.Variant;
@@ -506,23 +504,12 @@ class RecordConverter {
   }
 
   protected Object convertUUID(Object value) {
-    UUID uuid;
     if (value instanceof String) {
-      uuid = UUID.fromString((String) value);
+      return UUID.fromString((String) value);
     } else if (value instanceof UUID) {
-      uuid = (UUID) value;
-    } else {
-      throw new IllegalArgumentException("Cannot convert to UUID: " + value.getClass().getName());
+      return (UUID) value;
     }
-
-    if (FileFormat.PARQUET
-        .name()
-        .toLowerCase(Locale.ROOT)
-        .equals(config.writeProps().get(TableProperties.DEFAULT_FILE_FORMAT))) {
-      return UUIDUtil.convert(uuid);
-    } else {
-      return uuid;
-    }
+    throw new IllegalArgumentException("Cannot convert to UUID: " + value.getClass().getName());
   }
 
   protected ByteBuffer convertBase64Binary(Object value) {
