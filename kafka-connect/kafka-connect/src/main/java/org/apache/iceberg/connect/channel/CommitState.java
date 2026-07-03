@@ -144,16 +144,21 @@ class CommitState {
   }
 
   OffsetDateTime validThroughTs(boolean partialCommit) {
+    List<DataComplete> currentCommitReady =
+        readyBuffer.stream()
+            .filter(payload -> Objects.equals(currentCommitId, payload.commitId()))
+            .collect(Collectors.toList());
+
     boolean hasValidThroughTs =
         !partialCommit
-            && readyBuffer.stream()
+            && currentCommitReady.stream()
                 .flatMap(event -> event.assignments().stream())
                 .allMatch(offset -> offset.timestamp() != null);
 
     OffsetDateTime result;
     if (hasValidThroughTs) {
       result =
-          readyBuffer.stream()
+          currentCommitReady.stream()
               .flatMap(event -> event.assignments().stream())
               .map(TopicPartitionOffset::timestamp)
               .min(Comparator.naturalOrder())
