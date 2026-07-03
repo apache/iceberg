@@ -3682,7 +3682,7 @@ components:
 
         If remote signing for a specific storage provider is enabled, the server SHOULD use the `remote-signing-config`
         field to communicate all signer client settings. When the `remote-signing-config` field is present, clients
-        SHOULD take it into account.
+        SHOULD respect the provided configuration.
 
         For backward compatibility, the following `config` properties are still supported but **DEPRECATED** and SHOULD NOT be used by clients able to consume the remote signing configuration:
          - `signer.endpoint` **DEPRECATED**.: the remote signer endpoint. Can either be a relative path (to be resolved against `signer.uri`) or an absolute URI.
