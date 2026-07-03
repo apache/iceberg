@@ -35,13 +35,6 @@ public class OAuth2NotAuthorizedException extends NotAuthorizedException impleme
     this.errorType = errorType;
   }
 
-  @FormatMethod
-  public OAuth2NotAuthorizedException(
-      String errorType, Throwable cause, @FormatString String message, Object... args) {
-    super(cause, message, args);
-    this.errorType = errorType;
-  }
-
   @Override
   public String errorType() {
     return errorType;

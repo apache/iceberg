@@ -35,13 +35,6 @@ public class OAuth2BadRequestException extends BadRequestException implements OA
     this.errorType = errorType;
   }
 
-  @FormatMethod
-  public OAuth2BadRequestException(
-      String errorType, Throwable cause, @FormatString String message, Object... args) {
-    super(cause, message, args);
-    this.errorType = errorType;
-  }
-
   @Override
   public String errorType() {
     return errorType;
