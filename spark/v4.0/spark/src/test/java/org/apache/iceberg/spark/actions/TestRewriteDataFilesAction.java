@@ -2070,6 +2070,36 @@ public class TestRewriteDataFilesAction extends TestBase {
   }
 
   @TestTemplate
+  public void testUpgradePreservesDataSequence() throws NoSuchTableException {
+    assumeThat(formatVersion).isEqualTo(2);
+
+    Table table = createTable();
+    writeRecords(2, 4);
+    table.refresh();
+    shouldHaveFiles(table, 2);
+
+    Result result = basicRewrite(table).execute();
+    assertThat(result.rewrittenDataFilesCount()).isEqualTo(2);
+    assertThat(result.addedDataFilesCount()).isOne();
+    shouldHaveFiles(table, 1);
+
+    DataFile rewrittenFile = Iterables.getOnlyElement(currentDataFiles(table));
+    long dataSequenceNumber = rewrittenFile.dataSequenceNumber();
+    assertThat(rewrittenFile.fileSequenceNumber()).isGreaterThan(dataSequenceNumber);
+
+    table.updateProperties().set(TableProperties.FORMAT_VERSION, "3").commit();
+    table.newFastAppend().commit();
+    table.refresh();
+
+    List<Object[]> recordsWithLineage = currentDataWithLineage();
+    assertThat(recordsWithLineage).hasSize(4);
+    assertThat(recordsWithLineage.stream().map(record -> (Long) record[0]))
+        .containsExactlyElementsOf(LongStream.range(0, 4).boxed().collect(Collectors.toList()));
+    assertThat(recordsWithLineage.stream().map(record -> (Long) record[1]))
+        .allMatch(sequenceNumber -> sequenceNumber.equals(dataSequenceNumber));
+  }
+
+  @TestTemplate
   public void testRewriteDataFilesPreservesLineage() throws NoSuchTableException {
     assumeThat(formatVersion).isGreaterThan(2);
 

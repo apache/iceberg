@@ -753,6 +753,8 @@ public class TestRowLineageAssignment {
       assertThat(task.file().fileSequenceNumber()).isGreaterThan(originalSequenceNumber);
       assertThat(task.file().firstRowId()).isNotNull();
 
+      // Scan planning projects row lineage metadata columns through constantsMap.
+      // The upgraded data file is not rewritten, so validate the value readers see.
       assertThat(
               PartitionUtil.constantsMap(task)
                   .get(MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.fieldId()))
