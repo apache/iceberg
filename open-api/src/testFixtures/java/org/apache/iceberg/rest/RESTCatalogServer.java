@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.rest;
 
+import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
 import java.util.Map;
@@ -26,6 +27,7 @@ import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.jdbc.JdbcCatalog;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.PropertyUtil;
 import org.eclipse.jetty.compression.gzip.GzipCompression;
@@ -48,6 +50,7 @@ public class RESTCatalogServer {
   static final String CATALOG_NAME_DEFAULT = "rest_backend";
 
   private Server httpServer;
+  private CatalogContext catalogContext;
   private final Map<String, String> config;
 
   RESTCatalogServer() {
@@ -108,7 +111,7 @@ public class RESTCatalogServer {
   }
 
   public void start(boolean join) throws Exception {
-    CatalogContext catalogContext = initializeBackendCatalog();
+    this.catalogContext = initializeBackendCatalog();
 
     RESTCatalogAdapter adapter = new RESTServerCatalogAdapter(catalogContext);
     RESTCatalogServlet servlet = new RESTCatalogServlet(adapter);
@@ -138,6 +141,14 @@ public class RESTCatalogServer {
     if (httpServer != null) {
       httpServer.stop();
     }
+    if (catalogContext != null && catalogContext.catalog() instanceof Closeable) {
+      ((Closeable) catalogContext.catalog()).close();
+    }
+  }
+
+  @VisibleForTesting
+  CatalogContext catalogContext() {
+    return catalogContext;
   }
 
   public static void main(String[] args) throws Exception {
