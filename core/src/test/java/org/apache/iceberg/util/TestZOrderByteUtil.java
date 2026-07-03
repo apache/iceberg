@@ -339,18 +339,18 @@ public class TestZOrderByteUtil {
       {-1.0, 1.0},
     };
     for (double[] pair : pairs) {
-      double a = pair[0];
-      double b = pair[1];
-      byte[] aBytes = ZOrderByteUtils.doubleToOrderedBytes(a, aBuffer).array();
-      byte[] bBytes = ZOrderByteUtils.doubleToOrderedBytes(b, bBuffer).array();
-      int numericOrder = Integer.signum(Double.compare(a, b));
+      double firstValue = pair[0];
+      double secondValue = pair[1];
+      byte[] aBytes = ZOrderByteUtils.doubleToOrderedBytes(firstValue, aBuffer).array();
+      byte[] bBytes = ZOrderByteUtils.doubleToOrderedBytes(secondValue, bBuffer).array();
+      int numericOrder = Integer.signum(Double.compare(firstValue, secondValue));
       int byteOrder =
           Integer.signum(UnsignedBytes.lexicographicalComparator().compare(aBytes, bBytes));
       assertThat(byteOrder)
           .as(
               "Ordered bytes of %s must sort the same way as the value (expected %d, got %d): "
                   + "%s vs %s",
-              a, numericOrder, byteOrder, Arrays.toString(aBytes), Arrays.toString(bBytes))
+              firstValue, numericOrder, byteOrder, Arrays.toString(aBytes), Arrays.toString(bBytes))
           .isEqualTo(numericOrder);
     }
   }
