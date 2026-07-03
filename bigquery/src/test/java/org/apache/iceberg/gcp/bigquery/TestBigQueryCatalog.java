@@ -208,4 +208,12 @@ public class TestBigQueryCatalog extends CatalogTests<BigQueryMetastoreCatalog> 
     assertThat(catalog.isValidIdentifier(TableIdentifier.of(Namespace.empty(), "table1")))
         .isFalse();
   }
+
+  @Test
+  public void testListNamespacesWithExistingNamespaceReturnsEmptyList() {
+    Namespace namespace = Namespace.of("existing_namespace");
+    catalog.createNamespace(namespace);
+
+    assertThat(catalog.listNamespaces(namespace)).isEmpty();
+  }
 }
