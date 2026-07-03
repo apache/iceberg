@@ -28,9 +28,7 @@ import io.delta.kernel.internal.DeltaHistoryManager;
 import io.delta.kernel.internal.DeltaLogActionUtils;
 import io.delta.kernel.internal.SnapshotImpl;
 import io.delta.kernel.internal.TableImpl;
-import io.delta.kernel.internal.actions.AddFile;
 import io.delta.kernel.internal.actions.DeletionVectorDescriptor;
-import io.delta.kernel.internal.actions.RemoveFile;
 import io.delta.kernel.internal.deletionvectors.DeletionVectorUtils;
 import io.delta.kernel.internal.deletionvectors.RoaringBitmapArray;
 import io.delta.kernel.internal.fs.Path;
@@ -39,7 +37,6 @@ import io.delta.kernel.internal.util.VectorUtils;
 import io.delta.kernel.utils.CloseableIterator;
 import java.util.Arrays;
 import java.util.Map;
-import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
@@ -82,10 +79,10 @@ class InternalDeltaKernelUtils {
   }
 
   static long[] readDeltaDVPositions(Engine engine, String tablePath, DeltaAddFile addFile) {
-    if (!addFile.hasDeletionVector()) {
+    DeletionVectorDescriptor descriptor = addFile.deletionVector();
+    if (descriptor == null) {
       return new long[0];
     }
-    DeletionVectorDescriptor descriptor = addFile.getInternal().getDeletionVector().get();
     Tuple2<DeletionVectorDescriptor, RoaringBitmapArray> tuple =
         DeletionVectorUtils.loadNewDvAndBitmap(engine, tablePath, descriptor);
     return tuple._2.toArray();
@@ -98,49 +95,75 @@ class InternalDeltaKernelUtils {
     }
   }
 
+  /**
+   * A wrapper class around the Delta Lake "add" action Row.
+   *
+   * <p>The field names (such as "add", "path", "size", "partitionValues", and "deletionVector") are
+   * defined by the Delta Transaction Log Protocol and are guaranteed to remain stable. Therefore,
+   * it is safe to access them directly by name from the underlying Row.
+   *
+   * <p>For more information see {@link io.delta.kernel.internal.actions.AddFile}.
+   */
   static class DeltaAddFile {
-    private final AddFile addFile;
+    private final Row addFileRow;
 
     DeltaAddFile(Row row) {
-      this.addFile = new AddFile(row.getStruct(row.getSchema().indexOf("add")));
+      this.addFileRow = row.getStruct(row.getSchema().indexOf("add"));
     }
 
     public String path() {
-      return addFile.getPath();
+      return addFileRow.getString(addFileRow.getSchema().indexOf("path"));
     }
 
     public long size() {
-      return addFile.getSize();
+      return addFileRow.getLong(addFileRow.getSchema().indexOf("size"));
     }
 
     public boolean hasDeletionVector() {
-      return addFile.getDeletionVector().isPresent();
+      int dvIndex = addFileRow.getSchema().indexOf("deletionVector");
+      return dvIndex >= 0 && !addFileRow.isNullAt(dvIndex);
     }
 
     public Map<String, String> partitionValues() {
-      return VectorUtils.toJavaMap(addFile.getPartitionValues());
+      return VectorUtils.toJavaMap(
+          addFileRow.getMap(addFileRow.getSchema().indexOf("partitionValues")));
     }
 
-    AddFile getInternal() {
-      return addFile;
+    public DeletionVectorDescriptor deletionVector() {
+      int dvIndex = addFileRow.getSchema().indexOf("deletionVector");
+      if (dvIndex < 0 || addFileRow.isNullAt(dvIndex)) {
+        return null;
+      }
+      return DeletionVectorDescriptor.fromRow(addFileRow.getStruct(dvIndex));
     }
   }
 
+  /**
+   * A wrapper class around the Delta Lake "remove" action Row.
+   *
+   * <p>The field names (such as "remove", "path", and "partitionValues") are defined by the Delta
+   * Transaction Log Protocol and are guaranteed to remain stable. Therefore, it is safe to access
+   * them directly by name from the underlying Row.
+   *
+   * <p>For more information see {@link io.delta.kernel.internal.actions.RemoveFile}.
+   */
   static class DeltaRemoveFile {
-    private final RemoveFile removeFile;
+    private final Row removeFileRow;
 
     DeltaRemoveFile(Row row) {
-      this.removeFile = new RemoveFile(row.getStruct(row.getSchema().indexOf("remove")));
+      this.removeFileRow = row.getStruct(row.getSchema().indexOf("remove"));
     }
 
     public String path() {
-      return removeFile.getPath();
+      return removeFileRow.getString(removeFileRow.getSchema().indexOf("path"));
     }
 
     public Map<String, String> partitionValues() {
-      Optional<Map<String, String>> partitionMap =
-          removeFile.getPartitionValues().map(VectorUtils::toJavaMap);
-      return partitionMap.orElseGet(Map::of);
+      int partitionValuesIndex = removeFileRow.getSchema().indexOf("partitionValues");
+      if (partitionValuesIndex < 0 || removeFileRow.isNullAt(partitionValuesIndex)) {
+        return Map.of();
+      }
+      return VectorUtils.toJavaMap(removeFileRow.getMap(partitionValuesIndex));
     }
   }
 }
