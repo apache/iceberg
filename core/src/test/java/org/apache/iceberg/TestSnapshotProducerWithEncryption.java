@@ -50,22 +50,44 @@ class TestSnapshotProducerWithEncryption {
 
     table.updateProperties().set(TableProperties.ENCRYPTION_TABLE_KEY, "keyA").commit();
 
-    DataFile dataFile =
+    DataFile dataFile1 =
         DataFiles.builder(spec)
             .withPath(table.location() + "/data/file1.parquet")
             .withFileSizeInBytes(100)
             .withRecordCount(1)
             .build();
-    table.newAppend().appendFile(dataFile).commit();
+    table.newAppend().appendFile(dataFile1).commit();
 
-    Snapshot snapshot = table.currentSnapshot();
-    String keyId = snapshot.keyId();
-    assertThat(keyId).isNotNull();
+    Snapshot snapshot1 = table.currentSnapshot();
+    String keyId1 = snapshot1.keyId();
+    assertThat(keyId1).isNotNull();
 
-    TableMetadata metadata = ops.current();
-    assertThat(metadata.encryptionKeys()).extracting(EncryptedKey::keyId).contains(keyId);
+    TableMetadata metadata1 = ops.current();
+    assertThat(metadata1.encryptionKeys())
+        .hasSize(2)
+        .extracting(EncryptedKey::keyId)
+        .contains(keyId1);
 
     assertThatCode(() -> table.newScan().planFiles()).doesNotThrowAnyException();
+
+    DataFile dataFile2 =
+        DataFiles.builder(spec)
+            .withPath(table.location() + "/data/file2.parquet")
+            .withFileSizeInBytes(100)
+            .withRecordCount(1)
+            .build();
+    table.newAppend().appendFile(dataFile2).commit();
+
+    Snapshot snapshot2 = table.currentSnapshot();
+    String keyId2 = snapshot2.keyId();
+    assertThat(keyId2).isNotNull();
+    assertThat(keyId2).isNotEqualTo(keyId1);
+
+    TableMetadata metadata2 = ops.current();
+    assertThat(metadata2.encryptionKeys())
+        .hasSize(3)
+        .extracting(EncryptedKey::keyId)
+        .contains(keyId1, keyId2);
   }
 
   static class EncryptedTableOps extends TestTables.TestTableOperations {

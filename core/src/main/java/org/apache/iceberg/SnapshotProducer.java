@@ -46,7 +46,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
-import org.apache.iceberg.encryption.EncryptedKey;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.encryption.EncryptingFileIO;
 import org.apache.iceberg.encryption.EncryptionManager;
@@ -511,9 +510,9 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
 
                   EncryptionManager encryptionManager = ops.encryption();
                   if (encryptionManager instanceof StandardEncryptionManager) {
-                    Map<String, EncryptedKey> keys =
-                        EncryptionUtil.encryptionKeys(encryptionManager);
-                    keys.values().forEach(update::addEncryptionKey);
+                    EncryptionUtil.encryptionKeys(encryptionManager)
+                        .values()
+                        .forEach(update::addEncryptionKey);
                   }
 
                   TableMetadata updated = update.build();
