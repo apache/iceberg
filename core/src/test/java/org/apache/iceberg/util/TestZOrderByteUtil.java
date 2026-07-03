@@ -326,6 +326,36 @@ public class TestZOrderByteUtil {
   }
 
   @Test
+  public void floatingPointOrderedBytesPreservesOrderOfAdjacentValues() {
+    ByteBuffer aBuffer = ZOrderByteUtils.allocatePrimitiveBuffer();
+    ByteBuffer bBuffer = ZOrderByteUtils.allocatePrimitiveBuffer();
+    double[][] pairs = {
+      {-921614.125, -921614.0625},
+      {-1.6001329423771755E213, -1.600132804916327E213},
+      {5.716890676284865E-207, 5.7168911255697246E-207},
+      {-Double.MIN_VALUE, 0.0},
+      {0.0, Double.MIN_VALUE},
+      {-Double.MAX_VALUE, Double.MAX_VALUE},
+      {-1.0, 1.0},
+    };
+    for (double[] pair : pairs) {
+      double a = pair[0];
+      double b = pair[1];
+      byte[] aBytes = ZOrderByteUtils.doubleToOrderedBytes(a, aBuffer).array();
+      byte[] bBytes = ZOrderByteUtils.doubleToOrderedBytes(b, bBuffer).array();
+      int numericOrder = Integer.signum(Double.compare(a, b));
+      int byteOrder =
+          Integer.signum(UnsignedBytes.lexicographicalComparator().compare(aBytes, bBytes));
+      assertThat(byteOrder)
+          .as(
+              "Ordered bytes of %s must sort the same way as the value (expected %d, got %d): "
+                  + "%s vs %s",
+              a, numericOrder, byteOrder, Arrays.toString(aBytes), Arrays.toString(bBytes))
+          .isEqualTo(numericOrder);
+    }
+  }
+
+  @Test
   public void testStringOrdering() {
     CharsetEncoder encoder = StandardCharsets.UTF_8.newEncoder();
     ByteBuffer aBuffer = ByteBuffer.allocate(128);
