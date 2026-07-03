@@ -223,13 +223,81 @@ public class TestV4ManifestReader {
         newReader(manifest, UNPARTITIONED_SPECS).project(projection).build()) {
       TrackedFile actual = Lists.newArrayList(reader.allFiles()).get(0);
       assertThat(actual.location()).isEqualTo(file.location());
-      // a minimal status-only tracking is force-added when the caller omits tracking
+      // tracking and content_type are always projected, even though the caller omitted them
       assertThat(actual.tracking()).isNotNull();
       assertThat(actual.tracking().status()).isEqualTo(EntryStatus.ADDED);
+      assertThat(actual.contentType()).isEqualTo(FileContent.DATA);
       // sort_order_id, file_format, and spec_id are null because they were not projected
       assertThat(actual.sortOrderId()).isNull();
       assertThat(actual.fileFormat()).isNull();
       assertThat(actual.specId()).isNull();
+    }
+  }
+
+  @TestTemplate
+  public void testTrackingProjectionOmitsChangeTrackingFields() throws IOException {
+    Tracking tracking =
+        new TrackingStruct(
+            EntryStatus.ADDED,
+            SNAPSHOT_ID,
+            5L, // data sequence number
+            6L, // file sequence number
+            7L, // dv snapshot id
+            8L, // first row id
+            new byte[] {1, 2}, // deleted positions
+            new byte[] {3, 4}); // replaced positions
+    TrackedFile file =
+        new TrackedFileStruct(
+            tracking,
+            FileContent.DATA,
+            FORMAT_VERSION_V4,
+            "s3://bucket/file.parquet",
+            FileFormat.PARQUET,
+            EMPTY_PARTITION_DATA,
+            RECORD_COUNT,
+            FILE_SIZE_IN_BYTES,
+            0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null);
+
+    InputFile manifest = writeManifest(EMPTY_PARTITION, ImmutableList.of(file));
+
+    Tracking actual = read(manifest, UNPARTITIONED_SPECS).get(0).tracking();
+    // scan-relevant tracking fields are projected
+    assertThat(actual.status()).isEqualTo(EntryStatus.ADDED);
+    assertThat(actual.snapshotId()).isEqualTo(SNAPSHOT_ID);
+    assertThat(actual.dataSequenceNumber()).isEqualTo(5L);
+    assertThat(actual.fileSequenceNumber()).isEqualTo(6L);
+    assertThat(actual.firstRowId()).isEqualTo(8L);
+    // change-tracking fields are omitted from the scan projection
+    assertThat(actual.dvSnapshotId()).isNull();
+    assertThat(actual.deletedPositions()).isNull();
+    assertThat(actual.replacedPositions()).isNull();
+  }
+
+  @TestTemplate
+  public void testPartitionFilterForceProjectsFilterFields() throws IOException {
+    TrackedFile keep = dataFile("keep.parquet", partition(1));
+    TrackedFile prune = dataFile("prune.parquet", partition(2));
+
+    InputFile manifest = writeManifest(PARTITION_TYPE, ImmutableList.of(keep, prune));
+
+    // the caller projects only location; the reader must still project the fields the partition
+    // filter reads (content_type, spec_id, partition) or every row would be pruned
+    Schema projection = new Schema(TrackedFile.LOCATION);
+    try (V4ManifestReader reader =
+        newReader(manifest, PARTITIONED_SPECS)
+            .project(projection)
+            .filterRows(Expressions.equal("id", 1))
+            .build()) {
+      assertThat(reader.allFiles())
+          .extracting(TrackedFile::location)
+          .containsExactly(keep.location());
     }
   }
 
@@ -414,7 +482,7 @@ public class TestV4ManifestReader {
     try (V4ManifestReader reader = newReader(badFile, UNPARTITIONED_SPECS).build()) {
       assertThatThrownBy(reader::allFiles)
           .isInstanceOf(IllegalArgumentException.class)
-          .hasMessageContaining("Unable to determine format of manifest");
+          .hasMessageContaining("Cannot determine format of manifest");
     }
   }
 

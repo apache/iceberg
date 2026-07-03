@@ -40,8 +40,17 @@ import org.apache.iceberg.util.StructProjection;
 
 /** Reader that reads a v4+ manifest file as {@link TrackedFile}s. */
 class V4ManifestReader extends CloseableGroup implements CloseableIterable<TrackedFile> {
-  // minimal tracking projection used when the caller does not request tracking
-  private static final Types.StructType STATUS_TRACKING = Types.StructType.of(Tracking.STATUS);
+  // Tracking fields read on the scan path. Omits the change-tracking fields (dv_snapshot_id,
+  // deleted_positions, replaced_positions) that a scan does not need. row_position backs
+  // Tracking.manifestPos.
+  private static final Types.StructType SCAN_TRACKING =
+      Types.StructType.of(
+          Tracking.STATUS,
+          Tracking.SNAPSHOT_ID,
+          Tracking.SEQUENCE_NUMBER,
+          Tracking.FILE_SEQUENCE_NUMBER,
+          Tracking.FIRST_ROW_ID,
+          MetadataColumns.ROW_POSITION);
 
   private final InputFile file;
   private final Types.StructType partitionType;
@@ -82,7 +91,7 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
     return files(true /* only live files */);
   }
 
-  /** Returns live tracked files, each as an independent copy. */
+  /** Returns live tracked files. Makes defensive copies before returning. */
   @Override
   public CloseableIterator<TrackedFile> iterator() {
     return CloseableIterable.transform(liveFiles(), TrackedFile::copy).iterator();
@@ -113,9 +122,7 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
     StructProjection projection = specId != null ? partitionProjections.get(specId) : null;
     Preconditions.checkState(
         evaluator != null && projection != null,
-        "Cannot apply partition filter: file %s has spec ID %s, not one of the known specs %s "
-            + "in manifest %s",
-        trackedFile.location(),
+        "Cannot apply partition filter: spec ID %s is not one of the known specs %s in manifest %s",
         specId,
         partitionEvaluators.keySet(),
         file.location());
@@ -135,7 +142,7 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
   private CloseableIterable<TrackedFile> open() {
     FileFormat format = FileFormat.fromFileName(file.location());
     Preconditions.checkArgument(
-        format != null, "Unable to determine format of manifest: %s", file.location());
+        format != null, "Cannot determine format of manifest: %s", file.location());
 
     CloseableIterable<TrackedFile> reader =
         InternalData.read(format, file)
@@ -163,27 +170,27 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
   }
 
   private Schema readSchema() {
-    // content_stats is not projected yet, so build the schema with an empty stats type
     Types.StructType fullType =
         TrackedFile.schemaWithContentStats(partitionType, Types.StructType.of());
     boolean unpartitioned = partitionType.fields().isEmpty();
 
     Set<Integer> projectedIds = null;
-    boolean fullTracking = true;
     if (fileProjection != null) {
       projectedIds =
           fileProjection.asStruct().fields().stream()
               .map(Types.NestedField::fieldId)
               .collect(Collectors.toCollection(Sets::newHashSet));
 
-      // read the full tracking struct only when the caller requests it; otherwise force-add a
-      // minimal tracking carrying just the status used to filter live files
-      fullTracking = projectedIds.contains(TrackedFile.TRACKING.fieldId());
+      // Always project tracking and content type. status drives live-file filtering, and content
+      // type distinguishes data, delete, and manifest-reference entries.
       projectedIds.add(TrackedFile.TRACKING.fieldId());
+      projectedIds.add(TrackedFile.CONTENT_TYPE.fieldId());
 
-      // project spec_id for partition filtering
+      // Force-project the remaining fields the partition filter reads, regardless of caller
+      // projection.
       if (!partitionEvaluators.isEmpty()) {
         projectedIds.add(TrackedFile.SPEC_ID.fieldId());
+        projectedIds.add(TrackedFile.PARTITION_ID);
       }
     }
 
@@ -198,10 +205,10 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
             Types.NestedField.required(
                 TrackedFile.TRACKING.fieldId(),
                 TrackedFile.TRACKING.name(),
-                fullTracking ? TrackingStruct.BASE_TYPE : STATUS_TRACKING,
+                SCAN_TRACKING,
                 TrackedFile.TRACKING.doc()));
       } else if (field.fieldId() == TrackedFile.CONTENT_STATS_ID) {
-        // content_stats are omitted for now
+        // content_stats are not projected yet
       } else if (field.fieldId() == TrackedFile.PARTITION_ID && unpartitioned) {
         // unpartitioned manifests omit the partition field
       } else {
