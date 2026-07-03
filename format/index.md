@@ -32,13 +32,14 @@ Indexes are optional. Engines may choose to create, maintain, consume, or ignore
 
 - Define a portable metadata format for indexes
 - Provide a common storage architecture for index data
-- Allow indexes to evolve independently from table metadata as catalog-managed objects
+- Expose indexes as catalog-managed objects
+- Allow indexes to be operated independently from source table metadata
 - Enable index sharing across engines
 - Provide a framework for defining new index types and transform functions
 
 ## Overview
 
-Indexes are stored as a collection of files with some Iceberg table like semantics. At a high level they consist of a tracking file (similar to a root manifest file) which contains listings for a defined set of leaf files (similar to data files.) Leaf files store an ordered set of rows containing at least a key and the path of a Iceberg Table data file and the position within that file where the row where that key is stored. The organization of leaf files is defined by an Indexing Transform which varies based on the type of index. This structure is recorded in an Index metadata.json file which contains a set of snapshots, each of which points to a single tracking file mapping to the complete state of an Iceberg table at a given Iceberg table snapshot.
+Indexes are stored as a collection of files with some Iceberg table like semantics. At a high level they consist of a tracking file (similar to a root manifest file) which contains listings for a defined set of leaf files (similar to data files.) Leaf files store an ordered set of rows containing at least a key and the path of a Iceberg Table data file and the position within that file where the row where that key is stored. The organization of leaf files is defined by an Index Transform Function which varies based on the type of index. This structure is recorded in an Index metadata.json file which contains a set of snapshots, each of which points to a single tracking file mapping to the complete state of an Iceberg table at a given Iceberg table snapshot.
 
 Like Iceberg tables, views, and functions:
 
@@ -72,45 +73,52 @@ This structure enables efficient planning while keeping the data layout flexible
 
 The index type defines the logical category of an index and the class of queries it is designed to accelerate.
 
-The following index type is defined in this specification:
+The metadata, snapshot, tracking-file, and leaf-file structures defined in this specification form a generic framework shared by all index types. Each index type builds on this framework by defining its type-specific details, such as the leaf schema and the applicable transform functions.
 
-| Type   |
-|--------|
-| SCALAR |
+The following index type is fully defined in this specification:
 
-The following index types are reserved for future specifications:
+| Type   | Description                                                      |
+|--------|------------------------------------------------------------------|
+| SCALAR | Maps scalar key values to their locations for equality lookups.  |
 
-| Type   |
-|--------|
-| VECTOR |
-| TERM   |
+The following index types are reserved for future specifications. Their identifiers are claimed so that engines and catalog implementations recognize them as valid type names and handle them gracefully, but this specification defines no type-specific requirements (leaf schema, transforms, or query semantics) for them:
+
+| Type   | Description                                              |
+|--------|----------------------------------------------------------|
+| VECTOR | Reserved for similarity search over vector embeddings.   |
+| TERM   | Reserved for text/term search.                           |
 
 The index type communicates the capabilities of an index to query engines and helps determine whether an index is
 applicable to a particular query.
 
 ### Index Transform Function
 
-The index transform function defines how the index organization key is derived from source table columns when rows are
-stored in the index.
+The index transform function defines how the transform value is derived from the key columns when rows are stored in the
+index. The following terms are used throughout this specification:
+
+- **Key columns**: the source-table columns the transform function is applied to.
+- **Transform value**: the value produced by applying the transform function to a row's key columns. Index entries are organized by transform value.
+- **Included columns**: optional source-table columns copied into the index for read convenience. They do not affect how the index is organized.
 
 The transform function determines the physical organization of the indexed data and therefore influences which query
 patterns can efficiently leverage the index.
 
-The following transform functions are defined in this specification:
+The following transform functions are defined in this specification. The bound interpretation describes what the
+transform-value bounds stored in the tracking file represent for each transform:
 
-| Transform |
-|-----------|
-| IDENTITY  |
-| HASH      |
-| HILBERT   |
+| Transform | Bound Interpretation |
+|-----------|----------------------|
+| IDENTITY  | Original value range |
+| HASH      | Hash bucket range    |
+| HILBERT   | Hilbert key range    |
 
 The following transform function is reserved for future specifications:
 
-| Transform |
-|-----------|
-| IVF       |
+| Transform | Bound Interpretation      |
+|-----------|---------------------------|
+| IVF       | Centroid identifier range |
 
-Index Instances may share the same index type while using different transform functions.
+An index type does not fix a single transform function; the same index type can be realized with different transform functions.
 
 ### Index Instance
 
@@ -121,9 +129,9 @@ Users create index instances by specifying:
 - The source table
 - The index type
 - The transform function
-- The indexed columns
-- The included columns
-- Index properties
+- The key columns
+- The included columns (optional)
+- Index properties (optional)
 
 Multiple instances of the same index type may exist for a table.
 
@@ -147,8 +155,8 @@ The index metadata file stores the index definition and snapshot history.
 | required    | location            | string                   | Index root location                             |
 | required    | type                | string                   | Logical index type                              |
 | required    | transform-function  | string                   | Physical organization transform                 |
-| required    | key-column-ids      | list<int>                | Indexed columns                                 |
-| optional    | included-column-ids | list<int>                | Included columns                                |
+| required    | key-column-ids      | list<int>                | Source-table column IDs the transform is applied to (key columns) |
+| optional    | included-column-ids | list<int>                | Source-table column IDs copied into the index for read convenience (included columns) |
 | optional    | properties          | map<string,string>       | Index properties applicable for every snapshot  |
 | optional    | current-snapshot-id | long                     | ID of the current index snapshot                |
 | required    | snapshots           | list<index-snapshot>     | Index snapshots                                 |
@@ -175,9 +183,9 @@ without scanning every leaf file.
 
 The tracking file may be stored using any supported metadata file format.
 
-### Tracking File Entry
+### Leaf File Entry
 
-Each tracking file contains a collection of tracking file entries. A tracking file entry describes a single leaf file
+Each tracking file contains a collection of leaf file entries. A leaf file entry describes a single leaf file
 tracked by an index snapshot. The fields are the subset of the V4 manifest entry fields that are relevant to planning
 queries against the index.
 Entries contain aggregated statistics for all referenced leaf files, enabling engines to perform pruning and planning
@@ -214,7 +222,13 @@ The schema of a leaf file is determined by the index definition and contains:
 - The source file path
 - The source row position
 
-### Transform functions
+Entries within a leaf file are sorted by transform value, then by the key columns. This lets a reader binary-search for a
+key within the leaf after selecting it from the tracking file, and groups all entries that share a key.
+
+### Transform value ranges
+
+This section describes how transform values organize leaf files. For the list of transform functions and their bound
+interpretations, see [Index Transform Function](#index-transform-function).
 
 The transform function produces a transform value for each indexed row. To enable efficient planning, the transform
 value space is divided into non-overlapping ranges. Each leaf file contains entries for a single range, while the
@@ -225,25 +239,10 @@ them.
 When a query predicate can be mapped to transform value ranges, engines can use these bounds to prune leaf files that
 cannot contain matching entries, avoiding unnecessary reads.
 
-A well-designed transform function also preserves locality between the source columns and the resulting transform value,
-allowing additional pruning using column statistics stored in the tracking file. For example, a Hilbert transform can
-cluster similar multi-column keys together, reducing the number of leaf files that must be read for range scans and
-partial-key lookups.
-
-The following transform functions are currently supported:
-
-| Transform | Bound Interpretation |
-|-----------|----------------------|
-| IDENTITY  | Original value range |
-| HASH      | Hash bucket range    |
-| HILBERT   | Hilbert key range    |
-
-The following transform type is reserved for future specifications:
-
-| Transform | Bound Interpretation       |
-|-----------|----------------------------|
-| IVF       | Centroid identifier range  |
-
+The effectiveness of this pruning depends on the transform and the query pattern. A transform that preserves locality
+between the source columns and the resulting transform value enables additional pruning using column statistics stored
+in the tracking file. For example, a Hilbert transform can cluster similar multi-column keys together, which can reduce
+the number of leaf files read for range scans and partial-key lookups.
 
 ### Leaf Schema
 
