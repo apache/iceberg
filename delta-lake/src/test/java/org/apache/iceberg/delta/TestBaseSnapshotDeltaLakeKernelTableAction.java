@@ -22,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.delta.kernel.Operation;
+import io.delta.kernel.Snapshot;
 import io.delta.kernel.Table;
 import io.delta.kernel.Transaction;
 import io.delta.kernel.TransactionBuilder;
@@ -269,12 +270,9 @@ public class TestBaseSnapshotDeltaLakeKernelTableAction {
     Engine engine = DefaultEngine.create(testHadoopConf);
     Table deltaTable = Table.forPath(engine, sourceTableLocation);
 
-    io.delta.kernel.internal.SnapshotImpl deltaSnapshot =
-        (io.delta.kernel.internal.SnapshotImpl) deltaTable.getLatestSnapshot(engine);
+    Snapshot deltaSnapshot = deltaTable.getLatestSnapshot(engine);
     assertThat(
-            deltaSnapshot
-                .getMetadata()
-                .getConfiguration()
+            InternalDeltaKernelUtils.metadataConfiguration(deltaSnapshot)
                 .getOrDefault("delta.enableDeletionVectors", "false"))
         .isEqualTo("true");
 

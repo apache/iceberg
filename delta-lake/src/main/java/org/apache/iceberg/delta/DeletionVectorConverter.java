@@ -19,10 +19,7 @@
 package org.apache.iceberg.delta;
 
 import io.delta.kernel.engine.Engine;
-import io.delta.kernel.internal.actions.DeletionVectorDescriptor;
-import io.delta.kernel.internal.deletionvectors.DeletionVectorUtils;
-import io.delta.kernel.internal.deletionvectors.RoaringBitmapArray;
-import io.delta.kernel.internal.util.Tuple2;
+import org.apache.iceberg.delta.InternalDeltaKernelUtils.DeltaAddFile;
 
 class DeletionVectorConverter {
   private final Engine engine;
@@ -33,10 +30,7 @@ class DeletionVectorConverter {
     this.tablePath = tablePath;
   }
 
-  public long[] readDeltaDVPositions(DeletionVectorDescriptor descriptor) {
-    Tuple2<DeletionVectorDescriptor, RoaringBitmapArray> tuple =
-        DeletionVectorUtils.loadNewDvAndBitmap(engine, tablePath, descriptor);
-
-    return tuple._2.toArray();
+  public long[] readDeltaDVPositions(DeltaAddFile addFile) {
+    return InternalDeltaKernelUtils.readDeltaDVPositions(engine, tablePath, addFile);
   }
 }

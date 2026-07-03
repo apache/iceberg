@@ -19,8 +19,6 @@
 package org.apache.iceberg.delta;
 
 import io.delta.kernel.data.Row;
-import io.delta.kernel.internal.actions.AddFile;
-import io.delta.kernel.internal.actions.RemoveFile;
 
 /**
  * Util class helps to handle json operations for <a
@@ -33,16 +31,8 @@ class DeltaLakeActionsTranslationUtil {
     return isNotNullAt(row, "add");
   }
 
-  public static AddFile toAdd(Row row) {
-    return new AddFile(row.getStruct(row.getSchema().indexOf("add")));
-  }
-
   public static boolean isRemove(Row row) {
     return isNotNullAt(row, "remove");
-  }
-
-  public static RemoveFile toRemove(Row row) {
-    return new RemoveFile(row.getStruct(row.getSchema().indexOf("remove")));
   }
 
   public static boolean isMetaData(Row row) {
