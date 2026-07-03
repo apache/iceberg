@@ -95,6 +95,7 @@ public class ShreddedObject implements VariantObject {
 
     // allow setting fields that are contained in unshredded. this avoids read-time failures and
     // simplifies replacing field values.
+    removedFields.remove(field);
     shreddedFields.put(field, value);
     this.serializationState = null;
   }
