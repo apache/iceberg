@@ -430,6 +430,50 @@ public class TestHiveViewCommits {
         .isEqualTo(1);
   }
 
+  /**
+   * Pretends the HMS client incorrectly reports a concurrent modification error even though the
+   * underlying alter actually succeeded, e.g. because the client retried an already-successful
+   * request due to a network issue. The commit should double-check the actual metadata location
+   * before giving up, find that the new location is already current, and complete without throwing.
+   */
+  @Test
+  public void modifiedConcurrentlyExceptionSucceedsWhenActuallyCommitted()
+      throws TException, InterruptedException {
+    HiveViewOperations ops = (HiveViewOperations) ((BaseView) view).operations();
+    ViewMetadata metadataV1 = ops.current();
+    assertThat(metadataV1.properties()).hasSize(0);
+
+    view.updateProperties().set("k1", "v1").commit();
+    ops.refresh();
+    ViewMetadata metadataV2 = ops.current();
+    assertThat(metadataV2.properties()).hasSize(1).containsEntry("k1", "v1");
+
+    HiveViewOperations spyOps = spy(ops);
+
+    // Persist for real, but then report a concurrent modification error as if the HMS client had
+    // incorrectly retried an already-successful alter_table call
+    doAnswer(
+            i -> {
+              org.apache.hadoop.hive.metastore.api.Table tbl =
+                  i.getArgument(0, org.apache.hadoop.hive.metastore.api.Table.class);
+              boolean updateHiveView = i.getArgument(1, Boolean.class);
+              String location = i.getArgument(2, String.class);
+              ops.persistTable(tbl, updateHiveView, location);
+              throw new RuntimeException(
+                  "MetaException(message:The table has been modified. The parameter value for key 'metadata_location' is");
+            })
+        .when(spyOps)
+        .persistTable(any(), anyBoolean(), any());
+
+    spyOps.commit(metadataV2, metadataV1);
+
+    ops.refresh();
+    assertThat(ops.current().metadataFileLocation())
+        .as("Commit should succeed once the double check finds the new location is current")
+        .isEqualTo(metadataV1.metadataFileLocation());
+    assertThat(ops.current().properties()).hasSize(0);
+  }
+
   @Test
   public void testLockExceptionUnknownSuccessCommit() throws TException, InterruptedException {
     HiveViewOperations ops = (HiveViewOperations) ((BaseView) view).operations();
