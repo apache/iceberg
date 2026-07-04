@@ -2077,26 +2077,38 @@ public class TestRewriteDataFilesAction extends TestBase {
     writeRecords(2, 4);
     table.refresh();
     shouldHaveFiles(table, 2);
+    long committedDataSequence = table.currentSnapshot().sequenceNumber();
 
     Result result = basicRewrite(table).execute();
     assertThat(result.rewrittenDataFilesCount()).isEqualTo(2);
     assertThat(result.addedDataFilesCount()).isOne();
+    table.refresh();
     shouldHaveFiles(table, 1);
 
-    DataFile rewrittenFile = Iterables.getOnlyElement(currentDataFiles(table));
-    long dataSequenceNumber = rewrittenFile.dataSequenceNumber();
-    assertThat(rewrittenFile.fileSequenceNumber()).isGreaterThan(dataSequenceNumber);
+    DataFile compactedFile = Iterables.getOnlyElement(currentDataFiles(table));
+    long dataSequenceNumber = compactedFile.dataSequenceNumber();
+    assertThat(dataSequenceNumber)
+        .as("Compaction must preserve the original data sequence number")
+        .isEqualTo(committedDataSequence);
+    assertThat(compactedFile.fileSequenceNumber())
+        .as("Compaction must bump the file sequence above the preserved data sequence")
+        .isGreaterThan(dataSequenceNumber);
 
     table.updateProperties().set(TableProperties.FORMAT_VERSION, "3").commit();
-    table.newFastAppend().commit();
+    table.rewriteManifests().rewriteIf(manifest -> true).commit();
     table.refresh();
 
-    List<Object[]> recordsWithLineage = currentDataWithLineage();
-    assertThat(recordsWithLineage).hasSize(4);
-    assertThat(recordsWithLineage.stream().map(record -> (Long) record[0]))
-        .containsExactlyElementsOf(LongStream.range(0, 4).boxed().collect(Collectors.toList()));
-    assertThat(recordsWithLineage.stream().map(record -> (Long) record[1]))
-        .allMatch(sequenceNumber -> sequenceNumber.equals(dataSequenceNumber));
+    List<Object[]> expectedLineage =
+        Lists.newArrayList(
+            row(0L, dataSequenceNumber, ANY, ANY, ANY),
+            row(1L, dataSequenceNumber, ANY, ANY, ANY),
+            row(2L, dataSequenceNumber, ANY, ANY, ANY),
+            row(3L, dataSequenceNumber, ANY, ANY, ANY));
+
+    assertEquals(
+        "Row IDs must be 0..3 and last-updated must inherit the data sequence",
+        expectedLineage,
+        currentDataWithLineage());
   }
 
   @TestTemplate
