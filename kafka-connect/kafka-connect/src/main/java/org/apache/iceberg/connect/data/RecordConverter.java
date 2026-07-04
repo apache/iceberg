@@ -81,8 +81,12 @@ import org.apache.iceberg.variants.Variants;
 import org.apache.kafka.connect.data.Field;
 import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.errors.ConnectException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 class RecordConverter {
+
+  private static final Logger LOG = LoggerFactory.getLogger(RecordConverter.class);
 
   private static final ObjectMapper MAPPER = new ObjectMapper();
 
@@ -255,11 +259,19 @@ class RecordConverter {
                     hasSchemaUpdates = true;
                   }
                 }
+                Object recordFieldValue = struct.get(recordField);
+                if (recordFieldValue == null && schemaUpdateConsumer != null && !hasSchemaUpdates) {
+                  evolveSchemaFromConnectSchema(
+                      recordField.schema(),
+                      tableField.type(),
+                      tableField.fieldId(),
+                      schemaUpdateConsumer);
+                }
                 if (!hasSchemaUpdates) {
                   result.setField(
                       tableField.name(),
                       convertValue(
-                          struct.get(recordField),
+                          recordFieldValue,
                           tableField.type(),
                           tableField.fieldId(),
                           schemaUpdateConsumer));
@@ -267,6 +279,87 @@ class RecordConverter {
               }
             });
     return result;
+  }
+
+  /**
+   * Recursively traverses the Connect schema and emits all evolution events (addColumn, updateType,
+   * and makeOptional) at every nested level.
+   *
+   * <p>Unlike {@link #convertToStruct(Struct, StructType, int, SchemaUpdate.Consumer)} which skips
+   * a field's children once an update is detected (deferring nested discovery to re-conversion),
+   * this method always recurses through the full schema.
+   */
+  private void evolveSchemaFromConnectSchema(
+      org.apache.kafka.connect.data.Schema recordSchema,
+      Type tableType,
+      int tableFieldId,
+      SchemaUpdate.Consumer schemaUpdateConsumer) {
+    if (recordSchema == null) {
+      return;
+    }
+    switch (recordSchema.type()) {
+      case STRUCT:
+        if (tableType.isStructType()) {
+          StructType structType = tableType.asStructType();
+          for (Field field : recordSchema.fields()) {
+            NestedField nestedField = lookupStructField(field.name(), structType, tableFieldId);
+            if (nestedField == null) {
+              String parentFieldName =
+                  tableFieldId < 0 ? null : tableSchema.findColumnName(tableFieldId);
+              Type type = SchemaUtils.toIcebergType(field.schema(), config);
+              schemaUpdateConsumer.addColumn(parentFieldName, field.name(), type);
+            } else {
+              PrimitiveType evolveDataType =
+                  SchemaUtils.needsDataTypeUpdate(nestedField.type(), field.schema());
+              if (evolveDataType != null) {
+                String fieldName = tableSchema.findColumnName(nestedField.fieldId());
+                schemaUpdateConsumer.updateType(fieldName, evolveDataType);
+              }
+              if (nestedField.isRequired() && field.schema().isOptional()) {
+                String fieldName = tableSchema.findColumnName(nestedField.fieldId());
+                schemaUpdateConsumer.makeOptional(fieldName);
+              }
+              evolveSchemaFromConnectSchema(
+                  field.schema(), nestedField.type(), nestedField.fieldId(), schemaUpdateConsumer);
+            }
+          }
+        } else {
+          logMismatchedType(recordSchema.type(), tableType);
+        }
+        break;
+      case ARRAY:
+        if (tableType.isListType()) {
+          ListType listType = tableType.asListType();
+          evolveSchemaFromConnectSchema(
+              recordSchema.valueSchema(),
+              listType.elementType(),
+              listType.elementId(),
+              schemaUpdateConsumer);
+        } else {
+          logMismatchedType(recordSchema.type(), tableType);
+        }
+        break;
+      case MAP:
+        if (tableType.isMapType()) {
+          MapType mapType = tableType.asMapType();
+          evolveSchemaFromConnectSchema(
+              recordSchema.valueSchema(),
+              mapType.valueType(),
+              mapType.valueId(),
+              schemaUpdateConsumer);
+        } else {
+          logMismatchedType(recordSchema.type(), tableType);
+        }
+        break;
+      default:
+        break;
+    }
+  }
+
+  private void logMismatchedType(
+      org.apache.kafka.connect.data.Schema.Type recordSchemaType, Type tableType) {
+    LOG.warn(
+        "Record schema of type {} does not match table of type {}", recordSchemaType, tableType);
   }
 
   private NestedField lookupStructField(String fieldName, StructType schema, int structFieldId) {
