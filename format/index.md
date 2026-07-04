@@ -39,7 +39,7 @@ Indexes are optional. Engines may choose to create, maintain, consume, or ignore
 
 ## Overview
 
-Indexes are stored as a collection of files with some Iceberg table like semantics. At a high level they consist of a tracking file (similar to a root manifest file) which contains listings for a defined set of leaf files (similar to data files.) Leaf files store an ordered set of rows containing at least a key and the path of a Iceberg Table data file and the position within that file where the row where that key is stored. The organization of leaf files is defined by an Index Transform Function which varies based on the type of index. This structure is recorded in an Index metadata.json file which contains a set of snapshots, each of which points to a single tracking file mapping to the complete state of an Iceberg table at a given Iceberg table snapshot.
+Indexes are stored as a collection of files with some Iceberg table like semantics. At a high level they consist of a tracking file (similar to a root manifest file) which contains listings for a defined set of leaf files (similar to data files.) Leaf files store an ordered set of rows, each containing at least a key, the path of the Iceberg table data file, and the position within that file where the row for that key is stored. The organization of leaf files is defined by an Index Transform Function which varies based on the type of index. This structure is recorded in an Index metadata.json file which contains a set of snapshots, each of which points to a single tracking file mapping to the complete state of an Iceberg table at a given Iceberg table snapshot.
 
 Like Iceberg tables, views, and functions:
 
@@ -75,7 +75,7 @@ The index type defines the logical category of an index and the class of queries
 
 The metadata, snapshot, tracking-file, and leaf-file structures defined in this specification form a generic framework shared by all index types. Each index type builds on this framework by defining its type-specific details, such as the leaf schema and the applicable transform functions.
 
-The following index type is fully defined in this specification:
+The following index type is defined in this specification:
 
 | Type   | Description                                                      |
 |--------|------------------------------------------------------------------|
@@ -110,12 +110,12 @@ transform-value bounds stored in the tracking file represent for each transform:
 |-----------|----------------------|
 | IDENTITY  | Original value range |
 | HASH      | Hash bucket range    |
-| HILBERT   | Hilbert key range    |
 
-The following transform function is reserved for future specifications:
+The following transform functions are reserved for future specifications:
 
 | Transform | Bound Interpretation      |
 |-----------|---------------------------|
+| HILBERT   | Hilbert key range         |
 | IVF       | Centroid identifier range |
 
 An index type does not fix a single transform function; the same index type can be realized with different transform functions.
@@ -183,9 +183,9 @@ without scanning every leaf file.
 
 The tracking file may be stored using any supported metadata file format.
 
-### Leaf File Entry
+### Tracking File Entry
 
-Each tracking file contains a collection of leaf file entries. A leaf file entry describes a single leaf file
+Each tracking file contains a collection of tracking file entries. A tracking file entry describes a single leaf file
 tracked by an index snapshot. The fields are the subset of the V4 manifest entry fields that are relevant to planning
 queries against the index.
 Entries contain aggregated statistics for all referenced leaf files, enabling engines to perform pruning and planning
@@ -217,7 +217,7 @@ Leaf files must be standard Iceberg data files and may be stored using any Icebe
 
 The schema of a leaf file is determined by the index definition and contains:
 - All key columns defined by the index
-- All included columns defined by the index
+- Any included columns defined by the index
 - The transform value produced by the transform function
 - The source file path
 - The source row position
