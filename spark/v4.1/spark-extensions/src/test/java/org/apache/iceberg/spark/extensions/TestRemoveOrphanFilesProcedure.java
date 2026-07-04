@@ -749,4 +749,61 @@ public class TestRemoveOrphanFilesProcedure extends ExtensionsTestBase {
     // Dropping the table here
     sql("DROP TABLE %s", tableName);
   }
+
+  @TestTemplate
+  public void testRemoveOrphanFilesFileListViewDoesNotMatchSiblingPaths()
+      throws NoSuchTableException, ParseException, IOException {
+    if (catalogName.equals("testhadoop")) {
+      sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
+    } else {
+      sql(
+          "CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg LOCATION '%s'",
+          tableName, java.nio.file.Files.createTempDirectory(temp, "junit"));
+    }
+    Table table = Spark3Util.loadIcebergTable(spark, tableName);
+    String tableLocation = table.location();
+    // The sibling path has the table location as a raw string prefix, e.g. /tmp/abc-sibling when
+    // table is at /tmp/abc. Without the trailing-slash fix, startsWith(tableLocation) would
+    // incorrectly match files under this sibling path.
+    String siblingPath = tableLocation + "-sibling";
+
+    Timestamp lastModifiedTimestamp = new Timestamp(10000);
+    String orphanFile = tableLocation + "/orphan.parquet";
+    String siblingFile = siblingPath + "/data.parquet";
+
+    List<FilePathLastModifiedRecord> allFiles = Lists.newArrayList();
+    allFiles.add(new FilePathLastModifiedRecord(orphanFile, lastModifiedTimestamp));
+    allFiles.add(new FilePathLastModifiedRecord(siblingFile, lastModifiedTimestamp));
+    allFiles.add(
+        new FilePathLastModifiedRecord(
+            ReachableFileUtil.versionHintLocation(table), lastModifiedTimestamp));
+    for (String metaFile : ReachableFileUtil.metadataFileLocations(table, true)) {
+      allFiles.add(new FilePathLastModifiedRecord(metaFile, lastModifiedTimestamp));
+    }
+
+    Dataset<Row> compareToFileList =
+        spark
+            .createDataFrame(allFiles, FilePathLastModifiedRecord.class)
+            .withColumnRenamed("filePath", "file_path")
+            .withColumnRenamed("lastModified", "last_modified");
+    String fileListViewName = "files_view";
+    compareToFileList.createOrReplaceTempView(fileListViewName);
+
+    List<Object[]> orphanFiles =
+        sql(
+            "CALL %s.system.remove_orphan_files("
+                + "table => '%s',"
+                + "dry_run => true,"
+                + "file_list_view => '%s')",
+            catalogName, tableIdent, fileListViewName);
+
+    assertThat(orphanFiles)
+        .as("Files under sibling path must not be identified as orphans for this table")
+        .extracting(row -> row[0])
+        .doesNotContain(siblingFile);
+    assertThat(orphanFiles)
+        .as("Orphan file under the table location must be identified")
+        .extracting(row -> row[0])
+        .contains(orphanFile);
+  }
 }
