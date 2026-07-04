@@ -49,7 +49,7 @@ public class TestBigQueryMetastoreCatalog {
   private BigQueryMetastoreCatalog newCatalog(BigQueryMetastoreClient client) {
     BigQueryMetastoreCatalog catalog = new BigQueryMetastoreCatalog();
     catalog.setConf(new Configuration());
-    String warehouseLocation = tempFolder.toPath().resolve("hive-warehouse").toString();
+    String warehouseLocation = tempFolder.toPath().resolve("bigquery-warehouse").toString();
 
     catalog.initialize(
         "CATALOG_ID",
@@ -75,8 +75,8 @@ public class TestBigQueryMetastoreCatalog {
     boolean removed = catalog.removeProperties(NAMESPACE, ImmutableSet.of("key"));
 
     assertThat(removed).isTrue();
-    // client.removeParameters() already checks namespace existence internally, so
-    // removeProperties() must not perform a separate existence check of its own.
+    // BigQueryMetastoreClientImpl.removeParameters already checks namespace existence,
+    // so BigQueryMetastoreCatalog.removeProperties should not duplicate that check.
     verify(client, times(1)).load(any(DatasetReference.class));
   }
 
