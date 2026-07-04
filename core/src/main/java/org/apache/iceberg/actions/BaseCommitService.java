@@ -199,7 +199,7 @@ abstract class BaseCommitService<T> implements Closeable {
     Preconditions.checkArgument(
         !timeout && completedRewrites.isEmpty(),
         "Timeout occurred when waiting for commits to complete. "
-            + "{} file groups committed. {} file groups remain uncommitted. "
+            + "%s file groups committed. %s file groups remain uncommitted. "
             + "Retry this operation to attempt rewriting the failed groups.",
         committedRewrites.size(),
         completedRewrites.size());
