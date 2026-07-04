@@ -99,7 +99,6 @@ public class ColumnStatsWatermarkExtractor implements SplitWatermarkExtractor, S
                       && scanTask.file().lowerBounds().get(eventTimeFieldId) != null,
                   "Missing statistics for column name = %s in file = %s",
                   eventTimeFieldName,
-                  eventTimeFieldId,
                   scanTask.file());
               return timeUnit.toMillis(
                   Conversions.fromByteBuffer(

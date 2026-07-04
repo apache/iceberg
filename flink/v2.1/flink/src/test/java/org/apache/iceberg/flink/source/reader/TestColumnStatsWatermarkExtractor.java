@@ -180,11 +180,14 @@ public class TestColumnStatsWatermarkExtractor {
     assumeThat(columnName).isEqualTo("timestamp_column");
 
     // Create an extractor for a column we do not have statistics
+    IcebergSourceSplit split = split(0);
     ColumnStatsWatermarkExtractor extractor =
         new ColumnStatsWatermarkExtractor(10, "missing_field");
-    assertThatThrownBy(() -> extractor.extractWatermark(split(0)))
+    assertThatThrownBy(() -> extractor.extractWatermark(split))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Missing statistics for column");
+        .hasMessage(
+            "Missing statistics for column name = missing_field in file = "
+                + split.task().files().iterator().next().file());
   }
 
   private IcebergSourceSplit split(int id) throws IOException {
