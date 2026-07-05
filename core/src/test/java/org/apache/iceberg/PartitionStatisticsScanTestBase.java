@@ -824,6 +824,37 @@ public abstract class PartitionStatisticsScanTestBase extends PartitionStatistic
         .containsExactlyInAnyOrder(partitionRecord(partitionType, "foo", "B"));
   }
 
+  @Test
+  public void testCaseInsensitiveFilterWithProjectionOnColumnOutsideProjection() throws Exception {
+    Table testTable = tableWithUnevenPartitions("scan_filter_ci_projection");
+
+    // Project only data_record_count, then filter case-insensitively on an uppercase reference to
+    // data_file_count, which is not part of the projection. The scan must bind the filter
+    // case-insensitively, read the filter column even though it is not projected, and return the
+    // matching partition. This exercises the case-insensitive path alongside the projection/filter
+    // schema union.
+    Schema projection =
+        new Schema(
+            PartitionStatistics.EMPTY_PARTITION_FIELD, PartitionStatistics.DATA_RECORD_COUNT);
+
+    List<PartitionStatistics> results;
+    try (CloseableIterable<PartitionStatistics> recordIterator =
+        testTable
+            .newPartitionStatisticsScan()
+            .filter(Expressions.greaterThan("DATA_FILE_COUNT", 2L))
+            .caseSensitive(false)
+            .project(projection)
+            .scan()) {
+      results = Lists.newArrayList(recordIterator);
+    }
+
+    Types.StructType partitionType = Partitioning.partitionType(testTable);
+
+    assertThat(results)
+        .extracting(PartitionStatistics::partition)
+        .containsExactlyInAnyOrder(partitionRecord(partitionType, "foo", "A"));
+  }
+
   private Table tableWithTwoPartitions(String name) throws IOException {
     Table testTable = TestTables.create(tempDir(name), name, SCHEMA, SPEC, 2, fileFormatProperty);
 
