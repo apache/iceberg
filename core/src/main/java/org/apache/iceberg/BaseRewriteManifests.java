@@ -98,13 +98,14 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
   protected Map<String, String> summary() {
     int createdManifestsCount =
         newManifests.size() + addedManifests.size() + rewrittenAddedManifests.size();
-    summaryBuilder.set(
+    summaryBuilder.setInternal(
         SnapshotSummary.CREATED_MANIFESTS_COUNT, String.valueOf(createdManifestsCount));
-    summaryBuilder.set(SnapshotSummary.KEPT_MANIFESTS_COUNT, String.valueOf(keptManifests.size()));
-    summaryBuilder.set(
+    summaryBuilder.setInternal(
+        SnapshotSummary.KEPT_MANIFESTS_COUNT, String.valueOf(keptManifests.size()));
+    summaryBuilder.setInternal(
         SnapshotSummary.REPLACED_MANIFESTS_COUNT,
         String.valueOf(rewrittenManifests.size() + deletedManifests.size()));
-    summaryBuilder.set(
+    summaryBuilder.setInternal(
         SnapshotSummary.PROCESSED_MANIFEST_ENTRY_COUNT, String.valueOf(entryCount.get()));
     summaryBuilder.setPartitionSummaryLimit(
         0); // do not include partition summaries because data did not change
