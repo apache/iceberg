@@ -250,6 +250,31 @@ public class TestSnapshotChanges {
   }
 
   @Test
+  public void testMultiSnapshotUnionForRemovedDeleteFiles() {
+    DataFile fileA = newDataFile("/path/to/A.parquet");
+    table.newFastAppend().appendFile(fileA).commit();
+
+    DeleteFile delA = newDeleteFile("/path/to/A-deletes.parquet");
+    DeleteFile delB = newDeleteFile("/path/to/B-deletes.parquet");
+    table.newRowDelta().addDeletes(delA).addDeletes(delB).commit();
+
+    table.newRowDelta().removeDeletes(delA).commit();
+    Snapshot removeDelA = table.currentSnapshot();
+    table.newRowDelta().removeDeletes(delB).commit();
+    Snapshot removeDelB = table.currentSnapshot();
+
+    SnapshotChanges union =
+        SnapshotChanges.builderFor(table, ImmutableList.of(removeDelA, removeDelB)).build();
+
+    // exercise the cached removedDeleteFiles() path; only the streaming variant was covered before
+    Iterable<DeleteFile> first = union.removedDeleteFiles();
+    Iterable<DeleteFile> second = union.removedDeleteFiles();
+    assertThat(first).isSameAs(second);
+    assertThat(paths(first))
+        .containsExactlyInAnyOrder(delA.path().toString(), delB.path().toString());
+  }
+
+  @Test
   public void testStreamingAccessorsForMultiSnapshotChanges() throws Exception {
     DataFile fileA = newDataFile("/path/to/A.parquet");
     DataFile fileB = newDataFile("/path/to/B.parquet");
