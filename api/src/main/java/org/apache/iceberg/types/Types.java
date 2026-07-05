@@ -897,13 +897,44 @@ public class Types {
         throw new IllegalArgumentException(
             String.format("Invalid default value for %s: %s (must be null)", type, defaultValue));
       } else if (defaultValue != null) {
+        // Check before conversion so non-finite double-to-float defaults fail clearly instead of
+        // converting to AboveMax or BelowMin sentinels.
+        validateFloatingDefault(type, defaultValue, defaultValue);
         Literal<?> typedDefault = defaultValue.to(type);
         Preconditions.checkArgument(
             typedDefault != null, "Cannot cast default value to %s: %s", type, defaultValue);
+        validateFloatingDefault(type, typedDefault, defaultValue);
         return typedDefault;
       }
 
       return null;
+    }
+
+    private static void validateFloatingDefault(
+        Type type, Literal<?> defaultValue, Literal<?> originalDefault) {
+      if (type.typeId() == Type.TypeID.FLOAT || type.typeId() == Type.TypeID.DOUBLE) {
+        Object value;
+        try {
+          value = defaultValue.value();
+        } catch (UnsupportedOperationException e) {
+          throw new IllegalArgumentException(
+              String.format("Cannot cast default value to %s: %s", type, originalDefault), e);
+        }
+
+        if (value instanceof Float floatDefault) {
+          Preconditions.checkArgument(
+              Float.isFinite(floatDefault),
+              "Invalid default value for %s: %s (must be finite)",
+              type,
+              originalDefault);
+        } else if (value instanceof Double doubleDefault) {
+          Preconditions.checkArgument(
+              Double.isFinite(doubleDefault),
+              "Invalid default value for %s: %s (must be finite)",
+              type,
+              originalDefault);
+        }
+      }
     }
 
     public boolean isOptional() {
