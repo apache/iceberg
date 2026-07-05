@@ -199,6 +199,36 @@ public class TestSnapshotChanges {
   }
 
   @Test
+  public void testMultiSnapshotDoesNotDoubleCountSharedAncestorManifests() throws Exception {
+    DataFile fileA = newDataFile("/path/to/A.parquet");
+    DataFile fileB = newDataFile("/path/to/B.parquet");
+    DataFile fileC = newDataFile("/path/to/C.parquet");
+
+    // Fast appends chain the snapshots: snap2 sees snap1's manifest and snap3 sees both.
+    // Attribution by ManifestFile#snapshotId() must emit each file exactly once.
+    table.newFastAppend().appendFile(fileA).commit();
+    Snapshot snap1 = table.currentSnapshot();
+    table.newFastAppend().appendFile(fileB).commit();
+    Snapshot snap2 = table.currentSnapshot();
+    table.newFastAppend().appendFile(fileC).commit();
+    Snapshot snap3 = table.currentSnapshot();
+
+    SnapshotChanges union =
+        SnapshotChanges.builderFor(table, ImmutableList.of(snap1, snap2, snap3)).build();
+
+    // Assert on the raw List, not the Set: a dedup regression would grow this beyond 3.
+    List<DataFile> cached = Lists.newArrayList(union.addedDataFiles());
+    assertThat(cached).hasSize(3);
+    assertThat(paths(cached))
+        .containsExactlyInAnyOrder(
+            fileA.path().toString(), fileB.path().toString(), fileC.path().toString());
+
+    try (CloseableIterable<DataFile> streamed = union.readAddedDataFiles()) {
+      assertThat(Lists.newArrayList(streamed)).hasSize(3);
+    }
+  }
+
+  @Test
   public void testMultiSnapshotUnionForDeleteFiles() {
     DataFile fileA = newDataFile("/path/to/A.parquet");
     table.newFastAppend().appendFile(fileA).commit();
