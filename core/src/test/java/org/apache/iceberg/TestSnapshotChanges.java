@@ -20,6 +20,7 @@ package org.apache.iceberg;
 
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
 import java.util.List;
@@ -363,6 +364,37 @@ public class TestSnapshotChanges {
     SnapshotChanges changes = SnapshotChanges.builderFor(table, ancestorsAfterSnap1).build();
 
     assertThat(paths(changes.addedDataFiles())).containsExactlyInAnyOrderElementsOf(viaDeprecated);
+  }
+
+  @Test
+  public void testBuilderForTableWithNoCurrentSnapshotFailsOnBuild() {
+    // Fresh table has no current snapshot, so builderFor(table) configures no snapshots.
+    assertThatThrownBy(() -> SnapshotChanges.builderFor(table).build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Snapshots cannot be empty");
+  }
+
+  @Test
+  public void testSnapshotsNullRejected() {
+    assertThatThrownBy(() -> SnapshotChanges.builderFor(table).snapshots(null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Snapshots cannot be null");
+  }
+
+  @Test
+  public void testEmptySnapshotsRejected() {
+    assertThatThrownBy(
+            () -> SnapshotChanges.builderFor(table, ImmutableList.<Snapshot>of()).build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Snapshots cannot be empty");
+  }
+
+  @Test
+  public void testNullSnapshotInListRejected() {
+    List<Snapshot> withNull = Lists.newArrayList((Snapshot) null);
+    assertThatThrownBy(() -> SnapshotChanges.builderFor(table, withNull).build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Snapshot cannot be null");
   }
 
   private static DataFile newDataFile(String path) {
