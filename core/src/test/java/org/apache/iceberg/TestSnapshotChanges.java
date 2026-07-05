@@ -230,6 +230,26 @@ public class TestSnapshotChanges {
   }
 
   @Test
+  public void testDuplicateSnapshotsAreDeduplicated() {
+    DataFile fileA = newDataFile("/path/to/A.parquet");
+    DataFile fileB = newDataFile("/path/to/B.parquet");
+
+    table.newFastAppend().appendFile(fileA).commit();
+    Snapshot snap1 = table.currentSnapshot();
+    table.newFastAppend().appendFile(fileB).commit();
+    Snapshot snap2 = table.currentSnapshot();
+
+    // Same snapshot supplied multiple times must not double-count its files.
+    SnapshotChanges union =
+        SnapshotChanges.builderFor(table, ImmutableList.of(snap1, snap1, snap2, snap2)).build();
+
+    List<DataFile> added = Lists.newArrayList(union.addedDataFiles());
+    assertThat(added).hasSize(2);
+    assertThat(paths(added))
+        .containsExactlyInAnyOrder(fileA.path().toString(), fileB.path().toString());
+  }
+
+  @Test
   public void testMultiSnapshotUnionForDeleteFiles() {
     DataFile fileA = newDataFile("/path/to/A.parquet");
     table.newFastAppend().appendFile(fileA).commit();

@@ -30,6 +30,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.ParallelIterable;
 import org.apache.iceberg.util.ThreadPools;
@@ -49,7 +50,7 @@ import org.apache.iceberg.util.ThreadPools;
  *
  * <p>Each manifest is attributed to exactly one snapshot via {@link ManifestFile#snapshotId()}, so
  * the multi-snapshot path never reads the same manifest twice even when the configured snapshots
- * share an ancestor chain.
+ * share an ancestor chain. Duplicate snapshots are deduplicated by snapshot id.
  */
 public class SnapshotChanges {
   private final List<Snapshot> snapshots;
@@ -71,10 +72,14 @@ public class SnapshotChanges {
     Preconditions.checkArgument(!snapshots.isEmpty(), "Snapshots cannot be empty");
     Preconditions.checkArgument(io != null, "FileIO cannot be null");
     Preconditions.checkArgument(specsById != null, "Partition specs cannot be null");
+    // Dedup by snapshot id (first occurrence wins) so a manifest is never read twice when the
+    // same snapshot is passed more than once.
+    Map<Long, Snapshot> distinct = Maps.newLinkedHashMap();
     for (Snapshot snapshot : snapshots) {
       Preconditions.checkArgument(snapshot != null, "Snapshot cannot be null");
+      distinct.putIfAbsent(snapshot.snapshotId(), snapshot);
     }
-    this.snapshots = ImmutableList.copyOf(snapshots);
+    this.snapshots = ImmutableList.copyOf(distinct.values());
     this.io = io;
     this.specsById = specsById;
     this.executorService = executorService;
