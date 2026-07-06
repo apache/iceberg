@@ -281,7 +281,7 @@ Leaf Schema:
 | file_path        |
 | position         |
 
-The leaf files are organized by hash key, while the tracking file stores summary information and pruning statistics.
+The leaf files are organized by transform value, while the tracking file stores summary information and pruning statistics.
 
 ## Snapshot Evolution
 
