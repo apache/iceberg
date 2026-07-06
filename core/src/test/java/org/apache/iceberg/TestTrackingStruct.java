@@ -499,10 +499,10 @@ class TestTrackingStruct {
   @Test
   void testReaderSideFields() {
     TrackingStruct tracking = new TrackingStruct();
-    tracking.setManifestLocation("s3://bucket/metadata/manifest.avro");
+    tracking.setManifestLocation("s3://bucket/metadata/manifest.parquet");
     tracking.set(MANIFEST_POS_ORDINAL, 7L);
 
-    assertThat(tracking.manifestLocation()).isEqualTo("s3://bucket/metadata/manifest.avro");
+    assertThat(tracking.manifestLocation()).isEqualTo("s3://bucket/metadata/manifest.parquet");
     assertThat(tracking.manifestPos()).isEqualTo(7L);
   }
 

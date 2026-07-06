@@ -66,7 +66,7 @@ class TestTrackedFileStruct {
           .build();
 
   @Test
-  void testFieldAccess() {
+  void fieldAccess() {
     TrackedFileStruct file =
         new TrackedFileStruct(
             TRACKING,
@@ -104,7 +104,7 @@ class TestTrackedFileStruct {
   }
 
   @Test
-  void testSetByPosition() {
+  void setByPosition() {
     TrackedFileStruct file = new TrackedFileStruct();
     file.set(pos("tracking"), TRACKING);
     file.set(pos("content_type"), FileContent.DATA.id());
@@ -140,7 +140,7 @@ class TestTrackedFileStruct {
   }
 
   @Test
-  void testGetByPosition() {
+  void getByPosition() {
     TrackedFileStruct file =
         new TrackedFileStruct(
             TRACKING,
@@ -180,7 +180,7 @@ class TestTrackedFileStruct {
   }
 
   @Test
-  void testCopy() {
+  void copy() {
     TrackedFileStruct file =
         new TrackedFileStruct(
             TRACKING,
@@ -225,7 +225,7 @@ class TestTrackedFileStruct {
   }
 
   @Test
-  void testProjectedStructLike() {
+  void projectedStructLike() {
     // project only location (field ID 100) and file_size_in_bytes (field ID 104)
     Types.StructType projection =
         Types.StructType.of(TrackedFile.LOCATION, TrackedFile.FILE_SIZE_IN_BYTES);
@@ -243,15 +243,14 @@ class TestTrackedFileStruct {
   }
 
   @Test
-  void testStructLikeSize() {
+  void structLikeSize() {
     TrackedFileStruct file = new TrackedFileStruct();
     assertThat(file.size()).isEqualTo(16);
   }
 
   @ParameterizedTest
   @MethodSource("org.apache.iceberg.TestHelpers#serializers")
-  void testSerializationRoundTrip(RoundTripSerializer<TrackedFileStruct> serializer)
-      throws Exception {
+  void serializationRoundTrip(RoundTripSerializer<TrackedFileStruct> serializer) throws Exception {
     TrackedFileStruct file =
         new TrackedFileStruct(
             TRACKING,
