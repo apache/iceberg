@@ -284,8 +284,7 @@ final class HiveViewOperations extends BaseViewOperations implements HiveOperati
   }
 
   private Table newHMSView(ViewMetadata metadata) {
-    // createTime and lastAccessTime are HMS Thrift i32 fields (epoch seconds), so the value must be
-    // narrowed to int here; the width is dictated by the metastore protocol and cannot be widened.
+    // epoch seconds; HMS Thrift stores these as i32
     final int currentTimeSeconds = (int) (System.currentTimeMillis() / 1000L);
     String hmsTableOwner =
         PropertyUtil.propertyAsString(

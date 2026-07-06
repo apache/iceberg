@@ -101,7 +101,7 @@ public class TestHiveViewCatalog extends ViewCatalogTests<HiveCatalog> {
   }
 
   @Test
-  public void newViewSetsCurrentHmsLastAccessTime() throws Exception {
+  public void newViewSetsCurrentHmsLastAccessTime() throws TException {
     String dbName = "hivedb";
     Namespace ns = Namespace.of(dbName);
     TableIdentifier identifier = TableIdentifier.of(ns, "create_time_view");
