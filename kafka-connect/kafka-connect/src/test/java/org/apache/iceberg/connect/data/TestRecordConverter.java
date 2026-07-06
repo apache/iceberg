@@ -676,6 +676,7 @@ public class TestRecordConverter {
             expectedMillis,
             new Date(expectedMillis),
             OffsetDateTime.ofInstant(Instant.ofEpochMilli(expectedMillis), ZoneOffset.UTC),
+            ZonedDateTime.ofInstant(Instant.ofEpochMilli(expectedMillis), ZoneOffset.UTC),
             LocalDateTime.ofInstant(Instant.ofEpochMilli(expectedMillis), ZoneOffset.UTC));
 
     assertTimestampConvert(expected, inputList, type);
