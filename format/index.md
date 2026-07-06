@@ -39,7 +39,7 @@ Indexes are optional. Engines may choose to create, maintain, consume, or ignore
 
 ## Overview
 
-Indexes are stored as a collection of files with some Iceberg table like semantics. At a high level they consist of a tracking file (similar to a root manifest file) which contains listings for a defined set of leaf files (similar to data files.) Leaf files store an ordered set of rows, each containing at least a key, the path of the Iceberg table data file, and the position within that file where the row for that key is stored. The organization of leaf files is defined by an Index Transform Function which varies based on the type of index. This structure is recorded in an Index metadata.json file which contains a set of snapshots, each of which points to a single tracking file mapping to the complete state of an Iceberg table at a given Iceberg table snapshot.
+Indexes are stored as a collection of files with some Iceberg table like semantics. At a high level they consist of a tracking file (similar to a root manifest file) which contains listings for a defined set of leaf files (similar to data files). Leaf files store an ordered set of rows, each containing at least a key, the path of the Iceberg table data file, and the position within that file where the row for that key is stored. The organization of leaf files is defined by an Index Transform Function which varies based on the type of index. This structure is recorded in an Index metadata.json file which contains a set of snapshots, each of which points to a single tracking file mapping to the complete state of an Iceberg table at a given Iceberg table snapshot.
 
 Like Iceberg tables, views, and functions:
 
