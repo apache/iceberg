@@ -265,6 +265,57 @@ public class TestCloseableIterable {
   }
 
   @Test
+  public void filterWithKeepAndSkipObservers() {
+    Counter kept = new DefaultMetricsContext().counter("kept");
+    Counter skipped = new DefaultMetricsContext().counter("skipped");
+    List<Integer> keptItems = Lists.newArrayList();
+    List<Integer> skippedItems = Lists.newArrayList();
+    CloseableIterable<Integer> items =
+        CloseableIterable.filter(
+            CloseableIterable.withNoopClose(Arrays.asList(1, 2, 3, 4, 5)),
+            x -> x % 2 == 0,
+            x -> {
+              kept.increment();
+              keptItems.add(x);
+            },
+            x -> {
+              skipped.increment();
+              skippedItems.add(x);
+            });
+
+    assertThat(items).containsExactly(2, 4);
+
+    assertThat(kept.value()).isEqualTo(2);
+    assertThat(keptItems).containsExactly(2, 4);
+
+    assertThat(skipped.value()).isEqualTo(3);
+    assertThat(skippedItems).containsExactly(1, 3, 5);
+  }
+
+  @Test
+  public void filterWithObserversNullCheck() {
+    Predicate<Integer> pred = x -> true;
+    assertThatThrownBy(() -> CloseableIterable.filter(null, pred, x -> {}, x -> {}))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid iterable: null");
+
+    assertThatThrownBy(
+            () -> CloseableIterable.filter(CloseableIterable.empty(), null, x -> {}, x -> {}))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid predicate: null");
+
+    assertThatThrownBy(
+            () -> CloseableIterable.filter(CloseableIterable.empty(), pred, null, x -> {}))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid onKeep consumer: null");
+
+    assertThatThrownBy(
+            () -> CloseableIterable.filter(CloseableIterable.empty(), pred, x -> {}, null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid onSkip consumer: null");
+  }
+
+  @Test
   public void transformNullCheck() {
     assertThatThrownBy(() -> CloseableIterable.transform(CloseableIterable.empty(), null))
         .isInstanceOf(NullPointerException.class)
