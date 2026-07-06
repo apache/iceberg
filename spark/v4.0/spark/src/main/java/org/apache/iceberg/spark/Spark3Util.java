@@ -900,7 +900,7 @@ public class Spark3Util {
         new InMemoryFileIndex(
             spark,
             JavaConverters.collectionAsScalaIterableConverter(scanRoots).asScala().toSeq(),
-            basePathParameters(basePath),
+            basePathParameters(basePath, scanRoots),
             Option.empty(), // Pass empty so that automatic schema inference is used
             fileStatusCache,
             Option.empty(),
@@ -960,7 +960,7 @@ public class Spark3Util {
         new InMemoryFileIndex(
             spark,
             JavaConverters.collectionAsScalaIterableConverter(scanRoots).asScala().toSeq(),
-            basePathParameters(basePath),
+            basePathParameters(basePath, scanRoots),
             userSpecifiedSchema,
             fileStatusCache,
             Option.empty(),
@@ -1037,21 +1037,7 @@ public class Spark3Util {
           break;
         }
         String value = remaining.remove(columnName);
-        String expected = columnName + "=" + value;
-        List<Path> next = Lists.newArrayList();
-        for (Path parent : current) {
-          FileStatus[] siblings;
-          try {
-            siblings = fs.listStatus(parent);
-          } catch (IOException e) {
-            continue;
-          }
-          for (FileStatus status : siblings) {
-            if (status.isDirectory() && status.getPath().getName().equals(expected)) {
-              next.add(status.getPath());
-            }
-          }
-        }
+        List<Path> next = collectMatchingChildren(fs, current, columnName + "=" + value);
         if (next.isEmpty()) {
           // filter did not match any directory at this level; let downstream fail with the usual
           // "no matching partitions" error against the original root
@@ -1064,6 +1050,25 @@ public class Spark3Util {
       return Pair.of(ImmutableList.of(rootPath), partitionFilter);
     }
     return Pair.of(current, remaining);
+  }
+
+  private static List<Path> collectMatchingChildren(
+      FileSystem fs, List<Path> parents, String expectedName) {
+    List<Path> matched = Lists.newArrayList();
+    for (Path parent : parents) {
+      FileStatus[] siblings;
+      try {
+        siblings = fs.listStatus(parent);
+      } catch (IOException e) {
+        continue;
+      }
+      for (FileStatus status : siblings) {
+        if (status.isDirectory() && status.getPath().getName().equals(expectedName)) {
+          matched.add(status.getPath());
+        }
+      }
+    }
+    return matched;
   }
 
   private static String detectPartitionColumn(FileSystem fs, Path parent) {
@@ -1084,8 +1089,12 @@ public class Spark3Util {
     return null;
   }
 
-  private static scala.collection.immutable.Map<String, String> basePathParameters(Path basePath) {
-    if (basePath == null) {
+  private static scala.collection.immutable.Map<String, String> basePathParameters(
+      Path basePath, List<Path> scanRoots) {
+    // Only pin basePath when we actually pruned scan roots below it. When the single scan root
+    // equals basePath, letting Spark auto-detect keeps the old behavior — importantly, it does
+    // not require basePath to be a directory (e.g. add_files can point at a single Avro file).
+    if (basePath == null || (scanRoots.size() == 1 && scanRoots.get(0).equals(basePath))) {
       return Map$.MODULE$.empty();
     }
     Builder<Tuple2<String, String>, scala.collection.immutable.Map<String, String>> builder =
