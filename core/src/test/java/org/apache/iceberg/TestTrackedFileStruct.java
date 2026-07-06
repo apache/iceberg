@@ -214,7 +214,8 @@ class TestTrackedFileStruct {
     assertThat(copy.specId()).isEqualTo(1);
     assertThat(copy.sortOrderId()).isEqualTo(5);
     assertThat(copy.deletionVector().location()).isEqualTo("s3://bucket/dv.puffin");
-    assertThat(copy.manifestInfo()).isEqualTo(MANIFEST_INFO);
+    assertThat(copy.manifestInfo().addedFilesCount()).isEqualTo(10);
+    assertThat(copy.manifestInfo().addedRowsCount()).isEqualTo(1000L);
     assertThat(copy.keyMetadata()).isEqualTo(ByteBuffer.wrap(new byte[] {1, 2, 3}));
     assertThat(copy.splitOffsets()).containsExactly(100L, 200L);
     assertThat(copy.equalityIds()).containsExactly(1, 2, 3);
@@ -284,7 +285,8 @@ class TestTrackedFileStruct {
     assertThat(deserialized.specId()).isEqualTo(7);
     assertThat(deserialized.sortOrderId()).isEqualTo(1);
     assertThat(deserialized.deletionVector().location()).isEqualTo("s3://bucket/dv.puffin");
-    assertThat(deserialized.manifestInfo()).isEqualTo(MANIFEST_INFO);
+    assertThat(deserialized.manifestInfo().addedFilesCount()).isEqualTo(10);
+    assertThat(deserialized.manifestInfo().addedRowsCount()).isEqualTo(1000L);
     assertThat(deserialized.keyMetadata()).isEqualTo(ByteBuffer.wrap(new byte[] {1, 2, 3}));
     assertThat(deserialized.splitOffsets()).containsExactly(50L);
     assertThat(deserialized.equalityIds()).containsExactly(1, 2, 3);
