@@ -226,11 +226,9 @@ public abstract class TestMetrics {
     assertCounts(5, 2L, 1L, 0L, metrics);
     assertBounds(5, DoubleType.get(), 2.0D, 2.0D, metrics);
     assertCounts(6, 2L, 1L, metrics);
-    assertBounds(
-        6, DecimalType.of(10, 2), new BigDecimal("3.50"), new BigDecimal("3.50"), metrics);
+    assertBounds(6, DecimalType.of(10, 2), new BigDecimal("3.50"), new BigDecimal("3.50"), metrics);
     assertCounts(7, 2L, 0L, metrics);
-    assertBounds(
-        7, StringType.get(), CharBuffer.wrap("AAA"), CharBuffer.wrap("ZZZ"), metrics);
+    assertBounds(7, StringType.get(), CharBuffer.wrap("AAA"), CharBuffer.wrap("ZZZ"), metrics);
     assertCounts(8, 2L, 1L, metrics);
     assertBounds(8, DateType.get(), 1500, 1500, metrics);
     assertCounts(9, 2L, 0L, metrics);
@@ -239,11 +237,7 @@ public abstract class TestMetrics {
     assertBounds(10, TimestampType.withoutZone(), 0L, 900L, metrics);
     assertCounts(11, 2L, 0L, metrics);
     assertBounds(
-        11,
-        FixedType.ofLength(4),
-        ByteBuffer.wrap(fixed),
-        ByteBuffer.wrap(fixed),
-        metrics);
+        11, FixedType.ofLength(4), ByteBuffer.wrap(fixed), ByteBuffer.wrap(fixed), metrics);
     assertCounts(12, 2L, 0L, metrics);
     assertBounds(
         12,
@@ -279,14 +273,11 @@ public abstract class TestMetrics {
     Metrics metrics = getMetrics(schema, record);
     assertThat(metrics.recordCount()).isEqualTo(1);
     assertCounts(1, 1L, 0L, metrics);
-    assertBounds(
-        1, DecimalType.of(4, 2), new BigDecimal("2.55"), new BigDecimal("2.55"), metrics);
+    assertBounds(1, DecimalType.of(4, 2), new BigDecimal("2.55"), new BigDecimal("2.55"), metrics);
     assertCounts(2, 1L, 0L, metrics);
-    assertBounds(
-        2, DecimalType.of(14, 2), new BigDecimal("4.75"), new BigDecimal("4.75"), metrics);
+    assertBounds(2, DecimalType.of(14, 2), new BigDecimal("4.75"), new BigDecimal("4.75"), metrics);
     assertCounts(3, 1L, 0L, metrics);
-    assertBounds(
-        3, DecimalType.of(22, 2), new BigDecimal("5.80"), new BigDecimal("5.80"), metrics);
+    assertBounds(3, DecimalType.of(22, 2), new BigDecimal("5.80"), new BigDecimal("5.80"), metrics);
   }
 
   @TestTemplate
@@ -500,11 +491,7 @@ public abstract class TestMetrics {
     assertBounds(5, Types.DoubleType.get(), 2.0D, 201.0D, metrics);
     assertCounts(6, 201L, 1L, metrics);
     assertBounds(
-        6,
-        Types.DecimalType.of(10, 2),
-        new BigDecimal("2.00"),
-        new BigDecimal("201.00"),
-        metrics);
+        6, Types.DecimalType.of(10, 2), new BigDecimal("2.00"), new BigDecimal("201.00"), metrics);
   }
 
   @TestTemplate
@@ -614,8 +601,7 @@ public abstract class TestMetrics {
     assertThat(metrics.columnSizes()).doesNotContainValue(null);
     assertThat(metrics.columnSizes()).isNotEmpty();
     assertCounts(1, 1L, 0L, metrics);
-    assertBounds(
-        1, Types.IntegerType.get(), Integer.MAX_VALUE, Integer.MAX_VALUE, metrics);
+    assertBounds(1, Types.IntegerType.get(), Integer.MAX_VALUE, Integer.MAX_VALUE, metrics);
     assertCounts(3, 1L, 0L, metrics);
     assertBounds(3, Types.LongType.get(), 100L, 100L, metrics);
     assertCounts(5, 1L, 0L, metrics);
@@ -736,13 +722,8 @@ public abstract class TestMetrics {
     assertBounds(2, IntegerType.get(), Integer.MIN_VALUE, Integer.MAX_VALUE, metrics);
     assertBounds(3, LongType.get(), Long.MIN_VALUE, Long.MAX_VALUE, metrics);
     assertBounds(
-        6,
-        DecimalType.of(10, 2),
-        new BigDecimal("0.00"),
-        new BigDecimal("10.00"),
-        metrics);
-    assertBounds(
-        7, StringType.get(), CharBuffer.wrap("AAA"), CharBuffer.wrap("ZZZ"), metrics);
+        6, DecimalType.of(10, 2), new BigDecimal("0.00"), new BigDecimal("10.00"), metrics);
+    assertBounds(7, StringType.get(), CharBuffer.wrap("AAA"), CharBuffer.wrap("ZZZ"), metrics);
     assertBounds(8, DateType.get(), 1500, 3000, metrics);
   }
 
@@ -774,17 +755,12 @@ public abstract class TestMetrics {
     assertBounds(5, LongType.get(), Long.MAX_VALUE, Long.MAX_VALUE, metrics);
   }
 
-  protected void assertCounts(
-      int fieldId, Long valueCount, Long nullValueCount, Metrics metrics) {
+  protected void assertCounts(int fieldId, Long valueCount, Long nullValueCount, Metrics metrics) {
     assertCounts(fieldId, valueCount, nullValueCount, null, metrics);
   }
 
   protected void assertCounts(
-      int fieldId,
-      Long valueCount,
-      Long nullValueCount,
-      Long nanValueCount,
-      Metrics metrics) {
+      int fieldId, Long valueCount, Long nullValueCount, Long nanValueCount, Metrics metrics) {
     assertThat(metrics.valueCounts().get(fieldId)).isEqualTo(valueCount);
     assertThat(metrics.nullValueCounts().get(fieldId)).isEqualTo(nullValueCount);
     assertThat(metrics.nanValueCounts().get(fieldId)).isEqualTo(nanValueCount);
