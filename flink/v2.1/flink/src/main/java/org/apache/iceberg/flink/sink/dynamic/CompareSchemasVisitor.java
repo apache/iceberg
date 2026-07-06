@@ -166,7 +166,6 @@ public class CompareSchemasVisitor
   }
 
   @Override
-  @SuppressWarnings("checkstyle:CyclomaticComplexity")
   public Result primitive(Type.PrimitiveType primitive, Integer tableSchemaId) {
     if (tableSchemaId == null) {
       return Result.SCHEMA_UPDATE_NEEDED;
@@ -180,25 +179,41 @@ public class CompareSchemasVisitor
     Type.PrimitiveType tableSchemaPrimitiveType = tableSchemaType.asPrimitiveType();
     if (primitive.equals(tableSchemaPrimitiveType)) {
       return Result.SAME;
-    } else if (primitive.equals(Types.IntegerType.get())
-        && tableSchemaPrimitiveType.equals(Types.LongType.get())) {
+    } else if (isDataConversionPossible(primitive, tableSchemaPrimitiveType)) {
       return Result.DATA_CONVERSION_NEEDED;
-    } else if (primitive.equals(Types.FloatType.get())
-        && tableSchemaPrimitiveType.equals(Types.DoubleType.get())) {
-      return Result.DATA_CONVERSION_NEEDED;
-    } else if (primitive.equals(Types.DateType.get())
-        && tableSchemaPrimitiveType.equals(Types.TimestampType.withoutZone())) {
-      return Result.DATA_CONVERSION_NEEDED;
-    } else if (primitive.typeId() == Type.TypeID.DECIMAL
-        && tableSchemaPrimitiveType.typeId() == Type.TypeID.DECIMAL) {
-      Types.DecimalType dataType = (Types.DecimalType) primitive;
-      Types.DecimalType tableType = (Types.DecimalType) tableSchemaPrimitiveType;
-      return dataType.scale() == tableType.scale() && dataType.precision() < tableType.precision()
-          ? Result.DATA_CONVERSION_NEEDED
-          : Result.SCHEMA_UPDATE_NEEDED;
     } else {
       return Result.SCHEMA_UPDATE_NEEDED;
     }
+  }
+
+  /**
+   * Whether {@link DataConverter} can convert input data of type {@code dataType} into the table's
+   * {@code tableType}. Must stay in sync with the conversions {@link DataConverter#get} performs.
+   */
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
+  static boolean isDataConversionPossible(
+      Type.PrimitiveType dataType, Type.PrimitiveType tableType) {
+    if (dataType.equals(Types.IntegerType.get()) && tableType.equals(Types.LongType.get())) {
+      return true;
+    }
+
+    if (dataType.equals(Types.FloatType.get()) && tableType.equals(Types.DoubleType.get())) {
+      return true;
+    }
+
+    if (dataType.equals(Types.DateType.get())
+        && tableType.equals(Types.TimestampType.withoutZone())) {
+      return true;
+    }
+
+    if (dataType.typeId() == Type.TypeID.DECIMAL && tableType.typeId() == Type.TypeID.DECIMAL) {
+      Types.DecimalType dataDecimalType = (Types.DecimalType) dataType;
+      Types.DecimalType tableDecimalType = (Types.DecimalType) tableType;
+      return dataDecimalType.scale() == tableDecimalType.scale()
+          && dataDecimalType.precision() < tableDecimalType.precision();
+    }
+
+    return false;
   }
 
   static class PartnerIdByNameAccessors implements PartnerAccessors<Integer> {

@@ -25,7 +25,6 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.schema.SchemaWithPartnerVisitor;
 import org.apache.iceberg.types.Type;
-import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -212,15 +211,15 @@ public class EvolveSchemaVisitor extends SchemaWithPartnerVisitor<Integer, Boole
     String existingColumnName = this.existingSchema.findColumnName(existingField.fieldId());
 
     boolean needsOptionalUpdate = targetField.isOptional() && existingField.isRequired();
-    boolean narrowingHandledByConversion =
+    boolean handledByDataConversion =
         existingField.type().isPrimitiveType()
             && targetField.type().isPrimitiveType()
-            && TypeUtil.isPromotionAllowed(
-                targetField.type(), existingField.type().asPrimitiveType());
+            && CompareSchemasVisitor.isDataConversionPossible(
+                targetField.type().asPrimitiveType(), existingField.type().asPrimitiveType());
     boolean needsTypeUpdate =
         targetField.type().isPrimitiveType()
             && !targetField.type().equals(existingField.type())
-            && !narrowingHandledByConversion;
+            && !handledByDataConversion;
     boolean needsDocUpdate =
         targetField.doc() != null && !targetField.doc().equals(existingField.doc());
 

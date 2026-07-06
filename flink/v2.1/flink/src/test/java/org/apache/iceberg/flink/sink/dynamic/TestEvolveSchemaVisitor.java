@@ -508,6 +508,22 @@ public class TestEvolveSchemaVisitor {
   }
 
   @Test
+  public void testAddColumnWithResidualDateToTimestampDoesNotFail() {
+    Schema currentSchema = new Schema(required(1, "ts", Types.TimestampType.withoutZone()));
+    Schema targetSchema =
+        new Schema(required(1, "ts", Types.DateType.get()), optional(2, "age", IntegerType.get()));
+
+    UpdateSchema updateApi = loadUpdateApi(currentSchema);
+    EvolveSchemaVisitor.visit(
+        TABLE, updateApi, currentSchema, targetSchema, CASE_SENSITIVE, PRESERVE_COLUMNS);
+    Schema applied = updateApi.apply();
+
+    assertThat(applied.findField("ts").type()).isEqualTo(Types.TimestampType.withoutZone());
+    assertThat(applied.findField("age")).isNotNull();
+    assertThat(applied.findField("age").type()).isEqualTo(IntegerType.get());
+  }
+
+  @Test
   // decimal(P,S) Fixed-point decimal; precision P, scale S -> Scale is fixed [1], precision must be
   // 38 or less
   public void testTypePromoteDecimalToFixedScaleWithWiderPrecision() {
