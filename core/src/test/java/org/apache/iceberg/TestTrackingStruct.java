@@ -50,6 +50,7 @@ class TestTrackingStruct {
       TRACKING_FIELDS.indexOf(Tracking.DELETED_POSITIONS);
   private static final int REPLACED_POSITIONS_ORDINAL =
       TRACKING_FIELDS.indexOf(Tracking.REPLACED_POSITIONS);
+  private static final int MANIFEST_POS_ORDINAL = TRACKING_FIELDS.size();
 
   @Test
   void testFieldAccess() {
@@ -493,6 +494,16 @@ class TestTrackingStruct {
     assertThat(tracking.firstRowId()).isEqualTo(1000L);
     assertThat(tracking.deletedPositions()).isEqualTo(ByteBuffer.wrap(new byte[] {1, 2}));
     assertThat(tracking.replacedPositions()).isEqualTo(ByteBuffer.wrap(new byte[] {3, 4}));
+  }
+
+  @Test
+  void testReaderSideFields() {
+    TrackingStruct tracking = new TrackingStruct();
+    tracking.setManifestLocation("s3://bucket/metadata/manifest.avro");
+    tracking.set(MANIFEST_POS_ORDINAL, 7L);
+
+    assertThat(tracking.manifestLocation()).isEqualTo("s3://bucket/metadata/manifest.avro");
+    assertThat(tracking.manifestPos()).isEqualTo(7L);
   }
 
   @Test

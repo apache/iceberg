@@ -93,30 +93,6 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking, Serial
       Long firstRowId,
       byte[] deletedPositions,
       byte[] replacedPositions) {
-    this(
-        status,
-        snapshotId,
-        dataSequenceNumber,
-        fileSequenceNumber,
-        dvSnapshotId,
-        firstRowId,
-        deletedPositions,
-        replacedPositions,
-        null,
-        -1L);
-  }
-
-  TrackingStruct(
-      EntryStatus status,
-      Long snapshotId,
-      Long dataSequenceNumber,
-      Long fileSequenceNumber,
-      Long dvSnapshotId,
-      Long firstRowId,
-      byte[] deletedPositions,
-      byte[] replacedPositions,
-      String manifestLocation,
-      long manifestPos) {
     super(BASE_TYPE.fields().size());
     this.status = status;
     this.snapshotId = snapshotId;
@@ -126,8 +102,6 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking, Serial
     this.firstRowId = firstRowId;
     this.deletedPositions = deletedPositions;
     this.replacedPositions = replacedPositions;
-    this.manifestLocation = manifestLocation;
-    this.manifestPos = manifestPos;
   }
 
   void inheritFrom(Tracking manifestTracking) {
