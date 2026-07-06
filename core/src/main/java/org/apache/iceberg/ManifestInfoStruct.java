@@ -21,6 +21,7 @@ package org.apache.iceberg;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.Objects;
 import org.apache.iceberg.avro.SupportsIndexProjection;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -237,6 +238,44 @@ class ManifestInfoStruct extends SupportsIndexProjection implements ManifestInfo
 
   static Builder builder() {
     return new Builder();
+  }
+
+  @Override
+  public boolean equals(Object other) {
+    if (this == other) {
+      return true;
+    } else if (!(other instanceof ManifestInfoStruct)) {
+      return false;
+    }
+
+    ManifestInfoStruct that = (ManifestInfoStruct) other;
+    return addedFilesCount == that.addedFilesCount
+        && existingFilesCount == that.existingFilesCount
+        && deletedFilesCount == that.deletedFilesCount
+        && replacedFilesCount == that.replacedFilesCount
+        && addedRowsCount == that.addedRowsCount
+        && existingRowsCount == that.existingRowsCount
+        && deletedRowsCount == that.deletedRowsCount
+        && replacedRowsCount == that.replacedRowsCount
+        && minSequenceNumber == that.minSequenceNumber
+        && Arrays.equals(dv, that.dv)
+        && Objects.equals(dvCardinality, that.dvCardinality);
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(
+        addedFilesCount,
+        existingFilesCount,
+        deletedFilesCount,
+        replacedFilesCount,
+        addedRowsCount,
+        existingRowsCount,
+        deletedRowsCount,
+        replacedRowsCount,
+        minSequenceNumber,
+        Arrays.hashCode(dv),
+        dvCardinality);
   }
 
   @Override
