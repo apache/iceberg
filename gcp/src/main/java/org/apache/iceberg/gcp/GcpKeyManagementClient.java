@@ -19,6 +19,7 @@
 package org.apache.iceberg.gcp;
 
 import com.google.api.gax.core.FixedCredentialsProvider;
+import com.google.api.gax.core.NoCredentialsProvider;
 import com.google.auth.oauth2.OAuth2Credentials;
 import com.google.cloud.kms.v1.DecryptRequest;
 import com.google.cloud.kms.v1.DecryptResponse;
@@ -35,6 +36,7 @@ import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.encryption.KeyManagementClient;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.CloseableGroup;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.util.SerializableMap;
 
 /**
@@ -101,7 +103,8 @@ public class GcpKeyManagementClient implements KeyManagementClient {
     }
   }
 
-  private KeyManagementServiceClient kmsClient() {
+  @VisibleForTesting
+  KeyManagementServiceClient kmsClient() {
     if (kmsClient == null) {
       synchronized (this) {
         if (kmsClient == null) {
@@ -114,9 +117,11 @@ public class GcpKeyManagementClient implements KeyManagementClient {
               OAuth2Credentials oAuth2Credentials =
                   GCPAuthUtils.oauth2CredentialsFromGcpProperties(gcpProperties, closeableGroup);
               kmsBuilder.setCredentialsProvider(FixedCredentialsProvider.create(oAuth2Credentials));
+            } else if (gcpProperties.noAuth()) {
+              kmsBuilder.setCredentialsProvider(NoCredentialsProvider.create());
             }
 
-            // if not OAuth then defaults to GoogleCredentials.getApplicationDefault()
+            // if not (OAuth or no-auth) then defaults to GoogleCredentials.getApplicationDefault()
             this.kmsClient = KeyManagementServiceClient.create(kmsBuilder.build());
             closeableGroup.addCloseable(kmsClient);
 
