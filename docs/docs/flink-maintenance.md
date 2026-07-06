@@ -28,8 +28,8 @@ Iceberg provides API to rewrite small files into large files by submitting Flink
 import org.apache.iceberg.flink.actions.Actions;
 
 TableLoader tableLoader = TableLoader.fromCatalog(
-    CatalogLoader.hive("my_catalog", configuration, properties),
-    TableIdentifier.of("database", "table")
+        CatalogLoader.hive("my_catalog", configuration, properties),
+        TableIdentifier.of("database", "table")
 );
 
 Table table = tableLoader.loadTable();
@@ -58,7 +58,7 @@ Removes old snapshots and their files. Internally uses `cleanExpiredFiles(true)`
 ```java
 .add(ExpireSnapshots.builder()
     .maxSnapshotAge(Duration.ofDays(7))
-    .retainLast(10)
+        .retainLast(10)
     .deleteBatchSize(1000))
 ```
 
@@ -79,8 +79,46 @@ Used to remove files which are not referenced in any metadata files of an Iceber
 ```java
 .add(DeleteOrphanFiles.builder()
     .minAge(Duration.ofDays(3))
-    .deleteBatchSize(1000))
+        .deleteBatchSize(1000))
 ```
+
+#### ConvertEqualityDeletes
+Converts equality delete files staged on a source branch into deletion vectors (DVs) on the target branch. Requires table format version >= 3 (which introduces DVs). This is typically used together with the Flink `IcebergSink`, which writes new data files and equality deletes to a staging branch; the converter then resolves the equality deletes into row-position DVs and commits the data files together with the DVs to the target branch.
+
+The pipeline runs a single conversion cycle for every trigger event. Internally it is split into parallel stages (planner → reader → PK index → DV writer → committer), and it uses the same maintenance-framework lock as other tasks to guarantee mutual exclusion with concurrent maintenance operations (e.g. compaction) on the same table.
+
+```java
+.add(ConvertEqualityDeletes.builder()
+    .stagingBranch("staging")
+    .equalityFieldColumns(ImmutableList.of("id"))
+    .scheduleOnEqDeleteFileCount(10)
+    .parallelism(4))
+```
+
+Notes:
+
+**Prerequisites and staging-branch layout**
+
+- Table format version must be `>= 3` (the version that introduces deletion vectors). This is validated at job startup so a wrongly-configured job fails fast instead of silently doing nothing.
+- The staging branch is expected to be produced by the Flink `IcebergSink` in V3 mode: it may contain new data files, equality delete files, and deletion vectors, but **must not** contain V2 positional delete files. The planner throws if it encounters any V2 positional delete on the staging branch.
+- The staging branch **must not remove data files**, i.e. do not run compaction / rewrite on the staging branch. If a staging snapshot removes data files, the cycle fails; run `RewriteDataFiles` on the target branch instead — the shared maintenance lock keeps it safe alongside this task.
+- `equalityFieldColumns` is required, must be non-empty, and must match the equality field columns the writer used to produce the staged equality delete files (see `IcebergSink.Builder#equalityFieldColumns`). Every staged equality delete file's `equalityFieldIds` must exactly equal this set; a mismatch fails the cycle. The partition source columns of every staged equality delete's spec must also be a subset of these equality columns.
+
+**Branch semantics**
+
+- When `stagingBranch` and `targetBranch` are different, the converter reads eq-deletes from the staging branch and commits the resolved data files and DVs to the target branch. The staging branch itself is not modified by this task.
+- When `stagingBranch == targetBranch`, the converter operates in-place: it acts as an equality-delete-to-DV compaction on that single branch. On cold start it walks the entire branch history so eq-deletes committed before the converter started are still picked up. Pure-insert snapshots on the shared branch are skipped without running a full cycle.
+- Only one **oldest unprocessed** staging snapshot is processed per trigger. If the writer produces staging snapshots faster than the converter can process them, they queue up on the staging branch. Configure `scheduleOnInterval` / `scheduleOnEqDeleteFileCount` / `scheduleOnCommitCount` (and `TableMaintenance.rateLimit`) accordingly to keep up with the ingestion rate.
+
+**State and restart**
+
+- The PK-index worker keeps a keyed row-position index of the target branch in Flink state. Its size scales with the number of live rows in the table for the configured equality columns; size Flink state backend, checkpoint storage, and TaskManager memory accordingly.
+- The `equalityFieldColumns` set is persisted in operator state. Reconfiguring it across a restart from savepoint is **not supported** and the job will fail fast on restore. Restart from a clean state (no savepoint) if the equality columns change.
+- The committer is intentionally stateless. On restart, the planner rediscovers its position by walking the target branch for the marker property `equality-convert-staging-snapshot` written by the committer. If that marker is no longer reachable on the target branch (target was rolled back, replace-main'ed, or the marker snapshot was expired) the planner fails and requires manual intervention.
+
+**Concurrent commits on the target branch**
+
+- External commits to the target branch (e.g. compaction, direct writes) are detected by `RowDelta.validateFromSnapshot`. A conflicting cycle fails at commit; the next trigger reindexes the worker's PK index from the new target head and retries.
 
 ### Lock Management
 
@@ -239,6 +277,17 @@ env.execute("Table Maintenance Job");
 | `minAge(Duration)`                       | Remove orphan files created before this timestamp                                                                                                                                                                                                                                                                                                                       | 3 days ago              | Duration           |
 | `planningWorkerPoolSize(int)`            | Number of worker threads for planning snapshot expiration                                                                                                                                                                                                                                                                                                               | Shared worker pool      | int                |
 
+#### ConvertEqualityDeletes Configuration
+
+| Method                               | Description                                                                                                                                                                                          | Default Value | Type |
+|--------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------|------|
+| `stagingBranch(String)`              | Source branch that holds the equality delete files and their associated data files. **Required.**                                                                                                    | None | String |
+| `targetBranch(String)`               | Target branch where converted data files and DVs are committed.                                                                                                                                      | `main` | String |
+| `equalityFieldColumns(List<String>)` | Equality field column names used to build the primary key index. Must match the equality field columns used by the writer (see `IcebergSink.Builder#equalityFieldColumns`). **Required, non-empty.** | None | List&lt;String&gt; |
+
+!!! note
+`ConvertEqualityDeletes` requires table format version >= 3 (deletion vectors).
+
 ### Complete Example
 
 ```java
@@ -246,53 +295,53 @@ public class TableMaintenanceJob {
     public static void main(String[] args) throws Exception {
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         env.enableCheckpointing(60000); // Enable checkpointing
-  
+
         // Configure table loader
         TableLoader tableLoader = TableLoader.fromCatalog(
-            CatalogLoader.hive("my_catalog", configuration),
-            TableIdentifier.of("database", "table")
+                CatalogLoader.hive("my_catalog", configuration),
+                TableIdentifier.of("database", "table")
         );
-  
+
         // Set up JDBC lock factory
         Map<String, String> jdbcProps = new HashMap<>();
         jdbcProps.put("jdbc.user", "flink");
         jdbcProps.put("jdbc.password", "flinkpw");
         jdbcProps.put("flink-maintenance.lock.jdbc.init-lock-tables", "true");
-  
+
         TriggerLockFactory lockFactory = new JdbcLockFactory(
-            "jdbc:postgresql://localhost:5432/iceberg",
-            "catalog.db.table",
-            jdbcProps
+                "jdbc:postgresql://localhost:5432/iceberg",
+                "catalog.db.table",
+                jdbcProps
         );
-  
+
         // Set up maintenance with comprehensive configuration
         TableMaintenance.forTable(env, tableLoader, lockFactory)
-            .uidSuffix("production-maintenance")
-            .rateLimit(Duration.ofMinutes(15))
-            .lockCheckDelay(Duration.ofSeconds(30))
-            .parallelism(4)
-  
-            // Daily snapshot cleanup
-            .add(ExpireSnapshots.builder()
-                .maxSnapshotAge(Duration.ofDays(7))
-                .retainLast(10))
-  
-            // Continuous file optimization
-            .add(RewriteDataFiles.builder()
-                .targetFileSizeBytes(256 * 1024 * 1024)
-                .minFileSizeBytes(32 * 1024 * 1024)
-                .scheduleOnDataFileCount(20)
-                .partialProgressEnabled(true)
-                .partialProgressMaxCommits(5)
-                .maxRewriteBytes(2L * 1024 * 1024 * 1024)
-                .parallelism(6))
+                .uidSuffix("production-maintenance")
+                .rateLimit(Duration.ofMinutes(15))
+                .lockCheckDelay(Duration.ofSeconds(30))
+                .parallelism(4)
 
-            // Delete orphans files created more than five days ago
-            .add(DeleteOrphanFiles.builder()
-                        .minAge(Duration.ofDays(5)))  
-  
-            .append();
-  
+                // Daily snapshot cleanup
+                .add(ExpireSnapshots.builder()
+                        .maxSnapshotAge(Duration.ofDays(7))
+                        .retainLast(10))
+
+                // Continuous file optimization
+                .add(RewriteDataFiles.builder()
+                        .targetFileSizeBytes(256 * 1024 * 1024)
+                        .minFileSizeBytes(32 * 1024 * 1024)
+                        .scheduleOnDataFileCount(20)
+                        .partialProgressEnabled(true)
+                        .partialProgressMaxCommits(5)
+                        .maxRewriteBytes(2L * 1024 * 1024 * 1024)
+                        .parallelism(6))
+
+                // Delete orphans files created more than five days ago
+                .add(DeleteOrphanFiles.builder()
+                        .minAge(Duration.ofDays(5)))
+
+                .append();
+
         env.execute("Iceberg Table Maintenance");
     }
 }
@@ -312,12 +361,12 @@ IcebergSink.forRowData(dataStream)
     .tableLoader(tableLoader)
     .rewriteDataFiles(Map.of(
         RewriteDataFilesConfig.MAX_BYTES, "1073741824"))
-    .expireSnapshots(Map.of(
-        ExpireSnapshotsConfig.RETAIN_LAST, "5",
-        ExpireSnapshotsConfig.MAX_SNAPSHOT_AGE_SECONDS, "604800"))
-    .deleteOrphanFiles(Map.of(
+        .expireSnapshots(Map.of(
+                                 ExpireSnapshotsConfig.RETAIN_LAST, "5",
+                         ExpireSnapshotsConfig.MAX_SNAPSHOT_AGE_SECONDS, "604800"))
+        .deleteOrphanFiles(Map.of(
         DeleteOrphanFilesConfig.MIN_AGE_SECONDS, "259200"))
-    .append();
+        .append();
 ```
 
 ##### Config
@@ -388,25 +437,25 @@ Or specify options in table DDL:
 
 ```sql
 CREATE TABLE db.tbl (
-  ...
+    ...
 ) WITH (
-  'connector' = 'iceberg',
-  'catalog-name' = 'my_catalog',
-  'catalog-database' = 'db',
-  'catalog-table' = 'tbl',
-  'flink-maintenance.rewrite.enabled' = 'true',
-  'flink-maintenance.expire-snapshots.enabled' = 'true',
-  'flink-maintenance.delete-orphan-files.enabled' = 'true',
+      'connector' = 'iceberg',
+      'catalog-name' = 'my_catalog',
+      'catalog-database' = 'db',
+      'catalog-table' = 'tbl',
+      'flink-maintenance.rewrite.enabled' = 'true',
+      'flink-maintenance.expire-snapshots.enabled' = 'true',
+      'flink-maintenance.delete-orphan-files.enabled' = 'true',
 
-  'flink-maintenance.rewrite.max-bytes' = '1073741824',
-  'flink-maintenance.expire-snapshots.retain-last' = '5',
-  'flink-maintenance.delete-orphan-files.min-age-seconds' = '259200',
+      'flink-maintenance.rewrite.max-bytes' = '1073741824',
+      'flink-maintenance.expire-snapshots.retain-last' = '5',
+      'flink-maintenance.delete-orphan-files.min-age-seconds' = '259200',
 
-  'flink-maintenance.lock.type' = 'jdbc',
-  'flink-maintenance.lock.lock-id' = 'catalog.db.table',
-  'flink-maintenance.lock.jdbc.uri' = 'jdbc:postgresql://localhost:5432/iceberg',
-  'flink-maintenance.lock.jdbc.init-lock-tables' = 'true'
-);
+      'flink-maintenance.lock.type' = 'jdbc',
+      'flink-maintenance.lock.lock-id' = 'catalog.db.table',
+      'flink-maintenance.lock.jdbc.uri' = 'jdbc:postgresql://localhost:5432/iceberg',
+      'flink-maintenance.lock.jdbc.init-lock-tables' = 'true'
+      );
 ```
 
 ### IcebergSink Maintenance Configuration (SQL)
@@ -526,7 +575,7 @@ These keys are used in SQL (SET or table WITH options) and are applicable when w
 **Recommendation:** Increase lock check delay and rate limit so that failed attempts back off and reduce contention.
 ```java
 .lockCheckDelay(Duration.ofMinutes(1)) // Wait longer before re-checking lock
-.rateLimit(Duration.ofMinutes(10))     // Reduce frequency of task execution
+        .rateLimit(Duration.ofMinutes(10))     // Reduce frequency of task execution
 ```
 
 #### Slow rewrite operations
