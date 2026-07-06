@@ -90,6 +90,7 @@ public class IcebergSinkConfig extends AbstractConfig {
   private static final String TRANSACTIONAL_PREFIX_PROP =
       "iceberg.coordinator.transactional.prefix";
   private static final String HADOOP_CONF_DIR_PROP = "iceberg.hadoop-conf-dir";
+  public static final String TRACING_ENABLED_PROP = "iceberg.tracing.enabled";
 
   private static final String NAME_PROP = "name";
   private static final String TASK_ID = "task.id";
@@ -235,6 +236,13 @@ public class IcebergSinkConfig extends AbstractConfig {
         120000L,
         Importance.LOW,
         "config to control coordinator executor keep alive time");
+    configDef.define(
+        TRACING_ENABLED_PROP,
+        ConfigDef.Type.BOOLEAN,
+        false,
+        Importance.LOW,
+        "Enables OpenTelemetry tracing. When enabled and the OpenTelemetry API is on the "
+            + "classpath, the connector creates tracing spans for record ingest and commits.");
     return configDef;
   }
 
@@ -446,6 +454,10 @@ public class IcebergSinkConfig extends AbstractConfig {
 
   public boolean schemaCaseInsensitive() {
     return getBoolean(TABLES_SCHEMA_CASE_INSENSITIVE_PROP);
+  }
+
+  public boolean tracingEnabled() {
+    return getBoolean(TRACING_ENABLED_PROP);
   }
 
   public JsonConverter jsonConverter() {
