@@ -65,8 +65,7 @@ class AddFilesProcedure extends BaseProcedure {
   private static final ProcedureParameter PARALLELISM =
       ProcedureParameter.optional("parallelism", DataTypes.IntegerType);
   private static final ProcedureParameter FILE_PARTITION_FILTER_OPTIMIZED_SCAN_PARAM =
-      ProcedureParameter.optional(
-          "file_partition_filter_optimized_scan", DataTypes.BooleanType);
+      ProcedureParameter.optional("file_partition_filter_optimized_scan", DataTypes.BooleanType);
   private static final ProcedureParameter BRANCH_PARAM =
       ProcedureParameter.optional("branch", DataTypes.StringType);
 
@@ -271,8 +270,7 @@ class AddFilesProcedure extends BaseProcedure {
     } else {
       Preconditions.checkArgument(
           !partitions.isEmpty(), "Cannot find any matching partitions in table %s", table.name());
-      importPartitions(
-          table, partitions, checkDuplicateFiles, compatibleSpec, parallelism, branch);
+      importPartitions(table, partitions, checkDuplicateFiles, compatibleSpec, parallelism, branch);
     }
   }
 

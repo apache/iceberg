@@ -680,9 +680,9 @@ public class SparkTableUtil {
    * Load the metadata "entries" table for the duplicate-file check, scoped to the target branch.
    *
    * <p>When a branch is provided the check only sees files reachable from that branch's head
-   * snapshot — files that live on other branches (e.g. main advancing independently) do not
-   * block imports into this branch. Returns {@code null} when the branch does not exist yet
-   * (i.e. this add_files call will create it) — in that case there is nothing to check.
+   * snapshot — files that live on other branches (e.g. main advancing independently) do not block
+   * imports into this branch. Returns {@code null} when the branch does not exist yet (i.e. this
+   * add_files call will create it) — in that case there is nothing to check.
    */
   private static Dataset<Row> loadEntriesForDuplicateCheck(
       SparkSession spark, Table targetTable, String branch) {
@@ -780,16 +780,12 @@ public class SparkTableUtil {
             spark
                 .createDataset(Lists.transform(files, ContentFile::location), Encoders.STRING())
                 .toDF("file_path");
-        Dataset<Row> existingFiles =
-            loadEntriesForDuplicateCheck(spark, targetTable, branch);
+        Dataset<Row> existingFiles = loadEntriesForDuplicateCheck(spark, targetTable, branch);
         if (existingFiles != null) {
           Column joinCond =
               existingFiles.col("data_file.file_path").equalTo(importedFiles.col("file_path"));
           Dataset<String> duplicates =
-              importedFiles
-                  .join(existingFiles, joinCond)
-                  .select("file_path")
-                  .as(Encoders.STRING());
+              importedFiles.join(existingFiles, joinCond).select("file_path").as(Encoders.STRING());
           Preconditions.checkState(
               duplicates.isEmpty(),
               String.format(

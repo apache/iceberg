@@ -1360,16 +1360,12 @@ public class TestAddFilesProcedure extends ExtensionsTestBase {
     // Branch head has one row from main (id=100 seed) + 2 imported rows (id=1 duplicated because
     // createPartitionedFileTable inserts partitionedDF twice).
     long branchRowCount =
-        (Long)
-            sql("SELECT count(*) FROM %s.branch_%s", tableName, branchName).get(0)[0];
+        (Long) sql("SELECT count(*) FROM %s.branch_%s", tableName, branchName).get(0)[0];
     assertThat(branchRowCount).isEqualTo(3L);
 
     long branchIdOneCount =
         (Long)
-            sql(
-                    "SELECT count(*) FROM %s.branch_%s WHERE id = 1",
-                    tableName, branchName)
-                .get(0)[0];
+            sql("SELECT count(*) FROM %s.branch_%s WHERE id = 1", tableName, branchName).get(0)[0];
     assertThat(branchIdOneCount).isEqualTo(2L);
 
     // Main must still contain only the seed row.
@@ -1449,8 +1445,7 @@ public class TestAddFilesProcedure extends ExtensionsTestBase {
     // Sanity: branch already has the imported id=1 rows but no seed row.
     long branchIdOne =
         (Long)
-            sql("SELECT count(*) FROM %s.branch_%s WHERE id = 1", tableName, branchName)
-                .get(0)[0];
+            sql("SELECT count(*) FROM %s.branch_%s WHERE id = 1", tableName, branchName).get(0)[0];
     assertThat(branchIdOne).isEqualTo(2L);
     long branchSeed =
         (Long)

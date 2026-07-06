@@ -693,8 +693,10 @@ will then treat these files as if they are part of the set of files  owned by Ic
 | `table`                 | ✔️        | string              | Table which will have files added to                                                                |
 | `source_table`          | ✔️        | string              | Table where files should come from, paths are also possible in the form of \`file_format\`.\`path\` |
 | `partition_filter`      | ️         | map<string, string> | A map of partitions in the source table to import from                                              |
-| `check_duplicate_files` | ️         | boolean             | Whether to prevent files existing in the table from being added (defaults to true)                  |
-| `parallelism`           |           | int                 | Number of threads to use for file reading (defaults to 1)                                         |
+| `check_duplicate_files` | ️         | boolean             | Whether to prevent files existing in the table from being added (defaults to true). When `branch` is set, the check is scoped to that branch's head snapshot only — files present on other branches (e.g. `main`) do not block the import. |
+| `parallelism`           |           | int                 | Number of threads to use for file reading (defaults to 1)                                           |
+| `file_partition_filter_optimized_scan` | | boolean | Push `partition_filter` down into directory listing for file-based sources (`orc`/`parquet`/`avro`), skipping recursive listing of sibling partitions (defaults to false). Only equality on a strict on-disk prefix of the partition columns is pushed down; filter keys that do not match the prefix fall back to post-listing filtering. Only applies to file-based sources, not catalog tables. |
+| `branch`                | ️         | string              | Target branch to commit the added files to. If the branch does not yet exist, it will be created from the current default branch. When unset, files are committed to the current default branch (typically `main`). |
 
 Warning : Schema is not validated, adding files with different schema to the Iceberg table will cause issues.
 
@@ -728,6 +730,29 @@ files regardless of what partition they belong to.
 CALL spark_catalog.system.add_files(
   table => 'db.tbl',
   source_table => '`parquet`.`path/to/table`'
+);
+```
+
+Optimize the scan by pushing the partition filter down into directory listing. Instead of recursively listing every
+file under `path/to/table`, only the `part_col_1=A/**` subtree will be scanned. This is useful on high-cardinality
+partition roots (e.g. S3) where listing sibling partitions is expensive.
+```sql
+CALL spark_catalog.system.add_files(
+  table => 'db.tbl',
+  source_table => '`parquet`.`path/to/table`',
+  partition_filter => map('part_col_1', 'A'),
+  file_partition_filter_optimized_scan => true
+);
+```
+
+Import files into a named branch instead of the default `main` branch. Useful for write-audit-publish workflows: stage
+the import on a branch, verify the results, then fast-forward `main` to the branch (`CALL system.fast_forward(...)`).
+```sql
+CALL spark_catalog.system.add_files(
+  table => 'db.tbl',
+  source_table => '`parquet`.`path/to/table`',
+  partition_filter => map('part_col_1', 'A'),
+  branch => 'staging'
 );
 ```
 

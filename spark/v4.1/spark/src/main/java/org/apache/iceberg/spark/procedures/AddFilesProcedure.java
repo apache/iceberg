@@ -277,8 +277,7 @@ class AddFilesProcedure extends BaseProcedure {
     } else {
       Preconditions.checkArgument(
           !partitions.isEmpty(), "Cannot find any matching partitions in table %s", table.name());
-      importPartitions(
-          table, partitions, checkDuplicateFiles, compatibleSpec, parallelism, branch);
+      importPartitions(table, partitions, checkDuplicateFiles, compatibleSpec, parallelism, branch);
     }
   }
 

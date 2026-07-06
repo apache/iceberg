@@ -1361,8 +1361,7 @@ public class TestAddFilesProcedure extends ExtensionsTestBase {
 
     long branchIdOneCount =
         (Long)
-            sql("SELECT count(*) FROM %s.branch_%s WHERE id = 1", tableName, branchName)
-                .get(0)[0];
+            sql("SELECT count(*) FROM %s.branch_%s WHERE id = 1", tableName, branchName).get(0)[0];
     assertThat(branchIdOneCount).isEqualTo(2L);
 
     // Main must still contain only the seed row.
@@ -1439,8 +1438,7 @@ public class TestAddFilesProcedure extends ExtensionsTestBase {
 
     long branchIdOne =
         (Long)
-            sql("SELECT count(*) FROM %s.branch_%s WHERE id = 1", tableName, branchName)
-                .get(0)[0];
+            sql("SELECT count(*) FROM %s.branch_%s WHERE id = 1", tableName, branchName).get(0)[0];
     assertThat(branchIdOne).isEqualTo(2L);
     long branchSeed =
         (Long)

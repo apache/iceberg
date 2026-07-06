@@ -84,8 +84,7 @@ public class TestSpark3Util extends TestBase {
 
     Path root = new Path(narrowScanTempDir.toUri());
     Pair<List<Path>, Map<String, String>> narrowed =
-        Spark3Util.narrowScanRoots(
-            spark, root, ImmutableMap.of("id", "2", "name", "a"));
+        Spark3Util.narrowScanRoots(spark, root, ImmutableMap.of("id", "2", "name", "a"));
 
     assertThat(narrowed.first()).hasSize(1);
     assertThat(narrowed.first().get(0).toString()).endsWith("id=2/name=a");
@@ -221,8 +220,7 @@ public class TestSpark3Util extends TestBase {
     try {
       Path root = new Path(narrowScanTempDir.toUri());
       Pair<List<Path>, Map<String, String>> narrowed =
-          Spark3Util.narrowScanRoots(
-              spark, root, ImmutableMap.of("id", "3", "name", "c"));
+          Spark3Util.narrowScanRoots(spark, root, ImmutableMap.of("id", "3", "name", "c"));
 
       assertThat(narrowed.first()).hasSize(1);
       assertThat(narrowed.first().get(0).toString()).endsWith("/id=3/name=c");

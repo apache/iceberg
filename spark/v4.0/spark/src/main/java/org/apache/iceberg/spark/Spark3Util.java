@@ -890,8 +890,8 @@ public class Spark3Util {
 
   /**
    * Infer the partition spec of a file table by listing files under {@code scanRoots}. Passing a
-   * narrowed {@code scanRoots} while keeping {@code basePath} at the original table root lets
-   * Spark still recognize partition columns whose values are baked into the pruned roots.
+   * narrowed {@code scanRoots} while keeping {@code basePath} at the original table root lets Spark
+   * still recognize partition columns whose values are baked into the pruned roots.
    */
   public static org.apache.spark.sql.execution.datasources.PartitionSpec getInferredSpec(
       SparkSession spark, Path basePath, List<Path> scanRoots) {
@@ -936,8 +936,8 @@ public class Spark3Util {
    * @param basePath the original table root (used by Spark to infer partition columns)
    * @param scanRoots the (possibly pruned) subdirectories to actually list
    * @param format format of the file
-   * @param partitionFilter partitionFilter of the file (applied on top of any pruning already
-   *     baked into scanRoots)
+   * @param partitionFilter partitionFilter of the file (applied on top of any pruning already baked
+   *     into scanRoots)
    * @param partitionSpec partitionSpec of the table
    * @return matching partitions
    */
@@ -1011,9 +1011,9 @@ public class Spark3Util {
   /**
    * Walk the directory tree under {@code rootPath} one level at a time, pruning to only those
    * subdirectories whose partition column value matches {@code partitionFilter}. Stops descending
-   * as soon as it hits a level whose partition column is not in the filter (or the directory is
-   * not Hive-style). The returned paths can be passed as scan roots to {@link #getPartitions} to
-   * skip listing sibling partition folders that would be discarded anyway.
+   * as soon as it hits a level whose partition column is not in the filter (or the directory is not
+   * Hive-style). The returned paths can be passed as scan roots to {@link #getPartitions} to skip
+   * listing sibling partition folders that would be discarded anyway.
    *
    * <p>Only equality on a strict prefix of the on-disk partition column order is pushed down.
    * Filter keys that name non-prefix columns are left in the returned map for downstream filtering.
