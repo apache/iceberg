@@ -36,7 +36,7 @@ class VariantUtil {
    * Maximum permitted nesting depth of a Variant value. The top-level value is depth 0, so a
    * Variant may contain up to {@code MAX_VARIANT_DEPTH + 1} nested levels.
    */
-  static final int MAX_VARIANT_DEPTH = 500;
+  static final int MAX_VARIANT_DEPTH = 1000;
 
   private VariantUtil() {}
 

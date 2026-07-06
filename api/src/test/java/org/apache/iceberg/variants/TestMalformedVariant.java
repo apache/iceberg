@@ -314,7 +314,10 @@ public class TestMalformedVariant {
     VariantArray finalCursor = cursor;
     assertThatThrownBy(() -> finalCursor.get(0))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("nesting depth");
+        .hasMessage(
+            String.format(
+                "Invalid variant: nesting depth %d exceeds maximum %d",
+                VariantUtil.MAX_VARIANT_DEPTH + 1, VariantUtil.MAX_VARIANT_DEPTH));
   }
 
   private static byte[] buildNestedArrayChain(int arrayLevels) {
