@@ -186,7 +186,7 @@ public class TableProperties {
   // PARQUET_BLOOM_FILTER_MAX_BYTES, which bounds the largest candidate — the
   // adaptive size never exceeds it. Significantly reduces file size for
   // low-row-count writes (e.g., streaming microbatches) that would otherwise pad
-  // the parquet file with an empty `bloom-filter-max-bytes` buffer.
+  // the parquet file with an empty PARQUET_BLOOM_FILTER_MAX_BYTES buffer.
   public static final String PARQUET_BLOOM_FILTER_ADAPTIVE_ENABLED =
       "write.parquet.bloom-filter-adaptive-enabled";
   public static final boolean PARQUET_BLOOM_FILTER_ADAPTIVE_ENABLED_DEFAULT = false;
