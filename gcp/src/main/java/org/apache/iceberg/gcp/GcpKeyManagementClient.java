@@ -109,6 +109,7 @@ public class GcpKeyManagementClient implements KeyManagementClient {
           try {
             KeyManagementServiceSettings.Builder kmsBuilder =
                 KeyManagementServiceSettings.newBuilder();
+            gcpProperties.kmsEndpoint().ifPresent(kmsBuilder::setEndpoint);
             if (gcpProperties.oauth2Token().isPresent()) {
               OAuth2Credentials oAuth2Credentials =
                   GCPAuthUtils.oauth2CredentialsFromGcpProperties(gcpProperties, closeableGroup);
