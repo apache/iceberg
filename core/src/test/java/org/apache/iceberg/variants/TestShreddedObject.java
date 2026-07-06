@@ -280,6 +280,59 @@ public class TestShreddedObject {
     assertThat(actual.get("b")).as("removed field must not be serialized").isNull();
   }
 
+  @Test
+  public void testPutAfterRemoveIsSerialized() {
+    ShreddedObject partial = createUnshreddedObject(FIELDS);
+    partial.remove("b");
+    partial.put("b", Variants.of("replaced"));
+
+    VariantValue value = roundTripMinimalBuffer(partial, partial.metadata());
+
+    SerializedObject actual = (SerializedObject) value;
+    assertThat(actual.numFields()).isEqualTo(3);
+    assertThat(actual.get("a")).isInstanceOf(VariantPrimitive.class);
+    assertThat(actual.get("a").asPrimitive().get()).isEqualTo(34);
+    VariantTestUtil.assertVariantString(actual.get("b"), "replaced");
+    assertThat(actual.get("c")).isInstanceOf(VariantPrimitive.class);
+    assertThat(actual.get("c").asPrimitive().get()).isEqualTo(new BigDecimal("12.21"));
+  }
+
+  @Test
+  public void testEmptyObject() {
+    Set<String> names = Sets.newLinkedHashSet();
+    names.add("a");
+    names.add("b");
+    names.add("c");
+    ByteBuffer metadataBuffer = VariantTestUtil.createMetadata(names, false);
+    VariantMetadata metadata = Variants.metadata(metadataBuffer);
+    ShreddedObject object = new ShreddedObject(metadata);
+
+    assertThat(object.numFields()).isEqualTo(0);
+    assertThat(object.sizeInBytes()).isEqualTo(3);
+
+    VariantValue value = roundTripMinimalBuffer(object, metadata);
+    assertThat(value).isInstanceOf(SerializedObject.class);
+    assertThat(((SerializedObject) value).numFields()).isEqualTo(0);
+  }
+
+  @Test
+  public void testRepeatedWriteToProducesSameBytes() {
+    ShreddedObject object = createUnshreddedObject(FIELDS);
+    object.put("c", Variants.ofIsoDate("2024-10-12"));
+    object.remove("b");
+
+    int size = object.sizeInBytes();
+    ByteBuffer reference = ByteBuffer.allocate(size).order(ByteOrder.LITTLE_ENDIAN);
+    object.writeTo(reference, 0);
+
+    for (int i = 0; i < 10; i++) {
+      ByteBuffer buf = ByteBuffer.allocate(size).order(ByteOrder.LITTLE_ENDIAN);
+      int written = object.writeTo(buf, 0);
+      assertThat(written).as("iteration %d", i).isEqualTo(size);
+      assertThat(buf).as("iteration %d", i).isEqualTo(reference);
+    }
+  }
+
   @ParameterizedTest
   @ValueSource(ints = {300, 70_000, 16_777_300})
   public void testMultiByteOffsets(int len) {
