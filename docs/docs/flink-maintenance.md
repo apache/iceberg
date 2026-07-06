@@ -28,8 +28,8 @@ Iceberg provides API to rewrite small files into large files by submitting Flink
 import org.apache.iceberg.flink.actions.Actions;
 
 TableLoader tableLoader = TableLoader.fromCatalog(
-        CatalogLoader.hive("my_catalog", configuration, properties),
-        TableIdentifier.of("database", "table")
+    CatalogLoader.hive("my_catalog", configuration, properties),
+    TableIdentifier.of("database", "table")
 );
 
 Table table = tableLoader.loadTable();
@@ -58,7 +58,7 @@ Removes old snapshots and their files. Internally uses `cleanExpiredFiles(true)`
 ```java
 .add(ExpireSnapshots.builder()
     .maxSnapshotAge(Duration.ofDays(7))
-        .retainLast(10)
+    .retainLast(10)
     .deleteBatchSize(1000))
 ```
 
@@ -79,7 +79,7 @@ Used to remove files which are not referenced in any metadata files of an Iceber
 ```java
 .add(DeleteOrphanFiles.builder()
     .minAge(Duration.ofDays(3))
-        .deleteBatchSize(1000))
+    .deleteBatchSize(1000))
 ```
 
 #### ConvertEqualityDeletes
