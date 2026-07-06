@@ -39,11 +39,9 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -56,6 +54,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Pair;
 import org.junit.jupiter.api.Test;
@@ -136,46 +135,31 @@ public class TestSpark3Util extends TestBase {
     createHiveLikeDirs(
         "id=1/name=a/date=1", "id=2/name=b/date=2", "id=3/name=c/date=3", "id=4/name=d/date=4");
 
-    Configuration conf = spark.sparkContext().hadoopConfiguration();
-    String prevImpl = conf.get("fs.file.impl");
-    boolean prevCacheDisabled = conf.getBoolean("fs.file.impl.disable.cache", false);
-    conf.set("fs.file.impl", RecordingLocalFileSystem.class.getName());
-    conf.setBoolean("fs.file.impl.disable.cache", true);
-    FileSystem.closeAll();
-    RecordingLocalFileSystem.reset();
+    withRecordingLocalFs(
+        () -> {
+          Path root = new Path(narrowScanTempDir.toUri());
+          Pair<List<Path>, Map<String, String>> narrowed =
+              Spark3Util.narrowScanRoots(spark, root, ImmutableMap.of("id", "3"));
 
-    try {
-      Path root = new Path(narrowScanTempDir.toUri());
-      Pair<List<Path>, Map<String, String>> narrowed =
-          Spark3Util.narrowScanRoots(spark, root, ImmutableMap.of("id", "3"));
+          assertThat(narrowed.first()).hasSize(1);
+          assertThat(narrowed.first().get(0).getName()).isEqualTo("id=3");
 
-      assertThat(narrowed.first()).hasSize(1);
-      assertThat(narrowed.first().get(0).getName()).isEqualTo("id=3");
+          List<String> listed = RecordingLocalFileSystem.snapshot();
+          String rootPathStr = narrowScanTempDir.toString();
+          // The root must have been probed (to detect the 'id' partition column at this level).
+          assertThat(listed).anyMatch(p -> stripTrailingSlash(p).equals(rootPathStr));
 
-      List<String> listed = RecordingLocalFileSystem.snapshot();
-      String rootPathStr = narrowScanTempDir.toString();
-      // The root must have been probed (to detect the 'id' partition column at this level).
-      assertThat(listed).anyMatch(p -> stripTrailingSlash(p).equals(rootPathStr));
-
-      // Sibling partitions must NOT have been listed — that is the whole point of the pushdown.
-      // Neither the id=* directory itself, nor anything under id=1/id=2/id=4.
-      assertThat(listed)
-          .as("optimized scan must not list sibling partitions, but did: %s", listed)
-          .noneMatch(p -> stripTrailingSlash(p).endsWith("/id=1"))
-          .noneMatch(p -> stripTrailingSlash(p).endsWith("/id=2"))
-          .noneMatch(p -> stripTrailingSlash(p).endsWith("/id=4"))
-          .noneMatch(p -> p.contains("/id=1/"))
-          .noneMatch(p -> p.contains("/id=2/"))
-          .noneMatch(p -> p.contains("/id=4/"));
-    } finally {
-      if (prevImpl == null) {
-        conf.unset("fs.file.impl");
-      } else {
-        conf.set("fs.file.impl", prevImpl);
-      }
-      conf.setBoolean("fs.file.impl.disable.cache", prevCacheDisabled);
-      FileSystem.closeAll();
-    }
+          // Sibling partitions must NOT have been listed — that is the whole point of pushdown.
+          // Neither the id=* directory itself, nor anything under id=1/id=2/id=4.
+          assertThat(listed)
+              .as("optimized scan must not list sibling partitions, but did: %s", listed)
+              .noneMatch(p -> stripTrailingSlash(p).endsWith("/id=1"))
+              .noneMatch(p -> stripTrailingSlash(p).endsWith("/id=2"))
+              .noneMatch(p -> stripTrailingSlash(p).endsWith("/id=4"))
+              .noneMatch(p -> p.contains("/id=1/"))
+              .noneMatch(p -> p.contains("/id=2/"))
+              .noneMatch(p -> p.contains("/id=4/"));
+        });
   }
 
   /**
@@ -185,7 +169,7 @@ public class TestSpark3Util extends TestBase {
    */
   public static class RecordingLocalFileSystem extends RawLocalFileSystem {
     private static final List<String> LISTED_PATHS =
-        Collections.synchronizedList(new ArrayList<>());
+        Collections.synchronizedList(Lists.newArrayList());
 
     public static void reset() {
       LISTED_PATHS.clear();
@@ -193,7 +177,7 @@ public class TestSpark3Util extends TestBase {
 
     public static List<String> snapshot() {
       synchronized (LISTED_PATHS) {
-        return new ArrayList<>(LISTED_PATHS);
+        return Lists.newArrayList(LISTED_PATHS);
       }
     }
 
@@ -209,51 +193,79 @@ public class TestSpark3Util extends TestBase {
     createHiveLikeDirs(
         "id=1/name=a", "id=2/name=a", "id=3/name=a", "id=3/name=b", "id=3/name=c", "id=4/name=a");
 
-    Configuration conf = spark.sparkContext().hadoopConfiguration();
-    String prevImpl = conf.get("fs.file.impl");
-    boolean prevCacheDisabled = conf.getBoolean("fs.file.impl.disable.cache", false);
-    conf.set("fs.file.impl", RecordingLocalFileSystem.class.getName());
-    conf.setBoolean("fs.file.impl.disable.cache", true);
+    withRecordingLocalFs(
+        () -> {
+          Path root = new Path(narrowScanTempDir.toUri());
+          Pair<List<Path>, Map<String, String>> narrowed =
+              Spark3Util.narrowScanRoots(spark, root, ImmutableMap.of("id", "3", "name", "c"));
+
+          assertThat(narrowed.first()).hasSize(1);
+          assertThat(narrowed.first().get(0).toString()).endsWith("/id=3/name=c");
+
+          List<String> listed = RecordingLocalFileSystem.snapshot();
+
+          // id=3 MUST have been listed (to descend to the second partition level).
+          assertThat(listed).anyMatch(p -> stripTrailingSlash(p).endsWith("/id=3"));
+
+          // Sibling id=* directories at the top level must NOT have been listed.
+          assertThat(listed)
+              .as("sibling id partitions must not be listed at the first level: %s", listed)
+              .noneMatch(p -> stripTrailingSlash(p).endsWith("/id=1"))
+              .noneMatch(p -> stripTrailingSlash(p).endsWith("/id=2"))
+              .noneMatch(p -> stripTrailingSlash(p).endsWith("/id=4"))
+              .noneMatch(p -> p.contains("/id=1/"))
+              .noneMatch(p -> p.contains("/id=2/"))
+              .noneMatch(p -> p.contains("/id=4/"));
+
+          // Sibling name=* directories under id=3 must NOT have been descended into either.
+          assertThat(listed)
+              .as("sibling name partitions under id=3 must not be listed: %s", listed)
+              .noneMatch(p -> p.contains("/id=3/name=a/"))
+              .noneMatch(p -> p.contains("/id=3/name=b/"));
+        });
+  }
+
+  /**
+   * Runs {@code body} with the "file:" filesystem swapped for {@link RecordingLocalFileSystem}, so
+   * the block can inspect every {@code listStatus} call made during the run. Sets the impl via
+   * {@code spark.hadoop.fs.file.impl} on the Spark session, so subsequent {@code newHadoopConf()}
+   * calls inside Iceberg see the override.
+   */
+  private void withRecordingLocalFs(RecordingLocalFsBody body) throws Exception {
+    String prevImpl = optionalSparkConf("spark.hadoop.fs.file.impl");
+    String prevCache = optionalSparkConf("spark.hadoop.fs.file.impl.disable.cache");
+    spark.conf().set("spark.hadoop.fs.file.impl", RecordingLocalFileSystem.class.getName());
+    spark.conf().set("spark.hadoop.fs.file.impl.disable.cache", "true");
     FileSystem.closeAll();
     RecordingLocalFileSystem.reset();
-
     try {
-      Path root = new Path(narrowScanTempDir.toUri());
-      Pair<List<Path>, Map<String, String>> narrowed =
-          Spark3Util.narrowScanRoots(spark, root, ImmutableMap.of("id", "3", "name", "c"));
-
-      assertThat(narrowed.first()).hasSize(1);
-      assertThat(narrowed.first().get(0).toString()).endsWith("/id=3/name=c");
-
-      List<String> listed = RecordingLocalFileSystem.snapshot();
-
-      // id=3 MUST have been listed (to descend to the second partition level).
-      assertThat(listed).anyMatch(p -> stripTrailingSlash(p).endsWith("/id=3"));
-
-      // Sibling id=* directories at the top level must NOT have been listed.
-      assertThat(listed)
-          .as("sibling id partitions must not be listed at the first level: %s", listed)
-          .noneMatch(p -> stripTrailingSlash(p).endsWith("/id=1"))
-          .noneMatch(p -> stripTrailingSlash(p).endsWith("/id=2"))
-          .noneMatch(p -> stripTrailingSlash(p).endsWith("/id=4"))
-          .noneMatch(p -> p.contains("/id=1/"))
-          .noneMatch(p -> p.contains("/id=2/"))
-          .noneMatch(p -> p.contains("/id=4/"));
-
-      // Sibling name=* directories under id=3 must NOT have been descended into either.
-      assertThat(listed)
-          .as("sibling name partitions under id=3 must not be listed: %s", listed)
-          .noneMatch(p -> p.contains("/id=3/name=a/"))
-          .noneMatch(p -> p.contains("/id=3/name=b/"));
+      body.run();
     } finally {
-      if (prevImpl == null) {
-        conf.unset("fs.file.impl");
-      } else {
-        conf.set("fs.file.impl", prevImpl);
-      }
-      conf.setBoolean("fs.file.impl.disable.cache", prevCacheDisabled);
+      restoreSparkConf("spark.hadoop.fs.file.impl", prevImpl);
+      restoreSparkConf("spark.hadoop.fs.file.impl.disable.cache", prevCache);
       FileSystem.closeAll();
     }
+  }
+
+  private String optionalSparkConf(String key) {
+    try {
+      return spark.conf().get(key);
+    } catch (Exception e) {
+      return null;
+    }
+  }
+
+  private void restoreSparkConf(String key, String value) {
+    if (value == null) {
+      spark.conf().unset(key);
+    } else {
+      spark.conf().set(key, value);
+    }
+  }
+
+  @FunctionalInterface
+  private interface RecordingLocalFsBody {
+    void run() throws Exception;
   }
 
   private static String stripTrailingSlash(String path) {
