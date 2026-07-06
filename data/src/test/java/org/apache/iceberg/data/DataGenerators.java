@@ -22,6 +22,8 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
+import java.util.Set;
+import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.types.Type;
@@ -44,7 +46,8 @@ class DataGenerators {
         new StructOfPrimitive(),
         new ListOfPrimitive(),
         new MapOfPrimitive(),
-        new TimestampNano()
+        new TimestampNano(),
+        new Variant()
       };
 
   private DataGenerators() {}
@@ -98,6 +101,26 @@ class DataGenerators {
     @Override
     public String toString() {
       return "DefaultSchema";
+    }
+  }
+
+  static class Variant implements DataGenerator {
+    private final Schema schema =
+        new Schema(Types.NestedField.required(1, "variant_col", Types.VariantType.get()));
+
+    @Override
+    public Schema schema() {
+      return schema;
+    }
+
+    @Override
+    public Set<FileFormat> supportedFormats() {
+      return Set.of(FileFormat.PARQUET);
+    }
+
+    @Override
+    public String toString() {
+      return "Variant";
     }
   }
 

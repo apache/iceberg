@@ -20,6 +20,7 @@ package org.apache.iceberg.spark.data;
 
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -34,12 +35,14 @@ import org.apache.iceberg.data.Record;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ByteBuffers;
+import org.apache.iceberg.variants.Variant;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
 import org.apache.spark.sql.catalyst.util.ArrayBasedMapData;
 import org.apache.spark.sql.catalyst.util.GenericArrayData;
 import org.apache.spark.sql.types.Decimal;
 import org.apache.spark.unsafe.types.UTF8String;
+import org.apache.spark.unsafe.types.VariantVal;
 
 /** Converts Iceberg Record to Spark InternalRow for testing. */
 public class InternalRowConverter {
@@ -81,6 +84,7 @@ public class InternalRowConverter {
       case UUID -> UTF8String.fromString(value.toString());
       case FIXED, BINARY -> toByteArray(value);
       case DECIMAL -> Decimal.apply((BigDecimal) value);
+      case VARIANT -> toVariantVal((Variant) value);
       case STRUCT -> convert((Types.StructType) type, (Record) value);
       case LIST ->
           new GenericArrayData(
@@ -100,7 +104,7 @@ public class InternalRowConverter {
                       .values().stream()
                           .map(o -> convert(type.asMapType().valueType(), o))
                           .toArray()));
-        // TIME is not supported by Spark, VARIANT not yet implemented
+        // TIME is not supported by Spark
       default ->
           throw new UnsupportedOperationException(
               "Unsupported type for conversion to InternalRow: " + type);
@@ -116,5 +120,17 @@ public class InternalRowConverter {
 
     throw new UnsupportedOperationException(
         "Unsupported binary value class: " + value.getClass().getName());
+  }
+
+  private static VariantVal toVariantVal(Variant variant) {
+    byte[] metadataBytes = new byte[variant.metadata().sizeInBytes()];
+    ByteBuffer metadataBuffer = ByteBuffer.wrap(metadataBytes).order(ByteOrder.LITTLE_ENDIAN);
+    variant.metadata().writeTo(metadataBuffer, 0);
+
+    byte[] valueBytes = new byte[variant.value().sizeInBytes()];
+    ByteBuffer valueBuffer = ByteBuffer.wrap(valueBytes).order(ByteOrder.LITTLE_ENDIAN);
+    variant.value().writeTo(valueBuffer, 0);
+
+    return new VariantVal(valueBytes, metadataBytes);
   }
 }

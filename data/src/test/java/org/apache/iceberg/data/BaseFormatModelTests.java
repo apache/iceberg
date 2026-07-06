@@ -173,6 +173,7 @@ public abstract class BaseFormatModelTests<T> {
           .flatMap(
               format ->
                   Arrays.stream(DataGenerators.ALL)
+                      .filter(generator -> generator.supportedFormats().contains(format))
                       .map(generator -> Arguments.of(format, generator)))
           .toList();
 

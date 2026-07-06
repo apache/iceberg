@@ -19,6 +19,8 @@
 package org.apache.iceberg.data;
 
 import java.util.List;
+import java.util.Set;
+import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
 
 /** Interface for generating test data with different schema types. */
@@ -26,6 +28,14 @@ interface DataGenerator {
 
   /** Returns the Iceberg schema for this test data. */
   Schema schema();
+
+  /**
+   * Returns the set of {@link FileFormat}s in which this generator's schema is supported. If not
+   * specified, all formats are supported.
+   */
+  default Set<FileFormat> supportedFormats() {
+    return Set.of(FileFormatTestSupport.formats());
+  }
 
   /** Generates test records using RandomGenericData. */
   default List<Record> generateRecords() {
