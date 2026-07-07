@@ -26,6 +26,7 @@ interface ColumnFile {
   Types.NestedField FORMAT_VERSION =
       Types.NestedField.required(
           161, "format_version", Types.IntegerType.get(), "Format version of this column file");
+
   Types.NestedField FIELD_IDS =
       Types.NestedField.required(
           162,
