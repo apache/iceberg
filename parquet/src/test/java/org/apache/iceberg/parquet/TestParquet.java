@@ -331,6 +331,39 @@ public class TestParquet {
   }
 
   @Test
+  public void testGeospatialWkbRoundTrip() throws IOException {
+    Schema schema =
+        new Schema(
+            optional(1, "geom", Types.GeometryType.crs84()),
+            optional(2, "geog", Types.GeographyType.crs84()));
+
+    ByteBuffer geomWkb = ByteBuffer.wrap(new byte[] {0x01, 0x02, 0x03});
+    ByteBuffer geogWkb = ByteBuffer.wrap(new byte[] {0x04, 0x05, 0x06});
+
+    org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(schema.asStruct());
+    GenericData.Record record = new GenericData.Record(avroSchema);
+    record.put("geom", geomWkb);
+    record.put("geog", geogWkb);
+    GenericData.Record nulls = new GenericData.Record(avroSchema);
+
+    File file = createTempFile(temp);
+    write(file, schema, Collections.emptyMap(), ParquetAvroWriter::buildWriter, record, nulls);
+
+    try (CloseableIterable<GenericData.Record> reader =
+        Parquet.read(Files.localInput(file))
+            .project(schema)
+            .createReaderFunc(fileSchema -> ParquetAvroValueReaders.buildReader(schema, fileSchema))
+            .build()) {
+      List<GenericData.Record> rows = Lists.newArrayList(reader);
+      assertThat(rows).hasSize(2);
+      assertThat(rows.get(0).get("geom")).isEqualTo(geomWkb);
+      assertThat(rows.get(0).get("geog")).isEqualTo(geogWkb);
+      assertThat(rows.get(1).get("geom")).isNull();
+      assertThat(rows.get(1).get("geog")).isNull();
+    }
+  }
+
+  @Test
   public void testPerColumnDictionaryEncoding() throws Exception {
     Schema schema =
         new Schema(

@@ -264,6 +264,11 @@ abstract class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
       case BINARY:
         primitiveSchema = BINARY_SCHEMA;
         break;
+      case GEOMETRY:
+      case GEOGRAPHY:
+        // geometry and geography values are stored as WKB in an Avro bytes field
+        primitiveSchema = BINARY_SCHEMA;
+        break;
       case DECIMAL:
         Types.DecimalType decimal = (Types.DecimalType) primitive;
         primitiveSchema =
