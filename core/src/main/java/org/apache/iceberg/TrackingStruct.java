@@ -130,6 +130,14 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking, Serial
     }
   }
 
+  void setFirstRowId(long newFirstRowId) {
+    Preconditions.checkArgument(
+        newFirstRowId >= 0, "Invalid first row ID: %s (must be >= 0)", newFirstRowId);
+    Preconditions.checkState(status != EntryStatus.ADDED, "Cannot set first row id on ADDED entry");
+    Preconditions.checkState(firstRowId == null, "First row ID is already set");
+    this.firstRowId = newFirstRowId;
+  }
+
   void setManifestLocation(String location) {
     this.manifestLocation = location;
   }
