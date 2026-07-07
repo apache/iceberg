@@ -265,7 +265,7 @@ public class TestCloseableIterable {
   }
 
   @Test
-  public void filterWithKeepAndSkipObservers() {
+  public void filterInvokesObserversOnMatchingItems() {
     Counter kept = new DefaultMetricsContext().counter("kept");
     Counter skipped = new DefaultMetricsContext().counter("skipped");
     List<Integer> keptItems = Lists.newArrayList();
@@ -293,7 +293,35 @@ public class TestCloseableIterable {
   }
 
   @Test
-  public void filterWithObserversNullCheck() {
+  public void filterObserversFireExactlyOncePerElement() throws IOException {
+    Counter kept = new DefaultMetricsContext().counter("kept");
+    Counter skipped = new DefaultMetricsContext().counter("skipped");
+    CloseableIterable<Integer> items =
+        CloseableIterable.filter(
+            CloseableIterable.withNoopClose(Arrays.asList(1, 2, 3, 4)),
+            x -> x % 2 == 0,
+            x -> kept.increment(),
+            x -> skipped.increment());
+
+    try (CloseableIterator<Integer> iter = items.iterator()) {
+      // hasNext advances past the odd 1 (skip counted) and prefetches the even 2 (not yet counted)
+      assertThat(iter.hasNext()).isTrue();
+      assertThat(skipped.value()).isEqualTo(1);
+      assertThat(kept.value()).isZero();
+
+      // next delivers the prefetched 2 and increments kept
+      assertThat(iter.next()).isEqualTo(2);
+      assertThat(kept.value()).isEqualTo(1);
+
+      // second hasNext skips past 3 and prefetches 4; kept still 1 until next() is called
+      assertThat(iter.hasNext()).isTrue();
+      assertThat(skipped.value()).isEqualTo(2);
+      assertThat(kept.value()).isEqualTo(1);
+    }
+  }
+
+  @Test
+  public void filterObserversNullCheck() {
     Predicate<Integer> pred = x -> true;
     assertThatThrownBy(() -> CloseableIterable.filter(null, pred, x -> {}, x -> {}))
         .isInstanceOf(IllegalArgumentException.class)

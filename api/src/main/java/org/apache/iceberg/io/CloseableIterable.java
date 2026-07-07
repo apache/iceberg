@@ -152,10 +152,7 @@ public interface CloseableIterable<T> extends Iterable<T>, Closeable {
 
   /**
    * Filters the given {@link CloseableIterable} with the given predicate, invoking {@code onKeep}
-   * on each accepted element and {@code onSkip} on each rejected element. Observers are invoked
-   * exactly once per element, and only as the underlying iterator is advanced. Use when the caller
-   * wants to attribute both accepted and rejected elements to metrics (for example incrementing a
-   * scanned counter for survivors and a skipped counter for rejected entries).
+   * on each accepted element and {@code onSkip} on each rejected element exactly once.
    *
    * @param iterable The underlying {@link CloseableIterable} to filter.
    * @param <E> The underlying type to be iterated.
@@ -175,13 +172,17 @@ public interface CloseableIterable<T> extends Iterable<T>, Closeable {
             new FilterIterator<E>(iterable.iterator()) {
               @Override
               protected boolean shouldKeep(E item) {
-                if (pred.test(item)) {
-                  onKeep.accept(item);
-                  return true;
-                } else {
-                  onSkip.accept(item);
-                  return false;
-                }
+                return pred.test(item);
+              }
+
+              @Override
+              protected void onKeep(E item) {
+                onKeep.accept(item);
+              }
+
+              @Override
+              protected void onSkip(E item) {
+                onSkip.accept(item);
               }
             },
         iterable);
