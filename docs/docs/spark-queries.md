@@ -340,6 +340,32 @@ To inspect a table's history, snapshots, and other metadata, Iceberg supports me
 
 Metadata tables are identified by adding the metadata table name after the original table name. For example, history for `db.table` is read using `db.table.history`.
 
+### Metadata Tables
+To list the metadata tables supported by a table:
+
+```sql
+SELECT * FROM prod.db.table.metadata_tables;
+```
+
+| metadata_table_name  |
+|----------------------|
+| all_data_files       |
+| all_delete_files     |
+| all_entries          |
+| all_files            |
+| all_manifests        |
+| data_files           |
+| delete_files         |
+| entries              |
+| files                |
+| history              |
+| manifests            |
+| metadata_log_entries |
+| metadata_tables      |
+| partitions           |
+| refs                 |
+| snapshots            |
+
 ### History
 
 To show table history:
