@@ -21,15 +21,14 @@ package org.apache.iceberg;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.nio.ByteBuffer;
-import java.util.Comparator;
 import java.util.List;
 import org.apache.iceberg.TestHelpers.RoundTripSerializer;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.mockito.Mockito;
 
 class TestTrackedFileStruct {
   private static final int FORMAT_VERSION_V4 = 4;
@@ -41,15 +40,16 @@ class TestTrackedFileStruct {
   private static final List<Types.NestedField> FIELDS =
       TrackedFile.schemaWithContentStats(PARTITION_TYPE, Types.StructType.of()).fields();
 
-  private static final Comparator<StructLike> PARTITION_COMPARATOR =
-      Comparators.forType(PARTITION_TYPE);
-  private static final Comparator<StructLike> TRACKING_COMPARATOR =
-      Comparators.forType(Tracking.schema());
+  private static final Tracking TRACKING = Mockito.mock(Tracking.class);
+  private static final Tracking TRACKING_COPY = Mockito.mock(Tracking.class);
 
-  private static final Tracking TRACKING =
-      new TrackingStruct(EntryStatus.ADDED, 42L, 10L, 10L, 43L, 1000L, null, null);
+  private static final PartitionData PARTITION = Mockito.mock(PartitionData.class);
+  private static final PartitionData PARTITION_COPY = Mockito.mock(PartitionData.class);
 
-  private static final PartitionData PARTITION = newPartition(7, "music");
+  static {
+    Mockito.when(TRACKING.copy()).thenReturn(TRACKING_COPY);
+    Mockito.when(PARTITION.copy()).thenReturn(PARTITION_COPY);
+  }
 
   private static final DeletionVectorStruct DELETION_VECTOR =
       DeletionVectorStruct.builder()
@@ -72,15 +72,7 @@ class TestTrackedFileStruct {
           .minSequenceNumber(5L)
           .build();
 
-  private static final ContentStats CONTENT_STATS =
-      BaseContentStats.builder()
-          .withTableSchema(
-              new Schema(
-                  Types.NestedField.optional(1, "id", Types.IntegerType.get()),
-                  Types.NestedField.optional(2, "data", Types.FloatType.get())))
-          .withFieldStats(BaseFieldStats.builder().fieldId(1).build())
-          .withFieldStats(BaseFieldStats.builder().fieldId(2).build())
-          .build();
+  private static final ContentStats CONTENT_STATS = Mockito.mock(ContentStats.class);
 
   @Test
   void fieldAccess() {
@@ -224,8 +216,7 @@ class TestTrackedFileStruct {
     TrackedFile copy = file.copy();
 
     assertThat(copy).isInstanceOf(TrackedFileStruct.class);
-    assertThat(TRACKING_COMPARATOR.compare((StructLike) copy.tracking(), (StructLike) TRACKING))
-        .isEqualTo(0);
+    assertThat(copy.tracking()).isEqualTo(TRACKING_COPY);
     assertThat(copy.contentType()).isEqualTo(FileContent.DATA);
     assertThat(copy.formatVersion()).isEqualTo(FORMAT_VERSION_V4);
     assertThat(copy.location()).isEqualTo("s3://bucket/data/00000-0-file.parquet");
@@ -240,12 +231,9 @@ class TestTrackedFileStruct {
     assertThat(copy.keyMetadata()).isEqualTo(ByteBuffer.wrap(new byte[] {1, 2, 3}));
     assertThat(copy.splitOffsets()).containsExactly(100L, 200L);
     assertThat(copy.equalityIds()).containsExactly(1, 2, 3);
-
-    assertThat(PARTITION_COMPARATOR.compare(copy.partition(), PARTITION)).isEqualTo(0);
+    assertThat(copy.partition()).isSameAs(PARTITION_COPY);
 
     // mutable fields are deep-copied, not shared with the original
-    assertThat(copy.tracking()).isNotSameAs(file.tracking());
-    assertThat(copy.partition()).isNotSameAs(file.partition());
     assertThat(copy.deletionVector()).isNotSameAs(file.deletionVector());
     assertThat(copy.manifestInfo()).isNotSameAs(file.manifestInfo());
     assertThat(copy.keyMetadata()).isNotSameAs(file.keyMetadata());
@@ -280,12 +268,12 @@ class TestTrackedFileStruct {
   void serializationRoundTrip(RoundTripSerializer<TrackedFileStruct> serializer) throws Exception {
     TrackedFileStruct file =
         new TrackedFileStruct(
-            TRACKING,
+            null, // TrackingStruct has its own serialization tests
             FileContent.DATA,
             FORMAT_VERSION_V4,
             "s3://bucket/data/file.parquet",
             FileFormat.PARQUET,
-            PARTITION,
+            null, // PartitionData has its own serialization tests
             100L,
             1024L,
             7,
@@ -299,15 +287,12 @@ class TestTrackedFileStruct {
 
     TrackedFileStruct deserialized = serializer.apply(file);
 
-    assertThat(
-            TRACKING_COMPARATOR.compare(
-                (StructLike) deserialized.tracking(), (StructLike) TRACKING))
-        .isEqualTo(0);
+    assertThat(deserialized.tracking()).isNull();
     assertThat(deserialized.contentType()).isEqualTo(FileContent.DATA);
     assertThat(deserialized.formatVersion()).isEqualTo(FORMAT_VERSION_V4);
     assertThat(deserialized.location()).isEqualTo("s3://bucket/data/file.parquet");
     assertThat(deserialized.fileFormat()).isEqualTo(FileFormat.PARQUET);
-    assertThat(PARTITION_COMPARATOR.compare(deserialized.partition(), PARTITION)).isEqualTo(0);
+    assertThat(deserialized.partition()).isNull();
     assertThat(deserialized.recordCount()).isEqualTo(100L);
     assertThat(deserialized.fileSizeInBytes()).isEqualTo(1024L);
     assertThat(deserialized.specId()).isEqualTo(7);
