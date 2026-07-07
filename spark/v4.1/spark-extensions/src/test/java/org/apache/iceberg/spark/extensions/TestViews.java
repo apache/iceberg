@@ -775,6 +775,34 @@ public class TestViews extends ExtensionsTestBase {
   }
 
   @TestTemplate
+  public void renameQualifiedViewToUnqualifiedTargetKeepsSourceNamespace() {
+    Namespace sourceNamespace = Namespace.of(viewName("rename_source_ns"));
+    Namespace currentNamespace = Namespace.of(viewName("rename_current_ns"));
+    String viewName = viewName("originalView");
+    String renamedView = viewName("renamedView");
+    String sql = String.format("SELECT id FROM %s.%s.%s", catalogName, NAMESPACE, tableName);
+
+    sql("CREATE NAMESPACE IF NOT EXISTS %s.%s", catalogName, sourceNamespace);
+    sql("CREATE NAMESPACE IF NOT EXISTS %s.%s", catalogName, currentNamespace);
+
+    ViewCatalog viewCatalog = viewCatalog();
+    viewCatalog
+        .buildView(TableIdentifier.of(sourceNamespace, viewName))
+        .withQuery("spark", sql)
+        .withDefaultNamespace(sourceNamespace)
+        .withDefaultCatalog(catalogName)
+        .withSchema(schema(sql))
+        .create();
+
+    sql("USE %s.%s", catalogName, currentNamespace);
+    sql("ALTER VIEW %s.%s RENAME TO %s", sourceNamespace, viewName, renamedView);
+
+    assertThat(viewCatalog.viewExists(TableIdentifier.of(sourceNamespace, viewName))).isFalse();
+    assertThat(viewCatalog.viewExists(TableIdentifier.of(sourceNamespace, renamedView))).isTrue();
+    assertThat(viewCatalog.viewExists(TableIdentifier.of(currentNamespace, renamedView))).isFalse();
+  }
+
+  @TestTemplate
   public void renameViewHiddenByTempView() throws NoSuchTableException {
     insertRows(10);
     String viewName = viewName("originalView");
