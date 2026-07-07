@@ -565,6 +565,9 @@ acceptedBreaks:
       old: "field org.apache.iceberg.PartitionStatsHandler.PARTITION_FIELD_NAME"
       justification: "Removed deprecated functionality for partition stats"
     - code: "java.method.removed"
+      old: "method org.apache.iceberg.MetricsConfig org.apache.iceberg.MetricsConfig::forPositionDelete(org.apache.iceberg.Table)"
+      justification: "Deprecated for removal in 1.12.0"
+    - code: "java.method.removed"
       old: "method org.apache.iceberg.Schema org.apache.iceberg.PartitionStatsHandler::schema(org.apache.iceberg.types.Types.StructType,\
         \ int)"
       justification: "Removed deprecated functionality for partition stats"
