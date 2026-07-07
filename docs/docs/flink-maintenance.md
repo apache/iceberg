@@ -112,13 +112,18 @@ Notes:
 
 **State and restart**
 
-- The PK-index worker keeps a keyed row-position index of the target branch in Flink state. Its size scales with the number of live rows in the table for the configured equality columns; size Flink state backend, checkpoint storage, and TaskManager memory accordingly.
+- The PK-index worker keeps a keyed row-position index of the target branch in Flink state and **maintains it incrementally across checkpoints**: each trigger cycle only applies the commits added on the target branch since the last indexed snapshot, and the resulting index is persisted with the next Flink checkpoint. On failover, the worker resumes from the most recent checkpointed index rather than rebuilding from scratch. Its size scales with the number of live rows in the table for the configured equality columns; size Flink state backend, checkpoint storage, and TaskManager memory accordingly.
+- Full (re)indexing from the target branch head is only triggered in a few cases: cold start with no checkpoint, external commits that advance the target past the currently-indexed snapshot (see below), or when the planner detects that the target branch has diverged from the indexed snapshot (rollback / replace-main / expired marker).
 - The `equalityFieldColumns` set is persisted in operator state. Reconfiguring it across a restart from savepoint is **not supported** and the job will fail fast on restore. Restart from a clean state (no savepoint) if the equality columns change.
 - The committer is intentionally stateless. On restart, the planner rediscovers its position by walking the target branch for the marker property `equality-convert-staging-snapshot` written by the committer. If that marker is no longer reachable on the target branch (target was rolled back, replace-main'ed, or the marker snapshot was expired) the planner fails and requires manual intervention.
 
 **Concurrent commits on the target branch**
 
 - External commits to the target branch (e.g. compaction, direct writes) are detected by `RowDelta.validateFromSnapshot`. A conflicting cycle fails at commit; the next trigger reindexes the worker's PK index from the new target head and retries.
+- **Recommendation: avoid continuous concurrent writers on the target branch.** The conflict check runs at commit time, so a cycle that loses the race has already paid the cost of reading data files, resolving the PK index, and writing DV files — all of which is thrown away on failure. If another writer commits to the target faster than the converter can complete a cycle, cycles can fail repeatedly and never catch up (a livelock), and the abandoned DV files linger until `DeleteOrphanFiles` cleans them up.
+- **Acceptable patterns** (the design assumes one of these):
+    - The Flink `IcebergSink` is the *only* writer to `stagingBranch`, and nothing except this converter writes to `targetBranch`. Other maintenance tasks (compaction, expire snapshots, orphan cleanup) share the same `TriggerLockFactory` so they are serialized with the converter and will not race it.
+    - Occasional external commits to the target branch (e.g. manual fixes, ad-hoc backfill) are fine — the next trigger will reindex and succeed.
 
 ### Lock Management
 
