@@ -240,6 +240,11 @@ public interface ManifestFile {
     return 0;
   }
 
+  /** Returns the column files of the manifest, or null if there are none. */
+  default List<ColumnFile> columnFiles() {
+    return null;
+  }
+
   /**
    * Copies this {@link ManifestFile manifest file}. Readers can reuse manifest file instances; use
    * this method to make defensive copies.

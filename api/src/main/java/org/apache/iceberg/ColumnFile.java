@@ -22,7 +22,7 @@ import java.nio.ByteBuffer;
 import java.util.Set;
 import org.apache.iceberg.types.Types;
 
-interface ColumnFile {
+public interface ColumnFile {
   Types.NestedField LOCATION =
       Types.NestedField.required(
           160, "location", Types.StringType.get(), "Location of the column file");
