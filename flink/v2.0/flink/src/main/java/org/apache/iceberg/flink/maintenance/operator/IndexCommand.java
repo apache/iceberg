@@ -40,6 +40,9 @@ import org.apache.flink.annotation.Internal;
  * <p>{@link #rowPosition} is the data row's location, set for the two add types and null otherwise;
  * the data sequence number it carries lets the worker apply a delete only to older rows. {@code
  * deleteSequenceNumber} is the equality delete's sequence number, set for {@link
+ * Type#RESOLVE_DELETE} and unused (-1) otherwise. {@code deleteSpecId} is the partition spec id of
+ * the delete file, used to scope a partitioned delete to data rows of the same spec; {@link
+ * #GLOBAL_DELETE_SPEC_ID} marks an unpartitioned delete that applies to every spec. Set for {@link
  * Type#RESOLVE_DELETE} and unused (-1) otherwise.
  */
 @Internal
@@ -49,8 +52,12 @@ public record IndexCommand(
     Long mainSequenceNumber,
     SerializedEqualityValues key,
     DVPosition rowPosition,
-    long deleteSequenceNumber)
+    long deleteSequenceNumber,
+    int deleteSpecId)
     implements Serializable {
+
+  /** Spec id sentinel for an unpartitioned equality delete, which applies as a global delete. */
+  public static final int GLOBAL_DELETE_SPEC_ID = -1;
 
   public enum Type {
     ADD_DATA_ROW,
@@ -75,6 +82,7 @@ public record IndexCommand(
         mainSequenceNumber,
         key,
         new DVPosition(filePath, position, specId, partition, dataSequenceNumber),
+        -1,
         -1);
   }
 
@@ -82,12 +90,20 @@ public record IndexCommand(
       Long mainSnapshotId,
       Long mainSequenceNumber,
       SerializedEqualityValues key,
-      long deleteSequenceNumber) {
+      long deleteSequenceNumber,
+      int deleteSpecId) {
     return new IndexCommand(
-        Type.RESOLVE_DELETE, mainSnapshotId, mainSequenceNumber, key, null, deleteSequenceNumber);
+        Type.RESOLVE_DELETE,
+        mainSnapshotId,
+        mainSequenceNumber,
+        key,
+        null,
+        deleteSequenceNumber,
+        deleteSpecId);
   }
 
   public static IndexCommand clearBeforeReindex(long mainSnapshotId, long mainSequenceNumber) {
-    return new IndexCommand(Type.CLEAR_INDEX, mainSnapshotId, mainSequenceNumber, null, null, -1);
+    return new IndexCommand(
+        Type.CLEAR_INDEX, mainSnapshotId, mainSequenceNumber, null, null, -1, -1);
   }
 }
