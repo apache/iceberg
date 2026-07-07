@@ -2100,13 +2100,14 @@ public class TestRewriteDataFilesAction extends TestBase {
 
     List<Object[]> expectedLineage =
         Lists.newArrayList(
-            row(0L, dataSequenceNumber, ANY, ANY, ANY),
-            row(1L, dataSequenceNumber, ANY, ANY, ANY),
-            row(2L, dataSequenceNumber, ANY, ANY, ANY),
-            row(3L, dataSequenceNumber, ANY, ANY, ANY));
+            row(0L, committedDataSequence, ANY, ANY, ANY),
+            row(1L, committedDataSequence, ANY, ANY, ANY),
+            row(2L, committedDataSequence, ANY, ANY, ANY),
+            row(3L, committedDataSequence, ANY, ANY, ANY));
 
     assertEquals(
-        "Row IDs must be 0..3 and last-updated must inherit the data sequence",
+        "First snapshot after upgrade to v3 assigns row IDs and inherits the committed data"
+            + " sequence as _last_updated_sequence_number",
         expectedLineage,
         currentDataWithLineage());
   }
