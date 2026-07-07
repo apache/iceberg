@@ -164,4 +164,8 @@ public interface DataFile extends ContentFile<DataFile> {
   default List<Integer> equalityFieldIds() {
     return null;
   }
+
+  default List<ColumnFile> columnFiles() {
+    return null;
+  }
 }

@@ -58,6 +58,19 @@ class TestTrackedFileAdapters {
           .withSpecId(PARTITIONED_SPEC_ID)
           .build();
   private static final PartitionData PARTITION = partition("books");
+  private static final ColumnFile COLUMN_FILE_1 =
+      ColumnFileStruct.builder()
+          .fieldIds(List.of(1, 2))
+          .location("column_file_1.parquet")
+          .fileSizeInBytes(128L)
+          .build();
+  private static final ColumnFile COLUMN_FILE_2 =
+      ColumnFileStruct.builder()
+          .fieldIds(List.of(3))
+          .location("column_file_2.parquet")
+          .fileSizeInBytes(256L)
+          .build();
+  private static final List<ColumnFile> COLUMN_FILES = List.of(COLUMN_FILE_1, COLUMN_FILE_2);
 
   // Tracking field ordinals, looked up from the schema so the tests do not hard-code offsets.
   private static final int DATA_SEQUENCE_NUMBER_ORDINAL =
@@ -79,19 +92,24 @@ class TestTrackedFileAdapters {
   @Test
   void testDataFileAdapterDelegation() {
     TrackedFile file =
-        TrackedFileBuilder.data(42L)
-            .formatVersion(FORMAT_VERSION_V4)
-            .location(DATA_FILE_LOCATION)
-            .fileFormat(FileFormat.PARQUET)
-            .partition(PARTITION)
-            .recordCount(100L)
-            .fileSizeInBytes(1024L)
-            .specId(PARTITIONED_SPEC_ID)
-            .contentStats(createContentStats())
-            .sortOrderId(3)
-            .keyMetadata(ByteBuffer.wrap(new byte[] {1, 2, 3}))
-            .splitOffsets(ImmutableList.of(50L, 100L))
-            .build();
+        new TrackedFileStruct(
+            TrackingBuilder.added(42L).build(),
+            FileContent.DATA,
+            FORMAT_VERSION_V4,
+            DATA_FILE_LOCATION,
+            FileFormat.PARQUET,
+            PARTITION,
+            100L,
+            1024L,
+            PARTITIONED_SPEC_ID,
+            createContentStats(),
+            3,
+            null,
+            null,
+            ByteBuffer.wrap(new byte[] {1, 2, 3}),
+            ImmutableList.of(50L, 100L),
+            null,
+            COLUMN_FILES);
     populateTrackingFields(file);
 
     DataFile dataFile = TrackedFileAdapters.asDataFile(file, specsById(PARTITIONED_SPEC));
@@ -124,6 +142,7 @@ class TestTrackedFileAdapters {
         .containsOnly(
             Map.entry(1, Conversions.toByteBuffer(Types.IntegerType.get(), 1000)),
             Map.entry(2, Conversions.toByteBuffer(Types.FloatType.get(), 100.0f)));
+    assertThat(dataFile.columnFiles()).containsExactly(COLUMN_FILE_1, COLUMN_FILE_2);
   }
 
   @ParameterizedTest

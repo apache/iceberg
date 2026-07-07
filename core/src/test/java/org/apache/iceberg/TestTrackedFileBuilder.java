@@ -824,7 +824,15 @@ public class TestTrackedFileBuilder {
   private static TrackedFile entryWithInheritedSeqNums(TrackedFile entry, long sequenceNumber) {
     Tracking manifestTrackingToInheritFrom =
         new TrackingStruct(
-            EntryStatus.EXISTING, 123L, sequenceNumber, sequenceNumber, null, null, null, null);
+            EntryStatus.EXISTING,
+            123L,
+            sequenceNumber,
+            sequenceNumber,
+            null,
+            null,
+            null,
+            null,
+            null);
 
     ((TrackingStruct) entry.tracking()).inheritFrom(manifestTrackingToInheritFrom);
     return entry;

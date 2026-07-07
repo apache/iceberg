@@ -21,10 +21,14 @@ package org.apache.iceberg;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 import org.apache.iceberg.avro.SupportsIndexProjection;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ArrayUtil;
@@ -66,7 +70,8 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
           TrackedFile.MANIFEST_INFO,
           TrackedFile.KEY_METADATA,
           TrackedFile.SPLIT_OFFSETS,
-          TrackedFile.EQUALITY_IDS);
+          TrackedFile.EQUALITY_IDS,
+          TrackedFile.COLUMN_FILES);
 
   private FileContent contentType = null;
   private int formatVersion = -1;
@@ -86,6 +91,7 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
   private byte[] keyMetadata = null;
   private long[] splitOffsets = null;
   private int[] equalityIds = null;
+  private List<ColumnFile> columnFiles = null;
 
   /** Used by internal readers to instantiate this class with a projection schema. */
   TrackedFileStruct(Types.StructType projection) {
@@ -118,7 +124,8 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
       ManifestInfo manifestInfo,
       ByteBuffer keyMetadata,
       List<Long> splitOffsets,
-      List<Integer> equalityIds) {
+      List<Integer> equalityIds,
+      List<ColumnFile> columnFiles) {
     super(BASE_TYPE.fields().size());
     this.tracking = tracking;
     this.contentType = contentType;
@@ -139,6 +146,7 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
     this.keyMetadata = ByteBuffers.toByteArray(keyMetadata);
     this.splitOffsets = ArrayUtil.toLongArray(splitOffsets);
     this.equalityIds = ArrayUtil.toIntArray(equalityIds);
+    this.columnFiles = columnFiles != null ? Lists.newArrayList(columnFiles) : null;
   }
 
   /** Copy constructor. */
@@ -175,6 +183,13 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
     this.equalityIds =
         toCopy.equalityIds != null
             ? Arrays.copyOf(toCopy.equalityIds, toCopy.equalityIds.length)
+            : null;
+    this.columnFiles =
+        toCopy.columnFiles != null
+            ? toCopy.columnFiles.stream()
+                .filter(Objects::nonNull)
+                .map(ColumnFile::copy)
+                .collect(Collectors.toList())
             : null;
   }
 
@@ -259,6 +274,11 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
   }
 
   @Override
+  public List<ColumnFile> columnFiles() {
+    return columnFiles != null ? Collections.unmodifiableList(columnFiles) : null;
+  }
+
+  @Override
   public TrackedFile copy() {
     return new TrackedFileStruct(this, true, null);
   }
@@ -291,6 +311,7 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
       case 13 -> keyMetadata();
       case 14 -> splitOffsets();
       case 15 -> equalityIds();
+      case 16 -> columnFiles();
       default -> throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
     };
   }
@@ -316,6 +337,7 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
       case 13 -> this.keyMetadata = ByteBuffers.toByteArray((ByteBuffer) value);
       case 14 -> this.splitOffsets = ArrayUtil.toLongArray((List<Long>) value);
       case 15 -> this.equalityIds = ArrayUtil.toIntArray((List<Integer>) value);
+      case 16 -> this.columnFiles = (List<ColumnFile>) value;
       default -> {
         // ignore the object, it must be from a newer version of the format
       }
@@ -341,6 +363,7 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
         .add("key_metadata", keyMetadata == null ? "null" : "(redacted)")
         .add("split_offsets", splitOffsets == null ? "null" : splitOffsets())
         .add("equality_ids", equalityIds == null ? "null" : equalityIds())
+        .add("column_files", columnFiles)
         .toString();
   }
 }
