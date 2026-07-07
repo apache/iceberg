@@ -772,7 +772,8 @@ public class TableMetadata implements Serializable {
       PartitionSpec updatedPartitionSpec,
       SortOrder updatedSortOrder,
       String newLocation,
-      Map<String, String> updatedProperties) {
+      Map<String, String> updatedProperties,
+      int replacementFormatVersion) {
     ValidationException.check(
         formatVersion > 1 || PartitionSpec.hasSequentialIds(updatedPartitionSpec),
         "Spec does not use sequential IDs that are required in v1: %s",
@@ -794,8 +795,10 @@ public class TableMetadata implements Serializable {
 
     // check if there is format version override
     int newFormatVersion =
-        PropertyUtil.propertyAsInt(
-            updatedProperties, TableProperties.FORMAT_VERSION, formatVersion);
+        Math.max(
+            replacementFormatVersion,
+            PropertyUtil.propertyAsInt(
+                updatedProperties, TableProperties.FORMAT_VERSION, formatVersion));
 
     return new Builder(this)
         .upgradeFormatVersion(newFormatVersion)

@@ -33,6 +33,8 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
+import org.apache.iceberg.exceptions.NoSuchTableException;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -423,21 +425,24 @@ public class TestReplaceTransaction extends TestBase {
   }
 
   /**
-   * Verifies that rebasing the replacement onto refreshed metadata keeps the replacement schema's
-   * field IDs stable. The staged data files were written against the stage-time replacement
-   * schema's field IDs; re-deriving IDs by name against the concurrently-changed schema would shift
-   * them and leave the committed schema no longer matching the staged data. Preserving the IDs
-   * keeps the staged data readable.
+   * Verifies that a concurrent schema change does not block a replace transaction. The contract of
+   * REPLACE TABLE is that the table's data, schema, and partitioning are replaced, so the
+   * replacement schema becomes current even when a concurrent commit added a column after the
+   * replace was staged.
+   *
+   * <p>REPLACE TABLE is not a drop/re-create: the concurrently added schema must remain in table
+   * history. The rebased replacement keeps the staged replacement's field IDs because the staged
+   * data files were written against those IDs.
    */
   @TestTemplate
-  public void testReplaceTransactionPreservesFieldIdsUnderConcurrentSchemaChange() {
+  public void testReplaceTransactionReplacesCurrentSchemaAndPreservesConcurrentSchemaHistory() {
     table.updateProperties().set("random-snapshot-ids", "true").commit();
 
     table.newAppend().appendFile(FILE_A).commit();
     table.refresh();
 
     // Replace with a schema that introduces a column NOT present in the original schema. Built
-    // against the original (seq-1) base, "added_by_replace" receives a fresh field id.
+    // against the original base, "added_by_replace" receives the next fresh field id.
     Schema replaceSchema =
         new Schema(
             required(10, "id", Types.IntegerType.get()),
@@ -453,27 +458,34 @@ public class TestReplaceTransaction extends TestBase {
             .findField("added_by_replace")
             .fieldId();
 
-    // Concurrent writer adds its own column to the original schema, consuming the next field id.
+    // Concurrent writer adds its own column to the original schema, consuming the same field id.
     table.updateSchema().addColumn("added_by_concurrent", Types.StringType.get()).commit();
     table.refresh();
+    int concurrentSchemaId = table.schema().schemaId();
+    assertThat(table.schema().findField("added_by_concurrent").fieldId())
+        .isEqualTo(stagedReplaceColumnId);
 
     replace.commitTransaction();
     table.refresh();
 
-    int committedReplaceColumnId = table.schema().findField("added_by_replace").fieldId();
-
-    // The replacement column keeps the field id the staged data files were written against, even
-    // though a concurrent schema change consumed that id in the refreshed base's schema.
-    assertThat(committedReplaceColumnId)
+    assertThat(table.schema().findField("added_by_replace").fieldId())
         .as("Replacement column field id must be stable across rebase")
+        .isEqualTo(stagedReplaceColumnId);
+    assertThat(table.schema().findField("added_by_concurrent"))
+        .as("Replace schema should be current")
+        .isNull();
+    validateSnapshot(null, table.currentSnapshot(), FILE_B);
+
+    assertThat(table.schemas())
+        .as("Concurrently added schema id must be preserved in history after replace")
+        .containsKey(concurrentSchemaId);
+    assertThat(table.schemas().get(concurrentSchemaId).findField("added_by_concurrent").fieldId())
         .isEqualTo(stagedReplaceColumnId);
   }
 
   /**
-   * Exercises a replace whose table is concurrently dropped after the transaction is staged. The
-   * refreshed base is null (TestTables.refresh returns null for a missing table), so there is
-   * nothing to rebase onto; the replace must commit the staged replacement as a create rather than
-   * attempting to rebuild on a null base.
+   * Exercises a replace whose table is concurrently dropped after the transaction is staged. Plain
+   * replace requires the table to exist, so it must fail rather than silently becoming a create.
    */
   @TestTemplate
   public void testReplaceTransactionConcurrentlyDroppedTable() {
@@ -489,11 +501,178 @@ public class TestReplaceTransaction extends TestBase {
     // returns a null base.
     TestTables.clearTables();
 
+    assertThatThrownBy(replace::commitTransaction).isInstanceOf(NoSuchTableException.class);
+    assertThat(TestTables.readMetadata("test")).isNull();
+  }
+
+  @TestTemplate
+  public void testCreateOrReplaceTransactionConcurrentlyDroppedTableCreates() {
+    table.newAppend().appendFile(FILE_A).commit();
+    table.refresh();
+
+    TestTables.TestTableOperations ops = new TestTables.TestTableOperations("test", tableDir);
+    TableMetadata stagedReplacement =
+        ops.current()
+            .buildReplacement(
+                table.schema(),
+                table.spec(),
+                SortOrder.unsorted(),
+                ops.current().location(),
+                ImmutableMap.of());
+    Transaction replace =
+        Transactions.createOrReplaceTableTransaction("test", ops, stagedReplacement);
+    replace.newAppend().appendFile(FILE_B).commit();
+
+    // Concurrent drop: create-or-replace has nothing to rebase onto, so it commits as a create.
+    TestTables.clearTables();
+
     replace.commitTransaction();
 
     TableMetadata after = TestTables.readMetadata("test");
     assertThat(after).isNotNull();
     validateSnapshot(null, after.currentSnapshot(), FILE_B);
+  }
+
+  @TestTemplate
+  public void testReplaceTransactionRebasePreservesConcurrentPropertyUpdate() {
+    table.updateProperties().set("p", "old").commit();
+    table.refresh();
+
+    Transaction replace =
+        TestTables.beginReplace(
+            tableDir,
+            "test",
+            table.schema(),
+            table.spec(),
+            SortOrder.unsorted(),
+            ImmutableMap.of("replace-prop", "replace"));
+    replace.newAppend().appendFile(FILE_B).commit();
+
+    table.updateProperties().set("p", "new").commit();
+    table.refresh();
+
+    replace.commitTransaction();
+    table.refresh();
+
+    assertThat(table.properties())
+        .containsEntry("p", "new")
+        .containsEntry("replace-prop", "replace");
+  }
+
+  @TestTemplate
+  public void testReplaceTransactionRebasePreservesConcurrentPropertyRemoval() {
+    table.updateProperties().set("p", "old").commit();
+    table.refresh();
+
+    Transaction replace =
+        TestTables.beginReplace(
+            tableDir,
+            "test",
+            table.schema(),
+            table.spec(),
+            SortOrder.unsorted(),
+            ImmutableMap.of("replace-prop", "replace"));
+    replace.newAppend().appendFile(FILE_B).commit();
+
+    table.updateProperties().remove("p").commit();
+    table.refresh();
+
+    replace.commitTransaction();
+    table.refresh();
+
+    assertThat(table.properties()).doesNotContainKey("p").containsEntry("replace-prop", "replace");
+  }
+
+  /**
+   * When a replace rebases onto a concurrent commit (replaying its updates) and the outer commit
+   * then fails and retries, the replayed updates rewrite their manifests. The uncommitted-file
+   * cleanup must not delete a manifest that ended up committed. Asserts every committed manifest
+   * still exists and is not queued for deletion.
+   */
+  @TestTemplate
+  public void testReplaceTransactionRetryAfterRebaseKeepsCommittedManifests() {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
+
+    table.updateProperties().set("random-snapshot-ids", "true").commit();
+    table.newAppend().appendFile(FILE_A).commit();
+    table.refresh();
+
+    Transaction replace = TestTables.beginReplace(tableDir, "test", table.schema(), table.spec());
+    replace.newAppend().appendFile(FILE_B).appendFile(FILE_C).commit();
+
+    // Concurrent commit advances the base so the replace rebases and replays its appends.
+    table.newAppend().appendFile(FILE_D).commit();
+    table.refresh();
+
+    // Force outer commit failures so the retry loop re-rebases and re-replays after the rebase.
+    BaseTransaction txn = (BaseTransaction) replace;
+    ((TestTables.TestTableOperations) txn.ops()).failCommits(2);
+
+    replace.commitTransaction();
+    table.refresh();
+
+    Snapshot committed = table.ops().current().currentSnapshot();
+    FileIO io = table.ops().io();
+
+    Set<String> committedPaths = Sets.newHashSet();
+    committedPaths.add(committed.manifestListLocation());
+    committed.allManifests(io).forEach(m -> committedPaths.add(m.path()));
+
+    assertThat(txn.deletedFiles())
+        .as("No committed file should be queued for deletion after a rebase + retry")
+        .doesNotContainAnyElementsOf(committedPaths);
+
+    for (ManifestFile manifest : committed.allManifests(io)) {
+      assertThat(io.newInputFile(manifest.path()).exists())
+          .as("Committed manifest must not be deleted by retry cleanup: %s", manifest.path())
+          .isTrue();
+    }
+    assertThat(io.newInputFile(committed.manifestListLocation()).exists())
+        .as("Committed manifest list must not be deleted by retry cleanup")
+        .isTrue();
+  }
+
+  /**
+   * Same cleanup-hazard probe as above, but staging a row delta (which goes through
+   * MergingSnapshotProducer with the default cleanup-after-commit behavior, unlike FastAppend) to
+   * cover a different manifest lifecycle across the rebase + retry.
+   */
+  @TestTemplate
+  public void testReplaceTransactionRowDeltaRetryAfterRebaseKeepsCommittedManifests() {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
+
+    table.updateProperties().set("random-snapshot-ids", "true").commit();
+    table.newAppend().appendFile(FILE_A).commit();
+    table.refresh();
+
+    Transaction replace = TestTables.beginReplace(tableDir, "test", table.schema(), table.spec());
+    replace.newRowDelta().addRows(FILE_B).addDeletes(fileBDeletes()).commit();
+
+    // Concurrent commit advances the base so the replace rebases and replays the row delta.
+    table.newAppend().appendFile(FILE_D).commit();
+    table.refresh();
+
+    BaseTransaction txn = (BaseTransaction) replace;
+    ((TestTables.TestTableOperations) txn.ops()).failCommits(2);
+
+    replace.commitTransaction();
+    table.refresh();
+
+    Snapshot committed = table.ops().current().currentSnapshot();
+    FileIO io = table.ops().io();
+    Set<String> committedPaths = Sets.newHashSet();
+    committedPaths.add(committed.manifestListLocation());
+    committed.allManifests(io).forEach(m -> committedPaths.add(m.path()));
+
+    assertThat(txn.deletedFiles())
+        .as("No committed file should be queued for deletion after a row-delta rebase + retry")
+        .doesNotContainAnyElementsOf(committedPaths);
+
+    for (ManifestFile manifest : committed.allManifests(io)) {
+      assertThat(io.newInputFile(manifest.path()).exists())
+          .as("Committed manifest must not be deleted by retry cleanup: %s", manifest.path())
+          .isTrue();
+    }
   }
 
   @TestTemplate
