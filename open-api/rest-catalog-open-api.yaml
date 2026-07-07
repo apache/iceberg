@@ -2534,9 +2534,12 @@ components:
         - $ref: '#/components/schemas/FalseExpression'
         - $ref: '#/components/schemas/AndOrExpression'
         - $ref: '#/components/schemas/NotExpression'
-        - $ref: '#/components/schemas/SetExpression'
-        - $ref: '#/components/schemas/LiteralExpression'
+        - $ref: '#/components/schemas/UnaryPredicate'
+        - $ref: '#/components/schemas/ComparisonPredicate'
+        - $ref: '#/components/schemas/SetPredicate'
         - $ref: '#/components/schemas/UnaryExpression'
+        - $ref: '#/components/schemas/LiteralExpression'
+        - $ref: '#/components/schemas/SetExpression'
 
     ExpressionType:
       type: string
@@ -2560,6 +2563,13 @@ components:
         - "not-null"
         - "is-nan"
         - "not-nan"
+
+    ValueExpression:
+      description: >
+        A value expression: a literal value, a field reference, or a function apply.
+        See the Iceberg Expressions spec, Appendix B (JSON serialization) for the
+        full definition. Concrete schemas for LITERAL, REFERENCE, and APPLY forms
+        will be added in a follow-up change.
 
     TrueExpression:
       type: object
@@ -2606,7 +2616,65 @@ components:
         child:
           $ref: '#/components/schemas/Expression'
 
+    UnaryPredicate:
+      description: >
+        A predicate that tests a single value expression. Replaces the deprecated
+        UnaryExpression that used 'term'.
+      type: object
+      required:
+        - type
+        - child
+      properties:
+        type:
+          $ref: '#/components/schemas/ExpressionType'
+          enum: ["is-null", "not-null", "is-nan", "not-nan"]
+        child:
+          $ref: '#/components/schemas/ValueExpression'
+
+    ComparisonPredicate:
+      description: >
+        A predicate that compares two value expressions. Replaces the deprecated
+        LiteralExpression that used 'term' and 'value'.
+      type: object
+      required:
+        - type
+        - left
+        - right
+      properties:
+        type:
+          $ref: '#/components/schemas/ExpressionType'
+          enum: ["lt", "lt-eq", "gt", "gt-eq", "eq", "not-eq", "starts-with", "not-starts-with"]
+        left:
+          $ref: '#/components/schemas/ValueExpression'
+        right:
+          $ref: '#/components/schemas/ValueExpression'
+
+    SetPredicate:
+      description: >
+        A predicate that tests whether a value expression is in a set of literals.
+        Replaces the deprecated SetExpression that used 'term'.
+      type: object
+      required:
+        - type
+        - child
+        - values
+      properties:
+        type:
+          $ref: '#/components/schemas/ExpressionType'
+          enum: ["in", "not-in"]
+        child:
+          $ref: '#/components/schemas/ValueExpression'
+        values:
+          type: array
+          items:
+            $ref: '#/components/schemas/ValueExpression'
+
     UnaryExpression:
+      deprecated: true
+      description: >
+        Deprecated. Use UnaryPredicate with 'child' (a ValueExpression) instead.
+        Retained for backward compatibility with older clients per the Iceberg
+        Expressions spec (Appendix B, Backward compatibility).
       type: object
       required:
         - type
@@ -2619,6 +2687,11 @@ components:
           $ref: '#/components/schemas/Term'
 
     LiteralExpression:
+      deprecated: true
+      description: >
+        Deprecated. Use ComparisonPredicate with 'left' and 'right' (ValueExpressions)
+        instead. Retained for backward compatibility with older clients per the
+        Iceberg Expressions spec (Appendix B, Backward compatibility).
       type: object
       required:
         - type
@@ -2634,6 +2707,11 @@ components:
           $ref: '#/components/schemas/PrimitiveTypeValue'
 
     SetExpression:
+      deprecated: true
+      description: >
+        Deprecated. Use SetPredicate with 'child' (a ValueExpression) instead.
+        Retained for backward compatibility with older clients per the Iceberg
+        Expressions spec (Appendix B, Backward compatibility).
       type: object
       required:
         - type

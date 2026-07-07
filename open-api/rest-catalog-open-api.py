@@ -18,7 +18,7 @@
 from __future__ import annotations
 
 from datetime import date, timedelta
-from typing import Dict, Literal
+from typing import Any, Dict, Literal
 from uuid import UUID
 
 from pydantic import Base64Str, BaseModel, ConfigDict, Field, RootModel
@@ -151,6 +151,13 @@ class ExpressionType(RootModel[str]):
     )
 
 
+class ValueExpression(RootModel[Any]):
+    root: Any = Field(
+        ...,
+        description='A value expression: a literal value, a field reference, or a function apply. See the Iceberg Expressions spec, Appendix B (JSON serialization) for the full definition. Concrete schemas for LITERAL, REFERENCE, and APPLY forms will be added in a follow-up change.\n',
+    )
+
+
 class TrueExpression(BaseModel):
     type: Literal['true'] = Field(
         ...,
@@ -207,6 +214,115 @@ class FalseExpression(BaseModel):
             ]
         ],
     )
+
+
+class UnaryPredicate(BaseModel):
+    """
+    A predicate that tests a single value expression. Replaces the deprecated UnaryExpression that used 'term'.
+
+    """
+
+    type: Literal['is-null', 'not-null', 'is-nan', 'not-nan'] = Field(
+        ...,
+        examples=[
+            [
+                'true',
+                'false',
+                'eq',
+                'and',
+                'or',
+                'not',
+                'in',
+                'not-in',
+                'lt',
+                'lt-eq',
+                'gt',
+                'gt-eq',
+                'not-eq',
+                'starts-with',
+                'not-starts-with',
+                'is-null',
+                'not-null',
+                'is-nan',
+                'not-nan',
+            ]
+        ],
+    )
+    child: ValueExpression
+
+
+class ComparisonPredicate(BaseModel):
+    """
+    A predicate that compares two value expressions. Replaces the deprecated LiteralExpression that used 'term' and 'value'.
+
+    """
+
+    type: Literal[
+        'lt', 'lt-eq', 'gt', 'gt-eq', 'eq', 'not-eq', 'starts-with', 'not-starts-with'
+    ] = Field(
+        ...,
+        examples=[
+            [
+                'true',
+                'false',
+                'eq',
+                'and',
+                'or',
+                'not',
+                'in',
+                'not-in',
+                'lt',
+                'lt-eq',
+                'gt',
+                'gt-eq',
+                'not-eq',
+                'starts-with',
+                'not-starts-with',
+                'is-null',
+                'not-null',
+                'is-nan',
+                'not-nan',
+            ]
+        ],
+    )
+    left: ValueExpression
+    right: ValueExpression
+
+
+class SetPredicate(BaseModel):
+    """
+    A predicate that tests whether a value expression is in a set of literals. Replaces the deprecated SetExpression that used 'term'.
+
+    """
+
+    type: Literal['in', 'not-in'] = Field(
+        ...,
+        examples=[
+            [
+                'true',
+                'false',
+                'eq',
+                'and',
+                'or',
+                'not',
+                'in',
+                'not-in',
+                'lt',
+                'lt-eq',
+                'gt',
+                'gt-eq',
+                'not-eq',
+                'starts-with',
+                'not-starts-with',
+                'is-null',
+                'not-null',
+                'is-nan',
+                'not-nan',
+            ]
+        ],
+    )
+    child: ValueExpression
+    values: list[ValueExpression]
 
 
 class Reference(RootModel[str]):
@@ -1286,6 +1402,11 @@ class FunctionDefinitionVersion(BaseModel):
 
 
 class UnaryExpression(BaseModel):
+    """
+    Deprecated. Use UnaryPredicate with 'child' (a ValueExpression) instead. Retained for backward compatibility with older clients per the Iceberg Expressions spec (Appendix B, Backward compatibility).
+
+    """
+
     type: Literal['is-null', 'not-null', 'is-nan', 'not-nan'] = Field(
         ...,
         examples=[
@@ -1316,6 +1437,11 @@ class UnaryExpression(BaseModel):
 
 
 class LiteralExpression(BaseModel):
+    """
+    Deprecated. Use ComparisonPredicate with 'left' and 'right' (ValueExpressions) instead. Retained for backward compatibility with older clients per the Iceberg Expressions spec (Appendix B, Backward compatibility).
+
+    """
+
     type: Literal[
         'lt', 'lt-eq', 'gt', 'gt-eq', 'eq', 'not-eq', 'starts-with', 'not-starts-with'
     ] = Field(
@@ -1349,6 +1475,11 @@ class LiteralExpression(BaseModel):
 
 
 class SetExpression(BaseModel):
+    """
+    Deprecated. Use SetPredicate with 'child' (a ValueExpression) instead. Retained for backward compatibility with older clients per the Iceberg Expressions spec (Appendix B, Backward compatibility).
+
+    """
+
     type: Literal['in', 'not-in'] = Field(
         ...,
         examples=[
@@ -1911,9 +2042,12 @@ class Expression(
         | FalseExpression
         | AndOrExpression
         | NotExpression
-        | SetExpression
-        | LiteralExpression
+        | UnaryPredicate
+        | ComparisonPredicate
+        | SetPredicate
         | UnaryExpression
+        | LiteralExpression
+        | SetExpression
     ]
 ):
     root: (
@@ -1921,9 +2055,12 @@ class Expression(
         | FalseExpression
         | AndOrExpression
         | NotExpression
-        | SetExpression
-        | LiteralExpression
+        | UnaryPredicate
+        | ComparisonPredicate
+        | SetPredicate
         | UnaryExpression
+        | LiteralExpression
+        | SetExpression
     )
 
 
