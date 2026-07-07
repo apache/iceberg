@@ -247,6 +247,28 @@ public class TestTypes {
                     .withInitialDefault(Literal.of(Double.NEGATIVE_INFINITY))
                     .build())
         .withMessage("Invalid default value for double: -Infinity (must be finite)");
+
+    assertThatExceptionOfType(IllegalArgumentException.class)
+        .isThrownBy(
+            () ->
+                optional("f")
+                    .withId(1)
+                    .ofType(Types.FloatType.get())
+                    .withInitialDefault(Literal.of(Double.NaN))
+                    .build())
+        .withMessage("Invalid default value for float: NaN (must be finite)");
+  }
+
+  @Test
+  public void finiteOutOfRangeFloatingPointDefaultsAreNotRejectedAsNonFinite() {
+    Types.NestedField field =
+        optional("f")
+            .withId(1)
+            .ofType(Types.FloatType.get())
+            .withInitialDefault(Literal.of(1e40D))
+            .build();
+
+    assertThat(field.initialDefaultLiteral()).hasToString("aboveMax");
   }
 
   @Test

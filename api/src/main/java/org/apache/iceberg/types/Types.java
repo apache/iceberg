@@ -897,13 +897,11 @@ public class Types {
         throw new IllegalArgumentException(
             String.format("Invalid default value for %s: %s (must be null)", type, defaultValue));
       } else if (defaultValue != null) {
-        // Check before conversion so non-finite double-to-float defaults fail clearly instead of
-        // converting to AboveMax or BelowMin sentinels.
+        // Check before conversion so non-finite double defaults for float fields fail clearly.
         validateFloatingDefault(type, defaultValue, defaultValue);
         Literal<?> typedDefault = defaultValue.to(type);
         Preconditions.checkArgument(
             typedDefault != null, "Cannot cast default value to %s: %s", type, defaultValue);
-        validateFloatingDefault(type, typedDefault, defaultValue);
         return typedDefault;
       }
 
@@ -916,7 +914,7 @@ public class Types {
         Object value;
         try {
           value = defaultValue.value();
-        } catch (UnsupportedOperationException e) {
+        } catch (RuntimeException e) {
           throw new IllegalArgumentException(
               String.format("Cannot cast default value to %s: %s", type, originalDefault), e);
         }
