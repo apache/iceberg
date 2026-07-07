@@ -233,6 +233,11 @@ class TrackedFileAdapters {
     public DataFile copyWithStats(Set<Integer> requestedColumnIds) {
       return new TrackedDataFile(file().copyWithStats(requestedColumnIds), spec());
     }
+
+    @Override
+    public List<ColumnFile> columnFiles() {
+      return file().columnFiles();
+    }
   }
 
   /** Adapts a TrackedFile EQUALITY_DELETES entry to the {@link DeleteFile} interface. */

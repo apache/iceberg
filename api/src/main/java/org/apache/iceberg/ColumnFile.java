@@ -22,7 +22,7 @@ import java.util.List;
 import org.apache.iceberg.types.Types;
 
 /** Information about a column file. */
-interface ColumnFile {
+public interface ColumnFile {
   Types.NestedField FIELD_IDS =
       Types.NestedField.required(
           161,
