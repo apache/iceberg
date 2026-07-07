@@ -197,6 +197,12 @@ public class TableProperties {
   public static final String PARQUET_COLUMN_STATS_ENABLED_PREFIX =
       "write.parquet.stats-enabled.column.";
 
+  public static final String PARQUET_COLUMN_COMPRESSION_CODEC_PREFIX =
+      "write.parquet.compression-codec.column.";
+
+  public static final String PARQUET_COLUMN_COMPRESSION_LEVEL_PREFIX =
+      "write.parquet.compression-level.column.";
+
   public static final String PARQUET_DICT_ENCODING_ENABLED_COLUMN_PREFIX =
       "write.parquet.dict-encoding-enabled.column.";
 

@@ -82,7 +82,9 @@ nessie = "0.108.1"
 netty-buffer = "4.2.15.Final"
 object-client-bundle = "3.3.2"
 orc = "1.9.8"
-parquet = "1.17.1"
+# TODO: parquet per-column compression is not released yet; update to stable release once available.
+# Related PRs: https://github.com/apache/parquet-java/pull/3526 and https://github.com/apache/parquet-java/pull/3396
+parquet = "1.18.0"
 roaringbitmap = "1.6.14"
 scala-collection-compat = "2.14.0"
 slf4j = "2.0.18"
