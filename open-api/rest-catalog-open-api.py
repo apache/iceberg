@@ -811,6 +811,15 @@ class CreateNamespaceResponse(BaseModel):
     )
 
 
+class GetNamespaceResponse(BaseModel):
+    namespace: Namespace
+    properties: dict[str, str] | None = Field(
+        {},
+        description='Properties stored on the namespace, if supported by the server. If the server does not support namespace properties, it should return null for this field. If namespace properties are supported, but none are set, it should return an empty object.',
+        examples=[{'owner': 'Ralph', 'transient_lastDdlTime': '1452120468'}],
+    )
+
+
 class ListTablesResponse(BaseModel):
     next_page_token: PageToken | None = Field(None, alias='next-page-token')
     identifiers: list[TableIdentifier] | None = None
@@ -1155,13 +1164,13 @@ class ViewRequirement(RootModel[AssertViewUUID]):
 class Labels(BaseModel):
     """
     Catalog-specific metadata enrichment returned alongside catalog objects
-    (tables, views, namespaces). Labels are ephemeral API-level annotations
-    — they are NOT part of object state, do not modify underlying metadata
-    files, and do not create commits or snapshots.
+    (tables, views). Labels are ephemeral API-level annotations: they are
+    not part of object state, do not modify underlying metadata files, and
+    do not create commits or snapshots.
 
-    Catalogs MAY populate labels in API responses to provide operational
+    Catalogs may populate labels in API responses to provide operational
     context such as ownership, data classification, cost attribution, or
-    semantic hints. Engines MAY use labels for operational decisions or
+    semantic hints. Engines may use labels for operational decisions or
     ignore them entirely.
 
     Labels are scoped to the catalog that serves them. Different catalogs
@@ -1173,10 +1182,9 @@ class Labels(BaseModel):
     community conventions, not a centralized registry.
 
     Labels are split into two scopes on the wire: `table` carries flat
-    key-value pairs attached to the entity as a whole (table, view, or
-    namespace); `columns` carries column-level labels keyed by field-id
-    for stability across schema evolution. `columns` is empty or omitted
-    for non-table entities.
+    key-value pairs attached to the entity as a whole (table or view);
+    `columns` carries column-level labels keyed by field-id for stability
+    across schema evolution. `columns` is empty or omitted for views.
 
     """
 
@@ -1186,7 +1194,7 @@ class Labels(BaseModel):
     )
     columns: list[ColumnLabels] | None = Field(
         None,
-        description='Column-level labels, keyed by field-id. Empty or omitted for views and namespaces.',
+        description='Column-level labels, keyed by field-id. Empty or omitted for views.',
     )
 
 
@@ -1202,16 +1210,6 @@ class FailedPlanningResult(IcebergErrorResponse):
 
 class ReportMetricsRequest2(CommitReport):
     report_type: str = Field(..., alias='report-type')
-
-
-class GetNamespaceResponse(BaseModel):
-    namespace: Namespace
-    properties: dict[str, str] | None = Field(
-        {},
-        description='Properties stored on the namespace, if supported by the server. If the server does not support namespace properties, it should return null for this field. If namespace properties are supported, but none are set, it should return an empty object.',
-        examples=[{'owner': 'Ralph', 'transient_lastDdlTime': '1452120468'}],
-    )
-    labels: Labels | None = None
 
 
 class FunctionRepresentation(RootModel[FunctionSQLRepresentation]):
