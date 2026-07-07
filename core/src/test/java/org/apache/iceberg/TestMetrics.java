@@ -787,13 +787,4 @@ public abstract class TestMetrics {
       assertThat(upperBound).isNull();
     }
   }
-
-  private void assertSerializable(ContentStats stats) {
-    try {
-      ContentStats serialized = TestHelpers.roundTripSerialize(stats);
-      assertThat(serialized).isEqualTo(stats);
-    } catch (IOException | ClassNotFoundException e) {
-      throw new RuntimeException(e);
-    }
-  }
 }
