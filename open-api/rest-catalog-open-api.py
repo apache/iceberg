@@ -597,7 +597,11 @@ class LoadCredentialsResponse(BaseModel):
 
 class ColumnLabels(BaseModel):
     field_id: int = Field(
-        ..., alias='field-id', description="Field ID from the table's current schema"
+        ...,
+        alias='field-id',
+        description='Field ID from the current schema of the table or view',
+        ge=1,
+        le=2147483447,
     )
     labels: dict[str, str] = Field(
         ..., description='Flat key-value labels for this column'
@@ -1167,8 +1171,10 @@ class Labels(BaseModel):
     classification, or cost attribution) returned with a table or view.
     Labels are ephemeral: catalog-owned, generated per request, and never
     persisted to table metadata or versioned with table history. Optional;
-    clients may ignore them. `table` carries entity-level labels; `columns`
-    carries per-column labels keyed by field-id.
+    clients may ignore them. Labels are catalog-specific; different catalogs
+    may return different or no labels for the same object. `table` carries
+    entity-level labels; `columns` is an array of per-column entries, each
+    identifying its column by field-id.
 
     """
 
@@ -1178,7 +1184,7 @@ class Labels(BaseModel):
     )
     columns: list[ColumnLabels] | None = Field(
         None,
-        description='Column-level labels, keyed by field-id. Empty or omitted for views.',
+        description='Column-level labels. Each entry identifies its column by field-id.',
     )
 
 

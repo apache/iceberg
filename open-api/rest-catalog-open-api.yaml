@@ -3744,8 +3744,10 @@ components:
         classification, or cost attribution) returned with a table or view.
         Labels are ephemeral: catalog-owned, generated per request, and never
         persisted to table metadata or versioned with table history. Optional;
-        clients may ignore them. `table` carries entity-level labels; `columns`
-        carries per-column labels keyed by field-id.
+        clients may ignore them. Labels are catalog-specific; different catalogs
+        may return different or no labels for the same object. `table` carries
+        entity-level labels; `columns` is an array of per-column entries, each
+        identifying its column by field-id.
       properties:
         table:
           type: object
@@ -3754,7 +3756,8 @@ components:
             type: string
         columns:
           type: array
-          description: Column-level labels, keyed by field-id. Empty or omitted for views.
+          description: >-
+            Column-level labels. Each entry identifies its column by field-id.
           items:
             $ref: '#/components/schemas/ColumnLabels'
 
@@ -3766,7 +3769,10 @@ components:
       properties:
         field-id:
           type: integer
-          description: Field ID from the table's current schema
+          format: int32
+          minimum: 1
+          maximum: 2147483447
+          description: Field ID from the current schema of the table or view
         labels:
           type: object
           description: Flat key-value labels for this column
