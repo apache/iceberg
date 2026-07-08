@@ -233,8 +233,7 @@ interpretations, see [Index Transform Function](#index-transform-function).
 The transform function produces a transform value for each indexed row. To enable efficient planning, the transform
 value space is divided into non-overlapping ranges. Each leaf file contains entries for a single range, while the
 tracking file stores the corresponding bounds for every leaf file. If, and only if, a single transform value produces
-more rows than fit in one leaf file, multiple leaf files may be created for that value, and engines must read all of
-them.
+more rows than fit in one leaf file, multiple leaf files may be created for that value.
 
 When a query predicate can be mapped to transform value ranges, engines can use these bounds to prune leaf files that
 cannot contain matching entries, avoiding unnecessary reads.
