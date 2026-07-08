@@ -51,7 +51,7 @@ Each index snapshot references a tracking file which describes the leaf files be
 ```text
 Index Metadata
     |
-    +-- Index Snapshot
+    +-- Index Snapshot(s)
             |
             +-- Tracking File
                     |
