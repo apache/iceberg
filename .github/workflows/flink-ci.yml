@@ -82,6 +82,11 @@ jobs:
       max-parallel: 15
       matrix:
         jvm: [17, 21]
+        event_name: ['${{ github.event_name }}']
+        exclude:
+          # Pull requests run the baseline JDK only.
+          - event_name: pull_request
+            jvm: 21
         flink: ['1.20', '2.0', '2.1']
     env:
       SPARK_LOCAL_IP: localhost

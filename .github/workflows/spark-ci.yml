@@ -82,6 +82,7 @@ jobs:
       max-parallel: 20
       matrix:
         jvm: [17, 21]
+        event_name: ['${{ github.event_name }}']
         spark: ['3.5', '4.0', '4.1']
         scala: ['2.12', '2.13']
         # Split iceberg-spark (core) from iceberg-spark-extensions/-runtime
@@ -94,6 +95,9 @@ jobs:
             scala: '2.12'
           - spark: '4.1'
             scala: '2.12'
+          # Pull requests run the baseline JDK only.
+          - event_name: pull_request
+            jvm: 21
     env:
       SPARK_LOCAL_IP: localhost
     steps:

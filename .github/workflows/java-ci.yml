@@ -75,6 +75,11 @@ jobs:
       max-parallel: 15
       matrix:
         jvm: [17, 21]
+        event_name: ['${{ github.event_name }}']
+        exclude:
+          # Pull requests run the baseline JDK only.
+          - event_name: pull_request
+            jvm: 21
     env:
       SPARK_LOCAL_IP: localhost
     steps:
@@ -104,6 +109,11 @@ jobs:
       max-parallel: 15
       matrix:
         jvm: [17, 21]
+        event_name: ['${{ github.event_name }}']
+        exclude:
+          # Pull requests run the baseline JDK only.
+          - event_name: pull_request
+            jvm: 21
     steps:
     - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       with:
@@ -124,6 +134,11 @@ jobs:
       max-parallel: 15
       matrix:
         jvm: [17, 21]
+        event_name: ['${{ github.event_name }}']
+        exclude:
+          # Pull requests run the baseline JDK only.
+          - event_name: pull_request
+            jvm: 21
     steps:
     - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       with:
