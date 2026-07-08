@@ -157,7 +157,6 @@ The index metadata file stores the index definition and snapshot history.
 | required    | key-column-ids      | list<int>                | Source-table column IDs the transform is applied to (key columns) |
 | optional    | included-column-ids | list<int>                | Source-table column IDs copied into the index for read convenience (included columns) |
 | optional    | properties          | map<string,string>       | Index properties applicable for every snapshot  |
-| optional    | current-snapshot-id | long                     | ID of the current index snapshot                |
 | required    | snapshots           | list<index-snapshot>     | Index snapshots                                 |
 
 ## Index Snapshot
