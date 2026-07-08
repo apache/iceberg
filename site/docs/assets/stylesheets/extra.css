@@ -231,10 +231,6 @@ header .md-search__input::placeholder {
   font-family: "Source Sans Pro", sans-serif;
 }
 
-.md-typeset table code {
-  white-space: nowrap;
-}
-
 .md-typeset h1 {
   color: var(--color-default-primary);
   font-size: 32px;
