@@ -255,6 +255,25 @@ The index-specific columns are:
 | TBD       | file_path       | string | The path of the source data file the entry references                  |
 | TBD       | position        | long   | The row position of the entry within the source data file              |
 
+## Commits and Concurrency
+
+Index metadata is immutable. Every update, whether adding a new snapshot, dropping an old one, or changing index
+properties, produces a new index metadata file rather than modifying the existing one. Each new metadata file is written
+with a unique name.
+
+A commit replaces the current index metadata file with the new one. This swap is atomic: it succeeds only if the current
+metadata file is still the one the writer started from. The check is based on the current metadata file name (the version
+prefix). If, between the time a writer reads the metadata and the time it attempts to commit, another process has already
+committed a newer metadata file, the expected current file no longer matches and the commit is rejected.
+
+When a commit is rejected because of such a conflict, the writer does not overwrite the newer metadata. Instead, the index
+maintenance process decides how to proceed. Depending on the situation it may:
+
+- Re-read the latest committed metadata and retry the update on top of it, or
+- Discard the attempted update, for example when the conflicting commit already achieved the intended result.
+
+This prevents concurrent index maintenance runs from silently overwriting each other and losing snapshots.
+
 ## Example: Key Lookup Index
 
 Imagine an `events` table that already has a single snapshot (source table snapshot `3055729675574597004`). To speed up
