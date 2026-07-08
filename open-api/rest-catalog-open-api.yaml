@@ -2530,6 +2530,7 @@ components:
 
     Expression:
       oneOf:
+        - type: boolean
         - $ref: '#/components/schemas/TrueExpression'
         - $ref: '#/components/schemas/FalseExpression'
         - $ref: '#/components/schemas/AndOrExpression'
@@ -2572,6 +2573,11 @@ components:
         will be added in a follow-up change.
 
     TrueExpression:
+      deprecated: true
+      description: >
+        Deprecated. Use the bare boolean literal `true` as a predicate instead.
+        Retained for backward compatibility with older clients per the Iceberg
+        Expressions spec (Appendix B, JSON serialization).
       type: object
       required:
         - type
@@ -2581,6 +2587,11 @@ components:
           const: "true"
 
     FalseExpression:
+      deprecated: true
+      description: >
+        Deprecated. Use the bare boolean literal `false` as a predicate instead.
+        Retained for backward compatibility with older clients per the Iceberg
+        Expressions spec (Appendix B, JSON serialization).
       type: object
       required:
         - type

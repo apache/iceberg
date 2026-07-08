@@ -159,6 +159,11 @@ class ValueExpression(RootModel[Any]):
 
 
 class TrueExpression(BaseModel):
+    """
+    Deprecated. Use the bare boolean literal `true` as a predicate instead. Retained for backward compatibility with older clients per the Iceberg Expressions spec (Appendix B, JSON serialization).
+
+    """
+
     type: Literal['true'] = Field(
         ...,
         examples=[
@@ -188,6 +193,11 @@ class TrueExpression(BaseModel):
 
 
 class FalseExpression(BaseModel):
+    """
+    Deprecated. Use the bare boolean literal `false` as a predicate instead. Retained for backward compatibility with older clients per the Iceberg Expressions spec (Appendix B, JSON serialization).
+
+    """
+
     type: Literal['false'] = Field(
         ...,
         examples=[
@@ -2038,7 +2048,8 @@ class Type(RootModel[PrimitiveType | StructType | ListType | MapType]):
 
 class Expression(
     RootModel[
-        TrueExpression
+        bool
+        | TrueExpression
         | FalseExpression
         | AndOrExpression
         | NotExpression
@@ -2051,7 +2062,8 @@ class Expression(
     ]
 ):
     root: (
-        TrueExpression
+        bool
+        | TrueExpression
         | FalseExpression
         | AndOrExpression
         | NotExpression
