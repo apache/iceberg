@@ -216,7 +216,7 @@ class TestTrackedFileStruct {
     TrackedFile copy = file.copy();
 
     assertThat(copy).isInstanceOf(TrackedFileStruct.class);
-    assertThat(copy.tracking()).isEqualTo(TRACKING_COPY);
+    assertThat(copy.tracking()).isSameAs(TRACKING_COPY);
     assertThat(copy.contentType()).isEqualTo(FileContent.DATA);
     assertThat(copy.formatVersion()).isEqualTo(FORMAT_VERSION_V4);
     assertThat(copy.location()).isEqualTo("s3://bucket/data/00000-0-file.parquet");
