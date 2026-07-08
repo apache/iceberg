@@ -1516,6 +1516,10 @@ class ViewMetadata(BaseModel):
 
 
 class AddSchemaUpdate(BaseUpdate):
+    """
+    Adds a schema to the table. The field IDs in `schema` are assigned by the client. The client assigns them so that the schema stays consistent with the data files, partition specs, and sort orders it writes or co-commits, which reference fields by their field ID (`StructField.id`). Servers SHOULD preserve the field IDs submitted by the client on add-schema, as reassigning them would require re-deriving and rewriting every such reference, including in already-written data files.
+    """
+
     action: Literal['add-schema']
     schema_: Schema = Field(..., alias='schema')
     last_column_id: int | None = Field(
@@ -1636,6 +1640,10 @@ class CommitTransactionRequest(BaseModel):
 
 
 class CreateTableRequest(BaseModel):
+    """
+    Table creation request. The field IDs in `schema` are assigned by the client, but because a newly created table has no committed data, a server MAY (re)assign them when creating the table.
+    """
+
     name: str
     location: str | None = None
     schema_: Schema = Field(..., alias='schema')
