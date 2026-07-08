@@ -197,7 +197,7 @@ without opening every leaf file.
 | 101      | file_format        | string  | required     | File format name, such as parquet, avro, or orc.                                                             |
 | 103      | record_count       | long    | required     | Number of records contained in the referenced leaf file.                                                     |
 | 104      | file_size_in_bytes | long    | required     | Total file size in bytes.                                                                                    |
-| 146      | content_stats      | struct  | optional     | Statistics used for planning and pruning, including transform-key statistics and optional column statistics. |
+| 146      | content_stats      | struct  | required     | Statistics used for planning and pruning, including transform_value min/max statistics and optional column statistics. |
 | 131      | key_metadata       | binary  | optional     | Implementation-specific key metadata, used for leaf file encryption.                                         |
 
 ### Content Statistics
