@@ -19,6 +19,7 @@
 package org.apache.iceberg;
 
 import java.io.Serializable;
+import java.util.Objects;
 import org.apache.iceberg.avro.SupportsIndexProjection;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -51,7 +52,7 @@ class DeletionVectorStruct extends SupportsIndexProjection implements DeletionVe
   }
 
   private DeletionVectorStruct(String location, long offset, long sizeInBytes, long cardinality) {
-    super(BASE_TYPE, BASE_TYPE);
+    super(BASE_TYPE.fields().size());
     this.location = location;
     this.offset = offset;
     this.sizeInBytes = sizeInBytes;
@@ -129,6 +130,26 @@ class DeletionVectorStruct extends SupportsIndexProjection implements DeletionVe
   }
 
   @Override
+  public boolean equals(Object other) {
+    if (this == other) {
+      return true;
+    } else if (!(other instanceof DeletionVectorStruct)) {
+      return false;
+    }
+
+    DeletionVectorStruct that = (DeletionVectorStruct) other;
+    return Objects.equals(location, that.location)
+        && offset == that.offset
+        && sizeInBytes == that.sizeInBytes
+        && cardinality == that.cardinality;
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(location, offset, sizeInBytes, cardinality);
+  }
+
+  @Override
   public String toString() {
     return MoreObjects.toStringHelper(this)
         .add("location", location)
@@ -140,37 +161,41 @@ class DeletionVectorStruct extends SupportsIndexProjection implements DeletionVe
 
   static class Builder {
     private String location = null;
-    private long offset = -1L;
-    private long sizeInBytes = -1L;
-    private long cardinality = -1L;
+    private Long offset = null;
+    private Long sizeInBytes = null;
+    private Long cardinality = null;
 
     Builder location(String dvLocation) {
+      Preconditions.checkArgument(dvLocation != null, "Invalid location: null");
       this.location = dvLocation;
       return this;
     }
 
     Builder offset(long dvOffset) {
+      Preconditions.checkArgument(dvOffset >= 0, "Invalid offset: %s (must be >= 0)", dvOffset);
       this.offset = dvOffset;
       return this;
     }
 
     Builder sizeInBytes(long dvSizeInBytes) {
+      Preconditions.checkArgument(
+          dvSizeInBytes >= 0, "Invalid size in bytes: %s (must be >= 0)", dvSizeInBytes);
       this.sizeInBytes = dvSizeInBytes;
       return this;
     }
 
     Builder cardinality(long dvCardinality) {
+      Preconditions.checkArgument(
+          dvCardinality >= 0, "Invalid cardinality: %s (must be >= 0)", dvCardinality);
       this.cardinality = dvCardinality;
       return this;
     }
 
     DeletionVectorStruct build() {
-      Preconditions.checkArgument(location != null, "Invalid location: null");
-      Preconditions.checkArgument(offset >= 0, "Invalid offset: %s (must be >= 0)", offset);
-      Preconditions.checkArgument(
-          sizeInBytes >= 0, "Invalid size in bytes: %s (must be >= 0)", sizeInBytes);
-      Preconditions.checkArgument(
-          cardinality >= 0, "Invalid cardinality: %s (must be >= 0)", cardinality);
+      Preconditions.checkArgument(location != null, "Missing required value: location");
+      Preconditions.checkArgument(offset != null, "Missing required value: offset");
+      Preconditions.checkArgument(sizeInBytes != null, "Missing required value: size in bytes");
+      Preconditions.checkArgument(cardinality != null, "Missing required value: cardinality");
       return new DeletionVectorStruct(location, offset, sizeInBytes, cardinality);
     }
   }

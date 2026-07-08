@@ -44,6 +44,7 @@ import org.apache.spark.sql.sources.LessThanOrEqual;
 import org.apache.spark.sql.sources.Not;
 import org.junit.jupiter.api.Test;
 
+@SuppressWarnings("deprecation")
 public class TestSparkFilters {
 
   @Test

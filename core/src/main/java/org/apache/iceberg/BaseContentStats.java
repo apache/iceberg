@@ -124,25 +124,6 @@ class BaseContentStats implements ContentStats, Serializable {
       FieldStats<?> stat = fieldStats.get(pos);
       BaseFieldStats.Builder builder = BaseFieldStats.buildFrom(stat);
       Type type = stat.type();
-      if (null != record.getField(FieldStatistic.VALUE_COUNT.fieldName())) {
-        builder.valueCount((Long) record.getField(FieldStatistic.VALUE_COUNT.fieldName()));
-      }
-
-      if (null != record.getField(FieldStatistic.NAN_VALUE_COUNT.fieldName())) {
-        builder.nanValueCount((Long) record.getField(FieldStatistic.NAN_VALUE_COUNT.fieldName()));
-      }
-
-      if (null != record.getField(FieldStatistic.NULL_VALUE_COUNT.fieldName())) {
-        builder.nullValueCount((Long) record.getField(FieldStatistic.NULL_VALUE_COUNT.fieldName()));
-      }
-
-      if (null != record.getField(FieldStatistic.AVG_VALUE_SIZE.fieldName())) {
-        builder.avgValueSize((Integer) record.getField(FieldStatistic.AVG_VALUE_SIZE.fieldName()));
-      }
-
-      if (null != record.getField(FieldStatistic.MAX_VALUE_SIZE.fieldName())) {
-        builder.maxValueSize((Integer) record.getField(FieldStatistic.MAX_VALUE_SIZE.fieldName()));
-      }
 
       Object lowerBound = record.getField(FieldStatistic.LOWER_BOUND.fieldName());
       if (null != type && null != lowerBound) {
@@ -164,9 +145,26 @@ class BaseContentStats implements ContentStats, Serializable {
         builder.upperBound(type.typeId().javaClass().cast(upperBound));
       }
 
-      if (null != record.getField(FieldStatistic.EXACT_BOUNDS.fieldName())) {
-        Boolean exactBounds = (Boolean) record.getField(FieldStatistic.EXACT_BOUNDS.fieldName());
-        builder.hasExactBounds(null != exactBounds && exactBounds);
+      if (null != record.getField(FieldStatistic.TIGHT_BOUNDS.fieldName())) {
+        Boolean tightBounds = (Boolean) record.getField(FieldStatistic.TIGHT_BOUNDS.fieldName());
+        builder.tightBounds(null != tightBounds && tightBounds);
+      }
+
+      if (null != record.getField(FieldStatistic.VALUE_COUNT.fieldName())) {
+        builder.valueCount((Long) record.getField(FieldStatistic.VALUE_COUNT.fieldName()));
+      }
+
+      if (null != record.getField(FieldStatistic.NULL_VALUE_COUNT.fieldName())) {
+        builder.nullValueCount((Long) record.getField(FieldStatistic.NULL_VALUE_COUNT.fieldName()));
+      }
+
+      if (null != record.getField(FieldStatistic.NAN_VALUE_COUNT.fieldName())) {
+        builder.nanValueCount((Long) record.getField(FieldStatistic.NAN_VALUE_COUNT.fieldName()));
+      }
+
+      if (null != record.getField(FieldStatistic.AVG_VALUE_SIZE_IN_BYTES.fieldName())) {
+        builder.avgValueSizeInBytes(
+            (Integer) record.getField(FieldStatistic.AVG_VALUE_SIZE_IN_BYTES.fieldName()));
       }
 
       BaseFieldStats<?> newStat = builder.build();
