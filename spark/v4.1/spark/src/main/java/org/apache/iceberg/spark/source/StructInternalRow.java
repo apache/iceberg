@@ -24,6 +24,7 @@ import java.nio.ByteOrder;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.util.Collection;
 import java.util.List;
@@ -59,6 +60,7 @@ import org.apache.spark.sql.types.MapType;
 import org.apache.spark.sql.types.ShortType;
 import org.apache.spark.sql.types.StringType;
 import org.apache.spark.sql.types.StructType;
+import org.apache.spark.sql.types.TimeType;
 import org.apache.spark.sql.types.TimestampType;
 import org.apache.spark.sql.types.VariantType;
 import org.apache.spark.unsafe.types.CalendarInterval;
@@ -144,7 +146,13 @@ class StructInternalRow extends InternalRow {
     Object longVal = struct.get(ordinal, Object.class);
 
     if (longVal instanceof Long) {
+      if (type.fields().get(ordinal).type().typeId() == Type.TypeID.TIME) {
+        return timeToNanos(longVal);
+      }
+
       return (long) longVal;
+    } else if (longVal instanceof LocalTime) {
+      return timeToNanos(longVal);
     } else if (longVal instanceof OffsetDateTime) {
       return Duration.between(Instant.EPOCH, (OffsetDateTime) longVal).toNanos() / 1000;
     } else if (longVal instanceof LocalDate) {
@@ -153,6 +161,15 @@ class StructInternalRow extends InternalRow {
       throw new IllegalStateException(
           "Unknown type for long field. Type name: " + longVal.getClass().getName());
     }
+  }
+
+  private static long timeToNanos(Object value) {
+    if (value instanceof LocalTime) {
+      return ((LocalTime) value).toNanoOfDay();
+    }
+
+    // Iceberg stores time as microseconds from midnight, but Spark stores it as nanoseconds
+    return (Long) value * 1000;
   }
 
   @Override
@@ -294,6 +311,8 @@ class StructInternalRow extends InternalRow {
       return getShort(ordinal);
     } else if (dataType instanceof DateType) {
       return getInt(ordinal);
+    } else if (dataType instanceof TimeType) {
+      return getLong(ordinal);
     } else if (dataType instanceof TimestampType) {
       return getLong(ordinal);
     } else if (dataType instanceof VariantType) {
@@ -315,12 +334,13 @@ class StructInternalRow extends InternalRow {
       case BOOLEAN:
       case INTEGER:
       case DATE:
-      case TIME:
       case LONG:
       case TIMESTAMP:
       case FLOAT:
       case DOUBLE:
         return fillArray(values, array -> (pos, value) -> array[pos] = value);
+      case TIME:
+        return fillArray(values, array -> (pos, value) -> array[pos] = timeToNanos(value));
       case STRING:
         return fillArray(
             values,
