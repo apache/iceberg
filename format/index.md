@@ -32,7 +32,6 @@ Indexes are optional. Engines may choose to create, maintain, consume, or ignore
 
 - Define a portable metadata format for indexes
 - Provide a common storage architecture for index data
-- Expose indexes as catalog-managed objects
 - Allow indexes to be operated independently from source table metadata
 - Enable index sharing across engines
 - Provide a framework for defining new index types and transform functions
