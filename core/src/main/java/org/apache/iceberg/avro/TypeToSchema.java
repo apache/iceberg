@@ -21,13 +21,11 @@ package org.apache.iceberg.avro;
 import java.util.Deque;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.function.BiFunction;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import org.apache.avro.JsonProperties;
 import org.apache.avro.LogicalTypes;
 import org.apache.avro.Schema;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Type;
@@ -72,21 +70,15 @@ abstract class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
     TIMESTAMP_SCHEMA.addProp(AvroSchemaUtil.ADJUST_TO_UTC_PROP, false);
     TIMESTAMPTZ_SCHEMA.addProp(AvroSchemaUtil.ADJUST_TO_UTC_PROP, true);
 
-    final Optional<String> runtimeAvroVersion =
-        Optional.ofNullable(Schema.Parser.class.getPackage().getImplementationVersion());
-
-    // NanoTimestamp and UUID logical types are only supported in Avro 1.12 and above;
-    // Gate initialization to avoid runtime errors for users on earlier Avro versions
-    if (runtimeAvroVersion
-        .map(semVer -> Pattern.compile("^\\d+\\.(\\d+)").matcher(semVer))
-        .filter(Matcher::find)
-        .filter(matcher -> Integer.parseInt(matcher.group(1)) < 12)
-        .isEmpty()) {
+    try {
+      Class.forName("org.apache.avro.LogicalTypes$TimestampNanos");
       initializeTimestampNanoSchema();
       initializeTimestampTzNanoSchema();
 
       timestampNanoSchema.addProp(AvroSchemaUtil.ADJUST_TO_UTC_PROP, false);
       timestampTzNanoSchema.addProp(AvroSchemaUtil.ADJUST_TO_UTC_PROP, true);
+    } catch (ClassNotFoundException | LinkageError e) {
+      // TimestampNanos not available (Avro < 1.12)
     }
   }
 
@@ -274,9 +266,15 @@ abstract class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
         break;
       case TIMESTAMP_NANO:
         if (((Types.TimestampNanoType) primitive).shouldAdjustToUTC()) {
-          primitiveSchema = timestampTzNanoSchema;
+          primitiveSchema =
+              Preconditions.checkNotNull(
+                  timestampTzNanoSchema,
+                  "TimestampNano is not supported with Avro versions older than 1.12");
         } else {
-          primitiveSchema = timestampNanoSchema;
+          primitiveSchema =
+              Preconditions.checkNotNull(
+                  timestampNanoSchema,
+                  "TimestampNano is not supported with Avro versions older than 1.12");
         }
         break;
       case STRING:
