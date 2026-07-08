@@ -20,6 +20,9 @@ package org.apache.iceberg.parquet;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.apache.iceberg.Files.localInput;
+import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_ADAPTIVE_ENABLED;
+import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX;
+import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_MAX_BYTES;
 import static org.apache.iceberg.TableProperties.PARQUET_COLUMN_STATS_ENABLED_PREFIX;
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_CHECK_MAX_RECORD_COUNT;
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_CHECK_MIN_RECORD_COUNT;
@@ -336,6 +339,63 @@ public class TestParquet {
     assertThatThrownBy(() -> ParquetAvroWriter.buildWriter(schema))
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessage("Avro writer does not support variant types");
+  }
+
+  @Test
+  public void adaptiveBloomFilterSizingShrinksFile() throws IOException {
+    // without PARQUET_BLOOM_FILTER_ADAPTIVE_ENABLED, the writer allocates the full
+    // PARQUET_BLOOM_FILTER_MAX_BYTES buffer (4 MiB here) regardless of the number
+    // of distinct values written
+    long sizeWithoutAdaptive = writeWithBloomFilter(false);
+    assertThat(sizeWithoutAdaptive)
+        .as("non-adaptive file should pad the bloom filter to PARQUET_BLOOM_FILTER_MAX_BYTES")
+        .isGreaterThan(3_500_000L);
+
+    // with PARQUET_BLOOM_FILTER_ADAPTIVE_ENABLED, the writer picks the smallest candidate
+    // bloom filter that satisfies the actual number of distinct values (5) at the
+    // configured FPP
+    long sizeWithAdaptive = writeWithBloomFilter(true);
+    assertThat(sizeWithAdaptive)
+        .as("adaptive file should be at least 2x smaller than the non-adaptive file")
+        .isLessThan(sizeWithoutAdaptive / 2);
+  }
+
+  @Test
+  public void adaptiveBloomFilterDisabledByDefault() throws IOException {
+    // when PARQUET_BLOOM_FILTER_ADAPTIVE_ENABLED is not set, the existing behavior is
+    // preserved: the full PARQUET_BLOOM_FILTER_MAX_BYTES buffer is allocated
+    long size = writeWithBloomFilter(false);
+
+    assertThat(size)
+        .as("default write should pad the bloom filter to PARQUET_BLOOM_FILTER_MAX_BYTES")
+        .isGreaterThan(3_500_000L);
+  }
+
+  private long writeWithBloomFilter(boolean adaptiveEnabled) throws IOException {
+    Schema schema = new Schema(required(1, "id", Types.LongType.get()));
+
+    ImmutableMap.Builder<String, String> propsBuilder =
+        ImmutableMap.<String, String>builder()
+            .put(PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "id", "true")
+            .put(PARQUET_BLOOM_FILTER_MAX_BYTES, "4194304");
+    if (adaptiveEnabled) {
+      propsBuilder.put(PARQUET_BLOOM_FILTER_ADAPTIVE_ENABLED, "true");
+    }
+
+    List<GenericData.Record> records = Lists.newArrayListWithCapacity(5);
+    org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(schema.asStruct());
+    for (long i = 0; i < 5; i++) {
+      GenericData.Record record = new GenericData.Record(avroSchema);
+      record.put("id", i);
+      records.add(record);
+    }
+
+    return write(
+        createTempFile(temp),
+        schema,
+        propsBuilder.buildOrThrow(),
+        ParquetAvroWriter::buildWriter,
+        records.toArray(new GenericData.Record[] {}));
   }
 
   private Pair<File, Long> generateFile(
