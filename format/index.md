@@ -189,14 +189,14 @@ queries against the index.
 Entries contain aggregated statistics for all referenced leaf files, enabling engines to perform pruning and planning
 without opening every leaf file.
 
-| Field ID | Name               | Type    | Requirement  | Description                                                                                                  |
-|----------|--------------------|---------|--------------|--------------------------------------------------------------------------------------------------------------|
-| 100      | location           | string  | required     | Location of the referenced file.                                                                             |
-| 101      | file_format        | string  | required     | File format name, such as parquet, avro, or orc.                                                             |
-| 103      | record_count       | long    | required     | Number of records contained in the referenced leaf file.                                                     |
-| 104      | file_size_in_bytes | long    | required     | Total file size in bytes.                                                                                    |
+| Field ID | Name               | Type    | Requirement  | Description                                                                                                            |
+|----------|--------------------|---------|--------------|------------------------------------------------------------------------------------------------------------------------|
+| 100      | location           | string  | required     | Location of the referenced file.                                                                                       |
+| 101      | file_format        | string  | required     | File format name, such as parquet, avro, or orc.                                                                       |
+| 103      | record_count       | long    | required     | Number of records contained in the referenced leaf file.                                                               |
+| 104      | file_size_in_bytes | long    | required     | Total file size in bytes.                                                                                              |
 | 146      | content_stats      | struct  | required     | Statistics used for planning and pruning, including transform_value min/max statistics and optional column statistics. |
-| 131      | key_metadata       | binary  | optional     | Implementation-specific key metadata, used for leaf file encryption.                                         |
+| 131      | key_metadata       | binary  | optional     | Implementation-specific key metadata, used for leaf file encryption.                                                   |
 
 ### Content Statistics
 
