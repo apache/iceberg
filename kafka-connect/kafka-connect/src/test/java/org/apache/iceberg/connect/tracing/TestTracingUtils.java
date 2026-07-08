@@ -21,9 +21,7 @@ package org.apache.iceberg.connect.tracing;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.google.common.collect.ImmutableMap;
 import java.util.concurrent.atomic.AtomicBoolean;
-import org.apache.iceberg.connect.IcebergSinkConfig;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.SchemaBuilder;
 import org.apache.kafka.connect.data.Struct;
@@ -42,7 +40,9 @@ public class TestTracingUtils {
   public void testTraceRecordIngestCompletesWithNoOpTracer() {
     AtomicBoolean ingested = new AtomicBoolean(false);
     Schema valueSchema =
-        SchemaBuilder.struct().field("op", Schema.STRING_SCHEMA).field("ts_ms", Schema.INT64_SCHEMA);
+        SchemaBuilder.struct()
+            .field("op", Schema.STRING_SCHEMA)
+            .field("ts_ms", Schema.INT64_SCHEMA);
     Struct value = new Struct(valueSchema).put("op", "c").put("ts_ms", 12345L);
     SinkRecord record = new SinkRecord("topic", 0, null, null, valueSchema, value, 42L);
 
@@ -58,7 +58,11 @@ public class TestTracingUtils {
     assertThatThrownBy(
             () ->
                 TracingUtils.traceRecordIngest(
-                    record, "db.table", () -> { throw new DataException("ingest failed"); }))
+                    record,
+                    "db.table",
+                    () -> {
+                      throw new DataException("ingest failed");
+                    }))
         .isInstanceOf(DataException.class)
         .hasMessage("ingest failed");
   }
@@ -81,7 +85,9 @@ public class TestTracingUtils {
                     true,
                     1,
                     "connect-group",
-                    () -> { throw new RuntimeException("commit failed"); }))
+                    () -> {
+                      throw new RuntimeException("commit failed");
+                    }))
         .isInstanceOf(RuntimeException.class)
         .hasMessage("commit failed");
   }

@@ -18,13 +18,13 @@
  */
 package org.apache.iceberg.connect.tracing;
 
+import io.opentelemetry.context.propagation.TextMapGetter;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.kafka.connect.header.Header;
 import org.apache.kafka.connect.header.Headers;
-import io.opentelemetry.context.propagation.TextMapGetter;
 
 public enum KafkaConnectHeadersGetter implements TextMapGetter<Headers> {
   INSTANCE;
@@ -34,7 +34,7 @@ public enum KafkaConnectHeadersGetter implements TextMapGetter<Headers> {
     if (headers == null) {
       return Collections.emptyList();
     }
-    List<String> keys = new ArrayList<>();
+    List<String> keys = Lists.newArrayList();
     for (Header header : headers) {
       keys.add(header.key());
     }

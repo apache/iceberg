@@ -35,7 +35,8 @@ public class TestKafkaConnectHeadersGetter {
     Headers headers = new ConnectHeaders();
     headers.addString("traceparent", TRACEPARENT);
 
-    assertThat(KafkaConnectHeadersGetter.INSTANCE.get(headers, "traceparent")).isEqualTo(TRACEPARENT);
+    assertThat(KafkaConnectHeadersGetter.INSTANCE.get(headers, "traceparent"))
+        .isEqualTo(TRACEPARENT);
     assertThat(KafkaConnectHeadersGetter.INSTANCE.keys(headers)).contains("traceparent");
   }
 
@@ -44,7 +45,8 @@ public class TestKafkaConnectHeadersGetter {
     Headers headers = new ConnectHeaders();
     headers.add("traceparent", TRACEPARENT, Schema.STRING_SCHEMA);
 
-    assertThat(KafkaConnectHeadersGetter.INSTANCE.get(headers, "traceparent")).isEqualTo(TRACEPARENT);
+    assertThat(KafkaConnectHeadersGetter.INSTANCE.get(headers, "traceparent"))
+        .isEqualTo(TRACEPARENT);
   }
 
   @Test

@@ -64,10 +64,14 @@ public class TestIcebergSinkConfig {
   public void testTracingEnabled() {
     Map<String, String> props =
         ImmutableMap.of(
-            "iceberg.catalog.type", "rest",
-            "topics", "source-topic",
-            "iceberg.tables", "db.landing",
-            IcebergSinkConfig.TRACING_ENABLED_PROP, "true");
+            "iceberg.catalog.type",
+            "rest",
+            "topics",
+            "source-topic",
+            "iceberg.tables",
+            "db.landing",
+            IcebergSinkConfig.TRACING_ENABLED_PROP,
+            "true");
     IcebergSinkConfig config = new IcebergSinkConfig(props);
     assertThat(config.tracingEnabled()).isTrue();
   }

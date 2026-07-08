@@ -67,8 +67,7 @@ public final class Tracing {
       String connectGroupId,
       Runnable commitAction) {
     if (isActive(config)) {
-      TracingUtils.traceCommit(
-          commitId, partialCommit, tableCount, connectGroupId, commitAction);
+      TracingUtils.traceCommit(commitId, partialCommit, tableCount, connectGroupId, commitAction);
     } else {
       commitAction.run();
     }

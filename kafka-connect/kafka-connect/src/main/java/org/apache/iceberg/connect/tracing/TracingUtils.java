@@ -52,7 +52,8 @@ public final class TracingUtils {
 
   /**
    * Creates a child span for ingesting a record into connector file buffers. Extracts the upstream
-   * trace context from Kafka Connect record headers (e.g. {@code traceparent} injected by Debezium).
+   * trace context from Kafka Connect record headers (e.g. {@code traceparent} injected by
+   * Debezium).
    *
    * <p>This span covers buffering into Parquet/ORC files via {@code RecordWriter.write()}, not the
    * later Iceberg catalog commit.
@@ -63,7 +64,8 @@ public final class TracingUtils {
         propagator.extract(Context.root(), record.headers(), KafkaConnectHeadersGetter.INSTANCE);
 
     Span span =
-        TRACER.spanBuilder(SINK_INGEST)
+        TRACER
+            .spanBuilder(SINK_INGEST)
             .setParent(parent)
             .setSpanKind(SpanKind.INTERNAL)
             .startSpan();
@@ -87,8 +89,7 @@ public final class TracingUtils {
       int tableCount,
       String connectGroupId,
       Runnable commitAction) {
-    Span span =
-        TRACER.spanBuilder(SINK_COMMIT).setSpanKind(SpanKind.INTERNAL).startSpan();
+    Span span = TRACER.spanBuilder(SINK_COMMIT).setSpanKind(SpanKind.INTERNAL).startSpan();
     try (Scope ignored = span.makeCurrent()) {
       span.setAttribute("iceberg.stage", STAGE_DURABILITY);
       span.setAttribute("iceberg.commit-id", commitId);
