@@ -93,6 +93,7 @@ Required and optional properties to include while using `oauth2` authentication
 | `scope`                 | `catalog`         | Additional scope for `oauth2`.                                                                                                                                        |
 | `audience`              | null              | Optional param to specify token `audience`                                                                                                                            |
 | `resource`              | null              | Optional param to specify `resource`                                                                                                                                  |
+| `skip-inherited-auth-header-in-token-request` | false | When enabled, the `Authorization` header inherited from the parent session is not forwarded when fetching a new token via the client credentials flow. This prevents strict identity providers from rejecting the token request due to multiple authentication methods. |
 
 #### Google auth properties
 Required and optional properties to include while using `google` authentication

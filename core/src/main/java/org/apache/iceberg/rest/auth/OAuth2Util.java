@@ -41,6 +41,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.rest.ErrorHandlers;
 import org.apache.iceberg.rest.HTTPHeaders;
@@ -657,10 +658,15 @@ public class OAuth2Util {
         String credential,
         AuthSession parent) {
       long startTimeMillis = System.currentTimeMillis();
+      Map<String, String> headers =
+          parent.config().skipInheritedAuthHeaderInTokenRequest()
+              ? Maps.filterKeys(
+                  parent.headers(), key -> !AUTHORIZATION_HEADER.equalsIgnoreCase(key))
+              : parent.headers();
       OAuthTokenResponse response =
           fetchToken(
               client,
-              parent.headers(),
+              headers,
               credential,
               parent.scope(),
               parent.oauth2ServerUri(),
