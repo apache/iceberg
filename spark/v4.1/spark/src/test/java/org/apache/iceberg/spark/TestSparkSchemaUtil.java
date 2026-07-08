@@ -76,6 +76,23 @@ public class TestSparkSchemaUtil {
   }
 
   @Test
+  public void testPruneColumnsWithTimeField() {
+    Schema schema =
+        new Schema(
+            optional(1, "id", Types.IntegerType.get()),
+            optional(2, "start_time", Types.TimeType.get()));
+
+    StructType projection =
+        SparkSchemaUtil.convert(new Schema(optional(2, "start_time", Types.TimeType.get())));
+    Schema pruned = SparkSchemaUtil.prune(schema, projection);
+
+    assertThat(pruned.columns()).hasSize(1);
+    assertThat(pruned.findField("start_time").type())
+        .as("Time column should project as Spark TimeType")
+        .isEqualTo(Types.TimeType.get());
+  }
+
+  @Test
   public void testSchemaConversionWithMetaDataColumnSchema() {
     StructType structType = SparkSchemaUtil.convert(TEST_SCHEMA_WITH_METADATA_COLS);
     List<AttributeReference> attrRefs =
