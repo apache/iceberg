@@ -149,6 +149,7 @@ class SparkBatch implements Batch {
   // conditions for using Parquet batch reads:
   // - Parquet vectorization is enabled
   // - only primitives or metadata columns are projected
+  // - no projected column contains a time type
   // - all tasks are of FileScanTask type and read only Parquet files
   private boolean useParquetBatchReads() {
     return readConf.parquetVectorizationEnabled()
@@ -173,8 +174,9 @@ class SparkBatch implements Batch {
   private boolean supportsParquetBatchReads(Types.NestedField field) {
     // The vectorized Parquet reader exposes time values through Arrow's TimeMicroVector, which
     // returns microseconds, while Spark's TimeType expects nanoseconds. Until the vectorized path
-    // performs that conversion, fall back to row-based reads when a time column is projected.
-    if (field.type().typeId() == Type.TypeID.TIME) {
+    // performs that conversion, fall back to row-based reads when a time column is projected,
+    // including a time field nested in a metadata column like _partition.
+    if (TypeUtil.find(field.type(), type -> type.typeId() == Type.TypeID.TIME) != null) {
       return false;
     }
 
