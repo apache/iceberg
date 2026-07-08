@@ -51,9 +51,11 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import org.apache.iceberg.DataOperations;
 import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.UpdateProperties;
@@ -640,7 +642,11 @@ public class TestSparkWriteConf extends TestBaseWithCatalog {
         () -> {
           sql("DELETE FROM %s WHERE date = DATE '2021-01-01'", tableName);
           Table table = validationCatalog.loadTable(tableIdent);
-          assertThat(table.currentSnapshot().summary()).containsEntry("test-key", "test-value");
+          Snapshot snapshot = table.currentSnapshot();
+          assertThat(snapshot.summary()).containsEntry("test-key", "test-value");
+          assertThat(snapshot.operation()).isEqualTo(DataOperations.DELETE);
+          assertThat(snapshot.summary()).doesNotContainKey("added-data-files");
+          assertThat(snapshot.summary()).containsKey("deleted-data-files");
         });
   }
 
