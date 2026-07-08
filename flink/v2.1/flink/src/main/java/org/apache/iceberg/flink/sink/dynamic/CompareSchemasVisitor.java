@@ -172,14 +172,9 @@ public class CompareSchemasVisitor
     }
 
     Type tableSchemaType = tableSchema.findField(tableSchemaId).type();
-    if (!tableSchemaType.isPrimitiveType()) {
-      return Result.SCHEMA_UPDATE_NEEDED;
-    }
-
-    Type.PrimitiveType tableSchemaPrimitiveType = tableSchemaType.asPrimitiveType();
-    if (primitive.equals(tableSchemaPrimitiveType)) {
+    if (primitive.equals(tableSchemaType)) {
       return Result.SAME;
-    } else if (isDataConversionPossible(primitive, tableSchemaPrimitiveType)) {
+    } else if (isDataConversionPossible(primitive, tableSchemaType)) {
       return Result.DATA_CONVERSION_NEEDED;
     } else {
       return Result.SCHEMA_UPDATE_NEEDED;
@@ -191,8 +186,11 @@ public class CompareSchemasVisitor
    * {@code tableType}. Must stay in sync with the conversions {@link DataConverter#get} performs.
    */
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
-  static boolean isDataConversionPossible(
-      Type.PrimitiveType dataType, Type.PrimitiveType tableType) {
+  static boolean isDataConversionPossible(Type dataType, Type tableType) {
+    if (!dataType.isPrimitiveType() || !tableType.isPrimitiveType()) {
+      return false;
+    }
+
     if (dataType.equals(Types.IntegerType.get()) && tableType.equals(Types.LongType.get())) {
       return true;
     }

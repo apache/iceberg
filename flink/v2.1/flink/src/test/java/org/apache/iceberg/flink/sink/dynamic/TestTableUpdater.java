@@ -179,43 +179,23 @@ public class TestTableUpdater extends TestFlinkIcebergSinkBase {
   }
 
   @Test
-  void testAddColumnWithResidualNarrowingEvolvesThenConverts() {
-    Catalog catalog = CATALOG_EXTENSION.catalog();
-    TableIdentifier tableIdentifier = TableIdentifier.parse("default.myTable");
+  void testAddColumnWithDataConverterNarrowing() {
     Schema tableSchema =
         new Schema(
             Types.NestedField.optional(1, "id", Types.LongType.get()),
             Types.NestedField.optional(2, "data", Types.StringType.get()));
-    catalog.createTable(tableIdentifier, tableSchema);
-
-    TableMetadataCache cache =
-        new TableMetadataCache(catalog, 10, Long.MAX_VALUE, 10, CASE_SENSITIVE, PRESERVE_COLUMNS);
-    TableUpdater tableUpdater = new TableUpdater(cache, catalog, CASE_SENSITIVE, PRESERVE_COLUMNS);
-
     Schema rowSchema =
         new Schema(
             Types.NestedField.optional(1, "id", Types.IntegerType.get()),
             Types.NestedField.optional(2, "data", Types.StringType.get()),
             Types.NestedField.optional(3, "extra", Types.StringType.get()));
 
-    Tuple2<TableMetadataCache.ResolvedSchemaInfo, PartitionSpec> result =
-        tableUpdater.update(
-            tableIdentifier,
-            SnapshotRef.MAIN_BRANCH,
-            rowSchema,
-            PartitionSpec.unpartitioned(),
-            TableCreator.DEFAULT);
-
-    Schema evolved = catalog.loadTable(tableIdentifier).schema();
-    assertThat(evolved.findField("id").type()).isEqualTo(Types.LongType.get());
-    assertThat(evolved.findField("extra")).isNotNull();
-    assertThat(result.f0.compareResult())
-        .isEqualTo(CompareSchemasVisitor.Result.DATA_CONVERSION_NEEDED);
+    TableMetadataCache.ResolvedSchemaInfo result =
+        updateWithAddedColumnAndConversion(tableSchema, rowSchema);
 
     RowData converted =
         (RowData)
             result
-                .f0
                 .recordConverter()
                 .convert(
                     GenericRowData.of(5, StringData.fromString("a"), StringData.fromString("x")));
@@ -225,44 +205,24 @@ public class TestTableUpdater extends TestFlinkIcebergSinkBase {
   }
 
   @Test
-  void testAddColumnWithResidualDateToTimestampEvolvesThenConverts() {
-    Catalog catalog = CATALOG_EXTENSION.catalog();
-    TableIdentifier tableIdentifier = TableIdentifier.parse("default.myTable");
+  void testAddColumnWithDateToTimestampConversion() {
     Schema tableSchema =
         new Schema(
             Types.NestedField.optional(1, "ts", Types.TimestampType.withoutZone()),
             Types.NestedField.optional(2, "data", Types.StringType.get()));
-    catalog.createTable(tableIdentifier, tableSchema);
-
-    TableMetadataCache cache =
-        new TableMetadataCache(catalog, 10, Long.MAX_VALUE, 10, CASE_SENSITIVE, PRESERVE_COLUMNS);
-    TableUpdater tableUpdater = new TableUpdater(cache, catalog, CASE_SENSITIVE, PRESERVE_COLUMNS);
-
     Schema rowSchema =
         new Schema(
             Types.NestedField.optional(1, "ts", Types.DateType.get()),
             Types.NestedField.optional(2, "data", Types.StringType.get()),
             Types.NestedField.optional(3, "extra", Types.StringType.get()));
 
-    Tuple2<TableMetadataCache.ResolvedSchemaInfo, PartitionSpec> result =
-        tableUpdater.update(
-            tableIdentifier,
-            SnapshotRef.MAIN_BRANCH,
-            rowSchema,
-            PartitionSpec.unpartitioned(),
-            TableCreator.DEFAULT);
-
-    Schema evolved = catalog.loadTable(tableIdentifier).schema();
-    assertThat(evolved.findField("ts").type()).isEqualTo(Types.TimestampType.withoutZone());
-    assertThat(evolved.findField("extra")).isNotNull();
-    assertThat(result.f0.compareResult())
-        .isEqualTo(CompareSchemasVisitor.Result.DATA_CONVERSION_NEEDED);
+    TableMetadataCache.ResolvedSchemaInfo result =
+        updateWithAddedColumnAndConversion(tableSchema, rowSchema);
 
     LocalDate date = LocalDate.of(2026, 6, 30);
     RowData converted =
         (RowData)
             result
-                .f0
                 .recordConverter()
                 .convert(
                     GenericRowData.of(
@@ -272,6 +232,34 @@ public class TestTableUpdater extends TestFlinkIcebergSinkBase {
     assertThat(converted.getTimestamp(0, 6).toLocalDateTime()).isEqualTo(date.atStartOfDay());
     assertThat(converted.getString(1)).hasToString("a");
     assertThat(converted.getString(2)).hasToString("x");
+  }
+
+  private TableMetadataCache.ResolvedSchemaInfo updateWithAddedColumnAndConversion(
+      Schema tableSchema, Schema rowSchema) {
+    Catalog catalog = CATALOG_EXTENSION.catalog();
+    TableIdentifier tableIdentifier = TableIdentifier.parse("default.myTable");
+    catalog.createTable(tableIdentifier, tableSchema);
+
+    TableMetadataCache cache =
+        new TableMetadataCache(catalog, 10, Long.MAX_VALUE, 10, CASE_SENSITIVE, PRESERVE_COLUMNS);
+    TableUpdater tableUpdater = new TableUpdater(cache, catalog, CASE_SENSITIVE, PRESERVE_COLUMNS);
+
+    TableMetadataCache.ResolvedSchemaInfo result =
+        tableUpdater.update(
+                tableIdentifier,
+                SnapshotRef.MAIN_BRANCH,
+                rowSchema,
+                PartitionSpec.unpartitioned(),
+                TableCreator.DEFAULT)
+            .f0;
+
+    Schema evolved = catalog.loadTable(tableIdentifier).schema();
+    Types.NestedField convertedColumn = tableSchema.columns().get(0);
+    assertThat(evolved.findField(convertedColumn.name()).type()).isEqualTo(convertedColumn.type());
+    assertThat(evolved.findField("extra")).isNotNull();
+    assertThat(result.compareResult())
+        .isEqualTo(CompareSchemasVisitor.Result.DATA_CONVERSION_NEEDED);
+    return result;
   }
 
   @Test

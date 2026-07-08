@@ -24,6 +24,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.util.stream.Stream;
 import org.apache.flink.table.data.DecimalData;
 import org.apache.flink.table.data.GenericArrayData;
 import org.apache.flink.table.data.GenericMapData;
@@ -37,11 +39,12 @@ import org.apache.iceberg.flink.DataGenerators;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
-import org.joda.time.Days;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 class TestRowDataConverter {
 
@@ -86,57 +89,33 @@ class TestRowDataConverter {
         .hasMessageContaining("is non-nullable but does not exist in source schema");
   }
 
-  @Test
-  void testIntToLong() {
-    Schema schemaWithLong =
-        new Schema(
-            Types.NestedField.optional(2, "id", Types.LongType.get()),
-            Types.NestedField.optional(4, "data", Types.StringType.get()));
+  @ParameterizedTest
+  @MethodSource("dataConversionCases")
+  void testConversionsDeclaredByCompareSchemasVisitorAreSupported(
+      Type.PrimitiveType dataType, Type.PrimitiveType tableType, Object input, Object expected) {
+    Schema dataSchema = new Schema(optional(1, "field", dataType));
+    Schema tableSchema = new Schema(optional(2, "field", tableType));
 
-    assertThat(convert(SimpleDataUtil.createRowData(1, "a"), SimpleDataUtil.SCHEMA, schemaWithLong))
-        .isEqualTo(GenericRowData.of(1L, StringData.fromString("a")));
+    assertThat(CompareSchemasVisitor.isDataConversionPossible(dataType, tableType)).isTrue();
+    assertThat(convert(GenericRowData.of(input), dataSchema, tableSchema))
+        .isEqualTo(GenericRowData.of(expected));
   }
 
-  @Test
-  void testFloatToDouble() {
-    Schema schemaWithFloat =
-        new Schema(Types.NestedField.optional(1, "float2double", Types.FloatType.get()));
-    Schema schemaWithDouble =
-        new Schema(Types.NestedField.optional(2, "float2double", Types.DoubleType.get()));
-
-    assertThat(convert(GenericRowData.of(1.5f), schemaWithFloat, schemaWithDouble))
-        .isEqualTo(GenericRowData.of(1.5d));
-  }
-
-  @Test
-  void testDateToTimestamp() {
-    Schema schemaWithFloat =
-        new Schema(Types.NestedField.optional(1, "date2timestamp", Types.DateType.get()));
-    Schema schemaWithDouble =
-        new Schema(
-            Types.NestedField.optional(2, "date2timestamp", Types.TimestampType.withoutZone()));
-
-    DateTime time = new DateTime(2022, 1, 10, 0, 0, 0, 0, DateTimeZone.UTC);
-    int days =
-        Days.daysBetween(new DateTime(1970, 1, 1, 0, 0, 0, 0, DateTimeZone.UTC), time).getDays();
-
-    assertThat(convert(GenericRowData.of(days), schemaWithFloat, schemaWithDouble))
-        .isEqualTo(GenericRowData.of(TimestampData.fromEpochMillis(time.getMillis())));
-  }
-
-  @Test
-  void testIncreasePrecision() {
-    Schema before =
-        new Schema(Types.NestedField.required(14, "decimal_field", Types.DecimalType.of(9, 2)));
-    Schema after =
-        new Schema(Types.NestedField.required(14, "decimal_field", Types.DecimalType.of(10, 2)));
-
-    assertThat(
-            convert(
-                GenericRowData.of(DecimalData.fromBigDecimal(new BigDecimal("-1.50"), 9, 2)),
-                before,
-                after))
-        .isEqualTo(GenericRowData.of(DecimalData.fromBigDecimal(new BigDecimal("-1.50"), 10, 2)));
+  private static Stream<Arguments> dataConversionCases() {
+    LocalDate date = LocalDate.of(2022, 1, 10);
+    return Stream.of(
+        Arguments.of(Types.IntegerType.get(), Types.LongType.get(), 1, 1L),
+        Arguments.of(Types.FloatType.get(), Types.DoubleType.get(), 1.5f, 1.5d),
+        Arguments.of(
+            Types.DateType.get(),
+            Types.TimestampType.withoutZone(),
+            (int) date.toEpochDay(),
+            TimestampData.fromLocalDateTime(date.atStartOfDay())),
+        Arguments.of(
+            Types.DecimalType.of(9, 2),
+            Types.DecimalType.of(10, 2),
+            DecimalData.fromBigDecimal(new BigDecimal("-1.50"), 9, 2),
+            DecimalData.fromBigDecimal(new BigDecimal("-1.50"), 10, 2)));
   }
 
   @Test
