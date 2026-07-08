@@ -32,15 +32,22 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.function.Predicate;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.types.Conversions;
+import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -70,6 +77,186 @@ public class TestRewriteManifests extends TestBase {
 
     validateManifestEntries(
         manifests.get(0), ids(appendId), files(FILE_A), statuses(ManifestEntry.Status.EXISTING));
+  }
+
+  @TestTemplate
+  public void testRewriteManifestsPrunesColumnStats() throws IOException {
+    Table table = load();
+
+    table
+        .updateProperties()
+        .set("write.metadata.metrics.column.id", "counts")
+        .set("write.metadata.metrics.column.data", "none")
+        .commit();
+
+    int idFieldId = table.schema().findField("id").fieldId();
+    int dataFieldId = table.schema().findField("data").fieldId();
+    table.newFastAppend().appendFile(fileWithStats(idFieldId, dataFieldId)).commit();
+
+    table.rewriteManifests().pruneColumnStats().commit();
+
+    List<ManifestFile> manifests = table.currentSnapshot().dataManifests(table.io());
+    assertThat(manifests).hasSize(1);
+
+    try (ManifestReader<DataFile> reader =
+        ManifestFiles.read(manifests.get(0), table.io(), table.specs())) {
+      DataFile file = reader.iterator().next();
+
+      // id is configured as counts: counts and sizes are kept, bounds are dropped
+      // data is configured as none: all of its stats are dropped
+      assertThat(file.columnSizes()).containsOnlyKeys(idFieldId);
+      assertThat(file.valueCounts()).containsOnlyKeys(idFieldId);
+      assertThat(file.nullValueCounts()).containsOnlyKeys(idFieldId);
+      assertThat(file.nanValueCounts()).containsOnlyKeys(idFieldId);
+      assertThat(file.lowerBounds()).isNullOrEmpty();
+      assertThat(file.upperBounds()).isNullOrEmpty();
+    }
+  }
+
+  private static DataFile fileWithStats(int idFieldId, int dataFieldId) {
+    return DataFiles.builder(SPEC)
+        .withPath("/path/to/data-to-prune.parquet")
+        .withPartitionPath("data_bucket=0")
+        .withFileSizeInBytes(350)
+        .withMetrics(
+            new Metrics(
+                10L,
+                ImmutableMap.of(idFieldId, 100L, dataFieldId, 200L),
+                ImmutableMap.of(idFieldId, 90L, dataFieldId, 180L),
+                ImmutableMap.of(idFieldId, 10L, dataFieldId, 20L),
+                ImmutableMap.of(idFieldId, 0L, dataFieldId, 0L),
+                ImmutableMap.of(
+                    idFieldId, Conversions.toByteBuffer(Types.IntegerType.get(), 1),
+                    dataFieldId, Conversions.toByteBuffer(Types.StringType.get(), "a")),
+                ImmutableMap.of(
+                    idFieldId, Conversions.toByteBuffer(Types.IntegerType.get(), 5),
+                    dataFieldId, Conversions.toByteBuffer(Types.StringType.get(), "z"))))
+        .build();
+  }
+
+  @TestTemplate
+  public void testRewriteManifestsWithoutClusterByPrunesStatsAcrossManifests() throws IOException {
+    Table table = load();
+
+    table
+        .updateProperties()
+        .set("write.metadata.metrics.column.id", "counts")
+        .set("write.metadata.metrics.column.data", "none")
+        .commit();
+
+    int idFieldId = table.schema().findField("id").fieldId();
+    int dataFieldId = table.schema().findField("data").fieldId();
+    table
+        .newFastAppend()
+        .appendFile(
+            fileWithStats("/path/to/data-prune-1.parquet", "data_bucket=0", idFieldId, dataFieldId))
+        .commit();
+    table
+        .newFastAppend()
+        .appendFile(
+            fileWithStats("/path/to/data-prune-2.parquet", "data_bucket=1", idFieldId, dataFieldId))
+        .commit();
+    assertThat(table.currentSnapshot().dataManifests(table.io())).hasSize(2);
+
+    table.rewriteManifests().pruneColumnStats().commit();
+
+    List<ManifestFile> manifests = table.currentSnapshot().dataManifests(table.io());
+    assertThat(manifests).hasSize(1);
+    int fileCount = 0;
+    try (ManifestReader<DataFile> reader =
+        ManifestFiles.read(manifests.get(0), table.io(), table.specs())) {
+      for (DataFile file : reader) {
+        fileCount += 1;
+        assertThat(file.columnSizes()).containsOnlyKeys(idFieldId);
+        assertThat(file.valueCounts()).containsOnlyKeys(idFieldId);
+        assertThat(file.nullValueCounts()).containsOnlyKeys(idFieldId);
+        assertThat(file.nanValueCounts()).containsOnlyKeys(idFieldId);
+        assertThat(file.lowerBounds()).isNullOrEmpty();
+        assertThat(file.upperBounds()).isNullOrEmpty();
+      }
+    }
+
+    assertThat(fileCount).isEqualTo(2);
+  }
+
+  @TestTemplate
+  public void testPruneColumnStatsIsUnsupportedByDefault() {
+    RewriteManifests rewriteManifests =
+        new RewriteManifests() {
+          @Override
+          public RewriteManifests clusterBy(Function<DataFile, Object> func) {
+            return this;
+          }
+
+          @Override
+          public RewriteManifests rewriteIf(Predicate<ManifestFile> predicate) {
+            return this;
+          }
+
+          @Override
+          public RewriteManifests deleteManifest(ManifestFile manifest) {
+            return this;
+          }
+
+          @Override
+          public RewriteManifests addManifest(ManifestFile manifest) {
+            return this;
+          }
+
+          @Override
+          public RewriteManifests set(String property, String value) {
+            return this;
+          }
+
+          @Override
+          public RewriteManifests deleteWith(Consumer<String> deleteFunc) {
+            return this;
+          }
+
+          @Override
+          public RewriteManifests stageOnly() {
+            return this;
+          }
+
+          @Override
+          public RewriteManifests scanManifestsWith(ExecutorService executorService) {
+            return this;
+          }
+
+          @Override
+          public Snapshot apply() {
+            return null;
+          }
+
+          @Override
+          public void commit() {}
+        };
+
+    assertThatThrownBy(rewriteManifests::pruneColumnStats)
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessageContaining("doesn't implement pruneColumnStats");
+  }
+
+  private static DataFile fileWithStats(
+      String path, String partition, int idFieldId, int dataFieldId) {
+    return DataFiles.builder(SPEC)
+        .withPath(path)
+        .withPartitionPath(partition)
+        .withFileSizeInBytes(350)
+        .withMetrics(
+            new Metrics(
+                10L,
+                ImmutableMap.of(idFieldId, 100L, dataFieldId, 200L),
+                ImmutableMap.of(idFieldId, 90L, dataFieldId, 180L),
+                ImmutableMap.of(idFieldId, 10L, dataFieldId, 20L),
+                ImmutableMap.of(idFieldId, 0L, dataFieldId, 0L),
+                ImmutableMap.of(
+                    idFieldId, Conversions.toByteBuffer(Types.IntegerType.get(), 1),
+                    dataFieldId, Conversions.toByteBuffer(Types.StringType.get(), "a")),
+                ImmutableMap.of(
+                    idFieldId, Conversions.toByteBuffer(Types.IntegerType.get(), 5),
+                    dataFieldId, Conversions.toByteBuffer(Types.StringType.get(), "z"))))
+        .build();
   }
 
   @TestTemplate
