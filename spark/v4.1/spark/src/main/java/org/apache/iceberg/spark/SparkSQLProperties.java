@@ -70,9 +70,6 @@ public class SparkSQLProperties {
   // Overrides the advisory partition size
   public static final String ADVISORY_PARTITION_SIZE = "spark.sql.iceberg.advisory-partition-size";
 
-  // Overrides the split target size for scan planning
-  public static final String SPLIT_SIZE = "spark.sql.iceberg.split-size";
-
   // Controls whether to report locality information to Spark while allocating input partitions
   public static final String LOCALITY = "spark.sql.iceberg.locality.enabled";
 
@@ -116,6 +113,9 @@ public class SparkSQLProperties {
   // Controls whether adaptive split sizing is enabled
   public static final String READ_ADAPTIVE_SPLIT_SIZE_ENABLED =
       "spark.sql.iceberg.read.adaptive-split-size.enabled";
+
+  // Overrides the split target size for scan planning
+  public static final String READ_SPLIT_SIZE = "spark.sql.iceberg.read.split-size";
 
   // Overrides the parallelism used for adaptive split sizing. When unset, the parallelism
   // defaults to max(spark.default.parallelism, spark.sql.shuffle.partitions).

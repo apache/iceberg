@@ -168,7 +168,7 @@ public class TestSparkScan extends TestBaseWithCatalog {
         ImmutableMap.of(
             SQLConf.SHUFFLE_PARTITIONS().key(),
             "200",
-            SparkSQLProperties.SPLIT_SIZE,
+            SparkSQLProperties.READ_SPLIT_SIZE,
             String.valueOf(splitSize)),
         () -> {
           SparkScan scan =

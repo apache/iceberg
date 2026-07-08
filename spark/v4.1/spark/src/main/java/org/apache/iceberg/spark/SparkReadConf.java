@@ -39,16 +39,12 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap;
  *
  * <ol>
  *   <li>Read options
- *   <li>Table-scoped session configuration (e.g. {@code
- *       spark.sql.iceberg.split-size.catalog.database.table})
- *   <li>Global session configuration (e.g. {@code spark.sql.iceberg.split-size})
+ *   <li>Session configuration (e.g. {@code spark.sql.iceberg.read.split-size})
  *   <li>Table metadata
  * </ol>
  *
  * The most specific value is set in read options and takes precedence over all other configs. If no
- * read option is provided, this class checks the session configuration for a table-scoped override
- * using the fully qualified table name from {@link Table#name()} as a suffix. If no table-scoped
- * value is found, it falls back to the global session configuration key. If no applicable value is
+ * read option is provided, this class checks the session configuration. If no applicable value is
  * found in the session configuration, this class uses the table metadata.
  *
  * <p>For split size, session overrides are treated like explicit read options and disable adaptive
@@ -166,7 +162,7 @@ public class SparkReadConf {
     return confParser
         .longConf()
         .option(SparkReadOptions.SPLIT_SIZE)
-        .sessionConf(SparkSQLProperties.SPLIT_SIZE)
+        .sessionConf(SparkSQLProperties.READ_SPLIT_SIZE)
         .parseOptional();
   }
 
@@ -174,7 +170,7 @@ public class SparkReadConf {
     return confParser
         .longConf()
         .option(SparkReadOptions.SPLIT_SIZE)
-        .sessionConf(SparkSQLProperties.SPLIT_SIZE)
+        .sessionConf(SparkSQLProperties.READ_SPLIT_SIZE)
         .tableProperty(TableProperties.SPLIT_SIZE)
         .defaultValue(TableProperties.SPLIT_SIZE_DEFAULT)
         .parse();
