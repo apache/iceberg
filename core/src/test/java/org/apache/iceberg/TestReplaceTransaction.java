@@ -501,7 +501,9 @@ public class TestReplaceTransaction extends TestBase {
     // returns a null base.
     TestTables.clearTables();
 
-    assertThatThrownBy(replace::commitTransaction).isInstanceOf(NoSuchTableException.class);
+    assertThatThrownBy(replace::commitTransaction)
+        .isInstanceOf(NoSuchTableException.class)
+        .hasMessageContaining("Table does not exist");
     assertThat(TestTables.readMetadata("test")).isNull();
   }
 

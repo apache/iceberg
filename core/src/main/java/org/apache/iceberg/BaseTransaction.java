@@ -315,30 +315,7 @@ public class BaseTransaction implements Transaction {
           .onlyRetryOn(CommitFailedException.class)
           .run(
               underlyingOps -> {
-                TableMetadata refreshed;
-                try {
-                  refreshed = underlyingOps.refresh();
-                } catch (NoSuchTableException e) {
-                  if (!orCreate) {
-                    throw e;
-                  }
-                  refreshed = null;
-                }
-
-                if (refreshed == null && !orCreate) {
-                  throw new NoSuchTableException("Table does not exist: %s", tableName);
-                }
-
-                // If the table changed while this transaction was open (usually a concurrent
-                // commit), rebuild the replacement on the latest metadata so that commit's history
-                // is not silently dropped. If the latest metadata is null, only create-or-replace
-                // can commit the staged replacement as a new table.
-                if (base != refreshed) {
-                  this.base = refreshed; // just refreshed
-                  if (base != null) {
-                    rebaseReplaceOnto(base);
-                  }
-                }
+                refreshAndRebaseReplace(underlyingOps, orCreate);
 
                 underlyingOps.commit(base, current);
               });
@@ -376,6 +353,33 @@ public class BaseTransaction implements Transaction {
       }
     } catch (RuntimeException e) {
       LOG.warn("Failed to load committed metadata, skipping clean-up", e);
+    }
+  }
+
+  private void refreshAndRebaseReplace(TableOperations underlyingOps, boolean orCreate) {
+    TableMetadata refreshed;
+    try {
+      refreshed = underlyingOps.refresh();
+    } catch (NoSuchTableException e) {
+      if (!orCreate) {
+        throw e;
+      }
+      refreshed = null;
+    }
+
+    if (refreshed == null && !orCreate) {
+      throw new NoSuchTableException("Table does not exist: %s", tableName);
+    }
+
+    // If the table changed while this transaction was open (usually a concurrent commit), rebuild
+    // the replacement on the latest metadata so that commit's history is not silently dropped. If
+    // the latest metadata is null, only create-or-replace can commit the staged replacement as a
+    // new table.
+    if (base != refreshed) {
+      this.base = refreshed; // just refreshed
+      if (base != null) {
+        rebaseReplaceOnto(base);
+      }
     }
   }
 
