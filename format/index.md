@@ -257,46 +257,111 @@ The index-specific columns are:
 
 ## Example: Key Lookup Index
 
-Index Type:
+Imagine an `events` table that already has a single snapshot (source table snapshot `3055729675574597004`). To speed up
+point lookups on the `user_id` column, a key lookup index is created.
 
-```text
-SCALAR
+```sql
+CREATE INDEX hash_index
+    ON events (user_id)
+    USING HASH;
 ```
 
-Transform Function:
+This creates a `SCALAR` index that applies the `HASH` transform to the `user_id` key column. When the index is created,
+the engine (or a later index maintenance job) reads the current table snapshot, writes the leaf files and a tracking
+file, and produces the first index metadata file containing a single index snapshot. Leaf files are organized by
+transform value, while the tracking file stores summary information and pruning statistics.
 
-```text
-HASH(primary_key)
+Each leaf file row contains the key column, the transform value, and the location of the source row:
+
+| Column          | Description                                          |
+|-----------------|------------------------------------------------------|
+| user_id         | The indexed key column                               |
+| transform_value | The result of applying `HASH` to `user_id`           |
+| file_path       | The source data file that contains the row           |
+| position        | The row position within the source data file         |
+
+The JSON metadata file is shown below.
+
+```
+s3://bucket/warehouse/default.db/events/index/hash_index/metadata/00001-(uuid).metadata.json
+```
+```json
+{
+  "format-version" : 1,
+  "uuid" : "9c12d441-03fe-4693-9a96-a0705ddf69c1",
+  "table-uuid" : "fb072c92-a02b-11e9-ae9c-1bb7bc9eca94",
+  "location" : "s3://bucket/warehouse/default.db/events/index/hash_index",
+  "type" : "SCALAR",
+  "transform-function" : "HASH",
+  "key-column-ids" : [ 1 ],
+  "snapshots" : [ {
+    "snapshot-id" : 1,
+    "source-table-snapshot-id" : 3055729675574597004,
+    "timestamp-ms" : 1573518431292,
+    "tracking-file" : "s3://bucket/warehouse/default.db/events/index/hash_index/metadata/tracking-00001-(uuid).parquet"
+  } ]
+}
 ```
 
-Leaf Schema:
+Later, new data is added to the `events` table, producing a new table snapshot (`5459876531255530170`). Index
+maintenance runs again and writes new leaf files for the added data, plus a new tracking file that references both the
+still-valid old leaf files and the new leaf files.
 
-| Column           |
-|------------------|
-| primary_key      |
-| transform_value  |
-| file_path        |
-| position         |
+This produces a new index metadata file that completely replaces the previous one. The old index snapshot (`snapshot-id`
+1) is kept alongside the new one (`snapshot-id` 2), so engines can still use the index against the older table snapshot.
 
-The leaf files are organized by transform value, while the tracking file stores summary information and pruning statistics.
+```
+s3://bucket/warehouse/default.db/events/index/hash_index/metadata/00002-(uuid).metadata.json
+```
+```json
+{
+  "format-version" : 1,
+  "uuid" : "9c12d441-03fe-4693-9a96-a0705ddf69c1",
+  "table-uuid" : "fb072c92-a02b-11e9-ae9c-1bb7bc9eca94",
+  "location" : "s3://bucket/warehouse/default.db/events/index/hash_index",
+  "type" : "SCALAR",
+  "transform-function" : "HASH",
+  "key-column-ids" : [ 1 ],
+  "snapshots" : [ {
+    "snapshot-id" : 1,
+    "source-table-snapshot-id" : 3055729675574597004,
+    "timestamp-ms" : 1573518431292,
+    "tracking-file" : "s3://bucket/warehouse/default.db/events/index/hash_index/metadata/tracking-00001-(uuid).parquet"
+  }, {
+    "snapshot-id" : 2,
+    "source-table-snapshot-id" : 5459876531255530170,
+    "timestamp-ms" : 1573518981593,
+    "tracking-file" : "s3://bucket/warehouse/default.db/events/index/hash_index/metadata/tracking-00002-(uuid).parquet"
+  } ]
+}
+```
 
-## Snapshot Evolution
+Eventually the older table snapshot is no longer needed, so maintenance drops the corresponding index snapshot
+(`snapshot-id` 1). It writes a new index metadata file that removes the snapshot from the `snapshots` list and replaces
+the previous metadata file. Maintenance then deletes the files referenced only by the removed snapshot: its tracking file
+and any leaf files not referenced by a remaining snapshot. Leaf files still referenced by the remaining snapshot are
+retained.
 
-Index snapshots are immutable.
-
-Updating an index creates:
-
-1. New leaf files
-2. A new tracking file pointing to new leaf files, and potentially some old leaf files that are still valid for the new snapshot.
-3. A new index metadata file
-
-The catalog commits the update by atomically replacing the metadata location.
-
-## Maintenance
-
-An index maintains a mapping between source table snapshots and index snapshots.
-
-Engines may use this mapping to determine whether a compatible index snapshot exists for a given table snapshot.
+```
+s3://bucket/warehouse/default.db/events/index/hash_index/metadata/00003-(uuid).metadata.json
+```
+```json
+{
+  "format-version" : 1,
+  "uuid" : "9c12d441-03fe-4693-9a96-a0705ddf69c1",
+  "table-uuid" : "fb072c92-a02b-11e9-ae9c-1bb7bc9eca94",
+  "location" : "s3://bucket/warehouse/default.db/events/index/hash_index",
+  "type" : "SCALAR",
+  "transform-function" : "HASH",
+  "key-column-ids" : [ 1 ],
+  "snapshots" : [ {
+    "snapshot-id" : 2,
+    "source-table-snapshot-id" : 5459876531255530170,
+    "timestamp-ms" : 1573518981593,
+    "tracking-file" : "s3://bucket/warehouse/default.db/events/index/hash_index/metadata/tracking-00002-(uuid).parquet"
+  } ]
+}
+```
 
 ## Future Extensions
 
