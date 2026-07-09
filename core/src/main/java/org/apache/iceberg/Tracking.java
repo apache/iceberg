@@ -65,6 +65,12 @@ interface Tracking {
           "replaced_positions",
           Types.BinaryType.get(),
           "Bitmap of positions replaced in this snapshot");
+  Types.NestedField LATEST_COLUMN_FILE_SNAPSHOT_ID =
+      Types.NestedField.optional(
+          160,
+          "latest_column_file_snapshot_id",
+          Types.LongType.get(),
+          "Snapshot ID where the latest column file was added; null if there are no column files");
 
   static Types.StructType schema() {
     return Types.StructType.of(
@@ -75,7 +81,8 @@ interface Tracking {
         DV_SNAPSHOT_ID,
         FIRST_ROW_ID,
         DELETED_POSITIONS,
-        REPLACED_POSITIONS);
+        REPLACED_POSITIONS,
+        LATEST_COLUMN_FILE_SNAPSHOT_ID);
   }
 
   /** Returns the status of the entry. */
@@ -106,6 +113,12 @@ interface Tracking {
 
   /** Returns the bitmap of positions replaced in this snapshot. */
   ByteBuffer replacedPositions();
+
+  /**
+   * Returns the snapshot ID where the latest column file was added; null if there are no column
+   * files.
+   */
+  Long latestColumnFileSnapshotId();
 
   /** Returns the manifest location this entry was read from, or null. */
   String manifestLocation();
