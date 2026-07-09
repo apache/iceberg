@@ -87,6 +87,9 @@ interface TrackedFile {
           "split_offsets",
           Types.ListType.ofRequired(133, Types.LongType.get()),
           "Split offsets for the data file");
+  Types.NestedField COLUMN_FILES =
+      Types.NestedField.optional(
+          158, "column_files", Types.ListType.ofRequired(159, ColumnFile.schema()), "Column files");
 
   private static List<Types.NestedField> fields(
       Types.StructType partitionType, Types.StructType contentStatsType) {
@@ -109,7 +112,8 @@ interface TrackedFile {
         DELETION_VECTOR,
         MANIFEST_INFO,
         KEY_METADATA,
-        SPLIT_OFFSETS);
+        SPLIT_OFFSETS,
+        COLUMN_FILES);
   }
 
   private static Type typeOrUnknown(Types.StructType structType) {
@@ -177,6 +181,9 @@ interface TrackedFile {
 
   /** Returns the list of recommended split locations, or null. */
   List<Long> splitOffsets();
+
+  /** Returns the column files for this file. */
+  List<ColumnFile> columnFiles();
 
   /** Copies this tracked file. */
   TrackedFile copy();
