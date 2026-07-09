@@ -2567,10 +2567,13 @@ components:
 
     ValueExpression:
       description: >
-        A value expression: a literal value, a field reference, or a function apply.
-        See the Iceberg Expressions spec, Appendix B (JSON serialization) for the
-        full definition. Concrete schemas for LITERAL, REFERENCE, and APPLY forms
-        will be added in a follow-up change.
+        A value expression per Iceberg Expressions spec, Appendix B: a literal,
+        a field reference, or a function application. The result type is
+        determined when the expression is bound to an input schema.
+      oneOf:
+        - $ref: '#/components/schemas/Literal'
+        - $ref: '#/components/schemas/FieldReference'
+        - $ref: '#/components/schemas/Apply'
 
     TrueExpression:
       deprecated: true
@@ -2676,9 +2679,138 @@ components:
         child:
           $ref: '#/components/schemas/ValueExpression'
         values:
+          $ref: '#/components/schemas/Literals'
+
+    Literal:
+      description: >
+        A literal value expression per Iceberg Expressions spec, Appendix B.
+        Three JSON forms are accepted: a bare scalar value, a typed literal
+        object without a data-type, or a typed literal object with an
+        explicit data-type.
+      oneOf:
+        - type: string
+        - type: number
+        - type: integer
+        - type: boolean
+        - type: 'null'
+        - type: object
+          required:
+            - type
+            - value
+          properties:
+            type:
+              type: string
+              const: "literal"
+            value:
+              $ref: '#/components/schemas/PrimitiveTypeValue'
+            data-type:
+              $ref: '#/components/schemas/PrimitiveType'
+
+    Literals:
+      description: >
+        A set of literal values per Iceberg Expressions spec, Appendix B.
+        Two JSON forms: a bare array of literals, or a typed object with an
+        explicit data-type applied to all values.
+      oneOf:
+        - type: array
+          items:
+            $ref: '#/components/schemas/Literal'
+        - type: object
+          required:
+            - type
+            - values
+          properties:
+            type:
+              type: string
+              const: "literals"
+            values:
+              type: array
+              items:
+                $ref: '#/components/schemas/PrimitiveTypeValue'
+            data-type:
+              $ref: '#/components/schemas/PrimitiveType'
+
+    FieldReference:
+      description: >
+        A reference to a field per Iceberg Expressions spec, Appendix B.
+        Either a bound reference (by field ID) or an unbound reference (by
+        name). The context in which an expression is used determines which
+        form is valid.
+      oneOf:
+        - type: object
+          required:
+            - type
+            - id
+          properties:
+            type:
+              type: string
+              const: "reference"
+            id:
+              type: integer
+        - type: object
+          required:
+            - type
+            - name
+          properties:
+            type:
+              type: string
+              const: "reference"
+            name:
+              type: string
+
+    Apply:
+      description: >
+        A function application per Iceberg Expressions spec, Appendix B.
+        Represents the result of calling a function on zero or more value
+        expressions or predicates.
+      type: object
+      required:
+        - type
+        - function
+        - arguments
+      properties:
+        type:
+          type: string
+          const: "apply"
+        function:
+          $ref: '#/components/schemas/FunctionReference'
+        arguments:
           type: array
           items:
-            $ref: '#/components/schemas/ValueExpression'
+            oneOf:
+              - $ref: '#/components/schemas/ValueExpression'
+              - $ref: '#/components/schemas/Expression'
+
+    FunctionReference:
+      description: >
+        A reference to a function per Iceberg Expressions spec, Appendix B.
+        Four JSON forms: a bare name (single-part identifier), a list of
+        names (multi-part identifier), an object with an identifier, or an
+        object with both a catalog and an identifier.
+      oneOf:
+        - type: string
+        - type: array
+          items:
+            type: string
+        - type: object
+          required:
+            - identifier
+          properties:
+            identifier:
+              type: array
+              items:
+                type: string
+        - type: object
+          required:
+            - catalog
+            - identifier
+          properties:
+            catalog:
+              type: string
+            identifier:
+              type: array
+              items:
+                type: string
 
     UnaryExpression:
       deprecated: true
@@ -2743,11 +2875,29 @@ components:
       oneOf:
         - $ref: '#/components/schemas/Reference'
         - $ref: '#/components/schemas/TransformTerm'
+        - $ref: '#/components/schemas/DeprecatedReference'
 
     Reference:
       type: string
       example:
         - "column-name"
+
+    DeprecatedReference:
+      deprecated: true
+      description: >
+        Deprecated backward-compatibility form of a field reference used in
+        older REST predicates. Use FieldReference instead per Iceberg
+        Expressions spec, Appendix B (Backward compatibility).
+      type: object
+      required:
+        - type
+        - term
+      properties:
+        type:
+          type: string
+          const: "reference"
+        term:
+          type: string
 
     TransformTerm:
       type: object
