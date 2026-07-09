@@ -102,10 +102,16 @@ public class TestSparkGeospatial extends TestBase {
 
   @Test
   public void testDeleteGeospatialMergeOnRead() {
-    // Rewrite the table into a single data file (COALESCE(1)) so deleting one row leaves survivors
-    // in that file, forcing a deletion vector rather than a whole-file removal. Filter on id since
-    // Spark has no spatial predicate.
-    sql("DELETE FROM %s WHERE id IS NOT NULL", TABLE);
+    // Use a dedicated table with a single INSERT and a single DELETE so there is exactly one delete
+    // snapshot to inspect. Write both rows into one data file (COALESCE(1)) so deleting one row
+    // leaves a survivor in that file, forcing a deletion vector rather than a whole-file removal.
+    // Filter on id since Spark has no spatial predicate.
+    String deleteTable = CATALOG + ".default.geo_delete";
+    sql("DROP TABLE IF EXISTS %s", deleteTable);
+    sql(
+        "CREATE TABLE %s (id BIGINT, geom GEOMETRY(4326), geog GEOGRAPHY(4326)) USING iceberg "
+            + "TBLPROPERTIES ('format-version'='3', 'write.delete.mode'='merge-on-read')",
+        deleteTable);
     sql(
         "INSERT INTO %s SELECT /*+ COALESCE(1) */ id, "
             + "CASE WHEN geom_wkb IS NULL THEN NULL "
@@ -114,24 +120,28 @@ public class TestSparkGeospatial extends TestBase {
             + "ELSE st_setsrid(st_geogfromwkb(geog_wkb), 4326) END "
             + "FROM VALUES (1, X'%s', X'%s'), (2, CAST(NULL AS BINARY), CAST(NULL AS BINARY)) "
             + "AS v(id, geom_wkb, geog_wkb)",
-        TABLE, GEOM_WKB, GEOG_WKB);
+        deleteTable, GEOM_WKB, GEOG_WKB);
 
-    sql("DELETE FROM %s WHERE id = 1", TABLE);
+    sql("DELETE FROM %s WHERE id = 1", deleteTable);
 
     assertEquals(
         "Only the null-geo row should remain after the merge-on-read delete",
         ImmutableList.of(row(2L, null, null)),
         sql(
             "SELECT id, hex(st_asbinary(geom)), hex(st_asbinary(geog)) FROM %s ORDER BY id",
-            TABLE));
+            deleteTable));
 
     // Deleting a row from a multi-row file writes a deletion vector (format v3, merge-on-read).
+    // Select the (single) delete snapshot by operation so the assertion does not depend on
+    // committed_at ordering, whose millisecond granularity could tie with the insert snapshot.
     assertThat(
             scalarSql(
-                "SELECT summary['added-dvs'] FROM %s.snapshots ORDER BY committed_at DESC LIMIT 1",
-                TABLE))
+                "SELECT summary['added-dvs'] FROM %s.snapshots WHERE operation = 'delete'",
+                deleteTable))
         .as("Merge-on-read delete should add a deletion vector")
         .isEqualTo("1");
+
+    sql("DROP TABLE IF EXISTS %s", deleteTable);
   }
 
   @Test
