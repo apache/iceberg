@@ -27,7 +27,6 @@ import org.apache.iceberg.spark.TestBase;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
@@ -58,15 +57,10 @@ public class TestSparkGeospatial extends TestBase {
   public void setupTable() {
     sql("DROP TABLE IF EXISTS %s", TABLE);
     // A bare GEOMETRY column is mixed-SRID, which Iceberg does not support, so the column SRID is
-    // pinned to 4326 (OGC:CRS84).
-    // Merge-on-read at format version 3 so that DELETE/UPDATE/MERGE produce deletion vectors.
+    // pinned to 4326 (OGC:CRS84). Format version 3 is required for the geo types.
     sql(
         "CREATE TABLE %s (id BIGINT, geom GEOMETRY(4326), geog GEOGRAPHY(4326)) USING iceberg "
-            + "TBLPROPERTIES ("
-            + "'format-version'='3', "
-            + "'write.delete.mode'='merge-on-read', "
-            + "'write.update.mode'='merge-on-read', "
-            + "'write.merge.mode'='merge-on-read')",
+            + "TBLPROPERTIES ('format-version'='3')",
         TABLE);
 
     // st_geomfromwkb yields SRID 0, so set it to the column's SRID for the write to be accepted.
@@ -100,18 +94,20 @@ public class TestSparkGeospatial extends TestBase {
             TABLE));
   }
 
-  @Test
-  public void testDeleteGeospatialMergeOnRead() {
-    // Use a dedicated table with a single INSERT and a single DELETE so there is exactly one delete
-    // snapshot to inspect. Write both rows into one data file (COALESCE(1)) so deleting one row
-    // leaves a survivor in that file, forcing a deletion vector rather than a whole-file removal.
-    // Filter on id since Spark has no spatial predicate.
+  @ParameterizedTest
+  @ValueSource(strings = {"copy-on-write", "merge-on-read"})
+  public void testDeleteGeospatial(String mode) {
+    // Exercise both row-level modes: copy-on-write (the default) rewrites the surviving rows into a
+    // new data file, while merge-on-read writes a deletion vector. Both must read the geo values
+    // back out correctly. Write both rows into one data file (COALESCE(1)) so the merge-on-read
+    // delete leaves a survivor in that file, forcing a deletion vector rather than a whole-file
+    // removal. Filter on id since Spark has no spatial predicate.
     String deleteTable = CATALOG + ".default.geo_delete";
     sql("DROP TABLE IF EXISTS %s", deleteTable);
     sql(
         "CREATE TABLE %s (id BIGINT, geom GEOMETRY(4326), geog GEOGRAPHY(4326)) USING iceberg "
-            + "TBLPROPERTIES ('format-version'='3', 'write.delete.mode'='merge-on-read')",
-        deleteTable);
+            + "TBLPROPERTIES ('format-version'='3', 'write.delete.mode'='%s')",
+        deleteTable, mode);
     sql(
         "INSERT INTO %s SELECT /*+ COALESCE(1) */ id, "
             + "CASE WHEN geom_wkb IS NULL THEN NULL "
@@ -125,45 +121,78 @@ public class TestSparkGeospatial extends TestBase {
     sql("DELETE FROM %s WHERE id = 1", deleteTable);
 
     assertEquals(
-        "Only the null-geo row should remain after the merge-on-read delete",
+        "Only the null-geo row should remain after the delete",
         ImmutableList.of(row(2L, null, null)),
         sql(
             "SELECT id, hex(st_asbinary(geom)), hex(st_asbinary(geog)) FROM %s ORDER BY id",
             deleteTable));
 
-    // Deleting a row from a multi-row file writes a deletion vector (format v3, merge-on-read).
-    // Select the (single) delete snapshot by operation so the assertion does not depend on
-    // committed_at ordering, whose millisecond granularity could tie with the insert snapshot.
-    assertThat(
-            scalarSql(
-                "SELECT summary['added-dvs'] FROM %s.snapshots WHERE operation = 'delete'",
-                deleteTable))
-        .as("Merge-on-read delete should add a deletion vector")
-        .isEqualTo("1");
+    // A merge-on-read delete of a row from a multi-row file writes a deletion vector (format v3),
+    // recorded on the 'delete' snapshot; copy-on-write instead rewrites the file under an
+    // 'overwrite' snapshot and adds no deletion vector. Select the merge-on-read delete snapshot by
+    // operation so the assertion does not depend on committed_at ordering, whose millisecond
+    // granularity could tie with the insert snapshot.
+    if (mode.equals("merge-on-read")) {
+      assertThat(
+              scalarSql(
+                  "SELECT summary['added-dvs'] FROM %s.snapshots WHERE operation = 'delete'",
+                  deleteTable))
+          .as("Merge-on-read delete should add a deletion vector")
+          .isEqualTo("1");
+    }
 
     sql("DROP TABLE IF EXISTS %s", deleteTable);
   }
 
-  @Test
-  public void testUpdateGeospatialMergeOnRead() {
-    // Update the geo values of the first row; others are unchanged.
+  @ParameterizedTest
+  @ValueSource(strings = {"copy-on-write", "merge-on-read"})
+  public void testUpdateGeospatial(String mode) {
+    // Update the first row's geometry; the untouched row must round-trip unchanged. Copy-on-write
+    // rewrites the untouched row, merge-on-read writes a deletion vector plus the new row.
+    String updateTable = CATALOG + ".default.geo_update";
+    sql("DROP TABLE IF EXISTS %s", updateTable);
+    sql(
+        "CREATE TABLE %s (id BIGINT, geom GEOMETRY(4326), geog GEOGRAPHY(4326)) USING iceberg "
+            + "TBLPROPERTIES ('format-version'='3', 'write.update.mode'='%s')",
+        updateTable, mode);
+    sql(
+        "INSERT INTO %s VALUES "
+            + "(1, st_setsrid(st_geomfromwkb(X'%s'), 4326), st_setsrid(st_geogfromwkb(X'%s'), 4326)), "
+            + "(2, st_setsrid(st_geomfromwkb(X'%s'), 4326), NULL)",
+        updateTable, GEOM_WKB, GEOG_WKB, GEOM_WKB);
+
     sql(
         "UPDATE %s SET geom = st_setsrid(st_geomfromwkb(X'%s'), 4326) WHERE id = 1",
-        TABLE, OTHER_WKB);
+        updateTable, OTHER_WKB);
 
     assertEquals(
-        "Only the updated row's geometry should change",
+        "The updated row changes and the untouched row round-trips unchanged",
         ImmutableList.of(
             row(1L, OTHER_WKB.toUpperCase(Locale.ROOT), GEOG_WKB.toUpperCase(Locale.ROOT)),
-            row(2L, null, null)),
+            row(2L, GEOM_WKB.toUpperCase(Locale.ROOT), null)),
         sql(
             "SELECT id, hex(st_asbinary(geom)), hex(st_asbinary(geog)) FROM %s ORDER BY id",
-            TABLE));
+            updateTable));
+
+    sql("DROP TABLE IF EXISTS %s", updateTable);
   }
 
-  @Test
-  public void testMergeGeospatialMergeOnRead() {
+  @ParameterizedTest
+  @ValueSource(strings = {"copy-on-write", "merge-on-read"})
+  public void testMergeGeospatial(String mode) {
     // Source updates id=1 (matched) and inserts id=3 (not matched); geo values flow through both.
+    String mergeTable = CATALOG + ".default.geo_merge";
+    sql("DROP TABLE IF EXISTS %s", mergeTable);
+    sql(
+        "CREATE TABLE %s (id BIGINT, geom GEOMETRY(4326), geog GEOGRAPHY(4326)) USING iceberg "
+            + "TBLPROPERTIES ('format-version'='3', 'write.merge.mode'='%s')",
+        mergeTable, mode);
+    sql(
+        "INSERT INTO %s VALUES "
+            + "(1, st_setsrid(st_geomfromwkb(X'%s'), 4326), st_setsrid(st_geogfromwkb(X'%s'), 4326)), "
+            + "(2, NULL, NULL)",
+        mergeTable, GEOM_WKB, GEOG_WKB);
+
     sql(
         "MERGE INTO %s AS t USING ("
             + "SELECT 1 AS id, st_setsrid(st_geomfromwkb(X'%s'), 4326) AS geom, "
@@ -174,7 +203,7 @@ public class TestSparkGeospatial extends TestBase {
             + "ON t.id = s.id "
             + "WHEN MATCHED THEN UPDATE SET t.geom = s.geom, t.geog = s.geog "
             + "WHEN NOT MATCHED THEN INSERT *",
-        TABLE, OTHER_WKB, GEOG_WKB, GEOM_WKB, GEOG_WKB);
+        mergeTable, OTHER_WKB, GEOG_WKB, GEOM_WKB, GEOG_WKB);
 
     assertEquals(
         "Matched row is updated and unmatched row is inserted",
@@ -184,24 +213,28 @@ public class TestSparkGeospatial extends TestBase {
             row(3L, GEOM_WKB.toUpperCase(Locale.ROOT), GEOG_WKB.toUpperCase(Locale.ROOT))),
         sql(
             "SELECT id, hex(st_asbinary(geom)), hex(st_asbinary(geog)) FROM %s ORDER BY id",
-            TABLE));
+            mergeTable));
+
+    sql("DROP TABLE IF EXISTS %s", mergeTable);
   }
 
-  @Test
-  public void testDeleteNestedGeometryMergeOnRead() {
+  @ParameterizedTest
+  @ValueSource(strings = {"copy-on-write", "merge-on-read"})
+  public void testDeleteNestedGeometry(String mode) {
+    // Geometry nested in a struct: delete by a nested non-geo field; the surviving nested geometry
+    // (and a null nested geometry) must still round-trip under both row-level modes.
     String nestedTable = CATALOG + ".default.geo_nested";
     sql("DROP TABLE IF EXISTS %s", nestedTable);
     sql(
         "CREATE TABLE %s (id BIGINT, complex STRUCT<c1: INT, geom: GEOMETRY(4326)>) USING iceberg "
-            + "TBLPROPERTIES ('format-version'='3', 'write.delete.mode'='merge-on-read')",
-        nestedTable);
+            + "TBLPROPERTIES ('format-version'='3', 'write.delete.mode'='%s')",
+        nestedTable, mode);
     sql(
         "INSERT INTO %s VALUES "
             + "(1, named_struct('c1', 10, 'geom', st_setsrid(st_geomfromwkb(X'%s'), 4326))), "
             + "(2, named_struct('c1', 20, 'geom', CAST(NULL AS GEOMETRY(4326))))",
         nestedTable, GEOM_WKB);
 
-    // Delete by a nested non-geo field; the surviving nested geometry must still round-trip.
     sql("DELETE FROM %s WHERE complex.c1 = 10", nestedTable);
 
     assertEquals(
@@ -212,66 +245,6 @@ public class TestSparkGeospatial extends TestBase {
             nestedTable));
 
     sql("DROP TABLE IF EXISTS %s", nestedTable);
-  }
-
-  @Test
-  public void testDeleteGeospatialCopyOnWrite() {
-    // Copy-on-write is the default row-level mode: the delete rewrites the surviving rows into a
-    // new data file, which exercises reading geo values back out during the rewrite.
-    String cowTable = CATALOG + ".default.geo_cow";
-    sql("DROP TABLE IF EXISTS %s", cowTable);
-    sql(
-        "CREATE TABLE %s (id BIGINT, geom GEOMETRY(4326), geog GEOGRAPHY(4326)) USING iceberg "
-            + "TBLPROPERTIES ('format-version'='3')",
-        cowTable);
-    sql(
-        "INSERT INTO %s VALUES "
-            + "(1, st_setsrid(st_geomfromwkb(X'%s'), 4326), st_setsrid(st_geogfromwkb(X'%s'), 4326)), "
-            + "(2, NULL, NULL)",
-        cowTable, GEOM_WKB, GEOG_WKB);
-
-    sql("DELETE FROM %s WHERE id = 1", cowTable);
-
-    assertEquals(
-        "The surviving null-geo row is rewritten intact after the copy-on-write delete",
-        ImmutableList.of(row(2L, null, null)),
-        sql(
-            "SELECT id, hex(st_asbinary(geom)), hex(st_asbinary(geog)) FROM %s ORDER BY id",
-            cowTable));
-
-    sql("DROP TABLE IF EXISTS %s", cowTable);
-  }
-
-  @Test
-  public void testUpdateGeospatialCopyOnWrite() {
-    // Copy-on-write update: the row with unchanged geo values is read back and rewritten alongside
-    // the updated row.
-    String cowTable = CATALOG + ".default.geo_cow";
-    sql("DROP TABLE IF EXISTS %s", cowTable);
-    sql(
-        "CREATE TABLE %s (id BIGINT, geom GEOMETRY(4326), geog GEOGRAPHY(4326)) USING iceberg "
-            + "TBLPROPERTIES ('format-version'='3')",
-        cowTable);
-    sql(
-        "INSERT INTO %s VALUES "
-            + "(1, st_setsrid(st_geomfromwkb(X'%s'), 4326), st_setsrid(st_geogfromwkb(X'%s'), 4326)), "
-            + "(2, st_setsrid(st_geomfromwkb(X'%s'), 4326), NULL)",
-        cowTable, GEOM_WKB, GEOG_WKB, GEOM_WKB);
-
-    sql(
-        "UPDATE %s SET geom = st_setsrid(st_geomfromwkb(X'%s'), 4326) WHERE id = 1",
-        cowTable, OTHER_WKB);
-
-    assertEquals(
-        "The updated row changes and the untouched row is rewritten intact",
-        ImmutableList.of(
-            row(1L, OTHER_WKB.toUpperCase(Locale.ROOT), GEOG_WKB.toUpperCase(Locale.ROOT)),
-            row(2L, GEOM_WKB.toUpperCase(Locale.ROOT), null)),
-        sql(
-            "SELECT id, hex(st_asbinary(geom)), hex(st_asbinary(geog)) FROM %s ORDER BY id",
-            cowTable));
-
-    sql("DROP TABLE IF EXISTS %s", cowTable);
   }
 
   private void setVectorization(boolean on) {
