@@ -36,6 +36,7 @@ import org.apache.iceberg.spark.OrcBatchReadConf;
 import org.apache.iceberg.spark.ParquetBatchReadConf;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkUtil;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.broadcast.Broadcast;
@@ -169,7 +170,18 @@ class SparkBatch implements Batch {
   }
 
   private boolean supportsParquetBatchReads(Types.NestedField field) {
-    return field.type().isPrimitiveType() || MetadataColumns.isMetadataColumn(field.fieldId());
+    if (MetadataColumns.isMetadataColumn(field.fieldId())) {
+      return true;
+    }
+
+    Type type = field.type();
+    // Geometry and geography are primitive types but have no Arrow vector yet, so they must be
+    // read through the non-vectorized reader.
+    if (type.typeId() == Type.TypeID.GEOMETRY || type.typeId() == Type.TypeID.GEOGRAPHY) {
+      return false;
+    }
+
+    return type.isPrimitiveType();
   }
 
   // conditions for using ORC batch reads:
