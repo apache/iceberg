@@ -486,7 +486,15 @@ public class TestMetricsRowGroupFilter {
                 .build());
 
     Expression[] canMatch =
-        new Expression[] {equal("country", "US"), notNull("country"), notEqual("country", "CA")};
+        new Expression[] {
+          equal("country", "US"),
+          notNull("country"),
+          notEqual("country", "CA"),
+          in("country", "US", "MX"),
+          notIn("country", "CA", "MX"),
+          greaterThanOrEqual("country", "US"),
+          lessThan("country", "ZW")
+        };
     for (Expression expr : canMatch) {
       assertThat(shouldReadWithSchema(schemaWithDefault, expr))
           .as("Should read: absent column reads as its initial-default 'US': " + expr)
@@ -494,7 +502,15 @@ public class TestMetricsRowGroupFilter {
     }
 
     Expression[] cannotMatch =
-        new Expression[] {equal("country", "CA"), isNull("country"), notEqual("country", "US")};
+        new Expression[] {
+          equal("country", "CA"),
+          isNull("country"),
+          notEqual("country", "US"),
+          in("country", "CA", "MX"),
+          notIn("country", "US", "MX"),
+          lessThan("country", "AD"),
+          greaterThan("country", "US")
+        };
     for (Expression expr : cannotMatch) {
       assertThat(shouldReadWithSchema(schemaWithDefault, expr))
           .as("Should skip: default 'US' cannot satisfy: " + expr)
