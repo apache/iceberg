@@ -632,8 +632,8 @@ class MaskToFixedValue(Action):
 
 class ReplaceWithNull(Action):
     """
-    Replaces the entire column value with NULL. NULL input is preserved (NULL -> NULL). A server must not return this action for a required (non-nullable) column.
-    Applicable to: all optional types
+    Replaces the column value with NULL. NULL input is preserved (NULL -> NULL).
+    Applicable to: all optional types. Applying to a required (non-nullable) column is invalid.
 
     """
 
@@ -1677,9 +1677,9 @@ class AddSchemaUpdate(BaseUpdate):
 class ReadRestrictions(BaseModel):
     """
     Read restrictions for a table.
-    A reader evaluates the row filter against original, untransformed column values, then applies required-column-projections to the surviving rows. Each action must produce a value of the same type as the input column. If a reader cannot apply any returned restriction (a filter expression or an action), it must fail the query and must not silently return raw, partial, or empty results.
+    A reader evaluates the row filter against original, untransformed column values, then applies required-column-projections to the surviving rows. Each action must produce a value of the same type as the input column. If a reader that supports read-restrictions cannot apply any returned restriction (a filter expression or an action), it must fail the query and must not silently return raw, partial, or empty results.
     If a projection targets a nested-typed field (struct, list, or map), other projections in the same ReadRestrictions must not target any nested field-id (struct subfields, list elements, or map keys/values) at any depth. This avoids ambiguity about which action governs a given leaf value.
-    An empty ReadRestrictions object (no required-column-projections and no required-row-filter) imposes no restrictions and is equivalent to the field being absent from the response.
+    A missing or empty ReadRestrictions object (no required-column-projections and no required-row-filter) imposes no restrictions.
 
     """
 
@@ -1699,12 +1699,12 @@ class ReadRestrictions(BaseModel):
     ) = Field(
         None,
         alias='required-column-projections',
-        description='A list of columns that require specific actions to be applied when reading. A server must not return an action for a column whose type is not listed in that action\'s "Applicable to" set. If absent or empty, no required actions apply; columns not listed are not subject to any required action.\n1. For each column listed, the reader must apply the specified action before\n  returning values for that column.\n\n2. The reader must replace all output references to the column with the result\n  of the action, presenting the result under the original field-id. For\n  example, if the action for field-id `9` is mask-alphanum, the reader must\n  return the masked value as field-id `9` in the query output.\n\n3. A server must not return more than one projection for the same field-id\n  in required-column-projections. If a duplicate field-id appears, the reader\n  must fail the query.\n\n4. A projection must not target a map\'s key field-id. Applying an action\n  to keys can produce duplicate or null keys, which readers silently\n  coalesce or reject, causing data loss.\n\n5. The reader must fail the query if a projection references a field-id\n  that is not present in the read schema.\n',
+        description='A list of columns that require specific actions to be applied when reading. A server must not return an action for a column whose type is not listed in that action\'s "Applicable to" set. If absent or empty, no required actions apply; columns not listed are not subject to any required action.\n1. For each column listed, the reader must apply the specified action before\n  returning values for that column.\n\n2. The reader must replace all output references to the column with the result\n  of the action, presenting the result under the original field-id. For\n  example, if the action for field-id `9` is mask-alphanum, the reader must\n  return the masked value as field-id `9` in the query output.\n\n3. A server must not return more than one projection for the same field-id\n  in required-column-projections. If a duplicate field-id appears, the reader\n  must fail the query.\n\n4. A projection must not target a map\'s key field-id. Applying an action\n  to keys can produce duplicate or null keys, which readers silently\n  coalesce or reject, causing data loss.\n\n5. A reader must enforce projections on the columns it is actually reading.\n  Projections referencing columns that are not being read do not apply.\n',
     )
     required_row_filter: Expression | None = Field(
         None,
         alias='required-row-filter',
-        description='An expression that filters rows in the table that the authenticated principal does not have access to.\n1. The expression must evaluate to a boolean (TRUE or FALSE; Iceberg predicates\n  never produce NULL). A reader must discard any row for which the filter\n  evaluates to FALSE, and no information derived from discarded rows may be\n  included in the query result.\n\n2. If this property is absent, null, or always true then no mandatory filtering is required.\n',
+        description='An expression that limits which rows the reader may return.\n1. The expression must evaluate to a boolean (TRUE or FALSE; Iceberg predicates\n  never produce NULL). A reader must discard any row for which the filter\n  evaluates to FALSE, and no information derived from discarded rows may be\n  included in the query result.\n\n2. If this property is absent, null, or always true then no mandatory filtering is required.\n',
     )
 
 
