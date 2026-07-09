@@ -214,6 +214,66 @@ public class TestSparkGeospatial extends TestBase {
     sql("DROP TABLE IF EXISTS %s", nestedTable);
   }
 
+  @Test
+  public void testDeleteGeospatialCopyOnWrite() {
+    // Copy-on-write is the default row-level mode: the delete rewrites the surviving rows into a
+    // new data file, which exercises reading geo values back out during the rewrite.
+    String cowTable = CATALOG + ".default.geo_cow";
+    sql("DROP TABLE IF EXISTS %s", cowTable);
+    sql(
+        "CREATE TABLE %s (id BIGINT, geom GEOMETRY(4326), geog GEOGRAPHY(4326)) USING iceberg "
+            + "TBLPROPERTIES ('format-version'='3')",
+        cowTable);
+    sql(
+        "INSERT INTO %s VALUES "
+            + "(1, st_setsrid(st_geomfromwkb(X'%s'), 4326), st_setsrid(st_geogfromwkb(X'%s'), 4326)), "
+            + "(2, NULL, NULL)",
+        cowTable, GEOM_WKB, GEOG_WKB);
+
+    sql("DELETE FROM %s WHERE id = 1", cowTable);
+
+    assertEquals(
+        "The surviving null-geo row is rewritten intact after the copy-on-write delete",
+        ImmutableList.of(row(2L, null, null)),
+        sql(
+            "SELECT id, hex(st_asbinary(geom)), hex(st_asbinary(geog)) FROM %s ORDER BY id",
+            cowTable));
+
+    sql("DROP TABLE IF EXISTS %s", cowTable);
+  }
+
+  @Test
+  public void testUpdateGeospatialCopyOnWrite() {
+    // Copy-on-write update: the row with unchanged geo values is read back and rewritten alongside
+    // the updated row.
+    String cowTable = CATALOG + ".default.geo_cow";
+    sql("DROP TABLE IF EXISTS %s", cowTable);
+    sql(
+        "CREATE TABLE %s (id BIGINT, geom GEOMETRY(4326), geog GEOGRAPHY(4326)) USING iceberg "
+            + "TBLPROPERTIES ('format-version'='3')",
+        cowTable);
+    sql(
+        "INSERT INTO %s VALUES "
+            + "(1, st_setsrid(st_geomfromwkb(X'%s'), 4326), st_setsrid(st_geogfromwkb(X'%s'), 4326)), "
+            + "(2, st_setsrid(st_geomfromwkb(X'%s'), 4326), NULL)",
+        cowTable, GEOM_WKB, GEOG_WKB, GEOM_WKB);
+
+    sql(
+        "UPDATE %s SET geom = st_setsrid(st_geomfromwkb(X'%s'), 4326) WHERE id = 1",
+        cowTable, OTHER_WKB);
+
+    assertEquals(
+        "The updated row changes and the untouched row is rewritten intact",
+        ImmutableList.of(
+            row(1L, OTHER_WKB.toUpperCase(Locale.ROOT), GEOG_WKB.toUpperCase(Locale.ROOT)),
+            row(2L, GEOM_WKB.toUpperCase(Locale.ROOT), null)),
+        sql(
+            "SELECT id, hex(st_asbinary(geom)), hex(st_asbinary(geog)) FROM %s ORDER BY id",
+            cowTable));
+
+    sql("DROP TABLE IF EXISTS %s", cowTable);
+  }
+
   private void setVectorization(boolean on) {
     sql(
         "ALTER TABLE %s SET TBLPROPERTIES ('read.parquet.vectorization.enabled'='%s')",
