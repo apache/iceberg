@@ -42,6 +42,7 @@ class StatsTestUtil {
         null,
         null,
         null,
+        null,
         null);
   }
 
