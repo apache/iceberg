@@ -523,31 +523,35 @@ public class TestMetricsRowGroupFilter {
   }
 
   @TestTemplate
-  public void testNonStringColumnNotInFileWithInitialDefault() {
+  public void testDateColumnNotInFileWithInitialDefault() {
     assumeThat(format).isEqualTo(FileFormat.PARQUET);
 
     Schema schemaWithDefault =
         new Schema(
             required(1, "id", IntegerType.get()),
-            Types.NestedField.optional("count")
+            Types.NestedField.optional("event_date")
                 .withId(100)
-                .ofType(IntegerType.get())
+                .ofType(Types.DateType.get())
                 .withInitialDefault(Literal.of(42))
                 .build());
 
     Expression[] canMatch =
-        new Expression[] {equal("count", 42), lessThan("count", 43), greaterThan("count", 41)};
+        new Expression[] {
+          equal("event_date", 42), lessThan("event_date", 43), greaterThan("event_date", 41)
+        };
     for (Expression expr : canMatch) {
       assertThat(shouldReadWithSchema(schemaWithDefault, expr))
-          .as("Should read: absent column reads as its initial-default 42: " + expr)
+          .as("Should read: absent date reads as its initial-default day 42: " + expr)
           .isTrue();
     }
 
     Expression[] cannotMatch =
-        new Expression[] {equal("count", 41), lessThan("count", 42), greaterThan("count", 42)};
+        new Expression[] {
+          equal("event_date", 41), lessThan("event_date", 42), greaterThan("event_date", 42)
+        };
     for (Expression expr : cannotMatch) {
       assertThat(shouldReadWithSchema(schemaWithDefault, expr))
-          .as("Should skip: default 42 cannot satisfy: " + expr)
+          .as("Should skip: default day 42 cannot satisfy: " + expr)
           .isFalse();
     }
   }
