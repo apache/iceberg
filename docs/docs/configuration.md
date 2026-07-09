@@ -112,6 +112,20 @@ Notes:
 
 See the [Encryption](encryption.md) document for additional details.
 
+### Hadoop configuration properties
+
+These properties are set in the Hadoop configuration used by `HadoopCatalog` or `HadoopTables`.
+When using Spark, they can be set with `spark.hadoop.*` or catalog-specific
+`spark.sql.catalog._catalog-name_.hadoop.*` configuration.
+They must be set before a table is loaded and cannot be set as table properties.
+
+| Property                                                 | Default | Description                                                                                  |
+| -------------------------------------------------------- | ------- | -------------------------------------------------------------------------------------------- |
+| iceberg.version-hint.retry.num-retries                   | 2       | Number of times to retry reading `version-hint.text` before falling back to metadata listing |
+| iceberg.version-hint.retry.min-wait-ms                   | 100     | Minimum wait in milliseconds before retrying `version-hint.text`; doubles after each retry up to the max wait |
+| iceberg.version-hint.retry.max-wait-ms                   | 800     | Maximum wait in milliseconds between retries when reading `version-hint.text` |
+| iceberg.version-hint.retry.total-timeout-ms              | 2000    | Total timeout in milliseconds for retrying `version-hint.text` before falling back to metadata listing |
+
 ### Table behavior properties
 
 | Property                           | Default          | Description                                                   |
