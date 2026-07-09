@@ -108,7 +108,8 @@ class V4TestHelpers {
         dv,
         manifestInfo,
         null, // keyMetadata
-        null); // splitOffsets
+        null, // splitOffsets
+        null); // columnFiles
   }
 
   static DeletionVector deletionVector(String location) {
