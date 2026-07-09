@@ -168,7 +168,8 @@ class TestV4ManifestReader {
             null, // manifest info
             ByteBuffer.wrap(new byte[] {1, 2, 3}), // key metadata
             ImmutableList.of(50L, 100L),
-            null); // equality field IDs
+            null, // equality field IDs
+            null); // column files
 
     ManifestFile manifest = writeManifest(format, ID_PARTITIONED_TYPE, file);
 
@@ -200,7 +201,8 @@ class TestV4ManifestReader {
             null, // manifest info
             ByteBuffer.wrap(new byte[] {1, 2, 3}), // key metadata
             ImmutableList.of(50L, 100L),
-            null); // equality field IDs
+            null, // equality field IDs
+            null); // column files
 
     ManifestFile manifest = writeManifest(format, ID_PARTITIONED_TYPE, file);
 
@@ -234,7 +236,8 @@ class TestV4ManifestReader {
             null, // manifest info
             ByteBuffer.wrap(new byte[] {1, 2, 3}), // key metadata
             ImmutableList.of(50L, 100L),
-            null); // equality field IDs
+            null, // equality field IDs
+            null); // column files
 
     ManifestFile manifest = writeManifest(format, ID_PARTITIONED_TYPE, file);
 
@@ -270,7 +273,8 @@ class TestV4ManifestReader {
             null, // manifest info
             ByteBuffer.wrap(new byte[] {1, 2, 3}), // key metadata
             null, // split offsets
-            ImmutableList.of(1, 2));
+            ImmutableList.of(1, 2),
+            null); // column files
 
     ManifestFile manifest = writeManifest(format, ID_PARTITIONED_TYPE, delete);
 
@@ -302,7 +306,8 @@ class TestV4ManifestReader {
             MANIFEST_INFO,
             ByteBuffer.wrap(new byte[] {1, 2, 3}), // key metadata
             null, // split offsets
-            ImmutableList.of(1, 2));
+            ImmutableList.of(1, 2),
+            null); // column files
 
     ManifestFile manifest = writeManifest(format, ID_PARTITIONED_TYPE, manifestRef);
 
@@ -349,11 +354,11 @@ class TestV4ManifestReader {
   @FieldSource("MANIFEST_FORMATS")
   public void inheritanceSnapshotId(FileFormat format) throws IOException {
     Tracking trackingWithSnapshotId =
-        new TrackingStruct(EntryStatus.ADDED, 1234567L, null, null, null, null, null, null);
+        new TrackingStruct(EntryStatus.ADDED, 1234567L, null, null, null, null, null, null, null);
     TrackedFile withSnapshotId =
         unpartitionedDataFile(trackingWithSnapshotId, "s3://bucket/table/file-b.parquet");
     Tracking trackingWithoutSnapshotId =
-        new TrackingStruct(EntryStatus.ADDED, null, null, null, null, null, null, null);
+        new TrackingStruct(EntryStatus.ADDED, null, null, null, null, null, null, null, null);
     TrackedFile withoutSnapshotId =
         unpartitionedDataFile(trackingWithoutSnapshotId, "s3://bucket/table/file-a.parquet");
 
@@ -375,11 +380,13 @@ class TestV4ManifestReader {
   @FieldSource("MANIFEST_FORMATS")
   public void inheritanceDVSnapshotIdNotInherited(FileFormat format) throws IOException {
     Tracking trackingWithDVSnapshotId =
-        new TrackingStruct(EntryStatus.ADDED, SNAPSHOT_ID, null, null, 1234567L, null, null, null);
+        new TrackingStruct(
+            EntryStatus.ADDED, SNAPSHOT_ID, null, null, 1234567L, null, null, null, null);
     TrackedFile withDVSnapshotId =
         unpartitionedDataFile(trackingWithDVSnapshotId, "s3://bucket/table/file-b.parquet");
     Tracking trackingWithoutDVSnapshotId =
-        new TrackingStruct(EntryStatus.ADDED, SNAPSHOT_ID, null, null, null, null, null, null);
+        new TrackingStruct(
+            EntryStatus.ADDED, SNAPSHOT_ID, null, null, null, null, null, null, null);
     TrackedFile withoutDVSnapshotId =
         unpartitionedDataFile(trackingWithoutDVSnapshotId, "s3://bucket/table/file-a.parquet");
 
@@ -401,11 +408,13 @@ class TestV4ManifestReader {
   @FieldSource("MANIFEST_FORMATS")
   public void inheritanceAddedDataSequenceNumber(FileFormat format) throws IOException {
     Tracking trackingWithoutSeq =
-        new TrackingStruct(EntryStatus.ADDED, SNAPSHOT_ID, null, null, null, null, null, null);
+        new TrackingStruct(
+            EntryStatus.ADDED, SNAPSHOT_ID, null, null, null, null, null, null, null);
     TrackedFile withoutSeq =
         unpartitionedDataFile(trackingWithoutSeq, "s3://bucket/table/file-a.parquet");
     Tracking trackingWithDataSeq =
-        new TrackingStruct(EntryStatus.ADDED, SNAPSHOT_ID, 500L, null, null, null, null, null);
+        new TrackingStruct(
+            EntryStatus.ADDED, SNAPSHOT_ID, 500L, null, null, null, null, null, null);
     TrackedFile withDataSeq =
         unpartitionedDataFile(trackingWithDataSeq, "s3://bucket/table/file-b.parquet");
 
@@ -426,11 +435,13 @@ class TestV4ManifestReader {
   @FieldSource("MANIFEST_FORMATS")
   public void inheritanceAddedFileSequenceNumber(FileFormat format) throws IOException {
     Tracking trackingWithoutSeq =
-        new TrackingStruct(EntryStatus.ADDED, SNAPSHOT_ID, null, null, null, null, null, null);
+        new TrackingStruct(
+            EntryStatus.ADDED, SNAPSHOT_ID, null, null, null, null, null, null, null);
     TrackedFile withoutSeq =
         unpartitionedDataFile(trackingWithoutSeq, "s3://bucket/table/file-a.parquet");
     Tracking trackingWithFileSeq =
-        new TrackingStruct(EntryStatus.ADDED, SNAPSHOT_ID, null, 500L, null, null, null, null);
+        new TrackingStruct(
+            EntryStatus.ADDED, SNAPSHOT_ID, null, 500L, null, null, null, null, null);
     TrackedFile withFileSeq =
         unpartitionedDataFile(trackingWithFileSeq, "s3://bucket/table/file-c.parquet");
 
@@ -864,7 +875,8 @@ class TestV4ManifestReader {
             null,
             null,
             List.of(4L),
-            null);
+            null,
+            null); // column files
 
     ManifestFile manifest =
         writeManifest(format, UNPARTITIONED_TYPE, ImmutableList.of(emptyTrackedFile, FILE_D));
@@ -901,7 +913,8 @@ class TestV4ManifestReader {
             null,
             null,
             List.of(4L),
-            null);
+            null,
+            null); // column files
 
     ManifestFile manifest =
         writeManifest(format, UNPARTITIONED_TYPE, ImmutableList.of(invalidRecordCountFile, FILE_D));
@@ -1086,7 +1099,8 @@ class TestV4ManifestReader {
             null, // manifest info
             null, // key metadata
             List.of(4L),
-            null); // eq delete ids
+            null, // eq delete ids
+            null); // column files
 
     ManifestFile manifest =
         writeManifest(
@@ -1489,7 +1503,8 @@ class TestV4ManifestReader {
         null, // manifest_info
         null, // key_metadata
         ImmutableList.of(4L), // split offsets
-        null); // equality_ids
+        null, // equality field IDs
+        null); // column files
   }
 
   private static TrackedFile idPartitionedDeleteFileWithoutStats(
@@ -1510,7 +1525,8 @@ class TestV4ManifestReader {
         null, // manifest_info
         null, // key_metadata
         ImmutableList.of(4L), // split offsets
-        ImmutableList.of(1)); // equality_ids
+        ImmutableList.of(1), // equality_ids
+        null); // column files
   }
 
   private static TrackedFile unpartitionedDataWithDVFile(String location, String dvLocation) {
@@ -1542,7 +1558,8 @@ class TestV4ManifestReader {
         MANIFEST_INFO,
         null, // key_metadata
         ImmutableList.of(4L), // split_offsets
-        null); // equality_ids
+        null, // equality_ids
+        null); // column files
   }
 
   private static TrackedFile unpartitionedDataFile(Tracking tracking, String location) {
@@ -1559,7 +1576,8 @@ class TestV4ManifestReader {
             null, // dv snapshot id
             null, // first row id
             null, // deleted positions
-            null); // replaced positions
+            null, // replaced positions
+            null); // latest column file snapshot id
     return unpartitionedDataFile(tracking, location, null /* no stats */, null /* no DV */);
   }
 
@@ -1581,7 +1599,8 @@ class TestV4ManifestReader {
         null, // manifest info
         null, // key metadata
         ImmutableList.of(4L), // split offsets
-        null); // equality ids
+        null, // equality ids
+        null); // column files
   }
 
   private static PartitionData idPartition(int id) {
