@@ -18,7 +18,7 @@
 from __future__ import annotations
 
 from datetime import date, timedelta
-from typing import Any, Dict, Literal
+from typing import Dict, Literal
 from uuid import UUID
 
 from pydantic import Base64Str, BaseModel, ConfigDict, Field, RootModel
@@ -151,13 +151,6 @@ class ExpressionType(RootModel[str]):
     )
 
 
-class ValueExpression(RootModel[Any]):
-    root: Any = Field(
-        ...,
-        description='A value expression: a literal value, a field reference, or a function apply. See the Iceberg Expressions spec, Appendix B (JSON serialization) for the full definition. Concrete schemas for LITERAL, REFERENCE, and APPLY forms will be added in a follow-up change.\n',
-    )
-
-
 class TrueExpression(BaseModel):
     """
     Deprecated. Use the bare boolean literal `true` as a predicate instead. Retained for backward compatibility with older clients per the Iceberg Expressions spec (Appendix B, JSON serialization).
@@ -226,117 +219,73 @@ class FalseExpression(BaseModel):
     )
 
 
-class UnaryPredicate(BaseModel):
+class FieldReference1(BaseModel):
     """
-    A predicate that tests a single value expression. Replaces the deprecated UnaryExpression that used 'term'.
+    A reference to a field per Iceberg Expressions spec, Appendix B. Either a bound reference (by field ID) or an unbound reference (by name). The context in which an expression is used determines which form is valid.
 
     """
 
-    type: Literal['is-null', 'not-null', 'is-nan', 'not-nan'] = Field(
+    type: Literal['reference']
+    id: int
+
+
+class FieldReference2(BaseModel):
+    """
+    A reference to a field per Iceberg Expressions spec, Appendix B. Either a bound reference (by field ID) or an unbound reference (by name). The context in which an expression is used determines which form is valid.
+
+    """
+
+    type: Literal['reference']
+    name: str
+
+
+class FieldReference(RootModel[FieldReference1 | FieldReference2]):
+    root: FieldReference1 | FieldReference2 = Field(
         ...,
-        examples=[
-            [
-                'true',
-                'false',
-                'eq',
-                'and',
-                'or',
-                'not',
-                'in',
-                'not-in',
-                'lt',
-                'lt-eq',
-                'gt',
-                'gt-eq',
-                'not-eq',
-                'starts-with',
-                'not-starts-with',
-                'is-null',
-                'not-null',
-                'is-nan',
-                'not-nan',
-            ]
-        ],
+        description='A reference to a field per Iceberg Expressions spec, Appendix B. Either a bound reference (by field ID) or an unbound reference (by name). The context in which an expression is used determines which form is valid.\n',
     )
-    child: ValueExpression
 
 
-class ComparisonPredicate(BaseModel):
+class FunctionReference1(BaseModel):
     """
-    A predicate that compares two value expressions. Replaces the deprecated LiteralExpression that used 'term' and 'value'.
+    A reference to a function per Iceberg Expressions spec, Appendix B. Four JSON forms: a bare name (single-part identifier), a list of names (multi-part identifier), an object with an identifier, or an object with both a catalog and an identifier.
 
     """
 
-    type: Literal[
-        'lt', 'lt-eq', 'gt', 'gt-eq', 'eq', 'not-eq', 'starts-with', 'not-starts-with'
-    ] = Field(
+    identifier: list[str]
+
+
+class FunctionReference2(BaseModel):
+    """
+    A reference to a function per Iceberg Expressions spec, Appendix B. Four JSON forms: a bare name (single-part identifier), a list of names (multi-part identifier), an object with an identifier, or an object with both a catalog and an identifier.
+
+    """
+
+    catalog: str
+    identifier: list[str]
+
+
+class FunctionReference(
+    RootModel[str | list[str] | FunctionReference1 | FunctionReference2]
+):
+    root: str | list[str] | FunctionReference1 | FunctionReference2 = Field(
         ...,
-        examples=[
-            [
-                'true',
-                'false',
-                'eq',
-                'and',
-                'or',
-                'not',
-                'in',
-                'not-in',
-                'lt',
-                'lt-eq',
-                'gt',
-                'gt-eq',
-                'not-eq',
-                'starts-with',
-                'not-starts-with',
-                'is-null',
-                'not-null',
-                'is-nan',
-                'not-nan',
-            ]
-        ],
+        description='A reference to a function per Iceberg Expressions spec, Appendix B. Four JSON forms: a bare name (single-part identifier), a list of names (multi-part identifier), an object with an identifier, or an object with both a catalog and an identifier.\n',
     )
-    left: ValueExpression
-    right: ValueExpression
-
-
-class SetPredicate(BaseModel):
-    """
-    A predicate that tests whether a value expression is in a set of literals. Replaces the deprecated SetExpression that used 'term'.
-
-    """
-
-    type: Literal['in', 'not-in'] = Field(
-        ...,
-        examples=[
-            [
-                'true',
-                'false',
-                'eq',
-                'and',
-                'or',
-                'not',
-                'in',
-                'not-in',
-                'lt',
-                'lt-eq',
-                'gt',
-                'gt-eq',
-                'not-eq',
-                'starts-with',
-                'not-starts-with',
-                'is-null',
-                'not-null',
-                'is-nan',
-                'not-nan',
-            ]
-        ],
-    )
-    child: ValueExpression
-    values: list[ValueExpression]
 
 
 class Reference(RootModel[str]):
     root: str = Field(..., examples=[['column-name']])
+
+
+class DeprecatedReference(BaseModel):
+    """
+    Deprecated backward-compatibility form of a field reference used in older REST predicates. Use FieldReference instead per Iceberg Expressions spec, Appendix B (Backward compatibility).
+
+    """
+
+    type: Literal['reference']
+    term: str
 
 
 class Transform(RootModel[str]):
@@ -1260,6 +1209,42 @@ class RenameTableRequest(BaseModel):
     destination: TableIdentifier
 
 
+class Literal1(BaseModel):
+    """
+    A literal value expression per Iceberg Expressions spec, Appendix B. Three JSON forms are accepted: a bare scalar value, a typed literal object without a data-type, or a typed literal object with an explicit data-type.
+
+    """
+
+    type: Literal['literal']
+    value: PrimitiveTypeValue
+    data_type: PrimitiveType | None = Field(None, alias='data-type')
+
+
+class LiteralModel(RootModel[str | float | int | bool | Literal1 | None]):
+    root: str | float | int | bool | Literal1 | None = Field(
+        ...,
+        description='A literal value expression per Iceberg Expressions spec, Appendix B. Three JSON forms are accepted: a bare scalar value, a typed literal object without a data-type, or a typed literal object with an explicit data-type.\n',
+    )
+
+
+class Literals1(BaseModel):
+    """
+    A set of literal values per Iceberg Expressions spec, Appendix B. Two JSON forms: a bare array of literals, or a typed object with an explicit data-type applied to all values.
+
+    """
+
+    type: Literal['literals']
+    values: list[PrimitiveTypeValue]
+    data_type: PrimitiveType | None = Field(None, alias='data-type')
+
+
+class Literals(RootModel[list[LiteralModel | None] | Literals1]):
+    root: list[LiteralModel | None] | Literals1 = Field(
+        ...,
+        description='A set of literal values per Iceberg Expressions spec, Appendix B. Two JSON forms: a bare array of literals, or a typed object with an explicit data-type applied to all values.\n',
+    )
+
+
 class TransformTerm(BaseModel):
     type: Literal['transform']
     transform: Transform
@@ -1372,8 +1357,8 @@ class FetchScanTasksRequest(BaseModel):
     plan_task: PlanTask = Field(..., alias='plan-task')
 
 
-class Term(RootModel[Reference | TransformTerm]):
-    root: Reference | TransformTerm
+class Term(RootModel[Reference | TransformTerm | DeprecatedReference]):
+    root: Reference | TransformTerm | DeprecatedReference
 
 
 class SetStatisticsUpdate(BaseUpdate):
@@ -1610,6 +1595,126 @@ class NotExpression(BaseModel):
         ],
     )
     child: Expression
+
+
+class UnaryPredicate(BaseModel):
+    """
+    A predicate that tests a single value expression. Replaces the deprecated UnaryExpression that used 'term'.
+
+    """
+
+    type: Literal['is-null', 'not-null', 'is-nan', 'not-nan'] = Field(
+        ...,
+        examples=[
+            [
+                'true',
+                'false',
+                'eq',
+                'and',
+                'or',
+                'not',
+                'in',
+                'not-in',
+                'lt',
+                'lt-eq',
+                'gt',
+                'gt-eq',
+                'not-eq',
+                'starts-with',
+                'not-starts-with',
+                'is-null',
+                'not-null',
+                'is-nan',
+                'not-nan',
+            ]
+        ],
+    )
+    child: ValueExpression
+
+
+class ComparisonPredicate(BaseModel):
+    """
+    A predicate that compares two value expressions. Replaces the deprecated LiteralExpression that used 'term' and 'value'.
+
+    """
+
+    type: Literal[
+        'lt', 'lt-eq', 'gt', 'gt-eq', 'eq', 'not-eq', 'starts-with', 'not-starts-with'
+    ] = Field(
+        ...,
+        examples=[
+            [
+                'true',
+                'false',
+                'eq',
+                'and',
+                'or',
+                'not',
+                'in',
+                'not-in',
+                'lt',
+                'lt-eq',
+                'gt',
+                'gt-eq',
+                'not-eq',
+                'starts-with',
+                'not-starts-with',
+                'is-null',
+                'not-null',
+                'is-nan',
+                'not-nan',
+            ]
+        ],
+    )
+    left: ValueExpression
+    right: ValueExpression
+
+
+class SetPredicate(BaseModel):
+    """
+    A predicate that tests whether a value expression is in a set of literals. Replaces the deprecated SetExpression that used 'term'.
+
+    """
+
+    type: Literal['in', 'not-in'] = Field(
+        ...,
+        examples=[
+            [
+                'true',
+                'false',
+                'eq',
+                'and',
+                'or',
+                'not',
+                'in',
+                'not-in',
+                'lt',
+                'lt-eq',
+                'gt',
+                'gt-eq',
+                'not-eq',
+                'starts-with',
+                'not-starts-with',
+                'is-null',
+                'not-null',
+                'is-nan',
+                'not-nan',
+            ]
+        ],
+    )
+    child: ValueExpression
+    values: Literals
+
+
+class Apply(BaseModel):
+    """
+    A function application per Iceberg Expressions spec, Appendix B. Represents the result of calling a function on zero or more value expressions or predicates.
+
+    """
+
+    type: Literal['apply']
+    function: FunctionReference
+    arguments: list[ValueExpression | Expression]
 
 
 class TableMetadata(BaseModel):
@@ -2076,6 +2181,13 @@ class Expression(
     )
 
 
+class ValueExpression(RootModel[LiteralModel | FieldReference | Apply | None]):
+    root: LiteralModel | FieldReference | Apply | None = Field(
+        ...,
+        description='A value expression per Iceberg Expressions spec, Appendix B: a literal, a field reference, or a function application. The result type is determined when the expression is bound to an input schema.\n',
+    )
+
+
 class TableUpdate(
     RootModel[
         AssignUUIDUpdate
@@ -2234,6 +2346,10 @@ ListType.model_rebuild()
 MapType.model_rebuild()
 AndOrExpression.model_rebuild()
 NotExpression.model_rebuild()
+UnaryPredicate.model_rebuild()
+ComparisonPredicate.model_rebuild()
+SetPredicate.model_rebuild()
+Apply.model_rebuild()
 TableMetadata.model_rebuild()
 ViewMetadata.model_rebuild()
 AddSchemaUpdate.model_rebuild()
