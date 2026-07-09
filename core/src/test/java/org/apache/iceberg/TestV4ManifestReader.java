@@ -92,7 +92,8 @@ class TestV4ManifestReader {
               7L, // dv snapshot id
               8L, // first row id
               new byte[] {1, 2}, // deleted positions
-              new byte[] {3, 4}), // replaced positions
+              new byte[] {3, 4}, // replaced positions
+              null), // column files snapshot id
           FileContent.DATA,
           FORMAT_VERSION_V4,
           "s3://bucket/file.parquet",
@@ -101,6 +102,7 @@ class TestV4ManifestReader {
           FILE_SIZE_IN_BYTES,
           0,
           EMPTY_PARTITION_DATA,
+          null,
           null,
           null,
           null,
@@ -144,6 +146,7 @@ class TestV4ManifestReader {
             null,
             ByteBuffer.wrap(new byte[] {1, 2, 3}),
             ImmutableList.of(50L, 100L),
+            null,
             null);
 
     InputFile manifest = writeManifest(format, ID_PARTITION_TYPE, ImmutableList.of(file));
@@ -183,7 +186,8 @@ class TestV4ManifestReader {
             null,
             null,
             null,
-            ImmutableList.of(1, 2));
+            ImmutableList.of(1, 2),
+            null);
 
     InputFile manifest = writeManifest(format, EMPTY_PARTITION, ImmutableList.of(delete));
 
@@ -893,7 +897,8 @@ class TestV4ManifestReader {
         null, // manifest_info
         null, // key_metadata
         null, // split_offsets
-        null); // equality_ids
+        null, // equality_ids
+        null); // column_files
   }
 
   private static TrackedFile dataFile(String location, Integer specId, PartitionData partition) {
@@ -913,7 +918,8 @@ class TestV4ManifestReader {
         null, // manifest_info
         null, // key_metadata
         null, // split_offsets
-        null); // equality_ids
+        null, // equality_ids
+        null); // column_files
   }
 
   private static TrackedFile deleteFile(String location, PartitionData partition) {
@@ -933,7 +939,8 @@ class TestV4ManifestReader {
         null, // manifest_info
         null, // key_metadata
         null, // split_offsets
-        ImmutableList.of(1)); // equality_ids
+        ImmutableList.of(1), // equality_ids
+        null); // column_files
   }
 
   private static TrackedFile manifestRef(FileContent content, String location) {
@@ -954,7 +961,8 @@ class TestV4ManifestReader {
         info,
         null, // key_metadata
         null, // split_offsets
-        null); // equality_ids
+        null, // equality_ids
+        null); // column_files
   }
 
   private static TrackedFile fileWithStatus(EntryStatus status, String location) {
@@ -967,7 +975,8 @@ class TestV4ManifestReader {
             null, // dv snapshot id
             null, // first row id
             null, // deleted positions
-            null); // replaced positions
+            null, // replaced positions
+            null); // column files snapshot id
     return new TrackedFileStruct(
         tracking,
         FileContent.DATA,
@@ -984,11 +993,13 @@ class TestV4ManifestReader {
         null,
         null,
         null,
+        null,
         null);
   }
 
   private static Tracking addedTracking() {
-    return new TrackingStruct(EntryStatus.ADDED, SNAPSHOT_ID, null, null, null, null, null, null);
+    return new TrackingStruct(
+        EntryStatus.ADDED, SNAPSHOT_ID, null, null, null, null, null, null, null);
   }
 
   private static PartitionData partition(int id) {
