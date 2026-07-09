@@ -31,6 +31,14 @@ import org.junit.jupiter.params.provider.MethodSource;
 
 class TestTrackingBuilder {
 
+  // Tests aren't expected to change these fields
+  private static final Tracking SOURCE_TRACKING_ADDED =
+      new TrackingStruct(EntryStatus.ADDED, 42L, 10L, 10L, 43L, 1000L, null, null);
+  private static final Tracking SOURCE_TRACKING_EXISTING =
+      new TrackingStruct(EntryStatus.EXISTING, 42L, 10L, 10L, 43L, 1000L, null, null);
+  private static final Tracking SOURCE_TRACKING_MODIFIED =
+      new TrackingStruct(EntryStatus.MODIFIED, 42L, 10L, 10L, 43L, 1000L, null, null);
+
   @Test
   void testAddedWithSameCommitDvStaysAdded() {
     Tracking tracking = TrackingBuilder.added(42L).dvUpdated().build();
@@ -48,44 +56,38 @@ class TestTrackingBuilder {
 
   @Test
   void testExistingBuilderPreservesSourceFields() {
-    Tracking source = sourceTracking();
-
-    Tracking existing = TrackingBuilder.from(source, 1L).build();
+    Tracking existing = TrackingBuilder.from(SOURCE_TRACKING_ADDED, 1L).build();
 
     assertThat(existing.status()).isEqualTo(EntryStatus.EXISTING);
-    assertThat(existing.snapshotId()).isEqualTo(source.snapshotId());
-    assertThat(existing.dataSequenceNumber()).isEqualTo(source.dataSequenceNumber());
-    assertThat(existing.fileSequenceNumber()).isEqualTo(source.fileSequenceNumber());
-    assertThat(existing.dvSnapshotId()).isEqualTo(source.dvSnapshotId());
-    assertThat(existing.firstRowId()).isEqualTo(source.firstRowId());
+    assertThat(existing.snapshotId()).isEqualTo(SOURCE_TRACKING_ADDED.snapshotId());
+    assertThat(existing.dataSequenceNumber()).isEqualTo(SOURCE_TRACKING_ADDED.dataSequenceNumber());
+    assertThat(existing.fileSequenceNumber()).isEqualTo(SOURCE_TRACKING_ADDED.fileSequenceNumber());
+    assertThat(existing.dvSnapshotId()).isEqualTo(SOURCE_TRACKING_ADDED.dvSnapshotId());
+    assertThat(existing.firstRowId()).isEqualTo(SOURCE_TRACKING_ADDED.firstRowId());
   }
 
   @Test
   void testDeleteUpdatesSnapshotIdAndPreservesRest() {
-    Tracking source = sourceTracking();
-
-    Tracking deleted = TrackingBuilder.deleted(source, 999L);
+    Tracking deleted = TrackingBuilder.deleted(SOURCE_TRACKING_ADDED, 999L);
 
     assertThat(deleted.status()).isEqualTo(EntryStatus.DELETED);
     assertThat(deleted.snapshotId()).isEqualTo(999L);
-    assertThat(deleted.dataSequenceNumber()).isEqualTo(source.dataSequenceNumber());
-    assertThat(deleted.fileSequenceNumber()).isEqualTo(source.fileSequenceNumber());
-    assertThat(deleted.dvSnapshotId()).isEqualTo(source.dvSnapshotId());
-    assertThat(deleted.firstRowId()).isEqualTo(source.firstRowId());
+    assertThat(deleted.dataSequenceNumber()).isEqualTo(SOURCE_TRACKING_ADDED.dataSequenceNumber());
+    assertThat(deleted.fileSequenceNumber()).isEqualTo(SOURCE_TRACKING_ADDED.fileSequenceNumber());
+    assertThat(deleted.dvSnapshotId()).isEqualTo(SOURCE_TRACKING_ADDED.dvSnapshotId());
+    assertThat(deleted.firstRowId()).isEqualTo(SOURCE_TRACKING_ADDED.firstRowId());
   }
 
   @Test
   void testReplaceUpdatesSnapshotIdAndPreservesRest() {
-    Tracking source = sourceTracking();
-
-    Tracking replaced = TrackingBuilder.replaced(source, 999L);
+    Tracking replaced = TrackingBuilder.replaced(SOURCE_TRACKING_ADDED, 999L);
 
     assertThat(replaced.status()).isEqualTo(EntryStatus.REPLACED);
     assertThat(replaced.snapshotId()).isEqualTo(999L);
-    assertThat(replaced.dataSequenceNumber()).isEqualTo(source.dataSequenceNumber());
-    assertThat(replaced.fileSequenceNumber()).isEqualTo(source.fileSequenceNumber());
-    assertThat(replaced.dvSnapshotId()).isEqualTo(source.dvSnapshotId());
-    assertThat(replaced.firstRowId()).isEqualTo(source.firstRowId());
+    assertThat(replaced.dataSequenceNumber()).isEqualTo(SOURCE_TRACKING_ADDED.dataSequenceNumber());
+    assertThat(replaced.fileSequenceNumber()).isEqualTo(SOURCE_TRACKING_ADDED.fileSequenceNumber());
+    assertThat(replaced.dvSnapshotId()).isEqualTo(SOURCE_TRACKING_ADDED.dvSnapshotId());
+    assertThat(replaced.firstRowId()).isEqualTo(SOURCE_TRACKING_ADDED.firstRowId());
   }
 
   @Test
@@ -109,12 +111,13 @@ class TestTrackingBuilder {
 
   @Test
   void testDvUpdatedProducesModifiedAndAdvancesDvSnapshotId() {
-    Tracking source = sourceTracking();
-    Tracking modified = TrackingBuilder.from(source, 999L).dvUpdated().build();
+    Tracking modified = TrackingBuilder.from(SOURCE_TRACKING_ADDED, 999L).dvUpdated().build();
 
     assertThat(modified.status()).isEqualTo(EntryStatus.MODIFIED);
     // the entry snapshot id is preserved so we still know when the base file was added
-    assertThat(modified.snapshotId()).isEqualTo(source.snapshotId()).isNotEqualTo(999L);
+    assertThat(modified.snapshotId())
+        .isEqualTo(SOURCE_TRACKING_ADDED.snapshotId())
+        .isNotEqualTo(999L);
     // only the DV snapshot id advances to the commit snapshot
     assertThat(modified.dvSnapshotId()).isEqualTo(999L);
   }
@@ -136,7 +139,7 @@ class TestTrackingBuilder {
   void testDvUpdatedRejectedWhenManifestPositionsSet() {
     assertThatThrownBy(
             () ->
-                TrackingBuilder.from(manifestSourceTracking(), 999L)
+                TrackingBuilder.from(SOURCE_TRACKING_ADDED, 999L)
                     .deletedPositions(ByteBuffer.wrap(new byte[] {1}))
                     .dvUpdated())
         .isInstanceOf(IllegalStateException.class)
@@ -145,7 +148,7 @@ class TestTrackingBuilder {
 
     assertThatThrownBy(
             () ->
-                TrackingBuilder.from(manifestSourceTracking(), 999L)
+                TrackingBuilder.from(SOURCE_TRACKING_ADDED, 999L)
                     .replacedPositions(ByteBuffer.wrap(new byte[] {1}))
                     .dvUpdated())
         .isInstanceOf(IllegalStateException.class)
@@ -209,7 +212,8 @@ class TestTrackingBuilder {
   @MethodSource("terminalTransitionCases")
   void testRejectsTransitionsFromTerminalStatus(
       EntryStatus sourceStatus, Consumer<Tracking> factoryCall) {
-    Tracking source = sourceTrackingWithStatus(sourceStatus);
+    Tracking source = new TrackingStruct(sourceStatus, 42L, 10L, 10L, 43L, 1000L, null, null);
+
     assertThatThrownBy(() -> factoryCall.accept(source))
         .isInstanceOf(IllegalStateException.class)
         .hasMessage("Cannot revive non-live entry with status " + sourceStatus);
@@ -217,70 +221,61 @@ class TestTrackingBuilder {
 
   @Test
   void testExistingToExistingIsAllowed() {
-    Tracking existingSource = sourceTrackingWithStatus(EntryStatus.EXISTING);
-
-    Tracking existing = TrackingBuilder.from(existingSource, 1L).build();
+    Tracking existing = TrackingBuilder.from(SOURCE_TRACKING_EXISTING, 1L).build();
 
     assertThat(existing.status()).isEqualTo(EntryStatus.EXISTING);
-    assertThat(existing.snapshotId()).isEqualTo(existingSource.snapshotId());
+    assertThat(existing.snapshotId()).isEqualTo(SOURCE_TRACKING_EXISTING.snapshotId());
   }
 
   @Test
   void testExistingToTerminalTransitions() {
-    Tracking existingSource = sourceTrackingWithStatus(EntryStatus.EXISTING);
-
-    Tracking deleted = TrackingBuilder.deleted(existingSource, 999L);
+    Tracking deleted = TrackingBuilder.deleted(SOURCE_TRACKING_EXISTING, 999L);
     assertThat(deleted.status()).isEqualTo(EntryStatus.DELETED);
     assertThat(deleted.snapshotId()).isEqualTo(999L);
 
-    Tracking replaced = TrackingBuilder.replaced(existingSource, 999L);
+    Tracking replaced = TrackingBuilder.replaced(SOURCE_TRACKING_EXISTING, 999L);
     assertThat(replaced.status()).isEqualTo(EntryStatus.REPLACED);
     assertThat(replaced.snapshotId()).isEqualTo(999L);
   }
 
   @Test
   void testExistingPreservesSourceSnapshotId() {
-    Tracking source = sourceTracking();
-    Tracking existing = TrackingBuilder.from(source, 999L).build();
+    Tracking existing = TrackingBuilder.from(SOURCE_TRACKING_ADDED, 999L).build();
     assertThat(existing.status()).isEqualTo(EntryStatus.EXISTING);
-    assertThat(existing.snapshotId()).isEqualTo(source.snapshotId()).isNotEqualTo(999L);
+    assertThat(existing.snapshotId())
+        .isEqualTo(SOURCE_TRACKING_ADDED.snapshotId())
+        .isNotEqualTo(999L);
   }
 
   @Test
   void testCarryForwardFromModifiedSourceChangesToExisting() {
-    Tracking modifiedSource = sourceTrackingWithStatus(EntryStatus.MODIFIED);
-    Tracking carried = TrackingBuilder.from(modifiedSource, 999L).build();
+    Tracking carried = TrackingBuilder.from(SOURCE_TRACKING_MODIFIED, 999L).build();
     assertThat(carried.status()).isEqualTo(EntryStatus.EXISTING);
-    assertThat(carried.snapshotId()).isEqualTo(modifiedSource.snapshotId()).isNotEqualTo(999L);
-    assertThat(carried.dvSnapshotId()).isEqualTo(modifiedSource.dvSnapshotId()).isNotEqualTo(999L);
-    assertThat(carried.dataSequenceNumber()).isEqualTo(modifiedSource.dataSequenceNumber());
-    assertThat(carried.fileSequenceNumber()).isEqualTo(modifiedSource.fileSequenceNumber());
-    assertThat(carried.firstRowId()).isEqualTo(modifiedSource.firstRowId());
+    assertThat(carried.snapshotId())
+        .isEqualTo(SOURCE_TRACKING_MODIFIED.snapshotId())
+        .isNotEqualTo(999L);
+    assertThat(carried.dvSnapshotId())
+        .isEqualTo(SOURCE_TRACKING_MODIFIED.dvSnapshotId())
+        .isNotEqualTo(999L);
+    assertThat(carried.dataSequenceNumber())
+        .isEqualTo(SOURCE_TRACKING_MODIFIED.dataSequenceNumber());
+    assertThat(carried.fileSequenceNumber())
+        .isEqualTo(SOURCE_TRACKING_MODIFIED.fileSequenceNumber());
+    assertThat(carried.firstRowId()).isEqualTo(SOURCE_TRACKING_MODIFIED.firstRowId());
   }
 
   @Test
   void testManifestDVPositionsProduceModified() {
     ByteBuffer deletedBytes = ByteBuffer.wrap(new byte[] {1, 2});
 
-    Tracking addedSource = manifestSourceTracking();
     Tracking modified =
-        TrackingBuilder.from(addedSource, 999L).deletedPositions(deletedBytes).build();
+        TrackingBuilder.from(SOURCE_TRACKING_ADDED, 999L).deletedPositions(deletedBytes).build();
     assertThat(modified.status()).isEqualTo(EntryStatus.MODIFIED);
     // the entry snapshot id is preserved; only the DV snapshot id advances to the commit snapshot
-    assertThat(modified.snapshotId()).isEqualTo(addedSource.snapshotId()).isNotEqualTo(999L);
+    assertThat(modified.snapshotId())
+        .isEqualTo(SOURCE_TRACKING_ADDED.snapshotId())
+        .isNotEqualTo(999L);
     assertThat(modified.dvSnapshotId()).isEqualTo(999L);
     assertThat(modified.deletedPositions()).isEqualTo(deletedBytes);
-  }
-
-  private static TrackingStruct sourceTracking() {
-    return sourceTrackingWithStatus(EntryStatus.ADDED);
-  }
-
-  private static TrackingStruct sourceTrackingWithStatus(EntryStatus status) {
-    return new TrackingStruct(status, 42L, 10L, 10L, 43L, 1000L, null, null);
-  }
-
-  private static TrackingStruct manifestSourceTracking() {
-    return new TrackingStruct(EntryStatus.ADDED, 42L, 10L, 10L, null, 1000L, null, null);
   }
 }
