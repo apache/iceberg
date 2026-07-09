@@ -3832,10 +3832,8 @@ components:
 
         NULL input is also replaced with the type-specific fixed value; NULL is not preserved.
 
-        Applicable to: all data types except unknown, geometry, and geography.
-        Because those three types have no fixed value defined above, a catalog server
-        must not return mask-to-fixed-value for a struct, list, or map that contains a
-        field of type unknown, geometry, or geography at any nesting depth.
+        Applicable to: the types with a fixed value defined above. A catalog server
+        MUST NOT return mask-to-fixed-value for any other type.
       allOf:
         - $ref: '#/components/schemas/Action'
       properties:
