@@ -2690,7 +2690,6 @@ components:
       oneOf:
         - type: string
         - type: number
-        - type: integer
         - type: boolean
         - type: 'null'
         - type: object
@@ -2719,6 +2718,7 @@ components:
           required:
             - type
             - values
+            - data-type
           properties:
             type:
               type: string
@@ -2738,6 +2738,7 @@ components:
         form is valid.
       oneOf:
         - type: object
+          additionalProperties: false
           required:
             - type
             - id
@@ -2748,6 +2749,7 @@ components:
             id:
               type: integer
         - type: object
+          additionalProperties: false
           required:
             - type
             - name
@@ -2777,7 +2779,7 @@ components:
         arguments:
           type: array
           items:
-            oneOf:
+            anyOf:
               - $ref: '#/components/schemas/ValueExpression'
               - $ref: '#/components/schemas/Expression'
 
@@ -2790,14 +2792,17 @@ components:
       oneOf:
         - type: string
         - type: array
+          minItems: 1
           items:
             type: string
         - type: object
+          additionalProperties: false
           required:
             - identifier
           properties:
             identifier:
               type: array
+              minItems: 1
               items:
                 type: string
         - type: object
@@ -2809,6 +2814,7 @@ components:
               type: string
             identifier:
               type: array
+              minItems: 1
               items:
                 type: string
 
@@ -2889,6 +2895,7 @@ components:
         older REST predicates. Use FieldReference instead per Iceberg
         Expressions spec, Appendix B (Backward compatibility).
       type: object
+      additionalProperties: false
       required:
         - type
         - term
