@@ -623,7 +623,7 @@ class MaskToFixedValue(Action):
     Replaces the column value with a type-specific fixed value. Readers must use exactly the values listed below to ensure consistency across implementations.
     Fixed values by type: - boolean: false - int: 0 - long: 0 - float: 0.0 - double: 0.0 - decimal(p, s): 0 (the unscaled value is 0) - string: "XXXXXXXX" - date: 1970-01-01 - time: 00:00:00 - timestamp: 1970-01-01T00:00:00 - timestamptz: 1970-01-01T00:00:00+00:00 - timestamp_ns: 1970-01-01T00:00:00.000000000 - timestamptz_ns: 1970-01-01T00:00:00.000000000+00:00 - uuid: 00000000-0000-0000-0000-000000000000 - fixed(n): n zero bytes - binary: empty byte sequence - variant: {} - list: empty list [] - map: empty map {} - struct: struct with each field set to its type-specific default (applied recursively)
     NULL input is also replaced with the type-specific fixed value; NULL is not preserved.
-    Applicable to: all data types except unknown, geometry, and geography. Because those three types have no fixed value defined above, a catalog server must not return mask-to-fixed-value for a struct, list, or map that contains a field of type unknown, geometry, or geography at any nesting depth.
+    Applicable to: the types with a fixed value defined above. A catalog server MUST NOT return mask-to-fixed-value for any other type.
 
     """
 
