@@ -662,7 +662,7 @@ public class TestFilterPushDown extends TestBaseWithCatalog {
     table.updateSchema().addColumn("c", Types.StringType.get(), Expressions.lit("US")).commit();
     sql("REFRESH TABLE %s", tableName);
 
-    sql("INSERT INTO %s VALUES (2, 'Bob', 'US')", tableName);
+    sql("INSERT INTO %s VALUES (2, 'Bob', 'US'), (3, 'Eve', 'CA')", tableName);
 
     // the row from the first file reads c as its default 'US'
     checkFilters(
@@ -681,10 +681,11 @@ public class TestFilterPushDown extends TestBaseWithCatalog {
     checkOnlyIcebergFilters(
         "c IS NOT NULL" /* query predicate */,
         "c IS NOT NULL" /* Iceberg scan filters */,
-        ImmutableList.of(row(1L, "Alice", "US"), row(2L, "Bob", "US")));
+        ImmutableList.of(row(1L, "Alice", "US"), row(2L, "Bob", "US"), row(3L, "Eve", "CA")));
 
     // the file without column c reads it as the default 'US', which matches neither predicate
-    assertThat(sql("SELECT * FROM %s WHERE c = 'CA'", tableName)).isEmpty();
+    assertThat(sql("SELECT * FROM %s WHERE c = 'CA'", tableName))
+        .containsExactly(row(3L, "Eve", "CA"));
     assertThat(sql("SELECT * FROM %s WHERE c IS NULL", tableName)).isEmpty();
   }
 

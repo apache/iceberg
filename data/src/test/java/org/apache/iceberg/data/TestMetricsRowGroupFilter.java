@@ -493,7 +493,9 @@ public class TestMetricsRowGroupFilter {
           in("country", "US", "MX"),
           notIn("country", "CA", "MX"),
           greaterThanOrEqual("country", "US"),
-          lessThan("country", "ZW")
+          lessThan("country", "ZW"),
+          startsWith("country", "U"),
+          notStartsWith("country", "X")
         };
     for (Expression expr : canMatch) {
       assertThat(shouldReadWithSchema(schemaWithDefault, expr))
@@ -509,13 +511,66 @@ public class TestMetricsRowGroupFilter {
           in("country", "CA", "MX"),
           notIn("country", "US", "MX"),
           lessThan("country", "AD"),
-          greaterThan("country", "US")
+          greaterThan("country", "US"),
+          startsWith("country", "X"),
+          notStartsWith("country", "U")
         };
     for (Expression expr : cannotMatch) {
       assertThat(shouldReadWithSchema(schemaWithDefault, expr))
           .as("Should skip: default 'US' cannot satisfy: " + expr)
           .isFalse();
     }
+  }
+
+  @TestTemplate
+  public void testNonStringColumnNotInFileWithInitialDefault() {
+    assumeThat(format).isEqualTo(FileFormat.PARQUET);
+
+    Schema schemaWithDefault =
+        new Schema(
+            required(1, "id", IntegerType.get()),
+            Types.NestedField.optional("count")
+                .withId(100)
+                .ofType(IntegerType.get())
+                .withInitialDefault(Literal.of(42))
+                .build());
+
+    Expression[] canMatch =
+        new Expression[] {equal("count", 42), lessThan("count", 43), greaterThan("count", 41)};
+    for (Expression expr : canMatch) {
+      assertThat(shouldReadWithSchema(schemaWithDefault, expr))
+          .as("Should read: absent column reads as its initial-default 42: " + expr)
+          .isTrue();
+    }
+
+    Expression[] cannotMatch =
+        new Expression[] {equal("count", 41), lessThan("count", 42), greaterThan("count", 42)};
+    for (Expression expr : cannotMatch) {
+      assertThat(shouldReadWithSchema(schemaWithDefault, expr))
+          .as("Should skip: default 42 cannot satisfy: " + expr)
+          .isFalse();
+    }
+  }
+
+  @TestTemplate
+  public void testDoubleColumnNotInFileWithInitialDefault() {
+    assumeThat(format).isEqualTo(FileFormat.PARQUET);
+
+    Schema schemaWithDefault =
+        new Schema(
+            required(1, "id", IntegerType.get()),
+            Types.NestedField.optional("measurement")
+                .withId(101)
+                .ofType(DoubleType.get())
+                .withInitialDefault(Literal.of(12.5D))
+                .build());
+
+    assertThat(shouldReadWithSchema(schemaWithDefault, notNaN("measurement")))
+        .as("Should read: absent column reads as its non-NaN initial-default")
+        .isTrue();
+    assertThat(shouldReadWithSchema(schemaWithDefault, isNaN("measurement")))
+        .as("Should skip: non-NaN default cannot satisfy IS NAN")
+        .isFalse();
   }
 
   @TestTemplate
