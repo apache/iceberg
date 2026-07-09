@@ -35,7 +35,6 @@ class SerializedArray implements VariantArray, SerializedValue {
     return from(metadata, ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN), bytes[0]);
   }
 
-  @VisibleForTesting
   static SerializedArray from(VariantMetadata metadata, ByteBuffer value, int header) {
     return from(metadata, value, header, 0);
   }
@@ -69,6 +68,11 @@ class SerializedArray implements VariantArray, SerializedValue {
     int numElements = ByteBuffers.readLittleEndianUnsigned(value, HEADER_SIZE, numElementsSize);
     Preconditions.checkArgument(
         numElements >= 0, "Invalid variant array: negative element count %s", numElements);
+    Preconditions.checkArgument(
+        numElements <= VariantUtil.MAX_ELEMENTS,
+        "Invalid variant array: element count %s exceeds maximum %s",
+        numElements,
+        VariantUtil.MAX_ELEMENTS);
     this.offsetListOffset = HEADER_SIZE + numElementsSize;
     long offsetTableEnd = (long) offsetListOffset + ((long) numElements + 1L) * offsetSize;
     Preconditions.checkArgument(

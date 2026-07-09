@@ -65,6 +65,11 @@ class SerializedMetadata implements VariantMetadata, Serialized {
     int dictSize = ByteBuffers.readLittleEndianUnsigned(metadata, HEADER_SIZE, offsetSize);
     Preconditions.checkArgument(
         dictSize >= 0, "Invalid variant metadata: negative dictionary size %s", dictSize);
+    Preconditions.checkArgument(
+        dictSize <= VariantUtil.MAX_ELEMENTS,
+        "Invalid variant metadata: dictionary size %s exceeds maximum %s",
+        dictSize,
+        VariantUtil.MAX_ELEMENTS);
     this.offsetListOffset = HEADER_SIZE + offsetSize;
     long offsetTableEnd = (long) offsetListOffset + ((long) dictSize + 1L) * offsetSize;
     Preconditions.checkArgument(
@@ -72,7 +77,7 @@ class SerializedMetadata implements VariantMetadata, Serialized {
         "Invalid variant metadata: dictionary size %s exceeds buffer",
         dictSize);
     this.dict = new String[dictSize];
-    this.dataOffset = offsetListOffset + ((1 + dictSize) * offsetSize);
+    this.dataOffset = Math.toIntExact(offsetTableEnd);
     int lastOffset =
         ByteBuffers.readLittleEndianUnsigned(
             metadata, offsetListOffset + (offsetSize * dictSize), offsetSize);

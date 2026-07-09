@@ -33,18 +33,22 @@ class VariantUtil {
   private static final int BASIC_TYPE_ARRAY = 3;
 
   /**
-   * Maximum permitted nesting depth of a Variant value. The top-level value is depth 0, so a
-   * Variant may contain up to {@code MAX_VARIANT_DEPTH + 1} nested levels.
+   * Maximum nesting depth in a Variant (permitted depths 0..MAX_VARIANT_DEPTH). Safety limit, not a
+   * spec bound. Matches parquet-java (apache/parquet-java#3562).
    */
   static final int MAX_VARIANT_DEPTH = 1000;
 
+  /**
+   * Maximum element count for Variant containers and metadata dictionaries. Safety limit against
+   * buffer-to-heap allocation amplification.
+   */
+  static final int MAX_ELEMENTS = 16_777_216;
+
   private VariantUtil() {}
 
-  /**
-   * Parses a variant value from {@code value} using {@code metadata} for field-name resolution.
-   * Validates the input and enforces {@link #MAX_VARIANT_DEPTH}.
-   */
+  /** Parses a variant value; validates input and enforces {@link #MAX_VARIANT_DEPTH}. */
   static VariantValue fromBuffer(VariantMetadata metadata, ByteBuffer value, int depth) {
+    Preconditions.checkArgument(depth >= 0, "Invalid variant: negative depth %s", depth);
     Preconditions.checkArgument(
         depth <= MAX_VARIANT_DEPTH,
         "Invalid variant: nesting depth %s exceeds maximum %s",

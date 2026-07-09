@@ -80,6 +80,11 @@ class SerializedObject implements VariantObject, SerializedValue {
     int numElements = ByteBuffers.readLittleEndianUnsigned(value, HEADER_SIZE, numElementsSize);
     Preconditions.checkArgument(
         numElements >= 0, "Invalid variant object: negative element count %s", numElements);
+    Preconditions.checkArgument(
+        numElements <= VariantUtil.MAX_ELEMENTS,
+        "Invalid variant object: element count %s exceeds maximum %s",
+        numElements,
+        VariantUtil.MAX_ELEMENTS);
     this.fieldIdListOffset = HEADER_SIZE + numElementsSize;
     long dataStart =
         (long) fieldIdListOffset
@@ -134,11 +139,10 @@ class SerializedObject implements VariantObject, SerializedValue {
     // populate lengths list by sorting offsets
     List<Integer> sortedOffsets =
         offsetToLength.keySet().stream().sorted().collect(Collectors.toList());
-    Preconditions.checkArgument(
-        sortedOffsets.size() == numElements + 1, "Invalid variant object: duplicate field offsets");
-    for (int index = 0; index < numElements; index += 1) {
-      int offset = sortedOffsets.get(index);
-      int length = sortedOffsets.get(index + 1) - offset;
+    // shared offsets are spec-legal (zero-length spans); do not require uniqueness
+    for (int i = 0; i < sortedOffsets.size() - 1; i += 1) {
+      int offset = sortedOffsets.get(i);
+      int length = sortedOffsets.get(i + 1) - offset;
       offsetToLength.put(offset, length);
     }
 
@@ -196,6 +200,7 @@ class SerializedObject implements VariantObject, SerializedValue {
         };
   }
 
+  // Field id range is validated lazily on first access, not at construction.
   private int id(int index) {
     if (null == fieldIds[index]) {
       int dictSize = metadata.dictionarySize();
