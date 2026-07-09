@@ -103,7 +103,8 @@ class TestTrackedFileAdapters {
           null, // dvSnapshotId
           FIRST_ROW_ID,
           null, // deletedPositions
-          null); // replacedPositions
+          null, // replacedPositions
+          null); // latestColumnFileSnapshotId
 
   private static final byte[] MANIFEST_DV = new byte[] {1, 2, 3};
 
@@ -135,6 +136,7 @@ class TestTrackedFileAdapters {
             null,
             FIRST_ROW_ID,
             null,
+            null,
             null);
     tracking.setManifestLocation(MANIFEST_LOCATION);
     tracking.set(MANIFEST_POS_ORDINAL, MANIFEST_POS);
@@ -157,6 +159,7 @@ class TestTrackedFileAdapters {
             null,
             ByteBuffer.wrap(new byte[] {1, 2, 3}),
             ImmutableList.of(50L, 100L),
+            null,
             null);
 
     DataFile dataFile = TrackedFileAdapters.asDataFile(file, specsById(PARTITIONED_SPEC));
@@ -216,6 +219,7 @@ class TestTrackedFileAdapters {
             null,
             FIRST_ROW_ID,
             null,
+            null,
             null);
     tracking.setManifestLocation(MANIFEST_LOCATION);
     tracking.set(MANIFEST_POS_ORDINAL, MANIFEST_POS);
@@ -237,7 +241,8 @@ class TestTrackedFileAdapters {
             null,
             ByteBuffer.wrap(new byte[] {4, 5}),
             ImmutableList.of(200L),
-            ImmutableList.of(1, 2, 3));
+            ImmutableList.of(1, 2, 3),
+            null);
 
     DeleteFile deleteFile =
         TrackedFileAdapters.asEqualityDeleteFile(file, specsById(PARTITIONED_SPEC));
@@ -305,6 +310,7 @@ class TestTrackedFileAdapters {
             42L,
             FIRST_ROW_ID,
             null,
+            null,
             null);
     tracking.setManifestLocation(MANIFEST_LOCATION);
     tracking.set(MANIFEST_POS_ORDINAL, MANIFEST_POS);
@@ -323,6 +329,7 @@ class TestTrackedFileAdapters {
             null,
             null,
             dv,
+            null,
             null,
             null,
             null,
@@ -429,6 +436,7 @@ class TestTrackedFileAdapters {
             42L,
             FIRST_ROW_ID,
             null,
+            null,
             null);
     tracking.setManifestLocation(MANIFEST_LOCATION);
     tracking.set(MANIFEST_POS_ORDINAL, MANIFEST_POS);
@@ -458,7 +466,8 @@ class TestTrackedFileAdapters {
         null, // manifestInfo
         KEY_METADATA,
         ImmutableList.of(50L, 100L), // splitOffsets
-        null); // equalityIds
+        null, // equalityIds
+        null); // columnFiles
   }
 
   @ParameterizedTest
@@ -502,7 +511,8 @@ class TestTrackedFileAdapters {
             MANIFEST_INFO,
             MANIFEST_KEY_METADATA,
             null, // splitOffsets
-            null); // equalityIds
+            null, // equalityIds
+            null); // columnFiles
 
     ManifestFile manifest = TrackedFileAdapters.asManifestFile(file);
 
@@ -608,6 +618,7 @@ class TestTrackedFileAdapters {
             null,
             null,
             null,
+            null,
             null);
     assertNullTrackingFields(TrackedFileAdapters.asDVDeleteFile(fileWithDV, UNPARTITIONED));
   }
@@ -662,6 +673,7 @@ class TestTrackedFileAdapters {
             null,
             null,
             null,
+            null,
             null);
 
     assertThatThrownBy(() -> TrackedFileAdapters.asDataFile(file, ImmutableMap.of()))
@@ -698,6 +710,7 @@ class TestTrackedFileAdapters {
         FileFormat.PARQUET,
         1L,
         1L,
+        null,
         null,
         null,
         null,
