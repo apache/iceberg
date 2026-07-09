@@ -59,40 +59,42 @@ class TestTrackedFileAdapters {
           .build();
   private static final PartitionData PARTITION = partition("books");
 
-  // Tracking field ordinals, looked up from the schema so the tests do not hard-code offsets.
-  private static final int DATA_SEQUENCE_NUMBER_ORDINAL =
-      ordinalOf(Tracking.schema(), "sequence_number");
-  private static final int FILE_SEQUENCE_NUMBER_ORDINAL =
-      ordinalOf(Tracking.schema(), "file_sequence_number");
-  private static final int FIRST_ROW_ID_ORDINAL = ordinalOf(Tracking.schema(), "first_row_id");
-  // manifestPos is appended after the tracking schema fields by the manifest reader.
+  // manifestPos is populated by readers using the setter with the position of the field.
   private static final int MANIFEST_POS_ORDINAL = Tracking.schema().fields().size();
-
-  // TrackedFile optional field ordinals, looked up from the schema.
-  private static final Types.StructType TRACKED_FILE_SCHEMA =
-      TrackedFile.schemaWithContentStats(Types.StructType.of(), Types.StructType.of());
-  private static final int CONTENT_TYPE_ORDINAL = ordinalOf(TRACKED_FILE_SCHEMA, "content_type");
-  private static final int SPEC_ID_ORDINAL = ordinalOf(TRACKED_FILE_SCHEMA, "spec_id");
-  private static final int DELETION_VECTOR_ORDINAL =
-      ordinalOf(TRACKED_FILE_SCHEMA, "deletion_vector");
 
   @Test
   void testDataFileAdapterDelegation() {
+    TrackingStruct tracking =
+        new TrackingStruct(
+            EntryStatus.ADDED,
+            42L,
+            DATA_SEQUENCE_NUMBER,
+            FILE_SEQUENCE_NUMBER,
+            null,
+            FIRST_ROW_ID,
+            null,
+            null);
+    tracking.setManifestLocation(MANIFEST_LOCATION);
+    tracking.set(MANIFEST_POS_ORDINAL, MANIFEST_POS);
+
     TrackedFile file =
-        TrackedFileBuilder.data(42L)
-            .formatVersion(FORMAT_VERSION_V4)
-            .location(DATA_FILE_LOCATION)
-            .fileFormat(FileFormat.PARQUET)
-            .partition(PARTITION)
-            .recordCount(100L)
-            .fileSizeInBytes(1024L)
-            .specId(PARTITIONED_SPEC_ID)
-            .contentStats(createContentStats())
-            .sortOrderId(3)
-            .keyMetadata(ByteBuffer.wrap(new byte[] {1, 2, 3}))
-            .splitOffsets(ImmutableList.of(50L, 100L))
-            .build();
-    populateTrackingFields(file);
+        new TrackedFileStruct(
+            tracking,
+            FileContent.DATA,
+            FORMAT_VERSION_V4,
+            DATA_FILE_LOCATION,
+            FileFormat.PARQUET,
+            PARTITION,
+            100L,
+            1024L,
+            PARTITIONED_SPEC_ID,
+            createContentStats(),
+            3,
+            null,
+            null,
+            ByteBuffer.wrap(new byte[] {1, 2, 3}),
+            ImmutableList.of(50L, 100L),
+            null);
 
     DataFile dataFile = TrackedFileAdapters.asDataFile(file, specsById(PARTITIONED_SPEC));
 
@@ -138,22 +140,37 @@ class TestTrackedFileAdapters {
 
   @Test
   void testEqualityDeleteFileAdapterDelegation() {
+    TrackingStruct tracking =
+        new TrackingStruct(
+            EntryStatus.ADDED,
+            42L,
+            DATA_SEQUENCE_NUMBER,
+            FILE_SEQUENCE_NUMBER,
+            null,
+            FIRST_ROW_ID,
+            null,
+            null);
+    tracking.setManifestLocation(MANIFEST_LOCATION);
+    tracking.set(MANIFEST_POS_ORDINAL, MANIFEST_POS);
+
     TrackedFile file =
-        TrackedFileBuilder.equalityDelete(42L)
-            .formatVersion(FORMAT_VERSION_V4)
-            .location("s3://bucket/eq-delete.avro")
-            .fileFormat(FileFormat.AVRO)
-            .partition(PARTITION)
-            .recordCount(50L)
-            .fileSizeInBytes(512L)
-            .specId(PARTITIONED_SPEC_ID)
-            .contentStats(createContentStats())
-            .sortOrderId(5)
-            .keyMetadata(ByteBuffer.wrap(new byte[] {4, 5}))
-            .splitOffsets(ImmutableList.of(200L))
-            .equalityIds(ImmutableList.of(1, 2, 3))
-            .build();
-    populateTrackingFields(file);
+        new TrackedFileStruct(
+            tracking,
+            FileContent.EQUALITY_DELETES,
+            FORMAT_VERSION_V4,
+            "s3://bucket/eq-delete.avro",
+            FileFormat.AVRO,
+            PARTITION,
+            50L,
+            512L,
+            PARTITIONED_SPEC_ID,
+            createContentStats(),
+            5,
+            null,
+            null,
+            ByteBuffer.wrap(new byte[] {4, 5}),
+            ImmutableList.of(200L),
+            ImmutableList.of(1, 2, 3));
 
     DeleteFile deleteFile =
         TrackedFileAdapters.asEqualityDeleteFile(file, specsById(PARTITIONED_SPEC));
@@ -208,18 +225,37 @@ class TestTrackedFileAdapters {
             .cardinality(10L)
             .build();
 
+    TrackingStruct tracking =
+        new TrackingStruct(
+            EntryStatus.ADDED,
+            42L,
+            DATA_SEQUENCE_NUMBER,
+            FILE_SEQUENCE_NUMBER,
+            42L,
+            FIRST_ROW_ID,
+            null,
+            null);
+    tracking.setManifestLocation(MANIFEST_LOCATION);
+    tracking.set(MANIFEST_POS_ORDINAL, MANIFEST_POS);
+
     TrackedFile file =
-        TrackedFileBuilder.data(42L)
-            .formatVersion(FORMAT_VERSION_V4)
-            .location(DATA_FILE_LOCATION)
-            .fileFormat(FileFormat.PARQUET)
-            .partition(PARTITION)
-            .recordCount(100L)
-            .fileSizeInBytes(1024L)
-            .specId(PARTITIONED_SPEC_ID)
-            .deletionVector(dv)
-            .build();
-    populateTrackingFields(file);
+        new TrackedFileStruct(
+            tracking,
+            FileContent.DATA,
+            FORMAT_VERSION_V4,
+            DATA_FILE_LOCATION,
+            FileFormat.PARQUET,
+            PARTITION,
+            100L,
+            1024L,
+            PARTITIONED_SPEC_ID,
+            null,
+            null,
+            dv,
+            null,
+            null,
+            null,
+            null);
 
     DeleteFile dvFile = TrackedFileAdapters.asDVDeleteFile(file, specsById(PARTITIONED_SPEC));
 
@@ -299,9 +335,25 @@ class TestTrackedFileAdapters {
         TrackedFileAdapters.asEqualityDeleteFile(
             dummyTrackedFile(FileContent.EQUALITY_DELETES), UNPARTITIONED));
 
-    TrackedFileStruct dvFile = dummyTrackedFile(FileContent.DATA);
-    dvFile.set(DELETION_VECTOR_ORDINAL, deletionVector());
-    assertNullTrackingFields(TrackedFileAdapters.asDVDeleteFile(dvFile, UNPARTITIONED));
+    TrackedFileStruct fileWithDV =
+        new TrackedFileStruct(
+            null,
+            FileContent.DATA,
+            0,
+            null,
+            null,
+            null,
+            0L,
+            0L,
+            null,
+            null,
+            null,
+            deletionVector(),
+            null,
+            null,
+            null,
+            null);
+    assertNullTrackingFields(TrackedFileAdapters.asDVDeleteFile(fileWithDV, UNPARTITIONED));
   }
 
   @Test
@@ -337,8 +389,24 @@ class TestTrackedFileAdapters {
 
   @Test
   void testUnknownSpecIdThrows() {
-    TrackedFileStruct file = dummyTrackedFile(FileContent.DATA);
-    file.set(SPEC_ID_ORDINAL, 99);
+    TrackedFileStruct file =
+        new TrackedFileStruct(
+            null,
+            FileContent.DATA,
+            0,
+            null,
+            null,
+            null,
+            0L,
+            0L,
+            99,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null);
 
     assertThatThrownBy(() -> TrackedFileAdapters.asDataFile(file, ImmutableMap.of()))
         .isInstanceOf(IllegalArgumentException.class)
@@ -347,9 +415,25 @@ class TestTrackedFileAdapters {
 
   @Test
   void testSpecIdMismatchThrows() {
+    TrackedFileStruct file =
+        new TrackedFileStruct(
+            null,
+            FileContent.DATA,
+            0,
+            null,
+            null,
+            null,
+            0L,
+            0L,
+            PARTITIONED_SPEC_ID,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null);
     int mismatchedSpecId = PARTITIONED_SPEC_ID + 1;
-    TrackedFileStruct file = dummyTrackedFile(FileContent.DATA);
-    file.set(SPEC_ID_ORDINAL, PARTITIONED_SPEC_ID);
     PartitionSpec mismatched =
         PartitionSpec.builderFor(PARTITION_SCHEMA)
             .identity("category")
@@ -387,18 +471,23 @@ class TestTrackedFileAdapters {
 
   /** Minimal file with no tracking, used by the rejection and null-tracking tests. */
   private static TrackedFileStruct dummyTrackedFile(FileContent contentType) {
-    TrackedFileStruct file = new TrackedFileStruct();
-    file.set(CONTENT_TYPE_ORDINAL, contentType.id());
-    return file;
-  }
-
-  private static void populateTrackingFields(TrackedFile file) {
-    TrackingStruct tracking = (TrackingStruct) file.tracking();
-    tracking.set(DATA_SEQUENCE_NUMBER_ORDINAL, DATA_SEQUENCE_NUMBER);
-    tracking.set(FILE_SEQUENCE_NUMBER_ORDINAL, FILE_SEQUENCE_NUMBER);
-    tracking.set(FIRST_ROW_ID_ORDINAL, FIRST_ROW_ID);
-    tracking.setManifestLocation(MANIFEST_LOCATION);
-    tracking.set(MANIFEST_POS_ORDINAL, MANIFEST_POS);
+    return new TrackedFileStruct(
+        null,
+        contentType,
+        FORMAT_VERSION_V4,
+        DATA_FILE_LOCATION,
+        FileFormat.PARQUET,
+        null,
+        1L,
+        1L,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null);
   }
 
   private static DeletionVector deletionVector() {
@@ -456,16 +545,5 @@ class TestTrackedFileAdapters {
         .withStatsStruct(statsStruct)
         .withFieldStats(fieldStatsList)
         .build();
-  }
-
-  private static int ordinalOf(Types.StructType schema, String fieldName) {
-    List<Types.NestedField> fields = schema.fields();
-    for (int i = 0; i < fields.size(); i += 1) {
-      if (fields.get(i).name().equals(fieldName)) {
-        return i;
-      }
-    }
-
-    throw new IllegalArgumentException("No such field: " + fieldName);
   }
 }
