@@ -519,6 +519,39 @@ public class TestMetricsRowGroupFilter {
   }
 
   @TestTemplate
+  public void testNestedColumnNotInFileWithInitialDefault() {
+    assumeThat(format).isEqualTo(FileFormat.PARQUET);
+
+    Schema schemaWithNestedDefault =
+        new Schema(
+            required(1, "id", IntegerType.get()),
+            Types.NestedField.optional("location")
+                .withId(100)
+                .ofType(
+                    Types.StructType.of(
+                        Types.NestedField.optional("country")
+                            .withId(101)
+                            .ofType(StringType.get())
+                            .withInitialDefault(Literal.of("US"))
+                            .build()))
+                .build());
+
+    assertThat(shouldReadWithSchema(schemaWithNestedDefault, equal("location.country", "US")))
+        .as("Should read: absent nested column reads as its initial-default 'US'")
+        .isTrue();
+    assertThat(shouldReadWithSchema(schemaWithNestedDefault, notNull("location.country")))
+        .as("Should read: absent nested column reads as its non-null initial-default 'US'")
+        .isTrue();
+
+    assertThat(shouldReadWithSchema(schemaWithNestedDefault, equal("location.country", "CA")))
+        .as("Should skip: nested default 'US' cannot satisfy location.country = 'CA'")
+        .isFalse();
+    assertThat(shouldReadWithSchema(schemaWithNestedDefault, isNull("location.country")))
+        .as("Should skip: nested default 'US' is non-null so location.country IS NULL cannot match")
+        .isFalse();
+  }
+
+  @TestTemplate
   public void testPresentColumnWithoutStatsIsNotEvaluatedAgainstDefault() {
     assumeThat(format).isEqualTo(FileFormat.PARQUET);
 
