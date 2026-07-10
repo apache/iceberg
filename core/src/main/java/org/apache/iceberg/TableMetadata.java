@@ -139,7 +139,7 @@ public class TableMetadata implements Serializable {
 
     // Validate the metrics configuration. Note: we only do this on new tables to we don't
     // break existing tables.
-    MetricsConfig.fromProperties(properties).validateReferencedColumns(schema);
+    MetricsConfig.validate(properties, schema);
 
     PropertyUtil.validateCommitProperties(properties);
 
@@ -1327,6 +1327,10 @@ public class TableMetadata implements Serializable {
       Snapshot snapshot = snapshotsById.get(snapshotId);
       ValidationException.check(
           snapshot != null, "Cannot set %s to unknown snapshot: %s", name, snapshotId);
+      ValidationException.check(
+          !SnapshotRef.MAIN_BRANCH.equals(name) || ref.isBranch(),
+          "Cannot set %s to a tag, it must be a branch",
+          SnapshotRef.MAIN_BRANCH);
 
       if (SnapshotRef.MAIN_BRANCH.equals(name)) {
         this.currentSnapshotId = ref.snapshotId();
@@ -1515,10 +1519,10 @@ public class TableMetadata implements Serializable {
     }
 
     public Builder removeEncryptionKey(String keyId) {
-      boolean removed = encryptionKeys.removeIf(key -> key.keyId().equals(keyId));
-      keysById.remove(keyId);
+      EncryptedKey removedKey = keysById.remove(keyId);
 
-      if (removed) {
+      if (removedKey != null) {
+        encryptionKeys.remove(removedKey);
         changes.add(new MetadataUpdate.RemoveEncryptionKey(keyId));
       }
 

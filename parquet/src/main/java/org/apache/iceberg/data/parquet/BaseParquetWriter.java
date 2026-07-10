@@ -267,6 +267,20 @@ abstract class BaseParquetWriter<T> {
 
     @Override
     public Optional<ParquetValueWriter<?>> visit(
+        LogicalTypeAnnotation.GeometryLogicalTypeAnnotation geometryType) {
+      // geometry values are pure WKB stored in a BINARY column
+      return Optional.of(ParquetValueWriters.byteBuffers(desc));
+    }
+
+    @Override
+    public Optional<ParquetValueWriter<?>> visit(
+        LogicalTypeAnnotation.GeographyLogicalTypeAnnotation geographyType) {
+      // geography values are pure WKB stored in a BINARY column
+      return Optional.of(ParquetValueWriters.byteBuffers(desc));
+    }
+
+    @Override
+    public Optional<ParquetValueWriter<?>> visit(
         LogicalTypeAnnotation.UUIDLogicalTypeAnnotation uuidLogicalType) {
       return Optional.of(ParquetValueWriters.uuids(desc));
     }

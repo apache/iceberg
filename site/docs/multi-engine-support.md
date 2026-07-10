@@ -135,6 +135,6 @@ This allows the Iceberg support to evolve with the engine.
 Projects such as [Trino](https://trino.io/docs/current/connector/iceberg.html) and [Presto](https://prestodb.io/docs/current/connector/iceberg.html) are good examples of such support strategy.
 
 In this approach, an Iceberg version upgrade is needed for an engine to consume new Iceberg features.
-To facilitate engine development against unreleased Iceberg features, a daily snapshot is published in the [Apache snapshot repository](https://repository.apache.org/content/repositories/snapshots/org/apache/iceberg/).
+To facilitate engine development against unreleased Iceberg features, [developer snapshot testing](developer-snapshot-testing.md) is available for active developers and engine maintainers testing ongoing development.
 
 If bringing an engine directly to the Iceberg main repository is needed, please raise a discussion thread in the [Iceberg community](community.md).

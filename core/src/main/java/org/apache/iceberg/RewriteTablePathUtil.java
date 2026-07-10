@@ -47,6 +47,7 @@ import org.apache.iceberg.puffin.PuffinCompressionCodec;
 import org.apache.iceberg.puffin.PuffinReader;
 import org.apache.iceberg.puffin.PuffinWriter;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -377,7 +378,12 @@ public class RewriteTablePathUtil {
    * @param stagingLocation staging location for rewritten files (referred delete file will be
    *     rewritten here)
    * @return a copy plan of content files in the manifest that was rewritten
+   * @deprecated since 1.12.0, will be removed in 1.13.0; use the overload that accepts the map of
+   *     rewritten position delete file sizes. This overload records the original {@code
+   *     file_size_in_bytes}, which can be inconsistent with the rewritten file size on disk once
+   *     embedded data file paths change length.
    */
+  @Deprecated
   public static RewriteResult<DeleteFile> rewriteDeleteManifest(
       ManifestFile manifestFile,
       Set<Long> snapshotIds,
@@ -388,6 +394,52 @@ public class RewriteTablePathUtil {
       String sourcePrefix,
       String targetPrefix,
       String stagingLocation)
+      throws IOException {
+    return rewriteDeleteManifest(
+        manifestFile,
+        snapshotIds,
+        outputFile,
+        io,
+        format,
+        specsById,
+        sourcePrefix,
+        targetPrefix,
+        stagingLocation,
+        ImmutableMap.of());
+  }
+
+  /**
+   * Rewrite a delete manifest, replacing path references.
+   *
+   * <p>This is a metadata-only operation: position delete file content is rewritten separately (see
+   * {@link #rewritePositionDelete}). The actual sizes of those rewritten files are supplied via
+   * {@code rewrittenDeleteFileSizes} and recorded in the manifest so that {@code
+   * file_size_in_bytes} stays consistent with the rewritten file on disk.
+   *
+   * @param manifestFile source delete manifest to rewrite
+   * @param snapshotIds snapshot ids for filtering returned delete manifest entries
+   * @param outputFile output file to rewrite manifest file to
+   * @param io file io
+   * @param format format of the manifest file
+   * @param specsById map of partition specs by id
+   * @param sourcePrefix source prefix that will be replaced
+   * @param targetPrefix target prefix that will replace it
+   * @param stagingLocation staging location for rewritten position delete files
+   * @param rewrittenDeleteFileSizes map from source position delete file path to the actual size of
+   *     the rewritten file; entries absent from the map keep their original size
+   * @return a copy plan of content files in the manifest that was rewritten
+   */
+  public static RewriteResult<DeleteFile> rewriteDeleteManifest(
+      ManifestFile manifestFile,
+      Set<Long> snapshotIds,
+      OutputFile outputFile,
+      FileIO io,
+      int format,
+      Map<Integer, PartitionSpec> specsById,
+      String sourcePrefix,
+      String targetPrefix,
+      String stagingLocation,
+      Map<String, Long> rewrittenDeleteFileSizes)
       throws IOException {
     PartitionSpec spec = specsById.get(manifestFile.partitionSpecId());
     try (ManifestWriter<DeleteFile> writer =
@@ -405,7 +457,8 @@ public class RewriteTablePathUtil {
                       sourcePrefix,
                       targetPrefix,
                       stagingLocation,
-                      writer))
+                      writer,
+                      rewrittenDeleteFileSizes))
           .reduce(new RewriteResult<>(), RewriteResult::append);
     }
   }
@@ -445,14 +498,20 @@ public class RewriteTablePathUtil {
       String sourcePrefix,
       String targetPrefix,
       String stagingLocation,
-      ManifestWriter<DeleteFile> writer) {
+      ManifestWriter<DeleteFile> writer,
+      Map<String, Long> rewrittenDeleteFileSizes) {
 
     DeleteFile file = entry.file();
     RewriteResult<DeleteFile> result = new RewriteResult<>();
 
     switch (file.content()) {
       case POSITION_DELETES:
-        DeleteFile posDeleteFile = newPositionDeleteEntry(file, spec, sourcePrefix, targetPrefix);
+        // Path rewrites change the file size; use the measured size, falling back to the original
+        // for entries that were not rewritten (e.g. deleted entries not copied to the target).
+        long fileSizeInBytes =
+            rewrittenDeleteFileSizes.getOrDefault(file.location(), file.fileSizeInBytes());
+        DeleteFile posDeleteFile =
+            newPositionDeleteEntry(file, spec, sourcePrefix, targetPrefix, fileSizeInBytes);
         appendEntryWithFile(entry, writer, posDeleteFile);
         // keep the following entries in metadata but exclude them from copyPlan
         // 1) deleted position delete files
@@ -523,7 +582,11 @@ public class RewriteTablePathUtil {
   }
 
   private static DeleteFile newPositionDeleteEntry(
-      DeleteFile file, PartitionSpec spec, String sourcePrefix, String targetPrefix) {
+      DeleteFile file,
+      PartitionSpec spec,
+      String sourcePrefix,
+      String targetPrefix,
+      long fileSizeInBytes) {
     String path = file.location();
     Preconditions.checkArgument(
         path.startsWith(sourcePrefix),
@@ -535,6 +598,7 @@ public class RewriteTablePathUtil {
         FileMetadata.deleteFileBuilder(spec)
             .copy(file)
             .withPath(newPath(path, sourcePrefix, targetPrefix))
+            .withFileSizeInBytes(fileSizeInBytes)
             .withMetrics(ContentFileUtil.replacePathBounds(file, sourcePrefix, targetPrefix));
 
     // Update referencedDataFile for DV files
@@ -607,8 +671,43 @@ public class RewriteTablePathUtil {
    * @param sourcePrefix source prefix that will be replaced
    * @param targetPrefix target prefix to replace it
    * @param posDeleteReaderWriter class to read and write position delete files
+   * @deprecated since 1.12.0, will be removed in 1.13.0; use {@link #rewritePositionDelete} which
+   *     returns the size of the rewritten file so callers can record an accurate {@code
+   *     file_size_in_bytes}.
    */
+  @Deprecated
   public static void rewritePositionDeleteFile(
+      DeleteFile deleteFile,
+      OutputFile outputFile,
+      FileIO io,
+      PartitionSpec spec,
+      String sourcePrefix,
+      String targetPrefix,
+      PositionDeleteReaderWriter posDeleteReaderWriter)
+      throws IOException {
+    rewritePositionDelete(
+        deleteFile, outputFile, io, spec, sourcePrefix, targetPrefix, posDeleteReaderWriter);
+  }
+
+  /**
+   * Rewrite a position delete file, replacing path references, and return the size of the rewritten
+   * file.
+   *
+   * <p>The size is measured from the writer after it is closed (rather than via a separate {@code
+   * getLength()}/HEAD call), so it is accurate even on file systems where the length of an
+   * in-progress write underreports. Callers record this size as {@code file_size_in_bytes} in the
+   * rewritten manifest.
+   *
+   * @param deleteFile source position delete file to rewrite
+   * @param outputFile output file to write the rewritten delete file to
+   * @param io file io
+   * @param spec spec of delete file
+   * @param sourcePrefix source prefix that will be replaced
+   * @param targetPrefix target prefix to replace it
+   * @param posDeleteReaderWriter class to read and write position delete files
+   * @return the size in bytes of the rewritten file
+   */
+  public static long rewritePositionDelete(
       DeleteFile deleteFile,
       OutputFile outputFile,
       FileIO io,
@@ -625,8 +724,7 @@ public class RewriteTablePathUtil {
 
     // DV files (Puffin format for v3+) need special handling to rewrite internal blob metadata
     if (ContentFileUtil.isDV(deleteFile)) {
-      rewriteDVFile(deleteFile, outputFile, io, sourcePrefix, targetPrefix);
-      return;
+      return rewriteDVFile(deleteFile, outputFile, io, sourcePrefix, targetPrefix);
     }
 
     // For non-DV position delete files (v2), rewrite using the reader/writer
@@ -655,9 +753,14 @@ public class RewriteTablePathUtil {
               writer.write(newPositionDeleteRecord(record, sourcePrefix, targetPrefix));
             }
           }
+
+          writer.close();
+          return writer.length();
         }
       }
     }
+
+    return 0;
   }
 
   /**
@@ -668,8 +771,9 @@ public class RewriteTablePathUtil {
    * @param io file io
    * @param sourcePrefix source prefix that will be replaced
    * @param targetPrefix target prefix to replace it
+   * @return the size in bytes of the rewritten DV file
    */
-  private static void rewriteDVFile(
+  private static long rewriteDVFile(
       DeleteFile deleteFile,
       OutputFile outputFile,
       FileIO io,
@@ -708,6 +812,8 @@ public class RewriteTablePathUtil {
     try (PuffinWriter writer =
         Puffin.write(outputFile).createdBy(IcebergBuild.fullVersion()).build()) {
       rewrittenBlobs.forEach(writer::write);
+      writer.close();
+      return writer.length();
     }
   }
 

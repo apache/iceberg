@@ -19,19 +19,21 @@
 package org.apache.iceberg.parquet;
 
 import java.math.BigDecimal;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.PriorityQueue;
 import java.util.Set;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.variants.PhysicalType;
 import org.apache.iceberg.variants.VariantArray;
 import org.apache.iceberg.variants.VariantObject;
-import org.apache.iceberg.variants.VariantPrimitive;
 import org.apache.iceberg.variants.VariantValue;
 import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
@@ -48,9 +50,9 @@ import org.apache.parquet.schema.Types;
  * determinism is not guaranteed.
  *
  * <ul>
- *   <li>Object fields use a TreeMap, so field ordering is alphabetical and deterministic.
- *   <li>Type selection picks the most common type with explicit tie-break priority (see
- *       TIE_BREAK_PRIORITY), not enum ordinal.
+ *   <li>Object fields are emitted in alphabetical order in the shredded schema.
+ *   <li>Type selection picks the most common type with explicit tie-break priority (see {@link
+ *       FieldInfo#TIE_BREAK_PRIORITY}), not enum ordinal.
  *   <li>Integer types (INT8/16/32/64) and decimal types (DECIMAL4/8/16) are each promoted to the
  *       widest observed before competing with other types.
  *   <li>Fields below {@code MIN_FIELD_FREQUENCY} are pruned. Above {@code MAX_SHREDDED_FIELDS}, the
@@ -168,17 +170,23 @@ public abstract class VariantShreddingAnalyzer<T, S> {
 
     // Cap at MAX_SHREDDED_FIELDS, keep the most frequently observed
     if (node.objectChildren.size() > MAX_SHREDDED_FIELDS) {
-      List<Map.Entry<String, PathNode>> sorted = Lists.newArrayList(node.objectChildren.entrySet());
-      sorted.sort(
-          (a, b) -> {
-            int cmp =
-                Integer.compare(
-                    b.getValue().info.observationCount, a.getValue().info.observationCount);
-            return cmp != 0 ? cmp : a.getKey().compareTo(b.getKey());
-          });
-      Set<String> keep = Sets.newHashSet();
-      for (int i = 0; i < MAX_SHREDDED_FIELDS; i++) {
-        keep.add(sorted.get(i).getKey());
+      Comparator<Map.Entry<String, PathNode>> worstFirst =
+          Comparator.<Map.Entry<String, PathNode>>comparingInt(
+                  e -> e.getValue().info.observationCount)
+              .thenComparing(Map.Entry::getKey, Comparator.reverseOrder());
+      PriorityQueue<Map.Entry<String, PathNode>> topK =
+          new PriorityQueue<>(MAX_SHREDDED_FIELDS, worstFirst);
+      for (Map.Entry<String, PathNode> entry : node.objectChildren.entrySet()) {
+        if (topK.size() < MAX_SHREDDED_FIELDS) {
+          topK.offer(entry);
+        } else if (worstFirst.compare(entry, topK.peek()) > 0) {
+          topK.poll();
+          topK.offer(entry);
+        }
+      }
+      Set<String> keep = Sets.newHashSetWithExpectedSize(MAX_SHREDDED_FIELDS);
+      for (Map.Entry<String, PathNode> entry : topK) {
+        keep.add(entry.getKey());
       }
       node.objectChildren.entrySet().removeIf(entry -> !keep.contains(entry.getKey()));
     }
@@ -275,8 +283,12 @@ public abstract class VariantShreddingAnalyzer<T, S> {
 
     Types.GroupBuilder<GroupType> builder = Types.buildGroup(Type.Repetition.OPTIONAL);
     boolean hasFields = false;
-    for (PathNode child : node.objectChildren.values()) {
-      Type fieldType = buildFieldGroup(child);
+    // Sort by field name so the emitted schema field order is deterministic.
+    List<Map.Entry<String, PathNode>> sortedChildren =
+        Lists.newArrayList(node.objectChildren.entrySet());
+    sortedChildren.sort(Map.Entry.comparingByKey());
+    for (Map.Entry<String, PathNode> entry : sortedChildren) {
+      Type fieldType = buildFieldGroup(entry.getValue());
       if (fieldType != null) {
         builder.addField(fieldType);
         hasFields = true;
@@ -312,7 +324,7 @@ public abstract class VariantShreddingAnalyzer<T, S> {
 
   private static class PathNode {
     private final String fieldName;
-    private final Map<String, PathNode> objectChildren = Maps.newTreeMap();
+    private final Map<String, PathNode> objectChildren = Maps.newHashMap();
     private PathNode arrayElement = null;
     private FieldInfo info = null;
 
@@ -336,7 +348,7 @@ public abstract class VariantShreddingAnalyzer<T, S> {
           .named(TYPED_VALUE);
     } else {
       return Types.optional(PrimitiveType.PrimitiveTypeName.FIXED_LEN_BYTE_ARRAY)
-          .length(16)
+          .length(TypeUtil.decimalRequiredBytes(maxPrecision))
           .as(LogicalTypeAnnotation.decimalType(maxScale, maxPrecision))
           .named(TYPED_VALUE);
     }
@@ -407,10 +419,14 @@ public abstract class VariantShreddingAnalyzer<T, S> {
 
   /** Tracks occurrence count and types for a single field. */
   private static class FieldInfo {
-    private final Map<PhysicalType, Integer> typeCounts = Maps.newHashMap();
+    private static final PhysicalType[] PHYSICAL_TYPES = PhysicalType.values();
+
+    private final int[] typeCounts = new int[PHYSICAL_TYPES.length];
     private int maxDecimalScale = 0;
     private int maxDecimalIntegerDigits = 0;
     private int observationCount = 0;
+    private boolean mostCommonComputed = false;
+    private PhysicalType mostCommonCached = null;
 
     private static final Map<PhysicalType, Integer> INTEGER_PRIORITY =
         ImmutableMap.of(
@@ -425,6 +441,7 @@ public abstract class VariantShreddingAnalyzer<T, S> {
             PhysicalType.DECIMAL8, 1,
             PhysicalType.DECIMAL16, 2);
 
+    /** Tie-break ordering when two physical types have equal counts. Higher value wins. */
     private static final Map<PhysicalType, Integer> TIE_BREAK_PRIORITY =
         ImmutableMap.<PhysicalType, Integer>builder()
             .put(PhysicalType.BOOLEAN_TRUE, 0)
@@ -449,20 +466,17 @@ public abstract class VariantShreddingAnalyzer<T, S> {
             .buildOrThrow();
 
     void observe(VariantValue value) {
+      mostCommonComputed = false;
       observationCount++;
       // Use BOOLEAN_TRUE for both TRUE/FALSE values
       PhysicalType type =
           value.type() == PhysicalType.BOOLEAN_FALSE ? PhysicalType.BOOLEAN_TRUE : value.type();
 
-      typeCounts.compute(type, (k, v) -> (v == null) ? 1 : v + 1);
+      typeCounts[type.ordinal()]++;
 
       // Track max precision and scale for decimal types
-      if (type == PhysicalType.DECIMAL4
-          || type == PhysicalType.DECIMAL8
-          || type == PhysicalType.DECIMAL16) {
-        VariantPrimitive<?> primitive = value.asPrimitive();
-        Object decimalValue = primitive.get();
-        if (decimalValue instanceof BigDecimal bd) {
+      if (isDecimalType(type)) {
+        if (value.asPrimitive().get() instanceof BigDecimal bd) {
           maxDecimalIntegerDigits = Math.max(maxDecimalIntegerDigits, bd.precision() - bd.scale());
           maxDecimalScale = Math.max(maxDecimalScale, bd.scale());
         }
@@ -470,6 +484,10 @@ public abstract class VariantShreddingAnalyzer<T, S> {
     }
 
     PhysicalType getMostCommonType() {
+      if (mostCommonComputed) {
+        return mostCommonCached;
+      }
+
       Map<PhysicalType, Integer> combinedCounts = Maps.newHashMap();
 
       int integerTotalCount = 0;
@@ -478,9 +496,12 @@ public abstract class VariantShreddingAnalyzer<T, S> {
       int decimalTotalCount = 0;
       PhysicalType mostCapableDecimal = null;
 
-      for (Map.Entry<PhysicalType, Integer> entry : typeCounts.entrySet()) {
-        PhysicalType type = entry.getKey();
-        int count = entry.getValue();
+      for (int i = 0; i < typeCounts.length; i++) {
+        int count = typeCounts[i];
+        if (count == 0) {
+          continue;
+        }
+        PhysicalType type = PHYSICAL_TYPES[i];
 
         if (isIntegerType(type)) {
           integerTotalCount += count;
@@ -508,12 +529,16 @@ public abstract class VariantShreddingAnalyzer<T, S> {
       }
 
       // Pick the most common type with tie-breaking
-      return combinedCounts.entrySet().stream()
-          .max(
-              Map.Entry.<PhysicalType, Integer>comparingByValue()
-                  .thenComparingInt(entry -> TIE_BREAK_PRIORITY.getOrDefault(entry.getKey(), -1)))
-          .map(Map.Entry::getKey)
-          .orElse(null);
+      mostCommonCached =
+          combinedCounts.entrySet().stream()
+              .max(
+                  Map.Entry.<PhysicalType, Integer>comparingByValue()
+                      .thenComparingInt(
+                          entry -> TIE_BREAK_PRIORITY.getOrDefault(entry.getKey(), -1)))
+              .map(Map.Entry::getKey)
+              .orElse(null);
+      mostCommonComputed = true;
+      return mostCommonCached;
     }
 
     private static boolean isIntegerType(PhysicalType type) {
