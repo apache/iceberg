@@ -1517,7 +1517,7 @@ class ViewMetadata(BaseModel):
 
 class AddSchemaUpdate(BaseUpdate):
     """
-    Adds a schema to the table. The field IDs in `schema` are assigned by the client. The client assigns them so that the schema stays consistent with the data files, partition specs, and sort orders it writes or co-commits, which reference fields by their field ID (`StructField.id`). Servers SHOULD preserve the field IDs submitted by the client on add-schema, as reassigning them would require re-deriving and rewriting every such reference, including in already-written data files.
+    Adds a schema. The field IDs (`StructField.id`) in `schema` are assigned by the client. A server SHOULD preserve them rather than reassigning them - a field ID is the durable identifier of a field, and reassigning it can break references that depend on it.
     """
 
     action: Literal['add-schema']
