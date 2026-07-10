@@ -89,6 +89,59 @@ class TestRowDataConverter {
         .hasMessageContaining("is non-nullable but does not exist in source schema");
   }
 
+  @Test
+  void testIntToLong() {
+    Schema schemaWithLong =
+        new Schema(
+            Types.NestedField.optional(2, "id", Types.LongType.get()),
+            Types.NestedField.optional(4, "data", Types.StringType.get()));
+
+    assertThat(convert(SimpleDataUtil.createRowData(1, "a"), SimpleDataUtil.SCHEMA, schemaWithLong))
+        .isEqualTo(GenericRowData.of(1L, StringData.fromString("a")));
+  }
+
+  @Test
+  void testFloatToDouble() {
+    Schema schemaWithFloat =
+        new Schema(Types.NestedField.optional(1, "float2double", Types.FloatType.get()));
+    Schema schemaWithDouble =
+        new Schema(Types.NestedField.optional(2, "float2double", Types.DoubleType.get()));
+
+    assertThat(convert(GenericRowData.of(1.5f), schemaWithFloat, schemaWithDouble))
+        .isEqualTo(GenericRowData.of(1.5d));
+  }
+
+  @Test
+  void testDateToTimestamp() {
+    Schema schemaWithDate =
+        new Schema(Types.NestedField.optional(1, "date2timestamp", Types.DateType.get()));
+    Schema schemaWithTimestamp =
+        new Schema(
+            Types.NestedField.optional(2, "date2timestamp", Types.TimestampType.withoutZone()));
+
+    LocalDate date = LocalDate.of(2022, 1, 10);
+
+    assertThat(
+            convert(
+                GenericRowData.of((int) date.toEpochDay()), schemaWithDate, schemaWithTimestamp))
+        .isEqualTo(GenericRowData.of(TimestampData.fromLocalDateTime(date.atStartOfDay())));
+  }
+
+  @Test
+  void testIncreasePrecision() {
+    Schema before =
+        new Schema(Types.NestedField.required(14, "decimal_field", Types.DecimalType.of(9, 2)));
+    Schema after =
+        new Schema(Types.NestedField.required(14, "decimal_field", Types.DecimalType.of(10, 2)));
+
+    assertThat(
+            convert(
+                GenericRowData.of(DecimalData.fromBigDecimal(new BigDecimal("-1.50"), 9, 2)),
+                before,
+                after))
+        .isEqualTo(GenericRowData.of(DecimalData.fromBigDecimal(new BigDecimal("-1.50"), 10, 2)));
+  }
+
   @ParameterizedTest
   @MethodSource("dataConversionCases")
   void testConversionsDeclaredByCompareSchemasVisitorAreSupported(
