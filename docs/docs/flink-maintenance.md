@@ -412,7 +412,7 @@ flinkConf.put("flink-maintenance.expire-snapshots.max-snapshot-age-seconds", "60
 flinkConf.put("flink-maintenance.delete-orphan-files.min-age-seconds", "259200");
 
 // Configure convert equality deletes. Converts in place on the write branch by default;
-// set a target branch to instead promote the converted deletion vectors there.
+// set a target branch to promote the converted deletion vectors there instead.
 flinkConf.put("flink-maintenance.convert-equality-deletes.target-branch", "main");
 
 // Configure JDBC lock settings (deprecated, lock configuration is no longer required for a single Flink job)
