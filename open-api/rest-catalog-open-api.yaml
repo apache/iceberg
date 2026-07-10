@@ -2691,8 +2691,8 @@ components:
         - type: string
         - type: number
         - type: boolean
-        - type: 'null'
         - type: object
+          additionalProperties: false
           required:
             - type
             - value
@@ -2715,6 +2715,7 @@ components:
           items:
             $ref: '#/components/schemas/Literal'
         - type: object
+          additionalProperties: false
           required:
             - type
             - values
@@ -2766,6 +2767,7 @@ components:
         Represents the result of calling a function on zero or more value
         expressions or predicates.
       type: object
+      additionalProperties: false
       required:
         - type
         - function
@@ -2791,10 +2793,12 @@ components:
         object with both a catalog and an identifier.
       oneOf:
         - type: string
+          minLength: 1
         - type: array
           minItems: 1
           items:
             type: string
+            minLength: 1
         - type: object
           additionalProperties: false
           required:
@@ -2805,7 +2809,9 @@ components:
               minItems: 1
               items:
                 type: string
+                minLength: 1
         - type: object
+          additionalProperties: false
           required:
             - catalog
             - identifier
@@ -2817,6 +2823,7 @@ components:
               minItems: 1
               items:
                 type: string
+                minLength: 1
 
     UnaryExpression:
       deprecated: true
@@ -2853,7 +2860,7 @@ components:
         term:
           $ref: '#/components/schemas/Term'
         value:
-          $ref: '#/components/schemas/PrimitiveTypeValue'
+          $ref: '#/components/schemas/Literal'
 
     SetExpression:
       deprecated: true
@@ -2873,9 +2880,7 @@ components:
         term:
           $ref: '#/components/schemas/Term'
         values:
-          type: array
-          items:
-            $ref: '#/components/schemas/PrimitiveTypeValue'
+          $ref: '#/components/schemas/Literals'
 
     Term:
       oneOf:
@@ -2919,7 +2924,7 @@ components:
         transform:
           $ref: '#/components/schemas/Transform'
         term:
-          $ref: '#/components/schemas/Reference'
+          $ref: '#/components/schemas/Term'
 
     Transform:
       type: string
