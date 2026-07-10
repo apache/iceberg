@@ -124,6 +124,34 @@ public class TestSnapshotManager extends TestBase {
   }
 
   @TestTemplate
+  public void testCherryPickDynamicOverwriteConflictAcrossMultipleSnapshots() {
+    table.newAppend().appendFile(FILE_A).commit();
+
+    // stage an overwrite that replaces FILE_A's partition (data_bucket=0)
+    table.newReplacePartitions().addFile(REPLACEMENT_FILE_A).stageOnly().commit();
+
+    Snapshot staged = Iterables.getLast(table.snapshots());
+    assertThat(staged.operation())
+        .as("Should find the staged overwrite snapshot")
+        .isEqualTo(DataOperations.OVERWRITE);
+
+    // two intervening appends so ancestorsBetween(current, parent) spans multiple snapshots;
+    // the conflict lands only in the second, forcing the SnapshotChanges union to cover both.
+    table.newAppend().appendFile(FILE_B).commit(); // data_bucket=1, no conflict
+    table.newAppend().appendFile(CONFLICT_FILE_A).commit(); // data_bucket=0, conflicts
+    long lastSnapshotId = table.currentSnapshot().snapshotId();
+
+    assertThatThrownBy(() -> table.manageSnapshots().cherrypick(staged.snapshotId()).commit())
+        .isInstanceOf(ValidationException.class)
+        .hasMessageStartingWith("Cannot cherry-pick replace partitions with changed partition");
+
+    assertThat(table.currentSnapshot().snapshotId())
+        .as("Failed cherry-pick should not change the table state")
+        .isEqualTo(lastSnapshotId);
+    validateTableFiles(table, FILE_A, FILE_B, CONFLICT_FILE_A);
+  }
+
+  @TestTemplate
   public void testCherryPickDynamicOverwriteDeleteConflict() {
     table.newAppend().appendFile(FILE_A).commit();
 
