@@ -163,20 +163,6 @@ INSERT INTO tableName /*+ OPTIONS('upsert-enabled'='true') */
 | shred-variants                          | Table write.parquet.shred-variants         | Overrides this table's shred variants for this write |
 | variant-inference-buffer-size           | Table write.parquet.variant-inference-buffer-size | Overrides this table's variant inference buffer size for this write |
 
-#### Post-commit maintenance options
-
-`IcebergSink` can run [table maintenance](flink-maintenance.md#icebergsink-with-post-commit-integration)
-after each commit. The enable flags are listed below; see the maintenance docs for the full per-task
-option set.
-
-| Flink option | Default | Description |
-|--------------|---------|-------------|
-| flink-maintenance.rewrite.enabled | false | Compact data files after commit |
-| flink-maintenance.expire-snapshots.enabled | false | Expire snapshots after commit |
-| flink-maintenance.delete-orphan-files.enabled | false | Delete orphan files after commit |
-| flink-maintenance.convert-equality-deletes.enabled | false | Convert equality deletes to deletion vectors after commit (requires equality fields and format version >= 3) |
-| flink-maintenance.convert-equality-deletes.target-branch | Write branch | Branch the converted DVs are committed to; defaults to the write branch (in-place conversion) |
-
 #### Range distribution statistics type
 
 Config value is a enum type: `Map`, `Sketch`, `Auto`.
