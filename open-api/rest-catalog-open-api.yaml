@@ -2632,8 +2632,7 @@ components:
 
     UnaryPredicate:
       description: >
-        A predicate that tests a single value expression. Replaces the deprecated
-        UnaryExpression that used 'term'.
+        A predicate that tests a single value expression.
       type: object
       required:
         - type
@@ -2647,8 +2646,7 @@ components:
 
     ComparisonPredicate:
       description: >
-        A predicate that compares two value expressions. Replaces the deprecated
-        LiteralExpression that used 'term' and 'value'.
+        A predicate that compares two value expressions.
       type: object
       required:
         - type
@@ -2665,8 +2663,7 @@ components:
 
     SetPredicate:
       description: >
-        A predicate that tests whether a value expression is in a set of literals.
-        Replaces the deprecated SetExpression that used 'term'.
+        A predicate that operates on a list of literals.
       type: object
       required:
         - type
@@ -2683,10 +2680,9 @@ components:
 
     Literal:
       description: >
-        A literal value expression per Iceberg Expressions spec, Appendix B.
-        Three JSON forms are accepted: a bare scalar value, a typed literal
-        object without a data-type, or a typed literal object with an
-        explicit data-type.
+        A literal value expression. Three JSON forms are accepted: a bare
+        scalar value, a typed literal object without a data-type, or a
+        typed literal object with an explicit data-type.
       oneOf:
         - type: string
         - type: number
@@ -2707,9 +2703,8 @@ components:
 
     Literals:
       description: >
-        A set of literal values per Iceberg Expressions spec, Appendix B.
-        Two JSON forms: a bare array of literals, or a typed object with an
-        explicit data-type applied to all values.
+        A list of literal values. Two JSON forms: a bare array of literals,
+        or a typed object with an explicit data-type applied to all values.
       oneOf:
         - type: array
           items:
@@ -2733,39 +2728,44 @@ components:
 
     FieldReference:
       description: >
-        A reference to a field per Iceberg Expressions spec, Appendix B.
-        Either a bound reference (by field ID) or an unbound reference (by
-        name). The context in which an expression is used determines which
-        form is valid.
+        A reference to a field. Either a bound reference (by field ID) or
+        an unbound reference (by name). The context in which an expression
+        is used determines which form is valid.
       oneOf:
-        - type: object
-          additionalProperties: false
-          required:
-            - type
-            - id
-          properties:
-            type:
-              type: string
-              const: "reference"
-            id:
-              type: integer
-        - type: object
-          additionalProperties: false
-          required:
-            - type
-            - name
-          properties:
-            type:
-              type: string
-              const: "reference"
-            name:
-              type: string
+        - $ref: '#/components/schemas/FieldReferenceById'
+        - $ref: '#/components/schemas/FieldReferenceByName'
+
+    FieldReferenceById:
+      description: A bound reference to a field by field ID.
+      type: object
+      additionalProperties: false
+      required:
+        - type
+        - id
+      properties:
+        type:
+          type: string
+          const: "reference"
+        id:
+          type: integer
+
+    FieldReferenceByName:
+      description: An unbound reference to a field by name.
+      type: object
+      additionalProperties: false
+      required:
+        - type
+        - name
+      properties:
+        type:
+          type: string
+          const: "reference"
+        name:
+          type: string
 
     Apply:
       description: >
-        A function application per Iceberg Expressions spec, Appendix B.
-        Represents the result of calling a function on zero or more value
-        expressions or predicates.
+        A function application on zero or more value expressions or predicates.
       type: object
       additionalProperties: false
       required:
@@ -2787,10 +2787,9 @@ components:
 
     FunctionReference:
       description: >
-        A reference to a function per Iceberg Expressions spec, Appendix B.
-        Four JSON forms: a bare name (single-part identifier), a list of
-        names (multi-part identifier), an object with an identifier, or an
-        object with both a catalog and an identifier.
+        A reference to a function. Four JSON forms: a bare name (single-part
+        identifier), a list of names (multi-part identifier), an object with
+        an identifier, or an object with both a catalog and an identifier.
       oneOf:
         - type: string
           minLength: 1
