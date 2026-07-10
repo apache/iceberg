@@ -589,9 +589,43 @@ class StorageCredential(BaseModel):
     config: dict[str, str]
 
 
+class KeyManagementCredential(BaseModel):
+    """
+    Provider-specific credential config for accessing one or more KMS keys required by an encrypted
+    table operation.
+
+    The key-management provider is advertised in catalog configuration, such as `encryption.kms-type`
+    returned from `/v1/config`. The `config` map contains provider-specific properties for the
+    selected key-management provider.
+
+    Clients should select the credential config by matching KMS key identifiers referenced by table
+    encryption metadata, such as `EncryptedKey.encrypted-by-id`, against `kms-key-ids`. If no
+    key-management credential matches a KMS key ID required by table encryption metadata, the client
+    must fail the operation with an authorization or missing-credential error.
+
+    Credential configs must be time-bounded and should be scoped to the minimum required KMS operations
+    and listed KMS key IDs where the provider supports it. Clients must not persist credentials beyond
+    their expiration.
+
+    """
+
+    kms_key_ids: list[str] = Field(
+        ...,
+        alias='kms-key-ids',
+        description='KMS key identifiers for which the credential config is relevant.\n\nClients should match these values against KMS key identifiers referenced by table encryption\nmetadata, such as `EncryptedKey.encrypted-by-id`.\n',
+    )
+    config: dict[str, str] = Field(
+        ...,
+        description='Provider-specific credential configuration for accessing the listed KMS key IDs.',
+    )
+
+
 class LoadCredentialsResponse(BaseModel):
     storage_credentials: list[StorageCredential] = Field(
         ..., alias='storage-credentials'
+    )
+    key_management_credentials: list[KeyManagementCredential] | None = Field(
+        None, alias='key-management-credentials'
     )
 
 
@@ -1562,6 +1596,13 @@ class LoadTableResult(BaseModel):
     Credentials for ADLS / GCS / S3 / ... are provided through the `storage-credentials` field.
     Clients must first check whether the respective credentials exist in the `storage-credentials` field before checking the `config` for credentials.
 
+    ## Key Management Credentials
+
+    Credentials for KMS / key-management systems are provided through the `key-management-credentials` field.
+    Clients must first check whether the respective credentials exist in the `key-management-credentials`
+    field before checking the `config` for credentials.
+    Clients must use `key-management-credentials` consistently with the REST access-delegation credential sourcing rules.
+
     ## Remote Signing
 
     If remote signing for a specific storage provider is enabled, clients must respect the following configurations when creating a remote signer client:
@@ -1579,6 +1620,9 @@ class LoadTableResult(BaseModel):
     config: dict[str, str] | None = None
     storage_credentials: list[StorageCredential] | None = Field(
         None, alias='storage-credentials'
+    )
+    key_management_credentials: list[KeyManagementCredential] | None = Field(
+        None, alias='key-management-credentials'
     )
 
 
@@ -2018,6 +2062,11 @@ class CompletedPlanningResult(ScanTasks):
         None,
         alias='storage-credentials',
         description='Storage credentials for accessing the files returned in the scan result.\nIf the server returns storage credentials as part of the completed scan planning response, the expectation is for the client to use these credentials to read the files returned in the FileScanTasks as part of the scan result.',
+    )
+    key_management_credentials: list[KeyManagementCredential] | None = Field(
+        None,
+        alias='key-management-credentials',
+        description='KMS credentials for encrypted files returned in the scan result.\nIf the server returns key-management credentials as part of the completed scan planning response, the expectation is for the client to use these credentials to access the KMS keys required to read encrypted files returned in the FileScanTasks as part of the scan result.',
     )
 
 

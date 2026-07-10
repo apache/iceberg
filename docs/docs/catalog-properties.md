@@ -45,7 +45,7 @@ Flink passes in catalog properties through `CREATE CATALOG` statement, see more 
 
 ## REST catalog properties
 
-The following properties configure the behavior of the REST catalog client.
+The following properties configure the behavior of the REST catalog client or may be advertised by a REST catalog server in the configuration response.
 
 | Property                              | Default           | Description                                                                                                                                                                                      |
 |---------------------------------------|-------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -55,6 +55,7 @@ The following properties configure the behavior of the REST catalog client.
 | `rest-page-size`                      | null              | The page size to use when listing namespaces, tables, or other paginated resources.                                                                                                              |
 | `namespace-separator`                 | `%1F`             | The separator character used for namespace levels when communicating with the REST server.                                                                                                       |
 | `scan-planning-mode`                  | `CLIENT`          | Controls where scan planning is performed. Supported values: `CLIENT` (client-side planning), `SERVER` (server-side planning). Can be overridden per-table by the server in LoadTableResponse. |
+| `encryption.kms-type`                 | null              | Advertises the catalog-selected KMS provider clients should use for encrypted tables. This is independent of the table's storage provider and may be used with `key-management-credentials` to initialize or configure the KMS client. The value is an open enum with initial values `aws`, `gcp`, and `azure`; catalogs may return additional values when the catalog and client agree on KMS client resolution and credential config. |
 
 ### Table cache properties
 
