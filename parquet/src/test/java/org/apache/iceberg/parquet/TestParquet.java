@@ -346,7 +346,7 @@ public class TestParquet {
     // when PARQUET_BLOOM_FILTER_ADAPTIVE_ENABLED is not set (the default), the writer
     // allocates the full PARQUET_BLOOM_FILTER_MAX_BYTES buffer (4 MiB here) regardless
     // of the number of distinct values written
-    long sizeWithoutAdaptive = writeWithBloomFilter(false);
+    long sizeWithoutAdaptive = writeWithBloomFilter(null);
     assertThat(sizeWithoutAdaptive)
         .as("non-adaptive file should pad the bloom filter to PARQUET_BLOOM_FILTER_MAX_BYTES")
         .isGreaterThan(3_500_000L);
@@ -360,15 +360,15 @@ public class TestParquet {
         .isLessThan(sizeWithoutAdaptive / 2);
   }
 
-  private long writeWithBloomFilter(boolean adaptiveEnabled) throws IOException {
+  private long writeWithBloomFilter(Boolean adaptiveEnabled) throws IOException {
     Schema schema = new Schema(required(1, "id", Types.LongType.get()));
 
     ImmutableMap.Builder<String, String> propsBuilder =
         ImmutableMap.<String, String>builder()
             .put(PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "id", "true")
             .put(PARQUET_BLOOM_FILTER_MAX_BYTES, "4194304");
-    if (adaptiveEnabled) {
-      propsBuilder.put(PARQUET_BLOOM_FILTER_ADAPTIVE_ENABLED, "true");
+    if (adaptiveEnabled != null) {
+      propsBuilder.put(PARQUET_BLOOM_FILTER_ADAPTIVE_ENABLED, adaptiveEnabled.toString());
     }
 
     List<GenericData.Record> records = Lists.newArrayListWithCapacity(5);
