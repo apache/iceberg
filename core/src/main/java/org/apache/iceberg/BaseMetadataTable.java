@@ -49,7 +49,8 @@ public abstract class BaseMetadataTable extends BaseReadOnlyTable implements Ser
           MetadataTableType.DELETE_FILES,
           MetadataTableType.MANIFESTS,
           MetadataTableType.PARTITIONS,
-          MetadataTableType.POSITION_DELETES);
+          MetadataTableType.POSITION_DELETES,
+          MetadataTableType.PUFFIN_FILES);
 
   private final PartitionSpec spec = PartitionSpec.unpartitioned();
   private final SortOrder sortOrder = SortOrder.unsorted();
