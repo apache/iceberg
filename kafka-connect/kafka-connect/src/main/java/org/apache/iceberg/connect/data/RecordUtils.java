@@ -114,7 +114,7 @@ class RecordUtils {
     Set<Integer> identifierFieldIds = table.schema().identifierFieldIds();
 
     // override the identifier fields if the config is set
-    List<String> idCols = config.tableConfig(tableReference.identifier().name()).idColumns();
+    List<String> idCols = config.tableConfig(tableReference.identifier().toString()).idColumns();
     if (!idCols.isEmpty()) {
       identifierFieldIds =
           idCols.stream()
