@@ -495,6 +495,7 @@ These keys are used in SQL (SET or table WITH options) or via `IcebergSink.Build
 | `flink-maintenance.rewrite.enabled` | Enable compaction (rewrite data files) | `false` |
 | `flink-maintenance.expire-snapshots.enabled` | Enable expire snapshots | `false` |
 | `flink-maintenance.delete-orphan-files.enabled` | Enable delete orphan files | `false` |
+| `flink-maintenance.convert-equality-deletes.enabled` | Enable converting equality deletes to deletion vectors (requires equality fields and format version >= 3) | `false` |
 
 #### Rewrite Data Files Configuration
 
@@ -533,6 +534,14 @@ These keys are used in SQL (SET or table WITH options) or via `IcebergSink.Build
 | `flink-maintenance.delete-orphan-files.equal-schemes` | Equivalent schemes (format: `s3n=s3,s3a=s3`) | `s3n=s3,s3a=s3` |
 | `flink-maintenance.delete-orphan-files.equal-authorities` | Equivalent authorities (format: `auth1=auth2`) | Not set |
 | `flink-maintenance.delete-orphan-files.prefix-mismatch-mode` | Behavior on prefix mismatch: `ERROR`, `IGNORE`, `DELETE` | `ERROR` |
+
+#### Convert Equality Deletes Configuration
+
+| Key | Description | Default |
+|-----|-------------|---------|
+| `flink-maintenance.convert-equality-deletes.target-branch` | Branch the converted deletion vectors are committed to | Not set (in-place conversion) |
+| `flink-maintenance.convert-equality-deletes.schedule.commit-count` | Trigger after N commits | `1` |
+| `flink-maintenance.convert-equality-deletes.schedule.interval-second` | Trigger after time interval (seconds) | Not set |
 
 ### Lock Configuration (SQL)
 
