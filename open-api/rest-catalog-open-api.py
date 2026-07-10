@@ -219,10 +219,9 @@ class FalseExpression(BaseModel):
     )
 
 
-class FieldReference1(BaseModel):
+class FieldReferenceById(BaseModel):
     """
-    A reference to a field per Iceberg Expressions spec, Appendix B. Either a bound reference (by field ID) or an unbound reference (by name). The context in which an expression is used determines which form is valid.
-
+    A bound reference to a field by field ID.
     """
 
     model_config = ConfigDict(
@@ -232,10 +231,9 @@ class FieldReference1(BaseModel):
     id: int
 
 
-class FieldReference2(BaseModel):
+class FieldReferenceByName(BaseModel):
     """
-    A reference to a field per Iceberg Expressions spec, Appendix B. Either a bound reference (by field ID) or an unbound reference (by name). The context in which an expression is used determines which form is valid.
-
+    An unbound reference to a field by name.
     """
 
     model_config = ConfigDict(
@@ -245,17 +243,10 @@ class FieldReference2(BaseModel):
     name: str
 
 
-class FieldReference(RootModel[FieldReference1 | FieldReference2]):
-    root: FieldReference1 | FieldReference2 = Field(
-        ...,
-        description='A reference to a field per Iceberg Expressions spec, Appendix B. Either a bound reference (by field ID) or an unbound reference (by name). The context in which an expression is used determines which form is valid.\n',
-    )
-
-
 class FunctionReference1(RootModel[str]):
     root: str = Field(
         ...,
-        description='A reference to a function per Iceberg Expressions spec, Appendix B. Four JSON forms: a bare name (single-part identifier), a list of names (multi-part identifier), an object with an identifier, or an object with both a catalog and an identifier.\n',
+        description='A reference to a function. Four JSON forms: a bare name (single-part identifier), a list of names (multi-part identifier), an object with an identifier, or an object with both a catalog and an identifier.\n',
         min_length=1,
     )
 
@@ -267,7 +258,7 @@ class FunctionReference2Item(RootModel[str]):
 class FunctionReference2(RootModel[list[FunctionReference2Item]]):
     root: list[FunctionReference2Item] = Field(
         ...,
-        description='A reference to a function per Iceberg Expressions spec, Appendix B. Four JSON forms: a bare name (single-part identifier), a list of names (multi-part identifier), an object with an identifier, or an object with both a catalog and an identifier.\n',
+        description='A reference to a function. Four JSON forms: a bare name (single-part identifier), a list of names (multi-part identifier), an object with an identifier, or an object with both a catalog and an identifier.\n',
         min_length=1,
     )
 
@@ -278,7 +269,7 @@ class IdentifierItem(RootModel[str]):
 
 class FunctionReference3(BaseModel):
     """
-    A reference to a function per Iceberg Expressions spec, Appendix B. Four JSON forms: a bare name (single-part identifier), a list of names (multi-part identifier), an object with an identifier, or an object with both a catalog and an identifier.
+    A reference to a function. Four JSON forms: a bare name (single-part identifier), a list of names (multi-part identifier), an object with an identifier, or an object with both a catalog and an identifier.
 
     """
 
@@ -290,7 +281,7 @@ class FunctionReference3(BaseModel):
 
 class FunctionReference4(BaseModel):
     """
-    A reference to a function per Iceberg Expressions spec, Appendix B. Four JSON forms: a bare name (single-part identifier), a list of names (multi-part identifier), an object with an identifier, or an object with both a catalog and an identifier.
+    A reference to a function. Four JSON forms: a bare name (single-part identifier), a list of names (multi-part identifier), an object with an identifier, or an object with both a catalog and an identifier.
 
     """
 
@@ -316,7 +307,7 @@ class FunctionReference(
         | FunctionReference4
     ) = Field(
         ...,
-        description='A reference to a function per Iceberg Expressions spec, Appendix B. Four JSON forms: a bare name (single-part identifier), a list of names (multi-part identifier), an object with an identifier, or an object with both a catalog and an identifier.\n',
+        description='A reference to a function. Four JSON forms: a bare name (single-part identifier), a list of names (multi-part identifier), an object with an identifier, or an object with both a catalog and an identifier.\n',
     )
 
 
@@ -1260,7 +1251,7 @@ class RenameTableRequest(BaseModel):
 
 class Literal1(BaseModel):
     """
-    A literal value expression per Iceberg Expressions spec, Appendix B. Three JSON forms are accepted: a bare scalar value, a typed literal object without a data-type, or a typed literal object with an explicit data-type.
+    A literal value expression. Three JSON forms are accepted: a bare scalar value, a typed literal object without a data-type, or a typed literal object with an explicit data-type.
 
     """
 
@@ -1275,13 +1266,13 @@ class Literal1(BaseModel):
 class LiteralModel(RootModel[str | float | bool | Literal1]):
     root: str | float | bool | Literal1 = Field(
         ...,
-        description='A literal value expression per Iceberg Expressions spec, Appendix B. Three JSON forms are accepted: a bare scalar value, a typed literal object without a data-type, or a typed literal object with an explicit data-type.\n',
+        description='A literal value expression. Three JSON forms are accepted: a bare scalar value, a typed literal object without a data-type, or a typed literal object with an explicit data-type.\n',
     )
 
 
 class Literals1(BaseModel):
     """
-    A set of literal values per Iceberg Expressions spec, Appendix B. Two JSON forms: a bare array of literals, or a typed object with an explicit data-type applied to all values.
+    A list of literal values. Two JSON forms: a bare array of literals, or a typed object with an explicit data-type applied to all values.
 
     """
 
@@ -1296,7 +1287,14 @@ class Literals1(BaseModel):
 class Literals(RootModel[list[LiteralModel] | Literals1]):
     root: list[LiteralModel] | Literals1 = Field(
         ...,
-        description='A set of literal values per Iceberg Expressions spec, Appendix B. Two JSON forms: a bare array of literals, or a typed object with an explicit data-type applied to all values.\n',
+        description='A list of literal values. Two JSON forms: a bare array of literals, or a typed object with an explicit data-type applied to all values.\n',
+    )
+
+
+class FieldReference(RootModel[FieldReferenceById | FieldReferenceByName]):
+    root: FieldReferenceById | FieldReferenceByName = Field(
+        ...,
+        description='A reference to a field. Either a bound reference (by field ID) or an unbound reference (by name). The context in which an expression is used determines which form is valid.\n',
     )
 
 
@@ -1535,7 +1533,7 @@ class NotExpression(BaseModel):
 
 class UnaryPredicate(BaseModel):
     """
-    A predicate that tests a single value expression. Replaces the deprecated UnaryExpression that used 'term'.
+    A predicate that tests a single value expression.
 
     """
 
@@ -1570,7 +1568,7 @@ class UnaryPredicate(BaseModel):
 
 class ComparisonPredicate(BaseModel):
     """
-    A predicate that compares two value expressions. Replaces the deprecated LiteralExpression that used 'term' and 'value'.
+    A predicate that compares two value expressions.
 
     """
 
@@ -1608,7 +1606,7 @@ class ComparisonPredicate(BaseModel):
 
 class SetPredicate(BaseModel):
     """
-    A predicate that tests whether a value expression is in a set of literals. Replaces the deprecated SetExpression that used 'term'.
+    A predicate that operates on a list of literals.
 
     """
 
@@ -1644,7 +1642,7 @@ class SetPredicate(BaseModel):
 
 class Apply(BaseModel):
     """
-    A function application per Iceberg Expressions spec, Appendix B. Represents the result of calling a function on zero or more value expressions or predicates.
+    A function application on zero or more value expressions or predicates.
 
     """
 
