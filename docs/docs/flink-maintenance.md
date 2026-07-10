@@ -375,6 +375,18 @@ IcebergSink.forRowData(dataStream)
     .append();
 ```
 
+`convertEqualityDeletes()` converts equality deletes to deletion vectors. Unlike the other tasks, it requires equality field columns (upsert or CDC writes) and a table with format version >= 3. By default, it converts in place on the write branch:
+
+```java
+IcebergSink.forRowData(dataStream)
+    .table(table)
+    .tableLoader(tableLoader)
+    .upsert(true)
+    .equalityFieldColumns(List.of("id"))
+    .convertEqualityDeletes()
+    .append();
+```
+
 ##### Config
 
 All maintenance tasks are configured through string properties:
@@ -386,6 +398,8 @@ Map<String, String> flinkConf = new HashMap<>();
 flinkConf.put("flink-maintenance.rewrite.enabled", "true");
 flinkConf.put("flink-maintenance.expire-snapshots.enabled", "true");
 flinkConf.put("flink-maintenance.delete-orphan-files.enabled", "true");
+// Requires equality field columns (upsert or CDC) and a table with format version >= 3.
+flinkConf.put("flink-maintenance.convert-equality-deletes.enabled", "true");
 
 // Configure rewrite data files
 flinkConf.put("flink-maintenance.rewrite.max-bytes", "1073741824");
@@ -396,6 +410,10 @@ flinkConf.put("flink-maintenance.expire-snapshots.max-snapshot-age-seconds", "60
 
 // Configure delete orphan files
 flinkConf.put("flink-maintenance.delete-orphan-files.min-age-seconds", "259200");
+
+// Configure convert equality deletes. Converts in place on the write branch by default;
+// set a target branch to promote the converted deletion vectors there instead.
+flinkConf.put("flink-maintenance.convert-equality-deletes.target-branch", "main");
 
 // Configure JDBC lock settings (deprecated, lock configuration is no longer required for a single Flink job)
 flinkConf.put("flink-maintenance.lock.type", "jdbc");
@@ -419,6 +437,8 @@ SET 'table.exec.iceberg.use.v2.sink' = 'true';
 SET 'flink-maintenance.rewrite.enabled' = 'true';
 SET 'flink-maintenance.expire-snapshots.enabled' = 'true';
 SET 'flink-maintenance.delete-orphan-files.enabled' = 'true';
+-- Requires equality field columns (upsert) and a table with format version >= 3
+SET 'flink-maintenance.convert-equality-deletes.enabled' = 'true';
 
 -- Configure rewrite data files
 SET 'flink-maintenance.rewrite.max-bytes' = '1073741824';
@@ -475,6 +495,7 @@ These keys are used in SQL (SET or table WITH options) or via `IcebergSink.Build
 | `flink-maintenance.rewrite.enabled` | Enable compaction (rewrite data files) | `false` |
 | `flink-maintenance.expire-snapshots.enabled` | Enable expire snapshots | `false` |
 | `flink-maintenance.delete-orphan-files.enabled` | Enable delete orphan files | `false` |
+| `flink-maintenance.convert-equality-deletes.enabled` | Enable converting equality deletes to deletion vectors (requires equality fields and format version >= 3) | `false` |
 
 #### Rewrite Data Files Configuration
 
@@ -513,6 +534,14 @@ These keys are used in SQL (SET or table WITH options) or via `IcebergSink.Build
 | `flink-maintenance.delete-orphan-files.equal-schemes` | Equivalent schemes (format: `s3n=s3,s3a=s3`) | `s3n=s3,s3a=s3` |
 | `flink-maintenance.delete-orphan-files.equal-authorities` | Equivalent authorities (format: `auth1=auth2`) | Not set |
 | `flink-maintenance.delete-orphan-files.prefix-mismatch-mode` | Behavior on prefix mismatch: `ERROR`, `IGNORE`, `DELETE` | `ERROR` |
+
+#### Convert Equality Deletes Configuration
+
+| Key | Description | Default |
+|-----|-------------|---------|
+| `flink-maintenance.convert-equality-deletes.target-branch` | Branch the converted deletion vectors are committed to | Not set (in-place conversion) |
+| `flink-maintenance.convert-equality-deletes.schedule.commit-count` | Trigger after N commits | `1` |
+| `flink-maintenance.convert-equality-deletes.schedule.interval-second` | Trigger after time interval (seconds) | Not set |
 
 ### Lock Configuration (SQL)
 
