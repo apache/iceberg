@@ -132,7 +132,7 @@ public class TestOAuthTokenResponse extends RequestResponseTestBase<OAuthTokenRe
   }
 
   @Test
-  void invalidScopeReportsScopeValue() {
+  void invalidScopeReportedInErrorMsg() {
     assertThatThrownBy(() -> OAuthTokenResponse.builder().addScope("bad scope"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid scope: bad scope");
