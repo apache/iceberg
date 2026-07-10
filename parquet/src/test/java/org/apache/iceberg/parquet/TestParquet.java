@@ -343,9 +343,9 @@ public class TestParquet {
 
   @Test
   public void adaptiveBloomFilterSizingShrinksFile() throws IOException {
-    // without PARQUET_BLOOM_FILTER_ADAPTIVE_ENABLED, the writer allocates the full
-    // PARQUET_BLOOM_FILTER_MAX_BYTES buffer (4 MiB here) regardless of the number
-    // of distinct values written
+    // when PARQUET_BLOOM_FILTER_ADAPTIVE_ENABLED is not set (the default), the writer
+    // allocates the full PARQUET_BLOOM_FILTER_MAX_BYTES buffer (4 MiB here) regardless
+    // of the number of distinct values written
     long sizeWithoutAdaptive = writeWithBloomFilter(false);
     assertThat(sizeWithoutAdaptive)
         .as("non-adaptive file should pad the bloom filter to PARQUET_BLOOM_FILTER_MAX_BYTES")
@@ -358,17 +358,6 @@ public class TestParquet {
     assertThat(sizeWithAdaptive)
         .as("adaptive file should be at least 2x smaller than the non-adaptive file")
         .isLessThan(sizeWithoutAdaptive / 2);
-  }
-
-  @Test
-  public void adaptiveBloomFilterDisabledByDefault() throws IOException {
-    // when PARQUET_BLOOM_FILTER_ADAPTIVE_ENABLED is not set, the existing behavior is
-    // preserved: the full PARQUET_BLOOM_FILTER_MAX_BYTES buffer is allocated
-    long size = writeWithBloomFilter(false);
-
-    assertThat(size)
-        .as("default write should pad the bloom filter to PARQUET_BLOOM_FILTER_MAX_BYTES")
-        .isGreaterThan(3_500_000L);
   }
 
   private long writeWithBloomFilter(boolean adaptiveEnabled) throws IOException {
