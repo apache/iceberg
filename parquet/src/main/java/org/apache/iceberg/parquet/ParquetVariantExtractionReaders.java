@@ -324,6 +324,17 @@ public class ParquetVariantExtractionReaders {
         GroupType variantGroup,
         List<String> variantColumnPath,
         FieldSpec field) {
+      if (field.pathParts().isEmpty()) {
+        // Root extraction ($): reconstruct the full shredded variant via buildRowCachedReader,
+        // which keys on the empty path. All root-reconstructing readers (this $ path and every
+        // array-index path $[n] from buildArrayPathReader) share that one cached reader, so the
+        // full root value is read and rebuilt only once per row regardless of how many such
+        // fields reference the same column.
+        RowCachedReader cachedReader =
+            buildRowCachedReader(fileSchema, variantGroup, variantColumnPath);
+        return new PathNavigatingFieldReader(cachedReader, ImmutableList.of());
+      }
+
       GroupType fieldGroup =
           VariantExtractionPathResolver.resolveShreddedFieldGroup(variantGroup, field.pathParts());
       if (fieldGroup == null
@@ -375,6 +386,9 @@ public class ParquetVariantExtractionReaders {
       return new PathNavigatingFieldReader(cachedReader, field.pathParts());
     }
 
+    // Reconstructs the full root variant value, cached per row. Keyed on the empty path so that all
+    // callers needing the whole root value ($ root extraction and every $[n] array-index path)
+    // share one reader and read/rebuild the root value only once per row.
     private RowCachedReader buildRowCachedReader(
         MessageType fileSchema, GroupType variantGroup, List<String> readerPath) {
       return rowCachedReaders.computeIfAbsent(

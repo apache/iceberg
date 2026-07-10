@@ -41,6 +41,7 @@ import org.apache.iceberg.variants.ShreddedObject;
 import org.apache.iceberg.variants.ValueArray;
 import org.apache.iceberg.variants.Variant;
 import org.apache.iceberg.variants.VariantMetadata;
+import org.apache.iceberg.variants.VariantValue;
 import org.apache.iceberg.variants.Variants;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.schema.GroupType;
@@ -946,6 +947,51 @@ class TestParquetVariantExtractionReaders {
     }
   }
 
+  /** Root variant is an array; {@code $[0]} returns the first element (zero-indexed). */
+  @Test
+  void arrayPath_extractsFirstElementFromRootArray() throws IOException {
+    ValueArray arr = Variants.array();
+    arr.add(Variants.of(10L));
+    arr.add(Variants.of(20L));
+    arr.add(Variants.of(30L));
+    Variant variant = Variant.of(Variants.emptyMetadata(), arr);
+    Record record = GenericRecord.create(SCHEMA).copy("id", 1, "var", variant);
+
+    OutputFile out = new InMemoryOutputFile();
+    try (FileAppender<Record> w =
+        Parquet.write(out)
+            .schema(SCHEMA)
+            .variantShreddingFunc((id, name) -> ParquetVariantUtil.toParquetSchema(arr))
+            .createWriterFunc(fs -> InternalWriter.create(SCHEMA.asStruct(), fs))
+            .build()) {
+      w.add(record);
+    }
+
+    MessageType fileSchema;
+    GroupType variantGroup;
+    try (ParquetFileReader r = ParquetFileReader.open(ParquetIO.file(out.toInputFile()))) {
+      fileSchema = r.getFileMetaData().getSchema();
+      variantGroup = fileSchema.getType("var").asGroupType();
+    }
+
+    List<VariantExtractionField> fields = ImmutableList.of(extractionField(0, false, "$[0]"));
+
+    try (CloseableIterable<VariantExtractionRow> reader =
+        Parquet.read(out.toInputFile())
+            .project(SCHEMA)
+            .createReaderFunc(
+                s ->
+                    ParquetVariantExtractionReaders.buildRowReader(
+                        s, variantGroup, List.of("var"), fields))
+            .build()) {
+      VariantExtractionRow row = Lists.newArrayList(reader).get(0);
+      assertThat(row.value(0)).isNotNull();
+      assertThat(row.value(0).asPrimitive().get())
+          .as("$[0] is the first element (zero-indexed)")
+          .isEqualTo(10L);
+    }
+  }
+
   /** Root variant is an array of objects; extract a field from one element via {@code $[n].key}. */
   @Test
   void arrayPath_extractsFieldFromObjectInRootArray() throws IOException {
@@ -1299,6 +1345,238 @@ class TestParquetVariantExtractionReaders {
     }
   }
 
+  /**
+   * Root array of <em>heterogeneous</em> objects shredded via the production {@link
+   * VariantShreddingAnalyzer}. Element 0 is {@code {name}}, element 1 is {@code {name, email}} —
+   * the analyzer does not require uniform elements: it unions the fields ({@code email}, {@code
+   * name}) and shreds each by majority vote. Verifies that both a field present in all elements
+   * ({@code name}) and one present in only some ({@code email}) are extractable via {@code
+   * $[i].key}, and that the missing {@code email} on element 0 returns null.
+   */
+  @Test
+  void arrayPath_heterogeneousObjects_shreddedByAnalyzer() throws IOException {
+    VariantMetadata meta = Variants.metadata("email", "name");
+    ShreddedObject alice = Variants.object(meta);
+    alice.put("name", Variants.of("alice"));
+    ShreddedObject bob = Variants.object(meta);
+    bob.put("name", Variants.of("bob"));
+    bob.put("email", Variants.of("bob@example.com"));
+    ValueArray arr = Variants.array();
+    arr.add(alice);
+    arr.add(bob);
+    Variant variant = Variant.of(meta, arr);
+    Record record = GenericRecord.create(SCHEMA).copy("id", 1, "var", variant);
+
+    // Production analyzer over the heterogeneous array produces a shredded typed_value schema.
+    Type shreddedType = new DirectAnalyzer().analyzeAndCreateSchema(List.of(arr), 0);
+    assertThat(shreddedType)
+        .as("analyzer should shred a root array of heterogeneous objects")
+        .isNotNull();
+
+    OutputFile out = new InMemoryOutputFile();
+    try (FileAppender<Record> w =
+        Parquet.write(out)
+            .schema(SCHEMA)
+            .variantShreddingFunc((id, name) -> shreddedType)
+            .createWriterFunc(fs -> InternalWriter.create(SCHEMA.asStruct(), fs))
+            .build()) {
+      w.add(record);
+    }
+
+    MessageType fileSchema;
+    GroupType variantGroup;
+    try (ParquetFileReader r = ParquetFileReader.open(ParquetIO.file(out.toInputFile()))) {
+      fileSchema = r.getFileMetaData().getSchema();
+      variantGroup = fileSchema.getType("var").asGroupType();
+    }
+
+    List<VariantExtractionField> fields =
+        ImmutableList.of(
+            extractionField(0, false, "$[0].name"),
+            extractionField(1, false, "$[1].name"),
+            extractionField(2, false, "$[1].email"),
+            extractionField(3, false, "$[0].email"));
+
+    try (CloseableIterable<VariantExtractionRow> reader =
+        Parquet.read(out.toInputFile())
+            .project(SCHEMA)
+            .createReaderFunc(
+                s ->
+                    ParquetVariantExtractionReaders.buildRowReader(
+                        s, variantGroup, List.of("var"), fields))
+            .build()) {
+      VariantExtractionRow row = Lists.newArrayList(reader).get(0);
+      assertThat(row.value(0).asPrimitive().get()).as("$[0].name").isEqualTo("alice");
+      assertThat(row.value(1).asPrimitive().get()).as("$[1].name").isEqualTo("bob");
+      assertThat(row.value(2).asPrimitive().get())
+          .as("$[1].email present")
+          .isEqualTo("bob@example.com");
+      assertThat(row.value(3)).as("$[0].email absent — missing field returns null").isNull();
+    }
+  }
+
+  /**
+   * Root path ($) on a root array of heterogeneous objects shredded via the analyzer. Reconstructs
+   * the full array and asserts both elements and their (unioned) fields are recovered.
+   */
+  @Test
+  void rootPathExtraction_shreddedArrayOfObjects() throws IOException {
+    VariantMetadata meta = Variants.metadata("email", "name");
+    ShreddedObject alice = Variants.object(meta);
+    alice.put("name", Variants.of("alice"));
+    ShreddedObject bob = Variants.object(meta);
+    bob.put("name", Variants.of("bob"));
+    bob.put("email", Variants.of("bob@example.com"));
+    ValueArray arr = Variants.array();
+    arr.add(alice);
+    arr.add(bob);
+    Variant variant = Variant.of(meta, arr);
+    Record record = GenericRecord.create(SCHEMA).copy("id", 1, "var", variant);
+
+    Type shreddedType = new DirectAnalyzer().analyzeAndCreateSchema(List.of(arr), 0);
+    assertThat(shreddedType).isNotNull();
+
+    OutputFile out = new InMemoryOutputFile();
+    try (FileAppender<Record> w =
+        Parquet.write(out)
+            .schema(SCHEMA)
+            .variantShreddingFunc((id, name) -> shreddedType)
+            .createWriterFunc(fs -> InternalWriter.create(SCHEMA.asStruct(), fs))
+            .build()) {
+      w.add(record);
+    }
+
+    MessageType fileSchema;
+    GroupType variantGroup;
+    try (ParquetFileReader r = ParquetFileReader.open(ParquetIO.file(out.toInputFile()))) {
+      fileSchema = r.getFileMetaData().getSchema();
+      variantGroup = fileSchema.getType("var").asGroupType();
+    }
+
+    List<VariantExtractionField> fields = ImmutableList.of(extractionField(0, false, "$"));
+
+    try (CloseableIterable<VariantExtractionRow> reader =
+        Parquet.read(out.toInputFile())
+            .project(SCHEMA)
+            .createReaderFunc(
+                s ->
+                    ParquetVariantExtractionReaders.buildRowReader(
+                        s, variantGroup, List.of("var"), fields))
+            .build()) {
+      VariantExtractionRow row = Lists.newArrayList(reader).get(0);
+      assertThat(row.value(0)).isNotNull();
+      assertThat(row.value(0).type()).isEqualTo(PhysicalType.ARRAY);
+      assertThat(row.value(0).asArray().numElements()).isEqualTo(2);
+      assertThat(row.value(0).asArray().get(0).asObject().get("name").asPrimitive().get())
+          .isEqualTo("alice");
+      assertThat(row.value(0).asArray().get(1).asObject().get("name").asPrimitive().get())
+          .isEqualTo("bob");
+      assertThat(row.value(0).asArray().get(1).asObject().get("email").asPrimitive().get())
+          .isEqualTo("bob@example.com");
+    }
+  }
+
+  // -----------------------------------------------------------------------
+  // Root path ($) extraction
+  // -----------------------------------------------------------------------
+
+  /**
+   * Root extraction path ($) on a shredded object variant. Extracts the full reconstructed variant
+   * value, not a field. Previously mishandled: resolveShreddedFieldGroup returned the typed_value
+   * object-fields group (not the root variant group), so buildShreddedLeafReader found neither
+   * typed_value nor value on it and fell through to the root fallback. This test verifies the
+   * shredded reconstruction path is used when shredding is present.
+   */
+  @Test
+  void rootPathExtraction_shreddedObject() throws IOException {
+    VariantMetadata meta = Variants.metadata("city", "size");
+    ShreddedObject obj = Variants.object(meta);
+    obj.put("city", Variants.of("Chicago"));
+    obj.put("size", Variants.of(42L));
+    Variant variant = Variant.of(meta, obj);
+    Record record = GenericRecord.create(SCHEMA).copy("id", 1, "var", variant);
+
+    OutputFile out = new InMemoryOutputFile();
+    try (FileAppender<Record> w =
+        Parquet.write(out)
+            .schema(SCHEMA)
+            .variantShreddingFunc((id, name) -> ParquetVariantUtil.toParquetSchema(obj))
+            .createWriterFunc(fs -> InternalWriter.create(SCHEMA.asStruct(), fs))
+            .build()) {
+      w.add(record);
+    }
+
+    MessageType fileSchema;
+    GroupType variantGroup;
+    try (ParquetFileReader r = ParquetFileReader.open(ParquetIO.file(out.toInputFile()))) {
+      fileSchema = r.getFileMetaData().getSchema();
+      variantGroup = fileSchema.getType("var").asGroupType();
+    }
+
+    List<VariantExtractionField> fields = ImmutableList.of(extractionField(0, false, "$"));
+
+    try (CloseableIterable<VariantExtractionRow> reader =
+        Parquet.read(out.toInputFile())
+            .project(SCHEMA)
+            .createReaderFunc(
+                s ->
+                    ParquetVariantExtractionReaders.buildRowReader(
+                        s, variantGroup, List.of("var"), fields))
+            .build()) {
+      VariantExtractionRow row = Lists.newArrayList(reader).get(0);
+      assertThat(row.value(0)).isNotNull();
+      assertThat(row.value(0).type()).isEqualTo(PhysicalType.OBJECT);
+      assertThat(row.value(0).asObject().get("city").asPrimitive().get()).isEqualTo("Chicago");
+      assertThat(row.value(0).asObject().get("size").asPrimitive().get()).isEqualTo(42L);
+    }
+  }
+
+  /**
+   * Root extraction path ($) on an unshredded variant (no typed_value, only value column).
+   * Extraction must fall through to root serialized value fallback and return the whole variant.
+   */
+  @Test
+  void rootPathExtraction_unshreddedFallback() throws IOException {
+    VariantMetadata meta = Variants.metadata("x");
+    ShreddedObject obj = Variants.object(meta);
+    obj.put("x", Variants.of("hello"));
+    Variant variant = Variant.of(meta, obj);
+    Record record = GenericRecord.create(SCHEMA).copy("id", 1, "var", variant);
+
+    OutputFile out = new InMemoryOutputFile();
+    // Write with no shredding schema so the file has only metadata + value columns.
+    try (FileAppender<Record> w =
+        Parquet.write(out)
+            .schema(SCHEMA)
+            .createWriterFunc(fs -> InternalWriter.create(SCHEMA.asStruct(), fs))
+            .build()) {
+      w.add(record);
+    }
+
+    MessageType fileSchema;
+    GroupType variantGroup;
+    try (ParquetFileReader r = ParquetFileReader.open(ParquetIO.file(out.toInputFile()))) {
+      fileSchema = r.getFileMetaData().getSchema();
+      variantGroup = fileSchema.getType("var").asGroupType();
+    }
+
+    List<VariantExtractionField> fields = ImmutableList.of(extractionField(0, false, "$"));
+
+    try (CloseableIterable<VariantExtractionRow> reader =
+        Parquet.read(out.toInputFile())
+            .project(SCHEMA)
+            .createReaderFunc(
+                s ->
+                    ParquetVariantExtractionReaders.buildRowReader(
+                        s, variantGroup, List.of("var"), fields))
+            .build()) {
+      VariantExtractionRow row = Lists.newArrayList(reader).get(0);
+      assertThat(row.value(0)).isNotNull();
+      assertThat(row.value(0).type()).isEqualTo(PhysicalType.OBJECT);
+      assertThat(row.value(0).asObject().get("x").asPrimitive().get()).isEqualTo("hello");
+    }
+  }
+
   // -----------------------------------------------------------------------
   // Miscellaneous edge cases
   // -----------------------------------------------------------------------
@@ -1341,6 +1619,26 @@ class TestParquetVariantExtractionReaders {
             .build()) {
       VariantExtractionRow row = Lists.newArrayList(reader).get(0);
       assertThat(row.value(0)).as("scalar variant root — field extraction returns null").isNull();
+    }
+  }
+
+  /**
+   * Runs the production {@link VariantShreddingAnalyzer} directly over a set of variant values to
+   * produce a shredded {@code typed_value} schema. Unlike {@link
+   * ParquetVariantUtil#toParquetSchema} (which derives a schema from a single representative value
+   * and requires array elements to be uniformly typed), the analyzer samples all values, unions
+   * object fields, and picks each field's type by majority vote — so heterogeneous arrays of
+   * objects still shred.
+   */
+  private static final class DirectAnalyzer extends VariantShreddingAnalyzer<VariantValue, Void> {
+    @Override
+    protected List<VariantValue> extractVariantValues(List<VariantValue> rows, int idx) {
+      return rows;
+    }
+
+    @Override
+    protected int resolveColumnIndex(Void engineSchema, String columnName) {
+      throw new UnsupportedOperationException("Not used in direct tests");
     }
   }
 
