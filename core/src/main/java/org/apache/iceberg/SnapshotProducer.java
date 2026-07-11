@@ -58,9 +58,12 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.metrics.CommitMetrics;
 import org.apache.iceberg.metrics.CommitMetricsResult;
+import org.apache.iceberg.metrics.CounterResult;
 import org.apache.iceberg.metrics.DefaultMetricsContext;
+import org.apache.iceberg.metrics.ImmutableCommitMetricsResult;
 import org.apache.iceberg.metrics.ImmutableCommitReport;
 import org.apache.iceberg.metrics.LoggingMetricsReporter;
+import org.apache.iceberg.metrics.MetricsContext;
 import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.metrics.Timer.Timed;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
@@ -579,6 +582,18 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
         if (event instanceof CreateSnapshotEvent) {
           CreateSnapshotEvent createSnapshotEvent = (CreateSnapshotEvent) event;
 
+          CommitMetricsResult commitMetricsResult =
+              CommitMetricsResult.from(commitMetrics(), createSnapshotEvent.summary());
+          Long metadataFileSizeInBytes = ops().metadataFileSizeInBytes();
+          if (metadataFileSizeInBytes != null) {
+            commitMetricsResult =
+                ImmutableCommitMetricsResult.builder()
+                    .from(commitMetricsResult)
+                    .metadataFileSizeInBytes(
+                        CounterResult.of(MetricsContext.Unit.BYTES, metadataFileSizeInBytes))
+                    .build();
+          }
+
           reporter.report(
               ImmutableCommitReport.builder()
                   .tableName(createSnapshotEvent.tableName())
@@ -586,8 +601,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
                   .operation(createSnapshotEvent.operation())
                   .sequenceNumber(createSnapshotEvent.sequenceNumber())
                   .metadata(EnvironmentContext.get())
-                  .commitMetrics(
-                      CommitMetricsResult.from(commitMetrics(), createSnapshotEvent.summary()))
+                  .commitMetrics(commitMetricsResult)
                   .build());
         }
       }
