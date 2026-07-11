@@ -18,89 +18,66 @@
  */
 package org.apache.iceberg.connect.channel;
 
-import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.Map;
 import java.util.function.Supplier;
-import org.apache.kafka.common.MetricName;
-import org.apache.kafka.common.metrics.Gauge;
-import org.apache.kafka.common.metrics.JmxReporter;
-import org.apache.kafka.common.metrics.KafkaMetricsContext;
-import org.apache.kafka.common.metrics.MetricConfig;
-import org.apache.kafka.common.metrics.Metrics;
 import org.apache.kafka.common.metrics.Sensor;
-import org.apache.kafka.common.metrics.stats.Avg;
-import org.apache.kafka.common.metrics.stats.CumulativeSum;
-import org.apache.kafka.common.metrics.stats.Max;
-import org.apache.kafka.common.utils.Time;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
-class CoordinatorMetrics implements AutoCloseable {
+class CoordinatorMetrics extends ChannelMetrics {
 
-  private static final Logger LOG = LoggerFactory.getLogger(CoordinatorMetrics.class);
   private static final String GROUP = "coordinator-metrics";
-  private static final String NAMESPACE = "iceberg-kafka-connect-metrics";
+  // The coordinator is a single per-connector task, so it reports a fixed task tag.
+  private static final String TASK = "coordinator";
+  private static final String FULL = "full";
+  private static final String PARTIAL = "partial";
 
-  private final Metrics metrics;
-  private final Sensor commitTime;
-  private final Sensor consumeTime;
+  // Commit timers are tagged by commitMode (partial vs full) so the two paths stay separable.
+  private final Sensor fullCommitTime;
+  private final Sensor partialCommitTime;
   private final Sensor startCommit;
   private final Sensor commitComplete;
 
   CoordinatorMetrics(
       String connector, Supplier<Long> commitBufferSize, Supplier<Long> readyBufferSize) {
-    Map<String, String> tags = new LinkedHashMap<>();
-    tags.put("connector", connector);
-
-    Metrics newMetrics =
-        new Metrics(
-            new MetricConfig(),
-            Collections.singletonList(new JmxReporter()),
-            Time.SYSTEM,
-            new KafkaMetricsContext(NAMESPACE));
+    super(GROUP, connector, TASK);
     try {
-      this.commitTime =
+      this.fullCommitTime =
           createTimerSensor(
-              newMetrics, "commit-time", "Time spent in Coordinator.commit() in ms", tags);
-      this.consumeTime =
+              "commit-time",
+              "Time spent in Coordinator.commit() in ms",
+              metricTags(connector, TASK, FULL));
+      this.partialCommitTime =
           createTimerSensor(
-              newMetrics,
-              "consume-available-time",
-              "Time spent in Channel.consumeAvailable() (coordinator side) in ms",
-              tags);
+              "commit-time",
+              "Time spent in Coordinator.commit() in ms",
+              metricTags(connector, TASK, PARTIAL));
       this.startCommit =
           createCounterSensor(
-              newMetrics, "start-commit", "Number of START_COMMIT events emitted", tags);
+              "start-commit",
+              "Number of START_COMMIT events emitted",
+              metricTags(connector, TASK, null));
       this.commitComplete =
           createCounterSensor(
-              newMetrics, "commit-complete", "Number of COMMIT_COMPLETE events emitted", tags);
+              "commit-complete",
+              "Number of COMMIT_COMPLETE events emitted",
+              metricTags(connector, TASK, null));
 
-      newMetrics.addMetric(
-          new MetricName(
-              "commit-buffer-size", GROUP, "Current size of CommitState.commitBuffer", tags),
-          (Gauge<Long>) (config, now) -> commitBufferSize.get());
-      newMetrics.addMetric(
-          new MetricName(
-              "ready-buffer-size", GROUP, "Current size of CommitState.readyBuffer", tags),
-          (Gauge<Long>) (config, now) -> readyBufferSize.get());
+      addGauge(
+          "commit-buffer-size",
+          "Current size of CommitState.commitBuffer",
+          metricTags(connector, TASK, null),
+          commitBufferSize);
+      addGauge(
+          "ready-buffer-size",
+          "Current size of CommitState.readyBuffer",
+          metricTags(connector, TASK, null),
+          readyBufferSize);
     } catch (RuntimeException e) {
-      try {
-        newMetrics.close();
-      } catch (Exception suppressed) {
-        e.addSuppressed(suppressed);
-      }
+      closeQuietly(e);
       throw e;
     }
-    this.metrics = newMetrics;
   }
 
-  void recordCommit(long elapsedMs) {
-    commitTime.record((double) elapsedMs);
-  }
-
-  void recordConsume(long elapsedMs) {
-    consumeTime.record((double) elapsedMs);
+  void recordCommit(boolean partialCommit, long elapsedMs) {
+    (partialCommit ? partialCommitTime : fullCommitTime).record((double) elapsedMs);
   }
 
   void incStartCommit() {
@@ -109,32 +86,5 @@ class CoordinatorMetrics implements AutoCloseable {
 
   void incCommitComplete() {
     commitComplete.record(1);
-  }
-
-  @Override
-  public void close() {
-    try {
-      metrics.close();
-    } catch (Exception e) {
-      LOG.warn("Error closing CoordinatorMetrics", e);
-    }
-  }
-
-  private Sensor createTimerSensor(
-      Metrics registry, String baseName, String description, Map<String, String> tags) {
-    Sensor sensor = registry.sensor(baseName);
-    sensor.add(new MetricName(baseName + "-avg", GROUP, description + " (avg)", tags), new Avg());
-    sensor.add(new MetricName(baseName + "-max", GROUP, description + " (max)", tags), new Max());
-    sensor.add(
-        new MetricName(baseName + "-total", GROUP, description + " (total)", tags),
-        new CumulativeSum());
-    return sensor;
-  }
-
-  private Sensor createCounterSensor(
-      Metrics registry, String baseName, String description, Map<String, String> tags) {
-    Sensor sensor = registry.sensor(baseName);
-    sensor.add(new MetricName(baseName + "-total", GROUP, description, tags), new CumulativeSum());
-    return sensor;
   }
 }

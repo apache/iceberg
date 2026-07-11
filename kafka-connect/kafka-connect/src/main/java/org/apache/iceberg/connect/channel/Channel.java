@@ -117,35 +117,37 @@ abstract class Channel {
   protected abstract boolean receive(Envelope envelope);
 
   protected void consumeAvailable(Duration pollDuration) {
-    long start = System.currentTimeMillis();
-    try {
-      ConsumerRecords<String, byte[]> records = consumer.poll(pollDuration);
-      while (!records.isEmpty()) {
-        records.forEach(
-            record -> {
-              // the consumer stores the offsets that corresponds to the next record to consume,
-              // so increment the record offset by one
-              controlTopicOffsets.put(record.partition(), record.offset() + 1);
+    // The blocking poll is intentionally left untimed here: the coordinator polls with a 1s
+    // duration so an idle poll would dominate the signal, and the poll is already covered by the
+    // Kafka consumer's own metrics. We time only the per-record decode and process steps.
+    ConsumerRecords<String, byte[]> records = consumer.poll(pollDuration);
+    while (!records.isEmpty()) {
+      records.forEach(
+          record -> {
+            // the consumer stores the offsets that corresponds to the next record to consume,
+            // so increment the record offset by one
+            controlTopicOffsets.put(record.partition(), record.offset() + 1);
 
-              Event event = AvroUtil.decode(record.value());
+            long readStart = System.nanoTime();
+            Event event = AvroUtil.decode(record.value());
+            getChannelMetrics().recordMessageRead((System.nanoTime() - readStart) / 1_000_000L);
 
-              if (event.groupId().equals(connectGroupId)) {
-                LOG.debug("Received event of type: {}", event.type().name());
-                if (receive(new Envelope(event, record.partition(), record.offset()))) {
-                  LOG.info("Handled event of type: {}", event.type().name());
-                }
+            if (event.groupId().equals(connectGroupId)) {
+              LOG.debug("Received event of type: {}", event.type().name());
+              long processStart = System.nanoTime();
+              boolean handled = receive(new Envelope(event, record.partition(), record.offset()));
+              getChannelMetrics()
+                  .recordMessageProcess((System.nanoTime() - processStart) / 1_000_000L);
+              if (handled) {
+                LOG.info("Handled event of type: {}", event.type().name());
               }
-            });
-        records = consumer.poll(pollDuration);
-      }
-    } finally {
-      recordConsumeTime(System.currentTimeMillis() - start);
+            }
+          });
+      records = consumer.poll(pollDuration);
     }
   }
 
-  protected void recordConsumeTime(long elapsedMs) {
-    // default no-op; subclasses override to forward to their metrics
-  }
+  protected abstract ChannelMetrics getChannelMetrics();
 
   protected Map<Integer, Long> controlTopicOffsets() {
     return controlTopicOffsets;

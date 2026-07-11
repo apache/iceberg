@@ -24,8 +24,11 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.when;
 
+import java.lang.management.ManagementFactory;
 import java.util.Map;
 import java.util.UUID;
+import javax.management.MBeanServer;
+import javax.management.ObjectName;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.connect.data.IcebergWriterResult;
 import org.apache.iceberg.connect.data.Offset;
@@ -121,16 +124,16 @@ public class TestWorker extends ChannelTestBase {
 
     SinkTaskContext taskContext = mock(SinkTaskContext.class);
     Worker worker = new Worker(config, clientFactory, mock(SinkWriter.class), taskContext);
+    MBeanServer server = ManagementFactory.getPlatformMBeanServer();
+    ObjectName name =
+        new ObjectName(
+            "iceberg.kafka.connect:type=worker-metrics,connector=jmx-test-connector,task=3");
     try {
-      javax.management.MBeanServer server =
-          java.lang.management.ManagementFactory.getPlatformMBeanServer();
-      javax.management.ObjectName name =
-          new javax.management.ObjectName(
-              "iceberg-kafka-connect-metrics:type=worker-metrics,"
-                  + "connector=jmx-test-connector,task=jmx-test-connector-3");
       assertThat(server.queryNames(name, null)).isNotEmpty();
     } finally {
       worker.stop();
     }
+    // stop() must unregister the MBeans, else a task restart hits InstanceAlreadyExistsException
+    assertThat(server.queryNames(name, null)).isEmpty();
   }
 }
