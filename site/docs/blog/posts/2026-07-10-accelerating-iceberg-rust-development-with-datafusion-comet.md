@@ -140,11 +140,11 @@ re-runs the suite to confirm the native path now passes.
 
 <figure markdown="span">![The development loop: relax a Comet fallback, run Iceberg Java's tests, characterize the failures, implement the fix in Iceberg Rust, wire up plan conversion in Comet, and re-run to confirm](../../assets/images/2026-07-10-comet-tdd-loop.png){ width="500" }<figcaption>Relaxing a fallback turns Iceberg Java's Spark tests into a test-driven development loop for both Iceberg Rust and Comet.</figcaption></figure>
 
-The first iterations are noisy. Early on, a single test run could produce hundreds of failures.
-Contributors still reason about the underlying code themselves. Where AI assistants help is in
-digesting the sheer volume of test output and characterizing the failures by root cause, so
-contributors can tackle whichever gap accounts for the most. A wall of red becomes a prioritized
-backlog.
+The first iterations are noisy. Early on, a single test run could produce hundreds of failures
+buried in enormous logs. To make that tractable, contributors have leaned on AI assistants to digest
+the volume of test output and characterize the failures by root cause, so they can tackle whichever
+gap accounts for the most. The humans still reason about the underlying code themselves; the AI just
+turns a wall of red into a prioritized backlog.
 
 This model is already producing results, with Comet contributors submitting [over 40 pull
 requests](https://github.com/search?q=repo%3Aapache%2Ficeberg-rust+is%3Apr+author%3Ambutrovich+author%3Aparthchandra+author%3Ahsiang-c&type=pullrequests)
