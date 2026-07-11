@@ -33,15 +33,17 @@ platforms. With Iceberg, users store their tables with the benefit of being able
 and modify their data from a number of different query engines.
 [Apache Spark](https://spark.apache.org) is the engine most closely associated with Iceberg. The
 [Iceberg Java repository](https://github.com/apache/iceberg), the *de facto* reference
-implementation of the Iceberg spec, ships Spark as its most mature integration. It is also the
+implementation of the Iceberg specification, ships Spark as its most mature integration. It is also the
 engine most teams rely on for table maintenance like compaction and snapshot expiration.
 In addition to Java, the Iceberg community maintains a number
 of other Iceberg implementations like [C++](https://github.com/apache/iceberg-cpp),
 [Go](https://github.com/apache/iceberg-go), and [Rust](https://github.com/apache/iceberg-rust).
 These other implementations benefit not only from the Iceberg specification, but also the lessons
-learned and design decisions of the Java project's community. Furthermore, the Java repository's extensive
-test suites include nearly 10,000 correctness tests driven by Spark (as of Iceberg 1.11 with
-Spark 4.1).
+learned and design decisions of the Java project's community. The Java repository's extensive
+test suites, for instance, include nearly 10,000 correctness tests driven by Spark (as of Iceberg
+1.11 with Spark 4.1). Each implementation maintains its own test suite and can look to Iceberg Java
+as a reference for both correct behavior and test coverage. None of them, however, can run Java's
+tests directly against their own code.
 
 While Spark remains a powerful and robust engine, a number of projects exist to accelerate its
 JVM-backed execution. One such solution is
@@ -102,21 +104,25 @@ native path is continuously checked against the same corpus that guards the refe
 implementation.
 
 Comet does not yet accelerate all Iceberg table reads. For example, Comet currently falls back to
-Iceberg Java any time it encounters a table in format
-[version 3](https://iceberg.apache.org/spec/#version-3-extended-types-and-capabilities) or newer. 
+Iceberg Java any time it encounters a table using [table format version
+3](https://iceberg.apache.org/spec/#version-3-extended-types-and-capabilities) or newer. 
 This fallback behavior can be due to gaps in Comet or gaps in the underlying Iceberg Rust library.
 A consequence is that when Comet runs Iceberg Java's Spark suites, many tests silently take the
 Iceberg Java path rather than exercising Comet's native execution, so not every passing test
-reflects an accelerated read. That same graceful fallback, however, is precisely what turns these
-suites into a test-driven development tool for both Comet and Iceberg Rust.
+reflects an accelerated read. That same graceful fallback, however, is also what makes these
+suites useful for improving Iceberg Rust itself.
 
 ## Accelerating Iceberg Rust Development with Comet
 
 While the specification remains the reference for Iceberg developers, the lessons learned and
-edge cases encountered by the Iceberg Java implementation provide an excellent corpus for other
-implementers. Comet turns that body of knowledge into a development tool for Iceberg Rust.
+edge cases encountered by the Java implementation provide an excellent corpus for other
+implementers. Historically, a non-Java implementation could only study that corpus and reimplement
+equivalent tests by hand. Comet changes that: it lets Iceberg Rust execute directly against Iceberg
+Java's Spark test suites. To our knowledge, no other Iceberg implementation (*e.g.*, C++ or Go) has
+any comparable way to be tested against the Java corpus.
 
-The idea is to decouple execution from planning. Iceberg Java and Spark handle planning and produce
+Comet accelerates queries by keeping Iceberg Java's planning and swapping in native execution.
+Accelerating development reuses that same split. Iceberg Java and Spark handle planning and produce
 a trusted result, so they serve as an oracle. Comet and Iceberg Rust handle native execution, so
 they become the system under test. Running them side by side is a form of differential testing: a
 query that Comet executes natively should return exactly what Spark returns on its own, and any
@@ -135,19 +141,29 @@ re-runs the suite to confirm the native path now passes.
 <figure markdown="span">![The development loop: relax a Comet fallback, run Iceberg Java's tests, characterize the failures, implement the fix in Iceberg Rust, wire up plan conversion in Comet, and re-run to confirm](../../assets/images/2026-07-10-comet-tdd-loop.png){ width="500" }<figcaption>Relaxing a fallback turns Iceberg Java's Spark tests into a test-driven development loop for both Iceberg Rust and Comet.</figcaption></figure>
 
 The first iterations are noisy. Early on, a single test run could produce hundreds of failures.
-Rather than triage them by hand, contributors have used AI assistants to read the relevant Iceberg
-Java code and characterize the failures by root cause, then tackle whichever gap accounts for the
-most. A wall of red becomes a prioritized backlog.
+Contributors still reason about the underlying code themselves. Where AI assistants help is in
+digesting the sheer volume of test output and characterizing the failures by root cause, so
+contributors can tackle whichever gap accounts for the most. A wall of red becomes a prioritized
+backlog.
 
 This model is already producing results, with Comet contributors submitting [over 40 pull
 requests](https://github.com/search?q=repo%3Aapache%2Ficeberg-rust+is%3Apr+author%3Ambutrovich+author%3Aparthchandra+author%3Ahsiang-c&type=pullrequests)
-to Iceberg Rust spanning bug fixes, new features, and performance optimizations. For example, Comet has recently begun adding [preliminary Iceberg V3
-support](https://github.com/apache/datafusion-comet/pull/4887), reading deletion vectors against
-an in-progress Iceberg Rust branch, with its fixes now being peeled off into standalone Iceberg
+to Iceberg Rust spanning bug fixes, new features, and performance optimizations. For example, Comet has recently begun adding [preliminary support for table format version
+3](https://github.com/apache/datafusion-comet/pull/4887), reading deletion vectors against
+an in-progress Iceberg Rust branch. Its fixes are now being peeled off into standalone Iceberg
 Rust contributions. Similarly, [adding Iceberg 1.11 support to
 Comet](https://github.com/apache/datafusion-comet/pull/4840) surfaced two bugs in Iceberg Rust that
-were [quickly](https://github.com/apache/iceberg-rust/pull/2781)
-[fixed](https://github.com/apache/iceberg-rust/pull/2783).
+Comet contributors [quickly](https://github.com/apache/iceberg-rust/pull/2781)
+[fixed](https://github.com/apache/iceberg-rust/pull/2783). Future contributions could follow the
+same model to close the rest of the table format version 3 gap in Iceberg Rust: new data types
+(variant, geometry, and geography), row lineage, default column values, and table encryption.
+
+Crucially, none of these contributions are Comet-specific. They land upstream in Iceberg Rust and
+close feature gaps with Iceberg Java, so every system built on the library benefits, not just
+Comet. For the developers building Iceberg Rust, the payoff is direct: instead of mirroring Iceberg
+Java's tests by hand, they get a stream of real, production-hardened behaviors to implement and
+verify against, so the library matures faster and ships with more confidence. Comet is simply the
+workload that surfaces the gaps; the fixes belong to the whole community.
 
 The comparison cuts both ways. Iceberg Java is usually the oracle, but sometimes Iceberg Rust's
 behavior is the reference for the correct result. For example, Comet helped validate the fix for
@@ -155,7 +171,7 @@ behavior is the reference for the correct result. For example, Comet helped vali
 action](https://github.com/apache/iceberg/pull/15470), confirming the corrected behavior against
 Iceberg Rust.
 
-The same test suites that guard Comet's correctness also drive Iceberg Rust development. When a
+This workflow is becoming part of how both projects test. When a
 Comet contributor fixes a bug or adds a feature on an Iceberg Rust branch, they
 typically open a Comet draft pull request that points at that branch and demonstrates previously
 failing Iceberg Java tests passing end to end. The same setup is used informally to validate Iceberg
@@ -165,9 +181,10 @@ encouraged to run their changes through Comet when validating a new feature.
 On its own, an open table format is little more than data at rest. Paired with an open source query
 engine like DataFusion, it becomes the foundation of an open data platform. The work described here
 is a small but growing example of what that looks like in practice: two communities building on
-each other's strengths to make Iceberg faster to query and quicker to evolve. We are thrilled by the
-deepening collaboration between the Iceberg and DataFusion communities, and we encourage anyone
-interested to find a way to get involved.
+each other's strengths to accelerate Iceberg on both fronts. Users who query Iceberg get faster
+results, and the developers who build it get a faster path to shipping and validating new features.
+We are thrilled by the deepening collaboration between the Iceberg and DataFusion communities, and we
+encourage anyone interested to find a way to get involved.
 
 ## Getting Involved
 
