@@ -133,16 +133,28 @@ public class ParquetMetricsRowGroupFilter {
     @Override
     @SuppressWarnings("unchecked")
     public <T> Boolean predicate(BoundPredicate<T> pred) {
-      // a column absent from the file reads as its initial-default, so evaluate the predicate
-      // against that default
       if (pred.term() instanceof BoundReference) {
         int id = ((BoundReference<T>) pred.term()).fieldId();
         Types.NestedField field = schema.findField(id);
         if (field != null && field.initialDefault() != null && !valueCounts.containsKey(id)) {
-          return pred.test((T) field.initialDefault()) ? ROWS_MIGHT_MATCH : ROWS_CANNOT_MATCH;
+          boolean matchesDefault = pred.test((T) field.initialDefault());
+
+          // A nested field also reads as null whenever any ancestor struct is null, so its value
+          // is either the default (all ancestors present) or null.
+          boolean isNestedField = schema.asStruct().field(id) == null;
+          if (isNestedField) {
+            return matchesDefault || matchesNull(pred);
+          }
+
+          return matchesDefault ? ROWS_MIGHT_MATCH : ROWS_CANNOT_MATCH;
         }
       }
 
+      return super.predicate(pred);
+    }
+
+    private <T> boolean matchesNull(BoundPredicate<T> pred) {
+      // The existing handlers treat a column missing from the file as null.
       return super.predicate(pred);
     }
 

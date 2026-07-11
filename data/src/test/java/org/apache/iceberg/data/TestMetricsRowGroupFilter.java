@@ -578,16 +578,17 @@ public class TestMetricsRowGroupFilter {
   }
 
   @TestTemplate
-  public void testNestedColumnNotInFileWithInitialDefault() {
+  public void testNestedColumnMayReadAsDefaultOrNull() {
     assumeThat(format).isEqualTo(FileFormat.PARQUET);
 
     Schema schemaWithNestedDefault =
         new Schema(
             required(1, "id", IntegerType.get()),
             Types.NestedField.optional("location")
-                .withId(100)
+                .withId(7)
                 .ofType(
                     Types.StructType.of(
+                        required(8, "int_field", IntegerType.get()),
                         Types.NestedField.optional("country")
                             .withId(101)
                             .ofType(StringType.get())
@@ -596,18 +597,18 @@ public class TestMetricsRowGroupFilter {
                 .build());
 
     assertThat(shouldReadWithSchema(schemaWithNestedDefault, equal("location.country", "US")))
-        .as("Should read: absent nested column reads as its initial-default 'US'")
+        .as("Should read: nested field may read as its initial-default")
         .isTrue();
     assertThat(shouldReadWithSchema(schemaWithNestedDefault, notNull("location.country")))
-        .as("Should read: absent nested column reads as its non-null initial-default 'US'")
+        .as("Should read: nested field may read as its non-null initial-default")
         .isTrue();
 
     assertThat(shouldReadWithSchema(schemaWithNestedDefault, equal("location.country", "CA")))
-        .as("Should skip: nested default 'US' cannot satisfy location.country = 'CA'")
+        .as("Should skip: neither null nor 'US' can satisfy location.country = 'CA'")
         .isFalse();
     assertThat(shouldReadWithSchema(schemaWithNestedDefault, isNull("location.country")))
-        .as("Should skip: nested default 'US' is non-null so location.country IS NULL cannot match")
-        .isFalse();
+        .as("Should read: nested field is null when its parent struct is null")
+        .isTrue();
   }
 
   @TestTemplate
