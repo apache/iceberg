@@ -18,113 +18,42 @@
  */
 package org.apache.iceberg.connect.channel;
 
-import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.Map;
-import org.apache.kafka.common.MetricName;
-import org.apache.kafka.common.metrics.JmxReporter;
-import org.apache.kafka.common.metrics.KafkaMetricsContext;
-import org.apache.kafka.common.metrics.MetricConfig;
-import org.apache.kafka.common.metrics.Metrics;
 import org.apache.kafka.common.metrics.Sensor;
-import org.apache.kafka.common.metrics.stats.Avg;
-import org.apache.kafka.common.metrics.stats.CumulativeSum;
-import org.apache.kafka.common.metrics.stats.Max;
-import org.apache.kafka.common.utils.Time;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
-class WorkerMetrics implements AutoCloseable {
+class WorkerMetrics extends ChannelMetrics {
 
-  private static final Logger LOG = LoggerFactory.getLogger(WorkerMetrics.class);
   private static final String GROUP = "worker-metrics";
-  private static final String NAMESPACE = "iceberg-kafka-connect-metrics";
 
-  private final Metrics metrics;
   private final Sensor saveTime;
-  private final Sensor consumeTime;
   private final Sensor dataWritten;
   private final Sensor dataComplete;
 
-  WorkerMetrics(String connector, String taskId) {
-    Map<String, String> tags = new LinkedHashMap<>();
-    tags.put("connector", connector);
-    tags.put("task", taskId);
-
-    Metrics newMetrics =
-        new Metrics(
-            new MetricConfig(),
-            Collections.singletonList(new JmxReporter()),
-            Time.SYSTEM,
-            new KafkaMetricsContext(NAMESPACE));
+  WorkerMetrics(String connector, String task) {
+    super(GROUP, connector, task);
+    Map<String, String> tags = metricTags(connector, task, null);
     try {
-      this.saveTime =
-          createTimerSensor(newMetrics, "save-time", "Time spent in Worker.save() in ms", tags);
-      this.consumeTime =
-          createTimerSensor(
-              newMetrics,
-              "consume-available-time",
-              "Time spent in Channel.consumeAvailable() (worker side) in ms",
-              tags);
+      this.saveTime = createTimerSensor("save-time", "Time spent in Worker.save() in ms", tags);
       this.dataWritten =
           createCounterSensor(
-              newMetrics, "data-written", "Number of DATA_WRITTEN events emitted", tags);
+              "data-written", "Number of data/delete files reported in DATA_WRITTEN events", tags);
       this.dataComplete =
-          createCounterSensor(
-              newMetrics, "data-complete", "Number of DATA_COMPLETE events emitted", tags);
+          createCounterSensor("data-complete", "Number of DATA_COMPLETE events emitted", tags);
     } catch (RuntimeException e) {
-      try {
-        newMetrics.close();
-      } catch (Exception suppressed) {
-        e.addSuppressed(suppressed);
-      }
+      closeQuietly(e);
       throw e;
     }
-    this.metrics = newMetrics;
   }
 
   void recordSave(long elapsedMs) {
     saveTime.record((double) elapsedMs);
   }
 
-  void recordConsume(long elapsedMs) {
-    consumeTime.record((double) elapsedMs);
-  }
-
   void incDataWritten(long count) {
-    if (count > 0) {
-      dataWritten.record((double) count);
-    }
+    dataWritten.record((double) count);
   }
 
   void incDataComplete() {
     dataComplete.record(1);
-  }
-
-  @Override
-  public void close() {
-    try {
-      metrics.close();
-    } catch (Exception e) {
-      LOG.warn("Error closing WorkerMetrics", e);
-    }
-  }
-
-  private Sensor createTimerSensor(
-      Metrics registry, String baseName, String description, Map<String, String> tags) {
-    Sensor sensor = registry.sensor(baseName);
-    sensor.add(new MetricName(baseName + "-avg", GROUP, description + " (avg)", tags), new Avg());
-    sensor.add(new MetricName(baseName + "-max", GROUP, description + " (max)", tags), new Max());
-    sensor.add(
-        new MetricName(baseName + "-total", GROUP, description + " (total)", tags),
-        new CumulativeSum());
-    return sensor;
-  }
-
-  private Sensor createCounterSensor(
-      Metrics registry, String baseName, String description, Map<String, String> tags) {
-    Sensor sensor = registry.sensor(baseName);
-    sensor.add(new MetricName(baseName + "-total", GROUP, description, tags), new CumulativeSum());
-    return sensor;
   }
 }

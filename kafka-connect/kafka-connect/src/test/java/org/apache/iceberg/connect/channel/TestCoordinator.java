@@ -26,11 +26,14 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
+import java.lang.management.ManagementFactory;
 import java.lang.reflect.Field;
 import java.time.OffsetDateTime;
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
+import javax.management.MBeanServer;
+import javax.management.ObjectName;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
@@ -689,17 +692,17 @@ public class TestCoordinator extends ChannelTestBase {
     SinkTaskContext taskContext = mock(SinkTaskContext.class);
     Coordinator coordinator =
         new Coordinator(catalog, config, ImmutableList.of(), clientFactory, taskContext);
+    MBeanServer server = ManagementFactory.getPlatformMBeanServer();
+    ObjectName name =
+        new ObjectName(
+            "iceberg.kafka.connect:type=coordinator-metrics,connector=jmx-coord-connector,*");
     try {
-      javax.management.MBeanServer server =
-          java.lang.management.ManagementFactory.getPlatformMBeanServer();
-      javax.management.ObjectName name =
-          new javax.management.ObjectName(
-              "iceberg-kafka-connect-metrics:type=coordinator-metrics,"
-                  + "connector=jmx-coord-connector");
       assertThat(server.queryNames(name, null)).isNotEmpty();
     } finally {
       coordinator.terminate();
       coordinator.stop();
     }
+    // stop() must unregister the MBeans, else a task restart hits InstanceAlreadyExistsException
+    assertThat(server.queryNames(name, null)).isEmpty();
   }
 }

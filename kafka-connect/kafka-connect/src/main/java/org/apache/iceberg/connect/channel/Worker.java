@@ -59,8 +59,7 @@ class Worker extends Channel {
     this.config = config;
     this.context = context;
     this.sinkWriter = sinkWriter;
-    this.workerMetrics =
-        new WorkerMetrics(config.connectorName(), config.connectorName() + "-" + config.taskId());
+    this.workerMetrics = new WorkerMetrics(config.connectorName(), config.taskId());
   }
 
   void process() {
@@ -68,8 +67,8 @@ class Worker extends Channel {
   }
 
   @Override
-  protected void recordConsumeTime(long elapsedMs) {
-    workerMetrics.recordConsume(elapsedMs);
+  protected ChannelMetrics getChannelMetrics() {
+    return workerMetrics;
   }
 
   @Override
@@ -118,7 +117,11 @@ class Worker extends Channel {
 
     send(events, results.sourceOffsets());
 
-    workerMetrics.incDataWritten(results.writerResults().size());
+    long fileCount =
+        results.writerResults().stream()
+            .mapToLong(result -> result.dataFiles().size() + result.deleteFiles().size())
+            .sum();
+    workerMetrics.incDataWritten(fileCount);
     workerMetrics.incDataComplete();
 
     return true;
@@ -132,11 +135,11 @@ class Worker extends Channel {
   }
 
   void save(Collection<SinkRecord> sinkRecords) {
-    long start = System.currentTimeMillis();
+    long start = System.nanoTime();
     try {
       sinkWriter.save(sinkRecords);
     } finally {
-      workerMetrics.recordSave(System.currentTimeMillis() - start);
+      workerMetrics.recordSave((System.nanoTime() - start) / 1_000_000L);
     }
   }
 }

@@ -22,26 +22,24 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.lang.management.ManagementFactory;
 import java.util.Set;
+import java.util.UUID;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 import org.junit.jupiter.api.Test;
 
 public class TestWorkerMetrics {
 
-  private static final String CONNECTOR = "test-connector";
-  private static final String TASK_ID = "test-connector-7";
+  private final String connector = "test-connector-" + UUID.randomUUID();
+  private final String taskId = connector + "-7";
 
   @Test
   public void testRegistersAndUnregistersMBeans() throws Exception {
     MBeanServer server = ManagementFactory.getPlatformMBeanServer();
     ObjectName query =
         new ObjectName(
-            "iceberg-kafka-connect-metrics:type=worker-metrics,connector="
-                + CONNECTOR
-                + ",task="
-                + TASK_ID);
+            "iceberg.kafka.connect:type=worker-metrics,connector=" + connector + ",task=" + taskId);
 
-    try (WorkerMetrics metrics = new WorkerMetrics(CONNECTOR, TASK_ID)) {
+    try (WorkerMetrics metrics = new WorkerMetrics(connector, taskId)) {
       Set<ObjectName> registered = server.queryNames(query, null);
       assertThat(registered).isNotEmpty();
     }
@@ -52,61 +50,61 @@ public class TestWorkerMetrics {
 
   @Test
   public void testTimingMetrics() throws Exception {
-    try (WorkerMetrics metrics = new WorkerMetrics(CONNECTOR, "task-timing")) {
+    try (WorkerMetrics metrics = new WorkerMetrics(connector, taskId)) {
       metrics.recordSave(100);
       metrics.recordSave(200);
 
-      assertThat(readDouble("worker-metrics", "save-time-avg", "task-timing")).isEqualTo(150.0);
-      assertThat(readDouble("worker-metrics", "save-time-max", "task-timing")).isEqualTo(200.0);
-      assertThat(readDouble("worker-metrics", "save-time-total", "task-timing")).isEqualTo(300.0);
+      assertThat(readDouble("save-time-avg")).isEqualTo(150.0);
+      assertThat(readDouble("save-time-max")).isEqualTo(200.0);
+      assertThat(readDouble("save-time-total")).isEqualTo(300.0);
+      assertThat(readDouble("save-time-count")).isEqualTo(2.0);
 
-      metrics.recordConsume(10);
-      metrics.recordConsume(30);
+      metrics.recordMessageRead(10);
+      metrics.recordMessageRead(30);
 
-      assertThat(readDouble("worker-metrics", "consume-available-time-avg", "task-timing"))
-          .isEqualTo(20.0);
-      assertThat(readDouble("worker-metrics", "consume-available-time-max", "task-timing"))
-          .isEqualTo(30.0);
-      assertThat(readDouble("worker-metrics", "consume-available-time-total", "task-timing"))
-          .isEqualTo(40.0);
+      assertThat(readDouble("channel-message-read-time-avg")).isEqualTo(20.0);
+      assertThat(readDouble("channel-message-read-time-max")).isEqualTo(30.0);
+      assertThat(readDouble("channel-message-read-time-total")).isEqualTo(40.0);
+
+      metrics.recordMessageProcess(5);
+      metrics.recordMessageProcess(15);
+
+      assertThat(readDouble("channel-message-process-time-avg")).isEqualTo(10.0);
+      assertThat(readDouble("channel-message-process-time-max")).isEqualTo(15.0);
+      assertThat(readDouble("channel-message-process-time-total")).isEqualTo(20.0);
     }
   }
 
   @Test
   public void testCounters() throws Exception {
-    try (WorkerMetrics metrics = new WorkerMetrics(CONNECTOR, "task-counter")) {
+    try (WorkerMetrics metrics = new WorkerMetrics(connector, taskId)) {
       metrics.incDataWritten(3);
       metrics.incDataWritten(2);
+      // empty poll cycle still records 0 so data-written and data-complete stay comparable
+      metrics.incDataWritten(0);
       metrics.incDataComplete();
       metrics.incDataComplete();
 
-      assertThat(readDouble("worker-metrics", "data-written-total", "task-counter")).isEqualTo(5.0);
-      assertThat(readDouble("worker-metrics", "data-complete-total", "task-counter"))
-          .isEqualTo(2.0);
+      assertThat(readDouble("data-written-total")).isEqualTo(5.0);
+      assertThat(readDouble("data-complete-total")).isEqualTo(2.0);
     }
   }
 
   @Test
   public void testCloseAllowsReregistration() throws Exception {
-    String task = "task-reregister";
-    try (WorkerMetrics first = new WorkerMetrics(CONNECTOR, task)) {
+    try (WorkerMetrics first = new WorkerMetrics(connector, taskId)) {
       assertThat(first).isNotNull();
     }
-    try (WorkerMetrics second = new WorkerMetrics(CONNECTOR, task)) {
+    try (WorkerMetrics second = new WorkerMetrics(connector, taskId)) {
       assertThat(second).isNotNull();
     }
   }
 
-  private static double readDouble(String group, String name, String taskId) throws Exception {
+  private double readDouble(String name) throws Exception {
     MBeanServer server = ManagementFactory.getPlatformMBeanServer();
     ObjectName objectName =
         new ObjectName(
-            "iceberg-kafka-connect-metrics:type="
-                + group
-                + ",connector="
-                + CONNECTOR
-                + ",task="
-                + taskId);
+            "iceberg.kafka.connect:type=worker-metrics,connector=" + connector + ",task=" + taskId);
     return ((Number) server.getAttribute(objectName, name)).doubleValue();
   }
 }

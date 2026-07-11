@@ -148,8 +148,8 @@ class Coordinator extends Channel {
   }
 
   @Override
-  protected void recordConsumeTime(long elapsedMs) {
-    coordinatorMetrics.recordConsume(elapsedMs);
+  protected ChannelMetrics getChannelMetrics() {
+    return coordinatorMetrics;
   }
 
   @Override
@@ -169,7 +169,7 @@ class Coordinator extends Channel {
   }
 
   private void commit(boolean partialCommit) {
-    long start = System.currentTimeMillis();
+    long start = System.nanoTime();
     try {
       doCommit(partialCommit);
       if (!partialCommit) {
@@ -210,7 +210,7 @@ class Coordinator extends Channel {
           e);
     } finally {
       commitState.endCurrentCommit();
-      coordinatorMetrics.recordCommit(System.currentTimeMillis() - start);
+      coordinatorMetrics.recordCommit(partialCommit, (System.nanoTime() - start) / 1_000_000L);
     }
   }
 
@@ -458,8 +458,15 @@ class Coordinator extends Channel {
       }
     } catch (InterruptedException e) {
       throw new ConnectException("Interrupted while waiting for coordinator shutdown", e);
-    } finally {
-      coordinatorMetrics.close();
     }
+  }
+
+  @Override
+  void stop() {
+    // stop() runs at the very end of the CoordinatorThread run loop, after process() (and any
+    // commit() recording) can no longer fire, so closing the registry here avoids racing a
+    // record* call against a closed Metrics instance.
+    super.stop();
+    coordinatorMetrics.close();
   }
 }
