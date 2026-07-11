@@ -18,3 +18,7 @@ authors:
     name: Apache Iceberg PMC
     description: Apache Iceberg PMC
     avatar: assets/images/iceberg-logo-icon.png
+  mbutrovich:
+    name: Matt Butrovich
+    description: Apache Iceberg Contributor, Apache DataFusion PMC Member, Apple
+    avatar: https://github.com/mbutrovich.png
