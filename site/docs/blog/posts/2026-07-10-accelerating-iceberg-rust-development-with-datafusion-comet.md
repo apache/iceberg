@@ -47,7 +47,7 @@ tests directly against their own code.
 
 While Spark remains a powerful and robust engine, a number of projects exist to accelerate its
 JVM-backed execution. One such solution is
-[Apache DataFusion Comet](https://datafusion.apache.org/comet/), which was donated by Apple in 2024
+[Apache DataFusion Comet](https://datafusion.apache.org/comet/), which Apple donated in 2024
 as a subproject of the [Apache DataFusion](https://datafusion.apache.org) query engine. Comet's
 native execution engine runs CPU-bound jobs faster and IO-bound jobs with
 fewer resources, giving users control over how they want to optimize their Spark jobs. As we will
@@ -99,8 +99,8 @@ for the complete methodology and per-query results.
 
 Raw speed only matters if the answers are correct. Comet prioritizes correctness and compatibility
 with the libraries it accelerates. In addition to its own exhaustive test suites, Comet goes
-further by running Iceberg Java's Spark test suites with Comet enabled as regression tests, so the
-native path is continuously checked against the same corpus that guards the reference
+further by running Iceberg Java's Spark test suites with Comet enabled as regression tests,
+continuously checking the native path against the same corpus that guards the reference
 implementation.
 
 Comet does not yet accelerate all Iceberg table reads. For example, Comet currently falls back to
@@ -119,7 +119,7 @@ edge cases encountered by the Java implementation provide an excellent corpus fo
 implementers. Historically, a non-Java implementation could only study that corpus and reimplement
 equivalent tests by hand. Comet changes that: it lets Iceberg Rust execute directly against Iceberg
 Java's Spark test suites. To our knowledge, no other Iceberg implementation (*e.g.*, C++ or Go) has
-any comparable way to be tested against the Java corpus.
+any comparable way to test itself against the Java corpus.
 
 Comet accelerates queries by keeping Iceberg Java's planning and swapping in native execution.
 Accelerating development reuses that same split. Iceberg Java and Spark handle planning and produce
@@ -150,8 +150,8 @@ This model is already producing results, with Comet contributors submitting [ove
 requests](https://github.com/search?q=repo%3Aapache%2Ficeberg-rust+is%3Apr+author%3Ambutrovich+author%3Aparthchandra+author%3Ahsiang-c&type=pullrequests)
 to Iceberg Rust spanning bug fixes, new features, and performance optimizations. For example, Comet has recently begun adding [preliminary support for table format version
 3](https://github.com/apache/datafusion-comet/pull/4887), reading deletion vectors against
-an in-progress Iceberg Rust branch. Its fixes are now being peeled off into standalone Iceberg
-Rust contributions. Similarly, [adding Iceberg 1.11 support to
+an in-progress Iceberg Rust branch. Contributors are now peeling those fixes off into standalone
+Iceberg Rust contributions. Similarly, [adding Iceberg 1.11 support to
 Comet](https://github.com/apache/datafusion-comet/pull/4840) surfaced two bugs in Iceberg Rust that
 Comet contributors [quickly](https://github.com/apache/iceberg-rust/pull/2781)
 [fixed](https://github.com/apache/iceberg-rust/pull/2783). Future contributions could follow the
@@ -174,9 +174,10 @@ Iceberg Rust.
 This workflow is becoming part of how both projects test. When a
 Comet contributor fixes a bug or adds a feature on an Iceberg Rust branch, they
 typically open a Comet draft pull request that points at that branch and demonstrates previously
-failing Iceberg Java tests passing end to end. The same setup is used informally to validate Iceberg
-Rust release candidates. Comet is not a formal CI check for Iceberg Rust, but its developers are
-encouraged to run their changes through Comet when validating a new feature.
+failing Iceberg Java tests passing end to end. The same setup also serves as an informal way to
+validate Iceberg Rust release candidates. Comet is not a formal CI check for Iceberg Rust, but the
+Iceberg Rust community encourages developers to run their changes through Comet when validating a
+new feature.
 
 On its own, an open table format is little more than data at rest. Paired with an open source query
 engine like DataFusion, it becomes the foundation of an open data platform. The work described here
