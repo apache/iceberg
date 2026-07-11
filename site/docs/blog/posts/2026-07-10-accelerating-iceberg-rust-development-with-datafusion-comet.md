@@ -40,14 +40,17 @@ of other Iceberg implementations like [C++](https://github.com/apache/iceberg-cp
 [Go](https://github.com/apache/iceberg-go), and [Rust](https://github.com/apache/iceberg-rust).
 These other implementations benefit not only from the Iceberg specification, but also the lessons
 learned and design decisions of the Java project's community. Furthermore, the Java repository's extensive
-test suites include over 10,000 correctness tests driven by Spark.
+test suites include nearly 10,000 correctness tests driven by Spark (as of Iceberg 1.11 with
+Spark 4.1).
 
 While Spark remains a powerful and robust engine, a number of projects exist to accelerate its
 JVM-backed execution. One such solution is
 [Apache DataFusion Comet](https://datafusion.apache.org/comet/), which was donated by Apple in 2024
 as a subproject of the [Apache DataFusion](https://datafusion.apache.org) query engine. Comet's
 native execution engine runs CPU-bound jobs faster and IO-bound jobs with
-fewer resources, giving users control over how they want to optimize their Spark jobs.
+fewer resources, giving users control over how they want to optimize their Spark jobs. As we will
+see, Comet does more than speed up queries: the same design that makes it fast also makes it a tool
+for accelerating Iceberg Rust's development.
 
 ## Accelerating Spark Queries with Comet
 
@@ -61,7 +64,7 @@ Comet's JVM code runs as one final optimizer rule to convert Spark plan nodes to
 These Comet plan nodes have a superpower: they execute in DataFusion's Rust engine over columnar Arrow
 data.
 
-<figure markdown="span">![Comet converts a Spark physical plan into an equivalent DataFusion physical plan](../../assets/images/2026-07-10-comet-plan-translation.png)<figcaption>Comet converts a Spark physical plan into an equivalent DataFusion physical plan.</figcaption></figure>
+<figure markdown="span">![Comet converts a Spark physical plan into an equivalent DataFusion physical plan](../../assets/images/2026-07-10-comet-plan-translation.png){ width="750" }<figcaption>Comet converts a Spark physical plan into an equivalent DataFusion physical plan.</figcaption></figure>
 
 So how does Comet use *both* Iceberg libraries to accelerate Spark queries over Iceberg tables?
 As previously mentioned, Iceberg provides robust integrations with Spark, enabling users to query
@@ -82,7 +85,7 @@ has its own `FileScanTask`, so Comet uses it as the common abstraction between t
 takes the `FileScanTask` objects that Iceberg Java produced and hands them to Iceberg Rust, which
 reads the described files into the in-memory Arrow batches that feed the rest of the plan.
 
-<figure markdown="span">![Comet translates Iceberg Java's FileScanTask objects into Iceberg Rust's FileScanTask objects](../../assets/images/2026-07-10-comet-task-translation.png)<figcaption>Comet translates Iceberg Java's <code>FileScanTask</code> objects into Iceberg Rust's <code>FileScanTask</code> objects.</figcaption></figure>
+<figure markdown="span">![Comet translates Iceberg Java's FileScanTask objects into Iceberg Rust's FileScanTask objects](../../assets/images/2026-07-10-comet-task-translation.png){ width="750" }<figcaption>Comet translates Iceberg Java's <code>FileScanTask</code> objects into Iceberg Rust's <code>FileScanTask</code> objects.</figcaption></figure>
 
 To measure Comet's impact on real workloads, the AWS Data on EKS team benchmarked Comet against
 Spark alone on the TPC-DS 3 TB workload over Iceberg tables. Comet completed the suite roughly
@@ -93,17 +96,26 @@ for the complete methodology and per-query results.
 
 <figure markdown="span">![TPC-DS 3 TB on Iceberg: Spark with Comet completes in 2803.8s versus 4665.47s for Spark with Iceberg](../../assets/images/2026-07-10-comet-tpcds.png){ width="500" }<figcaption>TPC-DS 3 TB (Iceberg) on AWS EKS: Spark with Comet completes the suite ~40% faster.</figcaption></figure> 
 
+Raw speed only matters if the answers are correct. Comet prioritizes correctness and compatibility
+with the libraries it accelerates. In addition to its own exhaustive test suites, Comet goes
+further by running Iceberg Java's Spark test suites with Comet enabled as regression tests, so the
+native path is continuously checked against the same corpus that guards the reference
+implementation.
+
 Comet does not yet accelerate all Iceberg table reads. For example, Comet currently falls back to
 Iceberg Java any time it encounters a table in format
 [version 3](https://iceberg.apache.org/spec/#version-3-extended-types-and-capabilities) or newer. 
 This fallback behavior can be due to gaps in Comet or gaps in the underlying Iceberg Rust library.
-However, Comet makes it easier to build new Iceberg Rust features and close those gaps.
+A consequence is that when Comet runs Iceberg Java's Spark suites, many tests silently take the
+Iceberg Java path rather than exercising Comet's native execution, so not every passing test
+reflects an accelerated read. That same graceful fallback, however, is precisely what turns these
+suites into a test-driven development tool for both Comet and Iceberg Rust.
 
 ## Accelerating Iceberg Rust Development with Comet
 
 While the specification remains the reference for Iceberg developers, the lessons learned and
 edge cases encountered by the Iceberg Java implementation provide an excellent corpus for other
-implementers. Comet turns that corpus into a development tool for Iceberg Rust.
+implementers. Comet turns that body of knowledge into a development tool for Iceberg Rust.
 
 The idea is to decouple execution from planning. Iceberg Java and Spark handle planning and produce
 a trusted result, so they serve as an oracle. Comet and Iceberg Rust handle native execution, so
@@ -111,16 +123,21 @@ they become the system under test. Running them side by side is a form of differ
 query that Comet executes natively should return exactly what Spark returns on its own, and any
 difference points to a gap in Iceberg Rust or in Comet's translation between the two libraries.
 
+<figure markdown="span">![Differential testing: shared Iceberg Java planning feeds both Spark's JVM execution and Comet's native execution, and their results are compared](../../assets/images/2026-07-10-comet-differential-testing.png){ width="750" }<figcaption>Planning is held constant while execution varies: Spark's JVM path is the trusted oracle, Comet's native path (via Iceberg Rust) is the system under test, and any difference in results flags a gap.</figcaption></figure>
+
 Comet's fallback behavior is what makes this practical. By default, Comet falls back to Iceberg Java
 whenever it encounters a feature that Iceberg Rust cannot yet handle. Relaxing a fallback forces the
 native path and exposes exactly where it breaks, which turns the process into ordinary test-driven
-development against Iceberg Java's suite of over 10,000 Spark tests. A developer relaxes a fallback,
-runs the tests that exercise the feature, inspects what the Java planner produces, and implements
-whatever Iceberg Rust is missing to match it.
+development against Iceberg Java's suite of nearly 10,000 Spark tests. A developer relaxes a fallback,
+runs the tests that exercise the feature, inspects what the Java planner produces, implements
+whatever Iceberg Rust is missing to match it, wires up any new plan-conversion logic Comet needs, and
+re-runs the suite to confirm the native path now passes.
+
+<figure markdown="span">![The development loop: relax a Comet fallback, run Iceberg Java's tests, characterize the failures, implement the fix in Iceberg Rust, wire up plan conversion in Comet, and re-run to confirm](../../assets/images/2026-07-10-comet-tdd-loop.png){ width="500" }<figcaption>Relaxing a fallback turns Iceberg Java's Spark tests into a test-driven development loop for both Iceberg Rust and Comet.</figcaption></figure>
 
 The first iterations are noisy. Early on, a single test run could produce hundreds of failures.
 Rather than triage them by hand, contributors have used AI assistants to read the relevant Iceberg
-Java code and group the failures by root cause, then tackle whichever gap accounts for the
+Java code and characterize the failures by root cause, then tackle whichever gap accounts for the
 most. A wall of red becomes a prioritized backlog.
 
 This model is already producing results, with Comet contributors submitting [over 40 pull
@@ -139,9 +156,8 @@ behavior is the reference for the correct result. For example, Comet helped vali
 action](https://github.com/apache/iceberg/pull/15470), confirming the corrected behavior against
 Iceberg Rust.
 
-This workflow is becoming part of how both projects test. Comet's CI runs Iceberg Java's Spark
-tests on every Comet pull request, so the shared corpus continuously guards the native path against
-regressions. When a Comet contributor fixes a bug or adds a feature on an Iceberg Rust branch, they
+The same test suites that guard Comet's correctness also drive Iceberg Rust development. When a
+Comet contributor fixes a bug or adds a feature on an Iceberg Rust branch, they
 typically open a Comet draft pull request that points at that branch and demonstrates previously
 failing Iceberg Java tests passing end to end. The same setup is used informally to validate Iceberg
 Rust release candidates. Comet is not a formal CI check for Iceberg Rust, but its developers are
