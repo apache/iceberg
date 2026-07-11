@@ -32,7 +32,7 @@ lakehouse
 platforms. With Iceberg, users store their tables with the benefit of being able to access
 and modify their data from a number of different query engines.
 [Apache Spark](https://spark.apache.org) is the engine most closely associated with Iceberg. The
-[Iceberg Java repository](https://github.com/apache/iceberg), effectively the reference
+[Iceberg Java repository](https://github.com/apache/iceberg), the *de facto* reference
 implementation of the Iceberg spec, ships Spark as its most mature integration. It is also the
 engine most teams rely on for table maintenance like compaction and snapshot expiration.
 In addition to Java, the Iceberg community maintains a number
@@ -75,10 +75,9 @@ integrate with query planning, a process that
 Apache Iceberg PMC member Russell Spitzer recently described in a talk titled 
 ["An Extremely Technical Overview of How Apache Iceberg Planning Actually Works"](https://www.youtube.com/watch?v=kJaD0WuQ1Bg).
 The short version of the talk is that given a query reading an Iceberg table, the Java 
-library inspects table metadata (*e.g.*,
-version history, schema, statistics, file layout) to construct `FileScanTask` objects that describe the
-low-level operations (*e.g.*, file paths and byte ranges) needed to
-read Iceberg tables and provide data for downstream query operators.
+library inspects table metadata (*e.g.*, version history, schema, statistics, file layout) to
+construct `FileScanTask` objects. These objects describe the low-level operations (*e.g.*, file paths
+and byte ranges) needed to read the table and feed data to downstream query operators.
 
 Comet still relies on Iceberg Java for this planning. Acceleration is possible because Iceberg Rust
 has its own `FileScanTask`, so Comet uses it as the common abstraction between the two libraries: it
