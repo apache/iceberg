@@ -36,8 +36,7 @@ public class TestValidateTableIntegrityResult {
 
   @Test
   public void emptyResultIsValid() {
-    ValidateTableIntegrity.Result result =
-        ImmutableValidateTableIntegrity.Result.builder().build();
+    ValidateTableIntegrity.Result result = ImmutableValidateTableIntegrity.Result.builder().build();
     assertThat(result.isValid()).isTrue();
     assertThat(result.missingFileCount()).isEqualTo(0);
     assertThat(result.totalMetadataFiles()).isEqualTo(0);
