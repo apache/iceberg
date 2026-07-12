@@ -56,6 +56,14 @@ public class ExpressionVisitors {
       return null;
     }
 
+    public R spatialPredicate(BoundSpatialPredicate pred) {
+      return null;
+    }
+
+    public R spatialPredicate(UnboundSpatialPredicate pred) {
+      return null;
+    }
+
     public <T, C> R aggregate(BoundAggregate<T, C> agg) {
       throw new UnsupportedOperationException("Cannot visit aggregate expression");
     }
@@ -340,7 +348,11 @@ public class ExpressionVisitors {
    * @return the value returned by the visitor for the root expression node
    */
   public static <R> R visit(Expression expr, ExpressionVisitor<R> visitor) {
-    if (expr instanceof Predicate) {
+    if (expr instanceof BoundSpatialPredicate) {
+      return visitor.spatialPredicate((BoundSpatialPredicate) expr);
+    } else if (expr instanceof UnboundSpatialPredicate) {
+      return visitor.spatialPredicate((UnboundSpatialPredicate) expr);
+    } else if (expr instanceof Predicate) {
       if (expr instanceof BoundPredicate) {
         return visitor.predicate((BoundPredicate<?>) expr);
       } else {
@@ -385,7 +397,11 @@ public class ExpressionVisitors {
    * @return the value returned by the visitor for the root expression node
    */
   public static Boolean visitEvaluator(Expression expr, ExpressionVisitor<Boolean> visitor) {
-    if (expr instanceof Predicate) {
+    if (expr instanceof BoundSpatialPredicate) {
+      return visitor.spatialPredicate((BoundSpatialPredicate) expr);
+    } else if (expr instanceof UnboundSpatialPredicate) {
+      return visitor.spatialPredicate((UnboundSpatialPredicate) expr);
+    } else if (expr instanceof Predicate) {
       if (expr instanceof BoundPredicate) {
         return visitor.predicate((BoundPredicate<?>) expr);
       } else {
