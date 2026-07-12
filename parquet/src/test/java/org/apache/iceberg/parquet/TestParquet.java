@@ -68,6 +68,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.IntegerType;
 import org.apache.iceberg.util.Pair;
+import org.apache.iceberg.util.RandomUtil;
 import org.apache.iceberg.variants.Variant;
 import org.apache.parquet.avro.AvroParquetWriter;
 import org.apache.parquet.column.Encoding;
@@ -337,8 +338,11 @@ public class TestParquet {
             optional(1, "geom", Types.GeometryType.crs84()),
             optional(2, "geog", Types.GeographyType.crs84()));
 
-    ByteBuffer geomWkb = ByteBuffer.wrap(new byte[] {0x01, 0x02, 0x03});
-    ByteBuffer geogWkb = ByteBuffer.wrap(new byte[] {0x04, 0x05, 0x06});
+    // Use real WKB points: the geometry/geography columns carry a Parquet geospatial logical type,
+    // so the writer parses each value with a WKB reader to build geospatial statistics. Arbitrary
+    // bytes would fail that parse and be silently omitted from stats.
+    ByteBuffer geomWkb = ByteBuffer.wrap(RandomUtil.wkbPoint(30, 10));
+    ByteBuffer geogWkb = ByteBuffer.wrap(RandomUtil.wkbPoint(-5, 40));
 
     org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(schema.asStruct());
     GenericData.Record record = new GenericData.Record(avroSchema);

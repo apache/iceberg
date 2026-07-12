@@ -22,7 +22,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import java.nio.file.Path;
 import java.util.List;
 import org.apache.iceberg.DataFile;
@@ -41,6 +40,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.RandomUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -162,14 +162,6 @@ public class TestAvroDataWriter {
   }
 
   private static ByteBuffer wkbPoint(double xCoord, double yCoord) {
-    // little-endian WKB encoding of a point
-    return ByteBuffer.wrap(
-        ByteBuffer.allocate(21)
-            .order(ByteOrder.LITTLE_ENDIAN)
-            .put((byte) 1) // byte order: little endian
-            .putInt(1) // WKB geometry type: Point
-            .putDouble(xCoord)
-            .putDouble(yCoord)
-            .array());
+    return ByteBuffer.wrap(RandomUtil.wkbPoint(xCoord, yCoord));
   }
 }
