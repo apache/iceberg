@@ -42,10 +42,9 @@ import org.apache.iceberg.Table;
  *       migration audits, or any out-of-band copy (backups, Distcp output, manual file copies).
  * </ul>
  *
- * <p>The source metadata is always the ground truth: the action walks it to enumerate expected
- * files rather than trusting the destination's own metadata. Files referenced by the source but
- * missing at the checked location are reported regardless of whether the destination's own metadata
- * is internally consistent.
+ * <p>The action walks the full metadata graph — metadata.json log entries, manifest lists,
+ * manifests, data files, delete files (including V3 deletion vectors), statistics files, and
+ * partition statistics — verifying every referenced file exists at the checked location.
  *
  * <p>Three modes control which files are validated, selected by which parameters are configured:
  *
