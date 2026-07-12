@@ -28,6 +28,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 public class TestSparkGeospatial extends TestBase {
@@ -94,20 +95,27 @@ public class TestSparkGeospatial extends TestBase {
             TABLE));
   }
 
-  @ParameterizedTest
-  @ValueSource(strings = {"copy-on-write", "merge-on-read"})
-  public void testDeleteGeospatial(String mode) {
+  @ParameterizedTest(name = "mode = {0}, vectorized = {1}")
+  @CsvSource({
+    "copy-on-write, false",
+    "copy-on-write, true",
+    "merge-on-read, false",
+    "merge-on-read, true"
+  })
+  public void testDeleteGeospatial(String mode, boolean vectorized) {
     // Exercise both row-level modes: copy-on-write (the default) rewrites the surviving rows into a
     // new data file, while merge-on-read writes a deletion vector. Both must read the geo values
-    // back out correctly. Write both rows into one data file (COALESCE(1)) so the merge-on-read
-    // delete leaves a survivor in that file, forcing a deletion vector rather than a whole-file
-    // removal. Filter on id since Spark has no spatial predicate.
+    // back out correctly, whether or not vectorized reads are requested (geo falls back to the
+    // non-vectorized reader either way). Write both rows into one data file (COALESCE(1)) so the
+    // merge-on-read delete leaves a survivor in that file, forcing a deletion vector rather than a
+    // whole-file removal. Filter on id since Spark has no spatial predicate.
     String deleteTable = CATALOG + ".default.geo_delete";
     sql("DROP TABLE IF EXISTS %s", deleteTable);
     sql(
         "CREATE TABLE %s (id BIGINT, geom GEOMETRY(4326), geog GEOGRAPHY(4326)) USING iceberg "
-            + "TBLPROPERTIES ('format-version'='3', 'write.delete.mode'='%s')",
-        deleteTable, mode);
+            + "TBLPROPERTIES ('format-version'='3', 'write.delete.mode'='%s', "
+            + "'read.parquet.vectorization.enabled'='%s')",
+        deleteTable, mode, vectorized);
     sql(
         "INSERT INTO %s SELECT /*+ COALESCE(1) */ id, "
             + "CASE WHEN geom_wkb IS NULL THEN NULL "
@@ -144,17 +152,23 @@ public class TestSparkGeospatial extends TestBase {
     sql("DROP TABLE IF EXISTS %s", deleteTable);
   }
 
-  @ParameterizedTest
-  @ValueSource(strings = {"copy-on-write", "merge-on-read"})
-  public void testUpdateGeospatial(String mode) {
+  @ParameterizedTest(name = "mode = {0}, vectorized = {1}")
+  @CsvSource({
+    "copy-on-write, false",
+    "copy-on-write, true",
+    "merge-on-read, false",
+    "merge-on-read, true"
+  })
+  public void testUpdateGeospatial(String mode, boolean vectorized) {
     // Update the first row's geometry; the untouched row must round-trip unchanged. Copy-on-write
     // rewrites the untouched row, merge-on-read writes a deletion vector plus the new row.
     String updateTable = CATALOG + ".default.geo_update";
     sql("DROP TABLE IF EXISTS %s", updateTable);
     sql(
         "CREATE TABLE %s (id BIGINT, geom GEOMETRY(4326), geog GEOGRAPHY(4326)) USING iceberg "
-            + "TBLPROPERTIES ('format-version'='3', 'write.update.mode'='%s')",
-        updateTable, mode);
+            + "TBLPROPERTIES ('format-version'='3', 'write.update.mode'='%s', "
+            + "'read.parquet.vectorization.enabled'='%s')",
+        updateTable, mode, vectorized);
     sql(
         "INSERT INTO %s VALUES "
             + "(1, st_setsrid(st_geomfromwkb(X'%s'), 4326), st_setsrid(st_geogfromwkb(X'%s'), 4326)), "
@@ -177,16 +191,22 @@ public class TestSparkGeospatial extends TestBase {
     sql("DROP TABLE IF EXISTS %s", updateTable);
   }
 
-  @ParameterizedTest
-  @ValueSource(strings = {"copy-on-write", "merge-on-read"})
-  public void testMergeGeospatial(String mode) {
+  @ParameterizedTest(name = "mode = {0}, vectorized = {1}")
+  @CsvSource({
+    "copy-on-write, false",
+    "copy-on-write, true",
+    "merge-on-read, false",
+    "merge-on-read, true"
+  })
+  public void testMergeGeospatial(String mode, boolean vectorized) {
     // Source updates id=1 (matched) and inserts id=3 (not matched); geo values flow through both.
     String mergeTable = CATALOG + ".default.geo_merge";
     sql("DROP TABLE IF EXISTS %s", mergeTable);
     sql(
         "CREATE TABLE %s (id BIGINT, geom GEOMETRY(4326), geog GEOGRAPHY(4326)) USING iceberg "
-            + "TBLPROPERTIES ('format-version'='3', 'write.merge.mode'='%s')",
-        mergeTable, mode);
+            + "TBLPROPERTIES ('format-version'='3', 'write.merge.mode'='%s', "
+            + "'read.parquet.vectorization.enabled'='%s')",
+        mergeTable, mode, vectorized);
     sql(
         "INSERT INTO %s VALUES "
             + "(1, st_setsrid(st_geomfromwkb(X'%s'), 4326), st_setsrid(st_geogfromwkb(X'%s'), 4326)), "
@@ -218,30 +238,43 @@ public class TestSparkGeospatial extends TestBase {
     sql("DROP TABLE IF EXISTS %s", mergeTable);
   }
 
-  @ParameterizedTest
-  @ValueSource(strings = {"copy-on-write", "merge-on-read"})
-  public void testDeleteNestedGeometry(String mode) {
-    // Geometry nested in a struct: delete by a nested non-geo field; the surviving nested geometry
-    // (and a null nested geometry) must still round-trip under both row-level modes.
+  @ParameterizedTest(name = "mode = {0}, vectorized = {1}")
+  @CsvSource({
+    "copy-on-write, false",
+    "copy-on-write, true",
+    "merge-on-read, false",
+    "merge-on-read, true"
+  })
+  public void testDeleteNestedGeospatial(String mode, boolean vectorized) {
+    // Geometry and geography nested in a struct: delete by a nested non-geo field. Both a surviving
+    // non-null nested geometry/geography and a surviving null one must round-trip under either
+    // mode.
     String nestedTable = CATALOG + ".default.geo_nested";
     sql("DROP TABLE IF EXISTS %s", nestedTable);
     sql(
-        "CREATE TABLE %s (id BIGINT, complex STRUCT<c1: INT, geom: GEOMETRY(4326)>) USING iceberg "
-            + "TBLPROPERTIES ('format-version'='3', 'write.delete.mode'='%s')",
-        nestedTable, mode);
+        "CREATE TABLE %s (id BIGINT, "
+            + "complex STRUCT<c1: INT, geom: GEOMETRY(4326), geog: GEOGRAPHY(4326)>) USING iceberg "
+            + "TBLPROPERTIES ('format-version'='3', 'write.delete.mode'='%s', "
+            + "'read.parquet.vectorization.enabled'='%s')",
+        nestedTable, mode, vectorized);
     sql(
         "INSERT INTO %s VALUES "
-            + "(1, named_struct('c1', 10, 'geom', st_setsrid(st_geomfromwkb(X'%s'), 4326))), "
-            + "(2, named_struct('c1', 20, 'geom', CAST(NULL AS GEOMETRY(4326))))",
-        nestedTable, GEOM_WKB);
+            + "(1, named_struct('c1', 10, "
+            + "'geom', st_setsrid(st_geomfromwkb(X'%s'), 4326), "
+            + "'geog', st_setsrid(st_geogfromwkb(X'%s'), 4326))), "
+            + "(2, named_struct('c1', 20, "
+            + "'geom', st_setsrid(st_geomfromwkb(X'%s'), 4326), "
+            + "'geog', CAST(NULL AS GEOGRAPHY(4326))))",
+        nestedTable, OTHER_WKB, GEOG_WKB, GEOM_WKB);
 
     sql("DELETE FROM %s WHERE complex.c1 = 10", nestedTable);
 
     assertEquals(
-        "Only the row with the null nested geometry should remain",
-        ImmutableList.of(row(2L, 20, null)),
+        "Only the second row remains, with its nested geometry and null geography intact",
+        ImmutableList.of(row(2L, 20, GEOM_WKB.toUpperCase(Locale.ROOT), null)),
         sql(
-            "SELECT id, complex.c1, hex(st_asbinary(complex.geom)) FROM %s ORDER BY id",
+            "SELECT id, complex.c1, hex(st_asbinary(complex.geom)), hex(st_asbinary(complex.geog)) "
+                + "FROM %s ORDER BY id",
             nestedTable));
 
     sql("DROP TABLE IF EXISTS %s", nestedTable);
