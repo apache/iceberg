@@ -36,17 +36,16 @@ import org.apache.iceberg.Table;
  *       for standalone integrity checks: post-restore verification, catalog audits, and detecting
  *       storage-side drift (files removed out-of-band while metadata still references them).
  *   <li><b>Source-vs-destination</b> — configure a source and a destination together with a
- *       location prefix rewrite. The action walks source metadata, rewrites each referenced path
- *       to its destination, and verifies existence at the destination. Use this for
- *       pre-registration verification of a copy produced by {@link RewriteTablePath}, DR
- *       pre-promotion checks, migration audits, or any out-of-band copy (backups, Distcp output,
- *       manual file copies).
+ *       location prefix rewrite. The action walks source metadata, rewrites each referenced path to
+ *       its destination, and verifies existence at the destination. Use this for pre-registration
+ *       verification of a copy produced by {@link RewriteTablePath}, DR pre-promotion checks,
+ *       migration audits, or any out-of-band copy (backups, Distcp output, manual file copies).
  * </ul>
  *
  * <p>The source metadata is always the ground truth: the action walks it to enumerate expected
  * files rather than trusting the destination's own metadata. Files referenced by the source but
- * missing at the checked location are reported regardless of whether the destination's own
- * metadata is internally consistent.
+ * missing at the checked location are reported regardless of whether the destination's own metadata
+ * is internally consistent.
  *
  * <p>Three modes control which files are validated, selected by which parameters are configured:
  *
