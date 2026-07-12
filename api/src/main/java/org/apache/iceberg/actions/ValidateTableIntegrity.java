@@ -38,8 +38,8 @@ import org.apache.iceberg.Table;
  *   <li><b>Source-vs-destination</b> — configure a source and a destination together with a
  *       location prefix rewrite. The action walks source metadata, rewrites each referenced path to
  *       its destination, and verifies existence at the destination. Use this for pre-registration
- *       verification of a copy produced by {@link RewriteTablePath}, DR pre-promotion checks,
- *       migration audits, or any out-of-band copy (backups, Distcp output, manual file copies).
+ *       verification of a fresh copy, DR pre-promotion checks, migration audits, or any out-of-band
+ *       copy (backups, Distcp output, manual file copies).
  * </ul>
  *
  * <p>The action walks the full metadata graph — metadata.json log entries, manifest lists,
@@ -107,9 +107,9 @@ public interface ValidateTableIntegrity
     extends Action<ValidateTableIntegrity, ValidateTableIntegrity.Result> {
 
   /**
-   * Sets the destination table for incremental validation. Must be paired with {@link
-   * #destinationMetadataVersion}; both must be set to enable incremental mode, or both must be left
-   * unset to run backfill mode.
+   * Sets the destination table, enabling source-vs-destination validation. Must be paired with
+   * {@link #destinationMetadataVersion}; both must be set together, or both must be left unset to
+   * run as a self-audit on the source table.
    */
   ValidateTableIntegrity destinationTable(Table table);
 
@@ -124,7 +124,7 @@ public interface ValidateTableIntegrity
 
   /**
    * Sets the destination metadata version. Must be paired with {@link #destinationTable}; both must
-   * be set or both must be left unset.
+   * be set together, or both must be left unset to run as a self-audit on the source table.
    */
   ValidateTableIntegrity destinationMetadataVersion(String version);
 
@@ -137,13 +137,15 @@ public interface ValidateTableIntegrity
    * snapshot id are not re-checked. Callers that require validation of every source file regardless
    * of prior destination state should call {@link #validateFullTable(boolean)} with {@code true}.
    *
-   * <p>Leave unset for a first-time copy: the action validates the full source file set at {@link
-   * #sourceSnapshotId(long)} against the destination, without performing a diff.
+   * <p>Leave unset when no prior known-good state exists (first-time validation, initial copy, or
+   * fresh audit): the action validates the full source file set at {@link #sourceSnapshotId(long)}
+   * against the destination, without performing a diff.
    *
-   * <p>After a copy that preserves snapshot identity (such as a {@link RewriteTablePath} copy),
-   * setting this to the destination's current snapshot id produces an empty incremental diff (zero
-   * files validated). Pass the previous snapshot id, or call {@link #validateFullTable(boolean)}
-   * with {@code true}, instead.
+   * <p>After a workflow that preserves snapshot identity between source and destination (such as a
+   * copy that uses {@link RewriteTablePath} to generate destination metadata), setting this to the
+   * destination's current snapshot id produces an empty incremental diff (zero files validated).
+   * Pass the previous snapshot id, or call {@link #validateFullTable(boolean)} with {@code true},
+   * instead.
    *
    * <p>If this snapshot id is not present in the source's snapshot history at execution time — for
    * example, the source's retention policy has since expired it, or the destination committed
@@ -194,7 +196,7 @@ public interface ValidateTableIntegrity
   /** The action result. */
   interface Result {
 
-    /** Returns true when no expected files are missing at the destination. */
+    /** Returns true when no expected files are missing at the checked location. */
     boolean isValid();
 
     /**
@@ -205,7 +207,7 @@ public interface ValidateTableIntegrity
      */
     long totalMetadataFiles();
 
-    /** Paths of metadata files missing from the destination. */
+    /** Paths of metadata files missing from the checked location. */
     List<String> missingMetadataFiles();
 
     /**
@@ -217,7 +219,7 @@ public interface ValidateTableIntegrity
      */
     long totalDataFiles();
 
-    /** Paths of data files missing from the destination. */
+    /** Paths of data files missing from the checked location. */
     List<String> missingDataFiles();
 
     /**
@@ -227,7 +229,7 @@ public interface ValidateTableIntegrity
      */
     long totalDeleteFiles();
 
-    /** Paths of delete files missing from the destination. */
+    /** Paths of delete files missing from the checked location. */
     List<String> missingDeleteFiles();
 
     /** Combined count of all missing files. */
