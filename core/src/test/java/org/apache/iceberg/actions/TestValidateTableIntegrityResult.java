@@ -24,20 +24,20 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import org.apache.iceberg.actions.ValidateRewriteTablePath.ValidateScope;
+import org.apache.iceberg.actions.ValidateTableIntegrity.ValidateScope;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.jupiter.api.Test;
 
 /**
- * Unit tests for the Immutables-generated {@link ValidateRewriteTablePath.Result} and {@link
+ * Unit tests for the Immutables-generated {@link ValidateTableIntegrity.Result} and {@link
  * ValidateScope#fromString}.
  */
-public class TestValidateRewriteTablePathResult {
+public class TestValidateTableIntegrityResult {
 
   @Test
   public void emptyResultIsValid() {
-    ValidateRewriteTablePath.Result result =
-        ImmutableValidateRewriteTablePath.Result.builder().build();
+    ValidateTableIntegrity.Result result =
+        ImmutableValidateTableIntegrity.Result.builder().build();
     assertThat(result.isValid()).isTrue();
     assertThat(result.missingFileCount()).isEqualTo(0);
     assertThat(result.totalMetadataFiles()).isEqualTo(0);
@@ -47,8 +47,8 @@ public class TestValidateRewriteTablePathResult {
 
   @Test
   public void missingMetadataFilesAreReported() {
-    ValidateRewriteTablePath.Result result =
-        ImmutableValidateRewriteTablePath.Result.builder()
+    ValidateTableIntegrity.Result result =
+        ImmutableValidateTableIntegrity.Result.builder()
             .totalMetadataFiles(10)
             .missingMetadataFiles(
                 Arrays.asList(
@@ -60,8 +60,8 @@ public class TestValidateRewriteTablePathResult {
 
   @Test
   public void missingDataFilesAreReported() {
-    ValidateRewriteTablePath.Result result =
-        ImmutableValidateRewriteTablePath.Result.builder()
+    ValidateTableIntegrity.Result result =
+        ImmutableValidateTableIntegrity.Result.builder()
             .totalDataFiles(100)
             .missingDataFiles(
                 Arrays.asList(
@@ -75,8 +75,8 @@ public class TestValidateRewriteTablePathResult {
 
   @Test
   public void missingDeleteFilesAreReported() {
-    ValidateRewriteTablePath.Result result =
-        ImmutableValidateRewriteTablePath.Result.builder()
+    ValidateTableIntegrity.Result result =
+        ImmutableValidateTableIntegrity.Result.builder()
             .totalDeleteFiles(5)
             .missingDeleteFiles(Collections.singletonList("s3://bucket/data/delete-file1.parquet"))
             .build();
@@ -86,8 +86,8 @@ public class TestValidateRewriteTablePathResult {
 
   @Test
   public void mixedMissingFilesSumCorrectly() {
-    ValidateRewriteTablePath.Result result =
-        ImmutableValidateRewriteTablePath.Result.builder()
+    ValidateTableIntegrity.Result result =
+        ImmutableValidateTableIntegrity.Result.builder()
             .missingMetadataFiles(Collections.singletonList("s3://bucket/metadata/manifest1.avro"))
             .missingDataFiles(
                 Arrays.asList("s3://bucket/data/file1.parquet", "s3://bucket/data/file2.parquet"))
@@ -99,8 +99,8 @@ public class TestValidateRewriteTablePathResult {
 
   @Test
   public void validationSummaryRendersForValidResult() {
-    ValidateRewriteTablePath.Result result =
-        ImmutableValidateRewriteTablePath.Result.builder()
+    ValidateTableIntegrity.Result result =
+        ImmutableValidateTableIntegrity.Result.builder()
             .totalMetadataFiles(10)
             .totalDataFiles(100)
             .totalDeleteFiles(5)
@@ -117,8 +117,8 @@ public class TestValidateRewriteTablePathResult {
 
   @Test
   public void validationSummaryRendersForInvalidResult() {
-    ValidateRewriteTablePath.Result result =
-        ImmutableValidateRewriteTablePath.Result.builder()
+    ValidateTableIntegrity.Result result =
+        ImmutableValidateTableIntegrity.Result.builder()
             .totalMetadataFiles(10)
             .missingMetadataFiles(Arrays.asList("manifest1.avro", "manifest2.avro"))
             .totalDataFiles(100)
@@ -140,8 +140,8 @@ public class TestValidateRewriteTablePathResult {
         Arrays.asList("s3://bucket/data/part-00001.parquet", "s3://bucket/data/part-00002.parquet");
     List<String> deleteFiles = Collections.singletonList("s3://bucket/data/delete-00001.parquet");
 
-    ValidateRewriteTablePath.Result result =
-        ImmutableValidateRewriteTablePath.Result.builder()
+    ValidateTableIntegrity.Result result =
+        ImmutableValidateTableIntegrity.Result.builder()
             .missingMetadataFiles(metadataFiles)
             .missingDataFiles(dataFiles)
             .missingDeleteFiles(deleteFiles)
@@ -159,8 +159,8 @@ public class TestValidateRewriteTablePathResult {
     for (int i = 0; i < 1000; i++) {
       largeList.add("file.parquet");
     }
-    ValidateRewriteTablePath.Result result =
-        ImmutableValidateRewriteTablePath.Result.builder()
+    ValidateTableIntegrity.Result result =
+        ImmutableValidateTableIntegrity.Result.builder()
             .totalDataFiles(10000)
             .missingDataFiles(largeList)
             .build();
@@ -188,6 +188,6 @@ public class TestValidateRewriteTablePathResult {
   public void validateScopeThrowsOnNoneValue() {
     assertThatThrownBy(() -> ValidateScope.fromString("none"))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Invalid validateRewriteTablePath scope");
+        .hasMessageContaining("Invalid validateTableIntegrity scope");
   }
 }

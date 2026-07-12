@@ -24,73 +24,78 @@ import java.util.Map;
 import org.apache.iceberg.Table;
 
 /**
- * An action that validates a rewritten table copy by checking that every metadata, data, and delete
- * file the source table references is present at the destination.
+ * An action that validates the referential integrity of an Iceberg table's metadata — that every
+ * metadata, data, and delete file the table's metadata references actually exists at its stated
+ * location (or at a corresponding rewritten location when a destination is configured).
  *
- * <p>The source table is the source of truth: this action walks its metadata to enumerate every
- * expected file, applies any configured prefix rewrite, and verifies each path at the destination.
- * Files referenced by the source table but missing at the destination are reported regardless of
- * whether the destination's own metadata is internally consistent.
- *
- * <p>Two common uses:
+ * <p>Supports two shapes:
  *
  * <ul>
- *   <li><b>Verify a copy before registering it</b> — after producing a destination via {@link
- *       RewriteTablePath}, run this action to confirm the destination contains every expected file
- *       before registering the new metadata.json with a catalog. For a first-time copy, leave
- *       {@link #destinationSnapshotId(long)} unset so the action validates the full source file set
- *       at the source's latest snapshot; alternatively call {@link #validateFullTable(boolean)}
- *       with {@code true}.
- *   <li><b>Audit any source/destination pair for sync</b> — the destination does not have to have
- *       been produced by {@link RewriteTablePath}. This works against DR replicas, migration
- *       targets, backups, Distcp output, manual file copies, or any other out-of-band copy. Run
- *       this action to confirm the destination still references every file the source does. The
- *       validator only requires loadable source and destination Tables plus {@link
- *       #rewriteLocationPrefix(String, String)} to map source paths to destination paths. Pass
- *       {@link #destinationSnapshotId(long)} (the destination's snapshot id from the previous
- *       successful copy or validation) to validate only the delta accumulated since that point;
- *       call {@link #validateFullTable(boolean)} with {@code true} to re-validate the full source
- *       file set regardless of any prior destination state.
+ *   <li><b>Self-audit</b> — configure a single table with no destination. The action walks that
+ *       table's metadata and verifies each referenced file exists at its stated location. Use this
+ *       for standalone integrity checks: post-restore verification, catalog audits, and detecting
+ *       storage-side drift (files removed out-of-band while metadata still references them).
+ *   <li><b>Source-vs-destination</b> — configure a source and a destination together with a
+ *       location prefix rewrite. The action walks source metadata, rewrites each referenced path
+ *       to its destination, and verifies existence at the destination. Use this for
+ *       pre-registration verification of a copy produced by {@link RewriteTablePath}, DR
+ *       pre-promotion checks, migration audits, or any out-of-band copy (backups, Distcp output,
+ *       manual file copies).
  * </ul>
  *
- * <p>The action operates in three modes selected by which parameters are configured: backfill
- * (source only), incremental (source plus destination), and forced full validation against an
- * existing destination via {@link #validateFullTable(boolean)}. Each mode validates a different
- * file set:
+ * <p>The source metadata is always the ground truth: the action walks it to enumerate expected
+ * files rather than trusting the destination's own metadata. Files referenced by the source but
+ * missing at the checked location are reported regardless of whether the destination's own
+ * metadata is internally consistent.
+ *
+ * <p>Three modes control which files are validated, selected by which parameters are configured:
  *
  * <ul>
  *   <li><b>Backfill</b> validates every file the source references at {@link
- *       #sourceSnapshotId(long)}, scoped by {@link #validateScope(ValidateScope)}.
+ *       #sourceSnapshotId(long)}, scoped by {@link #validateScope(ValidateScope)}. Enabled when
+ *       destination setters are not configured; this is also the self-audit path.
  *   <li><b>Incremental</b> validates only the files source has accumulated between {@link
  *       #destinationSnapshotId(long)} (exclusive) and {@link #sourceSnapshotId(long)} (inclusive).
  *       It does not re-check files that already existed at {@link #destinationSnapshotId(long)};
  *       those are presumed to have been validated when the destination was last at that snapshot.
- *   <li><b>Forced full</b> validation, enabled with {@link #validateFullTable(boolean)} set to
- *       {@code true}, validates the full source file set against the destination regardless of any
- *       configured destination snapshot id.
+ *   <li><b>Forced full</b>, enabled with {@link #validateFullTable(boolean)} set to {@code true},
+ *       validates the full source file set against the destination regardless of any configured
+ *       destination snapshot id.
  * </ul>
  *
  * <p>Use forced full validation when the destination state at {@link #destinationSnapshotId(long)}
  * cannot be presumed correct — for example, when no prior validation result is available, when
  * destination files may have been altered out-of-band, or when running an audit-from-scratch.
  *
- * <p>Backfill example — verify a fresh copy before registering it:
+ * <p>Self-audit example — verify a single table's metadata references files that still exist:
  *
  * <pre>{@code
  * Result result = SparkActions.get(spark)
- *     .validateRewriteTablePath(sourceTable)
+ *     .validateTableIntegrity(table)
  *     .sourceMetadataVersion(version)
  *     .sourceSnapshotId(snapshotId)
+ *     .execute();
+ * }</pre>
+ *
+ * <p>Source-vs-destination example — verify a fresh copy before registering it:
+ *
+ * <pre>{@code
+ * Result result = SparkActions.get(spark)
+ *     .validateTableIntegrity(sourceTable)
+ *     .sourceMetadataVersion(version)
+ *     .sourceSnapshotId(snapshotId)
+ *     .destinationTable(destinationTable)
+ *     .destinationMetadataVersion(destinationVersion)
  *     .rewriteLocationPrefix(sourcePrefix, destinationPrefix)
  *     .execute();
  * }</pre>
  *
- * <p>Incremental example — verify two tables stay in sync after an incremental copy. Pass the
- * destination's snapshot id as it was <i>before</i> the latest copy ran:
+ * <p>Incremental source-vs-destination example — verify two tables stay in sync after an
+ * incremental copy. Pass the destination's snapshot id as it was <i>before</i> the latest copy ran:
  *
  * <pre>{@code
  * Result result = SparkActions.get(spark)
- *     .validateRewriteTablePath(sourceTable)
+ *     .validateTableIntegrity(sourceTable)
  *     .sourceMetadataVersion(currentSourceVersion)
  *     .sourceSnapshotId(currentSourceSnapshotId)
  *     .destinationTable(destinationTable)
@@ -100,30 +105,30 @@ import org.apache.iceberg.Table;
  *     .execute();
  * }</pre>
  */
-public interface ValidateRewriteTablePath
-    extends Action<ValidateRewriteTablePath, ValidateRewriteTablePath.Result> {
+public interface ValidateTableIntegrity
+    extends Action<ValidateTableIntegrity, ValidateTableIntegrity.Result> {
 
   /**
    * Sets the destination table for incremental validation. Must be paired with {@link
    * #destinationMetadataVersion}; both must be set to enable incremental mode, or both must be left
    * unset to run backfill mode.
    */
-  ValidateRewriteTablePath destinationTable(Table table);
+  ValidateTableIntegrity destinationTable(Table table);
 
   /** Sets the source metadata version (file name or absolute path). Required. */
-  ValidateRewriteTablePath sourceMetadataVersion(String version);
+  ValidateTableIntegrity sourceMetadataVersion(String version);
 
   /**
    * Sets the source snapshot id. Required unless the source metadata has no current snapshot (empty
    * source table); in that case the action validates only the metadata files.
    */
-  ValidateRewriteTablePath sourceSnapshotId(long snapshotId);
+  ValidateTableIntegrity sourceSnapshotId(long snapshotId);
 
   /**
    * Sets the destination metadata version. Must be paired with {@link #destinationTable}; both must
    * be set or both must be left unset.
    */
-  ValidateRewriteTablePath destinationMetadataVersion(String version);
+  ValidateTableIntegrity destinationMetadataVersion(String version);
 
   /**
    * Sets the destination snapshot id used as the lower bound of the incremental diff. This is the
@@ -151,30 +156,30 @@ public interface ValidateRewriteTablePath
    *
    * <p>Requires {@link #destinationTable(Table)} to be set.
    */
-  ValidateRewriteTablePath destinationSnapshotId(long snapshotId);
+  ValidateTableIntegrity destinationSnapshotId(long snapshotId);
 
   /**
    * Forces backfill semantics even when destination parameters are set. Use this when the
    * destination has diverged from the source and the incremental diff would be incorrect, or when a
    * full audit of every expected file is required regardless of destination state.
    */
-  ValidateRewriteTablePath validateFullTable(boolean validateFull);
+  ValidateTableIntegrity validateFullTable(boolean validateFull);
 
   /**
    * Sets the scope of content file validation. Affects backfill mode only — has no effect on
    * incremental validation, which always computes the source-vs-destination snapshot diff.
    */
-  ValidateRewriteTablePath validateScope(ValidateScope scope);
+  ValidateTableIntegrity validateScope(ValidateScope scope);
 
   /** Adds a source-to-destination location prefix rewrite rule. */
-  ValidateRewriteTablePath rewriteLocationPrefix(String sourcePrefix, String destinationPrefix);
+  ValidateTableIntegrity rewriteLocationPrefix(String sourcePrefix, String destinationPrefix);
 
   /**
    * Adds multiple source-to-destination location prefix rewrite rules. Equivalent to calling {@link
    * #rewriteLocationPrefix(String, String)} once per entry; entries accumulate with any
    * previously-added rules and are applied longest-prefix first at lookup time.
    */
-  default ValidateRewriteTablePath rewriteLocationPrefix(Map<String, String> prefixMap) {
+  default ValidateTableIntegrity rewriteLocationPrefix(Map<String, String> prefixMap) {
     prefixMap.forEach(this::rewriteLocationPrefix);
     return this;
   }
@@ -186,7 +191,7 @@ public interface ValidateRewriteTablePath
    * CatalogUtil.loadFileIO} together with any FileIO-specific configuration (region, endpoint,
    * credentials, etc.).
    */
-  ValidateRewriteTablePath destinationCatalogProperties(Map<String, String> catalogProperties);
+  ValidateTableIntegrity destinationCatalogProperties(Map<String, String> catalogProperties);
 
   /** The action result. */
   interface Result {
@@ -196,7 +201,7 @@ public interface ValidateRewriteTablePath
 
     /**
      * Total metadata files validated. In incremental mode, counts only metadata files newly added
-     * at the source since {@link ValidateRewriteTablePath#destinationSnapshotId}. In backfill mode,
+     * at the source since {@link ValidateTableIntegrity#destinationSnapshotId}. In backfill mode,
      * counts every metadata file (metadata.json entries, manifest lists, manifests, statistics,
      * partition statistics) reachable from the configured source snapshot.
      */
@@ -207,7 +212,7 @@ public interface ValidateRewriteTablePath
 
     /**
      * Total data files validated. In incremental mode, counts only data files newly added at the
-     * source since {@link ValidateRewriteTablePath#destinationSnapshotId}. In backfill mode, counts
+     * source since {@link ValidateTableIntegrity#destinationSnapshotId}. In backfill mode, counts
      * every data file referenced by the source — at the source snapshot when {@link
      * ValidateScope#LATEST} is configured, across the entire source history when {@link
      * ValidateScope#ALL} is configured.
@@ -248,7 +253,7 @@ public interface ValidateRewriteTablePath
       } catch (IllegalArgumentException e) {
         throw new IllegalArgumentException(
             String.format(
-                "Invalid validateRewriteTablePath scope '%s'. Must be one of: all, latest", value));
+                "Invalid validateTableIntegrity scope '%s'. Must be one of: all, latest", value));
       }
     }
   }

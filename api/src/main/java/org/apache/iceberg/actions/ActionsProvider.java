@@ -96,10 +96,12 @@ public interface ActionsProvider {
   }
 
   /**
-   * Instantiates an action to validate that a rewritten table copy is complete at the destination.
+   * Instantiates an action to validate the referential integrity of an Iceberg table's metadata —
+   * that every file the table's metadata references exists at its stated location, or at a
+   * corresponding rewritten location when a destination is configured.
    */
-  default ValidateRewriteTablePath validateRewriteTablePath(Table sourceTable) {
+  default ValidateTableIntegrity validateTableIntegrity(Table table) {
     throw new UnsupportedOperationException(
-        this.getClass().getName() + " does not implement validateRewriteTablePath");
+        this.getClass().getName() + " does not implement validateTableIntegrity");
   }
 }

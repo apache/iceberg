@@ -26,13 +26,13 @@ import org.immutables.value.Value;
 @Value.Enclosing
 @SuppressWarnings("ImmutablesStyle")
 @Value.Style(
-    typeImmutableEnclosing = "ImmutableValidateRewriteTablePath",
+    typeImmutableEnclosing = "ImmutableValidateTableIntegrity",
     visibilityString = "PUBLIC",
     builderVisibilityString = "PUBLIC")
-interface BaseValidateRewriteTablePath extends ValidateRewriteTablePath {
+interface BaseValidateTableIntegrity extends ValidateTableIntegrity {
 
   @Value.Immutable
-  interface Result extends ValidateRewriteTablePath.Result {
+  interface Result extends ValidateTableIntegrity.Result {
 
     @Override
     @Value.Default
