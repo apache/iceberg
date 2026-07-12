@@ -293,6 +293,31 @@ public class S3FileIOProperties implements Serializable {
 
   public static final boolean CHECKSUM_ENABLED_DEFAULT = false;
 
+  /**
+   * Controls when the AWS SDK calculates a checksum for S3 requests. Valid values are {@code
+   * when_supported} (the SDK calculates a checksum for all requests that support one) and {@code
+   * when_required} (the SDK only calculates a checksum for requests where the S3 API requires one).
+   * If not set, the AWS SDK default is used, which is {@code when_supported} since AWS SDK 2.30.0.
+   *
+   * <p>Set this to {@code when_required} for S3-compatible storage that rejects the additional
+   * checksum headers or trailing checksums that the AWS SDK sends by default.
+   *
+   * <p>For more details, see:
+   * https://docs.aws.amazon.com/sdkref/latest/guide/feature-dataintegrity.html
+   */
+  public static final String REQUEST_CHECKSUM_CALCULATION = "s3.request-checksum-calculation";
+
+  /**
+   * Controls when the AWS SDK validates checksums on S3 responses. Valid values are {@code
+   * when_supported} (the SDK validates the checksum whenever the response contains one) and {@code
+   * when_required} (the SDK only validates the checksum when explicitly requested). If not set, the
+   * AWS SDK default is used, which is {@code when_supported} since AWS SDK 2.30.0.
+   *
+   * <p>For more details, see:
+   * https://docs.aws.amazon.com/sdkref/latest/guide/feature-dataintegrity.html
+   */
+  public static final String RESPONSE_CHECKSUM_VALIDATION = "s3.response-checksum-validation";
+
   public static final String REMOTE_SIGNING_ENABLED = "s3.remote-signing-enabled";
 
   public static final boolean REMOTE_SIGNING_ENABLED_DEFAULT = false;
@@ -523,6 +548,8 @@ public class S3FileIOProperties implements Serializable {
   private String stagingDirectory;
   private ObjectCannedACL acl;
   private boolean isChecksumEnabled;
+  private final RequestChecksumCalculation requestChecksumCalculation;
+  private final ResponseChecksumValidation responseChecksumValidation;
   private boolean isChunkedEncodingEnabled;
   private final Set<Tag> writeTags;
   private boolean isWriteTableTagEnabled;
@@ -566,6 +593,8 @@ public class S3FileIOProperties implements Serializable {
     this.deleteBatchSize = DELETE_BATCH_SIZE_DEFAULT;
     this.stagingDirectory = System.getProperty("java.io.tmpdir");
     this.isChecksumEnabled = CHECKSUM_ENABLED_DEFAULT;
+    this.requestChecksumCalculation = null;
+    this.responseChecksumValidation = null;
     this.isChunkedEncodingEnabled = CHUNKED_ENCODING_ENABLED_DEFAULT;
     this.writeTags = Sets.newHashSet();
     this.isWriteTableTagEnabled = WRITE_TABLE_TAG_ENABLED_DEFAULT;
@@ -657,6 +686,10 @@ public class S3FileIOProperties implements Serializable {
         "Cannot support S3 CannedACL " + aclType);
     this.isChecksumEnabled =
         PropertyUtil.propertyAsBoolean(properties, CHECKSUM_ENABLED, CHECKSUM_ENABLED_DEFAULT);
+    this.requestChecksumCalculation =
+        RequestChecksumCalculation.fromValue(properties.get(REQUEST_CHECKSUM_CALCULATION));
+    this.responseChecksumValidation =
+        ResponseChecksumValidation.fromValue(properties.get(RESPONSE_CHECKSUM_VALIDATION));
     this.isChunkedEncodingEnabled =
         PropertyUtil.propertyAsBoolean(
             properties, CHUNKED_ENCODING_ENABLED, CHUNKED_ENCODING_ENABLED_DEFAULT);
@@ -825,6 +858,14 @@ public class S3FileIOProperties implements Serializable {
 
   public boolean isChecksumEnabled() {
     return this.isChecksumEnabled;
+  }
+
+  public RequestChecksumCalculation requestChecksumCalculation() {
+    return this.requestChecksumCalculation;
+  }
+
+  public ResponseChecksumValidation responseChecksumValidation() {
+    return this.responseChecksumValidation;
   }
 
   public boolean isChunkedEncodingEnabled() {
@@ -1022,57 +1063,6 @@ public class S3FileIOProperties implements Serializable {
   }
 
   /**
-   * Configure the request checksum calculation and response checksum validation for an S3 client
-   * based on the {@link #CHECKSUM_ENABLED} property.
-   *
-   * <p>When checksums are disabled (default), sets the checksum policies to {@code WHEN_REQUIRED}
-   * to avoid unexpected checksum calculation from the AWS SDK default of {@code WHEN_SUPPORTED}.
-   * When checksums are enabled, sets the policies to {@code WHEN_SUPPORTED}.
-   *
-   * <p>Sample usage:
-   *
-   * <pre>
-   *     S3Client.builder().applyMutation(s3FileIOProperties::applyChecksumConfigurations)
-   *     S3AsyncClient.builder().applyMutation(s3FileIOProperties::applyChecksumConfigurations)
-   * </pre>
-   */
-  public <T extends S3BaseClientBuilder<T, ?>> void applyChecksumConfigurations(T builder) {
-    RequestChecksumCalculation checksumCalculation =
-        isChecksumEnabled
-            ? RequestChecksumCalculation.WHEN_SUPPORTED
-            : RequestChecksumCalculation.WHEN_REQUIRED;
-    ResponseChecksumValidation checksumValidation =
-        isChecksumEnabled
-            ? ResponseChecksumValidation.WHEN_SUPPORTED
-            : ResponseChecksumValidation.WHEN_REQUIRED;
-    builder.requestChecksumCalculation(checksumCalculation);
-    builder.responseChecksumValidation(checksumValidation);
-  }
-
-  /**
-   * Configure the request checksum calculation and response checksum validation for an S3 CRT
-   * client based on the {@link #CHECKSUM_ENABLED} property.
-   *
-   * <p>Sample usage:
-   *
-   * <pre>
-   *     S3AsyncClient.crtBuilder().applyMutation(s3FileIOProperties::applyChecksumConfigurations)
-   * </pre>
-   */
-  public <T extends S3CrtAsyncClientBuilder> void applyChecksumConfigurations(T builder) {
-    RequestChecksumCalculation checksumCalculation =
-        isChecksumEnabled
-            ? RequestChecksumCalculation.WHEN_SUPPORTED
-            : RequestChecksumCalculation.WHEN_REQUIRED;
-    ResponseChecksumValidation checksumValidation =
-        isChecksumEnabled
-            ? ResponseChecksumValidation.WHEN_SUPPORTED
-            : ResponseChecksumValidation.WHEN_REQUIRED;
-    builder.requestChecksumCalculation(checksumCalculation);
-    builder.responseChecksumValidation(checksumValidation);
-  }
-
-  /**
    * Configure a signer for an S3 client.
    *
    * <p>Sample usage:
@@ -1124,6 +1114,49 @@ public class S3FileIOProperties implements Serializable {
   public <T extends S3CrtAsyncClientBuilder> void applyEndpointConfigurations(T builder) {
     if (endpoint != null) {
       builder.endpointOverride(URI.create(endpoint));
+    }
+  }
+
+  /**
+   * Configure the AWS SDK checksum behavior for an S3 sync or async client, based on the {@link
+   * #REQUEST_CHECKSUM_CALCULATION} and {@link #RESPONSE_CHECKSUM_VALIDATION} properties. When a
+   * property is not set, the corresponding AWS SDK default is left unchanged.
+   *
+   * <p>Sample usage:
+   *
+   * <pre>
+   *     S3Client.builder().applyMutation(s3FileIOProperties::applyChecksumConfigurations)
+   *     S3AsyncClient.builder().applyMutation(s3FileIOProperties::applyChecksumConfigurations)
+   * </pre>
+   */
+  public <T extends S3BaseClientBuilder<T, ?>> void applyChecksumConfigurations(T builder) {
+    if (requestChecksumCalculation != null) {
+      builder.requestChecksumCalculation(requestChecksumCalculation);
+    }
+
+    if (responseChecksumValidation != null) {
+      builder.responseChecksumValidation(responseChecksumValidation);
+    }
+  }
+
+  /**
+   * Configure the AWS SDK checksum behavior for an S3 CRT client, based on the {@link
+   * #REQUEST_CHECKSUM_CALCULATION} and {@link #RESPONSE_CHECKSUM_VALIDATION} properties. When a
+   * property is not set, the corresponding AWS SDK default is left unchanged.
+   *
+   * <p>Sample usage:
+   *
+   * <pre>
+   *     S3AsyncClient.crtBuilder().applyMutation(s3FileIOProperties::applyChecksumConfigurations)
+   * </pre>
+   */
+  public <T extends S3CrtAsyncClientBuilder> void applyChecksumConfigurations(T builder) {
+    if (requestChecksumCalculation != null) {
+      builder.requestChecksumCalculation(requestChecksumCalculation);
+    }
+
+    if (responseChecksumValidation != null) {
+      builder.responseChecksumValidation(responseChecksumValidation);
     }
   }
 

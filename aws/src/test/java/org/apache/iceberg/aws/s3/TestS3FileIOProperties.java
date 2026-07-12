@@ -110,6 +110,9 @@ public class TestS3FileIOProperties {
     assertThat(s3FileIOProperties.isChecksumEnabled())
         .isEqualTo(S3FileIOProperties.CHECKSUM_ENABLED_DEFAULT);
 
+    assertThat(s3FileIOProperties.requestChecksumCalculation()).isNull();
+    assertThat(s3FileIOProperties.responseChecksumValidation()).isNull();
+
     assertThat(s3FileIOProperties.writeTags()).isEqualTo(Sets.newHashSet());
 
     assertThat(s3FileIOProperties.writeTableTagEnabled())
@@ -557,43 +560,97 @@ public class TestS3FileIOProperties {
   }
 
   @Test
-  public void testApplyChecksumConfigurationsDefault() {
-    S3FileIOProperties s3FileIOProperties = new S3FileIOProperties();
-    S3ClientBuilder mockBuilder = Mockito.mock(S3ClientBuilder.class);
-    s3FileIOProperties.applyChecksumConfigurations(mockBuilder);
+  public void testApplyChecksumConfigurationsNotSet() {
+    S3FileIOProperties s3FileIOProperties = new S3FileIOProperties(Maps.newHashMap());
+    S3ClientBuilder mockS3ClientBuilder = Mockito.mock(S3ClientBuilder.class);
+    S3AsyncClientBuilder mockS3AsyncClientBuilder = Mockito.mock(S3AsyncClientBuilder.class);
+    S3CrtAsyncClientBuilder mockS3CrtAsyncClientBuilder =
+        Mockito.mock(S3CrtAsyncClientBuilder.class);
 
-    Mockito.verify(mockBuilder)
+    s3FileIOProperties.applyChecksumConfigurations(mockS3ClientBuilder);
+    s3FileIOProperties.applyChecksumConfigurations(mockS3AsyncClientBuilder);
+    s3FileIOProperties.applyChecksumConfigurations(mockS3CrtAsyncClientBuilder);
+
+    Mockito.verifyNoInteractions(
+        mockS3ClientBuilder, mockS3AsyncClientBuilder, mockS3CrtAsyncClientBuilder);
+  }
+
+  @Test
+  public void testApplyChecksumConfigurationsWhenRequired() {
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(S3FileIOProperties.REQUEST_CHECKSUM_CALCULATION, "when_required");
+    properties.put(S3FileIOProperties.RESPONSE_CHECKSUM_VALIDATION, "when_required");
+    S3FileIOProperties s3FileIOProperties = new S3FileIOProperties(properties);
+    S3ClientBuilder mockS3ClientBuilder = Mockito.mock(S3ClientBuilder.class);
+    S3AsyncClientBuilder mockS3AsyncClientBuilder = Mockito.mock(S3AsyncClientBuilder.class);
+    S3CrtAsyncClientBuilder mockS3CrtAsyncClientBuilder =
+        Mockito.mock(S3CrtAsyncClientBuilder.class);
+
+    s3FileIOProperties.applyChecksumConfigurations(mockS3ClientBuilder);
+    s3FileIOProperties.applyChecksumConfigurations(mockS3AsyncClientBuilder);
+    s3FileIOProperties.applyChecksumConfigurations(mockS3CrtAsyncClientBuilder);
+
+    Mockito.verify(mockS3ClientBuilder)
         .requestChecksumCalculation(RequestChecksumCalculation.WHEN_REQUIRED);
-    Mockito.verify(mockBuilder)
+    Mockito.verify(mockS3ClientBuilder)
+        .responseChecksumValidation(ResponseChecksumValidation.WHEN_REQUIRED);
+    Mockito.verify(mockS3AsyncClientBuilder)
+        .requestChecksumCalculation(RequestChecksumCalculation.WHEN_REQUIRED);
+    Mockito.verify(mockS3AsyncClientBuilder)
+        .responseChecksumValidation(ResponseChecksumValidation.WHEN_REQUIRED);
+    Mockito.verify(mockS3CrtAsyncClientBuilder)
+        .requestChecksumCalculation(RequestChecksumCalculation.WHEN_REQUIRED);
+    Mockito.verify(mockS3CrtAsyncClientBuilder)
         .responseChecksumValidation(ResponseChecksumValidation.WHEN_REQUIRED);
   }
 
   @Test
-  public void testApplyChecksumConfigurationsEnabled() {
+  public void testApplyChecksumConfigurationsWhenSupported() {
     Map<String, String> properties = Maps.newHashMap();
-    properties.put(S3FileIOProperties.CHECKSUM_ENABLED, "true");
+    properties.put(S3FileIOProperties.REQUEST_CHECKSUM_CALCULATION, "when_supported");
+    properties.put(S3FileIOProperties.RESPONSE_CHECKSUM_VALIDATION, "when_supported");
     S3FileIOProperties s3FileIOProperties = new S3FileIOProperties(properties);
-    S3ClientBuilder mockBuilder = Mockito.mock(S3ClientBuilder.class);
-    s3FileIOProperties.applyChecksumConfigurations(mockBuilder);
+    S3ClientBuilder mockS3ClientBuilder = Mockito.mock(S3ClientBuilder.class);
 
-    Mockito.verify(mockBuilder)
+    s3FileIOProperties.applyChecksumConfigurations(mockS3ClientBuilder);
+
+    Mockito.verify(mockS3ClientBuilder)
         .requestChecksumCalculation(RequestChecksumCalculation.WHEN_SUPPORTED);
-    Mockito.verify(mockBuilder)
+    Mockito.verify(mockS3ClientBuilder)
         .responseChecksumValidation(ResponseChecksumValidation.WHEN_SUPPORTED);
   }
 
   @Test
-  public void testApplyChecksumConfigurationsDisabled() {
+  public void testChecksumConfigurationsCaseInsensitive() {
     Map<String, String> properties = Maps.newHashMap();
-    properties.put(S3FileIOProperties.CHECKSUM_ENABLED, "false");
+    properties.put(S3FileIOProperties.REQUEST_CHECKSUM_CALCULATION, "WHEN_REQUIRED");
+    properties.put(S3FileIOProperties.RESPONSE_CHECKSUM_VALIDATION, "When_Supported");
     S3FileIOProperties s3FileIOProperties = new S3FileIOProperties(properties);
-    S3ClientBuilder mockBuilder = Mockito.mock(S3ClientBuilder.class);
-    s3FileIOProperties.applyChecksumConfigurations(mockBuilder);
 
-    Mockito.verify(mockBuilder)
-        .requestChecksumCalculation(RequestChecksumCalculation.WHEN_REQUIRED);
-    Mockito.verify(mockBuilder)
-        .responseChecksumValidation(ResponseChecksumValidation.WHEN_REQUIRED);
+    assertThat(s3FileIOProperties.requestChecksumCalculation())
+        .isEqualTo(RequestChecksumCalculation.WHEN_REQUIRED);
+    assertThat(s3FileIOProperties.responseChecksumValidation())
+        .isEqualTo(ResponseChecksumValidation.WHEN_SUPPORTED);
+  }
+
+  @Test
+  public void testInvalidRequestChecksumCalculation() {
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(S3FileIOProperties.REQUEST_CHECKSUM_CALCULATION, "invalid");
+
+    assertThatThrownBy(() -> new S3FileIOProperties(properties))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Unrecognized value for request checksum calculation: invalid");
+  }
+
+  @Test
+  public void testInvalidResponseChecksumValidation() {
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(S3FileIOProperties.RESPONSE_CHECKSUM_VALIDATION, "invalid");
+
+    assertThatThrownBy(() -> new S3FileIOProperties(properties))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Unrecognized value for response checksum validation: invalid");
   }
 
   @Test
