@@ -138,7 +138,8 @@ public class Evaluator implements Serializable {
 
     @Override
     public <T> Boolean in(Bound<T> valueExpr, Set<T> literalSet) {
-      return literalSet.contains(valueExpr.eval(struct));
+      T value = valueExpr.eval(struct);
+      return value != null && literalSet.contains(value);
     }
 
     @Override
