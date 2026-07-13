@@ -88,6 +88,8 @@ class BaseSnapshotDeltaLakeKernelTableAction implements SnapshotDeltaLakeTable {
   private static final String SNAPSHOT_SOURCE_PROP = "snapshot_source";
   private static final String DELTA_SOURCE_VALUE = "delta";
   private static final String ORIGINAL_LOCATION_PROP = "original_location";
+  private static final String CONVERSION_TOOL_PROP = "conversion_tool";
+  private static final String CONVERSION_TOOL_VALUE = "iceberg-delta-lake";
   private static final String DELTA_VERSION_TAG_PREFIX = "delta-version-";
   private static final String DELTA_TIMESTAMP_TAG_PREFIX = "delta-ts-";
   private static final Set<String> UNSUPPORTED_DELTA_OPERATIONS =
@@ -543,6 +545,7 @@ class BaseSnapshotDeltaLakeKernelTableAction implements SnapshotDeltaLakeTable {
       Snapshot deltaSnapshot, String originalLocation) {
     icebergPropertiesBuilder.put(SNAPSHOT_SOURCE_PROP, DELTA_SOURCE_VALUE);
     icebergPropertiesBuilder.put(ORIGINAL_LOCATION_PROP, originalLocation);
+    icebergPropertiesBuilder.put(CONVERSION_TOOL_PROP, CONVERSION_TOOL_VALUE);
     // Always construct Iceber v3 Table
     icebergPropertiesBuilder.put(TableProperties.FORMAT_VERSION, "3");
 

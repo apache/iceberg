@@ -215,6 +215,7 @@ public class TestBaseSnapshotDeltaLakeKernelTableAction {
     Map<String, String> properties = testCatalog.loadTable(icebergTableIdentifier).properties();
     assertThat(properties.get("original_location")).isEqualTo(sourceTableLocation);
     assertThat(properties.get("snapshot_source")).isEqualTo("delta");
+    assertThat(properties.get("conversion_tool")).isEqualTo("iceberg-delta-lake");
     assertThat(properties.containsKey(TableProperties.DEFAULT_NAME_MAPPING)).isTrue();
   }
 
@@ -247,6 +248,28 @@ public class TestBaseSnapshotDeltaLakeKernelTableAction {
     assertThat(properties.get("custom_prop_2")).isEqualTo("custom val 2");
     assertThat(properties.get("custom_map_prop1")).isEqualTo("val 1");
     assertThat(properties.get("custom_map_prop2")).isEqualTo("val 2");
+  }
+
+  @Test
+  public void testCustomTablePropertiesOverlap() throws Exception {
+    loadDeltaLakeGoldenTable("basic-decimal-table");
+
+    TableIdentifier icebergTableIdentifier = TableIdentifier.of("iceberg_table");
+    SnapshotDeltaLakeTable testAction =
+        new BaseSnapshotDeltaLakeKernelTableAction(sourceTableLocation)
+            .as(icebergTableIdentifier)
+            .deltaLakeConfiguration(testHadoopConf)
+            .icebergCatalog(testCatalog)
+            .tableLocation(newTableLocation)
+            .tableProperty("custom_prop_1", "custom val 1")
+            .tableProperty("custom_prop_1", "custom val 1"); // Overlap
+
+    assertThat(testCatalog.tableExists(icebergTableIdentifier)).isFalse();
+
+    assertThatThrownBy(testAction::execute)
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Multiple entries with same key: custom_prop_1=custom val 1 and custom_prop_1=custom val 1");
   }
 
   @Test
