@@ -108,7 +108,7 @@ public class OAuthTokenResponse implements RESTResponse {
     }
 
     public Builder addScope(String scope) {
-      Preconditions.checkArgument(OAuth2Util.isValidScopeToken(scope), "Invalid scope: %s");
+      Preconditions.checkArgument(OAuth2Util.isValidScopeToken(scope), "Invalid scope: %s", scope);
       this.scopes.add(scope);
       return this;
     }

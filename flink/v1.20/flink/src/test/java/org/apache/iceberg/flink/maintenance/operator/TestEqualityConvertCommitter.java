@@ -22,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.stream.Collectors;
 import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.util.TwoInputStreamOperatorTestHarness;
@@ -80,6 +81,43 @@ class TestEqualityConvertCommitter extends OperatorTestBase {
                   .summary()
                   .get(EqualityConvertCommitter.COMMITTED_STAGING_SNAPSHOT_PROPERTY))
           .isEqualTo(String.valueOf(stagingSnapshotId));
+    }
+  }
+
+  @Test
+  void holdsBackWatermarkUntilCommit() throws Exception {
+    Table table = createTable(3, FileFormat.PARQUET);
+    insert(table, 1, "a");
+
+    DataFile stagingDataFile = getFirstDataFile(table);
+    long snapshotIdBefore = table.currentSnapshot().snapshotId();
+
+    try (TwoInputStreamOperatorTestHarness<DVWriteResult, EqualityConvertPlan, Trigger> harness =
+        createHarness()) {
+      harness.open();
+
+      long doneTs = System.currentTimeMillis();
+      EqualityConvertPlan planResult =
+          new EqualityConvertPlan(
+              Lists.newArrayList(stagingDataFile),
+              Lists.newArrayList(),
+              42L,
+              snapshotIdBefore,
+              doneTs - 2,
+              doneTs);
+
+      harness.processElement2(new StreamRecord<>(planResult, doneTs - 2));
+
+      // A phase watermark before the plan's done timestamp must not be forwarded: it would let the
+      // LockRemover release the maintenance lock before this cycle commits.
+      harness.processBothWatermarks(new Watermark(doneTs - 1));
+      assertThat(harness.extractOutputValues()).isEmpty();
+      assertThat(watermarks(harness)).isEmpty();
+
+      // The done-timestamp watermark commits the cycle; the watermark is forwarded only now.
+      harness.processBothWatermarks(new Watermark(doneTs));
+      assertThat(harness.extractOutputValues()).hasSize(1);
+      assertThat(watermarks(harness)).containsExactly(new Watermark(doneTs));
     }
   }
 
@@ -474,6 +512,13 @@ class TestEqualityConvertCommitter extends OperatorTestBase {
             tableLoader(),
             SnapshotRef.MAIN_BRANCH,
             SnapshotRef.MAIN_BRANCH));
+  }
+
+  private static List<Watermark> watermarks(TwoInputStreamOperatorTestHarness<?, ?, ?> harness) {
+    return harness.getOutput().stream()
+        .filter(Watermark.class::isInstance)
+        .map(Watermark.class::cast)
+        .collect(Collectors.toList());
   }
 
   private static List<DeleteFile> deletesForDataFile(Table table, String dataFilePath) {
