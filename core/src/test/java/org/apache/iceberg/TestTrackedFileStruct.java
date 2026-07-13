@@ -59,7 +59,6 @@ class TestTrackedFileStruct {
     Mockito.when(MANIFEST_INFO.copy()).thenReturn(MANIFEST_INFO_COPY);
   }
 
-
   private static final ContentStats CONTENT_STATS = Mockito.mock(ContentStats.class);
 
   @Test
