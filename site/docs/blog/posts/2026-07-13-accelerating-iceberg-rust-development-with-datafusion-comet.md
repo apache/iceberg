@@ -25,6 +25,22 @@ categories:
  - limitations under the License.
  -->
 
+Apache Iceberg's ecosystem spans multiple query engines and language implementations that work
+together to give users a consistent experience across the data lakehouse. This post explores one
+integration within that ecosystem, [Iceberg Rust](https://github.com/apache/iceberg-rust) and
+[Apache DataFusion Comet](https://datafusion.apache.org/comet/), and the two benefits their
+relationship brings.
+Comet accelerates Apache Spark's reads over Iceberg tables by running them natively through Iceberg
+Rust. That same integration turns Iceberg Java's nearly 10,000 Spark tests into a differential-testing
+harness whose benefits run both ways: Iceberg Rust gets exercised against a broad corpus of
+real-world scenarios, and the comparison has even caught bugs in Iceberg Java. The resulting fixes
+land upstream and benefit every project built on these libraries, not just Comet, as the Iceberg and
+DataFusion communities build on each other's strengths.
+
+<!-- more -->
+
+## Background
+
 Apache Iceberg provides a universal table format that serves as a foundation for modern data
 lakehouse
 platforms. With Iceberg, users store their tables with the benefit of being able to access
@@ -45,16 +61,12 @@ test suites, for instance, include nearly 10,000 correctness tests driven by Spa
 as a reference for both correct behavior and test coverage. None of them, however, can run Java's
 tests directly against their own code.
 
-<!-- more -->
-
-While Spark remains a powerful and robust engine, a number of projects exist to accelerate its
-JVM-backed execution. One such solution is
-[Apache DataFusion Comet](https://datafusion.apache.org/comet/), which Apple donated in 2024
-as a subproject of the [Apache DataFusion](https://datafusion.apache.org) query engine. Comet's
-native execution engine is built with the goal of running CPU-bound jobs faster and IO-bound jobs
-with fewer resources, giving users control over how they optimize their Spark jobs. As we will
-see, Comet does more than speed up queries: the same design that makes it fast also makes it a tool
-for accelerating Iceberg Rust's development.
+While Spark remains widely used for working with Iceberg, a number of projects exist to accelerate
+its JVM-backed execution. One such solution is Comet, which Apple donated in 2024 as a subproject of
+the [Apache DataFusion](https://datafusion.apache.org) query engine. Comet's native execution engine
+aims to run CPU-bound jobs faster and IO-bound jobs with fewer resources. As we will see, it does
+more than speed up queries: the same design that makes it fast also makes it a tool for accelerating
+Iceberg Rust's development.
 
 ## Accelerating Spark Queries with Comet
 
