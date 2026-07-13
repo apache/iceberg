@@ -57,11 +57,13 @@ public class ExpressionVisitors {
     }
 
     public R spatialPredicate(BoundSpatialPredicate pred) {
-      return null;
+      throw new UnsupportedOperationException(
+          "Visitor does not implement spatialPredicate: " + getClass().getName());
     }
 
     public R spatialPredicate(UnboundSpatialPredicate pred) {
-      return null;
+      throw new UnsupportedOperationException(
+          "Visitor does not implement spatialPredicate: " + getClass().getName());
     }
 
     public <T, C> R aggregate(BoundAggregate<T, C> agg) {

@@ -25,6 +25,7 @@ import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.GeometryType$;
 import org.apache.spark.sql.types.StructType;
+import org.apache.spark.unsafe.types.GeometryVal;
 
 /**
  * A Spark function that tests whether a geometry column intersects a constant query window,
@@ -58,6 +59,14 @@ public class STIntersectsFunction implements UnboundFunction {
   }
 
   public static class STIntersects extends BaseScalarFunction<Boolean> {
+    // Magic static method: its presence (named "invoke") lets Spark represent the call as a
+    // StaticInvoke that ReplaceStaticInvoke can rewrite into a pushable ApplyFunctionExpression.
+    // The row-level result is not the focus of this PoC; file pruning happens before rows are read.
+    public static boolean invoke(
+        GeometryVal geom, double minX, double minY, double maxX, double maxY) {
+      return true;
+    }
+
     @Override
     public DataType[] inputTypes() {
       // The geometry column (CRS84) plus the four window bounds as doubles.

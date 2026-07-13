@@ -317,13 +317,23 @@ public class SparkV2Filters {
   }
 
   private static Expression convertSpatial(Predicate predicate) {
-    // A top-level spatial filter is pushed down as the iceberg.st_intersects UDF predicate:
-    //   st_intersects(geomColumn, minX, minY, maxX, maxY)
-    if (!"st_intersects".equalsIgnoreCase(predicate.name())) {
+    // A boolean scalar function used as a filter is delivered wrapped as
+    // V2Predicate("BOOLEAN_EXPRESSION", [UserDefinedScalarFunc]); unwrap to the UDF.
+    org.apache.spark.sql.connector.expressions.Expression udf = predicate;
+    if ("BOOLEAN_EXPRESSION".equals(predicate.name()) && predicate.children().length == 1) {
+      udf = predicate.children()[0];
+    }
+
+    if (!(udf instanceof UserDefinedScalarFunc)) {
+      return null;
+    }
+    UserDefinedScalarFunc func = (UserDefinedScalarFunc) udf;
+    if (!"st_intersects".equalsIgnoreCase(func.name())) {
       return null;
     }
 
-    org.apache.spark.sql.connector.expressions.Expression[] children = predicate.children();
+    // st_intersects(geomColumn, minX, minY, maxX, maxY)
+    org.apache.spark.sql.connector.expressions.Expression[] children = func.children();
     if (children.length != 5 || !isRef(children[0])) {
       return null;
     }

@@ -708,6 +708,16 @@ public class Spark3Util {
       }
     }
 
+    @Override
+    public String spatialPredicate(org.apache.iceberg.expressions.BoundSpatialPredicate pred) {
+      return "st_intersects(" + pred.ref().name() + ", " + pred.queryBound() + ")";
+    }
+
+    @Override
+    public String spatialPredicate(org.apache.iceberg.expressions.UnboundSpatialPredicate pred) {
+      return "st_intersects(" + pred.ref().name() + ", " + pred.queryBound() + ")";
+    }
+
     private static <T> String sqlString(UnboundTerm<T> term) {
       if (term instanceof org.apache.iceberg.expressions.NamedReference) {
         return term.ref().name();

@@ -29,6 +29,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.Binder;
 import org.apache.iceberg.expressions.Bound;
 import org.apache.iceberg.expressions.BoundReference;
+import org.apache.iceberg.expressions.BoundSpatialPredicate;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ExpressionVisitors;
 import org.apache.iceberg.expressions.ExpressionVisitors.BoundExpressionVisitor;
@@ -102,6 +103,13 @@ public class ParquetMetricsRowGroupFilter {
       }
 
       return ExpressionVisitors.visitEvaluator(expr, this);
+    }
+
+    @Override
+    public Boolean spatialPredicate(BoundSpatialPredicate pred) {
+      // Row-group-level spatial pruning is not implemented in this PoC; file-level pruning already
+      // removed non-matching files. Conservatively keep the row group.
+      return ROWS_MIGHT_MATCH;
     }
 
     @Override

@@ -187,6 +187,18 @@ public class Projections {
       return bound;
     }
 
+    @Override
+    public Expression spatialPredicate(BoundSpatialPredicate pred) {
+      // A spatial predicate is a row-level filter; it does not project onto partition columns, so
+      // at the partition level a file may always match.
+      return Expressions.alwaysTrue();
+    }
+
+    @Override
+    public Expression spatialPredicate(UnboundSpatialPredicate pred) {
+      return Expressions.alwaysTrue();
+    }
+
     PartitionSpec spec() {
       return spec;
     }

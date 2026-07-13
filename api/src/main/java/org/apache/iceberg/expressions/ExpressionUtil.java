@@ -323,6 +323,11 @@ public class ExpressionUtil {
       }
       return Expressions.alwaysTrue();
     }
+
+    @Override
+    public Expression spatialPredicate(BoundSpatialPredicate pred) {
+      return retainFieldIds.contains(pred.ref().fieldId()) ? pred : Expressions.alwaysTrue();
+    }
   }
 
   private static class ExpressionSanitizer
@@ -414,6 +419,12 @@ public class ExpressionUtil {
           throw new UnsupportedOperationException(
               "Cannot sanitize unsupported predicate type: " + pred.op());
       }
+    }
+
+    @Override
+    public Expression spatialPredicate(BoundSpatialPredicate pred) {
+      // A query bounding box carries no sensitive literal values to sanitize.
+      return pred;
     }
   }
 
@@ -559,6 +570,16 @@ public class ExpressionUtil {
           throw new UnsupportedOperationException(
               "Cannot sanitize unsupported predicate type: " + pred.op());
       }
+    }
+
+    @Override
+    public String spatialPredicate(BoundSpatialPredicate pred) {
+      return "st_intersects(" + describe(pred.term()) + ", " + pred.queryBound() + ")";
+    }
+
+    @Override
+    public String spatialPredicate(UnboundSpatialPredicate pred) {
+      return "st_intersects(" + pred.ref().name() + ", " + pred.queryBound() + ")";
     }
   }
 
