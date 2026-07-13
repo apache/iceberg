@@ -92,25 +92,30 @@ class VectorizedVariantVisitor extends ParquetVariantVisitor<VectorizedReader<?>
 
   @Override
   public VectorizedReader<?> primitive(PrimitiveType primitive) {
-    return null;
+    throw new UnsupportedOperationException("Unsupported variant: shredded typed_value primitive");
   }
 
   @Override
   public VectorizedReader<?> value(
       GroupType value, VectorizedReader<?> valueResult, VectorizedReader<?> typedResult) {
+    if (typedResult != null) {
+      throw new UnsupportedOperationException(
+          "Unsupported variant: shredded typed_value primitive");
+    }
     return valueResult;
   }
 
   @Override
   public VectorizedReader<?> object(
       GroupType object, VectorizedReader<?> valueResult, List<VectorizedReader<?>> fieldResults) {
-    return valueResult;
+    throw new UnsupportedOperationException(
+        "Unsupported variant: shredded typed_value object with " + fieldResults.size() + " fields");
   }
 
   @Override
   public VectorizedReader<?> array(
       GroupType array, VectorizedReader<?> valueResult, VectorizedReader<?> elementResult) {
-    return valueResult;
+    throw new UnsupportedOperationException("Unsupported variant: shredded typed_value array");
   }
 
   private ColumnDescriptor resolveDescriptor(PrimitiveType primitive) {
