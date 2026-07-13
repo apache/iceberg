@@ -29,10 +29,10 @@ import org.junit.jupiter.api.TestTemplate;
 
 /**
  * End-to-end test that a spatial filter written in SQL is pushed down and prunes files. With the
- * Iceberg extensions enabled, {@code ReplaceStaticInvoke} rewrites the top-level boolean
- * {@code st_intersects(...)} function into an {@code ApplyFunctionExpression}, which Spark then
- * translates to a pushed DSv2 predicate; {@code SparkV2Filters} converts it to an Iceberg
- * {@code ST_INTERSECTS} expression and {@code InclusiveMetricsEvaluator} skips non-matching files.
+ * Iceberg extensions enabled, {@code ReplaceStaticInvoke} rewrites the top-level boolean {@code
+ * st_intersects(...)} function into an {@code ApplyFunctionExpression}, which Spark then translates
+ * to a pushed DSv2 predicate; {@code SparkV2Filters} converts it to an Iceberg {@code
+ * ST_INTERSECTS} expression and {@code InclusiveMetricsEvaluator} skips non-matching files.
  */
 public class TestSpatialFilterPushdown extends ExtensionsTestBase {
 
@@ -49,9 +49,11 @@ public class TestSpatialFilterPushdown extends ExtensionsTestBase {
     spark.conf().set("spark.sql.catalog." + GEO_CATALOG + ".type", "hadoop");
     spark.conf().set("spark.sql.catalog." + GEO_CATALOG + ".default-namespace", "default");
     spark.conf().set("spark.sql.catalog." + GEO_CATALOG + ".cache-enabled", "false");
-    spark.conf().set(
-        "spark.sql.catalog." + GEO_CATALOG + ".warehouse",
-        System.getProperty("java.io.tmpdir") + "/iceberg_spatial_pushdown");
+    spark
+        .conf()
+        .set(
+            "spark.sql.catalog." + GEO_CATALOG + ".warehouse",
+            System.getProperty("java.io.tmpdir") + "/iceberg_spatial_pushdown");
     spark.conf().set("spark.sql.geospatial.enabled", "true");
     // Geo has no Arrow vector yet; read through the row-based reader.
     spark.conf().set("spark.sql.iceberg.vectorization.enabled", "false");
@@ -80,28 +82,28 @@ public class TestSpatialFilterPushdown extends ExtensionsTestBase {
             "EXPLAIN SELECT id FROM %s WHERE %s.system.st_intersects(geom, 0, 0, 30, 30)",
             TABLE, GEO_CATALOG);
     String planText = plan.get(0)[0].toString();
+    // The definitive signal of pushdown: the Iceberg scan carries the spatial predicate in its
+    // pushed "filters=" list (used for file pruning). Spark still keeps a residual post-scan Filter
+    // because a spatial predicate is row-level, but the scan-level filter is what prunes files.
     assertThat(planText)
-        .as("spatial predicate should be pushed into the scan, not a post-scan Filter")
-        .containsIgnoringCase("st_intersects");
-    // A pushed predicate appears in the BatchScan's runtime/pushed filters; the residual Filter
-    // node should be gone (or trivially true) for this window.
-    assertThat(planText)
-        .as("the boolean UDF should no longer sit in a post-scan Filter node")
-        .doesNotContain("Filter applyfunctionexpression");
+        .as("the spatial predicate should be pushed into the Iceberg scan's filters")
+        .containsPattern("filters=[^,]*st_intersects\\(geom");
   }
 
   @TestTemplate
   public void testSpatialFilterReturnsOnlyMatchingCluster() {
-    List<Object[]> sw =
+    assertEquals(
+        "only the southwest row matches",
+        ImmutableList.of(row(1L)),
         sql(
             "SELECT id FROM %s WHERE %s.system.st_intersects(geom, 0, 0, 30, 30) ORDER BY id",
-            TABLE, GEO_CATALOG);
-    assertThat(sw).as("only the southwest row matches").isEqualTo(ImmutableList.of(row(1L)));
+            TABLE, GEO_CATALOG));
 
-    List<Object[]> ne =
+    assertEquals(
+        "only the northeast row matches",
+        ImmutableList.of(row(2L)),
         sql(
             "SELECT id FROM %s WHERE %s.system.st_intersects(geom, 100, 50, 130, 80) ORDER BY id",
-            TABLE, GEO_CATALOG);
-    assertThat(ne).as("only the northeast row matches").isEqualTo(ImmutableList.of(row(2L)));
+            TABLE, GEO_CATALOG));
   }
 }
