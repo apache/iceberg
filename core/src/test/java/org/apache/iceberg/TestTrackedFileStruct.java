@@ -46,31 +46,19 @@ class TestTrackedFileStruct {
   private static final PartitionData PARTITION = Mockito.mock(PartitionData.class);
   private static final PartitionData PARTITION_COPY = Mockito.mock(PartitionData.class);
 
+  private static final DeletionVector DELETION_VECTOR = Mockito.mock(DeletionVector.class);
+  private static final DeletionVector DELETION_VECTOR_COPY = Mockito.mock(DeletionVector.class);
+
+  private static final ManifestInfo MANIFEST_INFO = Mockito.mock(ManifestInfo.class);
+  private static final ManifestInfo MANIFEST_INFO_COPY = Mockito.mock(ManifestInfo.class);
+
   static {
     Mockito.when(TRACKING.copy()).thenReturn(TRACKING_COPY);
     Mockito.when(PARTITION.copy()).thenReturn(PARTITION_COPY);
+    Mockito.when(DELETION_VECTOR.copy()).thenReturn(DELETION_VECTOR_COPY);
+    Mockito.when(MANIFEST_INFO.copy()).thenReturn(MANIFEST_INFO_COPY);
   }
 
-  private static final DeletionVectorStruct DELETION_VECTOR =
-      DeletionVectorStruct.builder()
-          .location("s3://bucket/dv.puffin")
-          .offset(100L)
-          .sizeInBytes(50L)
-          .cardinality(5L)
-          .build();
-
-  private static final ManifestInfoStruct MANIFEST_INFO =
-      ManifestInfoStruct.builder()
-          .addedFilesCount(10)
-          .existingFilesCount(20)
-          .deletedFilesCount(3)
-          .replacedFilesCount(2)
-          .addedRowsCount(1000L)
-          .existingRowsCount(2000L)
-          .deletedRowsCount(300L)
-          .replacedRowsCount(200L)
-          .minSequenceNumber(5L)
-          .build();
 
   private static final ContentStats CONTENT_STATS = Mockito.mock(ContentStats.class);
 
@@ -225,17 +213,14 @@ class TestTrackedFileStruct {
     assertThat(copy.fileSizeInBytes()).isEqualTo(512L);
     assertThat(copy.specId()).isEqualTo(1);
     assertThat(copy.sortOrderId()).isEqualTo(5);
-    assertThat(copy.deletionVector().location()).isEqualTo("s3://bucket/dv.puffin");
-    assertThat(copy.manifestInfo().addedFilesCount()).isEqualTo(10);
-    assertThat(copy.manifestInfo().addedRowsCount()).isEqualTo(1000L);
+    assertThat(copy.deletionVector()).isSameAs(DELETION_VECTOR_COPY);
+    assertThat(copy.manifestInfo()).isSameAs(MANIFEST_INFO_COPY);
     assertThat(copy.keyMetadata()).isEqualTo(ByteBuffer.wrap(new byte[] {1, 2, 3}));
     assertThat(copy.splitOffsets()).containsExactly(100L, 200L);
     assertThat(copy.equalityIds()).containsExactly(1, 2, 3);
     assertThat(copy.partition()).isSameAs(PARTITION_COPY);
 
     // mutable fields are deep-copied, not shared with the original
-    assertThat(copy.deletionVector()).isNotSameAs(file.deletionVector());
-    assertThat(copy.manifestInfo()).isNotSameAs(file.manifestInfo());
     assertThat(copy.keyMetadata()).isNotSameAs(file.keyMetadata());
   }
 
@@ -279,8 +264,8 @@ class TestTrackedFileStruct {
             7,
             null,
             1,
-            DELETION_VECTOR,
-            MANIFEST_INFO,
+            null, // DeletionVector has its own serialization tests
+            null, // ManifestInfo has its own serialization tests
             ByteBuffer.wrap(new byte[] {1, 2, 3}),
             ImmutableList.of(50L),
             ImmutableList.of(1, 2, 3));
@@ -297,19 +282,11 @@ class TestTrackedFileStruct {
     assertThat(deserialized.fileSizeInBytes()).isEqualTo(1024L);
     assertThat(deserialized.specId()).isEqualTo(7);
     assertThat(deserialized.sortOrderId()).isEqualTo(1);
-    assertThat(deserialized.deletionVector().location()).isEqualTo("s3://bucket/dv.puffin");
-    assertThat(deserialized.manifestInfo().addedFilesCount()).isEqualTo(10);
-    assertThat(deserialized.manifestInfo().addedRowsCount()).isEqualTo(1000L);
+    assertThat(deserialized.deletionVector()).isNull();
+    assertThat(deserialized.manifestInfo()).isNull();
     assertThat(deserialized.keyMetadata()).isEqualTo(ByteBuffer.wrap(new byte[] {1, 2, 3}));
     assertThat(deserialized.splitOffsets()).containsExactly(50L);
     assertThat(deserialized.equalityIds()).containsExactly(1, 2, 3);
-  }
-
-  private static PartitionData newPartition(int idBucket, String category) {
-    PartitionData partition = new PartitionData(PARTITION_TYPE);
-    partition.set(0, idBucket);
-    partition.set(1, category);
-    return partition;
   }
 
   private static int pos(String fieldName) {
