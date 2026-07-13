@@ -47,13 +47,15 @@ This release adds the [`update_schema` action](https://github.com/apache/iceberg
 
 A new `ExpireSnapshotsAction` ([#2591](https://github.com/apache/iceberg-rust/pull/2591), [#2664](https://github.com/apache/iceberg-rust/pull/2664), [#2667](https://github.com/apache/iceberg-rust/pull/2667)) provides a high-level API for expiring old snapshots, respecting `history.expire.*` table properties and cleaning up associated statistics file metadata.
 
-### Custom Runtime Support
+### Configurable Tokio runtime
 
-The [`Runtime` trait](https://github.com/apache/iceberg-rust/pull/2308) can now be injected into catalogs, decoupling `iceberg-rust` from a hard tokio dependency at the catalog layer. This enables embedding in applications with custom async runtimes.
+The [`Runtime` trait](https://github.com/apache/iceberg-rust/pull/2308) can now be provided when initializing catalogs.
+This allows for injecting a customized Tokio runtime into the session.
+For example, it is now possible to configure the thread stack size or maximum number of threads programatically.
 
 ### Writer Improvements
 
-- **Content-defined chunking** ([#2375](https://github.com/apache/iceberg-rust/pull/2375), [#2561](https://github.com/apache/iceberg-rust/pull/2561)): CDC table properties are now respected for optimizing Parquet file boundaries
+- **Content-defined chunking** ([#2375](https://github.com/apache/iceberg-rust/pull/2375), [#2561](https://github.com/apache/iceberg-rust/pull/2561)): content-defined chunking table properties are now respected for optimizing Parquet file boundaries
 - **[Purge table support](https://github.com/apache/iceberg-rust/pull/2232)**: Catalogs now offer a `purge_table` method, deleting both metadata and data files
 
 ### Enhanced DataFusion Integration
@@ -140,8 +142,7 @@ For a full list of dependency versions, the best resources to review are the Car
 Work is already underway on several features for upcoming releases:
 
 - **Table encryption**: With the foundational encryption stack landed, the community is working toward end-to-end encrypted reads and writes
-- **Additional commit types**: Support for `RewriteDataFiles`, `RowDelta`, and `Overwrite` commit operations
-- **Extensibility**: Continued investment in abstractions for pluggable storage backends and runtime configuration
+- **Transaction layer improvement**: We are working on adding the snapshot validation mechanism to detect write conflicts, laying the groundwork for future support of RewriteDataFiles, RowDelta, and Overwrite commit operations.
 
 ## Getting Involved
 
