@@ -458,12 +458,16 @@ public class TestRewriteTablePathsAction extends TestBase {
             .first();
     tableWithPosDeletes.newRowDelta().addDeletes(positionDeletes).commit();
 
-    actions()
-        .rewriteTablePath(tableWithPosDeletes)
-        .stagingLocation(stagingLocation())
-        .rewriteLocationPrefix(tableWithPosDeletes.location(), targetTableLocation())
-        .execute();
+    RewriteTablePath.Result result =
+        actions()
+            .rewriteTablePath(tableWithPosDeletes)
+            .stagingLocation(stagingLocation())
+            .rewriteLocationPrefix(tableWithPosDeletes.location(), targetTableLocation())
+            .execute();
+    assertThat(result.rewrittenDeleteFilePathsCount()).isEqualTo(1);
 
+    // Rerunning to the same staging location must overwrite the previously written delete file
+    // instead of failing with AlreadyExistsException.
     RewriteTablePath.Result rerun =
         actions()
             .rewriteTablePath(tableWithPosDeletes)
@@ -471,6 +475,13 @@ public class TestRewriteTablePathsAction extends TestBase {
             .rewriteLocationPrefix(tableWithPosDeletes.location(), targetTableLocation())
             .execute();
     assertThat(rerun.rewrittenDeleteFilePathsCount()).isEqualTo(1);
+
+    // Copy the rewritten metadata and data files, then verify the final table is correct
+    copyTableFiles(rerun);
+
+    List<Object[]> actual = rows(targetTableLocation());
+    List<Object[]> expected = rows(tableWithPosDeletes.location());
+    assertEquals("Rows should match after copy", expected, actual);
   }
 
   @TestTemplate
@@ -504,11 +515,13 @@ public class TestRewriteTablePathsAction extends TestBase {
             .first();
     tableWithDV.newRowDelta().addDeletes(dv).commit();
 
-    actions()
-        .rewriteTablePath(tableWithDV)
-        .stagingLocation(stagingLocation())
-        .rewriteLocationPrefix(tableWithDV.location(), targetTableLocation())
-        .execute();
+    RewriteTablePath.Result result =
+        actions()
+            .rewriteTablePath(tableWithDV)
+            .stagingLocation(stagingLocation())
+            .rewriteLocationPrefix(tableWithDV.location(), targetTableLocation())
+            .execute();
+    assertThat(result.rewrittenDeleteFilePathsCount()).isEqualTo(1);
 
     // Rerunning to the same staging location must overwrite the previously written DV Puffin file
     // instead of failing with AlreadyExistsException.
@@ -519,6 +532,13 @@ public class TestRewriteTablePathsAction extends TestBase {
             .rewriteLocationPrefix(tableWithDV.location(), targetTableLocation())
             .execute();
     assertThat(rerun.rewrittenDeleteFilePathsCount()).isEqualTo(1);
+
+    // Copy the rewritten metadata and data files, then verify the final table is correct
+    copyTableFiles(rerun);
+
+    List<Object[]> actual = rows(targetTableLocation());
+    List<Object[]> expected = rows(tableWithDV.location());
+    assertEquals("Rows should match after copy", expected, actual);
   }
 
   private void runPositionDeletesTest(String fileFormat) throws Exception {
