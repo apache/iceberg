@@ -29,6 +29,7 @@ import org.apache.flink.core.execution.JobClient;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.ManifestFile;
@@ -126,6 +127,10 @@ class TestConvertEqualityDeletesE2E extends OperatorTestBase {
           .pollInterval(Duration.ofMillis(200))
           .untilAsserted(() -> assertThat(dvCountOnMain(table)).isEqualTo(2));
       SimpleDataUtil.assertTableRecords(table, ImmutableList.of(createRecord(3, "c")));
+
+      // In-place conversion (staging == main) removes the converted equality deletes so reads no
+      // longer apply them. On a separate staging branch, main never holds equality deletes.
+      assertThat(eqDeleteCountOnMain(table)).isZero();
     } finally {
       closeJobClient(jobClient);
     }
@@ -159,6 +164,27 @@ class TestConvertEqualityDeletesE2E extends OperatorTestBase {
           ManifestFiles.readDeleteManifest(manifest, table.io(), table.specs())) {
         for (DeleteFile file : reader) {
           if (ContentFileUtil.isDV(file)) {
+            count++;
+          }
+        }
+      }
+    }
+
+    return count;
+  }
+
+  private static long eqDeleteCountOnMain(Table table) throws IOException {
+    table.refresh();
+    if (table.currentSnapshot() == null) {
+      return 0;
+    }
+
+    long count = 0;
+    for (ManifestFile manifest : table.currentSnapshot().deleteManifests(table.io())) {
+      try (ManifestReader<DeleteFile> reader =
+          ManifestFiles.readDeleteManifest(manifest, table.io(), table.specs())) {
+        for (DeleteFile file : reader) {
+          if (file.content() == FileContent.EQUALITY_DELETES) {
             count++;
           }
         }
