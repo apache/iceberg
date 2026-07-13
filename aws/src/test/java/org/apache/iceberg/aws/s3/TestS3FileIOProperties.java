@@ -42,6 +42,7 @@ import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3ClientBuilder;
 import software.amazon.awssdk.services.s3.S3Configuration;
 import software.amazon.awssdk.services.s3.S3CrtAsyncClientBuilder;
+import software.amazon.awssdk.services.s3.model.ChecksumAlgorithm;
 import software.amazon.awssdk.services.s3.model.ObjectCannedACL;
 import software.amazon.awssdk.services.s3.model.Tag;
 
@@ -107,6 +108,8 @@ public class TestS3FileIOProperties {
 
     assertThat(s3FileIOProperties.isChecksumEnabled())
         .isEqualTo(S3FileIOProperties.CHECKSUM_ENABLED_DEFAULT);
+
+    assertThat(s3FileIOProperties.checksumAlgorithm()).isNull();
 
     assertThat(s3FileIOProperties.writeTags()).isEqualTo(Sets.newHashSet());
 
@@ -312,6 +315,31 @@ public class TestS3FileIOProperties {
     assertThatThrownBy(() -> new S3FileIOProperties(map))
         .isInstanceOf(ValidationException.class)
         .hasMessage("S3 client access key ID and secret access key must be set at the same time");
+  }
+
+  @Test
+  public void testChecksumAlgorithm() {
+    Map<String, String> map = Maps.newHashMap();
+    map.put(S3FileIOProperties.CHECKSUM_ALGORITHM, "CRC64NVME");
+    assertThat(new S3FileIOProperties(map).checksumAlgorithm())
+        .isEqualTo(ChecksumAlgorithm.CRC64_NVME);
+
+    // values are case-insensitive
+    map.put(S3FileIOProperties.CHECKSUM_ALGORITHM, "sha256");
+    assertThat(new S3FileIOProperties(map).checksumAlgorithm()).isEqualTo(ChecksumAlgorithm.SHA256);
+
+    // unset leaves the SDK default unchanged
+    assertThat(new S3FileIOProperties(Maps.newHashMap()).checksumAlgorithm()).isNull();
+  }
+
+  @Test
+  public void testChecksumAlgorithmInvalid() {
+    Map<String, String> map = Maps.newHashMap();
+    map.put(S3FileIOProperties.CHECKSUM_ALGORITHM, "CRC999");
+
+    assertThatThrownBy(() -> new S3FileIOProperties(map))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Invalid checksum algorithm: CRC999");
   }
 
   @Test
