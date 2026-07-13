@@ -32,7 +32,7 @@ and modify their data from a number of different query engines.
 The
 [Iceberg Java repository](https://github.com/apache/iceberg), the *de facto* reference
 implementation of the Iceberg specification, ships a mature [Apache Spark](https://spark.apache.org)
-integration. Beyond queries, teams also use Spark for table maintenance like compaction and
+integration. Beyond querying their data, teams also use Spark for table maintenance like compaction and
 snapshot expiration.
 In addition to Java, the Iceberg community maintains a number
 of other Iceberg implementations like [C++](https://github.com/apache/iceberg-cpp),
