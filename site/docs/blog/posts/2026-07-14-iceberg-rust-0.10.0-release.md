@@ -83,7 +83,7 @@ Significant groundwork has been laid toward Iceberg's table encryption specifica
 
 The [HuggingFace Hub storage backend](https://github.com/apache/iceberg-rust/pull/2375) was introduced, enabling direct access to Iceberg tables hosted on HuggingFace datasets.
 
-#### Other improvements
+#### Other improvements
 
 - **[`delete_stream` on Storage trait](https://github.com/apache/iceberg-rust/pull/2216)**: Batch delete operations for efficient cleanup
 - **[OpenDAL resolving storage](https://github.com/apache/iceberg-rust/pull/2231)**: Automatically resolves the appropriate storage backend based on file path scheme
