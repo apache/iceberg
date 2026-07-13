@@ -1,5 +1,5 @@
 ---
-date: 2026-07-06
+date: 2026-07-14
 title: Apache Iceberg Rust 0.10.0 Release
 slug: apache-iceberg-rust-0.10.0-release
 authors:
@@ -27,7 +27,7 @@ categories:
 
 The Apache Iceberg community is pleased to announce version 0.10.0 of [iceberg-rust](https://github.com/apache/iceberg-rust).
 
-This release covers development work from early March through late June 2026 and is the result of merging **238 PRs** from **40 contributors**. See the [changelog] for the complete list of changes.
+This release covers development work from early March through early July 2026 and is the result of merging **252 PRs** from **40 contributors**. See the [changelog] for the complete list of changes.
 
 [changelog]: https://github.com/apache/iceberg-rust/blob/main/CHANGELOG.md#v0100---2026-06-29
 
@@ -60,6 +60,10 @@ The [`Runtime` trait](https://github.com/apache/iceberg-rust/pull/2308) can now 
 
 - **[EXPLAIN shows pushed-down limits](https://github.com/apache/iceberg-rust/pull/2360)**: `IcebergTableScan` now displays limit pushdown in EXPLAIN output for query debugging
 - **[IsNaN predicate pushdown](https://github.com/apache/iceberg-rust/pull/2592)**: NaN-preserving numeric expressions are now pushed into scans
+
+### REST Catalog Endpoint Negotiation
+
+The REST catalog client now [parses server-advertised endpoints](https://github.com/apache/iceberg-rust/pull/2692) from the `GET /v1/config` response. This enables clients to discover which optional operations a server supports before attempting them.
 
 ### Reader and Scan Improvements
 
@@ -100,6 +104,12 @@ Notable correctness fixes or other validation improvements in this release:
 - **[Empty insert handling](https://github.com/apache/iceberg-rust/pull/2712)**: INSERT operations that produce no rows now correctly return a single row with count 0
 - **[Name-mapped field IDs](https://github.com/apache/iceberg-rust/pull/2612)**: Projection and predicate pushdown now correctly use name-mapped field IDs for Parquet files without embedded field IDs
 - **[Snapshot summary total fields](https://github.com/apache/iceberg-rust/pull/2589)**: Total values are now omitted if the previous summary had unparsable or no previous total.
+- **[Equality delete null handling](https://github.com/apache/iceberg-rust/pull/2781)**: Rows with a null value in an equality-delete column were incorrectly deleted
+- **[Negative positional delete positions](https://github.com/apache/iceberg-rust/pull/2631)**: Negative positions now error during evaluation instead of wrapping to large u64 offsets
+- **[Required field absent without default](https://github.com/apache/iceberg-rust/pull/2797)**: Properly errors instead of silently producing null for required fields absent from a data file
+- **[Non-append insert rejection](https://github.com/apache/iceberg-rust/pull/2714)**: Overwrite/replace inserts in DataFusion are now rejected instead of silently succeeding with append semantics
+- **[Float/double datum conversion](https://github.com/apache/iceberg-rust/pull/2783)**: Predicates with mismatched float/double literal types no longer fail
+- **[Snapshot summary metrics](https://github.com/apache/iceberg-rust/pull/2726)**: User-supplied properties can no longer override computed summary metrics
 
 ## Breaking Changes
 
