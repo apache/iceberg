@@ -2634,6 +2634,7 @@ components:
       description: >
         A predicate that tests a single value expression.
       type: object
+      additionalProperties: false
       required:
         - type
         - child
@@ -2648,6 +2649,7 @@ components:
       description: >
         A predicate that compares two value expressions.
       type: object
+      additionalProperties: false
       required:
         - type
         - left
@@ -2665,6 +2667,7 @@ components:
       description: >
         A predicate that operates on a list of literals.
       type: object
+      additionalProperties: false
       required:
         - type
         - child
@@ -2680,13 +2683,10 @@ components:
 
     Literal:
       description: >
-        A literal value expression. Three JSON forms are accepted: a bare
-        scalar value, a typed literal object without a data-type, or a
-        typed literal object with an explicit data-type.
+        A literal is either a bare value, an untyped literal object, or a
+        typed literal object.
       oneOf:
-        - type: string
-        - type: number
-        - type: boolean
+        - $ref: '#/components/schemas/PrimitiveTypeValue'
         - type: object
           additionalProperties: false
           required:
@@ -2703,8 +2703,8 @@ components:
 
     Literals:
       description: >
-        A list of literal values. Two JSON forms: a bare array of literals,
-        or a typed object with an explicit data-type applied to all values.
+        Literals is either a bare array of literals or a typed object with
+        an explicit data-type applied to all values.
       oneOf:
         - type: array
           items:
@@ -2787,9 +2787,8 @@ components:
 
     FunctionReference:
       description: >
-        A reference to a function. Four JSON forms: a bare name (single-part
-        identifier), a list of names (multi-part identifier), an object with
-        an identifier, or an object with both a catalog and an identifier.
+        A function reference is either a name, a multi-part name, an
+        identifier object, or a catalog-qualified identifier object.
       oneOf:
         - type: string
           minLength: 1
