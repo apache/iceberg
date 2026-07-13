@@ -51,15 +51,18 @@ public class TestVectorizedVariantVisitor {
     MessageType schema = variantSchema(shreddedPrimitiveGroup());
     assertThatThrownBy(() -> visit(schema))
         .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessageContaining("shredded typed_value primitive");
+        .hasMessage("Unsupported variant: shredded typed_value primitive");
   }
 
   @Test
   public void testShreddedObjectThrows() {
-    MessageType schema = variantSchema(shreddedObjectGroup());
+    GroupType variantGroup = shreddedObjectGroup();
+    int fieldCount = variantGroup.getType("typed_value").asGroupType().getFieldCount();
+    MessageType schema = variantSchema(variantGroup);
     assertThatThrownBy(() -> visit(schema))
         .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessageContaining("shredded typed_value object");
+        .hasMessage(
+            "Unsupported variant: shredded typed_value object with " + fieldCount + " fields");
   }
 
   @Test
@@ -67,7 +70,7 @@ public class TestVectorizedVariantVisitor {
     MessageType schema = variantSchema(shreddedArrayGroup());
     assertThatThrownBy(() -> visit(schema))
         .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessageContaining("shredded typed_value array");
+        .hasMessage("Unsupported variant: shredded typed_value array");
   }
 
   private static VectorizedReader<?> visit(MessageType schema) {
