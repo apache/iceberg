@@ -25,8 +25,6 @@ categories:
  - limitations under the License.
  -->
 
-<!-- more -->
-
 Apache Iceberg provides a universal table format that serves as a foundation for modern data
 lakehouse
 platforms. With Iceberg, users store their tables with the benefit of being able to access
@@ -46,6 +44,8 @@ test suites, for instance, include nearly 10,000 correctness tests driven by Spa
 1.11 with Spark 4.1). Each implementation maintains its own test suite and can look to Iceberg Java
 as a reference for both correct behavior and test coverage. None of them, however, can run Java's
 tests directly against their own code.
+
+<!-- more -->
 
 While Spark remains a powerful and robust engine, a number of projects exist to accelerate its
 JVM-backed execution. One such solution is
