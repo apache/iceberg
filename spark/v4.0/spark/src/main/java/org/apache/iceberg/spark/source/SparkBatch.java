@@ -195,10 +195,22 @@ class SparkBatch implements Batch {
   // conditions for using Vortex batch reads:
   // - no variant is projected (ArrowColumnVector cannot surface a variant as Spark's VariantVal, so
   //   variant projections fall back to the row-based reader, which does support variant)
+  // - no nested initial default is projected (nested defaults require the row reader to inject the
+  //   value inside an existing Arrow struct)
   // - all tasks are of FileScanTask type and read only Vortex files
   private boolean useVortexBatchReads() {
     return TypeUtil.find(expectedSchema, Type::isVariantType) == null
+        && expectedSchema.columns().stream().noneMatch(SparkBatch::hasNestedInitialDefault)
         && taskGroups.stream().allMatch(this::supportsVortexBatchReads);
+  }
+
+  private static boolean hasInitialDefault(Types.NestedField field) {
+    return field.initialDefault() != null || hasNestedInitialDefault(field);
+  }
+
+  private static boolean hasNestedInitialDefault(Types.NestedField field) {
+    return field.type().isNestedType()
+        && field.type().asNestedType().fields().stream().anyMatch(SparkBatch::hasInitialDefault);
   }
 
   private boolean supportsVortexBatchReads(ScanTask task) {

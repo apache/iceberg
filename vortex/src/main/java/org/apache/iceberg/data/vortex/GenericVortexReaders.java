@@ -48,15 +48,24 @@ import org.apache.arrow.vector.VarBinaryVector;
 import org.apache.arrow.vector.VarCharVector;
 import org.apache.arrow.vector.complex.ListVector;
 import org.apache.arrow.vector.complex.StructVector;
+import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
+import org.apache.iceberg.data.GenericDataUtil;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.iceberg.util.UUIDUtil;
+import org.apache.iceberg.variants.PhysicalType;
+import org.apache.iceberg.variants.ShreddedObject;
+import org.apache.iceberg.variants.ValueArray;
 import org.apache.iceberg.variants.Variant;
 import org.apache.iceberg.variants.VariantMetadata;
 import org.apache.iceberg.variants.VariantValue;
+import org.apache.iceberg.variants.Variants;
+import org.apache.iceberg.vortex.VortexSchemas;
 import org.apache.iceberg.vortex.VortexValueReader;
 
 public class GenericVortexReaders {
@@ -147,11 +156,28 @@ public class GenericVortexReaders {
     private StructReader(
         Types.StructType schema, List<Field> fields, List<VortexValueReader<?>> readers) {
       this.schema = schema;
-      this.readers = readers;
+      this.readers = Lists.newArrayListWithCapacity(readers.size());
       this.childNames = new String[fields.size()];
       for (int i = 0; i < fields.size(); i++) {
         Field field = fields.get(i);
         this.childNames[i] = field == null ? null : field.getName();
+        VortexValueReader<?> reader = readers.get(i);
+        if (reader != null) {
+          this.readers.add(reader);
+        } else {
+          Types.NestedField expectedField = schema.fields().get(i);
+          if (expectedField.initialDefault() != null) {
+            this.readers.add(
+                constants(
+                    GenericDataUtil.internalToGeneric(
+                        expectedField.type(), expectedField.initialDefault())));
+          } else if (expectedField.isOptional()) {
+            this.readers.add(constants(null));
+          } else {
+            throw new IllegalArgumentException(
+                String.format("Missing required field: %s", expectedField.name()));
+          }
+        }
       }
     }
 
@@ -161,9 +187,8 @@ public class GenericVortexReaders {
       GenericRecord record = GenericRecord.create(schema);
       for (int i = 0; i < readers.size(); i++) {
         VortexValueReader<?> reader = readers.get(i);
-        if (reader == null) {
-          // Expected field is not present in the file struct; project it as null.
-          record.set(i, null);
+        if (childNames[i] == null) {
+          record.set(i, reader.read(null, row));
         } else {
           FieldVector child = (FieldVector) struct.getChild(childNames[i]);
           record.set(i, reader.read(child, row));
@@ -330,60 +355,201 @@ public class GenericVortexReaders {
     @Override
     public Variant read(FieldVector vector, int row) {
       StructVector storage = variantStorage(vector);
-      VarBinaryVector valueVector = storage.getChild("value", VarBinaryVector.class);
-      if (vector.isNull(row) || isMissingBinary(valueVector, row)) {
-        FieldVector typedValueVector = (FieldVector) storage.getChild("typed_value");
-        if (typedValueVector != null && !typedValueVector.isNull(row)) {
-          throw new UnsupportedOperationException(
-              "Reading shredded Variant values from Vortex is not supported yet");
-        }
-
+      if (vector.isNull(row)) {
         return null;
       }
 
-      return readVariant(storage, valueVector, row);
+      return readVariant(storage, row);
     }
 
     @Override
     public Variant readNonNull(FieldVector vector, int row) {
-      StructVector storage = variantStorage(vector);
-      VarBinaryVector valueVector = storage.getChild("value", VarBinaryVector.class);
-      if (isMissingBinary(valueVector, row)) {
-        throw new UnsupportedOperationException(
-            "Reading shredded Variant values from Vortex is not supported yet");
-      }
-
-      return readVariant(storage, valueVector, row);
+      return readVariant(variantStorage(vector), row);
     }
 
-    private Variant readVariant(StructVector storage, VarBinaryVector valueVector, int row) {
+    private Variant readVariant(StructVector storage, int row) {
       VarBinaryVector metadataVector = storage.getChild("metadata", VarBinaryVector.class);
-
       if (metadataVector == null || metadataVector.isNull(row)) {
         throw new IllegalStateException("Invalid Vortex variant: metadata is null");
       }
 
       byte[] metadataBytes = metadataVector.get(row);
-      byte[] valueBytes = valueVector.get(row);
-      if (metadataBytes.length == 0 || valueBytes.length == 0) {
-        throw new IllegalStateException(
-            "Invalid Vortex variant: serialized value is empty (metadata="
-                + metadataBytes.length
-                + ", value="
-                + valueBytes.length
-                + ")");
+      if (metadataBytes.length == 0) {
+        throw new IllegalStateException("Invalid Vortex variant: serialized metadata is empty");
       }
 
       VariantMetadata metadata =
           VariantMetadata.from(ByteBuffer.wrap(metadataBytes).order(ByteOrder.LITTLE_ENDIAN));
-      VariantValue value =
-          VariantValue.from(metadata, ByteBuffer.wrap(valueBytes).order(ByteOrder.LITTLE_ENDIAN));
-      return Variant.of(metadata, value);
+      VariantValue value = readValue(storage, metadata, row);
+      return Variant.of(metadata, value != null ? value : Variants.ofNull());
     }
   }
 
-  private static boolean isMissingBinary(VarBinaryVector vector, int row) {
-    return vector == null || vector.isNull(row) || vector.get(row).length == 0;
+  private static VariantValue readValue(StructVector storage, VariantMetadata metadata, int row) {
+    VariantValue serialized = readSerialized(storage, metadata, row);
+    FieldVector typedVector = (FieldVector) storage.getChild("typed_value");
+    if (typedVector == null || typedVector.isNull(row)) {
+      return serialized;
+    }
+
+    VariantValue typed = readTypedValue(typedVector, metadata, row, serialized);
+    if (!(typedVector instanceof StructVector)) {
+      Preconditions.checkArgument(
+          serialized == null,
+          "Invalid variant, conflicting value and typed_value: value=%s typed_value=%s",
+          serialized,
+          typed);
+    }
+
+    return typed;
+  }
+
+  private static VariantValue readSerialized(
+      StructVector storage, VariantMetadata metadata, int row) {
+    VarBinaryVector valueVector = storage.getChild("value", VarBinaryVector.class);
+    if (valueVector == null || valueVector.isNull(row)) {
+      return null;
+    }
+
+    byte[] valueBytes = valueVector.get(row);
+    Preconditions.checkArgument(
+        valueBytes.length > 0, "Invalid Vortex variant: serialized value is empty");
+    return VariantValue.from(metadata, ByteBuffer.wrap(valueBytes).order(ByteOrder.LITTLE_ENDIAN));
+  }
+
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
+  private static VariantValue readTypedValue(
+      FieldVector vector, VariantMetadata metadata, int row, VariantValue serialized) {
+    ArrowType type = vector.getField().getType();
+    if (type instanceof ArrowType.Struct) {
+      return readObject((StructVector) vector, metadata, row, serialized);
+    } else if (type instanceof ArrowType.List) {
+      return readArray((ListVector) vector, metadata, row);
+    } else if (type instanceof ArrowType.Bool) {
+      return Variants.of(((BitVector) vector).get(row) != 0);
+    } else if (type instanceof ArrowType.Int intType) {
+      Preconditions.checkArgument(
+          intType.getIsSigned(), "Unsupported unsigned shredded variant type: %s", type);
+      long value = ((BaseIntVector) vector).getValueAsLong(row);
+      return switch (intType.getBitWidth()) {
+        case Byte.SIZE -> Variants.of((byte) value);
+        case Short.SIZE -> Variants.of((short) value);
+        case Integer.SIZE -> Variants.of((int) value);
+        case Long.SIZE -> Variants.of(value);
+        default -> throw new IllegalArgumentException("Invalid shredded integer type: " + type);
+      };
+    } else if (type instanceof ArrowType.FloatingPoint floatingPoint) {
+      return switch (floatingPoint.getPrecision()) {
+        case SINGLE -> Variants.of(((Float4Vector) vector).get(row));
+        case DOUBLE -> Variants.of(((Float8Vector) vector).get(row));
+        default ->
+            throw new UnsupportedOperationException(
+                "Unsupported shredded floating-point type: " + type);
+      };
+    } else if (type instanceof ArrowType.Decimal decimalType) {
+      PhysicalType physicalType;
+      if (decimalType.getPrecision() <= 9) {
+        physicalType = PhysicalType.DECIMAL4;
+      } else if (decimalType.getPrecision() <= 18) {
+        physicalType = PhysicalType.DECIMAL8;
+      } else {
+        physicalType = PhysicalType.DECIMAL16;
+      }
+
+      return Variants.of(physicalType, ((DecimalVector) vector).getObjectNotNull(row));
+    } else if (type instanceof ArrowType.Date dateType) {
+      int days =
+          switch (dateType.getUnit()) {
+            case DAY -> ((DateDayVector) vector).get(row);
+            case MILLISECOND ->
+                (int) Math.floorDiv(((DateMilliVector) vector).get(row), 86_400_000L);
+          };
+      return Variants.ofDate(days);
+    } else if (type instanceof ArrowType.Time timeType) {
+      long value = ((Number) vector.getObject(row)).longValue();
+      long micros =
+          switch (timeType.getUnit()) {
+            case SECOND -> value * 1_000_000L;
+            case MILLISECOND -> value * 1_000L;
+            case MICROSECOND -> value;
+            case NANOSECOND -> value / 1_000L;
+          };
+      return Variants.ofTime(micros);
+    } else if (type instanceof ArrowType.Timestamp timestampType) {
+      long value = ((TimeStampVector) vector).get(row);
+      boolean nanos = timestampType.getUnit() == org.apache.arrow.vector.types.TimeUnit.NANOSECOND;
+      long timestamp =
+          switch (timestampType.getUnit()) {
+            case SECOND -> value * 1_000_000L;
+            case MILLISECOND -> value * 1_000L;
+            case MICROSECOND, NANOSECOND -> value;
+          };
+      if (timestampType.getTimezone() != null) {
+        return nanos ? Variants.ofTimestamptzNanos(timestamp) : Variants.ofTimestamptz(timestamp);
+      }
+
+      return nanos ? Variants.ofTimestampntzNanos(timestamp) : Variants.ofTimestampntz(timestamp);
+    } else if (type instanceof ArrowType.Utf8) {
+      return Variants.of(new String(((VarCharVector) vector).get(row), StandardCharsets.UTF_8));
+    } else if (VortexSchemas.isUuidField(vector.getField())) {
+      return Variants.ofUUID(UUIDUtil.convert(uuidStorage(vector).get(row)));
+    } else if (type instanceof ArrowType.Binary) {
+      return Variants.of(ByteBuffer.wrap(((VarBinaryVector) vector).get(row)));
+    } else if (type instanceof ArrowType.FixedSizeBinary) {
+      return Variants.of(ByteBuffer.wrap(((FixedSizeBinaryVector) vector).get(row)));
+    }
+
+    throw new UnsupportedOperationException("Unsupported shredded variant type: " + type);
+  }
+
+  private static VariantValue readObject(
+      StructVector vector, VariantMetadata metadata, int row, VariantValue serialized) {
+    ShreddedObject object;
+    if (serialized == null) {
+      object = Variants.object(metadata);
+    } else {
+      Preconditions.checkArgument(
+          serialized.type() == PhysicalType.OBJECT,
+          "Invalid variant, non-object value with shredded fields: %s",
+          serialized);
+      object = Variants.object(metadata, serialized.asObject());
+    }
+
+    for (FieldVector child : vector.getChildrenFromFields()) {
+      Preconditions.checkArgument(
+          child instanceof StructVector,
+          "Invalid shredded variant field %s: expected struct, found %s",
+          child.getName(),
+          child.getField().getType());
+      VariantValue fieldValue =
+          child.isNull(row) ? null : readValue((StructVector) child, metadata, row);
+      if (fieldValue == null) {
+        object.remove(child.getName());
+      } else {
+        object.put(child.getName(), fieldValue);
+      }
+    }
+
+    return object;
+  }
+
+  private static ValueArray readArray(ListVector vector, VariantMetadata metadata, int row) {
+    int start = vector.getElementStartIndex(row);
+    int end = vector.getElementEndIndex(row);
+    FieldVector elements = vector.getDataVector();
+    Preconditions.checkArgument(
+        elements instanceof StructVector,
+        "Invalid shredded variant array element: expected struct, found %s",
+        elements.getField().getType());
+
+    ValueArray array = Variants.array();
+    for (int index = start; index < end; index++) {
+      VariantValue element =
+          elements.isNull(index) ? null : readValue((StructVector) elements, metadata, index);
+      array.add(element != null ? element : Variants.ofNull());
+    }
+
+    return array;
   }
 
   private static StructVector variantStorage(FieldVector vector) {

@@ -39,12 +39,15 @@ import org.apache.arrow.vector.TimeStampNanoVector;
 import org.apache.arrow.vector.VarBinaryVector;
 import org.apache.arrow.vector.VarCharVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
+import org.apache.arrow.vector.complex.ListVector;
 import org.apache.arrow.vector.complex.StructVector;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.UUIDUtil;
 import org.apache.iceberg.vortex.VortexValueWriter;
 import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.spark.sql.catalyst.expressions.SpecializedGetters;
+import org.apache.spark.sql.catalyst.util.ArrayData;
 import org.apache.spark.unsafe.types.UTF8String;
 
 /** Writes Spark {@link InternalRow} objects to Arrow vectors for Vortex file output. */
@@ -78,7 +81,7 @@ public class SparkVortexWriter implements VortexValueWriter<InternalRow> {
   private static void writeValue(
       FieldVector vector,
       org.apache.iceberg.types.Type type,
-      InternalRow row,
+      SpecializedGetters row,
       int fieldIndex,
       int rowIndex) {
     switch (type.typeId()) {
@@ -162,6 +165,24 @@ public class SparkVortexWriter implements VortexValueWriter<InternalRow> {
         }
         // Mark the struct slot itself as non-null for this row.
         structVector.setIndexDefined(rowIndex);
+        break;
+      case LIST:
+        Types.ListType listType = (Types.ListType) type;
+        ListVector listVector = (ListVector) vector;
+        ArrayData array = row.getArray(fieldIndex);
+        FieldVector elementVector = listVector.getDataVector();
+        int elementIndex = listVector.startNewValue(rowIndex);
+        for (int i = 0; i < array.numElements(); i++) {
+          if (array.isNullAt(i)) {
+            elementVector.setNull(elementIndex);
+          } else {
+            writeValue(elementVector, listType.elementType(), array, i, elementIndex);
+          }
+
+          elementIndex += 1;
+        }
+
+        listVector.endValue(rowIndex, array.numElements());
         break;
       default:
         throw new UnsupportedOperationException(

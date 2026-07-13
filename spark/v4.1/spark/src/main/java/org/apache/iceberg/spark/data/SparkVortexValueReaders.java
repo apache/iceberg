@@ -32,6 +32,7 @@ import org.apache.arrow.vector.TimeNanoVector;
 import org.apache.arrow.vector.TimeStampVector;
 import org.apache.arrow.vector.VarBinaryVector;
 import org.apache.arrow.vector.VarCharVector;
+import org.apache.arrow.vector.complex.ListVector;
 import org.apache.arrow.vector.types.TimeUnit;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.iceberg.data.vortex.GenericVortexReaders;
@@ -39,6 +40,8 @@ import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.iceberg.util.UUIDUtil;
 import org.apache.iceberg.variants.Variant;
 import org.apache.iceberg.vortex.VortexValueReader;
+import org.apache.spark.sql.catalyst.util.ArrayData;
+import org.apache.spark.sql.catalyst.util.GenericArrayData;
 import org.apache.spark.unsafe.types.UTF8String;
 import org.apache.spark.unsafe.types.VariantVal;
 
@@ -75,6 +78,31 @@ public class SparkVortexValueReaders {
 
   public static VortexValueReader<VariantVal> variants() {
     return VariantReader.INSTANCE;
+  }
+
+  static VortexValueReader<ArrayData> list(VortexValueReader<?> elementReader) {
+    return new ListReader(elementReader);
+  }
+
+  private static class ListReader implements VortexValueReader<ArrayData> {
+    private final VortexValueReader<?> elementReader;
+
+    private ListReader(VortexValueReader<?> elementReader) {
+      this.elementReader = elementReader;
+    }
+
+    @Override
+    public ArrayData readNonNull(FieldVector vector, int row) {
+      ListVector list = (ListVector) vector;
+      int start = list.getElementStartIndex(row);
+      int end = list.getElementEndIndex(row);
+      Object[] elements = new Object[end - start];
+      FieldVector elementVector = list.getDataVector();
+      for (int index = start; index < end; index++) {
+        elements[index - start] = elementReader.read(elementVector, index);
+      }
+      return new GenericArrayData(elements);
+    }
   }
 
   static class UTF8Reader implements VortexValueReader<UTF8String> {

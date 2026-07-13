@@ -23,13 +23,16 @@ import java.util.List;
 import java.util.Map;
 import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
+import org.apache.arrow.vector.complex.StructVector;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.vortex.GenericVortexReaders;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.vortex.VortexRowReader;
@@ -81,8 +84,7 @@ public class SparkVortexReader implements VortexRowReader<InternalRow> {
       } else {
         Field arrowField = arrowFieldsByName.get(field.name());
         if (arrowField == null) {
-          // Field is neither a constant nor present in the data file; fill with null.
-          this.readers[i] = GenericVortexReaders.constants(null);
+          this.readers[i] = defaultReader(field);
         } else {
           this.readers[i] =
               VortexSchemaWithTypeVisitor.visit(
@@ -91,6 +93,17 @@ public class SparkVortexReader implements VortexRowReader<InternalRow> {
         }
       }
     }
+  }
+
+  private static VortexValueReader<?> defaultReader(Types.NestedField field) {
+    if (field.initialDefault() != null) {
+      return GenericVortexReaders.constants(
+          SparkUtil.internalToSpark(field.type(), field.initialDefault()));
+    } else if (field.isOptional()) {
+      return GenericVortexReaders.constants(null);
+    }
+
+    throw new IllegalArgumentException(String.format("Missing required field: %s", field.name()));
   }
 
   @Override
@@ -138,13 +151,13 @@ public class SparkVortexReader implements VortexRowReader<InternalRow> {
     @Override
     public VortexValueReader<?> struct(
         Types.StructType schema, List<Field> fields, List<VortexValueReader<?>> children) {
-      return new StructReader(fields, children);
+      return new StructReader(schema, fields, children);
     }
 
     @Override
     public VortexValueReader<?> list(
         Types.ListType iList, Field listField, VortexValueReader<?> element) {
-      throw new UnsupportedOperationException("Vortex LIST types are not supported yet");
+      return SparkVortexValueReaders.list(element);
     }
 
     @Override
@@ -184,25 +197,26 @@ public class SparkVortexReader implements VortexRowReader<InternalRow> {
     private final String[] childNames;
     private final List<VortexValueReader<?>> fieldReaders;
 
-    private StructReader(List<Field> fields, List<VortexValueReader<?>> fieldReaders) {
-      this.fieldReaders = fieldReaders;
+    private StructReader(
+        Types.StructType schema, List<Field> fields, List<VortexValueReader<?>> fieldReaders) {
+      this.fieldReaders = Lists.newArrayListWithCapacity(fieldReaders.size());
       this.childNames = new String[fields.size()];
       for (int i = 0; i < fields.size(); i++) {
         Field field = fields.get(i);
         this.childNames[i] = field == null ? null : field.getName();
+        VortexValueReader<?> reader = fieldReaders.get(i);
+        this.fieldReaders.add(reader != null ? reader : defaultReader(schema.fields().get(i)));
       }
     }
 
     @Override
     public InternalRow readNonNull(FieldVector vector, int row) {
-      org.apache.arrow.vector.complex.StructVector struct =
-          (org.apache.arrow.vector.complex.StructVector) vector;
+      StructVector struct = (StructVector) vector;
       GenericInternalRow result = new GenericInternalRow(fieldReaders.size());
       for (int i = 0; i < fieldReaders.size(); i++) {
         VortexValueReader<?> fieldReader = fieldReaders.get(i);
-        if (fieldReader == null) {
-          // Expected field is not present in the file struct; project it as null.
-          result.update(i, null);
+        if (childNames[i] == null) {
+          result.update(i, fieldReader.read(null, row));
         } else {
           FieldVector child = (FieldVector) struct.getChild(childNames[i]);
           result.update(i, fieldReader.read(child, row));

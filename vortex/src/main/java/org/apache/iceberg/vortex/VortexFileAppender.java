@@ -47,8 +47,7 @@ class VortexFileAppender<D> implements FileAppender<D> {
   private final VectorSchemaRoot root;
   private final int batchSize;
   private final OutputFile outputFile;
-  private final org.apache.iceberg.Schema icebergSchema;
-  private final MetricsConfig metricsConfig;
+  private final VortexMetrics.Accumulator metricsAccumulator;
 
   private int currentBatchIndex = 0;
   private long totalRowCount = 0;
@@ -69,8 +68,7 @@ class VortexFileAppender<D> implements FileAppender<D> {
     this.root = VectorSchemaRoot.create(arrowSchema, this.allocator);
     this.batchSize = batchSize;
     this.outputFile = outputFile;
-    this.icebergSchema = icebergSchema;
-    this.metricsConfig = metricsConfig;
+    this.metricsAccumulator = new VortexMetrics.Accumulator(icebergSchema, metricsConfig);
   }
 
   @Override
@@ -94,6 +92,7 @@ class VortexFileAppender<D> implements FileAppender<D> {
     }
 
     root.setRowCount(currentBatchIndex);
+    metricsAccumulator.add(root, currentBatchIndex);
 
     try (ArrowArray cArray = ArrowArray.allocateNew(allocator);
         ArrowSchema cSchema = ArrowSchema.allocateNew(allocator)) {
@@ -109,8 +108,7 @@ class VortexFileAppender<D> implements FileAppender<D> {
 
   @Override
   public Metrics metrics() {
-    return VortexMetrics.buildMetrics(
-        totalRowCount, icebergSchema, metricsConfig, valueWriter.metrics());
+    return metricsAccumulator.metrics(totalRowCount);
   }
 
   @Override

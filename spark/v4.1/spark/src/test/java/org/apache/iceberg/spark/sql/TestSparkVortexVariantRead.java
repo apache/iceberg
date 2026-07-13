@@ -21,8 +21,12 @@ package org.apache.iceberg.spark.sql;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
+import org.apache.iceberg.Table;
+import org.apache.iceberg.expressions.Literal;
+import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkCatalog;
 import org.apache.iceberg.spark.TestBase;
+import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Row;
 import org.apache.spark.types.variant.Variant;
 import org.apache.spark.unsafe.types.VariantVal;
@@ -59,12 +63,19 @@ public class TestSparkVortexVariantRead extends TestBase {
   public void setupTable() {
     sql("DROP TABLE IF EXISTS %s", TABLE);
     sql(
-        "CREATE TABLE %s (id BIGINT, v1 VARIANT, v2 VARIANT) USING iceberg "
+        "CREATE TABLE %s (id BIGINT, v1 VARIANT, v2 VARIANT, values ARRAY<BIGINT>, "
+            + "details STRUCT<existing: STRING>) USING iceberg "
             + "TBLPROPERTIES ('format-version'='3', 'write.format.default'='vortex')",
         TABLE);
 
-    sql("INSERT INTO %s SELECT 1, parse_json('{\"a\":1}'), parse_json('{\"x\":10}')", TABLE);
-    sql("INSERT INTO %s SELECT 2, parse_json('{\"b\":2}'), parse_json('{\"y\":20}')", TABLE);
+    sql(
+        "INSERT INTO %s SELECT 1, parse_json('{\"a\":1}'), parse_json('{\"x\":10}'), "
+            + "array(1L, NULL, 3L), named_struct('existing', 'one')",
+        TABLE);
+    sql(
+        "INSERT INTO %s SELECT 2, parse_json('{\"b\":2}'), parse_json('{\"y\":20}'), "
+            + "array(), named_struct('existing', 'two')",
+        TABLE);
   }
 
   @AfterEach
@@ -96,11 +107,44 @@ public class TestSparkVortexVariantRead extends TestBase {
 
   @Test
   public void readNullVariant() {
-    sql("INSERT INTO %s SELECT 3, NULL, NULL", TABLE);
+    sql("INSERT INTO %s SELECT 3, NULL, NULL, NULL, NULL", TABLE);
 
     List<Row> rows = spark.table(TABLE).select("id", "v1").where("id = 3").collectAsList();
     assertThat(rows).hasSize(1);
     assertThat(rows.get(0).get(1)).isNull();
+  }
+
+  @Test
+  public void readListWithVariantProjection() {
+    List<Row> rows = spark.table(TABLE).select("id", "v1", "values").orderBy("id").collectAsList();
+
+    assertThat(rows.get(0).getList(2)).containsExactly(1L, null, 3L);
+    assertThat(rows.get(1).getList(2)).isEmpty();
+  }
+
+  @Test
+  public void readFieldDefault() throws Exception {
+    Table table = Spark3Util.loadIcebergTable(spark, TABLE);
+    table.updateSchema().addColumn("added", Types.StringType.get(), Literal.of("default")).commit();
+    sql("REFRESH TABLE %s", TABLE);
+
+    List<Row> rows = spark.table(TABLE).select("id", "added").orderBy("id").collectAsList();
+
+    assertThat(rows).extracting(row -> row.getString(1)).containsExactly("default", "default");
+  }
+
+  @Test
+  public void readNestedFieldDefault() throws Exception {
+    Table table = Spark3Util.loadIcebergTable(spark, TABLE);
+    table
+        .updateSchema()
+        .addColumn("details", "added", Types.IntegerType.get(), Literal.of(34))
+        .commit();
+    sql("REFRESH TABLE %s", TABLE);
+
+    List<Row> rows = spark.table(TABLE).orderBy("id").selectExpr("details.added").collectAsList();
+
+    assertThat(rows).extracting(row -> row.getInt(0)).containsExactly(34, 34);
   }
 
   private static void assertVariantField(Object value, String key, long expected) {

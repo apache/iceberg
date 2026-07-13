@@ -26,6 +26,7 @@ import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.vortex.VortexBatchReader;
 import org.apache.spark.sql.vectorized.ArrowColumnVector;
@@ -78,6 +79,12 @@ public class VectorizedSparkVortexReaders {
               new ConstantColumnVector(field.type(), rowCount, idToConstant.get(field.fieldId()));
         } else if (field.fieldId() == MetadataColumns.IS_DELETED.fieldId()) {
           vectors[i] = new ConstantColumnVector(Types.BooleanType.get(), rowCount, false);
+        } else if (field.initialDefault() != null) {
+          vectors[i] =
+              new ConstantColumnVector(
+                  field.type(),
+                  rowCount,
+                  SparkUtil.internalToSpark(field.type(), field.initialDefault()));
         } else {
           // Column is neither a constant nor present in the data file; surface nulls.
           vectors[i] = new ConstantColumnVector(field.type(), rowCount, null);

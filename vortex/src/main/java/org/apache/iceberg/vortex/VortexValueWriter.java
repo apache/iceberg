@@ -43,7 +43,8 @@ public interface VortexValueWriter<D> {
    * Returns per-field metrics collected during writes.
    *
    * <p>Implementations that track metrics should return one {@link FieldMetrics} per column,
-   * containing value counts, null counts, NaN counts, and lower/upper bounds.
+   * containing value counts, null counts, NaN counts, and lower/upper bounds. File-level Vortex
+   * metrics are collected from Arrow batches by the appender and do not depend on this method.
    */
   default Stream<FieldMetrics<?>> metrics() {
     return Stream.empty();

@@ -29,6 +29,7 @@ import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.data.GenericDataUtil;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -88,7 +89,11 @@ public class GenericVortexReader implements VortexRowReader<Record> {
       } else {
         Field arrowField = arrowFieldsByName.get(field.name());
         if (arrowField == null) {
-          if (field.isOptional()) {
+          if (field.initialDefault() != null) {
+            this.readers[i] =
+                GenericVortexReaders.constants(
+                    GenericDataUtil.internalToGeneric(field.type(), field.initialDefault()));
+          } else if (field.isOptional()) {
             // The expected field is neither a constant nor present in the data file (for example an
             // unsupplied metadata column). Fill it with null rather than reading a missing column.
             this.readers[i] = GenericVortexReaders.constants(null);

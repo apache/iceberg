@@ -20,14 +20,21 @@ package org.apache.iceberg.vortex;
 
 import dev.vortex.api.Expression;
 import dev.vortex.api.Expression.BinaryOp;
+import java.math.BigDecimal;
+import java.nio.ByteBuffer;
+import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.BoundReference;
 import org.apache.iceberg.expressions.ExpressionVisitors;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.UnboundPredicate;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.ByteBuffers;
 
 /**
  * Convert an Iceberg filter expression into a valid Vortex pruning predicate that can be pushed
@@ -121,17 +128,19 @@ public final class ConvertFilterToVortex extends ExpressionVisitors.ExpressionVi
           "Cannot convert non-reference to Vortex filter: " + pred.term());
     }
 
-    String name = term.ref().field().name();
+    Expression vortexTerm = column(term.fieldId());
+    if (vortexTerm == UNCONVERTIBLE) {
+      return UNCONVERTIBLE;
+    }
+
     if (pred.isLiteralPredicate()) {
       org.apache.iceberg.expressions.Literal<T> icebergLit = pred.asLiteralPredicate().literal();
       Expression vortexLit = toVortexLiteral(icebergLit.value(), term.type());
       if (vortexLit == UNCONVERTIBLE) {
         return UNCONVERTIBLE;
       }
-      Expression vortexTerm = Expression.column(name);
       return fromBinaryPredicate(pred.op(), vortexTerm, vortexLit);
     } else if (pred.isUnaryPredicate()) {
-      Expression vortexTerm = Expression.column(name);
       return fromUnaryPredicate(pred.op(), vortexTerm);
     } else if (pred.isSetPredicate()) {
       Set<T> literalSet = pred.asSetPredicate().literalSet();
@@ -139,7 +148,6 @@ public final class ConvertFilterToVortex extends ExpressionVisitors.ExpressionVi
         return UNCONVERTIBLE;
       }
 
-      Expression vortexTerm = Expression.column(name);
       return fromSetPredicate(pred.op(), vortexTerm, literalSet, term.type());
     } else {
       return UNCONVERTIBLE;
@@ -163,13 +171,40 @@ public final class ConvertFilterToVortex extends ExpressionVisitors.ExpressionVi
     return pred.bind(fileSchema.asStruct(), caseSensitive);
   }
 
+  private Expression column(int fieldId) {
+    List<String> path = Lists.newArrayList();
+    if (findFieldPath(fileSchema.asStruct(), fieldId, path)) {
+      return Expression.column(path.toArray(String[]::new));
+    }
+
+    return UNCONVERTIBLE;
+  }
+
+  private static boolean findFieldPath(Types.StructType struct, int fieldId, List<String> path) {
+    for (Types.NestedField field : struct.fields()) {
+      path.add(field.name());
+      if (field.fieldId() == fieldId) {
+        return true;
+      }
+
+      if (field.type().isStructType()
+          && findFieldPath(field.type().asStructType(), fieldId, path)) {
+        return true;
+      }
+
+      path.remove(path.size() - 1);
+    }
+
+    return false;
+  }
+
   /**
    * Convert an Iceberg value to a Vortex literal Expression. Returns {@link #UNCONVERTIBLE} if no
-   * matching Vortex literal type exists (binary, decimal, date, time, timestamp, uuid).
+   * matching Vortex literal type exists.
    */
-  private Expression toVortexLiteral(Object value, Type termType) {
+  static Expression toVortexLiteral(Object value, Type termType) {
     if (value == null) {
-      return UNCONVERTIBLE;
+      return toVortexNullLiteral(termType);
     }
     return switch (termType.typeId()) {
       case BOOLEAN -> Expression.literal((Boolean) value);
@@ -178,6 +213,55 @@ public final class ConvertFilterToVortex extends ExpressionVisitors.ExpressionVi
       case FLOAT -> Expression.literal((Float) value);
       case DOUBLE -> Expression.literal((Double) value);
       case STRING -> Expression.literal(((CharSequence) value).toString());
+      case BINARY, FIXED -> Expression.literal(ByteBuffers.toByteArray((ByteBuffer) value));
+      case DECIMAL -> {
+        BigDecimal decimal = (BigDecimal) value;
+        Types.DecimalType decimalType = (Types.DecimalType) termType;
+        yield Expression.literalDecimal(
+            decimal.unscaledValue(), decimalType.precision(), decimalType.scale());
+      }
+      case DATE -> Expression.literalDate((Integer) value, Expression.TimeUnit.DAYS);
+      case TIME -> UNCONVERTIBLE;
+      case TIMESTAMP -> {
+        Types.TimestampType timestampType = (Types.TimestampType) termType;
+        String timezone = timestampType.shouldAdjustToUTC() ? "UTC" : null;
+        yield Expression.literalTimestamp((Long) value, Expression.TimeUnit.MICROSECONDS, timezone);
+      }
+      case TIMESTAMP_NANO -> {
+        Types.TimestampNanoType timestampType = (Types.TimestampNanoType) termType;
+        String timezone = timestampType.shouldAdjustToUTC() ? "UTC" : null;
+        yield Expression.literalTimestamp((Long) value, Expression.TimeUnit.NANOSECONDS, timezone);
+      }
+      case UUID -> Expression.literal((UUID) value);
+      default -> UNCONVERTIBLE;
+    };
+  }
+
+  private static Expression toVortexNullLiteral(Type termType) {
+    return switch (termType.typeId()) {
+      case BOOLEAN -> Expression.nullLiteral(Expression.DType.BOOL);
+      case INTEGER -> Expression.nullLiteral(Expression.DType.I32);
+      case LONG -> Expression.nullLiteral(Expression.DType.I64);
+      case FLOAT -> Expression.nullLiteral(Expression.DType.F32);
+      case DOUBLE -> Expression.nullLiteral(Expression.DType.F64);
+      case STRING -> Expression.nullLiteral(Expression.DType.UTF8);
+      case BINARY, FIXED -> Expression.nullLiteral(Expression.DType.BINARY);
+      case DECIMAL -> {
+        Types.DecimalType decimalType = (Types.DecimalType) termType;
+        yield Expression.nullLiteralDecimal(decimalType.precision(), decimalType.scale());
+      }
+      case DATE -> Expression.nullLiteralDate(Expression.TimeUnit.DAYS);
+      case TIMESTAMP -> {
+        Types.TimestampType timestampType = (Types.TimestampType) termType;
+        String timezone = timestampType.shouldAdjustToUTC() ? "UTC" : null;
+        yield Expression.nullLiteralTimestamp(Expression.TimeUnit.MICROSECONDS, timezone);
+      }
+      case TIMESTAMP_NANO -> {
+        Types.TimestampNanoType timestampType = (Types.TimestampNanoType) termType;
+        String timezone = timestampType.shouldAdjustToUTC() ? "UTC" : null;
+        yield Expression.nullLiteralTimestamp(Expression.TimeUnit.NANOSECONDS, timezone);
+      }
+      case UUID -> Expression.nullLiteralUuid();
       default -> UNCONVERTIBLE;
     };
   }

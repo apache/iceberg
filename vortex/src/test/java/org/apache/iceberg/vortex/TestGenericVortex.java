@@ -57,6 +57,11 @@ public class TestGenericVortex extends DataTestBase {
   }
 
   @Override
+  protected boolean supportsDefaultValues() {
+    return true;
+  }
+
+  @Override
   protected void writeAndValidate(Schema schema) throws IOException {
     writeAndValidate(schema, RandomGenericData.generate(schema, 100, 1376L));
   }

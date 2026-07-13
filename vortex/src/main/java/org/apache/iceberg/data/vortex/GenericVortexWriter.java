@@ -55,6 +55,7 @@ import org.apache.arrow.vector.complex.StructVector;
 import org.apache.iceberg.FieldMetrics;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ByteBuffers;
@@ -145,8 +146,8 @@ public class GenericVortexWriter implements VortexValueWriter<Record> {
         break;
       case BINARY:
         byte[] binaryBytes;
-        if (value instanceof ByteBuffer) {
-          binaryBytes = ByteBuffers.toByteArray((ByteBuffer) value);
+        if (value instanceof ByteBuffer buffer) {
+          binaryBytes = ByteBuffers.toByteArray(buffer);
         } else {
           binaryBytes = (byte[]) value;
         }
@@ -342,12 +343,21 @@ public class GenericVortexWriter implements VortexValueWriter<Record> {
               Comparator.naturalOrder(),
               v -> ChronoUnit.NANOS.between(LOCAL_EPOCH, (LocalDateTime) v));
         }
+      case BINARY, FIXED:
+        return new ColumnMetricsTracker<ByteBuffer>(
+            field.fieldId(),
+            Comparators.forType(field.type().asPrimitiveType()),
+            v ->
+                v instanceof ByteBuffer buffer
+                    ? ByteBuffers.copy(buffer)
+                    : ByteBuffer.wrap((byte[]) v));
       default:
         if (field.type().isNestedType() || field.type().isVariantType()) {
           // Lists, maps, and structs have no natural ordering — track counts only.
           return new ColumnMetricsTracker<>(field.fieldId(), null);
         }
-        return new ColumnMetricsTracker<>(field.fieldId(), (Comparator) Comparator.naturalOrder());
+        return new ColumnMetricsTracker<>(
+            field.fieldId(), Comparators.forType(field.type().asPrimitiveType()));
     }
   }
 
