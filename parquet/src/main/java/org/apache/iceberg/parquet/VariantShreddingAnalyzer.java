@@ -29,6 +29,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.variants.PhysicalType;
 import org.apache.iceberg.variants.VariantArray;
@@ -347,7 +348,7 @@ public abstract class VariantShreddingAnalyzer<T, S> {
           .named(TYPED_VALUE);
     } else {
       return Types.optional(PrimitiveType.PrimitiveTypeName.FIXED_LEN_BYTE_ARRAY)
-          .length(16)
+          .length(TypeUtil.decimalRequiredBytes(maxPrecision))
           .as(LogicalTypeAnnotation.decimalType(maxScale, maxPrecision))
           .named(TYPED_VALUE);
     }

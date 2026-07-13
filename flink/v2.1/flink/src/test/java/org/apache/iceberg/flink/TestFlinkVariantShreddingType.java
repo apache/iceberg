@@ -447,7 +447,7 @@ class TestFlinkVariantShreddingType extends CatalogTestBase {
             "value",
             shreddedPrimitive(
                 PrimitiveType.PrimitiveTypeName.FIXED_LEN_BYTE_ARRAY,
-                16,
+                9, // decimalRequiredBytes(21)
                 LogicalTypeAnnotation.decimalType(6, 21)));
     GroupType address = variant("address", 2, Type.Repetition.REQUIRED, objectFields(value));
     MessageType expectedSchema = parquetSchema(address);

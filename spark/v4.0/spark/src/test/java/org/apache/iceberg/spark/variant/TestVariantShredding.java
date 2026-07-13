@@ -559,7 +559,7 @@ public class TestVariantShredding extends CatalogTestBase {
         field(
             "value",
             optional(PrimitiveType.PrimitiveTypeName.FIXED_LEN_BYTE_ARRAY)
-                .length(16)
+                .length(9) // decimalRequiredBytes(21)
                 .as(LogicalTypeAnnotation.decimalType(6, 21))
                 .named("typed_value"));
     GroupType address = variant("address", 2, Type.Repetition.REQUIRED, objectFields(value));
@@ -997,6 +997,24 @@ public class TestVariantShredding extends CatalogTestBase {
     assertThat(rows.get(3)[1]).isEqualTo(new BigDecimal("123456.7800"));
     assertThat(rows.get(4)[1]).isEqualTo(new BigDecimal("1.2345"));
     assertThat(rows.get(5)[1]).isEqualTo(new BigDecimal("12.3000"));
+  }
+
+  @TestTemplate
+  public void testShreddedLargeIntegerVariantReadBack() {
+    // DECIMAL16 (20-digit integer, above Long.MAX_VALUE) shreds to a FIXED_LEN_BYTE_ARRAY
+    // typed_value whose declared length must equal what FixedDecimalWriter emits.
+    spark.conf().set(SparkSQLProperties.SHRED_VARIANTS, "true");
+
+    sql(
+        "INSERT INTO %s VALUES "
+            + "(1, parse_json('{\"v\":12345678901234567890}')), "
+            + "(2, parse_json('{\"v\":-12345678901234567890}'))",
+        tableName);
+
+    List<Object[]> values =
+        sql("SELECT variant_get(address, '$.v', 'decimal(38,0)') FROM %s ORDER BY id", tableName);
+    assertThat(values.get(0)[0]).isEqualTo(new BigDecimal("12345678901234567890"));
+    assertThat(values.get(1)[0]).isEqualTo(new BigDecimal("-12345678901234567890"));
   }
 
   private void verifyParquetSchema(Table table, MessageType expectedSchema) throws IOException {
