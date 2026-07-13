@@ -246,7 +246,7 @@ class FieldReferenceByName(BaseModel):
 class FunctionReference1(RootModel[str]):
     root: str = Field(
         ...,
-        description='A reference to a function. Four JSON forms: a bare name (single-part identifier), a list of names (multi-part identifier), an object with an identifier, or an object with both a catalog and an identifier.\n',
+        description='A function reference is either a name, a multi-part name, an identifier object, or a catalog-qualified identifier object.\n',
         min_length=1,
     )
 
@@ -258,7 +258,7 @@ class FunctionReference2Item(RootModel[str]):
 class FunctionReference2(RootModel[list[FunctionReference2Item]]):
     root: list[FunctionReference2Item] = Field(
         ...,
-        description='A reference to a function. Four JSON forms: a bare name (single-part identifier), a list of names (multi-part identifier), an object with an identifier, or an object with both a catalog and an identifier.\n',
+        description='A function reference is either a name, a multi-part name, an identifier object, or a catalog-qualified identifier object.\n',
         min_length=1,
     )
 
@@ -269,7 +269,7 @@ class IdentifierItem(RootModel[str]):
 
 class FunctionReference3(BaseModel):
     """
-    A reference to a function. Four JSON forms: a bare name (single-part identifier), a list of names (multi-part identifier), an object with an identifier, or an object with both a catalog and an identifier.
+    A function reference is either a name, a multi-part name, an identifier object, or a catalog-qualified identifier object.
 
     """
 
@@ -281,7 +281,7 @@ class FunctionReference3(BaseModel):
 
 class FunctionReference4(BaseModel):
     """
-    A reference to a function. Four JSON forms: a bare name (single-part identifier), a list of names (multi-part identifier), an object with an identifier, or an object with both a catalog and an identifier.
+    A function reference is either a name, a multi-part name, an identifier object, or a catalog-qualified identifier object.
 
     """
 
@@ -307,7 +307,7 @@ class FunctionReference(
         | FunctionReference4
     ) = Field(
         ...,
-        description='A reference to a function. Four JSON forms: a bare name (single-part identifier), a list of names (multi-part identifier), an object with an identifier, or an object with both a catalog and an identifier.\n',
+        description='A function reference is either a name, a multi-part name, an identifier object, or a catalog-qualified identifier object.\n',
     )
 
 
@@ -1251,7 +1251,7 @@ class RenameTableRequest(BaseModel):
 
 class Literal1(BaseModel):
     """
-    A literal value expression. Three JSON forms are accepted: a bare scalar value, a typed literal object without a data-type, or a typed literal object with an explicit data-type.
+    A literal is either a bare value, an untyped literal object, or a typed literal object.
 
     """
 
@@ -1263,16 +1263,16 @@ class Literal1(BaseModel):
     data_type: PrimitiveType | None = Field(None, alias='data-type')
 
 
-class LiteralModel(RootModel[str | float | bool | Literal1]):
-    root: str | float | bool | Literal1 = Field(
+class LiteralModel(RootModel[PrimitiveTypeValue | Literal1]):
+    root: PrimitiveTypeValue | Literal1 = Field(
         ...,
-        description='A literal value expression. Three JSON forms are accepted: a bare scalar value, a typed literal object without a data-type, or a typed literal object with an explicit data-type.\n',
+        description='A literal is either a bare value, an untyped literal object, or a typed literal object.\n',
     )
 
 
 class Literals1(BaseModel):
     """
-    A list of literal values. Two JSON forms: a bare array of literals, or a typed object with an explicit data-type applied to all values.
+    Literals is either a bare array of literals or a typed object with an explicit data-type applied to all values.
 
     """
 
@@ -1287,7 +1287,7 @@ class Literals1(BaseModel):
 class Literals(RootModel[list[LiteralModel] | Literals1]):
     root: list[LiteralModel] | Literals1 = Field(
         ...,
-        description='A list of literal values. Two JSON forms: a bare array of literals, or a typed object with an explicit data-type applied to all values.\n',
+        description='Literals is either a bare array of literals or a typed object with an explicit data-type applied to all values.\n',
     )
 
 
@@ -1537,6 +1537,9 @@ class UnaryPredicate(BaseModel):
 
     """
 
+    model_config = ConfigDict(
+        extra='forbid',
+    )
     type: Literal['is-null', 'not-null', 'is-nan', 'not-nan'] = Field(
         ...,
         examples=[
@@ -1572,6 +1575,9 @@ class ComparisonPredicate(BaseModel):
 
     """
 
+    model_config = ConfigDict(
+        extra='forbid',
+    )
     type: Literal[
         'lt', 'lt-eq', 'gt', 'gt-eq', 'eq', 'not-eq', 'starts-with', 'not-starts-with'
     ] = Field(
@@ -1610,6 +1616,9 @@ class SetPredicate(BaseModel):
 
     """
 
+    model_config = ConfigDict(
+        extra='forbid',
+    )
     type: Literal['in', 'not-in'] = Field(
         ...,
         examples=[
