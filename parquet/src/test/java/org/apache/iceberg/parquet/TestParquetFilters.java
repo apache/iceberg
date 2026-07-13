@@ -78,4 +78,50 @@ class TestParquetFilters {
         .as("and(alwaysFalse, pred) should produce NOOP filter")
         .isSameAs(FilterCompat.NOOP);
   }
+
+  @Test
+  void predicateOnMissingColumnReturnsNoop() {
+    // simulates reading an older file whose schema does not contain the filtered column
+    FilterCompat.Filter result =
+        ParquetFilters.convert(SCHEMA, Expressions.equal("missing", 42), true);
+    assertThat(result)
+        .as("Predicate on a column absent from the file schema should produce NOOP filter")
+        .isSameAs(FilterCompat.NOOP);
+  }
+
+  @Test
+  void notPredicateOnMissingColumnReturnsNoop() {
+    // not(Ignored) must stay Ignored rather than flipping to a pushable filter
+    FilterCompat.Filter result =
+        ParquetFilters.convert(SCHEMA, Expressions.not(Expressions.equal("missing", 42)), true);
+    assertThat(result)
+        .as("not() of a missing-column predicate should produce NOOP filter")
+        .isSameAs(FilterCompat.NOOP);
+  }
+
+  @Test
+  void orWithMissingColumnReturnsNoop() {
+    // or(present, Ignored) cannot be pushed down: the missing column could match rows
+    FilterCompat.Filter result =
+        ParquetFilters.convert(
+            SCHEMA,
+            Expressions.or(Expressions.equal("id", 42), Expressions.equal("missing", 7)),
+            true);
+    assertThat(result)
+        .as("or(pred, missing-column pred) should produce NOOP filter")
+        .isSameAs(FilterCompat.NOOP);
+  }
+
+  @Test
+  void andWithMissingColumnPushesPresentSide() {
+    // and(present, Ignored) can push the resolvable side; dropping the ignored conjunct is safe
+    FilterCompat.Filter result =
+        ParquetFilters.convert(
+            SCHEMA,
+            Expressions.and(Expressions.equal("id", 42), Expressions.equal("missing", 7)),
+            true);
+    assertThat(result)
+        .as("and(pred, missing-column pred) should push the resolvable predicate")
+        .isNotSameAs(FilterCompat.NOOP);
+  }
 }

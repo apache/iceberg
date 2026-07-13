@@ -28,7 +28,9 @@ import org.apache.iceberg.expressions.ExpressionVisitors;
 import org.apache.iceberg.expressions.ExpressionVisitors.ExpressionVisitor;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.Literal;
+import org.apache.iceberg.expressions.NamedReference;
 import org.apache.iceberg.expressions.UnboundPredicate;
+import org.apache.iceberg.types.Types.NestedField;
 import org.apache.parquet.filter2.compat.FilterCompat;
 import org.apache.parquet.filter2.predicate.FilterApi;
 import org.apache.parquet.filter2.predicate.FilterPredicate;
@@ -42,7 +44,10 @@ class ParquetFilters {
   static FilterCompat.Filter convert(Schema schema, Expression expr, boolean caseSensitive) {
     FilterPredicate pred =
         ExpressionVisitors.visit(expr, new ConvertFilterToParquet(schema, caseSensitive));
-    if (pred != null && pred != AlwaysTrue.INSTANCE && pred != AlwaysFalse.INSTANCE) {
+    if (pred != null
+        && pred != AlwaysTrue.INSTANCE
+        && pred != AlwaysFalse.INSTANCE
+        && pred != Ignored.INSTANCE) {
       // FilterCompat will apply LogicalInverseRewriter
       return FilterCompat.get(pred);
     } else {
@@ -75,6 +80,9 @@ class ParquetFilters {
         return AlwaysFalse.INSTANCE;
       } else if (child == AlwaysFalse.INSTANCE) {
         return AlwaysTrue.INSTANCE;
+      } else if (child == Ignored.INSTANCE) {
+        // an unevaluable predicate stays unevaluable under negation
+        return Ignored.INSTANCE;
       }
       return FilterApi.not(child);
     }
@@ -83,9 +91,10 @@ class ParquetFilters {
     public FilterPredicate and(FilterPredicate left, FilterPredicate right) {
       if (left == AlwaysFalse.INSTANCE || right == AlwaysFalse.INSTANCE) {
         return AlwaysFalse.INSTANCE;
-      } else if (left == AlwaysTrue.INSTANCE) {
+      } else if (left == AlwaysTrue.INSTANCE || left == Ignored.INSTANCE) {
+        // dropping an ignored conjunct only widens the filter, which is safe for pushdown
         return right;
-      } else if (right == AlwaysTrue.INSTANCE) {
+      } else if (right == AlwaysTrue.INSTANCE || right == Ignored.INSTANCE) {
         return left;
       }
       return FilterApi.and(left, right);
@@ -95,6 +104,9 @@ class ParquetFilters {
     public FilterPredicate or(FilterPredicate left, FilterPredicate right) {
       if (left == AlwaysTrue.INSTANCE || right == AlwaysTrue.INSTANCE) {
         return AlwaysTrue.INSTANCE;
+      } else if (left == Ignored.INSTANCE || right == Ignored.INSTANCE) {
+        // an ignored disjunct could match, so the whole OR cannot be pushed down
+        return Ignored.INSTANCE;
       } else if (left == AlwaysFalse.INSTANCE) {
         return right;
       } else if (right == AlwaysFalse.INSTANCE) {
@@ -117,6 +129,11 @@ class ParquetFilters {
       Operation op = pred.op();
       BoundReference<T> ref = (BoundReference<T>) pred.term();
       String path = schema.idToAlias(ref.fieldId());
+      if (path == null) {
+        // the referenced column is not present in the file schema; cannot push down
+        return Ignored.INSTANCE;
+      }
+
       Literal<T> lit;
       if (pred.isUnaryPredicate()) {
         lit = null;
@@ -160,6 +177,16 @@ class ParquetFilters {
 
     @Override
     public <T> FilterPredicate predicate(UnboundPredicate<T> pred) {
+      NamedReference<?> ref = pred.ref();
+      NestedField field =
+          caseSensitive
+              ? schema.findField(ref.name())
+              : schema.caseInsensitiveFindField(ref.name());
+      if (field == null) {
+        // the referenced column is not present in the file schema; cannot push down
+        return Ignored.INSTANCE;
+      }
+
       Expression bound = bind(pred);
       if (bound instanceof BoundPredicate) {
         return predicate((BoundPredicate<?>) bound);
@@ -246,7 +273,22 @@ class ParquetFilters {
 
     @Override
     public <R> R accept(Visitor<R> visitor) {
-      throw new UnsupportedOperationException("AlwaysTrue is a placeholder only");
+      throw new UnsupportedOperationException("AlwaysFalse is a placeholder only");
+    }
+  }
+
+  /**
+   * Sentinel marker for a predicate that referenced a column not present in the file schema and
+   * therefore cannot be evaluated. Distinct from {@link AlwaysTrue} so that {@code not(Ignored)}
+   * does not become {@code AlwaysFalse} and {@code or(x, Ignored)} does not silently drop matching
+   * rows.
+   */
+  private static class Ignored implements FilterPredicate {
+    static final Ignored INSTANCE = new Ignored();
+
+    @Override
+    public <R> R accept(Visitor<R> visitor) {
+      throw new UnsupportedOperationException("Ignored is a placeholder only");
     }
   }
 }
