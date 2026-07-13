@@ -261,10 +261,10 @@ Index metadata is immutable. Every update, whether adding a new snapshot, droppi
 properties, produces a new index metadata file rather than modifying the existing one. Each new metadata file is written
 with a unique name.
 
-A commit replaces the current index metadata file with the new one. This swap is atomic: it succeeds only if the current
-metadata file is still the one the writer started from. The check is based on the current metadata file name (the version
-prefix). If, between the time a writer reads the metadata and the time it attempts to commit, another process has already
-committed a newer metadata file, the expected current file no longer matches and the commit is rejected.
+A commit replaces the current index metadata file with the new one. This swap is atomic: it succeeds only if the current index
+metadata file is still the one the writer started from. The check is based on the current index metadata file name.
+If, between the time a writer reads the metadata and the time it attempts to commit, another process has already
+committed a newer index metadata file, the expected current file no longer matches and the commit is rejected.
 
 When a commit is rejected because of such a conflict, the writer does not overwrite the newer metadata. Instead, the index
 maintenance process decides how to proceed. Depending on the situation it may:
