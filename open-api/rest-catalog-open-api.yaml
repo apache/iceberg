@@ -3742,16 +3742,16 @@ components:
       description: |
         Catalog-provided metadata enrichment (for example ownership,
         classification, or cost attribution) returned with a table or view.
-        Labels are ephemeral: catalog-owned, generated per request, and never
-        persisted to table metadata or versioned with table history. Optional;
-        clients may ignore them. Labels are catalog-specific; different catalogs
-        may return different or no labels for the same object. `table` carries
-        entity-level labels; `columns` is an array of per-column entries, each
-        identifying its column by field-id.
+        Labels are generated per request and optional; clients may ignore them.
+        The spec does not require how a catalog produces or stores labels, nor
+        whether they are persisted or versioned. Different catalogs may return
+        different or no labels for the same object. `object` carries
+        catalog-object-level labels; `columns` is an array of per-column
+        entries, each identifying its column by field-id.
       properties:
-        table:
+        object:
           type: object
-          description: Top-level entity labels (attached to the catalog object as a whole).
+          description: Catalog-object-level labels (attached to the object as a whole).
           additionalProperties:
             type: string
         columns:
