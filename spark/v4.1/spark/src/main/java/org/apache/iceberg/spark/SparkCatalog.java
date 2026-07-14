@@ -79,6 +79,7 @@ import org.apache.spark.sql.connector.catalog.TableChange;
 import org.apache.spark.sql.connector.catalog.TableChange.ColumnChange;
 import org.apache.spark.sql.connector.catalog.TableChange.RemoveProperty;
 import org.apache.spark.sql.connector.catalog.TableChange.SetProperty;
+import org.apache.spark.sql.connector.catalog.TableInfo;
 import org.apache.spark.sql.connector.catalog.View;
 import org.apache.spark.sql.connector.catalog.ViewChange;
 import org.apache.spark.sql.connector.catalog.ViewInfo;
@@ -181,18 +182,28 @@ public class SparkCatalog extends BaseCatalog {
     }
   }
 
+  /**
+   * @deprecated since 1.12.0, use {@link #createTable(Identifier, TableInfo)} instead.
+   */
+  @Deprecated
   @Override
   public Table createTable(
       Identifier ident, StructType schema, Transform[] transforms, Map<String, String> properties)
       throws TableAlreadyExistsException {
-    Schema icebergSchema = SparkSchemaUtil.convert(schema);
+    return createTable(ident, Spark3Util.tableInfo(schema, transforms, properties));
+  }
+
+  @Override
+  public Table createTable(Identifier ident, TableInfo tableInfo)
+      throws TableAlreadyExistsException {
+    Schema icebergSchema = SparkSchemaUtil.convert(tableInfo.schema());
     try {
       Catalog.TableBuilder builder = newBuilder(ident, icebergSchema);
       org.apache.iceberg.Table icebergTable =
           builder
-              .withPartitionSpec(Spark3Util.toPartitionSpec(icebergSchema, transforms))
-              .withLocation(properties.get("location"))
-              .withProperties(Spark3Util.rebuildCreateProperties(properties))
+              .withPartitionSpec(Spark3Util.toPartitionSpec(icebergSchema, tableInfo.partitions()))
+              .withLocation(tableInfo.properties().get("location"))
+              .withProperties(Spark3Util.rebuildCreateProperties(tableInfo.properties()))
               .create();
       return new SparkTable(icebergTable);
     } catch (AlreadyExistsException e) {
@@ -200,18 +211,28 @@ public class SparkCatalog extends BaseCatalog {
     }
   }
 
+  /**
+   * @deprecated since 1.12.0, use {@link #stageCreate(Identifier, TableInfo)} instead.
+   */
+  @Deprecated
   @Override
   public StagedTable stageCreate(
       Identifier ident, StructType schema, Transform[] transforms, Map<String, String> properties)
       throws TableAlreadyExistsException {
-    Schema icebergSchema = SparkSchemaUtil.convert(schema);
+    return stageCreate(ident, Spark3Util.tableInfo(schema, transforms, properties));
+  }
+
+  @Override
+  public StagedTable stageCreate(Identifier ident, TableInfo tableInfo)
+      throws TableAlreadyExistsException {
+    Schema icebergSchema = SparkSchemaUtil.convert(tableInfo.schema());
     try {
       Catalog.TableBuilder builder = newBuilder(ident, icebergSchema);
       Transaction transaction =
           builder
-              .withPartitionSpec(Spark3Util.toPartitionSpec(icebergSchema, transforms))
-              .withLocation(properties.get("location"))
-              .withProperties(Spark3Util.rebuildCreateProperties(properties))
+              .withPartitionSpec(Spark3Util.toPartitionSpec(icebergSchema, tableInfo.partitions()))
+              .withLocation(tableInfo.properties().get("location"))
+              .withProperties(Spark3Util.rebuildCreateProperties(tableInfo.properties()))
               .createTransaction();
       return new StagedSparkTable(transaction);
     } catch (AlreadyExistsException e) {
@@ -219,18 +240,28 @@ public class SparkCatalog extends BaseCatalog {
     }
   }
 
+  /**
+   * @deprecated since 1.12.0, use {@link #stageReplace(Identifier, TableInfo)} instead.
+   */
+  @Deprecated
   @Override
   public StagedTable stageReplace(
       Identifier ident, StructType schema, Transform[] transforms, Map<String, String> properties)
       throws NoSuchTableException {
-    Schema icebergSchema = SparkSchemaUtil.convert(schema);
+    return stageReplace(ident, Spark3Util.tableInfo(schema, transforms, properties));
+  }
+
+  @Override
+  public StagedTable stageReplace(Identifier ident, TableInfo tableInfo)
+      throws NoSuchTableException {
+    Schema icebergSchema = SparkSchemaUtil.convert(tableInfo.schema());
     try {
       Catalog.TableBuilder builder = newBuilder(ident, icebergSchema);
       Transaction transaction =
           builder
-              .withPartitionSpec(Spark3Util.toPartitionSpec(icebergSchema, transforms))
-              .withLocation(properties.get("location"))
-              .withProperties(Spark3Util.rebuildCreateProperties(properties))
+              .withPartitionSpec(Spark3Util.toPartitionSpec(icebergSchema, tableInfo.partitions()))
+              .withLocation(tableInfo.properties().get("location"))
+              .withProperties(Spark3Util.rebuildCreateProperties(tableInfo.properties()))
               .replaceTransaction();
       return new StagedSparkTable(transaction);
     } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
@@ -238,16 +269,25 @@ public class SparkCatalog extends BaseCatalog {
     }
   }
 
+  /**
+   * @deprecated since 1.12.0, use {@link #stageCreateOrReplace(Identifier, TableInfo)} instead.
+   */
+  @Deprecated
   @Override
   public StagedTable stageCreateOrReplace(
       Identifier ident, StructType schema, Transform[] transforms, Map<String, String> properties) {
-    Schema icebergSchema = SparkSchemaUtil.convert(schema);
+    return stageCreateOrReplace(ident, Spark3Util.tableInfo(schema, transforms, properties));
+  }
+
+  @Override
+  public StagedTable stageCreateOrReplace(Identifier ident, TableInfo tableInfo) {
+    Schema icebergSchema = SparkSchemaUtil.convert(tableInfo.schema());
     Catalog.TableBuilder builder = newBuilder(ident, icebergSchema);
     Transaction transaction =
         builder
-            .withPartitionSpec(Spark3Util.toPartitionSpec(icebergSchema, transforms))
-            .withLocation(properties.get("location"))
-            .withProperties(Spark3Util.rebuildCreateProperties(properties))
+            .withPartitionSpec(Spark3Util.toPartitionSpec(icebergSchema, tableInfo.partitions()))
+            .withLocation(tableInfo.properties().get("location"))
+            .withProperties(Spark3Util.rebuildCreateProperties(tableInfo.properties()))
             .createOrReplaceTransaction();
     return new StagedSparkTable(transaction);
   }
