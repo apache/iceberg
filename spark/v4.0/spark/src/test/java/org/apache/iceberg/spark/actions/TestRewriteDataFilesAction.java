@@ -1517,7 +1517,7 @@ public class TestRewriteDataFilesAction extends TestBase {
   }
 
   @TestTemplate
-  public void testSimpleSort() {
+  public void testSimpleSort() throws IOException {
     Table table = createTable(20);
     shouldHaveFiles(table, 20);
     table.replaceSortOrder().asc("c2").commit();
@@ -1545,10 +1545,11 @@ public class TestRewriteDataFilesAction extends TestBase {
     shouldHaveACleanCache(table);
     shouldHaveMultipleFiles(table);
     shouldHaveLastCommitSorted(table, "c2");
+    dataFilesSortOrderShouldMatchTableSortOrder(table);
   }
 
   @TestTemplate
-  public void testSortAfterPartitionChange() {
+  public void testSortAfterPartitionChange() throws IOException {
     Table table = createTable(20);
     shouldHaveFiles(table, 20);
     table.updateSpec().addField(Expressions.bucket("c1", 4)).commit();
@@ -1579,10 +1580,11 @@ public class TestRewriteDataFilesAction extends TestBase {
     shouldHaveACleanCache(table);
     shouldHaveMultipleFiles(table);
     shouldHaveLastCommitSorted(table, "c2");
+    dataFilesSortOrderShouldMatchTableSortOrder(table);
   }
 
   @TestTemplate
-  public void testSortCustomSortOrder() {
+  public void testSortCustomSortOrder() throws IOException {
     Table table = createTable(20);
     shouldHaveLastCommitUnsorted(table, "c2");
     shouldHaveFiles(table, 20);
@@ -1608,10 +1610,11 @@ public class TestRewriteDataFilesAction extends TestBase {
     shouldHaveACleanCache(table);
     shouldHaveMultipleFiles(table);
     shouldHaveLastCommitSorted(table, "c2");
+    dataFilesShouldHaveSortOrderIdMatching(table, SortOrder.unsorted());
   }
 
   @TestTemplate
-  public void testSortCustomSortOrderRequiresRepartition() {
+  public void testSortCustomSortOrderRequiresRepartition() throws IOException {
     int partitions = 4;
     Table table = createTable();
     writeRecords(20, SCALE, partitions);
@@ -1647,10 +1650,40 @@ public class TestRewriteDataFilesAction extends TestBase {
     shouldHaveMultipleFiles(table);
     shouldHaveLastCommitUnsorted(table, "c2");
     shouldHaveLastCommitSorted(table, "c3");
+    dataFilesShouldHaveSortOrderIdMatching(table, SortOrder.unsorted());
   }
 
   @TestTemplate
-  public void testAutoSortShuffleOutput() {
+  public void testSortPastTableSortOrderGetsAppliedToFiles() throws IOException {
+    Table table = createTable(1);
+
+    table.replaceSortOrder().asc("c3").commit();
+    SortOrder c3SortOrder = table.sortOrder();
+
+    table.replaceSortOrder().asc("c2").commit();
+
+    List<Object[]> originalData = currentData();
+
+    RewriteDataFiles.Result result =
+        basicRewrite(table)
+            .sort(SortOrder.builderFor(table.schema()).asc("c3").build())
+            .option(SizeBasedFileRewritePlanner.REWRITE_ALL, "true")
+            .execute();
+
+    assertThat(result.rewriteResults()).as("Should have 1 fileGroups").hasSize(1);
+
+    table.refresh();
+
+    List<Object[]> postRewriteData = currentData();
+    assertEquals("We shouldn't have changed the data", originalData, postRewriteData);
+
+    shouldHaveSnapshots(table, 2);
+    shouldHaveACleanCache(table);
+    dataFilesShouldHaveSortOrderIdMatching(table, c3SortOrder);
+  }
+
+  @TestTemplate
+  public void testAutoSortShuffleOutput() throws IOException {
     Table table = createTable(20);
     shouldHaveLastCommitUnsorted(table, "c2");
     shouldHaveFiles(table, 20);
@@ -1685,6 +1718,7 @@ public class TestRewriteDataFilesAction extends TestBase {
     shouldHaveACleanCache(table);
     shouldHaveMultipleFiles(table);
     shouldHaveLastCommitSorted(table, "c2");
+    dataFilesShouldHaveSortOrderIdMatching(table, SortOrder.unsorted());
   }
 
   @TestTemplate
@@ -2036,6 +2070,49 @@ public class TestRewriteDataFilesAction extends TestBase {
   }
 
   @TestTemplate
+  public void testUpgradePreservesDataSequence() throws NoSuchTableException {
+    assumeThat(formatVersion).isEqualTo(2);
+
+    Table table = createTable();
+    writeRecords(2, 4);
+    table.refresh();
+    shouldHaveFiles(table, 2);
+    long committedDataSequence = table.currentSnapshot().sequenceNumber();
+
+    Result result = basicRewrite(table).execute();
+    assertThat(result.rewrittenDataFilesCount()).isEqualTo(2);
+    assertThat(result.addedDataFilesCount()).isOne();
+    table.refresh();
+    shouldHaveFiles(table, 1);
+
+    DataFile compactedFile = Iterables.getOnlyElement(currentDataFiles(table));
+    long dataSequenceNumber = compactedFile.dataSequenceNumber();
+    assertThat(dataSequenceNumber)
+        .as("Compaction must preserve the original data sequence number")
+        .isEqualTo(committedDataSequence);
+    assertThat(compactedFile.fileSequenceNumber())
+        .as("Compaction must bump the file sequence above the preserved data sequence")
+        .isGreaterThan(dataSequenceNumber);
+
+    table.updateProperties().set(TableProperties.FORMAT_VERSION, "3").commit();
+    table.rewriteManifests().rewriteIf(manifest -> true).commit();
+    table.refresh();
+
+    List<Object[]> expectedLineage =
+        Lists.newArrayList(
+            row(0L, committedDataSequence, ANY, ANY, ANY),
+            row(1L, committedDataSequence, ANY, ANY, ANY),
+            row(2L, committedDataSequence, ANY, ANY, ANY),
+            row(3L, committedDataSequence, ANY, ANY, ANY));
+
+    assertEquals(
+        "First snapshot after upgrade to v3 assigns row IDs and inherits the committed data"
+            + " sequence as _last_updated_sequence_number",
+        expectedLineage,
+        currentDataWithLineage());
+  }
+
+  @TestTemplate
   public void testRewriteDataFilesPreservesLineage() throws NoSuchTableException {
     assumeThat(formatVersion).isGreaterThan(2);
 
@@ -2087,6 +2164,23 @@ public class TestRewriteDataFilesAction extends TestBase {
             .withColumn(
                 "zorder_result",
                 zorderUDF.sortedLexicographically(col("test_col"), DataTypes.DateType));
+
+    assertThat(result.schema().apply("zorder_result").dataType()).isEqualTo(DataTypes.BinaryType);
+    List<Row> rows = result.collectAsList();
+    Row row = rows.get(0);
+    byte[] zorderBytes = row.getAs("zorder_result");
+    assertThat(zorderBytes).isNotNull().isNotEmpty();
+  }
+
+  @TestTemplate
+  public void testZOrderUDFWithTimestampNTZType() {
+    SparkZOrderUDF zorderUDF = new SparkZOrderUDF(1, 16, 1024);
+    Dataset<Row> result =
+        spark
+            .sql("SELECT timestamp_ntz '2025-01-01 12:00:00' as test_col")
+            .withColumn(
+                "zorder_result",
+                zorderUDF.sortedLexicographically(col("test_col"), DataTypes.TimestampNTZType));
 
     assertThat(result.schema().apply("zorder_result").dataType()).isEqualTo(DataTypes.BinaryType);
     List<Row> rows = result.collectAsList();
@@ -2621,6 +2715,19 @@ public class TestRewriteDataFilesAction extends TestBase {
     @Override
     public boolean matches(RewriteFileGroup argument) {
       return groupIDs.contains(argument.info().globalIndex());
+    }
+  }
+
+  private void dataFilesSortOrderShouldMatchTableSortOrder(Table table) throws IOException {
+    dataFilesShouldHaveSortOrderIdMatching(table, table.sortOrder());
+  }
+
+  private void dataFilesShouldHaveSortOrderIdMatching(Table table, SortOrder sortOrder)
+      throws IOException {
+    try (CloseableIterable<FileScanTask> files = table.newScan().planFiles()) {
+      assertThat(files)
+          .extracting(fileScanTask -> fileScanTask.file().sortOrderId())
+          .containsOnly(sortOrder.orderId());
     }
   }
 }

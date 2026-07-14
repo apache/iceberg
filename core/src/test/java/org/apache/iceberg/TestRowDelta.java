@@ -45,6 +45,9 @@ import org.apache.iceberg.deletes.BaseDVFileWriter;
 import org.apache.iceberg.deletes.DVFileWriter;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.deletes.PositionDeleteIndex;
+import org.apache.iceberg.encryption.EncryptingFileIO;
+import org.apache.iceberg.encryption.EncryptionManager;
+import org.apache.iceberg.encryption.EncryptionTestHelpers;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
@@ -1959,6 +1962,35 @@ public class TestRowDelta extends TestBase {
   }
 
   @TestTemplate
+  public void testDuplicateDVsAreMergedWithEncryption() throws IOException {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
+
+    TestTables.TestTable encryptedTable = createEncryptedTable();
+    DataFile dataFile = newDataFile("data_bucket=0");
+    commit(encryptedTable, encryptedTable.newRowDelta().addRows(dataFile), branch);
+
+    OutputFileFactory fileFactory =
+        OutputFileFactory.builderFor(encryptedTable, 1, 1).format(FileFormat.PUFFIN).build();
+
+    DeleteFile deleteFile1 = dvWithPositions(encryptedTable, dataFile, fileFactory, 0, 2);
+    DeleteFile deleteFile2 = dvWithPositions(encryptedTable, dataFile, fileFactory, 2, 4);
+    commit(
+        encryptedTable,
+        encryptedTable.newRowDelta().addDeletes(deleteFile1).addDeletes(deleteFile2),
+        branch);
+
+    Iterable<DeleteFile> addedDeleteFiles =
+        SnapshotChanges.builderFor(encryptedTable)
+            .snapshot(latestSnapshot(encryptedTable, branch))
+            .build()
+            .addedDeleteFiles();
+    DeleteFile mergedDV = Iterables.getOnlyElement(addedDeleteFiles);
+
+    assertThat(mergedDV.keyMetadata()).isNotNull();
+    assertDVHasDeletedPositions(encryptedTable, mergedDV, LongStream.range(0, 4).boxed()::iterator);
+  }
+
+  @TestTemplate
   public void testDuplicateDVsMergedMultipleSpecs() throws IOException {
     assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
 
@@ -2420,6 +2452,27 @@ public class TestRowDelta extends TestBase {
   }
 
   @TestTemplate
+  public void testV2StagedPositionDeleteCannotCommitToV3() {
+    assumeThat(formatVersion).isEqualTo(2);
+
+    Snapshot initial = commit(table, table.newAppend().appendFile(FILE_A), branch);
+
+    // Stage RowDelta at v2: position delete for FILE_A + add new data FILE_B.
+    RowDelta rowDelta = table.newRowDelta().addDeletes(FILE_A_DELETES).addRows(FILE_B);
+
+    // upgrade the table
+    table.updateProperties().set(TableProperties.FORMAT_VERSION, "3").commit();
+
+    assertThatThrownBy(rowDelta::commit)
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Must use DVs for position deletes in V3");
+
+    table.refresh();
+    assertThat(table.operations().current().formatVersion()).isEqualTo(3);
+    assertThat(table.snapshot(branch)).isEqualTo(initial);
+  }
+
+  @TestTemplate
   public void testInabilityToAddPositionDeleteFilesInTablesWithDVs() {
     assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
     DeleteFile deleteFile = newDeleteFile(table.spec().specId(), "data_bucket=0");
@@ -2546,18 +2599,33 @@ public class TestRowDelta extends TestBase {
   private DeleteFile dvWithPositions(
       DataFile dataFile, OutputFileFactory fileFactory, int fromInclusive, int toExclusive)
       throws IOException {
+    return dvWithPositions(table, dataFile, fileFactory, fromInclusive, toExclusive);
+  }
+
+  private DeleteFile dvWithPositions(
+      Table targetTable,
+      DataFile dataFile,
+      OutputFileFactory fileFactory,
+      int fromInclusive,
+      int toExclusive)
+      throws IOException {
 
     List<PositionDelete<?>> deletes = Lists.newArrayList();
     for (int i = fromInclusive; i < toExclusive; i++) {
       deletes.add(PositionDelete.create().set(dataFile.location(), i));
     }
 
-    return writeDV(deletes, dataFile.specId(), dataFile.partition(), fileFactory);
+    return writeDV(targetTable, deletes, dataFile.specId(), dataFile.partition(), fileFactory);
   }
 
   private void assertDVHasDeletedPositions(DeleteFile dv, Iterable<Long> positions) {
+    assertDVHasDeletedPositions(table, dv, positions);
+  }
+
+  private void assertDVHasDeletedPositions(
+      Table targetTable, DeleteFile dv, Iterable<Long> positions) {
     assertThat(dv).isNotNull();
-    PositionDeleteIndex index = DVUtil.readDV(dv, table.io());
+    PositionDeleteIndex index = DVUtil.readDV(dv, targetTable.io());
     assertThat(positions)
         .allSatisfy(
             pos ->
@@ -2567,6 +2635,7 @@ public class TestRowDelta extends TestBase {
   }
 
   private DeleteFile writeDV(
+      Table targetTable,
       List<PositionDelete<?>> deletes,
       int specId,
       StructLike partition,
@@ -2577,10 +2646,29 @@ public class TestRowDelta extends TestBase {
     try (DVFileWriter closeableWriter = writer) {
       for (PositionDelete<?> delete : deletes) {
         closeableWriter.delete(
-            delete.path().toString(), delete.pos(), table.specs().get(specId), partition);
+            delete.path().toString(), delete.pos(), targetTable.specs().get(specId), partition);
       }
     }
 
     return Iterables.getOnlyElement(writer.result().deleteFiles());
+  }
+
+  private TestTables.TestTable createEncryptedTable() {
+    EncryptionManager encryptionManager = EncryptionTestHelpers.createEncryptionManager();
+    String tableName = "encrypted-" + branch;
+    java.io.File encryptedTableDir = temp.resolve(tableName).toFile();
+    TestTables.TestTableOperations ops =
+        new TestTables.TestTableOperations(
+            tableName,
+            encryptedTableDir,
+            EncryptingFileIO.combine(new TestTables.LocalFileIO(), encryptionManager)) {
+          @Override
+          public EncryptionManager encryption() {
+            return encryptionManager;
+          }
+        };
+
+    return TestTables.create(
+        encryptedTableDir, tableName, SCHEMA, SPEC, SortOrder.unsorted(), formatVersion, ops);
   }
 }

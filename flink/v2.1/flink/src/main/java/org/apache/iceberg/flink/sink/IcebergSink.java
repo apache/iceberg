@@ -73,6 +73,8 @@ import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.FlinkWriteConf;
 import org.apache.iceberg.flink.FlinkWriteOptions;
 import org.apache.iceberg.flink.TableLoader;
+import org.apache.iceberg.flink.maintenance.api.ConvertEqualityDeletes;
+import org.apache.iceberg.flink.maintenance.api.ConvertEqualityDeletesConfig;
 import org.apache.iceberg.flink.maintenance.api.DeleteOrphanFiles;
 import org.apache.iceberg.flink.maintenance.api.DeleteOrphanFilesConfig;
 import org.apache.iceberg.flink.maintenance.api.ExpireSnapshots;
@@ -290,9 +292,14 @@ public class IcebergSink
           .add(maintenanceTasks)
           .rateLimit(Duration.ofSeconds(flinkMaintenanceConfig.rateLimit()))
           .lockCheckDelay(Duration.ofSeconds(flinkMaintenanceConfig.lockCheckDelay()))
-          .slotSharingGroup(flinkMaintenanceConfig.slotSharingGroup())
-          .parallelism(flinkMaintenanceConfig.parallelism())
-          .append();
+          .parallelism(flinkMaintenanceConfig.parallelism());
+
+      String slotSharingGroup = flinkMaintenanceConfig.slotSharingGroup();
+      if (slotSharingGroup != null) {
+        builder.slotSharingGroup(slotSharingGroup);
+      }
+
+      builder.append();
     } catch (IOException e) {
       throw new UncheckedIOException("Failed to create tableMaintenance ", e);
     }
@@ -710,6 +717,31 @@ public class IcebergSink
       return this;
     }
 
+    /**
+     * Enables converting equality deletes to deletion vectors as a post-commit maintenance task.
+     * The sink's write branch is read for equality delete files, which are converted to deletion
+     * vectors and committed back to the same branch (or the target branch, if configured). Requires
+     * equality field columns (upsert or CDC) and a table with format version >= 3.
+     *
+     * @see ConvertEqualityDeletesConfig for the default config.
+     */
+    public Builder convertEqualityDeletes() {
+      writeOptions.put(FlinkWriteOptions.CONVERT_EQUALITY_DELETES_ENABLE.key(), "true");
+      return this;
+    }
+
+    /**
+     * Enables converting equality deletes to deletion vectors as a post-commit maintenance task.
+     *
+     * @param config task-specific configuration, see {@link ConvertEqualityDeletesConfig} for
+     *     available keys.
+     */
+    public Builder convertEqualityDeletes(Map<String, String> config) {
+      convertEqualityDeletes();
+      writeOptions.putAll(config);
+      return this;
+    }
+
     @Override
     public Builder toBranch(String branch) {
       writeOptions.put(FlinkWriteOptions.BRANCH.key(), branch);
@@ -787,6 +819,10 @@ public class IcebergSink
         maintenanceTasks.add(DeleteOrphanFiles.builder().config(deleteOrphanFilesConfig));
       }
 
+      if (flinkWriteConf.convertEqualityDeletesMode()) {
+        addConvertEqualityDeletesTask(flinkWriteConf, flinkMaintenanceConfig, equalityFieldIds);
+      }
+
       Set<String> equalityFieldColumnsSet =
           equalityFieldColumns != null ? Sets.newHashSet(equalityFieldColumns) : null;
 
@@ -807,6 +843,32 @@ public class IcebergSink
           maintenanceTasks,
           flinkMaintenanceConfig,
           equalityFieldColumnsSet);
+    }
+
+    private void addConvertEqualityDeletesTask(
+        FlinkWriteConf flinkWriteConf,
+        FlinkMaintenanceConfig flinkMaintenanceConfig,
+        Set<Integer> equalityFieldIds) {
+      Preconditions.checkState(
+          !equalityFieldIds.isEmpty(),
+          "Equality field columns must be set to convert equality deletes to deletion vectors.");
+      ConvertEqualityDeletesConfig convertEqualityDeletesConfig =
+          flinkMaintenanceConfig.createConvertEqualityDeletesConfig();
+      // The sink writes equality deletes to its write branch, so that becomes the staging branch.
+      // The target defaults to the same branch, i.e. an in-place conversion.
+      String targetBranch = convertEqualityDeletesConfig.targetBranch();
+      String convertTargetBranch = targetBranch != null ? targetBranch : flinkWriteConf.branch();
+      List<String> convertEqualityFieldColumns = Lists.newArrayList();
+      for (int fieldId : equalityFieldIds) {
+        convertEqualityFieldColumns.add(table.schema().findColumnName(fieldId));
+      }
+
+      maintenanceTasks.add(
+          ConvertEqualityDeletes.builder()
+              .stagingBranch(flinkWriteConf.branch())
+              .targetBranch(convertTargetBranch)
+              .equalityFieldColumns(convertEqualityFieldColumns)
+              .config(convertEqualityDeletesConfig));
     }
 
     /**

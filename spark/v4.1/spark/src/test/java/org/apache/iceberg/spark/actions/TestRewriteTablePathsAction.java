@@ -30,6 +30,7 @@ import java.net.URI;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.function.Predicate;
@@ -41,15 +42,21 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.HasTableOperations;
+import org.apache.iceberg.ManifestFile;
+import org.apache.iceberg.ManifestFiles;
+import org.apache.iceberg.ManifestReader;
 import org.apache.iceberg.Parameter;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.RowDelta;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotChanges;
 import org.apache.iceberg.StaticTableOperations;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableProperties;
@@ -62,14 +69,18 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.data.FileHelpers;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.deletes.BaseDVFileWriter;
+import org.apache.iceberg.deletes.DVFileWriter;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.SparkCatalog;
 import org.apache.iceberg.spark.TestBase;
 import org.apache.iceberg.spark.source.ThreeColumnRecord;
@@ -629,12 +640,7 @@ public class TestRewriteTablePathsAction extends TestBase {
     // in a new manifest, which will cause duplicate DeleteFile objects when processing
     tableWithPosDeletes.newRowDelta().addDeletes(positionDeletes).commit();
 
-    // This should NOT throw AlreadyExistsException - the fix uses DeleteFileSet to deduplicate
-    // Without the fix (using Collectors.toSet()), this would fail because:
-    // 1. Both manifests contain entries for the same delete file
-    // 2. Processing returns two different DeleteFile objects for the same file
-    // 3. HashSet doesn't deduplicate them (DeleteFile doesn't override equals())
-    // 4. rewritePositionDeletes tries to write the same file twice -> AlreadyExistsException
+    // This should NOT throw AlreadyExistsException
     RewriteTablePath.Result result =
         actions()
             .rewriteTablePath(tableWithPosDeletes)
@@ -642,11 +648,293 @@ public class TestRewriteTablePathsAction extends TestBase {
             .rewriteLocationPrefix(tableWithPosDeletes.location(), targetTableLocation())
             .execute();
 
-    // Verify the rewrite completed successfully - should have rewritten exactly 1 delete file
-    // (the duplicate should be deduplicated by DeleteFileSet)
     assertThat(result.rewrittenDeleteFilePathsCount())
         .as("Should have rewritten exactly 1 delete file after deduplication")
         .isEqualTo(1);
+  }
+
+  // Regression test: when the same position delete file is referenced from manifests in different
+  // snapshots, it must be rewritten once and the resulting size stamped consistently into every
+  // manifest that references it. The delete file is enumerated and deduped by path before the
+  // rewrite, so its measured size is shared across all referencing delete manifests.
+  @TestTemplate
+  public void testSharedDeleteFileSizeAcrossManifests() throws Exception {
+    assumeThat(formatVersion)
+        .as("Format versions 3+ use DVs with different validation rules")
+        .isEqualTo(2);
+
+    Table tableWithPosDeletes =
+        createTableWithSnapshots(
+            tableDir.toFile().toURI().toString().concat("tableWithSharedDelete"),
+            1,
+            Map.of(TableProperties.DELETE_DEFAULT_FILE_FORMAT, "parquet"));
+
+    DataFile dataFile =
+        tableWithPosDeletes
+            .currentSnapshot()
+            .addedDataFiles(tableWithPosDeletes.io())
+            .iterator()
+            .next();
+
+    List<Pair<CharSequence, Long>> deletes = Lists.newArrayList(Pair.of(dataFile.location(), 0L));
+    File deleteFile =
+        new File(
+            removePrefix(tableWithPosDeletes.location() + "/data/deeply/nested/deletes.parquet"));
+    DeleteFile positionDeletes =
+        FileHelpers.writeDeleteFile(
+                tableWithPosDeletes,
+                tableWithPosDeletes.io().newOutputFile(deleteFile.toURI().toString()),
+                deletes,
+                formatVersion)
+            .first();
+
+    tableWithPosDeletes.newRowDelta().addDeletes(positionDeletes).commit();
+    tableWithPosDeletes.newRowDelta().addDeletes(positionDeletes).commit();
+
+    RewriteTablePath.Result result =
+        actions()
+            .rewriteTablePath(tableWithPosDeletes)
+            .stagingLocation(stagingLocation())
+            .rewriteLocationPrefix(tableWithPosDeletes.location(), targetTableLocation())
+            .execute();
+    copyTableFiles(result);
+
+    Table targetTable = TABLES.load(targetTableLocation());
+    List<ManifestFile> deleteManifests =
+        targetTable.currentSnapshot().deleteManifests(targetTable.io());
+    assertThat(deleteManifests)
+        .as("Expected the shared delete file to be referenced by multiple manifests")
+        .hasSizeGreaterThanOrEqualTo(2);
+    for (ManifestFile manifest : deleteManifests) {
+      try (ManifestReader<DeleteFile> reader =
+          ManifestFiles.readDeleteManifest(manifest, targetTable.io(), targetTable.specs())) {
+        for (DeleteFile df : reader) {
+          long manifestSize = df.fileSizeInBytes();
+          long actualSize = targetTable.io().newInputFile(df.location()).getLength();
+          assertThat(manifestSize)
+              .as(
+                  "file_size_in_bytes in rewritten manifest should match actual file size for %s",
+                  df.location())
+              .isEqualTo(actualSize);
+        }
+      }
+    }
+  }
+
+  // Regression test: a single delete manifest can reference multiple distinct position delete
+  // files, and each entry must be stamped with its own rewritten size. The two delete files carry
+  // a different number of records so they rewrite to different sizes, which catches a per-path size
+  // map that collapses entries to a single size or falls back to the stale original size.
+  @TestTemplate
+  public void testMultipleDistinctDeleteFileSizesAfterRewrite() throws Exception {
+    assumeThat(formatVersion)
+        .as("Format versions 3+ use DVs with different validation rules")
+        .isEqualTo(2);
+
+    Table tableWithPosDeletes =
+        createTableWithSnapshots(
+            tableDir.toFile().toURI().toString().concat("tableWithDistinctDeletes"),
+            2,
+            Map.of(TableProperties.DELETE_DEFAULT_FILE_FORMAT, "parquet"));
+
+    List<DataFile> dataFiles = Lists.newArrayList();
+    tableWithPosDeletes
+        .snapshots()
+        .forEach(
+            snapshot -> snapshot.addedDataFiles(tableWithPosDeletes.io()).forEach(dataFiles::add));
+    assertThat(dataFiles).as("Expected two data files to reference from deletes").hasSize(2);
+
+    // One delete file holds a single record, the other holds two, so they rewrite to distinct
+    // on-disk sizes.
+    File smallDeleteFile =
+        new File(
+            removePrefix(
+                tableWithPosDeletes.location() + "/data/deeply/nested/deletes-small.parquet"));
+    DeleteFile smallDelete =
+        FileHelpers.writeDeleteFile(
+                tableWithPosDeletes,
+                tableWithPosDeletes.io().newOutputFile(smallDeleteFile.toURI().toString()),
+                Lists.newArrayList(Pair.of(dataFiles.get(0).location(), 0L)),
+                formatVersion)
+            .first();
+
+    File largeDeleteFile =
+        new File(
+            removePrefix(
+                tableWithPosDeletes.location() + "/data/deeply/nested/deletes-large.parquet"));
+    DeleteFile largeDelete =
+        FileHelpers.writeDeleteFile(
+                tableWithPosDeletes,
+                tableWithPosDeletes.io().newOutputFile(largeDeleteFile.toURI().toString()),
+                Lists.newArrayList(
+                    Pair.of(dataFiles.get(0).location(), 0L),
+                    Pair.of(dataFiles.get(1).location(), 0L)),
+                formatVersion)
+            .first();
+
+    tableWithPosDeletes.newRowDelta().addDeletes(smallDelete).addDeletes(largeDelete).commit();
+
+    RewriteTablePath.Result result =
+        actions()
+            .rewriteTablePath(tableWithPosDeletes)
+            .stagingLocation(stagingLocation())
+            .rewriteLocationPrefix(tableWithPosDeletes.location(), targetTableLocation())
+            .execute();
+    copyTableFiles(result);
+
+    Table targetTable = TABLES.load(targetTableLocation());
+    List<Long> rewrittenSizes = Lists.newArrayList();
+    for (ManifestFile manifest : targetTable.currentSnapshot().deleteManifests(targetTable.io())) {
+      try (ManifestReader<DeleteFile> reader =
+          ManifestFiles.readDeleteManifest(manifest, targetTable.io(), targetTable.specs())) {
+        for (DeleteFile df : reader) {
+          long manifestSize = df.fileSizeInBytes();
+          long actualSize = targetTable.io().newInputFile(df.location()).getLength();
+          assertThat(manifestSize)
+              .as(
+                  "file_size_in_bytes in rewritten manifest should match actual file size for %s",
+                  df.location())
+              .isEqualTo(actualSize);
+          rewrittenSizes.add(manifestSize);
+        }
+      }
+    }
+
+    assertThat(rewrittenSizes)
+        .as(
+            "The two distinct delete files should rewrite to distinct, independently recorded sizes")
+        .hasSize(2)
+        .doesNotHaveDuplicates();
+  }
+
+  // Regression test: rewriting delete file paths changes the file size (since the
+  // embedded data file paths may differ in length), but file_size_in_bytes in the rewritten
+  // manifest was not updated. Readers that use file_size_in_bytes to elide a stat() call may
+  // fail.
+  @TestTemplate
+  public void testDeleteFileSizeInBytesAfterRewrite() throws Exception {
+    List<Pair<CharSequence, Long>> deletes =
+        Lists.newArrayList(
+            Pair.of(
+                SnapshotChanges.builderFor(table)
+                    .build()
+                    .addedDataFiles()
+                    .iterator()
+                    .next()
+                    .location(),
+                0L));
+
+    File file = new File(removePrefix(table.location() + "/data/deeply/nested/deletes.parquet"));
+    DeleteFile positionDeletes =
+        FileHelpers.writeDeleteFile(
+                table, table.io().newOutputFile(file.toURI().toString()), deletes, formatVersion)
+            .first();
+    table.newRowDelta().addDeletes(positionDeletes).commit();
+
+    RewriteTablePath.Result result =
+        actions()
+            .rewriteTablePath(table)
+            .stagingLocation(stagingLocation())
+            .rewriteLocationPrefix(table.location(), targetTableLocation())
+            .execute();
+    copyTableFiles(result);
+
+    Table targetTable = TABLES.load(targetTableLocation());
+    for (ManifestFile manifest : targetTable.currentSnapshot().deleteManifests(targetTable.io())) {
+      try (ManifestReader<DeleteFile> reader =
+          ManifestFiles.readDeleteManifest(manifest, targetTable.io(), targetTable.specs())) {
+        for (DeleteFile df : reader) {
+          long manifestSize = df.fileSizeInBytes();
+          long actualSize = targetTable.io().newInputFile(df.location()).getLength();
+          assertThat(manifestSize)
+              .as(
+                  "file_size_in_bytes in rewritten manifest should match actual file size for %s",
+                  df.location())
+              .isEqualTo(actualSize);
+        }
+      }
+    }
+  }
+
+  // Regression test: a single Puffin file can hold multiple DVs (one blob per data file)
+  // referenced by distinct DeleteFile entries that share the same location. The rewrite must
+  // rewrite
+  // the physical Puffin file once (rather than colliding on the staging path) and stamp the
+  // rewritten size into every referencing manifest entry.
+  @TestTemplate
+  public void testSharedPuffinDeleteFileSizeAfterRewrite() throws Exception {
+    assumeThat(formatVersion)
+        .as("DVs are introduced in v3; v4 writes parquet manifests the test setup cannot read")
+        .isEqualTo(3);
+
+    Table tableWithDVs =
+        createTableWithSnapshots(
+            tableDir.toFile().toURI().toString().concat("tableWithSharedPuffin"), 2);
+
+    List<String> dataFilePaths = Lists.newArrayList();
+    tableWithDVs
+        .snapshots()
+        .forEach(
+            snapshot ->
+                snapshot
+                    .addedDataFiles(tableWithDVs.io())
+                    .forEach(dataFile -> dataFilePaths.add(dataFile.location())));
+    assertThat(dataFilePaths).as("Expected two data files to back two DVs").hasSize(2);
+
+    List<DeleteFile> dvs = writeDVsForDataFiles(tableWithDVs, dataFilePaths);
+    assertThat(dvs)
+        .as("Both DVs should live in a single Puffin file")
+        .hasSize(2)
+        .allSatisfy(dv -> assertThat(dv.location()).isEqualTo(dvs.get(0).location()));
+
+    RowDelta rowDelta = tableWithDVs.newRowDelta();
+    dvs.forEach(rowDelta::addDeletes);
+    rowDelta.commit();
+
+    RewriteTablePath.Result result =
+        actions()
+            .rewriteTablePath(tableWithDVs)
+            .stagingLocation(stagingLocation())
+            .rewriteLocationPrefix(tableWithDVs.location(), targetTableLocation())
+            .execute();
+    assertThat(result.rewrittenDeleteFilePathsCount())
+        .as("Two DVs are two delete files with rewritten paths")
+        .isEqualTo(2);
+    copyTableFiles(result);
+
+    Table targetTable = TABLES.load(targetTableLocation());
+    Set<String> rewrittenLocations = Sets.newHashSet();
+    for (ManifestFile manifest : targetTable.currentSnapshot().deleteManifests(targetTable.io())) {
+      try (ManifestReader<DeleteFile> reader =
+          ManifestFiles.readDeleteManifest(manifest, targetTable.io(), targetTable.specs())) {
+        for (DeleteFile df : reader) {
+          rewrittenLocations.add(df.location());
+          long actualSize = targetTable.io().newInputFile(df.location()).getLength();
+          assertThat(df.fileSizeInBytes())
+              .as("file_size_in_bytes should match the rewritten Puffin size for %s", df.location())
+              .isEqualTo(actualSize);
+        }
+      }
+    }
+    assertThat(rewrittenLocations)
+        .as("Both DVs should point at the single rewritten Puffin file")
+        .hasSize(1);
+  }
+
+  // Writes one DV per data file path into a single Puffin file, returning the resulting DeleteFiles
+  // (which share a location but carry distinct blob offsets).
+  private List<DeleteFile> writeDVsForDataFiles(Table targetTable, List<String> dataFilePaths)
+      throws IOException {
+    OutputFileFactory fileFactory =
+        OutputFileFactory.builderFor(targetTable, 1, 1).format(FileFormat.PUFFIN).build();
+    DVFileWriter writer = new BaseDVFileWriter(fileFactory, p -> null);
+    try (DVFileWriter closeableWriter = writer) {
+      for (String path : dataFilePaths) {
+        closeableWriter.delete(path, 0L, targetTable.spec(), (StructLike) null);
+      }
+    }
+
+    return writer.result().deleteFiles();
   }
 
   @TestTemplate
@@ -1469,10 +1757,7 @@ public class TestRewriteTablePathsAction extends TestBase {
             .as(Encoders.STRING())
             .collectAsList();
     Predicate<String> isManifest =
-        f ->
-            (f.contains("optimized-m-") && f.endsWith(".avro"))
-                || f.endsWith("-m0.avro")
-                || f.endsWith("-m1.avro");
+        f -> f.contains("optimized-m-") || f.contains("-m0.") || f.contains("-m1.");
     Predicate<String> isManifestList = f -> f.contains("snap-") && f.endsWith(".avro");
     Predicate<String> isMetadataJSON = f -> f.endsWith(".metadata.json");
 

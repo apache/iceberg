@@ -20,14 +20,30 @@ package org.apache.iceberg.spark.data;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.BaseFormatModelTests;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.spark.SparkSchemaUtil;
+import org.apache.iceberg.spark.SparkUtil;
+import org.apache.iceberg.types.Type;
 import org.apache.spark.sql.catalyst.InternalRow;
 
 public class TestSparkFormatModel extends BaseFormatModelTests<InternalRow> {
+
+  private static final Set<Type.TypeID> UNSUPPORTED_TYPE_IDS =
+      Set.of(
+          Type.TypeID.TIME,
+          Type.TypeID.TIMESTAMP_NANO,
+          // TODO: Remove once FIXED is working on TCK
+          Type.TypeID.FIXED);
+
+  @Override
+  protected Collection<Type.TypeID> unsupportedTypeIds() {
+    return UNSUPPORTED_TYPE_IDS;
+  }
 
   @Override
   protected Class<InternalRow> engineType() {
@@ -50,5 +66,10 @@ public class TestSparkFormatModel extends BaseFormatModelTests<InternalRow> {
     for (int i = 0; i < expected.size(); i++) {
       TestHelpers.assertEquals(schema, expected.get(i), actual.get(i));
     }
+  }
+
+  @Override
+  protected Object convertConstantToEngine(Type type, Object value) {
+    return SparkUtil.internalToSpark(type, value);
   }
 }

@@ -33,7 +33,8 @@ project(":iceberg-flink:iceberg-flink-${flinkMajorVersion}") {
     implementation project(':iceberg-hive-metastore')
 
     compileOnly libs.flink21.avro
-    // for dropwizard histogram metrics implementation
+    compileOnly libs.joda.time
+    // dropwizard histogram metrics (optional in Flink)
     compileOnly libs.flink21.metrics.dropwizard
     compileOnly libs.flink21.streaming.java
     compileOnly "${libs.flink21.streaming.java.get().module}:${libs.flink21.streaming.java.get().getVersion()}:tests"
@@ -67,6 +68,7 @@ project(":iceberg-flink:iceberg-flink-${flinkMajorVersion}") {
     }
 
     implementation libs.datasketches
+    implementation libs.roaringbitmap
 
     testImplementation libs.flink21.connector.test.utils
     testImplementation libs.flink21.core
@@ -83,6 +85,8 @@ project(":iceberg-flink:iceberg-flink-${flinkMajorVersion}") {
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-data', configuration: 'testArtifacts')
+    testImplementation project(path: ':iceberg-orc', configuration: 'testArtifacts')
+    testImplementation(testFixtures(project(':iceberg-parquet')))
 
     // By default, hive-exec is a fat/uber jar and it exports a guava library
     // that's really old. We use the core classifier to be able to override our guava
@@ -168,9 +172,6 @@ project(":iceberg-flink:iceberg-flink-runtime-${flinkMajorVersion}") {
     implementation(project(':iceberg-nessie')) {
       exclude group: 'com.google.code.findbugs', module: 'jsr305'
     }
-
-    // for dropwizard histogram metrics implementation
-    implementation libs.flink21.metrics.dropwizard
 
     // for integration testing with the flink-runtime-jar
     // all of those dependencies are required because the integration test extends FlinkTestBase
@@ -266,4 +267,6 @@ project(":iceberg-flink:iceberg-flink-runtime-${flinkMajorVersion}") {
   jar {
     enabled = false
   }
+
+  apply from: "${rootDir}/runtime-deps.gradle"
 }

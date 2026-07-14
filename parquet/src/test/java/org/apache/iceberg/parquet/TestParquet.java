@@ -20,21 +20,30 @@ package org.apache.iceberg.parquet;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.apache.iceberg.Files.localInput;
+import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_ADAPTIVE_ENABLED;
+import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX;
+import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_MAX_BYTES;
 import static org.apache.iceberg.TableProperties.PARQUET_COLUMN_STATS_ENABLED_PREFIX;
+import static org.apache.iceberg.TableProperties.PARQUET_DICT_ENCODING_ENABLED_COLUMN_PREFIX;
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_CHECK_MAX_RECORD_COUNT;
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_CHECK_MIN_RECORD_COUNT;
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES;
+import static org.apache.iceberg.expressions.Expressions.greaterThan;
+import static org.apache.iceberg.expressions.Expressions.greaterThanOrEqual;
 import static org.apache.iceberg.parquet.ParquetWritingTestUtils.createTempFile;
 import static org.apache.iceberg.parquet.ParquetWritingTestUtils.write;
 import static org.apache.iceberg.relocated.com.google.common.collect.Iterables.getOnlyElement;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
+import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
@@ -47,6 +56,11 @@ import org.apache.iceberg.Metrics;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.AvroSchemaUtil;
+import org.apache.iceberg.data.Record;
+import org.apache.iceberg.data.parquet.GenericParquetWriter;
+import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.mapping.MappingUtil;
 import org.apache.iceberg.mapping.NameMapping;
@@ -57,14 +71,18 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.IntegerType;
 import org.apache.iceberg.util.Pair;
+import org.apache.iceberg.variants.Variant;
 import org.apache.parquet.avro.AvroParquetWriter;
+import org.apache.parquet.column.Encoding;
 import org.apache.parquet.column.statistics.Statistics;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.ParquetWriter;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
 import org.apache.parquet.io.LocalOutputFile;
+import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
+import org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -270,6 +288,219 @@ public class TestParquet {
   }
 
   @Test
+  public void testGeospatialFooterMetricsSkipParquetBounds() throws IOException {
+    Schema binarySchema = new Schema(optional(1, "geom", Types.BinaryType.get()));
+    Schema geometrySchema = new Schema(optional(1, "geom", Types.GeometryType.crs84()));
+    Schema geographySchema = new Schema(optional(1, "geom", Types.GeographyType.crs84()));
+
+    File file = createTempFile(temp);
+    org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(binarySchema.asStruct());
+    GenericData.Record first = new GenericData.Record(avroSchema);
+    first.put("geom", ByteBuffer.wrap(new byte[] {0x01, 0x02, 0x03}));
+    GenericData.Record second = new GenericData.Record(avroSchema);
+    second.put("geom", ByteBuffer.wrap(new byte[] {0x04, 0x05, 0x06}));
+
+    write(
+        file, binarySchema, Collections.emptyMap(), ParquetAvroWriter::buildWriter, first, second);
+
+    InputFile inputFile = Files.localInput(file);
+    try (ParquetFileReader reader = ParquetFileReader.open(ParquetIO.file(inputFile))) {
+      Metrics geometryMetrics =
+          ParquetMetrics.metrics(
+              geometrySchema,
+              reader.getFooter().getFileMetaData().getSchema(),
+              MetricsConfig.getDefault(),
+              reader.getFooter(),
+              Stream.empty());
+
+      Metrics geographyMetrics =
+          ParquetMetrics.metrics(
+              geographySchema,
+              reader.getFooter().getFileMetaData().getSchema(),
+              MetricsConfig.getDefault(),
+              reader.getFooter(),
+              Stream.empty());
+
+      assertThat(geometryMetrics.valueCounts()).containsEntry(1, 2L);
+      assertThat(geometryMetrics.nullValueCounts()).containsEntry(1, 0L);
+      assertThat(geometryMetrics.lowerBounds()).doesNotContainKey(1);
+      assertThat(geometryMetrics.upperBounds()).doesNotContainKey(1);
+
+      assertThat(geographyMetrics.valueCounts()).containsEntry(1, 2L);
+      assertThat(geographyMetrics.nullValueCounts()).containsEntry(1, 0L);
+      assertThat(geographyMetrics.lowerBounds()).doesNotContainKey(1);
+      assertThat(geographyMetrics.upperBounds()).doesNotContainKey(1);
+    }
+  }
+
+  @Test
+  public void testPerColumnDictionaryEncoding() throws Exception {
+    Schema schema =
+        new Schema(
+            optional(1, "category", Types.StringType.get()),
+            optional(2, "region", Types.StringType.get()));
+
+    File file = createTempFile(temp);
+
+    List<GenericData.Record> records = Lists.newArrayListWithCapacity(100);
+    org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(schema.asStruct());
+    for (int i = 0; i < 100; i++) {
+      GenericData.Record record = new GenericData.Record(avroSchema);
+      record.put("category", "cat_" + (i % 5));
+      record.put("region", "region_" + (i % 3));
+      records.add(record);
+    }
+
+    write(
+        file,
+        schema,
+        ImmutableMap.<String, String>builder()
+            .put(PARQUET_DICT_ENCODING_ENABLED_COLUMN_PREFIX + "category", "false")
+            .buildOrThrow(),
+        ParquetAvroWriter::buildWriter,
+        records.toArray(new GenericData.Record[] {}));
+
+    try (ParquetFileReader reader =
+        ParquetFileReader.open(ParquetIO.file(Files.localInput(file)))) {
+      for (BlockMetaData block : reader.getFooter().getBlocks()) {
+        for (ColumnChunkMetaData column : block.getColumns()) {
+          boolean usesDictionary =
+              column.getEncodings().stream().anyMatch(Encoding::usesDictionary);
+          if (column.getPath().toDotString().equals("category")) {
+            assertThat(usesDictionary).as("category dictionary disabled").isFalse();
+          } else if (column.getPath().toDotString().equals("region")) {
+            assertThat(usesDictionary).as("region uses global default").isTrue();
+          }
+        }
+      }
+    }
+  }
+
+  @Test
+  public void testPerColumnDictionaryEncodingNestedField() throws Exception {
+    // Iceberg names list elements as "<list>.element", but Parquet's 3-level encoding
+    // names the same column "<list>.list.element". The per-column setter must accept the
+    // Iceberg name and resolve it to the Parquet path internally.
+    Schema schema =
+        new Schema(
+            optional(1, "id", Types.IntegerType.get()),
+            optional(2, "tags", Types.ListType.ofRequired(3, Types.StringType.get())));
+
+    File file = createTempFile(temp);
+
+    org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(schema.asStruct());
+    try (FileAppender<GenericData.Record> writer =
+        Parquet.write(Files.localOutput(file))
+            .schema(schema)
+            .withDictionaryEncoding("tags.element", false)
+            .createWriterFunc(ParquetAvroWriter::buildWriter)
+            .build()) {
+      for (int i = 0; i < 100; i++) {
+        GenericData.Record record = new GenericData.Record(avroSchema);
+        record.put("id", i % 5);
+        record.put("tags", Collections.singletonList("tag_" + (i % 5)));
+        writer.add(record);
+      }
+    }
+
+    try (ParquetFileReader reader =
+        ParquetFileReader.open(ParquetIO.file(Files.localInput(file)))) {
+      for (BlockMetaData block : reader.getFooter().getBlocks()) {
+        for (ColumnChunkMetaData column : block.getColumns()) {
+          boolean usesDictionary =
+              column.getEncodings().stream().anyMatch(Encoding::usesDictionary);
+          if (column.getPath().toDotString().equals("tags.list.element")) {
+            assertThat(usesDictionary).as("tags element dictionary disabled").isFalse();
+          } else if (column.getPath().toDotString().equals("id")) {
+            assertThat(usesDictionary).as("id uses global default").isTrue();
+          }
+        }
+      }
+    }
+  }
+
+  @Test
+  public void testPerColumnDictionaryEncodingViaBuilder() throws Exception {
+    Schema schema =
+        new Schema(
+            optional(1, "category", Types.StringType.get()),
+            optional(2, "region", Types.StringType.get()));
+
+    File file = createTempFile(temp);
+
+    org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(schema.asStruct());
+    try (FileAppender<GenericData.Record> writer =
+        Parquet.write(Files.localOutput(file))
+            .schema(schema)
+            .withDictionaryEncoding("category", false)
+            .createWriterFunc(ParquetAvroWriter::buildWriter)
+            .build()) {
+      for (int i = 0; i < 100; i++) {
+        GenericData.Record record = new GenericData.Record(avroSchema);
+        record.put("category", "cat_" + (i % 5));
+        record.put("region", "region_" + (i % 3));
+        writer.add(record);
+      }
+    }
+
+    try (ParquetFileReader reader =
+        ParquetFileReader.open(ParquetIO.file(Files.localInput(file)))) {
+      for (BlockMetaData block : reader.getFooter().getBlocks()) {
+        for (ColumnChunkMetaData column : block.getColumns()) {
+          boolean usesDictionary =
+              column.getEncodings().stream().anyMatch(Encoding::usesDictionary);
+          if (column.getPath().toDotString().equals("category")) {
+            assertThat(usesDictionary).as("category dictionary disabled").isFalse();
+          } else if (column.getPath().toDotString().equals("region")) {
+            assertThat(usesDictionary).as("region uses global default").isTrue();
+          }
+        }
+      }
+    }
+  }
+
+  @Test
+  public void testPerColumnDictionaryEncodingForNonExistentColumnIsIgnored() throws Exception {
+    Schema schema =
+        new Schema(
+            optional(1, "category", Types.StringType.get()),
+            optional(2, "region", Types.StringType.get()));
+
+    File file = createTempFile(temp);
+
+    List<GenericData.Record> records = Lists.newArrayListWithCapacity(100);
+    org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(schema.asStruct());
+    for (int i = 0; i < 100; i++) {
+      GenericData.Record record = new GenericData.Record(avroSchema);
+      record.put("category", "cat_" + (i % 5));
+      record.put("region", "region_" + (i % 3));
+      records.add(record);
+    }
+
+    write(
+        file,
+        schema,
+        ImmutableMap.<String, String>builder()
+            .put(PARQUET_DICT_ENCODING_ENABLED_COLUMN_PREFIX + "non_existent_field", "false")
+            .buildOrThrow(),
+        ParquetAvroWriter::buildWriter,
+        records.toArray(new GenericData.Record[] {}));
+
+    try (ParquetFileReader reader =
+        ParquetFileReader.open(ParquetIO.file(Files.localInput(file)))) {
+      for (BlockMetaData block : reader.getFooter().getBlocks()) {
+        for (ColumnChunkMetaData column : block.getColumns()) {
+          boolean usesDictionary =
+              column.getEncodings().stream().anyMatch(Encoding::usesDictionary);
+          assertThat(usesDictionary)
+              .as("column %s uses global default", column.getPath().toDotString())
+              .isTrue();
+        }
+      }
+    }
+  }
+
+  @Test
   public void testFooterMetricsWithNameMappingForFileWithoutIds() throws IOException {
     Schema schemaWithIds =
         new Schema(
@@ -314,6 +545,72 @@ public class TestParquet {
     }
   }
 
+  @Test
+  public void testAvroWriterRejectsVariantType() {
+    MessageType schema =
+        org.apache.parquet.schema.Types.buildMessage()
+            .optional(PrimitiveTypeName.INT32)
+            .named("id")
+            .optionalGroup()
+            .as(LogicalTypeAnnotation.variantType(Variant.VARIANT_SPEC_VERSION))
+            .required(PrimitiveTypeName.BINARY)
+            .named("metadata")
+            .required(PrimitiveTypeName.BINARY)
+            .named("value")
+            .named("v")
+            .named("table");
+
+    assertThatThrownBy(() -> ParquetAvroWriter.buildWriter(schema))
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage("Avro writer does not support variant types");
+  }
+
+  @Test
+  public void adaptiveBloomFilterSizingShrinksFile() throws IOException {
+    // when PARQUET_BLOOM_FILTER_ADAPTIVE_ENABLED is not set (the default), the writer
+    // allocates the full PARQUET_BLOOM_FILTER_MAX_BYTES buffer (4 MiB here) regardless
+    // of the number of distinct values written
+    long sizeWithoutAdaptive = writeWithBloomFilter(null);
+    assertThat(sizeWithoutAdaptive)
+        .as("non-adaptive file should pad the bloom filter to PARQUET_BLOOM_FILTER_MAX_BYTES")
+        .isGreaterThan(3_500_000L);
+
+    // with PARQUET_BLOOM_FILTER_ADAPTIVE_ENABLED, the writer picks the smallest candidate
+    // bloom filter that satisfies the actual number of distinct values (5) at the
+    // configured FPP
+    long sizeWithAdaptive = writeWithBloomFilter(true);
+    assertThat(sizeWithAdaptive)
+        .as("adaptive file should be at least 2x smaller than the non-adaptive file")
+        .isLessThan(sizeWithoutAdaptive / 2);
+  }
+
+  private long writeWithBloomFilter(Boolean adaptiveEnabled) throws IOException {
+    Schema schema = new Schema(required(1, "id", Types.LongType.get()));
+
+    ImmutableMap.Builder<String, String> propsBuilder =
+        ImmutableMap.<String, String>builder()
+            .put(PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "id", "true")
+            .put(PARQUET_BLOOM_FILTER_MAX_BYTES, "4194304");
+    if (adaptiveEnabled != null) {
+      propsBuilder.put(PARQUET_BLOOM_FILTER_ADAPTIVE_ENABLED, adaptiveEnabled.toString());
+    }
+
+    List<GenericData.Record> records = Lists.newArrayListWithCapacity(5);
+    org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(schema.asStruct());
+    for (long i = 0; i < 5; i++) {
+      GenericData.Record record = new GenericData.Record(avroSchema);
+      record.put("id", i);
+      records.add(record);
+    }
+
+    return write(
+        createTempFile(temp),
+        schema,
+        propsBuilder.buildOrThrow(),
+        ParquetAvroWriter::buildWriter,
+        records.toArray(new GenericData.Record[] {}));
+  }
+
   private Pair<File, Long> generateFile(
       Function<MessageType, ParquetValueWriter<?>> createWriterFunc,
       int desiredRecordCount,
@@ -353,5 +650,110 @@ public class TestParquet {
             createWriterFunc,
             records.toArray(new GenericData.Record[] {}));
     return Pair.of(file, size);
+  }
+
+  @Test
+  public void timestampNanoFilterRespectsNanoseconds() throws IOException {
+    // Predicate pushdown on timestamp_ns must filter at full nanosecond resolution. The five rows
+    // differ only by sub-microsecond nanoseconds, so a micros-truncating push down could not
+    // separate id 2 (250 ns) from id 3 (750 ns) and would return the wrong rows.
+    Schema schema =
+        new Schema(
+            required(1, "id", Types.LongType.get()),
+            required(2, "ts", Types.TimestampNanoType.withoutZone()));
+
+    Record template = org.apache.iceberg.data.GenericRecord.create(schema);
+    List<Record> records =
+        Lists.newArrayList(
+            template.copy(
+                ImmutableMap.of(
+                    "id", 1L, "ts", LocalDateTime.parse("2024-01-01T00:00:00.000000000"))),
+            template.copy(
+                ImmutableMap.of(
+                    "id", 2L, "ts", LocalDateTime.parse("2024-01-01T00:00:00.000000250"))),
+            template.copy(
+                ImmutableMap.of(
+                    "id", 3L, "ts", LocalDateTime.parse("2024-01-01T00:00:00.000000750"))),
+            template.copy(
+                ImmutableMap.of(
+                    "id", 4L, "ts", LocalDateTime.parse("2024-01-01T00:00:00.000001500"))),
+            template.copy(
+                ImmutableMap.of(
+                    "id", 5L, "ts", LocalDateTime.parse("2024-01-01T00:00:00.000003000"))));
+
+    File file = writeNanoRecords(schema, records);
+
+    // Boundary at 500 ns: only ids 3 (750 ns), 4 (1500 ns), 5 (3000 ns) qualify.
+    List<Long> ids =
+        filterIds(schema, file, greaterThanOrEqual("ts", "2024-01-01T00:00:00.000000500"));
+    assertThat(ids).containsExactlyInAnyOrder(3L, 4L, 5L);
+  }
+
+  @Test
+  public void timestamptzNanoFilterAcrossTimezones() throws IOException {
+    // Each row is written in a different zone offset; instants are 0/500/750/1500/3000 ns past the
+    // same UTC second. id2 lands exactly on the filter boundary but in +05:00, so a strict
+    // greaterThan must exclude it by instant, not by wall-clock (its 05:00 vs the boundary's
+    // 04:00).
+    Schema schema =
+        new Schema(
+            required(1, "id", Types.LongType.get()),
+            required(2, "ts", Types.TimestampNanoType.withZone()));
+
+    Record template = org.apache.iceberg.data.GenericRecord.create(schema);
+    List<Record> records =
+        Lists.newArrayList(
+            template.copy(
+                ImmutableMap.of(
+                    "id", 1L, "ts", OffsetDateTime.parse("2024-01-01T00:00:00.000000000+00:00"))),
+            template.copy(
+                ImmutableMap.of(
+                    "id", 2L, "ts", OffsetDateTime.parse("2024-01-01T05:00:00.000000500+05:00"))),
+            template.copy(
+                ImmutableMap.of(
+                    "id", 3L, "ts", OffsetDateTime.parse("2023-12-31T16:00:00.000000750-08:00"))),
+            template.copy(
+                ImmutableMap.of(
+                    "id", 4L, "ts", OffsetDateTime.parse("2024-01-01T05:30:00.000001500+05:30"))),
+            template.copy(
+                ImmutableMap.of(
+                    "id", 5L, "ts", OffsetDateTime.parse("2024-01-01T00:00:00.000003000+00:00"))));
+
+    File file = writeNanoRecords(schema, records);
+
+    // Boundary == 2024-01-01T00:00:00.000000500Z, expressed in +04:00. id2 is that same instant
+    // (written in +05:00); a strict greaterThan excludes it, leaving ids 3/4/5.
+    List<Long> ids =
+        filterIds(schema, file, greaterThan("ts", "2024-01-01T04:00:00.000000500+04:00"));
+    assertThat(ids).containsExactlyInAnyOrder(3L, 4L, 5L);
+  }
+
+  private File writeNanoRecords(Schema schema, List<Record> records) throws IOException {
+    File file = createTempFile(temp);
+    try (FileAppender<Record> appender =
+        Parquet.write(Files.localOutput(file))
+            .schema(schema)
+            .createWriterFunc(GenericParquetWriter::create)
+            .build()) {
+      for (Record record : records) {
+        appender.add(record);
+      }
+    }
+
+    return file;
+  }
+
+  private List<Long> filterIds(Schema schema, File file, Expression filter) throws IOException {
+    List<Long> ids = Lists.newArrayList();
+    // callInit() drives the parquet-mr ReadSupport path, the only read path that runs
+    // ParquetFilters.
+    try (CloseableIterable<GenericData.Record> reader =
+        Parquet.read(localInput(file)).project(schema).callInit().filter(filter).build()) {
+      for (GenericData.Record record : reader) {
+        ids.add((Long) record.get("id"));
+      }
+    }
+
+    return ids;
   }
 }

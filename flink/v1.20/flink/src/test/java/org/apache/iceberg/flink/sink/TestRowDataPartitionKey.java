@@ -57,7 +57,11 @@ public class TestRowDataPartitionKey {
           Types.NestedField.required(12, "decimalType2", Types.DecimalType.of(10, 5)),
           Types.NestedField.required(13, "decimalType3", Types.DecimalType.of(38, 19)),
           Types.NestedField.required(14, "floatType", Types.FloatType.get()),
-          Types.NestedField.required(15, "doubleType", Types.DoubleType.get()));
+          Types.NestedField.required(15, "doubleType", Types.DoubleType.get()),
+          Types.NestedField.required(
+              16, "timestampNanoWithoutZone", Types.TimestampNanoType.withoutZone()),
+          Types.NestedField.required(
+              17, "timestampNanoWithZone", Types.TimestampNanoType.withZone()));
 
   private static final List<String> SUPPORTED_PRIMITIVES =
       SCHEMA.asStruct().fields().stream().map(Types.NestedField::name).collect(Collectors.toList());
@@ -243,6 +247,49 @@ public class TestRowDataPartitionKey {
         } else {
           assertThat(pk.get(0, javaClasses[0]))
               .as("Partition with nested column " + column + " should have the expected values.")
+              .isEqualTo(expectedPK.get(0, javaClasses[0]));
+        }
+      }
+    }
+  }
+
+  @Test
+  public void testTimestampNanoPartitionTransforms() {
+    RowType rowType = FlinkSchemaUtil.convert(SCHEMA);
+    RowDataWrapper rowWrapper = new RowDataWrapper(rowType, SCHEMA.asStruct());
+    InternalRecordWrapper recordWrapper = new InternalRecordWrapper(SCHEMA.asStruct());
+
+    List<Record> records = RandomGenericData.generate(SCHEMA, 10, 1995);
+    List<RowData> rows = Lists.newArrayList(RandomRowData.convert(SCHEMA, records));
+
+    String[] columns = {"timestampNanoWithoutZone", "timestampNanoWithZone"};
+    for (String column : columns) {
+      List<PartitionSpec> specs =
+          Lists.newArrayList(
+              PartitionSpec.builderFor(SCHEMA).identity(column).build(),
+              PartitionSpec.builderFor(SCHEMA).year(column).build(),
+              PartitionSpec.builderFor(SCHEMA).month(column).build(),
+              PartitionSpec.builderFor(SCHEMA).day(column).build(),
+              PartitionSpec.builderFor(SCHEMA).hour(column).build(),
+              PartitionSpec.builderFor(SCHEMA).bucket(column, 16).build());
+
+      for (PartitionSpec spec : specs) {
+        Class<?>[] javaClasses = spec.javaClasses();
+        PartitionKey pk = new PartitionKey(spec, SCHEMA);
+        PartitionKey expectedPK = new PartitionKey(spec, SCHEMA);
+
+        for (int j = 0; j < rows.size(); j++) {
+          pk.partition(rowWrapper.wrap(rows.get(j)));
+          expectedPK.partition(recordWrapper.wrap(records.get(j)));
+
+          assertThat(pk.size()).isEqualTo(1);
+          assertThat(pk.get(0, javaClasses[0]))
+              .as(
+                  "Partition with column "
+                      + column
+                      + " and spec "
+                      + spec
+                      + " should match Iceberg-side computation")
               .isEqualTo(expectedPK.get(0, javaClasses[0]));
         }
       }

@@ -26,9 +26,9 @@ buildscript {
     gradlePluginPortal()
   }
   dependencies {
-    classpath 'com.gradleup.shadow:shadow-gradle-plugin:8.3.10'
+    classpath 'com.gradleup.shadow:shadow-gradle-plugin:8.3.11'
     classpath 'com.palantir.baseline:gradle-baseline-java:6.90.0'
-    classpath 'com.diffplug.spotless:spotless-plugin-gradle:8.4.0'
+    classpath 'com.diffplug.spotless:spotless-plugin-gradle:8.8.0'
     classpath 'gradle.plugin.org.inferred:gradle-processors:3.7.0'
     classpath 'me.champeau.jmh:jmh-gradle-plugin:0.7.3'
     classpath 'gradle.plugin.io.morethan.jmhreport:gradle-jmh-report:0.9.6'
@@ -36,7 +36,7 @@ buildscript {
     classpath 'org.revapi:gradle-revapi:1.8.0'
     classpath 'com.gorylenko.gradle-git-properties:gradle-git-properties:2.5.7'
     classpath 'com.palantir.gradle.gitversion:gradle-git-version:4.3.0'
-    classpath 'org.openapitools:openapi-generator-gradle-plugin:7.20.0'
+    classpath 'org.openapitools:openapi-generator-gradle-plugin:7.23.0'
   }
 }
 
@@ -120,6 +120,15 @@ allprojects {
   }
 }
 
+tasks.register('checkAllRuntimeDeps') {
+  description = 'Validates runtime dependency baselines for all subprojects that have them'
+  group = 'verification'
+
+  dependsOn subprojects.collect { subproject ->
+    subproject.tasks.matching { it.name == 'checkRuntimeDeps' }
+  }
+}
+
 subprojects {
   if (it.name == 'iceberg-bom') {
     // the BOM does not build anything, the code below expects "source code"
@@ -133,7 +142,7 @@ subprojects {
     revapi {
       oldGroup = project.group
       oldName = project.name
-      oldVersion = "1.10.0"
+      oldVersion = "1.11.0"
     }
 
     tasks.register('showDeprecationRulesOnRevApiFailure') {
@@ -197,6 +206,14 @@ subprojects {
         dependencySubstitution {
           substitute module("org.lz4:lz4-java") using module(libs.lz4Java.get().toString()) because("Enforce lz4-java that contains CVE-2025-12183 and CVE-2025-66566 fixes")
           substitute module("io.airlift:aircompressor") using module(libs.aircompressor.get().toString()) because("Enforce aircompressor that contains CVE-2025-67721 fix")
+          substitute module("org.bouncycastle:bcprov-jdk18on") using module(libs.bouncycastle.bcprov.get().toString()) because("Enforce BouncyCastle that contains CVE-2026-5598 fix")
+        }
+        eachDependency { details ->
+          if (details.requested.group == 'io.netty'
+              && (details.requested.version?.startsWith('4.1.') || details.requested.version?.startsWith('4.2.'))) {
+            details.useVersion(libs.versions.netty.buffer.get())
+            details.because("Fix Netty 4.1.x and 4.2.x CVEs (CVE-2026-42577, CVE-2026-42579, CVE-2026-42583, CVE-2026-42584, CVE-2026-42587, CVE-2026-44249, CVE-2026-45416, CVE-2026-45674, CVE-2026-47691)")
+          }
         }
       }
     }
@@ -325,6 +342,7 @@ project(':iceberg-api') {
     testImplementation libs.avro.avro
     testImplementation libs.esotericsoftware.kryo
     testImplementation libs.awaitility
+    testImplementation libs.junit.pioneer
   }
 
   tasks.processTestResources.dependsOn rootProject.tasks.buildInfo
@@ -387,7 +405,8 @@ project(':iceberg-core') {
 
     testImplementation libs.jetty.servlet
     testImplementation libs.jakarta.servlet
-    testImplementation libs.jetty.server
+    testImplementation libs.jetty.compression.server
+    testImplementation libs.jetty.compression.gzip
     testImplementation libs.mockserver.netty
     testImplementation libs.mockserver.client.java
     testImplementation libs.sqlite.jdbc
@@ -399,6 +418,13 @@ project(':iceberg-core') {
       exclude group: 'junit'
     }
     testImplementation libs.awaitility
+
+    // Lock BouncyCastle versions to avoid version mismatches
+    // when these dependencies are added transitively.
+    // Required for TLS tests with MockServer.
+    testImplementation libs.bouncycastle.bcpkix
+    testImplementation libs.bouncycastle.bcutil
+    testImplementation libs.bouncycastle.bcprov
   }
 }
 
@@ -439,6 +465,8 @@ project(':iceberg-data') {
 
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
+    testImplementation project(path: ':iceberg-orc', configuration: 'testArtifacts')
+    testImplementation(testFixtures(project(':iceberg-parquet')))
   }
 
   test {
@@ -459,8 +487,8 @@ project(':iceberg-aliyun') {
     implementation project(':iceberg-common')
 
     compileOnly libs.aliyun.sdk.oss
-    implementation libs.aliyun.credentials.java
-    implementation libs.aliyun.tea
+    compileOnly libs.aliyun.credentials.java
+    compileOnly libs.aliyun.tea
     compileOnly libs.jaxb.api
     compileOnly libs.activation
     compileOnly libs.jaxb.runtime
@@ -536,6 +564,8 @@ project(':iceberg-aws') {
     testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
     testImplementation libs.awaitility
     testImplementation libs.jetty.servlet
+    testImplementation libs.jetty.compression.server
+    testImplementation libs.jetty.compression.gzip
     testImplementation libs.mockito.junit.jupiter
   }
 
@@ -560,7 +590,8 @@ project(':iceberg-aws') {
     jvmArgs += project.property('extraJvmArgs')
   }
 
-  def s3SignerSpec = "$projectDir/src/main/resources/s3-signer-open-api.yaml"
+  // TODO delete once s3-signer-open-api.yaml is removed
+  def s3SignerSpec = layout.projectDirectory.file("src/main/resources/s3-signer-open-api.yaml")
   tasks.register('validateS3SignerSpec', org.openapitools.generator.gradle.plugin.tasks.ValidateTask) {
     inputSpec.set(s3SignerSpec)
     recommend.set(true)
@@ -706,10 +737,10 @@ project(':iceberg-bigquery') {
 
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
 
-    implementation platform(libs.google.libraries.bom)
+    compileOnly platform(libs.google.libraries.bom)
     compileOnly "com.google.cloud:google-cloud-storage"
-    implementation "com.google.cloud:google-cloud-bigquery"
-    implementation "com.google.cloud:google-cloud-core"
+    compileOnly "com.google.cloud:google-cloud-bigquery"
+    compileOnly "com.google.cloud:google-cloud-core"
 
     testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
@@ -918,6 +949,13 @@ project(':iceberg-parquet') {
       exclude group: 'org.apache.avro', module: 'avro'
     }
 
+    testFixturesApi(libs.parquet.hadoop) {
+      exclude group: 'org.apache.avro', module: 'avro'
+      // already shaded by Parquet
+      exclude group: 'it.unimi.dsi'
+      exclude group: 'org.codehaus.jackson'
+    }
+
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
   }
@@ -1093,7 +1131,8 @@ project(':iceberg-open-api') {
     testFixturesImplementation libs.slf4j.simple
 
     testFixturesImplementation libs.jetty.servlet
-    testFixturesImplementation libs.jetty.server
+    testFixturesImplementation libs.jetty.compression.server
+    testFixturesImplementation libs.jetty.compression.gzip
     testFixturesImplementation libs.sqlite.jdbc
 
     testFixturesCompileOnly libs.apiguardian
@@ -1118,7 +1157,7 @@ project(':iceberg-open-api') {
             .collectEntries { k, v -> { [(k):v, (k.replaceFirst("rck.", "")):v] }} // strip prefix
   }
 
-  def restCatalogSpec = "$projectDir/rest-catalog-open-api.yaml"
+  def restCatalogSpec = layout.projectDirectory.file("rest-catalog-open-api.yaml")
   tasks.register('validateRESTCatalogSpec', org.openapitools.generator.gradle.plugin.tasks.ValidateTask) {
     inputSpec.set(restCatalogSpec)
     recommend.set(true)
@@ -1207,7 +1246,6 @@ project(':iceberg-bom') {
       // the BOM references the artifacts for all Scala versions.
       def sparkScalaPattern = ~"(.*)-([0-9][.][0-9]+)_([0-9][.][0-9]+)"
       def sparkScalaVersions = [
-        "3.4": ["2.12", "2.13"],
         "3.5": ["2.12", "2.13"],
       ]
       rootProject.allprojects.forEach {

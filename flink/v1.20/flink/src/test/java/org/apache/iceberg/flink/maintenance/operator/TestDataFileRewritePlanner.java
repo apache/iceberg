@@ -24,6 +24,9 @@ import static org.apache.iceberg.flink.maintenance.operator.RewriteUtil.newDataF
 import static org.apache.iceberg.flink.maintenance.operator.RewriteUtil.planDataFileRewrite;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.time.Duration;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -107,7 +110,7 @@ class TestDataFileRewritePlanner extends OperatorTestBase {
                     11,
                     1L,
                     ImmutableMap.of(MIN_INPUT_FILES, "2"),
-                    Expressions.alwaysTrue(),
+                    Expressions::alwaysTrue,
                     SnapshotRef.MAIN_BRANCH))) {
       testHarness.open();
 
@@ -174,7 +177,7 @@ class TestDataFileRewritePlanner extends OperatorTestBase {
                     11,
                     maxRewriteBytes,
                     ImmutableMap.of(MIN_INPUT_FILES, "2"),
-                    Expressions.alwaysTrue(),
+                    Expressions::alwaysTrue,
                     SnapshotRef.MAIN_BRANCH))) {
       testHarness.open();
 
@@ -228,7 +231,7 @@ class TestDataFileRewritePlanner extends OperatorTestBase {
                     11,
                     10_000_000L,
                     ImmutableMap.of(MIN_INPUT_FILES, "2"),
-                    Expressions.alwaysTrue(),
+                    Expressions::alwaysTrue,
                     branchName))) {
       testHarness.open();
 
@@ -240,6 +243,46 @@ class TestDataFileRewritePlanner extends OperatorTestBase {
       // Branch has 2 files, main has 3
       assertThat(planned.get(0).group().fileScanTasks()).hasSize(2);
       assertThat(planned.get(0).branch()).isEqualTo(branchName);
+    }
+  }
+
+  @Test
+  void testFilterSupplierWithTimestamp() throws Exception {
+    Table table = createTableWithTimestampWithoutZone();
+
+    LocalDateTime oldTs = LocalDateTime.now().minusDays(10);
+    insertWithTimestampWithoutZone(table, 1, "old_a", oldTs);
+    insertWithTimestampWithoutZone(table, 2, "old_b", oldTs);
+
+    LocalDateTime recentTs = LocalDateTime.now().minusHours(1);
+    insertWithTimestampWithoutZone(table, 3, "new_a", recentTs);
+    insertWithTimestampWithoutZone(table, 4, "new_b", recentTs);
+
+    try (OneInputStreamOperatorTestHarness<Trigger, DataFileRewritePlanner.PlannedGroup>
+        testHarness =
+            ProcessFunctionTestHarnesses.forProcessFunction(
+                new DataFileRewritePlanner(
+                    OperatorTestBase.DUMMY_TABLE_NAME,
+                    OperatorTestBase.DUMMY_TABLE_NAME,
+                    0,
+                    tableLoader(),
+                    11,
+                    10_000_000L,
+                    ImmutableMap.of(MIN_INPUT_FILES, "2"),
+                    () ->
+                        Expressions.greaterThanOrEqual(
+                            "ts",
+                            LocalDateTime.now(ZoneOffset.UTC).minus(Duration.ofDays(3)).toString()),
+                    SnapshotRef.MAIN_BRANCH))) {
+      testHarness.open();
+
+      trigger(testHarness);
+
+      assertThat(testHarness.getSideOutput(TaskResultAggregator.ERROR_STREAM)).isNull();
+      List<DataFileRewritePlanner.PlannedGroup> planned = testHarness.extractOutputValues();
+
+      assertThat(planned).hasSize(1);
+      assertThat(planned.get(0).group().fileScanTasks()).hasSize(2);
     }
   }
 

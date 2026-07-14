@@ -44,7 +44,7 @@ public class FlinkConfParser {
     this.readableConfig = readableConfig;
   }
 
-  FlinkConfParser(Map<String, String> options, ReadableConfig readableConfig) {
+  public FlinkConfParser(Map<String, String> options, ReadableConfig readableConfig) {
     this.tableProperties = ImmutableMap.of();
     this.options = options;
     this.readableConfig = readableConfig;

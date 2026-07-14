@@ -647,4 +647,17 @@ public class TestAlterTablePartitionFields extends ExtensionsTestBase {
     sql("DELETE FROM %s WHERE id >= 1", tableName);
     assertThat(sql("SELECT * FROM %s WHERE id >= 1", tableName)).isEmpty();
   }
+
+  @TestTemplate
+  public void testReaddColumnAfterIdentityPartitionDrop() {
+    createTable("id bigint NOT NULL, category string, data string", "category");
+
+    sql("ALTER TABLE %s DROP PARTITION FIELD category", tableName);
+    sql("ALTER TABLE %s DROP COLUMN category", tableName);
+    sql("ALTER TABLE %s ADD COLUMN category string", tableName);
+
+    sql("INSERT INTO %s (id, category, data) VALUES (1, 'books', 'a')", tableName);
+    assertThat(sql("SELECT id, category, data FROM %s ORDER BY id", tableName))
+        .containsExactly(row(1L, "books", "a"));
+  }
 }

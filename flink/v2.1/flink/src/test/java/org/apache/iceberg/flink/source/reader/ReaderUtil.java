@@ -57,6 +57,21 @@ public class ReaderUtil {
 
   public static FileScanTask createFileTask(
       List<Record> records, File file, FileFormat fileFormat, Schema schema) throws IOException {
+    return createFileTask(
+        records,
+        file,
+        fileFormat,
+        schema,
+        ResidualEvaluator.unpartitioned(Expressions.alwaysTrue()));
+  }
+
+  public static FileScanTask createFileTask(
+      List<Record> records,
+      File file,
+      FileFormat fileFormat,
+      Schema schema,
+      ResidualEvaluator residuals)
+      throws IOException {
     DataWriter<Record> writer =
         new GenericFileWriterFactory.Builder()
             .dataSchema(schema)
@@ -69,7 +84,6 @@ public class ReaderUtil {
 
     DataFile dataFile = writer.toDataFile();
 
-    ResidualEvaluator residuals = ResidualEvaluator.unpartitioned(Expressions.alwaysTrue());
     return new BaseFileScanTask(
         dataFile,
         null,

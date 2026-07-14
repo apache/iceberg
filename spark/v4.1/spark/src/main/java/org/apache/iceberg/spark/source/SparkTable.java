@@ -31,7 +31,6 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TableScan;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Evaluator;
@@ -49,6 +48,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.CommitMetadata;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkReadConf;
+import org.apache.iceberg.spark.SparkTableProperties;
+import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.spark.SparkV2Filters;
 import org.apache.iceberg.spark.TimeTravel;
@@ -83,20 +84,14 @@ public class SparkTable extends BaseSparkTable
 
   private static final Logger LOG = LoggerFactory.getLogger(SparkTable.class);
 
-  private static final Set<TableCapability> CAPABILITIES =
+  private static final Set<TableCapability> BASE_CAPABILITIES =
       ImmutableSet.of(
-          TableCapability.AUTOMATIC_SCHEMA_EVOLUTION,
           TableCapability.BATCH_READ,
           TableCapability.BATCH_WRITE,
           TableCapability.MICRO_BATCH_READ,
           TableCapability.STREAMING_WRITE,
           TableCapability.OVERWRITE_BY_FILTER,
           TableCapability.OVERWRITE_DYNAMIC);
-  private static final Set<TableCapability> CAPABILITIES_WITH_ACCEPT_ANY_SCHEMA =
-      ImmutableSet.<TableCapability>builder()
-          .addAll(CAPABILITIES)
-          .add(TableCapability.ACCEPT_ANY_SCHEMA)
-          .build();
 
   private final Schema schema; // effective schema (not necessarily current table schema)
   private final Snapshot snapshot; // always set unless table is empty
@@ -133,7 +128,7 @@ public class SparkTable extends BaseSparkTable
     this.snapshot = snapshot;
     this.branch = branch;
     this.timeTravel = timeTravel;
-    this.capabilities = acceptAnySchema(table) ? CAPABILITIES_WITH_ACCEPT_ANY_SCHEMA : CAPABILITIES;
+    this.capabilities = computeCapabilities(table);
   }
 
   public SparkTable copyWithBranch(String newBranch) {
@@ -214,11 +209,14 @@ public class SparkTable extends BaseSparkTable
       }
     }
 
-    return canDeleteUsingMetadata(deleteExpr);
+    String scanBranch =
+        SparkTableUtil.determineReadBranch(
+            spark(), table(), branch, CaseInsensitiveStringMap.empty());
+    return canDeleteUsingMetadata(deleteExpr, scanBranch);
   }
 
   // a metadata delete is possible iff matching files can be deleted entirely
-  private boolean canDeleteUsingMetadata(Expression deleteExpr) {
+  private boolean canDeleteUsingMetadata(Expression deleteExpr, String scanBranch) {
     boolean caseSensitive = SparkUtil.caseSensitive(spark());
 
     if (ExpressionUtil.selectsPartitions(deleteExpr, table(), caseSensitive)) {
@@ -233,7 +231,9 @@ public class SparkTable extends BaseSparkTable
             .includeColumnStats()
             .ignoreResiduals();
 
-    if (snapshot != null) {
+    if (scanBranch != null) {
+      scan = scan.useRef(scanBranch);
+    } else if (snapshot != null) {
       scan = scan.useSnapshot(snapshot.snapshotId());
     }
 
@@ -275,8 +275,12 @@ public class SparkTable extends BaseSparkTable
             .set("spark.app.id", spark().sparkContext().applicationId())
             .deleteFromRowFilter(deleteExpr);
 
-    if (branch != null) {
-      deleteFiles.toBranch(branch);
+    String writeBranch =
+        SparkTableUtil.determineWriteBranch(
+            spark(), table(), branch, CaseInsensitiveStringMap.empty());
+
+    if (writeBranch != null) {
+      deleteFiles.toBranch(writeBranch);
     }
 
     if (!CommitMetadata.commitProperties().isEmpty()) {
@@ -353,11 +357,33 @@ public class SparkTable extends BaseSparkTable
     return new SparkTable(table, snapshotId, timeTravel);
   }
 
+  private static Set<TableCapability> computeCapabilities(Table table) {
+    ImmutableSet.Builder<TableCapability> tableCapabilities = ImmutableSet.builder();
+    tableCapabilities.addAll(BASE_CAPABILITIES);
+
+    if (autoSchemaEvolution(table)) {
+      tableCapabilities.add(TableCapability.AUTOMATIC_SCHEMA_EVOLUTION);
+    }
+
+    if (acceptAnySchema(table)) {
+      tableCapabilities.add(TableCapability.ACCEPT_ANY_SCHEMA);
+    }
+
+    return tableCapabilities.build();
+  }
+
   private static boolean acceptAnySchema(Table table) {
     return PropertyUtil.propertyAsBoolean(
         table.properties(),
-        TableProperties.SPARK_WRITE_ACCEPT_ANY_SCHEMA,
-        TableProperties.SPARK_WRITE_ACCEPT_ANY_SCHEMA_DEFAULT);
+        SparkTableProperties.WRITE_ACCEPT_ANY_SCHEMA,
+        SparkTableProperties.WRITE_ACCEPT_ANY_SCHEMA_DEFAULT);
+  }
+
+  private static boolean autoSchemaEvolution(Table table) {
+    return PropertyUtil.propertyAsBoolean(
+        table.properties(),
+        SparkTableProperties.WRITE_AUTO_SCHEMA_EVOLUTION,
+        SparkTableProperties.WRITE_AUTO_SCHEMA_EVOLUTION_DEFAULT);
   }
 
   // returns latest snapshot for branch or current snapshot if branch is yet to be created
