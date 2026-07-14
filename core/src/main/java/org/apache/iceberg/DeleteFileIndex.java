@@ -59,6 +59,8 @@ import org.apache.iceberg.util.ContentFileUtil;
 import org.apache.iceberg.util.PartitionMap;
 import org.apache.iceberg.util.PartitionSet;
 import org.apache.iceberg.util.Tasks;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * An index of {@link DeleteFile delete files} by sequence number.
@@ -68,6 +70,7 @@ import org.apache.iceberg.util.Tasks;
  * file.
  */
 class DeleteFileIndex {
+  private static final Logger LOG = LoggerFactory.getLogger(DeleteFileIndex.class);
   private static final DeleteFile[] EMPTY_DELETES = new DeleteFile[0];
 
   private final EqualityDeletes globalDeletes;
@@ -75,6 +78,7 @@ class DeleteFileIndex {
   private final PartitionMap<PositionDeletes> posDeletesByPartition;
   private final Map<String, PositionDeletes> posDeletesByPath;
   private final Map<String, DeleteFile> dvByPath;
+  private final Map<String, List<DeleteFile>> duplicateDvsByPath;
   private final boolean hasEqDeletes;
   private final boolean hasPosDeletes;
   private final boolean isEmpty;
@@ -84,15 +88,20 @@ class DeleteFileIndex {
       PartitionMap<EqualityDeletes> eqDeletesByPartition,
       PartitionMap<PositionDeletes> posDeletesByPartition,
       Map<String, PositionDeletes> posDeletesByPath,
-      Map<String, DeleteFile> dvByPath) {
+      Map<String, DeleteFile> dvByPath,
+      Map<String, List<DeleteFile>> duplicateDvsByPath) {
     this.globalDeletes = globalDeletes;
     this.eqDeletesByPartition = eqDeletesByPartition;
     this.posDeletesByPartition = posDeletesByPartition;
     this.posDeletesByPath = posDeletesByPath;
     this.dvByPath = dvByPath;
+    this.duplicateDvsByPath = duplicateDvsByPath;
     this.hasEqDeletes = globalDeletes != null || eqDeletesByPartition != null;
     this.hasPosDeletes =
-        posDeletesByPartition != null || posDeletesByPath != null || dvByPath != null;
+        posDeletesByPartition != null
+            || posDeletesByPath != null
+            || dvByPath != null
+            || duplicateDvsByPath != null;
     this.isEmpty = !hasEqDeletes && !hasPosDeletes;
   }
 
@@ -137,6 +146,12 @@ class DeleteFileIndex {
       deleteFiles = Iterables.concat(deleteFiles, dvByPath.values());
     }
 
+    if (duplicateDvsByPath != null) {
+      for (List<DeleteFile> dvs : duplicateDvsByPath.values()) {
+        deleteFiles = Iterables.concat(deleteFiles, dvs);
+      }
+    }
+
     return deleteFiles;
   }
 
@@ -155,11 +170,11 @@ class DeleteFileIndex {
 
     DeleteFile[] global = findGlobalDeletes(sequenceNumber, file);
     DeleteFile[] eqPartition = findEqPartitionDeletes(sequenceNumber, file);
-    DeleteFile dv = findDV(sequenceNumber, file);
-    if (dv != null && global == null && eqPartition == null) {
-      return new DeleteFile[] {dv};
-    } else if (dv != null) {
-      return concat(global, eqPartition, new DeleteFile[] {dv});
+    DeleteFile[] dvs = findDVs(sequenceNumber, file);
+    if (dvs != null && global == null && eqPartition == null) {
+      return dvs;
+    } else if (dvs != null) {
+      return concat(global, eqPartition, dvs);
     } else {
       DeleteFile[] posPartition = findPosPartitionDeletes(sequenceNumber, file);
       DeleteFile[] posPath = findPathDeletes(sequenceNumber, file);
@@ -199,20 +214,44 @@ class DeleteFileIndex {
     return deletes == null ? EMPTY_DELETES : deletes.filter(seq);
   }
 
-  private DeleteFile findDV(long seq, DataFile dataFile) {
-    if (dvByPath == null) {
+  private DeleteFile[] findDVs(long seq, DataFile dataFile) {
+    if (dvByPath == null && duplicateDvsByPath == null) {
       return null;
     }
 
-    DeleteFile dv = dvByPath.get(dataFile.location());
-    if (dv != null) {
-      ValidationException.check(
-          dv.dataSequenceNumber() >= seq,
-          "DV data sequence number (%s) must be greater than or equal to data file sequence number (%s)",
-          dv.dataSequenceNumber(),
-          seq);
+    String path = dataFile.location();
+
+    // Check for duplicate DVs first (rare corruption case)
+    if (duplicateDvsByPath != null) {
+      List<DeleteFile> dvs = duplicateDvsByPath.get(path);
+      if (dvs != null) {
+        for (DeleteFile dv : dvs) {
+          ValidationException.check(
+              dv.dataSequenceNumber() >= seq,
+              "DV data sequence number (%s) must be greater than or equal to"
+                  + " data file sequence number (%s)",
+              dv.dataSequenceNumber(),
+              seq);
+        }
+        return dvs.toArray(EMPTY_DELETES);
+      }
     }
-    return dv;
+
+    // Common case: single DV per data file
+    if (dvByPath != null) {
+      DeleteFile dv = dvByPath.get(path);
+      if (dv != null) {
+        ValidationException.check(
+            dv.dataSequenceNumber() >= seq,
+            "DV data sequence number (%s) must be greater than or equal to"
+                + " data file sequence number (%s)",
+            dv.dataSequenceNumber(),
+            seq);
+        return new DeleteFile[] {dv};
+      }
+    }
+
+    return null;
   }
 
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
@@ -498,12 +537,13 @@ class DeleteFileIndex {
       PartitionMap<PositionDeletes> posDeletesByPartition = PartitionMap.create(specsById);
       Map<String, PositionDeletes> posDeletesByPath = Maps.newHashMap();
       Map<String, DeleteFile> dvByPath = Maps.newHashMap();
+      Map<String, List<DeleteFile>> duplicateDvsByPath = null;
 
       for (DeleteFile file : files) {
         switch (file.content()) {
           case POSITION_DELETES:
             if (ContentFileUtil.isDV(file)) {
-              add(dvByPath, file);
+              duplicateDvsByPath = addDV(dvByPath, duplicateDvsByPath, file);
             } else {
               add(posDeletesByPath, posDeletesByPartition, file);
             }
@@ -522,17 +562,91 @@ class DeleteFileIndex {
           eqDeletesByPartition.isEmpty() ? null : eqDeletesByPartition,
           posDeletesByPartition.isEmpty() ? null : posDeletesByPartition,
           posDeletesByPath.isEmpty() ? null : posDeletesByPath,
-          dvByPath.isEmpty() ? null : dvByPath);
+          dvByPath.isEmpty() ? null : dvByPath,
+          duplicateDvsByPath);
     }
 
-    private void add(Map<String, DeleteFile> dvByPath, DeleteFile dv) {
+    /**
+     * Adds a DV to the index, handling duplicate DVs for the same data file gracefully.
+     *
+     * <p>Per the spec, at most one DV per data file is allowed. However, metadata corruption may
+     * result in multiple DVs. Rather than throwing (which would brick the table), this method:
+     *
+     * <ul>
+     *   <li>Byte-identical DVs (same location, offset, size): silently deduplicated
+     *   <li>Different DVs: accumulated for union at read time, with a warning logged
+     * </ul>
+     *
+     * @see <a href="https://github.com/apache/iceberg/issues/17206">GitHub issue #17206</a>
+     */
+    private Map<String, List<DeleteFile>> addDV(
+        Map<String, DeleteFile> dvByPath,
+        Map<String, List<DeleteFile>> currentDuplicates,
+        DeleteFile dv) {
       String path = dv.referencedDataFile();
-      DeleteFile existingDV = dvByPath.putIfAbsent(path, dv);
-      if (existingDV != null) {
-        throw new ValidationException(
-            "Can't index multiple DVs for %s: %s and %s",
-            path, ContentFileUtil.dvDesc(dv), ContentFileUtil.dvDesc(existingDV));
+
+      // If the path is already in the duplicates map, handle there and return.
+      // This is critical for correctness: once a path migrates to duplicateDvsByPath,
+      // subsequent DVs must go there too (not back into dvByPath via putIfAbsent).
+      if (currentDuplicates != null) {
+        List<DeleteFile> existingDuplicates = currentDuplicates.get(path);
+        if (existingDuplicates != null) {
+          // Dedupe if byte-identical to any existing entry
+          for (DeleteFile existing : existingDuplicates) {
+            if (isByteIdenticalDV(existing, dv)) {
+              LOG.debug(
+                  "Deduplicated byte-identical DV for {}: {}", path, ContentFileUtil.dvDesc(dv));
+              return currentDuplicates;
+            }
+          }
+          // Genuinely different - append to the existing list
+          LOG.warn(
+              "Spec violation: additional different DV for {} (issue #17206). "
+                  + "Will be merged (unioned) at read time to avoid data loss. DV: {}",
+              path,
+              ContentFileUtil.dvDesc(dv));
+          existingDuplicates.add(dv);
+          return currentDuplicates;
+        }
       }
+
+      // Path not yet in duplicates map - try the single-DV map
+      DeleteFile existingDV = dvByPath.putIfAbsent(path, dv);
+      if (existingDV == null) {
+        // Common case: first DV for this data file
+        return currentDuplicates;
+      }
+
+      // Duplicate DV detected - check if byte-identical
+      if (isByteIdenticalDV(existingDV, dv)) {
+        LOG.debug("Deduplicated byte-identical DV for {}: {}", path, ContentFileUtil.dvDesc(dv));
+        return currentDuplicates;
+      }
+
+      // Genuinely different DVs - spec violation, but recover by collecting for union at read time
+      LOG.warn(
+          "Spec violation: multiple different DVs for {} (issue #17206). "
+              + "Deletes will be merged (unioned) at read time to avoid data loss. "
+              + "DVs: {} and {}",
+          path,
+          ContentFileUtil.dvDesc(existingDV),
+          ContentFileUtil.dvDesc(dv));
+
+      // Move from single-DV map to duplicate map
+      Map<String, List<DeleteFile>> duplicates =
+          currentDuplicates != null ? currentDuplicates : Maps.newHashMap();
+
+      List<DeleteFile> dvList = Lists.newArrayList();
+      dvList.add(dvByPath.remove(path));
+      dvList.add(dv);
+      duplicates.put(path, dvList);
+      return duplicates;
+    }
+
+    private static boolean isByteIdenticalDV(DeleteFile dvOne, DeleteFile dvTwo) {
+      return dvOne.location().equals(dvTwo.location())
+          && dvOne.contentOffset().equals(dvTwo.contentOffset())
+          && dvOne.contentSizeInBytes().equals(dvTwo.contentSizeInBytes());
     }
 
     private void add(
