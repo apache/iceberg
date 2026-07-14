@@ -47,9 +47,6 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap;
  * read option is provided, this class checks the session configuration. If no applicable value is
  * found in the session configuration, this class uses the table metadata.
  *
- * <p>For split size, session overrides are treated like explicit read options and disable adaptive
- * split-size adjustment.
- *
  * <p>Note this class is NOT meant to be serialized and sent to executors.
  */
 public class SparkReadConf {
