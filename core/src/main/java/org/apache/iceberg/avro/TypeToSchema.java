@@ -50,6 +50,10 @@ abstract class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
       LogicalTypes.timestampNanos().addToSchema(Schema.create(Schema.Type.LONG));
   private static final Schema TIMESTAMPTZ_NANO_SCHEMA =
       LogicalTypes.timestampNanos().addToSchema(Schema.create(Schema.Type.LONG));
+  private static final Schema LOCAL_TIMESTAMP_SCHEMA =
+      LogicalTypes.localTimestampMicros().addToSchema(Schema.create(Schema.Type.LONG));
+  private static final Schema LOCAL_TIMESTAMP_NANO_SCHEMA =
+      LogicalTypes.localTimestampNanos().addToSchema(Schema.create(Schema.Type.LONG));
   private static final Schema STRING_SCHEMA = Schema.create(Schema.Type.STRING);
   private static final Schema UUID_SCHEMA =
       LogicalTypes.uuid().addToSchema(Schema.createFixed("uuid_fixed", null, null, 16));
@@ -64,9 +68,12 @@ abstract class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
 
   private final Deque<Integer> fieldIds = Lists.newLinkedList();
   private final BiFunction<Integer, Types.StructType, String> namesFunction;
+  private final boolean legacyTimestampMapping;
 
-  TypeToSchema(BiFunction<Integer, Types.StructType, String> namesFunction) {
+  TypeToSchema(
+      BiFunction<Integer, Types.StructType, String> namesFunction, boolean legacyTimestampMapping) {
     this.namesFunction = namesFunction;
+    this.legacyTimestampMapping = legacyTimestampMapping;
   }
 
   @Override
@@ -240,15 +247,19 @@ abstract class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
       case TIMESTAMP:
         if (((Types.TimestampType) primitive).shouldAdjustToUTC()) {
           primitiveSchema = TIMESTAMPTZ_SCHEMA;
-        } else {
+        } else if (legacyTimestampMapping) {
           primitiveSchema = TIMESTAMP_SCHEMA;
+        } else {
+          primitiveSchema = LOCAL_TIMESTAMP_SCHEMA;
         }
         break;
       case TIMESTAMP_NANO:
         if (((Types.TimestampNanoType) primitive).shouldAdjustToUTC()) {
           primitiveSchema = TIMESTAMPTZ_NANO_SCHEMA;
-        } else {
+        } else if (legacyTimestampMapping) {
           primitiveSchema = TIMESTAMP_NANO_SCHEMA;
+        } else {
+          primitiveSchema = LOCAL_TIMESTAMP_NANO_SCHEMA;
         }
         break;
       case STRING:
@@ -290,8 +301,8 @@ abstract class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
 
     private final Map<Type, Schema> results = Maps.newHashMap();
 
-    WithTypeToName(Map<Types.StructType, String> names) {
-      super((id, struct) -> names.get(struct));
+    WithTypeToName(Map<Types.StructType, String> names, boolean legacyTimestampMapping) {
+      super((id, struct) -> names.get(struct), legacyTimestampMapping);
     }
 
     Map<Type, Schema> getConversionMap() {
@@ -312,8 +323,10 @@ abstract class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
   static class WithNamesFunction extends TypeToSchema {
     private final Map<String, Schema> schemaCache = Maps.newHashMap();
 
-    WithNamesFunction(BiFunction<Integer, Types.StructType, String> namesFunction) {
-      super(namesFunction);
+    WithNamesFunction(
+        BiFunction<Integer, Types.StructType, String> namesFunction,
+        boolean legacyTimestampMapping) {
+      super(namesFunction, legacyTimestampMapping);
     }
 
     @Override
