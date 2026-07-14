@@ -307,8 +307,8 @@ public class TestV4ManifestReader {
     InputFile manifest = writeManifest(EMPTY_PARTITION, ImmutableList.of(file));
 
     TrackedFile actual = read(manifest, UNPARTITIONED_SPECS).get(0);
-    assertThat(actual.partition()).isNotNull();
-    assertThat(actual.partition().size()).isEqualTo(0);
+    // unpartitioned manifests omit the partition field, which is read as null
+    assertThat(actual.partition()).isNull();
   }
 
   @TestTemplate
