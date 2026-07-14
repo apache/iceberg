@@ -39,13 +39,13 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap;
  *
  * <ol>
  *   <li>Read options
- *   <li>Session configuration (e.g. {@code spark.sql.iceberg.read.split-size})
+ *   <li>Session configuration
  *   <li>Table metadata
  * </ol>
  *
  * The most specific value is set in read options and takes precedence over all other configs. If no
- * read option is provided, this class checks the session configuration. If no applicable value is
- * found in the session configuration, this class uses the table metadata.
+ * read option is provided, this class checks the session configuration for any overrides. If no
+ * applicable value is found in the session configuration, this class uses the table metadata.
  *
  * <p>Note this class is NOT meant to be serialized and sent to executors.
  */
