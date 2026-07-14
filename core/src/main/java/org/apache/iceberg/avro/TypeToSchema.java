@@ -262,11 +262,8 @@ abstract class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
         primitiveSchema = Schema.createFixed("fixed_" + fixed.length(), null, null, fixed.length());
         break;
       case BINARY:
-        primitiveSchema = BINARY_SCHEMA;
-        break;
       case GEOMETRY:
       case GEOGRAPHY:
-        // geometry and geography values are stored as WKB in an Avro bytes field
         primitiveSchema = BINARY_SCHEMA;
         break;
       case DECIMAL:
