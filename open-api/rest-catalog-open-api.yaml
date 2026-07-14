@@ -3769,9 +3769,6 @@ components:
       properties:
         field-id:
           type: integer
-          format: int32
-          minimum: 1
-          maximum: 2147483447
           description: Field ID from the current schema of the table or view
         labels:
           type: object

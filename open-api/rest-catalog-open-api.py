@@ -600,8 +600,6 @@ class ColumnLabels(BaseModel):
         ...,
         alias='field-id',
         description='Field ID from the current schema of the table or view',
-        ge=1,
-        le=2147483447,
     )
     labels: dict[str, str] = Field(
         ..., description='Flat key-value labels for this column'
