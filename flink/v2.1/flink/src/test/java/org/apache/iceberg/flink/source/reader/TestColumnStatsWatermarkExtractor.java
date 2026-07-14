@@ -186,7 +186,7 @@ public class TestColumnStatsWatermarkExtractor {
     assertThatThrownBy(() -> extractor.extractWatermark(split))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
-            "Missing statistics for column name = missing_field in file = "
+            "Missing statistics for column name = missing_field with fieldId = 10 in file = "
                 + split.task().files().iterator().next().file());
   }
 
