@@ -1764,6 +1764,11 @@ class FunctionDefinition(BaseModel):
         alias='definition-id',
         description='A canonical string derived from the parameter types, formatted as a comma-separated list with no spaces.',
     )
+    specific_name: str | None = Field(
+        None,
+        alias='specific-name',
+        description='A user-assignable name for this definition that must be unique among all definitions within the UDF metadata.',
+    )
     parameters: list[FunctionParameter] = Field(
         ...,
         description='Ordered list of function parameters. Invocation order must match this list.',
