@@ -22,6 +22,7 @@ import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 
 /** A file tracked by a manifest. */
@@ -95,26 +96,40 @@ interface TrackedFile {
           Types.ListType.ofRequired(136, Types.IntegerType.get()),
           "Field ids used to determine row equality in equality delete files");
 
+  /**
+   * Returns the schema for the given partition and content stats types.
+   *
+   * <p>The partition and content stats fields are omitted when their types have no fields.
+   */
   static Types.StructType schemaWithContentStats(
       Types.StructType partitionType, Types.StructType contentStatsType) {
-    return Types.StructType.of(
-        TRACKING,
-        CONTENT_TYPE,
-        FORMAT_VERSION,
-        LOCATION,
-        FILE_FORMAT,
-        RECORD_COUNT,
-        FILE_SIZE_IN_BYTES,
-        SPEC_ID,
-        Types.NestedField.optional(PARTITION_ID, PARTITION_NAME, partitionType, PARTITION_DOC),
-        Types.NestedField.optional(
-            CONTENT_STATS_ID, CONTENT_STATS_NAME, contentStatsType, CONTENT_STATS_DOC),
-        SORT_ORDER_ID,
-        DELETION_VECTOR,
-        MANIFEST_INFO,
-        KEY_METADATA,
-        SPLIT_OFFSETS,
-        EQUALITY_IDS);
+    List<Types.NestedField> fields = Lists.newArrayList();
+    fields.add(TRACKING);
+    fields.add(CONTENT_TYPE);
+    fields.add(FORMAT_VERSION);
+    fields.add(LOCATION);
+    fields.add(FILE_FORMAT);
+    fields.add(RECORD_COUNT);
+    fields.add(FILE_SIZE_IN_BYTES);
+    fields.add(SPEC_ID);
+    if (!partitionType.fields().isEmpty()) {
+      fields.add(
+          Types.NestedField.optional(PARTITION_ID, PARTITION_NAME, partitionType, PARTITION_DOC));
+    }
+
+    if (!contentStatsType.fields().isEmpty()) {
+      fields.add(
+          Types.NestedField.optional(
+              CONTENT_STATS_ID, CONTENT_STATS_NAME, contentStatsType, CONTENT_STATS_DOC));
+    }
+
+    fields.add(SORT_ORDER_ID);
+    fields.add(DELETION_VECTOR);
+    fields.add(MANIFEST_INFO);
+    fields.add(KEY_METADATA);
+    fields.add(SPLIT_OFFSETS);
+    fields.add(EQUALITY_IDS);
+    return Types.StructType.of(fields);
   }
 
   /** Returns the tracking information for this entry. */

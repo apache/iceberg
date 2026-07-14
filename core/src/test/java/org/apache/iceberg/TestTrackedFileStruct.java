@@ -32,13 +32,10 @@ import org.mockito.Mockito;
 
 class TestTrackedFileStruct {
   private static final int FORMAT_VERSION_V4 = 4;
-  private static final Types.StructType PARTITION_TYPE =
-      Types.StructType.of(
-          Types.NestedField.optional(1000, "id_bucket", Types.IntegerType.get()),
-          Types.NestedField.optional(1001, "category", Types.StringType.get()));
 
-  private static final List<Types.NestedField> FIELDS =
-      TrackedFile.schemaWithContentStats(PARTITION_TYPE, Types.StructType.of()).fields();
+  // The struct's base layout always includes partition and content_stats positions, unlike
+  // TrackedFile.schemaWithContentStats which omits them when their types are empty.
+  private static final List<Types.NestedField> FIELDS = TrackedFileStruct.BASE_TYPE.fields();
 
   private static final Tracking TRACKING = Mockito.mock(Tracking.class);
   private static final Tracking TRACKING_COPY = Mockito.mock(Tracking.class);

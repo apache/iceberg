@@ -212,6 +212,25 @@ public class TestPartitioning {
   }
 
   @Test
+  public void testPartitionTypeFromSpecsRetainsDroppedSourceFields() {
+    TestTables.TestTable table =
+        TestTables.create(
+            tableDir, "test", SCHEMA, BY_DATA_CATEGORY_BUCKET_SPEC, V2_FORMAT_VERSION);
+
+    table.updateSpec().removeField("category_bucket").commit();
+    table.updateSchema().deleteColumn("category").commit();
+
+    // fields with dropped source columns are retained to preserve partition tuple equality;
+    // their type is unknown because it cannot be determined without the source column
+    StructType actualType = Partitioning.partitionType(table.specs().values());
+    assertThat(actualType)
+        .isEqualTo(
+            StructType.of(
+                NestedField.optional(1000, "data", Types.StringType.get()),
+                NestedField.optional(1001, "category_bucket", Types.UnknownType.get())));
+  }
+
+  @Test
   public void testGroupingKeyTypeWithSpecEvolutionInV1Tables() {
     TestTables.TestTable table =
         TestTables.create(tableDir, "test", SCHEMA, BY_DATA_SPEC, V1_FORMAT_VERSION);

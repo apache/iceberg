@@ -117,4 +117,18 @@ public class TestTrackedFile {
     assertThat(partitionField.name()).isEqualTo(TrackedFile.PARTITION_NAME);
     assertThat(partitionField.doc()).isEqualTo(TrackedFile.PARTITION_DOC);
   }
+
+  @Test
+  public void schemaWithContentStatsOmitsEmptyStructs() {
+    Types.StructType type =
+        TrackedFile.schemaWithContentStats(Types.StructType.of(), Types.StructType.of());
+
+    assertThat(type.field(TrackedFile.PARTITION_ID)).isNull();
+    assertThat(type.field(TrackedFile.CONTENT_STATS_ID)).isNull();
+
+    Types.StructType partitionedType =
+        TrackedFile.schemaWithContentStats(PARTITION_TYPE, Types.StructType.of());
+    assertThat(partitionedType.field(TrackedFile.PARTITION_ID)).isNotNull();
+    assertThat(partitionedType.field(TrackedFile.CONTENT_STATS_ID)).isNull();
+  }
 }

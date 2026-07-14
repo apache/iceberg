@@ -30,7 +30,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import org.apache.iceberg.expressions.Expressions;
-import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
@@ -71,8 +71,7 @@ public class TestV4ManifestReader {
   private static final Map<Integer, PartitionSpec> UNPARTITIONED_SPECS =
       ImmutableMap.of(PartitionSpec.unpartitioned().specId(), PartitionSpec.unpartitioned());
 
-  private static final List<Types.NestedField> SCHEMA_FIELDS =
-      TrackedFile.schemaWithContentStats(Types.StructType.of(), Types.StructType.of()).fields();
+  private static final List<Types.NestedField> SCHEMA_FIELDS = TrackedFileStruct.BASE_TYPE.fields();
   private static final int SORT_ORDER_ID_ORDINAL = ordinalOf(TrackedFile.SORT_ORDER_ID.fieldId());
 
   @Parameter private FileFormat format;
@@ -179,7 +178,7 @@ public class TestV4ManifestReader {
     InputFile manifest = writeManifest(EMPTY_PARTITION, files);
 
     try (V4ManifestReader reader = newReader(manifest, UNPARTITIONED_SPECS).build()) {
-      assertThat(reader.allFiles())
+      assertThat(reader)
           .extracting(file -> file.tracking().status())
           .containsExactly(
               EntryStatus.ADDED,
@@ -187,8 +186,10 @@ public class TestV4ManifestReader {
               EntryStatus.MODIFIED,
               EntryStatus.DELETED,
               EntryStatus.REPLACED);
+    }
 
-      assertThat(reader.liveFiles())
+    try (V4ManifestReader reader = newReader(manifest, UNPARTITIONED_SPECS).liveOnly().build()) {
+      assertThat(reader)
           .extracting(file -> file.tracking().status())
           .containsExactly(EntryStatus.ADDED, EntryStatus.EXISTING, EntryStatus.MODIFIED);
     }
@@ -221,7 +222,7 @@ public class TestV4ManifestReader {
     Schema projection = new Schema(TrackedFile.LOCATION);
     try (V4ManifestReader reader =
         newReader(manifest, UNPARTITIONED_SPECS).project(projection).build()) {
-      TrackedFile actual = Lists.newArrayList(reader.allFiles()).get(0);
+      TrackedFile actual = Lists.newArrayList(reader).get(0);
       assertThat(actual.location()).isEqualTo(file.location());
       // tracking and content_type are always projected, even though the caller omitted them
       assertThat(actual.tracking()).isNotNull();
@@ -295,9 +296,7 @@ public class TestV4ManifestReader {
             .project(projection)
             .filterRows(Expressions.equal("id", 1))
             .build()) {
-      assertThat(reader.allFiles())
-          .extracting(TrackedFile::location)
-          .containsExactly(keep.location());
+      assertThat(reader).extracting(TrackedFile::location).containsExactly(keep.location());
     }
   }
 
@@ -325,9 +324,7 @@ public class TestV4ManifestReader {
             .filterRows(Expressions.equal("id", 1))
             .scanMetrics(metrics)
             .build()) {
-      assertThat(reader.allFiles())
-          .extracting(TrackedFile::location)
-          .containsExactly(keep.location());
+      assertThat(reader).extracting(TrackedFile::location).containsExactly(keep.location());
     }
 
     assertThat(metrics.skippedDataFiles().value()).isEqualTo(1L);
@@ -362,7 +359,7 @@ public class TestV4ManifestReader {
             .filterRows(Expressions.equal("id", 1))
             .scanMetrics(metrics)
             .build()) {
-      assertThat(reader.allFiles()).isEmpty();
+      assertThat(reader).isEmpty();
     }
 
     assertThat(metrics.skippedDeleteFiles().value()).isEqualTo(1L);
@@ -397,7 +394,7 @@ public class TestV4ManifestReader {
 
     try (V4ManifestReader reader =
         newReader(manifest, PARTITIONED_SPECS).filterRows(Expressions.equal("id", 1)).build()) {
-      assertThat(reader.allFiles())
+      assertThat(reader)
           .extracting(TrackedFile::location)
           .containsExactlyInAnyOrder(keep.location(), manifestRef.location());
     }
@@ -415,9 +412,7 @@ public class TestV4ManifestReader {
             .filterRows(Expressions.equal("ID", 1))
             .caseSensitive(false)
             .build()) {
-      assertThat(reader.allFiles())
-          .extracting(TrackedFile::location)
-          .containsExactly(keep.location());
+      assertThat(reader).extracting(TrackedFile::location).containsExactly(keep.location());
     }
   }
 
@@ -431,7 +426,7 @@ public class TestV4ManifestReader {
             .add(2, 1001, "data", Transforms.identity())
             .build();
     Map<Integer, PartitionSpec> specsById = ImmutableMap.of(0, spec0, 1, spec1);
-    Types.StructType unionType = Partitioning.partitionType(TABLE_SCHEMA, specsById.values());
+    Types.StructType unionType = Partitioning.partitionType(specsById.values());
 
     TrackedFile keepById = dataFile("spec0-id1.parquet", unionPartition(unionType, 1, null), 0);
     TrackedFile prunedById = dataFile("spec0-id2.parquet", unionPartition(unionType, 2, null), 0);
@@ -442,11 +437,11 @@ public class TestV4ManifestReader {
         writeManifest(unionType, ImmutableList.of(keepById, prunedById, keptOtherSpec));
 
     try (V4ManifestReader reader =
-        V4ManifestReader.builder(manifest, TABLE_SCHEMA, specsById)
+        V4ManifestReader.builder(manifest, specsById)
             .filterRows(Expressions.equal("id", 1))
             .build()) {
       // spec0 entries are pruned by id; the spec1 entry is not partitioned by id so it survives
-      assertThat(reader.allFiles())
+      assertThat(reader)
           .extracting(TrackedFile::location)
           .containsExactlyInAnyOrder(keepById.location(), keptOtherSpec.location());
     }
@@ -462,7 +457,7 @@ public class TestV4ManifestReader {
 
     InputFile manifest = writeManifest(EMPTY_PARTITION, files);
 
-    try (V4ManifestReader reader = newReader(manifest, UNPARTITIONED_SPECS).build()) {
+    try (V4ManifestReader reader = newReader(manifest, UNPARTITIONED_SPECS).liveOnly().build()) {
       List<TrackedFile> read = Lists.newArrayList(reader);
       assertThat(read)
           .hasSize(2)
@@ -475,12 +470,31 @@ public class TestV4ManifestReader {
   }
 
   @TestTemplate
+  public void testReuseContainersReturnsReusedInstances() throws IOException {
+    TrackedFile file1 = dataFile("s3://bucket/file-1.parquet", EMPTY_PARTITION_DATA);
+    TrackedFile file2 = dataFile("s3://bucket/file-2.parquet", EMPTY_PARTITION_DATA);
+
+    InputFile manifest = writeManifest(EMPTY_PARTITION, ImmutableList.of(file1, file2));
+
+    try (V4ManifestReader reader =
+        newReader(manifest, UNPARTITIONED_SPECS).reuseContainers().build()) {
+      CloseableIterator<TrackedFile> files = reader.iterator();
+      TrackedFile first = files.next();
+      assertThat(first.location()).isEqualTo(file1.location());
+
+      TrackedFile second = files.next();
+      assertThat(second).isSameAs(first);
+      assertThat(second.location()).isEqualTo(file2.location());
+    }
+  }
+
+  @TestTemplate
   public void testUnknownManifestFormatThrows() throws IOException {
     InputFile badFile =
         fileIO.newInputFile(tempDir.resolve("manifest-" + System.nanoTime() + ".txt").toString());
 
     try (V4ManifestReader reader = newReader(badFile, UNPARTITIONED_SPECS).build()) {
-      assertThatThrownBy(reader::allFiles)
+      assertThatThrownBy(reader::iterator)
           .isInstanceOf(IllegalArgumentException.class)
           .hasMessageContaining("Cannot determine format of manifest");
     }
@@ -495,7 +509,7 @@ public class TestV4ManifestReader {
 
     try (V4ManifestReader reader =
         newReader(manifest, PARTITIONED_SPECS).filterRows(Expressions.equal("id", 1)).build()) {
-      assertThatThrownBy(() -> Lists.newArrayList(reader.allFiles()))
+      assertThatThrownBy(() -> Lists.newArrayList(reader))
           .isInstanceOf(IllegalStateException.class)
           .hasMessageContaining("not one of the known specs");
     }
@@ -575,19 +589,9 @@ public class TestV4ManifestReader {
 
   private InputFile writeManifest(Types.StructType partitionType, Iterable<TrackedFile> files)
       throws IOException {
-    // Parquet cannot write empty groups, so v4 writers omit the partition and content_stats fields
-    // entirely when they would be empty (unpartitioned tables, no stats).
-    List<Types.NestedField> writeFields = Lists.newArrayList();
-    for (Types.NestedField field :
-        TrackedFile.schemaWithContentStats(partitionType, Types.StructType.of()).fields()) {
-      if (field.type().isStructType() && field.type().asStructType().fields().isEmpty()) {
-        continue;
-      }
-
-      writeFields.add(field);
-    }
-
-    Schema writeSchema = new Schema(writeFields);
+    Schema writeSchema =
+        new Schema(
+            TrackedFile.schemaWithContentStats(partitionType, Types.StructType.of()).fields());
     OutputFile out =
         fileIO.newOutputFile(
             tempDir
@@ -635,14 +639,13 @@ public class TestV4ManifestReader {
 
   private V4ManifestReader.Builder newReader(
       InputFile manifest, Map<Integer, PartitionSpec> specsById) {
-    return V4ManifestReader.builder(manifest, TABLE_SCHEMA, specsById);
+    return V4ManifestReader.builder(manifest, specsById);
   }
 
   private List<TrackedFile> read(InputFile manifest, Map<Integer, PartitionSpec> specsById)
       throws IOException {
-    // allFiles() returns reused instances, so copy each entry before collecting.
     try (V4ManifestReader reader = newReader(manifest, specsById).build()) {
-      return Lists.newArrayList(CloseableIterable.transform(reader.allFiles(), TrackedFile::copy));
+      return Lists.newArrayList(reader);
     }
   }
 
