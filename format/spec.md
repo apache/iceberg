@@ -662,6 +662,10 @@ A manifest may store either data files or delete files, but not both because man
 
 A manifest stores files for a single partition spec. When a table’s partition spec changes, old files remain in the older manifest and newer files are written to a new manifest. This is required because a manifest file’s schema is based on its partition spec (see below). The partition spec of each manifest is also used to transform predicates on the table's data rows into predicates on partition values that are used during job planning to select files from a manifest.
 
+#### Content file uniqueness
+
+Within a snapshot, each content file must be referenced by at most one live entry across all manifests. A snapshot in which more than one live entry references the same content file has undefined behavior. Writers are not required to validate uniqueness at commit time.
+
 A manifest file must store the partition spec and other metadata as properties in the Avro file's key-value metadata:
 
 === "v1 - v3"
@@ -699,10 +703,6 @@ Iceberg v2 adds data and file sequence numbers to the entry and makes the snapsh
 The `sequence_number` field represents the data sequence number and must never change after a file is added to the dataset. The data sequence number represents a relative age of the file content and should be used for planning which delete files apply to a data file.
 The `file_sequence_number` field represents the sequence number of the snapshot that added the file and must also remain unchanged upon assigning at commit. The file sequence number can't be used for pruning delete files as the data within the file may have an older data sequence number.
 The data and file sequence numbers are inherited only if the entry status is 1 (added). If the entry status is 0 (existing) or 2 (deleted), the entry must include both sequence numbers explicitly.
-
-#### Content file uniqueness
-
-Within a snapshot, each live manifest entry must be uniquely defined by `file_path` across all manifest files. A snapshot with multiple live entries for the same `file_path` has undefined behavior. Writers are not required to validate uniqueness because doing so can be expensive at commit time.
 
 Notes:
 
