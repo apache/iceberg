@@ -2150,12 +2150,15 @@ components:
         Specific properties and handling for `vended-credentials`, `remote-signing`, and `kms-vended-credentials`
         are documented in the `LoadTableResult` schema section of this spec document.
 
-        For encrypted table operations, delegated credential sourcing should be consistent. If a catalog
-        honors REST access delegation for an encrypted table operation, it should provide all delegated
-        credentials required for that operation, including storage credentials and KMS credentials. Clients
-        must not be required to combine catalog-vended storage credentials with client-local or static KMS
-        credentials. If REST access delegation is not used or not honored, the catalog must not return
-        delegated credentials, and the client is responsible for providing all required credentials locally.
+        `kms-vended-credentials` does not subsume `vended-credentials`. Clients that support both storage
+        and KMS credential vending should request both mechanisms for encrypted table operations.
+
+        For encrypted table operations, delegated credential sourcing should be consistent across storage
+        and KMS access. If a catalog honors REST access delegation for such an operation, it should return
+        all delegated credentials required by the operation, including storage credentials and KMS
+        credentials. If the catalog cannot return the complete delegated credential set, it should not
+        return partial delegated credentials for that operation; the client remains responsible for
+        providing all credentials locally.
 
       required: false
       schema:
@@ -3684,9 +3687,10 @@ components:
         selected key-management provider.
 
         Clients should select the credential config by matching KMS key identifiers referenced by table
-        encryption metadata, such as `EncryptedKey.encrypted-by-id`, against `kms-key-ids`. If no
-        key-management credential matches a KMS key ID required by table encryption metadata, the client
-        must fail the operation with an authorization or missing-credential error.
+        encryption metadata, such as `EncryptedKey.encrypted-by-id`, against `kms-key-ids`. If a response
+        includes `key-management-credentials` but no credential matches a KMS key ID required by table
+        encryption metadata, the client must fail the operation with an authorization or missing-credential
+        error.
 
         Credential configs must be time-bounded and should be scoped to the minimum required KMS operations
         and listed KMS key IDs where the provider supports it. Clients must not persist credentials beyond
