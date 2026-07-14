@@ -599,9 +599,10 @@ class KeyManagementCredential(BaseModel):
     selected key-management provider.
 
     Clients should select the credential config by matching KMS key identifiers referenced by table
-    encryption metadata, such as `EncryptedKey.encrypted-by-id`, against `kms-key-ids`. If no
-    key-management credential matches a KMS key ID required by table encryption metadata, the client
-    must fail the operation with an authorization or missing-credential error.
+    encryption metadata, such as `EncryptedKey.encrypted-by-id`, against `kms-key-ids`. If a response
+    includes `key-management-credentials` but no credential matches a KMS key ID required by table
+    encryption metadata, the client must fail the operation with an authorization or missing-credential
+    error.
 
     Credential configs must be time-bounded and should be scoped to the minimum required KMS operations
     and listed KMS key IDs where the provider supports it. Clients must not persist credentials beyond
