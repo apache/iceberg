@@ -57,8 +57,7 @@ import org.apache.spark.sql.catalyst.util.MapData;
 import org.apache.spark.sql.catalyst.util.STUtils;
 import org.apache.spark.sql.types.Decimal;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
-import org.apache.spark.unsafe.types.GeographyVal;
-import org.apache.spark.unsafe.types.GeometryVal;
+import org.apache.spark.unsafe.types.BinaryView;
 import org.apache.spark.unsafe.types.UTF8String;
 import org.apache.spark.unsafe.types.VariantVal;
 import scala.collection.Seq;
@@ -237,15 +236,11 @@ public class GenericsHelpers {
         break;
       case GEOMETRY:
         assertThat(expected).as("Should expect a ByteBuffer").isInstanceOf(ByteBuffer.class);
-        assertThat(actual).as("Should be a GeometryVal").isInstanceOf(GeometryVal.class);
-        assertThat(STUtils.stAsBinary((GeometryVal) actual))
-            .isEqualTo(((ByteBuffer) expected).array());
+        assertThat(binaryBytes(actual)).isEqualTo(byteBufferBytes((ByteBuffer) expected));
         break;
       case GEOGRAPHY:
         assertThat(expected).as("Should expect a ByteBuffer").isInstanceOf(ByteBuffer.class);
-        assertThat(actual).as("Should be a GeographyVal").isInstanceOf(GeographyVal.class);
-        assertThat(STUtils.stAsBinary((GeographyVal) actual))
-            .isEqualTo(((ByteBuffer) expected).array());
+        assertThat(binaryBytes(actual)).isEqualTo(byteBufferBytes((ByteBuffer) expected));
         break;
       case TIME:
       default:
@@ -450,19 +445,35 @@ public class GenericsHelpers {
         break;
       case GEOMETRY:
         assertThat(expected).as("Should expect a ByteBuffer").isInstanceOf(ByteBuffer.class);
-        assertThat(actual).as("Should be a GeometryVal").isInstanceOf(GeometryVal.class);
-        assertThat(STUtils.stAsBinary((GeometryVal) actual))
-            .isEqualTo(((ByteBuffer) expected).array());
+        assertThat(actual).as("Should be a BinaryView").isInstanceOf(BinaryView.class);
+        assertThat(STUtils.stGeomAsBinary((BinaryView) actual))
+            .isEqualTo(byteBufferBytes((ByteBuffer) expected));
         break;
       case GEOGRAPHY:
         assertThat(expected).as("Should expect a ByteBuffer").isInstanceOf(ByteBuffer.class);
-        assertThat(actual).as("Should be a GeographyVal").isInstanceOf(GeographyVal.class);
-        assertThat(STUtils.stAsBinary((GeographyVal) actual))
-            .isEqualTo(((ByteBuffer) expected).array());
+        assertThat(actual).as("Should be a BinaryView").isInstanceOf(BinaryView.class);
+        assertThat(STUtils.stGeogAsBinary((BinaryView) actual))
+            .isEqualTo(byteBufferBytes((ByteBuffer) expected));
         break;
       case TIME:
       default:
         throw new IllegalArgumentException("Not a supported type: " + type);
     }
+  }
+
+  private static byte[] binaryBytes(Object value) {
+    if (value instanceof byte[]) {
+      return (byte[]) value;
+    }
+
+    assertThat(value).as("Should be a BinaryView").isInstanceOf(BinaryView.class);
+    return ((BinaryView) value).getBytes();
+  }
+
+  private static byte[] byteBufferBytes(ByteBuffer buffer) {
+    ByteBuffer copy = buffer.duplicate();
+    byte[] bytes = new byte[copy.remaining()];
+    copy.get(bytes);
+    return bytes;
   }
 }

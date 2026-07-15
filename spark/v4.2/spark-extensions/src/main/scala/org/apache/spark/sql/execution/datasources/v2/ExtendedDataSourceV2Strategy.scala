@@ -21,12 +21,14 @@ package org.apache.spark.sql.execution.datasources.v2
 import org.apache.iceberg.spark.Spark3Util
 import org.apache.iceberg.spark.SparkCatalog
 import org.apache.iceberg.spark.SparkSessionCatalog
+import org.apache.iceberg.spark.source.SparkView
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.analysis.IcebergAnalysisException
 import org.apache.spark.sql.catalyst.analysis.ResolvedIdentifier
 import org.apache.spark.sql.catalyst.analysis.ResolvedNamespace
 import org.apache.spark.sql.catalyst.expressions.PredicateHelper
 import org.apache.spark.sql.catalyst.plans.logical.AddPartitionField
+import org.apache.spark.sql.catalyst.plans.logical.AlterViewSchemaBinding
 import org.apache.spark.sql.catalyst.plans.logical.CreateOrReplaceBranch
 import org.apache.spark.sql.catalyst.plans.logical.CreateOrReplaceTag
 import org.apache.spark.sql.catalyst.plans.logical.DescribeRelation
@@ -49,9 +51,12 @@ import org.apache.spark.sql.catalyst.plans.logical.views.DropIcebergView
 import org.apache.spark.sql.catalyst.plans.logical.views.ResolvedV2View
 import org.apache.spark.sql.catalyst.plans.logical.views.ShowIcebergViews
 import org.apache.spark.sql.classic.Strategy
+import org.apache.spark.sql.connector.catalog.CatalogV2Implicits._
 import org.apache.spark.sql.connector.catalog.Identifier
 import org.apache.spark.sql.connector.catalog.TableCatalog
+import org.apache.spark.sql.connector.catalog.TableSummary
 import org.apache.spark.sql.connector.catalog.ViewCatalog
+import org.apache.spark.sql.errors.QueryCompilationErrors
 import org.apache.spark.sql.execution.OrderAwareCoalesceExec
 import org.apache.spark.sql.execution.SparkPlan
 import scala.jdk.CollectionConverters._
@@ -135,43 +140,69 @@ case class ExtendedDataSourceV2Strategy(spark: SparkSession) extends Strategy wi
           query,
           columnAliases,
           columnComments,
-          queryColumnNames,
           comment,
+          collation,
           properties,
           allowExisting,
           replace,
+          viewSchemaMode,
           _,
           _) =>
+      val engineVersion = "Spark " + org.apache.spark.SPARK_VERSION
+      val viewProperties =
+        properties ++ Map(
+          SparkView.PROP_CREATE_ENGINE_VERSION -> engineVersion,
+          SparkView.PROP_ENGINE_VERSION -> engineVersion)
       CreateV2ViewExec(
-        catalog = viewCatalog,
-        ident = ident,
-        queryText = queryText,
-        columnAliases = columnAliases,
-        columnComments = columnComments,
-        queryColumnNames = queryColumnNames,
-        viewSchema = query.schema,
-        comment = comment,
-        properties = properties,
-        allowExisting = allowExisting,
-        replace = replace) :: Nil
+        viewCatalog,
+        ident,
+        columnAliases.zip(columnComments),
+        comment,
+        collation,
+        viewProperties,
+        queryText,
+        query,
+        allowExisting,
+        replace,
+        viewSchemaMode) :: Nil
 
-    case DescribeRelation(ResolvedV2View(catalog, ident), _, isExtended, output) =>
-      DescribeV2ViewExec(output, catalog.loadView(ident), isExtended) :: Nil
+    case DescribeRelation(ResolvedV2View(catalog, ident), isExtended, output) =>
+      IcebergDescribeV2ViewExec(
+        output,
+        catalog.name(),
+        ident,
+        catalog.loadView(ident),
+        isExtended) :: Nil
 
     case ShowTableProperties(ResolvedV2View(catalog, ident), propertyKey, output) =>
-      ShowV2ViewPropertiesExec(output, catalog.loadView(ident), propertyKey) :: Nil
+      IcebergShowV2ViewPropertiesExec(
+        output,
+        catalog.name(),
+        ident,
+        catalog.loadView(ident),
+        propertyKey) :: Nil
 
     case ShowIcebergViews(ResolvedNamespace(catalog: ViewCatalog, namespace, _), pattern, output) =>
       ShowV2ViewsExec(output, catalog, namespace, pattern) :: Nil
 
     case ShowCreateTable(ResolvedV2View(catalog, ident), _, output) =>
-      ShowCreateV2ViewExec(output, catalog.loadView(ident)) :: Nil
+      val view = catalog.loadView(ident)
+      val quotedName = (catalog.name() +: ident.asMultipartIdentifier).quoted
+      if (view.properties.get(TableCatalog.PROP_TABLE_TYPE) ==
+          TableSummary.METRIC_VIEW_TABLE_TYPE) {
+        throw QueryCompilationErrors.showCreateTableNotSupportedOnMetricViewError(quotedName)
+      }
+
+      IcebergShowCreateV2ViewExec(output, quotedName, view) :: Nil
 
     case SetViewProperties(ResolvedV2View(catalog, ident), properties) =>
-      AlterV2ViewSetPropertiesExec(catalog, ident, properties) :: Nil
+      IcebergAlterV2ViewSetPropertiesExec(catalog, ident, properties) :: Nil
 
     case UnsetViewProperties(ResolvedV2View(catalog, ident), propertyKeys, ifExists) =>
-      AlterV2ViewUnsetPropertiesExec(catalog, ident, propertyKeys, ifExists) :: Nil
+      IcebergAlterV2ViewUnsetPropertiesExec(catalog, ident, propertyKeys, ifExists) :: Nil
+
+    case AlterViewSchemaBinding(ResolvedV2View(catalog, ident), schemaMode) =>
+      IcebergAlterV2ViewSchemaBindingExec(catalog, ident, schemaMode) :: Nil
 
     case _ => Nil
   }

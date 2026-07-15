@@ -20,21 +20,21 @@ package org.apache.spark.sql.catalyst.analysis
 
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.analysis.ViewUtil.IcebergViewHelper
-import org.apache.spark.sql.catalyst.expressions.SubqueryExpression
 import org.apache.spark.sql.catalyst.plans.logical.CreateView
+import org.apache.spark.sql.catalyst.plans.logical.DescribeRelation
 import org.apache.spark.sql.catalyst.plans.logical.DropView
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
+import org.apache.spark.sql.catalyst.plans.logical.RenameTable
+import org.apache.spark.sql.catalyst.plans.logical.ShowCreateTable
+import org.apache.spark.sql.catalyst.plans.logical.ShowTableProperties
 import org.apache.spark.sql.catalyst.plans.logical.ShowViews
-import org.apache.spark.sql.catalyst.plans.logical.View
 import org.apache.spark.sql.catalyst.plans.logical.views.CreateIcebergView
 import org.apache.spark.sql.catalyst.plans.logical.views.DropIcebergView
 import org.apache.spark.sql.catalyst.plans.logical.views.ResolvedV2View
 import org.apache.spark.sql.catalyst.plans.logical.views.ShowIcebergViews
 import org.apache.spark.sql.catalyst.rules.Rule
-import org.apache.spark.sql.catalyst.trees.TreePattern.UNRESOLVED_FUNCTION
 import org.apache.spark.sql.connector.catalog.CatalogManager
 import org.apache.spark.sql.connector.catalog.LookupCatalog
-import scala.collection.mutable
 
 /**
  * ResolveSessionCatalog exits early for some v2 View commands,
@@ -42,27 +42,38 @@ import scala.collection.mutable
  */
 case class RewriteViewCommands(spark: SparkSession) extends Rule[LogicalPlan] with LookupCatalog {
 
-  import org.apache.spark.sql.connector.catalog.CatalogV2Implicits._
-
   protected lazy val catalogManager: CatalogManager = spark.sessionState.catalogManager
 
   override def apply(plan: LogicalPlan): LogicalPlan = plan.resolveOperatorsUp {
     case DropView(ResolvedIdent(resolved), ifExists) =>
       DropIcebergView(resolved, ifExists)
 
+    case RenameTable(ResolvedViewPlan(resolved), newName, isView @ true) =>
+      RenameTable(resolved, newName, isView)
+
+    case DescribeRelation(ResolvedViewPlan(resolved), isExtended, output) =>
+      DescribeRelation(resolved, isExtended, output)
+
+    case ShowCreateTable(ResolvedViewPlan(resolved), asSerde, output) =>
+      ShowCreateTable(resolved, asSerde, output)
+
+    case ShowTableProperties(ResolvedViewPlan(resolved), propertyKey, output) =>
+      ShowTableProperties(resolved, propertyKey, output)
+
     case CreateView(
           ResolvedIdent(resolved),
           userSpecifiedColumns,
           comment,
-          _,
+          collation,
           properties,
           Some(queryText),
           query,
           allowExisting,
           replace,
+          viewSchemaMode,
+          _,
           _) =>
       val q = CTESubstitution.apply(query)
-      verifyTemporaryObjectsDontExist(resolved, q)
       CreateIcebergView(
         child = resolved,
         queryText = queryText,
@@ -70,12 +81,14 @@ case class RewriteViewCommands(spark: SparkSession) extends Rule[LogicalPlan] wi
         columnAliases = userSpecifiedColumns.map(_._1),
         columnComments = userSpecifiedColumns.map(_._2.orElse(Option.empty)),
         comment = comment,
+        collation = collation,
         properties = properties,
         allowExisting = allowExisting,
-        replace = replace)
+        replace = replace,
+        viewSchemaMode = viewSchemaMode)
 
     case view @ ShowViews(CurrentNamespace, pattern, output) =>
-      if (ViewUtil.isViewCatalog(catalogManager.currentCatalog)) {
+      if (ViewUtil.isIcebergViewCatalog(catalogManager.currentCatalog)) {
         ShowIcebergViews(
           ResolvedNamespace(
             catalogManager.currentCatalog,
@@ -87,11 +100,10 @@ case class RewriteViewCommands(spark: SparkSession) extends Rule[LogicalPlan] wi
       }
 
     case ShowViews(UnresolvedNamespace(CatalogAndNamespace(catalog, ns), _), pattern, output)
-        if ViewUtil.isViewCatalog(catalog) =>
+        if ViewUtil.isIcebergViewCatalog(catalog) =>
       ShowIcebergViews(ResolvedNamespace(catalog, ns), pattern, output)
 
-    // needs to be done here instead of in ResolveViews, so that a V2 view can be resolved before the Analyzer
-    // tries to resolve it, which would result in an error, saying that V2 views aren't supported
+    // Resolve the view before Spark rewrites session-catalog commands through the V1 path.
     case u @ UnresolvedView(ResolvedView(resolved), _, _, _) =>
       ViewUtil
         .loadView(resolved.catalog, resolved.identifier)
@@ -103,20 +115,13 @@ case class RewriteViewCommands(spark: SparkSession) extends Rule[LogicalPlan] wi
     catalogManager.v1SessionCatalog.isTempView(nameParts)
   }
 
-  private def isTempFunction(nameParts: Seq[String]): Boolean = {
-    if (nameParts.size > 1) {
-      return false
-    }
-    catalogManager.v1SessionCatalog.isTemporaryFunction(nameParts.asFunctionIdentifier)
-  }
-
   private object ResolvedIdent {
     def unapply(unresolved: UnresolvedIdentifier): Option[ResolvedIdentifier] = unresolved match {
       case UnresolvedIdentifier(nameParts, true) if isTempView(nameParts) =>
         None
 
       case UnresolvedIdentifier(CatalogAndIdentifier(catalog, ident), _)
-          if ViewUtil.isViewCatalog(catalog) =>
+          if ViewUtil.isIcebergViewCatalog(catalog) =>
         Some(ResolvedIdentifier(catalog, ident))
 
       case _ =>
@@ -124,65 +129,12 @@ case class RewriteViewCommands(spark: SparkSession) extends Rule[LogicalPlan] wi
     }
   }
 
-  /**
-   * Permanent views are not allowed to reference temp objects
-   */
-  private def verifyTemporaryObjectsDontExist(
-      identifier: ResolvedIdentifier,
-      child: LogicalPlan): Unit = {
-    val tempViews = collectTemporaryViews(child)
-    if (tempViews.nonEmpty) {
-      throw invalidRefToTempObject(
-        identifier,
-        tempViews.map(v => v.quoted).mkString("[", ", ", "]"),
-        "view")
-    }
-
-    val tempFunctions = collectTemporaryFunctions(child)
-    if (tempFunctions.nonEmpty) {
-      throw invalidRefToTempObject(identifier, tempFunctions.mkString("[", ", ", "]"), "function")
-    }
-  }
-
-  private def invalidRefToTempObject(
-      ident: ResolvedIdentifier,
-      tempObjectNames: String,
-      tempObjectType: String) = {
-    new IcebergAnalysisException(
-      String.format(
-        "Cannot create view %s.%s that references temporary %s: %s",
-        ident.catalog.name(),
-        ident.identifier,
-        tempObjectType,
-        tempObjectNames))
-  }
-
-  /**
-   * Collect all temporary views and return the identifiers separately
-   */
-  private def collectTemporaryViews(child: LogicalPlan): Seq[Seq[String]] = {
-    def collectTempViews(child: LogicalPlan): Seq[Seq[String]] = {
-      child.flatMap {
-        case unresolved: UnresolvedRelation if isTempView(unresolved.multipartIdentifier) =>
-          Seq(unresolved.multipartIdentifier)
-        case view: View if view.isTempView => Seq(view.desc.identifier.nameParts)
-        case plan =>
-          plan.expressions.flatMap(_.flatMap {
-            case e: SubqueryExpression => collectTempViews(e.plan)
-            case _ => Seq.empty
-          })
-      }.distinct
-    }
-
-    collectTempViews(child)
-  }
-
   private object ResolvedView {
     def unapply(identifier: Seq[String]): Option[ResolvedV2View] = identifier match {
       case nameParts if isTempView(nameParts) =>
         None
 
-      case CatalogAndIdentifier(catalog, ident) if ViewUtil.isViewCatalog(catalog) =>
+      case CatalogAndIdentifier(catalog, ident) if ViewUtil.isIcebergViewCatalog(catalog) =>
         ViewUtil
           .loadView(catalog, ident)
           .flatMap(_ => Some(ResolvedV2View(catalog.asViewCatalog, ident)))
@@ -192,19 +144,17 @@ case class RewriteViewCommands(spark: SparkSession) extends Rule[LogicalPlan] wi
     }
   }
 
-  /**
-   * Collect the names of all temporary functions.
-   */
-  private def collectTemporaryFunctions(child: LogicalPlan): Seq[String] = {
-    val tempFunctions = new mutable.HashSet[String]()
-    child.resolveExpressionsWithPruning(_.containsAnyPattern(UNRESOLVED_FUNCTION)) {
-      case f @ UnresolvedFunction(nameParts, _, _, _, _, _, _) if isTempFunction(nameParts) =>
-        tempFunctions += nameParts.head
-        f
-      case e: SubqueryExpression =>
-        tempFunctions ++= collectTemporaryFunctions(e.plan)
-        e
+  private object ResolvedViewPlan {
+    def unapply(plan: LogicalPlan): Option[ResolvedV2View] = plan match {
+      case UnresolvedTableOrView(ResolvedView(resolved), _, _, _) =>
+        Some(resolved)
+
+      case UnresolvedIdentifier(ResolvedView(resolved), _) =>
+        Some(resolved)
+
+      case _ =>
+        None
     }
-    tempFunctions.toSeq
   }
+
 }

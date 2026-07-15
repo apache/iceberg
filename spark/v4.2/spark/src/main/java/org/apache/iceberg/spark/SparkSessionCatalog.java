@@ -18,13 +18,17 @@
  */
 package org.apache.iceberg.spark;
 
+import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.source.HasIcebergCatalog;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.analysis.NamespaceAlreadyExistsException;
@@ -46,10 +50,9 @@ import org.apache.spark.sql.connector.catalog.SupportsNamespaces;
 import org.apache.spark.sql.connector.catalog.Table;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.apache.spark.sql.connector.catalog.TableChange;
+import org.apache.spark.sql.connector.catalog.TableSummary;
 import org.apache.spark.sql.connector.catalog.View;
 import org.apache.spark.sql.connector.catalog.ViewCatalog;
-import org.apache.spark.sql.connector.catalog.ViewChange;
-import org.apache.spark.sql.connector.catalog.ViewInfo;
 import org.apache.spark.sql.connector.catalog.functions.UnboundFunction;
 import org.apache.spark.sql.connector.expressions.Transform;
 import org.apache.spark.sql.types.StructType;
@@ -139,6 +142,52 @@ public class SparkSessionCatalog<
   public Identifier[] listTables(String[] namespace) throws NoSuchNamespaceException {
     // delegate to the session catalog because all tables share the same namespace
     return getSessionCatalog().listTables(namespace);
+  }
+
+  @Override
+  public TableSummary[] listTableSummaries(String[] namespace)
+      throws NoSuchNamespaceException, NoSuchTableException {
+    Set<Identifier> viewIdentifiers = Sets.newLinkedHashSet();
+    viewIdentifiers.addAll(Arrays.asList(listViews(namespace)));
+    return Arrays.stream(getSessionCatalog().listTableSummaries(namespace))
+        .filter(summary -> !viewIdentifiers.contains(summary.identifier()))
+        .filter(summary -> !isViewType(summary.tableType()))
+        .toArray(TableSummary[]::new);
+  }
+
+  @Override
+  public TableSummary[] listRelationSummaries(String[] namespace)
+      throws NoSuchNamespaceException, NoSuchTableException {
+    Map<Identifier, TableSummary> summaries = new LinkedHashMap<>();
+    for (TableSummary summary : getSessionCatalog().listTableSummaries(namespace)) {
+      summaries.put(summary.identifier(), summary);
+    }
+
+    for (Identifier identifier : listViews(namespace)) {
+      TableSummary summary = summaries.get(identifier);
+      summaries.put(identifier, TableSummary.of(identifier, viewType(identifier, summary)));
+    }
+
+    return summaries.values().toArray(new TableSummary[0]);
+  }
+
+  private static boolean isViewType(String tableType) {
+    return TableSummary.VIEW_TABLE_TYPE.equals(tableType)
+        || TableSummary.METRIC_VIEW_TABLE_TYPE.equals(tableType);
+  }
+
+  private String viewType(Identifier identifier, TableSummary summary) {
+    if (summary != null && isViewType(summary.tableType())) {
+      return summary.tableType();
+    }
+
+    try {
+      return loadView(identifier)
+          .properties()
+          .getOrDefault(TableCatalog.PROP_TABLE_TYPE, TableSummary.VIEW_TABLE_TYPE);
+    } catch (NoSuchViewException e) {
+      return TableSummary.VIEW_TABLE_TYPE;
+    }
   }
 
   @Override
@@ -406,6 +455,14 @@ public class SparkSessionCatalog<
     return ((HasIcebergCatalog) icebergCatalog).icebergCatalog();
   }
 
+  @Override
+  public org.apache.iceberg.catalog.ViewCatalog icebergViewCatalog() {
+    Preconditions.checkArgument(
+        icebergCatalog instanceof HasIcebergCatalog,
+        "Cannot return underlying Iceberg view catalog, wrapped catalog does not contain an Iceberg Catalog");
+    return ((HasIcebergCatalog) icebergCatalog).icebergViewCatalog();
+  }
+
   private boolean isViewCatalog() {
     return getSessionCatalog() instanceof ViewCatalog;
   }
@@ -426,17 +483,20 @@ public class SparkSessionCatalog<
 
   @Override
   public Identifier[] listViews(String... namespace) {
+    Set<Identifier> views = Sets.newLinkedHashSet();
     try {
       if (null != asViewCatalog) {
-        return asViewCatalog.listViews(namespace);
-      } else if (isViewCatalog()) {
-        return getSessionCatalog().listViews(namespace);
+        views.addAll(Arrays.asList(asViewCatalog.listViews(namespace)));
+      }
+
+      if (isViewCatalog()) {
+        views.addAll(Arrays.asList(getSessionCatalog().listViews(namespace)));
       }
     } catch (NoSuchNamespaceException e) {
       throw new RuntimeException(e);
     }
 
-    return new Identifier[0];
+    return views.toArray(new Identifier[0]);
   }
 
   @Override
@@ -457,16 +517,17 @@ public class SparkSessionCatalog<
   }
 
   @Override
-  public View createView(ViewInfo viewInfo)
+  public View createView(Identifier ident, View view)
       throws ViewAlreadyExistsException, NoSuchNamespaceException {
-    if (viewInfo == null) {
+    if (view == null) {
       return null;
     }
 
+    View normalizedView = normalizeViewCurrentCatalog(catalogName, view);
     if (null != asViewCatalog) {
-      return asViewCatalog.createView(viewInfo);
+      return asViewCatalog.createView(ident, normalizedView);
     } else if (isViewCatalog()) {
-      return getSessionCatalog().createView(viewInfo);
+      return getSessionCatalog().createView(ident, normalizedView);
     }
 
     throw new UnsupportedOperationException(
@@ -474,46 +535,29 @@ public class SparkSessionCatalog<
   }
 
   @Override
-  public View replaceView(
-      Identifier ident,
-      String sql,
-      String currentCatalog,
-      String[] currentNamespace,
-      StructType schema,
-      String[] queryColumnNames,
-      String[] columnAliases,
-      String[] columnComments,
-      Map<String, String> properties)
-      throws NoSuchNamespaceException, NoSuchViewException {
-    if (asViewCatalog instanceof SupportsReplaceView) {
-      return ((SupportsReplaceView) asViewCatalog)
-          .replaceView(
-              ident,
-              sql,
-              currentCatalog,
-              currentNamespace,
-              schema,
-              queryColumnNames,
-              columnAliases,
-              columnComments,
-              properties);
+  public View replaceView(Identifier ident, View view) throws NoSuchViewException {
+    View normalizedView = normalizeViewCurrentCatalog(catalogName, view);
+    if (null != asViewCatalog && asViewCatalog.viewExists(ident)) {
+      return asViewCatalog.replaceView(ident, normalizedView);
+    } else if (isViewCatalog() && getSessionCatalog().viewExists(ident)) {
+      return getSessionCatalog().replaceView(ident, normalizedView);
+    }
+
+    throw new NoSuchViewException(ident);
+  }
+
+  @Override
+  public View createOrReplaceView(Identifier ident, View view)
+      throws ViewAlreadyExistsException, NoSuchNamespaceException {
+    View normalizedView = normalizeViewCurrentCatalog(catalogName, view);
+    if (null != asViewCatalog) {
+      return asViewCatalog.createOrReplaceView(ident, normalizedView);
+    } else if (isViewCatalog()) {
+      return getSessionCatalog().createOrReplaceView(ident, normalizedView);
     }
 
     throw new UnsupportedOperationException(
         "Replacing a view is not supported by catalog: " + catalogName);
-  }
-
-  @Override
-  public View alterView(Identifier ident, ViewChange... changes)
-      throws NoSuchViewException, IllegalArgumentException {
-    if (null != asViewCatalog && asViewCatalog.viewExists(ident)) {
-      return asViewCatalog.alterView(ident, changes);
-    } else if (isViewCatalog()) {
-      return getSessionCatalog().alterView(ident, changes);
-    }
-
-    throw new UnsupportedOperationException(
-        "Altering a view is not supported by catalog: " + catalogName);
   }
 
   @Override

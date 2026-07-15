@@ -67,10 +67,10 @@ import org.apache.spark.sql.catalyst.util.MapData;
 import org.apache.spark.sql.catalyst.util.STUtils;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.Decimal;
+import org.apache.spark.sql.types.GeographyType$;
 import org.apache.spark.sql.types.GeometryType$;
+import org.apache.spark.unsafe.types.BinaryView;
 import org.apache.spark.unsafe.types.CalendarInterval;
-import org.apache.spark.unsafe.types.GeographyVal;
-import org.apache.spark.unsafe.types.GeometryVal;
 import org.apache.spark.unsafe.types.UTF8String;
 import org.apache.spark.unsafe.types.VariantVal;
 
@@ -250,9 +250,10 @@ public class SparkParquetReaders {
       LogicalTypeAnnotation logicalType = primitive.getLogicalTypeAnnotation();
       if (logicalType instanceof LogicalTypeAnnotation.GeometryLogicalTypeAnnotation) {
         String crs = ((LogicalTypeAnnotation.GeometryLogicalTypeAnnotation) logicalType).getCrs();
-        return new GeometryReader(desc, sridFromCrs(crs));
+        return new GeometryReader(desc, geometrySridFromCrs(crs));
       } else if (logicalType instanceof LogicalTypeAnnotation.GeographyLogicalTypeAnnotation) {
-        return new GeographyReader(desc);
+        String crs = ((LogicalTypeAnnotation.GeographyLogicalTypeAnnotation) logicalType).getCrs();
+        return new GeographyReader(desc, geographySridFromCrs(crs));
       }
 
       if (primitive.getOriginalType() != null) {
@@ -397,6 +398,52 @@ public class SparkParquetReaders {
       } else {
         return UTF8String.fromBytes(binary.getBytes());
       }
+    }
+  }
+
+  private static int geometrySridFromCrs(String crs) {
+    if (crs == null) {
+      return GeometryType$.MODULE$.GEOMETRY_DEFAULT_SRID();
+    }
+
+    return GeometryType$.MODULE$.apply(crs).srid();
+  }
+
+  private static int geographySridFromCrs(String crs) {
+    if (crs == null) {
+      return GeographyType$.MODULE$.GEOGRAPHY_DEFAULT_SRID();
+    }
+
+    return GeographyType$.MODULE$.apply(crs).srid();
+  }
+
+  private static class GeometryReader extends PrimitiveReader<BinaryView> {
+    private final int srid;
+
+    GeometryReader(ColumnDescriptor desc, int srid) {
+      super(desc);
+      this.srid = srid;
+    }
+
+    @Override
+    public BinaryView read(BinaryView ignored) {
+      // Iceberg stores pure WKB, while Spark's physical value also carries the SRID.
+      return STUtils.stGeomFromWKB(column.nextBinary().getBytes(), srid);
+    }
+  }
+
+  private static class GeographyReader extends PrimitiveReader<BinaryView> {
+    private final int srid;
+
+    GeographyReader(ColumnDescriptor desc, int srid) {
+      super(desc);
+      this.srid = srid;
+    }
+
+    @Override
+    public BinaryView read(BinaryView ignored) {
+      // Iceberg stores pure WKB, while Spark's physical value also carries the SRID.
+      return STUtils.stGeogFromWKB(column.nextBinary().getBytes(), srid);
     }
   }
 
@@ -545,44 +592,6 @@ public class SparkParquetReaders {
       variant.value().writeTo(valueBuffer, 0);
 
       return new VariantVal(valueBytes, metadataBytes);
-    }
-  }
-
-  /** Resolves the Spark SRID for a geometry column's CRS (absent CRS defaults to OGC:CRS84). */
-  private static int sridFromCrs(String crs) {
-    if (crs == null) {
-      return GeometryType$.MODULE$.GEOMETRY_DEFAULT_SRID();
-    }
-    return GeometryType$.MODULE$.apply(crs).srid();
-  }
-
-  /** Reads a WKB BINARY column into a Spark {@link GeometryVal}. */
-  private static class GeometryReader extends PrimitiveReader<GeometryVal> {
-    private final int srid;
-
-    GeometryReader(ColumnDescriptor desc, int srid) {
-      super(desc);
-      this.srid = srid;
-    }
-
-    @Override
-    public GeometryVal read(GeometryVal ignored) {
-      // Iceberg stores pure WKB; Spark's GeometryVal is [SRID | WKB], so attach the column's SRID.
-      return STUtils.stGeomFromWKB(column.nextBinary().getBytes(), srid);
-    }
-  }
-
-  /** Reads a WKB BINARY column into a Spark {@link GeographyVal}. */
-  private static class GeographyReader extends PrimitiveReader<GeographyVal> {
-    GeographyReader(ColumnDescriptor desc) {
-      super(desc);
-    }
-
-    @Override
-    public GeographyVal read(GeographyVal ignored) {
-      // Iceberg stores pure WKB; Spark's GeographyVal is [SRID | WKB]. Geography supports only
-      // OGC:CRS84, so the default SRID applies.
-      return STUtils.stGeogFromWKB(column.nextBinary().getBytes());
     }
   }
 
@@ -806,6 +815,11 @@ public class SparkParquetReaders {
     }
 
     @Override
+    public BinaryView getBinaryView(int ordinal) {
+      return (BinaryView) values[ordinal];
+    }
+
+    @Override
     public CalendarInterval getInterval(int ordinal) {
       return (CalendarInterval) values[ordinal];
     }
@@ -828,16 +842,6 @@ public class SparkParquetReaders {
     @Override
     public VariantVal getVariant(int ordinal) {
       return (VariantVal) values[ordinal];
-    }
-
-    @Override
-    public GeographyVal getGeography(int ordinal) {
-      return (GeographyVal) values[ordinal];
-    }
-
-    @Override
-    public GeometryVal getGeometry(int ordinal) {
-      return (GeometryVal) values[ordinal];
     }
   }
 }

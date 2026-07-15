@@ -18,36 +18,52 @@
  */
 package org.apache.spark.sql.execution.datasources.v2
 
+import org.apache.iceberg.spark.Spark3Util
+import org.apache.iceberg.spark.source.SparkView
 import org.apache.spark.sql.catalyst.InternalRow
-import org.apache.spark.sql.catalyst.analysis.IcebergAnalysisException
+import org.apache.spark.sql.catalyst.analysis.ViewUtil
 import org.apache.spark.sql.catalyst.expressions.Attribute
 import org.apache.spark.sql.connector.catalog.Identifier
 import org.apache.spark.sql.connector.catalog.ViewCatalog
-import org.apache.spark.sql.connector.catalog.ViewChange
 
-case class AlterV2ViewUnsetPropertiesExec(
+/**
+ * Executes ALTER VIEW SET TBLPROPERTIES for Spark V2 views.
+ *
+ * Uses a custom command instead of Spark's built-in implementation so Iceberg catalogs commit
+ * property-only metadata updates and reject changes to reserved view properties.
+ */
+case class IcebergAlterV2ViewSetPropertiesExec(
     catalog: ViewCatalog,
     ident: Identifier,
-    propertyKeys: Seq[String],
-    ifExists: Boolean)
+    properties: Map[String, String])
     extends LeafV2CommandExec {
 
   override lazy val output: Seq[Attribute] = Nil
 
   override protected def run(): Seq[InternalRow] = {
-    if (!ifExists) {
-      propertyKeys.filterNot(catalog.loadView(ident).properties.containsKey).foreach { property =>
-        throw new IcebergAnalysisException(s"Cannot remove property that is not set: '$property'")
-      }
-    }
+    properties.keys.foreach(verifyNonReservedPropertyIsSet)
 
-    val changes = propertyKeys.map(ViewChange.removeProperty)
-    catalog.alterView(ident, changes: _*)
+    val icebergViewCatalog =
+      ViewUtil
+        .icebergViewCatalog(catalog, ident)
+        .getOrElse(
+          throw new IllegalStateException(
+            s"Cannot load underlying Iceberg view catalog for view: $ident"))
+    val view = icebergViewCatalog.loadView(Spark3Util.identifierToTableIdentifier(ident))
+    val update = view.updateProperties()
+    properties.foreach { case (key, value) => update.set(key, value) }
+    update.commit()
 
     Nil
   }
 
   override def simpleString(maxFields: Int): String = {
-    s"AlterV2ViewUnsetProperties: ${ident}"
+    s"IcebergAlterV2ViewSetProperties: ${ident}"
+  }
+
+  private def verifyNonReservedPropertyIsSet(property: String): Unit = {
+    if (SparkView.isReservedProperty(property)) {
+      throw new UnsupportedOperationException(s"Cannot set reserved property: '$property'")
+    }
   }
 }

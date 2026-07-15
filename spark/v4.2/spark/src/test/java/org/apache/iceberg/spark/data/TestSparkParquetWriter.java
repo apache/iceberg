@@ -28,12 +28,16 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.Field;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.file.Path;
 import java.util.Iterator;
 import java.util.List;
 import java.util.OptionalLong;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.data.Record;
+import org.apache.iceberg.data.parquet.GenericParquetReaders;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.parquet.Parquet;
@@ -136,20 +140,19 @@ public class TestSparkParquetWriter {
   }
 
   @Test
-  public void testGeospatialWkbRoundTrip() throws IOException {
+  public void geospatialWriterStoresPureWkb() throws IOException {
     Schema geoSchema =
         new Schema(
             required(1, "id", Types.LongType.get()),
             optional(2, "geom", Types.GeometryType.crs84()),
             optional(3, "geog", Types.GeographyType.crs84()));
 
-    byte[] geomWkb = new byte[] {0x01, 0x02, 0x03};
-    byte[] geogWkb = new byte[] {0x04, 0x05, 0x06};
+    byte[] geomWkb = pointWkb(30.0, 10.0);
+    byte[] geogWkb = pointWkb(-71.0, 42.0);
     InternalRow row = new GenericInternalRow(3);
     row.update(0, 1L);
-    // Spark's GeometryVal/GeographyVal wrap [SRID | WKB]; build them from the pure WKB.
-    row.update(1, STUtils.stGeomFromWKB(geomWkb));
-    row.update(2, STUtils.stGeogFromWKB(geogWkb));
+    row.update(1, STUtils.stGeomFromWKB(geomWkb, 4326));
+    row.update(2, STUtils.stGeogFromWKB(geogWkb, 4326));
     // second row leaves the geo columns null
     InternalRow nulls = new GenericInternalRow(3);
     nulls.update(0, 2L);
@@ -168,18 +171,35 @@ public class TestSparkParquetWriter {
       writer.add(nulls);
     }
 
-    try (CloseableIterable<InternalRow> reader =
+    try (CloseableIterable<Record> reader =
         Parquet.read(Files.localInput(testFile))
             .project(geoSchema)
-            .createReaderFunc(type -> SparkParquetReaders.buildReader(geoSchema, type))
+            .createReaderFunc(type -> GenericParquetReaders.buildReader(geoSchema, type))
             .build()) {
-      List<InternalRow> rows = Lists.newArrayList(reader);
+      List<Record> rows = Lists.newArrayList(reader);
       assertThat(rows).hasSize(2);
-      assertThat(STUtils.stAsBinary(rows.get(0).getGeometry(1))).isEqualTo(geomWkb);
-      assertThat(STUtils.stAsBinary(rows.get(0).getGeography(2))).isEqualTo(geogWkb);
-      assertThat(rows.get(1).isNullAt(1)).isTrue();
-      assertThat(rows.get(1).isNullAt(2)).isTrue();
+      assertThat(bufferBytes(rows.get(0).get(1, ByteBuffer.class))).isEqualTo(geomWkb);
+      assertThat(bufferBytes(rows.get(0).get(2, ByteBuffer.class))).isEqualTo(geogWkb);
+      assertThat(rows.get(1).get(1)).isNull();
+      assertThat(rows.get(1).get(2)).isNull();
     }
+  }
+
+  private static byte[] pointWkb(double xCoordinate, double yCoordinate) {
+    return ByteBuffer.allocate(21)
+        .order(ByteOrder.LITTLE_ENDIAN)
+        .put((byte) 1)
+        .putInt(1)
+        .putDouble(xCoordinate)
+        .putDouble(yCoordinate)
+        .array();
+  }
+
+  private static byte[] bufferBytes(ByteBuffer buffer) {
+    ByteBuffer copy = buffer.duplicate();
+    byte[] bytes = new byte[copy.remaining()];
+    copy.get(bytes);
+    return bytes;
   }
 
   @Test

@@ -19,45 +19,65 @@
 package org.apache.spark.sql.execution.datasources.v2
 
 import org.apache.spark.sql.catalyst.InternalRow
+import org.apache.spark.sql.catalyst.analysis.ViewUtil
 import org.apache.spark.sql.catalyst.expressions.Attribute
 import org.apache.spark.sql.catalyst.util.escapeSingleQuotedString
+import org.apache.spark.sql.catalyst.util.quoteIfNeeded
+import org.apache.spark.sql.connector.catalog.TableCatalog
 import org.apache.spark.sql.connector.catalog.View
-import org.apache.spark.sql.connector.catalog.ViewCatalog
 import org.apache.spark.sql.execution.LeafExecNode
 import scala.jdk.CollectionConverters._
 
-case class ShowCreateV2ViewExec(output: Seq[Attribute], view: View)
+/**
+ * Executes SHOW CREATE VIEW for Spark V2 views.
+ *
+ * Uses a custom command instead of Spark's built-in implementation so generated view DDL omits
+ * Iceberg reserved metadata properties.
+ */
+case class IcebergShowCreateV2ViewExec(output: Seq[Attribute], quotedName: String, view: View)
     extends V2CommandExec
     with LeafExecNode {
 
   override protected def run(): Seq[InternalRow] = {
     val builder = new StringBuilder
-    builder ++= s"CREATE VIEW ${view.name} "
+    builder ++= s"CREATE VIEW $quotedName "
     showColumns(view, builder)
     showComment(view, builder)
+    showCollation(view, builder)
     showProperties(view, builder)
-    builder ++= s"AS\n${view.query}\n"
+    showSchemaMode(view, builder)
+    builder ++= s"AS\n${view.queryText}\n"
 
     Seq(toCatalystRow(builder.toString))
   }
 
   private def showColumns(view: View, builder: StringBuilder): Unit = {
     val columns = concatByMultiLines(
-      view
-        .schema()
-        .fields
-        .map(x => s"${x.name}${x.getComment().map(c => s" COMMENT '$c'").getOrElse("")}"))
+      view.schema.fields
+        .map { column =>
+          val comment = column.getComment().map { value =>
+            s" COMMENT '${escapeSingleQuotedString(value)}'"
+          }
+          s"${quoteIfNeeded(column.name)}${comment.getOrElse("")}"
+        })
     builder ++= columns
   }
 
   private def showComment(view: View, builder: StringBuilder): Unit = {
-    Option(view.properties.get(ViewCatalog.PROP_COMMENT))
+    Option(view.properties.get(TableCatalog.PROP_COMMENT))
       .map("COMMENT '" + escapeSingleQuotedString(_) + "'\n")
       .foreach(builder.append)
   }
 
+  private def showCollation(view: View, builder: StringBuilder): Unit = {
+    Option(view.properties.get(TableCatalog.PROP_COLLATION))
+      .map("DEFAULT COLLATION " + _ + "\n")
+      .foreach(builder.append)
+  }
+
   private def showProperties(view: View, builder: StringBuilder): Unit = {
-    val showProps = view.properties.asScala.toMap -- ViewCatalog.RESERVED_PROPERTIES.asScala
+    val reservedProperties = ViewUtil.RESERVED_PROPERTIES :+ TableCatalog.PROP_COLLATION
+    val showProps = view.properties.asScala.toMap -- reservedProperties
     if (showProps.nonEmpty) {
       val props = conf.redactOptions(showProps).toSeq.sortBy(_._1).map { case (key, value) =>
         s"'${escapeSingleQuotedString(key)}' = '${escapeSingleQuotedString(value)}'"
@@ -68,11 +88,19 @@ case class ShowCreateV2ViewExec(output: Seq[Attribute], view: View)
     }
   }
 
+  private def showSchemaMode(view: View, builder: StringBuilder): Unit = {
+    if (conf.viewSchemaBindingEnabled) {
+      Option(view.schemaMode)
+        .map("WITH SCHEMA " + _ + "\n")
+        .foreach(builder.append)
+    }
+  }
+
   private def concatByMultiLines(iter: Iterable[String]): String = {
     iter.mkString("(\n  ", ",\n  ", ")\n")
   }
 
   override def simpleString(maxFields: Int): String = {
-    s"ShowCreateV2ViewExec"
+    s"IcebergShowCreateV2ViewExec"
   }
 }
