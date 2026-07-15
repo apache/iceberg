@@ -154,4 +154,43 @@ public class TestPuffinReader {
           .isEqualTo(ImmutableMap.of("created-by", "Test 1234"));
     }
   }
+
+  @Test
+  public void testRejectsFooterPayloadSizeLargerThanFile() throws Exception {
+    byte[] footerStruct = footerStructWithPayloadSize(1_000_000);
+    InMemoryInputFile inputFile = new InMemoryInputFile(footerStruct);
+    try (PuffinReader reader = Puffin.read(inputFile).build()) {
+      assertThatThrownBy(reader::fileMetadata)
+          .isInstanceOf(IllegalStateException.class)
+          .hasMessageContaining("Invalid footer size");
+    }
+  }
+
+  @Test
+  public void testRejectsNegativeFooterPayloadSize() throws Exception {
+    byte[] footerStruct = footerStructWithPayloadSize(Integer.MIN_VALUE);
+    InMemoryInputFile inputFile = new InMemoryInputFile(footerStruct);
+    try (PuffinReader reader = Puffin.read(inputFile).build()) {
+      assertThatThrownBy(reader::fileMetadata)
+          .isInstanceOf(IllegalStateException.class)
+          .hasMessageContaining("Invalid footer payload size");
+    }
+  }
+
+  /**
+   * Build a bare 12-byte footer tail [payload size, flags, trailing magic].
+   *
+   * @param payloadSize declared payload size.
+   * @return the footer.
+   */
+  private static byte[] footerStructWithPayloadSize(int payloadSize) {
+    byte[] footerStruct = new byte[PuffinFormat.FOOTER_STRUCT_LENGTH];
+    footerStruct[0] = (byte) (payloadSize & 0xFF);
+    footerStruct[1] = (byte) ((payloadSize >> 8) & 0xFF);
+    footerStruct[2] = (byte) ((payloadSize >> 16) & 0xFF);
+    footerStruct[3] = (byte) ((payloadSize >> 24) & 0xFF);
+    byte[] magic = PuffinFormat.getMagic();
+    System.arraycopy(magic, 0, footerStruct, PuffinFormat.FOOTER_STRUCT_MAGIC_OFFSET, magic.length);
+    return footerStruct;
+  }
 }

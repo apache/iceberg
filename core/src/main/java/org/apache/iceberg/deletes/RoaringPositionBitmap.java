@@ -260,13 +260,15 @@ class RoaringPositionBitmap {
   public static RoaringPositionBitmap deserialize(ByteBuffer buffer) {
     validateByteOrder(buffer);
 
+    // Upper limit on the maximum possible number of bitmaps remaining.
+    int maxBitmaps = buffer.remaining();
     // the bitmap array may be sparse with more elements than the number of read bitmaps
-    int remainingBitmapCount = readBitmapCount(buffer);
+    int remainingBitmapCount = readBitmapCount(buffer, maxBitmaps);
     List<RoaringBitmap> bitmaps = Lists.newArrayListWithExpectedSize(remainingBitmapCount);
     int lastKey = -1;
 
     while (remainingBitmapCount > 0) {
-      int key = readKey(buffer, lastKey);
+      int key = readKey(buffer, lastKey, maxBitmaps);
 
       // fill gaps as the bitmap array may be sparse
       while (lastKey < key - 1) {
@@ -290,19 +292,36 @@ class RoaringPositionBitmap {
         "Roaring bitmap serialization requires little-endian byte order");
   }
 
-  private static int readBitmapCount(ByteBuffer buffer) {
+  /**
+   * Read the count of bitmaps from the buffer.
+   *
+   * @param buffer data buffer
+   * @param maxBitmaps the number of bitmaps possible
+   * @return the number of bitmaps in this position bitmap
+   * @throws IllegalArgumentException if it is invalid.
+   */
+  private static int readBitmapCount(ByteBuffer buffer, int maxBitmaps) {
     long bitmapCount = buffer.getLong();
     Preconditions.checkArgument(
-        bitmapCount >= 0 && bitmapCount <= Integer.MAX_VALUE,
-        "Invalid bitmap count: %s",
-        bitmapCount);
+        bitmapCount >= 0 && bitmapCount <= maxBitmaps, "Invalid bitmap count: %s", bitmapCount);
     return (int) bitmapCount;
   }
 
-  private static int readKey(ByteBuffer buffer, int lastKey) {
+  /**
+   * Read the next bitmap key from the buffer, validating it.
+   *
+   * @param buffer data buffer
+   * @param lastKey the last key read
+   * @param maxBitmaps the number of bitmaps possible
+   * @return the key
+   * @throws IllegalArgumentException if it is invalid.
+   */
+  private static int readKey(ByteBuffer buffer, int lastKey, int maxBitmaps) {
     int key = buffer.getInt();
     Preconditions.checkArgument(key >= 0, "Invalid unsigned key: %s", key);
     Preconditions.checkArgument(key <= Integer.MAX_VALUE - 1, "Key is too large: %s", key);
+    Preconditions.checkArgument(
+        key < maxBitmaps, "Key %s is out of range for %s remaining bytes", key, maxBitmaps);
     Preconditions.checkArgument(key > lastKey, "Keys must be sorted in ascending order");
     return key;
   }
