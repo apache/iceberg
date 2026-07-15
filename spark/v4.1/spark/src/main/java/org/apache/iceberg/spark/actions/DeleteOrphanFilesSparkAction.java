@@ -52,6 +52,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.JobGroupInfo;
 import org.apache.iceberg.util.FileSystemWalker;
+import org.apache.iceberg.util.OrphanFileUtils;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
@@ -125,6 +126,7 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
   private Map<String, String> equalSchemes = flattenMap(EQUAL_SCHEMES_DEFAULT);
   private Map<String, String> equalAuthorities = Collections.emptyMap();
   private PrefixMismatchMode prefixMismatchMode = PrefixMismatchMode.ERROR;
+  private LocationConflictMode locationConflictMode = LocationConflictMode.ERROR;
   private String location;
   private long olderThanTimestamp = System.currentTimeMillis() - TimeUnit.DAYS.toMillis(3);
   private Dataset<Row> compareToFileList;
@@ -160,6 +162,13 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
   @Override
   public DeleteOrphanFilesSparkAction prefixMismatchMode(PrefixMismatchMode newPrefixMismatchMode) {
     this.prefixMismatchMode = newPrefixMismatchMode;
+    return this;
+  }
+
+  @Override
+  public DeleteOrphanFilesSparkAction locationConflictMode(
+      LocationConflictMode newLocationConflictMode) {
+    this.locationConflictMode = newLocationConflictMode;
     return this;
   }
 
@@ -254,6 +263,11 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
   }
 
   private DeleteOrphanFiles.Result doExecute() {
+    // ERROR aborts; IGNORE skips cleanup; DELETE proceeds with deletion.
+    if (!shouldProceedWithCleanup()) {
+      return emptyResult();
+    }
+
     Dataset<FileURI> actualFileIdentDS = actualFileIdentDS();
     Dataset<FileURI> validFileIdentDS = validFileIdentDS();
 
@@ -264,6 +278,73 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
     } finally {
       orphanFileDS.unpersist();
     }
+  }
+
+  /**
+   * Determines whether the cleanup may proceed, given the configured location-conflict mode.
+   *
+   * <p>The shared-location detection runs only for {@code ERROR} and {@code IGNORE} modes, through
+   * the table's own {@link org.apache.iceberg.io.FileIO}. {@code DELETE} is an explicit escape
+   * hatch: the operator has confirmed the location is safe to clean (or accepts the risk), so the
+   * check is skipped entirely and cleanup proceeds without ever throwing a {@link
+   * ValidationException} (e.g. from a FileIO that lacks prefix support).
+   *
+   * @return {@code true} to proceed with cleanup; {@code false} to skip it (under {@code IGNORE}
+   *     mode with a confirmed conflict, or when the shared-location check cannot be performed)
+   */
+  private boolean shouldProceedWithCleanup() {
+    // DELETE is an explicit opt-in to skip the shared-location check entirely.
+    if (locationConflictMode == LocationConflictMode.DELETE) {
+      return true;
+    }
+
+    boolean conflict;
+    try {
+      conflict = OrphanFileUtils.hasOtherTableInLocation(table);
+    } catch (ValidationException e) {
+      // The shared-location check could not run (e.g. FileIO lacks prefix support). Fail closed:
+      // skip cleanup instead of risking another table's files. Use mode 'DELETE' only when the
+      // location is known to be exclusive.
+      LOG.error(
+          "Unable to determine whether another table shares location '{}': {}. "
+              + "Skipping cleanup to avoid deleting files that may belong to another table. "
+              + "If you are certain this location is not shared, set the location conflict mode to "
+              + "'DELETE' to skip this check and proceed with cleanup.",
+          table.location(),
+          e.getMessage());
+      return false;
+    }
+
+    if (!conflict) {
+      return true;
+    }
+
+    switch (locationConflictMode) {
+      case ERROR:
+        throw new ValidationException(
+            "Cannot delete orphan files: another Iceberg table shares the same location '%s' "
+                + "(detected via a metadata.json with a different table-uuid). Deleting orphan files "
+                + "from a shared location may corrupt the other table. Set the location conflict mode "
+                + "to 'IGNORE' to skip this table and preserve the other table's files (without failing), or to 'DELETE' "
+                + "only if you are absolutely certain no other table uses this location.",
+            table.location());
+      case IGNORE:
+        LOG.warn(
+            "Skipping orphan file cleanup for location '{}' (location_conflict_mode='IGNORE'): "
+                + "another table appears to share this location.",
+            table.location());
+        return false;
+      default:
+        throw new IllegalStateException(
+            "Unexpected location conflict mode: " + locationConflictMode);
+    }
+  }
+
+  private static DeleteOrphanFiles.Result emptyResult() {
+    return ImmutableDeleteOrphanFiles.Result.builder()
+        .orphanFileLocations(Lists.newArrayList())
+        .orphanFilesCount(0)
+        .build();
   }
 
   /**
