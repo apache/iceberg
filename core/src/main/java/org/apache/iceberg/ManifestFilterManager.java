@@ -35,6 +35,7 @@ import org.apache.iceberg.expressions.InclusiveMetricsEvaluator;
 import org.apache.iceberg.expressions.ManifestEvaluator;
 import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.expressions.StrictMetricsEvaluator;
+import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -454,36 +455,40 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
 
     boolean isDelete = reader.isDeleteManifestReader();
 
-    for (ManifestEntry<F> entry : reader.liveEntries()) {
-      F file = entry.file();
-      boolean markedForDelete =
-          deletePaths.contains(file.location())
-              || deleteFiles.contains(file)
-              || dropPartitions.contains(file.specId(), file.partition())
-              || (isDelete
-                  && entry.isLive()
-                  && entry.dataSequenceNumber() > 0
-                  && entry.dataSequenceNumber() < minSequenceNumber)
-              || (isDelete && isDanglingDV((DeleteFile) file));
+    try (CloseableIterable<ManifestEntry<F>> liveEntries = reader.liveEntries()) {
+      for (ManifestEntry<F> entry : liveEntries) {
+        F file = entry.file();
+        boolean markedForDelete =
+            deletePaths.contains(file.location())
+                || deleteFiles.contains(file)
+                || dropPartitions.contains(file.specId(), file.partition())
+                || (isDelete
+                    && entry.isLive()
+                    && entry.dataSequenceNumber() > 0
+                    && entry.dataSequenceNumber() < minSequenceNumber)
+                || (isDelete && isDanglingDV((DeleteFile) file));
 
-      if (markedForDelete || evaluator.rowsMightMatch(file)) {
-        boolean allRowsMatch = markedForDelete || evaluator.rowsMustMatch(file);
-        ValidationException.check(
-            allRowsMatch
-                || isDelete, // ignore delete files where some records may not match the expression
-            "Cannot delete file where some, but not all, rows match filter %s: %s",
-            this.deleteExpression,
-            file.location());
+        if (markedForDelete || evaluator.rowsMightMatch(file)) {
+          boolean allRowsMatch = markedForDelete || evaluator.rowsMustMatch(file);
+          ValidationException.check(
+              allRowsMatch || isDelete, // ignore delete files where some records may not match the
+              // expression
+              "Cannot delete file where some, but not all, rows match filter %s: %s",
+              this.deleteExpression,
+              file.location());
 
-        if (allRowsMatch) {
-          if (failAnyDelete) {
-            throw new DeleteException(reader.spec().partitionToPath(file.partition()));
+          if (allRowsMatch) {
+            if (failAnyDelete) {
+              throw new DeleteException(reader.spec().partitionToPath(file.partition()));
+            }
+
+            // as soon as a deleted file is detected, stop scanning
+            return true;
           }
-
-          // as soon as a deleted file is detected, stop scanning
-          return true;
         }
       }
+    } catch (IOException e) {
+      throw new RuntimeIOException(e, "Failed to close manifest entries: %s", manifest);
     }
 
     return false;
@@ -504,55 +509,55 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
 
     try {
       ManifestWriter<F> writer = newManifestWriter(reader.spec());
-      try {
-        reader
-            .liveEntries()
-            .forEach(
-                entry -> {
-                  F file = entry.file();
-                  boolean isDanglingDV = isDelete && isDanglingDV((DeleteFile) file);
-                  boolean markedForDelete =
-                      isDanglingDV
-                          || deletePaths.contains(file.location())
-                          || deleteFiles.contains(file)
-                          || dropPartitions.contains(file.specId(), file.partition())
-                          || (isDelete
-                              && entry.isLive()
-                              && entry.dataSequenceNumber() > 0
-                              && entry.dataSequenceNumber() < minSequenceNumber);
-                  if (markedForDelete || evaluator.rowsMightMatch(file)) {
-                    boolean allRowsMatch = markedForDelete || evaluator.rowsMustMatch(file);
-                    ValidationException.check(
-                        allRowsMatch
-                            || isDelete, // ignore delete files where some records may not match
-                        // the expression
-                        "Cannot delete file where some, but not all, rows match filter %s: %s",
-                        this.deleteExpression,
+      try (CloseableIterable<ManifestEntry<F>> liveEntries = reader.liveEntries()) {
+        liveEntries.forEach(
+            entry -> {
+              F file = entry.file();
+              boolean isDanglingDV = isDelete && isDanglingDV((DeleteFile) file);
+              boolean markedForDelete =
+                  isDanglingDV
+                      || deletePaths.contains(file.location())
+                      || deleteFiles.contains(file)
+                      || dropPartitions.contains(file.specId(), file.partition())
+                      || (isDelete
+                          && entry.isLive()
+                          && entry.dataSequenceNumber() > 0
+                          && entry.dataSequenceNumber() < minSequenceNumber);
+              if (markedForDelete || evaluator.rowsMightMatch(file)) {
+                boolean allRowsMatch = markedForDelete || evaluator.rowsMustMatch(file);
+                ValidationException.check(
+                    allRowsMatch
+                        || isDelete, // ignore delete files where some records may not match
+                    // the expression
+                    "Cannot delete file where some, but not all, rows match filter %s: %s",
+                    this.deleteExpression,
+                    file.location());
+
+                if (allRowsMatch) {
+                  writer.delete(entry);
+                  F fileCopy = file.copyWithoutStats();
+
+                  if (deletedFiles.contains(file)) {
+                    LOG.warn(
+                        "Deleting a duplicate path from manifest {}: {}",
+                        manifest.path(),
                         file.location());
-
-                    if (allRowsMatch) {
-                      writer.delete(entry);
-                      F fileCopy = file.copyWithoutStats();
-
-                      if (deletedFiles.contains(file)) {
-                        LOG.warn(
-                            "Deleting a duplicate path from manifest {}: {}",
-                            manifest.path(),
-                            file.location());
-                        duplicateDeleteCount.incrementAndGet();
-                      } else {
-                        // only add the file to deletes if it is a new delete
-                        // this keeps the snapshot summary accurate for non-duplicate data
-                        deletedFiles.add(fileCopy);
-                      }
-                    } else {
-                      writer.existing(entry);
-                    }
-
+                    duplicateDeleteCount.incrementAndGet();
                   } else {
-                    writer.existing(entry);
+                    // only add the file to deletes if it is a new delete
+                    // this keeps the snapshot summary accurate for non-duplicate data
+                    deletedFiles.add(fileCopy);
                   }
-                });
+                } else {
+                  writer.existing(entry);
+                }
+
+              } else {
+                writer.existing(entry);
+              }
+            });
+      } catch (IOException e) {
+        throw new RuntimeIOException(e, "Failed to close manifest entries: %s", manifest);
       } finally {
         writer.close();
       }
