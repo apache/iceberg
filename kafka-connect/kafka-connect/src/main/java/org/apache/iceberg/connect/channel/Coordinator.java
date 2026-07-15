@@ -22,12 +22,15 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.lang.management.ManagementFactory;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -37,6 +40,7 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import javax.management.ObjectName;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
@@ -55,6 +59,7 @@ import org.apache.iceberg.connect.events.Event;
 import org.apache.iceberg.connect.events.StartCommit;
 import org.apache.iceberg.connect.events.TableReference;
 import org.apache.iceberg.exceptions.NoSuchTableException;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.ThreadFactoryBuilder;
@@ -82,6 +87,7 @@ class Coordinator extends Channel {
   private final ExecutorService exec;
   private final CommitState commitState;
   private final AtomicLong partialCommitFailures = new AtomicLong();
+  private final ObjectName commitStateMBeanName;
   private volatile boolean terminated;
   private final String taskId;
 
@@ -114,6 +120,22 @@ class Coordinator extends Channel {
                 .build());
     this.commitState = new CommitState(config);
     this.taskId = config.connectorName() + "-" + config.taskId();
+    this.commitStateMBeanName = registerCommitStateMBean(taskId);
+  }
+
+  private ObjectName registerCommitStateMBean(String connectorName) {
+    try {
+      ObjectName name =
+          new ObjectName(
+              String.format(
+                  "org.apache.iceberg.connect:type=CommitState,connector=%s,id=%s",
+                  connectorName, System.identityHashCode(this)));
+      ManagementFactory.getPlatformMBeanServer().registerMBean(commitState, name);
+      return name;
+    } catch (Exception e) {
+      LOG.warn("Failed to register CommitState MBean, metrics will not be available via JMX", e);
+      return null;
+    }
   }
 
   void process() {
@@ -154,49 +176,208 @@ class Coordinator extends Channel {
       doCommit(partialCommit);
     } catch (RuntimeException e) {
       if (partialCommit) {
-        partialCommitFailures.incrementAndGet();
-        LOG.warn(
-            "Partial commit {} failed for task {}, will retry",
-            commitState.currentCommitId(),
-            taskId,
-            e);
+        LOG.warn("Partial commit {} failed for task {}", commitState.currentCommitId(), taskId, e);
       } else {
-        LOG.error("Commit {} failed for task {}", commitState.currentCommitId(), taskId, e);
+        LOG.warn("Commit {} failed for task {}", commitState.currentCommitId(), taskId, e);
+      }
+
+      // Deliberate failure (e.g., stale group retries exhausted) — must propagate
+      // to stop the connector. CoordinatorThread catches this and terminates.
+      if (commitState.fatalFailure() != null) {
         throw e;
       }
+    } catch (Exception e) {
+      LOG.warn("Commit failed, will try again next cycle", e);
     } finally {
       commitState.endCurrentCommit();
     }
   }
 
   private void doCommit(boolean partialCommit) {
-    Map<TableReference, List<Envelope>> commitMap = commitState.tableCommitMap();
+    Map<TableReference, List<CommitState.CommitGroup>> commitGroups =
+        commitState.tableCommitGroups();
     OffsetDateTime validThroughTs = commitState.validThroughTs(partialCommit);
 
-    Tasks.foreach(commitMap.entrySet())
-        .executeWith(exec)
-        .stopOnFailure()
-        .run(
-            entry ->
-                commitToTable(
-                    entry.getKey(), entry.getValue(), controlTopicOffsets(), validThroughTs));
+    if (commitGroups.isEmpty()) {
+      handleEmptyCommit(validThroughTs);
+      return;
+    }
 
-    // we should only get here if all tables committed successfully...
+    Map<Integer, Long> ctlOffsets = controlTopicOffsets();
+    CommitCycleResult result =
+        runTableCommits(commitGroups, ctlOffsets, validThroughTs, partialCommit);
+    finalizeCommitCycle(commitGroups, result, validThroughTs);
+  }
+
+  private void handleEmptyCommit(OffsetDateTime validThroughTs) {
+    LOG.info(
+        "Coordinator {} found nothing to commit for commit {}",
+        taskId,
+        commitState.currentCommitId());
     commitConsumerOffsets();
     commitState.clearResponses();
-
     Event event =
         new Event(
             config.connectGroupId(),
             new CommitComplete(commitState.currentCommitId(), validThroughTs));
     send(event);
+  }
 
-    LOG.info(
-        "Coordinator {} completed commit {}, committed to {} table(s), valid-through {}",
-        taskId,
-        commitState.currentCommitId(),
-        commitMap.size(),
-        validThroughTs);
+  private record CommitCycleResult(
+      List<Envelope> committedEnvelopes, RuntimeException taskException) {}
+
+  private CommitCycleResult runTableCommits(
+      Map<TableReference, List<CommitState.CommitGroup>> commitGroups,
+      Map<Integer, Long> ctlOffsets,
+      OffsetDateTime validThroughTs,
+      boolean partialCommit) {
+    // Track successfully committed envelopes for selective removal.
+    // Synchronized because table commits run in parallel via the exec thread pool.
+    List<Envelope> committedEnvelopes = Collections.synchronizedList(Lists.newArrayList());
+
+    // Outer: tables in parallel (via exec thread pool).
+    // Inner: commitId groups sequentially per table, oldest first.
+    // If a group fails for a table, remaining groups for that table are skipped
+    // to preserve sequence number ordering. Other tables are unaffected.
+    // Capture exception from parallel table commits so cleanup always runs.
+    // Without this, an exception from one table's exhausted retries would
+    // skip removeEnvelopes(), leaving successfully committed envelopes in the buffer
+    // indefinitely (memory leak + wasted retry work on subsequent cycles).
+    RuntimeException taskException = null;
+    try {
+      Tasks.foreach(commitGroups.entrySet())
+          .executeWith(exec)
+          .run(
+              entry -> {
+                TableReference tableRef = entry.getKey();
+                List<CommitState.CommitGroup> groups = entry.getValue();
+
+                for (int i = 0; i < groups.size(); i++) {
+                  CommitState.CommitGroup group = groups.get(i);
+                  boolean isCurrentGroup = group.commitId().equals(commitState.currentCommitId());
+
+                  // Stale groups must only write their own envelope offsets to the snapshot,
+                  // not the global consumer position. Otherwise the global offsets "poison"
+                  // subsequent groups: their envelopes appear already-committed and get
+                  // filtered out. The current (last) group writes the global offsets.
+                  Map<Integer, Long> groupOffsets;
+                  if (isCurrentGroup) {
+                    groupOffsets = ctlOffsets;
+                  } else {
+                    groupOffsets = Maps.newHashMap();
+                    for (Envelope env : group.envelopes()) {
+                      groupOffsets.merge(env.partition(), env.offset() + 1, Long::max);
+                    }
+                  }
+
+                  try {
+                    commitToTable(
+                        tableRef,
+                        group.envelopes(),
+                        group.commitId(),
+                        groupOffsets,
+                        isCurrentGroup ? validThroughTs : null);
+                    committedEnvelopes.addAll(group.envelopes());
+                    commitState.recordGroupSuccess(group.commitId());
+                  } catch (RuntimeException e) {
+                    commitState.recordGroupFailure(group.commitId());
+                    // A failure during a partial (timeout-driven) commit counts toward the
+                    // observability metric. It also counts toward the per-group retry budget
+                    if (partialCommit) {
+                      partialCommitFailures.incrementAndGet();
+                    }
+                    int remaining = groups.size() - i - 1;
+
+                    if (commitState.isRetryAllowed(group.commitId())) {
+                      // Within budget: skip this table's remaining groups to preserve sequence
+                      // number ordering, then retry next cycle.
+                      LOG.warn(
+                          "Commit failed for table {} group {} ({}, attempt {}), "
+                              + "skipping {} remaining group(s) for this table",
+                          tableRef.identifier(),
+                          group.commitId(),
+                          isCurrentGroup ? "current" : "stale",
+                          commitState.getRetryCount(group.commitId()),
+                          remaining,
+                          e);
+                    } else {
+                      // Retry budget exhausted: record fatal failure to propagate the original
+                      // exception to stop the connector.
+                      commitState.recordFatalFailure(e);
+                    }
+                    break;
+                  }
+                }
+              });
+    } catch (RuntimeException e) {
+      taskException = e;
+    }
+    return new CommitCycleResult(committedEnvelopes, taskException);
+  }
+
+  private void finalizeCommitCycle(
+      Map<TableReference, List<CommitState.CommitGroup>> commitGroups,
+      CommitCycleResult result,
+      OffsetDateTime validThroughTs) {
+    List<Envelope> committedEnvelopes = result.committedEnvelopes();
+
+    // Remove only the envelopes whose groups committed successfully.
+    if (!committedEnvelopes.isEmpty()) {
+      commitState.removeEnvelopes(committedEnvelopes);
+    }
+
+    if (committedEnvelopes.isEmpty() && !commitGroups.isEmpty()) {
+      LOG.error(
+          "Commit {} failed: all groups across all tables failed to commit. "
+              + "{} group(s) remain in buffer for retry.",
+          commitState.currentCommitId(),
+          commitGroups.values().stream().mapToInt(List::size).sum());
+    }
+
+    // Advance consumer offsets and send CommitComplete only when the buffer is fully
+    // drained. If any groups remain (failed + their skipped successors), consumer
+    // offsets must NOT advance — those envelopes need to survive a restart.
+    if (commitState.isBufferEmpty()) {
+      commitConsumerOffsets();
+      Event event =
+          new Event(
+              config.connectGroupId(),
+              new CommitComplete(commitState.currentCommitId(), validThroughTs));
+      send(event);
+
+      LOG.info(
+          "Coordinator {} completed commit {}, committed to {} table(s) in {} batch(es), valid-through {}",
+          taskId,
+          commitState.currentCommitId(),
+          commitGroups.size(),
+          commitGroups.values().stream().mapToInt(List::size).sum(),
+          validThroughTs);
+
+    } else {
+      // Advance consumer offsets to the minimum uncommitted envelope offset per partition.
+      // This bounds re-consumption on restart to only uncommitted events, while ensuring
+      // those events survive the restart.
+      Map<Integer, Long> minUncommitted = commitState.remainingEnvelopeMinOffsets();
+      Map<Integer, Long> safeOffsets = Maps.newHashMap(controlTopicOffsets());
+      minUncommitted.forEach(safeOffsets::put);
+      commitConsumerOffsetsTo(safeOffsets);
+
+      LOG.warn(
+          "Commit {} partially complete, {} envelopes remain for retry. "
+              + "Consumer offsets advanced to min uncommitted: {}",
+          commitState.currentCommitId(),
+          commitState.bufferSize(),
+          minUncommitted);
+    }
+
+    // Re-throw after cleanup so the commit() wrapper can log it.
+    RuntimeException fatal = commitState.fatalFailure();
+    if (fatal != null) {
+      throw fatal;
+    }
+    if (result.taskException() != null) {
+      throw result.taskException();
+    }
   }
 
   private String offsetsToJson(Map<Integer, Long> offsets) {
@@ -211,6 +392,7 @@ class Coordinator extends Channel {
   private void commitToTable(
       TableReference tableReference,
       List<Envelope> envelopeList,
+      UUID commitId,
       Map<Integer, Long> controlTopicOffsets,
       OffsetDateTime validThroughTs) {
     TableIdentifier tableIdentifier = tableReference.identifier();
@@ -285,7 +467,7 @@ class Coordinator extends Channel {
           appendOp.toBranch(branch);
         }
         appendOp.set(snapshotOffsetsProp, offsetsJson);
-        appendOp.set(COMMIT_ID_SNAPSHOT_PROP, commitState.currentCommitId().toString());
+        appendOp.set(COMMIT_ID_SNAPSHOT_PROP, commitId.toString());
         appendOp.set(TASK_ID_SNAPSHOT_PROP, taskId);
         if (validThroughTs != null) {
           appendOp.set(VALID_THROUGH_TS_SNAPSHOT_PROP, validThroughTs.toString());
@@ -299,7 +481,7 @@ class Coordinator extends Channel {
           deltaOp.toBranch(branch);
         }
         deltaOp.set(snapshotOffsetsProp, offsetsJson);
-        deltaOp.set(COMMIT_ID_SNAPSHOT_PROP, commitState.currentCommitId().toString());
+        deltaOp.set(COMMIT_ID_SNAPSHOT_PROP, commitId.toString());
         deltaOp.set(TASK_ID_SNAPSHOT_PROP, taskId);
         if (validThroughTs != null) {
           deltaOp.set(VALID_THROUGH_TS_SNAPSHOT_PROP, validThroughTs.toString());
@@ -313,8 +495,7 @@ class Coordinator extends Channel {
       Event event =
           new Event(
               config.connectGroupId(),
-              new CommitToTable(
-                  commitState.currentCommitId(), tableReference, snapshotId, validThroughTs));
+              new CommitToTable(commitId, tableReference, snapshotId, validThroughTs));
       send(event);
 
       LOG.info(
@@ -322,7 +503,7 @@ class Coordinator extends Channel {
           taskId,
           tableIdentifier,
           snapshotId,
-          commitState.currentCommitId(),
+          commitId,
           validThroughTs);
     }
   }
@@ -402,6 +583,14 @@ class Coordinator extends Channel {
 
   void terminate() {
     this.terminated = true;
+
+    if (commitStateMBeanName != null) {
+      try {
+        ManagementFactory.getPlatformMBeanServer().unregisterMBean(commitStateMBeanName);
+      } catch (Exception e) {
+        LOG.warn("Failed to unregister CommitState MBean", e);
+      }
+    }
 
     exec.shutdownNow();
 
