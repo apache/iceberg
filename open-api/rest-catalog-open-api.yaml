@@ -2528,7 +2528,7 @@ components:
               items:
                 type: integer
 
-    Expression:
+    Predicate:
       oneOf:
         - type: boolean
         - $ref: '#/components/schemas/TrueExpression'
@@ -2538,9 +2538,6 @@ components:
         - $ref: '#/components/schemas/UnaryPredicate'
         - $ref: '#/components/schemas/ComparisonPredicate'
         - $ref: '#/components/schemas/SetPredicate'
-        - $ref: '#/components/schemas/UnaryExpression'
-        - $ref: '#/components/schemas/LiteralExpression'
-        - $ref: '#/components/schemas/SetExpression'
 
     ExpressionType:
       type: string
@@ -2567,9 +2564,7 @@ components:
 
     ValueExpression:
       description: >
-        A value expression per Iceberg Expressions spec, Appendix B: a literal,
-        a field reference, or a function application. The result type is
-        determined when the expression is bound to an input schema.
+        A value expression: a literal, a field reference, or a function application.
       oneOf:
         - $ref: '#/components/schemas/Literal'
         - $ref: '#/components/schemas/FieldReference'
@@ -2614,9 +2609,9 @@ components:
           $ref: '#/components/schemas/ExpressionType'
           enum: ["and", "or"]
         left:
-          $ref: '#/components/schemas/Expression'
+          $ref: '#/components/schemas/Predicate'
         right:
-          $ref: '#/components/schemas/Expression'
+          $ref: '#/components/schemas/Predicate'
 
     NotExpression:
       type: object
@@ -2628,32 +2623,35 @@ components:
           $ref: '#/components/schemas/ExpressionType'
           const: "not"
         child:
-          $ref: '#/components/schemas/Expression'
+          $ref: '#/components/schemas/Predicate'
 
     UnaryPredicate:
       description: >
-        A predicate that tests a single value expression.
+        A predicate that tests a single value expression. Accepts either
+        'child' (preferred) or 'term' (deprecated) to identify the operand.
       type: object
       additionalProperties: false
       required:
         - type
-        - child
       properties:
         type:
           $ref: '#/components/schemas/ExpressionType'
           enum: ["is-null", "not-null", "is-nan", "not-nan"]
         child:
           $ref: '#/components/schemas/ValueExpression'
+        term:
+          deprecated: true
+          description: "Deprecated. Use 'child' instead."
+          $ref: '#/components/schemas/Term'
 
     ComparisonPredicate:
       description: >
-        A predicate that compares two value expressions.
+        A predicate that compares two value expressions. Accepts either
+        'left'/'right' (preferred) or 'term'/'value' (deprecated).
       type: object
       additionalProperties: false
       required:
         - type
-        - left
-        - right
       properties:
         type:
           $ref: '#/components/schemas/ExpressionType'
@@ -2662,15 +2660,23 @@ components:
           $ref: '#/components/schemas/ValueExpression'
         right:
           $ref: '#/components/schemas/ValueExpression'
+        term:
+          deprecated: true
+          description: "Deprecated. Use 'left' instead."
+          $ref: '#/components/schemas/Term'
+        value:
+          deprecated: true
+          description: "Deprecated. Use 'right' instead."
+          $ref: '#/components/schemas/Literal'
 
     SetPredicate:
       description: >
-        A predicate that operates on a list of literals.
+        A predicate that tests whether a value is in a set of literals. Accepts
+        either 'child' (preferred) or 'term' (deprecated) to identify the operand.
       type: object
       additionalProperties: false
       required:
         - type
-        - child
         - values
       properties:
         type:
@@ -2678,6 +2684,10 @@ components:
           enum: ["in", "not-in"]
         child:
           $ref: '#/components/schemas/ValueExpression'
+        term:
+          deprecated: true
+          description: "Deprecated. Use 'child' instead."
+          $ref: '#/components/schemas/Term'
         values:
           $ref: '#/components/schemas/Literals'
 
@@ -2732,10 +2742,10 @@ components:
         an unbound reference (by name). The context in which an expression
         is used determines which form is valid.
       oneOf:
-        - $ref: '#/components/schemas/FieldReferenceById'
-        - $ref: '#/components/schemas/FieldReferenceByName'
+        - $ref: '#/components/schemas/IdReference'
+        - $ref: '#/components/schemas/NamedReference'
 
-    FieldReferenceById:
+    IdReference:
       description: A bound reference to a field by field ID.
       type: object
       additionalProperties: false
@@ -2749,7 +2759,7 @@ components:
         id:
           type: integer
 
-    FieldReferenceByName:
+    NamedReference:
       description: An unbound reference to a field by name.
       type: object
       additionalProperties: false
@@ -2781,14 +2791,17 @@ components:
         arguments:
           type: array
           items:
-            anyOf:
-              - $ref: '#/components/schemas/ValueExpression'
-              - $ref: '#/components/schemas/Expression'
+            $ref: '#/components/schemas/FunctionArgument'
+
+    FunctionArgument:
+      anyOf:
+        - $ref: '#/components/schemas/ValueExpression'
+        - $ref: '#/components/schemas/Predicate'
 
     FunctionReference:
       description: >
-        A function reference is either a name, a multi-part name, an
-        identifier object, or a catalog-qualified identifier object.
+        A function reference: a simple name, a multi-part name, or a
+        catalog object identifier.
       oneOf:
         - type: string
           minLength: 1
@@ -2797,117 +2810,34 @@ components:
           items:
             type: string
             minLength: 1
-        - type: object
-          additionalProperties: false
-          required:
-            - identifier
-          properties:
-            identifier:
-              type: array
-              minItems: 1
-              items:
-                type: string
-                minLength: 1
-        - type: object
-          additionalProperties: false
-          required:
-            - catalog
-            - identifier
-          properties:
-            catalog:
-              type: string
-            identifier:
-              type: array
-              minItems: 1
-              items:
-                type: string
-                minLength: 1
+        - $ref: '#/components/schemas/FunctionIdentifier'
 
-    UnaryExpression:
-      deprecated: true
+    FunctionIdentifier:
       description: >
-        Deprecated. Use UnaryPredicate with 'child' (a ValueExpression) instead.
-        Retained for backward compatibility with older clients per the Iceberg
-        Expressions spec (Appendix B, Backward compatibility).
+        An identifier for a catalog object, optionally qualified with a catalog name.
       type: object
+      additionalProperties: false
       required:
-        - type
-        - term
+        - identifier
       properties:
-        type:
-          $ref: '#/components/schemas/ExpressionType'
-          enum: ["is-null", "not-null", "is-nan", "not-nan"]
-        term:
-          $ref: '#/components/schemas/Term'
-
-    LiteralExpression:
-      deprecated: true
-      description: >
-        Deprecated. Use ComparisonPredicate with 'left' and 'right' (ValueExpressions)
-        instead. Retained for backward compatibility with older clients per the
-        Iceberg Expressions spec (Appendix B, Backward compatibility).
-      type: object
-      required:
-        - type
-        - term
-        - value
-      properties:
-        type:
-          $ref: '#/components/schemas/ExpressionType'
-          enum: ["lt", "lt-eq", "gt", "gt-eq", "eq", "not-eq", "starts-with", "not-starts-with"]
-        term:
-          $ref: '#/components/schemas/Term'
-        value:
-          $ref: '#/components/schemas/Literal'
-
-    SetExpression:
-      deprecated: true
-      description: >
-        Deprecated. Use SetPredicate with 'child' (a ValueExpression) instead.
-        Retained for backward compatibility with older clients per the Iceberg
-        Expressions spec (Appendix B, Backward compatibility).
-      type: object
-      required:
-        - type
-        - term
-        - values
-      properties:
-        type:
-          $ref: '#/components/schemas/ExpressionType'
-          enum: ["in", "not-in"]
-        term:
-          $ref: '#/components/schemas/Term'
-        values:
-          $ref: '#/components/schemas/Literals'
+        catalog:
+          type: string
+        identifier:
+          type: array
+          minItems: 1
+          items:
+            type: string
+            minLength: 1
 
     Term:
       oneOf:
         - $ref: '#/components/schemas/Reference'
         - $ref: '#/components/schemas/TransformTerm'
-        - $ref: '#/components/schemas/DeprecatedReference'
 
     Reference:
       type: string
       example:
         - "column-name"
-
-    DeprecatedReference:
-      deprecated: true
-      description: >
-        Deprecated backward-compatibility form of a field reference used in
-        older REST predicates. Use FieldReference instead per Iceberg
-        Expressions spec, Appendix B (Backward compatibility).
-      type: object
-      additionalProperties: false
-      required:
-        - type
-        - term
-      properties:
-        type:
-          type: string
-          const: "reference"
-        term:
-          type: string
 
     TransformTerm:
       type: object
@@ -4500,7 +4430,7 @@ components:
           type: integer
           format: int64
         filter:
-          $ref: '#/components/schemas/Expression'
+          $ref: '#/components/schemas/Predicate'
         schema-id:
           type: integer
         projected-field-ids:
@@ -5383,8 +5313,8 @@ components:
             $ref: '#/components/schemas/FieldName'
         filter:
           description:
-            Expression used to filter the table data
-          $ref: '#/components/schemas/Expression'
+            Predicate used to filter the table data
+          $ref: '#/components/schemas/Predicate'
         min-rows-requested:
           description:
             The minimum number of rows requested for the scan. This is used as a hint
@@ -5474,7 +5404,7 @@ components:
             If the residual is not present, the client must produce the
             residual or use the original filter.
           allOf:
-            - $ref: '#/components/schemas/Expression'
+            - $ref: '#/components/schemas/Predicate'
 
     MultiValuedMap:
       description: A map of string keys where each key can map to multiple string values.
