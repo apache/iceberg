@@ -212,7 +212,7 @@ public class TestPartitioning {
   }
 
   @Test
-  public void testPartitionTypeFromSpecsRetainsDroppedSourceFields() {
+  public void testUnionPartitionTypesRetainsDroppedSourceFields() {
     TestTables.TestTable table =
         TestTables.create(
             tableDir, "test", SCHEMA, BY_DATA_CATEGORY_BUCKET_SPEC, V2_FORMAT_VERSION);
@@ -222,7 +222,7 @@ public class TestPartitioning {
 
     // fields with dropped source columns are retained to preserve partition tuple equality;
     // their type is unknown because it cannot be determined without the source column
-    StructType actualType = Partitioning.partitionType(table.specs().values());
+    StructType actualType = Partitioning.unionPartitionTypes(table.specs().values());
     assertThat(actualType)
         .isEqualTo(
             StructType.of(

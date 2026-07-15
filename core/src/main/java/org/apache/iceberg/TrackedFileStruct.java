@@ -34,10 +34,7 @@ import org.apache.iceberg.util.ByteBuffers;
 class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, Serializable {
   private static final Types.StructType EMPTY_STRUCT_TYPE = Types.StructType.of();
 
-  // Package-private only so tests can look up positional ordinals. Unlike
-  // TrackedFile.schemaWithContentStats, the base layout always includes the partition and
-  // content_stats positions.
-  static final Types.StructType BASE_TYPE =
+  private static final Types.StructType BASE_TYPE =
       Types.StructType.of(
           TrackedFile.TRACKING,
           TrackedFile.CONTENT_TYPE,
@@ -86,10 +83,11 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
   /** Used by internal readers to instantiate this class with a projection schema. */
   TrackedFileStruct(Types.StructType projection) {
     super(BASE_TYPE, projection);
-    // partition type may be null if the field was not projected
+    // partition type may be null if the field was not projected, or unknown for unpartitioned
+    // manifests
     Type partType = projection.fieldType("partition");
-    if (partType != null) {
-      this.partitionData = new PartitionData(partType.asNestedType().asStructType());
+    if (partType != null && partType.isStructType()) {
+      this.partitionData = new PartitionData(partType.asStructType());
     }
   }
 

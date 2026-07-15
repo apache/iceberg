@@ -63,7 +63,8 @@ class TestTrackedFileAdapters {
   private static final int MANIFEST_POS_ORDINAL = Tracking.schema().fields().size();
 
   // TrackedFile optional field ordinals, looked up from the schema.
-  private static final Types.StructType TRACKED_FILE_SCHEMA = TrackedFileStruct.BASE_TYPE;
+  private static final Types.StructType TRACKED_FILE_SCHEMA =
+      TrackedFile.schema(Types.StructType.of(), Types.StructType.of());
   private static final int CONTENT_TYPE_ORDINAL = ordinalOf(TRACKED_FILE_SCHEMA, "content_type");
   private static final int SPEC_ID_ORDINAL = ordinalOf(TRACKED_FILE_SCHEMA, "spec_id");
   private static final int DELETION_VECTOR_ORDINAL =

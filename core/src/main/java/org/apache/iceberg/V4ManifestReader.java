@@ -53,7 +53,6 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
   private final InputFile file;
   private final Schema readSchema;
   private final boolean onlyLive;
-  private final boolean reuseContainers;
   private final ScanMetrics scanMetrics;
 
   // partition pruning state, keyed by spec ID
@@ -66,14 +65,12 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
       Map<Integer, Evaluator> partitionEvaluators,
       Map<Integer, StructProjection> partitionProjections,
       boolean onlyLive,
-      boolean reuseContainers,
       ScanMetrics scanMetrics) {
     this.file = file;
     this.readSchema = readSchema;
     this.partitionEvaluators = partitionEvaluators;
     this.partitionProjections = partitionProjections;
     this.onlyLive = onlyLive;
-    this.reuseContainers = reuseContainers;
     this.scanMetrics = scanMetrics;
   }
 
@@ -81,35 +78,29 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
     return new Builder(file, specsById);
   }
 
-  /**
-   * Returns tracked files that match this reader's configured filters. Files are copied unless the
-   * reader was built with {@link Builder#reuseContainers()}.
-   */
+  /** Returns copies of the tracked files that match this reader's configured filters. */
   @Override
   public CloseableIterator<TrackedFile> iterator() {
     CloseableIterable<TrackedFile> entries = CloseableIterable.transform(open(), this::prepare);
     if (!partitionEvaluators.isEmpty()) {
-      entries = CloseableIterable.filter(entries, this::matchesPartition);
+      // manifest references are expanded later and are not pruned by the partition filter
+      entries =
+          CloseableIterable.filter(entries, entry -> isManifest(entry) || matchesPartition(entry));
     }
 
     if (onlyLive) {
       entries = CloseableIterable.filter(entries, entry -> entry.tracking().isLive());
     }
 
-    if (reuseContainers) {
-      return entries.iterator();
-    }
-
     return CloseableIterable.transform(entries, TrackedFile::copy).iterator();
   }
 
-  private boolean matchesPartition(TrackedFile trackedFile) {
+  private static boolean isManifest(TrackedFile trackedFile) {
     FileContent content = trackedFile.contentType();
-    if (content == FileContent.DATA_MANIFEST || content == FileContent.DELETE_MANIFEST) {
-      // manifest references are expanded later and are not pruned by the partition filter
-      return true;
-    }
+    return content == FileContent.DATA_MANIFEST || content == FileContent.DELETE_MANIFEST;
+  }
 
+  private boolean matchesPartition(TrackedFile trackedFile) {
     Integer specId = trackedFile.specId();
     Evaluator evaluator = specId != null ? partitionEvaluators.get(specId) : null;
     StructProjection projection = specId != null ? partitionProjections.get(specId) : null;
@@ -122,7 +113,7 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
 
     boolean matches = evaluator.eval(projection.wrap(trackedFile.partition()));
     if (!matches) {
-      incrementSkipCount(content);
+      incrementSkipCount(trackedFile.contentType());
     }
 
     return matches;
@@ -183,13 +174,12 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
     private Expression rowFilter = Expressions.alwaysTrue();
     private boolean caseSensitive = true;
     private boolean onlyLive = false;
-    private boolean reuseContainers = false;
     private Schema fileProjection = null;
     private ScanMetrics scanMetrics = ScanMetrics.noop();
 
     private Builder(InputFile file, Map<Integer, PartitionSpec> specsById) {
       this.file = file;
-      this.partitionType = Partitioning.partitionType(specsById.values());
+      this.partitionType = Partitioning.unionPartitionTypes(specsById.values());
       this.specsById = specsById;
     }
 
@@ -208,15 +198,6 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
     /** Returns only files whose tracking {@link Tracking#isLive() is live}. */
     Builder liveOnly() {
       this.onlyLive = true;
-      return this;
-    }
-
-    /**
-     * Reuses file instances while iterating; each file is valid only until the iterator advances.
-     * Callers must {@link TrackedFile#copy() copy} files that are retained.
-     */
-    Builder reuseContainers() {
-      this.reuseContainers = true;
       return this;
     }
 
@@ -245,13 +226,7 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
       }
 
       return new V4ManifestReader(
-          file,
-          readSchema(),
-          partitionEvaluators,
-          partitionProjections,
-          onlyLive,
-          reuseContainers,
-          scanMetrics);
+          file, readSchema(), partitionEvaluators, partitionProjections, onlyLive, scanMetrics);
     }
 
     private boolean hasPartitionFilter() {
@@ -259,8 +234,7 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
     }
 
     private Schema readSchema() {
-      Types.StructType fullType =
-          TrackedFile.schemaWithContentStats(partitionType, Types.StructType.of());
+      Types.StructType fullType = TrackedFile.schema(partitionType, Types.StructType.of());
 
       // replace tracking with the subset of fields read on the scan path
       List<Types.NestedField> fields = Lists.newArrayList();

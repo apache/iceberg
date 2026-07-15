@@ -30,7 +30,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import org.apache.iceberg.expressions.Expressions;
-import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
@@ -71,7 +70,8 @@ public class TestV4ManifestReader {
   private static final Map<Integer, PartitionSpec> UNPARTITIONED_SPECS =
       ImmutableMap.of(PartitionSpec.unpartitioned().specId(), PartitionSpec.unpartitioned());
 
-  private static final List<Types.NestedField> SCHEMA_FIELDS = TrackedFileStruct.BASE_TYPE.fields();
+  private static final List<Types.NestedField> SCHEMA_FIELDS =
+      TrackedFile.schema(Types.StructType.of(), Types.StructType.of()).fields();
   private static final int SORT_ORDER_ID_ORDINAL = ordinalOf(TrackedFile.SORT_ORDER_ID.fieldId());
 
   @Parameter private FileFormat format;
@@ -426,7 +426,7 @@ public class TestV4ManifestReader {
             .add(2, 1001, "data", Transforms.identity())
             .build();
     Map<Integer, PartitionSpec> specsById = ImmutableMap.of(0, spec0, 1, spec1);
-    Types.StructType unionType = Partitioning.partitionType(specsById.values());
+    Types.StructType unionType = Partitioning.unionPartitionTypes(specsById.values());
 
     TrackedFile keepById = dataFile("spec0-id1.parquet", unionPartition(unionType, 1, null), 0);
     TrackedFile prunedById = dataFile("spec0-id2.parquet", unionPartition(unionType, 2, null), 0);
@@ -466,25 +466,6 @@ public class TestV4ManifestReader {
       // iterator() copies each entry, so the collected instances are independent of the reused
       // container (they would be the same object if iterator() did not copy)
       assertThat(read.get(0)).isNotSameAs(read.get(1));
-    }
-  }
-
-  @TestTemplate
-  public void testReuseContainersReturnsReusedInstances() throws IOException {
-    TrackedFile file1 = dataFile("s3://bucket/file-1.parquet", EMPTY_PARTITION_DATA);
-    TrackedFile file2 = dataFile("s3://bucket/file-2.parquet", EMPTY_PARTITION_DATA);
-
-    InputFile manifest = writeManifest(EMPTY_PARTITION, ImmutableList.of(file1, file2));
-
-    try (V4ManifestReader reader =
-        newReader(manifest, UNPARTITIONED_SPECS).reuseContainers().build()) {
-      CloseableIterator<TrackedFile> files = reader.iterator();
-      TrackedFile first = files.next();
-      assertThat(first.location()).isEqualTo(file1.location());
-
-      TrackedFile second = files.next();
-      assertThat(second).isSameAs(first);
-      assertThat(second.location()).isEqualTo(file2.location());
     }
   }
 
@@ -590,8 +571,7 @@ public class TestV4ManifestReader {
   private InputFile writeManifest(Types.StructType partitionType, Iterable<TrackedFile> files)
       throws IOException {
     Schema writeSchema =
-        new Schema(
-            TrackedFile.schemaWithContentStats(partitionType, Types.StructType.of()).fields());
+        new Schema(TrackedFile.schema(partitionType, Types.StructType.of()).fields());
     OutputFile out =
         fileIO.newOutputFile(
             tempDir

@@ -33,9 +33,8 @@ import org.mockito.Mockito;
 class TestTrackedFileStruct {
   private static final int FORMAT_VERSION_V4 = 4;
 
-  // The struct's base layout always includes partition and content_stats positions, unlike
-  // TrackedFile.schemaWithContentStats which omits them when their types are empty.
-  private static final List<Types.NestedField> FIELDS = TrackedFileStruct.BASE_TYPE.fields();
+  private static final List<Types.NestedField> FIELDS =
+      TrackedFile.schema(Types.StructType.of(), Types.StructType.of()).fields();
 
   private static final Tracking TRACKING = Mockito.mock(Tracking.class);
   private static final Tracking TRACKING_COPY = Mockito.mock(Tracking.class);
