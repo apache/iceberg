@@ -267,7 +267,8 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
    * <ul>
    *   <li>Rebuild version files to staging
    *   <li>Rebuild manifest list files to staging
-   *   <li>Rebuild manifest to staging
+   *   <li>Rewrite referenced position delete files to staging
+   *   <li>Rebuild manifests to staging
    *   <li>Get all files needed to move
    * </ul>
    */
