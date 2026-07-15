@@ -342,6 +342,8 @@ public class TestCatalogUtil {
     when(base.previousFiles()).thenReturn(ImmutableList.of(entry1));
     when(base.metadataFileLocation()).thenReturn("s3://bucket/metadata/v2.json");
     when(metadata.previousFiles()).thenReturn(ImmutableList.of());
+    // the new current metadata file, which must never be deleted
+    when(metadata.metadataFileLocation()).thenReturn("s3://bucket/metadata/v3.json");
 
     CatalogUtil.deleteRemovedMetadataFiles(io, base, metadata);
 
@@ -369,7 +371,6 @@ public class TestCatalogUtil {
             eq(TableProperties.METADATA_DELETE_AFTER_COMMIT_ENABLED), anyBoolean()))
         .thenReturn(true);
     when(base.previousFiles()).thenReturn(ImmutableList.of(entry1));
-    when(base.metadataFileLocation()).thenReturn("s3://bucket/metadata/v2.json");
     when(metadata.previousFiles()).thenReturn(ImmutableList.of(entry2));
 
     CatalogUtil.deleteRemovedMetadataFiles(io, base, metadata);
