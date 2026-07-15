@@ -249,12 +249,9 @@ public class TestTableEncryption extends CatalogTestBase {
         .expireSnapshots(table)
         .expireSnapshotId(snapshotToExpire.snapshotId())
         .execute();
+    assertThat(table.snapshot(snapshotToExpire.snapshotId())).isNull();
 
-    assertThat(
-            ((HasTableOperations) validationCatalog.loadTable(tableIdent))
-                .operations()
-                .current()
-                .encryptionKeys())
+    assertThat(((HasTableOperations) table).operations().current().encryptionKeys())
         .as("Expiring snapshot removes encryption key for that snapshot.")
         .extracting(EncryptedKey::keyId)
         .doesNotContain(snapshotToExpire.keyId())
