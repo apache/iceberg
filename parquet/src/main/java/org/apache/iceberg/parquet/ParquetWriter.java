@@ -204,13 +204,9 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
   }
 
   private void checkSize() {
-    // This comparison is cheap, so we don't need the "spacing out checks" logic below.
     if (recordCount >= props.getRowGroupRowCountLimit()) {
       flushRowGroup(false);
-      return;
-    }
-
-    if (trackUncompressedSize) {
+    } else if (trackUncompressedSize) {
       if (rowGroupUncompressedSize >= targetRowGroupSize) {
         flushRowGroup(false);
       } else if (recordCount >= nextCheckRecordCount) {

@@ -122,7 +122,8 @@ public class TestParquet {
 
   @Test
   public void rowGroupRowLimitConfigurable() throws IOException {
-    Schema schema = new Schema(optional(1, "intCol", IntegerType.get()));
+    Types.NestedField intCol = optional(1, "intCol", IntegerType.get());
+    Schema schema = new Schema(intCol);
 
     int recordCount = 25;
     int rowGroupRowLimit = 10;
@@ -131,7 +132,7 @@ public class TestParquet {
     org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(schema.asStruct());
     for (int i = 1; i <= recordCount; i++) {
       GenericData.Record record = new GenericData.Record(avroSchema);
-      record.put("intCol", i);
+      record.put(intCol.name(), i);
       records.add(record);
     }
 
