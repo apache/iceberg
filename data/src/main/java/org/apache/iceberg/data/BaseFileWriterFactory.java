@@ -293,8 +293,7 @@ public abstract class BaseFileWriterFactory<T> implements FileWriterFactory<T>, 
       EncryptedOutputFile file, PartitionSpec spec, StructLike partition) {
     EncryptionKeyMetadata keyMetadata = file.keyMetadata();
     Map<String, String> properties = table == null ? ImmutableMap.of() : table.properties();
-    MetricsConfig metricsConfig =
-        table == null ? MetricsConfig.forPositionDelete() : MetricsConfig.forPositionDelete(table);
+    MetricsConfig metricsConfig = MetricsConfig.forPositionDelete();
 
     try {
       switch (deleteFileFormat) {

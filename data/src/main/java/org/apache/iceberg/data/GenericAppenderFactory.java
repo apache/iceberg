@@ -171,7 +171,7 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
   public FileAppender<Record> newAppender(
       EncryptedOutputFile encryptedOutputFile, FileFormat fileFormat) {
     MetricsConfig metricsConfig =
-        table != null ? MetricsConfig.forTable(table) : MetricsConfig.fromProperties(config);
+        table != null ? MetricsConfig.forTable(table) : MetricsConfig.from(config, null, null);
 
     try {
       switch (fileFormat) {
@@ -233,7 +233,7 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
         eqDeleteRowSchema,
         "Equality delete row schema shouldn't be null when creating equality-delete writer");
     MetricsConfig metricsConfig =
-        table != null ? MetricsConfig.forTable(table) : MetricsConfig.fromProperties(config);
+        table != null ? MetricsConfig.forTable(table) : MetricsConfig.from(config, null, null);
 
     try {
       switch (format) {
@@ -287,10 +287,7 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
   @Override
   public PositionDeleteWriter<Record> newPosDeleteWriter(
       EncryptedOutputFile file, FileFormat format, StructLike partition) {
-    MetricsConfig metricsConfig =
-        table != null
-            ? MetricsConfig.forPositionDelete(table)
-            : MetricsConfig.fromProperties(config);
+    MetricsConfig metricsConfig = MetricsConfig.forPositionDelete();
 
     try {
       switch (format) {

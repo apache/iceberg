@@ -114,6 +114,9 @@ public class SparkSQLProperties {
   public static final String READ_ADAPTIVE_SPLIT_SIZE_ENABLED =
       "spark.sql.iceberg.read.adaptive-split-size.enabled";
 
+  // Overrides the split target size for scan planning
+  public static final String READ_SPLIT_SIZE = "spark.sql.iceberg.read.split-size";
+
   // Overrides the parallelism used for adaptive split sizing. When unset, the parallelism
   // defaults to max(spark.default.parallelism, spark.sql.shuffle.partitions).
   public static final String READ_ADAPTIVE_SPLIT_SIZE_PARALLELISM =

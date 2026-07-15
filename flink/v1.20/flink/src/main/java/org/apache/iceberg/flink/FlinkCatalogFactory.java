@@ -168,7 +168,6 @@ public class FlinkCatalogFactory implements CatalogFactory {
         defaultDatabase,
         baseNamespace,
         catalogLoader,
-        properties,
         cacheEnabled,
         cacheExpirationIntervalMs);
   }

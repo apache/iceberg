@@ -98,6 +98,7 @@ nav:
   - Project:
     - Contributing: contribute.md
     - Multi-engine support: multi-engine-support.md
+    - Developer snapshot testing: developer-snapshot-testing.md
     - Benchmarks: benchmarks.md
     - Security: security.md
     - How to release: how-to-release.md

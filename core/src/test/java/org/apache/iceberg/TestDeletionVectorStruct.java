@@ -164,6 +164,64 @@ class TestDeletionVectorStruct {
   }
 
   @Test
+  void testDvEquality() {
+    DeletionVectorStruct dv =
+        DeletionVectorStruct.builder()
+            .location("s3://bucket/data/dv.puffin")
+            .offset(256L)
+            .sizeInBytes(128L)
+            .cardinality(42L)
+            .build();
+
+    DeletionVectorStruct sameDv =
+        DeletionVectorStruct.builder()
+            .location("s3://bucket/data/dv.puffin")
+            .offset(256L)
+            .sizeInBytes(128L)
+            .cardinality(42L)
+            .build();
+
+    DeletionVectorStruct dvWithDifferentLocation =
+        DeletionVectorStruct.builder()
+            .location("s3://bucket/data/dv2.puffin")
+            .offset(256L)
+            .sizeInBytes(128L)
+            .cardinality(42L)
+            .build();
+
+    DeletionVectorStruct dvWithDifferentOffset =
+        DeletionVectorStruct.builder()
+            .location("s3://bucket/data/dv.puffin")
+            .offset(1L)
+            .sizeInBytes(128L)
+            .cardinality(42L)
+            .build();
+
+    DeletionVectorStruct dvWithDifferentSize =
+        DeletionVectorStruct.builder()
+            .location("s3://bucket/data/dv.puffin")
+            .offset(256L)
+            .sizeInBytes(8L)
+            .cardinality(42L)
+            .build();
+
+    DeletionVectorStruct dvWithDifferentCardinality =
+        DeletionVectorStruct.builder()
+            .location("s3://bucket/data/dv.puffin")
+            .offset(256L)
+            .sizeInBytes(128L)
+            .cardinality(2L)
+            .build();
+
+    assertThat(dv).isEqualTo(dv);
+    assertThat(dv).isEqualTo(sameDv);
+    assertThat(dv).isNotEqualTo(dvWithDifferentLocation);
+    assertThat(dv).isNotEqualTo(dvWithDifferentOffset);
+    assertThat(dv).isNotEqualTo(dvWithDifferentSize);
+    assertThat(dv).isNotEqualTo(dvWithDifferentCardinality);
+  }
+
+  @Test
   void testBuilderRejectsInvalidValuesAtSetter() {
     assertThatThrownBy(() -> DeletionVectorStruct.builder().location(null))
         .isInstanceOf(IllegalArgumentException.class)

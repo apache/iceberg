@@ -65,7 +65,7 @@ public class TestSparkTableUtil {
             TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "col2",
             "truncate(16)");
 
-    MetricsConfig config = MetricsConfig.fromProperties(metricsConfig);
+    MetricsConfig config = MetricsConfig.from(metricsConfig, null, null);
     MetricsConfig deserialized = KryoHelpers.roundTripSerialize(config);
 
     assertThat(deserialized.columnMode("col1"))
@@ -90,7 +90,7 @@ public class TestSparkTableUtil {
             TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "col2",
             "truncate(16)");
 
-    MetricsConfig config = MetricsConfig.fromProperties(metricsConfig);
+    MetricsConfig config = MetricsConfig.from(metricsConfig, null, null);
     MetricsConfig deserialized = TestHelpers.roundTripSerialize(config);
 
     assertThat(deserialized.columnMode("col1"))

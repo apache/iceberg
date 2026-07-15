@@ -25,7 +25,7 @@ org.apache.parquet:parquet-variant:1.17
 org.checkerframework:checker-qual:3.19
 org.eclipse.microprofile.openapi:microprofile-openapi-api:4.1
 org.locationtech.jts:jts-core:1.20
-org.projectnessie.nessie:nessie-client:0.107
-org.projectnessie.nessie:nessie-model:0.107
+org.projectnessie.nessie:nessie-client:0.108
+org.projectnessie.nessie:nessie-model:0.108
 org.roaringbitmap:RoaringBitmap:1.6
 org.threeten:threeten-extra:1.7

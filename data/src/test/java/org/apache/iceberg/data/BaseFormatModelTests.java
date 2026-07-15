@@ -60,7 +60,11 @@ import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.encryption.EncryptedFiles;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
+import org.apache.iceberg.encryption.EncryptingFileIO;
 import org.apache.iceberg.encryption.EncryptionKeyMetadata;
+import org.apache.iceberg.encryption.EncryptionManager;
+import org.apache.iceberg.encryption.EncryptionTestHelpers;
+import org.apache.iceberg.encryption.NativeEncryptionKeyMetadata;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -179,6 +183,8 @@ public abstract class BaseFormatModelTests<T> {
   static final String FEATURE_REUSE_CONTAINERS = "reuseContainers";
   static final String FEATURE_COLUMN_LEVEL_METRICS = "columnLevelMetrics";
   static final String FEATURE_COLUMN_METRICS_TRUNCATE_BINARY = "columnMetricsTruncateBinary";
+  static final String FEATURE_NATIVE_ENCRYPTION = "nativeEncryption";
+  static final String FEATURE_AES_STREAM_ENCRYPTION = "aesStreamEncryption";
 
   private static final Map<FileFormat, String[]> MISSING_FEATURES =
       Map.of(
@@ -188,12 +194,19 @@ public abstract class BaseFormatModelTests<T> {
             FEATURE_CASE_SENSITIVE,
             FEATURE_SPLIT,
             FEATURE_COLUMN_LEVEL_METRICS,
-            FEATURE_COLUMN_METRICS_TRUNCATE_BINARY
+            FEATURE_COLUMN_METRICS_TRUNCATE_BINARY,
+            FEATURE_NATIVE_ENCRYPTION
           },
           FileFormat.ORC,
           new String[] {
-            FEATURE_REUSE_CONTAINERS, FEATURE_COLUMN_METRICS_TRUNCATE_BINARY, FEATURE_READER_DEFAULT
-          });
+            FEATURE_REUSE_CONTAINERS,
+            FEATURE_COLUMN_METRICS_TRUNCATE_BINARY,
+            FEATURE_READER_DEFAULT,
+            FEATURE_AES_STREAM_ENCRYPTION,
+            FEATURE_NATIVE_ENCRYPTION
+          },
+          FileFormat.PARQUET,
+          new String[] {FEATURE_AES_STREAM_ENCRYPTION});
 
   private InMemoryFileIO fileIO;
   private EncryptedOutputFile encryptedFile;
@@ -2065,6 +2078,98 @@ public abstract class BaseFormatModelTests<T> {
           assertThat(fileMetadataValue(format, "tck.meta.key")).isEqualTo("tck-meta-value");
           assertThat(fileMetadataValue(format, "tck.meta.key2")).isEqualTo("tck-meta-value2");
         });
+  }
+
+  @ParameterizedTest
+  @FieldSource("FILE_FORMATS")
+  void testDataWriterAesStreamEncryption(FileFormat fileFormat) throws IOException {
+    assumeSupports(fileFormat, FEATURE_AES_STREAM_ENCRYPTION);
+
+    EncryptionManager encryptionManager = EncryptionTestHelpers.createEncryptionManager();
+    EncryptingFileIO encryptingFileIO = EncryptingFileIO.combine(fileIO, encryptionManager);
+    EncryptedOutputFile encryptedOutputFile =
+        encryptingFileIO.newEncryptingOutputFile("test-file-" + UUID.randomUUID());
+
+    FileWriterBuilder<DataWriter<T>, ?> writerBuilder =
+        FormatModelRegistry.dataWriteBuilder(fileFormat, engineType(), encryptedOutputFile)
+            .keyMetadata(encryptedOutputFile.keyMetadata());
+
+    writeAndAssertEncryptedDataWriter(fileFormat, encryptingFileIO, writerBuilder);
+  }
+
+  @ParameterizedTest
+  @FieldSource("FILE_FORMATS")
+  void testDataWriterNativeEncryption(FileFormat fileFormat) throws IOException {
+    assumeSupports(fileFormat, FEATURE_NATIVE_ENCRYPTION);
+
+    EncryptionManager encryptionManager = EncryptionTestHelpers.createEncryptionManager();
+    EncryptingFileIO encryptingFileIO = EncryptingFileIO.combine(fileIO, encryptionManager);
+    String location = "test-file-" + UUID.randomUUID();
+    NativeEncryptionKeyMetadata keyMetadata =
+        (NativeEncryptionKeyMetadata)
+            encryptingFileIO.newEncryptingOutputFile(location).keyMetadata();
+
+    // Use a plain encrypted output file so Parquet cannot auto-inject the native encryption key
+    // and AAD prefix from the output file metadata. This ensures encryption is driven only by
+    // withFileEncryptionKey and withAADPrefix below.
+    EncryptedOutputFile encryptedOutputFile =
+        EncryptedFiles.plainAsEncryptedOutput(fileIO.newOutputFile(location));
+
+    // keyMetadata is mainly used for parsing during reading, so this call is required here.
+    FileWriterBuilder<DataWriter<T>, ?> writerBuilder =
+        FormatModelRegistry.dataWriteBuilder(fileFormat, engineType(), encryptedOutputFile)
+            .keyMetadata(keyMetadata)
+            .withFileEncryptionKey(keyMetadata.encryptionKey().duplicate())
+            .withAADPrefix(keyMetadata.aadPrefix().duplicate());
+
+    writeAndAssertEncryptedDataWriter(fileFormat, encryptingFileIO, writerBuilder);
+  }
+
+  @SuppressWarnings("checkstyle:AssertThatThrownByWithMessageCheck")
+  private void writeAndAssertEncryptedDataWriter(
+      FileFormat fileFormat,
+      EncryptingFileIO encryptingFileIO,
+      FileWriterBuilder<DataWriter<T>, ?> writerBuilder)
+      throws IOException {
+    DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
+    Schema schema = dataGenerator.schema();
+    List<Record> genericRecords = dataGenerator.generateRecords();
+    List<T> engineRecords = convertToEngineRecords(genericRecords, schema);
+
+    DataWriter<T> writer = writerBuilder.schema(schema).spec(PartitionSpec.unpartitioned()).build();
+
+    try (writer) {
+      engineRecords.forEach(writer::write);
+    }
+
+    DataFile dataFile = writer.toDataFile();
+    assertThat(dataFile).isNotNull();
+    assertThat(dataFile.recordCount()).isEqualTo(engineRecords.size());
+    assertThat(dataFile.format()).isEqualTo(fileFormat);
+    assertThat(dataFile.keyMetadata()).isNotNull();
+
+    assertThatThrownBy(
+            () ->
+                readAndAssertGenericRecords(
+                    fileFormat, schema, genericRecords, fileIO.newInputFile(dataFile.location())))
+        .isInstanceOf(RuntimeException.class);
+
+    readAndAssertGenericRecords(
+        fileFormat, schema, genericRecords, encryptingFileIO.newInputFile(dataFile));
+  }
+
+  private void readAndAssertGenericRecords(
+      FileFormat fileFormat, Schema schema, List<Record> expected, InputFile inputFile)
+      throws IOException {
+    List<Record> readRecords;
+    try (CloseableIterable<Record> reader =
+        FormatModelRegistry.readBuilder(fileFormat, Record.class, inputFile)
+            .project(schema)
+            .build()) {
+      readRecords = ImmutableList.copyOf(reader);
+    }
+
+    DataTestHelpers.assertEquals(schema.asStruct(), expected, readRecords);
   }
 
   private void readAndAssertGenericRecords(

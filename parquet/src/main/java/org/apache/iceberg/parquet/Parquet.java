@@ -27,6 +27,8 @@ import static org.apache.iceberg.TableProperties.DELETE_PARQUET_PAGE_VERSION;
 import static org.apache.iceberg.TableProperties.DELETE_PARQUET_ROW_GROUP_CHECK_MAX_RECORD_COUNT;
 import static org.apache.iceberg.TableProperties.DELETE_PARQUET_ROW_GROUP_CHECK_MIN_RECORD_COUNT;
 import static org.apache.iceberg.TableProperties.DELETE_PARQUET_ROW_GROUP_SIZE_BYTES;
+import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_ADAPTIVE_ENABLED;
+import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_ADAPTIVE_ENABLED_DEFAULT;
 import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX;
 import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_COLUMN_FPP_PREFIX;
 import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_COLUMN_NDV_PREFIX;
@@ -470,7 +472,8 @@ public class Parquet {
                 .withDictionaryPageSize(dictionaryPageSize)
                 .withMinRowCountForPageSizeCheck(rowGroupCheckMinRecordCount)
                 .withMaxRowCountForPageSizeCheck(rowGroupCheckMaxRecordCount)
-                .withMaxBloomFilterBytes(bloomFilterMaxBytes);
+                .withMaxBloomFilterBytes(bloomFilterMaxBytes)
+                .withAdaptiveBloomFilterEnabled(context.adaptiveBloomFilterEnabled());
 
         setBloomFilterConfig(
             context,
@@ -545,6 +548,7 @@ public class Parquet {
       private final int rowGroupCheckMinRecordCount;
       private final int rowGroupCheckMaxRecordCount;
       private final int bloomFilterMaxBytes;
+      private final boolean adaptiveBloomFilterEnabled;
       private final Map<String, String> columnBloomFilterFpp;
       private final Map<String, String> columnBloomFilterNdv;
       private final Map<String, String> columnBloomFilterEnabled;
@@ -564,6 +568,7 @@ public class Parquet {
           int rowGroupCheckMinRecordCount,
           int rowGroupCheckMaxRecordCount,
           int bloomFilterMaxBytes,
+          boolean adaptiveBloomFilterEnabled,
           Map<String, String> columnBloomFilterFpp,
           Map<String, String> columnBloomFilterNdv,
           Map<String, String> columnBloomFilterEnabled,
@@ -581,6 +586,7 @@ public class Parquet {
         this.rowGroupCheckMinRecordCount = rowGroupCheckMinRecordCount;
         this.rowGroupCheckMaxRecordCount = rowGroupCheckMaxRecordCount;
         this.bloomFilterMaxBytes = bloomFilterMaxBytes;
+        this.adaptiveBloomFilterEnabled = adaptiveBloomFilterEnabled;
         this.columnBloomFilterFpp = columnBloomFilterFpp;
         this.columnBloomFilterNdv = columnBloomFilterNdv;
         this.columnBloomFilterEnabled = columnBloomFilterEnabled;
@@ -646,6 +652,12 @@ public class Parquet {
                 config, PARQUET_BLOOM_FILTER_MAX_BYTES, PARQUET_BLOOM_FILTER_MAX_BYTES_DEFAULT);
         Preconditions.checkArgument(bloomFilterMaxBytes > 0, "bloom Filter Max Bytes must be > 0");
 
+        boolean adaptiveBloomFilterEnabled =
+            PropertyUtil.propertyAsBoolean(
+                config,
+                PARQUET_BLOOM_FILTER_ADAPTIVE_ENABLED,
+                PARQUET_BLOOM_FILTER_ADAPTIVE_ENABLED_DEFAULT);
+
         Map<String, String> columnBloomFilterFpp =
             PropertyUtil.propertiesWithPrefix(config, PARQUET_BLOOM_FILTER_COLUMN_FPP_PREFIX);
 
@@ -681,6 +693,7 @@ public class Parquet {
             rowGroupCheckMinRecordCount,
             rowGroupCheckMaxRecordCount,
             bloomFilterMaxBytes,
+            adaptiveBloomFilterEnabled,
             columnBloomFilterFpp,
             columnBloomFilterNdv,
             columnBloomFilterEnabled,
@@ -760,6 +773,7 @@ public class Parquet {
             rowGroupCheckMinRecordCount,
             rowGroupCheckMaxRecordCount,
             PARQUET_BLOOM_FILTER_MAX_BYTES_DEFAULT,
+            PARQUET_BLOOM_FILTER_ADAPTIVE_ENABLED_DEFAULT,
             ImmutableMap.of(),
             ImmutableMap.of(),
             ImmutableMap.of(),
@@ -824,6 +838,10 @@ public class Parquet {
 
       int bloomFilterMaxBytes() {
         return bloomFilterMaxBytes;
+      }
+
+      boolean adaptiveBloomFilterEnabled() {
+        return adaptiveBloomFilterEnabled;
       }
 
       Map<String, String> columnBloomFilterFpp() {

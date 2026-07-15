@@ -130,4 +130,11 @@ public class TestOAuthTokenResponse extends RequestResponseTestBase<OAuthTokenRe
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Cannot parse to a string value: token_type: 34");
   }
+
+  @Test
+  void invalidScopeReportedInErrorMsg() {
+    assertThatThrownBy(() -> OAuthTokenResponse.builder().addScope("bad scope"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid scope: bad scope");
+  }
 }

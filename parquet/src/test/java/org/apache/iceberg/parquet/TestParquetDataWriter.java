@@ -55,6 +55,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.RandomUtil;
 import org.apache.iceberg.variants.Variant;
 import org.apache.iceberg.variants.VariantMetadata;
 import org.apache.iceberg.variants.VariantTestUtil;
@@ -100,6 +101,65 @@ public class TestParquetDataWriter {
   @Test
   public void testDataWriter() throws IOException {
     testDataWriter(SCHEMA, (id, name) -> null);
+  }
+
+  @Test
+  public void testGeospatialRoundTrip() throws IOException {
+    Schema schema =
+        new Schema(
+            Types.NestedField.required(1, "id", Types.LongType.get()),
+            Types.NestedField.optional(2, "geom", Types.GeometryType.crs84()),
+            Types.NestedField.optional(3, "geog", Types.GeographyType.crs84()));
+
+    GenericRecord record = GenericRecord.create(schema);
+    List<Record> geoRecords =
+        ImmutableList.of(
+            record.copy(
+                ImmutableMap.of("id", 1L, "geom", wkbPoint(30, 10), "geog", wkbPoint(-5, 40))),
+            // geog is left null
+            record.copy(ImmutableMap.of("id", 2L, "geom", wkbPoint(0, 0))),
+            // both geo columns are left null
+            record.copy(ImmutableMap.of("id", 3L)));
+
+    OutputFile file = Files.localOutput(createTempFile(temp));
+    DataWriter<Record> dataWriter =
+        Parquet.writeData(file)
+            .schema(schema)
+            .createWriterFunc(GenericParquetWriter::create)
+            .overwrite()
+            .withSpec(PartitionSpec.unpartitioned())
+            .build();
+    try (dataWriter) {
+      for (Record geoRecord : geoRecords) {
+        dataWriter.write(geoRecord);
+      }
+    }
+
+    assertThat(dataWriter.toDataFile().recordCount()).isEqualTo(geoRecords.size());
+
+    List<Record> writtenRecords;
+    try (CloseableIterable<Record> reader =
+        Parquet.read(file.toInputFile())
+            .project(schema)
+            .createReaderFunc(fileSchema -> GenericParquetReaders.buildReader(schema, fileSchema))
+            .build()) {
+      writtenRecords = Lists.newArrayList(reader);
+    }
+
+    assertThat(writtenRecords).hasSameSizeAs(geoRecords);
+    for (int i = 0; i < geoRecords.size(); i++) {
+      assertThat(writtenRecords.get(i).getField("id")).isEqualTo(geoRecords.get(i).getField("id"));
+      assertThat(writtenRecords.get(i).getField("geom"))
+          .as("geometry WKB should round-trip unchanged")
+          .isEqualTo(geoRecords.get(i).getField("geom"));
+      assertThat(writtenRecords.get(i).getField("geog"))
+          .as("geography WKB should round-trip unchanged")
+          .isEqualTo(geoRecords.get(i).getField("geog"));
+    }
+  }
+
+  private static ByteBuffer wkbPoint(double xCoord, double yCoord) {
+    return ByteBuffer.wrap(RandomUtil.wkbPoint(xCoord, yCoord));
   }
 
   private void testDataWriter(Schema schema, VariantShreddingFunction variantShreddingFunc)

@@ -571,7 +571,7 @@ public class TestTypeUtil {
   }
 
   @Test
-  public void testValidateSchemaViaIndexByName() {
+  public void testValidateSchemaViaByName() {
     Types.NestedField nestedType =
         Types.NestedField.required(
             1,
@@ -969,5 +969,72 @@ public class TestTypeUtil {
     assertThat(TypeUtil.ancestorFields(schema, pointsElement.fieldId())).containsExactly(points);
     assertThat(TypeUtil.ancestorFields(schema, 16)).containsExactly(pointsElement, points);
     assertThat(TypeUtil.ancestorFields(schema, 17)).containsExactly(pointsElement, points);
+  }
+
+  @Test
+  public void testIndexStatsNames() {
+    Schema schema =
+        new Schema(
+            required(1, "id", Types.LongType.get()),
+            optional(2, "data", Types.StringType.get()),
+            optional(
+                3,
+                "location",
+                Types.StructType.of(
+                    required(10, "lat", Types.FloatType.get()),
+                    required(11, "long", Types.FloatType.get()))),
+            optional(4, "values", Types.ListType.ofOptional(12, IntegerType.get())),
+            optional(
+                5,
+                "points",
+                Types.ListType.ofRequired(
+                    13,
+                    Types.StructType.of(
+                        required(14, "x", IntegerType.get()),
+                        required(15, "y", IntegerType.get())))),
+            optional(
+                6,
+                "properties",
+                Types.MapType.ofOptional(16, 17, Types.StringType.get(), Types.StringType.get())),
+            optional(
+                7,
+                "addresses",
+                Types.MapType.ofRequired(
+                    18,
+                    19,
+                    Types.StringType.get(),
+                    Types.StructType.of(
+                        required(20, "street", Types.StringType.get()),
+                        optional(21, "city", Types.StringType.get()),
+                        optional(22, "state", Types.StringType.get()),
+                        required(23, "zip", Types.IntegerType.get()),
+                        required(24, "value", Types.IntegerType.get())))));
+
+    Map<Integer, String> statsNameIndex = TypeUtil.indexStatsNames(schema.asStruct());
+
+    assertThat(statsNameIndex)
+        .containsEntry(1, "id")
+        .containsEntry(2, "data")
+        .containsEntry(3, "location")
+        .containsEntry(10, "location_lat")
+        .containsEntry(11, "location_long")
+        .containsEntry(4, "values")
+        .containsEntry(12, "values_element")
+        .containsEntry(5, "points")
+        .containsEntry(13, "points_element")
+        .containsEntry(14, "points_x")
+        .containsEntry(15, "points_y")
+        .containsEntry(6, "properties")
+        .containsEntry(16, "properties_key")
+        .containsEntry(17, "properties_value")
+        .containsEntry(7, "addresses")
+        .containsEntry(18, "addresses_key")
+        .containsEntry(19, "addresses_value")
+        .containsEntry(20, "addresses_street")
+        .containsEntry(21, "addresses_city")
+        .containsEntry(22, "addresses_state")
+        .containsEntry(23, "addresses_zip")
+        .containsEntry(24, "addresses_value") // the leaf takes precedence
+        .hasSize(22);
   }
 }

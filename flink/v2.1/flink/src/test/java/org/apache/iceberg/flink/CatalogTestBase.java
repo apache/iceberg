@@ -89,6 +89,7 @@ public abstract class CatalogTestBase extends TestBase {
       config.put(CatalogProperties.URI, getURI(hiveConf));
     }
     config.put(CatalogProperties.WAREHOUSE_LOCATION, String.format("file://%s", warehouseRoot()));
+    config.put("extra-catalog-prop", "extra-value");
 
     this.flinkDatabase = catalogName + "." + DATABASE;
     this.icebergNamespace =

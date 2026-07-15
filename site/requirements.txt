@@ -23,4 +23,4 @@ mkdocs-monorepo-plugin @ git+https://github.com/bitsondatadev/mkdocs-monorepo-pl
 mkdocs-redirects==1.2.3
 mkdocs-rss-plugin==1.19.0
 mkdocs-exclude-search==0.6.6
-pymarkdownlnt==0.9.37
+pymarkdownlnt==0.9.38

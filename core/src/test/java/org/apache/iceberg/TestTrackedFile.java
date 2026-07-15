@@ -47,7 +47,7 @@ public class TestTrackedFile {
         .containsExactly(
             "tracking",
             "content_type",
-            "writer_format_version",
+            "format_version",
             "location",
             "file_format",
             "record_count",
@@ -109,11 +109,11 @@ public class TestTrackedFile {
   }
 
   @Test
-  public void schemaWithContentStatsPartitionIsRequired() {
+  public void schemaWithContentStatsPartitionIsOptional() {
     Types.StructType type = TrackedFile.schemaWithContentStats(PARTITION_TYPE, CONTENT_STATS_TYPE);
     Types.NestedField partitionField = type.field(TrackedFile.PARTITION_ID);
 
-    assertThat(partitionField.isRequired()).isTrue();
+    assertThat(partitionField.isOptional()).isTrue();
     assertThat(partitionField.name()).isEqualTo(TrackedFile.PARTITION_NAME);
     assertThat(partitionField.doc()).isEqualTo(TrackedFile.PARTITION_DOC);
   }

@@ -55,6 +55,7 @@ import org.apache.iceberg.types.Types.StringType;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.types.Types.TimeType;
 import org.apache.iceberg.types.Types.TimestampType;
+import org.apache.iceberg.types.Types.UUIDType;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.Tasks;
 import org.apache.kafka.connect.data.Date;
@@ -286,6 +287,10 @@ class SchemaUtils {
                   .collect(Collectors.toList());
           return StructType.of(structFields);
         case STRING:
+          if ("uuid".equals(valueSchema.name())) {
+            return UUIDType.get();
+          }
+          return StringType.get();
         default:
           return StringType.get();
       }

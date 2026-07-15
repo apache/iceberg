@@ -68,6 +68,7 @@ public class DataGenerators {
     private static final int DAYS_BTW_EPOC_AND_20220110 =
         Days.daysBetween(JODA_DATETIME_EPOC, JODA_DATETIME_20220110).getDays();
     private static final int HOUR_8_IN_MILLI = (int) TimeUnit.HOURS.toMillis(8);
+    private static final int MICROS_OF_MILLI_20220110 = 456;
 
     private static final LocalDate JAVA_LOCAL_DATE_20220110 = LocalDate.of(2022, 1, 10);
     private static final LocalTime JAVA_LOCAL_TIME_HOUR8 = LocalTime.of(8, 0);
@@ -226,8 +227,10 @@ public class DataGenerators {
           HOUR_8_IN_MILLI,
           // Although Avro logical type for timestamp fields are in micro seconds,
           // AvroToRowDataConverters only looks for long value in milliseconds.
-          TimestampData.fromEpochMillis(JODA_DATETIME_20220110.getMillis()),
-          TimestampData.fromEpochMillis(JODA_DATETIME_20220110.getMillis()),
+          TimestampData.fromEpochMillis(
+              JODA_DATETIME_20220110.getMillis(), MICROS_OF_MILLI_20220110 * 1000),
+          TimestampData.fromEpochMillis(
+              JODA_DATETIME_20220110.getMillis(), MICROS_OF_MILLI_20220110 * 1000),
           uuidBytes,
           binaryBytes,
           DecimalData.fromBigDecimal(BIG_DECIMAL_NEGATIVE, 9, 2),
@@ -253,8 +256,12 @@ public class DataGenerators {
       genericRecord.put("time_field", HOUR_8_IN_MILLI);
       // Now that AvroToRowDataConverters correctly supports microseconds,
       // we must inject correct microsecond scale values into the Avro data.
-      genericRecord.put("ts_with_zone_field", JODA_DATETIME_20220110.getMillis() * 1000L);
-      genericRecord.put("ts_without_zone_field", JODA_DATETIME_20220110.getMillis() * 1000L);
+      genericRecord.put(
+          "ts_with_zone_field",
+          JODA_DATETIME_20220110.getMillis() * 1000L + MICROS_OF_MILLI_20220110);
+      genericRecord.put(
+          "ts_without_zone_field",
+          JODA_DATETIME_20220110.getMillis() * 1000L + MICROS_OF_MILLI_20220110);
       genericRecord.put("ts_ns_with_zone_field", ICEBERG_MAX_NANOS_EPOCH);
       genericRecord.put("ts_ns_without_zone_field", ICEBERG_MAX_NANOS_EPOCH);
 

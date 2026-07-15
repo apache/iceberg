@@ -56,6 +56,30 @@ docker run -e CATALOG_CATALOG_NAME=mycatalog -p 8181:8181 apache/iceberg-rest-fi
 ```
 
 
+### Logging
+
+By default, the fixture logs at `INFO`. To reduce log output, set `LOG_LEVEL`
+to another slf4j-simple level such as `WARN`, `ERROR`, or `OFF`:
+
+```bash
+docker run -e LOG_LEVEL=WARN -p 8181:8181 apache/iceberg-rest-fixture
+```
+
+To use a full slf4j-simple properties file, mount a directory containing
+`simplelogger.properties` and set `LOG_CONFIG_DIR` to that directory:
+
+```bash
+docker run \
+  -v "$PWD/simplelogger.properties:/etc/iceberg-rest/simplelogger.properties:ro" \
+  -e LOG_CONFIG_DIR=/etc/iceberg-rest \
+  -p 8181:8181 \
+  apache/iceberg-rest-fixture
+```
+
+If both `LOG_LEVEL` and `LOG_CONFIG_DIR` are set, `LOG_LEVEL` overrides the
+default log level from `simplelogger.properties`; the properties file can still
+configure other slf4j-simple settings.
+
 ## Build the Docker Image
 
 When making changes to the local files and test them out, you can build the image locally:
@@ -115,5 +139,3 @@ Snapshots             Snapshots
 Properties            write.object-storage.enabled  true                                                                                                                        
                       write.object-storage.path     s3://iceberg-test-data/tpc/tpc-ds/3.2.0/1000/iceberg/customer/data
 ```
-
-

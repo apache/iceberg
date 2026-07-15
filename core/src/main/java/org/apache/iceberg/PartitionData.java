@@ -38,6 +38,14 @@ import org.apache.iceberg.types.Types;
 public class PartitionData
     implements IndexedRecord, StructLike, SpecificData.SchemaConstructable, Serializable {
 
+  static final PartitionData EMPTY =
+      new PartitionData(Types.StructType.of()) {
+        @Override
+        public PartitionData copy() {
+          return this;
+        }
+      };
+
   static Schema partitionDataSchema(Types.StructType partitionType) {
     return AvroSchemaUtil.convert(partitionType, PartitionData.class.getName());
   }
