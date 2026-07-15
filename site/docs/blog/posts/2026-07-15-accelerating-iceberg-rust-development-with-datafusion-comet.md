@@ -1,5 +1,5 @@
 ---
-date: 2026-07-14
+date: 2026-07-15
 title: Accelerating Apache Spark Queries (and Iceberg Rust Development) with Apache DataFusion Comet
 slug: accelerating-iceberg-rust-development-with-datafusion-comet  # this is the blog url
 authors:
@@ -80,7 +80,7 @@ Comet's JVM code runs as one final optimizer rule to convert Spark plan nodes to
 These Comet plan nodes have a superpower: they execute in DataFusion's Rust engine over columnar Arrow
 data.
 
-<figure markdown="span">![Comet converts a Spark physical plan into an equivalent DataFusion physical plan](../../assets/images/2026-07-14-comet-plan-translation.png){ width="750" }<figcaption>Comet converts a Spark physical plan into an equivalent DataFusion physical plan.</figcaption></figure>
+<figure markdown="span">![Comet converts a Spark physical plan into an equivalent DataFusion physical plan](../../assets/images/2026-07-15-comet-plan-translation.png){ width="750" }<figcaption>Comet converts a Spark physical plan into an equivalent DataFusion physical plan.</figcaption></figure>
 
 So how does Comet use *both* Iceberg libraries to accelerate Spark queries over Iceberg tables?
 As previously mentioned, Iceberg provides robust integrations with Spark, enabling users to query
@@ -100,7 +100,7 @@ has its own `FileScanTask`, so Comet uses it as the common abstraction between t
 takes the `FileScanTask` objects that Iceberg Java produced and hands them to Iceberg Rust, which
 reads the described files into the in-memory Arrow batches that feed the rest of the plan.
 
-<figure markdown="span">![Comet translates Iceberg Java's FileScanTask objects into Iceberg Rust's FileScanTask objects](../../assets/images/2026-07-14-comet-task-translation.png){ width="750" }<figcaption>Comet translates Iceberg Java's <code>FileScanTask</code> objects into Iceberg Rust's <code>FileScanTask</code> objects.</figcaption></figure>
+<figure markdown="span">![Comet translates Iceberg Java's FileScanTask objects into Iceberg Rust's FileScanTask objects](../../assets/images/2026-07-15-comet-task-translation.png){ width="750" }<figcaption>Comet translates Iceberg Java's <code>FileScanTask</code> objects into Iceberg Rust's <code>FileScanTask</code> objects.</figcaption></figure>
 
 To measure Comet's impact on real workloads, the AWS Data on EKS team benchmarked Comet against
 Spark alone on the TPC-DS 3 TB workload over Iceberg tables. Comet completed the suite roughly
@@ -109,7 +109,7 @@ a single query regressing. See the
 [full benchmark writeup](https://awslabs.github.io/data-on-eks/docs/benchmarks/spark-datafusion-comet-benchmark)
 for the complete methodology and per-query results.
 
-<figure markdown="span">![TPC-DS 3 TB on Iceberg: Spark with Comet completes in 2803.8s versus 4665.47s for Spark with Iceberg](../../assets/images/2026-07-14-comet-tpcds.png){ width="500" }<figcaption>TPC-DS 3 TB (Iceberg) on AWS EKS: Spark with Comet completes the suite ~40% faster.</figcaption></figure> 
+<figure markdown="span">![TPC-DS 3 TB on Iceberg: Spark with Comet completes in 2803.8s versus 4665.47s for Spark with Iceberg](../../assets/images/2026-07-15-comet-tpcds.png){ width="500" }<figcaption>TPC-DS 3 TB (Iceberg) on AWS EKS: Spark with Comet completes the suite ~40% faster.</figcaption></figure> 
 
 Raw speed only matters if the answers are correct. Comet prioritizes correctness and compatibility
 with the libraries it accelerates. In addition to its own exhaustive test suites, Comet goes
@@ -143,7 +143,7 @@ they become the system under test. Running them side by side is a form of differ
 query that Comet executes natively should return exactly what Spark returns on its own, and any
 difference points to a gap in Iceberg Rust or in Comet's translation between the two libraries.
 
-<figure markdown="span">![Differential testing: shared Iceberg Java planning feeds both Spark's JVM execution and Comet's native execution, and their results are compared](../../assets/images/2026-07-14-comet-differential-testing.png){ width="750" }<figcaption>Planning is held constant while execution varies: Spark's JVM path is the trusted oracle, Comet's native path (via Iceberg Rust) is the system under test, and any difference in results flags a gap.</figcaption></figure>
+<figure markdown="span">![Differential testing: shared Iceberg Java planning feeds both Spark's JVM execution and Comet's native execution, and their results are compared](../../assets/images/2026-07-15-comet-differential-testing.png){ width="750" }<figcaption>Planning is held constant while execution varies: Spark's JVM path is the trusted oracle, Comet's native path (via Iceberg Rust) is the system under test, and any difference in results flags a gap.</figcaption></figure>
 
 Comet's fallback behavior is what makes this practical. By default, Comet falls back to Iceberg Java
 whenever it encounters a feature that Iceberg Rust cannot yet handle. Relaxing a fallback forces the
@@ -153,7 +153,7 @@ runs the tests that exercise the feature, inspects what the Java planner produce
 whatever Iceberg Rust is missing to match it, wires up any new plan-conversion logic Comet needs, and
 re-runs the suite to confirm the native path now passes.
 
-<figure markdown="span">![The development loop: relax a Comet fallback, run Iceberg Java's tests, characterize the failures, implement the fix in Iceberg Rust, wire up plan conversion in Comet, and re-run to confirm](../../assets/images/2026-07-14-comet-tdd-loop.png){ width="500" }<figcaption>Relaxing a fallback turns Iceberg Java's Spark tests into a test-driven development loop for both Iceberg Rust and Comet.</figcaption></figure>
+<figure markdown="span">![The development loop: relax a Comet fallback, run Iceberg Java's tests, characterize the failures, implement the fix in Iceberg Rust, wire up plan conversion in Comet, and re-run to confirm](../../assets/images/2026-07-15-comet-tdd-loop.png){ width="500" }<figcaption>Relaxing a fallback turns Iceberg Java's Spark tests into a test-driven development loop for both Iceberg Rust and Comet.</figcaption></figure>
 
 The first iterations are noisy. Early on, a single test run could produce hundreds of failures
 buried in enormous logs. To make that tractable, contributors have leaned on AI assistants to digest
