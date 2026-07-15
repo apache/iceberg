@@ -591,6 +591,10 @@ public class Types {
 
     private GeometryType(String crs) {
       Preconditions.checkArgument(crs == null || !crs.isEmpty(), "Invalid CRS: (empty string)");
+      // The type serializes as geometry(<crs>) and parses the CRS as everything up to the closing
+      // paren, so a CRS containing ')' would not round-trip through the type string.
+      Preconditions.checkArgument(
+          crs == null || crs.indexOf(')') < 0, "Invalid CRS, cannot contain ')': %s", crs);
       // an omitted CRS canonicalizes to the default; a provided value is kept as-is (case
       // preserved)
       this.crs = crs == null ? DEFAULT_CRS : crs;
@@ -663,6 +667,12 @@ public class Types {
 
     private GeographyType(String crs, EdgeAlgorithm algorithm) {
       Preconditions.checkArgument(crs == null || !crs.isEmpty(), "Invalid CRS: (empty string)");
+      // The type serializes as geography(<crs>, <algorithm>) and parses the CRS as everything up to
+      // the ',' or closing paren, so a CRS containing ',' or ')' would not round-trip.
+      Preconditions.checkArgument(
+          crs == null || (crs.indexOf(',') < 0 && crs.indexOf(')') < 0),
+          "Invalid CRS, cannot contain ',' or ')': %s",
+          crs);
       // an omitted CRS/algorithm canonicalizes to the default; a provided CRS is kept as-is (case
       // preserved)
       this.crs = crs == null ? DEFAULT_CRS : crs;

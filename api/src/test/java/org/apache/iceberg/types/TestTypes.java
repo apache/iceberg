@@ -216,6 +216,31 @@ public class TestTypes {
   }
 
   @Test
+  public void testGeospatialCrsRejectsUnrepresentableCharacters() {
+    // The type string is geometry(<crs>) / geography(<crs>, <algorithm>) and the parser reads the
+    // CRS up to ')' (geometry) or ',' / ')' (geography). A CRS containing those delimiters could
+    // not round-trip through the type string, so it is rejected at construction rather than
+    // silently truncated on parse.
+    assertThatExceptionOfType(IllegalArgumentException.class)
+        .isThrownBy(() -> Types.GeometryType.of("foo)bar"))
+        .withMessageContaining("Invalid CRS, cannot contain ')'");
+    assertThatExceptionOfType(IllegalArgumentException.class)
+        .isThrownBy(() -> Types.GeographyType.of("foo)bar"))
+        .withMessageContaining("Invalid CRS, cannot contain ',' or ')'");
+    assertThatExceptionOfType(IllegalArgumentException.class)
+        .isThrownBy(() -> Types.GeographyType.of("foo,bar"))
+        .withMessageContaining("Invalid CRS, cannot contain ',' or ')'");
+    assertThatExceptionOfType(IllegalArgumentException.class)
+        .isThrownBy(() -> Types.GeographyType.of("foo,bar", EdgeAlgorithm.KARNEY))
+        .withMessageContaining("Invalid CRS, cannot contain ',' or ')'");
+
+    // A geometry CRS may still contain a comma: geometry has no ',' delimiter in its type string.
+    assertThat(Types.GeometryType.of("foo,bar").toString()).isEqualTo("geometry(foo,bar)");
+    assertThat(Types.fromPrimitiveString(Types.GeometryType.of("foo,bar").toString()))
+        .isEqualTo(Types.GeometryType.of("foo,bar"));
+  }
+
+  @Test
   public void testNestedFieldBuilderIdCheck() {
     assertThatExceptionOfType(NullPointerException.class)
         .isThrownBy(() -> optional("field").ofType(Types.StringType.get()).build())
