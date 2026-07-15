@@ -193,14 +193,7 @@ class Coordinator extends Channel {
   }
 
   private static boolean isCommitFailedException(Throwable throwable) {
-    Throwable current = throwable;
-    while (current != null) {
-      if (current instanceof CommitFailedException) {
-        return true;
-      }
-      current = current.getCause();
-    }
-    return false;
+    return throwable instanceof CommitFailedException;
   }
 
   private void doCommit(boolean partialCommit) {

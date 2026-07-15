@@ -257,7 +257,7 @@ public class TestCoordinator extends ChannelTestBase {
   }
 
   @Test
-  public void testCommitFailedExceptionCauseChainWithMultipleThreads() {
+  public void testCommitBoundedRetryWithMultipleThreads() {
     when(config.commitMaxConsecutiveFailures()).thenReturn(2);
     when(config.commitThreads()).thenReturn(2);
     when(config.commitIntervalMs()).thenReturn(0);
@@ -265,10 +265,7 @@ public class TestCoordinator extends ChannelTestBase {
 
     Table spiedTable = spy(table);
     AppendFiles spiedAppend = spy(table.newAppend());
-    // Wrap CommitFailedException as a cause — proves the cause-chain walk finds it
-    doThrow(new RuntimeException("wrapped", new CommitFailedException("concurrent update")))
-        .when(spiedAppend)
-        .commit();
+    doThrow(new CommitFailedException("concurrent update")).when(spiedAppend).commit();
     when(spiedTable.newAppend()).thenReturn(spiedAppend);
     when(catalog.loadTable(TABLE_IDENTIFIER)).thenReturn(spiedTable);
 
@@ -278,13 +275,13 @@ public class TestCoordinator extends ChannelTestBase {
     coordinator.start();
     initConsumer();
 
-    // first failure is retried (cause-chain walk found CommitFailedException)
+    // first failure is retried
     triggerCommitCycle(coordinator);
 
     // second consecutive failure terminates
     assertThatThrownBy(() -> triggerCommitCycle(coordinator))
-        .isInstanceOf(RuntimeException.class)
-        .hasMessageContaining("wrapped");
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessageContaining("concurrent update");
   }
 
   private long nextOffset = 1;

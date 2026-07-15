@@ -243,6 +243,7 @@ public class IcebergSinkConfig extends AbstractConfig {
         COMMIT_MAX_CONSECUTIVE_FAILURES_PROP,
         ConfigDef.Type.INT,
         COMMIT_MAX_CONSECUTIVE_FAILURES_DEFAULT,
+        ConfigDef.Range.atLeast(1),
         Importance.MEDIUM,
         "Maximum number of consecutive commit failures before the coordinator terminates");
     return configDef;
