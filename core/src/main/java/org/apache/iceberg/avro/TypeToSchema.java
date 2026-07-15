@@ -43,37 +43,55 @@ abstract class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
   private static final Schema TIME_SCHEMA =
       LogicalTypes.timeMicros().addToSchema(Schema.create(Schema.Type.LONG));
   private static final Schema TIMESTAMP_SCHEMA =
-      LogicalTypes.timestampMicros().addToSchema(Schema.create(Schema.Type.LONG));
+      LogicalTypes.localTimestampMicros().addToSchema(Schema.create(Schema.Type.LONG));
   private static final Schema TIMESTAMPTZ_SCHEMA =
       LogicalTypes.timestampMicros().addToSchema(Schema.create(Schema.Type.LONG));
   private static final Schema TIMESTAMP_NANO_SCHEMA =
-      LogicalTypes.timestampNanos().addToSchema(Schema.create(Schema.Type.LONG));
+      LogicalTypes.localTimestampNanos().addToSchema(Schema.create(Schema.Type.LONG));
   private static final Schema TIMESTAMPTZ_NANO_SCHEMA =
       LogicalTypes.timestampNanos().addToSchema(Schema.create(Schema.Type.LONG));
-  private static final Schema LOCAL_TIMESTAMP_SCHEMA =
-      LogicalTypes.localTimestampMicros().addToSchema(Schema.create(Schema.Type.LONG));
-  private static final Schema LOCAL_TIMESTAMP_NANO_SCHEMA =
-      LogicalTypes.localTimestampNanos().addToSchema(Schema.create(Schema.Type.LONG));
   private static final Schema STRING_SCHEMA = Schema.create(Schema.Type.STRING);
   private static final Schema UUID_SCHEMA =
       LogicalTypes.uuid().addToSchema(Schema.createFixed("uuid_fixed", null, null, 16));
   private static final Schema BINARY_SCHEMA = Schema.create(Schema.Type.BYTES);
 
+  private static final Schema LEGACY_TIMESTAMP_SCHEMA =
+      LogicalTypes.timestampMicros().addToSchema(Schema.create(Schema.Type.LONG));
+  private static final Schema LEGACY_TIMESTAMPTZ_SCHEMA =
+      LogicalTypes.timestampMicros().addToSchema(Schema.create(Schema.Type.LONG));
+  private static final Schema LEGACY_TIMESTAMP_NANO_SCHEMA =
+      LogicalTypes.timestampNanos().addToSchema(Schema.create(Schema.Type.LONG));
+  private static final Schema LEGACY_TIMESTAMPTZ_NANO_SCHEMA =
+      LogicalTypes.timestampNanos().addToSchema(Schema.create(Schema.Type.LONG));
+
   static {
-    TIMESTAMP_SCHEMA.addProp(AvroSchemaUtil.ADJUST_TO_UTC_PROP, false);
-    TIMESTAMPTZ_SCHEMA.addProp(AvroSchemaUtil.ADJUST_TO_UTC_PROP, true);
-    TIMESTAMP_NANO_SCHEMA.addProp(AvroSchemaUtil.ADJUST_TO_UTC_PROP, false);
-    TIMESTAMPTZ_NANO_SCHEMA.addProp(AvroSchemaUtil.ADJUST_TO_UTC_PROP, true);
+    LEGACY_TIMESTAMP_SCHEMA.addProp(AvroSchemaUtil.ADJUST_TO_UTC_PROP, false);
+    LEGACY_TIMESTAMPTZ_SCHEMA.addProp(AvroSchemaUtil.ADJUST_TO_UTC_PROP, true);
+    LEGACY_TIMESTAMP_NANO_SCHEMA.addProp(AvroSchemaUtil.ADJUST_TO_UTC_PROP, false);
+    LEGACY_TIMESTAMPTZ_NANO_SCHEMA.addProp(AvroSchemaUtil.ADJUST_TO_UTC_PROP, true);
   }
 
   private final Deque<Integer> fieldIds = Lists.newLinkedList();
   private final BiFunction<Integer, Types.StructType, String> namesFunction;
-  private final boolean legacyTimestampMapping;
+  private final Schema timestampSchema;
+  private final Schema timestampTzSchema;
+  private final Schema timestampNanoSchema;
+  private final Schema timestampTzNanoSchema;
 
   TypeToSchema(
       BiFunction<Integer, Types.StructType, String> namesFunction, boolean legacyTimestampMapping) {
     this.namesFunction = namesFunction;
-    this.legacyTimestampMapping = legacyTimestampMapping;
+    if (legacyTimestampMapping) {
+      timestampSchema = LEGACY_TIMESTAMP_SCHEMA;
+      timestampTzSchema = LEGACY_TIMESTAMPTZ_SCHEMA;
+      timestampNanoSchema = LEGACY_TIMESTAMP_NANO_SCHEMA;
+      timestampTzNanoSchema = LEGACY_TIMESTAMPTZ_NANO_SCHEMA;
+    } else {
+      timestampSchema = TIMESTAMP_SCHEMA;
+      timestampTzSchema = TIMESTAMPTZ_SCHEMA;
+      timestampNanoSchema = TIMESTAMP_NANO_SCHEMA;
+      timestampTzNanoSchema = TIMESTAMPTZ_NANO_SCHEMA;
+    }
   }
 
   @Override
@@ -246,20 +264,16 @@ abstract class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
         break;
       case TIMESTAMP:
         if (((Types.TimestampType) primitive).shouldAdjustToUTC()) {
-          primitiveSchema = TIMESTAMPTZ_SCHEMA;
-        } else if (legacyTimestampMapping) {
-          primitiveSchema = TIMESTAMP_SCHEMA;
+          primitiveSchema = timestampTzSchema;
         } else {
-          primitiveSchema = LOCAL_TIMESTAMP_SCHEMA;
+          primitiveSchema = timestampSchema;
         }
         break;
       case TIMESTAMP_NANO:
         if (((Types.TimestampNanoType) primitive).shouldAdjustToUTC()) {
-          primitiveSchema = TIMESTAMPTZ_NANO_SCHEMA;
-        } else if (legacyTimestampMapping) {
-          primitiveSchema = TIMESTAMP_NANO_SCHEMA;
+          primitiveSchema = timestampTzNanoSchema;
         } else {
-          primitiveSchema = LOCAL_TIMESTAMP_NANO_SCHEMA;
+          primitiveSchema = timestampNanoSchema;
         }
         break;
       case STRING:
