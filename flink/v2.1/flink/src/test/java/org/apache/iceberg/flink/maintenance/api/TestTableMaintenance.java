@@ -351,6 +351,49 @@ class TestTableMaintenance extends OperatorTestBase {
   }
 
   @Test
+  void testUidSuffixUserProvidedIsUsedAsIs() throws IOException {
+    TableMaintenance.forChangeStream(
+            new ManualSource<>(env, TypeInformation.of(TableChange.class)).dataStream(),
+            tableLoader(),
+            LOCK_FACTORY)
+        .uidSuffix(UID_SUFFIX)
+        .add(new MaintenanceTaskBuilderForTest(true).scheduleOnCommitCount(1))
+        .append();
+
+    String tableName = table.name();
+    Transformation<?> triggerManager =
+        env.getTransformations().stream()
+            .filter(t -> t.getName().equals(TRIGGER_MANAGER_OPERATOR_NAME))
+            .findFirst()
+            .orElseThrow();
+    assertThat(triggerManager.getUid())
+        .isEqualTo(TRIGGER_MANAGER_OPERATOR_NAME + UID_SUFFIX)
+        .doesNotContain(tableName);
+  }
+
+  @Test
+  void testUidSuffixDefaultContainsTableNameAndTaskNames() throws IOException {
+    TableMaintenance.forChangeStream(
+            new ManualSource<>(env, TypeInformation.of(TableChange.class)).dataStream(),
+            tableLoader(),
+            LOCK_FACTORY)
+        .add(new MaintenanceTaskBuilderForTest(true).scheduleOnCommitCount(1))
+        .add(new MaintenanceTaskBuilderForTest(false).scheduleOnCommitCount(2))
+        .append();
+
+    String tableName = table.name();
+    String expectedSuffix =
+        "TableMaintenance-" + tableName + "-" + MAINTENANCE_TASK_NAME + "_" + MAINTENANCE_TASK_NAME;
+
+    Transformation<?> triggerManager =
+        env.getTransformations().stream()
+            .filter(t -> t.getName().equals(TRIGGER_MANAGER_OPERATOR_NAME))
+            .findFirst()
+            .orElseThrow();
+    assertThat(triggerManager.getUid()).isEqualTo(TRIGGER_MANAGER_OPERATOR_NAME + expectedSuffix);
+  }
+
+  @Test
   void testMonitorRatePerSecond() {
     // Sub-second rate limits must not yield infinite (unthrottled) monitor rates.
     assertThat(TableMaintenance.Builder.monitorRatePerSecond(50)).isEqualTo(20.0);
