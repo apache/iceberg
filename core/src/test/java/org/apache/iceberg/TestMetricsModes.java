@@ -87,7 +87,7 @@ public class TestMetricsModes {
             TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "col",
             "troncate(5)");
 
-    MetricsConfig config = MetricsConfig.fromProperties(properties);
+    MetricsConfig config = MetricsConfig.from(properties, null, null);
     assertThat(config.columnMode("col"))
         .as("Invalid mode should be defaulted to table default (full)")
         .isEqualTo(MetricsModes.Full.get());
@@ -102,7 +102,7 @@ public class TestMetricsModes {
             TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "col",
             "troncate(5)");
 
-    MetricsConfig config = MetricsConfig.fromProperties(properties);
+    MetricsConfig config = MetricsConfig.from(properties, null, null);
     assertThat(config.columnMode("col"))
         .as("Invalid mode should be defaulted to library default (truncate(16))")
         .isEqualTo(MetricsModes.Truncate.withLength(16));

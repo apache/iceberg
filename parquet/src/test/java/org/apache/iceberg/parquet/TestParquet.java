@@ -20,7 +20,11 @@ package org.apache.iceberg.parquet;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.apache.iceberg.Files.localInput;
+import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_ADAPTIVE_ENABLED;
+import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX;
+import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_MAX_BYTES;
 import static org.apache.iceberg.TableProperties.PARQUET_COLUMN_STATS_ENABLED_PREFIX;
+import static org.apache.iceberg.TableProperties.PARQUET_DICT_ENCODING_ENABLED_COLUMN_PREFIX;
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_CHECK_MAX_RECORD_COUNT;
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_CHECK_MIN_RECORD_COUNT;
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES;
@@ -69,6 +73,7 @@ import org.apache.iceberg.types.Types.IntegerType;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.variants.Variant;
 import org.apache.parquet.avro.AvroParquetWriter;
+import org.apache.parquet.column.Encoding;
 import org.apache.parquet.column.statistics.Statistics;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.ParquetWriter;
@@ -283,6 +288,219 @@ public class TestParquet {
   }
 
   @Test
+  public void testGeospatialFooterMetricsSkipParquetBounds() throws IOException {
+    Schema binarySchema = new Schema(optional(1, "geom", Types.BinaryType.get()));
+    Schema geometrySchema = new Schema(optional(1, "geom", Types.GeometryType.crs84()));
+    Schema geographySchema = new Schema(optional(1, "geom", Types.GeographyType.crs84()));
+
+    File file = createTempFile(temp);
+    org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(binarySchema.asStruct());
+    GenericData.Record first = new GenericData.Record(avroSchema);
+    first.put("geom", ByteBuffer.wrap(new byte[] {0x01, 0x02, 0x03}));
+    GenericData.Record second = new GenericData.Record(avroSchema);
+    second.put("geom", ByteBuffer.wrap(new byte[] {0x04, 0x05, 0x06}));
+
+    write(
+        file, binarySchema, Collections.emptyMap(), ParquetAvroWriter::buildWriter, first, second);
+
+    InputFile inputFile = Files.localInput(file);
+    try (ParquetFileReader reader = ParquetFileReader.open(ParquetIO.file(inputFile))) {
+      Metrics geometryMetrics =
+          ParquetMetrics.metrics(
+              geometrySchema,
+              reader.getFooter().getFileMetaData().getSchema(),
+              MetricsConfig.getDefault(),
+              reader.getFooter(),
+              Stream.empty());
+
+      Metrics geographyMetrics =
+          ParquetMetrics.metrics(
+              geographySchema,
+              reader.getFooter().getFileMetaData().getSchema(),
+              MetricsConfig.getDefault(),
+              reader.getFooter(),
+              Stream.empty());
+
+      assertThat(geometryMetrics.valueCounts()).containsEntry(1, 2L);
+      assertThat(geometryMetrics.nullValueCounts()).containsEntry(1, 0L);
+      assertThat(geometryMetrics.lowerBounds()).doesNotContainKey(1);
+      assertThat(geometryMetrics.upperBounds()).doesNotContainKey(1);
+
+      assertThat(geographyMetrics.valueCounts()).containsEntry(1, 2L);
+      assertThat(geographyMetrics.nullValueCounts()).containsEntry(1, 0L);
+      assertThat(geographyMetrics.lowerBounds()).doesNotContainKey(1);
+      assertThat(geographyMetrics.upperBounds()).doesNotContainKey(1);
+    }
+  }
+
+  @Test
+  public void testPerColumnDictionaryEncoding() throws Exception {
+    Schema schema =
+        new Schema(
+            optional(1, "category", Types.StringType.get()),
+            optional(2, "region", Types.StringType.get()));
+
+    File file = createTempFile(temp);
+
+    List<GenericData.Record> records = Lists.newArrayListWithCapacity(100);
+    org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(schema.asStruct());
+    for (int i = 0; i < 100; i++) {
+      GenericData.Record record = new GenericData.Record(avroSchema);
+      record.put("category", "cat_" + (i % 5));
+      record.put("region", "region_" + (i % 3));
+      records.add(record);
+    }
+
+    write(
+        file,
+        schema,
+        ImmutableMap.<String, String>builder()
+            .put(PARQUET_DICT_ENCODING_ENABLED_COLUMN_PREFIX + "category", "false")
+            .buildOrThrow(),
+        ParquetAvroWriter::buildWriter,
+        records.toArray(new GenericData.Record[] {}));
+
+    try (ParquetFileReader reader =
+        ParquetFileReader.open(ParquetIO.file(Files.localInput(file)))) {
+      for (BlockMetaData block : reader.getFooter().getBlocks()) {
+        for (ColumnChunkMetaData column : block.getColumns()) {
+          boolean usesDictionary =
+              column.getEncodings().stream().anyMatch(Encoding::usesDictionary);
+          if (column.getPath().toDotString().equals("category")) {
+            assertThat(usesDictionary).as("category dictionary disabled").isFalse();
+          } else if (column.getPath().toDotString().equals("region")) {
+            assertThat(usesDictionary).as("region uses global default").isTrue();
+          }
+        }
+      }
+    }
+  }
+
+  @Test
+  public void testPerColumnDictionaryEncodingNestedField() throws Exception {
+    // Iceberg names list elements as "<list>.element", but Parquet's 3-level encoding
+    // names the same column "<list>.list.element". The per-column setter must accept the
+    // Iceberg name and resolve it to the Parquet path internally.
+    Schema schema =
+        new Schema(
+            optional(1, "id", Types.IntegerType.get()),
+            optional(2, "tags", Types.ListType.ofRequired(3, Types.StringType.get())));
+
+    File file = createTempFile(temp);
+
+    org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(schema.asStruct());
+    try (FileAppender<GenericData.Record> writer =
+        Parquet.write(Files.localOutput(file))
+            .schema(schema)
+            .withDictionaryEncoding("tags.element", false)
+            .createWriterFunc(ParquetAvroWriter::buildWriter)
+            .build()) {
+      for (int i = 0; i < 100; i++) {
+        GenericData.Record record = new GenericData.Record(avroSchema);
+        record.put("id", i % 5);
+        record.put("tags", Collections.singletonList("tag_" + (i % 5)));
+        writer.add(record);
+      }
+    }
+
+    try (ParquetFileReader reader =
+        ParquetFileReader.open(ParquetIO.file(Files.localInput(file)))) {
+      for (BlockMetaData block : reader.getFooter().getBlocks()) {
+        for (ColumnChunkMetaData column : block.getColumns()) {
+          boolean usesDictionary =
+              column.getEncodings().stream().anyMatch(Encoding::usesDictionary);
+          if (column.getPath().toDotString().equals("tags.list.element")) {
+            assertThat(usesDictionary).as("tags element dictionary disabled").isFalse();
+          } else if (column.getPath().toDotString().equals("id")) {
+            assertThat(usesDictionary).as("id uses global default").isTrue();
+          }
+        }
+      }
+    }
+  }
+
+  @Test
+  public void testPerColumnDictionaryEncodingViaBuilder() throws Exception {
+    Schema schema =
+        new Schema(
+            optional(1, "category", Types.StringType.get()),
+            optional(2, "region", Types.StringType.get()));
+
+    File file = createTempFile(temp);
+
+    org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(schema.asStruct());
+    try (FileAppender<GenericData.Record> writer =
+        Parquet.write(Files.localOutput(file))
+            .schema(schema)
+            .withDictionaryEncoding("category", false)
+            .createWriterFunc(ParquetAvroWriter::buildWriter)
+            .build()) {
+      for (int i = 0; i < 100; i++) {
+        GenericData.Record record = new GenericData.Record(avroSchema);
+        record.put("category", "cat_" + (i % 5));
+        record.put("region", "region_" + (i % 3));
+        writer.add(record);
+      }
+    }
+
+    try (ParquetFileReader reader =
+        ParquetFileReader.open(ParquetIO.file(Files.localInput(file)))) {
+      for (BlockMetaData block : reader.getFooter().getBlocks()) {
+        for (ColumnChunkMetaData column : block.getColumns()) {
+          boolean usesDictionary =
+              column.getEncodings().stream().anyMatch(Encoding::usesDictionary);
+          if (column.getPath().toDotString().equals("category")) {
+            assertThat(usesDictionary).as("category dictionary disabled").isFalse();
+          } else if (column.getPath().toDotString().equals("region")) {
+            assertThat(usesDictionary).as("region uses global default").isTrue();
+          }
+        }
+      }
+    }
+  }
+
+  @Test
+  public void testPerColumnDictionaryEncodingForNonExistentColumnIsIgnored() throws Exception {
+    Schema schema =
+        new Schema(
+            optional(1, "category", Types.StringType.get()),
+            optional(2, "region", Types.StringType.get()));
+
+    File file = createTempFile(temp);
+
+    List<GenericData.Record> records = Lists.newArrayListWithCapacity(100);
+    org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(schema.asStruct());
+    for (int i = 0; i < 100; i++) {
+      GenericData.Record record = new GenericData.Record(avroSchema);
+      record.put("category", "cat_" + (i % 5));
+      record.put("region", "region_" + (i % 3));
+      records.add(record);
+    }
+
+    write(
+        file,
+        schema,
+        ImmutableMap.<String, String>builder()
+            .put(PARQUET_DICT_ENCODING_ENABLED_COLUMN_PREFIX + "non_existent_field", "false")
+            .buildOrThrow(),
+        ParquetAvroWriter::buildWriter,
+        records.toArray(new GenericData.Record[] {}));
+
+    try (ParquetFileReader reader =
+        ParquetFileReader.open(ParquetIO.file(Files.localInput(file)))) {
+      for (BlockMetaData block : reader.getFooter().getBlocks()) {
+        for (ColumnChunkMetaData column : block.getColumns()) {
+          boolean usesDictionary =
+              column.getEncodings().stream().anyMatch(Encoding::usesDictionary);
+          assertThat(usesDictionary)
+              .as("column %s uses global default", column.getPath().toDotString())
+              .isTrue();
+        }
+      }
+    }
+  }
+
+  @Test
   public void testFooterMetricsWithNameMappingForFileWithoutIds() throws IOException {
     Schema schemaWithIds =
         new Schema(
@@ -345,6 +563,52 @@ public class TestParquet {
     assertThatThrownBy(() -> ParquetAvroWriter.buildWriter(schema))
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessage("Avro writer does not support variant types");
+  }
+
+  @Test
+  public void adaptiveBloomFilterSizingShrinksFile() throws IOException {
+    // when PARQUET_BLOOM_FILTER_ADAPTIVE_ENABLED is not set (the default), the writer
+    // allocates the full PARQUET_BLOOM_FILTER_MAX_BYTES buffer (4 MiB here) regardless
+    // of the number of distinct values written
+    long sizeWithoutAdaptive = writeWithBloomFilter(null);
+    assertThat(sizeWithoutAdaptive)
+        .as("non-adaptive file should pad the bloom filter to PARQUET_BLOOM_FILTER_MAX_BYTES")
+        .isGreaterThan(3_500_000L);
+
+    // with PARQUET_BLOOM_FILTER_ADAPTIVE_ENABLED, the writer picks the smallest candidate
+    // bloom filter that satisfies the actual number of distinct values (5) at the
+    // configured FPP
+    long sizeWithAdaptive = writeWithBloomFilter(true);
+    assertThat(sizeWithAdaptive)
+        .as("adaptive file should be at least 2x smaller than the non-adaptive file")
+        .isLessThan(sizeWithoutAdaptive / 2);
+  }
+
+  private long writeWithBloomFilter(Boolean adaptiveEnabled) throws IOException {
+    Schema schema = new Schema(required(1, "id", Types.LongType.get()));
+
+    ImmutableMap.Builder<String, String> propsBuilder =
+        ImmutableMap.<String, String>builder()
+            .put(PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "id", "true")
+            .put(PARQUET_BLOOM_FILTER_MAX_BYTES, "4194304");
+    if (adaptiveEnabled != null) {
+      propsBuilder.put(PARQUET_BLOOM_FILTER_ADAPTIVE_ENABLED, adaptiveEnabled.toString());
+    }
+
+    List<GenericData.Record> records = Lists.newArrayListWithCapacity(5);
+    org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(schema.asStruct());
+    for (long i = 0; i < 5; i++) {
+      GenericData.Record record = new GenericData.Record(avroSchema);
+      record.put("id", i);
+      records.add(record);
+    }
+
+    return write(
+        createTempFile(temp),
+        schema,
+        propsBuilder.buildOrThrow(),
+        ParquetAvroWriter::buildWriter,
+        records.toArray(new GenericData.Record[] {}));
   }
 
   private Pair<File, Long> generateFile(

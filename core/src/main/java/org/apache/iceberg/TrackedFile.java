@@ -35,6 +35,9 @@ interface TrackedFile {
           "content_type",
           Types.IntegerType.get(),
           "Type of content: 0=DATA, 2=EQUALITY_DELETES, 3=DATA_MANIFEST, 4=DELETE_MANIFEST");
+  Types.NestedField FORMAT_VERSION =
+      Types.NestedField.required(
+          157, "format_version", Types.IntegerType.get(), "Format version of this file");
   Types.NestedField LOCATION =
       Types.NestedField.required(100, "location", Types.StringType.get(), "Location of the file");
   Types.NestedField FILE_FORMAT =
@@ -97,12 +100,13 @@ interface TrackedFile {
     return Types.StructType.of(
         TRACKING,
         CONTENT_TYPE,
+        FORMAT_VERSION,
         LOCATION,
         FILE_FORMAT,
         RECORD_COUNT,
         FILE_SIZE_IN_BYTES,
         SPEC_ID,
-        Types.NestedField.required(PARTITION_ID, PARTITION_NAME, partitionType, PARTITION_DOC),
+        Types.NestedField.optional(PARTITION_ID, PARTITION_NAME, partitionType, PARTITION_DOC),
         Types.NestedField.optional(
             CONTENT_STATS_ID, CONTENT_STATS_NAME, contentStatsType, CONTENT_STATS_DOC),
         SORT_ORDER_ID,
@@ -119,6 +123,9 @@ interface TrackedFile {
   /** Returns the type of content stored by this entry. */
   FileContent contentType();
 
+  /** Returns the format version of this file. */
+  int formatVersion();
+
   /** Returns the location of the file. */
   String location();
 
@@ -134,7 +141,7 @@ interface TrackedFile {
   /** Returns the ID of the partition spec used to partition this file, or null. */
   Integer specId();
 
-  /** Returns partition for this file as a {@link StructLike}. */
+  /** Returns partition for this file as a {@link StructLike}, or null. */
   StructLike partition();
 
   /** Returns the content stats for this entry. */
