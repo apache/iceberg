@@ -196,14 +196,14 @@ class SchemaToType extends AvroSchemaVisitor<Type> {
 
     } else if (logical instanceof LogicalTypes.TimestampMillis
         || logical instanceof LogicalTypes.TimestampMicros) {
-      if (!legacyTimestampMapping || AvroSchemaUtil.isTimestamptz(primitive)) {
+      if (AvroSchemaUtil.isTimestamptz(primitive, legacyTimestampMapping)) {
         return Types.TimestampType.withZone();
       } else {
         return Types.TimestampType.withoutZone();
       }
 
     } else if (logical instanceof LogicalTypes.TimestampNanos) {
-      if (!legacyTimestampMapping || AvroSchemaUtil.isTimestamptz(primitive)) {
+      if (AvroSchemaUtil.isTimestamptz(primitive, legacyTimestampMapping)) {
         return Types.TimestampNanoType.withZone();
       } else {
         return Types.TimestampNanoType.withoutZone();
