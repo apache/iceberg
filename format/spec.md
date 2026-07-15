@@ -678,11 +678,9 @@ A manifest file must store the partition spec and other metadata as properties i
 
 Within a snapshot, each content file may be referenced by at most one manifest entry across all manifests. A snapshot in which more than one entry references the same content file has undefined behavior. Writers are not required to validate uniqueness at commit time.
 
-The schema of a manifest file is defined by the `manifest_entry` struct, described in the following section.
-
 #### Manifest Entry Fields
 
-The `manifest_entry` struct consists of the following fields:
+The schema of a manifest file is defined by the `manifest_entry` struct, which consists of the following fields:
 
 === "v1 - v3"
     | v1         | v2 and v3  | Field id, name                | Type                                                      | Description |
