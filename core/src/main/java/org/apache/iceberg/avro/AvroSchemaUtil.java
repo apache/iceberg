@@ -195,6 +195,10 @@ public class AvroSchemaUtil {
   }
 
   public static boolean isTimestamptz(Schema schema) {
+    return isTimestamptz(schema, true);
+  }
+
+  public static boolean isTimestamptz(Schema schema, boolean legacyTimestampMapping) {
     LogicalType logicalType = schema.getLogicalType();
     if (logicalType instanceof LogicalTypes.TimestampMillis
         || logicalType instanceof LogicalTypes.TimestampMicros
@@ -204,8 +208,9 @@ public class AvroSchemaUtil {
 
       if (value == null) {
         // not all avro timestamp logical types will have the adjust_to_utc prop, default to
-        // timestamp without timezone
-        return false;
+        // timestamp with timezone if local-timestamp-* types are supported, and
+        // timestamp without timezone otherwise.
+        return !legacyTimestampMapping;
       } else if (value instanceof Boolean) {
         return (Boolean) value;
       } else if (value instanceof String) {
