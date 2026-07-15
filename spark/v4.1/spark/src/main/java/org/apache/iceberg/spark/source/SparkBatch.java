@@ -42,6 +42,7 @@ import org.apache.iceberg.spark.OrcBatchReadConf;
 import org.apache.iceberg.spark.ParquetBatchReadConf;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkUtil;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.spark.api.java.JavaSparkContext;
@@ -153,7 +154,8 @@ class SparkBatch implements Batch {
 
   // conditions for using Parquet batch reads:
   // - Parquet vectorization is enabled
-  // - only primitives, unshredded variant, or metadata columns are projected
+  // - only primitives, unshredded variant, or metadata columns are projected, excluding geometry
+  //   and geography which are primitives with no Arrow vector yet
   // - all tasks are of FileScanTask type and read only Parquet files
   private boolean useParquetBatchReads() {
     return readConf.parquetVectorizationEnabled()
@@ -187,7 +189,18 @@ class SparkBatch implements Batch {
   }
 
   private boolean supportsParquetBatchReads(Types.NestedField field) {
-    if (field.type().isVariantType()) {
+    if (MetadataColumns.isMetadataColumn(field.fieldId())) {
+      return true;
+    }
+
+    Type type = field.type();
+    // Geometry and geography are primitive types but have no Arrow vector yet, so they must be
+    // read through the non-vectorized reader.
+    if (type.typeId() == Type.TypeID.GEOMETRY || type.typeId() == Type.TypeID.GEOGRAPHY) {
+      return false;
+    }
+
+    if (type.isVariantType()) {
       boolean shredVariants =
           PropertyUtil.propertyAsBoolean(
               table.properties(),
@@ -205,9 +218,7 @@ class SparkBatch implements Batch {
       }
     }
 
-    return field.type().isPrimitiveType()
-        || field.type().isVariantType()
-        || MetadataColumns.isMetadataColumn(field.fieldId());
+    return type.isPrimitiveType() || type.isVariantType();
   }
 
   // conditions for using ORC batch reads:

@@ -461,6 +461,7 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
             new EqualityConvertPlan(
                 inputs.newDataFiles(),
                 inputs.stagingDVFiles(),
+                inputs.eqDeleteFiles(),
                 stagingSnapshot.snapshotId(),
                 currentMainSnapshotId,
                 triggerTs,
