@@ -54,6 +54,7 @@ import org.apache.iceberg.connect.events.DataWritten;
 import org.apache.iceberg.connect.events.Event;
 import org.apache.iceberg.connect.events.StartCommit;
 import org.apache.iceberg.connect.events.TableReference;
+import org.apache.iceberg.connect.tracing.Tracing;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
@@ -151,7 +152,14 @@ class Coordinator extends Channel {
 
   private void commit(boolean partialCommit) {
     try {
-      doCommit(partialCommit);
+      Map<TableReference, List<Envelope>> commitMap = commitState.tableCommitMap();
+      Tracing.traceCommit(
+          config,
+          commitState.currentCommitId().toString(),
+          partialCommit,
+          commitMap.size(),
+          config.connectGroupId(),
+          () -> doCommit(partialCommit));
     } catch (RuntimeException e) {
       if (partialCommit) {
         partialCommitFailures.incrementAndGet();

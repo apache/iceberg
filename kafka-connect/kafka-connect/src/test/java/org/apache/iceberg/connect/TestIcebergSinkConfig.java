@@ -57,6 +57,23 @@ public class TestIcebergSinkConfig {
             "iceberg.tables", "db.landing");
     IcebergSinkConfig config = new IcebergSinkConfig(props);
     assertThat(config.commitIntervalMs()).isEqualTo(300_000);
+    assertThat(config.tracingEnabled()).isFalse();
+  }
+
+  @Test
+  public void testTracingEnabled() {
+    Map<String, String> props =
+        ImmutableMap.of(
+            "iceberg.catalog.type",
+            "rest",
+            "topics",
+            "source-topic",
+            "iceberg.tables",
+            "db.landing",
+            IcebergSinkConfig.TRACING_ENABLED_PROP,
+            "true");
+    IcebergSinkConfig config = new IcebergSinkConfig(props);
+    assertThat(config.tracingEnabled()).isTrue();
   }
 
   @Test

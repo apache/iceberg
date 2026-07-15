@@ -29,6 +29,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.connect.IcebergSinkConfig;
+import org.apache.iceberg.connect.tracing.Tracing;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.kafka.common.TopicPartition;
@@ -98,7 +99,7 @@ public class SinkWriter {
           .tables()
           .forEach(
               tableName -> {
-                writerForTable(tableName, record, false).write(record);
+                writeToTable(tableName, record, false);
               });
 
     } else {
@@ -110,7 +111,7 @@ public class SinkWriter {
                 tableName -> {
                   Pattern regex = config.tableConfig(tableName).routeRegex();
                   if (regex != null && regex.matcher(routeValue).matches()) {
-                    writerForTable(tableName, record, false).write(record);
+                    writeToTable(tableName, record, false);
                   }
                 });
       }
@@ -124,8 +125,13 @@ public class SinkWriter {
     String routeValue = extractRouteValue(record.value(), routeField);
     if (routeValue != null) {
       String tableName = routeValue.toLowerCase(Locale.ROOT);
-      writerForTable(tableName, record, true).write(record);
+      writeToTable(tableName, record, true);
     }
+  }
+
+  private void writeToTable(String tableName, SinkRecord record, boolean ignoreMissingTable) {
+    RecordWriter writer = writerForTable(tableName, record, ignoreMissingTable);
+    Tracing.traceRecordIngest(config, record, tableName, () -> writer.write(record));
   }
 
   private String extractRouteValue(Object recordValue, String routeField) {

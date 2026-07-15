@@ -25,6 +25,7 @@ import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.connect.Committer;
 import org.apache.iceberg.connect.IcebergSinkConfig;
 import org.apache.iceberg.connect.data.SinkWriter;
+import org.apache.iceberg.connect.tracing.Tracing;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.admin.ConsumerGroupDescription;
@@ -59,6 +60,7 @@ public class CommitterImpl implements Committer {
       this.context = sinkTaskContext;
       this.clientFactory = new KafkaClientFactory(config.kafkaProps());
       this.taskId = config.connectorName() + "-" + config.taskId();
+      Tracing.ensureConfigured(config);
     }
   }
 
