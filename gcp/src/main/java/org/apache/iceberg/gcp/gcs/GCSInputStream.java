@@ -168,6 +168,8 @@ class GCSInputStream extends SeekableInputStream implements RangeReadable {
         throw new EOFException(
             "Reached the end of stream with " + (length - bytesRead) + " bytes left to read");
       }
+      readBytes.increment(bytesRead);
+      readOperations.increment();
     }
   }
 
@@ -179,7 +181,12 @@ class GCSInputStream extends SeekableInputStream implements RangeReadable {
     long startPosition = Math.max(0, blobSize - length);
     try (ReadChannel readChannel = openChannel()) {
       readChannel.seek(startPosition);
-      return read(readChannel, ByteBuffer.wrap(buffer), offset, length);
+      int bytesRead = read(readChannel, ByteBuffer.wrap(buffer), offset, length);
+      if (bytesRead > 0) {
+        readBytes.increment(bytesRead);
+      }
+      readOperations.increment();
+      return bytesRead;
     }
   }
 

@@ -175,19 +175,30 @@ class AnalyticsCoreUtil {
         GCSExceptionUtil.throwNotFoundIfNotPresent(e, blobId);
         throw e;
       }
+      readBytes.increment(length);
+      readOperations.increment();
     }
 
     @Override
     public int readTail(byte[] buffer, int offset, int length) throws IOException {
+      int bytesRead;
       try {
-        return stream.readTail(buffer, offset, length);
+        bytesRead = stream.readTail(buffer, offset, length);
       } catch (IOException e) {
         GCSExceptionUtil.throwNotFoundIfNotPresent(e, blobId);
         throw e;
       }
+      if (bytesRead > 0) {
+        readBytes.increment(bytesRead);
+      }
+      readOperations.increment();
+      return bytesRead;
     }
 
+    // the metric-recording stages are fire-and-forget side effects on the range futures the
+    // analytics-core stream owns and completes; their returned futures are intentionally ignored
     @Override
+    @SuppressWarnings("FutureReturnValueIgnored")
     public void readVectored(List<FileRange> ranges, IntFunction<ByteBuffer> allocate)
         throws IOException {
       List<GcsObjectRange> objectRanges =
@@ -200,6 +211,21 @@ class AnalyticsCoreUtil {
                           .setByteBufferFuture(fileRange.byteBuffer())
                           .build())
               .collect(Collectors.toList());
+      // readVectored only schedules the reads; record metrics as each range future completes
+      // successfully so that failed ranges are not counted. Count the bytes actually delivered
+      // (the completed buffer is flipped for reading) rather than the requested length, which can
+      // differ on a short read near EOF.
+      for (FileRange range : ranges) {
+        range
+            .byteBuffer()
+            .thenAccept(
+                buffer -> {
+                  if (buffer != null && buffer.remaining() > 0) {
+                    readBytes.increment(buffer.remaining());
+                  }
+                  readOperations.increment();
+                });
+      }
       try {
         stream.readVectored(objectRanges, allocate);
       } catch (IOException e) {
