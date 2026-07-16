@@ -2498,7 +2498,7 @@ public class TestSchemaUpdate {
                     .addColumn("unk", Types.UnknownType.get(), Literal.of("string!"))
                     .apply())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot cast default value to unknown: \"string!\"");
+        .hasMessage("Invalid default value for unknown: \"string!\" (must be null)");
   }
 
   @Test
@@ -2513,6 +2513,38 @@ public class TestSchemaUpdate {
                     .apply())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot create required field with unknown type: unk");
+  }
+
+  @Test
+  public void testAddGeometryNonNullDefault() {
+    Schema schema = new Schema(required(1, "id", Types.LongType.get()));
+
+    // The spec requires geometry columns to default to null; a non-null default is rejected.
+    assertThatThrownBy(
+            () ->
+                new SchemaUpdate(schema, schema.highestFieldId())
+                    .allowIncompatibleChanges()
+                    .addColumn("geom", Types.GeometryType.crs84(), Literal.of("POINT(0 0)"))
+                    .apply())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid default value for geometry(OGC:CRS84): \"POINT(0 0)\" (must be null)");
+  }
+
+  @Test
+  public void testAddGeographyNonNullDefault() {
+    Schema schema = new Schema(required(1, "id", Types.LongType.get()));
+
+    // The spec requires geography columns to default to null; a non-null default is rejected.
+    assertThatThrownBy(
+            () ->
+                new SchemaUpdate(schema, schema.highestFieldId())
+                    .allowIncompatibleChanges()
+                    .addColumn("geog", Types.GeographyType.crs84(), Literal.of("POINT(0 0)"))
+                    .apply())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Invalid default value for geography(OGC:CRS84, spherical): \"POINT(0 0)\" "
+                + "(must be null)");
   }
 
   @Test

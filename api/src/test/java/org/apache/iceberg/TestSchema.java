@@ -221,6 +221,71 @@ public class TestSchema {
   }
 
   @Test
+  public void testGeospatialTypesRejectNonNullDefault() {
+    // The spec requires geometry and geography columns to default to null. Neither type has a
+    // single-value encoding for a default, so building a field with a non-null default is rejected
+    // in the field constructor -- i.e. on the CREATE TABLE / Schema construction path, not only via
+    // schema evolution.
+    assertThatThrownBy(
+            () ->
+                Types.NestedField.optional("geom")
+                    .withId(2)
+                    .ofType(Types.GeometryType.crs84())
+                    .withInitialDefault(Literal.of("POINT(0 0)"))
+                    .build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid default value for geometry(OGC:CRS84): \"POINT(0 0)\" (must be null)");
+
+    assertThatThrownBy(
+            () ->
+                Types.NestedField.optional("geom")
+                    .withId(2)
+                    .ofType(Types.GeometryType.crs84())
+                    .withWriteDefault(Literal.of("POINT(0 0)"))
+                    .build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid default value for geometry(OGC:CRS84): \"POINT(0 0)\" (must be null)");
+
+    assertThatThrownBy(
+            () ->
+                Types.NestedField.optional("geog")
+                    .withId(2)
+                    .ofType(Types.GeographyType.crs84())
+                    .withInitialDefault(Literal.of("POINT(0 0)"))
+                    .build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Invalid default value for geography(OGC:CRS84, spherical): \"POINT(0 0)\" "
+                + "(must be null)");
+
+    assertThatThrownBy(
+            () ->
+                Types.NestedField.optional("geog")
+                    .withId(2)
+                    .ofType(Types.GeographyType.crs84())
+                    .withWriteDefault(Literal.of("POINT(0 0)"))
+                    .build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Invalid default value for geography(OGC:CRS84, spherical): \"POINT(0 0)\" "
+                + "(must be null)");
+  }
+
+  @Test
+  public void testVariantTypeRejectsNonNullDefault() {
+    // Like the geospatial types, the spec requires variant columns to default to null.
+    assertThatThrownBy(
+            () ->
+                Types.NestedField.optional("var")
+                    .withId(2)
+                    .ofType(Types.VariantType.get())
+                    .withInitialDefault(Literal.of("v1"))
+                    .build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid default value for variant: \"v1\" (must be null)");
+  }
+
+  @Test
   public void testIndexFieldsSingleSchema() {
     Schema schema =
         new Schema(

@@ -893,17 +893,37 @@ public class Types {
     }
 
     private static Literal<?> castDefault(Literal<?> defaultValue, Type type) {
-      if (type.isNestedType() && defaultValue != null) {
-        throw new IllegalArgumentException(
-            String.format("Invalid default value for %s: %s (must be null)", type, defaultValue));
-      } else if (defaultValue != null) {
-        Literal<?> typedDefault = defaultValue.to(type);
-        Preconditions.checkArgument(
-            typedDefault != null, "Cannot cast default value to %s: %s", type, defaultValue);
-        return typedDefault;
+      if (defaultValue == null) {
+        return null;
       }
 
-      return null;
+      // Nested types and the unknown, variant, geometry, and geography types have no single-value
+      // representation for a default, so the spec requires their columns to default to null.
+      if (!supportsDefaultValue(type)) {
+        throw new IllegalArgumentException(
+            String.format("Invalid default value for %s: %s (must be null)", type, defaultValue));
+      }
+
+      Literal<?> typedDefault = defaultValue.to(type);
+      Preconditions.checkArgument(
+          typedDefault != null, "Cannot cast default value to %s: %s", type, defaultValue);
+      return typedDefault;
+    }
+
+    private static boolean supportsDefaultValue(Type type) {
+      if (type.isNestedType()) {
+        return false;
+      }
+
+      switch (type.typeId()) {
+        case UNKNOWN:
+        case VARIANT:
+        case GEOMETRY:
+        case GEOGRAPHY:
+          return false;
+        default:
+          return true;
+      }
     }
 
     public boolean isOptional() {
