@@ -39,6 +39,9 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.ImmutableGenericPartitionStatisticsFile;
+import org.apache.iceberg.ManifestFile;
+import org.apache.iceberg.ManifestFiles;
+import org.apache.iceberg.ManifestReader;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
@@ -503,6 +506,192 @@ public class TestRewriteTablePathsAction extends TestBase {
 
     assertThat(spark.read().format("iceberg").load(targetTableLocation()).collectAsList())
         .isEmpty();
+  }
+
+  // Regression test: rewriting delete file paths changes the file size (since the embedded data
+  // file paths may differ in length), but file_size_in_bytes in the rewritten manifest was not
+  // updated. Readers that use file_size_in_bytes to elide a stat() call may fail.
+  @Test
+  public void testDeleteFileSizeInBytesAfterRewrite() throws Exception {
+    List<Pair<CharSequence, Long>> deletes =
+        Lists.newArrayList(
+            Pair.of(
+                table.currentSnapshot().addedDataFiles(table.io()).iterator().next().location(),
+                0L));
+
+    File file = new File(removePrefix(table.location() + "/data/deeply/nested/deletes.parquet"));
+    DeleteFile positionDeletes =
+        FileHelpers.writeDeleteFile(
+                table, table.io().newOutputFile(file.toURI().toString()), deletes)
+            .first();
+    table.newRowDelta().addDeletes(positionDeletes).commit();
+
+    RewriteTablePath.Result result =
+        actions()
+            .rewriteTablePath(table)
+            .stagingLocation(stagingLocation())
+            .rewriteLocationPrefix(table.location(), targetTableLocation())
+            .execute();
+    copyTableFiles(result);
+
+    Table targetTable = TABLES.load(targetTableLocation());
+    for (ManifestFile manifest : targetTable.currentSnapshot().deleteManifests(targetTable.io())) {
+      try (ManifestReader<DeleteFile> reader =
+          ManifestFiles.readDeleteManifest(manifest, targetTable.io(), targetTable.specs())) {
+        for (DeleteFile df : reader) {
+          long manifestSize = df.fileSizeInBytes();
+          long actualSize = targetTable.io().newInputFile(df.location()).getLength();
+          assertThat(manifestSize)
+              .as(
+                  "file_size_in_bytes in rewritten manifest should match actual file size for %s",
+                  df.location())
+              .isEqualTo(actualSize);
+        }
+      }
+    }
+  }
+
+  // Regression test: when the same position delete file is referenced from manifests in different
+  // snapshots, it must be rewritten once and the resulting size stamped consistently into every
+  // manifest that references it. The delete file is enumerated and deduped by path before the
+  // rewrite, so its measured size is shared across all referencing delete manifests.
+  @Test
+  public void testSharedDeleteFileSizeAcrossManifests() throws Exception {
+    Table tableWithPosDeletes =
+        createTableWithSnapshots(
+            tableDir.toFile().toURI().toString().concat("tableWithSharedDelete"),
+            1,
+            Map.of(TableProperties.DELETE_DEFAULT_FILE_FORMAT, "parquet"));
+
+    DataFile dataFile =
+        tableWithPosDeletes
+            .currentSnapshot()
+            .addedDataFiles(tableWithPosDeletes.io())
+            .iterator()
+            .next();
+
+    List<Pair<CharSequence, Long>> deletes = Lists.newArrayList(Pair.of(dataFile.location(), 0L));
+    File deleteFile =
+        new File(
+            removePrefix(tableWithPosDeletes.location() + "/data/deeply/nested/deletes.parquet"));
+    DeleteFile positionDeletes =
+        FileHelpers.writeDeleteFile(
+                tableWithPosDeletes,
+                tableWithPosDeletes.io().newOutputFile(deleteFile.toURI().toString()),
+                deletes)
+            .first();
+
+    tableWithPosDeletes.newRowDelta().addDeletes(positionDeletes).commit();
+    tableWithPosDeletes.newRowDelta().addDeletes(positionDeletes).commit();
+
+    RewriteTablePath.Result result =
+        actions()
+            .rewriteTablePath(tableWithPosDeletes)
+            .stagingLocation(stagingLocation())
+            .rewriteLocationPrefix(tableWithPosDeletes.location(), targetTableLocation())
+            .execute();
+    copyTableFiles(result);
+
+    Table targetTable = TABLES.load(targetTableLocation());
+    List<ManifestFile> deleteManifests =
+        targetTable.currentSnapshot().deleteManifests(targetTable.io());
+    assertThat(deleteManifests)
+        .as("Expected the shared delete file to be referenced by multiple manifests")
+        .hasSizeGreaterThanOrEqualTo(2);
+    for (ManifestFile manifest : deleteManifests) {
+      try (ManifestReader<DeleteFile> reader =
+          ManifestFiles.readDeleteManifest(manifest, targetTable.io(), targetTable.specs())) {
+        for (DeleteFile df : reader) {
+          long manifestSize = df.fileSizeInBytes();
+          long actualSize = targetTable.io().newInputFile(df.location()).getLength();
+          assertThat(manifestSize)
+              .as(
+                  "file_size_in_bytes in rewritten manifest should match actual file size for %s",
+                  df.location())
+              .isEqualTo(actualSize);
+        }
+      }
+    }
+  }
+
+  // Regression test: a single delete manifest can reference multiple distinct position delete
+  // files, and each entry must be stamped with its own rewritten size. The two delete files carry
+  // a different number of records so they rewrite to different sizes, which catches a per-path size
+  // map that collapses entries to a single size or falls back to the stale original size.
+  @Test
+  public void testMultipleDistinctDeleteFileSizesAfterRewrite() throws Exception {
+    Table tableWithPosDeletes =
+        createTableWithSnapshots(
+            tableDir.toFile().toURI().toString().concat("tableWithDistinctDeletes"),
+            2,
+            Map.of(TableProperties.DELETE_DEFAULT_FILE_FORMAT, "parquet"));
+
+    List<DataFile> dataFiles = Lists.newArrayList();
+    tableWithPosDeletes
+        .snapshots()
+        .forEach(
+            snapshot -> snapshot.addedDataFiles(tableWithPosDeletes.io()).forEach(dataFiles::add));
+    assertThat(dataFiles).as("Expected two data files to reference from deletes").hasSize(2);
+
+    // One delete file holds a single record, the other holds two, so they rewrite to distinct
+    // on-disk sizes.
+    File smallDeleteFile =
+        new File(
+            removePrefix(
+                tableWithPosDeletes.location() + "/data/deeply/nested/deletes-small.parquet"));
+    DeleteFile smallDelete =
+        FileHelpers.writeDeleteFile(
+                tableWithPosDeletes,
+                tableWithPosDeletes.io().newOutputFile(smallDeleteFile.toURI().toString()),
+                Lists.newArrayList(Pair.of(dataFiles.get(0).location(), 0L)))
+            .first();
+
+    File largeDeleteFile =
+        new File(
+            removePrefix(
+                tableWithPosDeletes.location() + "/data/deeply/nested/deletes-large.parquet"));
+    DeleteFile largeDelete =
+        FileHelpers.writeDeleteFile(
+                tableWithPosDeletes,
+                tableWithPosDeletes.io().newOutputFile(largeDeleteFile.toURI().toString()),
+                Lists.newArrayList(
+                    Pair.of(dataFiles.get(0).location(), 0L),
+                    Pair.of(dataFiles.get(1).location(), 0L)))
+            .first();
+
+    tableWithPosDeletes.newRowDelta().addDeletes(smallDelete).addDeletes(largeDelete).commit();
+
+    RewriteTablePath.Result result =
+        actions()
+            .rewriteTablePath(tableWithPosDeletes)
+            .stagingLocation(stagingLocation())
+            .rewriteLocationPrefix(tableWithPosDeletes.location(), targetTableLocation())
+            .execute();
+    copyTableFiles(result);
+
+    Table targetTable = TABLES.load(targetTableLocation());
+    List<Long> rewrittenSizes = Lists.newArrayList();
+    for (ManifestFile manifest : targetTable.currentSnapshot().deleteManifests(targetTable.io())) {
+      try (ManifestReader<DeleteFile> reader =
+          ManifestFiles.readDeleteManifest(manifest, targetTable.io(), targetTable.specs())) {
+        for (DeleteFile df : reader) {
+          long manifestSize = df.fileSizeInBytes();
+          long actualSize = targetTable.io().newInputFile(df.location()).getLength();
+          assertThat(manifestSize)
+              .as(
+                  "file_size_in_bytes in rewritten manifest should match actual file size for %s",
+                  df.location())
+              .isEqualTo(actualSize);
+          rewrittenSizes.add(manifestSize);
+        }
+      }
+    }
+
+    assertThat(rewrittenSizes)
+        .as(
+            "The two distinct delete files should rewrite to distinct, independently recorded sizes")
+        .hasSize(2)
+        .doesNotHaveDuplicates();
   }
 
   @Test
