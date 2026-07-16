@@ -211,6 +211,28 @@ class TestMergingSortedRowDataReader extends TestBase {
     assertThat(extractIds(rows)).containsExactly(1, 2, 4, 5, 6);
   }
 
+  @Test
+  void mergeWithSortOrderReferencingSameColumnMultipleTimes() throws IOException {
+    table
+        .replaceSortOrder()
+        .asc(org.apache.iceberg.expressions.Expressions.bucket("id", 16))
+        .asc("id")
+        .commit();
+
+    DataFile file1 = writeDataFile(record(1, "a"), record(3, "c"), record(5, "e"));
+    DataFile file2 = writeDataFile(record(2, "b"), record(4, "d"), record(6, "f"));
+
+    table.newAppend().appendFile(file1).appendFile(file2).commit();
+
+    // the sort key "id" is not in the projection and is referenced by two sort fields.
+    Schema dataOnly = table.schema().select("data");
+    List<InternalRow> rows = readMerged(table, dataOnly);
+
+    assertThat(rows).hasSize(6);
+    assertThat(rows.get(0).numFields()).isEqualTo(1);
+    assertThat(extractData(rows, 0)).containsExactlyInAnyOrder("a", "b", "c", "d", "e", "f");
+  }
+
   private List<InternalRow> readMerged(Table tbl) throws IOException {
     return readMerged(tbl, tbl.schema());
   }
