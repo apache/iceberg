@@ -57,10 +57,10 @@ public class TestAnalyticsAcceleratorInputStreamWrapper {
       assertThat(readBytes.value()).isEqualTo(9);
       assertThat(readOperations.value()).isEqualTo(2);
 
-      // an EOF read counts the operation but no bytes
+      // an EOF read counts neither bytes nor an operation
       assertThat(in.read(new byte[16], 0, 16)).isEqualTo(-1);
       assertThat(readBytes.value()).isEqualTo(9);
-      assertThat(readOperations.value()).isEqualTo(3);
+      assertThat(readOperations.value()).isEqualTo(2);
     }
   }
 

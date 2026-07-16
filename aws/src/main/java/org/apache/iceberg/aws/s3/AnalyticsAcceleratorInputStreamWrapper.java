@@ -57,10 +57,10 @@ class AnalyticsAcceleratorInputStreamWrapper extends SeekableInputStream {
   @Override
   public int read(byte[] b, int off, int len) throws IOException {
     int bytesRead = this.delegate.read(b, off, len);
-    if (bytesRead > 0) {
+    if (bytesRead != -1) {
       readBytes.increment(bytesRead);
+      readOperations.increment();
     }
-    readOperations.increment();
     return bytesRead;
   }
 
