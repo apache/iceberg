@@ -99,6 +99,8 @@ class IcebergCommitter implements Committer<IcebergCommittable> {
     this.tableMaintenanceEnabled = tableMaintenanceEnabled;
     this.subtaskId = subtaskId;
 
+    // IcebergSink#addPreCommitTopology routes all committables to subtask 0 via a .global()
+    // shuffle, so only subtask 0 needs to load the table and create the worker pool.
     if (subtaskId == 0) {
       if (!tableLoader.isOpen()) {
         tableLoader.open();
