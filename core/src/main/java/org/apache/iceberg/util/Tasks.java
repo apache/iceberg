@@ -509,7 +509,7 @@ public class Tasks {
       }
     }
 
-    private RetryExhaustionReason retryExhaustionReason(
+    private static RetryExhaustionReason retryExhaustionReason(
         boolean attemptsExhausted, boolean timeoutExhausted) {
       if (attemptsExhausted && timeoutExhausted) {
         return RetryExhaustionReason.ATTEMPT_LIMIT_AND_TIMEOUT;
