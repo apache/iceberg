@@ -40,6 +40,8 @@ import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.catalog.MetadataColumn;
 import org.apache.spark.sql.connector.catalog.SupportsMetadataColumns;
+import org.apache.spark.sql.connector.catalog.TableCatalog;
+import org.apache.spark.sql.connector.catalog.TableSummary;
 import org.apache.spark.sql.connector.expressions.Transform;
 import org.apache.spark.sql.types.StructType;
 
@@ -59,7 +61,8 @@ abstract class BaseSparkTable
           LOCATION,
           FORMAT_VERSION,
           SORT_ORDER,
-          IDENTIFIER_FIELDS);
+          IDENTIFIER_FIELDS,
+          TableCatalog.PROP_TABLE_TYPE);
 
   private final Table table;
   private final Schema schema;
@@ -109,6 +112,11 @@ abstract class BaseSparkTable
     propsBuilder.put(PROVIDER, "iceberg");
     propsBuilder.put(LOCATION, table.location());
     propsBuilder.put(CURRENT_SNAPSHOT_ID, currentSnapshotId());
+
+    // Iceberg tables always have an explicit storage location and dropping a table through the
+    // catalog removes only the catalog entry unless purge is requested, which matches Spark's
+    // notion of an EXTERNAL table.
+    propsBuilder.put(TableCatalog.PROP_TABLE_TYPE, TableSummary.EXTERNAL_TABLE_TYPE);
 
     if (table instanceof BaseTable) {
       TableOperations ops = ((BaseTable) table).operations();
