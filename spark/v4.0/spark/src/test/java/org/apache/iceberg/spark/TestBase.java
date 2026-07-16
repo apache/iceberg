@@ -119,11 +119,19 @@ public abstract class TestBase extends SparkTestHelperBase {
   }
 
   protected long waitUntilAfter(long timestampMillis) {
-    long current = System.currentTimeMillis();
-    while (current <= timestampMillis) {
-      current = System.currentTimeMillis();
+    // Sleep once for the remaining time instead of busy-spinning on System.currentTimeMillis(),
+    // which pegs a core for the whole wait and starves other test forks/threads on a busy CI box.
+    // A past timestamp returns immediately.
+    long delta = timestampMillis - System.currentTimeMillis();
+    if (delta >= 0) {
+      try {
+        Thread.sleep(delta + 1);
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+        throw new RuntimeException("Interrupted while waiting until after " + timestampMillis, e);
+      }
     }
-    return current;
+    return System.currentTimeMillis();
   }
 
   protected List<Object[]> sql(String query, Object... args) {
