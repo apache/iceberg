@@ -62,6 +62,27 @@ public class HttpClientProperties implements Serializable {
   public static final String PROXY_ENDPOINT = "http-client.proxy-endpoint";
 
   /**
+   * Used to configure the proxy scheme. Used by both {@link
+   * software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient.Builder} and {@link
+   * software.amazon.awssdk.http.apache.ApacheHttpClient.Builder}
+   */
+  public static final String PROXY_SCHEME = "http-client.proxy-scheme";
+
+  /**
+   * Used to configure the proxy username. Used by both {@link
+   * software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient.Builder} and {@link
+   * software.amazon.awssdk.http.apache.ApacheHttpClient.Builder}
+   */
+  public static final String PROXY_USERNAME = "http-client.proxy-username";
+
+  /**
+   * Used to configure the proxy password. Used by both {@link
+   * software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient.Builder} and {@link
+   * software.amazon.awssdk.http.apache.ApacheHttpClient.Builder}
+   */
+  public static final String PROXY_PASSWORD = "http-client.proxy-password";
+
+  /**
    * Used to enable reading proxy configuration from Java system properties (http.proxyHost,
    * http.proxyPort, http.nonProxyHosts, etc.). Default is true.
    *

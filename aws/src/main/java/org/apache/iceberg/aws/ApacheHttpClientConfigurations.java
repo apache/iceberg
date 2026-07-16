@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.aws;
 
-import java.net.URI;
 import java.time.Duration;
 import java.util.Map;
 import java.util.Objects;
@@ -28,7 +27,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.PropertyUtil;
 import software.amazon.awssdk.http.SdkHttpClient;
 import software.amazon.awssdk.http.apache.ApacheHttpClient;
-import software.amazon.awssdk.http.apache.ProxyConfiguration;
 
 class ApacheHttpClientConfigurations extends BaseHttpClientConfigurations {
   private Long connectionTimeoutMs;
@@ -40,9 +38,7 @@ class ApacheHttpClientConfigurations extends BaseHttpClientConfigurations {
   private Integer maxConnections;
   private Boolean tcpKeepAliveEnabled;
   private Boolean useIdleConnectionReaperEnabled;
-  private String proxyEndpoint;
-  private Boolean proxyUseSystemPropertyValues;
-  private Boolean proxyUseEnvironmentVariableValues;
+  private ProxyConfiguration proxyConfiguration;
 
   private ApacheHttpClientConfigurations() {}
 
@@ -81,15 +77,7 @@ class ApacheHttpClientConfigurations extends BaseHttpClientConfigurations {
     this.useIdleConnectionReaperEnabled =
         PropertyUtil.propertyAsNullableBoolean(
             httpClientProperties, HttpClientProperties.APACHE_USE_IDLE_CONNECTION_REAPER_ENABLED);
-    this.proxyEndpoint =
-        PropertyUtil.propertyAsString(
-            httpClientProperties, HttpClientProperties.PROXY_ENDPOINT, null);
-    this.proxyUseSystemPropertyValues =
-        PropertyUtil.propertyAsNullableBoolean(
-            httpClientProperties, HttpClientProperties.PROXY_USE_SYSTEM_PROPERTY_VALUES);
-    this.proxyUseEnvironmentVariableValues =
-        PropertyUtil.propertyAsNullableBoolean(
-            httpClientProperties, HttpClientProperties.PROXY_USE_ENVIRONMENT_VARIABLE_VALUES);
+    this.proxyConfiguration = ProxyConfiguration.create(httpClientProperties);
   }
 
   @VisibleForTesting
@@ -125,22 +113,8 @@ class ApacheHttpClientConfigurations extends BaseHttpClientConfigurations {
   }
 
   private void configureProxy(ApacheHttpClient.Builder apacheHttpClientBuilder) {
-    if (proxyEndpoint != null
-        || proxyUseSystemPropertyValues != null
-        || proxyUseEnvironmentVariableValues != null) {
-      ProxyConfiguration.Builder proxyBuilder = ProxyConfiguration.builder();
-
-      if (proxyEndpoint != null) {
-        proxyBuilder.endpoint(URI.create(proxyEndpoint));
-      }
-      if (proxyUseSystemPropertyValues != null) {
-        proxyBuilder.useSystemPropertyValues(proxyUseSystemPropertyValues);
-      }
-      if (proxyUseEnvironmentVariableValues != null) {
-        proxyBuilder.useEnvironmentVariableValues(proxyUseEnvironmentVariableValues);
-      }
-
-      apacheHttpClientBuilder.proxyConfiguration(proxyBuilder.build());
+    if (proxyConfiguration.isConfigured()) {
+      apacheHttpClientBuilder.proxyConfiguration(proxyConfiguration.toApache());
     }
   }
 
@@ -162,9 +136,7 @@ class ApacheHttpClientConfigurations extends BaseHttpClientConfigurations {
     keyComponents.put("maxConnections", maxConnections);
     keyComponents.put("tcpKeepAliveEnabled", tcpKeepAliveEnabled);
     keyComponents.put("useIdleConnectionReaperEnabled", useIdleConnectionReaperEnabled);
-    keyComponents.put("proxyEndpoint", proxyEndpoint);
-    keyComponents.put("proxyUseSystemPropertyValues", proxyUseSystemPropertyValues);
-    keyComponents.put("proxyUseEnvironmentVariableValues", proxyUseEnvironmentVariableValues);
+    proxyConfiguration.addToCacheKey(keyComponents);
 
     return keyComponents.entrySet().stream()
         .map(entry -> entry.getKey() + "=" + Objects.toString(entry.getValue(), "null"))
