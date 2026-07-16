@@ -1022,3 +1022,38 @@ License: Mozilla Public License, Version 2.0 - https://mozilla.org/MPL/2.0/
 
 --------------------------------------------------------------------------------
 
+
+--------------------------------------------------------------------------------
+
+This product bundles Nimbus JOSE+JWT.
+
+Project URL: https://bitbucket.org/connect2id/nimbus-jose-jwt
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
+This product bundles Nimbus OAuth 2.0 & 2.1 SDK with OpenID Connect extensions.
+
+Project URL: https://bitbucket.org/connect2id/oauth-2.0-sdk-with-openid-connect-extensions
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
+This product bundles Nimbus Content Type.
+
+Project URL: https://bitbucket.org/connect2id/nimbus-content-type
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
+This product bundles Nimbus Language Tags.
+
+Project URL: https://bitbucket.org/connect2id/nimbus-language-tags
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
+This product bundles JSON Smart.
+
+Project URL: https://github.com/netplex/json-smart-v2
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0

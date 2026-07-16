@@ -29,6 +29,10 @@ import java.util.function.Function;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
+/**
+ * @deprecated will be removed in 1.14.0
+ */
+@Deprecated
 class TestAuthSessionCache {
 
   @Test

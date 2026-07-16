@@ -44,18 +44,64 @@ class TestAuthManagers {
   }
 
   @Test
-  void oauth2Explicit() {
+  void oauth2NewExplicitByShortName() {
+    try (AuthManager manager =
+        AuthManagers.loadAuthManager(
+            "test",
+            Map.of(AuthProperties.AUTH_TYPE, AuthProperties.AUTH_MANAGER_IMPL_OAUTH2_NEW))) {
+      assertThat(manager).isInstanceOf(org.apache.iceberg.rest.auth.oauth2.OAuth2Manager.class);
+    }
+    assertThat(streamCaptor.toString())
+        .contains(
+            "Loading AuthManager implementation: org.apache.iceberg.rest.auth.oauth2.OAuth2Manager");
+  }
+
+  @Test
+  void oauth2NewExplicitByFQCN() {
+    try (AuthManager manager =
+        AuthManagers.loadAuthManager(
+            "test",
+            Map.of(
+                AuthProperties.AUTH_TYPE,
+                org.apache.iceberg.rest.auth.oauth2.OAuth2Manager.class.getName()))) {
+      assertThat(manager).isInstanceOf(org.apache.iceberg.rest.auth.oauth2.OAuth2Manager.class);
+    }
+    assertThat(streamCaptor.toString())
+        .contains(
+            "Loading AuthManager implementation: org.apache.iceberg.rest.auth.oauth2.OAuth2Manager");
+  }
+
+  @Test
+  void oauth2LegacyExplicitByShortName() {
     try (AuthManager manager =
         AuthManagers.loadAuthManager(
             "test", Map.of(AuthProperties.AUTH_TYPE, AuthProperties.AUTH_TYPE_OAUTH2))) {
       assertThat(manager).isInstanceOf(OAuth2Manager.class);
     }
     assertThat(streamCaptor.toString())
-        .contains("Loading AuthManager implementation: org.apache.iceberg.rest.auth.OAuth2Manager");
+        .contains(
+            "The AuthManager implementation org.apache.iceberg.rest.auth.OAuth2Manager "
+                + "is deprecated and will be removed in a future release. "
+                + "Please migrate to org.apache.iceberg.rest.auth.oauth2.OAuth2Manager.");
   }
 
   @Test
-  void oauth2InferredFromToken() {
+  void oauth2LegacyExplicitByFQCN() {
+    try (AuthManager manager =
+        AuthManagers.loadAuthManager(
+            "test",
+            Map.of(AuthProperties.AUTH_TYPE, AuthProperties.AUTH_MANAGER_IMPL_OAUTH2_LEGACY))) {
+      assertThat(manager).isInstanceOf(OAuth2Manager.class);
+    }
+    assertThat(streamCaptor.toString())
+        .contains(
+            "The AuthManager implementation org.apache.iceberg.rest.auth.OAuth2Manager "
+                + "is deprecated and will be removed in a future release. "
+                + "Please migrate to org.apache.iceberg.rest.auth.oauth2.OAuth2Manager.");
+  }
+
+  @Test
+  void oauth2LegacyInferredFromToken() {
     try (AuthManager manager =
         AuthManagers.loadAuthManager("test", Map.of(OAuth2Properties.TOKEN, "irrelevant"))) {
       assertThat(manager).isInstanceOf(OAuth2Manager.class);
@@ -65,11 +111,14 @@ class TestAuthManagers {
             "Inferring rest.auth.type=oauth2 since property token was provided. "
                 + "Please explicitly set rest.auth.type to avoid this warning.");
     assertThat(streamCaptor.toString())
-        .contains("Loading AuthManager implementation: org.apache.iceberg.rest.auth.OAuth2Manager");
+        .contains(
+            "The AuthManager implementation org.apache.iceberg.rest.auth.OAuth2Manager "
+                + "is deprecated and will be removed in a future release. "
+                + "Please migrate to org.apache.iceberg.rest.auth.oauth2.OAuth2Manager.");
   }
 
   @Test
-  void oauth2InferredFromCredential() {
+  void oauth2LegacyInferredFromCredential() {
     try (AuthManager manager =
         AuthManagers.loadAuthManager("test", Map.of(OAuth2Properties.CREDENTIAL, "irrelevant"))) {
       assertThat(manager).isInstanceOf(OAuth2Manager.class);
@@ -79,7 +128,10 @@ class TestAuthManagers {
             "Inferring rest.auth.type=oauth2 since property credential was provided. "
                 + "Please explicitly set rest.auth.type to avoid this warning.");
     assertThat(streamCaptor.toString())
-        .contains("Loading AuthManager implementation: org.apache.iceberg.rest.auth.OAuth2Manager");
+        .contains(
+            "The AuthManager implementation org.apache.iceberg.rest.auth.OAuth2Manager "
+                + "is deprecated and will be removed in a future release. "
+                + "Please migrate to org.apache.iceberg.rest.auth.oauth2.OAuth2Manager.");
   }
 
   @Test
