@@ -24,6 +24,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.util.stream.Stream;
 import org.apache.flink.table.data.DecimalData;
 import org.apache.flink.table.data.GenericArrayData;
 import org.apache.flink.table.data.GenericMapData;
@@ -37,11 +39,12 @@ import org.apache.iceberg.flink.DataGenerators;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
-import org.joda.time.Days;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 class TestRowDataConverter {
 
@@ -110,18 +113,18 @@ class TestRowDataConverter {
 
   @Test
   void testDateToTimestamp() {
-    Schema schemaWithFloat =
+    Schema schemaWithDate =
         new Schema(Types.NestedField.optional(1, "date2timestamp", Types.DateType.get()));
-    Schema schemaWithDouble =
+    Schema schemaWithTimestamp =
         new Schema(
             Types.NestedField.optional(2, "date2timestamp", Types.TimestampType.withoutZone()));
 
-    DateTime time = new DateTime(2022, 1, 10, 0, 0, 0, 0, DateTimeZone.UTC);
-    int days =
-        Days.daysBetween(new DateTime(1970, 1, 1, 0, 0, 0, 0, DateTimeZone.UTC), time).getDays();
+    LocalDate date = LocalDate.of(2022, 1, 10);
 
-    assertThat(convert(GenericRowData.of(days), schemaWithFloat, schemaWithDouble))
-        .isEqualTo(GenericRowData.of(TimestampData.fromEpochMillis(time.getMillis())));
+    assertThat(
+            convert(
+                GenericRowData.of((int) date.toEpochDay()), schemaWithDate, schemaWithTimestamp))
+        .isEqualTo(GenericRowData.of(TimestampData.fromLocalDateTime(date.atStartOfDay())));
   }
 
   @Test
@@ -137,6 +140,35 @@ class TestRowDataConverter {
                 before,
                 after))
         .isEqualTo(GenericRowData.of(DecimalData.fromBigDecimal(new BigDecimal("-1.50"), 10, 2)));
+  }
+
+  @ParameterizedTest
+  @MethodSource("dataConversionCases")
+  void testConversionsDeclaredByCompareSchemasVisitorAreSupported(
+      Type.PrimitiveType dataType, Type.PrimitiveType tableType, Object input, Object expected) {
+    Schema dataSchema = new Schema(optional(1, "field", dataType));
+    Schema tableSchema = new Schema(optional(2, "field", tableType));
+
+    assertThat(CompareSchemasVisitor.isDataConversionPossible(dataType, tableType)).isTrue();
+    assertThat(convert(GenericRowData.of(input), dataSchema, tableSchema))
+        .isEqualTo(GenericRowData.of(expected));
+  }
+
+  private static Stream<Arguments> dataConversionCases() {
+    LocalDate date = LocalDate.of(2022, 1, 10);
+    return Stream.of(
+        Arguments.of(Types.IntegerType.get(), Types.LongType.get(), 1, 1L),
+        Arguments.of(Types.FloatType.get(), Types.DoubleType.get(), 1.5f, 1.5d),
+        Arguments.of(
+            Types.DateType.get(),
+            Types.TimestampType.withoutZone(),
+            (int) date.toEpochDay(),
+            TimestampData.fromLocalDateTime(date.atStartOfDay())),
+        Arguments.of(
+            Types.DecimalType.of(9, 2),
+            Types.DecimalType.of(10, 2),
+            DecimalData.fromBigDecimal(new BigDecimal("-1.50"), 9, 2),
+            DecimalData.fromBigDecimal(new BigDecimal("-1.50"), 10, 2)));
   }
 
   @Test

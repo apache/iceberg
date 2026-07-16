@@ -269,11 +269,10 @@ class Summary(BaseModel):
     model_config = ConfigDict(
         extra='allow',
     )
+    __annotations__ = {
+        '__pydantic_extra__': Dict[str, str],
+    }
     operation: Literal['append', 'replace', 'overwrite', 'delete']
-
-
-Summary.__annotations__['__pydantic_extra__'] = Dict[str, str]
-Summary.model_rebuild(force=True)
 
 
 class Snapshot(BaseModel):
