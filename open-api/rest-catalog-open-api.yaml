@@ -2533,8 +2533,8 @@ components:
         - type: boolean
         - $ref: '#/components/schemas/TrueExpression'
         - $ref: '#/components/schemas/FalseExpression'
-        - $ref: '#/components/schemas/AndOrExpression'
-        - $ref: '#/components/schemas/NotExpression'
+        - $ref: '#/components/schemas/AndOrPredicate'
+        - $ref: '#/components/schemas/NotPredicate'
         - $ref: '#/components/schemas/UnaryPredicate'
         - $ref: '#/components/schemas/ComparisonPredicate'
         - $ref: '#/components/schemas/SetPredicate'
@@ -2567,7 +2567,7 @@ components:
         A value expression: a literal, a field reference, or a function application.
       oneOf:
         - $ref: '#/components/schemas/Literal'
-        - $ref: '#/components/schemas/FieldReference'
+        - $ref: '#/components/schemas/Reference'
         - $ref: '#/components/schemas/Apply'
 
     TrueExpression:
@@ -2598,7 +2598,7 @@ components:
           $ref: '#/components/schemas/ExpressionType'
           const: "false"
 
-    AndOrExpression:
+    AndOrPredicate:
       type: object
       required:
         - type
@@ -2613,7 +2613,7 @@ components:
         right:
           $ref: '#/components/schemas/Predicate'
 
-    NotExpression:
+    NotPredicate:
       type: object
       required:
         - type
@@ -2736,7 +2736,7 @@ components:
             data-type:
               $ref: '#/components/schemas/PrimitiveType'
 
-    FieldReference:
+    Reference:
       description: >
         A reference to a field. Either a bound reference (by field ID) or
         an unbound reference (by name). The context in which an expression
@@ -2831,10 +2831,14 @@ components:
 
     Term:
       oneOf:
-        - $ref: '#/components/schemas/Reference'
+        - $ref: '#/components/schemas/TermReference'
         - $ref: '#/components/schemas/TransformTerm'
 
-    Reference:
+    TermReference:
+      deprecated: true
+      description: >
+        Deprecated string-form field reference used in older REST predicates.
+        Use Reference (IdReference or NamedReference) instead.
       type: string
       example:
         - "column-name"

@@ -280,8 +280,13 @@ class FunctionIdentifier(BaseModel):
     identifier: list[IdentifierItem] = Field(..., min_length=1)
 
 
-class Reference(RootModel[str]):
-    root: str = Field(..., examples=[['column-name']])
+class TermReference(RootModel[str]):
+    root: str = Field(
+        ...,
+        deprecated=True,
+        description='Deprecated string-form field reference used in older REST predicates. Use Reference (IdReference or NamedReference) instead.\n',
+        examples=[['column-name']],
+    )
 
 
 class Transform(RootModel[str]):
@@ -1247,7 +1252,7 @@ class Literals(RootModel[list[LiteralModel] | Literals1]):
     )
 
 
-class FieldReference(RootModel[IdReference | NamedReference]):
+class Reference(RootModel[IdReference | NamedReference]):
     root: IdReference | NamedReference = Field(
         ...,
         description='A reference to a field. Either a bound reference (by field ID) or an unbound reference (by name). The context in which an expression is used determines which form is valid.\n',
@@ -1435,7 +1440,7 @@ class MapType(BaseModel):
     value_required: bool = Field(..., alias='value-required')
 
 
-class AndOrExpression(BaseModel):
+class AndOrPredicate(BaseModel):
     type: Literal['and', 'or'] = Field(
         ...,
         examples=[
@@ -1466,7 +1471,7 @@ class AndOrExpression(BaseModel):
     right: Predicate
 
 
-class NotExpression(BaseModel):
+class NotPredicate(BaseModel):
     type: Literal['not'] = Field(
         ...,
         examples=[
@@ -2085,8 +2090,8 @@ class Predicate(
         bool
         | TrueExpression
         | FalseExpression
-        | AndOrExpression
-        | NotExpression
+        | AndOrPredicate
+        | NotPredicate
         | UnaryPredicate
         | ComparisonPredicate
         | SetPredicate
@@ -2096,23 +2101,23 @@ class Predicate(
         bool
         | TrueExpression
         | FalseExpression
-        | AndOrExpression
-        | NotExpression
+        | AndOrPredicate
+        | NotPredicate
         | UnaryPredicate
         | ComparisonPredicate
         | SetPredicate
     )
 
 
-class ValueExpression(RootModel[LiteralModel | FieldReference | Apply]):
-    root: LiteralModel | FieldReference | Apply = Field(
+class ValueExpression(RootModel[LiteralModel | Reference | Apply]):
+    root: LiteralModel | Reference | Apply = Field(
         ...,
         description='A value expression: a literal, a field reference, or a function application.\n',
     )
 
 
-class Term(RootModel[Reference | TransformTerm]):
-    root: Reference | TransformTerm
+class Term(RootModel[TermReference | TransformTerm]):
+    root: TermReference | TransformTerm
 
 
 class TableUpdate(
@@ -2275,8 +2280,8 @@ class PlanTableScanResult(
 StructField.model_rebuild()
 ListType.model_rebuild()
 MapType.model_rebuild()
-AndOrExpression.model_rebuild()
-NotExpression.model_rebuild()
+AndOrPredicate.model_rebuild()
+NotPredicate.model_rebuild()
 UnaryPredicate.model_rebuild()
 ComparisonPredicate.model_rebuild()
 SetPredicate.model_rebuild()
