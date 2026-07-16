@@ -73,25 +73,12 @@ abstract class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
 
   private final Deque<Integer> fieldIds = Lists.newLinkedList();
   private final BiFunction<Integer, Types.StructType, String> namesFunction;
-  private final Schema timestampSchema;
-  private final Schema timestampTzSchema;
-  private final Schema timestampNanoSchema;
-  private final Schema timestampTzNanoSchema;
+  private final boolean legacyTimestampMapping;
 
   TypeToSchema(
       BiFunction<Integer, Types.StructType, String> namesFunction, boolean legacyTimestampMapping) {
     this.namesFunction = namesFunction;
-    if (legacyTimestampMapping) {
-      timestampSchema = LEGACY_TIMESTAMP_SCHEMA;
-      timestampTzSchema = LEGACY_TIMESTAMPTZ_SCHEMA;
-      timestampNanoSchema = LEGACY_TIMESTAMP_NANO_SCHEMA;
-      timestampTzNanoSchema = LEGACY_TIMESTAMPTZ_NANO_SCHEMA;
-    } else {
-      timestampSchema = TIMESTAMP_SCHEMA;
-      timestampTzSchema = TIMESTAMPTZ_SCHEMA;
-      timestampNanoSchema = TIMESTAMP_NANO_SCHEMA;
-      timestampTzNanoSchema = TIMESTAMPTZ_NANO_SCHEMA;
-    }
+    this.legacyTimestampMapping = legacyTimestampMapping;
   }
 
   @Override
@@ -264,16 +251,18 @@ abstract class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
         break;
       case TIMESTAMP:
         if (((Types.TimestampType) primitive).shouldAdjustToUTC()) {
-          primitiveSchema = timestampTzSchema;
+          primitiveSchema = legacyTimestampMapping ? LEGACY_TIMESTAMPTZ_SCHEMA : TIMESTAMPTZ_SCHEMA;
         } else {
-          primitiveSchema = timestampSchema;
+          primitiveSchema = legacyTimestampMapping ? LEGACY_TIMESTAMP_SCHEMA : TIMESTAMP_SCHEMA;
         }
         break;
       case TIMESTAMP_NANO:
         if (((Types.TimestampNanoType) primitive).shouldAdjustToUTC()) {
-          primitiveSchema = timestampTzNanoSchema;
+          primitiveSchema =
+              legacyTimestampMapping ? LEGACY_TIMESTAMPTZ_NANO_SCHEMA : TIMESTAMPTZ_NANO_SCHEMA;
         } else {
-          primitiveSchema = timestampNanoSchema;
+          primitiveSchema =
+              legacyTimestampMapping ? LEGACY_TIMESTAMP_NANO_SCHEMA : TIMESTAMP_NANO_SCHEMA;
         }
         break;
       case STRING:

@@ -37,6 +37,7 @@ class SchemaToType extends AvroSchemaVisitor<Type> {
     if (root.getType() == Schema.Type.RECORD) {
       this.nextId = root.getFields().size();
     }
+
     this.legacyTimestampMapping = legacyTimestampMapping;
   }
 
@@ -179,7 +180,6 @@ class SchemaToType extends AvroSchemaVisitor<Type> {
     return Types.VariantType.get();
   }
 
-  @SuppressWarnings("checkstyle:CyclomaticComplexity")
   public Type logicalType(Schema primitive, LogicalType logical) {
     String name = logical.getName();
     if (logical instanceof LogicalTypes.Decimal) {
@@ -196,35 +196,35 @@ class SchemaToType extends AvroSchemaVisitor<Type> {
 
     } else if (logical instanceof LogicalTypes.TimestampMillis
         || logical instanceof LogicalTypes.TimestampMicros) {
-      if (AvroSchemaUtil.isTimestamptz(primitive, legacyTimestampMapping)) {
-        return Types.TimestampType.withZone();
-      } else {
-        return Types.TimestampType.withoutZone();
-      }
+      return timestampType(primitive);
 
     } else if (logical instanceof LogicalTypes.TimestampNanos) {
-      if (AvroSchemaUtil.isTimestamptz(primitive, legacyTimestampMapping)) {
-        return Types.TimestampNanoType.withZone();
-      } else {
-        return Types.TimestampNanoType.withoutZone();
-      }
+      return timestampNanoType(primitive);
 
     } else if (logical instanceof LogicalTypes.LocalTimestampMillis
         || logical instanceof LogicalTypes.LocalTimestampMicros) {
-      if (!legacyTimestampMapping) {
-        return Types.TimestampType.withoutZone();
-      }
+      return Types.TimestampType.withoutZone();
 
     } else if (logical instanceof LogicalTypes.LocalTimestampNanos) {
-      if (!legacyTimestampMapping) {
-        return Types.TimestampNanoType.withoutZone();
-      }
+      return Types.TimestampNanoType.withoutZone();
 
     } else if (LogicalTypes.uuid().getName().equals(name)) {
       return Types.UUIDType.get();
     }
 
     return null;
+  }
+
+  private Type timestampType(Schema primitive) {
+    return AvroSchemaUtil.isTimestamptz(primitive, legacyTimestampMapping)
+        ? Types.TimestampType.withZone()
+        : Types.TimestampType.withoutZone();
+  }
+
+  private Type timestampNanoType(Schema primitive) {
+    return AvroSchemaUtil.isTimestamptz(primitive, legacyTimestampMapping)
+        ? Types.TimestampNanoType.withZone()
+        : Types.TimestampNanoType.withoutZone();
   }
 
   @Override
