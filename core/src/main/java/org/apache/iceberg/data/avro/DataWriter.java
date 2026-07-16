@@ -35,13 +35,23 @@ import org.apache.iceberg.avro.ValueWriters;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 public class DataWriter<T> implements MetricsAwareDatumWriter<T> {
+  private final boolean legacyTimestampMapping;
   private ValueWriter<T> writer = null;
 
   public static <D> DataWriter<D> create(Schema schema) {
-    return new DataWriter<>(schema);
+    return create(schema, true);
+  }
+
+  public static <D> DataWriter<D> create(Schema schema, boolean legacyTimestampMapping) {
+    return new DataWriter<>(schema, legacyTimestampMapping);
   }
 
   protected DataWriter(Schema schema) {
+    this(schema, true);
+  }
+
+  protected DataWriter(Schema schema, boolean legacyTimestampMapping) {
+    this.legacyTimestampMapping = legacyTimestampMapping;
     setSchema(schema);
   }
 
@@ -119,15 +129,21 @@ public class DataWriter<T> implements MetricsAwareDatumWriter<T> {
             return GenericWriters.times();
 
           case "timestamp-micros":
-            if (AvroSchemaUtil.isTimestamptz(primitive)) {
+            if (AvroSchemaUtil.isTimestamptz(primitive, legacyTimestampMapping)) {
               return GenericWriters.timestamptz();
             }
             return GenericWriters.timestamps();
 
           case "timestamp-nanos":
-            if (AvroSchemaUtil.isTimestamptz(primitive)) {
+            if (AvroSchemaUtil.isTimestamptz(primitive, legacyTimestampMapping)) {
               return GenericWriters.timestamptzNanos();
             }
+            return GenericWriters.timestampNanos();
+
+          case "local-timestamp-micros":
+            return GenericWriters.timestamps();
+
+          case "local-timestamp-nanos":
             return GenericWriters.timestampNanos();
 
           case "decimal":

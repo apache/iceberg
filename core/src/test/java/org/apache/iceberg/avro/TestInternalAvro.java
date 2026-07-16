@@ -30,6 +30,8 @@ import org.apache.iceberg.inmemory.InMemoryOutputFile;
 import org.apache.iceberg.io.DataWriter;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.types.Types;
+import org.junit.jupiter.api.Test;
 
 public class TestInternalAvro extends DataTestBase {
   @Override
@@ -50,6 +52,17 @@ public class TestInternalAvro extends DataTestBase {
   @Override
   protected boolean supportsVariant() {
     return true;
+  }
+
+  @Test
+  public void testLocalTimestamps() throws IOException {
+    Schema schema =
+        new Schema(
+            Types.NestedField.required(1, "ts", Types.TimestampType.withoutZone()),
+            Types.NestedField.required(2, "ts_ns", Types.TimestampNanoType.withoutZone()));
+
+    List<Record> expected = RandomInternalData.generate(schema, 100, 42L);
+    writeAndValidate(schema, schema, expected, false);
   }
 
   @Override
@@ -76,12 +89,22 @@ public class TestInternalAvro extends DataTestBase {
 
   protected void writeAndValidate(Schema writeSchema, Schema expectedSchema, List<Record> expected)
       throws IOException {
+    writeAndValidate(writeSchema, expectedSchema, expected, true);
+  }
+
+  private void writeAndValidate(
+      Schema writeSchema,
+      Schema expectedSchema,
+      List<Record> expected,
+      boolean legacyTimestampMapping)
+      throws IOException {
     OutputFile outputFile = new InMemoryOutputFile();
 
     try (DataWriter<Record> dataWriter =
         Avro.writeData(outputFile)
             .schema(writeSchema)
             .createWriterFunc(InternalWriter::create)
+            .legacyTimestampMapping(legacyTimestampMapping)
             .overwrite()
             .withSpec(PartitionSpec.unpartitioned())
             .build()) {

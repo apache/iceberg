@@ -36,7 +36,9 @@ import org.apache.avro.generic.GenericRecord;
 import org.apache.avro.io.BinaryEncoder;
 import org.apache.avro.io.DecoderFactory;
 import org.apache.avro.io.EncoderFactory;
+import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.DateTimeUtil;
 import org.junit.jupiter.api.Test;
@@ -184,6 +186,77 @@ class TestDataReader {
         .isEqualTo(preEpochTimestampMicros.withOffsetSameInstant(ZoneOffset.UTC));
     assertThat(preEpochResult.getField("timestamp_millis_tz"))
         .isEqualTo(preEpochTimestampMillis.withOffsetSameInstant(ZoneOffset.UTC));
+  }
+
+  @Test
+  public void localTimestampDataReader() throws IOException {
+    org.apache.iceberg.Schema icebergSchema =
+        new org.apache.iceberg.Schema(
+            Types.NestedField.required(1, "local_ts_nanos", Types.TimestampNanoType.withoutZone()),
+            Types.NestedField.required(2, "local_ts_micros", Types.TimestampType.withoutZone()),
+            Types.NestedField.required(3, "local_ts_millis", Types.TimestampType.withoutZone()));
+
+    Schema avroSchema =
+        SchemaBuilder.record("test_programmatic")
+            .fields()
+            .name("local_ts_nanos")
+            .type(LogicalTypes.localTimestampNanos().addToSchema(Schema.create(Schema.Type.LONG)))
+            .noDefault()
+            .name("local_ts_micros")
+            .type(LogicalTypes.localTimestampMicros().addToSchema(Schema.create(Schema.Type.LONG)))
+            .noDefault()
+            .name("local_ts_millis")
+            .type(LogicalTypes.localTimestampMillis().addToSchema(Schema.create(Schema.Type.LONG)))
+            .noDefault()
+            .endRecord();
+
+    avroSchema.getField("local_ts_nanos").addProp("field-id", 1);
+    avroSchema.getField("local_ts_micros").addProp("field-id", 2);
+    avroSchema.getField("local_ts_millis").addProp("field-id", 3);
+
+    DataReader<Record> reader = DataReader.create(icebergSchema, avroSchema);
+    reader.setSchema(avroSchema);
+
+    GenericRecord avroRecord = new GenericData.Record(avroSchema);
+    LocalDateTime localNanos = LocalDateTime.of(2023, 10, 15, 14, 30, 45, 123456789);
+    LocalDateTime localMicros = LocalDateTime.of(2023, 10, 15, 14, 30, 45, 123456000);
+    LocalDateTime localMillis = LocalDateTime.of(2023, 10, 15, 14, 30, 45, 123000000);
+
+    avroRecord.put("local_ts_nanos", DateTimeUtil.nanosFromTimestamp(localNanos));
+    avroRecord.put("local_ts_micros", DateTimeUtil.microsFromTimestamp(localMicros));
+    avroRecord.put("local_ts_millis", DateTimeUtil.millisFromTimestamp(localMillis));
+
+    Record result = readRecord(reader, avroSchema, avroRecord);
+
+    assertThat(result.getField("local_ts_nanos")).isEqualTo(localNanos);
+    assertThat(result.getField("local_ts_micros")).isEqualTo(localMicros);
+    assertThat(result.getField("local_ts_millis")).isEqualTo(localMillis);
+  }
+
+  @Test
+  public void timestampTzDataReaderWithLegacyMappingDisabled() throws IOException {
+    org.apache.iceberg.Schema icebergSchema =
+        new org.apache.iceberg.Schema(
+            Types.NestedField.required(1, "ts_tz", Types.TimestampType.withZone()),
+            Types.NestedField.required(2, "ts_tz_ns", Types.TimestampNanoType.withZone()));
+
+    Schema avroSchema = AvroSchemaUtil.convert(icebergSchema, "test", false);
+
+    DataReader<Record> reader =
+        DataReader.create(icebergSchema, avroSchema, ImmutableMap.of(), false);
+    reader.setSchema(avroSchema);
+
+    GenericRecord avroRecord = new GenericData.Record(avroSchema);
+    OffsetDateTime tsTz = OffsetDateTime.of(2023, 10, 15, 14, 30, 45, 123456000, ZoneOffset.UTC);
+    OffsetDateTime tsTzNs = OffsetDateTime.of(2023, 10, 15, 14, 30, 45, 123456789, ZoneOffset.UTC);
+
+    avroRecord.put("ts_tz", DateTimeUtil.microsFromTimestamptz(tsTz));
+    avroRecord.put("ts_tz_ns", DateTimeUtil.nanosFromTimestamptz(tsTzNs));
+
+    Record result = readRecord(reader, avroSchema, avroRecord);
+
+    assertThat(result.getField("ts_tz")).isEqualTo(tsTz);
+    assertThat(result.getField("ts_tz_ns")).isEqualTo(tsTzNs);
   }
 
   private Record readRecord(DataReader<Record> reader, Schema avroSchema, GenericRecord avroRecord)
