@@ -3686,15 +3686,14 @@ components:
         returned from `/v1/config`. The `config` map contains provider-specific properties for the
         selected key-management provider.
 
-        Clients should select the credential config by matching KMS key identifiers referenced by table
-        encryption metadata, such as `EncryptedKey.encrypted-by-id`, against `kms-key-ids`. If a response
-        includes `key-management-credentials` but no credential matches a KMS key ID required by table
-        encryption metadata, the client must fail the operation with an authorization or missing-credential
-        error.
+        Catalogs that return `key-management-credentials` for an operation must include credentials for all
+        KMS key IDs required by table encryption metadata. Clients should select the credential config by
+        matching KMS key identifiers referenced by table encryption metadata, such as
+        `EncryptedKey.encrypted-by-id`, against `kms-key-ids`.
 
-        Credential configs must be time-bounded and should be scoped to the minimum required KMS operations
-        and listed KMS key IDs where the provider supports it. Clients must not persist credentials beyond
-        their expiration.
+        Credential configs should use provider-specific expiration mechanisms where available and should
+        be scoped to the minimum required KMS operations and listed KMS key IDs where the provider
+        supports it. Clients must not persist credentials beyond any provider-specific expiration.
       required:
         - kms-key-ids
         - config
