@@ -145,7 +145,7 @@ public class IcebergSourceVariantIOBenchmark extends IcebergSourceBenchmark {
   /** Number of distinct category values. */
   private static final int NUM_CATEGORIES = 10;
 
-  public static final String COL_ID = "id";
+  private static final String COL_ID = "id";
   private static final String COL_NESTED = "nested";
   private static final String COL_ARR = "arr";
 
@@ -173,7 +173,7 @@ public class IcebergSourceVariantIOBenchmark extends IcebergSourceBenchmark {
   private static final String VARIANT_GET_NESTED_ID = "variant_get(nested, '$.varid', 'bigint')";
 
   /** Equality check. Pulled out to allow experimentation with set membershop vs. equals. */
-  public static final String EQUALITY_CHECK = " = 1";
+  private static final String EQUALITY_CHECK = " = 1";
 
   /** Filter to use when filtering on category column: {@value}. */
   private static final String FILTER_ON_CATEGORY = "category " + EQUALITY_CHECK;
@@ -300,8 +300,9 @@ public class IcebergSourceVariantIOBenchmark extends IcebergSourceBenchmark {
           case Unshredded, Shredded -> appendVariantData();
           case Avro -> appendAvroVariantData();
         };
-    tableDataset().createOrReplaceTempView(TEMP_VIEW);
-    tableDataset().createOrReplaceTempView(TEMP_VIEW2);
+    Dataset<Row> ds = tableDataset();
+    ds.createOrReplaceTempView(TEMP_VIEW);
+    ds.createOrReplaceTempView(TEMP_VIEW2);
     final String summary = String.format(Locale.ROOT, "Size of Table %s : %,3d", tableType, size);
     LOG.info("{}", summary);
     tableDataset().printSchema();
@@ -311,7 +312,6 @@ public class IcebergSourceVariantIOBenchmark extends IcebergSourceBenchmark {
   public void tearDownBenchmark() throws IOException {
     tearDownSpark();
     cleanupFiles();
-    logRowGroupFiltering();
   }
 
   @Override
@@ -352,7 +352,7 @@ public class IcebergSourceVariantIOBenchmark extends IcebergSourceBenchmark {
    */
   @Benchmark
   public void filterCatProjectID(Blackhole blackhole) {
-    select(blackhole, COL_ID, FILTER_ON_CATEGORY, false);
+    select(blackhole, COL_ID, FILTER_ON_CATEGORY);
   }
 
   /**
@@ -361,19 +361,10 @@ public class IcebergSourceVariantIOBenchmark extends IcebergSourceBenchmark {
    * @param blackhole consumer of all data
    * @param projection columns to project.
    * @param where optional WHERE clause
-   * @param expectPushdownWhenShredded on a shredded table, should the rowgroup filter report
-   *     invocation?
    * @return the result.
    */
-  private long select(
-      final Blackhole blackhole,
-      String projection,
-      String where,
-      boolean expectPushdownWhenShredded) {
+  private long select(final Blackhole blackhole, String projection, String where) {
     final long result = sql(blackhole, toSql(projection, where));
-    if (expectPushdownWhenShredded) {
-      expectFilteringOfShreddedFields();
-    }
     return result;
   }
 
@@ -382,18 +373,11 @@ public class IcebergSourceVariantIOBenchmark extends IcebergSourceBenchmark {
    *
    * @param projection columns to project.
    * @param where optional WHERE clause
-   * @param expectPushdownWhenShredded on a shredded table, should the rowgroup filter report
-   *     invocation?
    */
-  private void selectEmptyResults(
-      final String projection, final String where, boolean expectPushdownWhenShredded) {
+  private void selectEmptyResults(final String projection, final String where) {
     String command = toSql(projection, where);
-    resetMetricsCounter();
     final Dataset<Row> ds = spark().sql(command);
     assertThat(ds.collectAsList()).describedAs("Result of command %s", command).isEmpty();
-    if (expectPushdownWhenShredded) {
-      expectFilteringOfShreddedFields();
-    }
   }
 
   /**
@@ -418,7 +402,6 @@ public class IcebergSourceVariantIOBenchmark extends IcebergSourceBenchmark {
    */
   private long sql(final Blackhole blackhole, String command) {
     LOG.info("{}", command);
-    resetMetricsCounter();
     return materializeNonEmpty(blackhole, command, spark().sql(command));
   }
 
@@ -429,7 +412,7 @@ public class IcebergSourceVariantIOBenchmark extends IcebergSourceBenchmark {
    * @return the result.
    */
   private long project(final Blackhole blackhole, String projection) {
-    return select(blackhole, projection, null, false);
+    return select(blackhole, projection, null);
   }
 
   /**
@@ -438,7 +421,7 @@ public class IcebergSourceVariantIOBenchmark extends IcebergSourceBenchmark {
    */
   @Benchmark
   public void filterCatProjectVarID(Blackhole blackhole) {
-    select(blackhole, VARIANT_GET_NESTED_ID, FILTER_ON_CATEGORY, false);
+    select(blackhole, VARIANT_GET_NESTED_ID, FILTER_ON_CATEGORY);
   }
 
   /** Project on ID. */
@@ -462,34 +445,34 @@ public class IcebergSourceVariantIOBenchmark extends IcebergSourceBenchmark {
    */
   @Benchmark
   public void filterVarcatProjectID(Blackhole blackhole) {
-    select(blackhole, COL_ID, FILTER_ON_NESTED_CATEGORY, true);
+    select(blackhole, COL_ID, FILTER_ON_NESTED_CATEGORY);
   }
 
   /** Filter to the category match; no projection. */
   @Benchmark
   public void filterCat(Blackhole blackhole) {
-    select(blackhole, "*", FILTER_ON_CATEGORY, false);
+    select(blackhole, "*", FILTER_ON_CATEGORY);
   }
 
   /** Filter to the varcat match; no projection. */
   @Benchmark
   public void filterVarCat(Blackhole blackhole) {
-    select(blackhole, "*", FILTER_ON_NESTED_CATEGORY, true);
+    select(blackhole, "*", FILTER_ON_NESTED_CATEGORY);
   }
 
   @Benchmark
   public void filterVarCatSetMembership(Blackhole blackhole) {
-    select(blackhole, COL_ID, VARIANT_GET_NESTED_CATEGORY + " IN (1)", true);
+    select(blackhole, COL_ID, VARIANT_GET_NESTED_CATEGORY + " IN (1)");
   }
 
   @Benchmark
   public void filterVarCatSetNotInMembership(Blackhole blackhole) {
-    selectEmptyResults(COL_ID, VARIANT_GET_NESTED_CATEGORY + " IN (100, 400)", false);
+    selectEmptyResults(COL_ID, VARIANT_GET_NESTED_CATEGORY + " IN (100, 400)");
   }
 
   @Benchmark
   public void filterVarCatSetNotInRange(Blackhole blackhole) {
-    selectEmptyResults(COL_ID, VARIANT_GET_NESTED_CATEGORY + " < 0", false);
+    selectEmptyResults(COL_ID, VARIANT_GET_NESTED_CATEGORY + " < 0");
   }
 
   /** Project on the category field within the variant; no filtering. */
@@ -501,7 +484,7 @@ public class IcebergSourceVariantIOBenchmark extends IcebergSourceBenchmark {
   /** Filter on nested category field then project on the nested ID field. */
   @Benchmark
   public void filterVarcatProjectVarID(Blackhole blackhole) {
-    select(blackhole, VARIANT_GET_NESTED_ID, FILTER_ON_NESTED_CATEGORY, true);
+    select(blackhole, VARIANT_GET_NESTED_ID, FILTER_ON_NESTED_CATEGORY);
   }
 
   /** selecting on 1, but using a pair of ranges to locate. Two scans needed */
@@ -510,8 +493,7 @@ public class IcebergSourceVariantIOBenchmark extends IcebergSourceBenchmark {
     select(
         blackhole,
         VARIANT_GET_NESTED_ID,
-        VARIANT_GET_NESTED_CATEGORY + " > 0 and " + VARIANT_GET_NESTED_CATEGORY + " < 2",
-        true);
+        VARIANT_GET_NESTED_CATEGORY + " > 0 and " + VARIANT_GET_NESTED_CATEGORY + " < 2");
   }
 
   /**
@@ -528,7 +510,7 @@ public class IcebergSourceVariantIOBenchmark extends IcebergSourceBenchmark {
   /** Filter on element 0 of the array variant then project on ID. */
   @Benchmark
   public void filterArrayCategoryProjectID(Blackhole blackhole) {
-    select(blackhole, COL_ID, FILTER_ON_ARR_ELT0, false);
+    select(blackhole, COL_ID, FILTER_ON_ARR_ELT0);
   }
 
   /**
@@ -539,7 +521,7 @@ public class IcebergSourceVariantIOBenchmark extends IcebergSourceBenchmark {
    */
   @Benchmark
   public void filterArray0ProjectArray0(Blackhole blackhole) {
-    select(blackhole, VARIANT_GET_ARR_ELT0, FILTER_ON_ARR_ELT0, false);
+    select(blackhole, VARIANT_GET_ARR_ELT0, FILTER_ON_ARR_ELT0);
   }
 
   /** Explode the array variant into one row per element. */
@@ -551,10 +533,8 @@ public class IcebergSourceVariantIOBenchmark extends IcebergSourceBenchmark {
   /**
    * Self-join the table on {@code arr[4]} (= {@code id % 1000}, range 0-999) against {@code
    * varcategory} from the nested variant.
-   *
-   * <p>TODO: failing in spark. Needs investigation.
    */
-  // @Benchmark
+  @Benchmark
   public void joinArrElt4OnVarcat(Blackhole blackhole) {
     final String text =
         "SELECT t1."
@@ -568,7 +548,6 @@ public class IcebergSourceVariantIOBenchmark extends IcebergSourceBenchmark {
             + " t2 ON "
             + "variant_get(t1.arr, '$[4]', 'int') = variant_get(t2.nested, '$.varcategory', 'int')";
     sql(blackhole, text);
-    expectFilteringOfShreddedFields();
   }
 
   /**
@@ -900,16 +879,4 @@ public class IcebergSourceVariantIOBenchmark extends IcebergSourceBenchmark {
     arr.add(Variants.of((int) (id % 1000)));
     return Variant.of(Variants.emptyMetadata(), arr);
   }
-
-  /** Log the parquet metrics invocations. */
-  private void logRowGroupFiltering() {}
-
-  /** Reset the metrics counter. */
-  private void resetMetricsCounter() {}
-
-  /**
-   * On shredded tables, assert that shredded field were scanned for filtering operations. Log the
-   * count at info.
-   */
-  private void expectFilteringOfShreddedFields() {}
 }
