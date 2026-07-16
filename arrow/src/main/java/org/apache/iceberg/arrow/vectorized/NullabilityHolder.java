@@ -75,6 +75,15 @@ public class NullabilityHolder {
     return numNulls;
   }
 
+  /**
+   * Resets this holder so it can be reused for the next batch.
+   *
+   * <p>Only the null count is cleared. The per-index markers returned by {@link #isNullAt(int)} are
+   * deliberately left untouched: for every batch, writers set the marker of each index through
+   * {@link #setNull(int)}/{@link #setNotNull(int)} (or their bulk variants {@link #setNulls(int,
+   * int)}/{@link #setNotNulls(int, int)}) before the markers are read, so values carried over from
+   * a previous batch are overwritten rather than observed.
+   */
   public void reset() {
     numNulls = 0;
   }
