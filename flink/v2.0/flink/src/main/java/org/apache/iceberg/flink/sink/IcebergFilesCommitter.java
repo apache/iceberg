@@ -45,9 +45,12 @@ import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.ReplacePartitions;
 import org.apache.iceberg.RowDelta;
+import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotAncestryValidator;
 import org.apache.iceberg.SnapshotUpdate;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableUtil;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
@@ -391,9 +394,37 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     operation.set(FLINK_JOB_ID, newFlinkJobId);
     operation.set(OPERATOR_ID, operatorId);
     operation.toBranch(branch);
+    // Guard against the duplicate-commit race tracked in Iceberg issue #14425: between the
+    // initial getMaxCommittedCheckpointId() read on initializeState and SnapshotProducer.refresh()
+    // inside commit(), an in-flight commit from a prior run can land in the catalog. Without
+    // this check, a second snapshot would be created for the same checkpoint id. The validator
+    // runs after the post-refresh ancestry is known and aborts the commit if the same
+    // (job-id, operator-id) tuple has already advanced the max-committed-checkpoint-id.
+    operation.validateWith(
+        new MaxCommittedCheckpointIdValidator(checkpointId, newFlinkJobId, operatorId));
 
     long startNano = System.nanoTime();
-    operation.commit(); // abort is automatically called if this fails.
+    try {
+      operation.commit(); // abort is automatically called if this fails.
+    } catch (ValidationException e) {
+      if (e.getMessage() != null
+          && e.getMessage().contains(MaxCommittedCheckpointIdValidator.MARKER)) {
+        LOG.info(
+            "Skipping commit of {} for checkpoint {} to table {} branch {}: the table already "
+                + "reflects this checkpoint for (jobId={}, operatorId={}). This can happen on "
+                + "recovery when an in-flight commit from a prior run landed after the stale "
+                + "max-committed-checkpoint-id check (Iceberg issue #14425).",
+            description,
+            checkpointId,
+            table.name(),
+            branch,
+            newFlinkJobId,
+            operatorId,
+            e);
+        return;
+      }
+      throw e;
+    }
     long durationMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNano);
     LOG.info(
         "Committed {} to table: {}, branch: {}, checkpointId {} in {} ms",
@@ -403,6 +434,44 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
         checkpointId,
         durationMs);
     committerMetrics.commitDuration(durationMs);
+  }
+
+  /**
+   * {@link SnapshotAncestryValidator} that rejects a commit attempt when the post-refresh ancestry
+   * already contains a snapshot from the same {@code (flink.job-id, flink.operator-id)} tuple with
+   * {@code flink.max-committed-checkpoint-id} ≥ the staged checkpoint id.
+   *
+   * <p>This is the mechanism that closes the recovery race described in <a
+   * href="https://github.com/apache/iceberg/issues/14425">issue #14425</a>. Detection is by the
+   * unique {@link #MARKER} string surfaced through {@link #errorMessage()}; {@code commitOperation}
+   * catches the resulting {@link ValidationException} and treats the commit as already-applied.
+   */
+  private static class MaxCommittedCheckpointIdValidator implements SnapshotAncestryValidator {
+    private static final String MARKER =
+        "flink.max-committed-checkpoint-id already advanced past staged checkpoint";
+
+    private final long stagedCheckpointId;
+    private final String flinkJobId;
+    private final String flinkOperatorId;
+
+    private MaxCommittedCheckpointIdValidator(
+        long stagedCheckpointId, String flinkJobId, String flinkOperatorId) {
+      this.stagedCheckpointId = stagedCheckpointId;
+      this.flinkJobId = flinkJobId;
+      this.flinkOperatorId = flinkOperatorId;
+    }
+
+    @Override
+    public boolean validate(Iterable<Snapshot> baseSnapshots) {
+      long committed =
+          SinkUtil.getMaxCommittedCheckpointId(baseSnapshots, flinkJobId, flinkOperatorId);
+      return committed < stagedCheckpointId;
+    }
+
+    @Override
+    public String errorMessage() {
+      return MARKER;
+    }
   }
 
   @Override
