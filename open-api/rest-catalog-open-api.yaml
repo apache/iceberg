@@ -2423,6 +2423,8 @@ components:
 
     PrimitiveType:
       type: string
+      not:
+        const: "variant"
       example:
         - "long"
         - "string"
@@ -2508,12 +2510,17 @@ components:
         value-required:
           type: boolean
 
+    VariantType:
+      type: string
+      const: "variant"
+
     Type:
       oneOf:
         - $ref: '#/components/schemas/PrimitiveType'
         - $ref: '#/components/schemas/StructType'
         - $ref: '#/components/schemas/ListType'
         - $ref: '#/components/schemas/MapType'
+        - $ref: '#/components/schemas/VariantType'
 
     Schema:
       allOf:

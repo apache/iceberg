@@ -122,6 +122,10 @@ class PrimitiveType(RootModel[str]):
     root: str = Field(..., examples=[['long', 'string', 'fixed[16]', 'decimal(10,2)']])
 
 
+class VariantType(RootModel[Literal['variant']]):
+    root: Literal['variant']
+
+
 class ExpressionType(RootModel[str]):
     root: str = Field(
         ...,
@@ -1902,8 +1906,8 @@ class Schema(StructType):
     identifier_field_ids: list[int] | None = Field(None, alias='identifier-field-ids')
 
 
-class Type(RootModel[PrimitiveType | StructType | ListType | MapType]):
-    root: PrimitiveType | StructType | ListType | MapType
+class Type(RootModel[PrimitiveType | StructType | ListType | MapType | VariantType]):
+    root: PrimitiveType | StructType | ListType | MapType | VariantType
 
 
 class Expression(
