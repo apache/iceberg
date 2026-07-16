@@ -21,11 +21,13 @@ package org.apache.iceberg.rest.requests;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
+import java.util.List;
 import java.util.stream.Collectors;
 import org.apache.iceberg.catalog.CatalogObjectIdentifier;
 import org.apache.iceberg.catalog.CatalogObjectIdentifierParser;
 import org.apache.iceberg.catalog.CatalogObjectType;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.rest.events.OperationType;
 import org.apache.iceberg.util.JsonUtil;
 
@@ -143,9 +145,17 @@ public class QueryEventsRequestParser {
     }
 
     if (json.has(CATALOG_OBJECTS_BY_NAME)) {
-      builder.catalogObjectsByName(
-          JsonUtil.getObjectList(
-              CATALOG_OBJECTS_BY_NAME, json, CatalogObjectIdentifierParser::fromJson));
+      JsonNode arrayNode = json.get(CATALOG_OBJECTS_BY_NAME);
+      Preconditions.checkArgument(
+          arrayNode.isArray(),
+          "Cannot parse %s from non-array value: %s",
+          CATALOG_OBJECTS_BY_NAME,
+          arrayNode);
+      List<CatalogObjectIdentifier> identifiers = Lists.newArrayListWithCapacity(arrayNode.size());
+      for (JsonNode element : arrayNode) {
+        identifiers.add(CatalogObjectIdentifierParser.fromJson(element));
+      }
+      builder.catalogObjectsByName(identifiers);
     }
 
     if (json.has(CATALOG_OBJECTS_BY_UUID)) {

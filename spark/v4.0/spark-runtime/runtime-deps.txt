@@ -1,7 +1,7 @@
-com.fasterxml.jackson.core:jackson-annotations:2.21
-com.fasterxml.jackson.core:jackson-core:2.15
-com.fasterxml.jackson.core:jackson-databind:2.15
-com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.21
+com.fasterxml.jackson.core:jackson-annotations:2.22
+com.fasterxml.jackson.core:jackson-core:2.18
+com.fasterxml.jackson.core:jackson-databind:2.18
+com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.22
 com.github.ben-manes.caffeine:caffeine:2.9
 com.google.errorprone:error_prone_annotations:2.10
 com.google.flatbuffers:flatbuffers-java:23.5
@@ -34,7 +34,7 @@ org.eclipse.collections:eclipse-collections-api:11.1
 org.eclipse.collections:eclipse-collections:11.1
 org.eclipse.microprofile.openapi:microprofile-openapi-api:4.1
 org.locationtech.jts:jts-core:1.20
-org.projectnessie.nessie:nessie-client:0.107
-org.projectnessie.nessie:nessie-model:0.107
+org.projectnessie.nessie:nessie-client:0.108
+org.projectnessie.nessie:nessie-model:0.108
 org.roaringbitmap:RoaringBitmap:1.6
 org.threeten:threeten-extra:1.7

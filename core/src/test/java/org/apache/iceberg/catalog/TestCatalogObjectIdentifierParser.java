@@ -21,99 +21,81 @@ package org.apache.iceberg.catalog;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import org.junit.jupiter.api.Test;
 
-class TestCatalogObjectIdentifierParser {
+public class TestCatalogObjectIdentifierParser {
 
   @Test
-  void testToJson() {
-    CatalogObjectIdentifier id = CatalogObjectIdentifier.of(Namespace.of("db", "schema"), "tbl");
-    String expected = "{\"namespace\":[\"db\",\"schema\"],\"name\":\"tbl\"}";
-    assertThat(CatalogObjectIdentifierParser.toJson(id)).isEqualTo(expected);
+  public void toJson() {
+    assertThat(
+            CatalogObjectIdentifierParser.toJson(
+                CatalogObjectIdentifier.of("accounting", "tax", "paid")))
+        .isEqualTo("[\"accounting\",\"tax\",\"paid\"]");
+
+    assertThat(CatalogObjectIdentifierParser.toJson(CatalogObjectIdentifier.of("accounting")))
+        .isEqualTo("[\"accounting\"]");
   }
 
   @Test
-  void testToJsonWithEmptyNamespace() {
-    CatalogObjectIdentifier id = CatalogObjectIdentifier.of(Namespace.empty(), "tbl");
-    String expected = "{\"namespace\":[],\"name\":\"tbl\"}";
-    assertThat(CatalogObjectIdentifierParser.toJson(id)).isEqualTo(expected);
-  }
-
-  @Test
-  void testToJsonPretty() {
-    CatalogObjectIdentifier id = CatalogObjectIdentifier.of(Namespace.of("db"), "tbl");
-    String expected = "{\n" + "  \"namespace\" : [ \"db\" ],\n" + "  \"name\" : \"tbl\"\n" + "}";
-    assertThat(CatalogObjectIdentifierParser.toJson(id, true)).isEqualTo(expected);
-  }
-
-  @Test
-  void testToJsonWithNull() {
+  public void toJsonRejectsNull() {
     assertThatThrownBy(() -> CatalogObjectIdentifierParser.toJson(null))
-        .isInstanceOf(NullPointerException.class)
+        .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid catalog object identifier: null");
   }
 
   @Test
-  void testFromJson() {
-    String json = "{\"namespace\":[\"db\",\"schema\"],\"name\":\"tbl\"}";
-    CatalogObjectIdentifier expected =
-        CatalogObjectIdentifier.of(Namespace.of("db", "schema"), "tbl");
-    assertThat(CatalogObjectIdentifierParser.fromJson(json)).isEqualTo(expected);
+  public void fromJson() {
+    assertThat(CatalogObjectIdentifierParser.fromJson("[\"accounting\",\"tax\",\"paid\"]"))
+        .isEqualTo(CatalogObjectIdentifier.of("accounting", "tax", "paid"));
   }
 
   @Test
-  void testFromJsonWithEmptyNamespace() {
-    String json = "{\"namespace\":[],\"name\":\"tbl\"}";
-    CatalogObjectIdentifier expected = CatalogObjectIdentifier.of(Namespace.empty(), "tbl");
-    assertThat(CatalogObjectIdentifierParser.fromJson(json)).isEqualTo(expected);
+  public void roundTrip() {
+    CatalogObjectIdentifier identifier = CatalogObjectIdentifier.of("accounting", "tax", "paid");
+    assertThat(
+            CatalogObjectIdentifierParser.fromJson(
+                CatalogObjectIdentifierParser.toJson(identifier)))
+        .isEqualTo(identifier);
   }
 
   @Test
-  void testFromJsonWithMissingNamespace() {
-    String json = "{\"name\":\"tbl\"}";
-    CatalogObjectIdentifier expected = CatalogObjectIdentifier.of(Namespace.empty(), "tbl");
-    assertThat(CatalogObjectIdentifierParser.fromJson(json)).isEqualTo(expected);
-  }
-
-  @Test
-  void testFromJsonWithNullString() {
+  public void fromJsonRejectsInvalidInput() {
     assertThatThrownBy(() -> CatalogObjectIdentifierParser.fromJson((String) null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse catalog object identifier from invalid JSON: null");
-  }
 
-  @Test
-  void testFromJsonWithEmptyString() {
     assertThatThrownBy(() -> CatalogObjectIdentifierParser.fromJson(""))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse catalog object identifier from invalid JSON: ''");
-  }
 
-  @Test
-  void testFromJsonWithNullNode() {
-    assertThatThrownBy(() -> CatalogObjectIdentifierParser.fromJson((JsonNode) null))
+    assertThatThrownBy(() -> CatalogObjectIdentifierParser.fromJson("{}"))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse missing or non-object catalog object identifier: null");
-  }
+        .hasMessage("Cannot parse string array from non-array: {}");
 
-  @Test
-  void testFromJsonWithMissingName() {
-    assertThatThrownBy(() -> CatalogObjectIdentifierParser.fromJson("{\"namespace\":[\"db\"]}"))
+    assertThatThrownBy(() -> CatalogObjectIdentifierParser.fromJson("\"accounting.tax\""))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse missing string: name");
+        .hasMessage("Cannot parse string array from non-array: \"accounting.tax\"");
   }
 
   @Test
-  void testRoundTrip() {
-    String json = "{\"namespace\":[\"db\",\"schema\"],\"name\":\"tbl\"}";
-    assertThat(CatalogObjectIdentifierParser.toJson(CatalogObjectIdentifierParser.fromJson(json)))
-        .isEqualTo(json);
+  public void fromJsonAcceptsEmptyArray() {
+    CatalogObjectIdentifier identifier = CatalogObjectIdentifierParser.fromJson("[]");
+    assertThat(identifier.levels()).isEmpty();
+    assertThat(identifier.length()).isZero();
+  }
 
-    String jsonEmptyNs = "{\"namespace\":[],\"name\":\"tbl\"}";
-    assertThat(
-            CatalogObjectIdentifierParser.toJson(
-                CatalogObjectIdentifierParser.fromJson(jsonEmptyNs)))
-        .isEqualTo(jsonEmptyNs);
+  @Test
+  public void fromJsonRejectsNonStringElement() {
+    assertThatThrownBy(() -> CatalogObjectIdentifierParser.fromJson("[null]"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot parse string from non-text value: null");
+
+    assertThatThrownBy(() -> CatalogObjectIdentifierParser.fromJson("[1]"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot parse string from non-text value: 1");
+
+    assertThatThrownBy(() -> CatalogObjectIdentifierParser.fromJson("[\"a\", null, \"b\"]"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot parse string from non-text value: null");
   }
 }

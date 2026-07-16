@@ -59,7 +59,12 @@ public class MetricsModes {
    *
    * <p>Implementations must be immutable.
    */
-  public interface MetricsMode extends Serializable {}
+  public interface MetricsMode extends Serializable {
+    default boolean hasBounds() {
+      throw new UnsupportedOperationException(
+          "Unexpected implementation of MetricsMode without hasBounds");
+    }
+  }
 
   /**
    * Under this mode, value_counts, null_value_counts, nan_value_counts, lower_bounds, upper_bounds
@@ -70,6 +75,11 @@ public class MetricsModes {
 
     public static None get() {
       return INSTANCE;
+    }
+
+    @Override
+    public boolean hasBounds() {
+      return false;
     }
 
     @Override
@@ -84,6 +94,11 @@ public class MetricsModes {
 
     public static Counts get() {
       return INSTANCE;
+    }
+
+    @Override
+    public boolean hasBounds() {
+      return false;
     }
 
     @Override
@@ -106,6 +121,11 @@ public class MetricsModes {
     public static Truncate withLength(int length) {
       Preconditions.checkArgument(length > 0, "Truncate length should be positive");
       return new Truncate(length);
+    }
+
+    @Override
+    public boolean hasBounds() {
+      return true;
     }
 
     public int length() {
@@ -143,6 +163,11 @@ public class MetricsModes {
 
     public static Full get() {
       return INSTANCE;
+    }
+
+    @Override
+    public boolean hasBounds() {
+      return true;
     }
 
     @Override

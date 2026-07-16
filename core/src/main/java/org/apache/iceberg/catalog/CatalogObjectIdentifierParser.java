@@ -21,23 +21,16 @@ package org.apache.iceberg.catalog;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
-import java.util.List;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.JsonUtil;
 
 /**
- * Parses {@link CatalogObjectIdentifier} from a JSON representation.
+ * Parses {@link CatalogObjectIdentifier} from its JSON representation used by the REST catalog.
  *
- * <pre>
- * {
- *   "namespace": ["db", "schema"],
- *   "name": "my_table"
- * }
- * </pre>
+ * <p>{@code CatalogObjectIdentifier.of("accounting", "tax", "paid")} serializes to {@code
+ * ["accounting", "tax", "paid"]}.
  */
 public class CatalogObjectIdentifierParser {
-  private static final String NAMESPACE = "namespace";
-  private static final String NAME = "name";
 
   private CatalogObjectIdentifierParser() {}
 
@@ -49,14 +42,10 @@ public class CatalogObjectIdentifierParser {
     return JsonUtil.generate(gen -> toJson(identifier, gen), pretty);
   }
 
-  public static void toJson(CatalogObjectIdentifier identifier, JsonGenerator gen)
+  public static void toJson(CatalogObjectIdentifier identifier, JsonGenerator generator)
       throws IOException {
-    Preconditions.checkNotNull(identifier, "Invalid catalog object identifier: null");
-    gen.writeStartObject();
-    gen.writeFieldName(NAMESPACE);
-    gen.writeArray(identifier.namespace().levels(), 0, identifier.namespace().length());
-    gen.writeStringField(NAME, identifier.name());
-    gen.writeEndObject();
+    Preconditions.checkArgument(null != identifier, "Invalid catalog object identifier: null");
+    generator.writeArray(identifier.levels(), 0, identifier.length());
   }
 
   public static CatalogObjectIdentifier fromJson(String json) {
@@ -68,14 +57,6 @@ public class CatalogObjectIdentifierParser {
   }
 
   public static CatalogObjectIdentifier fromJson(JsonNode node) {
-    Preconditions.checkArgument(
-        node != null && !node.isNull() && node.isObject(),
-        "Cannot parse missing or non-object catalog object identifier: %s",
-        node);
-    List<String> levels = JsonUtil.getStringListOrNull(NAMESPACE, node);
-    String name = JsonUtil.getString(NAME, node);
-    Namespace namespace =
-        levels == null ? Namespace.empty() : Namespace.of(levels.toArray(new String[0]));
-    return CatalogObjectIdentifier.of(namespace, name);
+    return CatalogObjectIdentifier.of(JsonUtil.getStringArray(node));
   }
 }

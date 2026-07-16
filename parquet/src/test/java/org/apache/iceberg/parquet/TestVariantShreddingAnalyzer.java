@@ -21,10 +21,13 @@ package org.apache.iceberg.parquet;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.util.List;
 import java.util.Locale;
+import java.util.UUID;
 import java.util.function.Function;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.variants.ShreddedObject;
 import org.apache.iceberg.variants.ValueArray;
 import org.apache.iceberg.variants.VariantMetadata;
@@ -35,6 +38,8 @@ import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 public class TestVariantShreddingAnalyzer {
 
@@ -133,6 +138,9 @@ public class TestVariantShreddingAnalyzer {
     assertThat(schema).isInstanceOf(GroupType.class);
     GroupType typedValue = (GroupType) schema;
     assertThat(typedValue.getFieldCount()).isLessThanOrEqualTo(300).isGreaterThan(0);
+    assertThat(typedValue.containsField("field_0000")).isTrue();
+    assertThat(typedValue.containsField("field_0299")).isTrue();
+    assertThat(typedValue.containsField("field_0300")).isFalse();
   }
 
   @Test
@@ -245,6 +253,35 @@ public class TestVariantShreddingAnalyzer {
         .isEqualTo(PrimitiveType.PrimitiveTypeName.FIXED_LEN_BYTE_ARRAY);
   }
 
+  @ParameterizedTest
+  @CsvSource({"20, 9", "28, 12", "33, 14"})
+  public void testDecimalExceedingPrecisionUsesMinimumFixedLength(
+      int precision, int expectedLength) {
+    DirectAnalyzer analyzer = new DirectAnalyzer();
+
+    // Precision > 18 shreds to FIXED_LEN_BYTE_ARRAY; the declared length must equal what the
+    // writer emits (decimalRequiredBytes).
+    VariantMetadata meta = Variants.metadata("val");
+    ShreddedObject row = Variants.object(meta);
+    row.put("val", Variants.of(new BigDecimal(BigInteger.TEN.pow(precision - 1))));
+
+    Type schema = analyzer.analyzeAndCreateSchema(List.of(row), 0);
+    assertThat(schema).isNotNull();
+
+    GroupType valGroup = schema.asGroupType().getType("val").asGroupType();
+    PrimitiveType valPrimitive = valGroup.getType("typed_value").asPrimitiveType();
+
+    LogicalTypeAnnotation.DecimalLogicalTypeAnnotation decimal =
+        (LogicalTypeAnnotation.DecimalLogicalTypeAnnotation)
+            valPrimitive.getLogicalTypeAnnotation();
+    assertThat(decimal.getPrecision()).isEqualTo(precision);
+    assertThat(valPrimitive.getPrimitiveTypeName())
+        .isEqualTo(PrimitiveType.PrimitiveTypeName.FIXED_LEN_BYTE_ARRAY);
+    assertThat(valPrimitive.getTypeLength())
+        .isEqualTo(expectedLength)
+        .isEqualTo(TypeUtil.decimalRequiredBytes(precision));
+  }
+
   @Test
   public void testDecimalForExactPrecision() {
     DirectAnalyzer analyzer = new DirectAnalyzer();
@@ -266,6 +303,10 @@ public class TestVariantShreddingAnalyzer {
             valPrimitive.getLogicalTypeAnnotation();
     assertThat(decimal.getPrecision()).isEqualTo(38);
     assertThat(decimal.getScale()).isEqualTo(18);
+    // Precision 38 is the max and requires the full 16-byte FIXED width.
+    assertThat(valPrimitive.getTypeLength())
+        .isEqualTo(TypeUtil.decimalRequiredBytes(38))
+        .isEqualTo(16);
   }
 
   @Test
@@ -406,6 +447,28 @@ public class TestVariantShreddingAnalyzer {
     assertThat(elementGroup.containsField("typed_value")).isTrue();
     GroupType elementFields = elementGroup.getType("typed_value").asGroupType();
     assertThat(elementFields.containsField("key")).isTrue();
+  }
+
+  @Test
+  public void testUuidFieldIsTrackedAndShredded() {
+    VariantMetadata meta = Variants.metadata("id");
+    List<VariantValue> rows = Lists.newArrayList();
+    for (int i = 0; i < 100; i++) {
+      ShreddedObject obj = Variants.object(meta);
+      obj.put("id", Variants.ofUUID(UUID.randomUUID()));
+      rows.add(obj);
+    }
+
+    DirectAnalyzer analyzer = new DirectAnalyzer();
+    Type schema = analyzer.analyzeAndCreateSchema(rows, 0);
+
+    assertThat(schema).isNotNull();
+    GroupType typedValue = (GroupType) schema;
+    assertThat(typedValue.containsField("id")).isTrue();
+    GroupType idGroup = typedValue.getType("id").asGroupType();
+    PrimitiveType idTyped = idGroup.getType("typed_value").asPrimitiveType();
+    assertThat(idTyped.getLogicalTypeAnnotation())
+        .isInstanceOf(LogicalTypeAnnotation.UUIDLogicalTypeAnnotation.class);
   }
 
   /**

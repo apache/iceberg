@@ -47,6 +47,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.RegisterExtension;
@@ -157,6 +158,13 @@ public class TestColumnStatsWatermarkExtractor {
             "Found STRING, expected a LONG, TIMESTAMP, or TIMESTAMP_NANO column for watermark generation.");
   }
 
+  @Test
+  public void testMissingColumn() {
+    assertThatThrownBy(() -> new ColumnStatsWatermarkExtractor(SCHEMA, "missing_column", null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot find watermark column: missing_column");
+  }
+
   @TestTemplate
   public void testTimestampNanoAccepted() {
     // Run the precondition check exactly once across the parameterized matrix.
@@ -172,11 +180,14 @@ public class TestColumnStatsWatermarkExtractor {
     assumeThat(columnName).isEqualTo("timestamp_column");
 
     // Create an extractor for a column we do not have statistics
+    IcebergSourceSplit split = split(0);
     ColumnStatsWatermarkExtractor extractor =
         new ColumnStatsWatermarkExtractor(10, "missing_field");
-    assertThatThrownBy(() -> extractor.extractWatermark(split(0)))
+    assertThatThrownBy(() -> extractor.extractWatermark(split))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Missing statistics for column");
+        .hasMessage(
+            "Missing statistics for column name = missing_field with fieldId = 10 in file = "
+                + split.task().files().iterator().next().file());
   }
 
   private IcebergSourceSplit split(int id) throws IOException {

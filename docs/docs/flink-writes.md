@@ -398,6 +398,32 @@ To use SinkV2 based implementation, replace `FlinkSink` with `IcebergSink` in th
      - The `RANGE` distribution mode is not yet available for the `IcebergSink`
      - When using `IcebergSink` use `uidSuffix` instead of the `uidPrefix`
 
+### Post-commit table maintenance
+
+`IcebergSink` can run [table maintenance](flink-maintenance.md#icebergsink-with-post-commit-integration)
+tasks automatically after each commit, so a separate maintenance job is not required. Enable them with
+builder methods (or the equivalent `flink-maintenance.*` write options):
+
+- `rewriteDataFiles()` compacts small data files
+- `expireSnapshots()` expires old snapshots
+- `deleteOrphanFiles()` removes unreferenced files
+- `convertEqualityDeletes()` converts equality deletes to deletion vectors (requires equality fields
+  and table format version >= 3)
+
+```java
+IcebergSink.forRowData(dataStream)
+    .table(table)
+    .tableLoader(tableLoader)
+    .upsert(true)
+    .equalityFieldColumns(List.of("id"))
+    .rewriteDataFiles()
+    .convertEqualityDeletes()
+    .append();
+```
+
+See [IcebergSink with Post-Commit Integration](flink-maintenance.md#icebergsink-with-post-commit-integration)
+for the full options, locking, and the `convertEqualityDeletes` staging/target-branch setup.
+
 ## Flink Dynamic Iceberg Sink
 
 The Flink Dynamic Iceberg Sink (Dynamic Sink) allows:
@@ -487,10 +513,10 @@ We need the following information (DynamicRecord) for every record:
 | `Schema`           | The schema of the record.                                                                 |
 | `Spec`             | The expected partitioning specification for the record.                                   |
 | `RowData`          | The actual row data to be written.                                                        |
-| `DistributionMode` | The distribution mode for writing the record (NONE, HASH or `null`). When `null`, the record won't be shuffled at all. |
+| `DistributionMode` | The distribution mode for writing the record (NONE, HASH or `null`). When `null`, the record won't be shuffled at all — except when the record resolves to a non-empty equality-field set, in which case the dynamic sink falls back to hash distribution to keep records sharing the same equality key on the same writer. |
 | `Parallelism`      | The maximum number of parallel writers for a given table/branch/schema/spec (WriteTarget). |
 | `UpsertMode`       | Overrides this table's write.upsert.enabled (optional).                                   |
-| `EqualityFields`   | The equality fields for the table(optional).                                                        |
+| `EqualityFields`   | The equality fields for the table (optional). When unset, the dynamic sink falls back to the schema's identifier fields for both distribution (records sharing a key route to the same writer) and equality-delete inference. Identifier fields do not auto-enable upsert mode — that flag remains opt-in. |
 
 ### Schema Evolution
 

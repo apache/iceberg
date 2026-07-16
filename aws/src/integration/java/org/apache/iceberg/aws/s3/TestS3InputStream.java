@@ -42,6 +42,7 @@ import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 @Testcontainers
 public class TestS3InputStream {
   @Container private static final MinIOContainer MINIO = MinioUtil.createContainer();
+  private static final int EOF = -1;
 
   private final S3Client s3 = MinioUtil.createS3Client(MINIO);
   private final Random random = new Random(1);
@@ -89,6 +90,41 @@ public class TestS3InputStream {
       // Backseek and read
       readAndCheck(in, 0, readSize, data, true);
       readAndCheck(in, 0, readSize, data, false);
+    }
+  }
+
+  @Test
+  public void testReadSingle() throws Exception {
+    S3URI uri = new S3URI("s3://bucket/path/to/read.dat");
+    int i0 = 1;
+    int i1 = 255;
+    byte[] data = {(byte) i0, (byte) i1};
+
+    writeS3Data(uri, data);
+
+    try (SeekableInputStream in = newInputStream(s3, uri)) {
+      assertThat(in.read()).isEqualTo(i0);
+      assertThat(in.read()).isEqualTo(i1);
+      assertThat(in.read()).isEqualTo(EOF);
+    }
+  }
+
+  @Test
+  public void testReadBufferedEOF() throws Exception {
+    S3URI uri = new S3URI("s3://bucket/path/to/read.dat");
+    int dataSize = 8;
+    byte[] expected = randomData(dataSize);
+    byte[] actual = new byte[dataSize + 1];
+
+    writeS3Data(uri, expected);
+
+    try (SeekableInputStream in = newInputStream(s3, uri)) {
+      int bytesRead = in.read(actual, 0, dataSize + 1);
+      assertThat(bytesRead).isEqualTo(dataSize);
+      assertThat(Arrays.copyOfRange(actual, 0, bytesRead)).isEqualTo(expected);
+
+      assertThat(in.read(actual, 0, 10)).isEqualTo(EOF);
+      assertThat(in.getPos()).isEqualTo(dataSize);
     }
   }
 

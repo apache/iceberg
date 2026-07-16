@@ -65,6 +65,10 @@ the same copy of data using Spark and run analytics or AI with our
 [Machine Learning](https://www.cloudera.com/products/machine-learning.html) tools on private
 or any public cloud.
 
+### [Collate](https://www.getcollate.io/)
+
+Collate is an AI-native data catalog and governance platform built on [OpenMetadata](https://open-metadata.org/), the open-source (Apache 2.0) context layer. It brings together every Apache Iceberg table into a single source of governed context — with column-level lineage, data profiling, and no-code data quality tests — by connecting through the engines that already query Iceberg (e.g., Trino, Snowflake, BigQuery).
+
 ### [Confluent](https://confluent.io)
 
 [Confluent](https://www.confluent.io/) provides [Tableflow](https://www.confluent.io/product/tableflow/), a managed service for streaming data from Apache Kafka topics into Apache Iceberg tables. Tableflow automates schema evolution through Schema Registry integration and handles table maintenance tasks including compaction automatically.
@@ -76,6 +80,14 @@ or any public cloud.
 ### [Databricks](https://www.databricks.com/)
 
 [Databricks](https://www.databricks.com/) uses an open lakehouse architecture to power its Data Intelligence Platform and provide a unified foundation for all data and governance, combined with AI models tuned to an organization’s unique characteristics. Through [Unity Catalog](https://www.databricks.com/product/unity-catalog), users can manage and govern all structured data, unstructured data, business metrics and AI models across open data formats like Delta Lake, Apache Iceberg, Hudi, Parquet and more.
+
+### [Dataddo](https://www.dataddo.com/)
+
+[Dataddo](https://www.dataddo.com/) is a fully managed data integration platform for moving enterprise data across cloud, on-prem, and hybrid environments, with first-class support for open table formats including Apache Iceberg.
+* **Architecture** - Dataddo runs a single control plane that orchestrates data planes on AWS, Azure, GCP, sovereign clouds or on-premises Kubernetes and OpenShift, so sensitive data never leaves your network.
+* **Transport patterns** - Dataddo supports ETL/ELT, CDC, streaming, reverse ETL, and batch delivery from hundreds of fully maintained connectors.
+* **Iceberg support** - Dataddo writes to Apache Iceberg via catalogs such as AWS Glue, REST and others, and automatically detects source schema drift so downstream tables don't silently break.
+See the [Dataddo Platform](https://dataddo.com/platform) for details.
 
 ### [dltHub](https://dlthub.com/)
 

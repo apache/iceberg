@@ -27,7 +27,6 @@ import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.catalog.CatalogObjectIdentifier;
 import org.apache.iceberg.catalog.CatalogObjectType;
-import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.rest.events.OperationType;
 import org.junit.jupiter.api.Test;
 
@@ -43,8 +42,7 @@ public class TestQueryEventsRequestParser {
             .operationTypes(List.of(OperationType.CREATE_TABLE, OperationType.DROP_TABLE))
             .catalogObjectsByName(
                 List.of(
-                    CatalogObjectIdentifier.of(Namespace.of("a"), "b"),
-                    CatalogObjectIdentifier.of(Namespace.empty(), "c")))
+                    CatalogObjectIdentifier.of("a", "b"), CatalogObjectIdentifier.of("c")))
             .catalogObjectsByUuid(List.of("uuid1"))
             .objectTypes(List.of(CatalogObjectType.TABLE, CatalogObjectType.NAMESPACE))
             .customFilters(Map.of("k1", "v1"))
@@ -53,7 +51,7 @@ public class TestQueryEventsRequestParser {
     String expected =
         "{\"continuation-token\":\"pt\",\"page-size\":10,\"after-timestamp-ms\":123,"
             + "\"operation-types\":[\"create-table\",\"drop-table\"],"
-            + "\"catalog-objects-by-name\":[{\"namespace\":[\"a\"],\"name\":\"b\"},{\"namespace\":[],\"name\":\"c\"}],"
+            + "\"catalog-objects-by-name\":[[\"a\",\"b\"],[\"c\"]],"
             + "\"catalog-objects-by-uuid\":[\"uuid1\"],"
             + "\"object-types\":[\"table\",\"namespace\"],"
             + "\"custom-filters\":{\"k1\":\"v1\"}}";
@@ -71,8 +69,7 @@ public class TestQueryEventsRequestParser {
             .operationTypes(List.of(OperationType.CREATE_TABLE, OperationType.DROP_TABLE))
             .catalogObjectsByName(
                 List.of(
-                    CatalogObjectIdentifier.of(Namespace.of("a"), "b"),
-                    CatalogObjectIdentifier.of(Namespace.empty(), "c")))
+                    CatalogObjectIdentifier.of("a", "b"), CatalogObjectIdentifier.of("c")))
             .catalogObjectsByUuid(List.of("uuid1"))
             .objectTypes(List.of(CatalogObjectType.TABLE, CatalogObjectType.NAMESPACE))
             .customFilters(Map.of("k1", "v1"))
@@ -84,13 +81,7 @@ public class TestQueryEventsRequestParser {
             + "  \"page-size\" : 10,\n"
             + "  \"after-timestamp-ms\" : 123,\n"
             + "  \"operation-types\" : [ \"create-table\", \"drop-table\" ],\n"
-            + "  \"catalog-objects-by-name\" : [ {\n"
-            + "    \"namespace\" : [ \"a\" ],\n"
-            + "    \"name\" : \"b\"\n"
-            + "  }, {\n"
-            + "    \"namespace\" : [ ],\n"
-            + "    \"name\" : \"c\"\n"
-            + "  } ],\n"
+            + "  \"catalog-objects-by-name\" : [ [ \"a\", \"b\" ], [ \"c\" ] ],\n"
             + "  \"catalog-objects-by-uuid\" : [ \"uuid1\" ],\n"
             + "  \"object-types\" : [ \"table\", \"namespace\" ],\n"
             + "  \"custom-filters\" : {\n"
@@ -125,8 +116,7 @@ public class TestQueryEventsRequestParser {
             .operationTypes(List.of(OperationType.CREATE_TABLE, OperationType.DROP_TABLE))
             .catalogObjectsByName(
                 List.of(
-                    CatalogObjectIdentifier.of(Namespace.of("a"), "b"),
-                    CatalogObjectIdentifier.of(Namespace.empty(), "c")))
+                    CatalogObjectIdentifier.of("a", "b"), CatalogObjectIdentifier.of("c")))
             .catalogObjectsByUuid(List.of("uuid1"))
             .objectTypes(List.of(CatalogObjectType.TABLE, CatalogObjectType.NAMESPACE))
             .customFilters(Map.of("k1", "v1", "k2", "v2"))
@@ -134,7 +124,7 @@ public class TestQueryEventsRequestParser {
     String json =
         "{\"continuation-token\":\"pt\",\"page-size\":10,\"after-timestamp-ms\":123,"
             + "\"operation-types\":[\"create-table\",\"drop-table\"],"
-            + "\"catalog-objects-by-name\":[{\"namespace\":[\"a\"],\"name\":\"b\"},{\"namespace\":[],\"name\":\"c\"}],"
+            + "\"catalog-objects-by-name\":[[\"a\",\"b\"],[\"c\"]],"
             + "\"catalog-objects-by-uuid\":[\"uuid1\"],"
             + "\"object-types\":[\"table\",\"namespace\"],"
             + "\"custom-filters\":{\"k1\":\"v1\",\"k2\":\"v2\"}}";
