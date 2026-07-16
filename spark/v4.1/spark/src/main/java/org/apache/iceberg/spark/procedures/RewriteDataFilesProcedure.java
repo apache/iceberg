@@ -207,7 +207,6 @@ class RewriteDataFilesProcedure extends BaseProcedure {
     }
 
     if ((!zOrderTerms.isEmpty() || !hilbertTerms.isEmpty()) && !sortOrderFields.isEmpty()) {
-      // TODO: we need to allow this in future when SparkAction has handling for this.
       throw new IllegalArgumentException(
           "Cannot mix identity sort columns and a Zorder or Hilbert sort expression: "
               + sortOrderString);
