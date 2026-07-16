@@ -123,9 +123,8 @@ public class AvroSchemaUtil {
   }
 
   public static org.apache.iceberg.Schema toIceberg(Schema schema, boolean legacyTimestampMapping) {
-    final List<Types.NestedField> fields =
-        convert(schema, legacyTimestampMapping).asNestedType().asStructType().fields();
-    return new org.apache.iceberg.Schema(fields);
+    Type type = convert(schema, legacyTimestampMapping);
+    return new org.apache.iceberg.Schema(type.asNestedType().asStructType().fields());
   }
 
   static boolean hasIds(Schema schema) {
