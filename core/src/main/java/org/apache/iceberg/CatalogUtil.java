@@ -606,6 +606,7 @@ public class CatalogUtil {
       // An empty metadata log (e.g. METADATA_PREVIOUS_VERSIONS_MAX=0) no longer retains base's
       // own metadata file, so delete it too.
       if (metadata.previousFiles().isEmpty()
+          && base.metadataFileLocation() != null
           && !Objects.equals(base.metadataFileLocation(), metadata.metadataFileLocation())) {
         metadataFilesToDelete.add(base.metadataFileLocation());
       }
