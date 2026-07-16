@@ -54,6 +54,8 @@ public class TestSchemaConversions {
             Types.TimeType.get(),
             Types.TimestampType.withZone(),
             Types.TimestampType.withoutZone(),
+            Types.TimestampNanoType.withZone(),
+            Types.TimestampNanoType.withoutZone(),
             Types.StringType.get(),
             Types.UUIDType.get(),
             Types.FixedType.ofLength(12),
@@ -74,6 +76,10 @@ public class TestSchemaConversions {
                 LogicalTypes.timestampMicros().addToSchema(Schema.create(Schema.Type.LONG)), true),
             addAdjustToUtc(
                 LogicalTypes.timestampMicros().addToSchema(Schema.create(Schema.Type.LONG)), false),
+            addAdjustToUtc(
+                LogicalTypes.timestampNanos().addToSchema(Schema.create(Schema.Type.LONG)), true),
+            addAdjustToUtc(
+                LogicalTypes.timestampNanos().addToSchema(Schema.create(Schema.Type.LONG)), false),
             Schema.create(Schema.Type.STRING),
             LogicalTypes.uuid().addToSchema(Schema.createFixed("uuid_fixed", null, null, 16)),
             Schema.createFixed("fixed_12", null, null, 12),
@@ -101,62 +107,120 @@ public class TestSchemaConversions {
   }
 
   @Test
-  public void testAvroToIcebergTimestampTypeWithoutAdjustToUTC() {
-    // Not included in the primitives test because there is not a way to round trip the
-    // avro<->iceberg conversion
-    // This is because iceberg types can only can encode adjust-to-utc=true|false but not a missing
-    // adjust-to-utc
-    Type expectedIcebergType = Types.TimestampType.withoutZone();
-    Schema avroType = LogicalTypes.timestampMicros().addToSchema(Schema.create(Schema.Type.LONG));
+  public void testAvroToIcebergTimestampTypes() {
+    // Not included in the primitives test because there is no way
+    // to round trip the avro<->iceberg conversion
+    List<Schema> avroTimestamps =
+        Lists.newArrayList(
+            // iceberg types can only encode adjust-to-utc=true|false but not a missing
+            // adjust-to-utc
+            LogicalTypes.timestampMillis().addToSchema(Schema.create(Schema.Type.LONG)),
+            LogicalTypes.timestampMicros().addToSchema(Schema.create(Schema.Type.LONG)),
+            LogicalTypes.timestampNanos().addToSchema(Schema.create(Schema.Type.LONG)),
+            // iceberg types can only encode *-micros and *-nanos types
+            addAdjustToUtc(
+                LogicalTypes.timestampMillis().addToSchema(Schema.create(Schema.Type.LONG)), true),
+            addAdjustToUtc(
+                LogicalTypes.timestampMillis().addToSchema(Schema.create(Schema.Type.LONG)), false),
+            // iceberg types can't encode local-timestamp-* types when legacy mapping enabled
+            LogicalTypes.localTimestampMillis().addToSchema(Schema.create(Schema.Type.LONG)),
+            LogicalTypes.localTimestampMicros().addToSchema(Schema.create(Schema.Type.LONG)),
+            LogicalTypes.localTimestampNanos().addToSchema(Schema.create(Schema.Type.LONG)));
 
-    assertThat(AvroSchemaUtil.convert(avroType)).isEqualTo(expectedIcebergType);
+    List<Type> timestamps =
+        Lists.newArrayList(
+            // missing adjust-to-utc
+            Types.TimestampType.withoutZone(),
+            Types.TimestampType.withoutZone(),
+            Types.TimestampNanoType.withoutZone(),
+            // *-millis
+            Types.TimestampType.withZone(),
+            Types.TimestampType.withoutZone(),
+            // local-*
+            Types.TimestampType.withoutZone(),
+            Types.TimestampType.withoutZone(),
+            Types.TimestampNanoType.withoutZone());
+
+    for (int i = 0; i < timestamps.size(); i += 1) {
+      Type type = timestamps.get(i);
+      Schema avro = avroTimestamps.get(i);
+      assertThat(AvroSchemaUtil.convert(avro))
+          .as("Avro schema to timestamp: " + avro)
+          .isEqualTo(type);
+    }
   }
 
   @Test
   public void testTimestampTypesWithLegacyMappingDisabled() {
-    String name = "timestamps";
+    List<Type> timestamps =
+        Lists.newArrayList(
+            Types.TimestampType.withZone(),
+            Types.TimestampType.withoutZone(),
+            Types.TimestampNanoType.withZone(),
+            Types.TimestampNanoType.withoutZone());
 
-    Schema ts = LogicalTypes.localTimestampMicros().addToSchema(Schema.create(Schema.Type.LONG));
-    Schema tsNs = LogicalTypes.localTimestampNanos().addToSchema(Schema.create(Schema.Type.LONG));
-    Schema tsTz = LogicalTypes.timestampMicros().addToSchema(Schema.create(Schema.Type.LONG));
-    Schema tsTzNs = LogicalTypes.timestampNanos().addToSchema(Schema.create(Schema.Type.LONG));
-    Schema avroSchema =
-        record(
-            name,
-            requiredField(0, "ts", ts),
-            requiredField(1, "ts_ns", tsNs),
-            requiredField(2, "ts_tz", tsTz),
-            requiredField(3, "ts_tz_ns", tsTzNs));
+    List<Schema> avroTimestamps =
+        Lists.newArrayList(
+            LogicalTypes.timestampMicros().addToSchema(Schema.create(Schema.Type.LONG)),
+            LogicalTypes.localTimestampMicros().addToSchema(Schema.create(Schema.Type.LONG)),
+            LogicalTypes.timestampNanos().addToSchema(Schema.create(Schema.Type.LONG)),
+            LogicalTypes.localTimestampNanos().addToSchema(Schema.create(Schema.Type.LONG)));
 
-    Schema legacyTs = LogicalTypes.timestampMicros().addToSchema(Schema.create(Schema.Type.LONG));
-    Schema legacyTsNs = LogicalTypes.timestampNanos().addToSchema(Schema.create(Schema.Type.LONG));
-    Schema legacyTsTz = LogicalTypes.timestampMicros().addToSchema(Schema.create(Schema.Type.LONG));
-    Schema legacyTsTzNs =
-        LogicalTypes.timestampNanos().addToSchema(Schema.create(Schema.Type.LONG));
-    Schema legacyAvroSchema =
-        record(
-            name,
-            requiredField(0, "ts", addAdjustToUtc(legacyTs, false)),
-            requiredField(1, "ts_ns", addAdjustToUtc(legacyTsNs, false)),
-            requiredField(2, "ts_tz", addAdjustToUtc(legacyTsTz, true)),
-            requiredField(3, "ts_tz_ns", addAdjustToUtc(legacyTsTzNs, true)));
+    for (int i = 0; i < timestamps.size(); i += 1) {
+      Type type = timestamps.get(i);
+      Schema avro = avroTimestamps.get(i);
+      assertThat(AvroSchemaUtil.convert(avro, false))
+          .as("Avro schema to timestamp: " + avro)
+          .isEqualTo(type);
+      assertThat(AvroSchemaUtil.convert(type, false))
+          .as("Timestamp to avro schema: " + type)
+          .isEqualTo(avro);
+    }
+  }
 
-    Types.StructType icebergSchema =
-        Types.StructType.of(
-            required(0, "ts", Types.TimestampType.withoutZone()),
-            required(1, "ts_ns", Types.TimestampNanoType.withoutZone()),
-            required(2, "ts_tz", Types.TimestampType.withZone()),
-            required(3, "ts_tz_ns", Types.TimestampNanoType.withZone()));
+  @Test
+  public void testAvroToIcebergTimestampTypesWithLegacyMappingDisabled() {
+    // Not included in the timestamps with legacy mapping disabled test because there is no way
+    // to round trip the avro<->iceberg conversion
+    List<Schema> avroTimestamps =
+        Lists.newArrayList(
+            // adjust-to-utc=true|false is still honored for timestamp-* types
+            addAdjustToUtc(
+                LogicalTypes.timestampMillis().addToSchema(Schema.create(Schema.Type.LONG)), true),
+            addAdjustToUtc(
+                LogicalTypes.timestampMillis().addToSchema(Schema.create(Schema.Type.LONG)), false),
+            addAdjustToUtc(
+                LogicalTypes.timestampMicros().addToSchema(Schema.create(Schema.Type.LONG)), true),
+            addAdjustToUtc(
+                LogicalTypes.timestampMicros().addToSchema(Schema.create(Schema.Type.LONG)), false),
+            addAdjustToUtc(
+                LogicalTypes.timestampNanos().addToSchema(Schema.create(Schema.Type.LONG)), true),
+            addAdjustToUtc(
+                LogicalTypes.timestampNanos().addToSchema(Schema.create(Schema.Type.LONG)), false),
+            // iceberg types can only encode *-micros and *-nanos types
+            LogicalTypes.timestampMillis().addToSchema(Schema.create(Schema.Type.LONG)),
+            LogicalTypes.localTimestampMillis().addToSchema(Schema.create(Schema.Type.LONG)));
 
-    assertThat(AvroSchemaUtil.convert(avroSchema, false))
-        .as("Test conversion from Avro schema")
-        .isEqualTo(icebergSchema);
-    assertThat(AvroSchemaUtil.convert(legacyAvroSchema, false))
-        .as("Test conversion from legacy Avro schema")
-        .isEqualTo(icebergSchema);
-    assertThat(AvroSchemaUtil.convert(icebergSchema, name, false))
-        .as("Test conversion to Avro schema")
-        .isEqualTo(avroSchema);
+    List<Type> timestamps =
+        Lists.newArrayList(
+            // adjust-to-utc=true|false
+            Types.TimestampType.withZone(),
+            Types.TimestampType.withoutZone(),
+            Types.TimestampType.withZone(),
+            Types.TimestampType.withoutZone(),
+            Types.TimestampNanoType.withZone(),
+            Types.TimestampNanoType.withoutZone(),
+            // *-millis
+            Types.TimestampType.withZone(),
+            Types.TimestampType.withoutZone());
+
+    for (int i = 0; i < timestamps.size(); i += 1) {
+      Type type = timestamps.get(i);
+      Schema avro = avroTimestamps.get(i);
+      assertThat(AvroSchemaUtil.convert(avro, false))
+          .as("Avro schema to timestamp: " + avro)
+          .isEqualTo(type);
+    }
   }
 
   private Schema addAdjustToUtc(Schema schema, boolean adjustToUTC) {

@@ -77,7 +77,11 @@ public class AvroSchemaUtil {
   }
 
   public static Schema convert(Type type) {
-    return convert(type, ImmutableMap.of());
+    return convert(type, true);
+  }
+
+  public static Schema convert(Type type, boolean legacyTimestampMapping) {
+    return convert(type, ImmutableMap.of(), legacyTimestampMapping);
   }
 
   public static Schema convert(Types.StructType type, String name) {
