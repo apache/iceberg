@@ -23,10 +23,13 @@ import static org.apache.iceberg.flink.sink.SinkTestUtil.extractAndAssertCommitt
 import static org.apache.iceberg.flink.sink.SinkTestUtil.extractAndAssertCommittableWithLineage;
 import static org.apache.iceberg.flink.sink.SinkTestUtil.transformsToStreamElement;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
 
 import java.io.File;
 import java.io.IOException;
@@ -1156,6 +1159,54 @@ class TestIcebergCommitter extends TestBase {
     }
   }
 
+  @TestTemplate
+  public void testCommitterOnSubtaskZeroLoadsTable() throws Exception {
+    TableLoader spyLoader = spy(tableLoader);
+    IcebergFilesCommitterMetrics metric = mock(IcebergFilesCommitterMetrics.class);
+    IcebergCommitter committer =
+        new IcebergCommitter(
+            spyLoader, branch, Collections.emptyMap(), false, 10, "sinkId", metric, false, 0);
+
+    verify(spyLoader).open();
+    verify(spyLoader).loadTable();
+
+    committer.close();
+  }
+
+  @TestTemplate
+  public void testCommitterOnNonZeroSubtaskSkipsTableLoad() throws Exception {
+    TableLoader spyLoader = spy(tableLoader);
+    IcebergFilesCommitterMetrics metric = mock(IcebergFilesCommitterMetrics.class);
+    IcebergCommitter committer =
+        new IcebergCommitter(
+            spyLoader, branch, Collections.emptyMap(), false, 10, "sinkId", metric, false, 1);
+
+    verify(spyLoader, never()).open();
+    verify(spyLoader, never()).loadTable();
+
+    committer.close();
+  }
+
+  @TestTemplate
+  public void testCommitOnNonZeroSubtaskFailsFast() throws Exception {
+    IcebergFilesCommitterMetrics metric = mock(IcebergFilesCommitterMetrics.class);
+    IcebergCommitter committer =
+        new IcebergCommitter(
+            tableLoader, branch, Collections.emptyMap(), false, 10, "sinkId", metric, false, 1);
+
+    Committer.CommitRequest<IcebergCommittable> commitRequest =
+        buildCommitRequestFor(jobId, 1L, Lists.newArrayList());
+    assertThatThrownBy(() -> committer.commit(Lists.newArrayList(commitRequest)))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("only subtask 0 is expected to commit");
+
+    assertThatThrownBy(() -> committer.commit(Lists.newArrayList()))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("only subtask 0 is expected to commit");
+
+    committer.close();
+  }
+
   private ManifestFile createTestingManifestFile(Path manifestPath, DataFile dataFile)
       throws IOException {
     ManifestWriter<DataFile> writer =
@@ -1307,7 +1358,8 @@ class TestIcebergCommitter extends TestBase {
         10,
         "sinkId",
         metric,
-        false);
+        false,
+        0);
   }
 
   private Committer.CommitRequest<IcebergCommittable> buildCommitRequestFor(
