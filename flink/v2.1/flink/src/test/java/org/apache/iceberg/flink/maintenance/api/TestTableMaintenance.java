@@ -372,7 +372,7 @@ class TestTableMaintenance extends OperatorTestBase {
   }
 
   @Test
-  void testUidSuffixDefaultContainsTableNameAndTaskNames() throws IOException {
+  void testUidSuffixDefaultContainsTableName() throws IOException {
     TableMaintenance.forChangeStream(
             new ManualSource<>(env, TypeInformation.of(TableChange.class)).dataStream(),
             tableLoader(),
@@ -382,8 +382,7 @@ class TestTableMaintenance extends OperatorTestBase {
         .append();
 
     String tableName = table.name();
-    String expectedSuffix =
-        "TableMaintenance-" + tableName + "-" + MAINTENANCE_TASK_NAME + "_" + MAINTENANCE_TASK_NAME;
+    String expectedSuffix = "TableMaintenance-" + tableName;
 
     Transformation<?> triggerManager =
         env.getTransformations().stream()

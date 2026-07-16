@@ -23,7 +23,6 @@ import java.time.Duration;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
-import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.annotation.VisibleForTesting;
@@ -279,14 +278,7 @@ public class TableMaintenance {
         loader.open();
         String tableName = loader.loadTable().name();
         if (uidSuffix == null) {
-          this.uidSuffix =
-              "TableMaintenance-"
-                  + tableName
-                  + "-"
-                  + taskBuilders.stream()
-                      .map(MaintenanceTaskBuilder::maintenanceTaskName)
-                      .sorted()
-                      .collect(Collectors.joining("_"));
+          this.uidSuffix = "TableMaintenance-" + tableName;
         }
 
         DataStream<Trigger> triggers;
