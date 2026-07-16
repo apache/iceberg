@@ -19,16 +19,25 @@
 package org.apache.iceberg.azure.adlsv2;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
+import com.azure.core.http.rest.PagedIterable;
 import com.azure.storage.file.datalake.DataLakeFileClient;
 import com.azure.storage.file.datalake.DataLakeFileSystemClient;
+import com.azure.storage.file.datalake.models.PathItem;
 import java.io.IOException;
+import java.time.OffsetDateTime;
+import java.util.Iterator;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.FileInfo;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.util.SerializableFunction;
 import org.junit.jupiter.api.Test;
@@ -292,5 +301,35 @@ public class TestADLSFileIO {
     for (DataLakeFileSystemClient result : results) {
       assertThat(result).isSameAs(mockClient);
     }
+  }
+
+  @SuppressWarnings("unchecked")
+  @Test
+  void listPrefixReturnsFullyQualifiedLocation() {
+    String prefix = "abfss://container@account.dfs.core.windows.net/dir";
+
+    OffsetDateTime now = OffsetDateTime.now();
+    PathItem file =
+        new PathItem(
+            "tag", now, 123L, "group", false, "dir/file", "owner", "permissions", now, null);
+
+    PagedIterable<PathItem> response = mock(PagedIterable.class);
+    when(response.stream()).thenReturn(ImmutableList.of(file).stream());
+
+    DataLakeFileSystemClient client = mock(DataLakeFileSystemClient.class);
+    when(client.listPaths(any(), any())).thenReturn(response);
+
+    ADLSFileIO io = spy(new ADLSFileIO());
+    io.initialize(ImmutableMap.of());
+    doReturn(client).when(io).client(any(ADLSLocation.class));
+
+    Iterator<FileInfo> result = io.listPrefix(prefix).iterator();
+
+    // the returned location must be a fully-qualified URI that preserves the scheme,
+    // container, and host of the prefix, matching S3FileIO and GCSFileIO
+    FileInfo fileInfo = result.next();
+    assertThat(fileInfo.location())
+        .isEqualTo("abfss://container@account.dfs.core.windows.net/dir/file");
+    assertThat(result.hasNext()).isFalse();
   }
 }
