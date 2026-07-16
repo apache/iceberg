@@ -340,6 +340,17 @@ public class TestMalformedVariant {
   }
 
   @Test
+  public void testUnknownPrimitiveTypeIdRejected() {
+    int unknownTypeId = Primitives.TYPE_UUID + 1;
+    byte header = (byte) (unknownTypeId << Primitives.PRIMITIVE_TYPE_SHIFT);
+    ByteBuffer value = ByteBuffer.wrap(new byte[] {header}).order(ByteOrder.LITTLE_ENDIAN);
+
+    assertThatThrownBy(() -> VariantValue.from(SerializedMetadata.from(EMPTY_METADATA), value))
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage("Unknown primitive physical type: " + unknownTypeId);
+  }
+
+  @Test
   public void testOverdeepNestingRejected() {
     int chainDepth = VariantUtil.MAX_VARIANT_DEPTH + 1;
     byte[] bytes = buildNestedArrayChain(chainDepth);
