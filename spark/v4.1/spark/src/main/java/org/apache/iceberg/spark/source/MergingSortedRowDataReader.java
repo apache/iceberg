@@ -264,7 +264,8 @@ class MergingSortedRowDataReader implements PartitionReader<InternalRow> {
 
     for (SortField sortField : sortOrder.fields()) {
       int fieldId = sortField.sourceId();
-      if (projection.findField(fieldId) == null) {
+      if (projection.findField(fieldId) == null
+          && missingFields.stream().noneMatch(f -> f.fieldId() == fieldId)) {
         Types.NestedField tableField = tableSchema.findField(fieldId);
         Preconditions.checkState(
             tableField != null,
