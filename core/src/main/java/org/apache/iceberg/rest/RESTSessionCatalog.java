@@ -62,6 +62,7 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.FileIOTracker;
 import org.apache.iceberg.io.StorageCredential;
 import org.apache.iceberg.io.SupportsStorageCredentials;
+import org.apache.iceberg.metrics.FilteringMetricsReporter;
 import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.metrics.MetricsReporters;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
@@ -169,6 +170,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   private FileIO io = null;
   private MetricsReporter reporter = null;
   private ExecutorService metricsExecutor = null;
+  private Map<String, String> reporterFilterProperties = ImmutableMap.of();
   private boolean reportingViaRestEnabled;
   private Integer pageSize = null;
   private CloseableGroup closeables = null;
@@ -274,6 +276,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
                 .toUpperCase(Locale.US));
 
     this.reporter = CatalogUtil.loadMetricsReporter(mergedProps);
+    this.reporterFilterProperties = mergedProps;
     this.closeables.addCloseable(reporter);
 
     this.reportingViaRestEnabled =
@@ -666,11 +669,13 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     }
   }
 
-  private MetricsReporter metricsReporter(String metricsEndpoint, RESTClient restClient) {
+  @VisibleForTesting
+  MetricsReporter metricsReporter(String metricsEndpoint, RESTClient restClient) {
     if (reportingViaRestEnabled && endpoints.contains(Endpoint.V1_REPORT_METRICS)) {
       RESTMetricsReporter restMetricsReporter =
           new RESTMetricsReporter(restClient, metricsEndpoint, Map::of, metricsExecutor);
-      return MetricsReporters.combine(reporter, restMetricsReporter);
+      return MetricsReporters.combine(
+          reporter, FilteringMetricsReporter.wrap(restMetricsReporter, reporterFilterProperties));
     } else {
       return this.reporter;
     }
