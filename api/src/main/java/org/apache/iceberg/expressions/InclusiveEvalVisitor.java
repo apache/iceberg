@@ -461,7 +461,7 @@ abstract class InclusiveEvalVisitor extends ExpressionVisitors.BoundVisitor<Bool
       return null;
     }
 
-    if (mayContainNaN(id)) {
+    if ((lower instanceof Float || lower instanceof Double) && mayContainNaN(id)) {
       return null;
     }
 
