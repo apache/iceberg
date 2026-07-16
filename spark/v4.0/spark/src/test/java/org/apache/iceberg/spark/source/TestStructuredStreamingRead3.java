@@ -175,7 +175,11 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
   }
 
   @AfterEach
-  public void removeTables() {
+  public void removeTables() throws TimeoutException {
+    // Stop active streams before dropping the table. In async mode the planner's background
+    // thread keeps refreshing the table from the catalog; dropping the table while that thread
+    // is alive lets those refreshes contend with DROP TABLE and stall teardown for seconds.
+    stopStreams();
     sql("DROP TABLE IF EXISTS %s", tableName);
   }
 
