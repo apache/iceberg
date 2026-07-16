@@ -114,6 +114,7 @@ public class Avro {
     private boolean overwrite;
     private MetricsConfig metricsConfig;
     private Function<Map<String, String>, Context> createContextFunc = Context::dataContext;
+    private boolean legacyTimestampMapping = true;
 
     private WriteBuilder(OutputFile file) {
       this.file = file;
@@ -123,6 +124,11 @@ public class Avro {
       schema(table.schema());
       setAll(table.properties());
       metricsConfig(MetricsConfig.forTable(table));
+      return this;
+    }
+
+    public WriteBuilder legacyTimestampMapping(boolean newLegacyTimestampMapping) {
+      this.legacyTimestampMapping = newLegacyTimestampMapping;
       return this;
     }
 
@@ -207,7 +213,7 @@ public class Avro {
 
       return new AvroFileAppender<>(
           schema,
-          AvroSchemaUtil.convert(schema, name),
+          AvroSchemaUtil.convert(schema, name, legacyTimestampMapping),
           file,
           writerFunc,
           codec,
@@ -352,6 +358,11 @@ public class Avro {
 
     public DataWriteBuilder createWriterFunc(Function<Schema, DatumWriter<?>> newCreateWriterFunc) {
       appenderBuilder.createWriterFunc(newCreateWriterFunc);
+      return this;
+    }
+
+    public DataWriteBuilder legacyTimestampMapping(boolean newLegacyTimestampMapping) {
+      appenderBuilder.legacyTimestampMapping(newLegacyTimestampMapping);
       return this;
     }
 

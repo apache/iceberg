@@ -27,6 +27,8 @@ import org.apache.iceberg.inmemory.InMemoryOutputFile;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.types.Types;
+import org.junit.jupiter.api.Test;
 
 public class TestGenericAvro extends DataTestBase {
   @Override
@@ -44,6 +46,16 @@ public class TestGenericAvro extends DataTestBase {
     return true;
   }
 
+  @Test
+  public void testLocalTimestamps() throws IOException {
+    Schema schema =
+        new Schema(
+            Types.NestedField.required(1, "ts", Types.TimestampType.withoutZone()),
+            Types.NestedField.required(2, "ts_ns", Types.TimestampNanoType.withoutZone()));
+
+    writeAndValidate(schema, false);
+  }
+
   @Override
   protected boolean supportsGeospatial() {
     return true;
@@ -51,11 +63,19 @@ public class TestGenericAvro extends DataTestBase {
 
   @Override
   protected void writeAndValidate(Schema schema) throws IOException {
+    writeAndValidate(schema, true);
+  }
+
+  private void writeAndValidate(Schema schema, boolean legacyTimestampMapping) throws IOException {
     List<Record> expected = RandomAvroData.generate(schema, 100, 0L);
 
     OutputFile outputFile = new InMemoryOutputFile();
     try (FileAppender<Record> writer =
-        Avro.write(outputFile).schema(schema).named("test").build()) {
+        Avro.write(outputFile)
+            .schema(schema)
+            .named("test")
+            .legacyTimestampMapping(legacyTimestampMapping)
+            .build()) {
       for (Record rec : expected) {
         writer.add(rec);
       }
