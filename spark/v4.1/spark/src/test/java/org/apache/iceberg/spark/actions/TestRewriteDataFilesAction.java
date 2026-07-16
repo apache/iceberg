@@ -2148,6 +2148,49 @@ public class TestRewriteDataFilesAction extends TestBase {
   }
 
   @TestTemplate
+  public void testUpgradePreservesDataSequence() throws NoSuchTableException {
+    assumeThat(formatVersion).isEqualTo(2);
+
+    Table table = createTable();
+    writeRecords(2, 4);
+    table.refresh();
+    shouldHaveFiles(table, 2);
+    long committedDataSequence = table.currentSnapshot().sequenceNumber();
+
+    Result result = basicRewrite(table).execute();
+    assertThat(result.rewrittenDataFilesCount()).isEqualTo(2);
+    assertThat(result.addedDataFilesCount()).isOne();
+    table.refresh();
+    shouldHaveFiles(table, 1);
+
+    DataFile compactedFile = Iterables.getOnlyElement(currentDataFiles(table));
+    long dataSequenceNumber = compactedFile.dataSequenceNumber();
+    assertThat(dataSequenceNumber)
+        .as("Compaction must preserve the original data sequence number")
+        .isEqualTo(committedDataSequence);
+    assertThat(compactedFile.fileSequenceNumber())
+        .as("Compaction must bump the file sequence above the preserved data sequence")
+        .isGreaterThan(dataSequenceNumber);
+
+    table.updateProperties().set(TableProperties.FORMAT_VERSION, "3").commit();
+    table.rewriteManifests().rewriteIf(manifest -> true).commit();
+    table.refresh();
+
+    List<Object[]> expectedLineage =
+        Lists.newArrayList(
+            row(0L, committedDataSequence, ANY, ANY, ANY),
+            row(1L, committedDataSequence, ANY, ANY, ANY),
+            row(2L, committedDataSequence, ANY, ANY, ANY),
+            row(3L, committedDataSequence, ANY, ANY, ANY));
+
+    assertEquals(
+        "First snapshot after upgrade to v3 assigns row IDs and inherits the committed data"
+            + " sequence as _last_updated_sequence_number",
+        expectedLineage,
+        currentDataWithLineage());
+  }
+
+  @TestTemplate
   public void testRewriteDataFilesPreservesLineage() throws NoSuchTableException {
     assumeThat(formatVersion).isGreaterThan(2);
 

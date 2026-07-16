@@ -99,7 +99,7 @@ paths:
 
 
         Common catalog configuration settings are documented at
-        https://iceberg.apache.org/docs/latest/configuration/#catalog-properties
+        https://iceberg.apache.org/docs/latest/catalog-properties
 
 
         The catalog configuration also holds an optional `endpoints` field that contains information about the endpoints

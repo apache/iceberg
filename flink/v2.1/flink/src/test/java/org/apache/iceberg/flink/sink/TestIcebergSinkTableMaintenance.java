@@ -19,11 +19,15 @@
 package org.apache.iceberg.flink.sink;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
+import java.nio.file.Path;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import org.apache.flink.core.execution.JobClient;
 import org.apache.flink.runtime.jobgraph.JobVertex;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
@@ -31,13 +35,17 @@ import org.apache.flink.streaming.api.graph.StreamGraph;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.types.Row;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.ManifestFiles;
 import org.apache.iceberg.ManifestReader;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.actions.SizeBasedFileRewritePlanner;
+import org.apache.iceberg.data.GenericAppenderHelper;
 import org.apache.iceberg.flink.FlinkWriteOptions;
 import org.apache.iceberg.flink.MiniFlinkClusterExtension;
 import org.apache.iceberg.flink.SimpleDataUtil;
@@ -47,14 +55,20 @@ import org.apache.iceberg.flink.maintenance.api.ExpireSnapshotsConfig;
 import org.apache.iceberg.flink.maintenance.api.LockConfig;
 import org.apache.iceberg.flink.maintenance.api.RewriteDataFilesConfig;
 import org.apache.iceberg.flink.util.FlinkCompatibilityUtil;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.util.ContentFileUtil;
+import org.awaitility.Awaitility;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.FieldSource;
 
 class TestIcebergSinkTableMaintenance extends TestFlinkIcebergSinkBase {
   private static final String[] LOCK_TYPES = new String[] {LockConfig.JdbcLockConfig.JDBC, ""};
+
+  @TempDir private Path tempDir;
 
   private Map<String, String> flinkConf;
 
@@ -162,6 +176,15 @@ class TestIcebergSinkTableMaintenance extends TestFlinkIcebergSinkBase {
   private void setupDeleteOrphanFilesConfig() {
     flinkConf.put(FlinkWriteOptions.DELETE_ORPHAN_FILES_ENABLE.key(), "true");
     flinkConf.put(DeleteOrphanFilesConfig.MIN_AGE_SECONDS, "86400");
+  }
+
+  private void setupConvertEqualityDeletesConfig() {
+    flinkConf.put(FlinkWriteOptions.CONVERT_EQUALITY_DELETES_ENABLE.key(), "true");
+  }
+
+  private void upgradeToFormatV3() {
+    table.updateProperties().set(TableProperties.FORMAT_VERSION, "3").commit();
+    table.refresh();
   }
 
   private void setupLockConfig(String lockType) {
@@ -317,5 +340,120 @@ class TestIcebergSinkTableMaintenance extends TestFlinkIcebergSinkBase {
     List<DataFile> preCompactDataFiles =
         getDataFiles(table.snapshot(table.currentSnapshot().parentId()), table);
     assertThat(preCompactDataFiles).hasSize(3);
+  }
+
+  @ParameterizedTest(name = "lockType = {0}")
+  @FieldSource("LOCK_TYPES")
+  public void testConvertEqualityDeletesOperatorAdded(String lockType) {
+    setupLockConfig(lockType);
+    setupConvertEqualityDeletesConfig();
+    upgradeToFormatV3();
+
+    List<Row> rows = Lists.newArrayList(Row.of(1, "hello"));
+    DataStream<RowData> dataStream =
+        env.addSource(createBoundedSource(rows), ROW_TYPE_INFO)
+            .map(CONVERTER::toInternal, FlinkCompatibilityUtil.toTypeInfo(SimpleDataUtil.ROW_TYPE));
+
+    IcebergSink.forRowData(dataStream)
+        .table(table)
+        .tableLoader(tableLoader)
+        .upsert(true)
+        .equalityFieldColumns(Lists.newArrayList("id"))
+        .setAll(flinkConf)
+        .append();
+
+    StreamGraph streamGraph = env.getStreamGraph();
+    boolean containsConvert = false;
+    for (JobVertex vertex : streamGraph.getJobGraph().getVertices()) {
+      if (vertex.getName().contains("EqConvert")) {
+        containsConvert = true;
+        break;
+      }
+    }
+
+    assertThat(containsConvert).isTrue();
+  }
+
+  @ParameterizedTest(name = "lockType = {0}")
+  @FieldSource("LOCK_TYPES")
+  public void testConvertEqualityDeletesRequiresEqualityFields(String lockType) {
+    setupLockConfig(lockType);
+    setupConvertEqualityDeletesConfig();
+
+    List<Row> rows = Lists.newArrayList(Row.of(1, "hello"));
+    DataStream<RowData> dataStream =
+        env.addSource(createBoundedSource(rows), ROW_TYPE_INFO)
+            .map(CONVERTER::toInternal, FlinkCompatibilityUtil.toTypeInfo(SimpleDataUtil.ROW_TYPE));
+
+    // No equality field columns and no identifier fields on the schema, so there is nothing to
+    // convert.
+    assertThatThrownBy(
+            () ->
+                IcebergSink.forRowData(dataStream)
+                    .table(table)
+                    .tableLoader(tableLoader)
+                    .setAll(flinkConf)
+                    .append())
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("Equality field columns must be set");
+  }
+
+  @ParameterizedTest(name = "lockType = {0}")
+  @FieldSource("LOCK_TYPES")
+  public void testConvertEqualityDeletesE2e(String lockType) throws Exception {
+    setupLockConfig(lockType);
+    setupConvertEqualityDeletesConfig();
+    upgradeToFormatV3();
+
+    // Pre-existing row on main. The sink then upserts the same key, writing an equality delete that
+    // removes this row, which the converter resolves to a deletion vector in a single cycle.
+    new GenericAppenderHelper(table, FileFormat.PARQUET, tempDir)
+        .appendToTable(ImmutableList.of(SimpleDataUtil.createRecord(1, "aaa")));
+
+    List<Row> rows = Lists.newArrayList(Row.of(1, "bbb"));
+    DataStream<RowData> dataStream =
+        env.addSource(createBoundedSource(rows), ROW_TYPE_INFO)
+            .map(CONVERTER::toInternal, FlinkCompatibilityUtil.toTypeInfo(SimpleDataUtil.ROW_TYPE));
+
+    IcebergSink.forRowData(dataStream)
+        .table(table)
+        .tableLoader(tableLoader)
+        .upsert(true)
+        .equalityFieldColumns(Lists.newArrayList("id"))
+        .setAll(flinkConf)
+        .append();
+
+    JobClient jobClient = env.executeAsync("Test Convert Equality Deletes E2E");
+    try {
+      Awaitility.await()
+          .atMost(Duration.ofMinutes(2))
+          .pollInterval(Duration.ofMillis(200))
+          .untilAsserted(() -> assertThat(dvCountOnMain(table)).isEqualTo(1));
+      SimpleDataUtil.assertTableRecords(
+          table, ImmutableList.of(SimpleDataUtil.createRecord(1, "bbb")));
+    } finally {
+      jobClient.cancel();
+    }
+  }
+
+  private static long dvCountOnMain(Table table) throws IOException {
+    table.refresh();
+    if (table.currentSnapshot() == null) {
+      return 0;
+    }
+
+    long count = 0;
+    for (ManifestFile manifest : table.currentSnapshot().deleteManifests(table.io())) {
+      try (ManifestReader<DeleteFile> reader =
+          ManifestFiles.readDeleteManifest(manifest, table.io(), table.specs())) {
+        for (DeleteFile file : reader) {
+          if (ContentFileUtil.isDV(file)) {
+            count++;
+          }
+        }
+      }
+    }
+
+    return count;
   }
 }
