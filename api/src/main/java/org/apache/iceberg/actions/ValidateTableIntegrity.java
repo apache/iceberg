@@ -233,7 +233,7 @@ public interface ValidateTableIntegrity
     List<String> missingDeleteFiles();
 
     /** Combined count of all missing files. */
-    long missingFileCount();
+    long totalMissingFiles();
 
     /** Human-readable summary of the result. */
     String validationSummary();

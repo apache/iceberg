@@ -38,7 +38,7 @@ public class TestValidateTableIntegrityResult {
   public void emptyResultIsValid() {
     ValidateTableIntegrity.Result result = ImmutableValidateTableIntegrity.Result.builder().build();
     assertThat(result.isValid()).isTrue();
-    assertThat(result.missingFileCount()).isEqualTo(0);
+    assertThat(result.totalMissingFiles()).isEqualTo(0);
     assertThat(result.totalMetadataFiles()).isEqualTo(0);
     assertThat(result.totalDataFiles()).isEqualTo(0);
     assertThat(result.totalDeleteFiles()).isEqualTo(0);
@@ -54,7 +54,7 @@ public class TestValidateTableIntegrityResult {
                     "s3://bucket/metadata/manifest1.avro", "s3://bucket/metadata/manifest2.avro"))
             .build();
     assertThat(result.isValid()).isFalse();
-    assertThat(result.missingFileCount()).isEqualTo(2);
+    assertThat(result.totalMissingFiles()).isEqualTo(2);
   }
 
   @Test
@@ -69,7 +69,7 @@ public class TestValidateTableIntegrityResult {
                     "s3://bucket/data/file3.parquet"))
             .build();
     assertThat(result.isValid()).isFalse();
-    assertThat(result.missingFileCount()).isEqualTo(3);
+    assertThat(result.totalMissingFiles()).isEqualTo(3);
   }
 
   @Test
@@ -80,7 +80,7 @@ public class TestValidateTableIntegrityResult {
             .missingDeleteFiles(Collections.singletonList("s3://bucket/data/delete-file1.parquet"))
             .build();
     assertThat(result.isValid()).isFalse();
-    assertThat(result.missingFileCount()).isEqualTo(1);
+    assertThat(result.totalMissingFiles()).isEqualTo(1);
   }
 
   @Test
@@ -93,7 +93,7 @@ public class TestValidateTableIntegrityResult {
             .missingDeleteFiles(Collections.singletonList("s3://bucket/data/delete-file1.parquet"))
             .build();
     assertThat(result.isValid()).isFalse();
-    assertThat(result.missingFileCount()).isEqualTo(4);
+    assertThat(result.totalMissingFiles()).isEqualTo(4);
   }
 
   @Test
@@ -149,7 +149,7 @@ public class TestValidateTableIntegrityResult {
     assertThat(result.missingMetadataFiles()).isEqualTo(metadataFiles);
     assertThat(result.missingDataFiles()).isEqualTo(dataFiles);
     assertThat(result.missingDeleteFiles()).isEqualTo(deleteFiles);
-    assertThat(result.missingFileCount()).isEqualTo(4);
+    assertThat(result.totalMissingFiles()).isEqualTo(4);
   }
 
   @Test
@@ -164,7 +164,7 @@ public class TestValidateTableIntegrityResult {
             .missingDataFiles(largeList)
             .build();
     assertThat(result.isValid()).isFalse();
-    assertThat(result.missingFileCount()).isEqualTo(1000);
+    assertThat(result.totalMissingFiles()).isEqualTo(1000);
     assertThat(result.missingDataFiles()).hasSize(1000);
   }
 

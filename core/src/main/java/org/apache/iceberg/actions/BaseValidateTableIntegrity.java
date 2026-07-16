@@ -80,7 +80,7 @@ interface BaseValidateTableIntegrity extends ValidateTableIntegrity {
 
     @Override
     @Value.Derived
-    default long missingFileCount() {
+    default long totalMissingFiles() {
       return (long) missingMetadataFiles().size()
           + missingDataFiles().size()
           + missingDeleteFiles().size();
