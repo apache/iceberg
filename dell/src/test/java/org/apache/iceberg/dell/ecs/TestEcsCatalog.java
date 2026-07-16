@@ -112,6 +112,19 @@ public class TestEcsCatalog {
   }
 
   @Test
+  public void namespacePropertiesOfMissingNamespace() {
+    assertThatThrownBy(
+            () -> ecsCatalog.setProperties(Namespace.of("unknown"), ImmutableMap.of("a", "a")))
+        .isInstanceOf(NoSuchNamespaceException.class)
+        .hasMessage("Namespace unknown does not exist");
+
+    assertThatThrownBy(
+            () -> ecsCatalog.removeProperties(Namespace.of("unknown"), ImmutableSet.of("a")))
+        .isInstanceOf(NoSuchNamespaceException.class)
+        .hasMessage("Namespace unknown does not exist");
+  }
+
+  @Test
   public void testDropNamespace() {
     ecsCatalog.createNamespace(Namespace.of("a"));
     ecsCatalog.createNamespace(Namespace.of("a", "b1"));
