@@ -603,7 +603,8 @@ public class CatalogUtil {
           removedPreviousMetadataFiles.stream()
               .map(TableMetadata.MetadataLogEntry::file)
               .collect(Collectors.toCollection(Sets::newHashSet));
-      // delete base's metadata file too if log is empty
+      // An empty metadata log (e.g. METADATA_PREVIOUS_VERSIONS_MAX=0) no longer retains base's
+      // own metadata file, so delete it too.
       if (metadata.previousFiles().isEmpty()
           && !Objects.equals(base.metadataFileLocation(), metadata.metadataFileLocation())) {
         metadataFilesToDelete.add(base.metadataFileLocation());
