@@ -154,4 +154,22 @@ public class TestFetchScanTasksResponseParser {
 
     assertThat(FetchScanTasksResponseParser.toJson(copyResponse, false)).isEqualTo(expectedToJson);
   }
+
+  @Test
+  public void fileScanTaskDataSequenceNumber() {
+    String json =
+        "{"
+            + "\"file-scan-tasks\":["
+            + "{\"data-file\":{\"spec-id\":0,\"content\":\"data\",\"file-path\":\"/path/to/data-a.parquet\","
+            + "\"file-format\":\"parquet\",\"partition\":[0],\"file-size-in-bytes\":10,"
+            + "\"record-count\":1,\"sort-order-id\":0,\"data-sequence-number\":7},"
+            + "\"residual-filter\":true}]"
+            + "}";
+
+    FetchScanTasksResponse response =
+        FetchScanTasksResponseParser.fromJson(json, PARTITION_SPECS_BY_ID, false);
+
+    assertThat(response.fileScanTasks().get(0).file().dataSequenceNumber()).isEqualTo(7L);
+    assertThat(FetchScanTasksResponseParser.toJson(response, false)).isEqualTo(json);
+  }
 }

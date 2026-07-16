@@ -5036,6 +5036,13 @@ components:
           description: "List of splittable offsets"
         sort-order-id:
           type: integer
+        data-sequence-number:
+          type: integer
+          format: int64
+          description:
+            The data sequence number for the content file's manifest entry.
+            Used to apply row-level metadata such as
+            `_last_updated_sequence_number`.
 
     DataFile:
       allOf:

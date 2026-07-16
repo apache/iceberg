@@ -1047,6 +1047,11 @@ class ContentFile(BaseModel):
         None, alias='split-offsets', description='List of splittable offsets'
     )
     sort_order_id: int | None = Field(None, alias='sort-order-id')
+    data_sequence_number: int | None = Field(
+        None,
+        alias='data-sequence-number',
+        description="The data sequence number for the content file's manifest entry. Used to apply row-level metadata such as `_last_updated_sequence_number`.",
+    )
 
 
 class PositionDeleteFile(ContentFile):

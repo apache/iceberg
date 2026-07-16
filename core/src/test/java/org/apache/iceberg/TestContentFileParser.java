@@ -92,6 +92,21 @@ public class TestContentFileParser {
     assertContentFileEquals(dataFile, deserializedContentFile, spec);
   }
 
+  @Test
+  public void dataFileSequenceNumber() throws Exception {
+    PartitionSpec spec = PartitionSpec.unpartitioned();
+    DataFile dataFile = dataFileWithRequiredOnly(spec);
+    ((BaseFile<?>) dataFile).setDataSequenceNumber(7L);
+
+    String jsonStr = ContentFileParser.toJson(dataFile, spec);
+    assertThat(jsonStr).contains("\"data-sequence-number\":7");
+
+    JsonNode jsonNode = JsonUtil.mapper().readTree(jsonStr);
+    ContentFile<?> deserializedContentFile =
+        ContentFileParser.fromJson(jsonNode, Map.of(spec.specId(), spec));
+    assertThat(deserializedContentFile.dataSequenceNumber()).isEqualTo(7L);
+  }
+
   @ParameterizedTest
   @MethodSource("provideSpecAndDeleteFile")
   public void testDeleteFile(PartitionSpec spec, DeleteFile deleteFile, String expectedJson)
@@ -611,5 +626,6 @@ public class TestContentFileParser {
     assertThat(actual.splitOffsets()).isEqualTo(expected.splitOffsets());
     assertThat(actual.equalityFieldIds()).isEqualTo(expected.equalityFieldIds());
     assertThat(actual.sortOrderId()).isEqualTo(expected.sortOrderId());
+    assertThat(actual.dataSequenceNumber()).isEqualTo(expected.dataSequenceNumber());
   }
 }
