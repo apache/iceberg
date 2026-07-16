@@ -2933,12 +2933,18 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     assertUUIDsMatch(original, afterFirstReplace);
     assertFiles(afterFirstReplace, FILE_B);
 
-    // even though the new schema is identical, the assertion that the last assigned id has not
-    // changed will fail
-    assertThatThrownBy(secondReplace::commitTransaction)
-        .isInstanceOf(CommitFailedException.class)
-        .hasMessageStartingWith(
-            "Commit failed: Requirement failed: last assigned field id changed");
+    // The second replace rebases onto the first replace's committed metadata. Because the
+    // replacement schema is identical, the rebuilt replacement reuses the existing schema and adds
+    // no conflicting field ids, so the replace succeeds as last-writer-wins instead of failing on a
+    // spurious last-assigned-field-id requirement.
+    secondReplace.commitTransaction();
+
+    Table afterSecondReplace = catalog.loadTable(TABLE);
+    assertThat(afterSecondReplace.schema().asStruct())
+        .as("Table schema should match the replace schema")
+        .isEqualTo(REPLACE_SCHEMA.asStruct());
+    assertUUIDsMatch(original, afterSecondReplace);
+    assertFiles(afterSecondReplace, FILE_C);
   }
 
   @Test
@@ -3053,12 +3059,18 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     assertUUIDsMatch(original, afterFirstReplace);
     assertFiles(afterFirstReplace, FILE_B);
 
-    // even though the new spec is identical, the assertion that the last assigned id has not
-    // changed will fail
-    assertThatThrownBy(secondReplace::commitTransaction)
-        .isInstanceOf(CommitFailedException.class)
-        .hasMessageStartingWith(
-            "Commit failed: Requirement failed: last assigned partition id changed");
+    // The second replace rebases onto the first replace's committed metadata. Because the
+    // replacement spec is identical, the rebuilt replacement reuses the existing spec and adds no
+    // conflicting partition ids, so the replace succeeds as last-writer-wins instead of failing on
+    // a spurious last-assigned-partition-id requirement.
+    secondReplace.commitTransaction();
+
+    Table afterSecondReplace = catalog.loadTable(TABLE);
+    assertThat(afterSecondReplace.spec().fields())
+        .as("Table spec should match the new spec")
+        .isEqualTo(TABLE_SPEC.fields());
+    assertUUIDsMatch(original, afterSecondReplace);
+    assertFiles(afterSecondReplace, FILE_C);
   }
 
   @Test
