@@ -24,10 +24,12 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.nio.ByteBuffer;
 import java.util.Random;
 import java.util.Set;
+import org.apache.iceberg.TestHelpers.RoundTripSerializer;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.RandomUtil;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 public class TestSerializedMetadata {
@@ -250,5 +252,15 @@ public class TestSerializedMetadata {
     assertThatThrownBy(
             () -> SerializedMetadata.from(new byte[] {(byte) 0b11010001, 0x00, 0x00, 0x00}))
         .isInstanceOf(IndexOutOfBoundsException.class);
+  }
+
+  @ParameterizedTest
+  @MethodSource("org.apache.iceberg.TestHelpers#serializers")
+  public void testSerialization(RoundTripSerializer<SerializedMetadata> serializer)
+      throws Exception {
+    SerializedMetadata metadata =
+        SerializedMetadata.from(VariantTestUtil.createMetadata(Set.of("a", "b", "c"), true));
+
+    VariantTestUtil.assertEqual(metadata, serializer.apply(metadata));
   }
 }

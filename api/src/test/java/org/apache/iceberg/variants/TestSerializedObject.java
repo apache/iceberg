@@ -25,6 +25,7 @@ import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 import java.util.stream.Stream;
+import org.apache.iceberg.TestHelpers.RoundTripSerializer;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -338,5 +339,17 @@ public class TestSerializedObject {
     assertThat(object.get("AA").asPrimitive().get()).isEqualTo((byte) 2);
     assertThat(object.get("ZZ").type()).isEqualTo(PhysicalType.INT8);
     assertThat(object.get("ZZ").asPrimitive().get()).isEqualTo((byte) 3);
+  }
+
+  @ParameterizedTest
+  @MethodSource("org.apache.iceberg.TestHelpers#serializers")
+  public void testSerialization(RoundTripSerializer<SerializedObject> serializer) throws Exception {
+    Map<String, VariantValue> data = ImmutableMap.of("a", I1, "b", I2, "c", I3);
+    ByteBuffer meta = VariantTestUtil.createMetadata(data.keySet(), true /* sort names */);
+    ByteBuffer value = VariantTestUtil.createObject(meta, data);
+    SerializedObject object =
+        SerializedObject.from(SerializedMetadata.from(meta), value, value.get(0));
+
+    VariantTestUtil.assertEqual(object, serializer.apply(object));
   }
 }

@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.variants;
 
+import java.io.Serializable;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
@@ -26,7 +27,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.ByteBuffers;
 import org.apache.iceberg.util.UUIDUtil;
 
-class SerializedPrimitive implements VariantPrimitive<Object>, SerializedValue {
+class SerializedPrimitive implements VariantPrimitive<Object>, SerializedValue, Serializable {
   private static final int PRIMITIVE_TYPE_SHIFT = 2;
   private static final int PRIMITIVE_OFFSET = 1;
 
@@ -149,5 +150,21 @@ class SerializedPrimitive implements VariantPrimitive<Object>, SerializedValue {
   @Override
   public String toString() {
     return VariantPrimitive.asString(this);
+  }
+
+  private Object writeReplace() {
+    return new SerializationProxy(this);
+  }
+
+  private static class SerializationProxy implements Serializable {
+    private final byte[] valueBytes;
+
+    private SerializationProxy(SerializedPrimitive primitive) {
+      this.valueBytes = ByteBuffers.toByteArray(primitive.buffer());
+    }
+
+    private Object readResolve() {
+      return SerializedPrimitive.from(valueBytes);
+    }
   }
 }

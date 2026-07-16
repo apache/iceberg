@@ -18,11 +18,13 @@
  */
 package org.apache.iceberg.variants;
 
+import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.util.ByteBuffers;
 
-class SerializedShortString implements VariantPrimitive<String>, SerializedValue {
+class SerializedShortString implements VariantPrimitive<String>, SerializedValue, Serializable {
   private static final int HEADER_SIZE = 1;
   private static final int LENGTH_MASK = 0b11111100;
   private static final int LENGTH_SHIFT = 2;
@@ -80,5 +82,21 @@ class SerializedShortString implements VariantPrimitive<String>, SerializedValue
   @Override
   public String toString() {
     return VariantPrimitive.asString(this);
+  }
+
+  private Object writeReplace() {
+    return new SerializationProxy(this);
+  }
+
+  private static class SerializationProxy implements Serializable {
+    private final byte[] valueBytes;
+
+    private SerializationProxy(SerializedShortString string) {
+      this.valueBytes = ByteBuffers.toByteArray(string.buffer());
+    }
+
+    private Object readResolve() {
+      return SerializedShortString.from(valueBytes);
+    }
   }
 }

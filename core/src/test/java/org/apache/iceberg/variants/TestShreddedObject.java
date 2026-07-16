@@ -27,6 +27,7 @@ import java.nio.ByteOrder;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
+import org.apache.iceberg.TestHelpers.RoundTripSerializer;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -36,6 +37,7 @@ import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.iceberg.util.RandomUtil;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 public class TestShreddedObject {
@@ -451,5 +453,13 @@ public class TestShreddedObject {
         Variants.value(
             Variants.metadata(metadataBuffer),
             VariantTestUtil.createObject(metadataBuffer, fields));
+  }
+
+  @ParameterizedTest
+  @MethodSource("org.apache.iceberg.TestHelpers#serializers")
+  public void testSerialization(RoundTripSerializer<ShreddedObject> serializer) throws Exception {
+    ShreddedObject object = createShreddedObject(FIELDS);
+
+    VariantTestUtil.assertEqual(object, serializer.apply(object));
   }
 }
