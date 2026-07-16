@@ -70,8 +70,14 @@ class FieldStatsStruct<T> implements FieldStats<T>, StructLike, Serializable {
   private FieldStatsStruct(FieldStatsStruct<T> toCopy) {
     this(toCopy.struct);
     // bounds are stored using the internal representation, which is a byte array for binary types
-    this.lowerBound = toCopy.lowerBound instanceof byte[] ? copyOf((byte[]) toCopy.lowerBound) : toCopy.lowerBound;
-    this.upperBound = toCopy.upperBound instanceof byte[] ? copyOf((byte[]) toCopy.upperBound) : toCopy.upperBound;
+    this.lowerBound =
+        toCopy.lowerBound instanceof byte[]
+            ? copyOf((byte[]) toCopy.lowerBound)
+            : toCopy.lowerBound;
+    this.upperBound =
+        toCopy.upperBound instanceof byte[]
+            ? copyOf((byte[]) toCopy.upperBound)
+            : toCopy.upperBound;
     this.tightBounds = toCopy.tightBounds;
     this.valueCount = toCopy.valueCount;
     this.nullValueCount = toCopy.nullValueCount;
