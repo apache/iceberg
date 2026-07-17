@@ -28,9 +28,9 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
  *
  * <p>The bounding box is the minimum axis-aligned rectangle that contains every coordinate of the
  * geometries. Only the X and Y dimensions are considered; any Z or M values present in the WKB are
- * read past and ignored. Coordinates whose X or Y is {@code NaN} are skipped, matching the spec
- * rule that null or NaN values in a coordinate dimension do not contribute to bounds (an empty
- * geometry such as {@code POINT EMPTY} therefore contributes nothing).
+ * read past and ignored. A {@code NaN} value is skipped independently in its coordinate dimension,
+ * matching the spec rule that null or NaN values in a dimension do not contribute to bounds (an
+ * empty geometry such as {@code POINT EMPTY} therefore contributes nothing).
  *
  * <p>Parsing follows the OGC Simple Feature Access WKB layout and validates the input defensively:
  * a malformed or truncated buffer results in an {@link IllegalArgumentException} rather than an
@@ -166,52 +166,57 @@ public class WKBBoundingBox {
   /**
    * A mutable accumulator of the minimum and maximum X and Y coordinates seen so far.
    *
-   * <p>Coordinates whose X or Y is {@code NaN} are ignored. An accumulator that has seen no non-NaN
-   * coordinate reports {@link #hasBounds()} as {@code false} and returns {@code null} bounds.
+   * <p>NaN values are ignored independently for each dimension. An accumulator reports {@link
+   * #hasBounds()} as {@code true} only after both dimensions have seen a non-NaN value.
    */
   public static class XYAccumulator {
     private double minX = Double.POSITIVE_INFINITY;
     private double minY = Double.POSITIVE_INFINITY;
     private double maxX = Double.NEGATIVE_INFINITY;
     private double maxY = Double.NEGATIVE_INFINITY;
-    private boolean hasBounds = false;
+    private boolean hasXBounds = false;
+    private boolean hasYBounds = false;
 
     /**
-     * Folds a single coordinate into the box, ignoring it if either dimension is {@code NaN}.
+     * Folds a single coordinate into the box, ignoring {@code NaN} values independently in each
+     * dimension.
      *
      * @param xCoord the X coordinate
      * @param yCoord the Y coordinate
      */
     public void addXY(double xCoord, double yCoord) {
-      if (Double.isNaN(xCoord) || Double.isNaN(yCoord)) {
-        return;
+      if (!Double.isNaN(xCoord)) {
+        minX = Math.min(minX, xCoord);
+        maxX = Math.max(maxX, xCoord);
+        hasXBounds = true;
       }
-      minX = Math.min(minX, xCoord);
-      minY = Math.min(minY, yCoord);
-      maxX = Math.max(maxX, xCoord);
-      maxY = Math.max(maxY, yCoord);
-      hasBounds = true;
+
+      if (!Double.isNaN(yCoord)) {
+        minY = Math.min(minY, yCoord);
+        maxY = Math.max(maxY, yCoord);
+        hasYBounds = true;
+      }
     }
 
-    /** Returns whether any non-NaN coordinate has been accumulated. */
+    /** Returns whether both dimensions have accumulated a non-NaN value. */
     public boolean hasBounds() {
-      return hasBounds;
+      return hasXBounds && hasYBounds;
     }
 
     /**
-     * Returns the lower corner (minimum X and Y) of the box, or {@code null} if no coordinate has
-     * been accumulated.
+     * Returns the lower corner (minimum X and Y) of the box, or {@code null} if either dimension
+     * has no accumulated value.
      */
     public GeospatialBound minBound() {
-      return hasBounds ? GeospatialBound.createXY(minX, minY) : null;
+      return hasBounds() ? GeospatialBound.createXY(minX, minY) : null;
     }
 
     /**
-     * Returns the upper corner (maximum X and Y) of the box, or {@code null} if no coordinate has
-     * been accumulated.
+     * Returns the upper corner (maximum X and Y) of the box, or {@code null} if either dimension
+     * has no accumulated value.
      */
     public GeospatialBound maxBound() {
-      return hasBounds ? GeospatialBound.createXY(maxX, maxY) : null;
+      return hasBounds() ? GeospatialBound.createXY(maxX, maxY) : null;
     }
   }
 }
