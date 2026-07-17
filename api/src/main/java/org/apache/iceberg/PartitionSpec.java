@@ -130,15 +130,8 @@ public class PartitionSpec implements Serializable {
           List<Types.NestedField> structFields = Lists.newArrayListWithExpectedSize(fields.length);
 
           for (PartitionField field : fields) {
-            Type sourceType = schema.findType(field.sourceId());
-            Type resultType = field.transform().getResultType(sourceType);
-
-            // When the source field has been dropped we cannot determine the type
-            if (sourceType == null) {
-              resultType = Types.UnknownType.get();
-            }
-
-            structFields.add(Types.NestedField.optional(field.fieldId(), field.name(), resultType));
+            structFields.add(
+                Types.NestedField.optional(field.fieldId(), field.name(), resultType(field)));
           }
 
           this.lazyPartitionType = Types.StructType.of(structFields);
@@ -183,14 +176,7 @@ public class PartitionSpec implements Serializable {
             if (field.transform() instanceof UnknownTransform) {
               classes[i] = Object.class;
             } else {
-              Type sourceType = schema.findType(field.sourceId());
-              if (null == sourceType) {
-                // When the source field has been dropped we cannot determine the type
-                sourceType = Types.UnknownType.get();
-              }
-
-              Type result = field.transform().getResultType(sourceType);
-              classes[i] = result.typeId().javaClass();
+              classes[i] = resultType(field).typeId().javaClass();
             }
           }
 
@@ -200,6 +186,18 @@ public class PartitionSpec implements Serializable {
     }
 
     return lazyJavaClasses;
+  }
+
+  private Type resultType(PartitionField field) {
+    Type sourceType = schema.findType(field.sourceId());
+    if (sourceType == null) {
+      // when the source field has been dropped, substitute unknown and let the transform derive
+      // its result type; transforms that return the source type (identity, truncate, void) yield
+      // unknown, while transforms with a fixed result type still resolve
+      sourceType = Types.UnknownType.get();
+    }
+
+    return field.transform().getResultType(sourceType);
   }
 
   @SuppressWarnings("unchecked")
