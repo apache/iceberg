@@ -207,11 +207,27 @@ class TestSparkVariantExtractionReaders {
   }
 
   @Test
-  void timestamptzNanosValueCastsToSparkTimestampMicros() {
-    assertThat(
-            SparkVariantExtractionReaders.toSparkValueForTests(
-                Variants.ofTimestamptzNanos(5_000_000L), DataTypes.TimestampType))
-        .isEqualTo(5_000L);
+  void timestamptzNanosDelegatesAndMatchesSparkFailure() {
+    // Spark's variant binary format has no nanos type code, so the delegated cast reproduces the
+    // same failure the non-pushdown variant_get path hits when Spark decodes a nanos-typed
+    // VariantVal. The pushed-down reader must not silently truncate nanos to micros and succeed
+    // where the whole-variant path would throw.
+    assertThatThrownBy(
+            () ->
+                SparkVariantExtractionReaders.toSparkValueForTests(
+                    Variants.ofTimestamptzNanos(5_000_000L), DataTypes.TimestampType))
+        .isInstanceOf(SparkRuntimeException.class)
+        .hasMessageContaining("UNKNOWN_PRIMITIVE_TYPE_IN_VARIANT");
+  }
+
+  @Test
+  void timestampntzNanosDelegatesAndMatchesSparkFailure() {
+    assertThatThrownBy(
+            () ->
+                SparkVariantExtractionReaders.toSparkValueForTests(
+                    Variants.ofTimestampntzNanos(5_000_000L), DataTypes.TimestampNTZType))
+        .isInstanceOf(SparkRuntimeException.class)
+        .hasMessageContaining("UNKNOWN_PRIMITIVE_TYPE_IN_VARIANT");
   }
 
   @Test
@@ -342,7 +358,7 @@ class TestSparkVariantExtractionReaders {
 
   @Test
   void stringToLongDelegatesToSpark() {
-    // STRING -> Long is not inline-owned; Spark parses the numeric string.
+    // STRING -> Long: Spark parses the numeric string.
     assertThat(
             SparkVariantExtractionReaders.toSparkValueForTests(
                 Variants.of("4021"), DataTypes.LongType))
@@ -392,42 +408,41 @@ class TestSparkVariantExtractionReaders {
   }
 
   /**
-   * Cross-check: every inline-owned pair that Spark's {@code VariantGet.cast} also supports must
-   * produce the identical value. This makes the inline set's equivalence to Spark executable, so a
-   * divergence (or a future Spark behavior change) fails loudly instead of silently returning wrong
-   * data. Deliberately excluded: nanos timestamps, {@code TIME}, and {@code UUID} sources — Spark's
-   * variant cannot represent those (its {@code getType} throws {@code UNKNOWN_PRIMITIVE_TYPE}), so
-   * they are inline-owned precisely because there is no Spark reference to compare against.
-   * Overflow behavior is covered by the dedicated overflow tests; this matrix uses in-range values.
+   * Regression matrix: the pushed-down reader materializes each common {@code (source, target)}
+   * pair to the same value Spark's {@code VariantGet.cast} produces on the whole-variant path. The
+   * reader delegates to {@code VariantGet.cast}, so this guards the surrounding
+   * serialize-and-delegate plumbing (metadata handling, byte layout, time zone args) against
+   * regressions rather than an independent cast implementation. Overflow behavior is covered by the
+   * dedicated overflow tests; this matrix uses in-range values.
    */
   @Test
-  void inlineOwnedConversionsMatchSparkVariantGet() {
-    assertInlineMatchesSpark(Variants.of((byte) 5), DataTypes.ByteType);
-    assertInlineMatchesSpark(Variants.of((byte) 5), DataTypes.ShortType);
-    assertInlineMatchesSpark(Variants.of((byte) 5), DataTypes.IntegerType);
-    assertInlineMatchesSpark(Variants.of((byte) 5), DataTypes.LongType);
-    assertInlineMatchesSpark(Variants.of((short) 300), DataTypes.ShortType);
-    assertInlineMatchesSpark(Variants.of((short) 300), DataTypes.IntegerType);
-    assertInlineMatchesSpark(Variants.of(70_000), DataTypes.IntegerType);
-    assertInlineMatchesSpark(Variants.of(70_000), DataTypes.LongType);
-    assertInlineMatchesSpark(Variants.of(5_000_000_000L), DataTypes.LongType);
-    assertInlineMatchesSpark(Variants.of("hello"), DataTypes.StringType);
-    assertInlineMatchesSpark(Variants.of(true), DataTypes.BooleanType);
-    assertInlineMatchesSpark(Variants.of(false), DataTypes.BooleanType);
-    assertInlineMatchesSpark(Variants.ofDate(12_345), DataTypes.DateType);
-    assertInlineMatchesSpark(Variants.of(3.5d), DataTypes.DoubleType);
-    assertInlineMatchesSpark(Variants.of(1.5f), DataTypes.FloatType);
-    assertInlineMatchesSpark(Variants.ofTimestamptz(1_000_000L), DataTypes.TimestampType);
-    assertInlineMatchesSpark(Variants.ofTimestampntz(2_000_000L), DataTypes.TimestampNTZType);
+  void delegatedConversionsMatchSparkVariantGet() {
+    assertMatchesSpark(Variants.of((byte) 5), DataTypes.ByteType);
+    assertMatchesSpark(Variants.of((byte) 5), DataTypes.ShortType);
+    assertMatchesSpark(Variants.of((byte) 5), DataTypes.IntegerType);
+    assertMatchesSpark(Variants.of((byte) 5), DataTypes.LongType);
+    assertMatchesSpark(Variants.of((short) 300), DataTypes.ShortType);
+    assertMatchesSpark(Variants.of((short) 300), DataTypes.IntegerType);
+    assertMatchesSpark(Variants.of(70_000), DataTypes.IntegerType);
+    assertMatchesSpark(Variants.of(70_000), DataTypes.LongType);
+    assertMatchesSpark(Variants.of(5_000_000_000L), DataTypes.LongType);
+    assertMatchesSpark(Variants.of("hello"), DataTypes.StringType);
+    assertMatchesSpark(Variants.of(true), DataTypes.BooleanType);
+    assertMatchesSpark(Variants.of(false), DataTypes.BooleanType);
+    assertMatchesSpark(Variants.ofDate(12_345), DataTypes.DateType);
+    assertMatchesSpark(Variants.of(3.5d), DataTypes.DoubleType);
+    assertMatchesSpark(Variants.of(1.5f), DataTypes.FloatType);
+    assertMatchesSpark(Variants.ofTimestamptz(1_000_000L), DataTypes.TimestampType);
+    assertMatchesSpark(Variants.ofTimestampntz(2_000_000L), DataTypes.TimestampNTZType);
     // Overflow with failOnError=false: both yield SQL NULL.
-    assertInlineMatchesSpark(Variants.of((long) Integer.MAX_VALUE + 1), DataTypes.IntegerType);
-    assertInlineMatchesSpark(Variants.of((int) Short.MAX_VALUE + 1), DataTypes.ShortType);
+    assertMatchesSpark(Variants.of((long) Integer.MAX_VALUE + 1), DataTypes.IntegerType);
+    assertMatchesSpark(Variants.of((int) Short.MAX_VALUE + 1), DataTypes.ShortType);
   }
 
-  private static void assertInlineMatchesSpark(VariantValue value, DataType targetType) {
-    Object inline = SparkVariantExtractionReaders.toSparkValueForTests(value, targetType);
-    assertThat(inline)
-        .as("inline cast %s -> %s must equal Spark VariantGet.cast", value.type(), targetType)
+  private static void assertMatchesSpark(VariantValue value, DataType targetType) {
+    Object actual = SparkVariantExtractionReaders.toSparkValueForTests(value, targetType);
+    assertThat(actual)
+        .as("reader cast %s -> %s must equal Spark VariantGet.cast", value.type(), targetType)
         .isEqualTo(sparkVariantGetCast(value, targetType));
   }
 
