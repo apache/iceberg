@@ -36,11 +36,16 @@ import org.apache.flink.table.data.StringData;
 import org.apache.flink.table.functions.FunctionContext;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.RewriteFiles;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.data.FileHelpers;
 import org.apache.iceberg.data.GenericAppenderHelper;
 import org.apache.iceberg.data.GenericRecord;
+import org.apache.iceberg.data.IcebergGenerics;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expression;
@@ -132,6 +137,112 @@ class TestIcebergLookup {
     assertThat(readIds(reader, IcebergLookupReader.NO_SNAPSHOT_ID))
         .as("Current snapshot should contain the appended row")
         .containsExactlyInAnyOrder(1L, 2L, 3L, 6L);
+  }
+
+  @Test
+  void lookupReaderReadsDelta() throws Exception {
+    Table table = createTableWithRecords();
+    long firstSnapshot = table.currentSnapshot().snapshotId();
+
+    appendRecords(table, ImmutableList.of(record(6L, "frank", "D")));
+    long secondSnapshot = table.currentSnapshot().snapshotId();
+
+    IcebergLookupReader reader = lookupReader(table, ImmutableList.of(), false);
+
+    assertThat(readDeltaIds(reader, firstSnapshot, secondSnapshot))
+        .as("A delta read must only return the rows added in the range")
+        .containsExactly(6L);
+  }
+
+  @Test
+  void lookupReaderDetectsAppendOnlyRange() throws Exception {
+    Table table = createTableWithRecords();
+    long firstSnapshot = table.currentSnapshot().snapshotId();
+
+    appendRecords(table, ImmutableList.of(record(6L, "frank", "D")));
+    long secondSnapshot = table.currentSnapshot().snapshotId();
+
+    IcebergLookupReader reader = lookupReader(table, ImmutableList.of(), false);
+
+    assertThat(reader.isAppendOnlyRange(firstSnapshot, secondSnapshot))
+        .as("A range that only appends rows can be applied to a loaded cache")
+        .isTrue();
+  }
+
+  @Test
+  void lookupReaderRejectsRangeWithDeletes() throws Exception {
+    Table table = createTableWithRecords();
+    long firstSnapshot = table.currentSnapshot().snapshotId();
+
+    appendRecords(table, ImmutableList.of(record(6L, "frank", "D")));
+    table.newDelete().deleteFromRowFilter(Expressions.equal("id", 6L)).commit();
+
+    IcebergLookupReader reader = lookupReader(table, ImmutableList.of(), false);
+
+    assertThat(reader.isAppendOnlyRange(firstSnapshot, table.currentSnapshot().snapshotId()))
+        .as("A range that deletes rows cannot be applied to a loaded cache")
+        .isFalse();
+  }
+
+  @Test
+  void lookupReaderAcceptsRangeAfterExistingDeletes() throws Exception {
+    Table table = createTableWithRecords();
+    addEqualityDelete(table, 2L);
+    long deleteSnapshot = table.currentSnapshot().snapshotId();
+
+    appendRecords(table, ImmutableList.of(record(6L, "frank", "D")));
+    long appendSnapshot = table.currentSnapshot().snapshotId();
+
+    IcebergLookupReader reader = lookupReader(table, ImmutableList.of(), false);
+
+    assertThat(reader.isAppendOnlyRange(deleteSnapshot, appendSnapshot))
+        .as("Delete files added before the range do not prevent applying an append")
+        .isTrue();
+  }
+
+  @Test
+  void lookupReaderRejectsRangeThatIsNotAnAncestor() throws Exception {
+    Table table = createTableWithRecords();
+    long firstSnapshot = table.currentSnapshot().snapshotId();
+
+    appendRecords(table, ImmutableList.of(record(6L, "frank", "D")));
+    long secondSnapshot = table.currentSnapshot().snapshotId();
+
+    IcebergLookupReader reader = lookupReader(table, ImmutableList.of(), false);
+
+    assertThat(reader.isAppendOnlyRange(secondSnapshot, firstSnapshot))
+        .as("A range that goes back in history cannot be applied to a loaded cache")
+        .isFalse();
+  }
+
+  @Test
+  void lookupReaderAcceptsCompactionRange() throws Exception {
+    Table table = createTableWithRecords();
+    long firstSnapshot = table.currentSnapshot().snapshotId();
+
+    compactDataFiles(table);
+    long secondSnapshot = table.currentSnapshot().snapshotId();
+
+    IcebergLookupReader reader = lookupReader(table, ImmutableList.of(), false);
+
+    assertThat(reader.isAppendOnlyRange(firstSnapshot, secondSnapshot))
+        .as("A compaction snapshot changes the file layout but not the live rows")
+        .isTrue();
+  }
+
+  @Test
+  void lookupReaderReadsNoRowsFromCompaction() throws Exception {
+    Table table = createTableWithRecords();
+    long firstSnapshot = table.currentSnapshot().snapshotId();
+
+    compactDataFiles(table);
+    long secondSnapshot = table.currentSnapshot().snapshotId();
+
+    IcebergLookupReader reader = lookupReader(table, ImmutableList.of(), false);
+
+    assertThat(readDeltaIds(reader, firstSnapshot, secondSnapshot))
+        .as("A compaction snapshot contributes no rows to a delta read")
+        .isEmpty();
   }
 
   @Test
@@ -284,6 +395,122 @@ class TestIcebergLookup {
   }
 
   @Test
+  void lookupFunctionAppliesDeltaOnReload() throws Exception {
+    Table table = createTableWithRecords();
+    ManualCacheReloadTrigger reloadTrigger = new ManualCacheReloadTrigger();
+
+    lookupFunction = newLookupFunction(ID_KEY_INDEXES, true, reloadTrigger);
+    lookupFunction.open(new FunctionContext(null));
+
+    appendRecords(table, ImmutableList.of(record(6L, "frank", "D")));
+    reloadTrigger.triggerReload().join();
+
+    assertThat(lookupFunction.lookup(keyRow(6L)))
+        .as("The reload must pick up the appended row")
+        .singleElement()
+        .satisfies(row -> assertRow(row, 6L, "frank", "D"));
+    assertThat(lookupFunction.lookup(keyRow(1L)))
+        .as("An incremental reload must keep the rows loaded before it")
+        .singleElement()
+        .satisfies(row -> assertRow(row, 1L, "alice", "A"));
+  }
+
+  @Test
+  void lookupFunctionReloadsFullyWhenRowsAreDeleted() throws Exception {
+    Table table = createTableWithRecords();
+    ManualCacheReloadTrigger reloadTrigger = new ManualCacheReloadTrigger();
+
+    lookupFunction = newLookupFunction(ID_KEY_INDEXES, true, reloadTrigger);
+    lookupFunction.open(new FunctionContext(null));
+
+    appendRecords(table, ImmutableList.of(record(6L, "frank", "D")));
+    reloadTrigger.triggerReload().join();
+    assertThat(lookupFunction.lookup(keyRow(6L))).hasSize(1);
+
+    table.newDelete().deleteFromRowFilter(Expressions.equal("id", 6L)).commit();
+    reloadTrigger.triggerReload().join();
+
+    assertThat(lookupFunction.lookup(keyRow(6L)))
+        .as("A delete snapshot must be applied by a full reload")
+        .isEmpty();
+    assertThat(lookupFunction.lookup(keyRow(1L)))
+        .as("A full reload must keep the rows that were not deleted")
+        .hasSize(1);
+  }
+
+  @Test
+  void lookupFunctionAppliesDeltaAfterCompaction() throws Exception {
+    Table table = createTableWithRecords();
+    ManualCacheReloadTrigger reloadTrigger = new ManualCacheReloadTrigger();
+
+    lookupFunction = newLookupFunction(ID_KEY_INDEXES, true, reloadTrigger);
+    lookupFunction.open(new FunctionContext(null));
+
+    compactDataFiles(table);
+    reloadTrigger.triggerReload().join();
+
+    appendRecords(table, ImmutableList.of(record(6L, "frank", "D")));
+    reloadTrigger.triggerReload().join();
+
+    assertThat(lookupFunction.lookup(keyRow(6L)))
+        .as("An append after a compaction must still be applied incrementally")
+        .singleElement()
+        .satisfies(row -> assertRow(row, 6L, "frank", "D"));
+    assertThat(lookupFunction.lookup(keyRow(1L)))
+        .as("The cache must keep the rows loaded before the compaction")
+        .singleElement()
+        .satisfies(row -> assertRow(row, 1L, "alice", "A"));
+  }
+
+  @Test
+  void lookupFunctionFallsBackToFullLoadWhenDeltaFails() throws Exception {
+    Table table = createTableWithRecords();
+    ManualCacheReloadTrigger reloadTrigger = new ManualCacheReloadTrigger();
+
+    lookupFunction = newLookupFunction(ID_KEY_INDEXES, true, reloadTrigger);
+    lookupFunction.open(new FunctionContext(null));
+
+    DataFile appendedFile = appendRecords(table, ImmutableList.of(record(6L, "frank", "D")));
+
+    DataFile replacementFile =
+        new GenericAppenderHelper(table, FileFormat.PARQUET, temporaryFolder)
+            .writeFile(ImmutableList.of(record(6L, "frank", "D")));
+    table.newRewrite().deleteFile(appendedFile).addFile(replacementFile).commit();
+
+    table.io().deleteFile(appendedFile.location());
+
+    assertThatCode(() -> reloadTrigger.triggerReload().join())
+        .as("A failed incremental reload must not fail the reload itself")
+        .doesNotThrowAnyException();
+
+    assertThat(lookupFunction.lookup(keyRow(6L)))
+        .as("The failed incremental reload must be replaced by a full load")
+        .singleElement()
+        .satisfies(row -> assertRow(row, 6L, "frank", "D"));
+    assertThat(lookupFunction.lookup(keyRow(1L)))
+        .as("A full load must keep the rows that were cached before it")
+        .singleElement()
+        .satisfies(row -> assertRow(row, 1L, "alice", "A"));
+  }
+
+  @Test
+  void lookupFunctionLoadsCacheFromEmptyTableAfterAppend() throws Exception {
+    Table table = CATALOG_EXTENSION.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, SCHEMA);
+    ManualCacheReloadTrigger reloadTrigger = new ManualCacheReloadTrigger();
+
+    lookupFunction = newLookupFunction(ID_KEY_INDEXES, true, reloadTrigger);
+    lookupFunction.open(new FunctionContext(null));
+
+    appendRecords(table, ImmutableList.of(record(1L, "alice", "A")));
+    reloadTrigger.triggerReload().join();
+
+    assertThat(lookupFunction.lookup(keyRow(1L)))
+        .as("A cache loaded from an empty table must be rebuilt after the first append")
+        .singleElement()
+        .satisfies(row -> assertRow(row, 1L, "alice", "A"));
+  }
+
+  @Test
   void lookupFunctionWithTriggerLoadsCacheLazily() throws Exception {
     Table table = createTableWithRecords();
     ManualCacheReloadTrigger reloadTrigger = new ManualCacheReloadTrigger();
@@ -375,11 +602,22 @@ class TestIcebergLookup {
 
   private static List<Long> readIds(IcebergLookupReader reader, long snapshotId)
       throws IOException {
-    List<Long> ids = Lists.newArrayList();
     try (CloseableIterable<RowData> rows = reader.read(snapshotId)) {
-      for (RowData row : rows) {
-        ids.add(row.isNullAt(0) ? null : row.getLong(0));
-      }
+      return collectIds(rows);
+    }
+  }
+
+  private static List<Long> readDeltaIds(
+      IcebergLookupReader reader, long fromExclusive, long toInclusive) throws IOException {
+    try (CloseableIterable<RowData> rows = reader.readDelta(fromExclusive, toInclusive)) {
+      return collectIds(rows);
+    }
+  }
+
+  private static List<Long> collectIds(CloseableIterable<RowData> rows) {
+    List<Long> ids = Lists.newArrayList();
+    for (RowData row : rows) {
+      ids.add(row.isNullAt(0) ? null : row.getLong(0));
     }
 
     return ids;
@@ -406,6 +644,40 @@ class TestIcebergLookup {
     GenericAppenderHelper helper =
         new GenericAppenderHelper(table, FileFormat.PARQUET, temporaryFolder);
     table.newOverwrite().deleteFile(oldFile).addFile(helper.writeFile(records)).commit();
+  }
+
+  private void compactDataFiles(Table table) throws Exception {
+    List<DataFile> oldFiles = Lists.newArrayList();
+    try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
+      for (FileScanTask task : tasks) {
+        oldFiles.add(task.file());
+      }
+    }
+
+    List<Record> records = Lists.newArrayList();
+    try (CloseableIterable<Record> rows = IcebergGenerics.read(table).build()) {
+      rows.forEach(records::add);
+    }
+
+    GenericAppenderHelper helper =
+        new GenericAppenderHelper(table, FileFormat.PARQUET, temporaryFolder);
+    RewriteFiles rewrite = table.newRewrite();
+    oldFiles.forEach(rewrite::deleteFile);
+    rewrite.addFile(helper.writeFile(records)).commit();
+  }
+
+  private void addEqualityDelete(Table table, long id) throws Exception {
+    Schema deleteSchema = SCHEMA.select("id");
+    GenericRecord deleteRecord = GenericRecord.create(deleteSchema);
+    deleteRecord.setField("id", id);
+
+    DeleteFile deleteFile =
+        FileHelpers.writeDeleteFile(
+            table,
+            table.io().newOutputFile(temporaryFolder.resolve("equality-delete.parquet").toString()),
+            ImmutableList.of(deleteRecord),
+            deleteSchema);
+    table.newRowDelta().addDeletes(deleteFile).commit();
   }
 
   private static GenericRecord record(Long id, String data, String category) {

@@ -24,7 +24,10 @@ import javax.annotation.Nullable;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.table.data.RowData;
 import org.apache.iceberg.CombinedScanTask;
+import org.apache.iceberg.DataOperations;
+import org.apache.iceberg.IncrementalAppendScan;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableScan;
 import org.apache.iceberg.expressions.Expression;
@@ -38,10 +41,14 @@ import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.util.SnapshotUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-/** Reads all rows of an Iceberg table to build a lookup cache. */
+/** Reads the rows of an Iceberg table, or the rows added between snapshots, for a lookup cache. */
 @Internal
 class IcebergLookupReader {
+
+  private static final Logger LOG = LoggerFactory.getLogger(IcebergLookupReader.class);
 
   static final long NO_SNAPSHOT_ID = -1L;
 
@@ -89,6 +96,62 @@ class IcebergLookupReader {
     }
 
     return new LookupIterable(scan.planTasks(), fileReader);
+  }
+
+  CloseableIterable<RowData> readDelta(long fromExclusive, long toInclusive) {
+    if (fromExclusive == toInclusive) {
+      return CloseableIterable.empty();
+    }
+
+    RowDataFileScanTaskReader fileReader =
+        new RowDataFileScanTaskReader(
+            SnapshotUtil.schemaFor(table, toInclusive),
+            projectedSchema,
+            nameMapping,
+            caseSensitive,
+            baseFilters);
+
+    IncrementalAppendScan appendScan =
+        table
+            .newIncrementalAppendScan()
+            .fromSnapshotExclusive(fromExclusive)
+            .toSnapshot(toInclusive)
+            .caseSensitive(caseSensitive)
+            .project(projectedSchema)
+            .filter(filter);
+
+    return new LookupIterable(appendScan.planTasks(), fileReader);
+  }
+
+  boolean isAppendOnlyRange(long fromExclusive, long toInclusive) {
+    if (fromExclusive == toInclusive
+        || fromExclusive == NO_SNAPSHOT_ID
+        || toInclusive == NO_SNAPSHOT_ID) {
+      return false;
+    }
+
+    try {
+      if (!SnapshotUtil.isAncestorOf(table, toInclusive, fromExclusive)) {
+        return false;
+      }
+
+      for (Snapshot snapshot :
+          SnapshotUtil.ancestorsBetween(toInclusive, fromExclusive, table::snapshot)) {
+        String operation = snapshot.operation();
+        if (!DataOperations.APPEND.equals(operation) && !DataOperations.REPLACE.equals(operation)) {
+          return false;
+        }
+      }
+    } catch (RuntimeException e) {
+      LOG.warn(
+          "Cannot determine whether snapshots ({}, {}] only add rows, treating the range as not append-only",
+          fromExclusive,
+          toInclusive,
+          e);
+      return false;
+    }
+
+    return true;
   }
 
   private class LookupIterable extends CloseableGroup implements CloseableIterable<RowData> {

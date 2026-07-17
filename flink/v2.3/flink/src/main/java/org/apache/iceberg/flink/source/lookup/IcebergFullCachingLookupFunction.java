@@ -56,8 +56,10 @@ import org.slf4j.LoggerFactory;
  * <p>The cache is loaded from the current snapshot either when the function is opened or on the
  * first lookup, depending on {@link IcebergLookupOptions#FULL_CACHE_EAGER_LOAD}. When a {@link
  * CacheReloadTrigger} is configured, the cache is reloaded on the trigger's schedule: a reload that
- * finds no new snapshot keeps the loaded cache, and a reload that fails fails the next lookup
- * instead of serving the previously loaded cache.
+ * finds no new snapshot keeps the loaded cache, a reload that only appends rows or compacts the
+ * data files updates the loaded cache incrementally, and a reload that fails fails the next lookup
+ * instead of serving the previously loaded cache. An incremental update that fails is discarded and
+ * retried as a full load.
  */
 @Internal
 public class IcebergFullCachingLookupFunction extends LookupFunction {
@@ -242,18 +244,36 @@ public class IcebergFullCachingLookupFunction extends LookupFunction {
         projectedRowType.getFieldNames(),
         pushedFilters);
 
-    InMemoryLookupCache loaded = new InMemoryLookupCache();
-    long rowCnt = 0L;
-    long start = System.currentTimeMillis();
-    try (CloseableIterable<RowData> rows = reader.read(snapshotId)) {
-      for (RowData row : rows) {
-        if (closed) {
-          return;
-        }
+    if (cache != null
+        && reader.isAppendOnlyRange(currentSnapshotId, snapshotId)
+        && tryLoadDelta(currentSnapshotId, snapshotId)) {
+      return;
+    }
 
-        loaded.add(extractKey(row), rowSerializer.toBinaryRow(row).copy());
-        rowCnt++;
-      }
+    loadFull(snapshotId);
+  }
+
+  private boolean tryLoadDelta(long fromExclusive, long toInclusive) {
+    try {
+      loadDelta(fromExclusive, toInclusive);
+      return true;
+    } catch (Exception e) {
+      LOG.warn(
+          "IcebergFullCachingLookupFunction incremental loading from snapshot {} to snapshot {} "
+              + "failed, falling back to a full load",
+          fromExclusive,
+          toInclusive,
+          e);
+      return false;
+    }
+  }
+
+  private void loadFull(long snapshotId) throws IOException {
+    InMemoryLookupCache loaded = new InMemoryLookupCache();
+    long start = System.currentTimeMillis();
+    long rowCnt;
+    try (CloseableIterable<RowData> rows = reader.read(snapshotId)) {
+      rowCnt = fillCache(rows, loaded);
     }
 
     long loadTimeMs = System.currentTimeMillis() - start;
@@ -270,9 +290,51 @@ public class IcebergFullCachingLookupFunction extends LookupFunction {
 
     LOG.info(
         "IcebergFullCachingLookupFunction loading finished, snapshot={}, rows={}, cost={} ms",
-        snapshot == null ? "none" : snapshotId,
+        snapshotId,
         rowCnt,
         loadTimeMs);
+  }
+
+  private void loadDelta(long fromExclusive, long toInclusive) throws IOException {
+    InMemoryLookupCache delta = new InMemoryLookupCache();
+    long start = System.currentTimeMillis();
+    long rowCnt;
+    try (CloseableIterable<RowData> rows = reader.readDelta(fromExclusive, toInclusive)) {
+      rowCnt = fillCache(rows, delta);
+    }
+
+    long loadTimeMs = System.currentTimeMillis() - start;
+
+    if (closed) {
+      return;
+    }
+
+    this.cache = cache.mergedWith(delta);
+    this.currentSnapshotId = toInclusive;
+    this.cachedRecords = cachedRecords + rowCnt;
+    this.latestLoadTimeMs = loadTimeMs;
+    loadCounter.inc();
+
+    LOG.info(
+        "IcebergFullCachingLookupFunction incremental loading finished, from snapshot={}, to snapshot={}, rows={}, cost={} ms",
+        fromExclusive,
+        toInclusive,
+        rowCnt,
+        loadTimeMs);
+  }
+
+  private long fillCache(CloseableIterable<RowData> rows, InMemoryLookupCache target) {
+    long rowCnt = 0L;
+    for (RowData row : rows) {
+      if (closed) {
+        break;
+      }
+
+      target.add(extractKey(row), rowSerializer.toBinaryRow(row).copy());
+      rowCnt++;
+    }
+
+    return rowCnt;
   }
 
   private BinaryRowData extractKey(RowData row) {
