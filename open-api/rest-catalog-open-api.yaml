@@ -2574,8 +2574,6 @@ components:
       deprecated: true
       description: >
         Deprecated. Use the bare boolean literal `true` as a predicate instead.
-        Retained for backward compatibility with older clients per the Iceberg
-        Expressions spec (Appendix B, JSON serialization).
       type: object
       required:
         - type
@@ -2588,8 +2586,6 @@ components:
       deprecated: true
       description: >
         Deprecated. Use the bare boolean literal `false` as a predicate instead.
-        Retained for backward compatibility with older clients per the Iceberg
-        Expressions spec (Appendix B, JSON serialization).
       type: object
       required:
         - type
