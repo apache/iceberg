@@ -1209,6 +1209,11 @@ class DataFile(ContentFile):
         alias='first-row-id',
         description='The first row ID assigned to the first row in the data file',
     )
+    data_sequence_number: int | None = Field(
+        None,
+        alias='data-sequence-number',
+        description='The inherited data sequence number of the manifest entry containing this data file. Servers SHOULD include this field when the data sequence number is known and first-row-id is non-null. For data files with a non-null first-row-id, clients use this value to replace a missing or null _last_updated_sequence_number. Clients MUST NOT substitute the file sequence number or snapshot sequence number when this field is absent.\n',
+    )
     column_sizes: CountMap | None = Field(
         None,
         alias='column-sizes',

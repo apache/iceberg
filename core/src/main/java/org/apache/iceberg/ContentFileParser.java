@@ -48,6 +48,7 @@ public class ContentFileParser {
   private static final String EQUALITY_IDS = "equality-ids";
   private static final String SORT_ORDER_ID = "sort-order-id";
   private static final String FIRST_ROW_ID = "first-row-id";
+  private static final String DATA_SEQUENCE_NUMBER = "data-sequence-number";
   private static final String REFERENCED_DATA_FILE = "referenced-data-file";
   private static final String CONTENT_OFFSET = "content-offset";
   private static final String CONTENT_SIZE = "content-size-in-bytes";
@@ -59,6 +60,12 @@ public class ContentFileParser {
 
   private static boolean hasPartitionData(StructLike partitionData) {
     return partitionData != null && partitionData.size() > 0;
+  }
+
+  private static Long dataSequenceNumber(ContentFile<?> contentFile) {
+    return contentFile instanceof DataFile && contentFile.firstRowId() != null
+        ? contentFile.dataSequenceNumber()
+        : null;
   }
 
   public static String toJson(ContentFile<?> contentFile, PartitionSpec spec) {
@@ -123,6 +130,8 @@ public class ContentFileParser {
     }
 
     JsonUtil.writeLongFieldIfPresent(FIRST_ROW_ID, contentFile.firstRowId(), generator);
+    JsonUtil.writeLongFieldIfPresent(
+        DATA_SEQUENCE_NUMBER, dataSequenceNumber(contentFile), generator);
 
     if (contentFile instanceof DeleteFile) {
       DeleteFile deleteFile = (DeleteFile) contentFile;
@@ -176,17 +185,20 @@ public class ContentFileParser {
     Long contentSizeInBytes = JsonUtil.getLongOrNull(CONTENT_SIZE, jsonNode);
 
     if (fileContent == FileContent.DATA) {
-      return new GenericDataFile(
-          specId,
-          filePath,
-          fileFormat,
-          partitionData,
-          fileSizeInBytes,
-          metrics,
-          keyMetadata,
-          splitOffsets,
-          sortOrderId,
-          firstRowId);
+      GenericDataFile dataFile =
+          new GenericDataFile(
+              specId,
+              filePath,
+              fileFormat,
+              partitionData,
+              fileSizeInBytes,
+              metrics,
+              keyMetadata,
+              splitOffsets,
+              sortOrderId,
+              firstRowId);
+      dataFile.setDataSequenceNumber(JsonUtil.getLongOrNull(DATA_SEQUENCE_NUMBER, jsonNode));
+      return dataFile;
     } else {
       return new GenericDeleteFile(
           specId,

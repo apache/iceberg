@@ -92,6 +92,78 @@ public class TestContentFileParser {
     assertContentFileEquals(dataFile, deserializedContentFile, spec);
   }
 
+  @Test
+  void dataFileSequenceNumberRoundTrip() throws Exception {
+    PartitionSpec spec = PartitionSpec.unpartitioned();
+    DataFile dataFile =
+        DataFiles.builder(spec)
+            .withPath("/path/to/data.parquet")
+            .withFileSizeInBytes(10)
+            .withRecordCount(1)
+            .withFirstRowId(34L)
+            .build();
+    ((BaseFile<?>) dataFile).setDataSequenceNumber(17L);
+    ((BaseFile<?>) dataFile).setFileSequenceNumber(23L);
+
+    String json = ContentFileParser.toJson(dataFile, spec);
+    assertThat(json).contains("\"data-sequence-number\":17");
+    assertThat(json).doesNotContain("file-sequence-number");
+
+    ContentFile<?> deserialized =
+        ContentFileParser.fromJson(JsonUtil.mapper().readTree(json), Map.of(spec.specId(), spec));
+    assertThat(deserialized.dataSequenceNumber()).isEqualTo(17L);
+    assertThat(deserialized.fileSequenceNumber()).isNull();
+    assertContentFileEquals(dataFile, deserialized, spec);
+  }
+
+  @Test
+  void dataSequenceNumberOmittedForDeleteFiles() throws Exception {
+    PartitionSpec spec = PartitionSpec.unpartitioned();
+    DeleteFile deleteFile = deleteFileWithRequiredOnly(spec);
+    ((BaseFile<?>) deleteFile).setDataSequenceNumber(17L);
+    ((BaseFile<?>) deleteFile).setFileSequenceNumber(23L);
+
+    String json = ContentFileParser.toJson(deleteFile, spec);
+    assertThat(json).isEqualTo(deleteFileJsonWithRequiredOnly(spec));
+    assertThat(json).doesNotContain("data-sequence-number");
+    assertThat(json).doesNotContain("file-sequence-number");
+
+    ContentFile<?> deserialized =
+        ContentFileParser.fromJson(JsonUtil.mapper().readTree(json), Map.of(spec.specId(), spec));
+    assertThat(deserialized.dataSequenceNumber()).isNull();
+    assertThat(deserialized.fileSequenceNumber()).isNull();
+    assertContentFileEquals(deleteFile, deserialized, spec);
+  }
+
+  @Test
+  void dataSequenceNumberOmittedWhenNull() throws Exception {
+    PartitionSpec spec = PartitionSpec.unpartitioned();
+    DataFile dataFile = dataFileWithRequiredOnly(spec);
+    String dataFileJson = ContentFileParser.toJson(dataFile, spec);
+    assertThat(dataFileJson).doesNotContain("data-sequence-number");
+    assertThat(
+            ContentFileParser.fromJson(JsonUtil.mapper().readTree(dataFileJson), spec)
+                .dataSequenceNumber())
+        .isNull();
+  }
+
+  @Test
+  void dataSequenceNumberOmittedWithoutFirstRowId() throws Exception {
+    PartitionSpec spec = PartitionSpec.unpartitioned();
+    DataFile dataFile = dataFileWithRequiredOnly(spec);
+    ((BaseFile<?>) dataFile).setDataSequenceNumber(17L);
+    ((BaseFile<?>) dataFile).setFileSequenceNumber(23L);
+
+    String json = ContentFileParser.toJson(dataFile, spec);
+    assertThat(json).doesNotContain("data-sequence-number");
+    assertThat(json).doesNotContain("file-sequence-number");
+
+    ContentFile<?> deserialized =
+        ContentFileParser.fromJson(JsonUtil.mapper().readTree(json), Map.of(spec.specId(), spec));
+    assertThat(deserialized.dataSequenceNumber()).isNull();
+    assertThat(deserialized.fileSequenceNumber()).isNull();
+  }
+
   @ParameterizedTest
   @MethodSource("provideSpecAndDeleteFile")
   public void testDeleteFile(PartitionSpec spec, DeleteFile deleteFile, String expectedJson)
@@ -611,5 +683,9 @@ public class TestContentFileParser {
     assertThat(actual.splitOffsets()).isEqualTo(expected.splitOffsets());
     assertThat(actual.equalityFieldIds()).isEqualTo(expected.equalityFieldIds());
     assertThat(actual.sortOrderId()).isEqualTo(expected.sortOrderId());
+    if (expected instanceof DataFile) {
+      assertThat(actual.dataSequenceNumber()).isEqualTo(expected.dataSequenceNumber());
+      assertThat(actual.firstRowId()).isEqualTo(expected.firstRowId());
+    }
   }
 }
