@@ -84,7 +84,7 @@ class RESTFileScanTaskParser {
     int specId = dataFile.specId();
 
     DeleteFile[] deleteFiles = null;
-    if (jsonNode.has(DELETE_FILE_REFERENCES)) {
+    if (jsonNode.hasNonNull(DELETE_FILE_REFERENCES)) {
       List<Integer> indices = JsonUtil.getIntegerList(DELETE_FILE_REFERENCES, jsonNode);
       Preconditions.checkArgument(
           indices.isEmpty() || Collections.max(indices) < allDeleteFiles.size(),

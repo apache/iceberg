@@ -431,6 +431,37 @@ public class TestPlanTableScanResponseParser {
   }
 
   @Test
+  public void nullDeleteFilesAndFileScanTasks() {
+    PlanTableScanResponse response =
+        PlanTableScanResponseParser.fromJson(
+            "{\"status\":\"completed\",\"delete-files\":null,\"file-scan-tasks\":null}",
+            PARTITION_SPECS_BY_ID,
+            false);
+
+    assertThat(response.planStatus()).isEqualTo(PlanStatus.COMPLETED);
+    assertThat(response.fileScanTasks()).isNull();
+  }
+
+  @Test
+  public void nullDeleteFileReferences() {
+    PlanTableScanResponse response =
+        PlanTableScanResponseParser.fromJson(
+            "{\"status\":\"completed\","
+                + "\"file-scan-tasks\":["
+                + "{\"data-file\":{\"spec-id\":0,\"content\":\"data\","
+                + "\"file-path\":\"/path/to/data-a.parquet\","
+                + "\"file-format\":\"parquet\",\"partition\":[0],"
+                + "\"file-size-in-bytes\":10,\"record-count\":1,\"sort-order-id\":0},"
+                + "\"delete-file-references\":null}]"
+                + "}",
+            PARTITION_SPECS_BY_ID,
+            false);
+
+    assertThat(response.fileScanTasks()).hasSize(1);
+    assertThat(response.fileScanTasks().get(0).deletes()).isEmpty();
+  }
+
+  @Test
   public void emptyOrInvalidCredentials() {
     assertThat(
             PlanTableScanResponseParser.fromJson(
