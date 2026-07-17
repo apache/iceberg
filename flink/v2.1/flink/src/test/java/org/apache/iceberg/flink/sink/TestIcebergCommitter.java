@@ -27,9 +27,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.verify;
 
 import java.io.File;
 import java.io.IOException;
@@ -1160,51 +1158,45 @@ class TestIcebergCommitter extends TestBase {
   }
 
   @TestTemplate
-  public void testCommitterOnSubtaskZeroLoadsTable() throws Exception {
-    TableLoader spyLoader = spy(tableLoader);
-    IcebergFilesCommitterMetrics metric = mock(IcebergFilesCommitterMetrics.class);
-    IcebergCommitter committer =
-        new IcebergCommitter(
-            spyLoader, branch, Collections.emptyMap(), false, 10, "sinkId", metric, false, 0);
+  public void testCommitterSubtaskZeroCommits() throws Exception {
+    try (OneInputStreamOperatorTestHarness<
+            CommittableMessage<IcebergCommittable>, CommittableMessage<IcebergCommittable>>
+        testHarness = getTestHarness(2, 0)) {
+      testHarness.open();
 
-    verify(spyLoader).open();
-    verify(spyLoader).loadTable();
+      long checkpointId = 1L;
+      RowData row = SimpleDataUtil.createRowData(1, "subtask-zero");
+      DataFile dataFile = writeDataFile("data-subtask-zero", ImmutableList.of(row));
+      processElement(jobId, checkpointId, testHarness, 1, OPERATOR_ID, dataFile);
 
-    committer.close();
-  }
+      testHarness.notifyOfCompletedCheckpoint(checkpointId);
 
-  @TestTemplate
-  public void testCommitterOnNonZeroSubtaskSkipsTableLoad() throws Exception {
-    TableLoader spyLoader = spy(tableLoader);
-    IcebergFilesCommitterMetrics metric = mock(IcebergFilesCommitterMetrics.class);
-    IcebergCommitter committer =
-        new IcebergCommitter(
-            spyLoader, branch, Collections.emptyMap(), false, 10, "sinkId", metric, false, 1);
-
-    verify(spyLoader, never()).open();
-    verify(spyLoader, never()).loadTable();
-
-    committer.close();
+      // subtask 0 loaded the table and performed the commit end-to-end.
+      SimpleDataUtil.assertTableRows(table, ImmutableList.of(row), branch);
+      assertSnapshotSize(1);
+      assertMaxCommittedCheckpointId(jobId, checkpointId);
+    }
   }
 
   @TestTemplate
   public void testCommitOnNonZeroSubtaskFailsFast() throws Exception {
-    IcebergFilesCommitterMetrics metric = mock(IcebergFilesCommitterMetrics.class);
-    IcebergCommitter committer =
-        new IcebergCommitter(
-            tableLoader, branch, Collections.emptyMap(), false, 10, "sinkId", metric, false, 1);
+    try (OneInputStreamOperatorTestHarness<
+            CommittableMessage<IcebergCommittable>, CommittableMessage<IcebergCommittable>>
+        testHarness = getTestHarness(2, 1)) {
+      testHarness.open();
 
-    Committer.CommitRequest<IcebergCommittable> commitRequest =
-        buildCommitRequestFor(jobId, 1L, Lists.newArrayList());
-    assertThatThrownBy(() -> committer.commit(Lists.newArrayList(commitRequest)))
-        .isInstanceOf(IllegalStateException.class)
-        .hasMessageContaining("only subtask 0 is expected to commit");
+      long checkpointId = 1L;
+      RowData row = SimpleDataUtil.createRowData(1, "should-not-commit");
+      DataFile dataFile = writeDataFile("data-non-zero-subtask", ImmutableList.of(row));
+      processElement(jobId, checkpointId, testHarness, 1, OPERATOR_ID, dataFile);
 
-    assertThatThrownBy(() -> committer.commit(Lists.newArrayList()))
-        .isInstanceOf(IllegalStateException.class)
-        .hasMessageContaining("only subtask 0 is expected to commit");
+      assertThatThrownBy(() -> testHarness.notifyOfCompletedCheckpoint(checkpointId))
+          .isInstanceOf(IllegalStateException.class)
+          .hasMessageContaining("only subtask 0 is expected to commit");
 
-    committer.close();
+      // No snapshot should have been produced because the commit failed fast.
+      assertSnapshotSize(0);
+    }
   }
 
   private ManifestFile createTestingManifestFile(Path manifestPath, DataFile dataFile)
@@ -1334,6 +1326,12 @@ class TestIcebergCommitter extends TestBase {
   private OneInputStreamOperatorTestHarness<
           CommittableMessage<IcebergCommittable>, CommittableMessage<IcebergCommittable>>
       getTestHarness() throws Exception {
+    return getTestHarness(1, 0);
+  }
+
+  private OneInputStreamOperatorTestHarness<
+          CommittableMessage<IcebergCommittable>, CommittableMessage<IcebergCommittable>>
+      getTestHarness(int parallelism, int subtaskIndex) throws Exception {
     IcebergSink sink =
         IcebergSink.forRowData(null).table(table).toBranch(branch).tableLoader(tableLoader).build();
 
@@ -1341,7 +1339,10 @@ class TestIcebergCommitter extends TestBase {
             CommittableMessage<IcebergCommittable>, CommittableMessage<IcebergCommittable>>
         testHarness =
             new OneInputStreamOperatorTestHarness<>(
-                new CommitterOperatorFactory<>(sink, !isStreamingMode, true));
+                new CommitterOperatorFactory<>(sink, !isStreamingMode, true),
+                parallelism,
+                parallelism,
+                subtaskIndex);
     testHarness.setup(committableMessageTypeSerializer);
     return testHarness;
   }
