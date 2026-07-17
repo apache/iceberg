@@ -110,7 +110,29 @@ Iceberg implements lookup join with a full cache: the whole projected dimension 
 
 `lookup.full-cache.eager-load` decides whether the job blocks at startup or on the first lookup. With the default `true`, the lookup function loads the cache when it is opened, so the job blocks during deployment, before it processes any data, and fails at startup if the dimension table cannot be read; with `false`, the load is deferred to the first lookup, so the data flow blocks only when the first probe row arrives, and the subtasks of the join can end up on different snapshots of the dimension table.
 
-There is no background refresh: each subtask keeps the snapshot it loaded, so subtasks can serve different snapshots of the dimension table. Populate the dimension table before the join starts.
+By default there is no background refresh: each subtask keeps the snapshot it loaded, so subtasks can serve different snapshots of the dimension table. Populate the dimension table before the join starts. To pick up changes to the dimension table, configure a full cache reload:
+
+```sql
+-- Reload every 5 minutes
+SELECT o.order_id, o.user_id, u.name, u.city
+FROM orders AS o
+LEFT JOIN iceberg_catalog.db.user_dim /*+ OPTIONS('lookup.full-cache.periodic-reload.interval'='5 min') */
+  FOR SYSTEM_TIME AS OF o.proc_time AS u
+  ON o.user_id = u.user_id;
+
+-- Reload every day at 02:30
+SELECT o.order_id, o.user_id, u.name, u.city
+FROM orders AS o
+LEFT JOIN iceberg_catalog.db.user_dim /*+ OPTIONS('lookup.full-cache.reload-strategy'='TIMED', 'lookup.full-cache.timed-reload.iso-time'='02:30') */
+  FOR SYSTEM_TIME AS OF o.proc_time AS u
+  ON o.user_id = u.user_id;
+```
+
+A reload reads the current snapshot of the dimension table and replaces the loaded cache atomically, so lookups observe either the previous cache or the new one, never a partially loaded cache. A reload that finds no new snapshot is a no-op, and the reload strategies also run once when the lookup function is opened, which is a no-op as well when the cache has not been loaded yet or the snapshot has not changed. Reloads run on the trigger's own thread while lookups keep being served from the previous cache, so they do not block the job; both caches are held in memory until the reload finishes, so peak memory is about twice the cache size. A reload never falls back to the previous cache: if a reload fails, the next lookup fails the job, so a stale cache is never served silently.
+
+Reloading follows `lookup.full-cache.eager-load`: with the default eager loading the first reload is triggered on startup, and with eager loading disabled the cache is loaded on the first lookup and reloaded on the configured schedule from then on.
+
+No reload is configured unless the options select one: either `lookup.full-cache.reload-strategy` is set, or the interval or the time of day of a strategy is set, in which case the strategy is inferred. Options that only refine a strategy, like `lookup.full-cache.periodic-reload.schedule-mode`, do not enable reload on their own.
 
 Check out all the options here: [lookup-options](flink-configuration.md#lookup-options)
 
