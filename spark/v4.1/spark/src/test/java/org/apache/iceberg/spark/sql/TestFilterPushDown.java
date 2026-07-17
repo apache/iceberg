@@ -689,6 +689,42 @@ public class TestFilterPushDown extends TestBaseWithCatalog {
     assertThat(sql("SELECT * FROM %s WHERE c IS NULL", tableName)).isEmpty();
   }
 
+  @TestTemplate
+  public void testFilterPushdownOnNestedInitialDefaultColumnAbsentFromFile() {
+    sql(
+        "CREATE TABLE %s (id BIGINT, loc STRUCT<city: STRING>) USING iceberg "
+            + "TBLPROPERTIES ('format-version' = '3')",
+        tableName);
+    configurePlanningMode(planningMode);
+
+    sql("INSERT INTO %s VALUES (1, named_struct('city', 'San Francisco')), (2, NULL)", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    table
+        .updateSchema()
+        .addColumn("loc", "country", Types.StringType.get(), Expressions.lit("US"))
+        .commit();
+    sql("REFRESH TABLE %s", tableName);
+
+    // only the pre-add file exists; it has no loc.country column, so a row with a present loc
+    // struct reads it as the initial-default 'US' and the pruning fix keeps that row group
+    checkFilters(
+        "loc.country = 'US'" /* query predicate */,
+        "isnotnull(loc.country) AND (loc.country = US)" /* Spark post scan filter */,
+        "loc.country IS NOT NULL, loc.country = 'US'" /* Iceberg scan filters */,
+        ImmutableList.of(row(1L, row("San Francisco", "US"))));
+
+    sql("INSERT INTO %s VALUES (3, named_struct('city', 'Toronto', 'country', 'CA'))", tableName);
+
+    // the post-add file stores a real 'CA'; the pre-add row group is pruned because neither the
+    // default 'US' nor null can satisfy loc.country = 'CA'
+    checkFilters(
+        "loc.country = 'CA'" /* query predicate */,
+        "isnotnull(loc.country) AND (loc.country = CA)" /* Spark post scan filter */,
+        "loc.country IS NOT NULL, loc.country = 'CA'" /* Iceberg scan filters */,
+        ImmutableList.of(row(3L, row("Toronto", "CA"))));
+  }
+
   private void checkOnlyIcebergFilters(
       String predicate, String icebergFilters, List<Object[]> expectedRows) {
 
