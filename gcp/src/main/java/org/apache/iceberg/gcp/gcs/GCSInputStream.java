@@ -42,8 +42,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * The GCSInputStream leverages native streaming channels from the GCS API for streaming uploads.
- * See <a href="https://cloud.google.com/storage/docs/streaming">Streaming Transfers</a>
+ * The GCSInputStream leverages native streaming channels from the GCS API for streaming downloads.
+ * See <a href="https://cloud.google.com/storage/docs/streaming-downloads">Streaming downloads</a>
  */
 class GCSInputStream extends SeekableInputStream implements RangeReadable {
   private static final Logger LOG = LoggerFactory.getLogger(GCSInputStream.class);
