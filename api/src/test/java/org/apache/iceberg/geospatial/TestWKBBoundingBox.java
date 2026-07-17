@@ -195,6 +195,48 @@ public class TestWKBBoundingBox {
   }
 
   @Test
+  void emptyPolygonContributesNothing() {
+    XYAccumulator acc = accumulate(polygon(ByteOrder.LITTLE_ENDIAN));
+    assertThat(acc.hasBounds()).isFalse();
+    assertThat(acc.minBound()).isNull();
+    assertThat(acc.maxBound()).isNull();
+  }
+
+  @Test
+  void emptyCollectionsContributeNothing() {
+    byte[] wkb =
+        collection(
+            ByteOrder.LITTLE_ENDIAN,
+            GEOMETRY_COLLECTION,
+            collection(ByteOrder.LITTLE_ENDIAN, MULTI_POINT),
+            collection(ByteOrder.LITTLE_ENDIAN, MULTI_LINE_STRING),
+            collection(ByteOrder.LITTLE_ENDIAN, MULTI_POLYGON),
+            collection(ByteOrder.LITTLE_ENDIAN, GEOMETRY_COLLECTION));
+
+    XYAccumulator acc = accumulate(wkb);
+    assertThat(acc.hasBounds()).isFalse();
+    assertThat(acc.minBound()).isNull();
+    assertThat(acc.maxBound()).isNull();
+  }
+
+  @Test
+  void polygonWithInteriorRing() {
+    double[][] outerRing = {{0, 0}, {10, 0}, {0, 10}, {0, 0}};
+    double[][] innerRing = {{1, 1}, {1, 2}, {2, 1}, {1, 1}};
+    byte[] polygon = polygon(ByteOrder.LITTLE_ENDIAN, outerRing, innerRing);
+    byte[] wkb =
+        collection(
+            ByteOrder.LITTLE_ENDIAN,
+            GEOMETRY_COLLECTION,
+            polygon,
+            point(ByteOrder.LITTLE_ENDIAN, 20, -5));
+
+    XYAccumulator acc = accumulate(wkb);
+    assertThat(acc.minBound()).isEqualTo(GeospatialBound.createXY(0, -5));
+    assertThat(acc.maxBound()).isEqualTo(GeospatialBound.createXY(20, 10));
+  }
+
+  @Test
   public void testNaNCoordinateSkipped() {
     // The valid point still sets the box; the NaN point contributes nothing.
     byte[] wkb =
@@ -409,17 +451,25 @@ public class TestWKBBoundingBox {
     return buffer.array();
   }
 
-  private static byte[] polygon(ByteOrder order, double[]... ring) {
+  private static byte[] polygon(ByteOrder order, double[][]... rings) {
+    int size = 5 + Integer.BYTES;
+    for (double[][] ring : rings) {
+      size += Integer.BYTES + ring.length * 2 * Double.BYTES;
+    }
+
     ByteBuffer buffer =
-        ByteBuffer.allocate(5 + Integer.BYTES + Integer.BYTES + ring.length * 2 * Double.BYTES)
+        ByteBuffer.allocate(size)
             .order(order)
             .put(orderFlag(order))
             .putInt(POLYGON)
-            .putInt(1) // one ring
-            .putInt(ring.length);
-    for (double[] coord : ring) {
-      buffer.putDouble(coord[0]).putDouble(coord[1]);
+            .putInt(rings.length);
+    for (double[][] ring : rings) {
+      buffer.putInt(ring.length);
+      for (double[] coord : ring) {
+        buffer.putDouble(coord[0]).putDouble(coord[1]);
+      }
     }
+
     return buffer.array();
   }
 
