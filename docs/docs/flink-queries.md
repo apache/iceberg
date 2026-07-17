@@ -92,6 +92,47 @@ SELECT * FROM table /*+ OPTIONS('tag'='t1') */;
 SELECT * FROM table /*+ OPTIONS('streaming'='true', 'monitor-interval'='1s', 'start-tag'='t1', 'end-tag'='t2') */;
 ```
 
+### Lookup Join
+
+Iceberg supports Flink lookup join, which enriches a stream with data from an Iceberg dimension table:
+
+```sql
+-- The OPTIONS hint used in this section requires dynamic table options, which are disabled by default.
+SET table.dynamic-table-options.enabled=true;
+
+SELECT o.order_id, o.user_id, u.name, u.city
+FROM orders AS o
+LEFT JOIN iceberg_catalog.db.user_dim
+  FOR SYSTEM_TIME AS OF o.proc_time AS u
+  ON o.user_id = u.user_id;
+```
+
+The `SET` statement above is session scoped: it enables the `OPTIONS` hint for every example in this section.
+
+Iceberg implements lookup join with a full cache: the dimension table is lazily loaded on the first lookup, and subsequent lookups read from the cache. The cache can be refreshed periodically in the background with the `lookup.full-cache.periodic-reload.interval` option:
+
+```sql
+SELECT o.order_id, o.user_id, u.name, u.city
+FROM orders AS o
+LEFT JOIN iceberg_catalog.db.user_dim
+  /*+ OPTIONS('lookup.full-cache.periodic-reload.interval'='10min') */
+  FOR SYSTEM_TIME AS OF o.proc_time AS u
+  ON o.user_id = u.user_id;
+```
+
+By default the full cache is kept in memory (`lookup.cache.type=memory`). For dimension tables that are too large to fit on the TaskManager heap, `lookup.cache.type=rocksdb` keeps the cache on the TaskManager local disk instead:
+
+```sql
+SELECT o.order_id, o.user_id, u.name, u.city
+FROM orders AS o
+LEFT JOIN iceberg_catalog.db.user_dim
+  /*+ OPTIONS('lookup.cache.type'='rocksdb', 'lookup.cache.rocksdb.dir'='/data/flink/iceberg-lookup') */
+  FOR SYSTEM_TIME AS OF o.proc_time AS u
+  ON o.user_id = u.user_id;
+```
+
+`lookup.cache.rocksdb.dir` is required when `lookup.cache.type=rocksdb`. Each operator instance creates its own sub-directory under it and removes it when the lookup function is closed, so point it at a directory on the TaskManager data disk with enough space for the dimension table.
+
 ## Reading with DataStream
 
 Iceberg support streaming or batch read in Java API now.

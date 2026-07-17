@@ -1045,3 +1045,11 @@ License: Mozilla Public License, Version 2.0 - https://mozilla.org/MPL/2.0/
 
 --------------------------------------------------------------------------------
 
+This product bundles RocksDB.
+
+Copyright: Copyright (c) 2011-present, Facebook, Inc. All rights reserved.
+Project URL: https://github.com/facebook/rocksdb/
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
