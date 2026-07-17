@@ -170,6 +170,7 @@ public class ShreddedObject implements VariantObject {
       }
 
       if (unshredded instanceof SerializedObject) {
+        // for serialized objects, use existing buffers instead of materializing values
         SerializedObject serialized = (SerializedObject) unshredded;
         for (Map.Entry<String, Integer> field : serialized.fields()) {
           String name = field.getKey();
@@ -199,8 +200,10 @@ public class ShreddedObject implements VariantObject {
 
       this.entries = sorted.values().toArray(new Entry[0]);
       this.numElements = entries.length;
+      // object is large if the number of elements can't be stored in 1 byte
       this.isLarge = numElements > 0xFF;
       this.dataSize = totalDataSize;
+      // offset size is the size needed to store the length of the data section
       this.offsetSize = VariantUtil.sizeOf(totalDataSize);
     }
 
@@ -231,7 +234,13 @@ public class ShreddedObject implements VariantObject {
             buffer, nextValueOffset, offsetListOffset + (index * offsetSize), offsetSize);
 
         if (entry.shredded != null) {
-          entry.shredded.writeTo(buffer, dataOffset + nextValueOffset);
+          int writtenSize = entry.shredded.writeTo(buffer, dataOffset + nextValueOffset);
+          Preconditions.checkState(
+              writtenSize == entry.size,
+              "Wrote %s bytes for field id %s but expected %s (writeTo and sizeInBytes disagree)",
+              writtenSize,
+              entry.id,
+              entry.size);
         } else {
           ByteBuffer src = entry.buffer;
           buffer.put(dataOffset + nextValueOffset, src, src.position(), src.remaining());

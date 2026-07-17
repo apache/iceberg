@@ -24,6 +24,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
@@ -355,6 +356,27 @@ public class TestShreddedObject {
     VariantTestUtil.assertVariantString(actual.get("b"), "rewritten");
   }
 
+  @Test
+  public void testWriteToDisagreesWithSizeInBytes() {
+    ShreddedObject object = createUnshreddedObject(FIELDS);
+    VariantPrimitive<Integer> real = Variants.of(42);
+    int actualSize = real.sizeInBytes();
+    int reportedSize = actualSize - 1;
+    object.put("a", new MismatchedSizeVariantValue(real, reportedSize));
+    int fieldId = object.metadata().id("a");
+
+    ByteBuffer buf = ByteBuffer.allocate(object.sizeInBytes()).order(ByteOrder.LITTLE_ENDIAN);
+    assertThatThrownBy(() -> object.writeTo(buf, 0))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage(
+            String.format(
+                Locale.ROOT,
+                "Wrote %s bytes for field id %s but expected %s (writeTo and sizeInBytes disagree)",
+                actualSize,
+                fieldId,
+                reportedSize));
+  }
+
   @ParameterizedTest
   @ValueSource(ints = {300, 70_000, 16_777_300})
   public void testMultiByteOffsets(int len) {
@@ -526,5 +548,30 @@ public class TestShreddedObject {
         Variants.value(
             Variants.metadata(metadataBuffer),
             VariantTestUtil.createObject(metadataBuffer, fields));
+  }
+
+  private static final class MismatchedSizeVariantValue implements VariantValue {
+    private final VariantValue delegate;
+    private final int reportedSize;
+
+    MismatchedSizeVariantValue(VariantValue delegate, int reportedSize) {
+      this.delegate = delegate;
+      this.reportedSize = reportedSize;
+    }
+
+    @Override
+    public PhysicalType type() {
+      return delegate.type();
+    }
+
+    @Override
+    public int sizeInBytes() {
+      return reportedSize;
+    }
+
+    @Override
+    public int writeTo(ByteBuffer buffer, int offset) {
+      return delegate.writeTo(buffer, offset);
+    }
   }
 }
