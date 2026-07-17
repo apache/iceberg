@@ -243,41 +243,16 @@ class NamedReference(BaseModel):
     name: str
 
 
-class FunctionReference1(RootModel[str]):
-    root: str = Field(
-        ...,
-        description='A function reference: a simple name, a multi-part name, or a catalog object identifier.\n',
-        min_length=1,
-    )
-
-
-class FunctionReference2Item(RootModel[str]):
+class Function(RootModel[str]):
     root: str = Field(..., min_length=1)
 
 
-class FunctionReference2(RootModel[list[FunctionReference2Item]]):
-    root: list[FunctionReference2Item] = Field(
-        ...,
-        description='A function reference: a simple name, a multi-part name, or a catalog object identifier.\n',
-        min_length=1,
-    )
-
-
-class IdentifierItem(RootModel[str]):
-    root: str = Field(..., min_length=1)
-
-
-class FunctionIdentifier(BaseModel):
-    """
-    An identifier for a catalog object, optionally qualified with a catalog name.
-
-    """
-
+class Function1(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
     )
-    catalog: str | None = None
-    identifier: list[IdentifierItem] = Field(..., min_length=1)
+    catalog: str
+    identifier: CatalogObjectIdentifier
 
 
 class TermReference(RootModel[str]):
@@ -1259,15 +1234,6 @@ class Reference(RootModel[IdReference | NamedReference]):
     )
 
 
-class FunctionReference(
-    RootModel[FunctionReference1 | FunctionReference2 | FunctionIdentifier]
-):
-    root: FunctionReference1 | FunctionReference2 | FunctionIdentifier = Field(
-        ...,
-        description='A function reference: a simple name, a multi-part name, or a catalog object identifier.\n',
-    )
-
-
 class SetPartitionStatisticsUpdate(BaseUpdate):
     action: Literal['set-partition-statistics']
     partition_statistics: PartitionStatisticsFile = Field(
@@ -1641,7 +1607,7 @@ class Apply(BaseModel):
         extra='forbid',
     )
     type: Literal['apply']
-    function: FunctionReference
+    function: Function | CatalogObjectIdentifier | Function1
     arguments: list[FunctionArgument]
 
 
