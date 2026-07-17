@@ -18,13 +18,14 @@
  */
 package org.apache.iceberg.variants;
 
+import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.ByteBuffers;
 
-class SerializedArray implements VariantArray, SerializedValue {
+class SerializedArray implements VariantArray, SerializedValue, Serializable {
   private static final int HEADER_SIZE = 1;
   private static final int OFFSET_SIZE_MASK = 0b1100;
   private static final int OFFSET_SIZE_SHIFT = 2;
@@ -119,5 +120,23 @@ class SerializedArray implements VariantArray, SerializedValue {
   @Override
   public String toString() {
     return VariantArray.asString(this);
+  }
+
+  private Object writeReplace() {
+    return new SerializationProxy(this);
+  }
+
+  private static class SerializationProxy implements Serializable {
+    private final VariantMetadata metadata;
+    private final byte[] valueBytes;
+
+    private SerializationProxy(SerializedArray array) {
+      this.metadata = array.metadata;
+      this.valueBytes = ByteBuffers.toByteArray(array.buffer());
+    }
+
+    private Object readResolve() {
+      return SerializedArray.from(metadata, valueBytes);
+    }
   }
 }

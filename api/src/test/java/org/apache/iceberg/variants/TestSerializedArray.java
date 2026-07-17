@@ -24,9 +24,11 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Random;
+import org.apache.iceberg.TestHelpers.RoundTripSerializer;
 import org.apache.iceberg.util.RandomUtil;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 public class TestSerializedArray {
@@ -210,5 +212,14 @@ public class TestSerializedArray {
                     new byte[] {0b10011, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF}))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("negative element count");
+  }
+
+  @ParameterizedTest
+  @MethodSource("org.apache.iceberg.TestHelpers#serializers")
+  public void testSerialization(RoundTripSerializer<SerializedArray> serializer) throws Exception {
+    ByteBuffer buffer = VariantTestUtil.createArray(A, B, C, I34, I1234);
+    SerializedArray array = SerializedArray.from(EMPTY_METADATA, buffer, buffer.get(0));
+
+    VariantTestUtil.assertEqual(array, serializer.apply(array));
   }
 }

@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.variants;
 
+import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Iterator;
@@ -29,7 +30,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.ByteBuffers;
 
-class SerializedObject implements VariantObject, SerializedValue {
+class SerializedObject implements VariantObject, SerializedValue, Serializable {
   private static final int HEADER_SIZE = 1;
   private static final int OFFSET_SIZE_MASK = 0b1100;
   private static final int OFFSET_SIZE_SHIFT = 2;
@@ -286,5 +287,23 @@ class SerializedObject implements VariantObject, SerializedValue {
   @Override
   public String toString() {
     return VariantObject.asString(this);
+  }
+
+  private Object writeReplace() {
+    return new SerializationProxy(this);
+  }
+
+  private static class SerializationProxy implements Serializable {
+    private final VariantMetadata metadata;
+    private final byte[] valueBytes;
+
+    private SerializationProxy(SerializedObject object) {
+      this.metadata = object.metadata;
+      this.valueBytes = ByteBuffers.toByteArray(object.buffer());
+    }
+
+    private Object readResolve() {
+      return SerializedObject.from(metadata, valueBytes);
+    }
   }
 }
