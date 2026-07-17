@@ -206,6 +206,31 @@ public class TestArrowReader {
     readAndCheckQueryResult(scan, 10, 12 * NUM_ROWS_PER_MONTH, ALL_COLUMNS);
   }
 
+  @Test
+  void vectorAllocationUsesBatchSizeAsValueCount() throws Exception {
+    writeTableWithIncrementalRecords();
+    Table table = tables.load(tableLocation);
+    int requestedBatchSize = 64;
+
+    try (VectorizedTableScanIterable itr =
+        new VectorizedTableScanIterable(table.newScan(), requestedBatchSize, false)) {
+      ColumnarBatch batch = itr.iterator().next();
+      VectorSchemaRoot root = batch.createVectorSchemaRootFromVectors();
+
+      assertVectorCapacity(root.getVector("string"), requestedBatchSize);
+      assertVectorCapacity(root.getVector("bytes"), requestedBatchSize);
+      assertVectorCapacity(root.getVector("uuid"), requestedBatchSize);
+      assertVectorCapacity(root.getVector("fixed"), requestedBatchSize);
+    }
+  }
+
+  private static void assertVectorCapacity(FieldVector vector, int requestedBatchSize) {
+    assertThat(vector.getValueCapacity())
+        .as("capacity for %s", vector.getName())
+        .isGreaterThanOrEqualTo(requestedBatchSize)
+        .isLessThan(requestedBatchSize * 2);
+  }
+
   /**
    * Read selected rows and all columns from the table using a time range row filter. The test
    * asserts that the Arrow {@link VectorSchemaRoot} contains the expected schema and expected
