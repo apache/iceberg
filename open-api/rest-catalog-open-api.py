@@ -153,7 +153,7 @@ class ExpressionType(RootModel[str]):
 
 class TrueExpression(BaseModel):
     """
-    Deprecated. Use the bare boolean literal `true` as a predicate instead. Retained for backward compatibility with older clients per the Iceberg Expressions spec (Appendix B, JSON serialization).
+    Deprecated. Use the bare boolean literal `true` as a predicate instead.
 
     """
 
@@ -187,7 +187,7 @@ class TrueExpression(BaseModel):
 
 class FalseExpression(BaseModel):
     """
-    Deprecated. Use the bare boolean literal `false` as a predicate instead. Retained for backward compatibility with older clients per the Iceberg Expressions spec (Appendix B, JSON serialization).
+    Deprecated. Use the bare boolean literal `false` as a predicate instead.
 
     """
 
