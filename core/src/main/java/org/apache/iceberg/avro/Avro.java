@@ -127,7 +127,7 @@ public class Avro {
       return this;
     }
 
-    public WriteBuilder legacyTimestampMapping(boolean newLegacyTimestampMapping) {
+    WriteBuilder legacyTimestampMapping(boolean newLegacyTimestampMapping) {
       this.legacyTimestampMapping = newLegacyTimestampMapping;
       return this;
     }
@@ -361,7 +361,7 @@ public class Avro {
       return this;
     }
 
-    public DataWriteBuilder legacyTimestampMapping(boolean newLegacyTimestampMapping) {
+    DataWriteBuilder legacyTimestampMapping(boolean newLegacyTimestampMapping) {
       appenderBuilder.legacyTimestampMapping(newLegacyTimestampMapping);
       return this;
     }

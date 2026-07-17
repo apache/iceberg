@@ -49,7 +49,7 @@ public class PlannedDataReader<T> implements DatumReader<T>, SupportsRowPosition
     return create(expectedSchema, idToConstant, true);
   }
 
-  public static <D> PlannedDataReader<D> create(
+  static <D> PlannedDataReader<D> create(
       org.apache.iceberg.Schema expectedSchema,
       Map<Integer, ?> idToConstant,
       boolean legacyTimestampMapping) {

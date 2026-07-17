@@ -42,7 +42,7 @@ public class DataWriter<T> implements MetricsAwareDatumWriter<T> {
     return create(schema, true);
   }
 
-  public static <D> DataWriter<D> create(Schema schema, boolean legacyTimestampMapping) {
+  static <D> DataWriter<D> create(Schema schema, boolean legacyTimestampMapping) {
     return new DataWriter<>(schema, legacyTimestampMapping);
   }
 
