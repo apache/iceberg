@@ -18,12 +18,14 @@
  */
 package org.apache.iceberg.flink.source;
 
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import org.apache.flink.annotation.Internal;
+import org.apache.flink.configuration.Configuration;
 import org.apache.flink.configuration.ReadableConfig;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
@@ -33,22 +35,31 @@ import org.apache.flink.table.connector.ChangelogMode;
 import org.apache.flink.table.connector.ProviderContext;
 import org.apache.flink.table.connector.source.DataStreamScanProvider;
 import org.apache.flink.table.connector.source.DynamicTableSource;
+import org.apache.flink.table.connector.source.LookupTableSource;
 import org.apache.flink.table.connector.source.ScanTableSource;
 import org.apache.flink.table.connector.source.abilities.SupportsFilterPushDown;
 import org.apache.flink.table.connector.source.abilities.SupportsLimitPushDown;
 import org.apache.flink.table.connector.source.abilities.SupportsProjectionPushDown;
 import org.apache.flink.table.connector.source.abilities.SupportsSourceWatermark;
+import org.apache.flink.table.connector.source.lookup.LookupFunctionProvider;
+import org.apache.flink.table.connector.source.lookup.LookupOptions;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.expressions.ResolvedExpression;
 import org.apache.flink.table.factories.FactoryUtil;
+import org.apache.flink.table.functions.LookupFunction;
 import org.apache.flink.table.legacy.api.TableSchema;
 import org.apache.flink.table.types.DataType;
+import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.flink.FlinkConfParser;
 import org.apache.iceberg.flink.FlinkConfigOptions;
 import org.apache.iceberg.flink.FlinkFilters;
 import org.apache.iceberg.flink.FlinkReadOptions;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.source.assigner.SplitAssignerType;
+import org.apache.iceberg.flink.source.lookup.IcebergFullCachingLookupFunction;
+import org.apache.iceberg.flink.source.lookup.IcebergLookupOptions;
+import org.apache.iceberg.flink.source.lookup.LookupCacheType;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -61,7 +72,8 @@ public class IcebergTableSource
         SupportsProjectionPushDown,
         SupportsFilterPushDown,
         SupportsLimitPushDown,
-        SupportsSourceWatermark {
+        SupportsSourceWatermark,
+        LookupTableSource {
 
   private int[] projectedFields;
   private Long limit;
@@ -72,6 +84,7 @@ public class IcebergTableSource
   private final Map<String, String> properties;
   private final boolean isLimitPushDown;
   private final ReadableConfig readableConfig;
+  private final boolean caseSensitive;
 
   private IcebergTableSource(IcebergTableSource toCopy) {
     this.loader = toCopy.loader;
@@ -82,6 +95,7 @@ public class IcebergTableSource
     this.limit = toCopy.limit;
     this.filters = toCopy.filters;
     this.readableConfig = toCopy.readableConfig;
+    this.caseSensitive = toCopy.caseSensitive;
   }
 
   public IcebergTableSource(
@@ -109,6 +123,13 @@ public class IcebergTableSource
     this.limit = limit;
     this.filters = filters;
     this.readableConfig = readableConfig;
+    this.caseSensitive =
+        new FlinkConfParser(properties, readableConfig)
+            .booleanConf()
+            .option(FlinkReadOptions.CASE_SENSITIVE)
+            .flinkConfig(FlinkReadOptions.CASE_SENSITIVE_OPTION)
+            .defaultValue(FlinkReadOptions.CASE_SENSITIVE_OPTION.defaultValue())
+            .parse();
   }
 
   @Override
@@ -236,5 +257,41 @@ public class IcebergTableSource
   @Override
   public String asSummaryString() {
     return "Iceberg table source";
+  }
+
+  @Override
+  public LookupRuntimeProvider getLookupRuntimeProvider(LookupContext context) {
+    int[][] lookupKeys = context.getKeys();
+    int[] keyIndices = new int[lookupKeys.length];
+    for (int i = 0; i < lookupKeys.length; i++) {
+      Preconditions.checkArgument(
+          lookupKeys[i].length == 1, "Iceberg lookup source doesn't support nested lookup key.");
+      keyIndices[i] = lookupKeys[i][0];
+    }
+
+    ResolvedSchema projected = getProjectedSchema();
+    String[] projectedColumns = projected.getColumnNames().toArray(new String[0]);
+    RowType projectedRowType = (RowType) projected.toPhysicalRowDataType().getLogicalType();
+    List<Expression> pushedFilters = filters == null ? ImmutableList.of() : filters;
+
+    Configuration lookupConf = Configuration.fromMap(properties);
+    Duration refreshInterval =
+        lookupConf.getOptional(LookupOptions.FULL_CACHE_PERIODIC_RELOAD_INTERVAL).orElse(null);
+    LookupCacheType lookupCacheType = lookupConf.get(IcebergLookupOptions.CACHE_TYPE);
+    String lookupCacheDir =
+        lookupConf.getOptional(IcebergLookupOptions.ROCKSDB_CACHE_DIR).orElse(null);
+
+    LookupFunction lookupFn =
+        new IcebergFullCachingLookupFunction(
+            loader,
+            projectedColumns,
+            projectedRowType,
+            keyIndices,
+            pushedFilters,
+            refreshInterval,
+            lookupCacheType,
+            caseSensitive,
+            lookupCacheDir);
+    return LookupFunctionProvider.of(lookupFn);
   }
 }
