@@ -2787,7 +2787,20 @@ components:
           type: string
           const: "apply"
         function:
-          $ref: '#/components/schemas/FunctionReference'
+          oneOf:
+            - type: string
+              minLength: 1
+            - $ref: '#/components/schemas/CatalogObjectIdentifier'
+            - type: object
+              additionalProperties: false
+              required:
+                - catalog
+                - identifier
+              properties:
+                catalog:
+                  type: string
+                identifier:
+                  $ref: '#/components/schemas/CatalogObjectIdentifier'
         arguments:
           type: array
           items:
@@ -2797,37 +2810,6 @@ components:
       anyOf:
         - $ref: '#/components/schemas/ValueExpression'
         - $ref: '#/components/schemas/Predicate'
-
-    FunctionReference:
-      description: >
-        A function reference: a simple name, a multi-part name, or a
-        catalog object identifier.
-      oneOf:
-        - type: string
-          minLength: 1
-        - type: array
-          minItems: 1
-          items:
-            type: string
-            minLength: 1
-        - $ref: '#/components/schemas/FunctionIdentifier'
-
-    FunctionIdentifier:
-      description: >
-        An identifier for a catalog object, optionally qualified with a catalog name.
-      type: object
-      additionalProperties: false
-      required:
-        - identifier
-      properties:
-        catalog:
-          type: string
-        identifier:
-          type: array
-          minItems: 1
-          items:
-            type: string
-            minLength: 1
 
     Term:
       oneOf:
