@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.flink;
 
+import java.time.Duration;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
@@ -34,6 +35,9 @@ import org.apache.flink.table.catalog.exceptions.DatabaseAlreadyExistException;
 import org.apache.flink.table.catalog.exceptions.TableAlreadyExistException;
 import org.apache.flink.table.connector.sink.DynamicTableSink;
 import org.apache.flink.table.connector.source.DynamicTableSource;
+import org.apache.flink.table.connector.source.lookup.LookupOptions;
+import org.apache.flink.table.connector.source.lookup.cache.DefaultLookupCache;
+import org.apache.flink.table.connector.source.lookup.cache.LookupCache;
 import org.apache.flink.table.factories.DynamicTableSinkFactory;
 import org.apache.flink.table.factories.DynamicTableSourceFactory;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -79,8 +83,24 @@ public class FlinkDynamicTableFactory
               objectIdentifier.getObjectName());
     }
 
+    LookupCache lookupCache = null;
+    Configuration lookupConf = Configuration.fromMap(tableProps);
+    Duration refreshInterval = null;
+    LookupOptions.LookupCacheType cacheType = lookupConf.get(LookupOptions.CACHE_TYPE);
+    if (cacheType == LookupOptions.LookupCacheType.PARTIAL) {
+      lookupCache = DefaultLookupCache.fromConfig(lookupConf);
+    } else if (cacheType == LookupOptions.LookupCacheType.FULL) {
+      refreshInterval =
+          lookupConf.getOptional(LookupOptions.FULL_CACHE_PERIODIC_RELOAD_INTERVAL).orElse(null);
+    }
+
     return new IcebergTableSource(
-        tableLoader, resolvedSchema, tableProps, context.getConfiguration());
+        tableLoader,
+        resolvedSchema,
+        tableProps,
+        context.getConfiguration(),
+        lookupCache,
+        refreshInterval);
   }
 
   @Override
@@ -132,6 +152,15 @@ public class FlinkDynamicTableFactory
     options.add(FlinkCreateTableOptions.CATALOG_TABLE);
     options.add(FlinkCreateTableOptions.USE_DYNAMIC_ICEBERG_SINK);
     options.add(FlinkCreateTableOptions.DYNAMIC_RECORD_GENERATOR_IMPL);
+    // Flink built-in lookup cache options: 'lookup.cache', 'lookup.partial-cache.*',
+    // 'lookup.full-cache.periodic-reload.interval', 'lookup.max-retries'
+    options.add(LookupOptions.CACHE_TYPE);
+    options.add(LookupOptions.MAX_RETRIES);
+    options.add(LookupOptions.PARTIAL_CACHE_EXPIRE_AFTER_ACCESS);
+    options.add(LookupOptions.PARTIAL_CACHE_EXPIRE_AFTER_WRITE);
+    options.add(LookupOptions.PARTIAL_CACHE_MAX_ROWS);
+    options.add(LookupOptions.PARTIAL_CACHE_CACHE_MISSING_KEY);
+    options.add(LookupOptions.FULL_CACHE_PERIODIC_RELOAD_INTERVAL);
     return options;
   }
 
