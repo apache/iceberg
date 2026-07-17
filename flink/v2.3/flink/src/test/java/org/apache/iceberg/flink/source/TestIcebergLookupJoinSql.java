@@ -23,9 +23,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
+import java.util.List;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.table.api.TableEnvironment;
 import org.apache.flink.types.Row;
+import org.apache.flink.util.CloseableIterator;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
@@ -172,6 +174,91 @@ class TestIcebergLookupJoinSql extends TestSqlBase {
   }
 
   @Test
+  void lookupJoinReloadsFullCacheFromNewSnapshot() throws Exception {
+    Table dimTable =
+        CATALOG_EXTENSION.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, DIM_SCHEMA);
+    GenericAppenderHelper helper =
+        new GenericAppenderHelper(dimTable, FileFormat.PARQUET, temporaryFolder);
+    helper.appendToTable(
+        helper.writeFile(
+            Lists.newArrayList(
+                dimRecord(1L, "alice", "beijing"),
+                dimRecord(2L, "bob", "shanghai"),
+                dimRecord(3L, "carol", "guangzhou"))));
+
+    TableEnvironment streamEnv = getStreamingTableEnv();
+    // Two probe rows per second, so the last probe row is joined seconds after the cache is
+    // loaded, which leaves the reload time to pick up the row appended below.
+    createOrdersTable(streamEnv, "orders_reload_new_snapshot", 10, ",\n  'rows-per-second' = '2'");
+
+    String joinSql =
+        lookupJoinSql(
+            "o.order_id, o.user_id, u.name",
+            "orders_reload_new_snapshot",
+            "OPTIONS('lookup.full-cache.periodic-reload.interval'='500 ms', "
+                + "'lookup.full-cache.periodic-reload.schedule-mode'='FIXED_RATE')",
+            null);
+
+    List<Row> rows = Lists.newArrayList();
+    try (CloseableIterator<Row> iter = streamEnv.executeSql(joinSql).collect()) {
+      // The first result row proves that the lookup function is open and has loaded the cache,
+      // so the row appended next can only be served by a reload.
+      rows.add(iter.next());
+
+      helper.appendToTable(
+          helper.writeFile(Lists.newArrayList(dimRecord(10L, "henry", "shenzhen"))));
+
+      while (iter.hasNext()) {
+        rows.add(iter.next());
+      }
+    }
+
+    assertThat(rows)
+        .as("A reload must replace the cache with the latest snapshot")
+        .contains(Row.of(10L, 10L, "henry"), Row.of(1L, 1L, "alice"), Row.of(9L, 9L, null));
+  }
+
+  @Test
+  void lookupJoinWithTimedReloadOptionsInTableDdl() throws Exception {
+    createDefaultDimTable();
+
+    TableEnvironment streamEnv = getStreamingTableEnv();
+    createOrdersTable(streamEnv, "orders_timed_reload", 3);
+
+    SqlHelpers.sql(
+        streamEnv,
+        "CREATE TABLE default_catalog.default_database.dim_users_timed_reload (\n"
+            + "  user_id BIGINT,\n"
+            + "  name    STRING,\n"
+            + "  city    STRING\n"
+            + ") WITH (\n"
+            + "  'connector' = 'iceberg',\n"
+            + "  'catalog-name' = 'iceberg_catalog',\n"
+            + "  'catalog-type' = 'hadoop',\n"
+            + "  'warehouse' = '%s',\n"
+            + "  'catalog-database' = '%s',\n"
+            + "  'catalog-table' = '%s',\n"
+            + "  'lookup.cache' = 'FULL',\n"
+            + "  'lookup.full-cache.reload-strategy' = 'TIMED',\n"
+            + "  'lookup.full-cache.timed-reload.iso-time' = '02:30'\n"
+            + ")",
+        CATALOG_EXTENSION.warehouse(),
+        TestFixtures.DATABASE,
+        TestFixtures.TABLE);
+
+    String joinSql =
+        "SELECT o.order_id, u.name\n"
+            + "FROM orders_timed_reload AS o\n"
+            + "LEFT JOIN default_catalog.default_database.dim_users_timed_reload\n"
+            + "  FOR SYSTEM_TIME AS OF o.proc_time AS u\n"
+            + "  ON o.user_id = u.user_id";
+
+    assertThat(SqlHelpers.sql(streamEnv, joinSql))
+        .as("The timed reload options must be accepted as table options")
+        .containsExactlyInAnyOrder(Row.of(1L, "alice"), Row.of(2L, "bob"), Row.of(3L, "carol"));
+  }
+
+  @Test
   void lookupJoinAcceptsFullCacheType() throws Exception {
     createDimTable(dimRecord(1L, "alice", "beijing"));
 
@@ -205,6 +292,25 @@ class TestIcebergLookupJoinSql extends TestSqlBase {
     assertThatThrownBy(() -> SqlHelpers.sql(streamEnv, joinSql))
         .as("An Iceberg table cannot be point-looked-up, so PARTIAL must be rejected")
         .hasStackTraceContaining("only supports lookup.cache=FULL");
+  }
+
+  @Test
+  void lookupJoinRejectsPeriodicReloadWithoutInterval() throws Exception {
+    createDimTable(dimRecord(1L, "alice", "beijing"));
+
+    TableEnvironment streamEnv = getStreamingTableEnv();
+    createOrdersTable(streamEnv, "orders_reload_without_interval", 1);
+
+    String joinSql =
+        lookupJoinSql(
+            "o.order_id, u.name",
+            "orders_reload_without_interval",
+            "OPTIONS('lookup.cache'='FULL', 'lookup.full-cache.reload-strategy'='PERIODIC')",
+            null);
+
+    assertThatThrownBy(() -> SqlHelpers.sql(streamEnv, joinSql))
+        .as("The reload configured in the SQL options is validated while planning the join")
+        .hasStackTraceContaining("lookup.full-cache.periodic-reload.interval");
   }
 
   @Test
@@ -290,6 +396,14 @@ class TestIcebergLookupJoinSql extends TestSqlBase {
 
   private static void createOrdersTable(
       TableEnvironment tableEnvironment, String tableName, int numberOfRows) {
+    createOrdersTable(tableEnvironment, tableName, numberOfRows, "");
+  }
+
+  private static void createOrdersTable(
+      TableEnvironment tableEnvironment,
+      String tableName,
+      int numberOfRows,
+      String additionalOptions) {
     SqlHelpers.sql(
         tableEnvironment,
         "CREATE TEMPORARY TABLE %s (\n"
@@ -304,12 +418,13 @@ class TestIcebergLookupJoinSql extends TestSqlBase {
             + "  'fields.order_id.end' = '%d',\n"
             + "  'fields.user_id.kind' = 'sequence',\n"
             + "  'fields.user_id.start' = '1',\n"
-            + "  'fields.user_id.end' = '%d'\n"
+            + "  'fields.user_id.end' = '%d'%s\n"
             + ")",
         tableName,
         numberOfRows,
         numberOfRows,
-        numberOfRows);
+        numberOfRows,
+        additionalOptions);
   }
 
   private static Record dimRecord(long userId, String name, String city) {

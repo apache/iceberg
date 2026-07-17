@@ -34,6 +34,7 @@ import org.apache.flink.table.catalog.exceptions.DatabaseAlreadyExistException;
 import org.apache.flink.table.catalog.exceptions.TableAlreadyExistException;
 import org.apache.flink.table.connector.sink.DynamicTableSink;
 import org.apache.flink.table.connector.source.DynamicTableSource;
+import org.apache.flink.table.connector.source.lookup.LookupOptions;
 import org.apache.flink.table.factories.DynamicTableSinkFactory;
 import org.apache.flink.table.factories.DynamicTableSourceFactory;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -134,6 +135,11 @@ public class FlinkDynamicTableFactory
     options.add(FlinkCreateTableOptions.USE_DYNAMIC_ICEBERG_SINK);
     options.add(FlinkCreateTableOptions.DYNAMIC_RECORD_GENERATOR_IMPL);
     options.add(IcebergLookupOptions.FULL_CACHE_EAGER_LOAD);
+    options.add(LookupOptions.FULL_CACHE_RELOAD_STRATEGY);
+    options.add(LookupOptions.FULL_CACHE_PERIODIC_RELOAD_INTERVAL);
+    options.add(LookupOptions.FULL_CACHE_PERIODIC_RELOAD_SCHEDULE_MODE);
+    options.add(LookupOptions.FULL_CACHE_TIMED_RELOAD_ISO_TIME);
+    options.add(LookupOptions.FULL_CACHE_TIMED_RELOAD_INTERVAL_IN_DAYS);
     return options;
   }
 
