@@ -857,12 +857,14 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
               format, EncryptedFiles.plainAsEncryptedOutput(outputFile))
           .partition(partition)
           .spec(spec)
+          .overwrite()
           .build();
     } else {
       return switch (format) {
         case AVRO ->
             Avro.writeDeletes(outputFile)
                 .createWriterFunc(DataWriter::create)
+                .overwrite()
                 .withPartition(partition)
                 .rowSchema(rowSchema)
                 .withSpec(spec)
@@ -870,6 +872,7 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
         case PARQUET ->
             Parquet.writeDeletes(outputFile)
                 .createWriterFunc(GenericParquetWriter::create)
+                .overwrite()
                 .withPartition(partition)
                 .rowSchema(rowSchema)
                 .withSpec(spec)
@@ -877,6 +880,7 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
         case ORC ->
             ORC.writeDeletes(outputFile)
                 .createWriterFunc(GenericOrcWriter::buildWriter)
+                .overwrite()
                 .withPartition(partition)
                 .rowSchema(rowSchema)
                 .withSpec(spec)
