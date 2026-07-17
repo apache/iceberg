@@ -19,6 +19,7 @@
 package org.apache.iceberg.arrow.vectorized;
 
 import org.apache.arrow.vector.FieldVector;
+import org.apache.arrow.vector.IntVector;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Type;
@@ -37,6 +38,7 @@ public class VectorHolder {
   private final Dictionary dictionary;
   private final NullabilityHolder nullabilityHolder;
   private final Types.NestedField icebergField;
+  private final IntVector repetitionLevels;
 
   public VectorHolder(
       ColumnDescriptor columnDescriptor,
@@ -45,7 +47,18 @@ public class VectorHolder {
       Dictionary dictionary,
       NullabilityHolder holder,
       Types.NestedField icebergField) {
-    // All the fields except dictionary are not nullable unless it is a dummy holder
+    this(columnDescriptor, vector, isDictionaryEncoded, dictionary, holder, icebergField, null);
+  }
+
+  public VectorHolder(
+      ColumnDescriptor columnDescriptor,
+      FieldVector vector,
+      boolean isDictionaryEncoded,
+      Dictionary dictionary,
+      NullabilityHolder holder,
+      Types.NestedField icebergField,
+      IntVector repetitionLevels) {
+    // All the fields except dictionary and repetitionLevels are not nullable unless it is a dummy holder
     Preconditions.checkNotNull(columnDescriptor, "ColumnDescriptor cannot be null");
     Preconditions.checkNotNull(vector, "Vector cannot be null");
     Preconditions.checkNotNull(holder, "NullabilityHolder cannot be null");
@@ -56,6 +69,7 @@ public class VectorHolder {
     this.dictionary = dictionary;
     this.nullabilityHolder = holder;
     this.icebergField = icebergField;
+    this.repetitionLevels = repetitionLevels;
   }
 
   /** A constructor used for dummy holders. */
@@ -71,15 +85,22 @@ public class VectorHolder {
     dictionary = null;
     nullabilityHolder = null;
     icebergField = field;
+    repetitionLevels = null;
   }
 
   private VectorHolder(FieldVector vec, Types.NestedField field, NullabilityHolder nulls) {
+    this(vec, field, nulls, null);
+  }
+
+  private VectorHolder(
+      FieldVector vec, Types.NestedField field, NullabilityHolder nulls, IntVector repetitionLevels) {
     columnDescriptor = null;
     vector = vec;
     isDictionaryEncoded = false;
     dictionary = null;
     nullabilityHolder = nulls;
     icebergField = field;
+    this.repetitionLevels = repetitionLevels;
   }
 
   public ColumnDescriptor descriptor() {
@@ -112,6 +133,11 @@ public class VectorHolder {
 
   public int numValues() {
     return vector.getValueCount();
+  }
+
+  /** Returns the repetition levels for this vector, or null if not a repeated column. */
+  public IntVector repetitionLevels() {
+    return repetitionLevels;
   }
 
   public static <T> VectorHolder constantHolder(
@@ -170,6 +196,14 @@ public class VectorHolder {
   public static VectorHolder vectorHolder(
       FieldVector vector, Types.NestedField icebergField, NullabilityHolder nulls) {
     return new VectorHolder(vector, icebergField, nulls);
+  }
+
+  public static VectorHolder vectorHolder(
+      FieldVector vector,
+      Types.NestedField icebergField,
+      NullabilityHolder nulls,
+      IntVector repetitionLevels) {
+    return new VectorHolder(vector, icebergField, nulls, repetitionLevels);
   }
 
   public static class DeletedVectorHolder extends VectorHolder {

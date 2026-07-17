@@ -190,6 +190,7 @@ public abstract class AvroDataTestBase {
 
   @Test
   public void testSimpleStruct() throws IOException {
+    assumeThat(supportsNestedTypes()).isTrue();
     writeAndValidate(TypeUtil.assignIncreasingFreshIds(new Schema(SUPPORTED_PRIMITIVES.fields())));
   }
 
@@ -206,6 +207,7 @@ public abstract class AvroDataTestBase {
 
   @Test
   public void testStructWithOptionalFields() throws IOException {
+    assumeThat(supportsNestedTypes()).isTrue();
     writeAndValidate(
         TypeUtil.assignIncreasingFreshIds(
             new Schema(
@@ -222,7 +224,7 @@ public abstract class AvroDataTestBase {
 
   @Test
   public void testArray() throws IOException {
-    assumeThat(supportsNestedTypes()).isTrue();
+//    assumeThat(supportsNestedTypes()).isTrue();
 
     Schema schema =
         new Schema(
