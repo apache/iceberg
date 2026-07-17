@@ -285,6 +285,7 @@ public class IcebergTableSink implements DynamicTableSink, SupportsPartitioning,
       ctor =
           DynConstructors.builder(DynamicTableRecordGenerator.class)
               .loader(IcebergTableSink.class.getClassLoader())
+              .impl(generatorImpl, RowType.class)
               .impl(generatorImpl, RowType.class, Map.class, Configuration.class)
               .buildChecked();
       return ctor.newInstance(rowType, writeProps, fromReadableConfig());

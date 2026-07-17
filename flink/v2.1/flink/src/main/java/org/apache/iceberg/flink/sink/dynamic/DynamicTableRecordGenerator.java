@@ -20,11 +20,13 @@ package org.apache.iceberg.flink.sink.dynamic;
 
 import java.util.List;
 import java.util.Map;
+import org.apache.flink.api.common.functions.OpenContext;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.logical.LogicalType;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 /**
@@ -37,25 +39,31 @@ public abstract class DynamicTableRecordGenerator implements DynamicRecordGenera
   private final Configuration flinkConfiguration;
   private final Map<String, String> writeProperties;
   private final Map<String, Integer> fieldNameToPosition;
+  private transient FlinkDynamicSinkConf flinkDynamicSinkConf;
+
+  public DynamicTableRecordGenerator(RowType rowType) {
+    this(rowType, ImmutableMap.of(), new Configuration());
+  }
 
   public DynamicTableRecordGenerator(
       RowType rowType, Map<String, String> writeProperties, Configuration flinkConfiguration) {
     this.rowType = rowType;
     this.writeProperties = writeProperties;
-    this.fieldNameToPosition = fieldNameToPositionMapping();
     this.flinkConfiguration = flinkConfiguration;
+    this.fieldNameToPosition = fieldNameToPositionMapping();
+  }
+
+  @Override
+  public void open(OpenContext openContext) throws Exception {
+    this.flinkDynamicSinkConf = new FlinkDynamicSinkConf(writeProperties, flinkConfiguration);
   }
 
   protected RowType rowType() {
     return rowType;
   }
 
-  protected Map<String, String> writeProperties() {
-    return writeProperties;
-  }
-
-  protected Configuration flinkConfiguration() {
-    return flinkConfiguration;
+  protected FlinkDynamicSinkConf flinkDynamicSinkConf() {
+    return flinkDynamicSinkConf;
   }
 
   protected Map<String, Integer> fieldNameToPosition() {

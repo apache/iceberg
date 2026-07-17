@@ -47,6 +47,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 public class VariantRowDataWrapper implements RowData {
 
   private static final int MICROSECOND_PRECISION = 6;
+  private static final int NANOSECOND_PRECISION = 9;
 
   private final RowType rowType;
   private RowKind rowKind;
@@ -282,10 +283,15 @@ public class VariantRowDataWrapper implements RowData {
     return switch (variant.getType()) {
       case TIMESTAMP -> TimestampData.fromLocalDateTime(variant.getDateTime());
       case TIMESTAMP_LTZ -> TimestampData.fromInstant(variant.getInstant());
-      case BIGINT ->
-          precision > MICROSECOND_PRECISION
-              ? nanoTimestampValue(variant.getLong())
-              : microTimestampValue(variant.getLong());
+      case BIGINT -> {
+        Preconditions.checkArgument(
+            precision >= MICROSECOND_PRECISION && precision <= NANOSECOND_PRECISION,
+            "Invalid precision: %s. Only micros and nanos precision are supported.",
+            precision);
+        yield precision > MICROSECOND_PRECISION
+            ? nanoTimestampValue(variant.getLong())
+            : microTimestampValue(variant.getLong());
+      }
       default -> throw new UnsupportedOperationException(errMsg(variant, "timestamp"));
     };
   }

@@ -503,11 +503,8 @@ public class TestIcebergConnector extends TestBase {
     private int databaseFieldIndex = -1;
     private int tableFieldIndex = -1;
 
-    public SimpleRowDataTableRecordGenerator(
-        RowType rowType,
-        Map<String, String> writeProps,
-        org.apache.flink.configuration.Configuration flinkConfiguration) {
-      super(rowType, writeProps, flinkConfiguration);
+    public SimpleRowDataTableRecordGenerator(RowType rowType) {
+      super(rowType);
     }
 
     @Override

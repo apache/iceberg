@@ -52,12 +52,14 @@ public class VariantAvroDynamicTableRecordGenerator extends DynamicTableRecordGe
 
   private static final Splitter COMMA = Splitter.on(',').trimResults().omitEmptyStrings();
 
+  private final Map<String, String> writeProperties;
   private transient int maxCacheSize;
   private transient Map<TableIdentifier, SchemaAndPartitionSpecCacheItem> tableCache;
 
   public VariantAvroDynamicTableRecordGenerator(
       RowType rowType, Map<String, String> writeProperties, Configuration flinkConfiguration) {
     super(rowType, writeProperties, flinkConfiguration);
+    this.writeProperties = writeProperties;
 
     validateColumnWithConfigFallback(rowType, FlinkCreateTableOptions.CATALOG_DATABASE);
     validateColumnWithConfigFallback(rowType, FlinkCreateTableOptions.CATALOG_TABLE);
@@ -71,9 +73,7 @@ public class VariantAvroDynamicTableRecordGenerator extends DynamicTableRecordGe
   public void open(OpenContext openContext) throws Exception {
     super.open(openContext);
 
-    FlinkDynamicSinkConf flinkDynamicSinkConf =
-        new FlinkDynamicSinkConf(writeProperties(), flinkConfiguration());
-    this.maxCacheSize = flinkDynamicSinkConf.cacheMaxSize();
+    this.maxCacheSize = flinkDynamicSinkConf().cacheMaxSize();
     this.tableCache = new LRUCache<>(maxCacheSize);
   }
 
@@ -143,13 +143,13 @@ public class VariantAvroDynamicTableRecordGenerator extends DynamicTableRecordGe
   }
 
   private String columnValueWithConfigFallback(RowData rowData, ConfigOption<String> config) {
-    return columnValueAsString(rowData, config.key(), writeProperties().get(config.key()));
+    return columnValueAsString(rowData, config.key(), writeProperties.get(config.key()));
   }
 
   private void validateColumnWithConfigFallback(RowType rowType, ConfigOption<String> column) {
     String columnName = column.key();
     Preconditions.checkArgument(
-        rowType.getFieldIndex(columnName) != -1 || writeProperties().containsKey(columnName),
+        rowType.getFieldIndex(columnName) != -1 || writeProperties.containsKey(columnName),
         "Invalid %s: null. Either pass the column in Row or set it in table options.",
         columnName);
   }

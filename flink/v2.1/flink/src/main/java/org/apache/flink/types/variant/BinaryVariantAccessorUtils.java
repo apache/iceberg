@@ -56,7 +56,7 @@ public class BinaryVariantAccessorUtils extends BinaryVariantUtil {
    *
    * @return List of field names if this is an instance of BinaryVariant and is an object
    * @throws IllegalArgumentException If this variant is not an instance of BinaryVariant or not an
-   *     array.
+   *     object.
    */
   public static List<String> fieldNames(Variant variant) {
     Preconditions.checkArgument(
