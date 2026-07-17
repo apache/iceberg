@@ -735,6 +735,62 @@ class TestConvertEqualityDeletes extends MaintenanceTaskTestBase {
   }
 
   @Test
+  void testUnpartitionedDeleteAppliesAcrossPartitionEvolution() throws Exception {
+    // Data is written under a partitioned spec, then the table evolves to unpartitioned. A delete
+    // written under the unpartitioned spec is a global delete and must remove the data row from the
+    // older spec. This only works because the index key is spec-independent (spec scoping happens
+    // at resolve time, where a global delete matches every spec).
+    Table table = createPartitionedTableWithDelete(3);
+    insertPartitioned(table, 1, "a");
+
+    table.updateSpec().removeField("data").commit();
+    table.refresh();
+
+    table.manageSnapshots().createBranch(STAGING_BRANCH).commit();
+    table.refresh();
+
+    // writeEqualityDelete writes with the current (now unpartitioned) spec, so the delete is
+    // global.
+    DeleteFile eqDelete = writeEqualityDelete(table, 1, "a");
+    table.newRowDelta().addDeletes(eqDelete).toBranch(STAGING_BRANCH).commit();
+    table.refresh();
+
+    appendConvertTask();
+    runAndWaitForSuccess(infra.env(), infra.source(), infra.sink());
+
+    table.refresh();
+    assertRecords(table, ImmutableList.of());
+  }
+
+  @Test
+  void testPartitionedDeleteDoesNotApplyAcrossPartitionEvolution() throws Exception {
+    // Inverse of the global case: a partitioned delete under a new spec must NOT remove a data row
+    // written under an older spec. The row survives because resolution is scoped to the delete's
+    // spec.
+    Table table = createPartitionedTableWithDelete(3);
+    insertPartitioned(table, 1, "a");
+
+    // Evolve to a different partition spec so the delete below is written under a new spec id.
+    table.updateSpec().removeField("data").addField("id").commit();
+    table.refresh();
+
+    table.manageSnapshots().createBranch(STAGING_BRANCH).commit();
+    table.refresh();
+
+    DeleteFile eqDelete = writeIdPartitionedEqualityDelete(table, 1, "a");
+    table.newRowDelta().addDeletes(eqDelete).toBranch(STAGING_BRANCH).commit();
+    table.refresh();
+
+    appendConvertTask();
+    runAndWaitForSuccess(infra.env(), infra.source(), infra.sink());
+
+    table.refresh();
+    // The spec-0 row survives: the delete's spec differs and it is not a global (unpartitioned)
+    // delete.
+    assertRecords(table, ImmutableList.of(createRecord(1, "a")));
+  }
+
+  @Test
   void testStagingPositionDeleteMergedIntoConversionDV() throws Exception {
     Table table = createTableWithDelete(3);
 
@@ -993,6 +1049,21 @@ class TestConvertEqualityDeletes extends MaintenanceTaskTestBase {
 
     PartitionData partition = new PartitionData(table.spec().partitionType());
     partition.set(0, data);
+    return FileHelpers.writeDeleteFile(
+        table,
+        Files.localOutput(file),
+        partition,
+        Lists.newArrayList(createRecord(id, data)),
+        table.schema());
+  }
+
+  private DeleteFile writeIdPartitionedEqualityDelete(Table table, Integer id, String data)
+      throws IOException {
+    File file = File.createTempFile("junit", null, tempDir.toFile());
+    assertThat(file.delete()).isTrue();
+
+    PartitionData partition = new PartitionData(table.spec().partitionType());
+    partition.set(0, id);
     return FileHelpers.writeDeleteFile(
         table,
         Files.localOutput(file),

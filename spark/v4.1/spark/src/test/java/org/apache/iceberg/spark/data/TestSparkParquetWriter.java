@@ -30,6 +30,7 @@ import java.io.IOException;
 import java.lang.reflect.Field;
 import java.nio.file.Path;
 import java.util.Iterator;
+import java.util.List;
 import java.util.OptionalLong;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
@@ -37,12 +38,15 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.parquet.ParquetSchemaUtil;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.ParquetProperties;
 import org.apache.parquet.schema.MessageType;
 import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
+import org.apache.spark.sql.catalyst.util.STUtils;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -128,6 +132,53 @@ public class TestSparkParquetWriter {
         TestHelpers.assertEquals(COMPLEX_SCHEMA, expected.next(), rows.next());
       }
       assertThat(rows).as("Should not have extra rows").isExhausted();
+    }
+  }
+
+  @Test
+  public void testGeospatialWkbRoundTrip() throws IOException {
+    Schema geoSchema =
+        new Schema(
+            required(1, "id", Types.LongType.get()),
+            optional(2, "geom", Types.GeometryType.crs84()),
+            optional(3, "geog", Types.GeographyType.crs84()));
+
+    byte[] geomWkb = new byte[] {0x01, 0x02, 0x03};
+    byte[] geogWkb = new byte[] {0x04, 0x05, 0x06};
+    InternalRow row = new GenericInternalRow(3);
+    row.update(0, 1L);
+    // Spark's GeometryVal/GeographyVal wrap [SRID | WKB]; build them from the pure WKB.
+    row.update(1, STUtils.stGeomFromWKB(geomWkb));
+    row.update(2, STUtils.stGeogFromWKB(geogWkb));
+    // second row leaves the geo columns null
+    InternalRow nulls = new GenericInternalRow(3);
+    nulls.update(0, 2L);
+
+    File testFile = File.createTempFile("junit", null, temp.toFile());
+    assertThat(testFile.delete()).as("Delete should succeed").isTrue();
+
+    try (FileAppender<InternalRow> writer =
+        Parquet.write(Files.localOutput(testFile))
+            .schema(geoSchema)
+            .createWriterFunc(
+                msgType ->
+                    SparkParquetWriters.buildWriter(SparkSchemaUtil.convert(geoSchema), msgType))
+            .build()) {
+      writer.add(row);
+      writer.add(nulls);
+    }
+
+    try (CloseableIterable<InternalRow> reader =
+        Parquet.read(Files.localInput(testFile))
+            .project(geoSchema)
+            .createReaderFunc(type -> SparkParquetReaders.buildReader(geoSchema, type))
+            .build()) {
+      List<InternalRow> rows = Lists.newArrayList(reader);
+      assertThat(rows).hasSize(2);
+      assertThat(STUtils.stAsBinary(rows.get(0).getGeometry(1))).isEqualTo(geomWkb);
+      assertThat(STUtils.stAsBinary(rows.get(0).getGeography(2))).isEqualTo(geogWkb);
+      assertThat(rows.get(1).isNullAt(1)).isTrue();
+      assertThat(rows.get(1).isNullAt(2)).isTrue();
     }
   }
 

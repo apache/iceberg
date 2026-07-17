@@ -92,8 +92,8 @@ public class TestFileGenerationUtil {
   @SuppressWarnings("deprecation")
   void testBoundsForAllMetricsModes(String metricsMode) {
     MetricsConfig metricsConfig =
-        MetricsConfig.fromProperties(
-            ImmutableMap.of(TableProperties.DEFAULT_WRITE_METRICS_MODE, metricsMode));
+        MetricsConfig.from(
+            ImmutableMap.of(TableProperties.DEFAULT_WRITE_METRICS_MODE, metricsMode), SCHEMA, null);
     Metrics metrics =
         FileGenerationUtil.generateRandomMetrics(
             SCHEMA,

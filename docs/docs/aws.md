@@ -694,6 +694,8 @@ spark-sql --packages org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:{{ iceber
     --conf spark.sql.catalog.my_catalog.client.assume-role.region=ap-northeast-1
 ```
 
+When assume-role credential configurations are provided, [REST catalogs configured with the `sigv4` authentication mechanism](catalog-properties.md#sigv4-auth-properties) will also assume the role to sign REST Catalog requests.
+
 ### HTTP Client Configurations
 AWS clients support two types of HTTP Client, [URL Connection HTTP Client](https://mvnrepository.com/artifact/software.amazon.awssdk/url-connection-client)
 and [Apache HTTP Client](https://mvnrepository.com/artifact/software.amazon.awssdk/apache-client).

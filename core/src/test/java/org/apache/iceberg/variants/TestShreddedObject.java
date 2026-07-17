@@ -333,6 +333,28 @@ public class TestShreddedObject {
     }
   }
 
+  @Test
+  public void testPutAfterRemoveClearsRemoveMarker() {
+    ShreddedObject object = createShreddedObject(FIELDS);
+    VariantMetadata metadata = object.metadata();
+
+    object.remove("b");
+    assertThat(object.get("b")).as("removed field should be hidden from reads").isNull();
+
+    object.put("b", Variants.of("rewritten"));
+    assertThat(object.get("b")).as("put after remove should restore the field").isNotNull();
+    assertThat(object.get("b").asPrimitive().get()).isEqualTo("rewritten");
+    assertThat(object.numFields()).as("numFields should include the re-added field").isEqualTo(3);
+    assertThat(object.fieldNames()).contains("b");
+
+    // the query API and the serialized bytes must agree on which fields are present
+    VariantValue serialized = roundTripMinimalBuffer(object, metadata);
+    assertThat(serialized).isInstanceOf(SerializedObject.class);
+    SerializedObject actual = (SerializedObject) serialized;
+    assertThat(actual.numFields()).isEqualTo(3);
+    VariantTestUtil.assertVariantString(actual.get("b"), "rewritten");
+  }
+
   @ParameterizedTest
   @ValueSource(ints = {300, 70_000, 16_777_300})
   public void testMultiByteOffsets(int len) {
