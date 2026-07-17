@@ -29,6 +29,7 @@ import org.apache.arrow.vector.BitVectorHelper;
 import org.apache.arrow.vector.DateDayVector;
 import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.FixedSizeBinaryVector;
+import org.apache.arrow.vector.FixedWidthVector;
 import org.apache.arrow.vector.Float4Vector;
 import org.apache.arrow.vector.Float8Vector;
 import org.apache.arrow.vector.IntVector;
@@ -335,7 +336,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
         // and deprecated (see https://issues.apache.org/jira/browse/PARQUET-323)
         this.readType = ReadType.TIMESTAMP_INT96;
         this.vec = arrowField.createVector(rootAlloc);
-        ((BigIntVector) vec).allocateNew(batchSize);
+        ((FixedWidthVector) vec).allocateNew(batchSize);
         this.typeWidth = (int) BigIntVector.TYPE_WIDTH;
         break;
       case FLOAT:
