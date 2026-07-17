@@ -99,7 +99,7 @@ final class BigQueryTableOperations extends BaseMetastoreTableOperations {
       }
       commitStatus = CommitStatus.SUCCESS;
     } catch (CommitFailedException e) {
-      throw e;
+      commitStatus = handleCommitFailure(e, newMetadataLocation, metadata, retryDetector);
     } catch (Throwable e) {
       LOG.error("Exception thrown on commit: ", e);
       boolean isAlreadyExistsException = e instanceof AlreadyExistsException;
@@ -260,5 +260,26 @@ final class BigQueryTableOperations extends BaseMetastoreTableOperations {
       LOG.error(
           "Failed to cleanup metadata file at {} for table {}", metadataLocation, tableName(), e);
     }
+  }
+
+  private CommitStatus handleCommitFailure(
+      CommitFailedException exception,
+      String newMetadataLocation,
+      TableMetadata metadata,
+      RetryDetector retryDetector) {
+    // A retry may have hit 412 Precondition Failed because the first attempt already
+    // succeeded and bumped the etag. Verify before reporting failure.
+    if (retryDetector.retried() && newMetadataLocation != null) {
+      LOG.warn(
+          "Commit to {} failed after retries, validating if an earlier attempt succeeded.",
+          tableName(),
+          exception);
+      CommitStatus status = checkCommitStatus(newMetadataLocation, metadata);
+      if (status != CommitStatus.SUCCESS) {
+        throw exception;
+      }
+      return status;
+    }
+    throw exception;
   }
 }

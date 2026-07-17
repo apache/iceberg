@@ -43,6 +43,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Optional;
+import java.util.concurrent.Callable;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.filefilter.TrueFileFilter;
 import org.apache.hadoop.conf.Configuration;
@@ -52,6 +53,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
@@ -64,6 +66,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.mockito.ArgumentCaptor;
+import org.mockito.stubbing.Answer;
 
 public class TestBigQueryTableOperations {
 
@@ -304,6 +307,23 @@ public class TestBigQueryTableOperations {
         ImmutableMap.of());
   }
 
+  private Answer<Table> retriedCommitFailure() {
+    return invocation -> {
+      RetryDetector detector = invocation.getArgument(2);
+      Callable<Table> callable =
+          detector.wrap(
+              () -> {
+                throw new CommitFailedException("Cannot commit: Etag mismatch");
+              });
+      try {
+        callable.call();
+      } catch (Exception ignored) {
+        // first attempt fails, triggering the retry
+      }
+      return callable.call();
+    };
+  }
+
   @Test
   public void testCommitFailedExceptionThrowsDirectly() {
     // CommitFailedException should fail immediately without retry or status checks
@@ -318,6 +338,54 @@ public class TestBigQueryTableOperations {
 
     verify(client, times(1)).create(any(Table.class), any(RetryDetector.class));
     verify(client, times(1)).load(TABLE_REFERENCE);
+  }
+
+  @Test
+  public void testAlreadyExistsExceptionIsRethrown() {
+    when(client.load(TABLE_REFERENCE)).thenThrow(new NoSuchTableException("Table not found"));
+    when(client.create(any(), any())).thenThrow(new AlreadyExistsException("Table already exists"));
+
+    tableOps.refresh();
+
+    assertThatThrownBy(() -> tableOps.commit(null, createTestMetadata()))
+        .isInstanceOf(AlreadyExistsException.class)
+        .hasMessageContaining("already exists");
+  }
+
+  @Test
+  public void testCommitFailedAfterRetrySucceedsWhenEarlierAttemptCommitted() throws Exception {
+    Table tableWithEtag = createTestTable().setEtag("etag");
+    reset(client);
+    when(client.load(TABLE_REFERENCE)).thenReturn(tableWithEtag);
+
+    org.apache.iceberg.Table loadedTable = catalog.loadTable(IDENTIFIER);
+
+    when(client.update(any(), any(), any())).thenAnswer(retriedCommitFailure());
+
+    assertThatNoException()
+        .isThrownBy(
+            () -> loadedTable.updateSchema().addColumn("n", Types.IntegerType.get()).commit());
+  }
+
+  @Test
+  public void testCommitFailedAfterRetryRethrowsOnConcurrentConflict() throws Exception {
+    Table tableWithEtag = createTestTable().setEtag("etag");
+
+    reset(client);
+    // First load serves loadTable, the table is then absent, so checkCommitStatus reports FAILURE
+    // and the conflict is rethrown.
+    when(client.load(TABLE_REFERENCE))
+        .thenReturn(tableWithEtag)
+        .thenThrow(new NoSuchTableException("Table not found"));
+
+    org.apache.iceberg.Table loadedTable = catalog.loadTable(IDENTIFIER);
+
+    when(client.update(any(), any(), any())).thenAnswer(retriedCommitFailure());
+
+    assertThatThrownBy(
+            () -> loadedTable.updateSchema().addColumn("n", Types.IntegerType.get()).commit())
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessageContaining("Etag mismatch");
   }
 
   @Test
