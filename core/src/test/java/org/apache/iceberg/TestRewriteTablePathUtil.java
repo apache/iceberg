@@ -520,6 +520,7 @@ public class TestRewriteTablePathUtil extends TestBase {
   }
 
   private static void assertDeletedPositions(PositionDeleteIndex deletes, long... positions) {
+    assertThat(deletes.cardinality()).isEqualTo(positions.length);
     for (long position : positions) {
       assertThat(deletes.isDeleted(position)).isTrue();
     }
