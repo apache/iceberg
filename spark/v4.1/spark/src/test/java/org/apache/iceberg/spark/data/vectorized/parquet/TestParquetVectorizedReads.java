@@ -72,6 +72,7 @@ import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.Type;
 import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.spark.sql.sources.In;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -343,6 +344,42 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
                     Maps.newHashMap()))
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessage("Vectorized reads are not supported yet for struct fields");
+  }
+
+  @Test
+  public void testList() throws IOException {
+    Schema schema =
+        new Schema(
+            required(
+                1, "req_list_req_element", Types.ListType.ofRequired(2, Types.IntegerType.get())),
+            required(
+                3, "req_list_opt_element", Types.ListType.ofOptional(4, Types.IntegerType.get())),
+            optional(
+                5,
+                "optional_list_req_element",
+                Types.ListType.ofRequired(6, Types.IntegerType.get())),
+            optional(
+                7,
+                "optional_list_optional_element",
+                Types.ListType.ofOptional(8, Types.IntegerType.get())),
+            required(
+                9,
+                "list_of_list",
+                Types.ListType.ofOptional(
+                    10, Types.ListType.ofOptional(11, Types.IntegerType.get()))),
+            optional(
+                12,
+                "string_list",
+                Types.ListType.ofOptional(13, Types.StringType.get()))
+        );
+
+    File dataFile = temp.resolve("data.parquet").toFile();
+    Iterable<Record> data =
+        generateData(schema, 10_000, 0L, RandomData.DEFAULT_NULL_PERCENTAGE, IDENTITY);
+    try (FileAppender<Record> writer = getParquetWriter(schema, dataFile)) {
+      writer.addAll(data);
+    }
+    assertRecordsMatch(schema, 10_000, data, dataFile, false, BATCH_SIZE);
   }
 
   @Test

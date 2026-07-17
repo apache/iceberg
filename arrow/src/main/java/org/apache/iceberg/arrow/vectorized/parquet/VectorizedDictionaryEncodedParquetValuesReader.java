@@ -60,10 +60,11 @@ public class VectorizedDictionaryEncodedParquetValuesReader
         for (int i = 0; i < numValues; i++) {
           if (Mode.RLE.equals(mode)) {
             nextVal(vector, dict, idx, currentValue, typeWidth);
+            nullabilityHolder.setNotNull(idx, maxDefLevel);
           } else if (Mode.PACKED.equals(mode)) {
-            nextVal(vector, dict, idx, packedValuesBuffer[packedValuesBufferIdx++], typeWidth);
+              nextVal(vector, dict, idx, packedValuesBuffer[packedValuesBufferIdx++], typeWidth);
+            nullabilityHolder.setNotNull(idx, maxDefLevel);
           }
-          nullabilityHolder.setNotNull(idx);
           if (setArrowValidityVector) {
             BitVectorHelper.setBit(vector.getValidityBuffer(), idx);
           }

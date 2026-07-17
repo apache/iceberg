@@ -66,13 +66,15 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
   private static final Integer UNKNOWN_WIDTH = null;
   private static final int AVERAGE_VARIABLE_WIDTH_RECORD_SIZE = 10;
 
-  private final ColumnDescriptor columnDescriptor;
+  protected final ColumnDescriptor columnDescriptor;
   private final VectorizedColumnIterator vectorizedColumnIterator;
-  private final Types.NestedField icebergField;
-  private final BufferAllocator rootAlloc;
+  protected final Types.NestedField icebergField;
 
-  private int batchSize;
+  protected BufferAllocator rootAlloc;
+
+  protected int batchSize;
   private FieldVector vec;
+  private IntVector repetitionLevels;
   private Integer typeWidth;
   private ReadType readType;
   private NullabilityHolder nullabilityHolder;
@@ -99,7 +101,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     this(null);
   }
 
-  private VectorizedArrowReader(Types.NestedField icebergField) {
+  protected VectorizedArrowReader(Types.NestedField icebergField) {
     this.icebergField = icebergField;
     this.batchSize = DEFAULT_BATCH_SIZE;
     this.columnDescriptor = null;
@@ -147,74 +149,93 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
         vec.close();
         vec = null;
       }
+      if (repetitionLevels != null) {
+        repetitionLevels.close();
+        repetitionLevels = null;
+      }
 
       allocateFieldVector(dictEncoded);
       nullabilityHolder = new NullabilityHolder(batchSize);
+      if (columnDescriptor.getMaxRepetitionLevel() > 0) {
+        repetitionLevels = new IntVector("repetition_levels", rootAlloc);
+        repetitionLevels.allocateNew(batchSize);
+      }
     } else {
       vec.setValueCount(0);
       nullabilityHolder.reset();
+      if (repetitionLevels != null) {
+        repetitionLevels.setValueCount(0);
+      }
     }
     if (vectorizedColumnIterator.hasNext()) {
       if (dictEncoded) {
-        vectorizedColumnIterator.dictionaryBatchReader().nextBatch(vec, -1, nullabilityHolder);
+        vectorizedColumnIterator
+            .dictionaryBatchReader()
+            .nextBatch(vec, -1, nullabilityHolder, repetitionLevels);
       } else {
         switch (readType) {
           case VARBINARY:
           case VARCHAR:
             vectorizedColumnIterator
                 .varWidthTypeBatchReader()
-                .nextBatch(vec, -1, nullabilityHolder);
+                .nextBatch(vec, -1, nullabilityHolder, repetitionLevels);
             break;
           case BOOLEAN:
-            vectorizedColumnIterator.booleanBatchReader().nextBatch(vec, -1, nullabilityHolder);
+            vectorizedColumnIterator
+                .booleanBatchReader()
+                .nextBatch(vec, -1, nullabilityHolder, repetitionLevels);
             break;
           case INT:
           case INT_BACKED_DECIMAL:
             vectorizedColumnIterator
                 .integerBatchReader()
-                .nextBatch(vec, typeWidth, nullabilityHolder);
+                .nextBatch(vec, typeWidth, nullabilityHolder, repetitionLevels);
             break;
           case LONG:
           case LONG_BACKED_DECIMAL:
-            vectorizedColumnIterator.longBatchReader().nextBatch(vec, typeWidth, nullabilityHolder);
+            vectorizedColumnIterator
+                .longBatchReader()
+                .nextBatch(vec, typeWidth, nullabilityHolder, repetitionLevels);
             break;
           case FLOAT:
             vectorizedColumnIterator
                 .floatBatchReader()
-                .nextBatch(vec, typeWidth, nullabilityHolder);
+                .nextBatch(vec, typeWidth, nullabilityHolder, repetitionLevels);
             break;
           case DOUBLE:
             vectorizedColumnIterator
                 .doubleBatchReader()
-                .nextBatch(vec, typeWidth, nullabilityHolder);
+                .nextBatch(vec, typeWidth, nullabilityHolder, repetitionLevels);
             break;
           case TIMESTAMP_MILLIS:
             vectorizedColumnIterator
                 .timestampMillisBatchReader()
-                .nextBatch(vec, typeWidth, nullabilityHolder);
+                .nextBatch(vec, typeWidth, nullabilityHolder, repetitionLevels);
             break;
           case TIMESTAMP_INT96:
             vectorizedColumnIterator
                 .timestampInt96BatchReader()
-                .nextBatch(vec, typeWidth, nullabilityHolder);
+                .nextBatch(vec, typeWidth, nullabilityHolder, repetitionLevels);
             break;
           case UUID:
           case FIXED_WIDTH_BINARY:
           case FIXED_LENGTH_DECIMAL:
             vectorizedColumnIterator
                 .fixedSizeBinaryBatchReader()
-                .nextBatch(vec, typeWidth, nullabilityHolder);
+                .nextBatch(vec, typeWidth, nullabilityHolder, repetitionLevels);
             break;
         }
       }
     }
-    Preconditions.checkState(
-        vec.getValueCount() == numValsToRead,
-        "Number of values read, %s, does not equal expected, %s",
-        vec.getValueCount(),
-        numValsToRead);
+    if (columnDescriptor.getMaxRepetitionLevel() == 0) {
+      Preconditions.checkState(
+          vec.getValueCount() == numValsToRead,
+          "Number of values read, %s, does not equal expected, %s",
+          vec.getValueCount(),
+          numValsToRead);
+    }
     return new VectorHolder(
-        columnDescriptor, vec, dictEncoded, dictionary, nullabilityHolder, icebergField);
+        columnDescriptor, vec, dictEncoded, dictionary, nullabilityHolder, icebergField, repetitionLevels);
   }
 
   private void allocateFieldVector(boolean dictionaryEncodedVector) {
@@ -390,6 +411,9 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
   public void close() {
     if (vec != null) {
       vec.close();
+    }
+    if (repetitionLevels != null) {
+      repetitionLevels.close();
     }
   }
 
@@ -675,7 +699,6 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
         ArrowSchemaUtil.convert(MetadataColumns.ROW_POSITION);
     private final boolean setArrowValidityVector;
     private long rowStart;
-    private int batchSize;
     private NullabilityHolder nulls;
 
     PositionVectorReader(boolean setArrowValidityVector) {
@@ -978,7 +1001,6 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
 
   private static NullabilityHolder newNullabilityHolder(int size) {
     NullabilityHolder nullabilityHolder = new NullabilityHolder(size);
-    nullabilityHolder.setNotNulls(0, size);
     return nullabilityHolder;
   }
 
