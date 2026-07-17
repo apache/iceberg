@@ -25,8 +25,13 @@ import java.io.ByteArrayOutputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Arrays;
+import java.util.stream.Stream;
 import org.apache.iceberg.geospatial.WKBBoundingBox.XYAccumulator;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 public class TestWKBBoundingBox {
 
@@ -179,6 +184,80 @@ public class TestWKBBoundingBox {
     assertThat(acc.minBound()).isEqualTo(GeospatialBound.createXY(12, 34));
   }
 
+  @ParameterizedTest
+  @ValueSource(ints = {1000, 2000, 3000})
+  void dimensionedLineStringsSkipExtraCoordinates(int dimensionOffset) {
+    double[][] coordinates = {
+      coordinateWithDims(dimensionOffset, -3, 7), coordinateWithDims(dimensionOffset, 8, -4)
+    };
+
+    XYAccumulator acc =
+        accumulate(lineStringWithDims(ByteOrder.LITTLE_ENDIAN, dimensionOffset, coordinates));
+
+    assertThat(acc.minBound()).isEqualTo(GeospatialBound.createXY(-3, -4));
+    assertThat(acc.maxBound()).isEqualTo(GeospatialBound.createXY(8, 7));
+  }
+
+  @ParameterizedTest
+  @ValueSource(ints = {1000, 2000, 3000})
+  void dimensionedPolygonsSkipExtraCoordinates(int dimensionOffset) {
+    double[][] ring = {
+      coordinateWithDims(dimensionOffset, 2, 1),
+      coordinateWithDims(dimensionOffset, 9, 1),
+      coordinateWithDims(dimensionOffset, 2, 6),
+      coordinateWithDims(dimensionOffset, 2, 1)
+    };
+
+    XYAccumulator acc = accumulate(polygonWithDims(ByteOrder.LITTLE_ENDIAN, dimensionOffset, ring));
+
+    assertThat(acc.minBound()).isEqualTo(GeospatialBound.createXY(2, 1));
+    assertThat(acc.maxBound()).isEqualTo(GeospatialBound.createXY(9, 6));
+  }
+
+  @ParameterizedTest
+  @ValueSource(ints = {1000, 2000, 3000})
+  void dimensionedCollectionsSkipExtraCoordinates(int dimensionOffset) {
+    byte[] point =
+        pointWithDims(
+            ByteOrder.LITTLE_ENDIAN, dimensionOffset, 1, 2, extraDimensions(dimensionOffset));
+    byte[] line =
+        lineStringWithDims(
+            ByteOrder.LITTLE_ENDIAN,
+            dimensionOffset,
+            new double[][] {
+              coordinateWithDims(dimensionOffset, -3, 4), coordinateWithDims(dimensionOffset, 5, -6)
+            });
+    byte[] polygon =
+        polygonWithDims(
+            ByteOrder.LITTLE_ENDIAN,
+            dimensionOffset,
+            new double[][] {
+              coordinateWithDims(dimensionOffset, 7, 8),
+              coordinateWithDims(dimensionOffset, 10, 8),
+              coordinateWithDims(dimensionOffset, 7, 12),
+              coordinateWithDims(dimensionOffset, 7, 8)
+            });
+    byte[] multiPoint =
+        collectionWithDims(ByteOrder.LITTLE_ENDIAN, MULTI_POINT, dimensionOffset, point);
+    byte[] multiLineString =
+        collectionWithDims(ByteOrder.LITTLE_ENDIAN, MULTI_LINE_STRING, dimensionOffset, line);
+    byte[] multiPolygon =
+        collectionWithDims(ByteOrder.LITTLE_ENDIAN, MULTI_POLYGON, dimensionOffset, polygon);
+    byte[] geometryCollection =
+        collectionWithDims(
+            ByteOrder.LITTLE_ENDIAN,
+            GEOMETRY_COLLECTION,
+            dimensionOffset,
+            multiPoint,
+            multiLineString,
+            multiPolygon);
+
+    XYAccumulator acc = accumulate(geometryCollection);
+
+    assertThat(acc.minBound()).isEqualTo(GeospatialBound.createXY(-3, -6));
+    assertThat(acc.maxBound()).isEqualTo(GeospatialBound.createXY(10, 12));
+  }
+
   @Test
   public void testEmptyPointContributesNothing() {
     // POINT EMPTY is encoded as a point with NaN coordinates.
@@ -220,6 +299,41 @@ public class TestWKBBoundingBox {
   }
 
   @Test
+  void emptyChildrenDoNotHideNonEmptyBounds() {
+    byte[] multiPoint =
+        collection(
+            ByteOrder.LITTLE_ENDIAN,
+            MULTI_POINT,
+            point(ByteOrder.LITTLE_ENDIAN, Double.NaN, Double.NaN),
+            point(ByteOrder.LITTLE_ENDIAN, 3, 4));
+    byte[] multiLineString =
+        collection(
+            ByteOrder.LITTLE_ENDIAN,
+            MULTI_LINE_STRING,
+            lineString(ByteOrder.LITTLE_ENDIAN, new double[0][]),
+            lineString(ByteOrder.LITTLE_ENDIAN, new double[][] {{-5, 6}, {7, -8}}));
+    byte[] multiPolygon =
+        collection(
+            ByteOrder.LITTLE_ENDIAN,
+            MULTI_POLYGON,
+            polygon(ByteOrder.LITTLE_ENDIAN),
+            polygon(
+                ByteOrder.LITTLE_ENDIAN, new double[][] {{10, 10}, {12, 10}, {10, 13}, {10, 10}}));
+    byte[] wkb =
+        collection(
+            ByteOrder.LITTLE_ENDIAN,
+            GEOMETRY_COLLECTION,
+            multiPoint,
+            multiLineString,
+            multiPolygon);
+
+    XYAccumulator acc = accumulate(wkb);
+
+    assertThat(acc.minBound()).isEqualTo(GeospatialBound.createXY(-5, -8));
+    assertThat(acc.maxBound()).isEqualTo(GeospatialBound.createXY(12, 13));
+  }
+
+  @Test
   void polygonWithInteriorRing() {
     double[][] outerRing = {{0, 0}, {10, 0}, {0, 10}, {0, 0}};
     double[][] innerRing = {{1, 1}, {1, 2}, {2, 1}, {1, 1}};
@@ -234,6 +348,19 @@ public class TestWKBBoundingBox {
     XYAccumulator acc = accumulate(wkb);
     assertThat(acc.minBound()).isEqualTo(GeospatialBound.createXY(0, -5));
     assertThat(acc.maxBound()).isEqualTo(GeospatialBound.createXY(20, 10));
+  }
+
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("degeneratePolygonCases")
+  void degeneratePolygonBounds(
+      String description,
+      double[][] ring,
+      GeospatialBound expectedMin,
+      GeospatialBound expectedMax) {
+    XYAccumulator acc = accumulate(polygon(ByteOrder.LITTLE_ENDIAN, ring));
+
+    assertThat(acc.minBound()).isEqualTo(expectedMin);
+    assertThat(acc.maxBound()).isEqualTo(expectedMax);
   }
 
   @Test
@@ -407,6 +534,40 @@ public class TestWKBBoundingBox {
         .hasMessageContaining("nesting too deep");
   }
 
+  private static Stream<Arguments> degeneratePolygonCases() {
+    return Stream.of(
+        Arguments.of(
+            "point-degenerate ring",
+            new double[][] {{4, -2}, {4, -2}, {4, -2}, {4, -2}},
+            GeospatialBound.createXY(4, -2),
+            GeospatialBound.createXY(4, -2)),
+        Arguments.of(
+            "vertical ring",
+            new double[][] {{3, -2}, {3, 7}, {3, 1}, {3, -2}},
+            GeospatialBound.createXY(3, -2),
+            GeospatialBound.createXY(3, 7)),
+        Arguments.of(
+            "horizontal ring",
+            new double[][] {{-9, -4}, {8, -4}, {2, -4}, {-9, -4}},
+            GeospatialBound.createXY(-9, -4),
+            GeospatialBound.createXY(8, -4)),
+        Arguments.of(
+            "clockwise ring",
+            new double[][] {{0, 0}, {0, 11}, {13, 0}, {0, 0}},
+            GeospatialBound.createXY(0, 0),
+            GeospatialBound.createXY(13, 11)),
+        Arguments.of(
+            "counterclockwise ring",
+            new double[][] {{0, 0}, {13, 0}, {0, 11}, {0, 0}},
+            GeospatialBound.createXY(0, 0),
+            GeospatialBound.createXY(13, 11)),
+        Arguments.of(
+            "repeated vertices",
+            new double[][] {{0, 0}, {0, 0}, {6, 0}, {4, 5}, {0, 0}, {0, 0}},
+            GeospatialBound.createXY(0, 0),
+            GeospatialBound.createXY(6, 5)));
+  }
+
   private static XYAccumulator accumulate(byte[] wkb) {
     XYAccumulator acc = new XYAccumulator();
     WKBBoundingBox.accumulate(ByteBuffer.wrap(wkb), acc);
@@ -439,34 +600,50 @@ public class TestWKBBoundingBox {
   }
 
   private static byte[] lineString(ByteOrder order, double[][] coords) {
+    return lineStringWithDims(order, 0, coords);
+  }
+
+  private static byte[] lineStringWithDims(
+      ByteOrder order, int dimensionOffset, double[][] coords) {
+    int dimensions = dimensions(dimensionOffset);
     ByteBuffer buffer =
-        ByteBuffer.allocate(5 + Integer.BYTES + coords.length * 2 * Double.BYTES)
+        ByteBuffer.allocate(5 + Integer.BYTES + coords.length * dimensions * Double.BYTES)
             .order(order)
             .put(orderFlag(order))
-            .putInt(LINE_STRING)
+            .putInt(LINE_STRING + dimensionOffset)
             .putInt(coords.length);
     for (double[] coord : coords) {
-      buffer.putDouble(coord[0]).putDouble(coord[1]);
+      for (int i = 0; i < dimensions; i += 1) {
+        buffer.putDouble(coord[i]);
+      }
     }
+
     return buffer.array();
   }
 
   private static byte[] polygon(ByteOrder order, double[][]... rings) {
+    return polygonWithDims(order, 0, rings);
+  }
+
+  private static byte[] polygonWithDims(ByteOrder order, int dimensionOffset, double[][]... rings) {
+    int dimensions = dimensions(dimensionOffset);
     int size = 5 + Integer.BYTES;
     for (double[][] ring : rings) {
-      size += Integer.BYTES + ring.length * 2 * Double.BYTES;
+      size += Integer.BYTES + ring.length * dimensions * Double.BYTES;
     }
 
     ByteBuffer buffer =
         ByteBuffer.allocate(size)
             .order(order)
             .put(orderFlag(order))
-            .putInt(POLYGON)
+            .putInt(POLYGON + dimensionOffset)
             .putInt(rings.length);
     for (double[][] ring : rings) {
       buffer.putInt(ring.length);
       for (double[] coord : ring) {
-        buffer.putDouble(coord[0]).putDouble(coord[1]);
+        for (int i = 0; i < dimensions; i += 1) {
+          buffer.putDouble(coord[i]);
+        }
       }
     }
 
@@ -474,12 +651,17 @@ public class TestWKBBoundingBox {
   }
 
   private static byte[] collection(ByteOrder order, int type, byte[]... children) {
+    return collectionWithDims(order, type, 0, children);
+  }
+
+  private static byte[] collectionWithDims(
+      ByteOrder order, int type, int dimensionOffset, byte[]... children) {
     ByteArrayOutputStream out = new ByteArrayOutputStream();
     byte[] header =
         ByteBuffer.allocate(5 + Integer.BYTES)
             .order(order)
             .put(orderFlag(order))
-            .putInt(type)
+            .putInt(type + dimensionOffset)
             .putInt(children.length)
             .array();
     out.writeBytes(header);
@@ -487,6 +669,34 @@ public class TestWKBBoundingBox {
       out.writeBytes(child);
     }
     return out.toByteArray();
+  }
+
+  private static double[] coordinateWithDims(int dimensionOffset, double xCoord, double yCoord) {
+    double[] extraDimensions = extraDimensions(dimensionOffset);
+    double[] coordinate = new double[2 + extraDimensions.length];
+    coordinate[0] = xCoord;
+    coordinate[1] = yCoord;
+    System.arraycopy(extraDimensions, 0, coordinate, 2, extraDimensions.length);
+    return coordinate;
+  }
+
+  private static double[] extraDimensions(int dimensionOffset) {
+    switch (dimensionOffset) {
+      case 0:
+        return new double[0];
+      case 1000:
+        return new double[] {17};
+      case 2000:
+        return new double[] {23};
+      case 3000:
+        return new double[] {17, 23};
+      default:
+        throw new IllegalArgumentException("Invalid dimension offset: " + dimensionOffset);
+    }
+  }
+
+  private static int dimensions(int dimensionOffset) {
+    return 2 + extraDimensions(dimensionOffset).length;
   }
 
   private static byte orderFlag(ByteOrder order) {
