@@ -116,12 +116,12 @@ public class PlanTableScanRequestParser {
     }
 
     boolean caseSensitive = true;
-    if (json.has(CASE_SENSITIVE)) {
+    if (json.hasNonNull(CASE_SENSITIVE)) {
       caseSensitive = JsonUtil.getBool(CASE_SENSITIVE, json);
     }
 
     boolean useSnapshotSchema = false;
-    if (json.has(USE_SNAPSHOT_SCHEMA)) {
+    if (json.hasNonNull(USE_SNAPSHOT_SCHEMA)) {
       useSnapshotSchema = JsonUtil.getBool(USE_SNAPSHOT_SCHEMA, json);
     }
 
