@@ -165,6 +165,48 @@ class TestHashKeyGenerator {
   }
 
   @Test
+  void rangeModeWithEqualityFields() throws Exception {
+    int writeParallelism = 2;
+    int maxWriteParallelism = 8;
+    HashKeyGenerator generator = new HashKeyGenerator(16, maxWriteParallelism);
+    PartitionSpec unpartitioned = PartitionSpec.unpartitioned();
+
+    GenericRowData row1 = GenericRowData.of(1, StringData.fromString("foo"));
+    GenericRowData row2 = GenericRowData.of(1, StringData.fromString("bar"));
+    GenericRowData row3 = GenericRowData.of(2, StringData.fromString("baz"));
+    // SCHEMA has no identifier fields, so the equality fields only come from the record
+    Set<String> equalityColumns = Collections.singleton("id");
+
+    int writeKey1 =
+        getWriteKey(
+            generator,
+            unpartitioned,
+            DistributionMode.RANGE,
+            writeParallelism,
+            equalityColumns,
+            row1);
+    int writeKey2 =
+        getWriteKey(
+            generator,
+            unpartitioned,
+            DistributionMode.RANGE,
+            writeParallelism,
+            equalityColumns,
+            row2);
+    int writeKey3 =
+        getWriteKey(
+            generator,
+            unpartitioned,
+            DistributionMode.RANGE,
+            writeParallelism,
+            equalityColumns,
+            row3);
+
+    assertThat(writeKey1).isEqualTo(writeKey2);
+    assertThat(writeKey2).isNotEqualTo(writeKey3);
+  }
+
+  @Test
   void testHashModeWithPartitionFieldAndEqualityField() throws Exception {
     int writeParallelism = 2;
     int maxWriteParallelism = 8;
