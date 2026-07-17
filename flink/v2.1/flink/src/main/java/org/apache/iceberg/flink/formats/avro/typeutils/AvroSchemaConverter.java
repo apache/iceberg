@@ -244,7 +244,7 @@ public class AvroSchemaConverter {
    * @return data type matching the schema
    */
   public static DataType convertToDataType(String avroSchemaString) {
-    return convertToDataType(avroSchemaString, true);
+    return convertToDataType(avroSchemaString, false);
   }
 
   /**

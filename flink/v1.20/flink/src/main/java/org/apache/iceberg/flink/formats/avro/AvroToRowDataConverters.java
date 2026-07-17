@@ -73,7 +73,7 @@ public class AvroToRowDataConverters {
   // -------------------------------------------------------------------------------------
 
   public static AvroToRowDataConverter createRowConverter(RowType rowType) {
-    return createRowConverter(rowType, true);
+    return createRowConverter(rowType, false);
   }
 
   public static AvroToRowDataConverter createRowConverter(

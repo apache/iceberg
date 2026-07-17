@@ -56,7 +56,7 @@ public class AvroSchemaUtil {
   private static final Schema.Type RECORD = Schema.Type.RECORD;
 
   public static Schema convert(org.apache.iceberg.Schema schema, String tableName) {
-    return convert(schema, tableName, true);
+    return convert(schema, tableName, false);
   }
 
   public static Schema convert(
@@ -66,7 +66,7 @@ public class AvroSchemaUtil {
 
   public static Schema convert(
       org.apache.iceberg.Schema schema, Map<Types.StructType, String> names) {
-    return convert(schema, names, true);
+    return convert(schema, names, false);
   }
 
   public static Schema convert(
@@ -77,7 +77,7 @@ public class AvroSchemaUtil {
   }
 
   public static Schema convert(Type type) {
-    return convert(type, true);
+    return convert(type, false);
   }
 
   public static Schema convert(Type type, boolean legacyTimestampMapping) {
@@ -85,7 +85,7 @@ public class AvroSchemaUtil {
   }
 
   public static Schema convert(Types.StructType type, String name) {
-    return convert(type, name, true);
+    return convert(type, name, false);
   }
 
   public static Schema convert(Types.StructType type, String name, boolean legacyTimestampMapping) {
@@ -93,7 +93,7 @@ public class AvroSchemaUtil {
   }
 
   public static Schema convert(Type type, Map<Types.StructType, String> names) {
-    return convert(type, names, true);
+    return convert(type, names, false);
   }
 
   public static Schema convert(
@@ -103,7 +103,7 @@ public class AvroSchemaUtil {
 
   public static Schema convert(
       Type type, BiFunction<Integer, Types.StructType, String> namesFunction) {
-    return convert(type, namesFunction, true);
+    return convert(type, namesFunction, false);
   }
 
   public static Schema convert(
@@ -115,7 +115,7 @@ public class AvroSchemaUtil {
   }
 
   public static Type convert(Schema schema) {
-    return convert(schema, true);
+    return convert(schema, false);
   }
 
   public static Type convert(Schema schema, boolean legacyTimestampMapping) {
@@ -123,7 +123,7 @@ public class AvroSchemaUtil {
   }
 
   public static org.apache.iceberg.Schema toIceberg(Schema schema) {
-    return toIceberg(schema, true);
+    return toIceberg(schema, false);
   }
 
   public static org.apache.iceberg.Schema toIceberg(Schema schema, boolean legacyTimestampMapping) {
@@ -159,7 +159,7 @@ public class AvroSchemaUtil {
   }
 
   public static Map<Type, Schema> convertTypes(Types.StructType type, String name) {
-    return convertTypes(type, name, true);
+    return convertTypes(type, name, false);
   }
 
   public static Map<Type, Schema> convertTypes(
@@ -198,7 +198,7 @@ public class AvroSchemaUtil {
   }
 
   public static boolean isTimestamptz(Schema schema) {
-    return isTimestamptz(schema, true);
+    return isTimestamptz(schema, false);
   }
 
   public static boolean isTimestamptz(Schema schema, boolean legacyTimestampMapping) {

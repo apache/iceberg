@@ -52,7 +52,7 @@ public class DataReader<T> implements DatumReader<T>, SupportsRowPosition {
     return create(expectedSchema, readSchema, idToConstant, true);
   }
 
-  public static <D> DataReader<D> create(
+  static <D> DataReader<D> create(
       org.apache.iceberg.Schema expectedSchema,
       Schema readSchema,
       Map<Integer, ?> idToConstant,
