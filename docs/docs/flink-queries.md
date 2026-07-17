@@ -92,6 +92,34 @@ SELECT * FROM table /*+ OPTIONS('tag'='t1') */;
 SELECT * FROM table /*+ OPTIONS('streaming'='true', 'monitor-interval'='1s', 'start-tag'='t1', 'end-tag'='t2') */;
 ```
 
+### Lookup Join
+
+Iceberg supports Flink lookup join, which enriches a stream with data from an Iceberg dimension table:
+
+```sql
+-- The OPTIONS hint used in this section requires dynamic table options, which are disabled by default.
+SET table.dynamic-table-options.enabled=true;
+
+SELECT o.order_id, o.user_id, u.name, u.city
+FROM orders AS o
+LEFT JOIN iceberg_catalog.db.user_dim
+  FOR SYSTEM_TIME AS OF o.proc_time AS u
+  ON o.user_id = u.user_id;
+```
+
+Iceberg implements lookup join with a full cache: the whole projected dimension table is loaded into the cache, and every lookup is served from it without falling back to the table. The full cache is held in memory on the TaskManager heap, so lookup join targets dimension tables that fit comfortably there.
+
+The cache is loaded by default when the lookup function is opened. Set lookup.full-cache.eager-load to false to load it on the first lookup instead, which blocks the data flow until the cache is fully loaded.
+
+There is no background refresh: the cache keeps the data it was loaded with for the lifetime of the job, so the dimension table should be populated before the join starts.
+
+The lookup options are:
+
+| Option                       | Default | Description                                                                                                                 |
+| ---------------------------- |---------|-----------------------------------------------------------------------------------------------------------------------------|
+| lookup.cache                 |         | Only `FULL` is accepted; `NONE` and `PARTIAL` are rejected, because an Iceberg table cannot be point-looked-up effectively. |
+| lookup.full-cache.eager-load | true    | Whether to load the full cache when the lookup function is opened, instead of on the first lookup.                          |
+
 ## Reading with DataStream
 
 Iceberg support streaming or batch read in Java API now.
