@@ -18,11 +18,11 @@
  */
 package org.apache.iceberg;
 
+import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.nio.ByteBuffer;
-import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -62,6 +62,32 @@ class TestTrackedFileAdapters {
   // manifestPos is populated by readers using the setter with the position of the field.
   private static final int MANIFEST_POS_ORDINAL = Tracking.schema().fields().size();
 
+  private static final Schema TABLE_SCHEMA =
+      new Schema(
+          optional(1, "id", Types.IntegerType.get()), optional(2, "score", Types.FloatType.get()));
+  private static final Types.StructType CONTENT_STATS_TYPE =
+      StatsUtil.statsReadSchema(TABLE_SCHEMA, ImmutableList.of(1, 2));
+  private static final FieldStats<Integer> ID_STATS =
+      new FieldStatsStruct<>(
+          CONTENT_STATS_TYPE.fieldType("id").asStructType(), 1, 1000, true, 100L, 5L, 0L, null);
+  private static final FieldStats<Float> SCORE_STATS =
+      new FieldStatsStruct<>(
+          CONTENT_STATS_TYPE.fieldType("score").asStructType(),
+          1.0f,
+          100.0f,
+          true,
+          100L,
+          10L,
+          3L,
+          null);
+  private static final ContentStatsStruct CONTENT_STATS =
+      new ContentStatsStruct(CONTENT_STATS_TYPE);
+
+  static {
+    CONTENT_STATS.setStats(1, ID_STATS);
+    CONTENT_STATS.setStats(2, SCORE_STATS);
+  }
+
   @Test
   void testDataFileAdapterDelegation() {
     TrackingStruct tracking =
@@ -88,7 +114,7 @@ class TestTrackedFileAdapters {
             100L,
             1024L,
             PARTITIONED_SPEC_ID,
-            createContentStats(),
+            CONTENT_STATS,
             3,
             null,
             null,
@@ -115,7 +141,7 @@ class TestTrackedFileAdapters {
     assertThat(dataFile.manifestLocation()).isEqualTo(MANIFEST_LOCATION);
     assertThat(dataFile.equalityFieldIds()).isNull();
     assertThat(dataFile.columnSizes()).isNull();
-    assertThat(dataFile.valueCounts()).containsOnly(Map.entry(1, 100L), Map.entry(2, 200L));
+    assertThat(dataFile.valueCounts()).containsOnly(Map.entry(1, 100L), Map.entry(2, 100L));
     assertThat(dataFile.nullValueCounts()).containsOnly(Map.entry(1, 5L), Map.entry(2, 10L));
     assertThat(dataFile.nanValueCounts()).containsOnly(Map.entry(2, 3L));
     assertThat(dataFile.lowerBounds())
@@ -164,7 +190,7 @@ class TestTrackedFileAdapters {
             50L,
             512L,
             PARTITIONED_SPEC_ID,
-            createContentStats(),
+            CONTENT_STATS,
             5,
             null,
             null,
@@ -192,7 +218,7 @@ class TestTrackedFileAdapters {
     assertThat(deleteFile.manifestLocation()).isEqualTo(MANIFEST_LOCATION);
     assertThat(deleteFile.equalityFieldIds()).containsExactly(1, 2, 3);
     assertThat(deleteFile.columnSizes()).isNull();
-    assertThat(deleteFile.valueCounts()).containsOnly(Map.entry(1, 100L), Map.entry(2, 200L));
+    assertThat(deleteFile.valueCounts()).containsOnly(Map.entry(1, 100L), Map.entry(2, 100L));
     assertThat(deleteFile.nullValueCounts()).containsOnly(Map.entry(1, 5L), Map.entry(2, 10L));
     assertThat(deleteFile.nanValueCounts()).containsOnly(Map.entry(2, 3L));
     assertThat(deleteFile.lowerBounds())
@@ -496,54 +522,6 @@ class TestTrackedFileAdapters {
         .offset(128L)
         .sizeInBytes(256L)
         .cardinality(10L)
-        .build();
-  }
-
-  private static ContentStats createContentStats() {
-    Types.StructType statsStruct =
-        Types.StructType.of(
-            Types.NestedField.optional(
-                10000,
-                "1",
-                Types.StructType.of(
-                    Types.NestedField.optional(10001, "value_count", Types.LongType.get()),
-                    Types.NestedField.optional(10002, "null_value_count", Types.LongType.get()),
-                    Types.NestedField.optional(10003, "nan_value_count", Types.LongType.get()),
-                    Types.NestedField.optional(10006, "lower_bound", Types.IntegerType.get()),
-                    Types.NestedField.optional(10007, "upper_bound", Types.IntegerType.get()))),
-            Types.NestedField.optional(
-                20000,
-                "2",
-                Types.StructType.of(
-                    Types.NestedField.optional(20001, "value_count", Types.LongType.get()),
-                    Types.NestedField.optional(20002, "null_value_count", Types.LongType.get()),
-                    Types.NestedField.optional(20003, "nan_value_count", Types.LongType.get()),
-                    Types.NestedField.optional(20006, "lower_bound", Types.FloatType.get()),
-                    Types.NestedField.optional(20007, "upper_bound", Types.FloatType.get()))));
-
-    List<FieldStats<?>> fieldStatsList =
-        ImmutableList.of(
-            BaseFieldStats.<Integer>builder()
-                .fieldId(1)
-                .type(Types.IntegerType.get())
-                .valueCount(100L)
-                .nullValueCount(5L)
-                .lowerBound(1)
-                .upperBound(1000)
-                .build(),
-            BaseFieldStats.<Float>builder()
-                .fieldId(2)
-                .type(Types.FloatType.get())
-                .valueCount(200L)
-                .nullValueCount(10L)
-                .nanValueCount(3L)
-                .lowerBound(1.0f)
-                .upperBound(100.0f)
-                .build());
-
-    return BaseContentStats.builder()
-        .withStatsStruct(statsStruct)
-        .withFieldStats(fieldStatsList)
         .build();
   }
 }

@@ -18,13 +18,13 @@
  */
 package org.apache.iceberg;
 
-import java.util.List;
+import java.util.Set;
 import org.apache.iceberg.types.Types;
 
-interface ContentStats extends StructLike {
+interface ContentStats {
 
-  /** A list of all the {@link FieldStats} */
-  List<FieldStats<?>> fieldStats();
+  /** Returns an iterable of the {@link FieldStats} held by this container struct */
+  Iterable<FieldStats<?>> fieldStats();
 
   /**
    * Returns a {@link FieldStats} instance holding field stats for the given field ID.
@@ -35,6 +35,12 @@ interface ContentStats extends StructLike {
    */
   <T> FieldStats<T> statsFor(int fieldId);
 
-  /** The stats struct holding nested structs with their respective field stats */
-  Types.StructType statsStruct();
+  /** Container struct type containing tracked field-level stats structs. */
+  Types.StructType type();
+
+  /** Returns a deep copy with all field stats. */
+  ContentStats copy();
+
+  /** Returns a deep copy, with only the selected field stats structs by ID. */
+  ContentStats copy(Set<Integer> fieldIds);
 }
