@@ -209,6 +209,22 @@ public class TestWKBBoundingBox {
   }
 
   @Test
+  void nanCoordinateComponentsAreSkippedIndependently() {
+    XYAccumulator acc = new XYAccumulator();
+    WKBBoundingBox.accumulate(ByteBuffer.wrap(point(ByteOrder.LITTLE_ENDIAN, 1, Double.NaN)), acc);
+
+    assertThat(acc.hasBounds()).isFalse();
+    assertThat(acc.minBound()).isNull();
+    assertThat(acc.maxBound()).isNull();
+
+    WKBBoundingBox.accumulate(ByteBuffer.wrap(point(ByteOrder.LITTLE_ENDIAN, Double.NaN, 20)), acc);
+
+    assertThat(acc.hasBounds()).isTrue();
+    assertThat(acc.minBound()).isEqualTo(GeospatialBound.createXY(1, 20));
+    assertThat(acc.maxBound()).isEqualTo(GeospatialBound.createXY(1, 20));
+  }
+
+  @Test
   public void testInfinityWidensBounds() {
     // Only NaN is skipped; +/-Infinity is a real value that widens the box (per spec).
     byte[] wkb =
