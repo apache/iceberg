@@ -807,7 +807,7 @@ public class RewriteTablePathUtil {
                 properties));
       }
 
-      writer.close();
+      writer.finish();
       return writer.length();
     }
   }
