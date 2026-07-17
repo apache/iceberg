@@ -109,16 +109,22 @@ public class ExpireSnapshots {
     }
 
     public Builder config(ExpireSnapshotsConfig expireSnapshotsConfig) {
-      return this.scheduleOnCommitCount(expireSnapshotsConfig.scheduleOnCommitCount())
+      this.scheduleOnCommitCount(expireSnapshotsConfig.scheduleOnCommitCount())
           .scheduleOnInterval(Duration.ofSeconds(expireSnapshotsConfig.scheduleOnIntervalSecond()))
           .deleteBatchSize(expireSnapshotsConfig.deleteBatchSize())
           .maxSnapshotAge(
               Optional.ofNullable(expireSnapshotsConfig.maxSnapshotAgeSeconds())
                   .map(Duration::ofSeconds)
                   .orElse(null))
-          .retainLast(expireSnapshotsConfig.retainLast())
           .cleanExpiredMetadata(expireSnapshotsConfig.cleanExpiredMetadata())
           .planningWorkerPoolSize(expireSnapshotsConfig.planningWorkerPoolSize());
+
+      Integer retainLast = expireSnapshotsConfig.retainLast();
+      if (retainLast != null) {
+        retainLast(retainLast);
+      }
+
+      return this;
     }
 
     @Override
