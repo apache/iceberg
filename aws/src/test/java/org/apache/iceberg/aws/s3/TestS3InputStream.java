@@ -95,6 +95,25 @@ public final class TestS3InputStream {
   }
 
   @Test
+  void testZeroLengthReadFullyDoesNotCountMetrics() throws IOException {
+    when(s3Client.getObject(any(GetObjectRequest.class), any(ResponseTransformer.class)))
+        .thenReturn(new ByteArrayInputStream(new byte[0]));
+
+    CachingMetricsContext metrics = new CachingMetricsContext();
+    Counter readBytes = metrics.counter(FileIOMetricsContext.READ_BYTES, MetricsContext.Unit.BYTES);
+    Counter readOperations = metrics.counter(FileIOMetricsContext.READ_OPERATIONS);
+
+    try (S3InputStream in =
+        new S3InputStream(s3Client, mock(), new S3FileIOProperties(), metrics)) {
+      in.readFully(0, new byte[0], 0, 0);
+
+      // a zero-length readFully performs no real read; it must count neither bytes nor an operation
+      assertThat(readBytes.value()).isEqualTo(0);
+      assertThat(readOperations.value()).isEqualTo(0);
+    }
+  }
+
+  @Test
   void testReadTailTracksMetrics() throws IOException {
     byte[] data = new byte[] {1, 2, 3, 4};
     when(s3Client.getObject(any(GetObjectRequest.class), any(ResponseTransformer.class)))

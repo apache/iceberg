@@ -162,7 +162,7 @@ class AnalyticsCoreUtil {
         GCSExceptionUtil.throwNotFoundIfNotPresent(e, blobId);
         throw e;
       }
-      if (bytesRead != -1) {
+      if (bytesRead > 0) {
         readBytes.increment(bytesRead);
         readOperations.increment();
       }
@@ -177,8 +177,10 @@ class AnalyticsCoreUtil {
         GCSExceptionUtil.throwNotFoundIfNotPresent(e, blobId);
         throw e;
       }
-      readBytes.increment(length);
-      readOperations.increment();
+      if (length > 0) {
+        readBytes.increment(length);
+        readOperations.increment();
+      }
     }
 
     @Override

@@ -168,8 +168,10 @@ class GCSInputStream extends SeekableInputStream implements RangeReadable {
         throw new EOFException(
             "Reached the end of stream with " + (length - bytesRead) + " bytes left to read");
       }
-      readBytes.increment(bytesRead);
-      readOperations.increment();
+      if (bytesRead > 0) {
+        readBytes.increment(bytesRead);
+        readOperations.increment();
+      }
     }
   }
 

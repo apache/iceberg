@@ -39,9 +39,12 @@ public class TestAnalyticsAcceleratorInputStreamWrapper {
   @Test
   public void testReadTracksMetrics() throws IOException {
     S3SeekableInputStream delegate = mock(S3SeekableInputStream.class);
-    // first a single-byte read, then a buffered read of 8 bytes, then EOF
+    // first a single-byte read, then a buffered read of 8 bytes, then a zero-length read, then EOF
     when(delegate.read()).thenReturn(1);
-    when(delegate.read(any(byte[].class), anyInt(), anyInt())).thenReturn(8).thenReturn(-1);
+    when(delegate.read(any(byte[].class), anyInt(), anyInt()))
+        .thenReturn(8)
+        .thenReturn(0)
+        .thenReturn(-1);
 
     CachingMetricsContext metrics = new CachingMetricsContext();
     Counter readBytes = metrics.counter(FileIOMetricsContext.READ_BYTES, MetricsContext.Unit.BYTES);
@@ -54,6 +57,11 @@ public class TestAnalyticsAcceleratorInputStreamWrapper {
       assertThat(readOperations.value()).isEqualTo(1);
 
       assertThat(in.read(new byte[16], 0, 16)).isEqualTo(8);
+      assertThat(readBytes.value()).isEqualTo(9);
+      assertThat(readOperations.value()).isEqualTo(2);
+
+      // a zero-length read counts neither bytes nor an operation
+      assertThat(in.read(new byte[16], 0, 0)).isEqualTo(0);
       assertThat(readBytes.value()).isEqualTo(9);
       assertThat(readOperations.value()).isEqualTo(2);
 

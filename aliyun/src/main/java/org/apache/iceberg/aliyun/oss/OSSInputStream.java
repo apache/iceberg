@@ -101,8 +101,8 @@ class OSSInputStream extends SeekableInputStream {
     positionStream();
 
     int bytesRead = stream.read(b, off, len);
-    if (bytesRead == -1) {
-      return -1;
+    if (bytesRead <= 0) {
+      return bytesRead;
     }
 
     pos += bytesRead;

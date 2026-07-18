@@ -175,8 +175,10 @@ class S3InputStream extends SeekableInputStream implements RangeReadable {
 
     try (InputStream rangeStream = readRange(range)) {
       IOUtil.readFully(rangeStream, buffer, offset, length);
-      readBytes.increment(length);
-      readOperations.increment();
+      if (length > 0) {
+        readBytes.increment(length);
+        readOperations.increment();
+      }
     }
   }
 

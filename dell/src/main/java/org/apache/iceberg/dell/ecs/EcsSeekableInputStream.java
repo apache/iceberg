@@ -94,8 +94,8 @@ class EcsSeekableInputStream extends SeekableInputStream {
   public int read(byte[] b, int off, int len) throws IOException {
     checkAndUseNewPos();
     int delta = internalStream.read(b, off, len);
-    if (delta == -1) {
-      return -1;
+    if (delta <= 0) {
+      return delta;
     }
 
     pos += delta;
