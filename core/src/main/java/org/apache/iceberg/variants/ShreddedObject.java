@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.variants;
 
+import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Map;
@@ -37,12 +38,12 @@ import org.apache.iceberg.util.ByteBuffers;
  * fields. This also does not allow updating or replacing the metadata for the unshredded object,
  * which could require recursively rewriting field IDs.
  */
-public class ShreddedObject implements VariantObject {
+public class ShreddedObject implements VariantObject, Serializable {
   private final VariantMetadata metadata;
   private final VariantObject unshredded;
   private final Map<String, VariantValue> shreddedFields = Maps.newHashMap();
   private final Set<String> removedFields = Sets.newHashSet();
-  private SerializationState serializationState = null;
+  private transient SerializationState serializationState = null;
 
   ShreddedObject(VariantMetadata metadata) {
     this(metadata, null);

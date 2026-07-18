@@ -25,6 +25,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.List;
 import java.util.Random;
+import org.apache.iceberg.TestHelpers.RoundTripSerializer;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Conversions;
@@ -32,6 +33,7 @@ import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.RandomUtil;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 public class TestValueArray {
@@ -172,5 +174,14 @@ public class TestValueArray {
     }
 
     return arr;
+  }
+
+  @ParameterizedTest
+  @MethodSource("org.apache.iceberg.TestHelpers#serializers")
+  public void testSerialization(RoundTripSerializer<ValueArray> serializer) throws Exception {
+    ValueArray array = new ValueArray();
+    ELEMENTS.forEach(array::add);
+
+    VariantTestUtil.assertEqual(array, serializer.apply(array));
   }
 }
