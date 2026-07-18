@@ -27,7 +27,7 @@ Iceberg views support properties to configure view behavior. Below is an overvie
 | Property                         | Default                     | Description                                                                        |
 |----------------------------------|-----------------------------|------------------------------------------------------------------------------------|
 | write.metadata.compression-codec | gzip                        | Metadata compression codec: `none` or `gzip`                                       |
-| write.metadata.path              | table location + /metadata  | Base location for view metadata files                                              |
+| write.metadata.path              | view location + /metadata  | Base location for view metadata files. When set, metadata files are written directly under this path without appending `/metadata`.                                              |
 | version.history.num-entries      | 10                          | Controls the number of `versions` to retain                                        |
 | replace.drop-dialect.allowed     | false                       | Controls whether a SQL dialect is allowed to be dropped during a replace operation |
 
