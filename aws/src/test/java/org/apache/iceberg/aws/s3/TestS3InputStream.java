@@ -20,7 +20,6 @@ package org.apache.iceberg.aws.s3;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.any;
-import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -53,15 +52,14 @@ public final class TestS3InputStream {
 
   @BeforeEach
   void before() {
-    // lenient: the metrics tests re-stub getObject with their own data streams
-    lenient()
-        .when(s3Client.getObject(any(GetObjectRequest.class), any(ResponseTransformer.class)))
-        .thenReturn(inputStream);
     s3InputStream = new S3InputStream(s3Client, mock());
   }
 
   @Test
   void testReadFullyClosesTheStream() throws IOException {
+    when(s3Client.getObject(any(GetObjectRequest.class), any(ResponseTransformer.class)))
+        .thenReturn(inputStream);
+
     s3InputStream.readFully(0, new byte[0]);
 
     verify(inputStream).close();
@@ -69,6 +67,9 @@ public final class TestS3InputStream {
 
   @Test
   void testReadTailClosesTheStream() throws IOException {
+    when(s3Client.getObject(any(GetObjectRequest.class), any(ResponseTransformer.class)))
+        .thenReturn(inputStream);
+
     s3InputStream.readTail(new byte[0], 0, 0);
 
     verify(inputStream).close();

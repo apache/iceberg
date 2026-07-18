@@ -195,8 +195,10 @@ class ADLSInputStream extends SeekableInputStream implements RangeReadable {
 
     try (InputStream inputStream = openRange(new FileRange(readStart)).getInputStream()) {
       int bytesRead = IOUtil.readRemaining(inputStream, buffer, offset, length);
-      readBytes.increment(bytesRead);
-      readOperations.increment();
+      if (bytesRead > 0) {
+        readBytes.increment(bytesRead);
+        readOperations.increment();
+      }
       return bytesRead;
     }
   }

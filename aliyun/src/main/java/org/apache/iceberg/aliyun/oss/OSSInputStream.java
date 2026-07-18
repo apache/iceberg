@@ -82,12 +82,17 @@ class OSSInputStream extends SeekableInputStream {
     Preconditions.checkState(!closed, "Cannot read: already closed");
     positionStream();
 
+    int byteRead = stream.read();
+    if (byteRead == -1) {
+      return -1;
+    }
+
     pos += 1;
     next += 1;
     readBytes.increment();
     readOperations.increment();
 
-    return stream.read();
+    return byteRead;
   }
 
   @Override
@@ -96,6 +101,10 @@ class OSSInputStream extends SeekableInputStream {
     positionStream();
 
     int bytesRead = stream.read(b, off, len);
+    if (bytesRead == -1) {
+      return -1;
+    }
+
     pos += bytesRead;
     next += bytesRead;
     readBytes.increment(bytesRead);

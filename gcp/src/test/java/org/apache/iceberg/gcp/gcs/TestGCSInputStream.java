@@ -222,10 +222,10 @@ public class TestGCSInputStream {
     try (RangeReadable in = new GCSInputStream(storage, uri, 0L, gcpProperties, metrics)) {
       int bytesRead = in.readTail(new byte[8], 0, 8);
 
-      // an empty object yields no bytes; the byte counter must never go negative
+      // an empty object yields no bytes; a no-data read counts neither bytes nor an operation
       assertThat(bytesRead).isLessThanOrEqualTo(0);
       assertThat(readBytes.value()).isEqualTo(0);
-      assertThat(readOperations.value()).isEqualTo(1);
+      assertThat(readOperations.value()).isEqualTo(0);
     }
   }
 

@@ -184,8 +184,8 @@ class GCSInputStream extends SeekableInputStream implements RangeReadable {
       int bytesRead = read(readChannel, ByteBuffer.wrap(buffer), offset, length);
       if (bytesRead > 0) {
         readBytes.increment(bytesRead);
+        readOperations.increment();
       }
-      readOperations.increment();
       return bytesRead;
     }
   }
