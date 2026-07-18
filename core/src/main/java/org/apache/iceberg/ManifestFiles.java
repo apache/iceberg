@@ -37,6 +37,7 @@ import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.ContentCache;
+import org.apache.iceberg.io.EagerInputFile;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
@@ -578,7 +579,29 @@ public class ManifestFiles {
       return contentCache(io).tryCache(input);
     }
 
+    if (eagerFetchEnabled(io)) {
+      long length = input.getLength();
+      if (canEagerFetch(length)) {
+        return new EagerInputFile(input, length);
+      }
+    }
+
     return input;
+  }
+
+  private static boolean canEagerFetch(long length) {
+    return length > 0 && length <= CatalogProperties.IO_MANIFEST_EAGER_FETCH_THRESHOLD_BYTES;
+  }
+
+  static boolean eagerFetchEnabled(FileIO io) {
+    try {
+      return PropertyUtil.propertyAsBoolean(
+          io.properties(),
+          CatalogProperties.IO_MANIFEST_EAGER_FETCH_ENABLED,
+          CatalogProperties.IO_MANIFEST_EAGER_FETCH_ENABLED_DEFAULT);
+    } catch (UnsupportedOperationException e) {
+      return false;
+    }
   }
 
   static boolean cachingEnabled(FileIO io) {
