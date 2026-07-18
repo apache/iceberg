@@ -19,6 +19,7 @@
 package org.apache.iceberg.io;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
@@ -45,6 +46,7 @@ import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.data.BaseDeleteLoader;
 import org.apache.iceberg.data.DeleteLoader;
 import org.apache.iceberg.deletes.BaseDVFileWriter;
+import org.apache.iceberg.deletes.ClusteredDVFileWriter;
 import org.apache.iceberg.deletes.DVFileWriter;
 import org.apache.iceberg.deletes.Deletes;
 import org.apache.iceberg.deletes.PositionDelete;
@@ -168,6 +170,128 @@ public abstract class TestDVWriters<T> extends WriterTestBase<T> {
 
     // verify correctness
     assertRows(ImmutableList.of(toRow(11, "aaa"), toRow(12, "aaa")));
+  }
+
+  @TestTemplate
+  public void testClusteredDVsBasic() throws IOException {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
+
+    FileWriterFactory<T> writerFactory = newWriterFactory(table.schema());
+
+    // add the first data file
+    List<T> rows1 = ImmutableList.of(toRow(1, "aaa"), toRow(2, "aaa"), toRow(11, "aaa"));
+    DataFile dataFile1 = writeData(writerFactory, fileFactory, rows1, table.spec(), null);
+    table.newFastAppend().appendFile(dataFile1).commit();
+
+    // add the second data file
+    List<T> rows2 = ImmutableList.of(toRow(3, "aaa"), toRow(4, "aaa"), toRow(12, "aaa"));
+    DataFile dataFile2 = writeData(writerFactory, fileFactory, rows2, table.spec(), null);
+    table.newFastAppend().appendFile(dataFile2).commit();
+
+    // init the clustered DV writer
+    DVFileWriter dvWriter =
+        new ClusteredDVFileWriter(fileFactory, new PreviousDeleteLoader(table, ImmutableMap.of()));
+
+    // write deletes clustered by data file
+    dvWriter.delete(dataFile1.location(), 0L, table.spec(), null);
+    dvWriter.delete(dataFile1.location(), 1L, table.spec(), null);
+    dvWriter.delete(dataFile2.location(), 0L, table.spec(), null);
+    dvWriter.delete(dataFile2.location(), 1L, table.spec(), null);
+    dvWriter.close();
+
+    // verify the writer result
+    DeleteWriteResult result = dvWriter.result();
+    assertThat(result.deleteFiles()).hasSize(2);
+    assertThat(result.referencedDataFiles())
+        .hasSize(2)
+        .contains(dataFile1.location())
+        .contains(dataFile2.location());
+    assertThat(result.referencesDataFiles()).isTrue();
+
+    // commit the deletes
+    commit(result);
+
+    // verify correctness
+    assertRows(ImmutableList.of(toRow(11, "aaa"), toRow(12, "aaa")));
+  }
+
+  @TestTemplate
+  public void testClusteredDVsMergePreviousDeletes() throws IOException {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
+
+    FileWriterFactory<T> writerFactory = newWriterFactory(table.schema());
+
+    // add a data file with 3 data records
+    List<T> rows = ImmutableList.of(toRow(1, "aaa"), toRow(2, "aaa"), toRow(3, "aaa"));
+    DataFile dataFile = writeData(writerFactory, parquetFileFactory, rows, table.spec(), null);
+    table.newFastAppend().appendFile(dataFile).commit();
+
+    // write the first DV
+    DVFileWriter dvWriter1 =
+        new ClusteredDVFileWriter(fileFactory, new PreviousDeleteLoader(table, ImmutableMap.of()));
+    dvWriter1.delete(dataFile.location(), 1L, table.spec(), null);
+    dvWriter1.close();
+
+    // validate the writer result
+    DeleteWriteResult result1 = dvWriter1.result();
+    assertThat(result1.deleteFiles()).hasSize(1);
+    assertThat(result1.referencedDataFiles()).containsOnly(dataFile.location());
+    assertThat(result1.rewrittenDeleteFiles()).isEmpty();
+
+    // commit the first DV
+    commit(result1);
+
+    // write the second DV, merging with the first one
+    DeleteFile dv1 = Iterables.getOnlyElement(result1.deleteFiles());
+    DVFileWriter dvWriter2 =
+        new ClusteredDVFileWriter(
+            fileFactory,
+            new PreviousDeleteLoader(table, ImmutableMap.of(dataFile.location(), dv1)));
+    dvWriter2.delete(dataFile.location(), 2L, table.spec(), null);
+    dvWriter2.close();
+
+    // validate the previous DV is merged and marked as rewritten
+    DeleteWriteResult result2 = dvWriter2.result();
+    assertThat(result2.deleteFiles()).hasSize(1);
+    assertThat(result2.referencedDataFiles()).containsOnly(dataFile.location());
+    assertThat(result2.rewrittenDeleteFiles()).hasSize(1);
+
+    // replace DVs
+    commit(result2);
+    SnapshotChanges changes = SnapshotChanges.builderFor(table).build();
+    assertThat(changes.addedDeleteFiles()).hasSize(1);
+    assertThat(changes.removedDeleteFiles()).hasSize(1);
+
+    // verify correctness after replacing DVs
+    assertRows(ImmutableList.of(toRow(1, "aaa")));
+  }
+
+  @TestTemplate
+  public void testClusteredDVsRejectUnclusteredInput() throws IOException {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
+
+    FileWriterFactory<T> writerFactory = newWriterFactory(table.schema());
+
+    // add two data files
+    List<T> rows1 = ImmutableList.of(toRow(1, "aaa"), toRow(2, "aaa"));
+    DataFile dataFile1 = writeData(writerFactory, fileFactory, rows1, table.spec(), null);
+    table.newFastAppend().appendFile(dataFile1).commit();
+
+    List<T> rows2 = ImmutableList.of(toRow(3, "aaa"), toRow(4, "aaa"));
+    DataFile dataFile2 = writeData(writerFactory, fileFactory, rows2, table.spec(), null);
+    table.newFastAppend().appendFile(dataFile2).commit();
+
+    DVFileWriter dvWriter =
+        new ClusteredDVFileWriter(fileFactory, new PreviousDeleteLoader(table, ImmutableMap.of()));
+
+    // revisiting a completed data file must fail, as it would produce two DVs for one file
+    dvWriter.delete(dataFile1.location(), 0L, table.spec(), null);
+    dvWriter.delete(dataFile2.location(), 0L, table.spec(), null);
+    assertThatThrownBy(() -> dvWriter.delete(dataFile1.location(), 1L, table.spec(), null))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("not clustered by data file");
+
+    dvWriter.close();
   }
 
   @TestTemplate
