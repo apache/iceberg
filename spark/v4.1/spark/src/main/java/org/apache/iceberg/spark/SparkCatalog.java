@@ -80,6 +80,7 @@ import org.apache.spark.sql.connector.catalog.TableChange;
 import org.apache.spark.sql.connector.catalog.TableChange.ColumnChange;
 import org.apache.spark.sql.connector.catalog.TableChange.RemoveProperty;
 import org.apache.spark.sql.connector.catalog.TableChange.SetProperty;
+import org.apache.spark.sql.connector.catalog.TableSummary;
 import org.apache.spark.sql.connector.catalog.View;
 import org.apache.spark.sql.connector.catalog.ViewChange;
 import org.apache.spark.sql.connector.catalog.ViewInfo;
@@ -383,6 +384,31 @@ public class SparkCatalog extends BaseCatalog {
     return icebergCatalog.listTables(Namespace.of(namespace)).stream()
         .map(ident -> Identifier.of(ident.namespace().levels(), ident.name()))
         .toArray(Identifier[]::new);
+  }
+
+  @Override
+  public TableSummary[] listTableSummaries(String[] namespace) {
+    // Build summaries directly from the catalog listings to avoid loading every table, which the
+    // default TableCatalog.listTableSummaries implementation would do. Iceberg tables are always
+    // reported as EXTERNAL (see BaseSparkTable#properties), and views are reported as VIEW.
+    List<TableSummary> summaries = Lists.newArrayList();
+
+    // Collect views first. Most catalogs return only tables from listTables, but HiveCatalog with
+    // list-all-tables=true returns every metastore entry, including views. De-duplicate against the
+    // view identifiers so a view is never also reported as a table.
+    Set<Identifier> viewIdents = Sets.newHashSet(listViews(namespace));
+
+    for (Identifier ident : listTables(namespace)) {
+      if (!viewIdents.contains(ident)) {
+        summaries.add(TableSummary.of(ident, TableSummary.EXTERNAL_TABLE_TYPE));
+      }
+    }
+
+    for (Identifier ident : viewIdents) {
+      summaries.add(TableSummary.of(ident, TableSummary.VIEW_TABLE_TYPE));
+    }
+
+    return summaries.toArray(new TableSummary[0]);
   }
 
   @Override

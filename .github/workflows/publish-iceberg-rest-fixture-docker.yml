@@ -44,7 +44,7 @@ jobs:
     - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       with:
         persist-credentials: false
-    - uses: actions/setup-java@1bcf9fb12cf4aa7d266a90ae39939e61372fe520 # v5.4.0
+    - uses: actions/setup-java@0f481fcb613427c0f801b606911222b5b6f3083a # v5.5.0
       with:
         distribution: zulu
         java-version: 21
@@ -72,7 +72,7 @@ jobs:
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
     - name: Build and Push
-      uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
+      uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
       with:
         context: ./
         file: ./docker/iceberg-rest-fixture/Dockerfile

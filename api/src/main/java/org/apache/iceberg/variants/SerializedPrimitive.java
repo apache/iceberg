@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.variants;
 
+import java.io.Serializable;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
@@ -26,7 +27,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.ByteBuffers;
 import org.apache.iceberg.util.UUIDUtil;
 
-class SerializedPrimitive implements VariantPrimitive<Object>, SerializedValue {
+class SerializedPrimitive implements VariantPrimitive<Object>, SerializedValue, Serializable {
   private static final int PRIMITIVE_TYPE_SHIFT = 2;
   private static final int PRIMITIVE_OFFSET = 1;
 
@@ -51,6 +52,56 @@ class SerializedPrimitive implements VariantPrimitive<Object>, SerializedValue {
   private SerializedPrimitive(ByteBuffer value, int header) {
     this.value = value;
     this.type = PhysicalType.from(header >> PRIMITIVE_TYPE_SHIFT);
+    long requiredBytes = PRIMITIVE_OFFSET + payloadSize(type, value);
+    Preconditions.checkArgument(
+        requiredBytes <= value.remaining(),
+        "Invalid variant primitive: %s payload extends past buffer",
+        type);
+  }
+
+  private static long payloadSize(PhysicalType type, ByteBuffer value) {
+    switch (type) {
+      case NULL:
+      case BOOLEAN_TRUE:
+      case BOOLEAN_FALSE:
+        return 0;
+      case INT8:
+        return 1;
+      case INT16:
+        return 2;
+      case INT32:
+      case DATE:
+      case FLOAT:
+        return 4;
+      case INT64:
+      case TIMESTAMPTZ:
+      case TIMESTAMPNTZ:
+      case TIME:
+      case TIMESTAMPTZ_NANOS:
+      case TIMESTAMPNTZ_NANOS:
+      case DOUBLE:
+        return 8;
+      case DECIMAL4:
+        return 5;
+      case DECIMAL8:
+        return 9;
+      case DECIMAL16:
+        return 17;
+      case UUID:
+        return 16;
+      case BINARY:
+      case STRING:
+        Preconditions.checkArgument(
+            PRIMITIVE_OFFSET + 4 <= value.remaining(),
+            "Invalid variant primitive: %s size field extends past buffer",
+            type);
+        int size = ByteBuffers.readLittleEndianInt32(value, PRIMITIVE_OFFSET);
+        Preconditions.checkArgument(
+            size >= 0, "Invalid variant primitive: negative %s size %s", type, size);
+        return 4L + size;
+    }
+
+    throw new UnsupportedOperationException("Unsupported primitive type: " + type);
   }
 
   private Object read() {
@@ -149,5 +200,21 @@ class SerializedPrimitive implements VariantPrimitive<Object>, SerializedValue {
   @Override
   public String toString() {
     return VariantPrimitive.asString(this);
+  }
+
+  private Object writeReplace() {
+    return new SerializationProxy(this);
+  }
+
+  private static class SerializationProxy implements Serializable {
+    private final byte[] valueBytes;
+
+    private SerializationProxy(SerializedPrimitive primitive) {
+      this.valueBytes = ByteBuffers.toByteArray(primitive.buffer());
+    }
+
+    private Object readResolve() {
+      return SerializedPrimitive.from(valueBytes);
+    }
   }
 }
