@@ -1001,7 +1001,10 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
     assertThat(actualRecords).as("Rows must match").isEqualTo(expectedRecords);
 
     List<FilePathLastModifiedRecord> outsideLocationMockFiles =
-        Lists.newArrayList(new FilePathLastModifiedRecord("/tmp/mock1", new Timestamp(0L)));
+        Lists.newArrayList(
+            new FilePathLastModifiedRecord("/tmp/mock1", new Timestamp(0L)),
+            new FilePathLastModifiedRecord(
+                tableLocation + "-backup/mock1.parquet", new Timestamp(0L)));
 
     Dataset<Row> compareToFileListWithOutsideLocation =
         spark
