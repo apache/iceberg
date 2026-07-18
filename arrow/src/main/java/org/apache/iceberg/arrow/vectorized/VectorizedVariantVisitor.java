@@ -32,6 +32,8 @@ import org.apache.parquet.schema.PrimitiveType;
 
 /** Creates Arrow readers for a variant column's metadata and value leaves. */
 class VectorizedVariantVisitor extends ParquetVariantVisitor<VectorizedReader<?>> {
+  private static final int UNUSED_FIELD_ID = -1;
+
   private final String[] variantGroupPath;
   private final MessageType parquetSchema;
   private final Schema icebergSchema;
@@ -59,7 +61,7 @@ class VectorizedVariantVisitor extends ParquetVariantVisitor<VectorizedReader<?>
     }
 
     Types.NestedField field =
-        Types.NestedField.required(-1, metadata.getName(), Types.BinaryType.get());
+        Types.NestedField.required(UNUSED_FIELD_ID, metadata.getName(), Types.BinaryType.get());
     return new VectorizedArrowReader(desc, field, allocator, setArrowValidityVector);
   }
 
@@ -71,7 +73,7 @@ class VectorizedVariantVisitor extends ParquetVariantVisitor<VectorizedReader<?>
     }
 
     Types.NestedField field =
-        Types.NestedField.optional(-1, value.getName(), Types.BinaryType.get());
+        Types.NestedField.optional(UNUSED_FIELD_ID, value.getName(), Types.BinaryType.get());
     return new VectorizedArrowReader(desc, field, allocator, setArrowValidityVector);
   }
 

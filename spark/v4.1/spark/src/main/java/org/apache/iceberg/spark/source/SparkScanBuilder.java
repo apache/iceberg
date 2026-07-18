@@ -327,14 +327,7 @@ public class SparkScanBuilder extends BaseSparkScanBuilder
             .project(projection)
             .metricsReporter(metricsReporter());
 
-    if (withStats) {
-      scan = scan.includeColumnStats();
-    } else {
-      List<String> variantColumns = variantColumnNames(projection);
-      if (!variantColumns.isEmpty()) {
-        scan = scan.includeColumnStats(variantColumns);
-      }
-    }
+    scan = includeStats(scan, projection, withStats);
 
     if (endSnapshotId != null) {
       scan = scan.toSnapshot(endSnapshotId);
@@ -370,16 +363,18 @@ public class SparkScanBuilder extends BaseSparkScanBuilder
       scan = scan.ignoreResiduals();
     }
 
-    if (withStats) {
-      scan = scan.includeColumnStats();
-    } else {
-      List<String> variantColumns = variantColumnNames(projection);
-      if (!variantColumns.isEmpty()) {
-        scan = scan.includeColumnStats(variantColumns);
-      }
-    }
+    scan = includeStats(scan, projection, withStats);
 
     return configureSplitPlanning(scan);
+  }
+
+  private <S extends org.apache.iceberg.Scan<S, ?, ?>> S includeStats(
+      S scan, Schema projection, boolean withStats) {
+    if (withStats) {
+      return scan.includeColumnStats();
+    }
+    List<String> variantColumns = variantColumnNames(projection);
+    return variantColumns.isEmpty() ? scan : scan.includeColumnStats(variantColumns);
   }
 
   private List<String> variantColumnNames(Schema projection) {
