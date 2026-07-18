@@ -80,6 +80,8 @@ public class TestHelpers {
       IntStream.rangeClosed(2, MAX_FORMAT_VERSION).boxed().collect(Collectors.toUnmodifiableList());
   public static final List<Integer> V3_AND_ABOVE =
       IntStream.rangeClosed(3, MAX_FORMAT_VERSION).boxed().collect(Collectors.toUnmodifiableList());
+  public static final List<Integer> V4_AND_ABOVE =
+      IntStream.rangeClosed(4, MAX_FORMAT_VERSION).boxed().collect(Collectors.toUnmodifiableList());
 
   /** Wait in a tight check loop until system clock is past {@code timestampMillis} */
   public static long waitUntilAfter(long timestampMillis) {
