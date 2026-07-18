@@ -129,7 +129,8 @@ public class CatalogProperties {
 
   /**
    * Size threshold (bytes) below which {@link #IO_MANIFEST_EAGER_FETCH_ENABLED eager fetch} buffers
-   * a manifest whole. Intentionally fixed internally (1 MB) and not user-configurable (no property key).
+   * a manifest whole. Intentionally fixed internally (1 MB) and not user-configurable (no property
+   * key).
    */
   static final long IO_MANIFEST_EAGER_FETCH_THRESHOLD_BYTES = 1024 * 1024;
 
