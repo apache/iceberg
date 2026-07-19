@@ -31,6 +31,7 @@ import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.spark.source.metrics.TaskNumDeletes;
 import org.apache.iceberg.spark.source.metrics.TaskNumSplits;
 import org.apache.iceberg.util.SnapshotUtil;
@@ -54,7 +55,32 @@ class RowDataReader extends BaseRowReader<FileScanTask> implements PartitionRead
         SnapshotUtil.schemaFor(partition.table(), partition.branch()),
         partition.expectedSchema(),
         partition.isCaseSensitive(),
-        partition.cacheDeleteFilesOnExecutors());
+        partition.cacheDeleteFilesOnExecutors(),
+        partition.parquetReadProperties());
+  }
+
+  RowDataReader(
+      Table table,
+      FileIO fileIO,
+      ScanTaskGroup<FileScanTask> taskGroup,
+      Schema tableSchema,
+      Schema expectedSchema,
+      boolean caseSensitive,
+      boolean cacheDeleteFilesOnExecutors,
+      Map<String, String> parquetReadProperties) {
+
+    super(
+        table,
+        fileIO,
+        taskGroup,
+        tableSchema,
+        expectedSchema,
+        caseSensitive,
+        cacheDeleteFilesOnExecutors,
+        parquetReadProperties);
+
+    numSplits = taskGroup.tasks().size();
+    LOG.debug("Reading {} file split(s) for table {}", numSplits, table.name());
   }
 
   RowDataReader(
@@ -65,18 +91,15 @@ class RowDataReader extends BaseRowReader<FileScanTask> implements PartitionRead
       Schema expectedSchema,
       boolean caseSensitive,
       boolean cacheDeleteFilesOnExecutors) {
-
-    super(
+    this(
         table,
         fileIO,
         taskGroup,
         tableSchema,
         expectedSchema,
         caseSensitive,
-        cacheDeleteFilesOnExecutors);
-
-    numSplits = taskGroup.tasks().size();
-    LOG.debug("Reading {} file split(s) for table {}", numSplits, table.name());
+        cacheDeleteFilesOnExecutors,
+        ImmutableMap.of());
   }
 
   @Override

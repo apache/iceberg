@@ -20,13 +20,16 @@ package org.apache.iceberg.spark;
 
 import static org.apache.iceberg.PlanningMode.LOCAL;
 
+import java.util.Map;
 import org.apache.iceberg.PlanningMode;
 import org.apache.iceberg.SupportsDistributedScanPlanning;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.hadoop.Util;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.util.Pair;
+import org.apache.parquet.hadoop.ParquetInputFormat;
 import org.apache.spark.SparkConf;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
@@ -134,6 +137,33 @@ public class SparkReadConf {
         .tableProperty(TableProperties.PARQUET_BATCH_SIZE)
         .defaultValue(TableProperties.PARQUET_BATCH_SIZE_DEFAULT)
         .parse();
+  }
+
+  public Map<String, String> parquetReadProperties() {
+    String hadoopVectoredIoEnabled =
+        confParser
+            .stringConf()
+            .option(ParquetInputFormat.HADOOP_VECTORED_IO_ENABLED)
+            .parseOptional();
+    if (hadoopVectoredIoEnabled == null) {
+      hadoopVectoredIoEnabled =
+          spark
+              .sparkContext()
+              .hadoopConfiguration()
+              .get(ParquetInputFormat.HADOOP_VECTORED_IO_ENABLED);
+    }
+
+    if (hadoopVectoredIoEnabled == null) {
+      hadoopVectoredIoEnabled =
+          table.properties().get(ParquetInputFormat.HADOOP_VECTORED_IO_ENABLED);
+    }
+
+    if (hadoopVectoredIoEnabled != null) {
+      return ImmutableMap.of(
+          ParquetInputFormat.HADOOP_VECTORED_IO_ENABLED, hadoopVectoredIoEnabled);
+    }
+
+    return ImmutableMap.of();
   }
 
   public boolean orcVectorizationEnabled() {
