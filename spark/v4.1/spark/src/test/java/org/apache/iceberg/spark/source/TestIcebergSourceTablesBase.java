@@ -1787,16 +1787,16 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
     DeleteFile dvFile = FileGenerationUtil.generateDV(table, dataFile);
     table.newRowDelta().addDeletes(dvFile).commit();
     table.refresh();
+
     List<Row> actual =
         spark
             .read()
             .format("iceberg")
             .load(loadLocation(tableIdentifier, "partitions"))
             .collectAsList();
+
     assertThat(actual).hasSize(1);
-    assertThat((int) actual.get(0).getAs("dv_count"))
-        .as("dv_count should be 1 after adding a DV")
-        .isEqualTo(1);
+    assertThat((int) actual.get(0).getAs("dv_count")).isEqualTo(1);
 
     // add a second data file and DV to test dv_count = 2
     Dataset<Row> df2 =
@@ -1815,16 +1815,16 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
     DeleteFile dvFile2 = FileGenerationUtil.generateDV(table, dataFile2);
     table.newRowDelta().addDeletes(dvFile2).commit();
     table.refresh();
+
     actual =
         spark
             .read()
             .format("iceberg")
             .load(loadLocation(tableIdentifier, "partitions"))
             .collectAsList();
+
     assertThat(actual).hasSize(1);
-    assertThat((int) actual.get(0).getAs("dv_count"))
-        .as("dv_count should be 2 after adding two DVs")
-        .isEqualTo(2);
+    assertThat((int) actual.get(0).getAs("dv_count")).isEqualTo(2);
   }
 
   @Test

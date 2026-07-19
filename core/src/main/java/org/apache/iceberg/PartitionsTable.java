@@ -31,7 +31,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
-import org.apache.iceberg.util.ContentFileUtil;
 import org.apache.iceberg.util.ParallelIterable;
 import org.apache.iceberg.util.PartitionUtil;
 import org.apache.iceberg.util.StructLikeMap;
@@ -338,6 +337,16 @@ public class PartitionsTable extends BaseMetadataTable {
       return partitionData;
     }
 
+    @VisibleForTesting
+    int dvCount() {
+      return dvCount;
+    }
+
+    @VisibleForTesting
+    int posDeleteFileCount() {
+      return posDeleteFileCount;
+    }
+
     void update(ContentFile<?> file, Snapshot snapshot) {
       if (snapshot != null) {
         long snapshotCommitTime = snapshot.timestampMillis() * 1000;
@@ -357,7 +366,7 @@ public class PartitionsTable extends BaseMetadataTable {
           break;
         case POSITION_DELETES:
           this.posDeleteRecordCount += file.recordCount();
-          if (ContentFileUtil.isDV((DeleteFile) file)) {
+          if (file.format() == FileFormat.PUFFIN) {
             this.dvCount += 1;
           } else {
             this.posDeleteFileCount += 1;
