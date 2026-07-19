@@ -37,6 +37,9 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
  * @param dataFiles new staging data files committed in the cycle
  * @param stagingDVFiles staging DVs passed through to main, used by DVWriter to merge with
  *     newly-created DVs
+ * @param eqDeleteFiles equality delete files resolved this cycle. Removed by the committer when
+ *     staging and target are the same branch, so readers stop applying them once the equivalent DVs
+ *     commit. Empty on a separate target branch, where the eq deletes remain on staging.
  * @param stagingSnapshotId staging snapshot the cycle resolved against, or {@link
  *     #NO_OP_STAGING_SNAPSHOT_ID} for a no-op cycle
  * @param mainSnapshotId main branch snapshot ID the index was resolved against, used for commit
@@ -49,6 +52,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 public record EqualityConvertPlan(
     List<DataFile> dataFiles,
     List<DeleteFile> stagingDVFiles,
+    List<DeleteFile> eqDeleteFiles,
     long stagingSnapshotId,
     Long mainSnapshotId,
     long triggerTimestamp,
@@ -66,6 +70,7 @@ public record EqualityConvertPlan(
   public static EqualityConvertPlan noOp(
       Long mainSnapshotId, long triggerTimestamp, long doneTimestamp) {
     return new EqualityConvertPlan(
+        ImmutableList.of(),
         ImmutableList.of(),
         ImmutableList.of(),
         NO_OP_STAGING_SNAPSHOT_ID,

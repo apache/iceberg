@@ -23,9 +23,9 @@ import java.time.Duration;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
-import java.util.UUID;
 import javax.annotation.Nullable;
 import org.apache.flink.annotation.Internal;
+import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.eventtime.TimestampAssigner;
 import org.apache.flink.api.common.eventtime.TimestampAssignerSupplier;
@@ -152,7 +152,7 @@ public class TableMaintenance {
     private final List<MaintenanceTaskBuilder<?>> taskBuilders;
     private final TriggerLockFactory lockFactory;
 
-    private String uidSuffix = "TableMaintenance-" + UUID.randomUUID();
+    private String uidSuffix = null;
     private String slotSharingGroup = null;
     private Duration rateLimit = Duration.ofSeconds(RATE_LIMIT_SECOND_DEFAULT);
     private Duration lockCheckDelay = Duration.ofSeconds(LOCK_CHECK_DELAY_SECOND_DEFAULT);
@@ -266,7 +266,6 @@ public class TableMaintenance {
     /** Builds the task graph for the maintenance tasks. */
     public void append() throws IOException {
       Preconditions.checkArgument(!taskBuilders.isEmpty(), "Provide at least one task");
-      Preconditions.checkNotNull(uidSuffix, "Uid suffix should no be null");
 
       List<String> taskNames = Lists.newArrayListWithCapacity(taskBuilders.size());
       List<TriggerEvaluator> evaluators = Lists.newArrayListWithCapacity(taskBuilders.size());
@@ -278,6 +277,10 @@ public class TableMaintenance {
       try (TableLoader loader = tableLoader.clone()) {
         loader.open();
         String tableName = loader.loadTable().name();
+        if (uidSuffix == null) {
+          this.uidSuffix = "TableMaintenance-" + tableName;
+        }
+
         DataStream<Trigger> triggers;
         if (lockFactory == null) {
           triggers =
@@ -378,7 +381,9 @@ public class TableMaintenance {
         // Create a monitor source to provide the TableChange stream
         MonitorSource source =
             new MonitorSource(
-                loader, RateLimiterStrategy.perSecond(1.0 / rateLimit.getSeconds()), maxReadBack);
+                loader,
+                RateLimiterStrategy.perSecond(monitorRatePerSecond(rateLimit.toMillis())),
+                maxReadBack);
         return setSlotSharingGroup(
             env.fromSource(
                     source,
@@ -393,6 +398,16 @@ public class TableMaintenance {
 
     private static String nameFor(MaintenanceTaskBuilder<?> streamBuilder, int taskIndex) {
       return String.format(Locale.ROOT, "%s [%d]", streamBuilder.maintenanceTaskName(), taskIndex);
+    }
+
+    /**
+     * Monitor poll rate per rate-limit interval, in checks/second. We compute from millis instead
+     * of seconds, otherwise sub-second intervals could be truncated to 0, yielding an infinite rate
+     * which busy-loops the source.
+     */
+    @VisibleForTesting
+    static double monitorRatePerSecond(long rateLimitMillis) {
+      return 1000.0 / rateLimitMillis;
     }
 
     private <T> SingleOutputStreamOperator<T> setSlotSharingGroup(

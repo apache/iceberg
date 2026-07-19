@@ -89,8 +89,9 @@ The `api/` module has the strongest stability guarantees — breaking changes ar
 - 2 spaces indent, 4 spaces continuation. Empty newline after control flow blocks.
 - Use `this.` for instance field assignment. `Preconditions` calls first in methods.
 - No `final` on locals. No one-argument-per-line unless necessary.
-- Magic numbers should be named constants. No personal pronouns in comments.
-- Javadoc describes the function or purpose of a class or method, not the implementation. Only describe what callers need to use the component, as though it were defined by an interface. Don't leak implementation details — over-documenting creates churn when the implementation changes.
+- Magic numbers should be named constants. No personal pronouns in comments. Comments should explain non-obvious intent or constraints; don't restate what the code already says.
+- Javadoc describes the function or purpose of a class or method, not the implementation. For public APIs, keep it brief and describe only what callers need to use the component, as though it were defined by an interface. Don't leak implementation details.
+- Comments and Javadocs should describe the current behavior or contract, not how it changed over time.
 - `} else {` on same line. Minimize variable scope. `try-with-resources` for all `AutoCloseable`.
 - Prefer method references over lambdas. Wrap lines at the highest semantic level.
 - Always use imports — never use fully-qualified class names inline.
@@ -139,7 +140,8 @@ The `api/` module has the strongest stability guarantees — breaking changes ar
 - Test classes and methods should be package private unless required by inheritance.
 - Compute expected values, don't hardcode. Tests belong in the module that owns the code.
 - Write the most direct test for the bug. Parameterized tests for type variations.
-- JUnit 5 + AssertJ: `@Test` (no `test` prefix), `assertThat`, `assertThatThrownBy`.
+- JUnit 5 + AssertJ: `@Test`, `assertThat`, `assertThatThrownBy`.
+- Avoid using `test` prefixes for newly added tests.
 - `waitUntilAfter` for time-dependent tests. Separate tests over combined.
 
 ### REST / OpenAPI Spec

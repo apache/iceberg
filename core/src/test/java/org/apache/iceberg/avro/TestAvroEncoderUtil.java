@@ -45,6 +45,11 @@ public class TestAvroEncoderUtil extends DataTestBase {
   }
 
   @Override
+  protected boolean supportsGeospatial() {
+    return true;
+  }
+
+  @Override
   protected void writeAndValidate(org.apache.iceberg.Schema schema) throws IOException {
     List<GenericData.Record> expected = RandomAvroData.generate(schema, 100, 1990L);
     Map<Type, Schema> typeToSchema = AvroSchemaUtil.convertTypes(schema.asStruct(), "test");

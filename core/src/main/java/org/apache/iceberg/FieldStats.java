@@ -18,20 +18,18 @@
  */
 package org.apache.iceberg;
 
-import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Types;
 
-interface FieldStats<T> extends StructLike {
+interface FieldStats<T> {
   /** The field ID of the statistic */
   int fieldId();
 
   /**
-   * The field type of the statistic.
+   * Struct type describing the stats tracked for the field identified by {@link #fieldId()}.
    *
-   * <p>For geo types (geometry/geography), this returns the bounding box struct type (geo_lower /
-   * geo_upper) rather than the column's geometry or geography type, because the type is inferred
-   * from the lower/upper bound schema fields.
+   * <p>Note: This type may be a projection of the stats stored in manifest files.
    */
-  Type type();
+  Types.StructType type();
 
   /** The lower bound */
   T lowerBound();
@@ -46,17 +44,20 @@ interface FieldStats<T> extends StructLike {
   boolean tightBounds();
 
   /** The total value count, including null and NaN */
-  Long valueCount();
+  long valueCount();
 
   /** The total null value count */
-  Long nullValueCount();
+  long nullValueCount();
 
   /** The total NaN value count */
-  Long nanValueCount();
+  long nanValueCount();
 
   /**
    * The avg value size in memory (uncompressed) in bytes for variable-length types (string, binary,
    * variant)
    */
   Integer avgValueSizeInBytes();
+
+  /** Returns a copy of this {@link FieldStats}. */
+  FieldStats<T> copy();
 }

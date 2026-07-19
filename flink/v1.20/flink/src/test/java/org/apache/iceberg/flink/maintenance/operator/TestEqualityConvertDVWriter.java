@@ -210,7 +210,13 @@ class TestEqualityConvertDVWriter extends OperatorTestBase {
       long time = System.currentTimeMillis();
       EqualityConvertPlan planResult =
           new EqualityConvertPlan(
-              Lists.newArrayList(), Lists.newArrayList(stagingDV), 1L, null, 0L, 0L);
+              Lists.newArrayList(),
+              Lists.newArrayList(stagingDV),
+              Lists.newArrayList(),
+              1L,
+              null,
+              0L,
+              0L);
 
       // New position 1 in the same file. Must merge it with the staged position 0.
       harness.processElement1(
@@ -245,7 +251,13 @@ class TestEqualityConvertDVWriter extends OperatorTestBase {
       long time = System.currentTimeMillis();
       EqualityConvertPlan planResult =
           new EqualityConvertPlan(
-              Lists.newArrayList(), Lists.newArrayList(), 1L, plannedSnapshotId, 0L, 0L);
+              Lists.newArrayList(),
+              Lists.newArrayList(),
+              Lists.newArrayList(),
+              1L,
+              plannedSnapshotId,
+              0L,
+              0L);
 
       harness.processElement1(
           new StreamRecord<>(new DVPosition(dataFilePath, 0, 0, EMPTY_PARTITION, 0L), time));
@@ -447,7 +459,8 @@ class TestEqualityConvertDVWriter extends OperatorTestBase {
   }
 
   private static EqualityConvertPlan emptyEqualityConvertPlan() {
-    return new EqualityConvertPlan(Lists.newArrayList(), Lists.newArrayList(), 1L, null, 0L, 0L);
+    return new EqualityConvertPlan(
+        Lists.newArrayList(), Lists.newArrayList(), Lists.newArrayList(), 1L, null, 0L, 0L);
   }
 
   private static String getFirstDataFilePath(Table table) {

@@ -41,23 +41,18 @@ import static org.mockito.Mockito.spy;
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.nio.file.Path;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
-import java.util.TreeMap;
 import java.util.UUID;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
@@ -107,12 +102,10 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.spark.FileRewriteCoordinator;
@@ -136,7 +129,6 @@ import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.internal.SQLConf;
 import org.apache.spark.sql.types.DataTypes;
-import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
@@ -150,18 +142,6 @@ public class TestRewriteDataFilesAction extends TestBase {
 
   @TempDir private File tableDir;
   private static final int SCALE = 400000;
-  // Row group size used by createTable(); part of the unpartitioned cache key so a future
-  // override of this property can't silently hand back cached files of a different shape.
-  private static final int INPUT_PARQUET_ROW_GROUP_SIZE_BYTES = 20 * 1024;
-
-  // Cache of pre-written input data files keyed by table shape (schema/spec/props are
-  // fixed per key), so identical large inputs are materialized via Spark only once per JVM
-  // fork and reused by every test that asks for the same shape. The Spark write of SCALE
-  // rows dominates these tests; the rewrite under test still runs per test on a fresh table.
-  @TempDir private static Path inputCacheDir;
-  private static final Map<String, List<DataFile>> INPUT_FILE_CACHE = Maps.newConcurrentMap();
-  private static final Map<String, Object> INPUT_CACHE_LOCKS = Maps.newConcurrentMap();
-  private static final AtomicInteger INPUT_CACHE_SEQ = new AtomicInteger();
 
   private static final HadoopTables TABLES = new HadoopTables(new Configuration());
   private static final Schema SCHEMA =
@@ -187,16 +167,6 @@ public class TestRewriteDataFilesAction extends TestBase {
   public static void setupSpark() {
     // disable AQE as tests assume that writes generate a particular number of files
     spark.conf().set(SQLConf.ADAPTIVE_EXECUTION_ENABLED().key(), "false");
-  }
-
-  @AfterAll
-  public static void clearInputFileCache() {
-    // inputCacheDir is a static @TempDir that JUnit recreates if the class runs twice in one JVM
-    // (IDE re-run, forkCount=0). Clear the cache so a second run can't return DataFiles pointing
-    // into the deleted first-run directory.
-    INPUT_FILE_CACHE.clear();
-    INPUT_CACHE_LOCKS.clear();
-    INPUT_CACHE_SEQ.set(0);
   }
 
   @BeforeEach
@@ -2098,6 +2068,49 @@ public class TestRewriteDataFilesAction extends TestBase {
   }
 
   @TestTemplate
+  public void testUpgradePreservesDataSequence() throws NoSuchTableException {
+    assumeThat(formatVersion).isEqualTo(2);
+
+    Table table = createTable();
+    writeRecords(2, 4);
+    table.refresh();
+    shouldHaveFiles(table, 2);
+    long committedDataSequence = table.currentSnapshot().sequenceNumber();
+
+    Result result = basicRewrite(table).execute();
+    assertThat(result.rewrittenDataFilesCount()).isEqualTo(2);
+    assertThat(result.addedDataFilesCount()).isOne();
+    table.refresh();
+    shouldHaveFiles(table, 1);
+
+    DataFile compactedFile = Iterables.getOnlyElement(currentDataFiles(table));
+    long dataSequenceNumber = compactedFile.dataSequenceNumber();
+    assertThat(dataSequenceNumber)
+        .as("Compaction must preserve the original data sequence number")
+        .isEqualTo(committedDataSequence);
+    assertThat(compactedFile.fileSequenceNumber())
+        .as("Compaction must bump the file sequence above the preserved data sequence")
+        .isGreaterThan(dataSequenceNumber);
+
+    table.updateProperties().set(TableProperties.FORMAT_VERSION, "3").commit();
+    table.rewriteManifests().rewriteIf(manifest -> true).commit();
+    table.refresh();
+
+    List<Object[]> expectedLineage =
+        Lists.newArrayList(
+            row(0L, committedDataSequence, ANY, ANY, ANY),
+            row(1L, committedDataSequence, ANY, ANY, ANY),
+            row(2L, committedDataSequence, ANY, ANY, ANY),
+            row(3L, committedDataSequence, ANY, ANY, ANY));
+
+    assertEquals(
+        "First snapshot after upgrade to v3 assigns row IDs and inherits the committed data"
+            + " sequence as _last_updated_sequence_number",
+        expectedLineage,
+        currentDataWithLineage());
+  }
+
+  @TestTemplate
   public void testRewriteDataFilesPreservesLineage() throws NoSuchTableException {
     assumeThat(formatVersion).isGreaterThan(2);
 
@@ -2210,9 +2223,6 @@ public class TestRewriteDataFilesAction extends TestBase {
   }
 
   protected void shouldHaveNoOrphans(Table table) {
-    // Cached input files live under the static inputCacheDir, outside table.location(), so
-    // deleteOrphanFiles (which only scans the table prefix) never sees them by design. Orphan
-    // coverage therefore does not extend to the shared cached inputs.
     assertThat(
             actions()
                 .deleteOrphanFiles(table)
@@ -2325,9 +2335,7 @@ public class TestRewriteDataFilesAction extends TestBase {
     Table table = TABLES.create(SCHEMA, spec, options, tableLocation);
     table
         .updateProperties()
-        .set(
-            TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES,
-            Integer.toString(INPUT_PARQUET_ROW_GROUP_SIZE_BYTES))
+        .set(TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES, Integer.toString(20 * 1024))
         .commit();
     assertThat(table.currentSnapshot()).as("Table must be empty").isNull();
     return table;
@@ -2340,21 +2348,8 @@ public class TestRewriteDataFilesAction extends TestBase {
    * @return the created table
    */
   protected Table createTable(int files) {
-    String key =
-        String.format(
-            "unpartitioned|fv=%d|rowGroup=%d|files=%d|rows=%d",
-            formatVersion, INPUT_PARQUET_ROW_GROUP_SIZE_BYTES, files, SCALE);
-    List<DataFile> inputFiles =
-        cachedInputFiles(
-            key,
-            () -> {
-              Table golden = createTable();
-              writeRecords(files, SCALE);
-              golden.refresh();
-              return golden;
-            });
     Table table = createTable();
-    appendInputFiles(table, inputFiles);
+    writeRecords(files, SCALE);
     table.refresh();
     return table;
   }
@@ -2362,83 +2357,12 @@ public class TestRewriteDataFilesAction extends TestBase {
   protected Table createTablePartitioned(
       int partitions, int files, int numRecords, Map<String, String> options) {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("c1").truncate("c2", 2).build();
-    String key =
-        String.format(
-            "partitioned|fv=%d|spec=%s|opts=%s|files=%d|rows=%d|partitions=%d",
-            formatVersion, spec, new TreeMap<>(options), files, numRecords, partitions);
-    List<DataFile> inputFiles =
-        cachedInputFiles(
-            key,
-            () -> {
-              Table golden = TABLES.create(SCHEMA, spec, options, tableLocation);
-              assertThat(golden.currentSnapshot()).as("Table must be empty").isNull();
-              writeRecords(files, numRecords, partitions);
-              golden.refresh();
-              return golden;
-            });
     Table table = TABLES.create(SCHEMA, spec, options, tableLocation);
     assertThat(table.currentSnapshot()).as("Table must be empty").isNull();
-    appendInputFiles(table, inputFiles);
+
+    writeRecords(files, numRecords, partitions);
     table.refresh();
     return table;
-  }
-
-  /**
-   * Returns the input data files for a given table shape, materializing them with Spark exactly
-   * once per JVM fork and reusing them afterwards. On a cache miss the {@code goldenBuilder} writes
-   * the data into a stable cache location (kept alive for the whole class via a static {@link
-   * TempDir}); on a hit the cached {@link DataFile}s are returned and re-appended to a fresh table
-   * by {@link #appendInputFiles}. The data is deterministic (fixed RNG seed) so reuse is
-   * byte-identical to regenerating it.
-   */
-  private List<DataFile> cachedInputFiles(String key, Supplier<Table> goldenBuilder) {
-    List<DataFile> cached = INPUT_FILE_CACHE.get(key);
-    if (cached != null) {
-      return cached;
-    }
-    // Serialize builds per key: concurrent callers requesting the same table shape block on the
-    // first build and then reuse its result, instead of materializing identical input twice. The
-    // heavy Spark write happens outside any map lock, so distinct shapes can still build in
-    // parallel.
-    Object lock = INPUT_CACHE_LOCKS.computeIfAbsent(key, ignored -> new Object());
-    synchronized (lock) {
-      List<DataFile> existing = INPUT_FILE_CACHE.get(key);
-      if (existing != null) {
-        return existing;
-      }
-      String savedLocation = this.tableLocation;
-      try {
-        this.tableLocation =
-            inputCacheDir.resolve("input-" + INPUT_CACHE_SEQ.incrementAndGet()).toUri().toString();
-        Table golden = goldenBuilder.get();
-        // includeColumnStats() is required: a plain scan drops lower/upper bounds and
-        // value counts, and re-appending stat-less files breaks tests that read bounds.
-        // planFiles() returns a CloseableIterable holding manifest readers open, so close it via
-        // try-with-resources; otherwise every cache miss leaks file descriptors and can leave
-        // manifest files locked on Windows.
-        List<DataFile> built;
-        try (CloseableIterable<FileScanTask> tasks =
-            golden.newScan().includeColumnStats().planFiles()) {
-          built =
-              Streams.stream(tasks)
-                  .map(FileScanTask::file)
-                  .map(DataFile::copy)
-                  .collect(ImmutableList.toImmutableList());
-        } catch (IOException e) {
-          throw new UncheckedIOException("Failed to plan cached input files", e);
-        }
-        INPUT_FILE_CACHE.put(key, built);
-        return built;
-      } finally {
-        this.tableLocation = savedLocation;
-      }
-    }
-  }
-
-  private static void appendInputFiles(Table table, List<DataFile> inputFiles) {
-    AppendFiles append = table.newAppend();
-    inputFiles.forEach(append::appendFile);
-    append.commit();
   }
 
   protected Table createTablePartitioned(int partitions, int files) {
