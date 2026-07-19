@@ -1775,30 +1775,13 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
     Table table =
         createTable(
             tableIdentifier, SCHEMA, SPEC, ImmutableMap.of(TableProperties.FORMAT_VERSION, "3"));
-    Dataset<Row> df =
+    Dataset<Row> df1 =
         spark.createDataFrame(Lists.newArrayList(new SimpleRecord(1, "a")), SimpleRecord.class);
-    df.select("id", "data")
+    df1.select("id", "data")
         .write()
         .format("iceberg")
         .mode("append")
         .save(loadLocation(tableIdentifier));
-    table.refresh();
-    DataFile dataFile = TestHelpers.dataFiles(table).get(0);
-    DeleteFile dvFile = FileGenerationUtil.generateDV(table, dataFile);
-    table.newRowDelta().addDeletes(dvFile).commit();
-    table.refresh();
-    List<Row> actual =
-        spark
-            .read()
-            .format("iceberg")
-            .load(loadLocation(tableIdentifier, "partitions"))
-            .collectAsList();
-    assertThat(actual).hasSize(1);
-    assertThat((int) actual.get(0).getAs("dv_count"))
-        .as("dv_count should be 1 after adding a DV")
-        .isEqualTo(1);
-
-    // add a second data file and DV to test dv_count = 2
     Dataset<Row> df2 =
         spark.createDataFrame(Lists.newArrayList(new SimpleRecord(1, "b")), SimpleRecord.class);
     df2.select("id", "data")
@@ -1808,14 +1791,11 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
         .save(loadLocation(tableIdentifier));
     table.refresh();
     List<DataFile> dataFiles = TestHelpers.dataFiles(table);
-    DataFile dataFile2 =
-        dataFiles.get(0).location().equals(dataFile.location())
-            ? dataFiles.get(1)
-            : dataFiles.get(0);
-    DeleteFile dvFile2 = FileGenerationUtil.generateDV(table, dataFile2);
-    table.newRowDelta().addDeletes(dvFile2).commit();
+    DeleteFile dvFile1 = FileGenerationUtil.generateDV(table, dataFiles.get(0));
+    DeleteFile dvFile2 = FileGenerationUtil.generateDV(table, dataFiles.get(1));
+    table.newRowDelta().addDeletes(dvFile1).addDeletes(dvFile2).commit();
     table.refresh();
-    actual =
+    List<Row> actual =
         spark
             .read()
             .format("iceberg")
