@@ -1443,6 +1443,40 @@ public class TestRewriteDataFilesAction extends TestBase {
   }
 
   @TestTemplate
+  public void testParallelPartialProgressWithTotalCommitsLessThanMaxCommits() {
+    Table table = createTable(20);
+    int fileSize = averageFileSize(table);
+
+    table.updateProperties().set(COMMIT_NUM_RETRIES, "10").commit();
+
+    List<Object[]> originalData = currentData();
+
+    RewriteDataFilesSparkAction rewrite =
+        basicRewrite(table)
+            .option(
+                RewriteDataFiles.MAX_FILE_GROUP_SIZE_BYTES, Integer.toString(fileSize * 2 + 1000))
+            .option(RewriteDataFiles.MAX_CONCURRENT_FILE_GROUP_REWRITES, "2")
+            .option(RewriteDataFiles.PARTIAL_PROGRESS_ENABLED, "true")
+            // Since we can have at most one commit per 2 file groups and there
+            // are only 10 file groups, actual number of commits is 5.
+            .option(RewriteDataFiles.PARTIAL_PROGRESS_MAX_COMMITS, "7")
+            .option(RewriteDataFiles.PARTIAL_PROGRESS_MAX_FAILED_COMMITS, "0");
+
+    RewriteDataFiles.Result result = rewrite.execute();
+    assertThat(result.rewriteResults()).hasSize(10);
+    assertThat(result.rewriteFailures()).hasSize(0);
+
+    List<Object[]> postRewriteData = currentData();
+    assertEquals("We shouldn't have changed the data", originalData, postRewriteData);
+
+    // With 10 original groups and max commits of 7, we have 2 groups per commit.
+    // That produces 5 rewrite commits plus the initial snapshot (6 snapshots total).
+    shouldHaveSnapshots(table, 6);
+    shouldHaveNoOrphans(table);
+    shouldHaveACleanCache(table);
+  }
+
+  @TestTemplate
   public void testInvalidOptions() {
     Table table = createTable(20);
 
