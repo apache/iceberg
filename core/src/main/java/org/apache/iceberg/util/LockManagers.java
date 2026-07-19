@@ -179,10 +179,20 @@ public class LockManagers {
     private static final Logger LOG = LoggerFactory.getLogger(InMemoryLockManager.class);
 
     private static final Map<String, InMemoryLockContent> LOCKS = Maps.newConcurrentMap();
-    private static final Map<String, ScheduledFuture<?>> HEARTBEATS = Maps.newHashMap();
+    private static final Map<String, ScheduledFuture<?>> HEARTBEATS = Maps.newConcurrentMap();
 
     InMemoryLockManager(Map<String, String> properties) {
       initialize(properties);
+    }
+
+    @VisibleForTesting
+    static int heartbeatCount() {
+      return HEARTBEATS.size();
+    }
+
+    @VisibleForTesting
+    static ScheduledFuture<?> heartbeat(String entityId) {
+      return HEARTBEATS.get(entityId);
     }
 
     @VisibleForTesting
@@ -206,9 +216,10 @@ public class LockManagers {
       }
 
       if (succeed) {
-        // cleanup old heartbeat
-        if (HEARTBEATS.containsKey(entityId)) {
-          HEARTBEATS.remove(entityId).cancel(false);
+        // cleanup old heartbeat, using an atomic remove to avoid a check-then-act race
+        ScheduledFuture<?> previousHeartbeat = HEARTBEATS.remove(entityId);
+        if (previousHeartbeat != null) {
+          previousHeartbeat.cancel(false);
         }
 
         HEARTBEATS.put(
