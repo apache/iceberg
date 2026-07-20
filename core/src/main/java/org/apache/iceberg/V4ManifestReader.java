@@ -41,7 +41,7 @@ import org.apache.iceberg.util.StructProjection;
 class V4ManifestReader extends CloseableGroup implements CloseableIterable<TrackedFile> {
   private final InputFile file;
   private final Schema readSchema;
-  private final boolean onlyLive;
+  private final boolean includeTombstones;
   private final ScanMetrics scanMetrics;
 
   // partition pruning state, keyed by spec ID
@@ -53,13 +53,13 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
       Schema readSchema,
       Map<Integer, Evaluator> partitionEvaluators,
       Map<Integer, StructProjection> partitionProjections,
-      boolean onlyLive,
+      boolean includeTombstones,
       ScanMetrics scanMetrics) {
     this.file = file;
     this.readSchema = readSchema;
     this.partitionEvaluators = partitionEvaluators;
     this.partitionProjections = partitionProjections;
-    this.onlyLive = onlyLive;
+    this.includeTombstones = includeTombstones;
     this.scanMetrics = scanMetrics;
   }
 
@@ -77,7 +77,7 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
           CloseableIterable.filter(entries, entry -> isManifest(entry) || matchesPartition(entry));
     }
 
-    if (onlyLive) {
+    if (!includeTombstones) {
       entries = CloseableIterable.filter(entries, entry -> entry.tracking().isLive());
     }
 
@@ -171,7 +171,7 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
     private final Map<Integer, PartitionSpec> specsById;
     private Expression rowFilter = Expressions.alwaysTrue();
     private boolean caseSensitive = true;
-    private boolean onlyLive = true;
+    private boolean includeTombstones = false;
     private Collection<String> columns = null;
     private Schema fileProjection = null;
     private ScanMetrics scanMetrics = ScanMetrics.noop();
@@ -196,7 +196,7 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
 
     /** Returns deleted and replaced files in addition to {@link Tracking#isLive() live} files. */
     Builder includeTombstones() {
-      this.onlyLive = false;
+      this.includeTombstones = true;
       return this;
     }
 
@@ -241,7 +241,12 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
       }
 
       return new V4ManifestReader(
-          file, readSchema(), partitionEvaluators, partitionProjections, onlyLive, scanMetrics);
+          file,
+          readSchema(),
+          partitionEvaluators,
+          partitionProjections,
+          includeTombstones,
+          scanMetrics);
     }
 
     private boolean hasPartitionFilter() {
@@ -251,7 +256,8 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
     private Schema readSchema() {
       Schema fullSchema =
           new Schema(
-              TrackedFile.schema(Tracking.scanSchema(), unionPartitionType, Types.StructType.of())
+              TrackedFile.schema(
+                      TrackingStruct.SCAN_TYPE, unionPartitionType, Types.StructType.of())
                   .fields());
       Schema projection = projection(fullSchema);
       if (projection == null) {

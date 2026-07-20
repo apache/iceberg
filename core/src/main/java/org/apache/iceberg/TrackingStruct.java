@@ -42,6 +42,17 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking, Serial
           Tracking.REPLACED_POSITIONS,
           MetadataColumns.ROW_POSITION);
 
+  // tracking fields read on the scan path; row_position backs manifestPos.
+  // Package-private only for V4ManifestReader's read projection.
+  static final Types.StructType SCAN_TYPE =
+      Types.StructType.of(
+          Tracking.STATUS,
+          Tracking.SNAPSHOT_ID,
+          Tracking.SEQUENCE_NUMBER,
+          Tracking.FILE_SEQUENCE_NUMBER,
+          Tracking.FIRST_ROW_ID,
+          MetadataColumns.ROW_POSITION);
+
   private EntryStatus status = null;
   private Long snapshotId = null;
   private Long dataSequenceNumber = null;
