@@ -66,7 +66,9 @@ class KeyMetadataDecoder extends MessageDecoder.BaseDecoder<StandardKeyMetadata>
     RawDecoder<StandardKeyMetadata> decoder = decoders.get(writeSchemaVersion);
 
     if (decoder == null) {
-      decoder = RawDecoder.create(readSchema, GenericAvroReader::create, writeSchema);
+      decoder =
+          RawDecoder.create(
+              readSchema, schema -> GenericAvroReader.create(schema, true), writeSchema);
 
       decoders.put(writeSchemaVersion, decoder);
     }

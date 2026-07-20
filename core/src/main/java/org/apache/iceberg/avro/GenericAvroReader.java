@@ -38,6 +38,7 @@ public class GenericAvroReader<T>
     implements DatumReader<T>, SupportsRowPosition, SupportsCustomRecords {
 
   private final Types.StructType expectedType;
+  private final boolean legacyTimestampMapping;
   private ClassLoader loader = Thread.currentThread().getContextClassLoader();
   private Map<String, String> renames = ImmutableMap.of();
   private final Map<Integer, Object> idToConstant = ImmutableMap.of();
@@ -45,19 +46,30 @@ public class GenericAvroReader<T>
   private ValueReader<T> reader = null;
 
   public static <D> GenericAvroReader<D> create(org.apache.iceberg.Schema expectedSchema) {
-    return new GenericAvroReader<>(expectedSchema);
+    return create(expectedSchema, false);
+  }
+
+  public static <D> GenericAvroReader<D> create(
+      org.apache.iceberg.Schema expectedSchema, boolean legacyTimestampMapping) {
+    return new GenericAvroReader<>(expectedSchema, legacyTimestampMapping);
   }
 
   public static <D> GenericAvroReader<D> create(Schema readSchema) {
-    return new GenericAvroReader<>(readSchema);
+    return create(readSchema, false);
   }
 
-  GenericAvroReader(org.apache.iceberg.Schema expectedSchema) {
+  public static <D> GenericAvroReader<D> create(Schema readSchema, boolean legacyTimestampMapping) {
+    return new GenericAvroReader<>(readSchema, legacyTimestampMapping);
+  }
+
+  GenericAvroReader(org.apache.iceberg.Schema expectedSchema, boolean legacyTimestampMapping) {
     this.expectedType = expectedSchema.asStruct();
+    this.legacyTimestampMapping = legacyTimestampMapping;
   }
 
-  GenericAvroReader(Schema readSchema) {
-    this.expectedType = AvroSchemaUtil.convert(readSchema).asStructType();
+  GenericAvroReader(Schema readSchema, boolean legacyTimestampMapping) {
+    this.expectedType = AvroSchemaUtil.convert(readSchema, legacyTimestampMapping).asStructType();
+    this.legacyTimestampMapping = legacyTimestampMapping;
   }
 
   @SuppressWarnings("unchecked")
@@ -103,7 +115,8 @@ public class GenericAvroReader<T>
     private final Map<Type, Schema> avroSchemas;
 
     private ResolvingReadBuilder(Types.StructType expectedType, String rootName) {
-      this.avroSchemas = AvroSchemaUtil.convertTypes(expectedType, rootName);
+      this.avroSchemas =
+          AvroSchemaUtil.convertTypes(expectedType, rootName, legacyTimestampMapping);
     }
 
     @Override
