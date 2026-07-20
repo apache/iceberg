@@ -270,8 +270,13 @@ public class DataGenerators {
           .add("string_field", builder.of("str"))
           .add("date_field", builder.of(DAYS_BTW_EPOC_AND_20220110))
           .add("time_field", builder.of(HOUR_8_IN_MILLI))
-          .add("ts_with_zone_field", builder.of(JAVA_INSTANT_DATE_TIME_20220110))
-          .add("ts_without_zone_field", builder.of(JAVA_LOCAL_DATE_TIME_20220110))
+          .add(
+              "ts_with_zone_field",
+              builder.of(
+                  JAVA_INSTANT_DATE_TIME_20220110.plusNanos(MICROS_OF_MILLI_20220110 * 1000)))
+          .add(
+              "ts_without_zone_field",
+              builder.of(JAVA_LOCAL_DATE_TIME_20220110.plusNanos(MICROS_OF_MILLI_20220110 * 1000)))
           .add("uuid_field", builder.of(uuidBytes))
           .add("binary_field", builder.of(binaryBytes))
           .add("decimal_field", builder.of(BIG_DECIMAL_NEGATIVE))
