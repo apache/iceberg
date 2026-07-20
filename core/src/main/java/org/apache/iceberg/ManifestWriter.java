@@ -434,6 +434,7 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
           TrackedFileAdapters.forDataFile(
               TableMetadata.MIN_FORMAT_VERSION_ADAPTIVE_MANIFEST_TREE,
               spec.schema(),
+              MetricsConfig.from(writerProperties, spec.schema(), null),
               unionPartitionType);
       this.writerEntry = new ContentEntryWriterEntry<>();
     }
@@ -524,7 +525,9 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
           new Schema(
               TrackedFile.schemaWithContentStats(
                       emptyPartitionPlaceholderIfNeeded(partitionType),
-                      StatsUtil.contentStatsFor(spec.schema()).type().asStructType())
+                      StatsUtil.statsWriteSchema(
+                          spec.schema(),
+                          MetricsConfig.from(writerProperties(), spec.schema(), null)))
                   .fields());
       try {
         return InternalData.write(format(), file)
@@ -569,6 +572,7 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
           TrackedFileAdapters.forEqualityDeleteFile(
               TableMetadata.MIN_FORMAT_VERSION_ADAPTIVE_MANIFEST_TREE,
               spec.schema(),
+              MetricsConfig.from(writerProperties, spec.schema(), null),
               unionPartitionType);
       this.writerEntry = new ContentEntryWriterEntry<>();
     }
@@ -645,7 +649,9 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
           new Schema(
               TrackedFile.schemaWithContentStats(
                       V4Writer.emptyPartitionPlaceholderIfNeeded(partitionType),
-                      StatsUtil.contentStatsFor(spec.schema()).type().asStructType())
+                      StatsUtil.statsWriteSchema(
+                          spec.schema(),
+                          MetricsConfig.from(writerProperties(), spec.schema(), null)))
                   .fields());
       try {
         return InternalData.write(format(), file)

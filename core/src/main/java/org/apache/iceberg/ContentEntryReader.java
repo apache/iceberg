@@ -18,15 +18,13 @@
  */
 package org.apache.iceberg;
 
-import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.types.Conversions;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.StructProjection;
 
@@ -107,23 +105,32 @@ class ContentEntryReader extends CloseableGroup {
   @SuppressWarnings({"unchecked", "rawtypes"})
   private <F extends ContentFile<F>> CloseableIterable<ManifestEntry<F>> readEntries() {
     PartitionSpec defaultSpec = resolveDefaultSpec();
-    Schema contentEntrySchema = buildContentEntrySchema(defaultSpec);
+    Types.StructType statsType =
+        StatsUtil.statsReadSchema(
+            defaultSpec.schema(), TypeUtil.getProjectedIds(defaultSpec.schema()));
+    Schema contentEntrySchema = buildContentEntrySchema(defaultSpec, statsType);
 
-    CloseableIterable<TrackedFileStruct> rows =
+    InternalData.ReadBuilder builder =
         InternalData.read(FileFormat.PARQUET, file)
             .project(contentEntrySchema)
             .setRootType(TrackedFileStruct.class)
             .setCustomType(TrackedFile.TRACKING.fieldId(), TrackingStruct.class)
             .setCustomType(TrackedFile.PARTITION_ID, PartitionData.class)
-            .setCustomType(TrackedFile.CONTENT_STATS_ID, ContentStatsReader.class)
-            .build();
+            .setCustomType(TrackedFile.CONTENT_STATS_ID, ContentStatsStruct.class);
+    // Read each per-column stats sub-struct as a FieldStatsStruct so ContentStatsStruct.set can
+    // store them directly; unregistered nested structs would default to GenericRecord.
+    for (Types.NestedField statsField : statsType.fields()) {
+      builder.setCustomType(statsField.fieldId(), FieldStatsStruct.class);
+    }
+
+    CloseableIterable<TrackedFileStruct> rows = builder.build();
 
     addCloseable(rows);
 
+    // toManifestEntry fully materializes each row into a new ManifestEntry (fresh file, metrics,
+    // and partition), so the reused row container is safe to pass directly without a defensive copy.
     return (CloseableIterable<ManifestEntry<F>>)
-        (CloseableIterable)
-            CloseableIterable.transform(
-                rows, row -> toManifestEntry((TrackedFileStruct) row.copy()));
+        (CloseableIterable) CloseableIterable.transform(rows, this::toManifestEntry);
   }
 
   private PartitionSpec resolveDefaultSpec() {
@@ -139,7 +146,7 @@ class ContentEntryReader extends CloseableGroup {
     return PartitionSpec.unpartitioned();
   }
 
-  private Schema buildContentEntrySchema(PartitionSpec spec) {
+  private Schema buildContentEntrySchema(PartitionSpec spec, Types.StructType statsType) {
     // v4+ leaf manifests encode partition tuples with the union partition type (a struct covering
     // every live spec's fields). Read with the same union so per-spec subsets land in the correct
     // positions; per-spec projection happens later in toPartitionData. Empty unions fall back to
@@ -151,9 +158,7 @@ class ContentEntryReader extends CloseableGroup {
     Types.StructType readPartitionType =
         ManifestWriter.V4Writer.emptyPartitionPlaceholderIfNeeded(partitionType);
     return new Schema(
-        TrackedFile.schemaWithContentStats(
-                readPartitionType, StatsUtil.contentStatsFor(spec.schema()).type().asStructType())
-            .fields());
+        TrackedFile.schemaWithContentStats(readPartitionType, statsType).fields());
   }
 
   private ManifestEntry<?> toManifestEntry(TrackedFileStruct row) {
@@ -235,7 +240,7 @@ class ContentEntryReader extends CloseableGroup {
   }
 
   private DataFile toDataFile(TrackedFileStruct row, PartitionSpec spec, Tracking tracking) {
-    Metrics metrics = toMetrics(row, spec.schema());
+    Metrics metrics = toMetrics(row);
     PartitionData partition = toPartitionData(row, spec);
     Long firstRowId = tracking.firstRowId();
 
@@ -253,7 +258,7 @@ class ContentEntryReader extends CloseableGroup {
   }
 
   private DeleteFile toEqualityDeleteFile(TrackedFileStruct row, PartitionSpec spec) {
-    Metrics metrics = toMetrics(row, spec.schema());
+    Metrics metrics = toMetrics(row);
     PartitionData partition = toPartitionData(row, spec);
     List<Integer> equalityIdList = row.equalityIds();
     int[] equalityIds = null;
@@ -281,70 +286,16 @@ class ContentEntryReader extends CloseableGroup {
         null /* no content size */);
   }
 
-  private static Metrics toMetrics(TrackedFileStruct row, Schema tableSchema) {
+  private static Metrics toMetrics(TrackedFileStruct row) {
     ContentStats contentStats = row.contentStats();
-    if (contentStats == null) {
-      return new Metrics(row.recordCount(), null, null, null, null, null, null);
-    }
-
-    Map<Integer, Long> valueCounts = Maps.newHashMap();
-    Map<Integer, Long> nullValueCounts = Maps.newHashMap();
-    Map<Integer, Long> nanValueCounts = Maps.newHashMap();
-    Map<Integer, ByteBuffer> lowerBounds = Maps.newHashMap();
-    Map<Integer, ByteBuffer> upperBounds = Maps.newHashMap();
-
-    for (FieldStats<?> fieldStat : contentStats.fieldStats()) {
-      collectFieldStats(
-          fieldStat,
-          tableSchema,
-          valueCounts,
-          nullValueCounts,
-          nanValueCounts,
-          lowerBounds,
-          upperBounds);
-    }
-
     return new Metrics(
         row.recordCount(),
         null /* column sizes not stored in content_stats */,
-        valueCounts.isEmpty() ? null : valueCounts,
-        nullValueCounts.isEmpty() ? null : nullValueCounts,
-        nanValueCounts.isEmpty() ? null : nanValueCounts,
-        lowerBounds.isEmpty() ? null : lowerBounds,
-        upperBounds.isEmpty() ? null : upperBounds);
-  }
-
-  /** Accumulates per-column counts and bounds from a single {@link FieldStats} entry. */
-  private static void collectFieldStats(
-      FieldStats<?> fieldStat,
-      Schema tableSchema,
-      Map<Integer, Long> valueCounts,
-      Map<Integer, Long> nullValueCounts,
-      Map<Integer, Long> nanValueCounts,
-      Map<Integer, ByteBuffer> lowerBounds,
-      Map<Integer, ByteBuffer> upperBounds) {
-    int fieldId = fieldStat.fieldId();
-    Types.NestedField field = tableSchema != null ? tableSchema.findField(fieldId) : null;
-
-    if (fieldStat.valueCount() != null) {
-      valueCounts.put(fieldId, fieldStat.valueCount());
-    }
-
-    if (fieldStat.nullValueCount() != null) {
-      nullValueCounts.put(fieldId, fieldStat.nullValueCount());
-    }
-
-    if (fieldStat.nanValueCount() != null) {
-      nanValueCounts.put(fieldId, fieldStat.nanValueCount());
-    }
-
-    if (field != null && fieldStat.lowerBound() != null) {
-      lowerBounds.put(fieldId, Conversions.toByteBuffer(field.type(), fieldStat.lowerBound()));
-    }
-
-    if (field != null && fieldStat.upperBound() != null) {
-      upperBounds.put(fieldId, Conversions.toByteBuffer(field.type(), fieldStat.upperBound()));
-    }
+        MetricsUtil.valueCounts(contentStats),
+        MetricsUtil.nullValueCounts(contentStats),
+        MetricsUtil.nanValueCounts(contentStats),
+        MetricsUtil.lowerBounds(contentStats),
+        MetricsUtil.upperBounds(contentStats));
   }
 
   private static PartitionData toPartitionData(TrackedFileStruct row, PartitionSpec spec) {
@@ -391,26 +342,6 @@ class ContentEntryReader extends CloseableGroup {
         return ManifestEntry.Status.EXISTING;
       default:
         throw new IllegalArgumentException("Unknown entry status: " + entryStatus);
-    }
-  }
-
-  /**
-   * Parquet read container for the {@code content_stats} nested struct. Extends {@link
-   * BaseContentStats} but overrides {@link #get} to return {@code null} for every position so the
-   * Parquet reader never tries to reuse the pre-allocated {@link FieldStats} placeholders as reuse
-   * containers for inner per-column-stat structs. Without this override, {@link
-   * BaseContentStats#get} returns already-built {@link BaseFieldStats} objects, and the reader's
-   * {@code RecordReader} would try to cast them to {@code GenericRecord}, causing a {@link
-   * ClassCastException}.
-   */
-  static class ContentStatsReader extends BaseContentStats {
-    ContentStatsReader(Types.StructType projection) {
-      super(projection);
-    }
-
-    @Override
-    public <T> T get(int pos, Class<T> javaClass) {
-      return null;
     }
   }
 }
