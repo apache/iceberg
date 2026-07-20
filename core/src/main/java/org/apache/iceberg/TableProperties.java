@@ -212,6 +212,9 @@ public class TableProperties {
   public static final String DELETE_AVRO_COMPRESSION_LEVEL = "write.delete.avro.compression-level";
   public static final String AVRO_COMPRESSION_LEVEL_DEFAULT = null;
 
+  public static final String AVRO_LOCAL_TIMESTAMP_ENABLED = "write.avro.local-timestamp.enabled";
+  public static final boolean AVRO_LOCAL_TIMESTAMP_ENABLED_DEFAULT = false;
+
   public static final String MANIFEST_COMPRESSION = "write.manifest.compression-codec";
   public static final String MANIFEST_COMPRESSION_DEFAULT = "gzip";
 

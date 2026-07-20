@@ -73,12 +73,12 @@ abstract class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
 
   private final Deque<Integer> fieldIds = Lists.newLinkedList();
   private final BiFunction<Integer, Types.StructType, String> namesFunction;
-  private final boolean legacyTimestampMapping;
+  private final boolean localTimestampEnabled;
 
   TypeToSchema(
-      BiFunction<Integer, Types.StructType, String> namesFunction, boolean legacyTimestampMapping) {
+      BiFunction<Integer, Types.StructType, String> namesFunction, boolean localTimestampEnabled) {
     this.namesFunction = namesFunction;
-    this.legacyTimestampMapping = legacyTimestampMapping;
+    this.localTimestampEnabled = localTimestampEnabled;
   }
 
   @Override
@@ -251,18 +251,18 @@ abstract class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
         break;
       case TIMESTAMP:
         if (((Types.TimestampType) primitive).shouldAdjustToUTC()) {
-          primitiveSchema = legacyTimestampMapping ? LEGACY_TIMESTAMPTZ_SCHEMA : TIMESTAMPTZ_SCHEMA;
+          primitiveSchema = localTimestampEnabled ? TIMESTAMPTZ_SCHEMA : LEGACY_TIMESTAMPTZ_SCHEMA;
         } else {
-          primitiveSchema = legacyTimestampMapping ? LEGACY_TIMESTAMP_SCHEMA : TIMESTAMP_SCHEMA;
+          primitiveSchema = localTimestampEnabled ? TIMESTAMP_SCHEMA : LEGACY_TIMESTAMP_SCHEMA;
         }
         break;
       case TIMESTAMP_NANO:
         if (((Types.TimestampNanoType) primitive).shouldAdjustToUTC()) {
           primitiveSchema =
-              legacyTimestampMapping ? LEGACY_TIMESTAMPTZ_NANO_SCHEMA : TIMESTAMPTZ_NANO_SCHEMA;
+              localTimestampEnabled ? TIMESTAMPTZ_NANO_SCHEMA : LEGACY_TIMESTAMPTZ_NANO_SCHEMA;
         } else {
           primitiveSchema =
-              legacyTimestampMapping ? LEGACY_TIMESTAMP_NANO_SCHEMA : TIMESTAMP_NANO_SCHEMA;
+              localTimestampEnabled ? TIMESTAMP_NANO_SCHEMA : LEGACY_TIMESTAMP_NANO_SCHEMA;
         }
         break;
       case STRING:
@@ -304,8 +304,8 @@ abstract class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
 
     private final Map<Type, Schema> results = Maps.newHashMap();
 
-    WithTypeToName(Map<Types.StructType, String> names, boolean legacyTimestampMapping) {
-      super((id, struct) -> names.get(struct), legacyTimestampMapping);
+    WithTypeToName(Map<Types.StructType, String> names, boolean localTimestampEnabled) {
+      super((id, struct) -> names.get(struct), localTimestampEnabled);
     }
 
     Map<Type, Schema> getConversionMap() {
@@ -328,8 +328,8 @@ abstract class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
 
     WithNamesFunction(
         BiFunction<Integer, Types.StructType, String> namesFunction,
-        boolean legacyTimestampMapping) {
-      super(namesFunction, legacyTimestampMapping);
+        boolean localTimestampEnabled) {
+      super(namesFunction, localTimestampEnabled);
     }
 
     @Override

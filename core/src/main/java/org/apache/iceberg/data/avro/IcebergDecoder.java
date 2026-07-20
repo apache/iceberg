@@ -33,7 +33,6 @@ import org.apache.avro.message.MessageDecoder;
 import org.apache.avro.message.MissingSchemaException;
 import org.apache.avro.message.SchemaStore;
 import org.apache.iceberg.avro.AvroSchemaUtil;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.MapMaker;
 
 public class IcebergDecoder<D> extends MessageDecoder.BaseDecoder<D> {
@@ -49,7 +48,7 @@ public class IcebergDecoder<D> extends MessageDecoder.BaseDecoder<D> {
 
   private final org.apache.iceberg.Schema readSchema;
   private final SchemaStore resolver;
-  private final boolean legacyTimestampMapping;
+  private final boolean adjustToUtcDefault;
   private final Map<Long, RawDecoder<D>> decoders = new MapMaker().makeMap();
 
   /**
@@ -89,14 +88,14 @@ public class IcebergDecoder<D> extends MessageDecoder.BaseDecoder<D> {
    * @param resolver a {@link SchemaStore} used to find schemas by fingerprint
    */
   public IcebergDecoder(org.apache.iceberg.Schema readSchema, SchemaStore resolver) {
-    this(readSchema, resolver, false);
+    this(readSchema, resolver, true);
   }
 
-  IcebergDecoder(
-      org.apache.iceberg.Schema readSchema, SchemaStore resolver, boolean legacyTimestampMapping) {
+  public IcebergDecoder(
+      org.apache.iceberg.Schema readSchema, SchemaStore resolver, boolean adjustToUtcDefault) {
     this.readSchema = readSchema;
     this.resolver = resolver;
-    this.legacyTimestampMapping = legacyTimestampMapping;
+    this.adjustToUtcDefault = adjustToUtcDefault;
     addSchema(this.readSchema);
   }
 
@@ -106,16 +105,14 @@ public class IcebergDecoder<D> extends MessageDecoder.BaseDecoder<D> {
    * @param writeSchema a schema to use when decoding buffers
    */
   public void addSchema(org.apache.iceberg.Schema writeSchema) {
-    addSchema(AvroSchemaUtil.convert(writeSchema, "table", legacyTimestampMapping));
+    Schema avroWriteSchema = AvroSchemaUtil.convert(writeSchema, "table", adjustToUtcDefault);
+    AvroSchemaUtil.addAdjustToUtcDefaultProp(avroWriteSchema, adjustToUtcDefault);
+    addSchema(avroWriteSchema);
   }
 
   private void addSchema(Schema writeSchema) {
     long fp = SchemaNormalization.parsingFingerprint64(writeSchema);
-    RawDecoder<D> decoder =
-        RawDecoder.create(
-            readSchema,
-            schema -> PlannedDataReader.create(schema, ImmutableMap.of(), legacyTimestampMapping),
-            writeSchema);
+    RawDecoder<D> decoder = RawDecoder.create(readSchema, PlannedDataReader::create, writeSchema);
     decoders.put(fp, decoder);
   }
 

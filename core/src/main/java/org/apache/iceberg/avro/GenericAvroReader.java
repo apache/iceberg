@@ -38,7 +38,6 @@ public class GenericAvroReader<T>
     implements DatumReader<T>, SupportsRowPosition, SupportsCustomRecords {
 
   private final Types.StructType expectedType;
-  private final boolean legacyTimestampMapping;
   private ClassLoader loader = Thread.currentThread().getContextClassLoader();
   private Map<String, String> renames = ImmutableMap.of();
   private final Map<Integer, Object> idToConstant = ImmutableMap.of();
@@ -46,30 +45,20 @@ public class GenericAvroReader<T>
   private ValueReader<T> reader = null;
 
   public static <D> GenericAvroReader<D> create(org.apache.iceberg.Schema expectedSchema) {
-    return create(expectedSchema, false);
-  }
-
-  public static <D> GenericAvroReader<D> create(
-      org.apache.iceberg.Schema expectedSchema, boolean legacyTimestampMapping) {
-    return new GenericAvroReader<>(expectedSchema, legacyTimestampMapping);
+    return new GenericAvroReader<>(expectedSchema);
   }
 
   public static <D> GenericAvroReader<D> create(Schema readSchema) {
-    return create(readSchema, false);
+    return new GenericAvroReader<>(readSchema);
   }
 
-  public static <D> GenericAvroReader<D> create(Schema readSchema, boolean legacyTimestampMapping) {
-    return new GenericAvroReader<>(readSchema, legacyTimestampMapping);
-  }
-
-  GenericAvroReader(org.apache.iceberg.Schema expectedSchema, boolean legacyTimestampMapping) {
+  GenericAvroReader(org.apache.iceberg.Schema expectedSchema) {
     this.expectedType = expectedSchema.asStruct();
-    this.legacyTimestampMapping = legacyTimestampMapping;
   }
 
-  GenericAvroReader(Schema readSchema, boolean legacyTimestampMapping) {
-    this.expectedType = AvroSchemaUtil.convert(readSchema, legacyTimestampMapping).asStructType();
-    this.legacyTimestampMapping = legacyTimestampMapping;
+  GenericAvroReader(Schema readSchema) {
+    boolean adjustToUtcDefault = AvroSchemaUtil.adjustToUtcDefault(readSchema);
+    this.expectedType = AvroSchemaUtil.convert(readSchema, adjustToUtcDefault).asStructType();
   }
 
   @SuppressWarnings("unchecked")
@@ -79,7 +68,10 @@ public class GenericAvroReader<T>
             AvroWithPartnerVisitor.visit(
                 expectedType,
                 fileSchema,
-                new ResolvingReadBuilder(expectedType, fileSchema.getFullName()),
+                new ResolvingReadBuilder(
+                    expectedType,
+                    fileSchema.getFullName(),
+                    AvroSchemaUtil.adjustToUtcDefault(fileSchema)),
                 AvroWithPartnerVisitor.FieldIDAccessors.get());
   }
 
@@ -114,9 +106,9 @@ public class GenericAvroReader<T>
   private class ResolvingReadBuilder extends AvroWithPartnerVisitor<Type, ValueReader<?>> {
     private final Map<Type, Schema> avroSchemas;
 
-    private ResolvingReadBuilder(Types.StructType expectedType, String rootName) {
-      this.avroSchemas =
-          AvroSchemaUtil.convertTypes(expectedType, rootName, legacyTimestampMapping);
+    private ResolvingReadBuilder(
+        Types.StructType expectedType, String rootName, boolean localTimestampEnabled) {
+      this.avroSchemas = AvroSchemaUtil.convertTypes(expectedType, rootName, localTimestampEnabled);
     }
 
     @Override

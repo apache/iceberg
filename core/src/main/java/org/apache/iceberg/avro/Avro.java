@@ -22,6 +22,8 @@ import static org.apache.iceberg.TableProperties.AVRO_COMPRESSION;
 import static org.apache.iceberg.TableProperties.AVRO_COMPRESSION_DEFAULT;
 import static org.apache.iceberg.TableProperties.AVRO_COMPRESSION_LEVEL;
 import static org.apache.iceberg.TableProperties.AVRO_COMPRESSION_LEVEL_DEFAULT;
+import static org.apache.iceberg.TableProperties.AVRO_LOCAL_TIMESTAMP_ENABLED;
+import static org.apache.iceberg.TableProperties.AVRO_LOCAL_TIMESTAMP_ENABLED_DEFAULT;
 import static org.apache.iceberg.TableProperties.DELETE_AVRO_COMPRESSION;
 import static org.apache.iceberg.TableProperties.DELETE_AVRO_COMPRESSION_LEVEL;
 
@@ -68,6 +70,7 @@ import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.ArrayUtil;
+import org.apache.iceberg.util.PropertyUtil;
 
 public class Avro {
   private Avro() {}
@@ -114,7 +117,6 @@ public class Avro {
     private boolean overwrite;
     private MetricsConfig metricsConfig;
     private Function<Map<String, String>, Context> createContextFunc = Context::dataContext;
-    private boolean legacyTimestampMapping = true;
 
     private WriteBuilder(OutputFile file) {
       this.file = file;
@@ -124,11 +126,6 @@ public class Avro {
       schema(table.schema());
       setAll(table.properties());
       metricsConfig(MetricsConfig.forTable(table));
-      return this;
-    }
-
-    WriteBuilder legacyTimestampMapping(boolean newLegacyTimestampMapping) {
-      this.legacyTimestampMapping = newLegacyTimestampMapping;
       return this;
     }
 
@@ -211,15 +208,15 @@ public class Avro {
       Context context = createContextFunc.apply(config);
       CodecFactory codec = context.codec();
 
+      boolean localTimestampEnabled =
+          PropertyUtil.propertyAsBoolean(
+              config, AVRO_LOCAL_TIMESTAMP_ENABLED, AVRO_LOCAL_TIMESTAMP_ENABLED_DEFAULT);
+
+      Schema avroSchema = AvroSchemaUtil.convert(schema, name, localTimestampEnabled);
+      AvroSchemaUtil.addAdjustToUtcDefaultProp(avroSchema, localTimestampEnabled);
+
       return new AvroFileAppender<>(
-          schema,
-          AvroSchemaUtil.convert(schema, name, legacyTimestampMapping),
-          file,
-          writerFunc,
-          codec,
-          metadata,
-          metricsConfig,
-          overwrite);
+          schema, avroSchema, file, writerFunc, codec, metadata, metricsConfig, overwrite);
     }
 
     static class Context {
@@ -358,11 +355,6 @@ public class Avro {
 
     public DataWriteBuilder createWriterFunc(Function<Schema, DatumWriter<?>> newCreateWriterFunc) {
       appenderBuilder.createWriterFunc(newCreateWriterFunc);
-      return this;
-    }
-
-    DataWriteBuilder legacyTimestampMapping(boolean newLegacyTimestampMapping) {
-      appenderBuilder.legacyTimestampMapping(newLegacyTimestampMapping);
       return this;
     }
 
@@ -651,13 +643,11 @@ public class Avro {
     private Function<Schema, DatumReader<?>> createReaderFunc = null;
     private BiFunction<org.apache.iceberg.Schema, Schema, DatumReader<?>> createReaderBiFunc = null;
     private Function<org.apache.iceberg.Schema, DatumReader<?>> createResolvingReaderFunc = null;
-    private boolean legacyTimestampMapping = true;
 
     @SuppressWarnings("UnnecessaryLambda")
     private final Function<org.apache.iceberg.Schema, DatumReader<?>> defaultCreateReaderFunc =
         readSchema -> {
-          GenericAvroReader<?> reader =
-              GenericAvroReader.create(readSchema, legacyTimestampMapping);
+          GenericAvroReader<?> reader = GenericAvroReader.create(readSchema);
           reader.setClassLoader(loader);
           return reader;
         };
@@ -693,11 +683,6 @@ public class Avro {
           createReaderFunc == null && createResolvingReaderFunc == null,
           "Cannot set multiple read builder functions");
       this.createReaderBiFunc = readerFunction;
-      return this;
-    }
-
-    ReadBuilder legacyTimestampMapping(boolean newLegacyTimestampMapping) {
-      this.legacyTimestampMapping = newLegacyTimestampMapping;
       return this;
     }
 
@@ -773,15 +758,9 @@ public class Avro {
       if (createReaderBiFunc != null) {
         reader =
             new ProjectionDatumReader<>(
-                avroSchema -> createReaderBiFunc.apply(schema, avroSchema),
-                schema,
-                renames,
-                null,
-                legacyTimestampMapping);
+                avroSchema -> createReaderBiFunc.apply(schema, avroSchema), schema, renames, null);
       } else if (createReaderFunc != null) {
-        reader =
-            new ProjectionDatumReader<>(
-                createReaderFunc, schema, renames, null, legacyTimestampMapping);
+        reader = new ProjectionDatumReader<>(createReaderFunc, schema, renames, null);
       } else if (createResolvingReaderFunc != null) {
         reader = (DatumReader<D>) createResolvingReaderFunc.apply(schema);
       } else {
