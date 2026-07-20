@@ -651,6 +651,7 @@ public class Avro {
     private Function<Schema, DatumReader<?>> createReaderFunc = null;
     private BiFunction<org.apache.iceberg.Schema, Schema, DatumReader<?>> createReaderBiFunc = null;
     private Function<org.apache.iceberg.Schema, DatumReader<?>> createResolvingReaderFunc = null;
+    private boolean legacyTimestampMapping = true;
 
     @SuppressWarnings("UnnecessaryLambda")
     private final Function<org.apache.iceberg.Schema, DatumReader<?>> defaultCreateReaderFunc =
@@ -691,6 +692,11 @@ public class Avro {
           createReaderFunc == null && createResolvingReaderFunc == null,
           "Cannot set multiple read builder functions");
       this.createReaderBiFunc = readerFunction;
+      return this;
+    }
+
+    ReadBuilder legacyTimestampMapping(boolean newLegacyTimestampMapping) {
+      this.legacyTimestampMapping = newLegacyTimestampMapping;
       return this;
     }
 
@@ -766,9 +772,15 @@ public class Avro {
       if (createReaderBiFunc != null) {
         reader =
             new ProjectionDatumReader<>(
-                avroSchema -> createReaderBiFunc.apply(schema, avroSchema), schema, renames, null);
+                avroSchema -> createReaderBiFunc.apply(schema, avroSchema),
+                schema,
+                renames,
+                null,
+                legacyTimestampMapping);
       } else if (createReaderFunc != null) {
-        reader = new ProjectionDatumReader<>(createReaderFunc, schema, renames, null);
+        reader =
+            new ProjectionDatumReader<>(
+                createReaderFunc, schema, renames, null, legacyTimestampMapping);
       } else if (createResolvingReaderFunc != null) {
         reader = (DatumReader<D>) createResolvingReaderFunc.apply(schema);
       } else {
