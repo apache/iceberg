@@ -60,9 +60,7 @@ public class GenericManifestFile extends SupportsIndexProjection
   private PartitionFieldSummary[] partitions = null;
   private byte[] keyMetadata = null;
   private Long firstRowId = null;
-  // v4+ root-manifest entry count; null for pre-v4 manifest list entries.
   private Long recordCount = null;
-  // LEGACY_FORMAT_VERSION (0) for pre-v4 manifests; the table format version for v4+.
   private int formatVersion = LEGACY_FORMAT_VERSION;
 
   /** Used by Avro reflection to instantiate this class when reading manifest files. */
@@ -98,7 +96,7 @@ public class GenericManifestFile extends SupportsIndexProjection
     this.firstRowId = null;
   }
 
-  /** Adjust the arg order to avoid conflict with the public constructor below */
+  /** Pre-v4 constructor. */
   GenericManifestFile(
       String path,
       long length,
@@ -116,32 +114,29 @@ public class GenericManifestFile extends SupportsIndexProjection
       Integer deletedFilesCount,
       Long deletedRowsCount,
       Long firstRowId) {
-    this(
-        path,
-        length,
-        specId,
-        content,
-        sequenceNumber,
-        minSequenceNumber,
-        snapshotId,
-        partitions,
-        keyMetadata,
-        addedFilesCount,
-        addedRowsCount,
-        existingFilesCount,
-        existingRowsCount,
-        deletedFilesCount,
-        deletedRowsCount,
-        firstRowId,
-        null /* recordCount */,
-        LEGACY_FORMAT_VERSION);
+    super(ManifestFile.schema().columns().size());
+    this.avroSchema = AVRO_SCHEMA;
+    this.manifestPath = path;
+    this.length = length;
+    this.specId = specId;
+    this.content = content;
+    this.sequenceNumber = sequenceNumber;
+    this.minSequenceNumber = minSequenceNumber;
+    this.snapshotId = snapshotId;
+    this.addedFilesCount = addedFilesCount;
+    this.addedRowsCount = addedRowsCount;
+    this.existingFilesCount = existingFilesCount;
+    this.existingRowsCount = existingRowsCount;
+    this.deletedFilesCount = deletedFilesCount;
+    this.deletedRowsCount = deletedRowsCount;
+    this.partitions = partitions == null ? null : partitions.toArray(new PartitionFieldSummary[0]);
+    this.keyMetadata = ByteBuffers.toByteArray(keyMetadata);
+    this.firstRowId = firstRowId;
+    this.recordCount = null;
+    this.formatVersion = LEGACY_FORMAT_VERSION;
   }
 
-  /**
-   * v4+ constructor variant that accepts the v4+ {@code recordCount} and {@code formatVersion}
-   * fields. Pre-v4 callers should use the constructor without these parameters (which defaults
-   * recordCount to null and formatVersion to {@link #LEGACY_FORMAT_VERSION}).
-   */
+  /** v4+ constructor variant that accepts recordCount and formatVersion. */
   GenericManifestFile(
       String path,
       long length,

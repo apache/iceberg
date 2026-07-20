@@ -34,28 +34,14 @@ import org.apache.iceberg.util.StructProjection;
 /**
  * Adapts between the {@link TrackedFile} row and the {@link DataFile} / {@link DeleteFile} / {@link
  * ManifestFile} APIs in both directions.
- *
- * <p>Read direction: {@link #asDataFile}, {@link #asDVDeleteFile}, {@link #asEqualityDeleteFile}
- * present a {@link TrackedFile} row read from a v4 manifest as the corresponding legacy content
- * file.
- *
- * <p>Write direction: {@link #forDataFile}, {@link #forEqualityDeleteFile}, {@link
- * #forManifestReference} return reusable wrappers that present a source object as a {@link
- * TrackedFile}. Each writer holds a single instance and rebinds the wrapped source via {@code
- * wrap(...)} for every row, matching the {@link V3Metadata.ManifestEntryWrapper} pattern used by
- * {@code ManifestWriter.V3Writer} / {@code V4Writer}.
  */
 class TrackedFileAdapters {
 
-  // TrackedFile field count for the wrapper's StructLike view, derived from the persisted schema so
-  // it stays in sync if fields are added or removed.
   private static final int TRACKED_FILE_FIELD_COUNT =
       TrackedFile.schemaWithContentStats(Types.StructType.of(), Types.StructType.of())
           .fields()
           .size();
 
-  // ManifestInfo field count for the wrapper's StructLike view, derived from the persisted
-  // manifest_info schema.
   private static final int MANIFEST_INFO_FIELD_COUNT = ManifestInfo.schema().fields().size();
 
   private TrackedFileAdapters() {}
@@ -89,7 +75,9 @@ class TrackedFileAdapters {
    * Instantiate once per writer; call {@code wrap} on each row with a caller-supplied {@link
    * Tracking}.
    *
-   * @param formatVersion the table's format version at commit time (must be v4 or higher)
+   * @param formatVersion the target table's format version at commit time (must be v4 or higher).
+   *     The source file may be pre-v4 (e.g., during migration or when existing pre-v4 files are
+   *     carried into a new v4 manifest).
    * @param tableSchema table schema for building {@link ContentStats} from the file's stats
    * @param metricsConfig the table's metrics config, used to prune the content stats schema to the
    *     columns that carry stats
@@ -110,7 +98,9 @@ class TrackedFileAdapters {
    * TrackedFile} row. Rejects non-{@code EQUALITY_DELETES} inputs on {@code wrap} (v3 DVs and v2
    * position deletes have no v4 leaf representation).
    *
-   * @param formatVersion the table's format version at commit time (must be v4 or higher)
+   * @param formatVersion the target table's format version at commit time (must be v4 or higher).
+   *     The source file may be pre-v4 (e.g., during migration or when existing pre-v4 files are
+   *     carried into a new v4 manifest).
    * @param tableSchema table schema for building {@link ContentStats} from the file's stats
    * @param metricsConfig the table's metrics config, used to prune the content stats schema to the
    *     columns that carry stats
@@ -581,7 +571,7 @@ class TrackedFileAdapters {
 
     @Override
     public Integer sortOrderId() {
-      return file.sortOrderId();
+      return null;
     }
 
     @Override
@@ -649,8 +639,9 @@ class TrackedFileAdapters {
     }
 
     /**
-     * Wraps a data file with caller-supplied tracking. The caller builds the {@link Tracking} to
-     * encode the entry's status and sequence numbers.
+     * Re-points this wrapper at {@code newFile} in place and returns {@code this} for fluent usage
+     * (e.g. {@code writer.append(wrapper.wrap(file, tracking))}). The caller builds the {@link
+     * Tracking} to encode the entry's status and sequence numbers.
      */
     public DataTrackedFile wrap(DataFile newFile, Tracking tracking) {
       wrapWithTracking(newFile, tracking);
@@ -669,6 +660,11 @@ class TrackedFileAdapters {
     public FileContent contentType() {
       return FileContent.DATA;
     }
+
+    @Override
+    public Integer sortOrderId() {
+      return file().sortOrderId();
+    }
   }
 
   /** Wraps an equality {@link DeleteFile} as a {@link TrackedFile} row. */
@@ -682,7 +678,8 @@ class TrackedFileAdapters {
     }
 
     /**
-     * Wraps an equality delete file with caller-supplied tracking. The caller builds the {@link
+     * Re-points this wrapper at {@code newFile} in place and returns {@code this} for fluent usage
+     * (e.g. {@code writer.append(wrapper.wrap(file, tracking))}). The caller builds the {@link
      * Tracking} to encode the entry's status and sequence numbers.
      */
     public EqualityDeleteTrackedFile wrap(DeleteFile newFile, Tracking tracking) {
@@ -692,8 +689,6 @@ class TrackedFileAdapters {
 
     @Override
     void validateContent(DeleteFile newFile) {
-      // v4+ leaf delete manifests carry only equality deletes. DVs colocate on the data file's
-      // TrackedFile row; v2 position delete files have no v4 leaf representation.
       Preconditions.checkArgument(
           newFile.content() == FileContent.EQUALITY_DELETES,
           "Invalid content for delete file: %s",
@@ -703,11 +698,6 @@ class TrackedFileAdapters {
     @Override
     public FileContent contentType() {
       return FileContent.EQUALITY_DELETES;
-    }
-
-    @Override
-    public Integer sortOrderId() {
-      return null;
     }
 
     @Override
@@ -727,7 +717,8 @@ class TrackedFileAdapters {
     ManifestTrackedFile() {}
 
     /**
-     * Wraps a manifest reference row.
+     * Re-points this wrapper at {@code newManifest} in place and returns {@code this} for fluent
+     * usage.
      *
      * @param newManifest manifest file being referenced; must carry an assigned {@code
      *     sequence_number} and {@code min_sequence_number}
@@ -907,6 +898,9 @@ class TrackedFileAdapters {
       return zeroIfNull(manifest.deletedFilesCount());
     }
 
+    // TODO: GenericManifestFile doesn't yet plumb REPLACED aggregates, so replacedFilesCount() and
+    // replacedRowsCount() resolve to 0 today. Wire the aggregation from leaf-manifest writers up to
+    // the manifest_list entry in a follow-up.
     @Override
     public int replacedFilesCount() {
       return zeroIfNull(manifest.replacedFilesCount());

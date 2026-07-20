@@ -29,7 +29,7 @@ import org.apache.iceberg.types.Types;
 public interface ManifestFile {
   int PARTITION_SUMMARIES_ELEMENT_ID = 508;
 
-  /** Value of {@link #formatVersion()} for pre-v4 manifest files (v1, v2, and v3). */
+  /** Format version for pre-v4 manifest files. */
   int LEGACY_FORMAT_VERSION = 0;
 
   Types.NestedField PATH =
@@ -229,7 +229,7 @@ public interface ManifestFile {
     return null;
   }
 
-  /** Returns the number of records in the manifest file, or null for pre-v4 manifests. */
+  /** Returns the number of entries in the manifest file, or null for pre-v4 manifests. */
   default Long recordCount() {
     return null;
   }
