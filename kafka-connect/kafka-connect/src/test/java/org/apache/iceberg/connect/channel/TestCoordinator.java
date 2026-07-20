@@ -409,31 +409,36 @@ public class TestCoordinator extends ChannelTestBase {
     SinkTaskContext context = mock(SinkTaskContext.class);
     Coordinator coordinator =
         new Coordinator(catalog, config, ImmutableList.of(), clientFactory, context);
-    coordinator.start();
+    try {
+      coordinator.start();
 
-    initConsumer();
+      initConsumer();
 
-    coordinator.process();
+      coordinator.process();
 
-    assertThat(coordinator.partialCommitFailureCount()).isEqualTo(0);
+      assertThat(coordinator.partialCommitFailureCount()).isEqualTo(0);
 
-    UUID commitId =
-        ((StartCommit) AvroUtil.decode(producer.history().get(0).value()).payload()).commitId();
-    Event commitResponse =
-        new Event(
-            config.connectGroupId(),
-            new DataWritten(
-                StructType.of(),
-                commitId,
-                TableReference.of("catalog", TableIdentifier.of("db", "tbl"), null),
-                ImmutableList.of(EventTestUtil.createDataFile()),
-                ImmutableList.of()));
-    byte[] bytes = AvroUtil.encode(commitResponse);
-    consumer.addRecord(new ConsumerRecord<>(CTL_TOPIC_NAME, 0, 1, "key", bytes));
+      UUID commitId =
+          ((StartCommit) AvroUtil.decode(producer.history().get(0).value()).payload()).commitId();
+      Event commitResponse =
+          new Event(
+              config.connectGroupId(),
+              new DataWritten(
+                  StructType.of(),
+                  commitId,
+                  TableReference.of("catalog", TableIdentifier.of("db", "tbl"), null),
+                  ImmutableList.of(EventTestUtil.createDataFile()),
+                  ImmutableList.of()));
+      byte[] bytes = AvroUtil.encode(commitResponse);
+      consumer.addRecord(new ConsumerRecord<>(CTL_TOPIC_NAME, 0, 1, "key", bytes));
 
-    coordinator.process();
+      coordinator.process();
 
-    assertThat(coordinator.partialCommitFailureCount()).isEqualTo(1);
+      assertThat(coordinator.partialCommitFailureCount()).isEqualTo(1);
+    } finally {
+      coordinator.terminate();
+      coordinator.stop();
+    }
   }
 
   @Test

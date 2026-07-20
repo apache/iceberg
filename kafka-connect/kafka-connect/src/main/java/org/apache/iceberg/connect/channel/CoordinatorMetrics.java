@@ -42,22 +42,24 @@ class CoordinatorMetrics extends ChannelMetrics {
       this.fullCommitTime =
           createTimerSensor(
               "commit-time",
-              "Time spent in Coordinator.commit() in ms",
+              "Time spent in Coordinator.commit() in microseconds",
               metricTags(connector, TASK, FULL));
       this.partialCommitTime =
           createTimerSensor(
               "commit-time",
-              "Time spent in Coordinator.commit() in ms",
+              "Time spent in Coordinator.commit() in microseconds",
               metricTags(connector, TASK, PARTIAL));
+      // Counters are bumped only after send() succeeds, so they count events successfully emitted;
+      // a failed send leaves them unmoved even though the commit is already in progress.
       this.startCommit =
           createCounterSensor(
               "start-commit",
-              "Number of START_COMMIT events emitted",
+              "Number of successfully emitted START_COMMIT events",
               metricTags(connector, TASK, null));
       this.commitComplete =
           createCounterSensor(
               "commit-complete",
-              "Number of COMMIT_COMPLETE events emitted",
+              "Number of successfully emitted COMMIT_COMPLETE events",
               metricTags(connector, TASK, null));
 
       addGauge(

@@ -84,36 +84,40 @@ public class TestWorker extends ChannelTestBase {
       when(sinkWriter.completeWrite()).thenReturn(sinkWriterResult);
 
       Worker worker = new Worker(config, clientFactory, sinkWriter, context);
-      worker.start();
+      try {
+        worker.start();
 
-      // init consumer after subscribe()
-      initConsumer();
+        // init consumer after subscribe()
+        initConsumer();
 
-      // save a record
-      Map<String, Object> value = ImmutableMap.of();
-      SinkRecord rec = new SinkRecord(SRC_TOPIC_NAME, 0, null, "key", null, value, 0L);
-      worker.save(ImmutableList.of(rec));
+        // save a record
+        Map<String, Object> value = ImmutableMap.of();
+        SinkRecord rec = new SinkRecord(SRC_TOPIC_NAME, 0, null, "key", null, value, 0L);
+        worker.save(ImmutableList.of(rec));
 
-      UUID commitId = UUID.randomUUID();
-      Event commitRequest = new Event(config.connectGroupId(), new StartCommit(commitId));
-      byte[] bytes = AvroUtil.encode(commitRequest);
-      consumer.addRecord(new ConsumerRecord<>(CTL_TOPIC_NAME, 0, 1, "key", bytes));
+        UUID commitId = UUID.randomUUID();
+        Event commitRequest = new Event(config.connectGroupId(), new StartCommit(commitId));
+        byte[] bytes = AvroUtil.encode(commitRequest);
+        consumer.addRecord(new ConsumerRecord<>(CTL_TOPIC_NAME, 0, 1, "key", bytes));
 
-      worker.process();
+        worker.process();
 
-      assertThat(producer.history()).hasSize(2);
+        assertThat(producer.history()).hasSize(2);
 
-      Event event = AvroUtil.decode(producer.history().get(0).value());
-      assertThat(event.payload().type()).isEqualTo(PayloadType.DATA_WRITTEN);
-      DataWritten dataWritten = (DataWritten) event.payload();
-      assertThat(dataWritten.commitId()).isEqualTo(commitId);
+        Event event = AvroUtil.decode(producer.history().get(0).value());
+        assertThat(event.payload().type()).isEqualTo(PayloadType.DATA_WRITTEN);
+        DataWritten dataWritten = (DataWritten) event.payload();
+        assertThat(dataWritten.commitId()).isEqualTo(commitId);
 
-      event = AvroUtil.decode(producer.history().get(1).value());
-      assertThat(event.type()).isEqualTo(PayloadType.DATA_COMPLETE);
-      DataComplete dataComplete = (DataComplete) event.payload();
-      assertThat(dataComplete.commitId()).isEqualTo(commitId);
-      assertThat(dataComplete.assignments()).hasSize(1);
-      assertThat(dataComplete.assignments().get(0).offset()).isEqualTo(1L);
+        event = AvroUtil.decode(producer.history().get(1).value());
+        assertThat(event.type()).isEqualTo(PayloadType.DATA_COMPLETE);
+        DataComplete dataComplete = (DataComplete) event.payload();
+        assertThat(dataComplete.commitId()).isEqualTo(commitId);
+        assertThat(dataComplete.assignments()).hasSize(1);
+        assertThat(dataComplete.assignments().get(0).offset()).isEqualTo(1L);
+      } finally {
+        worker.stop();
+      }
     }
   }
 

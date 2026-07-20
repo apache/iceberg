@@ -130,14 +130,13 @@ abstract class Channel {
 
             long readStart = System.nanoTime();
             Event event = AvroUtil.decode(record.value());
-            getChannelMetrics().recordMessageRead((System.nanoTime() - readStart) / 1_000_000L);
+            getChannelMetrics().recordMessageRead((System.nanoTime() - readStart) / 1_000L);
 
             if (event.groupId().equals(connectGroupId)) {
               LOG.debug("Received event of type: {}", event.type().name());
               long processStart = System.nanoTime();
               boolean handled = receive(new Envelope(event, record.partition(), record.offset()));
-              getChannelMetrics()
-                  .recordMessageProcess((System.nanoTime() - processStart) / 1_000_000L);
+              getChannelMetrics().recordMessageProcess((System.nanoTime() - processStart) / 1_000L);
               if (handled) {
                 LOG.info("Handled event of type: {}", event.type().name());
               }

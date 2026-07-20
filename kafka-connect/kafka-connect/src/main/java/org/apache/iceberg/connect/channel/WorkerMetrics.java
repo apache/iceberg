@@ -33,12 +33,18 @@ class WorkerMetrics extends ChannelMetrics {
     super(GROUP, connector, task);
     Map<String, String> tags = metricTags(connector, task, null);
     try {
-      this.saveTime = createTimerSensor("save-time", "Time spent in Worker.save() in ms", tags);
+      this.saveTime =
+          createTimerSensor("save-time", "Time spent in Worker.save() in microseconds", tags);
+      // Counters are bumped only after send() succeeds, so they count events successfully emitted;
+      // a failed send leaves them unmoved even though the files are already on disk.
       this.dataWritten =
           createCounterSensor(
-              "data-written", "Number of data/delete files reported in DATA_WRITTEN events", tags);
+              "data-written",
+              "Number of data/delete files in successfully emitted DATA_WRITTEN events",
+              tags);
       this.dataComplete =
-          createCounterSensor("data-complete", "Number of DATA_COMPLETE events emitted", tags);
+          createCounterSensor(
+              "data-complete", "Number of successfully emitted DATA_COMPLETE events", tags);
     } catch (RuntimeException e) {
       closeQuietly(e);
       throw e;

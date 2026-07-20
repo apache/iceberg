@@ -205,7 +205,7 @@ class Coordinator extends Channel {
           e);
     } finally {
       commitState.endCurrentCommit();
-      coordinatorMetrics.recordCommit(partialCommit, (System.nanoTime() - start) / 1_000_000L);
+      coordinatorMetrics.recordCommit(partialCommit, (System.nanoTime() - start) / 1_000L);
     }
   }
 
