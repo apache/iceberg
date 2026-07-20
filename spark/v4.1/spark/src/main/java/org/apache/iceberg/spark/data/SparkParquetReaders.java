@@ -68,6 +68,8 @@ import org.apache.spark.sql.catalyst.util.STUtils;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.Decimal;
 import org.apache.spark.sql.types.GeometryType$;
+import org.apache.spark.sql.types.StructField;
+import org.apache.spark.sql.types.StructType;
 import org.apache.spark.unsafe.types.CalendarInterval;
 import org.apache.spark.unsafe.types.GeographyVal;
 import org.apache.spark.unsafe.types.GeometryVal;
@@ -79,28 +81,38 @@ public class SparkParquetReaders {
 
   public static ParquetValueReader<InternalRow> buildReader(
       Schema expectedSchema, MessageType fileSchema) {
-    return buildReader(expectedSchema, fileSchema, ImmutableMap.of());
+    return buildReader(expectedSchema, fileSchema, null, ImmutableMap.of());
+  }
+
+  public static ParquetValueReader<InternalRow> buildReader(
+      Schema expectedSchema, MessageType fileSchema, Map<Integer, ?> idToConstant) {
+    return buildReader(expectedSchema, fileSchema, null, idToConstant);
   }
 
   @SuppressWarnings("unchecked")
   public static ParquetValueReader<InternalRow> buildReader(
-      Schema expectedSchema, MessageType fileSchema, Map<Integer, ?> idToConstant) {
+      Schema expectedSchema,
+      MessageType fileSchema,
+      StructType engineSchema,
+      Map<Integer, ?> idToConstant) {
     if (ParquetSchemaUtil.hasIds(fileSchema)) {
       return (ParquetValueReader<InternalRow>)
           TypeWithSchemaVisitor.visit(
-              expectedSchema.asStruct(), fileSchema, new ReadBuilder(fileSchema, idToConstant));
+              expectedSchema.asStruct(),
+              fileSchema,
+              new ReadBuilder(fileSchema, engineSchema, idToConstant));
     } else {
       return (ParquetValueReader<InternalRow>)
           TypeWithSchemaVisitor.visit(
               expectedSchema.asStruct(),
               fileSchema,
-              new FallbackReadBuilder(fileSchema, idToConstant));
+              new FallbackReadBuilder(fileSchema, engineSchema, idToConstant));
     }
   }
 
   private static class FallbackReadBuilder extends ReadBuilder {
-    FallbackReadBuilder(MessageType type, Map<Integer, ?> idToConstant) {
-      super(type, idToConstant);
+    FallbackReadBuilder(MessageType type, StructType engineSchema, Map<Integer, ?> idToConstant) {
+      super(type, engineSchema, idToConstant);
     }
 
     @Override
@@ -129,11 +141,21 @@ public class SparkParquetReaders {
 
   private static class ReadBuilder extends TypeWithSchemaVisitor<ParquetValueReader<?>> {
     private final MessageType type;
+    private final Map<String, StructField> engineFieldsByName;
     private final Map<Integer, ?> idToConstant;
 
-    ReadBuilder(MessageType type, Map<Integer, ?> idToConstant) {
+    ReadBuilder(MessageType type, StructType engineSchema, Map<Integer, ?> idToConstant) {
       this.type = type;
       this.idToConstant = idToConstant;
+      if (engineSchema != null) {
+        ImmutableMap.Builder<String, StructField> builder = ImmutableMap.builder();
+        for (StructField field : engineSchema.fields()) {
+          builder.put(field.name(), field);
+        }
+        this.engineFieldsByName = builder.buildOrThrow();
+      } else {
+        this.engineFieldsByName = ImmutableMap.of();
+      }
     }
 
     @Override
@@ -232,13 +254,39 @@ public class SparkParquetReaders {
 
     @Override
     public ParquetVariantVisitor<ParquetValueReader<?>> variantVisitor() {
+      StructField engineField = engineFieldForCurrentVariantColumn();
+      if (engineField != null
+          && SparkVariantExtractionUtil.isVariantExtractionStruct(engineField.dataType())) {
+        // Selective extraction reader is built in variant(); skip full variant tree.
+        return null;
+      }
+
       return new VariantReaderBuilder(type, Arrays.asList(currentPath()));
     }
 
     @Override
     public ParquetValueReader<?> variant(
         Types.VariantType iVariant, GroupType variant, ParquetValueReader<?> variantReader) {
+      StructField engineField = engineFieldForCurrentVariantColumn();
+      if (engineField != null
+          && SparkVariantExtractionUtil.isVariantExtractionStruct(engineField.dataType())) {
+        return SparkVariantExtractionReaders.buildStructReader(
+            type,
+            variant,
+            Lists.newArrayList(fieldNames.descendingIterator()),
+            (StructType) engineField.dataType());
+      }
+
       return new VariantReader(variantReader);
+    }
+
+    private StructField engineFieldForCurrentVariantColumn() {
+      String fieldName = fieldNames.peek();
+      if (fieldName == null) {
+        return null;
+      }
+
+      return engineFieldsByName.get(fieldName);
     }
 
     @Override
