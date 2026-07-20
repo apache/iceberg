@@ -78,6 +78,25 @@ class Truncate<T> implements Transform<T, T>, Function<T, T> {
     return width;
   }
 
+  /**
+   * Classifies a string truncate predicate by the literal length relative to the truncate width.
+   *
+   * <p>This is the single source of truth for the {@code < width / == width / > width} decision. It
+   * is shared by {@link TruncateString#project} / {@link TruncateString#projectStrict} (projecting
+   * a {@code startsWith} predicate onto a truncate partition) and by predicate binding (rewriting
+   * {@code truncate(col) == v} to an equivalent predicate on the source column) so the two can
+   * never diverge.
+   */
+  static Transforms.StringTruncateRewrite lengthRewrite(int literalLength, int width) {
+    if (literalLength < width) {
+      return Transforms.StringTruncateRewrite.EXACT;
+    } else if (literalLength == width) {
+      return Transforms.StringTruncateRewrite.STARTS_WITH;
+    } else {
+      return Transforms.StringTruncateRewrite.NONE;
+    }
+  }
+
   @Override
   public T apply(T value) {
     throw new UnsupportedOperationException(
@@ -328,22 +347,34 @@ class Truncate<T> implements Transform<T, T>, Function<T, T> {
         BoundLiteralPredicate<CharSequence> pred = predicate.asLiteralPredicate();
         switch (pred.op()) {
           case STARTS_WITH:
-            if (pred.literal().value().length() < width()) {
-              return Expressions.predicate(pred.op(), name, pred.literal().value());
-            } else if (pred.literal().value().length() == width()) {
-              return Expressions.equal(name, pred.literal().value());
+            switch (Truncate.lengthRewrite(pred.literal().value().length(), width())) {
+              case EXACT:
+                return Expressions.predicate(pred.op(), name, pred.literal().value());
+              case STARTS_WITH:
+                return Expressions.equal(name, pred.literal().value());
+              default:
+                return ProjectionUtil.truncateArray(name, pred, this);
             }
-
-            return ProjectionUtil.truncateArray(name, pred, this);
 
           case NOT_STARTS_WITH:
-            if (pred.literal().value().length() < width()) {
-              return Expressions.predicate(pred.op(), name, pred.literal().value());
-            } else if (pred.literal().value().length() == width()) {
-              return Expressions.notEqual(name, pred.literal().value());
+            switch (Truncate.lengthRewrite(pred.literal().value().length(), width())) {
+              case EXACT:
+                return Expressions.predicate(pred.op(), name, pred.literal().value());
+              case STARTS_WITH:
+                return Expressions.notEqual(name, pred.literal().value());
+              default:
+                return null;
             }
 
-            return null;
+          case EQ:
+          case NOT_EQ:
+            // when the literal is shorter than the truncate width, truncate(col) == v is
+            // equivalent to col == v, so the predicate projects exactly onto the partition value
+            if (Truncate.lengthRewrite(pred.literal().value().length(), width())
+                == Transforms.StringTruncateRewrite.EXACT) {
+              return Expressions.predicate(pred.op(), name, pred.literal().value());
+            }
+            return ProjectionUtil.truncateArray(name, pred, this);
 
           default:
             return ProjectionUtil.truncateArray(name, pred, this);
@@ -367,22 +398,35 @@ class Truncate<T> implements Transform<T, T>, Function<T, T> {
         BoundLiteralPredicate<CharSequence> pred = predicate.asLiteralPredicate();
         switch (pred.op()) {
           case STARTS_WITH:
-            if (pred.literal().value().length() < width()) {
-              return Expressions.predicate(pred.op(), name, pred.literal().value());
-            } else if (pred.literal().value().length() == width()) {
-              return Expressions.equal(name, pred.literal().value());
+            switch (Truncate.lengthRewrite(pred.literal().value().length(), width())) {
+              case EXACT:
+                return Expressions.predicate(pred.op(), name, pred.literal().value());
+              case STARTS_WITH:
+                return Expressions.equal(name, pred.literal().value());
+              default:
+                return null;
             }
-
-            return null;
 
           case NOT_STARTS_WITH:
-            if (pred.literal().value().length() < width()) {
-              return Expressions.predicate(pred.op(), name, pred.literal().value());
-            } else if (pred.literal().value().length() == width()) {
-              return Expressions.notEqual(name, pred.literal().value());
+            switch (Truncate.lengthRewrite(pred.literal().value().length(), width())) {
+              case EXACT:
+                return Expressions.predicate(pred.op(), name, pred.literal().value());
+              case STARTS_WITH:
+                return Expressions.notEqual(name, pred.literal().value());
+              default:
+                return Expressions.predicate(
+                    pred.op(), name, apply(pred.literal().value()).toString());
             }
 
-            return Expressions.predicate(pred.op(), name, apply(pred.literal().value()).toString());
+          case EQ:
+          case NOT_EQ:
+            // when the literal is shorter than the truncate width, truncate(col) == v is
+            // equivalent to col == v, so the predicate projects exactly onto the partition value
+            if (Truncate.lengthRewrite(pred.literal().value().length(), width())
+                == Transforms.StringTruncateRewrite.EXACT) {
+              return Expressions.predicate(pred.op(), name, pred.literal().value());
+            }
+            return ProjectionUtil.truncateArrayStrict(name, pred, this);
 
           default:
             return ProjectionUtil.truncateArrayStrict(name, pred, this);
