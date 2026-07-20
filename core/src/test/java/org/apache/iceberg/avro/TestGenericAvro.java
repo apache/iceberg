@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.List;
 import org.apache.avro.generic.GenericData.Record;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.data.DataTestBase;
 import org.apache.iceberg.inmemory.InMemoryOutputFile;
 import org.apache.iceberg.io.FileAppender;
@@ -53,7 +54,7 @@ public class TestGenericAvro extends DataTestBase {
             Types.NestedField.required(1, "ts", Types.TimestampType.withoutZone()),
             Types.NestedField.required(2, "ts_ns", Types.TimestampNanoType.withoutZone()));
 
-    writeAndValidate(schema, false);
+    writeAndValidate(schema, true);
   }
 
   @Override
@@ -63,10 +64,10 @@ public class TestGenericAvro extends DataTestBase {
 
   @Override
   protected void writeAndValidate(Schema schema) throws IOException {
-    writeAndValidate(schema, true);
+    writeAndValidate(schema, false);
   }
 
-  private void writeAndValidate(Schema schema, boolean legacyTimestampMapping) throws IOException {
+  private void writeAndValidate(Schema schema, boolean localTimestampEnabled) throws IOException {
     List<Record> expected = RandomAvroData.generate(schema, 100, 0L);
 
     OutputFile outputFile = new InMemoryOutputFile();
@@ -74,7 +75,8 @@ public class TestGenericAvro extends DataTestBase {
         Avro.write(outputFile)
             .schema(schema)
             .named("test")
-            .legacyTimestampMapping(legacyTimestampMapping)
+            .set(
+                TableProperties.AVRO_LOCAL_TIMESTAMP_ENABLED, String.valueOf(localTimestampEnabled))
             .build()) {
       for (Record rec : expected) {
         writer.add(rec);

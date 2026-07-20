@@ -24,6 +24,7 @@ import org.apache.iceberg.InternalTestHelpers;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.RandomInternalData;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.data.DataTestBase;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.inmemory.InMemoryOutputFile;
@@ -62,7 +63,7 @@ public class TestInternalAvro extends DataTestBase {
             Types.NestedField.required(2, "ts_ns", Types.TimestampNanoType.withoutZone()));
 
     List<Record> expected = RandomInternalData.generate(schema, 100, 42L);
-    writeAndValidate(schema, schema, expected, false);
+    writeAndValidate(schema, schema, expected, true);
   }
 
   @Override
@@ -89,14 +90,14 @@ public class TestInternalAvro extends DataTestBase {
 
   protected void writeAndValidate(Schema writeSchema, Schema expectedSchema, List<Record> expected)
       throws IOException {
-    writeAndValidate(writeSchema, expectedSchema, expected, true);
+    writeAndValidate(writeSchema, expectedSchema, expected, false);
   }
 
   private void writeAndValidate(
       Schema writeSchema,
       Schema expectedSchema,
       List<Record> expected,
-      boolean legacyTimestampMapping)
+      boolean localTimestampEnabled)
       throws IOException {
     OutputFile outputFile = new InMemoryOutputFile();
 
@@ -104,7 +105,8 @@ public class TestInternalAvro extends DataTestBase {
         Avro.writeData(outputFile)
             .schema(writeSchema)
             .createWriterFunc(InternalWriter::create)
-            .legacyTimestampMapping(legacyTimestampMapping)
+            .set(
+                TableProperties.AVRO_LOCAL_TIMESTAMP_ENABLED, String.valueOf(localTimestampEnabled))
             .overwrite()
             .withSpec(PartitionSpec.unpartitioned())
             .build()) {

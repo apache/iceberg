@@ -65,7 +65,7 @@ public class ManifestFiles {
               GenericManifestFile.class.getName(),
               ManifestFile.PARTITION_SUMMARY_TYPE,
               GenericPartitionFieldSummary.class.getName()),
-          true);
+          false);
 
   @VisibleForTesting
   static Caffeine<Object, Object> newManifestCacheBuilder() {
@@ -411,7 +411,7 @@ public class ManifestFiles {
    * @throws IOException if encounter any IO error when decoding.
    */
   public static ManifestFile decode(byte[] manifestData) throws IOException {
-    return AvroEncoderUtil.decode(manifestData, true);
+    return AvroEncoderUtil.decode(manifestData, false);
   }
 
   static ManifestReader<?> open(
