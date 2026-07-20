@@ -139,7 +139,7 @@ class Worker extends Channel {
     try {
       sinkWriter.save(sinkRecords);
     } finally {
-      workerMetrics.recordSave((System.nanoTime() - start) / 1_000_000L);
+      workerMetrics.recordSave((System.nanoTime() - start) / 1_000L);
     }
   }
 }

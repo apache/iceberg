@@ -67,10 +67,14 @@ abstract class ChannelMetrics implements AutoCloseable {
     try {
       this.messageReadTime =
           createTimerSensor(
-              "channel-message-read-time", "Time to Avro-decode one control message in ms", tags);
+              "channel-message-read-time",
+              "Time to Avro-decode one control message in microseconds",
+              tags);
       this.messageProcessTime =
           createTimerSensor(
-              "channel-message-process-time", "Time to process one control message in ms", tags);
+              "channel-message-process-time",
+              "Time to process one control message in microseconds",
+              tags);
     } catch (RuntimeException e) {
       closeQuietly(e);
       throw e;
