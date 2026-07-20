@@ -125,6 +125,13 @@ class StatsUtil {
     return statId % NUM_RESERVED_FIELD_STATS_IDS;
   }
 
+  /**
+   * Returns whether the field stats struct for the given field ID tracks the metric at the offset.
+   */
+  static boolean tracksStat(Types.StructType fieldStatsType, int fieldId, int statOffset) {
+    return fieldStatsType.field(toBaseId(fieldId) + statOffset) != null;
+  }
+
   public static Types.NestedField contentStatsField(Types.StructType contentStats) {
     return optional(146, "content_stats", contentStats);
   }

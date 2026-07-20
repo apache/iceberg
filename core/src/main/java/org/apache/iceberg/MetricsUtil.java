@@ -501,7 +501,10 @@ public class MetricsUtil {
 
     Map<Integer, Long> result = Maps.newHashMap();
     for (FieldStats<?> fs : stats.fieldStats()) {
-      if (fs != null) {
+      // null_value_count is only stored for optional (nullable) columns; skip columns that do not
+      // track it so the primitive nullValueCount() accessor is never called on an absent value.
+      if (fs != null
+          && StatsUtil.tracksStat(fs.type(), fs.fieldId(), StatsUtil.NULL_VALUE_COUNT_OFFSET)) {
         result.put(fs.fieldId(), fs.nullValueCount());
       }
     }

@@ -592,4 +592,23 @@ public class TestStatsUtil {
       }
     }
   }
+
+  @Test
+  public void testTracksStat() {
+    Schema schema =
+        new Schema(
+            Types.NestedField.required(1, "req", Types.LongType.get()),
+            Types.NestedField.optional(2, "opt", Types.LongType.get()));
+    Types.StructType stats = StatsUtil.statsReadSchema(schema, List.of(1, 2));
+    Types.StructType reqStats = stats.field("req").type().asStructType();
+    Types.StructType optStats = stats.field("opt").type().asStructType();
+
+    // value_count is tracked for every column
+    assertThat(StatsUtil.tracksStat(reqStats, 1, StatsUtil.VALUE_COUNT_OFFSET)).isTrue();
+    assertThat(StatsUtil.tracksStat(optStats, 2, StatsUtil.VALUE_COUNT_OFFSET)).isTrue();
+
+    // null_value_count is tracked only for optional (nullable) columns
+    assertThat(StatsUtil.tracksStat(reqStats, 1, StatsUtil.NULL_VALUE_COUNT_OFFSET)).isFalse();
+    assertThat(StatsUtil.tracksStat(optStats, 2, StatsUtil.NULL_VALUE_COUNT_OFFSET)).isTrue();
+  }
 }
