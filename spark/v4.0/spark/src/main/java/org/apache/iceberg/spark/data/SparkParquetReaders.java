@@ -156,34 +156,16 @@ public class SparkParquetReaders {
         }
       }
 
-      int constantDefinitionLevel = type.getMaxDefinitionLevel(currentPath());
-      List<Types.NestedField> expectedFields = expected.fields();
       List<ParquetValueReader<?>> reorderedFields =
-          Lists.newArrayListWithExpectedSize(expectedFields.size());
-
-      for (Types.NestedField field : expectedFields) {
-        int id = field.fieldId();
-        ParquetValueReader<?> reader =
-            ParquetValueReaders.replaceWithMetadataReader(
-                id, readersById.get(id), idToConstant, constantDefinitionLevel);
-        reorderedFields.add(defaultReader(field, reader, constantDefinitionLevel));
-      }
+          ParquetValueReaders.structFieldReaders(
+              type,
+              currentPath(),
+              expected.fields(),
+              readersById,
+              idToConstant,
+              SparkUtil::internalToSpark);
 
       return new InternalRowReader(reorderedFields);
-    }
-
-    private ParquetValueReader<?> defaultReader(
-        Types.NestedField field, ParquetValueReader<?> reader, int constantDL) {
-      if (reader != null) {
-        return reader;
-      } else if (field.initialDefault() != null) {
-        return ParquetValueReaders.constant(
-            SparkUtil.internalToSpark(field.type(), field.initialDefault()), constantDL);
-      } else if (field.isOptional()) {
-        return ParquetValueReaders.nulls();
-      }
-
-      throw new IllegalArgumentException(String.format("Missing required field: %s", field.name()));
     }
 
     @Override
