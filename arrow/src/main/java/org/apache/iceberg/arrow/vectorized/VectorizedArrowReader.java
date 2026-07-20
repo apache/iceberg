@@ -310,8 +310,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
         break;
       case BINARY:
         this.vec = arrowField.createVector(rootAlloc);
-        // TODO(https://github.com/apache/iceberg/issues/17305): Use uncompressed size metadata
-        // to set the initial capacity.
+        // TODO(apache/iceberg#17305): Use uncompressed size metadata to set the initial capacity.
         vec.setInitialCapacity(batchSize * AVERAGE_VARIABLE_WIDTH_RECORD_SIZE);
         vec.allocateNewSafe();
         this.readType = ReadType.VARBINARY;
@@ -631,8 +630,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
 
     private Optional<LogicalTypeVisitorResult> allocateVectorForEnumJsonBsonString() {
       FieldVector vector = arrowField.createVector(rootAlloc);
-      // TODO(https://github.com/apache/iceberg/issues/17305): Use uncompressed size metadata to
-      // set the initial capacity.
+      // TODO(apache/iceberg#17305): Use uncompressed size metadata to set the initial capacity.
       vector.setInitialCapacity(batchSize * AVERAGE_VARIABLE_WIDTH_RECORD_SIZE);
       vector.allocateNewSafe();
       return Optional.of(new LogicalTypeVisitorResult(vector, ReadType.VARCHAR, UNKNOWN_WIDTH));
@@ -640,8 +638,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
 
     private Optional<LogicalTypeVisitorResult> allocateVectorForBinaryLogicalType() {
       FieldVector vector = arrowField.createVector(rootAlloc);
-      // TODO(https://github.com/apache/iceberg/issues/17305): Use uncompressed size metadata to
-      // set the initial capacity.
+      // TODO(apache/iceberg#17305): Use uncompressed size metadata to set the initial capacity.
       vector.setInitialCapacity(batchSize * AVERAGE_VARIABLE_WIDTH_RECORD_SIZE);
       vector.allocateNewSafe();
       return Optional.of(new LogicalTypeVisitorResult(vector, ReadType.VARBINARY, UNKNOWN_WIDTH));
