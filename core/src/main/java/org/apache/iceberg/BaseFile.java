@@ -114,14 +114,14 @@ abstract class BaseFile<F> extends SupportsIndexProjection
 
   /** Used by Avro reflection to instantiate this class when reading manifest files. */
   BaseFile(Schema avroSchema) {
-    this(AvroSchemaUtil.convert(avroSchema).asStructType());
+    this(AvroSchemaUtil.convert(avroSchema, true).asStructType());
     this.avroSchema = avroSchema;
   }
 
   /** Used by internal readers to instantiate this class with a projection schema. */
   BaseFile(Types.StructType projection) {
     super(BASE_TYPE, projection);
-    this.avroSchema = AvroSchemaUtil.convert(projection, "data_file");
+    this.avroSchema = AvroSchemaUtil.convert(projection, "data_file", true);
 
     // partition type may be null if the field was not projected
     Type partType = projection.fieldType("partition");
