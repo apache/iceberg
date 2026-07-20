@@ -186,11 +186,9 @@ class FlinkOrcReaders {
     @Override
     public TimestampData nonNullRead(ColumnVector vector, int row) {
       TimestampColumnVector tcv = (TimestampColumnVector) vector;
-      LocalDateTime localDate =
-          Instant.ofEpochSecond(Math.floorDiv(tcv.time[row], 1_000), tcv.nanos[row])
-              .atOffset(ZoneOffset.UTC)
-              .toLocalDateTime();
-      return TimestampData.fromLocalDateTime(localDate);
+      return TimestampData.fromLocalDateTime(
+          LocalDateTime.ofEpochSecond(
+              Math.floorDiv(tcv.time[row], 1_000), tcv.nanos[row], ZoneOffset.UTC));
     }
   }
 
@@ -200,11 +198,8 @@ class FlinkOrcReaders {
     @Override
     public TimestampData nonNullRead(ColumnVector vector, int row) {
       TimestampColumnVector tcv = (TimestampColumnVector) vector;
-      Instant instant =
-          Instant.ofEpochSecond(Math.floorDiv(tcv.time[row], 1_000), tcv.nanos[row])
-              .atOffset(ZoneOffset.UTC)
-              .toInstant();
-      return TimestampData.fromInstant(instant);
+      return TimestampData.fromInstant(
+          Instant.ofEpochSecond(Math.floorDiv(tcv.time[row], 1_000), tcv.nanos[row]));
     }
   }
 
