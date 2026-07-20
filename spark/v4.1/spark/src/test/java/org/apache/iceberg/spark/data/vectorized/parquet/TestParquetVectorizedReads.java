@@ -83,7 +83,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
-import org.junit.jupiter.params.provider.ValueSource;
 
 public class TestParquetVectorizedReads extends AvroDataTestBase {
   private static final int NUM_ROWS = 200_000;
@@ -371,13 +370,24 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
         false);
   }
 
-  @ParameterizedTest
-  @ValueSource(booleans = {false, true})
-  public void testGeospatialTypes(boolean dictionaryEnabled) throws IOException {
+  static Stream<Arguments> geospatialTypes() {
+    return Stream.of(false, true)
+        .flatMap(
+            dictionaryEnabled ->
+                Stream.of(
+                    Arguments.of(dictionaryEnabled, "SRID:0", 0),
+                    Arguments.of(dictionaryEnabled, "EPSG:3857", 3857),
+                    Arguments.of(dictionaryEnabled, "OGC:CRS84", 4326)));
+  }
+
+  @ParameterizedTest(name = "dictionary = {0}, geometry CRS = {1}")
+  @MethodSource("geospatialTypes")
+  public void testGeospatialTypes(
+      boolean dictionaryEnabled, String geometryCrs, int expectedGeometrySrid) throws IOException {
     Schema schema =
         new Schema(
             required(1, "id", Types.LongType.get()),
-            optional(2, "geom", Types.GeometryType.of("EPSG:3857")),
+            optional(2, "geom", Types.GeometryType.of(geometryCrs)),
             optional(3, "geog", Types.GeographyType.crs84()));
 
     ByteBuffer geometryWkb = ByteBuffer.wrap(RandomUtil.wkbPoint(30, 10));
@@ -393,7 +403,9 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
     repeated.setField("geom", geometryWkb);
     repeated.setField("geog", geographyWkb);
 
-    File dataFile = temp.resolve("geo-" + dictionaryEnabled + ".parquet").toFile();
+    File dataFile =
+        temp.resolve(String.format("geo-%s-%s.parquet", dictionaryEnabled, expectedGeometrySrid))
+            .toFile();
     try (FileAppender<Record> writer =
         Parquet.write(Files.localOutput(dataFile))
             .schema(schema)
@@ -424,7 +436,7 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
 
             GeometryVal geometry = batch.column(1).getGeometry(0);
             assertThat(STUtils.stAsBinary(geometry)).isEqualTo(geometryWkb.array());
-            assertThat(STUtils.stSrid(geometry)).isEqualTo(3857);
+            assertThat(STUtils.stSrid(geometry)).isEqualTo(expectedGeometrySrid);
 
             GeographyVal geography = batch.column(2).getGeography(0);
             assertThat(STUtils.stAsBinary(geography)).isEqualTo(geographyWkb.array());
