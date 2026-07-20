@@ -78,6 +78,17 @@ interface Tracking {
         REPLACED_POSITIONS);
   }
 
+  /** Returns the tracking fields read on the scan path; row_position backs {@link #manifestPos}. */
+  static Types.StructType scanSchema() {
+    return Types.StructType.of(
+        STATUS,
+        SNAPSHOT_ID,
+        SEQUENCE_NUMBER,
+        FILE_SEQUENCE_NUMBER,
+        FIRST_ROW_ID,
+        MetadataColumns.ROW_POSITION);
+  }
+
   /** Returns the status of the entry. */
   EntryStatus status();
 

@@ -18,7 +18,7 @@
  */
 package org.apache.iceberg;
 
-import java.util.List;
+import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.expressions.Evaluator;
@@ -31,7 +31,6 @@ import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.metrics.ScanMetrics;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
@@ -40,16 +39,6 @@ import org.apache.iceberg.util.StructProjection;
 
 /** Reader that reads a v4+ manifest file as {@link TrackedFile}s. */
 class V4ManifestReader extends CloseableGroup implements CloseableIterable<TrackedFile> {
-  // tracking fields read on the scan path; row_position backs Tracking.manifestPos
-  private static final Types.StructType SCAN_TRACKING =
-      Types.StructType.of(
-          Tracking.STATUS,
-          Tracking.SNAPSHOT_ID,
-          Tracking.SEQUENCE_NUMBER,
-          Tracking.FILE_SEQUENCE_NUMBER,
-          Tracking.FIRST_ROW_ID,
-          MetadataColumns.ROW_POSITION);
-
   private final InputFile file;
   private final Schema readSchema;
   private final boolean onlyLive;
@@ -95,20 +84,24 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
     return CloseableIterable.transform(entries, TrackedFile::copy).iterator();
   }
 
-  private static boolean isManifest(TrackedFile trackedFile) {
-    FileContent content = trackedFile.contentType();
-    return content == FileContent.DATA_MANIFEST || content == FileContent.DELETE_MANIFEST;
-  }
-
   private boolean matchesPartition(TrackedFile trackedFile) {
     Integer specId = trackedFile.specId();
-    Evaluator evaluator = specId != null ? partitionEvaluators.get(specId) : null;
-    StructProjection projection = specId != null ? partitionProjections.get(specId) : null;
+    if (specId == null) {
+      // a file without a spec is not partitioned and may match the filter
+      return true;
+    }
+
+    Evaluator evaluator = partitionEvaluators.get(specId);
+    if (evaluator == null) {
+      // the row filter does not project to a partition filter for this spec
+      return true;
+    }
+
+    StructProjection projection = partitionProjections.get(specId);
     Preconditions.checkState(
-        evaluator != null && projection != null,
-        "Cannot apply partition filter: spec ID %s is not one of the known specs %s in manifest %s",
+        projection != null,
+        "Cannot produce partition tuple for spec ID %s in manifest %s",
         specId,
-        partitionEvaluators.keySet(),
         file.location());
 
     boolean matches = evaluator.eval(projection.wrap(trackedFile.partition()));
@@ -167,19 +160,25 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
     return trackedFile;
   }
 
+  private static boolean isManifest(TrackedFile trackedFile) {
+    FileContent content = trackedFile.contentType();
+    return content == FileContent.DATA_MANIFEST || content == FileContent.DELETE_MANIFEST;
+  }
+
   static class Builder {
     private final InputFile file;
-    private final Types.StructType partitionType;
+    private final Types.StructType unionPartitionType;
     private final Map<Integer, PartitionSpec> specsById;
     private Expression rowFilter = Expressions.alwaysTrue();
     private boolean caseSensitive = true;
-    private boolean onlyLive = false;
+    private boolean onlyLive = true;
+    private Collection<String> columns = null;
     private Schema fileProjection = null;
     private ScanMetrics scanMetrics = ScanMetrics.noop();
 
     private Builder(InputFile file, Map<Integer, PartitionSpec> specsById) {
       this.file = file;
-      this.partitionType = Partitioning.unionPartitionTypes(specsById.values());
+      this.unionPartitionType = Partitioning.unionPartitionTypes(specsById.values());
       this.specsById = specsById;
     }
 
@@ -195,13 +194,27 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
       return this;
     }
 
-    /** Returns only files whose tracking {@link Tracking#isLive() is live}. */
-    Builder liveOnly() {
-      this.onlyLive = true;
+    /** Returns deleted and replaced files in addition to {@link Tracking#isLive() live} files. */
+    Builder includeTombstones() {
+      this.onlyLive = false;
       return this;
     }
 
+    /** Selects columns to read by name; fields needed by the reader are always read. */
+    Builder select(Collection<String> newColumns) {
+      Preconditions.checkArgument(newColumns != null, "Invalid columns: null");
+      Preconditions.checkState(
+          fileProjection == null,
+          "Cannot select columns using both select(Collection<String>) and project(Schema)");
+      this.columns = newColumns;
+      return this;
+    }
+
+    /** Sets the exact schema to read; used in place of {@link #select(Collection)}. */
     Builder project(Schema newFileProjection) {
+      Preconditions.checkState(
+          columns == null,
+          "Cannot select columns using both select(Collection<String>) and project(Schema)");
       this.fileProjection = newFileProjection;
       return this;
     }
@@ -218,10 +231,12 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
       if (hasPartitionFilter()) {
         for (PartitionSpec spec : specsById.values()) {
           Expression partFilter = Projections.inclusive(spec, caseSensitive).project(rowFilter);
-          partitionEvaluators.put(
-              spec.specId(), new Evaluator(spec.partitionType(), partFilter, caseSensitive));
-          partitionProjections.put(
-              spec.specId(), StructProjection.create(partitionType, spec.partitionType()));
+          if (partFilter != Expressions.alwaysTrue()) {
+            partitionEvaluators.put(
+                spec.specId(), new Evaluator(spec.partitionType(), partFilter, caseSensitive));
+            partitionProjections.put(
+                spec.specId(), StructProjection.create(unionPartitionType, spec.partitionType()));
+          }
         }
       }
 
@@ -230,33 +245,20 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
     }
 
     private boolean hasPartitionFilter() {
-      return rowFilter != Expressions.alwaysTrue() && !partitionType.fields().isEmpty();
+      return rowFilter != Expressions.alwaysTrue() && !unionPartitionType.fields().isEmpty();
     }
 
     private Schema readSchema() {
-      Types.StructType fullType = TrackedFile.schema(partitionType, Types.StructType.of());
-
-      // replace tracking with the subset of fields read on the scan path
-      List<Types.NestedField> fields = Lists.newArrayList();
-      for (Types.NestedField field : fullType.fields()) {
-        if (field.fieldId() == TrackedFile.TRACKING.fieldId()) {
-          fields.add(
-              Types.NestedField.required(
-                  field.fieldId(), field.name(), SCAN_TRACKING, field.doc()));
-        } else {
-          fields.add(field);
-        }
-      }
-
-      Schema fullSchema = new Schema(fields);
-      if (fileProjection == null) {
+      Schema fullSchema =
+          new Schema(
+              TrackedFile.schema(Tracking.scanSchema(), unionPartitionType, Types.StructType.of())
+                  .fields());
+      Schema projection = projection(fullSchema);
+      if (projection == null) {
         return fullSchema;
       }
 
-      Set<Integer> projectedIds = Sets.newHashSet();
-      for (Types.NestedField field : fileProjection.asStruct().fields()) {
-        projectedIds.add(field.fieldId());
-      }
+      Set<Integer> projectedIds = Sets.newHashSet(TypeUtil.getProjectedIds(projection));
 
       // status drives live-file filtering and content type distinguishes entry kinds
       projectedIds.add(TrackedFile.TRACKING.fieldId());
@@ -267,6 +269,16 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
       }
 
       return TypeUtil.select(fullSchema, projectedIds);
+    }
+
+    private Schema projection(Schema fullSchema) {
+      if (columns != null) {
+        return caseSensitive
+            ? fullSchema.select(columns)
+            : fullSchema.caseInsensitiveSelect(columns);
+      }
+
+      return fileProjection;
     }
   }
 }
