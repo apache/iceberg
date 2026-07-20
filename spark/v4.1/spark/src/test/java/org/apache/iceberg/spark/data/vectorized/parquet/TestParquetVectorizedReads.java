@@ -31,6 +31,7 @@ import java.io.InputStream;
 import java.math.BigDecimal;
 import java.net.URISyntaxException;
 import java.net.URL;
+import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Iterator;
@@ -42,6 +43,7 @@ import org.apache.arrow.memory.BufferAllocator;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.arrow.ArrowAllocation;
+import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.parquet.GenericParquetReaders;
@@ -66,17 +68,22 @@ import org.apache.iceberg.spark.data.vectorized.VectorizedSparkParquetReaders;
 import org.apache.iceberg.types.Type.PrimitiveType;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.RandomUtil;
 import org.apache.parquet.column.ParquetProperties;
 import org.apache.parquet.hadoop.ParquetOutputFormat;
 import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.Type;
 import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.spark.sql.catalyst.util.STUtils;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
+import org.apache.spark.unsafe.types.GeographyVal;
+import org.apache.spark.unsafe.types.GeometryVal;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 public class TestParquetVectorizedReads extends AvroDataTestBase {
   private static final int NUM_ROWS = 200_000;
@@ -362,6 +369,78 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
         0L,
         RandomData.DEFAULT_NULL_PERCENTAGE,
         false);
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  public void testGeospatialTypes(boolean dictionaryEnabled) throws IOException {
+    Schema schema =
+        new Schema(
+            required(1, "id", Types.LongType.get()),
+            optional(2, "geom", Types.GeometryType.of("EPSG:3857")),
+            optional(3, "geog", Types.GeographyType.crs84()));
+
+    ByteBuffer geometryWkb = ByteBuffer.wrap(RandomUtil.wkbPoint(30, 10));
+    ByteBuffer geographyWkb = ByteBuffer.wrap(RandomUtil.wkbPoint(-71, 42));
+    GenericRecord first = GenericRecord.create(schema);
+    first.setField("id", 1L);
+    first.setField("geom", geometryWkb);
+    first.setField("geog", geographyWkb);
+    GenericRecord nulls = GenericRecord.create(schema);
+    nulls.setField("id", 2L);
+    GenericRecord repeated = GenericRecord.create(schema);
+    repeated.setField("id", 3L);
+    repeated.setField("geom", geometryWkb);
+    repeated.setField("geog", geographyWkb);
+
+    File dataFile = temp.resolve("geo-" + dictionaryEnabled + ".parquet").toFile();
+    try (FileAppender<Record> writer =
+        Parquet.write(Files.localOutput(dataFile))
+            .schema(schema)
+            .createWriterFunc(GenericParquetWriter::create)
+            .set(ParquetOutputFormat.ENABLE_DICTIONARY, String.valueOf(dictionaryEnabled))
+            .build()) {
+      writer.add(first);
+      writer.add(nulls);
+      writer.add(repeated);
+    }
+
+    assertNoLeak(
+        dataFile.getName(),
+        allocator -> {
+          try (CloseableIterable<ColumnarBatch> reader =
+              Parquet.read(Files.localInput(dataFile))
+                  .project(schema)
+                  .recordsPerBatch(BATCH_SIZE)
+                  .createBatchedReaderFunc(
+                      type ->
+                          VectorizedSparkParquetReaders.buildReader(
+                              schema, type, ImmutableMap.of(), allocator))
+                  .build()) {
+            Iterator<ColumnarBatch> batches = reader.iterator();
+            assertThat(batches).hasNext();
+            ColumnarBatch batch = batches.next();
+            assertThat(batch.numRows()).isEqualTo(3);
+
+            GeometryVal geometry = batch.column(1).getGeometry(0);
+            assertThat(STUtils.stAsBinary(geometry)).isEqualTo(geometryWkb.array());
+            assertThat(STUtils.stSrid(geometry)).isEqualTo(3857);
+
+            GeographyVal geography = batch.column(2).getGeography(0);
+            assertThat(STUtils.stAsBinary(geography)).isEqualTo(geographyWkb.array());
+            assertThat(STUtils.stSrid(geography)).isEqualTo(4326);
+
+            assertThat(batch.column(1).isNullAt(1)).isTrue();
+            assertThat(batch.column(2).isNullAt(1)).isTrue();
+            assertThat(STUtils.stAsBinary(batch.column(1).getGeometry(2)))
+                .isEqualTo(geometryWkb.array());
+            assertThat(STUtils.stAsBinary(batch.column(2).getGeography(2)))
+                .isEqualTo(geographyWkb.array());
+            assertThat(batches).isExhausted();
+          } catch (IOException e) {
+            throw new RuntimeException(e);
+          }
+        });
   }
 
   @Test

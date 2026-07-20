@@ -131,6 +131,8 @@ public class ArrowSchemaUtil {
 
       switch (primitive.typeId()) {
         case BINARY:
+        case GEOMETRY:
+        case GEOGRAPHY:
           arrowType = ArrowType.Binary.INSTANCE;
           break;
         case FIXED:

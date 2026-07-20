@@ -22,11 +22,17 @@ import org.apache.iceberg.arrow.vectorized.ArrowVectorAccessor;
 import org.apache.iceberg.arrow.vectorized.NullabilityHolder;
 import org.apache.iceberg.arrow.vectorized.VectorHolder;
 import org.apache.iceberg.spark.SparkSchemaUtil;
+import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Types;
+import org.apache.spark.sql.catalyst.util.STUtils;
 import org.apache.spark.sql.types.Decimal;
+import org.apache.spark.sql.types.GeometryType$;
 import org.apache.spark.sql.vectorized.ArrowColumnVector;
 import org.apache.spark.sql.vectorized.ColumnVector;
 import org.apache.spark.sql.vectorized.ColumnarArray;
 import org.apache.spark.sql.vectorized.ColumnarMap;
+import org.apache.spark.unsafe.types.GeographyVal;
+import org.apache.spark.unsafe.types.GeometryVal;
 import org.apache.spark.unsafe.types.UTF8String;
 
 /**
@@ -39,11 +45,13 @@ public class IcebergArrowColumnVector extends ColumnVector {
 
   private final ArrowVectorAccessor<Decimal, UTF8String, ColumnarArray, ArrowColumnVector> accessor;
   private final NullabilityHolder nullabilityHolder;
+  private final Integer geometrySrid;
 
   public IcebergArrowColumnVector(VectorHolder holder) {
     super(SparkSchemaUtil.convert(holder.icebergType()));
     this.nullabilityHolder = holder.nullabilityHolder();
     this.accessor = ArrowVectorAccessors.getVectorAccessor(holder);
+    this.geometrySrid = geometrySrid(holder.icebergType());
   }
 
   protected ArrowVectorAccessor<Decimal, UTF8String, ColumnarArray, ArrowColumnVector> accessor() {
@@ -150,6 +158,33 @@ public class IcebergArrowColumnVector extends ColumnVector {
       return null;
     }
     return accessor.getBinary(rowId);
+  }
+
+  @Override
+  public GeographyVal getGeography(int rowId) {
+    if (isNullAt(rowId)) {
+      return null;
+    }
+
+    return STUtils.stGeogFromWKB(accessor.getBinary(rowId));
+  }
+
+  @Override
+  public GeometryVal getGeometry(int rowId) {
+    if (isNullAt(rowId)) {
+      return null;
+    }
+
+    return STUtils.stGeomFromWKB(accessor.getBinary(rowId), geometrySrid);
+  }
+
+  private static Integer geometrySrid(Type type) {
+    if (type.typeId() != Type.TypeID.GEOMETRY) {
+      return null;
+    }
+
+    Types.GeometryType geometryType = (Types.GeometryType) type;
+    return GeometryType$.MODULE$.apply(geometryType.crs()).srid();
   }
 
   @Override

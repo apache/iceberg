@@ -59,6 +59,8 @@ public class TestArrowSchemaUtil {
   private static final String LIST_FIELD = "lt";
   private static final String MAP_FIELD = "mt";
   private static final String UUID_FIELD = "uu";
+  private static final String GEOMETRY_FIELD = "geom";
+  private static final String GEOGRAPHY_FIELD = "geog";
 
   @Test
   public void convertPrimitive() {
@@ -84,7 +86,9 @@ public class TestArrowSchemaUtil {
             Types.NestedField.optional(17, FIXED_WIDTH_BINARY_FIELD, Types.FixedType.ofLength(10)),
             Types.NestedField.optional(18, UUID_FIELD, Types.UUIDType.get()),
             Types.NestedField.optional(
-                19, TIMESTAMP_NANO_FIELD, Types.TimestampNanoType.withZone()));
+                19, TIMESTAMP_NANO_FIELD, Types.TimestampNanoType.withZone()),
+            Types.NestedField.optional(20, GEOMETRY_FIELD, Types.GeometryType.of("EPSG:3857")),
+            Types.NestedField.optional(21, GEOGRAPHY_FIELD, Types.GeographyType.crs84()));
 
     org.apache.arrow.vector.types.pojo.Schema arrow = ArrowSchemaUtil.convert(iceberg);
 
@@ -245,6 +249,14 @@ public class TestArrowSchemaUtil {
         break;
       case BINARY:
         assertThat(field.getName()).isEqualTo(BINARY_FIELD);
+        assertThat(arrowType.getTypeID()).isEqualTo(ArrowType.Binary.TYPE_TYPE);
+        break;
+      case GEOMETRY:
+        assertThat(field.getName()).isEqualTo(GEOMETRY_FIELD);
+        assertThat(arrowType.getTypeID()).isEqualTo(ArrowType.Binary.TYPE_TYPE);
+        break;
+      case GEOGRAPHY:
+        assertThat(field.getName()).isEqualTo(GEOGRAPHY_FIELD);
         assertThat(arrowType.getTypeID()).isEqualTo(ArrowType.Binary.TYPE_TYPE);
         break;
       case DECIMAL:

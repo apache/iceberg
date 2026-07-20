@@ -636,6 +636,14 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
       return Optional.of(new LogicalTypeVisitorResult(vector, ReadType.VARCHAR, UNKNOWN_WIDTH));
     }
 
+    private Optional<LogicalTypeVisitorResult> allocateVectorForBinaryLogicalType() {
+      FieldVector vector = arrowField.createVector(rootAlloc);
+      // TODO: Possibly use the uncompressed page size info to set the initial capacity
+      vector.setInitialCapacity(batchSize * AVERAGE_VARIABLE_WIDTH_RECORD_SIZE);
+      vector.allocateNewSafe();
+      return Optional.of(new LogicalTypeVisitorResult(vector, ReadType.VARBINARY, UNKNOWN_WIDTH));
+    }
+
     @Override
     public Optional<LogicalTypeVisitorResult> visit(
         LogicalTypeAnnotation.JsonLogicalTypeAnnotation jsonLogicalType) {
@@ -646,6 +654,18 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     public Optional<LogicalTypeVisitorResult> visit(
         LogicalTypeAnnotation.BsonLogicalTypeAnnotation bsonLogicalType) {
       return allocateVectorForEnumJsonBsonString();
+    }
+
+    @Override
+    public Optional<LogicalTypeVisitorResult> visit(
+        LogicalTypeAnnotation.GeometryLogicalTypeAnnotation geometryLogicalType) {
+      return allocateVectorForBinaryLogicalType();
+    }
+
+    @Override
+    public Optional<LogicalTypeVisitorResult> visit(
+        LogicalTypeAnnotation.GeographyLogicalTypeAnnotation geographyLogicalType) {
+      return allocateVectorForBinaryLogicalType();
     }
   }
 

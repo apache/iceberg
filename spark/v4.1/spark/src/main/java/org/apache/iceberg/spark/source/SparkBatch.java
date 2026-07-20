@@ -154,8 +154,7 @@ class SparkBatch implements Batch {
 
   // conditions for using Parquet batch reads:
   // - Parquet vectorization is enabled
-  // - only primitives, unshredded variant, or metadata columns are projected, excluding geometry
-  //   and geography which are primitives with no Arrow vector yet
+  // - only primitives, unshredded variant, or metadata columns are projected
   // - all tasks are of FileScanTask type and read only Parquet files
   private boolean useParquetBatchReads() {
     return readConf.parquetVectorizationEnabled()
@@ -194,12 +193,6 @@ class SparkBatch implements Batch {
     }
 
     Type type = field.type();
-    // Geometry and geography are primitive types but have no Arrow vector yet, so they must be
-    // read through the non-vectorized reader.
-    if (type.typeId() == Type.TypeID.GEOMETRY || type.typeId() == Type.TypeID.GEOGRAPHY) {
-      return false;
-    }
-
     if (type.isVariantType()) {
       boolean shredVariants =
           PropertyUtil.propertyAsBoolean(

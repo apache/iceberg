@@ -80,8 +80,7 @@ public class TestSparkGeospatial extends TestBase {
   @ParameterizedTest
   @ValueSource(booleans = {false, true})
   public void testGeospatialWkbReadBack(boolean vectorized) {
-    // Even with vectorization enabled, geo columns fall back to the non-vectorized reader (there is
-    // no Arrow geo vector yet), so both settings read back correctly.
+    // Exercise both row and vectorized readers; both attach the schema SRID to the stored WKB.
     setVectorization(vectorized);
 
     // st_asbinary strips the SRID header back to pure WKB, matching what was inserted.
@@ -105,10 +104,9 @@ public class TestSparkGeospatial extends TestBase {
   public void testDeleteGeospatial(String mode, boolean vectorized) {
     // Exercise both row-level modes: copy-on-write (the default) rewrites the surviving rows into a
     // new data file, while merge-on-read writes a deletion vector. Both must read the geo values
-    // back out correctly, whether or not vectorized reads are requested (geo falls back to the
-    // non-vectorized reader either way). Write both rows into one data file (COALESCE(1)) so the
-    // merge-on-read delete leaves a survivor in that file, forcing a deletion vector rather than a
-    // whole-file removal. Filter on id since Spark has no spatial predicate.
+    // back out correctly through row and vectorized readers. Write both rows into one data file
+    // (COALESCE(1)) so the merge-on-read delete leaves a survivor in that file, forcing a deletion
+    // vector rather than a whole-file removal. Filter on id since Spark has no spatial predicate.
     String deleteTable = CATALOG + ".default.geo_delete";
     sql("DROP TABLE IF EXISTS %s", deleteTable);
     sql(
