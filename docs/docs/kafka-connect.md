@@ -239,6 +239,8 @@ This assumes the source topic already exists and is named `events`.
 
 #### Control topic
 
+The connector uses a control topic to coordinate commits across its tasks; it is internal to the connector and does not hold your table data. On each commit cycle (`iceberg.control.commit.interval-ms`, default 5 minutes) the coordinator publishes a `StartCommit` event, each worker replies with `DataWritten` events — carrying the metadata of the data and delete files it wrote to storage (file paths, record counts, column statistics), not the rows themselves — followed by a `DataComplete` event, and the coordinator concludes the round with `CommitToTable` and `CommitComplete` events. The committed position of each commit is persisted in the destination table's snapshot, so once a commit completes its control-topic events are no longer read.
+
 If your Kafka cluster has `auto.create.topics.enable` set to `true` (the default), then the control topic will be
 automatically created. If not, then you will need to create the topic first. The default topic name is `control-iceberg`:
 ```bash
@@ -247,9 +249,27 @@ bin/kafka-topics.sh  \
   --bootstrap-server ${CONNECT_BOOTSTRAP_SERVERS} \
   --create \
   --topic control-iceberg \
-  --partitions 1
+  --partitions 1 \
+  --config retention.ms=3600000
 ```
 *NOTE: Clusters running on Confluent Cloud have `auto.create.topics.enable` set to `false` by default.*
+
+##### Control topic retention
+
+Control-topic events are only needed until their commit completes, but the connector never deletes them itself. An auto-created control topic inherits the broker's default topic configuration — `cleanup.policy=delete` with the broker's default `retention.ms` — and if that default is very large or unlimited (`-1`), the topic keeps every coordination event and grows without bound. Configure a finite `retention.ms` that comfortably exceeds both `iceberg.control.commit.interval-ms` and `iceberg.control.commit.timeout-ms` (leaving some margin for a coordinator restart) so Kafka can age out old events; for the default 5-minute commit interval, one hour is a reasonable starting point.
+
+Set the retention when creating the topic with `--config retention.ms=3600000` (as shown above), or update an existing control topic:
+```bash
+bin/kafka-configs.sh \
+  --command-config command-config.props \
+  --bootstrap-server ${CONNECT_BOOTSTRAP_SERVERS} \
+  --alter \
+  --entity-type topics \
+  --entity-name control-iceberg \
+  --add-config retention.ms=3600000
+```
+
+A single control topic may be shared by multiple connectors — each task only acts on the events tagged with its own group id — but every connector writes its events to that one topic, so size the retention accordingly. Use the default `cleanup.policy=delete` (with retention) rather than log compaction: the control topic is an append-only coordination log, not keyed state.
 
 #### Iceberg catalog configuration
 
