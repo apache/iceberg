@@ -111,6 +111,6 @@ class GenericDataFile extends BaseFile<DataFile> implements DataFile {
         ImmutableMap.of(
             type, GenericDataFile.class.getName(),
             partitionStruct, PartitionData.class.getName()),
-        true);
+        false);
   }
 }

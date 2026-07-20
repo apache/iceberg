@@ -30,15 +30,15 @@ import org.apache.iceberg.types.Types;
 
 class SchemaToType extends AvroSchemaVisitor<Type> {
   private final Schema root;
-  private final boolean legacyTimestampMapping;
+  private final boolean adjustToUtcDefault;
 
-  SchemaToType(Schema root, boolean legacyTimestampMapping) {
+  SchemaToType(Schema root, boolean adjustToUtcDefault) {
     this.root = root;
     if (root.getType() == Schema.Type.RECORD) {
       this.nextId = root.getFields().size();
     }
 
-    this.legacyTimestampMapping = legacyTimestampMapping;
+    this.adjustToUtcDefault = adjustToUtcDefault;
   }
 
   private int nextId = 1;
@@ -216,13 +216,13 @@ class SchemaToType extends AvroSchemaVisitor<Type> {
   }
 
   private Type timestampType(Schema primitive) {
-    return AvroSchemaUtil.isTimestamptz(primitive, legacyTimestampMapping)
+    return AvroSchemaUtil.isTimestamptz(primitive, adjustToUtcDefault)
         ? Types.TimestampType.withZone()
         : Types.TimestampType.withoutZone();
   }
 
   private Type timestampNanoType(Schema primitive) {
-    return AvroSchemaUtil.isTimestamptz(primitive, legacyTimestampMapping)
+    return AvroSchemaUtil.isTimestamptz(primitive, adjustToUtcDefault)
         ? Types.TimestampNanoType.withZone()
         : Types.TimestampNanoType.withoutZone();
   }

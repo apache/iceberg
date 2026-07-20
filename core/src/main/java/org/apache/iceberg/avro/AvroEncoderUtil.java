@@ -65,10 +65,10 @@ public class AvroEncoderUtil {
   }
 
   public static <T> T decode(byte[] data) throws IOException {
-    return decode(data, false);
+    return decode(data, true);
   }
 
-  public static <T> T decode(byte[] data, boolean legacyTimestampMapping) throws IOException {
+  public static <T> T decode(byte[] data, boolean adjustToUtcDefault) throws IOException {
     try (ByteArrayInputStream in = new ByteArrayInputStream(data, 0, data.length)) {
       DataInputStream dataInput = new DataInputStream(in);
 
@@ -83,10 +83,11 @@ public class AvroEncoderUtil {
 
       // Read avro schema
       Schema avroSchema = new Schema.Parser().parse(dataInput.readUTF());
+      AvroSchemaUtil.addAdjustToUtcDefaultProp(avroSchema, adjustToUtcDefault);
 
       // Decode the datum with the parsed avro schema.
       BinaryDecoder binaryDecoder = DecoderFactory.get().binaryDecoder(in, null);
-      DatumReader<T> reader = new GenericAvroReader<>(avroSchema, legacyTimestampMapping);
+      DatumReader<T> reader = new GenericAvroReader<>(avroSchema);
       reader.setSchema(avroSchema);
       return reader.read(null, binaryDecoder);
     }

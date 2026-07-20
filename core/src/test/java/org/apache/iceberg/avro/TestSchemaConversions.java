@@ -91,10 +91,10 @@ public class TestSchemaConversions {
     for (int i = 0; i < primitives.size(); i += 1) {
       Type type = primitives.get(i);
       Schema avro = avroPrimitives.get(i);
-      assertThat(AvroSchemaUtil.convert(avro, true))
+      assertThat(AvroSchemaUtil.convert(avro, false))
           .as("Avro schema to primitive: " + avro)
           .isEqualTo(type);
-      assertThat(AvroSchemaUtil.convert(type, true))
+      assertThat(AvroSchemaUtil.convert(type, false))
           .as("Primitive to avro schema: " + type)
           .isEqualTo(avro);
     }
@@ -144,14 +144,14 @@ public class TestSchemaConversions {
     for (int i = 0; i < timestamps.size(); i += 1) {
       Type type = timestamps.get(i);
       Schema avro = avroTimestamps.get(i);
-      assertThat(AvroSchemaUtil.convert(avro, true))
+      assertThat(AvroSchemaUtil.convert(avro, false))
           .as("Avro schema to timestamp: " + avro)
           .isEqualTo(type);
     }
   }
 
   @Test
-  public void testTimestampTypesWithLegacyMappingDisabled() {
+  public void testTimestampTypesWithLocalTimestampEnabled() {
     List<Type> timestamps =
         Lists.newArrayList(
             Types.TimestampType.withZone(),
@@ -179,7 +179,7 @@ public class TestSchemaConversions {
   }
 
   @Test
-  public void testAvroToIcebergTimestampTypesWithLegacyMappingDisabled() {
+  public void testAvroToIcebergTimestampTypesWithLocalTimestampEnabled() {
     // Not included in the timestamps with legacy mapping disabled test because there is no way
     // to round trip the avro<->iceberg conversion
     List<Schema> avroTimestamps =
@@ -286,10 +286,10 @@ public class TestSchemaConversions {
                     .addToSchema(Schema.createFixed("decimal_14_2", null, null, 6))),
             optionalField(35, "variant", variant("r35")));
 
-    assertThat(AvroSchemaUtil.convert(schema, true))
+    assertThat(AvroSchemaUtil.convert(schema, false))
         .as("Test conversion from Avro schema")
         .isEqualTo(struct);
-    assertThat(AvroSchemaUtil.convert(struct, "primitives", true))
+    assertThat(AvroSchemaUtil.convert(struct, "primitives", false))
         .as("Test conversion to Avro schema")
         .isEqualTo(schema);
   }

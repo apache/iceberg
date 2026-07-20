@@ -234,16 +234,16 @@ class TestDataReader {
   }
 
   @Test
-  public void timestampTzDataReaderWithLegacyMappingDisabled() throws IOException {
+  public void timestampTzDataReaderWithLocalTimestampEnabled() throws IOException {
     org.apache.iceberg.Schema icebergSchema =
         new org.apache.iceberg.Schema(
             Types.NestedField.required(1, "ts_tz", Types.TimestampType.withZone()),
             Types.NestedField.required(2, "ts_tz_ns", Types.TimestampNanoType.withZone()));
 
-    Schema avroSchema = AvroSchemaUtil.convert(icebergSchema, "test", false);
+    Schema avroSchema = AvroSchemaUtil.convert(icebergSchema, "test", true);
+    AvroSchemaUtil.addAdjustToUtcDefaultProp(avroSchema, true);
 
-    DataReader<Record> reader =
-        DataReader.create(icebergSchema, avroSchema, ImmutableMap.of(), false);
+    DataReader<Record> reader = DataReader.create(icebergSchema, avroSchema, ImmutableMap.of());
     reader.setSchema(avroSchema);
 
     GenericRecord avroRecord = new GenericData.Record(avroSchema);

@@ -49,37 +49,22 @@ public class DataReader<T> implements DatumReader<T>, SupportsRowPosition {
 
   public static <D> DataReader<D> create(
       org.apache.iceberg.Schema expectedSchema, Schema readSchema, Map<Integer, ?> idToConstant) {
-    return create(expectedSchema, readSchema, idToConstant, true);
-  }
-
-  static <D> DataReader<D> create(
-      org.apache.iceberg.Schema expectedSchema,
-      Schema readSchema,
-      Map<Integer, ?> idToConstant,
-      boolean legacyTimestampMapping) {
-    return new DataReader<>(expectedSchema, readSchema, idToConstant, legacyTimestampMapping);
+    return new DataReader<>(expectedSchema, readSchema, idToConstant);
   }
 
   private final Schema readSchema;
   private final ValueReader<T> reader;
   private Schema fileSchema = null;
 
-  protected DataReader(
-      org.apache.iceberg.Schema expectedSchema, Schema readSchema, Map<Integer, ?> idToConstant) {
-    this(expectedSchema, readSchema, idToConstant, true);
-  }
-
   @SuppressWarnings("unchecked")
   protected DataReader(
-      org.apache.iceberg.Schema expectedSchema,
-      Schema readSchema,
-      Map<Integer, ?> idToConstant,
-      boolean legacyTimestampMapping) {
+      org.apache.iceberg.Schema expectedSchema, Schema readSchema, Map<Integer, ?> idToConstant) {
     this.readSchema = readSchema;
+    boolean adjustToUtcDefault = AvroSchemaUtil.adjustToUtcDefault(readSchema);
     this.reader =
         (ValueReader<T>)
             AvroSchemaWithTypeVisitor.visit(
-                expectedSchema, readSchema, new ReadBuilder(idToConstant, legacyTimestampMapping));
+                expectedSchema, readSchema, new ReadBuilder(idToConstant, adjustToUtcDefault));
   }
 
   @Override
@@ -106,11 +91,11 @@ public class DataReader<T> implements DatumReader<T>, SupportsRowPosition {
 
   private class ReadBuilder extends AvroSchemaWithTypeVisitor<ValueReader<?>> {
     private final Map<Integer, ?> idToConstant;
-    private final boolean legacyTimestampMapping;
+    private final boolean adjustToUtcDefault;
 
-    private ReadBuilder(Map<Integer, ?> idToConstant, boolean legacyTimestampMapping) {
+    private ReadBuilder(Map<Integer, ?> idToConstant, boolean adjustToUtcDefault) {
       this.idToConstant = idToConstant;
-      this.legacyTimestampMapping = legacyTimestampMapping;
+      this.adjustToUtcDefault = adjustToUtcDefault;
     }
 
     @Override
@@ -153,19 +138,19 @@ public class DataReader<T> implements DatumReader<T>, SupportsRowPosition {
             return GenericReaders.times();
 
           case "timestamp-micros":
-            if (AvroSchemaUtil.isTimestamptz(primitive, legacyTimestampMapping)) {
+            if (AvroSchemaUtil.isTimestamptz(primitive, adjustToUtcDefault)) {
               return GenericReaders.timestamptz();
             }
             return GenericReaders.timestamps();
 
           case "timestamp-nanos":
-            if (AvroSchemaUtil.isTimestamptz(primitive, legacyTimestampMapping)) {
+            if (AvroSchemaUtil.isTimestamptz(primitive, adjustToUtcDefault)) {
               return GenericReaders.timestamptzNanos();
             }
             return GenericReaders.timestampNanos();
 
           case "timestamp-millis":
-            if (AvroSchemaUtil.isTimestamptz(primitive, legacyTimestampMapping)) {
+            if (AvroSchemaUtil.isTimestamptz(primitive, adjustToUtcDefault)) {
               return GenericReaders.timestamptzMillis();
             }
             return GenericReaders.timestampMillis();

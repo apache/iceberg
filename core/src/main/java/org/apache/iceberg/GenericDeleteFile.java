@@ -115,6 +115,6 @@ class GenericDeleteFile extends BaseFile<DeleteFile> implements DeleteFile {
         ImmutableMap.of(
             type, GenericDeleteFile.class.getName(),
             partitionStruct, PartitionData.class.getName()),
-        true);
+        false);
   }
 }

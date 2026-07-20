@@ -35,30 +35,22 @@ import org.apache.iceberg.avro.ValueWriters;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 public class DataWriter<T> implements MetricsAwareDatumWriter<T> {
-  private final boolean legacyTimestampMapping;
   private ValueWriter<T> writer = null;
 
   public static <D> DataWriter<D> create(Schema schema) {
-    return create(schema, true);
-  }
-
-  static <D> DataWriter<D> create(Schema schema, boolean legacyTimestampMapping) {
-    return new DataWriter<>(schema, legacyTimestampMapping);
+    return new DataWriter<>(schema);
   }
 
   protected DataWriter(Schema schema) {
-    this(schema, true);
-  }
-
-  protected DataWriter(Schema schema, boolean legacyTimestampMapping) {
-    this.legacyTimestampMapping = legacyTimestampMapping;
     setSchema(schema);
   }
 
   @Override
   @SuppressWarnings("unchecked")
   public void setSchema(Schema schema) {
-    this.writer = (ValueWriter<T>) AvroSchemaVisitor.visit(schema, new WriteBuilder());
+    boolean adjustToUtcDefault = AvroSchemaUtil.adjustToUtcDefault(schema);
+    this.writer =
+        (ValueWriter<T>) AvroSchemaVisitor.visit(schema, new WriteBuilder(adjustToUtcDefault));
   }
 
   @Override
@@ -76,6 +68,12 @@ public class DataWriter<T> implements MetricsAwareDatumWriter<T> {
   }
 
   private class WriteBuilder extends AvroSchemaVisitor<ValueWriter<?>> {
+    private final boolean adjustToUtcDefault;
+
+    WriteBuilder(boolean adjustToUtcDefault) {
+      this.adjustToUtcDefault = adjustToUtcDefault;
+    }
+
     @Override
     public ValueWriter<?> record(Schema record, List<String> names, List<ValueWriter<?>> fields) {
       return createStructWriter(fields);
@@ -129,13 +127,13 @@ public class DataWriter<T> implements MetricsAwareDatumWriter<T> {
             return GenericWriters.times();
 
           case "timestamp-micros":
-            if (AvroSchemaUtil.isTimestamptz(primitive, legacyTimestampMapping)) {
+            if (AvroSchemaUtil.isTimestamptz(primitive, adjustToUtcDefault)) {
               return GenericWriters.timestamptz();
             }
             return GenericWriters.timestamps();
 
           case "timestamp-nanos":
-            if (AvroSchemaUtil.isTimestamptz(primitive, legacyTimestampMapping)) {
+            if (AvroSchemaUtil.isTimestamptz(primitive, adjustToUtcDefault)) {
               return GenericWriters.timestamptzNanos();
             }
             return GenericWriters.timestampNanos();

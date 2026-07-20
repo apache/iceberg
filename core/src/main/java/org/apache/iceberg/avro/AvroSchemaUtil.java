@@ -48,6 +48,8 @@ public class AvroSchemaUtil {
   public static final String VALUE_ID_PROP = "value-id";
   public static final String ELEMENT_ID_PROP = "element-id";
   public static final String ADJUST_TO_UTC_PROP = "adjust-to-utc";
+  public static final String ADJUST_TO_UTC_DEFAULT_PROP = "adjust-to-utc-default";
+  public static final boolean ADJUST_TO_UTC_DEFAULT = false;
 
   private static final Schema NULL = Schema.create(Schema.Type.NULL);
   private static final Schema.Type MAP = Schema.Type.MAP;
@@ -56,78 +58,78 @@ public class AvroSchemaUtil {
   private static final Schema.Type RECORD = Schema.Type.RECORD;
 
   public static Schema convert(org.apache.iceberg.Schema schema, String tableName) {
-    return convert(schema, tableName, false);
+    return convert(schema, tableName, true);
   }
 
   public static Schema convert(
-      org.apache.iceberg.Schema schema, String tableName, boolean legacyTimestampMapping) {
-    return convert(schema, ImmutableMap.of(schema.asStruct(), tableName), legacyTimestampMapping);
+      org.apache.iceberg.Schema schema, String tableName, boolean localTimestampEnabled) {
+    return convert(schema, ImmutableMap.of(schema.asStruct(), tableName), localTimestampEnabled);
   }
 
   public static Schema convert(
       org.apache.iceberg.Schema schema, Map<Types.StructType, String> names) {
-    return convert(schema, names, false);
+    return convert(schema, names, true);
   }
 
   public static Schema convert(
       org.apache.iceberg.Schema schema,
       Map<Types.StructType, String> names,
-      boolean legacyTimestampMapping) {
-    return TypeUtil.visit(schema, new TypeToSchema.WithTypeToName(names, legacyTimestampMapping));
+      boolean localTimestampEnabled) {
+    return TypeUtil.visit(schema, new TypeToSchema.WithTypeToName(names, localTimestampEnabled));
   }
 
   public static Schema convert(Type type) {
-    return convert(type, false);
+    return convert(type, true);
   }
 
-  public static Schema convert(Type type, boolean legacyTimestampMapping) {
-    return convert(type, ImmutableMap.of(), legacyTimestampMapping);
+  public static Schema convert(Type type, boolean localTimestampEnabled) {
+    return convert(type, ImmutableMap.of(), localTimestampEnabled);
   }
 
   public static Schema convert(Types.StructType type, String name) {
-    return convert(type, name, false);
+    return convert(type, name, true);
   }
 
-  public static Schema convert(Types.StructType type, String name, boolean legacyTimestampMapping) {
-    return convert(type, ImmutableMap.of(type, name), legacyTimestampMapping);
+  public static Schema convert(Types.StructType type, String name, boolean localTimestampEnabled) {
+    return convert(type, ImmutableMap.of(type, name), localTimestampEnabled);
   }
 
   public static Schema convert(Type type, Map<Types.StructType, String> names) {
-    return convert(type, names, false);
+    return convert(type, names, true);
   }
 
   public static Schema convert(
-      Type type, Map<Types.StructType, String> names, boolean legacyTimestampMapping) {
-    return TypeUtil.visit(type, new TypeToSchema.WithTypeToName(names, legacyTimestampMapping));
+      Type type, Map<Types.StructType, String> names, boolean localTimestampEnabled) {
+    return TypeUtil.visit(type, new TypeToSchema.WithTypeToName(names, localTimestampEnabled));
   }
 
   public static Schema convert(
       Type type, BiFunction<Integer, Types.StructType, String> namesFunction) {
-    return convert(type, namesFunction, false);
+    return convert(type, namesFunction, true);
   }
 
   public static Schema convert(
       Type type,
       BiFunction<Integer, Types.StructType, String> namesFunction,
-      boolean legacyTimestampMapping) {
+      boolean localTimestampEnabled) {
     return TypeUtil.visit(
-        type, new TypeToSchema.WithNamesFunction(namesFunction, legacyTimestampMapping));
+        type, new TypeToSchema.WithNamesFunction(namesFunction, localTimestampEnabled));
   }
 
   public static Type convert(Schema schema) {
-    return convert(schema, false);
+    return convert(schema, true);
   }
 
-  public static Type convert(Schema schema, boolean legacyTimestampMapping) {
-    return AvroSchemaVisitor.visit(schema, new SchemaToType(schema, legacyTimestampMapping));
+  public static Type convert(Schema schema, boolean adjustToUtcDefault) {
+    return AvroSchemaVisitor.visit(schema, new SchemaToType(schema, adjustToUtcDefault));
   }
 
   public static org.apache.iceberg.Schema toIceberg(Schema schema) {
-    return toIceberg(schema, false);
+    return toIceberg(schema, true);
   }
 
-  public static org.apache.iceberg.Schema toIceberg(Schema schema, boolean legacyTimestampMapping) {
-    Type type = convert(schema, legacyTimestampMapping);
+  public static org.apache.iceberg.Schema toIceberg(Schema schema, boolean adjustToUtcDefault) {
+    Type type = convert(schema, adjustToUtcDefault);
     return new org.apache.iceberg.Schema(type.asNestedType().asStructType().fields());
   }
 
@@ -159,13 +161,13 @@ public class AvroSchemaUtil {
   }
 
   public static Map<Type, Schema> convertTypes(Types.StructType type, String name) {
-    return convertTypes(type, name, false);
+    return convertTypes(type, name, true);
   }
 
   public static Map<Type, Schema> convertTypes(
-      Types.StructType type, String name, boolean legacyTimestampMapping) {
+      Types.StructType type, String name, boolean localTimestampEnabled) {
     TypeToSchema.WithTypeToName converter =
-        new TypeToSchema.WithTypeToName(ImmutableMap.of(type, name), legacyTimestampMapping);
+        new TypeToSchema.WithTypeToName(ImmutableMap.of(type, name), localTimestampEnabled);
     TypeUtil.visit(type, converter);
     return ImmutableMap.copyOf(converter.getConversionMap());
   }
@@ -186,16 +188,16 @@ public class AvroSchemaUtil {
 
   public static Schema buildAvroProjection(
       Schema schema, org.apache.iceberg.Schema expected, Map<String, String> renames) {
-    return buildAvroProjection(schema, expected, renames, false);
+    return buildAvroProjection(schema, expected, renames, true);
   }
 
   public static Schema buildAvroProjection(
       Schema schema,
       org.apache.iceberg.Schema expected,
       Map<String, String> renames,
-      boolean legacyTimestampMapping) {
+      boolean localTimestampEnabled) {
     return AvroCustomOrderSchemaVisitor.visit(
-        schema, new BuildAvroProjection(expected.asStruct(), renames, legacyTimestampMapping));
+        schema, new BuildAvroProjection(expected.asStruct(), renames, localTimestampEnabled));
   }
 
   public static Schema applyNameMapping(Schema fileSchema, NameMapping nameMapping) {
@@ -206,11 +208,26 @@ public class AvroSchemaUtil {
     return fileSchema;
   }
 
-  public static boolean isTimestamptz(Schema schema) {
-    return isTimestamptz(schema, false);
+  public static boolean adjustToUtcDefault(Schema schema) {
+    Object value = schema.getObjectProp(ADJUST_TO_UTC_DEFAULT_PROP);
+    if (value instanceof Boolean) {
+      return (Boolean) value;
+    }
+
+    return ADJUST_TO_UTC_DEFAULT;
   }
 
-  public static boolean isTimestamptz(Schema schema, boolean legacyTimestampMapping) {
+  public static void addAdjustToUtcDefaultProp(Schema schema, boolean adjustToUtcDefault) {
+    if (adjustToUtcDefault != ADJUST_TO_UTC_DEFAULT) {
+      schema.addProp(ADJUST_TO_UTC_DEFAULT_PROP, adjustToUtcDefault);
+    }
+  }
+
+  public static boolean isTimestamptz(Schema schema) {
+    return isTimestamptz(schema, true);
+  }
+
+  public static boolean isTimestamptz(Schema schema, boolean adjustToUtcDefault) {
     LogicalType logicalType = schema.getLogicalType();
     if (logicalType instanceof LogicalTypes.TimestampMillis
         || logicalType instanceof LogicalTypes.TimestampMicros
@@ -219,10 +236,7 @@ public class AvroSchemaUtil {
       Object value = schema.getObjectProp(ADJUST_TO_UTC_PROP);
 
       if (value == null) {
-        // not all avro timestamp logical types will have the adjust_to_utc prop, default to
-        // timestamp with timezone if local-timestamp-* types are supported, and
-        // timestamp without timezone otherwise.
-        return !legacyTimestampMapping;
+        return adjustToUtcDefault;
       } else if (value instanceof Boolean) {
         return (Boolean) value;
       } else if (value instanceof String) {

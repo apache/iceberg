@@ -34,7 +34,6 @@ public class ProjectionDatumReader<D> implements DatumReader<D>, SupportsRowPosi
   private final Function<Schema, DatumReader<?>> getReader;
   private final org.apache.iceberg.Schema expectedSchema;
   private final Map<String, String> renames;
-  private final boolean legacyTimestampMapping;
   private NameMapping nameMapping;
   private Schema readSchema = null;
   private Schema fileSchema = null;
@@ -45,20 +44,10 @@ public class ProjectionDatumReader<D> implements DatumReader<D>, SupportsRowPosi
       org.apache.iceberg.Schema expectedSchema,
       Map<String, String> renames,
       NameMapping nameMapping) {
-    this(getReader, expectedSchema, renames, nameMapping, false);
-  }
-
-  ProjectionDatumReader(
-      Function<Schema, DatumReader<?>> getReader,
-      org.apache.iceberg.Schema expectedSchema,
-      Map<String, String> renames,
-      NameMapping nameMapping,
-      boolean legacyTimestampMapping) {
     this.getReader = getReader;
     this.expectedSchema = expectedSchema;
     this.renames = renames;
     this.nameMapping = nameMapping;
-    this.legacyTimestampMapping = legacyTimestampMapping;
   }
 
   @Override
@@ -77,9 +66,10 @@ public class ProjectionDatumReader<D> implements DatumReader<D>, SupportsRowPosi
     Set<Integer> projectedIds = TypeUtil.getProjectedIds(expectedSchema);
     Schema schemaWithIds = AvroSchemaUtil.applyNameMapping(newFileSchema, nameMapping);
     Schema prunedSchema = AvroSchemaUtil.pruneColumns(schemaWithIds, projectedIds);
+    boolean localTimestampEnabled = AvroSchemaUtil.adjustToUtcDefault(newFileSchema);
     this.readSchema =
         AvroSchemaUtil.buildAvroProjection(
-            prunedSchema, expectedSchema, renames, legacyTimestampMapping);
+            prunedSchema, expectedSchema, renames, localTimestampEnabled);
     this.wrapped = newDatumReader();
   }
 
