@@ -24,6 +24,8 @@ import org.apache.spark.sql.types.VariantType;
 import org.apache.spark.sql.vectorized.ColumnVector;
 import org.apache.spark.sql.vectorized.ColumnarArray;
 import org.apache.spark.sql.vectorized.ColumnarMap;
+import org.apache.spark.unsafe.types.GeographyVal;
+import org.apache.spark.unsafe.types.GeometryVal;
 import org.apache.spark.unsafe.types.UTF8String;
 
 /**
@@ -131,6 +133,16 @@ public class ColumnVectorWithFilter extends ColumnVector {
   @Override
   public byte[] getBinary(int rowId) {
     return delegate.getBinary(rowIdMapping[rowId]);
+  }
+
+  @Override
+  public GeographyVal getGeography(int rowId) {
+    return delegate.getGeography(rowIdMapping[rowId]);
+  }
+
+  @Override
+  public GeometryVal getGeometry(int rowId) {
+    return delegate.getGeometry(rowIdMapping[rowId]);
   }
 
   @Override

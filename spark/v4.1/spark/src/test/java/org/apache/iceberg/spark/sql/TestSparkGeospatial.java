@@ -110,27 +110,34 @@ public class TestSparkGeospatial extends TestBase {
     String deleteTable = CATALOG + ".default.geo_delete";
     sql("DROP TABLE IF EXISTS %s", deleteTable);
     sql(
-        "CREATE TABLE %s (id BIGINT, geom GEOMETRY(4326), geog GEOGRAPHY(4326)) USING iceberg "
+        "CREATE TABLE %s (id BIGINT, geom GEOMETRY(3857), geog GEOGRAPHY(4326)) USING iceberg "
             + "TBLPROPERTIES ('format-version'='3', 'write.delete.mode'='%s', "
             + "'read.parquet.vectorization.enabled'='%s')",
         deleteTable, mode, vectorized);
     sql(
         "INSERT INTO %s SELECT /*+ COALESCE(1) */ id, "
             + "CASE WHEN geom_wkb IS NULL THEN NULL "
-            + "ELSE st_setsrid(st_geomfromwkb(geom_wkb), 4326) END, "
+            + "ELSE st_setsrid(st_geomfromwkb(geom_wkb), 3857) END, "
             + "CASE WHEN geog_wkb IS NULL THEN NULL "
             + "ELSE st_setsrid(st_geogfromwkb(geog_wkb), 4326) END "
-            + "FROM VALUES (1, X'%s', X'%s'), (2, CAST(NULL AS BINARY), CAST(NULL AS BINARY)) "
+            + "FROM VALUES (1, CAST(NULL AS BINARY), CAST(NULL AS BINARY)), (2, X'%s', X'%s') "
             + "AS v(id, geom_wkb, geog_wkb)",
         deleteTable, GEOM_WKB, GEOG_WKB);
 
     sql("DELETE FROM %s WHERE id = 1", deleteTable);
 
     assertEquals(
-        "Only the null-geo row should remain after the delete",
-        ImmutableList.of(row(2L, null, null)),
+        "The surviving geo row should retain its WKB and SRIDs after the delete",
+        ImmutableList.of(
+            row(
+                2L,
+                GEOM_WKB.toUpperCase(Locale.ROOT),
+                3857,
+                GEOG_WKB.toUpperCase(Locale.ROOT),
+                4326)),
         sql(
-            "SELECT id, hex(st_asbinary(geom)), hex(st_asbinary(geog)) FROM %s ORDER BY id",
+            "SELECT id, hex(st_asbinary(geom)), st_srid(geom), "
+                + "hex(st_asbinary(geog)), st_srid(geog) FROM %s ORDER BY id",
             deleteTable));
 
     // A merge-on-read delete of a row from a multi-row file writes a deletion vector (format v3),
