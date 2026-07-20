@@ -37,7 +37,10 @@ import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.DateType$;
 import org.apache.spark.sql.types.DecimalType;
 import org.apache.spark.sql.types.DoubleType$;
+import org.apache.spark.sql.types.EdgeInterpolationAlgorithm;
 import org.apache.spark.sql.types.FloatType$;
+import org.apache.spark.sql.types.GeographyType;
+import org.apache.spark.sql.types.GeometryType;
 import org.apache.spark.sql.types.IntegerType$;
 import org.apache.spark.sql.types.LongType$;
 import org.apache.spark.sql.types.MapType;
@@ -225,6 +228,33 @@ public class PruneColumnsWithoutReordering extends TypeUtil.CustomOrderSchemaVis
             requestedDecimal.precision(),
             decimal.precision());
         break;
+      case GEOMETRY:
+        Types.GeometryType geometry = (Types.GeometryType) primitive;
+        GeometryType requestedGeometry = (GeometryType) current;
+        Preconditions.checkArgument(
+            geometry.crs().equalsIgnoreCase(requestedGeometry.crs()),
+            "Cannot project geometry with incompatible CRS: %s != %s",
+            requestedGeometry.crs(),
+            geometry.crs());
+        break;
+      case GEOGRAPHY:
+        Types.GeographyType geography = (Types.GeographyType) primitive;
+        GeographyType requestedGeography = (GeographyType) current;
+        Preconditions.checkArgument(
+            geography.crs().equalsIgnoreCase(requestedGeography.crs()),
+            "Cannot project geography with incompatible CRS: %s != %s",
+            requestedGeography.crs(),
+            geography.crs());
+        // algorithm() is EdgeAlgorithm on Iceberg and EdgeInterpolationAlgorithm on Spark, so
+        // translate the table's algorithm into Spark's type and compare within one type system.
+        EdgeInterpolationAlgorithm tableAlgorithm =
+            TypeToSparkType.convertAlgorithm(geography.algorithm());
+        Preconditions.checkArgument(
+            tableAlgorithm == requestedGeography.algorithm(),
+            "Cannot project geography with incompatible edge algorithm: %s != %s",
+            requestedGeography.algorithm(),
+            tableAlgorithm);
+        break;
       default:
     }
 
@@ -246,6 +276,8 @@ public class PruneColumnsWithoutReordering extends TypeUtil.CustomOrderSchemaVis
           .put(TypeID.STRING, ImmutableSet.of(StringType$.class))
           .put(TypeID.FIXED, ImmutableSet.of(BinaryType$.class))
           .put(TypeID.BINARY, ImmutableSet.of(BinaryType$.class))
+          .put(TypeID.GEOMETRY, ImmutableSet.of(GeometryType.class))
+          .put(TypeID.GEOGRAPHY, ImmutableSet.of(GeographyType.class))
           .put(TypeID.UNKNOWN, ImmutableSet.of(NullType$.class))
           .buildOrThrow();
 }

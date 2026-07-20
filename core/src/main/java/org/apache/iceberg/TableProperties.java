@@ -184,6 +184,10 @@ public class TableProperties {
       "write.parquet.bloom-filter-max-bytes";
   public static final int PARQUET_BLOOM_FILTER_MAX_BYTES_DEFAULT = 1024 * 1024;
 
+  public static final String PARQUET_BLOOM_FILTER_ADAPTIVE_ENABLED =
+      "write.parquet.bloom-filter-adaptive-enabled";
+  public static final boolean PARQUET_BLOOM_FILTER_ADAPTIVE_ENABLED_DEFAULT = false;
+
   public static final String PARQUET_BLOOM_FILTER_COLUMN_FPP_PREFIX =
       "write.parquet.bloom-filter-fpp.column.";
   public static final double PARQUET_BLOOM_FILTER_COLUMN_FPP_DEFAULT = 0.01;
@@ -357,16 +361,51 @@ public class TableProperties {
   public static final String DELETE_TARGET_FILE_SIZE_BYTES = "write.delete.target-file-size-bytes";
   public static final long DELETE_TARGET_FILE_SIZE_BYTES_DEFAULT = 64 * 1024 * 1024; // 64 MB
 
+  /**
+   * @deprecated will be removed in 1.14.0, use
+   *     SparkTableProperties.WRITE_PARTITIONED_FANOUT_ENABLED in iceberg-spark instead.
+   */
+  @Deprecated
   public static final String SPARK_WRITE_PARTITIONED_FANOUT_ENABLED = "write.spark.fanout.enabled";
-  public static final boolean SPARK_WRITE_PARTITIONED_FANOUT_ENABLED_DEFAULT = false;
 
+  /**
+   * @deprecated will be removed in 1.14.0, use
+   *     SparkTableProperties.WRITE_PARTITIONED_FANOUT_ENABLED_DEFAULT in iceberg-spark instead.
+   */
+  @Deprecated public static final boolean SPARK_WRITE_PARTITIONED_FANOUT_ENABLED_DEFAULT = false;
+
+  /**
+   * @deprecated will be removed in 1.14.0, use SparkTableProperties.WRITE_ACCEPT_ANY_SCHEMA in
+   *     iceberg-spark instead.
+   */
+  @Deprecated
   public static final String SPARK_WRITE_ACCEPT_ANY_SCHEMA = "write.spark.accept-any-schema";
-  public static final boolean SPARK_WRITE_ACCEPT_ANY_SCHEMA_DEFAULT = false;
 
+  /**
+   * @deprecated will be removed in 1.14.0, use SparkTableProperties.WRITE_ACCEPT_ANY_SCHEMA_DEFAULT
+   *     in iceberg-spark instead.
+   */
+  @Deprecated public static final boolean SPARK_WRITE_ACCEPT_ANY_SCHEMA_DEFAULT = false;
+
+  /**
+   * @deprecated will be removed in 1.14.0, use SparkTableProperties.WRITE_AUTO_SCHEMA_EVOLUTION in
+   *     iceberg-spark instead.
+   */
+  @Deprecated
   public static final String SPARK_WRITE_AUTO_SCHEMA_EVOLUTION =
       "write.spark.auto-schema-evolution.enabled";
-  public static final boolean SPARK_WRITE_AUTO_SCHEMA_EVOLUTION_DEFAULT = true;
 
+  /**
+   * @deprecated will be removed in 1.14.0, use
+   *     SparkTableProperties.WRITE_AUTO_SCHEMA_EVOLUTION_DEFAULT in iceberg-spark instead.
+   */
+  @Deprecated public static final boolean SPARK_WRITE_AUTO_SCHEMA_EVOLUTION_DEFAULT = true;
+
+  /**
+   * @deprecated will be removed in 1.14.0, use
+   *     SparkTableProperties.WRITE_ADVISORY_PARTITION_SIZE_BYTES in iceberg-spark instead.
+   */
+  @Deprecated
   public static final String SPARK_WRITE_ADVISORY_PARTITION_SIZE_BYTES =
       "write.spark.advisory-partition-size-bytes";
 

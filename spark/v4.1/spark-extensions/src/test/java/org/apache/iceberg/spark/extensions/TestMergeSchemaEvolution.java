@@ -24,9 +24,9 @@ import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.util.Map;
 import org.apache.iceberg.ParameterizedTestExtension;
-import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.spark.SparkTableProperties;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.TestTemplate;
@@ -272,7 +272,7 @@ public class TestMergeSchemaEvolution extends SparkRowLevelOperationsTestBase {
 
     sql(
         "ALTER TABLE %s SET TBLPROPERTIES ('%s' = 'false')",
-        tableName, TableProperties.SPARK_WRITE_AUTO_SCHEMA_EVOLUTION);
+        tableName, SparkTableProperties.WRITE_AUTO_SCHEMA_EVOLUTION);
 
     createOrReplaceView(
         "source",

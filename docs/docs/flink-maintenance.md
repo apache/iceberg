@@ -82,6 +82,50 @@ Used to remove files which are not referenced in any metadata files of an Iceber
     .deleteBatchSize(1000))
 ```
 
+#### ConvertEqualityDeletes
+Converts equality delete files staged on a source branch into deletion vectors (DVs) on the target branch. Requires table format version >= 3 (which introduces DVs). This is typically used together with the Flink `IcebergSink`, which writes new data files and equality deletes to a staging branch; the converter then resolves the equality deletes into row-position DVs and commits the data files together with the DVs to the target branch.
+
+The pipeline runs a single conversion cycle for every trigger event. Internally it is split into parallel stages (planner → reader → PK index → DV writer → committer), and it uses the same maintenance-framework lock as other tasks to guarantee mutual exclusion with concurrent maintenance operations (e.g. compaction) on the same table.
+
+```java
+.add(ConvertEqualityDeletes.builder()
+    .stagingBranch("staging")
+    .equalityFieldColumns(ImmutableList.of("id"))
+    .scheduleOnEqDeleteFileCount(10)
+    .parallelism(4))
+```
+
+Notes:
+
+**Prerequisites and staging-branch layout**
+
+- Table format version must be `>= 3` (the version that introduces deletion vectors). This is validated at job startup so a wrongly-configured job fails fast instead of silently doing nothing.
+- Row lineage is not currently supported.
+- The staging branch may contain new data files, equality delete files, and deletion vectors, but **must not** contain V2 positional delete files. The planner throws if it encounters any V2 positional delete on the staging branch.
+- The staging branch **must not remove data files**, i.e. do not run compaction / rewrite on the staging branch. If a staging snapshot removes data files, the cycle fails; run `RewriteDataFiles` on the target branch instead — the shared maintenance lock keeps it safe alongside this task.
+- `equalityFieldColumns` is required, must be non-empty, and must match the equality field columns the writer used to produce the staged equality delete files (see `IcebergSink.Builder#equalityFieldColumns`). Every staged equality delete file's `equalityFieldIds` must exactly equal this set; a mismatch fails the cycle. The partition source columns of every staged equality delete's spec must also be a subset of these equality columns.
+
+**Branch semantics**
+
+- When `stagingBranch` and `targetBranch` are different, the converter reads eq-deletes from the staging branch and commits the resolved data files and DVs to the target branch. The staging branch itself is not modified by this task.
+- When `stagingBranch` and `targetBranch` are equal, the converter operates in-place: it acts as an equality-delete-to-DV compaction on that single branch. On cold start it walks the entire branch history so eq-deletes committed before the converter started are still picked up. Pure-insert snapshots on the shared branch are skipped without running a full cycle.
+- Only one **oldest unprocessed** staging snapshot is processed per trigger. If the writer produces staging snapshots faster than the converter can process them, they queue up on the staging branch. Configure `scheduleOnInterval` / `scheduleOnEqDeleteFileCount` / `scheduleOnCommitCount` (and `TableMaintenance.rateLimit`) accordingly to keep up with the ingestion rate.
+
+**State and restart**
+
+- The PK-index worker keeps a keyed row-position index of the target branch in Flink state and **maintains it incrementally across checkpoints**: each trigger cycle only applies the commits added on the target branch since the last indexed snapshot, and the resulting index is persisted with the next Flink checkpoint. On failover, the worker resumes from the most recent checkpointed index rather than rebuilding from scratch. Its size scales with the number of live rows in the table for the configured equality columns; size Flink state backend, checkpoint storage, and TaskManager memory accordingly. **RocksDB is the preferred state backend** because the PK index can grow beyond the available heap and RocksDB spills to local disk instead of failing with an `OutOfMemoryError`.
+- Full (re)indexing from the target branch head is only triggered in a few cases: cold start with no checkpoint, external commits that advance the target past the currently-indexed snapshot (see below), or when the planner detects that the target branch has diverged from the indexed snapshot (rollback / replace-main / expired marker).
+- The `equalityFieldColumns` set is persisted in operator state. Reconfiguring it across a restart from savepoint is **not supported** and the job will fail fast on restore. Restart from a clean state (no savepoint) if the equality columns change.
+- The committer is intentionally stateless. On restart, the planner rediscovers its position by walking the target branch for the marker property `equality-convert-staging-snapshot` written by the committer. If that marker is no longer reachable on the target branch (target was rolled back, replace-main'ed, or the marker snapshot was expired) the planner fails and requires manual intervention.
+
+**Concurrent commits on the target branch**
+
+- External commits to the target branch (e.g. compaction, direct writes) are detected by `RowDelta.validateFromSnapshot`. A conflicting cycle fails at commit; the next trigger reindexes the worker's PK index from the new target head and retries.
+- **Recommendation: avoid continuous concurrent writers on the target branch.** The conflict check runs at commit time, so a cycle that loses the race has already paid the cost of reading data files, resolving the PK index, and writing DV files — all of which is thrown away on failure. If another writer commits to the target faster than the converter can complete a cycle, cycles can fail repeatedly and never catch up (a livelock), and the abandoned DV files linger until `DeleteOrphanFiles` cleans them up.
+- **Acceptable patterns** (the design assumes one of these):
+    - The Flink `IcebergSink` is the *only* writer to `stagingBranch`, and nothing except this converter writes to `targetBranch`. Other maintenance tasks (compaction, expire snapshots, orphan cleanup) share the same `TriggerLockFactory` so they are serialized with the converter and will not race it.
+    - Occasional external commits to the target branch (e.g. manual fixes, ad-hoc backfill) are fine — the next trigger will reindex and succeed.
+
 ### Lock Management
 
 The `TriggerLockFactory` is essential for coordinating maintenance tasks. It prevents concurrent maintenance operations on the same table, which could lead to conflicts or data corruption. This locking mechanism is necessary even for a single job, as multiple instances of the same task could otherwise conflict.
@@ -239,6 +283,17 @@ env.execute("Table Maintenance Job");
 | `minAge(Duration)`                       | Remove orphan files created before this timestamp                                                                                                                                                                                                                                                                                                                       | 3 days ago              | Duration           |
 | `planningWorkerPoolSize(int)`            | Number of worker threads for planning snapshot expiration                                                                                                                                                                                                                                                                                                               | Shared worker pool      | int                |
 
+#### ConvertEqualityDeletes Configuration
+
+| Method                               | Description                                                                                                                                                                                          | Default Value | Type |
+|--------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------|------|
+| `stagingBranch(String)`              | Source branch that holds the equality delete files and their associated data files. **Required.**                                                                                                    | None | String |
+| `targetBranch(String)`               | Target branch where converted data files and DVs are committed.                                                                                                                                      | `main` | String |
+| `equalityFieldColumns(List<String>)` | Equality field column names used to build the primary key index. Must match the equality field columns used by the writer (see `IcebergSink.Builder#equalityFieldColumns`). **Required, non-empty.** | None | List&lt;String&gt; |
+
+!!! note
+    `ConvertEqualityDeletes` requires table format version >= 3 (deletion vectors).
+
 ### Complete Example
 
 ```java
@@ -320,6 +375,18 @@ IcebergSink.forRowData(dataStream)
     .append();
 ```
 
+`convertEqualityDeletes()` converts equality deletes to deletion vectors. Unlike the other tasks, it requires equality field columns (upsert or CDC writes) and a table with format version >= 3. By default, it converts in place on the write branch:
+
+```java
+IcebergSink.forRowData(dataStream)
+    .table(table)
+    .tableLoader(tableLoader)
+    .upsert(true)
+    .equalityFieldColumns(List.of("id"))
+    .convertEqualityDeletes()
+    .append();
+```
+
 ##### Config
 
 All maintenance tasks are configured through string properties:
@@ -331,6 +398,8 @@ Map<String, String> flinkConf = new HashMap<>();
 flinkConf.put("flink-maintenance.rewrite.enabled", "true");
 flinkConf.put("flink-maintenance.expire-snapshots.enabled", "true");
 flinkConf.put("flink-maintenance.delete-orphan-files.enabled", "true");
+// Requires equality field columns (upsert or CDC) and a table with format version >= 3.
+flinkConf.put("flink-maintenance.convert-equality-deletes.enabled", "true");
 
 // Configure rewrite data files
 flinkConf.put("flink-maintenance.rewrite.max-bytes", "1073741824");
@@ -341,6 +410,10 @@ flinkConf.put("flink-maintenance.expire-snapshots.max-snapshot-age-seconds", "60
 
 // Configure delete orphan files
 flinkConf.put("flink-maintenance.delete-orphan-files.min-age-seconds", "259200");
+
+// Configure convert equality deletes. Converts in place on the write branch by default;
+// set a target branch to promote the converted deletion vectors there instead.
+flinkConf.put("flink-maintenance.convert-equality-deletes.target-branch", "main");
 
 // Configure JDBC lock settings (deprecated, lock configuration is no longer required for a single Flink job)
 flinkConf.put("flink-maintenance.lock.type", "jdbc");
@@ -364,6 +437,8 @@ SET 'table.exec.iceberg.use.v2.sink' = 'true';
 SET 'flink-maintenance.rewrite.enabled' = 'true';
 SET 'flink-maintenance.expire-snapshots.enabled' = 'true';
 SET 'flink-maintenance.delete-orphan-files.enabled' = 'true';
+-- Requires equality field columns (upsert) and a table with format version >= 3
+SET 'flink-maintenance.convert-equality-deletes.enabled' = 'true';
 
 -- Configure rewrite data files
 SET 'flink-maintenance.rewrite.max-bytes' = '1073741824';
@@ -420,6 +495,7 @@ These keys are used in SQL (SET or table WITH options) or via `IcebergSink.Build
 | `flink-maintenance.rewrite.enabled` | Enable compaction (rewrite data files) | `false` |
 | `flink-maintenance.expire-snapshots.enabled` | Enable expire snapshots | `false` |
 | `flink-maintenance.delete-orphan-files.enabled` | Enable delete orphan files | `false` |
+| `flink-maintenance.convert-equality-deletes.enabled` | Enable converting equality deletes to deletion vectors (requires equality fields and format version >= 3) | `false` |
 
 #### Rewrite Data Files Configuration
 
@@ -458,6 +534,14 @@ These keys are used in SQL (SET or table WITH options) or via `IcebergSink.Build
 | `flink-maintenance.delete-orphan-files.equal-schemes` | Equivalent schemes (format: `s3n=s3,s3a=s3`) | `s3n=s3,s3a=s3` |
 | `flink-maintenance.delete-orphan-files.equal-authorities` | Equivalent authorities (format: `auth1=auth2`) | Not set |
 | `flink-maintenance.delete-orphan-files.prefix-mismatch-mode` | Behavior on prefix mismatch: `ERROR`, `IGNORE`, `DELETE` | `ERROR` |
+
+#### Convert Equality Deletes Configuration
+
+| Key | Description | Default |
+|-----|-------------|---------|
+| `flink-maintenance.convert-equality-deletes.target-branch` | Branch the converted deletion vectors are committed to | Not set (in-place conversion) |
+| `flink-maintenance.convert-equality-deletes.schedule.commit-count` | Trigger after N commits | `1` |
+| `flink-maintenance.convert-equality-deletes.schedule.interval-second` | Trigger after time interval (seconds) | Not set |
 
 ### Lock Configuration (SQL)
 

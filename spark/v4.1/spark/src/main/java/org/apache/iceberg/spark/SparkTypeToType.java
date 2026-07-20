@@ -19,7 +19,9 @@
 package org.apache.iceberg.spark;
 
 import java.util.List;
+import java.util.Locale;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.types.EdgeAlgorithm;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.types.ArrayType;
@@ -31,7 +33,10 @@ import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.DateType;
 import org.apache.spark.sql.types.DecimalType;
 import org.apache.spark.sql.types.DoubleType;
+import org.apache.spark.sql.types.EdgeInterpolationAlgorithm;
 import org.apache.spark.sql.types.FloatType;
+import org.apache.spark.sql.types.GeographyType;
+import org.apache.spark.sql.types.GeometryType;
 import org.apache.spark.sql.types.IntegerType;
 import org.apache.spark.sql.types.LongType;
 import org.apache.spark.sql.types.MapType;
@@ -166,10 +171,38 @@ class SparkTypeToType extends SparkTypeVisitor<Type> {
           ((DecimalType) atomic).precision(), ((DecimalType) atomic).scale());
     } else if (atomic instanceof BinaryType) {
       return Types.BinaryType.get();
+    } else if (atomic instanceof GeometryType) {
+      GeometryType geometry = (GeometryType) atomic;
+      if (geometry.isMixedSrid()) {
+        throw new UnsupportedOperationException(
+            "Cannot convert Spark geometry with mixed SRID to Iceberg");
+      }
+      return Types.GeometryType.of(geometry.crs());
+    } else if (atomic instanceof GeographyType) {
+      GeographyType geography = (GeographyType) atomic;
+      if (geography.isMixedSrid()) {
+        throw new UnsupportedOperationException(
+            "Cannot convert Spark geography with mixed SRID to Iceberg");
+      }
+      return Types.GeographyType.of(geography.crs(), convertAlgorithm(geography.algorithm()));
     } else if (atomic instanceof NullType) {
       return Types.UnknownType.get();
     }
 
     throw new UnsupportedOperationException("Not a supported type: " + atomic.catalogString());
+  }
+
+  // Translates Spark's edge-interpolation algorithm to Iceberg's, mirroring
+  // TypeToSparkType#convertAlgorithm. Spark supports only the spherical algorithm today; anything
+  // else is rejected loudly rather than silently defaulting, so a new Spark algorithm surfaces here
+  // instead of being dropped.
+  private static EdgeAlgorithm convertAlgorithm(EdgeInterpolationAlgorithm algorithm) {
+    switch (algorithm.toString().toUpperCase(Locale.ROOT)) {
+      case "SPHERICAL":
+        return EdgeAlgorithm.SPHERICAL;
+      default:
+        throw new UnsupportedOperationException(
+            "Iceberg does not support Spark geography edge algorithm: " + algorithm);
+    }
   }
 }

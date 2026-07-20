@@ -20,6 +20,7 @@ package org.apache.iceberg.spark;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
@@ -29,12 +30,19 @@ import java.util.stream.Stream;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.Literal;
+import org.apache.iceberg.types.EdgeAlgorithm;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.catalyst.expressions.AttributeReference;
 import org.apache.spark.sql.catalyst.expressions.MetadataAttribute;
 import org.apache.spark.sql.catalyst.types.DataTypeUtils;
 import org.apache.spark.sql.catalyst.util.ResolveDefaultColumnsUtils$;
+import org.apache.spark.sql.types.DataType;
+import org.apache.spark.sql.types.DataTypes;
+import org.apache.spark.sql.types.GeographyType;
+import org.apache.spark.sql.types.GeographyType$;
+import org.apache.spark.sql.types.GeometryType;
+import org.apache.spark.sql.types.GeometryType$;
 import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
@@ -108,6 +116,121 @@ public class TestSparkSchemaUtil {
             .isFalse();
       }
     }
+  }
+
+  @Test
+  public void testGeospatialTypeConversion() {
+    // a default-CRS geometry round-trips through the null <-> OGC:CRS84 normalization
+    Types.GeometryType defaultGeometry = Types.GeometryType.crs84();
+    DataType sparkDefaultGeometry = SparkSchemaUtil.convert(defaultGeometry);
+    assertThat(sparkDefaultGeometry).isInstanceOf(GeometryType.class);
+    assertThat(((GeometryType) sparkDefaultGeometry).crs())
+        .isEqualTo(Types.GeometryType.DEFAULT_CRS);
+    assertThat(SparkSchemaUtil.convert(sparkDefaultGeometry)).isEqualTo(defaultGeometry);
+
+    // a default-CRS geography round-trips through the null <-> OGC:CRS84 normalization
+    Types.GeographyType defaultGeography = Types.GeographyType.crs84();
+    DataType sparkDefaultGeography = SparkSchemaUtil.convert(defaultGeography);
+    assertThat(sparkDefaultGeography).isInstanceOf(GeographyType.class);
+    assertThat(((GeographyType) sparkDefaultGeography).crs())
+        .isEqualTo(Types.GeographyType.DEFAULT_CRS);
+    assertThat(SparkSchemaUtil.convert(sparkDefaultGeography)).isEqualTo(defaultGeography);
+
+    Types.GeometryType geometry = Types.GeometryType.of("EPSG:3857");
+    DataType sparkGeometry = SparkSchemaUtil.convert(geometry);
+    assertThat(sparkGeometry).isInstanceOf(GeometryType.class);
+    assertThat(((GeometryType) sparkGeometry).crs()).isEqualTo("EPSG:3857");
+    assertThat(SparkSchemaUtil.convert(sparkGeometry)).isEqualTo(geometry);
+
+    Types.GeographyType geography = Types.GeographyType.of("OGC:CRS84");
+    DataType sparkGeography = SparkSchemaUtil.convert(geography);
+    assertThat(sparkGeography).isInstanceOf(GeographyType.class);
+    assertThat(((GeographyType) sparkGeography).crs()).isEqualTo("OGC:CRS84");
+    assertThat(SparkSchemaUtil.convert(sparkGeography)).isEqualTo(geography);
+
+    assertThat(SparkSchemaUtil.convert(GeometryType$.MODULE$.apply("EPSG:3857")))
+        .isEqualTo(geometry);
+    assertThat(SparkSchemaUtil.convert(GeographyType$.MODULE$.apply("OGC:CRS84")))
+        .isEqualTo(geography);
+
+    Types.GeographyType vincentyGeography =
+        Types.GeographyType.of("OGC:CRS84", EdgeAlgorithm.VINCENTY);
+    assertThatThrownBy(() -> SparkSchemaUtil.convert(vincentyGeography))
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage("Spark does not support geography edge algorithm: vincenty");
+  }
+
+  @Test
+  public void testGeospatialCrsUnsupportedBySparkIsRejected() {
+    // Iceberg permits any non-empty CRS, but Spark only recognizes a fixed set; a CRS Spark cannot
+    // resolve is rejected by Spark's SparkIllegalArgumentException (an IllegalArgumentException).
+    Types.GeometryType geometry = Types.GeometryType.of("EPSG:4269");
+    assertThatThrownBy(() -> SparkSchemaUtil.convert(geometry))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("EPSG:4269");
+
+    Types.GeographyType geography = Types.GeographyType.of("EPSG:4269");
+    assertThatThrownBy(() -> SparkSchemaUtil.convert(geography))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("EPSG:4269");
+  }
+
+  @Test
+  public void testGeospatialMixedSridIsRejected() {
+    // Spark models a mixed-SRID column with a sentinel CRS ("SRID:ANY"); Iceberg requires a
+    // concrete column-level CRS, so a mixed-SRID Spark type must be rejected, not persisted.
+    DataType mixedGeometry = GeometryType$.MODULE$.apply("ANY");
+    assertThatThrownBy(() -> SparkSchemaUtil.convert(mixedGeometry))
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage("Cannot convert Spark geometry with mixed SRID to Iceberg");
+
+    DataType mixedGeography = GeographyType$.MODULE$.apply("ANY");
+    assertThatThrownBy(() -> SparkSchemaUtil.convert(mixedGeography))
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage("Cannot convert Spark geography with mixed SRID to Iceberg");
+  }
+
+  @Test
+  public void testPruneGeospatialTypes() {
+    Schema schema =
+        new Schema(
+            optional(1, "geom", Types.GeometryType.of("EPSG:3857")),
+            optional(2, "geog", Types.GeographyType.of("OGC:CRS84")),
+            optional(3, "id", Types.LongType.get()));
+
+    StructType requestedType = SparkSchemaUtil.convert(schema);
+    Schema pruned = SparkSchemaUtil.prune(schema, requestedType);
+
+    assertThat(pruned.asStruct()).isEqualTo(schema.asStruct());
+  }
+
+  @Test
+  public void testPruneGeospatialTypeWithIncompatibleRequestedType() {
+    Schema schema = new Schema(optional(1, "geom", Types.GeometryType.of("EPSG:3857")));
+
+    // requesting a non-geo Spark type for a geometry column must be rejected
+    StructType incompatibleType = new StructType().add("geom", DataTypes.BinaryType, true);
+
+    assertThatThrownBy(() -> SparkSchemaUtil.prune(schema, incompatibleType))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot project")
+        .hasMessageContaining("incompatible type");
+  }
+
+  @Test
+  public void testPruneGeospatialTypeWithIncompatibleCrs() {
+    // Spark normally copies the type from the table schema, so this defends against a requested geo
+    // type whose CRS disagrees with the table's rather than a case reachable through normal reads.
+    // Both CRS values must be ones Spark recognizes (else construction fails first); OGC:CRS84 and
+    // EPSG:3857 are both valid and differ, exercising the prune-time CRS check.
+    Schema schema = new Schema(optional(1, "geom", Types.GeometryType.of("EPSG:3857")));
+
+    StructType mismatchedCrs =
+        new StructType().add("geom", GeometryType$.MODULE$.apply("OGC:CRS84"), true);
+
+    assertThatThrownBy(() -> SparkSchemaUtil.prune(schema, mismatchedCrs))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot project geometry with incompatible CRS");
   }
 
   @Test

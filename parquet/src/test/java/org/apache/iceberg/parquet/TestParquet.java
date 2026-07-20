@@ -20,6 +20,9 @@ package org.apache.iceberg.parquet;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.apache.iceberg.Files.localInput;
+import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_ADAPTIVE_ENABLED;
+import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX;
+import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_MAX_BYTES;
 import static org.apache.iceberg.TableProperties.PARQUET_COLUMN_STATS_ENABLED_PREFIX;
 import static org.apache.iceberg.TableProperties.PARQUET_DICT_ENCODING_ENABLED_COLUMN_PREFIX;
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_CHECK_MAX_RECORD_COUNT;
@@ -68,6 +71,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.IntegerType;
 import org.apache.iceberg.util.Pair;
+import org.apache.iceberg.util.RandomUtil;
 import org.apache.iceberg.variants.Variant;
 import org.apache.parquet.avro.AvroParquetWriter;
 import org.apache.parquet.column.Encoding;
@@ -281,6 +285,88 @@ public class TestParquet {
           }
         }
       }
+    }
+  }
+
+  @Test
+  public void testGeospatialFooterMetricsSkipParquetBounds() throws IOException {
+    Schema binarySchema = new Schema(optional(1, "geom", Types.BinaryType.get()));
+    Schema geometrySchema = new Schema(optional(1, "geom", Types.GeometryType.crs84()));
+    Schema geographySchema = new Schema(optional(1, "geom", Types.GeographyType.crs84()));
+
+    File file = createTempFile(temp);
+    org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(binarySchema.asStruct());
+    GenericData.Record first = new GenericData.Record(avroSchema);
+    first.put("geom", ByteBuffer.wrap(new byte[] {0x01, 0x02, 0x03}));
+    GenericData.Record second = new GenericData.Record(avroSchema);
+    second.put("geom", ByteBuffer.wrap(new byte[] {0x04, 0x05, 0x06}));
+
+    write(
+        file, binarySchema, Collections.emptyMap(), ParquetAvroWriter::buildWriter, first, second);
+
+    InputFile inputFile = Files.localInput(file);
+    try (ParquetFileReader reader = ParquetFileReader.open(ParquetIO.file(inputFile))) {
+      Metrics geometryMetrics =
+          ParquetMetrics.metrics(
+              geometrySchema,
+              reader.getFooter().getFileMetaData().getSchema(),
+              MetricsConfig.getDefault(),
+              reader.getFooter(),
+              Stream.empty());
+
+      Metrics geographyMetrics =
+          ParquetMetrics.metrics(
+              geographySchema,
+              reader.getFooter().getFileMetaData().getSchema(),
+              MetricsConfig.getDefault(),
+              reader.getFooter(),
+              Stream.empty());
+
+      assertThat(geometryMetrics.valueCounts()).containsEntry(1, 2L);
+      assertThat(geometryMetrics.nullValueCounts()).containsEntry(1, 0L);
+      assertThat(geometryMetrics.lowerBounds()).doesNotContainKey(1);
+      assertThat(geometryMetrics.upperBounds()).doesNotContainKey(1);
+
+      assertThat(geographyMetrics.valueCounts()).containsEntry(1, 2L);
+      assertThat(geographyMetrics.nullValueCounts()).containsEntry(1, 0L);
+      assertThat(geographyMetrics.lowerBounds()).doesNotContainKey(1);
+      assertThat(geographyMetrics.upperBounds()).doesNotContainKey(1);
+    }
+  }
+
+  @Test
+  public void testGeospatialWkbRoundTrip() throws IOException {
+    Schema schema =
+        new Schema(
+            optional(1, "geom", Types.GeometryType.crs84()),
+            optional(2, "geog", Types.GeographyType.crs84()));
+
+    // Use real WKB points: the geometry/geography columns carry a Parquet geospatial logical type,
+    // so the writer parses each value with a WKB reader to build geospatial statistics. Arbitrary
+    // bytes would fail that parse and be silently omitted from stats.
+    ByteBuffer geomWkb = ByteBuffer.wrap(RandomUtil.wkbPoint(30, 10));
+    ByteBuffer geogWkb = ByteBuffer.wrap(RandomUtil.wkbPoint(-5, 40));
+
+    org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(schema.asStruct());
+    GenericData.Record record = new GenericData.Record(avroSchema);
+    record.put("geom", geomWkb);
+    record.put("geog", geogWkb);
+    GenericData.Record nulls = new GenericData.Record(avroSchema);
+
+    File file = createTempFile(temp);
+    write(file, schema, Collections.emptyMap(), ParquetAvroWriter::buildWriter, record, nulls);
+
+    try (CloseableIterable<GenericData.Record> reader =
+        Parquet.read(Files.localInput(file))
+            .project(schema)
+            .createReaderFunc(fileSchema -> ParquetAvroValueReaders.buildReader(schema, fileSchema))
+            .build()) {
+      List<GenericData.Record> rows = Lists.newArrayList(reader);
+      assertThat(rows).hasSize(2);
+      assertThat(rows.get(0).get("geom")).isEqualTo(geomWkb);
+      assertThat(rows.get(0).get("geog")).isEqualTo(geogWkb);
+      assertThat(rows.get(1).get("geom")).isNull();
+      assertThat(rows.get(1).get("geog")).isNull();
     }
   }
 
@@ -514,6 +600,52 @@ public class TestParquet {
     assertThatThrownBy(() -> ParquetAvroWriter.buildWriter(schema))
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessage("Avro writer does not support variant types");
+  }
+
+  @Test
+  public void adaptiveBloomFilterSizingShrinksFile() throws IOException {
+    // when PARQUET_BLOOM_FILTER_ADAPTIVE_ENABLED is not set (the default), the writer
+    // allocates the full PARQUET_BLOOM_FILTER_MAX_BYTES buffer (4 MiB here) regardless
+    // of the number of distinct values written
+    long sizeWithoutAdaptive = writeWithBloomFilter(null);
+    assertThat(sizeWithoutAdaptive)
+        .as("non-adaptive file should pad the bloom filter to PARQUET_BLOOM_FILTER_MAX_BYTES")
+        .isGreaterThan(3_500_000L);
+
+    // with PARQUET_BLOOM_FILTER_ADAPTIVE_ENABLED, the writer picks the smallest candidate
+    // bloom filter that satisfies the actual number of distinct values (5) at the
+    // configured FPP
+    long sizeWithAdaptive = writeWithBloomFilter(true);
+    assertThat(sizeWithAdaptive)
+        .as("adaptive file should be at least 2x smaller than the non-adaptive file")
+        .isLessThan(sizeWithoutAdaptive / 2);
+  }
+
+  private long writeWithBloomFilter(Boolean adaptiveEnabled) throws IOException {
+    Schema schema = new Schema(required(1, "id", Types.LongType.get()));
+
+    ImmutableMap.Builder<String, String> propsBuilder =
+        ImmutableMap.<String, String>builder()
+            .put(PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "id", "true")
+            .put(PARQUET_BLOOM_FILTER_MAX_BYTES, "4194304");
+    if (adaptiveEnabled != null) {
+      propsBuilder.put(PARQUET_BLOOM_FILTER_ADAPTIVE_ENABLED, adaptiveEnabled.toString());
+    }
+
+    List<GenericData.Record> records = Lists.newArrayListWithCapacity(5);
+    org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(schema.asStruct());
+    for (long i = 0; i < 5; i++) {
+      GenericData.Record record = new GenericData.Record(avroSchema);
+      record.put("id", i);
+      records.add(record);
+    }
+
+    return write(
+        createTempFile(temp),
+        schema,
+        propsBuilder.buildOrThrow(),
+        ParquetAvroWriter::buildWriter,
+        records.toArray(new GenericData.Record[] {}));
   }
 
   private Pair<File, Long> generateFile(

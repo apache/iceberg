@@ -234,6 +234,22 @@ public class TestRecordConverter {
   }
 
   @Test
+  public void testUUIDStringConversion() {
+    Table table = mock(Table.class);
+    when(table.schema())
+        .thenReturn(new org.apache.iceberg.Schema(NestedField.required(1, "uuid", UUIDType.get())));
+
+    Schema connectSchema =
+        SchemaBuilder.struct().field("uuid", SchemaBuilder.string().name("uuid").build()).build();
+    Struct data = new Struct(connectSchema).put("uuid", UUID_VAL.toString());
+
+    RecordConverter converter = new RecordConverter(table, config);
+    Record record = converter.convert(data);
+
+    assertThat(record.getField("uuid")).isEqualTo(UUID_VAL);
+  }
+
+  @Test
   public void testEmptyListAndMapConvert() {
     Table table = mock(Table.class);
     when(table.schema()).thenReturn(SCHEMA);
