@@ -191,9 +191,8 @@ public class PartitionSpec implements Serializable {
   private Type resultType(PartitionField field) {
     Type sourceType = schema.findType(field.sourceId());
     if (sourceType == null) {
-      // when the source field has been dropped, substitute unknown and let the transform derive
-      // its result type; transforms that return the source type (identity, truncate, void) yield
-      // unknown, while transforms with a fixed result type still resolve
+      // When the source field has been dropped, the source type has been lost
+      // Transforms with a fixed result type still work, so use unknown for source
       sourceType = Types.UnknownType.get();
     }
 
