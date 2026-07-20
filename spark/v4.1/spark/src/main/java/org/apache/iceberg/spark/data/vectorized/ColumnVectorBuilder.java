@@ -40,6 +40,10 @@ class ColumnVectorBuilder {
       } else {
         throw new IllegalStateException("Unknown dummy vector holder: " + holder);
       }
+    } else if (holder.icebergType().typeId() == Type.TypeID.GEOMETRY) {
+      return new GeometryArrowColumnVector(holder);
+    } else if (holder.icebergType().typeId() == Type.TypeID.GEOGRAPHY) {
+      return new GeographyArrowColumnVector(holder);
     } else {
       return new IcebergArrowColumnVector(holder);
     }
