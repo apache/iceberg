@@ -156,7 +156,7 @@ public class TestReadDefaultValues {
       try (AvroIterable<Record> reader =
           Avro.read(Files.localInput(testFile))
               .project(readerSchema)
-              .createReaderFunc(GenericAvroReader::create)
+              .createReaderFunc(avroSchema -> GenericAvroReader.create(avroSchema))
               .build()) {
         rows = Lists.newArrayList(reader);
       }
