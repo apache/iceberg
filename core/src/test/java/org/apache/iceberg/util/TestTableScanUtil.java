@@ -32,6 +32,7 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.FileMetadata;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MergeableScanTask;
 import org.apache.iceberg.MockFileScanTask;
@@ -130,6 +131,47 @@ public class TestTableScanUtil {
           .as("Scan tasks detail in combined task check failed")
           .isEqualTo(expectedCombinedTasks.get(i).files());
     }
+  }
+
+  @Test
+  public void testPlanCountsSharedEqualityDeleteOnce() {
+    DeleteFile sharedDelete =
+        FileMetadata.deleteFileBuilder(SPEC1)
+            .ofEqualityDeletes()
+            .withPath("/path/to/shared-delete.parquet")
+            .withFileSizeInBytes(10L)
+            .withRecordCount(2)
+            .build();
+    DataFile data1 =
+        DataFiles.builder(SPEC1)
+            .withPath("/path/to/data-1.parquet")
+            .withFileSizeInBytes(250L)
+            .withRecordCount(1)
+            .build();
+    DataFile data2 =
+        DataFiles.builder(SPEC1)
+            .withPath("/path/to/data-2.parquet")
+            .withFileSizeInBytes(250L)
+            .withRecordCount(1)
+            .build();
+
+    List<FileScanTask> tasks =
+        ImmutableList.of(
+            new MockFileScanTask(data1, new DeleteFile[] {sharedDelete}, TEST_SCHEMA, SPEC1),
+            new MockFileScanTask(data2, new DeleteFile[] {sharedDelete}, TEST_SCHEMA, SPEC1));
+
+    // The shared equality delete (10 B) should be counted only once per bin.
+    // 2 data files x 250 B + 1 equality delete x 10 B = 510 B < 512 B -> 1 bin
+    // Bug: equality delete counted per task -> 260 B + 260 B = 520 B > 512 B -> 2 bins
+    assertThat(TableScanUtil.planTasks(CloseableIterable.withNoopClose(tasks), 512L, 1, 0L))
+        .as("Shared equality delete should be counted once per bin, not once per data file")
+        .hasSize(1);
+    assertThat(TableScanUtil.planTaskGroups(tasks, 512L, 1, 0L))
+        .as("Shared equality delete should be counted once per bin, not once per data file")
+        .hasSize(1);
+    assertThat(TableScanUtil.planTaskGroups(tasks, 512L, 1, 0L, SPEC1.partitionType()))
+        .as("Shared equality delete should be counted once per bin, not once per data file")
+        .hasSize(1);
   }
 
   @Test
