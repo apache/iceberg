@@ -201,6 +201,12 @@ The Stackable Data Platform is completely open source, providing maximum portabi
 
 Starburst is a commercial offering for the [Trino query engine](https://trino.io). Trino is a distributed MPP SQL query engine that can query data in Iceberg at interactive speeds. Trino also enables you to join Iceberg tables with an [array of other systems](https://trino.io/docs/current/connector.html). Starburst offers both an [enterprise deployment](https://www.starburst.io/platform/starburst-enterprise/) and a [fully managed service](https://www.starburst.io/platform/starburst-galaxy/) to make managing and scaling Trino a flawless experience. Starburst also provides customer support and houses many of the original contributors to the open-source project that know Trino best. Learn more about [the Starburst Iceberg connector](https://docs.starburst.io/latest/connector/iceberg.html).
 
+### [StarTree](https://startree.ai/)
+
+StarTree is a real-time analytics platform that is able to deliver consistently fast, highly concurrent queries on data stored in Apache Iceberg. Built on the indexing capabilities of Apache Pinot, StarTree can precisely fetch page-level data from Parquet files, reducing unnecessary scanning and data transfer.
+
+This makes it practical and cost-effective to support [SLA-driven analytics on the lakehouse](https://startree.ai/resources/5-sla-driven-analytics-use-cases-now-possible-with-iceberg/). StarTree can power observability, customer-facing analytics, anomaly detection, and interactive business intelligence workloads without requiring data to be duplicated, pre-aggregated, or materialized into a separate serving system. StarTree is available as a managed cloud service or can be deployed within an [enterprise cloud environment](https://startree.ai/resources/byoc-beyond-the-checkbox/). Learn more in the [StarTree Docs]([https://docs.startree.ai/corecapabilities/external-table/overview).
+
 ### [StreamNative](https://streamnative.io)
 
 StreamNative provides a data streaming platform powered by [Ursa](https://streamnative.io/products/ursa), a Kafka‑compatible, leaderless, lakehouse‑native streaming engine. Ursa writes directly to Apache Iceberg tables on cloud object storage—removing the need for bespoke connectors—and automatically compacts and commits data, so it’s immediately queryable by engines such as Spark, Trino, and Flink. Learn more in the [Ursa VLDB paper](https://www.vldb.org/pvldb/vol18/p5184-guo.pdf).

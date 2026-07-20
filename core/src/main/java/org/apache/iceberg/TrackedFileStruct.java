@@ -134,7 +134,7 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
   }
 
   /** Copy constructor. */
-  private TrackedFileStruct(TrackedFileStruct toCopy, boolean withStats, Set<Integer> statsIds) {
+  private TrackedFileStruct(TrackedFileStruct toCopy, Set<Integer> statsIds) {
     super(toCopy);
     this.contentType = toCopy.contentType;
     this.formatVersion = toCopy.formatVersion;
@@ -148,9 +148,9 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
     this.sortOrderId = toCopy.sortOrderId;
     this.deletionVector = toCopy.deletionVector != null ? toCopy.deletionVector.copy() : null;
 
-    if (withStats && toCopy.contentStats != null) {
-      ContentStats filtered = BaseContentStats.buildFrom(toCopy.contentStats, statsIds).build();
-      this.contentStats = filtered.fieldStats().isEmpty() ? null : filtered;
+    if (toCopy.contentStats != null && (statsIds == null || !statsIds.isEmpty())) {
+      this.contentStats =
+          statsIds != null ? toCopy.contentStats.copy(statsIds) : toCopy.contentStats.copy();
     } else {
       this.contentStats = null;
     }
@@ -252,12 +252,12 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
 
   @Override
   public TrackedFile copy() {
-    return new TrackedFileStruct(this, true, null);
+    return new TrackedFileStruct(this, null);
   }
 
   @Override
   public TrackedFile copyWithStats(Set<Integer> requestedColumnIds) {
-    return new TrackedFileStruct(this, true, requestedColumnIds);
+    return new TrackedFileStruct(this, requestedColumnIds);
   }
 
   @Override

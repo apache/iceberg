@@ -37,6 +37,7 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.spark.SparkCatalogConfig;
 import org.apache.iceberg.spark.TestBaseWithCatalog;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ByteBuffers;
 import org.apache.iceberg.variants.ShreddedObject;
 import org.apache.iceberg.variants.VariantMetadata;
@@ -645,6 +646,83 @@ public class TestFilterPushDown extends TestBaseWithCatalog {
               ImmutableList.of(
                   row(2L, toSparkVariantRow("bar", 30)), row(3L, toSparkVariantRow("baz", 35))));
         });
+  }
+
+  @TestTemplate
+  public void testFilterPushdownOnInitialDefaultColumnAbsentFromFile() {
+    sql(
+        "CREATE TABLE %s (id BIGINT, name STRING) USING iceberg "
+            + "TBLPROPERTIES ('format-version' = '3')",
+        tableName);
+    configurePlanningMode(planningMode);
+
+    sql("INSERT INTO %s VALUES (1, 'Alice')", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    table.updateSchema().addColumn("c", Types.StringType.get(), Expressions.lit("US")).commit();
+    sql("REFRESH TABLE %s", tableName);
+
+    sql("INSERT INTO %s VALUES (2, 'Bob', 'US'), (3, 'Eve', 'CA')", tableName);
+
+    // the row from the first file reads c as its default 'US'
+    checkFilters(
+        "c = 'US'" /* query predicate */,
+        "isnotnull(c) AND (c = US)" /* Spark post scan filter */,
+        "c IS NOT NULL, c = 'US'" /* Iceberg scan filters */,
+        ImmutableList.of(row(1L, "Alice", "US"), row(2L, "Bob", "US")));
+
+    // Spark cannot push upper(c) but still pushes the inferred c IS NOT NULL
+    checkFilters(
+        "upper(c) = 'US'" /* query predicate */,
+        "isnotnull(c) AND (upper(c) = US)" /* Spark post scan filter */,
+        "c IS NOT NULL" /* Iceberg scan filters */,
+        ImmutableList.of(row(1L, "Alice", "US"), row(2L, "Bob", "US")));
+
+    checkOnlyIcebergFilters(
+        "c IS NOT NULL" /* query predicate */,
+        "c IS NOT NULL" /* Iceberg scan filters */,
+        ImmutableList.of(row(1L, "Alice", "US"), row(2L, "Bob", "US"), row(3L, "Eve", "CA")));
+
+    // the file without column c reads it as the default 'US', which matches neither predicate
+    assertThat(sql("SELECT * FROM %s WHERE c = 'CA'", tableName))
+        .containsExactly(row(3L, "Eve", "CA"));
+    assertThat(sql("SELECT * FROM %s WHERE c IS NULL", tableName)).isEmpty();
+  }
+
+  @TestTemplate
+  public void testFilterPushdownOnNestedInitialDefaultColumnAbsentFromFile() {
+    sql(
+        "CREATE TABLE %s (id BIGINT, loc STRUCT<city: STRING>) USING iceberg "
+            + "TBLPROPERTIES ('format-version' = '3')",
+        tableName);
+    configurePlanningMode(planningMode);
+
+    sql("INSERT INTO %s VALUES (1, named_struct('city', 'San Francisco')), (2, NULL)", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    table
+        .updateSchema()
+        .addColumn("loc", "country", Types.StringType.get(), Expressions.lit("US"))
+        .commit();
+    sql("REFRESH TABLE %s", tableName);
+
+    // only the pre-add file exists; it has no loc.country column, so a row with a present loc
+    // struct reads it as the initial-default 'US' and the pruning fix keeps that row group
+    checkFilters(
+        "loc.country = 'US'" /* query predicate */,
+        "isnotnull(loc.country) AND (loc.country = US)" /* Spark post scan filter */,
+        "loc.country IS NOT NULL, loc.country = 'US'" /* Iceberg scan filters */,
+        ImmutableList.of(row(1L, row("San Francisco", "US"))));
+
+    sql("INSERT INTO %s VALUES (3, named_struct('city', 'Toronto', 'country', 'CA'))", tableName);
+
+    // the post-add file stores a real 'CA'; the pre-add row group is pruned because neither the
+    // default 'US' nor null can satisfy loc.country = 'CA'
+    checkFilters(
+        "loc.country = 'CA'" /* query predicate */,
+        "isnotnull(loc.country) AND (loc.country = CA)" /* Spark post scan filter */,
+        "loc.country IS NOT NULL, loc.country = 'CA'" /* Iceberg scan filters */,
+        ImmutableList.of(row(3L, row("Toronto", "CA"))));
   }
 
   private void checkOnlyIcebergFilters(

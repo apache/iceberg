@@ -22,6 +22,7 @@ import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 
@@ -32,7 +33,7 @@ public class TestTrackedFile {
           optional(1, "id", Types.IntegerType.get()), optional(2, "data", Types.StringType.get()));
 
   private static final Types.StructType CONTENT_STATS_TYPE =
-      StatsUtil.contentStatsFor(TABLE_SCHEMA).type().asStructType();
+      StatsUtil.statsReadSchema(TABLE_SCHEMA, ImmutableList.of(1, 2));
 
   private static final Types.StructType PARTITION_TYPE =
       PartitionSpec.builderFor(TABLE_SCHEMA).identity("id").build().partitionType();
@@ -93,8 +94,8 @@ public class TestTrackedFile {
             optional(2, "data", Types.StringType.get()),
             optional(3, "ts", Types.TimestampType.withoutZone()));
 
-    Types.StructType smallStats = StatsUtil.contentStatsFor(smallSchema).type().asStructType();
-    Types.StructType largeStats = StatsUtil.contentStatsFor(largeSchema).type().asStructType();
+    Types.StructType smallStats = StatsUtil.statsReadSchema(smallSchema, ImmutableList.of(1));
+    Types.StructType largeStats = StatsUtil.statsReadSchema(largeSchema, ImmutableList.of(1, 3));
 
     Types.StructType smallType = TrackedFile.schema(PARTITION_TYPE, smallStats);
     Types.StructType largeType = TrackedFile.schema(PARTITION_TYPE, largeStats);
@@ -105,7 +106,7 @@ public class TestTrackedFile {
         largeType.field(TrackedFile.CONTENT_STATS_ID).type().asStructType();
 
     assertThat(smallResult.fields()).hasSize(1);
-    assertThat(largeResult.fields()).hasSize(3);
+    assertThat(largeResult.fields()).hasSize(2);
   }
 
   @Test
