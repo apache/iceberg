@@ -39,7 +39,7 @@ import org.apache.iceberg.util.ByteBuffers;
 public class GenericManifestFile extends SupportsIndexProjection
     implements ManifestFile, StructLike, IndexedRecord, SchemaConstructable, Serializable {
   private static final Schema AVRO_SCHEMA =
-      AvroSchemaUtil.convert(ManifestFile.schema(), "manifest_file");
+      AvroSchemaUtil.convert(ManifestFile.schema(), "manifest_file", true);
   private transient Schema avroSchema; // not final for Java serialization
 
   // data fields
@@ -63,7 +63,8 @@ public class GenericManifestFile extends SupportsIndexProjection
 
   /** Used by Avro reflection to instantiate this class when reading manifest files. */
   public GenericManifestFile(Schema avroSchema) {
-    super(ManifestFile.schema().asStruct(), AvroSchemaUtil.convert(avroSchema).asStructType());
+    super(
+        ManifestFile.schema().asStruct(), AvroSchemaUtil.convert(avroSchema, true).asStructType());
     this.avroSchema = avroSchema;
   }
 

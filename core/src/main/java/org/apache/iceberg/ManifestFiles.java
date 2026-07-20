@@ -65,7 +65,8 @@ public class ManifestFiles {
               ManifestFile.schema().asStruct(),
               GenericManifestFile.class.getName(),
               ManifestFile.PARTITION_SUMMARY_TYPE,
-              GenericPartitionFieldSummary.class.getName()));
+              GenericPartitionFieldSummary.class.getName()),
+          true);
 
   @VisibleForTesting
   static Caffeine<Object, Object> newManifestCacheBuilder() {
