@@ -186,7 +186,16 @@ public class AvroSchemaUtil {
 
   public static Schema buildAvroProjection(
       Schema schema, org.apache.iceberg.Schema expected, Map<String, String> renames) {
-    return AvroCustomOrderSchemaVisitor.visit(schema, new BuildAvroProjection(expected, renames));
+    return buildAvroProjection(schema, expected, renames, false);
+  }
+
+  public static Schema buildAvroProjection(
+      Schema schema,
+      org.apache.iceberg.Schema expected,
+      Map<String, String> renames,
+      boolean legacyTimestampMapping) {
+    return AvroCustomOrderSchemaVisitor.visit(
+        schema, new BuildAvroProjection(expected.asStruct(), renames, legacyTimestampMapping));
   }
 
   public static Schema applyNameMapping(Schema fileSchema, NameMapping nameMapping) {
