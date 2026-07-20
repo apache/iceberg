@@ -842,6 +842,68 @@ public abstract class BaseFormatModelTests<T> {
 
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
+  void testNestedDefaultValueWhenParentStructIsNull(FileFormat fileFormat) throws IOException {
+    assumeSupports(fileFormat, FEATURE_READER_DEFAULT);
+
+    Types.NestedField idField = Types.NestedField.required(1, "id", Types.LongType.get());
+    Types.NestedField nestedField =
+        Types.NestedField.optional("nested")
+            .withId(2)
+            .ofType(
+                Types.StructType.of(Types.NestedField.required(3, "inner", Types.StringType.get())))
+            .build();
+    Schema writeSchema = new Schema(idField, nestedField);
+
+    Record present = GenericRecord.create(writeSchema);
+    present.setField("id", 1L);
+    Record presentNested = GenericRecord.create(nestedField.type().asStructType());
+    presentNested.setField("inner", "a");
+    present.setField("nested", presentNested);
+
+    Record nullNested = GenericRecord.create(writeSchema);
+    nullNested.setField("id", 2L);
+    nullNested.setField("nested", null);
+
+    List<Record> genericRecords = List.of(present, nullNested);
+    writeGenericRecords(fileFormat, writeSchema, genericRecords);
+
+    // read schema drops "inner" entirely, projecting only the new defaulted field
+    Schema expectedSchema =
+        new Schema(
+            idField,
+            Types.NestedField.optional("nested")
+                .withId(2)
+                .ofType(
+                    Types.StructType.of(
+                        Types.NestedField.optional("added")
+                            .withId(4)
+                            .ofType(Types.StringType.get())
+                            .withInitialDefault(Literal.of("US"))
+                            .build()))
+                .build());
+
+    readAndAssertEngineRecords(
+        fileFormat,
+        expectedSchema,
+        genericRecords,
+        record -> {
+          Record expected = GenericRecord.create(expectedSchema);
+          expected.setField("id", record.getField("id"));
+          if (record.getField("nested") != null) {
+            Record expectedNested =
+                GenericRecord.create(expectedSchema.findField("nested").type().asStructType());
+            expectedNested.setField("added", "US");
+            expected.setField("nested", expectedNested);
+          } else {
+            expected.setField("nested", null);
+          }
+
+          return expected;
+        });
+  }
+
+  @ParameterizedTest
+  @FieldSource("FILE_FORMATS")
   void testMapNestedDefaultValue(FileFormat fileFormat) throws IOException {
     assumeSupports(fileFormat, FEATURE_READER_DEFAULT);
 

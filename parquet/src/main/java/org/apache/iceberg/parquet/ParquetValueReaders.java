@@ -164,6 +164,24 @@ public class ParquetValueReaders {
     return new ConstantReader<>(value, definitionLevel);
   }
 
+  /**
+   * Returns a reader that always produces {@code value}, but derives its per-row definition level
+   * from a real leaf column in the file rather than a fixed constant.
+   *
+   * <p>This is used when every projected field of a struct is a constant (an initial default,
+   * metadata column, or partition value) that is absent from the file. In that case the struct has
+   * no real column to signal whether an ancestor struct is null on a given row, so a constant
+   * definition level would incorrectly report the struct as always present. This reader reads (and
+   * discards) the value of {@code probe}, exposing its real definition level so that an enclosing
+   * {@link #option(Type, int, ParquetValueReader) option} reader can detect a null ancestor.
+   *
+   * @param value the constant value to produce for every row where the ancestor struct is present
+   * @param probe a descriptor for a real leaf column that exists under the struct in the file
+   */
+  public static <C> ParquetValueReader<C> constant(C value, ColumnDescriptor probe) {
+    return new ConstantReader<>(value, probe);
+  }
+
   public static ParquetValueReader<Long> position() {
     return new PositionReader();
   }
@@ -287,21 +305,43 @@ public class ParquetValueReaders {
     private final C constantValue;
     private final TripleIterator<?> column;
     private final List<TripleIterator<?>> children;
+    // set only when the definition level is derived from a real leaf column (see constant(C,
+    // ColumnDescriptor)); the column is read and discarded to keep it advancing in lockstep
+    private final ColumnIterator<?> probe;
+    private final ColumnDescriptor probeDesc;
 
     ConstantReader(C constantValue) {
       this.constantValue = constantValue;
       this.column = NullReader.NULL_COLUMN;
       this.children = NullReader.COLUMNS;
+      this.probe = null;
+      this.probeDesc = null;
     }
 
     ConstantReader(C constantValue, int parentDl) {
       this.constantValue = constantValue;
       this.column = new ConstantDLColumn<>(parentDl);
       this.children = ImmutableList.of(column);
+      this.probe = null;
+      this.probeDesc = null;
+    }
+
+    ConstantReader(C constantValue, ColumnDescriptor probeColumn) {
+      this.constantValue = constantValue;
+      this.probeDesc = probeColumn;
+      this.probe = ColumnIterator.newIterator(probeColumn, "");
+      this.column = probe;
+      this.children = ImmutableList.of(column);
     }
 
     @Override
     public C read(C reuse) {
+      if (probe != null) {
+        // advance the probe column so its definition level tracks the current row; the value
+        // itself is unused because this reader always produces the constant
+        probe.nextNull();
+      }
+
       return constantValue;
     }
 
@@ -316,7 +356,11 @@ public class ParquetValueReaders {
     }
 
     @Override
-    public void setPageSource(PageReadStore pageStore) {}
+    public void setPageSource(PageReadStore pageStore) {
+      if (probe != null) {
+        probe.setPageSource(pageStore.getPageReader(probeDesc));
+      }
+    }
 
     private static class ConstantDLColumn<T> implements TripleIterator<T> {
       private final int definitionLevel;
