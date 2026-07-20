@@ -39,7 +39,7 @@ class StandardKeyMetadata implements NativeEncryptionKeyMetadata, IndexedRecord 
           optional(1, "aad_prefix", Types.BinaryType.get()),
           optional(2, "file_length", Types.LongType.get()));
   private static final org.apache.avro.Schema AVRO_SCHEMA_V1 =
-      AvroSchemaUtil.convert(SCHEMA_V1, StandardKeyMetadata.class.getCanonicalName());
+      AvroSchemaUtil.convert(SCHEMA_V1, StandardKeyMetadata.class.getCanonicalName(), true);
 
   private static final Map<Byte, Schema> SCHEMA_VERSIONS = ImmutableMap.of(V1, SCHEMA_V1);
   private static final Map<Byte, org.apache.avro.Schema> AVRO_SCHEMA_VERSIONS =
