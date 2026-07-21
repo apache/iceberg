@@ -154,8 +154,8 @@ public class AwsProperties implements Serializable {
   public static final String CLIENT_ASSUME_ROLE_EXTERNAL_ID = "client.assume-role.external-id";
 
   /**
-   * Used by {@link AssumeRoleAwsClientFactory}. If set, all AWS clients except STS client will use
-   * the given region instead of the default region chain.
+   * Used by {@link AssumeRoleAwsClientFactory}. If set, all AWS clients will use the given region
+   * instead of the default region chain.
    *
    * <p>The value must be one of {@link software.amazon.awssdk.regions.Region}, such as 'us-east-1'.
    * For more details, see https://docs.aws.amazon.com/general/latest/gr/rande.html
