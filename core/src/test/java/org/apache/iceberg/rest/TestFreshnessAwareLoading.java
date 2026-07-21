@@ -750,7 +750,7 @@ public class TestFreshnessAwareLoading extends TestBaseWithRESTServer {
           FileIO io,
           TableMetadata current,
           Set<Endpoint> endpoints) {
-        super(client, path, readHeaders, mutationHeaders, io, current, endpoints);
+        super(client, path, readHeaders, mutationHeaders, io, null, current, endpoints);
       }
     }
 
