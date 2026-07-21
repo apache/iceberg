@@ -25,7 +25,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -74,7 +73,7 @@ public class TestV4ManifestReader {
 
   @Parameters(name = "format = {0}")
   protected static List<FileFormat> parameters() {
-    return Arrays.asList(FileFormat.AVRO, FileFormat.PARQUET);
+    return ImmutableList.of(FileFormat.AVRO, FileFormat.PARQUET);
   }
 
   @TempDir private Path tempDir;
@@ -346,6 +345,78 @@ public class TestV4ManifestReader {
   }
 
   @TestTemplate
+  public void testProjectionPreservesNarrowTrackingProjection() throws IOException {
+    InputFile manifest = writeManifest(EMPTY_PARTITION, ImmutableList.of(fileWithFullTracking()));
+
+    Schema projection =
+        new Schema(
+            Types.NestedField.required(
+                TrackedFile.TRACKING.fieldId(), "tracking", Types.StructType.of(Tracking.STATUS)));
+
+    try (V4ManifestReader reader =
+        newReader(manifest, UNPARTITIONED_SPECS).project(projection).build()) {
+      Tracking actual = Lists.newArrayList(reader).get(0).tracking();
+      assertThat(actual.status()).isEqualTo(EntryStatus.ADDED);
+      // the narrow tracking projection is not widened to the full tracking type
+      assertThat(actual.snapshotId()).isNull();
+      assertThat(actual.dvSnapshotId()).isNull();
+      assertThat(actual.deletedPositions()).isNull();
+      assertThat(actual.replacedPositions()).isNull();
+    }
+  }
+
+  @TestTemplate
+  public void testSelectListColumn() throws IOException {
+    TrackedFile file =
+        new TrackedFileStruct(
+            addedTracking(),
+            FileContent.DATA,
+            FORMAT_VERSION_V4,
+            "s3://bucket/file.parquet",
+            FileFormat.PARQUET,
+            EMPTY_PARTITION_DATA,
+            RECORD_COUNT,
+            FILE_SIZE_IN_BYTES,
+            0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            ImmutableList.of(50L, 100L),
+            null);
+
+    InputFile manifest = writeManifest(EMPTY_PARTITION, ImmutableList.of(file));
+
+    try (V4ManifestReader reader =
+        newReader(manifest, UNPARTITIONED_SPECS)
+            .select(ImmutableList.of("split_offsets"))
+            .build()) {
+      TrackedFile actual = Lists.newArrayList(reader).get(0);
+      assertThat(actual.splitOffsets()).containsExactly(50L, 100L);
+      assertThat(actual.location()).isNull();
+    }
+  }
+
+  @TestTemplate
+  public void testSelectWithPartitionFilterProjectsFilterFields() throws IOException {
+    TrackedFile keep = dataFile("keep.parquet", partition(1));
+    TrackedFile prune = dataFile("prune.parquet", partition(2));
+
+    InputFile manifest = writeManifest(PARTITION_TYPE, ImmutableList.of(keep, prune));
+
+    // the caller selects only location; the reader must still project spec_id and partition
+    // for the partition filter or every row would be pruned
+    try (V4ManifestReader reader =
+        newReader(manifest, PARTITIONED_SPECS)
+            .select(ImmutableList.of("location"))
+            .filterRows(Expressions.equal("id", 1))
+            .build()) {
+      assertThat(reader).extracting(TrackedFile::location).containsExactly(keep.location());
+    }
+  }
+
+  @TestTemplate
   public void testForScanPlanningOmitsChangeTrackingFields() throws IOException {
     InputFile manifest = writeManifest(EMPTY_PARTITION, ImmutableList.of(fileWithFullTracking()));
 
@@ -481,13 +552,22 @@ public class TestV4ManifestReader {
         writeManifest(
             PARTITION_TYPE, ImmutableList.of(keep, prune, dataManifestRef, deleteManifestRef));
 
+    ScanMetrics metrics = ScanMetrics.of(new DefaultMetricsContext());
     try (V4ManifestReader reader =
-        newReader(manifest, PARTITIONED_SPECS).filterRows(Expressions.equal("id", 1)).build()) {
+        newReader(manifest, PARTITIONED_SPECS)
+            .filterRows(Expressions.equal("id", 1))
+            .scanMetrics(metrics)
+            .build()) {
       assertThat(reader)
           .extracting(TrackedFile::location)
           .containsExactlyInAnyOrder(
               keep.location(), dataManifestRef.location(), deleteManifestRef.location());
     }
+
+    // the manifest references bypass the filter instead of being evaluated and skipped
+    assertThat(metrics.skippedDataFiles().value()).isEqualTo(1L);
+    assertThat(metrics.skippedDataManifests().value()).isEqualTo(0L);
+    assertThat(metrics.skippedDeleteManifests().value()).isEqualTo(0L);
   }
 
   @TestTemplate

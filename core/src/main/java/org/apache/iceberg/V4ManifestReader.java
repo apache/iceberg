@@ -288,9 +288,18 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
       if (hasPartitionFilter()) {
         projectedIds.add(TrackedFile.SPEC_ID.fieldId());
         projectedIds.add(TrackedFile.PARTITION_ID);
+        projectedIds.addAll(TypeUtil.getProjectedIds(unionPartitionType));
       }
 
-      return TypeUtil.select(fullSchema, projectedIds);
+      // list and map fields cannot be projected by ID; their element IDs carry the selection
+      projectedIds.removeIf(
+          id -> {
+            Types.NestedField field = fullSchema.findField(id);
+            return field != null && (field.type().isListType() || field.type().isMapType());
+          });
+
+      // project instead of select to preserve narrow struct projections from the caller
+      return TypeUtil.project(fullSchema, projectedIds);
     }
 
     private Schema projection(Schema fullSchema) {

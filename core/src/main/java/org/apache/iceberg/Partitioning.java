@@ -251,7 +251,7 @@ public class Partitioning {
    * @return the constructed unified partition type
    */
   static StructType unionPartitionTypes(Collection<PartitionSpec> specs) {
-    return buildPartitionProjectionType("table partition", specs, allFieldIds(specs));
+    return buildPartitionProjectionType("union partition", specs, allFieldIds(specs));
   }
 
   /**
