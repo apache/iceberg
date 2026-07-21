@@ -1,5 +1,5 @@
 ---
-date: 2026-07-14
+date: 2026-07-21
 title: Apache Iceberg Rust 0.10.0 Release
 slug: apache-iceberg-rust-0.10.0-release
 authors:
@@ -29,7 +29,7 @@ The Apache Iceberg community is pleased to announce version 0.10.0 of [iceberg-r
 
 This release covers development work from early March through early July 2026 and is the result of merging **252 PRs** from **40 contributors**. See the [changelog] for the complete list of changes.
 
-[changelog]: https://github.com/apache/iceberg-rust/blob/main/CHANGELOG.md#v0100---2026-06-29
+[changelog]: https://github.com/apache/iceberg-rust/releases/tag/v0.10.0
 
 `iceberg-rust` is a native Rust implementation of the Apache Iceberg specification, providing high-performance libraries for reading, writing, and managing Iceberg tables in Rust applications and through Python bindings (`pyiceberg-core`).
 
