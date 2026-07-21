@@ -19,12 +19,16 @@
 package org.apache.iceberg.dell.ecs;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.emc.object.s3.request.PutObjectRequest;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import org.apache.iceberg.dell.DellProperties;
 import org.apache.iceberg.dell.mock.ecs.EcsS3MockRule;
+import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.metrics.MetricsContext;
 import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
@@ -32,6 +36,36 @@ import org.junit.jupiter.api.extension.RegisterExtension;
 public class TestEcsInputFile {
 
   @RegisterExtension public static EcsS3MockRule rule = EcsS3MockRule.create();
+
+  @Test
+  public void testKnownLengthAvoidsHeadRequest() {
+    String objectName = rule.randomObjectName();
+    EcsInputFile inputFile =
+        EcsInputFile.fromLocation(
+            new EcsURI(rule.bucket(), objectName).toString(),
+            10L,
+            rule.client(),
+            new DellProperties(),
+            MetricsContext.nullMetrics());
+
+    // The object is never created, so any getObjectMetadata() call would fail. Getting the
+    // length back without error proves it came from the cached value, not a HEAD request.
+    assertThat(inputFile.getLength()).isEqualTo(10L);
+  }
+
+  @Test
+  public void testNegativeLengthIsRejected() {
+    assertThatThrownBy(
+            () ->
+                EcsInputFile.fromLocation(
+                    new EcsURI(rule.bucket(), rule.randomObjectName()).toString(),
+                    -1L,
+                    rule.client(),
+                    new DellProperties(),
+                    MetricsContext.nullMetrics()))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("Invalid file length");
+  }
 
   @Test
   public void testAbsentFile() {
