@@ -45,8 +45,11 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.conf.HiveConf;
+import org.apache.hadoop.hive.metastore.TableType;
 import org.apache.hadoop.hive.metastore.api.Database;
 import org.apache.hadoop.hive.metastore.api.PrincipalType;
+import org.apache.hadoop.hive.metastore.api.SerDeInfo;
+import org.apache.hadoop.hive.metastore.api.StorageDescriptor;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.CachingCatalog;
@@ -78,6 +81,7 @@ import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.transforms.Transforms;
@@ -1265,5 +1269,72 @@ public class TestHiveCatalog extends CatalogTests<HiveCatalog> {
     } else {
       assertThat(base64EncodedHash).isNull();
     }
+  }
+
+  @Test
+  public void testListTablesFiltersOutNonIcebergTables() throws TException {
+    Namespace ns = Namespace.of(DB_NAME);
+    TableIdentifier icebergTable = TableIdentifier.of(ns, "iceberg_tbl");
+    TableIdentifier hiveTable = TableIdentifier.of(ns, "hive_tbl");
+
+    catalog.createTable(icebergTable, getTestSchema());
+    HIVE_METASTORE_EXTENSION
+        .metastoreClient()
+        .createTable(createNonIcebergTable(hiveTable.name(), TableType.EXTERNAL_TABLE));
+
+    try {
+      assertThat(catalog.listTables(ns)).containsExactly(icebergTable);
+    } finally {
+      catalog.dropTable(icebergTable);
+      HIVE_METASTORE_EXTENSION.metastoreClient().dropTable(DB_NAME, hiveTable.name());
+    }
+  }
+
+  @Test
+  public void testListTablesByFilterReturnsAllIcebergTables() throws Exception {
+    Namespace ns = Namespace.of(DB_NAME);
+    TableIdentifier t1 = TableIdentifier.of(ns, "t1");
+    TableIdentifier t2 = TableIdentifier.of(ns, "t2");
+
+    catalog.createTable(t1, getTestSchema());
+    catalog.createTable(t2, getTestSchema());
+
+    try {
+      assertThat(catalog.listTables(ns)).containsExactlyInAnyOrder(t1, t2);
+    } finally {
+      catalog.dropTable(t1);
+      catalog.dropTable(t2);
+    }
+  }
+
+  private org.apache.hadoop.hive.metastore.api.Table createNonIcebergTable(
+      String hiveTableName, TableType type) {
+    StorageDescriptor sd =
+        new StorageDescriptor(
+            Lists.newArrayList(),
+            temp.resolve(hiveTableName).toString(),
+            "org.apache.hadoop.mapred.TextInputFormat",
+            "org.apache.hadoop.mapred.TextOutputFormat",
+            false,
+            -1,
+            new SerDeInfo(
+                null, "org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe", Maps.newHashMap()),
+            Lists.newArrayList(),
+            Lists.newArrayList(),
+            Maps.newHashMap());
+
+    return new org.apache.hadoop.hive.metastore.api.Table(
+        hiveTableName,
+        DB_NAME,
+        "test_owner",
+        0,
+        0,
+        0,
+        sd,
+        Lists.newArrayList(),
+        Maps.newHashMap(),
+        null,
+        null,
+        type.name());
   }
 }

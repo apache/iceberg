@@ -20,6 +20,7 @@ package org.apache.iceberg.hive;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -34,6 +35,7 @@ import org.apache.hadoop.hive.metastore.api.NoSuchObjectException;
 import org.apache.hadoop.hive.metastore.api.PrincipalType;
 import org.apache.hadoop.hive.metastore.api.Table;
 import org.apache.hadoop.hive.metastore.api.UnknownDBException;
+import org.apache.hadoop.hive.metastore.api.hive_metastoreConstants;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
@@ -167,18 +169,19 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
     String database = namespace.level(0);
 
     try {
-      List<String> tableNames = clients.run(client -> client.getAllTables(database));
       List<TableIdentifier> tableIdentifiers;
 
       if (listAllTables) {
+        List<String> tableNames = clients.run(client -> client.getAllTables(database));
         tableIdentifiers =
             tableNames.stream()
                 .map(t -> TableIdentifier.of(namespace, t))
                 .collect(Collectors.toList());
       } else {
+        // Retrieving only the matching table names from HMS via server-side filter
         tableIdentifiers =
-            listIcebergTables(
-                tableNames, namespace, BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE);
+            listIcebergTablesByFilter(
+                namespace, BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE);
       }
 
       LOG.debug(
@@ -351,6 +354,43 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
                     && tableTypeProp.equalsIgnoreCase(
                         table.getParameters().get(BaseMetastoreTableOperations.TABLE_TYPE_PROP)))
         .map(table -> TableIdentifier.of(namespace, table.getTableName()))
+        .collect(Collectors.toList());
+  }
+
+  /**
+   * Lists the {@link TableIdentifier} of all Iceberg tables under the given database.
+   *
+   * <p>Implementation uses the HMS {@code get_table_names_by_filter} API, filtering on {@code
+   * parameters.table_type} on the server side so that only matching table names (rather than full
+   * Table objects) are returned.
+   *
+   * @param namespace the namespace corresponding to the database
+   * @param tableTypeValue the value of {@code parameters.table_type} to filter on, e.g. {@link
+   *     BaseMetastoreTableOperations#ICEBERG_TABLE_TYPE_VALUE} for tables. HMS normalizes this
+   *     value to upper case when persisting it, so the filter value is upper-cased to match.
+   */
+  private List<TableIdentifier> listIcebergTablesByFilter(
+      Namespace namespace, String tableTypeValue) throws TException, InterruptedException {
+    String database = namespace.level(0);
+    // HMS normalizes the `table_type` parameter value to upper case when persisting it
+    // (e.g. "iceberg" is stored as "ICEBERG"), so the filter value must be upper-cased to match.
+    // Note: `like` (rather than `=`) is used intentionally. Some HMS backends (e.g. Derby and
+    // Oracle, where PARAM_VALUE is a CLOB) do not support `=` comparison on property values and
+    // fail the filter query (see HIVE-21614); newer HMS versions internally rewrite `=` to `like`
+    // for this reason. As the value carries no `%`/`_` wildcards, `like` is equivalent to `=` here.
+    String filter =
+        hive_metastoreConstants.HIVE_FILTER_FIELD_PARAMS
+            + BaseMetastoreTableOperations.TABLE_TYPE_PROP
+            + " like \""
+            + tableTypeValue.toUpperCase(Locale.ROOT)
+            + "\"";
+
+    List<String> icebergTableNames =
+        clients.run(
+            client -> client.listTableNamesByFilter(database, filter, (short) -1 /* no limit */));
+
+    return icebergTableNames.stream()
+        .map(tableName -> TableIdentifier.of(namespace, tableName))
         .collect(Collectors.toList());
   }
 
