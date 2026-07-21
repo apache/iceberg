@@ -2808,6 +2808,10 @@ components:
         - $ref: '#/components/schemas/Predicate'
 
     Term:
+      deprecated: true
+      description: >
+        Deprecated. Legacy term form used by older REST predicates.
+        Use Reference or Apply instead.
       oneOf:
         - $ref: '#/components/schemas/TermReference'
         - $ref: '#/components/schemas/TransformTerm'
@@ -2822,6 +2826,10 @@ components:
         - "column-name"
 
     TransformTerm:
+      deprecated: true
+      description: >
+        Deprecated. Legacy transform-applied-to-a-term form.
+        Use Apply with a Reference argument instead.
       type: object
       required:
         - type
