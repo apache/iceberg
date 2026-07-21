@@ -25,6 +25,7 @@ import static org.apache.iceberg.flink.maintenance.api.RewriteDataFiles.REWRITE_
 import static org.apache.iceberg.flink.maintenance.operator.TableMaintenanceMetrics.ADDED_DATA_FILE_NUM_METRIC;
 import static org.apache.iceberg.flink.maintenance.operator.TableMaintenanceMetrics.ADDED_DATA_FILE_SIZE_METRIC;
 import static org.apache.iceberg.flink.maintenance.operator.TableMaintenanceMetrics.ERROR_COUNTER;
+import static org.apache.iceberg.flink.maintenance.operator.TableMaintenanceMetrics.PLANNED_GROUPS_COUNTER;
 import static org.apache.iceberg.flink.maintenance.operator.TableMaintenanceMetrics.REMOVED_DATA_FILE_NUM_METRIC;
 import static org.apache.iceberg.flink.maintenance.operator.TableMaintenanceMetrics.REMOVED_DATA_FILE_SIZE_METRIC;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -257,6 +258,14 @@ class TestRewriteDataFiles extends MaintenanceTaskTestBase {
                 1L)
             .put(
                 ImmutableList.of(
+                    PLANNER_TASK_NAME + "[0]",
+                    DUMMY_TABLE_NAME,
+                    DUMMY_TASK_NAME,
+                    "0",
+                    PLANNED_GROUPS_COUNTER),
+                0L)
+            .put(
+                ImmutableList.of(
                     REWRITE_TASK_NAME + "[0]",
                     DUMMY_TABLE_NAME,
                     DUMMY_TASK_NAME,
@@ -373,6 +382,14 @@ class TestRewriteDataFiles extends MaintenanceTaskTestBase {
                 0L)
             .put(
                 ImmutableList.of(
+                    PLANNER_TASK_NAME + "[0]",
+                    DUMMY_TABLE_NAME,
+                    DUMMY_TASK_NAME,
+                    "0",
+                    PLANNED_GROUPS_COUNTER),
+                1L)
+            .put(
+                ImmutableList.of(
                     REWRITE_TASK_NAME + "[0]",
                     DUMMY_TABLE_NAME,
                     DUMMY_TASK_NAME,
@@ -450,6 +467,14 @@ class TestRewriteDataFiles extends MaintenanceTaskTestBase {
                     "0",
                     ERROR_COUNTER),
                 0L)
+            .put(
+                ImmutableList.of(
+                    PLANNER_TASK_NAME + "[0]",
+                    DUMMY_TABLE_NAME,
+                    DUMMY_TASK_NAME,
+                    "0",
+                    PLANNED_GROUPS_COUNTER),
+                1L)
             .put(
                 ImmutableList.of(
                     REWRITE_TASK_NAME + "[0]",
