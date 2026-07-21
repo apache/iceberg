@@ -1235,6 +1235,11 @@ class Reference(RootModel[IdReference | NamedReference]):
 
 
 class TransformTerm(BaseModel):
+    """
+    Deprecated. Legacy transform-applied-to-a-term form. Use Apply with a Reference argument instead.
+
+    """
+
     type: Literal['transform']
     transform: Transform
     term: TermReference
@@ -1347,7 +1352,11 @@ class FetchScanTasksRequest(BaseModel):
 
 
 class Term(RootModel[TermReference | TransformTerm]):
-    root: TermReference | TransformTerm
+    root: TermReference | TransformTerm = Field(
+        ...,
+        deprecated=True,
+        description='Deprecated. Legacy term form used by older REST predicates. Use Reference or Apply instead.\n',
+    )
 
 
 class SetStatisticsUpdate(BaseUpdate):
