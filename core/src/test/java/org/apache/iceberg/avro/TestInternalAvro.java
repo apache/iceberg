@@ -53,6 +53,11 @@ public class TestInternalAvro extends DataTestBase {
   }
 
   @Override
+  protected boolean supportsGeospatial() {
+    return true;
+  }
+
+  @Override
   protected void writeAndValidate(Schema schema) throws IOException {
     List<Record> expected = RandomInternalData.generate(schema, 100, 42L);
     writeAndValidate(schema, expected);

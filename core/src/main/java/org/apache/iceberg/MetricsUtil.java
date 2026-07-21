@@ -486,7 +486,7 @@ public class MetricsUtil {
 
     Map<Integer, Long> result = Maps.newHashMap();
     for (FieldStats<?> fs : stats.fieldStats()) {
-      if (fs != null && fs.valueCount() != null) {
+      if (fs != null) {
         result.put(fs.fieldId(), fs.valueCount());
       }
     }
@@ -501,7 +501,7 @@ public class MetricsUtil {
 
     Map<Integer, Long> result = Maps.newHashMap();
     for (FieldStats<?> fs : stats.fieldStats()) {
-      if (fs != null && fs.nullValueCount() != null) {
+      if (fs != null) {
         result.put(fs.fieldId(), fs.nullValueCount());
       }
     }
@@ -516,8 +516,11 @@ public class MetricsUtil {
 
     Map<Integer, Long> result = Maps.newHashMap();
     for (FieldStats<?> fs : stats.fieldStats()) {
-      if (fs != null && fs.nanValueCount() != null) {
-        result.put(fs.fieldId(), fs.nanValueCount());
+      if (fs != null) {
+        Type boundType = fs.type().fieldType("lower_bound");
+        if (boundType.typeId() == Type.TypeID.FLOAT || boundType.typeId() == Type.TypeID.DOUBLE) {
+          result.put(fs.fieldId(), fs.nanValueCount());
+        }
       }
     }
 
@@ -531,8 +534,11 @@ public class MetricsUtil {
 
     Map<Integer, ByteBuffer> result = Maps.newHashMap();
     for (FieldStats<?> fs : stats.fieldStats()) {
-      if (fs != null && fs.lowerBound() != null && fs.type() != null) {
-        result.put(fs.fieldId(), Conversions.toByteBuffer(fs.type(), fs.lowerBound()));
+      if (fs != null) {
+        Type boundType = fs.type().fieldType("lower_bound");
+        if (fs.lowerBound() != null && boundType != null) {
+          result.put(fs.fieldId(), Conversions.toByteBuffer(boundType, fs.lowerBound()));
+        }
       }
     }
 
@@ -546,8 +552,11 @@ public class MetricsUtil {
 
     Map<Integer, ByteBuffer> result = Maps.newHashMap();
     for (FieldStats<?> fs : stats.fieldStats()) {
-      if (fs != null && fs.upperBound() != null && fs.type() != null) {
-        result.put(fs.fieldId(), Conversions.toByteBuffer(fs.type(), fs.upperBound()));
+      if (fs != null) {
+        Type boundType = fs.type().fieldType("upper_bound");
+        if (fs.upperBound() != null && boundType != null) {
+          result.put(fs.fieldId(), Conversions.toByteBuffer(boundType, fs.upperBound()));
+        }
       }
     }
 

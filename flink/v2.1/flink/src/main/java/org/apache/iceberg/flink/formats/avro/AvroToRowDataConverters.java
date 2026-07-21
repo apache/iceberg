@@ -233,7 +233,7 @@ public class AvroToRowDataConverters {
         return TimestampData.fromEpochMillis(timeLong);
       } else if (precision <= 6) {
         return TimestampData.fromEpochMillis(
-            Math.floorDiv(timeLong, 1000L), (int) Math.floorMod(timeLong, 1000L) * 1_000_000);
+            Math.floorDiv(timeLong, 1000L), (int) Math.floorMod(timeLong, 1000L) * 1000);
       } else {
         // Iceberg: Added support for nanoseconds precision (FLINK-39251)
         return TimestampData.fromEpochMillis(

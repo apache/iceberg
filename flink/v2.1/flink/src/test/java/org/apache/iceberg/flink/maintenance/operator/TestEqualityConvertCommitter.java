@@ -20,7 +20,9 @@ package org.apache.iceberg.flink.maintenance.operator;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.stream.Collectors;
 import org.apache.flink.streaming.api.watermark.Watermark;
@@ -28,10 +30,14 @@ import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.util.TwoInputStreamOperatorTestHarness;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.Files;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.ManifestFiles;
 import org.apache.iceberg.ManifestReader;
+import org.apache.iceberg.PartitionData;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.RowDelta;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
@@ -40,11 +46,15 @@ import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.flink.maintenance.api.Trigger;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 class TestEqualityConvertCommitter extends OperatorTestBase {
+
+  @TempDir private Path tempDir;
 
   @Test
   void commitsDataFilesToMainBranch() throws Exception {
@@ -63,6 +73,7 @@ class TestEqualityConvertCommitter extends OperatorTestBase {
       EqualityConvertPlan planResult =
           new EqualityConvertPlan(
               Lists.newArrayList(stagingDataFile),
+              Lists.newArrayList(),
               Lists.newArrayList(),
               stagingSnapshotId,
               snapshotIdBefore,
@@ -100,6 +111,7 @@ class TestEqualityConvertCommitter extends OperatorTestBase {
       EqualityConvertPlan planResult =
           new EqualityConvertPlan(
               Lists.newArrayList(stagingDataFile),
+              Lists.newArrayList(),
               Lists.newArrayList(),
               42L,
               snapshotIdBefore,
@@ -158,6 +170,7 @@ class TestEqualityConvertCommitter extends OperatorTestBase {
           new EqualityConvertPlan(
               Lists.newArrayList(stagingDataFile),
               Lists.newArrayList(),
+              Lists.newArrayList(),
               42L,
               snapshotIdBefore,
               doneTs - 1,
@@ -193,6 +206,7 @@ class TestEqualityConvertCommitter extends OperatorTestBase {
       EqualityConvertPlan planResult =
           new EqualityConvertPlan(
               Lists.newArrayList(stagingDataFile),
+              Lists.newArrayList(),
               Lists.newArrayList(),
               stagingSnapshotId,
               mainSnapshotIdAtPlan,
@@ -251,6 +265,7 @@ class TestEqualityConvertCommitter extends OperatorTestBase {
           new EqualityConvertPlan(
               Lists.newArrayList(stagingDataFile),
               Lists.newArrayList(),
+              Lists.newArrayList(),
               stagingSnapshotId,
               mainSnapshotIdAtPlan,
               doneTs - 1,
@@ -272,6 +287,7 @@ class TestEqualityConvertCommitter extends OperatorTestBase {
       EqualityConvertPlan replay =
           new EqualityConvertPlan(
               Lists.newArrayList(stagingDataFile),
+              Lists.newArrayList(),
               Lists.newArrayList(),
               stagingSnapshotId,
               mainSnapshotIdAtPlan,
@@ -317,6 +333,7 @@ class TestEqualityConvertCommitter extends OperatorTestBase {
       EqualityConvertPlan planResult =
           new EqualityConvertPlan(
               Lists.newArrayList(stagingDataFile),
+              Lists.newArrayList(),
               Lists.newArrayList(),
               777L,
               mainSnapshotIdAtPlan,
@@ -367,6 +384,7 @@ class TestEqualityConvertCommitter extends OperatorTestBase {
       EqualityConvertPlan planResult =
           new EqualityConvertPlan(
               Lists.newArrayList(stagingDataFile),
+              Lists.newArrayList(),
               Lists.newArrayList(),
               42L,
               snapshotIdBefore,
@@ -422,6 +440,7 @@ class TestEqualityConvertCommitter extends OperatorTestBase {
           new EqualityConvertPlan(
               Lists.newArrayList(stagingDataFile),
               Lists.newArrayList(),
+              Lists.newArrayList(),
               888L,
               mainSnapshotIdAtPlan,
               doneTs - 1,
@@ -473,6 +492,7 @@ class TestEqualityConvertCommitter extends OperatorTestBase {
           new EqualityConvertPlan(
               Lists.newArrayList(),
               Lists.newArrayList(stagingDv),
+              Lists.newArrayList(),
               123L,
               mainSnapshotId,
               doneTs - 1,
@@ -493,6 +513,66 @@ class TestEqualityConvertCommitter extends OperatorTestBase {
       List<DeleteFile> dvs = deletesForDataFile(table, dataFile.location());
       assertThat(dvs).hasSize(1);
       assertThat(dvs.get(0).location()).isEqualTo(mergedDv.location());
+    }
+  }
+
+  @Test
+  void removesConvertedEqualityDeletesOnSharedBranch() throws Exception {
+    // Shared branch: the writer's equality deletes are already on the target branch. Once the cycle
+    // resolves them to DVs, the committer removes the equality delete files in the same commit so
+    // readers stop applying them.
+    Table table = createTableWithDelete(3);
+    insert(table, 1, "a");
+
+    DataFile dataFile = getFirstDataFile(table);
+
+    DeleteFile eqDelete = writeEqualityDelete(table, 1, "a");
+    table.newRowDelta().addDeletes(eqDelete).commit();
+    table.refresh();
+    long mainSnapshotId = table.currentSnapshot().snapshotId();
+    assertThat(equalityDeletes(table)).hasSize(1);
+
+    // The cycle resolved the eq delete to a DV covering row position 0 of the data file.
+    DeleteFile convertedDv = writeDV(table, dataFile.location(), 0L);
+
+    EqualityConvertCommitter committer =
+        new EqualityConvertCommitter(
+            DUMMY_TABLE_NAME,
+            DUMMY_TASK_NAME,
+            tableLoader(),
+            SnapshotRef.MAIN_BRANCH,
+            SnapshotRef.MAIN_BRANCH);
+    try (TwoInputStreamOperatorTestHarness<DVWriteResult, EqualityConvertPlan, Trigger> harness =
+        new TwoInputStreamOperatorTestHarness<>(committer)) {
+      harness.open();
+
+      long doneTs = System.currentTimeMillis();
+      EqualityConvertPlan planResult =
+          new EqualityConvertPlan(
+              Lists.newArrayList(),
+              Lists.newArrayList(),
+              Lists.newArrayList(eqDelete),
+              123L,
+              mainSnapshotId,
+              doneTs - 1,
+              doneTs);
+
+      harness.processElement1(
+          new StreamRecord<>(
+              new DVWriteResult(Lists.newArrayList(convertedDv), Lists.newArrayList()), doneTs));
+      harness.processElement2(new StreamRecord<>(planResult, doneTs - 1));
+      harness.processBothWatermarks(new Watermark(doneTs));
+
+      assertThat(harness.extractOutputValues()).hasSize(1);
+
+      table.refresh();
+      // The equality delete file is gone; only the converted DV remains for the data file.
+      assertThat(equalityDeletes(table)).isEmpty();
+      List<DeleteFile> dvs = deletesForDataFile(table, dataFile.location());
+      assertThat(dvs).hasSize(1);
+      assertThat(dvs.get(0).location()).isEqualTo(convertedDv.location());
+
+      assertThat(committer.removedEqDeleteNum()).isEqualTo(1);
     }
   }
 
@@ -537,6 +617,35 @@ class TestEqualityConvertCommitter extends OperatorTestBase {
     }
 
     return deletes;
+  }
+
+  private static List<DeleteFile> equalityDeletes(Table table) {
+    List<DeleteFile> deletes = Lists.newArrayList();
+    for (ManifestFile manifest : table.currentSnapshot().deleteManifests(table.io())) {
+      try (ManifestReader<DeleteFile> reader =
+          ManifestFiles.readDeleteManifest(manifest, table.io(), table.specs())) {
+        for (DeleteFile file : reader) {
+          if (file.content() == FileContent.EQUALITY_DELETES) {
+            deletes.add(file.copy());
+          }
+        }
+      } catch (Exception e) {
+        throw new RuntimeException(e);
+      }
+    }
+
+    return deletes;
+  }
+
+  private DeleteFile writeEqualityDelete(Table table, Integer id, String data) throws IOException {
+    File file = File.createTempFile("junit", null, tempDir.toFile());
+    assertThat(file.delete()).isTrue();
+    return FileHelpers.writeDeleteFile(
+        table,
+        Files.localOutput(file),
+        new PartitionData(PartitionSpec.unpartitioned().partitionType()),
+        Lists.newArrayList(SimpleDataUtil.createRecord(id, data)),
+        table.schema());
   }
 
   private static DeleteFile writeDV(Table table, String dataFilePath, long... positions)
