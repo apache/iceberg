@@ -1234,6 +1234,12 @@ class Reference(RootModel[IdReference | NamedReference]):
     )
 
 
+class TransformTerm(BaseModel):
+    type: Literal['transform']
+    transform: Transform
+    term: TermReference
+
+
 class SetPartitionStatisticsUpdate(BaseUpdate):
     action: Literal['set-partition-statistics']
     partition_statistics: PartitionStatisticsFile = Field(
@@ -1338,6 +1344,10 @@ class DeleteFile(RootModel[PositionDeleteFile | EqualityDeleteFile]):
 
 class FetchScanTasksRequest(BaseModel):
     plan_task: PlanTask = Field(..., alias='plan-task')
+
+
+class Term(RootModel[TermReference | TransformTerm]):
+    root: TermReference | TransformTerm
 
 
 class SetStatisticsUpdate(BaseUpdate):
@@ -1609,12 +1619,6 @@ class Apply(BaseModel):
     type: Literal['apply']
     function: Function | CatalogObjectIdentifier | Function1
     arguments: list[FunctionArgument]
-
-
-class TransformTerm(BaseModel):
-    type: Literal['transform']
-    transform: Transform
-    term: Term
 
 
 class TableMetadata(BaseModel):
@@ -2082,10 +2086,6 @@ class ValueExpression(RootModel[LiteralModel | Reference | Apply]):
     )
 
 
-class Term(RootModel[TermReference | TransformTerm]):
-    root: TermReference | TransformTerm
-
-
 class TableUpdate(
     RootModel[
         AssignUUIDUpdate
@@ -2252,7 +2252,6 @@ UnaryPredicate.model_rebuild()
 ComparisonPredicate.model_rebuild()
 SetPredicate.model_rebuild()
 Apply.model_rebuild()
-TransformTerm.model_rebuild()
 TableMetadata.model_rebuild()
 ViewMetadata.model_rebuild()
 AddSchemaUpdate.model_rebuild()
