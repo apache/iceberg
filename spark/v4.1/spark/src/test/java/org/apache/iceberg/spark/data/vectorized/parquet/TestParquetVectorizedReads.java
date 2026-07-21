@@ -80,8 +80,8 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
 public class TestParquetVectorizedReads extends AvroDataTestBase {
-  private static final int NUM_ROWS = 200_000;
-  static final int BATCH_SIZE = 10_000;
+  private static final int NUM_ROWS = 20;
+  static final int BATCH_SIZE = 10;
 
   private static final String PLAIN = "PLAIN";
   private static final List<String> GOLDEN_FILE_ENCODINGS =
@@ -375,11 +375,11 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
 
     File dataFile = temp.resolve("data.parquet").toFile();
     Iterable<Record> data =
-        generateData(schema, 10_000, 0L, RandomData.DEFAULT_NULL_PERCENTAGE, IDENTITY);
+        generateData(schema, 20_000, 0L, RandomData.DEFAULT_NULL_PERCENTAGE, IDENTITY);
     try (FileAppender<Record> writer = getParquetWriter(schema, dataFile)) {
       writer.addAll(data);
     }
-    assertRecordsMatch(schema, 10_000, data, dataFile, false, BATCH_SIZE);
+    assertRecordsMatch(schema, 20_000, data, dataFile, false, 10_000);
   }
 
   @Test

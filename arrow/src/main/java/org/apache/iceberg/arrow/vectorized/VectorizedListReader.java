@@ -21,8 +21,10 @@
 
 package org.apache.iceberg.arrow.vectorized;
 
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.IntVector;
@@ -38,6 +40,7 @@ import org.apache.parquet.hadoop.metadata.ColumnPath;
 public class VectorizedListReader extends VectorizedArrowReader {
 
   private final VectorizedReader<VectorHolder> elementReader;
+  private final ElementIterator elements = new ElementIterator();
   private NullabilityHolder nullabilityHolder;
   private final int repetitionLevel;
   private final int definitionLevel;
@@ -46,8 +49,6 @@ public class VectorizedListReader extends VectorizedArrowReader {
   private ListVector listVector;
   private IntVector listRepetitionLevels;
   private long estimatedSize;
-
-  //  private int batchSize = VectorizedArrowReader.DEFAULT_BATCH_SIZE;
 
   public VectorizedListReader(
       ColumnDescriptor desc,
@@ -91,107 +92,91 @@ public class VectorizedListReader extends VectorizedArrowReader {
 
   @Override
   public VectorHolder read(VectorHolder reuse, int numRowsToRead) {
-    // Read all triples for this batch from the element reader.
-    // numRowsToRead is the number of top-level rows (lists), but the element reader
-    // will read more triples. We read one batch worth of triples from
-    // the element reader; the repetition and definition levels tell us how many list rows that maps
-    // to.
-
     if (nullabilityHolder == null || nullabilityHolder.size() < estimatedSize) {
       nullabilityHolder = new NullabilityHolder((int) estimatedSize);
+    } else {
+      nullabilityHolder.reset();
     }
+
     if (listRepetitionLevels != null) {
       listRepetitionLevels.close();
     }
     listRepetitionLevels = new IntVector("repetition_levels", rootAlloc);
     listRepetitionLevels.allocateNew((int) estimatedSize);
-    nullabilityHolder.reset();
-    if (listVector == null) {
-      listVector = ListVector.empty(icebergField.name(), rootAlloc);
-      listVector.initializeChildrenFromFields(ArrowSchemaUtil.convert(icebergField).getChildren());
-      listVector.setInitialCapacity((int) estimatedSize);
-      listVector.allocateNew();
-    } else {
+
+    if (listVector != null) {
       listVector.setValueCount(0);
       listVector.getDataVector().setValueCount(0);
+    } else {
+      listVector = ListVector.empty(icebergField.name(), rootAlloc);
+      listVector.initializeChildrenFromFields(ArrowSchemaUtil.convert(icebergField).getChildren());
+      listVector.setInitialCapacity(numRowsToRead);
+      listVector.allocateNew();
     }
+
     int elementIndex = 0;
     FieldVector childVector = listVector.getDataVector();
     int listSize = 0;
     int listIndex = -1;
     int listRepetitionLevel = 0;
     int rowsRemaining = numRowsToRead;
-    int lastDefinitionLevel = -1;
-    do {
-      VectorHolder elementHolder = elementReader.read(null, numRowsToRead);
-      FieldVector elementVector = elementHolder.vector();
-      IntVector elementRepetitionLevels = elementHolder.repetitionLevels();
-      NullabilityHolder elementNullabilityHolder = elementHolder.nullabilityHolder();
-      int elementCount = elementVector.getValueCount();
-      if (elementCount == 0) {
-        break;
-      }
-      for (int i = 0; i < elementCount; i++) {
-        int currentRepetitionLevel = elementRepetitionLevels.get(i);
-        int currentDefinitionLevel = elementNullabilityHolder.definitionLevelAt(i);
-        if (currentRepetitionLevel < repetitionLevel) { // new list
-          if (listIndex >= 0) { // The first 0 in repetition levels doesn't close a list
-            // TODO can copy the values in batch at this point
-            // TODO 2-level lists requires special handling
-            listRepetitionLevels.setSafe(listIndex, listRepetitionLevel);
-            listRepetitionLevel = currentRepetitionLevel;
+    int listDefinitionLevel = -1;
 
-            // The start of the list can be on the previous page
-            int listDefinitionLevel =
-                i == 0 ? lastDefinitionLevel : elementNullabilityHolder.definitionLevelAt(i - 1);
-            if (!isListRequired
-                && listDefinitionLevel
-                    < definitionLevel - (isElementRequired ? 1 : 2)) { // null list
-              listVector.setNull(listIndex);
-              nullabilityHolder.setNull(listIndex, listDefinitionLevel);
-            } else { // non-null list
-              listVector.endValue(listIndex, listSize);
-              nullabilityHolder.setNotNull(
-                  listIndex, definitionLevel - (isElementRequired ? 1 : 2));
-            }
-            if (currentRepetitionLevel == 0) { // start of a new row
-              rowsRemaining--;
-            }
-            if (rowsRemaining == 0) {
-              break;
-            }
+    while (rowsRemaining > 0 && elements.hasNext()) {
+      Element elem = elements.peek();
+      int elementRepetitionLevel = elem.repetitionLevel();
+      int elementDefinitionLevel = elem.definitionLevel();
+
+      if (elementRepetitionLevel < repetitionLevel) { // new list
+        if (listIndex >= 0) { // close the previous list
+          listRepetitionLevels.setSafe(listIndex, listRepetitionLevel);
+          if (!isListRequired
+              && listDefinitionLevel < definitionLevel - (isElementRequired ? 1 : 2)) {
+            listVector.setNull(listIndex);
+            nullabilityHolder.setNull(listIndex, listDefinitionLevel);
+          } else {
+            listVector.endValue(listIndex, listSize);
+            nullabilityHolder.setNotNull(listIndex, definitionLevel - (isElementRequired ? 1 : 2));
           }
-
-          // start a new list
-          listIndex++;
-          listSize = 0;
-          listVector.startNewValue(listIndex);
+          if (elementRepetitionLevel == 0) {
+            rowsRemaining--;
+          }
+          if (rowsRemaining == 0) {
+            // Do NOT consume `elem`: it starts the next list and must be re-processed
+            // by the following read() call. peek() is idempotent, so leaving it here
+            // preserves state.
+            break;
+          }
         }
+        listDefinitionLevel = elementDefinitionLevel;
+        listRepetitionLevel = elementRepetitionLevel;
+        listIndex++;
+        listSize = 0;
+        listVector.startNewValue(listIndex);
+      }
 
-        if (elementNullabilityHolder.isNullAt(i) == 1) { // null value or empty List
-          if (!isElementRequired && currentDefinitionLevel == definitionLevel - 1) { // null element
-            childVector.setNull(elementIndex);
-            elementIndex++;
-            listSize++;
-          }
-        } else { // non-null list element
-          setValue(childVector, elementIndex, elementVector, i);
-          elementIndex++;
+      // Consume the peeked element.
+      elements.next();
+
+      if (elem.isNull()) { // null value or empty list
+        if (!isElementRequired && elementDefinitionLevel == definitionLevel - 1) {
+          childVector.setNull(elementIndex++);
           listSize++;
         }
+      } else { // non-null element
+        setValue(childVector, elementIndex++, elem.vector(), elem.index());
+        listSize++;
       }
-      lastDefinitionLevel = elementNullabilityHolder.definitionLevelAt(elementCount - 1);
-    } while (rowsRemaining > 0);
+    }
 
     if (listIndex >= 0) {
       listRepetitionLevels.setSafe(listIndex, listRepetitionLevel);
       if (rowsRemaining > 0) {
-        // EOF exit: the last opened list was never closed inside the loop.
-        // Use lastListStartDefinitionLevel to determine null vs non-null.
+        // EOF exit: close the last opened list using the def level recorded when it was started.
         int nullThreshold = definitionLevel - (isElementRequired ? 1 : 2);
-        if (!isListRequired && lastDefinitionLevel < nullThreshold) {
+        if (!isListRequired && listDefinitionLevel < nullThreshold) {
           listVector.setNull(listIndex);
-          nullabilityHolder.setNull(listIndex, lastDefinitionLevel);
+          nullabilityHolder.setNull(listIndex, listDefinitionLevel);
         } else {
           listVector.endValue(listIndex, listSize);
           nullabilityHolder.setNotNull(listIndex, nullThreshold);
@@ -209,6 +194,8 @@ public class VectorizedListReader extends VectorizedArrowReader {
   public void setRowGroupInfo(PageReadStore source, Map<ColumnPath, ColumnChunkMetaData> metadata) {
     // The element reader will read the page so it should be initialized
     elementReader.setRowGroupInfo(source, metadata);
+    // Reset element iterator state for the new row group.
+    elements.reset();
     if (columnDescriptor != null) {
       ColumnChunkMetaData chunkMetaData = metadata.get(ColumnPath.get(columnDescriptor.getPath()));
       List<Long> repetitionLevelHistogram =
@@ -242,5 +229,107 @@ public class VectorizedListReader extends VectorizedArrowReader {
       listRepetitionLevels = null;
     }
     elementReader.close();
+  }
+
+  /**
+   * Iterator over the Parquet element triples produced by the child element reader.
+   *
+   * <p>Hides the batching semantics of {@link VectorizedReader#read}: the underlying reader hands
+   * back batches of triples, but callers want a per-triple view. The iterator fetches a fresh batch
+   * on demand when the current one is exhausted, so callers only see a flat stream of {@link
+   * Element}s.
+   *
+   * <p>The iterator is stateful and lives across {@link VectorizedListReader#read} calls. When a
+   * {@code read()} exits mid-batch because it filled the requested row budget, the next call
+   * resumes from the same triple. {@link #peek()} is idempotent — repeated {@code peek()} calls
+   * return the same element until {@link #next()} advances past it. This makes it easy to inspect a
+   * triple (to decide whether it starts a new list) and then leave it unconsumed for the next
+   * {@code read()} to pick up.
+   */
+  private class ElementIterator implements Iterator<Element> {
+    private VectorHolder currentBatch;
+    private int currentOffset;
+    private Element peeked;
+
+    @Override
+    public boolean hasNext() {
+      return peek() != null;
+    }
+
+    /**
+     * Returns the current element without advancing the iterator. Idempotent: repeated calls
+     * return the same element until {@link #next()} consumes it.
+     */
+    Element peek() {
+      if (peeked != null) {
+        return peeked;
+      }
+      if (!ensureBatch()) {
+        return null;
+      }
+      peeked = new Element(currentBatch, currentOffset);
+      return peeked;
+    }
+
+    @Override
+    public Element next() {
+      Element elem = peek();
+      if (elem == null) {
+        throw new NoSuchElementException();
+      }
+      peeked = null;
+      currentOffset++;
+      return elem;
+    }
+
+    void reset() {
+      currentBatch = null;
+      currentOffset = 0;
+      peeked = null;
+    }
+
+    private boolean ensureBatch() {
+      if (currentBatch != null && currentOffset < currentBatch.numValues()) {
+        return true;
+      }
+      currentBatch = elementReader.read(currentBatch, batchSize);
+      currentOffset = 0;
+      return currentBatch != null && currentBatch.numValues() > 0;
+    }
+  }
+
+  /**
+   * A single Parquet triple (repetition level, definition level, value) surfaced by {@link
+   * ElementIterator}. Lightweight view over a slot in the underlying element batch — reads are
+   * looked up lazily so this stays cheap to create.
+   */
+  private static final class Element {
+    private final VectorHolder batch;
+    private final int index;
+
+    Element(VectorHolder batch, int index) {
+      this.batch = batch;
+      this.index = index;
+    }
+
+    int repetitionLevel() {
+      return batch.repetitionLevels().get(index);
+    }
+
+    int definitionLevel() {
+      return batch.nullabilityHolder().definitionLevelAt(index);
+    }
+
+    boolean isNull() {
+      return batch.nullabilityHolder().isNullAt(index) == 1;
+    }
+
+    FieldVector vector() {
+      return batch.vector();
+    }
+
+    int index() {
+      return index;
+    }
   }
 }
