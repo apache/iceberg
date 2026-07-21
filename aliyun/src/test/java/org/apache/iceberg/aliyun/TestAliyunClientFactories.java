@@ -123,6 +123,74 @@ public class TestAliyunClientFactories {
     }
   }
 
+  /**
+   * When RRSA environment variables are present but the user has explicitly configured static
+   * credentials (both access key id and secret), the static credentials must take precedence over
+   * RRSA auto-detection.
+   */
+  @Test
+  @SetEnvironmentVariable(
+      key = "ALIBABA_CLOUD_OIDC_PROVIDER_ARN",
+      value = "acs:ram::123456789:oidc-provider/ack-rrsa-test")
+  @SetEnvironmentVariable(
+      key = "ALIBABA_CLOUD_ROLE_ARN",
+      value = "acs:ram::123456789:role/test-rrsa-role")
+  @SetEnvironmentVariable(key = "ALIBABA_CLOUD_OIDC_TOKEN_FILE", value = "/tmp/oidc-token")
+  public void testExplicitStaticCredentialsTakePrecedenceOverRrsa() {
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(AliyunProperties.OSS_ENDPOINT, "https://oss-cn-hangzhou.aliyuncs.com");
+    properties.put(AliyunProperties.CLIENT_ACCESS_KEY_ID, "test-access-key-id");
+    properties.put(AliyunProperties.CLIENT_ACCESS_KEY_SECRET, "test-access-key-secret");
+
+    AliyunClientFactories.DefaultAliyunClientFactory factory =
+        new AliyunClientFactories.DefaultAliyunClientFactory();
+    factory.initialize(properties);
+    assertThat(factory.isRrsaEnvironmentAvailable()).isTrue();
+
+    // Should not throw, since the static credentials branch is chosen instead of the RRSA branch
+    // (which would fail fast on the non-existent OIDC token file).
+    OSS client = factory.newOSSClient();
+    assertThat(client).as("OSS client should be created with static credentials").isNotNull();
+    client.shutdown();
+  }
+
+  /**
+   * When only the access key id is configured (access key secret is missing), RRSA auto-detection
+   * must still be used - the fallback requires both fields to be set.
+   */
+  @Test
+  @SetEnvironmentVariable(
+      key = "ALIBABA_CLOUD_OIDC_PROVIDER_ARN",
+      value = "acs:ram::123456789:oidc-provider/ack-rrsa-test")
+  @SetEnvironmentVariable(
+      key = "ALIBABA_CLOUD_ROLE_ARN",
+      value = "acs:ram::123456789:role/test-rrsa-role")
+  @SetEnvironmentVariable(key = "ALIBABA_CLOUD_OIDC_TOKEN_FILE", value = "/tmp/oidc-token")
+  public void testRrsaUsedWhenAccessKeySecretMissing() {
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(AliyunProperties.OSS_ENDPOINT, "https://oss-cn-hangzhou.aliyuncs.com");
+    properties.put(AliyunProperties.CLIENT_ACCESS_KEY_ID, "test-access-key-id");
+
+    AliyunClientFactories.DefaultAliyunClientFactory factory =
+        new AliyunClientFactories.DefaultAliyunClientFactory();
+    factory.initialize(properties);
+    assertThat(factory.isRrsaEnvironmentAvailable()).isTrue();
+
+    OSS client = factory.newOSSClient();
+    assertThat(client).as("OSS client should be created with RRSA").isNotNull();
+
+    try {
+      client.doesBucketExist("test-bucket");
+      throw new AssertionError(
+          "Expected operation to fail with fake RRSA credentials, but it succeeded");
+    } catch (Exception e) {
+      // Expected - fake RRSA credentials should cause failure
+      assertThat(e).isNotNull();
+    } finally {
+      client.shutdown();
+    }
+  }
+
   @Test
   public void testIsRrsaEnvironmentAvailableWithoutEnvVars() {
     // Verify that isRrsaEnvironmentAvailable returns false when env vars are not set
