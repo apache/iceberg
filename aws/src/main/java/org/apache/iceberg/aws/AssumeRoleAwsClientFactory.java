@@ -76,6 +76,7 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
     return GlueClient.builder()
         .applyMutation(this::applyAssumeRoleConfigurations)
         .applyMutation(httpClientProperties::applyHttpClientConfigurations)
+        .applyMutation(awsProperties::applyGlueEndpointConfigurations)
         .applyMutation(awsClientProperties::applyRetryConfigurations)
         .build();
   }
@@ -85,6 +86,7 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
     return KmsClient.builder()
         .applyMutation(this::applyAssumeRoleConfigurations)
         .applyMutation(httpClientProperties::applyHttpClientConfigurations)
+        .applyMutation(awsProperties::applyKmsEndpointConfigurations)
         .applyMutation(awsClientProperties::applyRetryConfigurations)
         .build();
   }
