@@ -28,8 +28,10 @@ import static org.apache.iceberg.TableProperties.PARQUET_DICT_ENCODING_ENABLED_C
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_CHECK_MAX_RECORD_COUNT;
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_CHECK_MIN_RECORD_COUNT;
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES;
+import static org.apache.iceberg.expressions.Expressions.equal;
 import static org.apache.iceberg.expressions.Expressions.greaterThan;
 import static org.apache.iceberg.expressions.Expressions.greaterThanOrEqual;
+import static org.apache.iceberg.expressions.Expressions.notEqual;
 import static org.apache.iceberg.parquet.ParquetWritingTestUtils.createTempFile;
 import static org.apache.iceberg.parquet.ParquetWritingTestUtils.write;
 import static org.apache.iceberg.relocated.com.google.common.collect.Iterables.getOnlyElement;
@@ -763,6 +765,44 @@ public class TestParquet {
     List<Long> ids =
         filterIds(schema, file, greaterThan("ts", "2024-01-01T04:00:00.000000500+04:00"));
     assertThat(ids).containsExactlyInAnyOrder(3L, 4L, 5L);
+  }
+
+  @Test
+  public void booleanEqualityFilterPushdown() throws IOException {
+    // Boolean literals must reach getParquetPrimitive() without throwing
+    // UnsupportedOperationException; only Number/CharSequence/ByteBuffer were handled before.
+    Schema schema =
+        new Schema(
+            required(1, "id", Types.LongType.get()), required(2, "b", Types.BooleanType.get()));
+
+    Record template = org.apache.iceberg.data.GenericRecord.create(schema);
+    List<Record> records =
+        Lists.newArrayList(
+            template.copy(ImmutableMap.of("id", 1L, "b", true)),
+            template.copy(ImmutableMap.of("id", 2L, "b", false)),
+            template.copy(ImmutableMap.of("id", 3L, "b", true)));
+
+    File file = writeNanoRecords(schema, records);
+
+    assertThat(filterIds(schema, file, equal("b", true))).containsExactlyInAnyOrder(1L, 3L);
+  }
+
+  @Test
+  public void booleanInequalityFilterPushdown() throws IOException {
+    Schema schema =
+        new Schema(
+            required(1, "id", Types.LongType.get()), required(2, "b", Types.BooleanType.get()));
+
+    Record template = org.apache.iceberg.data.GenericRecord.create(schema);
+    List<Record> records =
+        Lists.newArrayList(
+            template.copy(ImmutableMap.of("id", 1L, "b", true)),
+            template.copy(ImmutableMap.of("id", 2L, "b", false)),
+            template.copy(ImmutableMap.of("id", 3L, "b", true)));
+
+    File file = writeNanoRecords(schema, records);
+
+    assertThat(filterIds(schema, file, notEqual("b", false))).containsExactlyInAnyOrder(1L, 3L);
   }
 
   private File writeNanoRecords(Schema schema, List<Record> records) throws IOException {
