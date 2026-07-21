@@ -57,8 +57,7 @@ public class GenericAvroReader<T>
   }
 
   GenericAvroReader(Schema readSchema) {
-    boolean adjustToUtcDefault = AvroSchemaUtil.adjustToUtcDefault(readSchema);
-    this.expectedType = AvroSchemaUtil.convert(readSchema, adjustToUtcDefault).asStructType();
+    this.expectedType = AvroSchemaUtil.convert(readSchema).asStructType();
   }
 
   @SuppressWarnings("unchecked")
@@ -68,10 +67,7 @@ public class GenericAvroReader<T>
             AvroWithPartnerVisitor.visit(
                 expectedType,
                 fileSchema,
-                new ResolvingReadBuilder(
-                    expectedType,
-                    fileSchema.getFullName(),
-                    AvroSchemaUtil.adjustToUtcDefault(fileSchema)),
+                new ResolvingReadBuilder(expectedType, fileSchema.getFullName()),
                 AvroWithPartnerVisitor.FieldIDAccessors.get());
   }
 
@@ -106,9 +102,8 @@ public class GenericAvroReader<T>
   private class ResolvingReadBuilder extends AvroWithPartnerVisitor<Type, ValueReader<?>> {
     private final Map<Type, Schema> avroSchemas;
 
-    private ResolvingReadBuilder(
-        Types.StructType expectedType, String rootName, boolean localTimestampEnabled) {
-      this.avroSchemas = AvroSchemaUtil.convertTypes(expectedType, rootName, localTimestampEnabled);
+    private ResolvingReadBuilder(Types.StructType expectedType, String rootName) {
+      this.avroSchemas = AvroSchemaUtil.convertTypes(expectedType, rootName);
     }
 
     @Override
