@@ -1297,7 +1297,6 @@ public class Parquet {
     private ByteBuffer fileAADPrefix = null;
     private Class<? extends StructLike> rootType = null;
     private Map<Integer, Class<? extends StructLike>> customTypes = Maps.newHashMap();
-    private boolean avroLocalTimestampEnabled = false;
 
     public interface ReaderFunction {
       Function<MessageType, ParquetValueReader<?>> apply();
@@ -1401,11 +1400,6 @@ public class Parquet {
     @Deprecated
     public ReadBuilder readSupport(ReadSupport<?> newFilterSupport) {
       this.readSupport = newFilterSupport;
-      return this;
-    }
-
-    public ReadBuilder avroLocalTimestampEnabled(boolean newAvroLocalTimestampEnabled) {
-      this.avroLocalTimestampEnabled = newAvroLocalTimestampEnabled;
       return this;
     }
 
@@ -1617,7 +1611,6 @@ public class Parquet {
       ParquetReadBuilder<D> builder = new ParquetReadBuilder<>(ParquetIO.file(file));
 
       builder.project(schema);
-      builder.avroLocalTimestampEnabled(avroLocalTimestampEnabled);
 
       if (readSupport != null) {
         builder.readSupport((ReadSupport<D>) readSupport);
@@ -1692,7 +1685,6 @@ public class Parquet {
     private ReadSupport<T> readSupport = null;
     private boolean callInit = false;
     private NameMapping nameMapping = null;
-    private boolean avroLocalTimestampEnabled = false;
 
     private ParquetReadBuilder(org.apache.parquet.io.InputFile file) {
       super(file);
@@ -1718,15 +1710,9 @@ public class Parquet {
       return this;
     }
 
-    public ParquetReadBuilder<T> avroLocalTimestampEnabled(boolean newAvroLocalTimestampEnabled) {
-      this.avroLocalTimestampEnabled = newAvroLocalTimestampEnabled;
-      return this;
-    }
-
     @Override
     protected ReadSupport<T> getReadSupport() {
-      return new ParquetReadSupport<>(
-          schema, readSupport, callInit, nameMapping, avroLocalTimestampEnabled);
+      return new ParquetReadSupport<>(schema, readSupport, callInit, nameMapping);
     }
   }
 

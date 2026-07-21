@@ -42,19 +42,16 @@ class ParquetReadSupport<T> extends ReadSupport<T> {
   private final ReadSupport<T> wrapped;
   private final boolean callInit;
   private final NameMapping nameMapping;
-  private final boolean avroLocalTimestampEnabled;
 
   ParquetReadSupport(
       Schema expectedSchema,
       ReadSupport<T> readSupport,
       boolean callInit,
-      NameMapping nameMapping,
-      boolean avroLocalTimestampEnabled) {
+      NameMapping nameMapping) {
     this.expectedSchema = expectedSchema;
     this.wrapped = readSupport;
     this.callInit = callInit;
     this.nameMapping = nameMapping;
-    this.avroLocalTimestampEnabled = avroLocalTimestampEnabled;
   }
 
   @Override
@@ -82,17 +79,12 @@ class ParquetReadSupport<T> extends ReadSupport<T> {
 
     // set Avro schemas in case the reader is Avro
     AvroReadSupport.setRequestedProjection(
-        configuration,
-        AvroSchemaUtil.convert(expectedSchema, projection.getName(), avroLocalTimestampEnabled));
+        configuration, AvroSchemaUtil.convert(expectedSchema, projection.getName()));
     org.apache.avro.Schema avroReadSchema =
         AvroSchemaUtil.buildAvroProjection(
-            AvroSchemaUtil.convert(
-                ParquetSchemaUtil.convert(projection),
-                projection.getName(),
-                avroLocalTimestampEnabled),
+            AvroSchemaUtil.convert(ParquetSchemaUtil.convert(projection), projection.getName()),
             expectedSchema,
-            ImmutableMap.of(),
-            avroLocalTimestampEnabled);
+            ImmutableMap.of());
     AvroReadSupport.setAvroReadSchema(configuration, ParquetAvro.parquetAvroSchema(avroReadSchema));
 
     // let the context set up read support metadata, but always use the correct projection
