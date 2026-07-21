@@ -842,8 +842,8 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
     appendData(batchAddedAfterCompaction);
     StreamingQuery query =
         startStream(SparkReadOptions.STREAM_FROM_TIMESTAMP, Long.toString(timeAfterFirstAppend));
-    // without the async planner fix that filters out the compaction snapshots, this assertion will also observe rows
-    // from batchAddedBeforeCompaction and fail
+    // without the async planner fix that filters out the compaction snapshots, this assertion will
+    // also observe rows from batchAddedBeforeCompaction and fail
     assertThat(rowsAvailable(query)).containsExactlyInAnyOrderElementsOf(batchAddedAfterCompaction);
   }
 
