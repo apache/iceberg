@@ -18,8 +18,8 @@
  */
 package org.apache.iceberg.gcp;
 
+import static org.apache.iceberg.gcp.GCPProperties.GCS_KMS_ENDPOINT;
 import static org.apache.iceberg.gcp.GCPProperties.GCS_NO_AUTH;
-import static org.apache.iceberg.gcp.GCPProperties.KMS_ENDPOINT;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -31,7 +31,7 @@ class TestGcpKeyManagementClient {
   void kmsEndpoint() {
     try (GcpKeyManagementClient client = new GcpKeyManagementClient()) {
       String endpoint = "example.com:443";
-      client.initialize(Map.of(GCS_NO_AUTH, "true", KMS_ENDPOINT, endpoint));
+      client.initialize(Map.of(GCS_NO_AUTH, "true", GCS_KMS_ENDPOINT, endpoint));
 
       assertThat(client.kmsClient().getSettings().getEndpoint()).isEqualTo(endpoint);
     }
@@ -40,7 +40,7 @@ class TestGcpKeyManagementClient {
   @Test
   void invalidKmsEndpoint() {
     try (GcpKeyManagementClient client = new GcpKeyManagementClient()) {
-      client.initialize(Map.of(GCS_NO_AUTH, "true", KMS_ENDPOINT, "example.com"));
+      client.initialize(Map.of(GCS_NO_AUTH, "true", GCS_KMS_ENDPOINT, "example.com"));
 
       assertThatThrownBy(client::kmsClient)
           .isInstanceOf(IllegalArgumentException.class)

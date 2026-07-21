@@ -50,7 +50,7 @@ public class GCPProperties implements Serializable {
    * <p>This could be used to use KMS key management with any KMS-compatible service that has a
    * different endpoint
    */
-  public static final String KMS_ENDPOINT = "kms.endpoint";
+  public static final String GCS_KMS_ENDPOINT = "gcs.kms.endpoint";
 
   public static final String GCS_CHANNEL_READ_CHUNK_SIZE = "gcs.channel.read.chunk-size-bytes";
   public static final String GCS_CHANNEL_WRITE_CHUNK_SIZE = "gcs.channel.write.chunk-size-bytes";
@@ -161,7 +161,7 @@ public class GCPProperties implements Serializable {
     gcsDecryptionKey = properties.get(GCS_DECRYPTION_KEY);
     gcsEncryptionKey = properties.get(GCS_ENCRYPTION_KEY);
     gcsUserProject = properties.get(GCS_USER_PROJECT);
-    kmsEndpoint = properties.get(KMS_ENDPOINT);
+    kmsEndpoint = properties.get(GCS_KMS_ENDPOINT);
 
     if (properties.containsKey(GCS_CHANNEL_READ_CHUNK_SIZE)) {
       gcsChannelReadChunkSize = Integer.parseInt(properties.get(GCS_CHANNEL_READ_CHUNK_SIZE));
