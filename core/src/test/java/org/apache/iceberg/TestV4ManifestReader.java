@@ -257,8 +257,7 @@ public class TestV4ManifestReader {
         newReader(manifest, UNPARTITIONED_SPECS).select(ImmutableList.of("location")).build()) {
       TrackedFile actual = Lists.newArrayList(reader).get(0);
       assertThat(actual.location()).isEqualTo(file.location());
-      // record_count, tracking status, and content_type are joined in even though not selected
-      assertThat(actual.recordCount()).isEqualTo(RECORD_COUNT);
+      // tracking status and content_type are joined in even though not selected
       assertThat(actual.tracking()).isNotNull();
       assertThat(actual.tracking().status()).isEqualTo(EntryStatus.ADDED);
       assertThat(actual.contentType()).isEqualTo(FileContent.DATA);

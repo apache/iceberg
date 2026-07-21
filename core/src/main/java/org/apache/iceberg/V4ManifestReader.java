@@ -279,11 +279,10 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
 
       Set<Integer> projectedIds = Sets.newHashSet(TypeUtil.getProjectedIds(projection));
 
-      // fields the reader itself needs: status for live filtering, row_position for manifestPos,
-      // record count, and content type to distinguish entry kinds
+      // fields the reader consumes internally: status for live filtering, row_position for
+      // manifestPos, and content type to distinguish entry kinds
       projectedIds.add(Tracking.STATUS.fieldId());
       projectedIds.add(MetadataColumns.ROW_POSITION.fieldId());
-      projectedIds.add(TrackedFile.RECORD_COUNT.fieldId());
       projectedIds.add(TrackedFile.CONTENT_TYPE.fieldId());
       if (hasPartitionFilter()) {
         projectedIds.add(TrackedFile.SPEC_ID.fieldId());
