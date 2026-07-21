@@ -172,6 +172,7 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
     private Expression rowFilter = Expressions.alwaysTrue();
     private boolean caseSensitive = true;
     private boolean includeTombstones = false;
+    private boolean scanPlanning = false;
     private Collection<String> columns = null;
     private Schema fileProjection = null;
     private ScanMetrics scanMetrics = ScanMetrics.noop();
@@ -200,9 +201,20 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
       return this;
     }
 
+    /** Configures the reader to select the minimal fields needed for scan planning. */
+    Builder forScanPlanning() {
+      Preconditions.checkState(
+          columns == null && fileProjection == null,
+          "Cannot use forScanPlanning() with select(Collection<String>) or project(Schema)");
+      this.scanPlanning = true;
+      return this;
+    }
+
     /** Selects columns to read by name; fields needed by the reader are always read. */
     Builder select(Collection<String> newColumns) {
       Preconditions.checkArgument(newColumns != null, "Invalid columns: null");
+      Preconditions.checkState(
+          !scanPlanning, "Cannot use select(Collection<String>) with forScanPlanning()");
       Preconditions.checkState(
           fileProjection == null,
           "Cannot select columns using both select(Collection<String>) and project(Schema)");
@@ -212,6 +224,7 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
 
     /** Sets the exact schema to read; used in place of {@link #select(Collection)}. */
     Builder project(Schema newFileProjection) {
+      Preconditions.checkState(!scanPlanning, "Cannot use project(Schema) with forScanPlanning()");
       Preconditions.checkState(
           columns == null,
           "Cannot select columns using both select(Collection<String>) and project(Schema)");
@@ -254,11 +267,11 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
     }
 
     private Schema readSchema() {
+      Types.StructType trackingType =
+          scanPlanning ? TrackingStruct.SCAN_TYPE : TrackingStruct.BASE_TYPE;
       Schema fullSchema =
           new Schema(
-              TrackedFile.schema(
-                      TrackingStruct.SCAN_TYPE, unionPartitionType, Types.StructType.of())
-                  .fields());
+              TrackedFile.schema(trackingType, unionPartitionType, Types.StructType.of()).fields());
       Schema projection = projection(fullSchema);
       if (projection == null) {
         return fullSchema;
@@ -266,8 +279,11 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
 
       Set<Integer> projectedIds = Sets.newHashSet(TypeUtil.getProjectedIds(projection));
 
-      // status drives live-file filtering and content type distinguishes entry kinds
-      projectedIds.add(TrackedFile.TRACKING.fieldId());
+      // fields the reader itself needs: status for live filtering, row_position for manifestPos,
+      // record count, and content type to distinguish entry kinds
+      projectedIds.add(Tracking.STATUS.fieldId());
+      projectedIds.add(MetadataColumns.ROW_POSITION.fieldId());
+      projectedIds.add(TrackedFile.RECORD_COUNT.fieldId());
       projectedIds.add(TrackedFile.CONTENT_TYPE.fieldId());
       if (hasPartitionFilter()) {
         projectedIds.add(TrackedFile.SPEC_ID.fieldId());

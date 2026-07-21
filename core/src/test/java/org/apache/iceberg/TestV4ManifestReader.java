@@ -255,16 +255,16 @@ public class TestV4ManifestReader {
     InputFile manifest = writeManifest(EMPTY_PARTITION, ImmutableList.of(file));
 
     try (V4ManifestReader reader =
-        newReader(manifest, UNPARTITIONED_SPECS)
-            .select(ImmutableList.of("location", "record_count"))
-            .build()) {
+        newReader(manifest, UNPARTITIONED_SPECS).select(ImmutableList.of("location")).build()) {
       TrackedFile actual = Lists.newArrayList(reader).get(0);
       assertThat(actual.location()).isEqualTo(file.location());
+      // record_count, tracking status, and content_type are joined in even though not selected
       assertThat(actual.recordCount()).isEqualTo(RECORD_COUNT);
-      // tracking and content_type are always projected, even though the caller omitted them
       assertThat(actual.tracking()).isNotNull();
       assertThat(actual.tracking().status()).isEqualTo(EntryStatus.ADDED);
       assertThat(actual.contentType()).isEqualTo(FileContent.DATA);
+      // only status is joined from tracking, not the other tracking fields
+      assertThat(actual.tracking().snapshotId()).isNull();
       // file_format and spec_id are null because they were not selected
       assertThat(actual.fileFormat()).isNull();
       assertThat(actual.specId()).isNull();
@@ -289,7 +289,7 @@ public class TestV4ManifestReader {
   }
 
   @TestTemplate
-  public void testSelectAndProjectAreMutuallyExclusive() {
+  public void testProjectionModesAreMutuallyExclusive() {
     InputFile manifest = fileIO.newInputFile(tempDir.resolve("manifest.avro").toString());
 
     assertThatThrownBy(
@@ -309,52 +309,77 @@ public class TestV4ManifestReader {
         .isInstanceOf(IllegalStateException.class)
         .hasMessage(
             "Cannot select columns using both select(Collection<String>) and project(Schema)");
+
+    assertThatThrownBy(
+            () ->
+                newReader(manifest, UNPARTITIONED_SPECS)
+                    .forScanPlanning()
+                    .select(ImmutableList.of("location")))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("Cannot use select(Collection<String>) with forScanPlanning()");
+
+    assertThatThrownBy(
+            () ->
+                newReader(manifest, UNPARTITIONED_SPECS)
+                    .select(ImmutableList.of("location"))
+                    .forScanPlanning())
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage(
+            "Cannot use forScanPlanning() with select(Collection<String>) or project(Schema)");
+
+    assertThatThrownBy(
+            () ->
+                newReader(manifest, UNPARTITIONED_SPECS)
+                    .forScanPlanning()
+                    .project(new Schema(TrackedFile.LOCATION)))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("Cannot use project(Schema) with forScanPlanning()");
+
+    assertThatThrownBy(
+            () ->
+                newReader(manifest, UNPARTITIONED_SPECS)
+                    .project(new Schema(TrackedFile.LOCATION))
+                    .forScanPlanning())
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage(
+            "Cannot use forScanPlanning() with select(Collection<String>) or project(Schema)");
   }
 
   @TestTemplate
-  public void testTrackingProjectionOmitsChangeTrackingFields() throws IOException {
-    Tracking tracking =
-        new TrackingStruct(
-            EntryStatus.ADDED,
-            SNAPSHOT_ID,
-            5L, // data sequence number
-            6L, // file sequence number
-            7L, // dv snapshot id
-            8L, // first row id
-            new byte[] {1, 2}, // deleted positions
-            new byte[] {3, 4}); // replaced positions
-    TrackedFile file =
-        new TrackedFileStruct(
-            tracking,
-            FileContent.DATA,
-            FORMAT_VERSION_V4,
-            "s3://bucket/file.parquet",
-            FileFormat.PARQUET,
-            EMPTY_PARTITION_DATA,
-            RECORD_COUNT,
-            FILE_SIZE_IN_BYTES,
-            0,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null);
+  public void testForScanPlanningOmitsChangeTrackingFields() throws IOException {
+    InputFile manifest = writeManifest(EMPTY_PARTITION, ImmutableList.of(fileWithFullTracking()));
 
-    InputFile manifest = writeManifest(EMPTY_PARTITION, ImmutableList.of(file));
+    try (V4ManifestReader reader =
+        newReader(manifest, UNPARTITIONED_SPECS).forScanPlanning().build()) {
+      Tracking actual = Lists.newArrayList(reader).get(0).tracking();
+      // scan-relevant tracking fields are projected
+      assertThat(actual.status()).isEqualTo(EntryStatus.ADDED);
+      assertThat(actual.snapshotId()).isEqualTo(SNAPSHOT_ID);
+      assertThat(actual.dataSequenceNumber()).isEqualTo(5L);
+      assertThat(actual.fileSequenceNumber()).isEqualTo(6L);
+      assertThat(actual.firstRowId()).isEqualTo(8L);
+      // change-tracking fields are omitted from the scan projection
+      assertThat(actual.dvSnapshotId()).isNull();
+      assertThat(actual.deletedPositions()).isNull();
+      assertThat(actual.replacedPositions()).isNull();
+    }
+  }
 
+  @TestTemplate
+  public void testDefaultReadsFullTracking() throws IOException {
+    InputFile manifest = writeManifest(EMPTY_PARTITION, ImmutableList.of(fileWithFullTracking()));
+
+    // without a projection, the reader returns the full schema for copying to other manifests,
+    // including the change-tracking fields
     Tracking actual = read(manifest, UNPARTITIONED_SPECS).get(0).tracking();
-    // scan-relevant tracking fields are projected
     assertThat(actual.status()).isEqualTo(EntryStatus.ADDED);
     assertThat(actual.snapshotId()).isEqualTo(SNAPSHOT_ID);
     assertThat(actual.dataSequenceNumber()).isEqualTo(5L);
     assertThat(actual.fileSequenceNumber()).isEqualTo(6L);
     assertThat(actual.firstRowId()).isEqualTo(8L);
-    // change-tracking fields are omitted from the scan projection
-    assertThat(actual.dvSnapshotId()).isNull();
-    assertThat(actual.deletedPositions()).isNull();
-    assertThat(actual.replacedPositions()).isNull();
+    assertThat(actual.dvSnapshotId()).isEqualTo(7L);
+    assertThat(actual.deletedPositions()).isEqualTo(ByteBuffer.wrap(new byte[] {1, 2}));
+    assertThat(actual.replacedPositions()).isEqualTo(ByteBuffer.wrap(new byte[] {3, 4}));
   }
 
   @TestTemplate
@@ -626,6 +651,36 @@ public class TestV4ManifestReader {
         RECORD_COUNT,
         FILE_SIZE_IN_BYTES,
         specId,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null);
+  }
+
+  private static TrackedFile fileWithFullTracking() {
+    Tracking tracking =
+        new TrackingStruct(
+            EntryStatus.ADDED,
+            SNAPSHOT_ID,
+            5L, // data sequence number
+            6L, // file sequence number
+            7L, // dv snapshot id
+            8L, // first row id
+            new byte[] {1, 2}, // deleted positions
+            new byte[] {3, 4}); // replaced positions
+    return new TrackedFileStruct(
+        tracking,
+        FileContent.DATA,
+        FORMAT_VERSION_V4,
+        "s3://bucket/file.parquet",
+        FileFormat.PARQUET,
+        EMPTY_PARTITION_DATA,
+        RECORD_COUNT,
+        FILE_SIZE_IN_BYTES,
+        0,
         null,
         null,
         null,
