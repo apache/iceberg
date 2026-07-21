@@ -62,7 +62,7 @@ public class TestBuildAvroProjection {
                     .endRecord());
 
     final BuildAvroProjection testSubject =
-        new BuildAvroProjection(icebergType, Collections.emptyMap(), false);
+        new BuildAvroProjection(icebergType, Collections.emptyMap());
 
     final Supplier<org.apache.avro.Schema> supplier = expected::getElementType;
 
@@ -134,7 +134,7 @@ public class TestBuildAvroProjection {
                     .endRecord());
 
     final BuildAvroProjection testSubject =
-        new BuildAvroProjection(icebergType, Collections.emptyMap(), false);
+        new BuildAvroProjection(icebergType, Collections.emptyMap());
 
     final Supplier<org.apache.avro.Schema> supplier = expected::getElementType;
 
@@ -194,7 +194,7 @@ public class TestBuildAvroProjection {
                     .endRecord());
 
     final BuildAvroProjection testSubject =
-        new BuildAvroProjection(icebergType, Collections.emptyMap(), false);
+        new BuildAvroProjection(icebergType, Collections.emptyMap());
 
     final Supplier<org.apache.avro.Schema> supplier = expected::getElementType;
 
@@ -241,7 +241,7 @@ public class TestBuildAvroProjection {
                     .endRecord());
 
     final BuildAvroProjection testSubject =
-        new BuildAvroProjection(icebergType, Collections.emptyMap(), false);
+        new BuildAvroProjection(icebergType, Collections.emptyMap());
 
     final Supplier<org.apache.avro.Schema> supplier = expected::getValueType;
 
@@ -320,7 +320,7 @@ public class TestBuildAvroProjection {
                     .endRecord());
 
     final BuildAvroProjection testSubject =
-        new BuildAvroProjection(icebergType, Collections.emptyMap(), false);
+        new BuildAvroProjection(icebergType, Collections.emptyMap());
 
     final Supplier<org.apache.avro.Schema> supplier = expected::getValueType;
 
@@ -387,7 +387,7 @@ public class TestBuildAvroProjection {
                     .endRecord());
 
     final BuildAvroProjection testSubject =
-        new BuildAvroProjection(icebergType, Collections.emptyMap(), false);
+        new BuildAvroProjection(icebergType, Collections.emptyMap());
 
     final Supplier<org.apache.avro.Schema> supplier = expected::getValueType;
 
