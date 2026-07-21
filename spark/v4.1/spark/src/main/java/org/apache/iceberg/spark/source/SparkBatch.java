@@ -180,15 +180,8 @@ class SparkBatch implements Batch {
 
       // equality deletes add their referenced columns to the read schema, so a time column can
       // be read through the vectorized path even when the query does not project it
-      for (DeleteFile delete : fileScanTask.deletes()) {
-        if (delete.content() == FileContent.EQUALITY_DELETES) {
-          for (int fieldId : delete.equalityFieldIds()) {
-            Types.NestedField field = findField(fieldId);
-            if (field != null && containsTime(field.type())) {
-              return false;
-            }
-          }
-        }
+      if (hasTimeEqualityDeleteField(fileScanTask)) {
+        return false;
       }
 
       Map<Integer, ByteBuffer> lowerBounds = fileScanTask.file().lowerBounds();
@@ -263,6 +256,21 @@ class SparkBatch implements Batch {
     // Spark 4.1's ColumnarBatch cannot expose time values (ColumnarBatchRow#get does not support
     // TimeType), so fall back to row-based reads when a time column is projected.
     return !containsTime(field.type());
+  }
+
+  private boolean hasTimeEqualityDeleteField(FileScanTask fileScanTask) {
+    for (DeleteFile delete : fileScanTask.deletes()) {
+      if (delete.content() == FileContent.EQUALITY_DELETES) {
+        for (int fieldId : delete.equalityFieldIds()) {
+          Types.NestedField field = findField(fieldId);
+          if (field != null && containsTime(field.type())) {
+            return true;
+          }
+        }
+      }
+    }
+
+    return false;
   }
 
   private static boolean containsTime(Type type) {
