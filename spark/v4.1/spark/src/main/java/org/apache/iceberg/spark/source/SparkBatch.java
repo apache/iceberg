@@ -23,6 +23,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Supplier;
+import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MetadataColumns;
@@ -157,7 +159,7 @@ class SparkBatch implements Batch {
   // - Parquet vectorization is enabled
   // - only primitives, unshredded variant, or metadata columns are projected, excluding geometry
   //   and geography which are primitives with no Arrow vector yet
-  // - no projected column contains a time type
+  // - no time type is read, either projected or required to apply equality deletes
   // - all tasks are of FileScanTask type and read only Parquet files
   private boolean useParquetBatchReads() {
     return readConf.parquetVectorizationEnabled()
@@ -175,6 +177,21 @@ class SparkBatch implements Batch {
       if (fileScanTask.file().format() != FileFormat.PARQUET) {
         return false;
       }
+
+      // equality deletes add their referenced columns to the read schema, so a time column can
+      // be read through the vectorized path even when the query does not project it
+      for (DeleteFile delete : fileScanTask.deletes()) {
+        if (delete.content() == FileContent.EQUALITY_DELETES) {
+          for (int fieldId : delete.equalityFieldIds()) {
+            Types.NestedField field = table.schema().findField(fieldId);
+            if (field != null
+                && TypeUtil.find(field.type(), type -> type.typeId() == Type.TypeID.TIME) != null) {
+              return false;
+            }
+          }
+        }
+      }
+
       Map<Integer, ByteBuffer> lowerBounds = fileScanTask.file().lowerBounds();
       if (lowerBounds != null) {
         for (Types.NestedField field : projection.columns()) {
@@ -193,8 +210,9 @@ class SparkBatch implements Batch {
   private boolean supportsParquetBatchReads(Types.NestedField field) {
     // The vectorized Parquet reader exposes time values through Arrow's TimeMicroVector, which
     // returns microseconds, while Spark's TimeType expects nanoseconds. Until the vectorized path
-    // performs that conversion, fall back to row-based reads when a time column is projected. This
-    // check must run before the metadata column check to catch a time field nested in a metadata
+    // performs that conversion, fall back to row-based reads when a time column is projected
+    // (time columns required only by equality deletes are checked per task above). This check
+    // must run before the metadata column check to catch a time field nested in a metadata
     // column like _partition.
     if (TypeUtil.find(field.type(), type -> type.typeId() == Type.TypeID.TIME) != null) {
       return false;

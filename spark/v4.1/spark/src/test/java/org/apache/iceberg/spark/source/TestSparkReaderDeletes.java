@@ -28,8 +28,10 @@ import static org.assertj.core.api.Assumptions.assumeThat;
 import java.io.File;
 import java.io.IOException;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
@@ -164,6 +166,7 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
   }
 
   private static final String EQ_CACHE_TABLE = "test_eq_cache_ordering";
+  private static final String TIME_EQ_TABLE = "test_time_eq_deletes";
 
   @AfterEach
   @Override
@@ -171,6 +174,7 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
     super.cleanup();
     dropTable("test3");
     dropTable(EQ_CACHE_TABLE);
+    dropTable(TIME_EQ_TABLE);
   }
 
   @Override
@@ -282,6 +286,62 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
             });
 
     assertThat(actual).as("Table should contain no rows").hasSize(0);
+  }
+
+  @TestTemplate
+  public void testEqualityDeletesOnUnprojectedTimeColumn() throws IOException {
+    Schema timeSchema =
+        new Schema(
+            Types.NestedField.required(1, "id", Types.IntegerType.get()),
+            Types.NestedField.required(2, "t", Types.TimeType.get()));
+    Table timeTable = createTable(TIME_EQ_TABLE, timeSchema, PartitionSpec.unpartitioned());
+
+    GenericRecord record = GenericRecord.create(timeTable.schema());
+    List<Record> rows =
+        Lists.newArrayList(
+            record.copy("id", 1, "t", LocalTime.of(1, 11, 11, 111_111_000)),
+            record.copy("id", 2, "t", LocalTime.of(2, 22, 22, 222_222_000)),
+            record.copy("id", 3, "t", LocalTime.of(3, 33, 33, 333_333_000)));
+    DataFile dataFile =
+        FileHelpers.writeDataFile(
+            timeTable, Files.localOutput(File.createTempFile("junit", null, temp.toFile())), rows);
+    timeTable.newAppend().appendFile(dataFile).commit();
+
+    // the equality delete is keyed on the time column, which the query below does not project;
+    // the delete columns are still added to the read schema to apply the deletes
+    Schema deleteRowSchema = timeTable.schema().select("t");
+    Record timeDelete = GenericRecord.create(deleteRowSchema);
+    List<Record> deletes =
+        Lists.newArrayList(timeDelete.copy("t", LocalTime.of(2, 22, 22, 222_222_000)));
+    DeleteFile eqDeletes =
+        FileHelpers.writeDeleteFile(
+            timeTable,
+            Files.localOutput(File.createTempFile("junit", null, temp.toFile())),
+            deletes,
+            deleteRowSchema);
+    timeTable.newRowDelta().addDeletes(eqDeletes).commit();
+
+    // Spark 4.1 gates the TIME data type behind an internal flag
+    spark.conf().set("spark.sql.timeType.enabled", "true");
+    try {
+      List<Integer> ids =
+          spark
+              .read()
+              .format("iceberg")
+              .load(TableIdentifier.of("default", TIME_EQ_TABLE).toString())
+              .select("id")
+              .sort("id")
+              .collectAsList()
+              .stream()
+              .map(row -> row.getInt(0))
+              .collect(Collectors.toList());
+
+      assertThat(ids)
+          .as("Equality delete keyed on the time column should be applied")
+          .containsExactly(1, 3);
+    } finally {
+      spark.conf().unset("spark.sql.timeType.enabled");
+    }
   }
 
   @TestTemplate
