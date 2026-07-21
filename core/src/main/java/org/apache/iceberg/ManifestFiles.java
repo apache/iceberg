@@ -445,7 +445,7 @@ public class ManifestFiles {
    * @throws IOException if encounter any IO error when decoding.
    */
   public static ManifestFile decode(byte[] manifestData) throws IOException {
-    return AvroEncoderUtil.decode(manifestData, false);
+    return AvroEncoderUtil.decode(manifestData);
   }
 
   /**
