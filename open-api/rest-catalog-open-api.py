@@ -251,7 +251,7 @@ class Function1(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
     )
-    catalog: str
+    catalog: str | None = None
     identifier: CatalogObjectIdentifier
 
 

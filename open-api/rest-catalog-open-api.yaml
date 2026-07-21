@@ -2790,7 +2790,6 @@ components:
             - type: object
               additionalProperties: false
               required:
-                - catalog
                 - identifier
               properties:
                 catalog:
