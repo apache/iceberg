@@ -92,7 +92,10 @@ spark41 = "4.1.1"
 sqlite-jdbc = "3.53.1.0"
 testcontainers = "2.0.5"
 tez08 = { strictly = "0.8.4"}  # see rich version usage explanation above
-vortex = "0.78.0"
+vortex = "0.79.0"
+# Arrow version resolved at runtime through vortex-jni; used as compileOnly where sources
+# reference view-vector classes that arrow 15 lacks.
+arrow19 = "19.0.0"
 
 [libraries]
 activation = { module = "javax.activation:activation", version.ref = "activation" }
@@ -184,6 +187,7 @@ slf4j-api = { module = "org.slf4j:slf4j-api", version.ref = "slf4j" }
 slf4j-simple = { module = "org.slf4j:slf4j-simple", version.ref = "slf4j" }
 snowflake-jdbc = { module = "net.snowflake:snowflake-jdbc", version.ref = "snowflake-jdbc" }
 vortex-jni = { module = "dev.vortex:vortex-jni", version.ref = "vortex" }
+arrow-vector19 = { module = "org.apache.arrow:arrow-vector", version.ref = "arrow19" }
 vortex-spark212 = { module = "dev.vortex:vortex-spark_2.12", version.ref = "vortex" }
 vortex-spark213 = { module = "dev.vortex:vortex-spark_2.13", version.ref = "vortex" }
 

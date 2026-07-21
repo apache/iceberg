@@ -42,10 +42,14 @@ import org.apache.arrow.vector.FixedSizeBinaryVector;
 import org.apache.arrow.vector.Float4Vector;
 import org.apache.arrow.vector.Float8Vector;
 import org.apache.arrow.vector.TimeMicroVector;
+import org.apache.arrow.vector.TimeMilliVector;
 import org.apache.arrow.vector.TimeNanoVector;
+import org.apache.arrow.vector.TimeSecVector;
 import org.apache.arrow.vector.TimeStampVector;
 import org.apache.arrow.vector.VarBinaryVector;
 import org.apache.arrow.vector.VarCharVector;
+import org.apache.arrow.vector.ViewVarBinaryVector;
+import org.apache.arrow.vector.ViewVarCharVector;
 import org.apache.arrow.vector.complex.ListVector;
 import org.apache.arrow.vector.complex.StructVector;
 import org.apache.arrow.vector.types.pojo.ArrowType;
@@ -87,6 +91,30 @@ public class GenericVortexReaders {
     return LongReader.INSTANCE;
   }
 
+  /** Reader for int columns projected as longs (schema evolution int-to-long promotion). */
+  public static VortexValueReader<Long> intsAsLongs() {
+    return IntAsLongReader.INSTANCE;
+  }
+
+  /**
+   * Reader for the {@code _row_id} metadata column, bound to a struct packed by the scan as {@code
+   * {value: <stored _row_id, when the file has one>, pos: row_idx}}. Stored values win; null (or
+   * absent) values inherit {@code firstRowId + position}, per the row lineage spec.
+   */
+  public static VortexValueReader<Long> rowIds(long firstRowId) {
+    return new RowIdReader(firstRowId);
+  }
+
+  /** Reader for long columns that substitutes a constant when the stored value is null. */
+  public static VortexValueReader<Long> longsOrDefault(long defaultValue) {
+    return new LongOrDefaultReader(defaultValue);
+  }
+
+  /** Reader for float columns projected as doubles (schema evolution float-to-double promotion). */
+  public static VortexValueReader<Double> floatsAsDoubles() {
+    return FloatAsDoubleReader.INSTANCE;
+  }
+
   public static VortexValueReader<Float> floats() {
     return FloatReader.INSTANCE;
   }
@@ -99,8 +127,18 @@ public class GenericVortexReaders {
     return StringReader.INSTANCE;
   }
 
+  /** Reader for Utf8View columns, which Vortex scans return for strings. */
+  public static VortexValueReader<String> stringsView() {
+    return StringViewReader.INSTANCE;
+  }
+
   public static VortexValueReader<ByteBuffer> bytes() {
     return BytesReader.INSTANCE;
+  }
+
+  /** Reader for BinaryView columns, which Vortex scans return for binary. */
+  public static VortexValueReader<ByteBuffer> bytesView() {
+    return BytesViewReader.INSTANCE;
   }
 
   public static VortexValueReader<UUID> uuids() {
@@ -301,6 +339,76 @@ public class GenericVortexReaders {
     }
   }
 
+  private static class IntAsLongReader implements VortexValueReader<Long> {
+    static final IntAsLongReader INSTANCE = new IntAsLongReader();
+
+    private IntAsLongReader() {}
+
+    @Override
+    public Long readNonNull(FieldVector vector, int row) {
+      return ((BaseIntVector) vector).getValueAsLong(row);
+    }
+  }
+
+  private static class RowIdReader implements VortexValueReader<Long> {
+    private final long firstRowId;
+
+    private RowIdReader(long firstRowId) {
+      this.firstRowId = firstRowId;
+    }
+
+    @Override
+    public Long read(FieldVector vector, int row) {
+      // the packed struct itself is never null
+      return readNonNull(vector, row);
+    }
+
+    @Override
+    public Long readNonNull(FieldVector vector, int row) {
+      StructVector struct = (StructVector) vector;
+      FieldVector value = (FieldVector) struct.getChild("value");
+      if (value != null && !value.isNull(row)) {
+        return ((BaseIntVector) value).getValueAsLong(row);
+      }
+
+      FieldVector pos = (FieldVector) struct.getChild("pos");
+      return firstRowId + ((BaseIntVector) pos).getValueAsLong(row);
+    }
+  }
+
+  private static class LongOrDefaultReader implements VortexValueReader<Long> {
+    private final long defaultValue;
+
+    private LongOrDefaultReader(long defaultValue) {
+      this.defaultValue = defaultValue;
+    }
+
+    @Override
+    public Long read(FieldVector vector, int row) {
+      if (vector == null || vector.isNull(row)) {
+        return defaultValue;
+      }
+
+      return readNonNull(vector, row);
+    }
+
+    @Override
+    public Long readNonNull(FieldVector vector, int row) {
+      return ((BaseIntVector) vector).getValueAsLong(row);
+    }
+  }
+
+  private static class FloatAsDoubleReader implements VortexValueReader<Double> {
+    static final FloatAsDoubleReader INSTANCE = new FloatAsDoubleReader();
+
+    private FloatAsDoubleReader() {}
+
+    @Override
+    public Double readNonNull(FieldVector vector, int row) {
+      return (double) ((Float4Vector) vector).get(row);
+    }
+  }
+
   private static class StringReader implements VortexValueReader<String> {
     static final StringReader INSTANCE = new StringReader();
 
@@ -309,6 +417,17 @@ public class GenericVortexReaders {
     @Override
     public String readNonNull(FieldVector vector, int row) {
       return new String(((VarCharVector) vector).get(row), StandardCharsets.UTF_8);
+    }
+  }
+
+  private static class StringViewReader implements VortexValueReader<String> {
+    static final StringViewReader INSTANCE = new StringViewReader();
+
+    private StringViewReader() {}
+
+    @Override
+    public String readNonNull(FieldVector vector, int row) {
+      return new String(((ViewVarCharVector) vector).get(row), StandardCharsets.UTF_8);
     }
   }
 
@@ -321,6 +440,36 @@ public class GenericVortexReaders {
     public ByteBuffer readNonNull(FieldVector vector, int row) {
       return ByteBuffer.wrap(((VarBinaryVector) vector).get(row));
     }
+  }
+
+  private static class BytesViewReader implements VortexValueReader<ByteBuffer> {
+    static final BytesViewReader INSTANCE = new BytesViewReader();
+
+    private BytesViewReader() {}
+
+    @Override
+    public ByteBuffer readNonNull(FieldVector vector, int row) {
+      return ByteBuffer.wrap(((ViewVarBinaryVector) vector).get(row));
+    }
+  }
+
+  /**
+   * Reads a string vector's raw bytes when the vector type is only known at read time (shredded
+   * variant values); column readers use the vector-specific readers selected at build time.
+   */
+  private static byte[] utf8Bytes(FieldVector vector, int row) {
+    if (vector instanceof ViewVarCharVector view) {
+      return view.get(row);
+    }
+    return ((VarCharVector) vector).get(row);
+  }
+
+  /** Binary counterpart of {@link #utf8Bytes} for dynamically-typed variant values. */
+  private static byte[] binaryBytes(FieldVector vector, int row) {
+    if (vector instanceof ViewVarBinaryVector view) {
+      return view.get(row);
+    }
+    return ((VarBinaryVector) vector).get(row);
   }
 
   private static class UuidReader implements VortexValueReader<UUID> {
@@ -368,12 +517,12 @@ public class GenericVortexReaders {
     }
 
     private Variant readVariant(StructVector storage, int row) {
-      VarBinaryVector metadataVector = storage.getChild("metadata", VarBinaryVector.class);
+      FieldVector metadataVector = (FieldVector) storage.getChild("metadata");
       if (metadataVector == null || metadataVector.isNull(row)) {
         throw new IllegalStateException("Invalid Vortex variant: metadata is null");
       }
 
-      byte[] metadataBytes = metadataVector.get(row);
+      byte[] metadataBytes = binaryBytes(metadataVector, row);
       if (metadataBytes.length == 0) {
         throw new IllegalStateException("Invalid Vortex variant: serialized metadata is empty");
       }
@@ -406,12 +555,12 @@ public class GenericVortexReaders {
 
   private static VariantValue readSerialized(
       StructVector storage, VariantMetadata metadata, int row) {
-    VarBinaryVector valueVector = storage.getChild("value", VarBinaryVector.class);
+    FieldVector valueVector = (FieldVector) storage.getChild("value");
     if (valueVector == null || valueVector.isNull(row)) {
       return null;
     }
 
-    byte[] valueBytes = valueVector.get(row);
+    byte[] valueBytes = binaryBytes(valueVector, row);
     Preconditions.checkArgument(
         valueBytes.length > 0, "Invalid Vortex variant: serialized value is empty");
     return VariantValue.from(metadata, ByteBuffer.wrap(valueBytes).order(ByteOrder.LITTLE_ENDIAN));
@@ -466,13 +615,12 @@ public class GenericVortexReaders {
           };
       return Variants.ofDate(days);
     } else if (type instanceof ArrowType.Time timeType) {
-      long value = ((Number) vector.getObject(row)).longValue();
       long micros =
           switch (timeType.getUnit()) {
-            case SECOND -> value * 1_000_000L;
-            case MILLISECOND -> value * 1_000L;
-            case MICROSECOND -> value;
-            case NANOSECOND -> value / 1_000L;
+            case SECOND -> ((TimeSecVector) vector).get(row) * 1_000_000L;
+            case MILLISECOND -> ((TimeMilliVector) vector).get(row) * 1_000L;
+            case MICROSECOND -> ((TimeMicroVector) vector).get(row);
+            case NANOSECOND -> ((TimeNanoVector) vector).get(row) / 1_000L;
           };
       return Variants.ofTime(micros);
     } else if (type instanceof ArrowType.Timestamp timestampType) {
@@ -489,17 +637,29 @@ public class GenericVortexReaders {
       }
 
       return nanos ? Variants.ofTimestampntzNanos(timestamp) : Variants.ofTimestampntz(timestamp);
-    } else if (type instanceof ArrowType.Utf8) {
-      return Variants.of(new String(((VarCharVector) vector).get(row), StandardCharsets.UTF_8));
+    } else if (isUtf8Type(type)) {
+      return Variants.of(new String(utf8Bytes(vector, row), StandardCharsets.UTF_8));
     } else if (VortexSchemas.isUuidField(vector.getField())) {
       return Variants.ofUUID(UUIDUtil.convert(uuidStorage(vector).get(row)));
-    } else if (type instanceof ArrowType.Binary) {
-      return Variants.of(ByteBuffer.wrap(((VarBinaryVector) vector).get(row)));
+    } else if (isBinaryType(type)) {
+      return Variants.of(ByteBuffer.wrap(binaryBytes(vector, row)));
     } else if (type instanceof ArrowType.FixedSizeBinary) {
       return Variants.of(ByteBuffer.wrap(((FixedSizeBinaryVector) vector).get(row)));
     }
 
     throw new UnsupportedOperationException("Unsupported shredded variant type: " + type);
+  }
+
+  private static boolean isUtf8Type(ArrowType type) {
+    return type instanceof ArrowType.Utf8
+        || type instanceof ArrowType.LargeUtf8
+        || type instanceof ArrowType.Utf8View;
+  }
+
+  private static boolean isBinaryType(ArrowType type) {
+    return type instanceof ArrowType.Binary
+        || type instanceof ArrowType.LargeBinary
+        || type instanceof ArrowType.BinaryView;
   }
 
   private static VariantValue readObject(

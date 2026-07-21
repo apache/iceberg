@@ -220,9 +220,6 @@ public abstract class TestFileWriterFactory<T> extends WriterTestBase<T> {
 
   @TestTemplate
   public void testPositionDeleteWriter() throws IOException {
-    assumeThat(fileFormat)
-        .as("Vortex does not support position deletes")
-        .isNotEqualTo(FileFormat.VORTEX);
     FileWriterFactory<T> writerFactory = newWriterFactory(table.schema());
 
     // write a data file
@@ -285,7 +282,7 @@ public abstract class TestFileWriterFactory<T> extends WriterTestBase<T> {
   @TestTemplate
   public void testPositionDeleteWriterWithRow() throws IOException {
     assumeThat(fileFormat)
-        .as("Vortex does not support position deletes")
+        .as("Vortex position delete files do not persist deleted rows")
         .isNotEqualTo(FileFormat.VORTEX);
     FileWriterFactory<T> writerFactory = newWriterFactory(table.schema(), table.schema());
 
@@ -364,9 +361,6 @@ public abstract class TestFileWriterFactory<T> extends WriterTestBase<T> {
 
   @TestTemplate
   public void testPositionDeleteWriterMultipleDataFiles() throws IOException {
-    assumeThat(fileFormat)
-        .as("Vortex does not support position deletes")
-        .isNotEqualTo(FileFormat.VORTEX);
     FileWriterFactory<T> writerFactory = newWriterFactory(table.schema());
 
     // write two data files

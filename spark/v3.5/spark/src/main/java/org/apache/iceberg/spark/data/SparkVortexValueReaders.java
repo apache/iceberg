@@ -18,10 +18,10 @@
  */
 package org.apache.iceberg.spark.data;
 
-import java.nio.charset.StandardCharsets;
 import org.apache.arrow.vector.BigIntVector;
 import org.apache.arrow.vector.DateDayVector;
 import org.apache.arrow.vector.DateMilliVector;
+import org.apache.arrow.vector.DecimalVector;
 import org.apache.arrow.vector.ExtensionTypeVector;
 import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.FixedSizeBinaryVector;
@@ -30,6 +30,8 @@ import org.apache.arrow.vector.TimeNanoVector;
 import org.apache.arrow.vector.TimeStampVector;
 import org.apache.arrow.vector.VarBinaryVector;
 import org.apache.arrow.vector.VarCharVector;
+import org.apache.arrow.vector.ViewVarBinaryVector;
+import org.apache.arrow.vector.ViewVarCharVector;
 import org.apache.arrow.vector.complex.ListVector;
 import org.apache.arrow.vector.types.TimeUnit;
 import org.apache.arrow.vector.types.pojo.ArrowType;
@@ -38,18 +40,30 @@ import org.apache.iceberg.util.UUIDUtil;
 import org.apache.iceberg.vortex.VortexValueReader;
 import org.apache.spark.sql.catalyst.util.ArrayData;
 import org.apache.spark.sql.catalyst.util.GenericArrayData;
+import org.apache.spark.sql.types.Decimal;
 import org.apache.spark.unsafe.types.UTF8String;
 
 public class SparkVortexValueReaders {
   private SparkVortexValueReaders() {}
 
-  public static VortexValueReader<UTF8String> utf8String() {
-    return UTF8Reader.INSTANCE;
+  /**
+   * Returns a string reader specialized for the field's vector type: Vortex scans return string
+   * columns as Utf8View, while locally-built batches use regular Utf8 vectors.
+   */
+  public static VortexValueReader<UTF8String> utf8String(ArrowType arrowType) {
+    return arrowType instanceof ArrowType.Utf8View ? UTF8ViewReader.INSTANCE : UTF8Reader.INSTANCE;
   }
 
-  public static VortexValueReader<byte[]> bytes() {
-    // Spark represents BinaryType as byte[], unlike the generic reader which yields a ByteBuffer.
-    return BytesReader.INSTANCE;
+  /** Spark represents BinaryType as byte[], unlike the generic reader which yields a ByteBuffer. */
+  public static VortexValueReader<byte[]> bytes(ArrowType arrowType) {
+    return arrowType instanceof ArrowType.BinaryView
+        ? BytesViewReader.INSTANCE
+        : BytesReader.INSTANCE;
+  }
+
+  /** Spark represents DecimalType as {@link Decimal}, not {@link java.math.BigDecimal}. */
+  public static VortexValueReader<Decimal> decimals() {
+    return DecimalReader.INSTANCE;
   }
 
   public static VortexValueReader<Integer> date() {
@@ -103,8 +117,18 @@ public class SparkVortexValueReaders {
 
     @Override
     public UTF8String readNonNull(FieldVector vector, int row) {
-      byte[] bytes = ((VarCharVector) vector).get(row);
-      return UTF8String.fromString(new String(bytes, StandardCharsets.UTF_8));
+      return UTF8String.fromBytes(((VarCharVector) vector).get(row));
+    }
+  }
+
+  static class UTF8ViewReader implements VortexValueReader<UTF8String> {
+    static final UTF8ViewReader INSTANCE = new UTF8ViewReader();
+
+    private UTF8ViewReader() {}
+
+    @Override
+    public UTF8String readNonNull(FieldVector vector, int row) {
+      return UTF8String.fromBytes(((ViewVarCharVector) vector).get(row));
     }
   }
 
@@ -116,6 +140,28 @@ public class SparkVortexValueReaders {
     @Override
     public byte[] readNonNull(FieldVector vector, int row) {
       return ((VarBinaryVector) vector).get(row);
+    }
+  }
+
+  static class BytesViewReader implements VortexValueReader<byte[]> {
+    static final BytesViewReader INSTANCE = new BytesViewReader();
+
+    private BytesViewReader() {}
+
+    @Override
+    public byte[] readNonNull(FieldVector vector, int row) {
+      return ((ViewVarBinaryVector) vector).get(row);
+    }
+  }
+
+  static class DecimalReader implements VortexValueReader<Decimal> {
+    static final DecimalReader INSTANCE = new DecimalReader();
+
+    private DecimalReader() {}
+
+    @Override
+    public Decimal readNonNull(FieldVector vector, int row) {
+      return Decimal.apply(((DecimalVector) vector).getObject(row));
     }
   }
 

@@ -100,9 +100,6 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
 
   @TestTemplate
   public void testClusteredDataWriterMultiplePartitions() throws IOException {
-    assumeThat(fileFormat)
-        .as("Vortex does not yet inject partition values supplied via idToConstant")
-        .isNotEqualTo(FileFormat.VORTEX);
     table.updateSpec().addField(Expressions.ref("data")).commit();
 
     FileWriterFactory<T> writerFactory = newWriterFactory(table.schema());
@@ -298,9 +295,6 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
 
   private void checkClusteredPositionDeleteWriterNoRecords(DeleteGranularity deleteGranularity)
       throws IOException {
-    assumeThat(fileFormat)
-        .as("Vortex does not support position deletes")
-        .isNotEqualTo(FileFormat.VORTEX);
     FileWriterFactory<T> writerFactory = newWriterFactory(table.schema());
     ClusteredPositionDeleteWriter<T> writer =
         new ClusteredPositionDeleteWriter<>(
@@ -330,9 +324,6 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
 
   private void checkClusteredPositionDeleteWriterMultipleSpecs(DeleteGranularity deleteGranularity)
       throws IOException {
-    assumeThat(fileFormat)
-        .as("Vortex does not support position deletes")
-        .isNotEqualTo(FileFormat.VORTEX);
     FileWriterFactory<T> writerFactory = newWriterFactory(table.schema());
 
     // add an unpartitioned data file
@@ -416,9 +407,6 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
 
   private void checkClusteredPositionDeleteWriterOutOfOrderSpecsAndPartitions(
       DeleteGranularity deleteGranularity) throws IOException {
-    assumeThat(fileFormat)
-        .as("Vortex does not support position deletes")
-        .isNotEqualTo(FileFormat.VORTEX);
     FileWriterFactory<T> writerFactory = newWriterFactory(table.schema());
 
     table.updateSpec().addField(Expressions.bucket("data", 16)).commit();
@@ -485,9 +473,6 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
 
   private void checkClusteredPositionDeleteWriterGranularity(DeleteGranularity deleteGranularity)
       throws IOException {
-    assumeThat(fileFormat)
-        .as("Vortex does not support position deletes")
-        .isNotEqualTo(FileFormat.VORTEX);
     FileWriterFactory<T> writerFactory = newWriterFactory(table.schema());
 
     // add the first data file
@@ -546,9 +531,6 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
 
   @TestTemplate
   public void testFanoutDataWriterMultiplePartitions() throws IOException {
-    assumeThat(fileFormat)
-        .as("Vortex does not yet inject partition values supplied via idToConstant")
-        .isNotEqualTo(FileFormat.VORTEX);
     table.updateSpec().addField(Expressions.ref("data")).commit();
 
     FileWriterFactory<T> writerFactory = newWriterFactory(table.schema());
@@ -590,9 +572,6 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
 
   private void checkFanoutPositionOnlyDeleteWriterNoRecords(DeleteGranularity deleteGranularity)
       throws IOException {
-    assumeThat(fileFormat)
-        .as("Vortex does not support position deletes")
-        .isNotEqualTo(FileFormat.VORTEX);
     FileWriterFactory<T> writerFactory = newWriterFactory(table.schema());
     FanoutPositionOnlyDeleteWriter<T> writer =
         new FanoutPositionOnlyDeleteWriter<>(
@@ -623,9 +602,6 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
 
   private void checkFanoutPositionOnlyDeleteWriterOutOfOrderRecords(
       DeleteGranularity deleteGranularity) throws IOException {
-    assumeThat(fileFormat)
-        .as("Vortex does not support position deletes")
-        .isNotEqualTo(FileFormat.VORTEX);
     FileWriterFactory<T> writerFactory = newWriterFactory(table.schema());
 
     // add an unpartitioned data file
@@ -716,9 +692,6 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
 
   private void checkFanoutPositionOnlyDeleteWriterGranularity(DeleteGranularity deleteGranularity)
       throws IOException {
-    assumeThat(fileFormat)
-        .as("Vortex does not support position deletes")
-        .isNotEqualTo(FileFormat.VORTEX);
     FileWriterFactory<T> writerFactory = newWriterFactory(table.schema());
 
     // add the first data file

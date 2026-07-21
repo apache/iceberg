@@ -978,6 +978,9 @@ project(':iceberg-vortex') {
       transitive = false
     }
     runtimeOnly("${libs.vortex.jni.get().module}:${libs.vortex.jni.get().version}:all")
+    // Vortex scans return Arrow view vectors; compile against the Arrow that vortex-jni resolves
+    // at runtime so readers can reference the view-vector classes arrow 15 lacks.
+    compileOnly libs.arrow.vector19
     // VortexFormatModel exposes Arrow types in its public API, so Arrow must be
     // visible to consumers of iceberg-vortex.
     api(libs.arrow.vector) {
@@ -999,9 +1002,6 @@ project(':iceberg-vortex') {
 
     annotationProcessor libs.immutables.value
     compileOnly libs.immutables.value
-    compileOnly(libs.hadoop3.client) {
-      exclude group: 'org.apache.avro', module: 'avro'
-    }
 
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')

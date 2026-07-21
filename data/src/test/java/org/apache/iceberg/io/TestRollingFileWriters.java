@@ -19,7 +19,6 @@
 package org.apache.iceberg.io;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
 import java.io.IOException;
@@ -105,9 +104,6 @@ public abstract class TestRollingFileWriters<T> extends WriterTestBase<T> {
 
   @TestTemplate
   public void testRollingDataWriterSplitData() throws IOException {
-    assumeThat(fileFormat)
-        .as("VortexFileAppender.length() returns 0 until the appender is closed")
-        .isNotEqualTo(FileFormat.VORTEX);
     FileWriterFactory<T> writerFactory = newWriterFactory(table.schema());
     RollingDataWriter<T> writer =
         new RollingDataWriter<>(
@@ -151,9 +147,6 @@ public abstract class TestRollingFileWriters<T> extends WriterTestBase<T> {
 
   @TestTemplate
   public void testRollingEqualityDeleteWriterSplitDeletes() throws IOException {
-    assumeThat(fileFormat)
-        .as("VortexFileAppender.length() returns 0 until the appender is closed")
-        .isNotEqualTo(FileFormat.VORTEX);
     List<Integer> equalityFieldIds = ImmutableList.of(table.schema().findField("id").fieldId());
     Schema equalityDeleteRowSchema = table.schema().select("id");
     FileWriterFactory<T> writerFactory =
@@ -181,9 +174,6 @@ public abstract class TestRollingFileWriters<T> extends WriterTestBase<T> {
 
   @TestTemplate
   public void testRollingPositionDeleteWriterNoRecords() throws IOException {
-    assumeThat(fileFormat)
-        .as("Vortex does not support position deletes")
-        .isNotEqualTo(FileFormat.VORTEX);
     FileWriterFactory<T> writerFactory = newWriterFactory(table.schema());
     RollingPositionDeleteWriter<T> writer =
         new RollingPositionDeleteWriter<>(
@@ -202,9 +192,6 @@ public abstract class TestRollingFileWriters<T> extends WriterTestBase<T> {
 
   @TestTemplate
   public void testRollingPositionDeleteWriterSplitDeletes() throws IOException {
-    assumeThat(fileFormat)
-        .as("Vortex does not support position deletes")
-        .isNotEqualTo(FileFormat.VORTEX);
     FileWriterFactory<T> writerFactory = newWriterFactory(table.schema());
     RollingPositionDeleteWriter<T> writer =
         new RollingPositionDeleteWriter<>(

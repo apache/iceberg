@@ -33,9 +33,6 @@ import java.time.ZoneOffset;
 import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Stream;
-import org.apache.arrow.memory.BufferAllocator;
-import org.apache.arrow.memory.RootAllocator;
-import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FieldMetrics;
 import org.apache.iceberg.FileContent;
@@ -272,45 +269,43 @@ public class TestVortexMetrics {
   }
 
   @Test
-  void metricsFromArrowBatchIncludeNestedFields() {
+  void summaryMetricsCoverTopLevelColumns() throws Exception {
     Schema schema =
         new Schema(
             optional(
                 1, "nested", Types.StructType.of(optional(2, "value", Types.IntegerType.get()))),
             optional(3, "data", Types.BinaryType.get()),
             optional(4, "score", Types.FloatType.get()));
-    VortexValueWriter<Record> writer = GenericVortexWriter.buildWriter(schema);
-    VortexMetrics.Accumulator accumulator =
-        new VortexMetrics.Accumulator(schema, MetricsConfig.getDefault());
+    FileAppender<Record> appender = buildAppender(schema, "nested.vortex");
 
-    try (BufferAllocator allocator = new RootAllocator();
-        VectorSchemaRoot root =
-            VectorSchemaRoot.create(VortexSchemas.toArrowSchema(schema), allocator)) {
-      root.allocateNew();
+    Record nested = GenericRecord.create(schema.findType("nested").asStructType());
+    nested.setField("value", 10);
+    Record first = GenericRecord.create(schema);
+    first.setField("nested", nested);
+    first.setField("data", ByteBuffer.wrap(new byte[] {(byte) 0x80}));
+    first.setField("score", Float.NaN);
+    appender.add(first);
 
-      Record nested = GenericRecord.create(schema.findType("nested").asStructType());
-      nested.setField("value", 10);
-      Record first = GenericRecord.create(schema);
-      first.setField("nested", nested);
-      first.setField("data", ByteBuffer.wrap(new byte[] {(byte) 0x80}));
-      first.setField("score", Float.NaN);
-      writer.write(first, root, 0);
+    Record second = GenericRecord.create(schema);
+    second.setField("nested", null);
+    second.setField("data", ByteBuffer.wrap(new byte[] {0x7F}));
+    second.setField("score", 2.5F);
+    appender.add(second);
+    appender.close();
 
-      Record second = GenericRecord.create(schema);
-      second.setField("nested", null);
-      second.setField("data", ByteBuffer.wrap(new byte[] {0x7F}));
-      second.setField("score", 2.5F);
-      writer.write(second, root, 1);
+    Metrics metrics = appender.metrics();
+    assertThat(metrics.recordCount()).isEqualTo(2L);
 
-      root.setRowCount(2);
-      accumulator.add(root, 2);
-    }
+    // Vortex reports statistics per top-level column, so struct columns and their nested fields
+    // carry no counts or bounds.
+    assertThat(metrics.valueCounts()).doesNotContainKey(1).doesNotContainKey(2);
+    assertThat(metrics.lowerBounds()).doesNotContainKeys(1, 2);
 
-    Metrics metrics = accumulator.metrics(2);
-    assertThat(metrics.valueCounts()).containsEntry(2, 2L);
-    assertThat(metrics.nullValueCounts()).containsEntry(2, 1L);
-    assertThat(metrics.valueCounts()).doesNotContainKey(1);
+    // Column sizes are physical and cover every top-level column, including structs.
+    assertThat(metrics.columnSizes()).containsKeys(1, 3, 4);
 
+    assertThat(metrics.valueCounts()).containsEntry(3, 2L).containsEntry(4, 2L);
+    assertThat(metrics.nullValueCounts()).containsEntry(3, 0L).containsEntry(4, 0L);
     assertThat(metrics.nanValueCounts()).containsEntry(4, 1L);
     assertThat(
             Conversions.<Float>fromByteBuffer(Types.FloatType.get(), metrics.lowerBounds().get(4)))
@@ -324,7 +319,7 @@ public class TestVortexMetrics {
   }
 
   @Test
-  void metricsFromArrowBatchForAllPrimitiveTypes() {
+  void summaryMetricsForAllPrimitiveTypes() throws Exception {
     Schema schema =
         new Schema(
             optional(1, "boolean", Types.BooleanType.get()),
@@ -342,9 +337,6 @@ public class TestVortexMetrics {
             optional(13, "timestamp_ns", Types.TimestampNanoType.withoutZone()),
             optional(14, "timestamp_ns_tz", Types.TimestampNanoType.withZone()),
             optional(15, "uuid", Types.UUIDType.get()));
-    VortexValueWriter<Record> writer = GenericVortexWriter.buildWriter(schema);
-    VortexMetrics.Accumulator accumulator =
-        new VortexMetrics.Accumulator(schema, MetricsConfig.getDefault());
     Record record = GenericRecord.create(schema);
     record.setField("boolean", true);
     record.setField("integer", 34);
@@ -363,53 +355,72 @@ public class TestVortexMetrics {
         "timestamp_ns_tz", OffsetDateTime.of(2026, 7, 12, 12, 34, 56, 123, ZoneOffset.UTC));
     record.setField("uuid", UUID.fromString("123e4567-e89b-12d3-a456-426614174000"));
 
-    try (BufferAllocator allocator = new RootAllocator();
-        VectorSchemaRoot root =
-            VectorSchemaRoot.create(VortexSchemas.toArrowSchema(schema), allocator)) {
-      root.allocateNew();
-      writer.write(record, root, 0);
-      root.setRowCount(1);
-      accumulator.add(root, 1);
-    }
+    FileAppender<Record> appender = buildAppender(schema, "all-types.vortex");
+    appender.add(record);
+    appender.close();
 
-    Metrics metrics = accumulator.metrics(1);
+    Metrics metrics = appender.metrics();
+    assertThat(metrics.recordCount()).isEqualTo(1L);
+    assertThat(metrics.columnSizes()).hasSize(15);
     assertThat(metrics.valueCounts())
         .hasSize(15)
         .allSatisfy((id, count) -> assertThat(count).isOne());
     assertThat(metrics.nullValueCounts())
         .hasSize(15)
         .allSatisfy((id, count) -> assertThat(count).isZero());
-    assertThat(metrics.lowerBounds()).hasSize(15);
-    assertThat(metrics.upperBounds()).hasSize(15);
+    // Vortex does not compute min/max for the arrow.uuid extension dtype, so the UUID column (15)
+    // has counts but no bounds.
+    assertThat(metrics.lowerBounds()).hasSize(14).doesNotContainKey(15);
+    assertThat(metrics.upperBounds()).hasSize(14).doesNotContainKey(15);
     assertThat(metrics.nanValueCounts()).containsEntry(4, 0L).containsEntry(5, 0L);
+
+    assertThat(
+            Conversions.<Integer>fromByteBuffer(Types.DateType.get(), metrics.lowerBounds().get(9)))
+        .isEqualTo((int) LocalDate.of(2026, 7, 12).toEpochDay());
+    assertThat(
+            Conversions.<BigDecimal>fromByteBuffer(
+                Types.DecimalType.of(9, 2), metrics.lowerBounds().get(8)))
+        .isEqualTo(new BigDecimal("12.34"));
+    assertThat(
+            Conversions.fromByteBuffer(Types.StringType.get(), metrics.lowerBounds().get(6))
+                .toString())
+        .isEqualTo("abc");
   }
 
   @Test
-  void metricsFromArrowBatchForVariant() {
+  void summaryMetricsForVariant() throws Exception {
     Schema schema = new Schema(optional(1, "variant", Types.VariantType.get()));
-    VortexValueWriter<Record> writer = GenericVortexWriter.buildWriter(schema);
-    VortexMetrics.Accumulator accumulator =
-        new VortexMetrics.Accumulator(schema, MetricsConfig.getDefault());
     Record first = GenericRecord.create(schema);
     first.setField("variant", Variant.of(VariantMetadata.empty(), Variants.of("abc")));
     Record second = GenericRecord.create(schema);
     second.setField("variant", null);
 
-    try (BufferAllocator allocator = new RootAllocator();
-        VectorSchemaRoot root =
-            VectorSchemaRoot.create(VortexSchemas.toArrowSchema(schema), allocator)) {
-      root.allocateNew();
-      writer.write(first, root, 0);
-      writer.write(second, root, 1);
-      root.setRowCount(2);
-      accumulator.add(root, 2);
-    }
+    FileAppender<Record> appender = buildAppender(schema, "variant.vortex");
+    appender.add(first);
+    appender.add(second);
+    appender.close();
 
-    Metrics metrics = accumulator.metrics(2);
+    Metrics metrics = appender.metrics();
+    assertThat(metrics.recordCount()).isEqualTo(2L);
     assertThat(metrics.valueCounts()).containsEntry(1, 2L);
-    assertThat(metrics.nullValueCounts()).containsEntry(1, 1L);
     assertThat(metrics.lowerBounds()).isNull();
     assertThat(metrics.upperBounds()).isNull();
+  }
+
+  private FileAppender<Record> buildAppender(Schema schema, String fileName) throws Exception {
+    VortexFormatModel<Record, Void, VortexRowReader<?>> model =
+        VortexFormatModel.create(
+            Record.class,
+            Void.class,
+            (icebergSchema, fileSchema, engineSchema) ->
+                GenericVortexWriter.buildWriter(icebergSchema),
+            (VortexFormatModel.ReaderFunction<Record>) GenericVortexReader::buildReader);
+    OutputFile outputFile = Files.localOutput(temp.resolve(fileName).toFile());
+    return model
+        .writeBuilder(EncryptedFiles.plainAsEncryptedOutput(outputFile))
+        .schema(schema)
+        .content(FileContent.DATA)
+        .build();
   }
 
   @Test

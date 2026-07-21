@@ -63,6 +63,9 @@ project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}") {
       exclude group: 'dev.vortex', module: 'vortex-jni'
     }
     implementation project(':iceberg-arrow')
+    // Vortex scans return Arrow view vectors; compile against the Arrow that vortex-jni resolves
+    // at runtime so VortexArrowColumnVector can reference view-vector classes arrow 15 lacks.
+    compileOnly libs.arrow.vector19
     implementation("org.scala-lang.modules:scala-collection-compat_${scalaVersion}:${libs.versions.scala.collection.compat.get()}")
     implementation("org.apache.datasketches:datasketches-java:${libs.versions.datasketches.get()}")
 

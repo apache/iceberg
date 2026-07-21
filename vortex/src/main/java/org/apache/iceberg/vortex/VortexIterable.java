@@ -24,10 +24,11 @@ import dev.vortex.api.Partition;
 import dev.vortex.api.Scan;
 import dev.vortex.api.ScanOptions;
 import dev.vortex.api.Session;
+import dev.vortex.io.NativeReadable;
 import dev.vortex.jni.NativeRuntime;
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.List;
-import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.Set;
@@ -56,9 +57,12 @@ public class VortexIterable<T> extends CloseableGroup implements CloseableIterab
 
   private final InputFile inputFile;
   private final Optional<Expression> filterPredicate;
-  private final long[] rowRange;
+  private final long[] splitByteRange;
   private final byte[] posDeleteBitmap;
   private final boolean includeRowPosition;
+  private final boolean includeRowId;
+  private final boolean includeLastUpdatedSeq;
+  private final boolean reuseContainers;
   private final Function<org.apache.arrow.vector.types.pojo.Schema, VortexRowReader<T>>
       rowReaderFunc;
   private final Function<org.apache.arrow.vector.types.pojo.Schema, VortexBatchReader<T>>
@@ -71,9 +75,12 @@ public class VortexIterable<T> extends CloseableGroup implements CloseableIterab
       InputFile inputFile,
       List<String> projection,
       Optional<Expression> filterPredicate,
-      long[] rowRange,
+      long[] splitByteRange,
       byte[] posDeleteBitmap,
       boolean includeRowPosition,
+      boolean includeRowId,
+      boolean includeLastUpdatedSeq,
+      boolean reuseContainers,
       Function<org.apache.arrow.vector.types.pojo.Schema, VortexRowReader<T>> readerFunction,
       Function<org.apache.arrow.vector.types.pojo.Schema, VortexBatchReader<T>> batchReaderFunction,
       boolean caseSensitive,
@@ -81,9 +88,12 @@ public class VortexIterable<T> extends CloseableGroup implements CloseableIterab
     this.inputFile = inputFile;
     this.projection = projection;
     this.filterPredicate = filterPredicate;
-    this.rowRange = rowRange;
+    this.splitByteRange = splitByteRange;
     this.posDeleteBitmap = posDeleteBitmap;
     this.includeRowPosition = includeRowPosition;
+    this.includeRowId = includeRowId;
+    this.includeLastUpdatedSeq = includeLastUpdatedSeq;
+    this.reuseContainers = reuseContainers;
     this.rowReaderFunc = readerFunction;
     this.batchReaderFunction = batchReaderFunction;
     this.caseSensitive = caseSensitive;
@@ -99,9 +109,39 @@ public class VortexIterable<T> extends CloseableGroup implements CloseableIterab
     NativeRuntime.setWorkerThreads(workerThreads);
 
     Session session = Session.create();
-    String uri = VortexFileUtil.resolveUri(inputFile.location());
-    Map<String, String> properties = VortexFileUtil.resolveInputProperties(inputFile);
-    DataSource dataSource = DataSource.open(session, uri, properties);
+    // Read through the table's FileIO instead of Vortex's native storage clients. The returned
+    // iterator owns the readable and closes it when the scan is exhausted or abandoned.
+    NativeReadable readable = VortexIO.readable(inputFile);
+    try {
+      return open(session, readable);
+    } catch (RuntimeException e) {
+      try {
+        readable.close();
+      } catch (IOException suppressed) {
+        e.addSuppressed(suppressed);
+      }
+      throw e;
+    }
+  }
+
+  private CloseableIterator<T> open(Session session, NativeReadable readable) {
+    DataSource dataSource = DataSource.open(session, readable);
+
+    long[] rowRange = null;
+    if (splitByteRange != null) {
+      rowRange = toRowRange(splitByteRange, readable.length(), dataSource);
+      if (rowRange[0] >= rowRange[1]) {
+        // The byte range maps to zero rows: skip the scan entirely. An all-zero range must not
+        // reach the native scan, which interprets it as "no range set".
+        try {
+          readable.close();
+        } catch (IOException e) {
+          throw new org.apache.iceberg.exceptions.RuntimeIOException(
+              e, "Failed to close input source for %s", inputFile.location());
+        }
+        return CloseableIterator.empty();
+      }
+    }
 
     dev.vortex.relocated.org.apache.arrow.memory.BufferAllocator vortexAllocator =
         VortexArrowBridge.vortexAllocator();
@@ -150,6 +190,8 @@ public class VortexIterable<T> extends CloseableGroup implements CloseableIterab
       readerArrowSchema = appendRowPosition(fileArrowSchema);
     }
 
+    addRowLineageProjections(fileColumns, fieldNames, expressions);
+
     dev.vortex.api.Expression scanProjection =
         dev.vortex.api.Expression.pack(
             fieldNames.build().toArray(String[]::new),
@@ -175,15 +217,81 @@ public class VortexIterable<T> extends CloseableGroup implements CloseableIterab
     Preconditions.checkNotNull(scan, "scan");
 
     PartitionBatchIterator batchIterator =
-        new PartitionBatchIterator(scan, vortexAllocator, allocator);
+        new PartitionBatchIterator(scan, vortexAllocator, allocator, readable);
 
     if (rowReaderFunc != null) {
       VortexRowReader<T> rowFunction = rowReaderFunc.apply(readerArrowSchema);
+      if (reuseContainers) {
+        rowFunction.reuseContainers(true);
+      }
       return new VortexRowIterator<>(batchIterator, rowFunction);
     } else {
       VortexBatchReader<T> batchTransform = batchReaderFunction.apply(readerArrowSchema);
       return new VortexBatchIterator<>(batchIterator, batchTransform);
     }
+  }
+
+  /**
+   * Row lineage: projects {@code _row_id} as a nested pack of the stored column (when the file has
+   * one) and the row position, so readers can prefer stored values and fall back to {@code
+   * firstRowId + position}. The last-updated sequence number column is projected when stored;
+   * readers substitute the file's sequence number for null or absent values.
+   */
+  private void addRowLineageProjections(
+      Set<String> fileColumns,
+      ImmutableList.Builder<String> fieldNames,
+      ImmutableList.Builder<dev.vortex.api.Expression> expressions) {
+    if (includeRowId) {
+      String rowIdName = MetadataColumns.ROW_ID.name();
+      fieldNames.add(rowIdName);
+      if (fileColumns.contains(rowIdName)) {
+        expressions.add(
+            dev.vortex.api.Expression.pack(
+                new String[] {"value", "pos"},
+                new dev.vortex.api.Expression[] {
+                  dev.vortex.api.Expression.column(rowIdName), dev.vortex.api.Expression.rowIdx()
+                },
+                false));
+      } else {
+        expressions.add(
+            dev.vortex.api.Expression.pack(
+                new String[] {"pos"},
+                new dev.vortex.api.Expression[] {dev.vortex.api.Expression.rowIdx()},
+                false));
+      }
+    }
+
+    String lastUpdatedName = MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.name();
+    if (includeLastUpdatedSeq && fileColumns.contains(lastUpdatedName)) {
+      fieldNames.add(lastUpdatedName);
+      expressions.add(dev.vortex.api.Expression.column(lastUpdatedName));
+    }
+  }
+
+  /**
+   * Approximates a byte-range split as a row range. Iceberg plans splits as byte ranges, but Vortex
+   * scans select rows: both boundaries map to rows by their fraction of the file, using the file's
+   * exact row count. Because every boundary maps through the same function, the contiguous byte
+   * splits of a file map to contiguous, non-overlapping row ranges that cover every row exactly
+   * once.
+   */
+  private static long[] toRowRange(long[] byteRange, long fileLength, DataSource dataSource) {
+    Preconditions.checkState(
+        dataSource.rowCount() instanceof DataSource.RowCount.Exact,
+        "Cannot map a byte-range split to rows without an exact row count: %s",
+        dataSource.rowCount());
+    long totalRows = ((DataSource.RowCount.Exact) dataSource.rowCount()).value();
+    long begin = rowAt(byteRange[0], fileLength, totalRows);
+    long end = rowAt(byteRange[0] + byteRange[1], fileLength, totalRows);
+    return new long[] {begin, end};
+  }
+
+  private static long rowAt(long byteOffset, long fileLength, long totalRows) {
+    if (byteOffset >= fileLength) {
+      return totalRows;
+    }
+
+    return (long) (((double) byteOffset / fileLength) * totalRows);
   }
 
   /**
@@ -206,6 +314,7 @@ public class VortexIterable<T> extends CloseableGroup implements CloseableIterab
     private final Scan scan;
     private final dev.vortex.relocated.org.apache.arrow.memory.BufferAllocator vortexAllocator;
     private final BufferAllocator allocator;
+    private final Closeable inputSource;
     private dev.vortex.relocated.org.apache.arrow.vector.ipc.ArrowReader currentReader;
     private VectorSchemaRoot currentRoot;
     private boolean hasPending = false;
@@ -214,10 +323,12 @@ public class VortexIterable<T> extends CloseableGroup implements CloseableIterab
     PartitionBatchIterator(
         Scan scan,
         dev.vortex.relocated.org.apache.arrow.memory.BufferAllocator vortexAllocator,
-        BufferAllocator allocator) {
+        BufferAllocator allocator,
+        Closeable inputSource) {
       this.scan = scan;
       this.vortexAllocator = vortexAllocator;
       this.allocator = allocator;
+      this.inputSource = inputSource;
     }
 
     @Override
@@ -268,12 +379,17 @@ public class VortexIterable<T> extends CloseableGroup implements CloseableIterab
 
     @Override
     public void close() throws IOException {
-      closeCurrentRoot();
-      if (currentReader != null) {
-        currentReader.close();
-        currentReader = null;
+      try {
+        closeCurrentRoot();
+        if (currentReader != null) {
+          currentReader.close();
+          currentReader = null;
+        }
+        // Don't close shared allocators; they are managed for the lifetime of the process.
+      } finally {
+        // All scans over the input source are done; release its underlying streams.
+        inputSource.close();
       }
-      // Don't close shared allocators; they are managed for the lifetime of the process.
     }
 
     private void closeCurrentRoot() {

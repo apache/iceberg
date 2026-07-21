@@ -23,4 +23,11 @@ import org.apache.arrow.vector.VectorSchemaRoot;
 /** Reads a single row of type {@link T} from an Arrow {@link VectorSchemaRoot} batch. */
 public interface VortexRowReader<T> {
   T read(VectorSchemaRoot batch, int row);
+
+  /**
+   * Requests that {@link #read} refill and return the same top-level container instance on every
+   * call instead of allocating a new one per row. Callers that retain rows across calls must copy
+   * them. Readers that do not support reuse ignore the request.
+   */
+  default void reuseContainers(boolean reuse) {}
 }

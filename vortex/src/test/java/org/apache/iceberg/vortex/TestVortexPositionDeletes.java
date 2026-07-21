@@ -87,9 +87,9 @@ public class TestVortexPositionDeletes {
 
   @Test
   public void testPositionDeletesAppliedAlongsideRowRange() throws IOException {
-    // GenericReader sets a row range via split(); for the row-splittable Vortex format the planner
-    // reports these in rows (file.recordCount()), so this mirrors a whole-file task [0, rowCount).
-    // Positions in the bitmap are file-relative and must still hit the right rows.
+    // Readers set byte-range splits via split(); Vortex approximates them to row ranges. This
+    // mirrors a whole-file task [0, fileLength). Positions in the bitmap are file-relative and
+    // must still hit the right rows.
     int rows = 10;
     InputFile file = writeRows(rows);
 
@@ -101,7 +101,7 @@ public class TestVortexPositionDeletes {
         formatModel()
             .readBuilder(file)
             .project(SCHEMA)
-            .split(0, rows)
+            .split(0, file.getLength())
             .positionDeletes(deletes)
             .build()) {
       for (Record record : reader) {

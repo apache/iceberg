@@ -56,6 +56,9 @@ public class GenericVortexReader implements VortexRowReader<Record> {
   // constant field that is not backed by a batch column.
   private int[] batchColumnIndex;
 
+  private boolean reuseContainers = false;
+  private GenericRecord reusedRecord = null;
+
   private GenericVortexReader(
       Schema expectedSchema,
       org.apache.arrow.vector.types.pojo.Schema fileArrowSchema,
@@ -77,6 +80,10 @@ public class GenericVortexReader implements VortexRowReader<Record> {
     for (int i = 0; i < expectedFields.size(); i++) {
       Types.NestedField field = expectedFields.get(i);
       int id = field.fieldId();
+      if (initLineageReader(i, field, constants, arrowFieldsByName)) {
+        continue;
+      }
+
       if (constants.containsKey(id)) {
         // Identity-partition value or metadata column (e.g. _file, _spec_id, _partition) supplied
         // through idToConstant instead of being stored in the data file.
@@ -109,6 +116,40 @@ public class GenericVortexReader implements VortexRowReader<Record> {
     }
   }
 
+  /**
+   * Wires the row lineage metadata columns when the engine supplies inheritance bases through
+   * {@code idToConstant}: {@code _row_id} binds to the {@code {value?, pos}} struct packed by the
+   * scan (stored values win, nulls inherit {@code firstRowId + position}) and {@code
+   * _last_updated_sequence_number} substitutes the file's sequence number for null or absent
+   * values. Returns whether the field was handled.
+   */
+  private boolean initLineageReader(
+      int pos,
+      Types.NestedField field,
+      Map<Integer, ?> constants,
+      Map<String, Field> arrowFieldsByName) {
+    int id = field.fieldId();
+    if (id == MetadataColumns.ROW_ID.fieldId() && constants.get(id) instanceof Long firstRowId) {
+      this.readers[pos] = GenericVortexReaders.rowIds(firstRowId);
+      this.columnNames[pos] = field.name();
+      return true;
+    }
+
+    if (id == MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.fieldId()
+        && constants.get(id) instanceof Long seqNumber) {
+      if (arrowFieldsByName.containsKey(field.name())) {
+        this.readers[pos] = GenericVortexReaders.longsOrDefault(seqNumber);
+        this.columnNames[pos] = field.name();
+      } else {
+        this.readers[pos] = GenericVortexReaders.constants(seqNumber);
+      }
+
+      return true;
+    }
+
+    return false;
+  }
+
   public static VortexRowReader<Record> buildReader(
       Schema expectedSchema, org.apache.arrow.vector.types.pojo.Schema fileArrowSchema) {
     return new GenericVortexReader(expectedSchema, fileArrowSchema, Collections.emptyMap());
@@ -122,18 +163,35 @@ public class GenericVortexReader implements VortexRowReader<Record> {
   }
 
   @Override
+  public void reuseContainers(boolean reuse) {
+    this.reuseContainers = reuse;
+  }
+
+  @Override
   public Record read(VectorSchemaRoot batch, int row) {
     if (batchColumnIndex == null) {
       this.batchColumnIndex = resolveColumns(batch);
     }
 
-    GenericRecord record = GenericRecord.create(structType);
+    GenericRecord record = container();
     for (int i = 0; i < readers.length; i++) {
       int columnIndex = batchColumnIndex[i];
       FieldVector vector = columnIndex < 0 ? null : batch.getVector(columnIndex);
       record.set(i, readers[i].read(vector, row));
     }
     return record;
+  }
+
+  private GenericRecord container() {
+    if (!reuseContainers) {
+      return GenericRecord.create(structType);
+    }
+
+    if (reusedRecord == null) {
+      this.reusedRecord = GenericRecord.create(structType);
+    }
+
+    return reusedRecord;
   }
 
   private int[] resolveColumns(VectorSchemaRoot batch) {
@@ -181,11 +239,15 @@ public class GenericVortexReader implements VortexRowReader<Record> {
       }
       ArrowType arrowType = primField.getType();
       if (arrowType instanceof ArrowType.Int intType) {
-        return intType.getBitWidth() <= Integer.SIZE
-            ? GenericVortexReaders.ints()
-            : GenericVortexReaders.longs();
+        if (intType.getBitWidth() > Integer.SIZE) {
+          return GenericVortexReaders.longs();
+        }
+        // Schema evolution: an int column may be projected as long after a type promotion.
+        return iPrimitive != null && iPrimitive.typeId() == Type.TypeID.LONG
+            ? GenericVortexReaders.intsAsLongs()
+            : GenericVortexReaders.ints();
       } else if (arrowType instanceof ArrowType.FloatingPoint fpType) {
-        return floatingPointReader(fpType);
+        return floatingPointReader(fpType, iPrimitive);
       } else if (arrowType instanceof ArrowType.Date dateType) {
         return GenericVortexReaders.date(dateType.getUnit() == DateUnit.MILLISECOND);
       } else if (arrowType instanceof ArrowType.Time timeType) {
@@ -206,8 +268,12 @@ public class GenericVortexReader implements VortexRowReader<Record> {
         return GenericVortexReaders.bools();
       } else if (arrowType instanceof ArrowType.Decimal) {
         return GenericVortexReaders.decimals();
+      } else if (arrowType instanceof ArrowType.Utf8View) {
+        return GenericVortexReaders.stringsView();
       } else if (arrowType instanceof ArrowType.Utf8 || arrowType instanceof ArrowType.LargeUtf8) {
         return GenericVortexReaders.strings();
+      } else if (arrowType instanceof ArrowType.BinaryView) {
+        return GenericVortexReaders.bytesView();
       } else if (arrowType instanceof ArrowType.Binary
           || arrowType instanceof ArrowType.LargeBinary
           || arrowType instanceof ArrowType.FixedSizeBinary) {
@@ -217,9 +283,14 @@ public class GenericVortexReader implements VortexRowReader<Record> {
           "Unsupported Arrow type in Vortex read: " + arrowType);
     }
 
-    private static VortexValueReader<?> floatingPointReader(ArrowType.FloatingPoint fpType) {
+    private static VortexValueReader<?> floatingPointReader(
+        ArrowType.FloatingPoint fpType, Type.PrimitiveType iPrimitive) {
       return switch (fpType.getPrecision()) {
-        case SINGLE -> GenericVortexReaders.floats();
+          // Schema evolution: a float column may be projected as double after a type promotion.
+        case SINGLE ->
+            iPrimitive != null && iPrimitive.typeId() == Type.TypeID.DOUBLE
+                ? GenericVortexReaders.floatsAsDoubles()
+                : GenericVortexReaders.floats();
         case DOUBLE -> GenericVortexReaders.doubles();
         case HALF ->
             throw new UnsupportedOperationException("Half-precision floats are not supported");

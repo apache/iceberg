@@ -33,7 +33,6 @@ import org.apache.iceberg.data.vortex.GenericVortexReader;
 import org.apache.iceberg.data.vortex.GenericVortexWriter;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.InputFile;
-import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
@@ -86,27 +85,7 @@ public final class VortexTest {
       throw new RuntimeException("Failed to load resource: " + location, e);
     }
 
-    return new InputFile() {
-      @Override
-      public long getLength() {
-        return 0;
-      }
-
-      @Override
-      public SeekableInputStream newStream() {
-        return null;
-      }
-
-      @Override
-      public String location() {
-        return outPath.toAbsolutePath().toUri().toString();
-      }
-
-      @Override
-      public boolean exists() {
-        return true;
-      }
-    };
+    return org.apache.iceberg.Files.localInput(outPath.toFile());
   }
 
   private static Record makeEmployee(long id, String name, long salary) {

@@ -24,6 +24,7 @@ import java.util.Map;
 import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.arrow.vector.complex.StructVector;
+import org.apache.arrow.vector.types.FloatingPointPrecision;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.iceberg.MetadataColumns;
@@ -56,6 +57,9 @@ public class SparkVortexReader implements VortexRowReader<InternalRow> {
   // constant field that is not backed by a batch column.
   private int[] batchColumnIndex;
 
+  private boolean reuseContainers = false;
+  private GenericInternalRow reusedRow = null;
+
   public SparkVortexReader(
       Schema readSchema,
       org.apache.arrow.vector.types.pojo.Schema fileArrowSchema,
@@ -75,7 +79,21 @@ public class SparkVortexReader implements VortexRowReader<InternalRow> {
     for (int i = 0; i < expected.size(); i++) {
       Types.NestedField field = expected.get(i);
       int id = field.fieldId();
-      if (constants.containsKey(id)) {
+      if (id == MetadataColumns.ROW_ID.fieldId() && constants.get(id) instanceof Long firstRowId) {
+        // Row lineage: the scan packs {value: stored _row_id (when present), pos: row_idx} under
+        // the _row_id name; stored values win and nulls inherit firstRowId + position.
+        this.readers[i] = GenericVortexReaders.rowIds(firstRowId);
+        this.columnNames[i] = field.name();
+      } else if (id == MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.fieldId()
+          && constants.get(id) instanceof Long seqNumber) {
+        if (arrowFieldsByName.containsKey(field.name())) {
+          // Stored values win; nulls inherit the file's sequence number.
+          this.readers[i] = GenericVortexReaders.longsOrDefault(seqNumber);
+          this.columnNames[i] = field.name();
+        } else {
+          this.readers[i] = GenericVortexReaders.constants(seqNumber);
+        }
+      } else if (constants.containsKey(id)) {
         // Identity-partition value or metadata column (e.g. _file, _spec_id, _partition) supplied
         // through idToConstant instead of being stored in the data file.
         this.readers[i] = GenericVortexReaders.constants(constants.get(id));
@@ -107,18 +125,35 @@ public class SparkVortexReader implements VortexRowReader<InternalRow> {
   }
 
   @Override
+  public void reuseContainers(boolean reuse) {
+    this.reuseContainers = reuse;
+  }
+
+  @Override
   public InternalRow read(VectorSchemaRoot batch, int row) {
     if (batchColumnIndex == null) {
       this.batchColumnIndex = resolveColumns(batch);
     }
 
-    GenericInternalRow result = new GenericInternalRow(readers.length);
+    GenericInternalRow result = container();
     for (int i = 0; i < readers.length; i++) {
       int columnIndex = batchColumnIndex[i];
       FieldVector vector = columnIndex < 0 ? null : batch.getVector(columnIndex);
       result.update(i, readers[i].read(vector, row));
     }
     return result;
+  }
+
+  private GenericInternalRow container() {
+    if (!reuseContainers) {
+      return new GenericInternalRow(readers.length);
+    }
+
+    if (reusedRow == null) {
+      this.reusedRow = new GenericInternalRow(readers.length);
+    }
+
+    return reusedRow;
   }
 
   private int[] resolveColumns(VectorSchemaRoot batch) {
@@ -170,12 +205,12 @@ public class SparkVortexReader implements VortexRowReader<InternalRow> {
       return switch (icebergType.typeId()) {
         case BOOLEAN -> GenericVortexReaders.bools();
         case INTEGER -> GenericVortexReaders.ints();
-        case LONG -> GenericVortexReaders.longs();
+        case LONG -> longReader(primField.getType());
         case FLOAT -> GenericVortexReaders.floats();
-        case DOUBLE -> GenericVortexReaders.doubles();
-        case STRING -> SparkVortexValueReaders.utf8String();
-        case BINARY -> SparkVortexValueReaders.bytes();
-        case DECIMAL -> GenericVortexReaders.decimals();
+        case DOUBLE -> doubleReader(primField.getType());
+        case STRING -> SparkVortexValueReaders.utf8String(primField.getType());
+        case BINARY -> SparkVortexValueReaders.bytes(primField.getType());
+        case DECIMAL -> SparkVortexValueReaders.decimals();
         case TIMESTAMP, TIMESTAMP_NANO -> {
           ArrowType.Timestamp ts = (ArrowType.Timestamp) primField.getType();
           yield SparkVortexValueReaders.timestamp(ts.getUnit());
@@ -188,6 +223,21 @@ public class SparkVortexReader implements VortexRowReader<InternalRow> {
         case UUID -> SparkVortexValueReaders.uuid();
         default -> throw new UnsupportedOperationException("Unsupported type: " + icebergType);
       };
+    }
+
+    // Schema evolution: an int column may be projected as long after a type promotion.
+    private static VortexValueReader<?> longReader(ArrowType arrowType) {
+      return arrowType instanceof ArrowType.Int intType && intType.getBitWidth() <= Integer.SIZE
+          ? GenericVortexReaders.intsAsLongs()
+          : GenericVortexReaders.longs();
+    }
+
+    // Schema evolution: a float column may be projected as double after a type promotion.
+    private static VortexValueReader<?> doubleReader(ArrowType arrowType) {
+      return arrowType instanceof ArrowType.FloatingPoint fpType
+              && fpType.getPrecision() == FloatingPointPrecision.SINGLE
+          ? GenericVortexReaders.floatsAsDoubles()
+          : GenericVortexReaders.doubles();
     }
   }
 

@@ -130,13 +130,20 @@ public abstract class BaseFormatModelTests<T> {
 
   @TempDir private File tableDir;
 
-  // Vortex is intentionally excluded from this TCK for now. Its appender writes through a native
-  // code path that targets a filesystem URI, so it cannot populate the in-memory OutputFile this
-  // suite writes to (every write-based case fails converting the unwritten file), and it does not
-  // yet register position-delete writers or support split-size and name-mapping reads. Re-add
-  // FileFormat.VORTEX once the appender supports arbitrary FileIO and those capabilities land.
-  private static final FileFormat[] FILE_FORMATS =
-      new FileFormat[] {FileFormat.AVRO, FileFormat.PARQUET, FileFormat.ORC};
+  private static final FileFormat[] FILE_FORMATS = fileFormats();
+
+  private static FileFormat[] fileFormats() {
+    List<FileFormat> formats =
+        Lists.newArrayList(FileFormat.AVRO, FileFormat.PARQUET, FileFormat.ORC);
+    try {
+      Class.forName("org.apache.iceberg.vortex.VortexFormatModels");
+      formats.add(FileFormat.VORTEX);
+    } catch (ClassNotFoundException e) {
+      // iceberg-vortex is not on the classpath; skip the format
+    }
+
+    return formats.toArray(new FileFormat[0]);
+  }
 
   private static final List<Arguments> FORMAT_AND_GENERATOR =
       Arrays.stream(FILE_FORMATS)
@@ -153,6 +160,7 @@ public abstract class BaseFormatModelTests<T> {
   static final String FEATURE_REUSE_CONTAINERS = "reuseContainers";
   static final String FEATURE_COLUMN_LEVEL_METRICS = "columnLevelMetrics";
   static final String FEATURE_COLUMN_METRICS_TRUNCATE_BINARY = "columnMetricsTruncateBinary";
+  static final String FEATURE_EVOLUTION_BY_FIELD_ID = "evolutionByFieldId";
 
   private static final Map<FileFormat, String[]> MISSING_FEATURES =
       Map.of(
@@ -167,6 +175,12 @@ public abstract class BaseFormatModelTests<T> {
           FileFormat.ORC,
           new String[] {
             FEATURE_REUSE_CONTAINERS, FEATURE_COLUMN_METRICS_TRUNCATE_BINARY, FEATURE_READER_DEFAULT
+          },
+          FileFormat.VORTEX,
+          new String[] {
+            // Vortex files store no Iceberg field ids, so columns bind by name and renames (or
+            // dropping and re-adding a name) cannot be resolved.
+            FEATURE_EVOLUTION_BY_FIELD_ID
           });
 
   private InMemoryFileIO fileIO;
@@ -1122,7 +1136,6 @@ public abstract class BaseFormatModelTests<T> {
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
   void testReadMetadataColumnRowLinage(FileFormat fileFormat) throws IOException {
-
     DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
     Schema schema = dataGenerator.schema();
     List<Record> genericRecords = dataGenerator.generateRecords();
@@ -1155,7 +1168,6 @@ public abstract class BaseFormatModelTests<T> {
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
   void testReadMetadataColumnRowLinageExistValue(FileFormat fileFormat) throws IOException {
-
     DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
     Schema dataSchema = dataGenerator.schema();
 
@@ -1463,6 +1475,8 @@ public abstract class BaseFormatModelTests<T> {
   @FieldSource("FILE_FORMATS")
   void testSchemaEvolutionDropAndReAddSameNameColumn(FileFormat fileFormat) throws IOException {
 
+    assumeSupports(fileFormat, FEATURE_EVOLUTION_BY_FIELD_ID);
+
     DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
     Schema writeSchema = dataGenerator.schema();
 
@@ -1556,6 +1570,8 @@ public abstract class BaseFormatModelTests<T> {
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
   void testSchemaEvolutionRenameColumn(FileFormat fileFormat) throws IOException {
+    assumeSupports(fileFormat, FEATURE_EVOLUTION_BY_FIELD_ID);
+
     DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
     Schema writeSchema = dataGenerator.schema();
 
@@ -1772,6 +1788,7 @@ public abstract class BaseFormatModelTests<T> {
     return switch (fileFormat) {
       case PARQUET -> TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES;
       case ORC -> TableProperties.ORC_STRIPE_SIZE_BYTES;
+      case VORTEX -> TableProperties.WRITE_VORTEX_SPLIT_SIZE;
       default ->
           throw new UnsupportedOperationException(
               "No split size property defined for format: " + fileFormat);
@@ -2121,6 +2138,8 @@ public abstract class BaseFormatModelTests<T> {
       case PARQUET -> writeParquetWithoutFieldIds(schema, records);
       case AVRO -> writeAvroWithoutFieldIds(schema, records);
       case ORC -> writeOrcWithoutFieldIds(schema, records);
+        // Vortex files never carry Iceberg field ids; the regular writer is the id-less case.
+      case VORTEX -> writeGenericRecords(fileFormat, schema, records);
       default -> throw new UnsupportedOperationException("Unsupported file format: " + fileFormat);
     }
   }

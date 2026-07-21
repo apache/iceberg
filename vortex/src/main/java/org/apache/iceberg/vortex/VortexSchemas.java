@@ -177,12 +177,11 @@ public final class VortexSchemas {
             null);
       }
       case UUID -> {
+        // arrow.uuid is a metadata-less canonical extension: an ARROW:extension:metadata entry
+        // (even an empty one) makes strict validators such as arrow-rs reject the field.
         Map<String, String> extMetadata =
             ImmutableMap.of(
-                ArrowType.ExtensionType.EXTENSION_METADATA_KEY_NAME,
-                UUID_EXTENSION_NAME,
-                ArrowType.ExtensionType.EXTENSION_METADATA_KEY_METADATA,
-                "");
+                ArrowType.ExtensionType.EXTENSION_METADATA_KEY_NAME, UUID_EXTENSION_NAME);
         yield new Field(
             name,
             new FieldType(nullable, new ArrowType.FixedSizeBinary(16), null, extMetadata),
@@ -315,11 +314,18 @@ public final class VortexSchemas {
         instanceof dev.vortex.relocated.org.apache.arrow.vector.types.pojo.ArrowType.Utf8) {
       return ArrowType.Utf8.INSTANCE;
     } else if (arrowType
+        instanceof dev.vortex.relocated.org.apache.arrow.vector.types.pojo.ArrowType.Utf8View) {
+      // Preserve view-ness so readers can bind view-specialized accessors up front.
+      return ArrowType.Utf8View.INSTANCE;
+    } else if (arrowType
         instanceof dev.vortex.relocated.org.apache.arrow.vector.types.pojo.ArrowType.LargeUtf8) {
       return ArrowType.LargeUtf8.INSTANCE;
     } else if (arrowType
         instanceof dev.vortex.relocated.org.apache.arrow.vector.types.pojo.ArrowType.Binary) {
       return ArrowType.Binary.INSTANCE;
+    } else if (arrowType
+        instanceof dev.vortex.relocated.org.apache.arrow.vector.types.pojo.ArrowType.BinaryView) {
+      return ArrowType.BinaryView.INSTANCE;
     } else if (arrowType
         instanceof dev.vortex.relocated.org.apache.arrow.vector.types.pojo.ArrowType.LargeBinary) {
       return ArrowType.LargeBinary.INSTANCE;
@@ -412,14 +418,13 @@ public final class VortexSchemas {
             nullable);
       }
       case UUID -> {
+        // arrow.uuid is a metadata-less canonical extension: an ARROW:extension:metadata entry
+        // (even an empty one) makes strict validators such as arrow-rs reject the field.
         Map<String, String> extMetadata =
             ImmutableMap.of(
                 dev.vortex.relocated.org.apache.arrow.vector.types.pojo.ArrowType.ExtensionType
                     .EXTENSION_METADATA_KEY_NAME,
-                UUID_EXTENSION_NAME,
-                dev.vortex.relocated.org.apache.arrow.vector.types.pojo.ArrowType.ExtensionType
-                    .EXTENSION_METADATA_KEY_METADATA,
-                "");
+                UUID_EXTENSION_NAME);
         yield toVortexArrowField(
             name,
             new dev.vortex.relocated.org.apache.arrow.vector.types.pojo.ArrowType.FixedSizeBinary(
@@ -649,10 +654,13 @@ public final class VortexSchemas {
       return Types.UnknownType.get();
     } else if (arrowType instanceof ArrowType.Bool) {
       return Types.BooleanType.get();
-    } else if (arrowType instanceof ArrowType.Utf8 || arrowType instanceof ArrowType.LargeUtf8) {
+    } else if (arrowType instanceof ArrowType.Utf8
+        || arrowType instanceof ArrowType.LargeUtf8
+        || arrowType instanceof ArrowType.Utf8View) {
       return Types.StringType.get();
     } else if (arrowType instanceof ArrowType.Binary
-        || arrowType instanceof ArrowType.LargeBinary) {
+        || arrowType instanceof ArrowType.LargeBinary
+        || arrowType instanceof ArrowType.BinaryView) {
       return Types.BinaryType.get();
     } else if (arrowType instanceof ArrowType.Date) {
       return Types.DateType.get();
@@ -673,14 +681,17 @@ public final class VortexSchemas {
     } else if (arrowType
             instanceof dev.vortex.relocated.org.apache.arrow.vector.types.pojo.ArrowType.Utf8
         || arrowType
-            instanceof
-            dev.vortex.relocated.org.apache.arrow.vector.types.pojo.ArrowType.LargeUtf8) {
+            instanceof dev.vortex.relocated.org.apache.arrow.vector.types.pojo.ArrowType.LargeUtf8
+        || arrowType
+            instanceof dev.vortex.relocated.org.apache.arrow.vector.types.pojo.ArrowType.Utf8View) {
       return Types.StringType.get();
     } else if (arrowType
             instanceof dev.vortex.relocated.org.apache.arrow.vector.types.pojo.ArrowType.Binary
         || arrowType
+            instanceof dev.vortex.relocated.org.apache.arrow.vector.types.pojo.ArrowType.LargeBinary
+        || arrowType
             instanceof
-            dev.vortex.relocated.org.apache.arrow.vector.types.pojo.ArrowType.LargeBinary) {
+            dev.vortex.relocated.org.apache.arrow.vector.types.pojo.ArrowType.BinaryView) {
       return Types.BinaryType.get();
     } else if (arrowType
         instanceof dev.vortex.relocated.org.apache.arrow.vector.types.pojo.ArrowType.Date) {

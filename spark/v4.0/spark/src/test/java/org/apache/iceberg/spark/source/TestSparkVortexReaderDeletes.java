@@ -18,12 +18,9 @@
  */
 package org.apache.iceberg.spark.source;
 
-import static org.assertj.core.api.Assumptions.assumeThat;
-
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PlanningMode;
-import org.junit.jupiter.api.TestTemplate;
 
 /**
  * Exercises the Spark columnar read path for Vortex tables with deletes.
@@ -50,13 +47,5 @@ public class TestSparkVortexReaderDeletes extends TestSparkReaderDeletes {
   @Override
   protected boolean countDeletes() {
     return false;
-  }
-
-  @TestTemplate
-  @Override
-  public void testReadEqualityDeleteRows() {
-    // Uses EqualityDeleteRowReader with byte-range task planning; Vortex interprets split ranges as
-    // row positions, which is a separate limitation from equality-delete read support.
-    assumeThat(false).isTrue();
   }
 }
