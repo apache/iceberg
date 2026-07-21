@@ -2834,7 +2834,7 @@ components:
         transform:
           $ref: '#/components/schemas/Transform'
         term:
-          $ref: '#/components/schemas/Term'
+          $ref: '#/components/schemas/TermReference'
 
     Transform:
       type: string
