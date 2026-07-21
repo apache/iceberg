@@ -133,6 +133,11 @@ public class DynFields {
     public void set(Object target, Void value) {}
 
     @Override
+    public BoundField<Void> bind(Object target) {
+      return new BoundField<>(this, target);
+    }
+
+    @Override
     public String toString() {
       return "Field(AlwaysNull)";
     }
