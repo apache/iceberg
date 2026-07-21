@@ -41,13 +41,15 @@ import org.apache.iceberg.types.Types;
  */
 class BuildAvroProjection extends AvroCustomOrderSchemaVisitor<Schema, Schema.Field> {
   private final Map<String, String> renames;
-  private final boolean localTimestampEnabled;
   private Type current;
 
-  BuildAvroProjection(
-      Type expectedType, Map<String, String> renames, boolean localTimestampEnabled) {
+  BuildAvroProjection(org.apache.iceberg.Schema expectedSchema, Map<String, String> renames) {
     this.renames = renames;
-    this.localTimestampEnabled = localTimestampEnabled;
+    this.current = expectedSchema.asStruct();
+  }
+
+  BuildAvroProjection(Type expectedType, Map<String, String> renames) {
+    this.renames = renames;
     this.current = expectedType;
   }
 
@@ -109,8 +111,7 @@ class BuildAvroProjection extends AvroCustomOrderSchemaVisitor<Schema, Schema.Fi
         Schema.Field newField =
             new Schema.Field(
                 fieldName + "_r" + field.fieldId(),
-                AvroSchemaUtil.toOption(
-                    AvroSchemaUtil.convert(field.type(), localTimestampEnabled)),
+                AvroSchemaUtil.toOption(AvroSchemaUtil.convert(field.type())),
                 null,
                 JsonProperties.NULL_VALUE);
         newField.addProp(AvroSchemaUtil.FIELD_ID_PROP, field.fieldId());
