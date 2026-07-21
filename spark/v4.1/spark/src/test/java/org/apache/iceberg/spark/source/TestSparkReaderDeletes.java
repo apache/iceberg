@@ -290,6 +290,33 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
 
   @TestTemplate
   public void testEqualityDeletesOnUnprojectedTimeColumn() throws IOException {
+    createTimeTableWithEqualityDelete();
+
+    // Spark 4.1 gates the TIME data type behind an internal flag
+    spark.conf().set("spark.sql.timeType.enabled", "true");
+    try {
+      assertThat(selectIds(TIME_EQ_TABLE))
+          .as("Equality delete keyed on the time column should be applied")
+          .containsExactly(1, 3);
+    } finally {
+      spark.conf().unset("spark.sql.timeType.enabled");
+    }
+  }
+
+  @TestTemplate
+  public void testEqualityDeletesOnDroppedTimeColumn() throws IOException {
+    Table timeTable = createTimeTableWithEqualityDelete();
+
+    // the delete filter resolves the deleted column against historic schemas, so the equality
+    // delete keyed on the dropped time column still applies to previously written data files
+    timeTable.updateSchema().deleteColumn("t").commit();
+
+    assertThat(selectIds(TIME_EQ_TABLE))
+        .as("Equality delete keyed on a dropped time column should be applied")
+        .containsExactly(1, 3);
+  }
+
+  private Table createTimeTableWithEqualityDelete() throws IOException {
     Schema timeSchema =
         new Schema(
             Types.NestedField.required(1, "id", Types.IntegerType.get()),
@@ -307,8 +334,8 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
             timeTable, Files.localOutput(File.createTempFile("junit", null, temp.toFile())), rows);
     timeTable.newAppend().appendFile(dataFile).commit();
 
-    // the equality delete is keyed on the time column, which the query below does not project;
-    // the delete columns are still added to the read schema to apply the deletes
+    // the equality delete is keyed on the time column, which the queries do not project; the
+    // delete columns are still added to the read schema to apply the deletes
     Schema deleteRowSchema = timeTable.schema().select("t");
     Record timeDelete = GenericRecord.create(deleteRowSchema);
     List<Record> deletes =
@@ -321,27 +348,20 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
             deleteRowSchema);
     timeTable.newRowDelta().addDeletes(eqDeletes).commit();
 
-    // Spark 4.1 gates the TIME data type behind an internal flag
-    spark.conf().set("spark.sql.timeType.enabled", "true");
-    try {
-      List<Integer> ids =
-          spark
-              .read()
-              .format("iceberg")
-              .load(TableIdentifier.of("default", TIME_EQ_TABLE).toString())
-              .select("id")
-              .sort("id")
-              .collectAsList()
-              .stream()
-              .map(row -> row.getInt(0))
-              .collect(Collectors.toList());
+    return timeTable;
+  }
 
-      assertThat(ids)
-          .as("Equality delete keyed on the time column should be applied")
-          .containsExactly(1, 3);
-    } finally {
-      spark.conf().unset("spark.sql.timeType.enabled");
-    }
+  private List<Integer> selectIds(String tableName) {
+    return spark
+        .read()
+        .format("iceberg")
+        .load(TableIdentifier.of("default", tableName).toString())
+        .select("id")
+        .sort("id")
+        .collectAsList()
+        .stream()
+        .map(row -> row.getInt(0))
+        .collect(Collectors.toList());
   }
 
   @TestTemplate

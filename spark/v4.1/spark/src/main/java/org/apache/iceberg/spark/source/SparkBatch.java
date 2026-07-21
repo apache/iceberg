@@ -183,9 +183,8 @@ class SparkBatch implements Batch {
       for (DeleteFile delete : fileScanTask.deletes()) {
         if (delete.content() == FileContent.EQUALITY_DELETES) {
           for (int fieldId : delete.equalityFieldIds()) {
-            Types.NestedField field = table.schema().findField(fieldId);
-            if (field != null
-                && TypeUtil.find(field.type(), type -> type.typeId() == Type.TypeID.TIME) != null) {
+            Types.NestedField field = findField(fieldId);
+            if (field != null && containsTime(field.type())) {
               return false;
             }
           }
@@ -214,7 +213,7 @@ class SparkBatch implements Batch {
     // (time columns required only by equality deletes are checked per task above). This check
     // must run before the metadata column check to catch a time field nested in a metadata
     // column like _partition.
-    if (TypeUtil.find(field.type(), type -> type.typeId() == Type.TypeID.TIME) != null) {
+    if (containsTime(field.type())) {
       return false;
     }
 
@@ -263,7 +262,29 @@ class SparkBatch implements Batch {
   private boolean supportsOrcBatchReads(Types.NestedField field) {
     // Spark 4.1's ColumnarBatch cannot expose time values (ColumnarBatchRow#get does not support
     // TimeType), so fall back to row-based reads when a time column is projected.
-    return TypeUtil.find(field.type(), type -> type.typeId() == Type.TypeID.TIME) == null;
+    return !containsTime(field.type());
+  }
+
+  private static boolean containsTime(Type type) {
+    return TypeUtil.find(type, t -> t.typeId() == Type.TypeID.TIME) != null;
+  }
+
+  // resolves a field id the same way the delete filter does: against the current schema first,
+  // then historic schemas, so equality deletes keyed on a dropped time column are still detected
+  private Types.NestedField findField(int fieldId) {
+    Types.NestedField field = table.schema().findField(fieldId);
+    if (field != null) {
+      return field;
+    }
+
+    for (Schema schema : table.schemas().values()) {
+      field = schema.findField(fieldId);
+      if (field != null) {
+        return field;
+      }
+    }
+
+    return null;
   }
 
   private boolean supportsOrcBatchReads(ScanTask task) {
