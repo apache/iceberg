@@ -27,7 +27,7 @@ categories:
 
 The Apache Iceberg community is pleased to announce version 0.10.0 of [iceberg-rust](https://github.com/apache/iceberg-rust).
 
-This release covers development work from early March through early July 2026 and is the result of merging **252 PRs** from **40 contributors**. See the [changelog] for the complete list of changes.
+This release covers development work from early March through early July 2026 and is the result of merging **254 PRs** from **40 contributors**. See the [changelog] for the complete list of changes.
 
 [changelog]: https://github.com/apache/iceberg-rust/releases/tag/v0.10.0
 
