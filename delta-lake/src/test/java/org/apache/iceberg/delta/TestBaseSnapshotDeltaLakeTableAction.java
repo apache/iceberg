@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.delta;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
@@ -97,6 +98,29 @@ public class TestBaseSnapshotDeltaLakeTableAction {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
             "Delta Lake table does not exist at the given location: %s", sourceTableLocation);
+  }
+
+  @Test
+  public void getFullFilePathJoinsRelativePathWithPosixSeparator() {
+    assertThat(
+            BaseSnapshotDeltaLakeTableAction.getFullFilePath(
+                "part-00000.parquet", "s3://bucket/table"))
+        .isEqualTo("s3://bucket/table/part-00000.parquet");
+  }
+
+  @Test
+  public void getFullFilePathReturnsAbsolutePathUnchanged() {
+    assertThat(
+            BaseSnapshotDeltaLakeTableAction.getFullFilePath(
+                "s3://bucket/other-table/part-00000.parquet", "s3://bucket/table"))
+        .isEqualTo("s3://bucket/other-table/part-00000.parquet");
+  }
+
+  @Test
+  public void getFullFilePathDecodesEncodedRelativePath() {
+    assertThat(
+            BaseSnapshotDeltaLakeTableAction.getFullFilePath("a%20b.parquet", "s3://bucket/table"))
+        .isEqualTo("s3://bucket/table/a b.parquet");
   }
 
   private static class TestCatalog extends BaseMetastoreCatalog {
