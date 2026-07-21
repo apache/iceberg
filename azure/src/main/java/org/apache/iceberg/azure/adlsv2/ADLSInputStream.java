@@ -114,7 +114,13 @@ class ADLSInputStream extends SeekableInputStream implements RangeReadable {
     Preconditions.checkState(!closed, "Cannot read: already closed");
     positionStream();
 
-    int bytesRead = stream.read();
+    int bytesRead;
+    try {
+      bytesRead = stream.read();
+    } catch (IOException e) {
+      throwNotFoundIfNotPresent(e.getCause(), location);
+      throw e;
+    }
     if (bytesRead == -1) {
       return -1;
     }
@@ -132,7 +138,13 @@ class ADLSInputStream extends SeekableInputStream implements RangeReadable {
     Preconditions.checkState(!closed, "Cannot read: already closed");
     positionStream();
 
-    int bytesRead = stream.read(b, off, len);
+    int bytesRead;
+    try {
+      bytesRead = stream.read(b, off, len);
+    } catch (IOException e) {
+      throwNotFoundIfNotPresent(e.getCause(), location);
+      throw e;
+    }
     if (bytesRead == -1) {
       return -1;
     }
