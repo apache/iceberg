@@ -54,8 +54,8 @@ class FieldStatsStruct<T> implements FieldStats<T>, StructLike, Serializable {
       T upperBound,
       boolean tightBounds,
       long valueCount,
-      long nullValueCount,
-      long nanValueCount,
+      Long nullValueCount,
+      Long nanValueCount,
       Integer avgValueSize) {
     this(struct);
     setLowerBound(lowerBound);
@@ -149,12 +149,24 @@ class FieldStatsStruct<T> implements FieldStats<T>, StructLike, Serializable {
   }
 
   @Override
+  public boolean hasNullCount() {
+    return nullValueCount != null;
+  }
+
+  @Override
   public long nullValueCount() {
+    Preconditions.checkState(hasNullCount(), "Field %s does not track a null value count", fieldId);
     return nullValueCount;
   }
 
   @Override
+  public boolean hasNaNCount() {
+    return nanValueCount != null;
+  }
+
+  @Override
   public long nanValueCount() {
+    Preconditions.checkState(hasNaNCount(), "Field %s does not track a NaN value count", fieldId);
     return nanValueCount;
   }
 

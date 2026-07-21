@@ -174,27 +174,34 @@ class TrackedFileAdapters {
 
     @Override
     public Map<Integer, Long> valueCounts() {
-      return MetricsUtil.valueCounts(file().contentStats());
+      return statsMap(ContentStatsBackedMap.Kind.VALUE_COUNT);
     }
 
     @Override
     public Map<Integer, Long> nullValueCounts() {
-      return MetricsUtil.nullValueCounts(file().contentStats());
+      return statsMap(ContentStatsBackedMap.Kind.NULL_VALUE_COUNT);
     }
 
     @Override
     public Map<Integer, Long> nanValueCounts() {
-      return MetricsUtil.nanValueCounts(file().contentStats());
+      return statsMap(ContentStatsBackedMap.Kind.NAN_VALUE_COUNT);
     }
 
     @Override
     public Map<Integer, ByteBuffer> lowerBounds() {
-      return MetricsUtil.lowerBounds(file().contentStats());
+      return statsMap(ContentStatsBackedMap.Kind.LOWER_BOUND);
     }
 
     @Override
     public Map<Integer, ByteBuffer> upperBounds() {
-      return MetricsUtil.upperBounds(file().contentStats());
+      return statsMap(ContentStatsBackedMap.Kind.UPPER_BOUND);
+    }
+
+    // Presents the wrapped content stats as a legacy per-column stats map without eagerly
+    // materializing it.
+    private <V> Map<Integer, V> statsMap(ContentStatsBackedMap.Kind kind) {
+      ContentStats contentStats = file().contentStats();
+      return contentStats == null ? null : ContentStatsBackedMap.forKind(kind, contentStats);
     }
   }
 

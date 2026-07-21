@@ -69,7 +69,7 @@ class TestTrackedFileAdapters {
       StatsUtil.statsReadSchema(TABLE_SCHEMA, ImmutableList.of(1, 2));
   private static final FieldStats<Integer> ID_STATS =
       new FieldStatsStruct<>(
-          CONTENT_STATS_TYPE.fieldType("id").asStructType(), 1, 1000, true, 100L, 5L, 0L, null);
+          CONTENT_STATS_TYPE.fieldType("id").asStructType(), 1, 1000, true, 100L, 5L, null, null);
   private static final FieldStats<Float> SCORE_STATS =
       new FieldStatsStruct<>(
           CONTENT_STATS_TYPE.fieldType("score").asStructType(),
@@ -352,6 +352,25 @@ class TestTrackedFileAdapters {
   }
 
   @Test
+  void testMetricTrackedByNoColumnReturnsNull() {
+    // an integer-only schema: no column tracks nan_value_count, so the map is null (legacy
+    // contract)
+    Schema schema = new Schema(optional(1, "id", Types.IntegerType.get()));
+    Types.StructType statsType = StatsUtil.statsReadSchema(schema, ImmutableList.of(1));
+    ContentStatsStruct stats = new ContentStatsStruct(statsType);
+    stats.setStats(
+        1,
+        new FieldStatsStruct<>(
+            statsType.fieldType("id").asStructType(), 1, 1000, true, 100L, 5L, null, null));
+
+    DataFile dataFile = TrackedFileAdapters.asDataFile(dataFileWithStats(stats), UNPARTITIONED);
+
+    assertThat(dataFile.nanValueCounts()).isNull();
+    assertThat(dataFile.valueCounts()).containsOnly(Map.entry(1, 100L));
+    assertThat(dataFile.nullValueCounts()).containsOnly(Map.entry(1, 5L));
+  }
+
+  @Test
   void testNullTrackingReturnsNullTrackingFields() {
     // Files read before manifest inheritance have no tracking; tracking-derived fields must be
     // null rather than throwing.
@@ -508,6 +527,27 @@ class TestTrackedFileAdapters {
         1L,
         null,
         null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null);
+  }
+
+  /** A DATA file carrying the given content stats and no tracking, for the stat-map tests. */
+  private static TrackedFileStruct dataFileWithStats(ContentStats contentStats) {
+    return new TrackedFileStruct(
+        null,
+        FileContent.DATA,
+        FORMAT_VERSION_V4,
+        DATA_FILE_LOCATION,
+        FileFormat.PARQUET,
+        null,
+        1L,
+        1L,
+        null,
+        contentStats,
         null,
         null,
         null,
