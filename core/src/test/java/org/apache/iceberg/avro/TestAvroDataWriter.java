@@ -271,14 +271,15 @@ public class TestAvroDataWriter {
 
       org.apache.avro.Schema tsTzFieldSchema = avroSchema.getField("ts_tz").schema();
       assertThat(tsTzFieldSchema.getLogicalType().getName()).isEqualTo("timestamp-micros");
-      assertThat(tsTzFieldSchema.getObjectProp(AvroSchemaUtil.ADJUST_TO_UTC_PROP)).isNull();
+      assertThat(tsTzFieldSchema.getObjectProp(AvroSchemaUtil.ADJUST_TO_UTC_PROP)).isEqualTo(true);
 
       org.apache.avro.Schema tsNsFieldSchema = avroSchema.getField("ts_ns").schema();
       assertThat(tsNsFieldSchema.getLogicalType().getName()).isEqualTo("local-timestamp-nanos");
 
       org.apache.avro.Schema tsTzNsFieldSchema = avroSchema.getField("ts_tz_ns").schema();
       assertThat(tsTzNsFieldSchema.getLogicalType().getName()).isEqualTo("timestamp-nanos");
-      assertThat(tsTzNsFieldSchema.getObjectProp(AvroSchemaUtil.ADJUST_TO_UTC_PROP)).isNull();
+      assertThat(tsTzNsFieldSchema.getObjectProp(AvroSchemaUtil.ADJUST_TO_UTC_PROP))
+          .isEqualTo(true);
     }
 
     List<Record> writtenRecords;
