@@ -84,8 +84,9 @@ public class TestVortexUuid {
       // Read back using the GenericVortexReader's primitive dispatch through GenericVortexReaders.
       VortexRowReader<Record> reader =
           GenericVortexReader.buildReader(SCHEMA, VortexSchemas.toArrowSchema(SCHEMA));
-      Record row0 = reader.read(root, 0);
-      Record row1 = reader.read(root, 1);
+      reader.newBatch(root);
+      Record row0 = reader.read(0);
+      Record row1 = reader.read(1);
 
       assertThat(row0.get(0)).isEqualTo(1L);
       assertThat(row0.get(1)).isEqualTo(uuid1);
@@ -117,7 +118,9 @@ public class TestVortexUuid {
           .setSafe(0, org.apache.iceberg.util.UUIDUtil.convert(uuid));
       root.setRowCount(1);
 
-      assertThat(GenericVortexReaders.uuids().read(root.getVector(0), 0)).isEqualTo(uuid);
+      VortexValueReader<UUID> uuidReader = GenericVortexReaders.uuids();
+      uuidReader.bind(root.getVector(0));
+      assertThat(uuidReader.read(0)).isEqualTo(uuid);
     }
   }
 

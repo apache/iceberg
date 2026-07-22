@@ -92,7 +92,7 @@ spark41 = "4.1.1"
 sqlite-jdbc = "3.53.1.0"
 testcontainers = "2.0.5"
 tez08 = { strictly = "0.8.4"}  # see rich version usage explanation above
-vortex = "0.79.0"
+vortex = "0.80.0"
 # Arrow version resolved at runtime through vortex-jni; used as compileOnly where sources
 # reference view-vector classes that arrow 15 lacks.
 arrow19 = "19.0.0"

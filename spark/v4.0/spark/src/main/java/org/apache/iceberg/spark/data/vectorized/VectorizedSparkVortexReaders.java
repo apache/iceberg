@@ -30,6 +30,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.vortex.VortexArrowProperties;
 import org.apache.iceberg.vortex.VortexBatchReader;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.Decimal;
@@ -40,6 +41,14 @@ import org.apache.spark.sql.vectorized.ColumnarMap;
 import org.apache.spark.unsafe.types.UTF8String;
 
 public class VectorizedSparkVortexReaders {
+
+  static {
+    // Configure Arrow's unsafe-memory-access and null-check-for-get properties like
+    // VectorizedSparkParquetReaders does; Spark always calls isNullAt before value getters, so
+    // Arrow's per-get null checks and bounds checks are redundant on this path.
+    VortexArrowProperties.ensureConfigured();
+  }
+
   private VectorizedSparkVortexReaders() {}
 
   public static VortexBatchReader<ColumnarBatch> buildReader(

@@ -168,16 +168,25 @@ public class GenericVortexReader implements VortexRowReader<Record> {
   }
 
   @Override
-  public Record read(VectorSchemaRoot batch, int row) {
+  public void newBatch(VectorSchemaRoot batch) {
     if (batchColumnIndex == null) {
       this.batchColumnIndex = resolveColumns(batch);
     }
 
-    GenericRecord record = container();
     for (int i = 0; i < readers.length; i++) {
       int columnIndex = batchColumnIndex[i];
-      FieldVector vector = columnIndex < 0 ? null : batch.getVector(columnIndex);
-      record.set(i, readers[i].read(vector, row));
+      if (columnIndex >= 0) {
+        readers[i].bind(batch.getVector(columnIndex));
+      }
+    }
+  }
+
+  @Override
+  public Record read(int row) {
+    Preconditions.checkState(batchColumnIndex != null, "newBatch must be called before read");
+    GenericRecord record = container();
+    for (int i = 0; i < readers.length; i++) {
+      record.set(i, readers[i].read(row));
     }
     return record;
   }

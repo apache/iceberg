@@ -20,9 +20,20 @@ package org.apache.iceberg.vortex;
 
 import org.apache.arrow.vector.VectorSchemaRoot;
 
-/** Reads a single row of type {@link T} from an Arrow {@link VectorSchemaRoot} batch. */
+/**
+ * Reads rows of type {@link T} from Arrow {@link VectorSchemaRoot} batches. Callers must invoke
+ * {@link #newBatch(VectorSchemaRoot)} each time they advance to a new batch, then read rows by
+ * their position within that batch.
+ */
 public interface VortexRowReader<T> {
-  T read(VectorSchemaRoot batch, int row);
+  /**
+   * Binds this reader to {@code batch} for subsequent {@link #read} calls, hoisting per-batch work
+   * (column resolution, buffer and null-count binding) out of the per-row path.
+   */
+  void newBatch(VectorSchemaRoot batch);
+
+  /** Reads the row at {@code row} within the current batch. */
+  T read(int row);
 
   /**
    * Requests that {@link #read} refill and return the same top-level container instance on every

@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark.data.vectorized;
 
 import java.util.List;
+import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.vector.BigIntVector;
 import org.apache.arrow.vector.BitVector;
 import org.apache.arrow.vector.DateDayVector;
@@ -41,8 +42,6 @@ import org.apache.arrow.vector.complex.ListVector;
 import org.apache.arrow.vector.complex.ListViewVector;
 import org.apache.arrow.vector.complex.MapVector;
 import org.apache.arrow.vector.complex.StructVector;
-import org.apache.arrow.vector.holders.NullableLargeVarCharHolder;
-import org.apache.arrow.vector.holders.NullableVarCharHolder;
 import org.apache.arrow.vector.types.DateUnit;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
@@ -54,6 +53,7 @@ import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.vectorized.ColumnVector;
 import org.apache.spark.sql.vectorized.ColumnarArray;
 import org.apache.spark.sql.vectorized.ColumnarMap;
+import org.apache.spark.unsafe.Platform;
 import org.apache.spark.unsafe.types.UTF8String;
 
 /**
@@ -331,19 +331,44 @@ class VortexArrowColumnVector extends ColumnVector {
     throw new UnsupportedOperationException("Unsupported Arrow type: " + arrowType);
   }
 
+  /**
+   * Base accessor reading vector memory directly by address (Comet-style). The null count is
+   * computed once per batch column (Arrow rescans the validity bitmap on every {@code
+   * getNullCount()} call) and null checks read the validity bit directly, skipping Arrow's per-call
+   * bounds checks. Value getters may return garbage for null slots, which is allowed by Spark's
+   * {@link ColumnVector} contract: callers check {@code isNullAt} (or {@code hasNull}) first.
+   */
   private abstract static class ArrowVectorAccessor {
+    // Marks a vector with null slots but no validity buffer (NullVector): every slot is null.
+    private static final long ALL_NULL = -1L;
+
     private final ValueVector vector;
+    private final int nullCount;
+    private final long validityAddress;
 
     ArrowVectorAccessor(ValueVector vector) {
       this.vector = vector;
+      this.nullCount = vector.getNullCount();
+      if (vector instanceof NullVector) {
+        this.validityAddress = ALL_NULL;
+      } else if (nullCount > 0) {
+        this.validityAddress = vector.getValidityBuffer().memoryAddress();
+      } else {
+        this.validityAddress = 0L;
+      }
     }
 
     final boolean isNullAt(int rowId) {
-      return vector.isNull(rowId);
+      if (nullCount == 0) {
+        return false;
+      } else if (validityAddress == ALL_NULL) {
+        return true;
+      }
+      return (Platform.getByte(null, validityAddress + (rowId >>> 3)) & (1 << (rowId & 7))) == 0;
     }
 
     final int getNullCount() {
-      return vector.getNullCount();
+      return nullCount;
     }
 
     boolean getBoolean(int rowId) {
@@ -396,175 +421,197 @@ class VortexArrowColumnVector extends ColumnVector {
   }
 
   private static final class BooleanAccessor extends ArrowVectorAccessor {
-    private final BitVector accessor;
+    private final long dataAddress;
 
     BooleanAccessor(BitVector vector) {
       super(vector);
-      this.accessor = vector;
+      this.dataAddress = vector.getDataBuffer().memoryAddress();
     }
 
     @Override
     boolean getBoolean(int rowId) {
-      return accessor.get(rowId) == 1;
+      return (Platform.getByte(null, dataAddress + (rowId >>> 3)) & (1 << (rowId & 7))) != 0;
     }
   }
 
   private static final class ByteAccessor extends ArrowVectorAccessor {
-    private final TinyIntVector accessor;
+    private final long dataAddress;
 
     ByteAccessor(TinyIntVector vector) {
       super(vector);
-      this.accessor = vector;
+      this.dataAddress = vector.getDataBuffer().memoryAddress();
     }
 
     @Override
     byte getByte(int rowId) {
-      return accessor.get(rowId);
+      return Platform.getByte(null, dataAddress + rowId);
     }
   }
 
   private static final class ShortAccessor extends ArrowVectorAccessor {
-    private final SmallIntVector accessor;
+    private final long dataAddress;
 
     ShortAccessor(SmallIntVector vector) {
       super(vector);
-      this.accessor = vector;
+      this.dataAddress = vector.getDataBuffer().memoryAddress();
     }
 
     @Override
     short getShort(int rowId) {
-      return accessor.get(rowId);
+      return Platform.getShort(null, dataAddress + ((long) rowId << 1));
     }
   }
 
   private static final class IntAccessor extends ArrowVectorAccessor {
-    private final IntVector accessor;
+    private final long dataAddress;
 
     IntAccessor(IntVector vector) {
       super(vector);
-      this.accessor = vector;
+      this.dataAddress = vector.getDataBuffer().memoryAddress();
     }
 
     @Override
     int getInt(int rowId) {
-      return accessor.get(rowId);
+      return Platform.getInt(null, dataAddress + ((long) rowId << 2));
     }
   }
 
   private static final class LongAccessor extends ArrowVectorAccessor {
-    private final BigIntVector accessor;
+    private final long dataAddress;
 
     LongAccessor(BigIntVector vector) {
       super(vector);
-      this.accessor = vector;
+      this.dataAddress = vector.getDataBuffer().memoryAddress();
     }
 
     @Override
     long getLong(int rowId) {
-      return accessor.get(rowId);
+      return Platform.getLong(null, dataAddress + ((long) rowId << 3));
     }
   }
 
   private static final class FloatAccessor extends ArrowVectorAccessor {
-    private final Float4Vector accessor;
+    private final long dataAddress;
 
     FloatAccessor(Float4Vector vector) {
       super(vector);
-      this.accessor = vector;
+      this.dataAddress = vector.getDataBuffer().memoryAddress();
     }
 
     @Override
     float getFloat(int rowId) {
-      return accessor.get(rowId);
+      return Platform.getFloat(null, dataAddress + ((long) rowId << 2));
     }
   }
 
   private static final class DoubleAccessor extends ArrowVectorAccessor {
-    private final Float8Vector accessor;
+    private final long dataAddress;
 
     DoubleAccessor(Float8Vector vector) {
       super(vector);
-      this.accessor = vector;
+      this.dataAddress = vector.getDataBuffer().memoryAddress();
     }
 
     @Override
     double getDouble(int rowId) {
-      return accessor.get(rowId);
+      return Platform.getDouble(null, dataAddress + ((long) rowId << 3));
     }
   }
 
   private static final class DecimalAccessor extends ArrowVectorAccessor {
+    private static final int TYPE_WIDTH = 16;
+
     private final DecimalVector accessor;
+    private final long dataAddress;
 
     DecimalAccessor(DecimalVector vector) {
       super(vector);
       this.accessor = vector;
+      this.dataAddress = vector.getDataBuffer().memoryAddress();
     }
 
     @Override
     Decimal getDecimal(int rowId, int precision, int scale) {
+      if (precision <= Decimal.MAX_LONG_DIGITS()) {
+        // Arrow decimal128 values are little-endian two's complement; a value that fits in
+        // precision <= 18 digits fits in a long, so its low 8 bytes are the full value with the
+        // upper half being sign extension. Only valid on little-endian hardware.
+        long unscaled = Platform.getLong(null, dataAddress + (long) rowId * TYPE_WIDTH);
+        return Decimal.createUnsafe(unscaled, precision, scale);
+      }
       return Decimal.apply(accessor.getObject(rowId), precision, scale);
     }
   }
 
   private static final class StringAccessor extends ArrowVectorAccessor {
-    private final VarCharVector accessor;
-    private final NullableVarCharHolder stringResult = new NullableVarCharHolder();
+    private final long offsetAddress;
+    private final long dataAddress;
 
     StringAccessor(VarCharVector vector) {
       super(vector);
-      this.accessor = vector;
+      this.offsetAddress = vector.getOffsetBuffer().memoryAddress();
+      this.dataAddress = vector.getDataBuffer().memoryAddress();
     }
 
     @Override
     UTF8String getUTF8String(int rowId) {
-      accessor.get(rowId, stringResult);
-      if (stringResult.isSet == 0) {
-        return null;
-      }
-      return UTF8String.fromAddress(
-          null,
-          stringResult.buffer.memoryAddress() + stringResult.start,
-          stringResult.end - stringResult.start);
+      int start = Platform.getInt(null, offsetAddress + ((long) rowId << 2));
+      int end = Platform.getInt(null, offsetAddress + ((long) (rowId + 1) << 2));
+      return UTF8String.fromAddress(null, dataAddress + start, end - start);
     }
   }
 
   private static final class LargeStringAccessor extends ArrowVectorAccessor {
-    private final LargeVarCharVector accessor;
-    private final NullableLargeVarCharHolder stringResult = new NullableLargeVarCharHolder();
+    private final long offsetAddress;
+    private final long dataAddress;
 
     LargeStringAccessor(LargeVarCharVector vector) {
       super(vector);
-      this.accessor = vector;
+      this.offsetAddress = vector.getOffsetBuffer().memoryAddress();
+      this.dataAddress = vector.getDataBuffer().memoryAddress();
     }
 
     @Override
     UTF8String getUTF8String(int rowId) {
-      accessor.get(rowId, stringResult);
-      if (stringResult.isSet == 0) {
-        return null;
-      }
+      long start = Platform.getLong(null, offsetAddress + ((long) rowId << 3));
+      long end = Platform.getLong(null, offsetAddress + ((long) (rowId + 1) << 3));
       // A single string cannot be larger than the max integer size, so the cast is safe.
-      return UTF8String.fromAddress(
-          null,
-          stringResult.buffer.memoryAddress() + stringResult.start,
-          (int) (stringResult.end - stringResult.start));
+      return UTF8String.fromAddress(null, dataAddress + start, (int) (end - start));
     }
   }
 
   private static final class StringViewAccessor extends ArrowVectorAccessor {
-    private final ViewVarCharVector accessor;
+    // See the Arrow Utf8View spec: 16-byte views of {length, prefix|inline data, buffer id,
+    // offset}; values of 12 bytes or fewer are inlined into the view itself.
+    private static final int VIEW_SIZE = 16;
+    private static final int INLINE_SIZE = 12;
+
+    private final long viewAddress;
+    private final long[] dataBufferAddresses;
 
     StringViewAccessor(ViewVarCharVector vector) {
       super(vector);
-      this.accessor = vector;
+      this.viewAddress = vector.getDataBuffer().memoryAddress();
+      List<ArrowBuf> dataBuffers = vector.getDataBuffers();
+      this.dataBufferAddresses = new long[dataBuffers.size()];
+      for (int i = 0; i < dataBuffers.size(); i++) {
+        this.dataBufferAddresses[i] = dataBuffers.get(i).memoryAddress();
+      }
     }
 
     @Override
     UTF8String getUTF8String(int rowId) {
-      // View values may be inlined in the view buffer rather than contiguous in a data buffer,
-      // so copy out rather than aliasing vector memory.
-      return UTF8String.fromBytes(accessor.get(rowId));
+      long view = viewAddress + (long) rowId * VIEW_SIZE;
+      int length = Platform.getInt(null, view);
+      if (length <= INLINE_SIZE) {
+        // Inline values live in the view buffer itself, which shares the batch's lifetime, so
+        // aliasing it is as safe as aliasing a data buffer.
+        return UTF8String.fromAddress(null, view + 4, length);
+      }
+
+      int bufferIndex = Platform.getInt(null, view + 8);
+      int dataOffset = Platform.getInt(null, view + 12);
+      return UTF8String.fromAddress(null, dataBufferAddresses[bufferIndex] + dataOffset, length);
     }
   }
 
@@ -611,16 +658,16 @@ class VortexArrowColumnVector extends ColumnVector {
   }
 
   private static final class DateAccessor extends ArrowVectorAccessor {
-    private final DateDayVector accessor;
+    private final long dataAddress;
 
     DateAccessor(DateDayVector vector) {
       super(vector);
-      this.accessor = vector;
+      this.dataAddress = vector.getDataBuffer().memoryAddress();
     }
 
     @Override
     int getInt(int rowId) {
-      return accessor.get(rowId);
+      return Platform.getInt(null, dataAddress + ((long) rowId << 2));
     }
   }
 
@@ -631,18 +678,18 @@ class VortexArrowColumnVector extends ColumnVector {
    * matching Spark's nanosecond-to-microsecond conversions.
    */
   private static final class TimestampAccessor extends ArrowVectorAccessor {
-    private final TimeStampVector accessor;
+    private final long dataAddress;
     private final org.apache.arrow.vector.types.TimeUnit unit;
 
     TimestampAccessor(TimeStampVector vector) {
       super(vector);
-      this.accessor = vector;
+      this.dataAddress = vector.getDataBuffer().memoryAddress();
       this.unit = ((ArrowType.Timestamp) vector.getField().getType()).getUnit();
     }
 
     @Override
     long getLong(int rowId) {
-      long value = accessor.get(rowId);
+      long value = Platform.getLong(null, dataAddress + ((long) rowId << 3));
       return switch (unit) {
         case SECOND -> Math.multiplyExact(value, 1_000_000L);
         case MILLISECOND -> Math.multiplyExact(value, 1_000L);

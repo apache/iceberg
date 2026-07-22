@@ -30,7 +30,7 @@ import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.UUID;
-import java.util.stream.IntStream;
+import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.vector.BaseIntVector;
 import org.apache.arrow.vector.BitVector;
 import org.apache.arrow.vector.DateDayVector;
@@ -69,31 +69,67 @@ import org.apache.iceberg.variants.Variant;
 import org.apache.iceberg.variants.VariantMetadata;
 import org.apache.iceberg.variants.VariantValue;
 import org.apache.iceberg.variants.Variants;
+import org.apache.iceberg.vortex.BoundVortexReader;
+import org.apache.iceberg.vortex.VortexArrowProperties;
 import org.apache.iceberg.vortex.VortexSchemas;
 import org.apache.iceberg.vortex.VortexValueReader;
 
+/**
+ * Value readers for Arrow batches produced by Vortex scans.
+ *
+ * <p>Readers are stateful: {@link VortexValueReader#bind(FieldVector)} must be called with each new
+ * batch's vector before reading rows. Binding hoists per-batch work out of the per-row path:
+ * validity is checked against the bound null count and validity buffer instead of per-row {@code
+ * isNull} calls, struct children are resolved by name once instead of per row, and decimal
+ * precision/scale and data buffers are captured once per batch.
+ */
 public class GenericVortexReaders {
+  static {
+    // Configure Arrow's unsafe-memory-access and null-check-for-get properties like
+    // VectorizedSparkParquetReaders does; readers always check nullability before value getters,
+    // so Arrow's per-get null checks and bounds checks are redundant on this path.
+    VortexArrowProperties.ensureConfigured();
+  }
+
+  // Largest decimal precision whose unscaled value always fits in a long.
+  private static final int MAX_LONG_PRECISION = 18;
+
   private GenericVortexReaders() {}
 
+  /**
+   * Mirrors the vectorized read path: a decimal with precision of at most 18 digits fits in a long,
+   * so its little-endian decimal128 low 8 bytes are the full value with the upper half being sign
+   * extension. Reading them directly avoids materializing a 16-byte array and a {@link
+   * java.math.BigInteger} per value. Only valid on little-endian hardware.
+   */
+  private static BigDecimal readBigDecimal(DecimalVector vector, int row) {
+    if (vector.getPrecision() <= MAX_LONG_PRECISION) {
+      long unscaled = vector.getDataBuffer().getLong((long) row * DecimalVector.TYPE_WIDTH);
+      return BigDecimal.valueOf(unscaled, vector.getScale());
+    }
+
+    return vector.getObjectNotNull(row);
+  }
+
   public static VortexValueReader<Boolean> bools() {
-    return BooleanReader.INSTANCE;
+    return new BooleanReader();
   }
 
   public static VortexValueReader<Integer> ints() {
-    return IntegerReader.INSTANCE;
+    return new IntegerReader();
   }
 
   public static VortexValueReader<BigDecimal> decimals() {
-    return DecimalReader.INSTANCE;
+    return new DecimalReader();
   }
 
   public static VortexValueReader<Long> longs() {
-    return LongReader.INSTANCE;
+    return new LongReader();
   }
 
   /** Reader for int columns projected as longs (schema evolution int-to-long promotion). */
   public static VortexValueReader<Long> intsAsLongs() {
-    return IntAsLongReader.INSTANCE;
+    return new LongReader();
   }
 
   /**
@@ -112,41 +148,41 @@ public class GenericVortexReaders {
 
   /** Reader for float columns projected as doubles (schema evolution float-to-double promotion). */
   public static VortexValueReader<Double> floatsAsDoubles() {
-    return FloatAsDoubleReader.INSTANCE;
+    return new FloatAsDoubleReader();
   }
 
   public static VortexValueReader<Float> floats() {
-    return FloatReader.INSTANCE;
+    return new FloatReader();
   }
 
   public static VortexValueReader<Double> doubles() {
-    return DoubleReader.INSTANCE;
+    return new DoubleReader();
   }
 
   public static VortexValueReader<String> strings() {
-    return StringReader.INSTANCE;
+    return new StringReader();
   }
 
   /** Reader for Utf8View columns, which Vortex scans return for strings. */
   public static VortexValueReader<String> stringsView() {
-    return StringViewReader.INSTANCE;
+    return new StringViewReader();
   }
 
   public static VortexValueReader<ByteBuffer> bytes() {
-    return BytesReader.INSTANCE;
+    return new BytesReader();
   }
 
   /** Reader for BinaryView columns, which Vortex scans return for binary. */
   public static VortexValueReader<ByteBuffer> bytesView() {
-    return BytesViewReader.INSTANCE;
+    return new BytesViewReader();
   }
 
   public static VortexValueReader<UUID> uuids() {
-    return UuidReader.INSTANCE;
+    return new UuidReader();
   }
 
   public static VortexValueReader<Variant> variants() {
-    return VariantReader.INSTANCE;
+    return new VariantReader();
   }
 
   public static VortexValueReader<LocalDate> date(boolean isMillis) {
@@ -175,7 +211,7 @@ public class GenericVortexReaders {
   }
 
   /**
-   * Returns a reader that always produces {@code constant}, ignoring the Arrow vector and row.
+   * Returns a reader that always produces {@code constant}, ignoring the bound vector and row.
    *
    * <p>Used to inject identity-partition values and metadata columns (for example {@code _file} or
    * {@code _spec_id}) that are supplied through {@code idToConstant} rather than being read from
@@ -185,7 +221,7 @@ public class GenericVortexReaders {
     return new ConstantReader<>(constant);
   }
 
-  private static class StructReader implements VortexValueReader<Record> {
+  private static class StructReader extends BoundVortexReader<Record> {
     private final Types.StructType schema;
     // File column name backing each expected field, or null when the field is absent from the file.
     private final String[] childNames;
@@ -220,38 +256,51 @@ public class GenericVortexReaders {
     }
 
     @Override
-    public Record readNonNull(FieldVector vector, int row) {
+    protected void bindVector(FieldVector vector) {
       StructVector struct = (StructVector) vector;
+      for (int i = 0; i < childNames.length; i++) {
+        if (childNames[i] != null) {
+          FieldVector child = (FieldVector) struct.getChild(childNames[i]);
+          Preconditions.checkState(
+              child != null, "Vortex batch is missing struct child: %s", childNames[i]);
+          readers.get(i).bind(child);
+        }
+      }
+    }
+
+    @Override
+    public Record readNonNull(int row) {
       GenericRecord record = GenericRecord.create(schema);
       for (int i = 0; i < readers.size(); i++) {
-        VortexValueReader<?> reader = readers.get(i);
-        if (childNames[i] == null) {
-          record.set(i, reader.read(null, row));
-        } else {
-          FieldVector child = (FieldVector) struct.getChild(childNames[i]);
-          record.set(i, reader.read(child, row));
-        }
+        record.set(i, readers.get(i).read(row));
       }
       return record;
     }
   }
 
-  private static class ListReader<T> implements VortexValueReader<List<T>> {
+  private static class ListReader<T> extends BoundVortexReader<List<T>> {
     private final VortexValueReader<T> elementReader;
+    private ListVector listVector;
 
     private ListReader(VortexValueReader<T> elementReader) {
       this.elementReader = elementReader;
     }
 
     @Override
-    public List<T> readNonNull(FieldVector vector, int row) {
-      ListVector listVector = (ListVector) vector;
+    protected void bindVector(FieldVector vector) {
+      this.listVector = (ListVector) vector;
+      elementReader.bind(listVector.getDataVector());
+    }
+
+    @Override
+    public List<T> readNonNull(int row) {
       int start = listVector.getElementStartIndex(row);
       int end = listVector.getElementEndIndex(row);
-      FieldVector elementVector = listVector.getDataVector();
-      return IntStream.range(start, end)
-          .mapToObj(i -> elementReader.read(elementVector, i))
-          .toList();
+      List<T> elements = Lists.newArrayListWithCapacity(end - start);
+      for (int i = start; i < end; i++) {
+        elements.add(elementReader.read(i));
+      }
+      return elements;
     }
   }
 
@@ -263,193 +312,250 @@ public class GenericVortexReaders {
     }
 
     @Override
-    public C read(FieldVector vector, int row) {
+    public C read(int row) {
       return constant;
     }
 
     @Override
-    public C readNonNull(FieldVector vector, int row) {
+    public C readNonNull(int row) {
       return constant;
     }
   }
 
-  private static class BooleanReader implements VortexValueReader<Boolean> {
-    static final BooleanReader INSTANCE = new BooleanReader();
-
-    private BooleanReader() {}
+  private static class BooleanReader extends BoundVortexReader<Boolean> {
+    private ArrowBuf data;
 
     @Override
-    public Boolean readNonNull(FieldVector vector, int row) {
-      return ((BitVector) vector).get(row) != 0;
+    protected void bindVector(FieldVector vector) {
+      this.data = ((BitVector) vector).getDataBuffer();
+    }
+
+    @Override
+    public Boolean readNonNull(int row) {
+      return (data.getByte(row >>> 3) & (1 << (row & 7))) != 0;
     }
   }
 
-  private static class IntegerReader implements VortexValueReader<Integer> {
-    static final IntegerReader INSTANCE = new IntegerReader();
-
-    private IntegerReader() {}
+  private static class IntegerReader extends BoundVortexReader<Integer> {
+    private BaseIntVector intVector;
 
     @Override
-    public Integer readNonNull(FieldVector vector, int row) {
-      return (int) ((BaseIntVector) vector).getValueAsLong(row);
+    protected void bindVector(FieldVector vector) {
+      this.intVector = (BaseIntVector) vector;
+    }
+
+    @Override
+    public Integer readNonNull(int row) {
+      return (int) intVector.getValueAsLong(row);
     }
   }
 
-  private static class LongReader implements VortexValueReader<Long> {
-    static final LongReader INSTANCE = new LongReader();
-
-    private LongReader() {}
+  private static class LongReader extends BoundVortexReader<Long> {
+    private BaseIntVector intVector;
 
     @Override
-    public Long readNonNull(FieldVector vector, int row) {
-      return ((BaseIntVector) vector).getValueAsLong(row);
+    protected void bindVector(FieldVector vector) {
+      this.intVector = (BaseIntVector) vector;
+    }
+
+    @Override
+    public Long readNonNull(int row) {
+      return intVector.getValueAsLong(row);
     }
   }
 
-  private static class DecimalReader implements VortexValueReader<BigDecimal> {
-    static final DecimalReader INSTANCE = new DecimalReader();
-
-    private DecimalReader() {}
+  private static class DecimalReader extends BoundVortexReader<BigDecimal> {
+    private DecimalVector decimalVector;
+    private ArrowBuf data;
+    private int scale;
+    private boolean fitsInLong;
 
     @Override
-    public BigDecimal readNonNull(FieldVector vector, int row) {
-      return ((DecimalVector) vector).getObjectNotNull(row);
+    protected void bindVector(FieldVector vector) {
+      this.decimalVector = (DecimalVector) vector;
+      this.data = vector.getDataBuffer();
+      this.scale = decimalVector.getScale();
+      this.fitsInLong = decimalVector.getPrecision() <= MAX_LONG_PRECISION;
+    }
+
+    @Override
+    public BigDecimal readNonNull(int row) {
+      if (fitsInLong) {
+        // See readBigDecimal: the low 8 little-endian bytes carry the full value.
+        long unscaled = data.getLong((long) row * DecimalVector.TYPE_WIDTH);
+        return BigDecimal.valueOf(unscaled, scale);
+      }
+
+      return decimalVector.getObjectNotNull(row);
     }
   }
 
-  private static class FloatReader implements VortexValueReader<Float> {
-    static final FloatReader INSTANCE = new FloatReader();
-
-    private FloatReader() {}
+  private static class FloatReader extends BoundVortexReader<Float> {
+    private Float4Vector floatVector;
 
     @Override
-    public Float readNonNull(FieldVector vector, int row) {
-      return ((Float4Vector) vector).get(row);
+    protected void bindVector(FieldVector vector) {
+      this.floatVector = (Float4Vector) vector;
+    }
+
+    @Override
+    public Float readNonNull(int row) {
+      return floatVector.get(row);
     }
   }
 
-  private static class DoubleReader implements VortexValueReader<Double> {
-    static final DoubleReader INSTANCE = new DoubleReader();
-
-    private DoubleReader() {}
+  private static class DoubleReader extends BoundVortexReader<Double> {
+    private Float8Vector doubleVector;
 
     @Override
-    public Double readNonNull(FieldVector vector, int row) {
-      return ((Float8Vector) vector).get(row);
+    protected void bindVector(FieldVector vector) {
+      this.doubleVector = (Float8Vector) vector;
+    }
+
+    @Override
+    public Double readNonNull(int row) {
+      return doubleVector.get(row);
     }
   }
 
-  private static class IntAsLongReader implements VortexValueReader<Long> {
-    static final IntAsLongReader INSTANCE = new IntAsLongReader();
-
-    private IntAsLongReader() {}
+  private static class FloatAsDoubleReader extends BoundVortexReader<Double> {
+    private Float4Vector floatVector;
 
     @Override
-    public Long readNonNull(FieldVector vector, int row) {
-      return ((BaseIntVector) vector).getValueAsLong(row);
+    protected void bindVector(FieldVector vector) {
+      this.floatVector = (Float4Vector) vector;
+    }
+
+    @Override
+    public Double readNonNull(int row) {
+      return (double) floatVector.get(row);
     }
   }
 
   private static class RowIdReader implements VortexValueReader<Long> {
     private final long firstRowId;
+    private BaseIntVector valueVector;
+    private ArrowBuf valueValidity;
+    private BaseIntVector posVector;
 
     private RowIdReader(long firstRowId) {
       this.firstRowId = firstRowId;
     }
 
     @Override
-    public Long read(FieldVector vector, int row) {
-      // the packed struct itself is never null
-      return readNonNull(vector, row);
+    public void bind(FieldVector vector) {
+      StructVector struct = (StructVector) vector;
+      FieldVector value = (FieldVector) struct.getChild("value");
+      this.valueVector = (BaseIntVector) value;
+      this.valueValidity =
+          value != null && value.getNullCount() > 0 ? value.getValidityBuffer() : null;
+      this.posVector = (BaseIntVector) struct.getChild("pos");
     }
 
     @Override
-    public Long readNonNull(FieldVector vector, int row) {
-      StructVector struct = (StructVector) vector;
-      FieldVector value = (FieldVector) struct.getChild("value");
-      if (value != null && !value.isNull(row)) {
-        return ((BaseIntVector) value).getValueAsLong(row);
+    public Long read(int row) {
+      // the packed struct itself is never null
+      return readNonNull(row);
+    }
+
+    @Override
+    public Long readNonNull(int row) {
+      if (valueVector != null && !isValueNull(row)) {
+        return valueVector.getValueAsLong(row);
       }
 
-      FieldVector pos = (FieldVector) struct.getChild("pos");
-      return firstRowId + ((BaseIntVector) pos).getValueAsLong(row);
+      return firstRowId + posVector.getValueAsLong(row);
+    }
+
+    private boolean isValueNull(int row) {
+      return valueValidity != null && (valueValidity.getByte(row >>> 3) & (1 << (row & 7))) == 0;
     }
   }
 
   private static class LongOrDefaultReader implements VortexValueReader<Long> {
     private final long defaultValue;
+    private BaseIntVector longVector;
+    private ArrowBuf validity;
 
     private LongOrDefaultReader(long defaultValue) {
       this.defaultValue = defaultValue;
     }
 
     @Override
-    public Long read(FieldVector vector, int row) {
-      if (vector == null || vector.isNull(row)) {
+    public void bind(FieldVector vector) {
+      this.longVector = (BaseIntVector) vector;
+      this.validity = vector.getNullCount() > 0 ? vector.getValidityBuffer() : null;
+    }
+
+    @Override
+    public Long read(int row) {
+      if (longVector == null
+          || (validity != null && (validity.getByte(row >>> 3) & (1 << (row & 7))) == 0)) {
         return defaultValue;
       }
 
-      return readNonNull(vector, row);
+      return readNonNull(row);
     }
 
     @Override
-    public Long readNonNull(FieldVector vector, int row) {
-      return ((BaseIntVector) vector).getValueAsLong(row);
-    }
-  }
-
-  private static class FloatAsDoubleReader implements VortexValueReader<Double> {
-    static final FloatAsDoubleReader INSTANCE = new FloatAsDoubleReader();
-
-    private FloatAsDoubleReader() {}
-
-    @Override
-    public Double readNonNull(FieldVector vector, int row) {
-      return (double) ((Float4Vector) vector).get(row);
+    public Long readNonNull(int row) {
+      return longVector.getValueAsLong(row);
     }
   }
 
-  private static class StringReader implements VortexValueReader<String> {
-    static final StringReader INSTANCE = new StringReader();
-
-    private StringReader() {}
+  private static class StringReader extends BoundVortexReader<String> {
+    private VarCharVector stringVector;
 
     @Override
-    public String readNonNull(FieldVector vector, int row) {
-      return new String(((VarCharVector) vector).get(row), StandardCharsets.UTF_8);
+    protected void bindVector(FieldVector vector) {
+      this.stringVector = (VarCharVector) vector;
+    }
+
+    @Override
+    public String readNonNull(int row) {
+      return new String(stringVector.get(row), StandardCharsets.UTF_8);
     }
   }
 
-  private static class StringViewReader implements VortexValueReader<String> {
-    static final StringViewReader INSTANCE = new StringViewReader();
-
-    private StringViewReader() {}
+  private static class StringViewReader extends BoundVortexReader<String> {
+    private ViewVarCharVector stringVector;
 
     @Override
-    public String readNonNull(FieldVector vector, int row) {
-      return new String(((ViewVarCharVector) vector).get(row), StandardCharsets.UTF_8);
+    protected void bindVector(FieldVector vector) {
+      this.stringVector = (ViewVarCharVector) vector;
+    }
+
+    @Override
+    public String readNonNull(int row) {
+      return new String(stringVector.get(row), StandardCharsets.UTF_8);
     }
   }
 
-  private static class BytesReader implements VortexValueReader<ByteBuffer> {
-    static final BytesReader INSTANCE = new BytesReader();
-
-    private BytesReader() {}
+  private static class BytesReader extends BoundVortexReader<ByteBuffer> {
+    private VarBinaryVector binaryVector;
 
     @Override
-    public ByteBuffer readNonNull(FieldVector vector, int row) {
-      return ByteBuffer.wrap(((VarBinaryVector) vector).get(row));
+    protected void bindVector(FieldVector vector) {
+      this.binaryVector = (VarBinaryVector) vector;
+    }
+
+    @Override
+    public ByteBuffer readNonNull(int row) {
+      return ByteBuffer.wrap(binaryVector.get(row));
     }
   }
 
-  private static class BytesViewReader implements VortexValueReader<ByteBuffer> {
-    static final BytesViewReader INSTANCE = new BytesViewReader();
-
-    private BytesViewReader() {}
+  private static class BytesViewReader extends BoundVortexReader<ByteBuffer> {
+    private ViewVarBinaryVector binaryVector;
 
     @Override
-    public ByteBuffer readNonNull(FieldVector vector, int row) {
-      return ByteBuffer.wrap(((ViewVarBinaryVector) vector).get(row));
+    protected void bindVector(FieldVector vector) {
+      this.binaryVector = (ViewVarBinaryVector) vector;
+    }
+
+    @Override
+    public ByteBuffer readNonNull(int row) {
+      return ByteBuffer.wrap(binaryVector.get(row));
     }
   }
 
@@ -472,14 +578,17 @@ public class GenericVortexReaders {
     return ((VarBinaryVector) vector).get(row);
   }
 
-  private static class UuidReader implements VortexValueReader<UUID> {
-    static final UuidReader INSTANCE = new UuidReader();
-
-    private UuidReader() {}
+  private static class UuidReader extends BoundVortexReader<UUID> {
+    private FixedSizeBinaryVector storage;
 
     @Override
-    public UUID readNonNull(FieldVector vector, int row) {
-      return UUIDUtil.convert(uuidStorage(vector).get(row));
+    protected void bindVector(FieldVector vector) {
+      this.storage = uuidStorage(vector);
+    }
+
+    @Override
+    public UUID readNonNull(int row) {
+      return UUIDUtil.convert(storage.get(row));
     }
   }
 
@@ -497,26 +606,28 @@ public class GenericVortexReaders {
   }
 
   private static class VariantReader implements VortexValueReader<Variant> {
-    static final VariantReader INSTANCE = new VariantReader();
+    private FieldVector outerVector;
+    private StructVector storage;
 
     private VariantReader() {}
 
     @Override
-    public Variant read(FieldVector vector, int row) {
-      StructVector storage = variantStorage(vector);
-      if (vector.isNull(row)) {
-        return null;
-      }
-
-      return readVariant(storage, row);
+    public void bind(FieldVector vector) {
+      this.outerVector = vector;
+      this.storage = variantStorage(vector);
     }
 
     @Override
-    public Variant readNonNull(FieldVector vector, int row) {
-      return readVariant(variantStorage(vector), row);
+    public Variant read(int row) {
+      if (outerVector.isNull(row)) {
+        return null;
+      }
+
+      return readNonNull(row);
     }
 
-    private Variant readVariant(StructVector storage, int row) {
+    @Override
+    public Variant readNonNull(int row) {
       FieldVector metadataVector = (FieldVector) storage.getChild("metadata");
       if (metadataVector == null || metadataVector.isNull(row)) {
         throw new IllegalStateException("Invalid Vortex variant: metadata is null");
@@ -605,7 +716,7 @@ public class GenericVortexReaders {
         physicalType = PhysicalType.DECIMAL16;
       }
 
-      return Variants.of(physicalType, ((DecimalVector) vector).getObjectNotNull(row));
+      return Variants.of(physicalType, readBigDecimal((DecimalVector) vector, row));
     } else if (type instanceof ArrowType.Date dateType) {
       int days =
           switch (dateType.getUnit()) {
@@ -719,36 +830,53 @@ public class GenericVortexReaders {
     return (StructVector) vector;
   }
 
-  private static class DateReader implements VortexValueReader<LocalDate> {
+  private static class DateReader extends BoundVortexReader<LocalDate> {
     private final boolean isMillis;
+    private DateDayVector dayVector;
+    private DateMilliVector milliVector;
 
     DateReader(boolean isMillis) {
       this.isMillis = isMillis;
     }
 
     @Override
-    public LocalDate readNonNull(FieldVector vector, int row) {
+    protected void bindVector(FieldVector vector) {
+      if (isMillis) {
+        this.milliVector = (DateMilliVector) vector;
+      } else {
+        this.dayVector = (DateDayVector) vector;
+      }
+    }
+
+    @Override
+    public LocalDate readNonNull(int row) {
       int days;
       if (isMillis) {
-        days = (int) Math.floorDiv(((DateMilliVector) vector).get(row), 86_400_000L);
+        days = (int) Math.floorDiv(milliVector.get(row), 86_400_000L);
       } else {
-        days = ((DateDayVector) vector).get(row);
+        days = dayVector.get(row);
       }
 
       return DateTimeUtil.dateFromDays(days);
     }
   }
 
-  private static class TimestampReader implements VortexValueReader<LocalDateTime> {
+  private static class TimestampReader extends BoundVortexReader<LocalDateTime> {
     private final boolean nanosecond;
+    private TimeStampVector timestampVector;
 
     private TimestampReader(boolean nanosecond) {
       this.nanosecond = nanosecond;
     }
 
     @Override
-    public LocalDateTime readNonNull(FieldVector vector, int row) {
-      long measure = ((TimeStampVector) vector).get(row);
+    protected void bindVector(FieldVector vector) {
+      this.timestampVector = (TimeStampVector) vector;
+    }
+
+    @Override
+    public LocalDateTime readNonNull(int row) {
+      long measure = timestampVector.get(row);
       if (nanosecond) {
         return DateTimeUtil.timestampFromNanos(measure);
       } else {
@@ -757,26 +885,38 @@ public class GenericVortexReaders {
     }
   }
 
-  private static class TimeReader implements VortexValueReader<LocalTime> {
+  private static class TimeReader extends BoundVortexReader<LocalTime> {
     private final boolean nanosecond;
+    private TimeNanoVector nanoVector;
+    private TimeMicroVector microVector;
 
     private TimeReader(boolean nanosecond) {
       this.nanosecond = nanosecond;
     }
 
     @Override
-    public LocalTime readNonNull(FieldVector vector, int row) {
+    protected void bindVector(FieldVector vector) {
       if (nanosecond) {
-        return LocalTime.ofNanoOfDay(((TimeNanoVector) vector).get(row));
+        this.nanoVector = (TimeNanoVector) vector;
       } else {
-        return DateTimeUtil.timeFromMicros(((TimeMicroVector) vector).get(row));
+        this.microVector = (TimeMicroVector) vector;
+      }
+    }
+
+    @Override
+    public LocalTime readNonNull(int row) {
+      if (nanosecond) {
+        return LocalTime.ofNanoOfDay(nanoVector.get(row));
+      } else {
+        return DateTimeUtil.timeFromMicros(microVector.get(row));
       }
     }
   }
 
-  private static class TimestampTzReader implements VortexValueReader<OffsetDateTime> {
+  private static class TimestampTzReader extends BoundVortexReader<OffsetDateTime> {
     private final ZoneId timeZone;
     private final boolean nanosecond;
+    private TimeStampVector timestampVector;
 
     private TimestampTzReader(String timeZone, boolean nanosecond) {
       this.timeZone = ZoneId.of(timeZone);
@@ -784,8 +924,13 @@ public class GenericVortexReaders {
     }
 
     @Override
-    public OffsetDateTime readNonNull(FieldVector vector, int row) {
-      long measure = ((TimeStampVector) vector).get(row);
+    protected void bindVector(FieldVector vector) {
+      this.timestampVector = (TimeStampVector) vector;
+    }
+
+    @Override
+    public OffsetDateTime readNonNull(int row) {
+      long measure = timestampVector.get(row);
       long nanoAdjustment;
       if (nanosecond) {
         nanoAdjustment = measure;

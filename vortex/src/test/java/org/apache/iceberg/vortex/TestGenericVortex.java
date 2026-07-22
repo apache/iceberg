@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.vortex;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.IOException;
@@ -38,9 +39,84 @@ import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.StructType;
+import org.junit.jupiter.api.Test;
 
 public class TestGenericVortex extends DataTestBase {
+
+  /**
+   * Row readers surface rows positionally, so a file spanning multiple scan partitions must read
+   * back in file order. Vortex resolves partitions concurrently and only preserves order when the
+   * scan requests it, which single-batch tests never exercise.
+   */
+  @Test
+  public void testMultiBatchReadsPreserveRowOrder() throws IOException {
+    Schema schema =
+        new Schema(
+            Types.NestedField.required(100, "id", Types.LongType.get()),
+            Types.NestedField.optional(101, "data", Types.StringType.get()),
+            Types.NestedField.optional(102, "num", Types.DecimalType.of(11, 2)),
+            Types.NestedField.optional(
+                103,
+                "location",
+                StructType.of(
+                    Types.NestedField.optional(104, "inner_id", Types.IntegerType.get()),
+                    Types.NestedField.optional(105, "inner_data", Types.StringType.get()))));
+    List<Record> randoms = RandomGenericData.generate(schema, 150_000, 42L);
+    List<Record> expected = Lists.newArrayListWithCapacity(150_000);
+    for (long i = 0; i < 150_000; i++) {
+      Record copy = randoms.get((int) i).copy();
+      copy.set(0, i);
+      expected.add(copy);
+    }
+
+    OutputFile outputFile =
+        Files.localOutput(temp.resolve("test-seq-" + System.nanoTime() + ".vortex").toFile());
+    try (FileAppender<Record> appender =
+        formatModel()
+            .writeBuilder(EncryptedFiles.plainAsEncryptedOutput(outputFile))
+            .schema(schema)
+            .content(FileContent.DATA)
+            .build()) {
+      appender.addAll(expected);
+    }
+
+    List<Long> actualIds = Lists.newArrayList();
+    try (CloseableIterable<Record> reader =
+        formatModel().readBuilder(outputFile.toInputFile()).project(schema).build()) {
+      for (Record record : reader) {
+        actualIds.add((Long) record.get(0));
+      }
+    }
+
+    assertThat(actualIds).hasSize(150_000);
+    for (int i = 0; i < actualIds.size(); i++) {
+      assertThat(actualIds.get(i)).as("row %s must be read in file order", i).isEqualTo((long) i);
+    }
+  }
+
+  /**
+   * Reads a file large enough for the scan to return multiple Arrow batches, verifying that readers
+   * re-bind their cached buffers and null state on every batch rather than reading through stale
+   * bindings from the first one.
+   */
+  @Test
+  public void testMultipleBatchesRebindReaders() throws IOException {
+    Schema schema =
+        new Schema(
+            Types.NestedField.required(100, "id", Types.LongType.get()),
+            Types.NestedField.optional(101, "data", Types.StringType.get()),
+            Types.NestedField.optional(102, "num", Types.DecimalType.of(11, 2)),
+            Types.NestedField.optional(
+                103,
+                "location",
+                StructType.of(
+                    Types.NestedField.optional(104, "inner_id", Types.IntegerType.get()),
+                    Types.NestedField.optional(105, "inner_data", Types.StringType.get()))));
+    writeAndValidate(schema, RandomGenericData.generate(schema, 150_000, 42L));
+  }
+
   @Override
   protected boolean supportsUnknown() {
     return false;

@@ -39,6 +39,7 @@ import org.apache.iceberg.variants.Variant;
 import org.apache.iceberg.variants.VariantMetadata;
 import org.apache.iceberg.variants.VariantValue;
 import org.apache.iceberg.variants.Variants;
+import org.apache.iceberg.vortex.VortexValueReader;
 import org.junit.jupiter.api.Test;
 
 class TestGenericVortexVariantReaders {
@@ -60,7 +61,9 @@ class TestGenericVortexVariantReaders {
       vector.setIndexDefined(0);
       vector.setValueCount(1);
 
-      Variant actual = GenericVortexReaders.variants().read(vector, 0);
+      VortexValueReader<Variant> variantReader = GenericVortexReaders.variants();
+      variantReader.bind(vector);
+      Variant actual = variantReader.read(0);
 
       assertThat(actual.value().type()).isEqualTo(PhysicalType.INT32);
       assertThat(actual.value().asPrimitive().get()).isEqualTo(34);
@@ -105,7 +108,9 @@ class TestGenericVortexVariantReaders {
       vector.setIndexDefined(0);
       vector.setValueCount(1);
 
-      Variant actual = GenericVortexReaders.variants().read(vector, 0);
+      VortexValueReader<Variant> variantReader = GenericVortexReaders.variants();
+      variantReader.bind(vector);
+      Variant actual = variantReader.read(0);
 
       assertThat(actual.value().type()).isEqualTo(PhysicalType.OBJECT);
       assertThat(actual.value().asObject().get("a").asPrimitive().get()).isEqualTo(10);
@@ -139,7 +144,9 @@ class TestGenericVortexVariantReaders {
       vector.setIndexDefined(0);
       vector.setValueCount(1);
 
-      Variant actual = GenericVortexReaders.variants().read(vector, 0);
+      VortexValueReader<Variant> variantReader = GenericVortexReaders.variants();
+      variantReader.bind(vector);
+      Variant actual = variantReader.read(0);
 
       assertThat(actual.value().type()).isEqualTo(PhysicalType.ARRAY);
       assertThat(actual.value().asArray().numElements()).isEqualTo(2);

@@ -58,6 +58,13 @@ import org.roaringbitmap.longlong.Roaring64NavigableMap;
 
 public class VortexFormatModel<D, S, R>
     extends BaseFormatModel<D, S, VortexValueWriter<?>, R, Schema> {
+
+  static {
+    // Must run before either Arrow copy (Vortex-relocated or engine-facing) initializes its
+    // buffer classes, which read these properties in static initializers.
+    VortexArrowProperties.ensureConfigured();
+  }
+
   private final boolean isBatchReader;
 
   public interface ReaderFunction<R> {
@@ -259,7 +266,7 @@ public class VortexFormatModel<D, S, R>
       BufferAllocator allocator = VortexArrowBridge.arrowAllocator();
       dev.vortex.relocated.org.apache.arrow.memory.BufferAllocator vortexAllocator =
           VortexArrowBridge.vortexAllocator();
-      Session session = Session.create();
+      Session session = VortexSessions.shared();
 
       // Stream the file through the table's FileIO instead of Vortex's native storage clients.
       // The appender owns the sink and closes it after the writer is finalized.

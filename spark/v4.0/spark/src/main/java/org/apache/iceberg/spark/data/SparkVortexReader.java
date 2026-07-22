@@ -36,6 +36,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.vortex.BoundVortexReader;
 import org.apache.iceberg.vortex.VortexRowReader;
 import org.apache.iceberg.vortex.VortexSchemaWithTypeVisitor;
 import org.apache.iceberg.vortex.VortexValueReader;
@@ -130,16 +131,25 @@ public class SparkVortexReader implements VortexRowReader<InternalRow> {
   }
 
   @Override
-  public InternalRow read(VectorSchemaRoot batch, int row) {
+  public void newBatch(VectorSchemaRoot batch) {
     if (batchColumnIndex == null) {
       this.batchColumnIndex = resolveColumns(batch);
     }
 
-    GenericInternalRow result = container();
     for (int i = 0; i < readers.length; i++) {
       int columnIndex = batchColumnIndex[i];
-      FieldVector vector = columnIndex < 0 ? null : batch.getVector(columnIndex);
-      result.update(i, readers[i].read(vector, row));
+      if (columnIndex >= 0) {
+        readers[i].bind(batch.getVector(columnIndex));
+      }
+    }
+  }
+
+  @Override
+  public InternalRow read(int row) {
+    Preconditions.checkState(batchColumnIndex != null, "newBatch must be called before read");
+    GenericInternalRow result = container();
+    for (int i = 0; i < readers.length; i++) {
+      result.update(i, readers[i].read(row));
     }
     return result;
   }
@@ -241,7 +251,7 @@ public class SparkVortexReader implements VortexRowReader<InternalRow> {
     }
   }
 
-  static class StructReader implements VortexValueReader<InternalRow> {
+  static class StructReader extends BoundVortexReader<InternalRow> {
     // File column name backing each expected field, or null when the field is absent from the file.
     private final String[] childNames;
     private final List<VortexValueReader<?>> fieldReaders;
@@ -259,17 +269,23 @@ public class SparkVortexReader implements VortexRowReader<InternalRow> {
     }
 
     @Override
-    public InternalRow readNonNull(FieldVector vector, int row) {
+    protected void bindVector(FieldVector vector) {
       StructVector struct = (StructVector) vector;
+      for (int i = 0; i < childNames.length; i++) {
+        if (childNames[i] != null) {
+          FieldVector child = (FieldVector) struct.getChild(childNames[i]);
+          Preconditions.checkState(
+              child != null, "Vortex batch is missing struct child: %s", childNames[i]);
+          fieldReaders.get(i).bind(child);
+        }
+      }
+    }
+
+    @Override
+    public InternalRow readNonNull(int row) {
       GenericInternalRow result = new GenericInternalRow(fieldReaders.size());
       for (int i = 0; i < fieldReaders.size(); i++) {
-        VortexValueReader<?> fieldReader = fieldReaders.get(i);
-        if (childNames[i] == null) {
-          result.update(i, fieldReader.read(null, row));
-        } else {
-          FieldVector child = (FieldVector) struct.getChild(childNames[i]);
-          result.update(i, fieldReader.read(child, row));
-        }
+        result.update(i, fieldReaders.get(i).read(row));
       }
       return result;
     }

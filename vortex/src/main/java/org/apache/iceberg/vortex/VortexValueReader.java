@@ -20,15 +20,24 @@ package org.apache.iceberg.vortex;
 
 import org.apache.arrow.vector.FieldVector;
 
-/** Reads a {@link D} from an Arrow {@link FieldVector} at a row. */
+/**
+ * Reads a {@link D} from a bound Arrow {@link FieldVector} at a row.
+ *
+ * <p>Readers are bound to a vector once per batch via {@link #bind(FieldVector)} and then read rows
+ * from it, letting them hoist per-batch work (null counts, buffers, child vector resolution) out of
+ * the per-row path. {@link #bind(FieldVector)} must be called before rows are read and again
+ * whenever a new batch arrives.
+ */
 public interface VortexValueReader<D> {
-  default D read(FieldVector vector, int row) {
-    if (vector.isNull(row)) {
-      return null;
-    } else {
-      return readNonNull(vector, row);
-    }
-  }
+  /**
+   * Binds this reader to the vector it will read from until the next call. The default is a no-op
+   * for readers that do not read from a vector (constants).
+   */
+  default void bind(FieldVector vector) {}
 
-  D readNonNull(FieldVector vector, int row);
+  /** Reads the value at {@code row}, or null when the slot is null. */
+  D read(int row);
+
+  /** Reads the value at {@code row}, which must be a non-null slot. */
+  D readNonNull(int row);
 }
