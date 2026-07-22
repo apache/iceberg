@@ -67,6 +67,11 @@ import org.mockito.Mockito;
 import org.mockito.stubbing.Answer;
 
 public class TestFreshnessAwareLoading extends TestBaseWithRESTServer {
+  @Override
+  protected boolean useHttpCompression() {
+    return false;
+  }
+
   private static final ResourcePaths RESOURCE_PATHS =
       ResourcePaths.forCatalogProperties(
           ImmutableMap.of(

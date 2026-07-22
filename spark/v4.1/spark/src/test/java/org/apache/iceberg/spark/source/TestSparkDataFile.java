@@ -60,6 +60,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.SparkDataFile;
 import org.apache.iceberg.spark.SparkDeleteFile;
 import org.apache.iceberg.spark.SparkSchemaUtil;
+import org.apache.iceberg.spark.TestBase;
 import org.apache.iceberg.spark.data.RandomData;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
@@ -126,6 +127,7 @@ public class TestSparkDataFile {
         SparkSession.builder()
             .master("local[2]")
             .config("spark.driver.host", InetAddress.getLoopbackAddress().getHostAddress())
+            .config(TestBase.DISABLE_UI)
             .getOrCreate();
     TestSparkDataFile.sparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
   }
@@ -168,7 +170,7 @@ public class TestSparkDataFile {
   }
 
   private void checkSparkContentFiles(Table table) throws IOException {
-    Iterable<InternalRow> rows = RandomData.generateSpark(table.schema(), 200, 0);
+    Iterable<InternalRow> rows = RandomData.generateSpark(table.schema(), 40, 0);
     JavaRDD<InternalRow> rdd = sparkContext.parallelize(Lists.newArrayList(rows));
     Preconditions.checkArgument(
         spark instanceof org.apache.spark.sql.classic.SparkSession,

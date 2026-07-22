@@ -20,6 +20,7 @@ package org.apache.iceberg.azure.adlsv2;
 
 import static org.apache.iceberg.azure.AzureProperties.ADLS_SAS_TOKEN_PREFIX;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.any;
@@ -31,6 +32,7 @@ import static org.mockito.Mockito.when;
 
 import com.azure.core.http.rest.PagedIterable;
 import com.azure.core.http.rest.Response;
+import com.azure.storage.blob.models.BlobStorageException;
 import com.azure.storage.file.datalake.DataLakeFileClient;
 import com.azure.storage.file.datalake.DataLakeFileSystemClient;
 import com.azure.storage.file.datalake.DataLakeFileSystemClientBuilder;
@@ -42,6 +44,7 @@ import java.time.OffsetDateTime;
 import java.util.Iterator;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.azure.AzureProperties;
+import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.FileInfo;
 import org.apache.iceberg.io.InputFile;
@@ -76,6 +79,23 @@ public class TestADLSFileIO extends AzuriteTestBase {
 
     io.deleteFile(location);
     assertThat(fileClient.exists()).isFalse();
+  }
+
+  @Test
+  public void readMissingLocation() {
+    String path = "path/to/file";
+    String location = AZURITE_CONTAINER.location(path);
+    ADLSFileIO io = createFileIO();
+    DataLakeFileClient fileClient = AZURITE_CONTAINER.fileClient(path);
+    assertThat(fileClient.exists()).isFalse();
+
+    InputFile inputFile = io.newInputFile(location);
+
+    assertThatThrownBy(inputFile::newStream)
+        .isInstanceOf(NotFoundException.class)
+        .hasCauseInstanceOf(BlobStorageException.class)
+        .hasMessage(
+            "Location does not exist: abfs://container@account.dfs.core.windows.net/path/to/file");
   }
 
   @Test

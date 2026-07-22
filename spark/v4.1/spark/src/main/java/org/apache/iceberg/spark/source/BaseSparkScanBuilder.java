@@ -230,7 +230,7 @@ abstract class BaseSparkScanBuilder implements ScanBuilder {
   // collects used data field IDs across all known table schemas
   private Set<Integer> allUsedFieldIds() {
     return table.schemas().values().stream()
-        .flatMap(tableSchema -> TypeUtil.getProjectedIds(tableSchema.asStruct()).stream())
+        .flatMap(tableSchema -> TypeUtil.indexById(tableSchema.asStruct()).keySet().stream())
         .collect(Collectors.toSet());
   }
 

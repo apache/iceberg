@@ -71,9 +71,9 @@ Starting from 1.8.0 Iceberg doesn't release Hive runtime connector. For Hive que
 with Hive 2.x and 3.x) use Hive runtime connector coming with Iceberg 1.6.1, or use Hive 4.0.0 or later
 which is released with embedded Iceberg integration.
 
-### Hive 4.1.x
+### Hive 4.1.x, 4.2.x
 
-Hive 4.1.x comes with Iceberg 1.9.1 included.
+Hive 4.1.x and 4.2.x come with Iceberg 1.9.1 included.
 
 ### Hive 4.0.x
 

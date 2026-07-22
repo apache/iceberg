@@ -50,6 +50,11 @@ public class TestFlinkOrcReaderWriter extends DataTestBase {
   }
 
   @Override
+  protected boolean supportsTimestampNanos() {
+    return true;
+  }
+
+  @Override
   protected void writeAndValidate(Schema schema) throws IOException {
     List<Record> expectedRecords = RandomGenericData.generate(schema, NUM_RECORDS, 1990L);
     writeAndValidate(schema, expectedRecords);

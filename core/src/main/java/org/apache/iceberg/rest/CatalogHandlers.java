@@ -470,7 +470,8 @@ public class CatalogHandlers {
     request.validate();
 
     TableIdentifier identifier = TableIdentifier.of(namespace, request.name());
-    Table table = catalog.registerTable(identifier, request.metadataLocation());
+    Table table =
+        catalog.registerTable(identifier, request.metadataLocation(), request.overwrite());
     if (table instanceof BaseTable) {
       return LoadTableResponse.builder()
           .withTableMetadata(((BaseTable) table).operations().current())
@@ -854,7 +855,8 @@ public class CatalogHandlers {
           configuredScan,
           asyncPlanId,
           table.uuid().toString(),
-          tasksPerPlanTask.applyAsInt(configuredScan));
+          tasksPerPlanTask.applyAsInt(configuredScan),
+          request.minRowsRequested());
       return PlanTableScanResponse.builder()
           .withPlanId(asyncPlanId)
           .withPlanStatus(PlanStatus.SUBMITTED)
@@ -868,7 +870,8 @@ public class CatalogHandlers {
             configuredScan,
             planId,
             table.uuid().toString(),
-            tasksPerPlanTask.applyAsInt(configuredScan));
+            tasksPerPlanTask.applyAsInt(configuredScan),
+            request.minRowsRequested());
     List<String> nextPlanTasks =
         initial.second() == null
             ? Collections.emptyList()
@@ -967,22 +970,33 @@ public class CatalogHandlers {
     if (request.statsFields() != null) {
       configuredScan = configuredScan.includeColumnStats(request.statsFields());
     }
+    if (request.minRowsRequested() != null) {
+      configuredScan = configuredScan.minRowsRequested(request.minRowsRequested());
+    }
     configuredScan = configuredScan.caseSensitive(request.caseSensitive());
 
     return configuredScan;
   }
 
   /**
-   * Plans file scan tasks for a table scan, grouping them into plan tasks for pagination.
+   * Plans file scan tasks for a table scan, grouping them into plan tasks for pagination. Note that
+   * minRowsRequested is used as a hint to the server to not have to return more rows than
+   * necessary. It is not required for the server to return that many rows since the scan may not
+   * produce that many rows. The server can also return more rows than requested.
    *
    * @param scan the table scan to plan files for
    * @param planId the unique identifier for this plan
    * @param tableId the uuid of the table being scanned
    * @param tasksPerPlanTask number of file scan tasks to group per plan task
+   * @param minRowsRequested number of rows requested for the scan
    * @return the initial file scan tasks and the first plan task key
    */
   private static Pair<List<FileScanTask>, String> planFilesFor(
-      Scan<?, FileScanTask, ?> scan, String planId, String tableId, int tasksPerPlanTask) {
+      Scan<?, FileScanTask, ?> scan,
+      String planId,
+      String tableId,
+      int tasksPerPlanTask,
+      Long minRowsRequested) {
     try (CloseableIterable<FileScanTask> planTasks = scan.planFiles()) {
       String planTaskPrefix = planId + "-" + tableId + "-";
 
@@ -994,7 +1008,12 @@ public class CatalogHandlers {
         return Pair.of(Collections.emptyList(), planTaskKey);
       }
 
-      Iterable<List<FileScanTask>> taskGroupings = Iterables.partition(planTasks, tasksPerPlanTask);
+      Iterable<FileScanTask> limitedTasks =
+          null != minRowsRequested
+              ? Iterables.limit(planTasks, (int) Math.min(minRowsRequested, Integer.MAX_VALUE))
+              : planTasks;
+      Iterable<List<FileScanTask>> taskGroupings =
+          Iterables.partition(limitedTasks, tasksPerPlanTask);
       int planTaskSequence = 0;
       String previousPlanTask = null;
       String firstPlanTaskKey = null;
@@ -1019,12 +1038,14 @@ public class CatalogHandlers {
 
   @SuppressWarnings("FutureReturnValueIgnored")
   private static void asyncPlanFiles(
-      Scan<?, FileScanTask, ?> scan, String asyncPlanId, String tableId, int tasksPerPlanTask) {
+      Scan<?, FileScanTask, ?> scan,
+      String asyncPlanId,
+      String tableId,
+      int tasksPerPlanTask,
+      Long minRowsRequested) {
     IN_MEMORY_PLANNING_STATE.addAsyncPlan(asyncPlanId);
     CompletableFuture.runAsync(
-            () -> {
-              planFilesFor(scan, asyncPlanId, tableId, tasksPerPlanTask);
-            },
+            () -> planFilesFor(scan, asyncPlanId, tableId, tasksPerPlanTask, minRowsRequested),
             ASYNC_PLANNING_POOL)
         .whenComplete(
             (result, exception) -> {

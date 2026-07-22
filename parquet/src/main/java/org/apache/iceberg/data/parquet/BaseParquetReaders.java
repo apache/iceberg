@@ -226,6 +226,20 @@ abstract class BaseParquetReaders<T> {
 
     @Override
     public Optional<ParquetValueReader<?>> visit(
+        LogicalTypeAnnotation.GeometryLogicalTypeAnnotation geometryLogicalType) {
+      // geometry values are pure WKB stored in a BINARY column
+      return Optional.of(ParquetValueReaders.byteBuffers(desc));
+    }
+
+    @Override
+    public Optional<ParquetValueReader<?>> visit(
+        LogicalTypeAnnotation.GeographyLogicalTypeAnnotation geographyLogicalType) {
+      // geography values are pure WKB stored in a BINARY column
+      return Optional.of(ParquetValueReaders.byteBuffers(desc));
+    }
+
+    @Override
+    public Optional<ParquetValueReader<?>> visit(
         LogicalTypeAnnotation.UUIDLogicalTypeAnnotation uuidLogicalType) {
       return Optional.of(ParquetValueReaders.uuids(desc));
     }

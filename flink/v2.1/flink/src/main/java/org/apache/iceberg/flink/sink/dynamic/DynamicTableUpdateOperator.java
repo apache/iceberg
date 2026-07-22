@@ -48,20 +48,15 @@ class DynamicTableUpdateOperator
   private transient TableUpdater updater;
 
   DynamicTableUpdateOperator(
-      CatalogLoader catalogLoader,
-      int cacheMaximumSize,
-      long cacheRefreshMs,
-      int inputSchemasPerTableCacheMaximumSize,
-      TableCreator tableCreator,
-      boolean caseSensitive,
-      boolean dropUnusedColumns) {
+      CatalogLoader catalogLoader, TableCreator tableCreator, FlinkDynamicSinkConf configuration) {
     this.catalogLoader = catalogLoader;
-    this.cacheMaximumSize = cacheMaximumSize;
-    this.cacheRefreshMs = cacheRefreshMs;
-    this.inputSchemasPerTableCacheMaximumSize = inputSchemasPerTableCacheMaximumSize;
     this.tableCreator = tableCreator;
-    this.caseSensitive = caseSensitive;
-    this.dropUnusedColumns = dropUnusedColumns;
+
+    this.cacheMaximumSize = configuration.cacheMaxSize();
+    this.cacheRefreshMs = configuration.cacheRefreshMs();
+    this.inputSchemasPerTableCacheMaximumSize = configuration.inputSchemasPerTableCacheMaxSize();
+    this.caseSensitive = configuration.caseSensitive();
+    this.dropUnusedColumns = configuration.dropUnusedColumns();
   }
 
   @Override

@@ -269,6 +269,11 @@ public class ORCFormatModel<D, S, R>
 
     @Override
     public ReadBuilder<D, S> recordsPerBatch(int numRowsPerBatch) {
+      if (!isBatchReader) {
+        throw new UnsupportedOperationException(
+            "Batch reading is not supported in non-vectorized reader");
+      }
+
       internal.recordsPerBatch(numRowsPerBatch);
       return this;
     }

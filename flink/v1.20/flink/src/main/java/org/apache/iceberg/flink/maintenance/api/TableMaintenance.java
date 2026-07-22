@@ -20,11 +20,12 @@ package org.apache.iceberg.flink.maintenance.api;
 
 import java.io.IOException;
 import java.time.Duration;
+import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
-import java.util.UUID;
 import javax.annotation.Nullable;
 import org.apache.flink.annotation.Internal;
+import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.eventtime.TimestampAssigner;
 import org.apache.flink.api.common.eventtime.TimestampAssignerSupplier;
@@ -41,7 +42,6 @@ import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.DataStreamUtils;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.apache.flink.streaming.api.graph.StreamGraphGenerator;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.maintenance.operator.LockRemover;
 import org.apache.iceberg.flink.maintenance.operator.LockRemoverOperatorFactory;
@@ -152,8 +152,8 @@ public class TableMaintenance {
     private final List<MaintenanceTaskBuilder<?>> taskBuilders;
     private final TriggerLockFactory lockFactory;
 
-    private String uidSuffix = "TableMaintenance-" + UUID.randomUUID();
-    private String slotSharingGroup = StreamGraphGenerator.DEFAULT_SLOT_SHARING_GROUP;
+    private String uidSuffix = null;
+    private String slotSharingGroup = null;
     private Duration rateLimit = Duration.ofSeconds(RATE_LIMIT_SECOND_DEFAULT);
     private Duration lockCheckDelay = Duration.ofSeconds(LOCK_CHECK_DELAY_SECOND_DEFAULT);
     private int parallelism = ExecutionConfig.PARALLELISM_DEFAULT;
@@ -252,10 +252,20 @@ public class TableMaintenance {
       return this;
     }
 
+    /**
+     * Adds multiple tasks with the given schedules.
+     *
+     * @param tasks to add
+     */
+    public Builder add(Collection<MaintenanceTaskBuilder<?>> tasks) {
+      Preconditions.checkNotNull(tasks, "Tasks collection should not be null");
+      taskBuilders.addAll(tasks);
+      return this;
+    }
+
     /** Builds the task graph for the maintenance tasks. */
     public void append() throws IOException {
       Preconditions.checkArgument(!taskBuilders.isEmpty(), "Provide at least one task");
-      Preconditions.checkNotNull(uidSuffix, "Uid suffix should no be null");
 
       List<String> taskNames = Lists.newArrayListWithCapacity(taskBuilders.size());
       List<TriggerEvaluator> evaluators = Lists.newArrayListWithCapacity(taskBuilders.size());
@@ -267,60 +277,64 @@ public class TableMaintenance {
       try (TableLoader loader = tableLoader.clone()) {
         loader.open();
         String tableName = loader.loadTable().name();
+        if (uidSuffix == null) {
+          this.uidSuffix = "TableMaintenance-" + tableName;
+        }
+
         DataStream<Trigger> triggers;
         if (lockFactory == null) {
           triggers =
-              DataStreamUtils.reinterpretAsKeyedStream(
-                      changeStream(tableName, loader), unused -> true)
-                  .transform(
-                      TRIGGER_MANAGER_OPERATOR_NAME,
-                      TypeInformation.of(Trigger.class),
-                      new TriggerManagerOperatorFactory(
-                          tableName,
-                          taskNames,
-                          evaluators,
-                          rateLimit.toMillis(),
-                          lockCheckDelay.toMillis()))
-                  .uid(TRIGGER_MANAGER_OPERATOR_NAME + uidSuffix)
-                  .slotSharingGroup(slotSharingGroup)
-                  .forceNonParallel();
+              setSlotSharingGroup(
+                  DataStreamUtils.reinterpretAsKeyedStream(
+                          changeStream(tableName, loader), unused -> true)
+                      .transform(
+                          TRIGGER_MANAGER_OPERATOR_NAME,
+                          TypeInformation.of(Trigger.class),
+                          new TriggerManagerOperatorFactory(
+                              tableName,
+                              taskNames,
+                              evaluators,
+                              rateLimit.toMillis(),
+                              lockCheckDelay.toMillis()))
+                      .uid(TRIGGER_MANAGER_OPERATOR_NAME + uidSuffix)
+                      .forceNonParallel());
         } else {
           triggers =
-              DataStreamUtils.reinterpretAsKeyedStream(
-                      changeStream(tableName, loader), unused -> true)
-                  .process(
-                      new TriggerManager(
-                          loader,
-                          lockFactory,
-                          taskNames,
-                          evaluators,
-                          rateLimit.toMillis(),
-                          lockCheckDelay.toMillis()))
-                  .name(TRIGGER_MANAGER_OPERATOR_NAME)
-                  .uid(TRIGGER_MANAGER_OPERATOR_NAME + uidSuffix)
-                  .slotSharingGroup(slotSharingGroup)
-                  .forceNonParallel();
+              setSlotSharingGroup(
+                  DataStreamUtils.reinterpretAsKeyedStream(
+                          changeStream(tableName, loader), unused -> true)
+                      .process(
+                          new TriggerManager(
+                              loader,
+                              lockFactory,
+                              taskNames,
+                              evaluators,
+                              rateLimit.toMillis(),
+                              lockCheckDelay.toMillis()))
+                      .name(TRIGGER_MANAGER_OPERATOR_NAME)
+                      .uid(TRIGGER_MANAGER_OPERATOR_NAME + uidSuffix)
+                      .forceNonParallel());
         }
 
         triggers =
-            triggers
-                .assignTimestampsAndWatermarks(new PunctuatedWatermarkStrategy())
-                .name(WATERMARK_ASSIGNER_OPERATOR_NAME)
-                .uid(WATERMARK_ASSIGNER_OPERATOR_NAME + uidSuffix)
-                .slotSharingGroup(slotSharingGroup)
-                .forceNonParallel();
+            setSlotSharingGroup(
+                triggers
+                    .assignTimestampsAndWatermarks(new PunctuatedWatermarkStrategy())
+                    .name(WATERMARK_ASSIGNER_OPERATOR_NAME)
+                    .uid(WATERMARK_ASSIGNER_OPERATOR_NAME + uidSuffix)
+                    .forceNonParallel());
 
         // Add the specific tasks
         DataStream<TaskResult> unioned = null;
         for (int i = 0; i < taskBuilders.size(); ++i) {
           int taskIndex = i;
           DataStream<Trigger> filtered =
-              triggers
-                  .filter(t -> t.taskId() != null && t.taskId() == taskIndex)
-                  .name(FILTER_OPERATOR_NAME_PREFIX + taskIndex)
-                  .forceNonParallel()
-                  .uid(FILTER_OPERATOR_NAME_PREFIX + taskIndex + "-" + uidSuffix)
-                  .slotSharingGroup(slotSharingGroup);
+              setSlotSharingGroup(
+                  triggers
+                      .filter(t -> t.taskId() != null && t.taskId() == taskIndex)
+                      .name(FILTER_OPERATOR_NAME_PREFIX + taskIndex)
+                      .forceNonParallel()
+                      .uid(FILTER_OPERATOR_NAME_PREFIX + taskIndex + "-" + uidSuffix));
           MaintenanceTaskBuilder<?> builder = taskBuilders.get(taskIndex);
           DataStream<TaskResult> result =
               builder.append(
@@ -341,23 +355,23 @@ public class TableMaintenance {
 
         // Add the LockRemover to the end
         if (lockFactory == null) {
-          unioned
-              .transform(
-                  LOCK_REMOVER_OPERATOR_NAME,
-                  TypeInformation.of(Void.class),
-                  new LockRemoverOperatorFactory(tableName, taskNames))
-              .uid("lock-remover-" + uidSuffix)
-              .forceNonParallel()
-              .slotSharingGroup(slotSharingGroup);
+          setSlotSharingGroup(
+              unioned
+                  .transform(
+                      LOCK_REMOVER_OPERATOR_NAME,
+                      TypeInformation.of(Void.class),
+                      new LockRemoverOperatorFactory(tableName, taskNames))
+                  .uid("lock-remover-" + uidSuffix)
+                  .forceNonParallel());
         } else {
-          unioned
-              .transform(
-                  LOCK_REMOVER_OPERATOR_NAME,
-                  TypeInformation.of(Void.class),
-                  new LockRemover(tableName, lockFactory, taskNames))
-              .forceNonParallel()
-              .uid("lock-remover-" + uidSuffix)
-              .slotSharingGroup(slotSharingGroup);
+          setSlotSharingGroup(
+              unioned
+                  .transform(
+                      LOCK_REMOVER_OPERATOR_NAME,
+                      TypeInformation.of(Void.class),
+                      new LockRemover(tableName, lockFactory, taskNames))
+                  .forceNonParallel()
+                  .uid("lock-remover-" + uidSuffix));
         }
       }
     }
@@ -367,12 +381,16 @@ public class TableMaintenance {
         // Create a monitor source to provide the TableChange stream
         MonitorSource source =
             new MonitorSource(
-                loader, RateLimiterStrategy.perSecond(1.0 / rateLimit.getSeconds()), maxReadBack);
-        return env.fromSource(
-                source, WatermarkStrategy.noWatermarks(), SOURCE_OPERATOR_NAME_PREFIX + tableName)
-            .uid(SOURCE_OPERATOR_NAME_PREFIX + uidSuffix)
-            .slotSharingGroup(slotSharingGroup)
-            .forceNonParallel();
+                loader,
+                RateLimiterStrategy.perSecond(monitorRatePerSecond(rateLimit.toMillis())),
+                maxReadBack);
+        return setSlotSharingGroup(
+            env.fromSource(
+                    source,
+                    WatermarkStrategy.noWatermarks(),
+                    SOURCE_OPERATOR_NAME_PREFIX + tableName)
+                .uid(SOURCE_OPERATOR_NAME_PREFIX + uidSuffix)
+                .forceNonParallel());
       } else {
         return inputStream.global();
       }
@@ -380,6 +398,21 @@ public class TableMaintenance {
 
     private static String nameFor(MaintenanceTaskBuilder<?> streamBuilder, int taskIndex) {
       return String.format(Locale.ROOT, "%s [%d]", streamBuilder.maintenanceTaskName(), taskIndex);
+    }
+
+    /**
+     * Monitor poll rate per rate-limit interval, in checks/second. We compute from millis instead
+     * of seconds, otherwise sub-second intervals could be truncated to 0, yielding an infinite rate
+     * which busy-loops the source.
+     */
+    @VisibleForTesting
+    static double monitorRatePerSecond(long rateLimitMillis) {
+      return 1000.0 / rateLimitMillis;
+    }
+
+    private <T> SingleOutputStreamOperator<T> setSlotSharingGroup(
+        SingleOutputStreamOperator<T> operator) {
+      return slotSharingGroup == null ? operator : operator.slotSharingGroup(slotSharingGroup);
     }
   }
 

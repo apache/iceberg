@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.spark.source;
 
+import java.util.function.Function;
+import java.util.function.UnaryOperator;
 import org.apache.iceberg.avro.AvroFormatModel;
 import org.apache.iceberg.formats.FormatModelRegistry;
 import org.apache.iceberg.orc.ORCFormatModel;
@@ -40,7 +42,8 @@ public class SparkFormatModels {
         AvroFormatModel.create(
             InternalRow.class,
             StructType.class,
-            (icebergSchema, fileSchema, engineSchema) -> new SparkAvroWriter(engineSchema),
+            (icebergSchema, fileSchema, engineSchema) ->
+                new SparkAvroWriter(icebergSchema, engineSchema),
             (icebergSchema, fileSchema, engineSchema, idToConstant) ->
                 SparkPlannedAvroReader.create(icebergSchema, idToConstant)));
 
@@ -50,7 +53,9 @@ public class SparkFormatModels {
             StructType.class,
             SparkParquetWriters::buildWriter,
             (icebergSchema, fileSchema, engineSchema, idToConstant) ->
-                SparkParquetReaders.buildReader(icebergSchema, fileSchema, idToConstant)));
+                SparkParquetReaders.buildReader(icebergSchema, fileSchema, idToConstant),
+            new SparkVariantShreddingAnalyzer(),
+            (Function<StructType, UnaryOperator<InternalRow>>) unused -> InternalRow::copy));
 
     FormatModelRegistry.register(
         ParquetFormatModel.create(
@@ -58,14 +63,6 @@ public class SparkFormatModels {
             StructType.class,
             (icebergSchema, fileSchema, engineSchema, idToConstant) ->
                 VectorizedSparkParquetReaders.buildReader(
-                    icebergSchema, fileSchema, idToConstant)));
-
-    FormatModelRegistry.register(
-        ParquetFormatModel.create(
-            VectorizedSparkParquetReaders.CometColumnarBatch.class,
-            StructType.class,
-            (icebergSchema, fileSchema, engineSchema, idToConstant) ->
-                VectorizedSparkParquetReaders.buildCometReader(
                     icebergSchema, fileSchema, idToConstant)));
 
     FormatModelRegistry.register(

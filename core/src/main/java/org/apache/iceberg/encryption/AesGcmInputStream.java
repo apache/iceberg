@@ -79,7 +79,7 @@ public class AesGcmInputStream extends SeekableInputStream {
     int plainBlockSize = ByteBuffer.wrap(headerBytes, 4, 4).order(ByteOrder.LITTLE_ENDIAN).getInt();
     Preconditions.checkState(
         plainBlockSize == Ciphers.PLAIN_BLOCK_SIZE,
-        "Invalid GCM stream: block size %d != %d",
+        "Invalid GCM stream: block size %s != %s",
         plainBlockSize,
         Ciphers.PLAIN_BLOCK_SIZE);
   }

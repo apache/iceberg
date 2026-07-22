@@ -25,7 +25,11 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -597,7 +601,7 @@ public class ParquetValueReaders {
 
     @Override
     public BigDecimal read(BigDecimal ignored) {
-      return new BigDecimal(BigInteger.valueOf(column.nextInteger()), scale);
+      return BigDecimal.valueOf(column.nextInteger(), scale);
     }
   }
 
@@ -611,7 +615,7 @@ public class ParquetValueReaders {
 
     @Override
     public BigDecimal read(BigDecimal ignored) {
-      return new BigDecimal(BigInteger.valueOf(column.nextLong()), scale);
+      return BigDecimal.valueOf(column.nextLong(), scale);
     }
   }
 
@@ -828,6 +832,16 @@ public class ParquetValueReaders {
     protected abstract T buildList(I list);
   }
 
+  // Only recycle known growable JDK collections as scratch buffers. Reuse may be an unmodifiable
+  // view, Guava immutable type, List.of / Map.of, etc.; those are not these concrete classes.
+  private static boolean canReuseListAsReadBuffer(List<?> list) {
+    return list instanceof ArrayList || list instanceof LinkedList;
+  }
+
+  private static boolean canReuseMapAsReadBuffer(Map<?, ?> map) {
+    return map instanceof LinkedHashMap || map instanceof HashMap;
+  }
+
   public static class ListReader<E> extends RepeatedReader<List<E>, List<E>, E> {
     private List<E> lastList = null;
     private Iterator<E> elements = null;
@@ -847,7 +861,7 @@ public class ParquetValueReaders {
       }
 
       if (reuse != null) {
-        this.lastList = reuse;
+        this.lastList = canReuseListAsReadBuffer(reuse) ? reuse : null;
         this.elements = reuse.iterator();
       } else {
         this.lastList = null;
@@ -973,7 +987,7 @@ public class ParquetValueReaders {
       }
 
       if (reuse != null) {
-        this.lastMap = reuse;
+        this.lastMap = canReuseMapAsReadBuffer(reuse) ? reuse : null;
         this.pairs = reuse.entrySet().iterator();
       } else {
         this.lastMap = null;

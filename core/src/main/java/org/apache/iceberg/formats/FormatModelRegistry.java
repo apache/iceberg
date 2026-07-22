@@ -170,6 +170,11 @@ public final class FormatModelRegistry {
    * records that identify rows to be deleted by file path and position, producing a {@link
    * DeleteFile} that can be used for table operations.
    *
+   * <p><b>Note:</b> This method is only applicable to format-version 2 tables. Format-version 3
+   * tables use deletion vectors, which are always written in Puffin format. Registered {@link
+   * FormatModel} implementations for {@link PositionDelete} are not consulted for format-version 3+
+   * tables.
+   *
    * @param format the file format used for writing
    * @param outputFile destination for the written data
    * @return a configured delete write builder for creating a {@link PositionDeleteWriter}
@@ -194,19 +199,33 @@ public final class FormatModelRegistry {
     return model;
   }
 
-  @SuppressWarnings("CatchBlockLogException")
   private static void registerSupportedFormats() {
     // Uses dynamic methods to call the `register` for the listed classes
     for (String classToRegister : CLASSES_TO_REGISTER) {
-      try {
-        DynMethods.builder("register").impl(classToRegister).buildStaticChecked().invoke();
-      } catch (NoSuchMethodException e) {
-        // failing to register a factory is normal and does not require a stack trace
-        LOG.info(
-            "Unable to call register for ({}). Check for missing jars on the classpath: {}",
-            classToRegister,
-            e.getMessage());
-      }
+      register(classToRegister);
+    }
+  }
+
+  /**
+   * Invokes the static {@code register} method of the given class, tolerating the failure modes
+   * that occur when an optional module (like {@code iceberg-parquet} or {@code iceberg-orc}) is not
+   * on the classpath.
+   *
+   * <p>Besides {@link NoSuchMethodException}, invoking {@code register} can fail with {@link
+   * NoClassDefFoundError} when its body references a missing transitive dependency, or {@link
+   * ExceptionInInitializerError} when it triggers a failing static initializer.
+   */
+  @SuppressWarnings("CatchBlockLogException")
+  private static void register(String classToRegister) {
+    try {
+      DynMethods.builder("register").impl(classToRegister).buildStaticChecked().invoke();
+    } catch (NoSuchMethodException | NoClassDefFoundError | ExceptionInInitializerError e) {
+      // failing to register a factory is normal and does not require a stack trace
+      Throwable cause = e.getCause() != null ? e.getCause() : e;
+      LOG.info(
+          "Unable to call register for ({}). Check for missing jars on the classpath: {}",
+          classToRegister,
+          cause.toString());
     }
   }
 }

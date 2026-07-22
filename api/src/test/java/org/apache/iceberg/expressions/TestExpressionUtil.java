@@ -69,6 +69,24 @@ public class TestExpressionUtil {
   private static final Types.StructType FLOAT_TEST =
       Types.StructType.of(Types.NestedField.optional(1, "test", Types.FloatType.get()));
 
+  /** Schema with struct, list, and map columns for {@link #testExtractByIdInclusiveNestedTypes}. */
+  private static final Schema NESTED_EXTRACT_SCHEMA =
+      new Schema(
+          Types.NestedField.required(1, "top_id", Types.LongType.get()),
+          Types.NestedField.optional(
+              2,
+              "st",
+              Types.StructType.of(
+                  Types.NestedField.required(3, "inner_i", Types.IntegerType.get()))),
+          Types.NestedField.optional(
+              4, "arr", Types.ListType.ofRequired(5, Types.IntegerType.get())),
+          Types.NestedField.optional(
+              6,
+              "mp",
+              Types.MapType.ofRequired(7, 8, Types.StringType.get(), Types.IntegerType.get())));
+
+  private static final Types.StructType NESTED_EXTRACT_STRUCT = NESTED_EXTRACT_SCHEMA.asStruct();
+
   @Test
   public void testUnchangedUnaryPredicates() {
     for (Expression unary :
@@ -823,6 +841,146 @@ public class TestExpressionUtil {
       String sanitizedFilter = ExpressionUtil.toSanitizedString(Expressions.equal("test", filter));
       assertThat(filterPattern.matcher(sanitizedFilter)).matches();
     }
+  }
+
+  @Test
+  public void testExtractByIdInclusive() {
+    Expression alwaysTrue = Expressions.alwaysTrue();
+    Expression idEq = Expressions.equal("id", 5L);
+    Expression valEq = Expressions.equal("val", 5);
+
+    assertThat(
+            ExpressionUtil.equivalent(
+                alwaysTrue,
+                ExpressionUtil.extractByIdInclusive(
+                    Expressions.and(idEq, valEq), SCHEMA, true, new int[0]),
+                STRUCT,
+                true))
+        .isTrue();
+
+    assertThat(
+            ExpressionUtil.equivalent(
+                alwaysTrue,
+                ExpressionUtil.extractByIdInclusive(
+                    Expressions.and(idEq, valEq), SCHEMA, true, (int[]) null),
+                STRUCT,
+                true))
+        .isTrue();
+
+    assertThat(
+            ExpressionUtil.equivalent(
+                idEq, ExpressionUtil.extractByIdInclusive(idEq, SCHEMA, true, 1), STRUCT, true))
+        .isTrue();
+
+    assertThat(
+            ExpressionUtil.equivalent(
+                alwaysTrue,
+                ExpressionUtil.extractByIdInclusive(valEq, SCHEMA, true, 1),
+                STRUCT,
+                true))
+        .isTrue();
+
+    assertThat(
+            ExpressionUtil.equivalent(
+                idEq,
+                ExpressionUtil.extractByIdInclusive(Expressions.and(idEq, valEq), SCHEMA, true, 1),
+                STRUCT,
+                true))
+        .isTrue();
+
+    Expression orBothId = Expressions.or(Expressions.equal("id", 1L), Expressions.equal("id", 2L));
+    assertThat(
+            ExpressionUtil.equivalent(
+                orBothId,
+                ExpressionUtil.extractByIdInclusive(orBothId, SCHEMA, true, 1),
+                STRUCT,
+                true))
+        .isTrue();
+  }
+
+  @Test
+  public void testExtractByIdInclusiveNestedTypes() {
+    Expression alwaysTrue = Expressions.alwaysTrue();
+    Expression structPred = Expressions.equal("st.inner_i", 1);
+    Expression listPred = Expressions.equal("arr.element", 42);
+    Expression mapKeyPred = Expressions.equal("mp.key", "k");
+    Expression mapValuePred = Expressions.equal("mp.value", 7);
+    Expression topPred = Expressions.equal("top_id", 9L);
+
+    assertThat(
+            ExpressionUtil.equivalent(
+                structPred,
+                ExpressionUtil.extractByIdInclusive(structPred, NESTED_EXTRACT_SCHEMA, true, 3),
+                NESTED_EXTRACT_STRUCT,
+                true))
+        .isTrue();
+    assertThat(
+            ExpressionUtil.equivalent(
+                alwaysTrue,
+                ExpressionUtil.extractByIdInclusive(structPred, NESTED_EXTRACT_SCHEMA, true, 1),
+                NESTED_EXTRACT_STRUCT,
+                true))
+        .isTrue();
+
+    assertThat(
+            ExpressionUtil.equivalent(
+                listPred,
+                ExpressionUtil.extractByIdInclusive(listPred, NESTED_EXTRACT_SCHEMA, true, 5),
+                NESTED_EXTRACT_STRUCT,
+                true))
+        .isTrue();
+    assertThat(
+            ExpressionUtil.equivalent(
+                alwaysTrue,
+                ExpressionUtil.extractByIdInclusive(listPred, NESTED_EXTRACT_SCHEMA, true, 1),
+                NESTED_EXTRACT_STRUCT,
+                true))
+        .isTrue();
+
+    assertThat(
+            ExpressionUtil.equivalent(
+                mapKeyPred,
+                ExpressionUtil.extractByIdInclusive(mapKeyPred, NESTED_EXTRACT_SCHEMA, true, 7),
+                NESTED_EXTRACT_STRUCT,
+                true))
+        .isTrue();
+    assertThat(
+            ExpressionUtil.equivalent(
+                mapValuePred,
+                ExpressionUtil.extractByIdInclusive(mapValuePred, NESTED_EXTRACT_SCHEMA, true, 8),
+                NESTED_EXTRACT_STRUCT,
+                true))
+        .isTrue();
+    assertThat(
+            ExpressionUtil.equivalent(
+                alwaysTrue,
+                ExpressionUtil.extractByIdInclusive(mapKeyPred, NESTED_EXTRACT_SCHEMA, true, 8),
+                NESTED_EXTRACT_STRUCT,
+                true))
+        .isTrue();
+
+    Expression mixed = Expressions.and(structPred, Expressions.and(listPred, topPred));
+    assertThat(
+            ExpressionUtil.equivalent(
+                structPred,
+                ExpressionUtil.extractByIdInclusive(mixed, NESTED_EXTRACT_SCHEMA, true, 3),
+                NESTED_EXTRACT_STRUCT,
+                true))
+        .isTrue();
+    assertThat(
+            ExpressionUtil.equivalent(
+                listPred,
+                ExpressionUtil.extractByIdInclusive(mixed, NESTED_EXTRACT_SCHEMA, true, 5),
+                NESTED_EXTRACT_STRUCT,
+                true))
+        .isTrue();
+    assertThat(
+            ExpressionUtil.equivalent(
+                topPred,
+                ExpressionUtil.extractByIdInclusive(mixed, NESTED_EXTRACT_SCHEMA, true, 1),
+                NESTED_EXTRACT_STRUCT,
+                true))
+        .isTrue();
   }
 
   @Test

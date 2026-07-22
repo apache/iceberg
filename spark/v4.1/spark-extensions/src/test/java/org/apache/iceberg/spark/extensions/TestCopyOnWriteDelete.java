@@ -24,6 +24,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.ParameterizedTestExtension;
@@ -52,6 +53,25 @@ public class TestCopyOnWriteDelete extends TestDelete {
   protected Map<String, String> extraTableProperties() {
     return ImmutableMap.of(
         TableProperties.DELETE_MODE, RowLevelOperationMode.COPY_ON_WRITE.modeName());
+  }
+
+  @TestTemplate
+  public void testCopyOnWriteDeleteSetsSortOrderIdOnRewrittenDataFiles() {
+    createAndInitTable(
+        "id INT, dep STRING",
+        "PARTITIONED BY (dep)",
+        "{ \"id\": 1, \"dep\": \"hr\" }\n" + "{ \"id\": 2, \"dep\": \"hr\" }");
+
+    sql("ALTER TABLE %s WRITE ORDERED BY id", tableName);
+
+    sql("DELETE FROM %s WHERE id = 1", commitTarget());
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    Snapshot snapshot = SnapshotUtil.latestSnapshot(table, branch);
+    assertThat(snapshot.addedDataFiles(table.io()))
+        .extracting(DataFile::sortOrderId)
+        .as("Rewritten data files should carry the table sort order id")
+        .containsOnly(table.sortOrder().orderId());
   }
 
   @TestTemplate

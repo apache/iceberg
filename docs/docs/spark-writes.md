@@ -458,8 +458,9 @@ or manually repartition the data.
 To adjust Spark's task size it is important to become familiar with Spark's various Adaptive Query Execution (AQE)
 parameters. When the `write.distribution-mode` is not `none`, AQE will control the coalescing and splitting of Spark
 tasks during the exchange to try to create tasks of `spark.sql.adaptive.advisoryPartitionSizeInBytes` size. These
-settings will also affect any user performed re-partitions or sorts.
-It is important again to note that this is the in-memory Spark row size and not the on disk
-columnar-compressed size, so a larger value than the target file size will need to be specified. The ratio of
-in-memory size to on disk size is data dependent. Future work in Spark should allow Iceberg to automatically adjust this
-parameter at write time to match the `write.target-file-size-bytes`.
+settings will also affect other non-writing stages.
+It is important again to note that this is the estimated Spark input shuffle data size (typically, is row-based and
+compressed with a lower ratio) and not the write file size (typically, is columnar and compressed with a higher
+ratio), so a larger value than the target file size will need to be specified. The ratio of these two kinds of
+size is data dependent. Future work in Spark should allow Iceberg to automatically adjust this parameter at
+write time to match the `write.target-file-size-bytes`.

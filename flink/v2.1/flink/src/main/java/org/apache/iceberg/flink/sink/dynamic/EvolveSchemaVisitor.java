@@ -211,8 +211,12 @@ public class EvolveSchemaVisitor extends SchemaWithPartnerVisitor<Integer, Boole
     String existingColumnName = this.existingSchema.findColumnName(existingField.fieldId());
 
     boolean needsOptionalUpdate = targetField.isOptional() && existingField.isRequired();
+    boolean handledByDataConversion =
+        CompareSchemasVisitor.isDataConversionPossible(targetField.type(), existingField.type());
     boolean needsTypeUpdate =
-        targetField.type().isPrimitiveType() && !targetField.type().equals(existingField.type());
+        targetField.type().isPrimitiveType()
+            && !targetField.type().equals(existingField.type())
+            && !handledByDataConversion;
     boolean needsDocUpdate =
         targetField.doc() != null && !targetField.doc().equals(existingField.doc());
 

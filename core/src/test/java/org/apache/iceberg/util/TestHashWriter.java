@@ -53,7 +53,7 @@ public class TestHashWriter {
     Schema schema = new Schema(Types.NestedField.required(1, "col1", Types.StringType.get()));
     TableMetadata tableMetadata =
         TableMetadata.newTableMetadata(
-            schema, PartitionSpec.unpartitioned(), null, icebergTblProperties);
+            schema, PartitionSpec.unpartitioned(), "file:///tmp/table", icebergTblProperties);
 
     JsonGenerator generator = JsonUtil.factory().createGenerator(hashWriter);
     TableMetadataParser.toJson(tableMetadata, generator);

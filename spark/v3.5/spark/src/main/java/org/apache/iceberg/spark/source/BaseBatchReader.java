@@ -31,15 +31,14 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.formats.FormatModelRegistry;
 import org.apache.iceberg.formats.ReadBuilder;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.spark.OrcBatchReadConf;
 import org.apache.iceberg.spark.ParquetBatchReadConf;
-import org.apache.iceberg.spark.ParquetReaderType;
 import org.apache.iceberg.spark.data.vectorized.ColumnVectorWithFilter;
 import org.apache.iceberg.spark.data.vectorized.ColumnarBatchUtil;
 import org.apache.iceberg.spark.data.vectorized.UpdatableDeletedColumnVector;
-import org.apache.iceberg.spark.data.vectorized.VectorizedSparkParquetReaders;
 import org.apache.iceberg.util.Pair;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.vectorized.ColumnVector;
@@ -51,6 +50,7 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
 
   BaseBatchReader(
       Table table,
+      FileIO fileIO,
       ScanTaskGroup<T> taskGroup,
       Schema tableSchema,
       Schema expectedSchema,
@@ -59,7 +59,13 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
       OrcBatchReadConf orcConf,
       boolean cacheDeleteFilesOnExecutors) {
     super(
-        table, taskGroup, tableSchema, expectedSchema, caseSensitive, cacheDeleteFilesOnExecutors);
+        table,
+        fileIO,
+        taskGroup,
+        tableSchema,
+        expectedSchema,
+        caseSensitive,
+        cacheDeleteFilesOnExecutors);
     this.parquetConf = parquetConf;
     this.orcConf = orcConf;
   }
@@ -72,10 +78,8 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
       Expression residual,
       Map<Integer, ?> idToConstant,
       @Nonnull SparkDeleteFilter deleteFilter) {
-    Class<? extends ColumnarBatch> readType =
-        useComet() ? VectorizedSparkParquetReaders.CometColumnarBatch.class : ColumnarBatch.class;
     ReadBuilder<ColumnarBatch, ?> readBuilder =
-        FormatModelRegistry.readBuilder(format, readType, inputFile);
+        FormatModelRegistry.readBuilder(format, ColumnarBatch.class, inputFile);
 
     if (parquetConf != null) {
       readBuilder = readBuilder.recordsPerBatch(parquetConf.batchSize());
@@ -99,10 +103,6 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
             .build();
 
     return CloseableIterable.transform(iterable, new BatchDeleteFilter(deleteFilter)::filterBatch);
-  }
-
-  private boolean useComet() {
-    return parquetConf != null && parquetConf.readerType() == ParquetReaderType.COMET;
   }
 
   @VisibleForTesting

@@ -166,10 +166,7 @@ class SparkFileWriterFactory extends RegistryBasedFileWriterFactory<InternalRow,
     } else {
       LOG.warn("Position deletes with deleted rows are deprecated and will be removed in 1.12.0.");
       Map<String, String> properties = table == null ? ImmutableMap.of() : table.properties();
-      MetricsConfig metricsConfig =
-          table == null
-              ? MetricsConfig.forPositionDelete()
-              : MetricsConfig.forPositionDelete(table);
+      MetricsConfig metricsConfig = MetricsConfig.forPositionDelete();
 
       try {
         return switch (deleteFormat) {

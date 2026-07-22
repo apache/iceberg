@@ -330,15 +330,15 @@ public class SparkTableUtil {
   private static SparkPartition toSparkPartition(
       CatalogTablePartition partition, CatalogTable table) {
     Option<URI> locationUri = partition.storage().locationUri();
-    Option<String> serde = partition.storage().serde();
+    Option<String> partitionSerde = partition.storage().serde();
 
     Preconditions.checkArgument(locationUri.nonEmpty(), "Partition URI should be defined");
     Preconditions.checkArgument(
-        serde.nonEmpty() || table.provider().nonEmpty(), "Partition format should be defined");
+        partitionSerde.nonEmpty() || table.provider().nonEmpty(),
+        "Partition format should be defined");
 
     String uri = Util.uriToString(locationUri.get());
-    String format = serde.nonEmpty() ? serde.get() : table.provider().get();
-
+    String format = resolveFileFormat(partitionSerde.getOrElse(() -> null), table);
     Map<String, String> partitionSpec =
         JavaConverters.mapAsJavaMapConverter(partition.spec()).asJava();
     return new SparkPartition(partitionSpec, uri, format);
@@ -683,11 +683,7 @@ public class SparkTableUtil {
       ExecutorService service) {
     try {
       CatalogTable sourceTable = spark.sessionState().catalog().getTableMetadata(sourceTableIdent);
-      Option<String> format =
-          sourceTable.storage().serde().nonEmpty()
-              ? sourceTable.storage().serde()
-              : sourceTable.provider();
-      Preconditions.checkArgument(format.nonEmpty(), "Could not determine table format");
+      String format = resolveFileFormat(null, sourceTable);
 
       Map<String, String> partition = Collections.emptyMap();
       PartitionSpec spec = PartitionSpec.unpartitioned();
@@ -701,7 +697,7 @@ public class SparkTableUtil {
           TableMigrationUtil.listPartition(
               partition,
               Util.uriToString(sourceTable.location()),
-              format.get(),
+              format,
               spec,
               conf,
               metricsConfig,
@@ -1049,6 +1045,30 @@ public class SparkTableUtil {
         table.properties(),
         TableProperties.WRITE_AUDIT_PUBLISH_ENABLED,
         Boolean.parseBoolean(TableProperties.WRITE_AUDIT_PUBLISH_ENABLED_DEFAULT));
+  }
+
+  private static String resolveFileFormat(String partitionSerde, CatalogTable table) {
+    if (partitionSerde != null && isKnownFileFormat(partitionSerde)) {
+      return partitionSerde;
+    }
+
+    Option<String> serde = table.storage().serde();
+    if (serde.nonEmpty() && isKnownFileFormat(serde.get())) {
+      return serde.get();
+    }
+
+    Preconditions.checkArgument(
+        table.provider().nonEmpty(),
+        "Could not determine table format from serde %s and no provider set",
+        serde.getOrElse(() -> "unknown"));
+    return table.provider().get();
+  }
+
+  private static boolean isKnownFileFormat(String serde) {
+    String lowerSerde = serde.toLowerCase(Locale.ROOT);
+    return lowerSerde.contains("parquet")
+        || lowerSerde.contains("avro")
+        || lowerSerde.contains("orc");
   }
 
   /** Class representing a table partition. */

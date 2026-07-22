@@ -19,8 +19,6 @@
 package org.apache.iceberg.spark.source;
 
 import java.util.Map;
-import java.util.Set;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.PositionDeletesScanTask;
@@ -30,9 +28,9 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ExpressionUtil;
 import org.apache.iceberg.io.CloseableIterator;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.primitives.Ints;
 import org.apache.iceberg.util.ContentFileUtil;
 import org.apache.spark.rdd.InputFileBlockHolder;
 import org.apache.spark.sql.catalyst.InternalRow;
@@ -48,6 +46,7 @@ class PositionDeletesRowReader extends BaseRowReader<PositionDeletesScanTask>
   PositionDeletesRowReader(SparkInputPartition partition) {
     this(
         partition.table(),
+        partition.io(),
         partition.taskGroup(),
         partition.projection(),
         partition.isCaseSensitive(),
@@ -56,12 +55,12 @@ class PositionDeletesRowReader extends BaseRowReader<PositionDeletesScanTask>
 
   PositionDeletesRowReader(
       Table table,
+      FileIO fileIO,
       ScanTaskGroup<PositionDeletesScanTask> taskGroup,
       Schema expectedSchema,
       boolean caseSensitive,
       boolean cacheDeleteFilesOnExecutors) {
-
-    super(table, taskGroup, expectedSchema, caseSensitive, cacheDeleteFilesOnExecutors);
+    super(table, fileIO, taskGroup, expectedSchema, caseSensitive, cacheDeleteFilesOnExecutors);
 
     int numSplits = taskGroup.tasks().size();
     LOG.debug("Reading {} position delete file split(s) for table {}", numSplits, table.name());
@@ -84,12 +83,16 @@ class PositionDeletesRowReader extends BaseRowReader<PositionDeletesScanTask>
     InputFile inputFile = getInputFile(task.file().location());
     Preconditions.checkNotNull(inputFile, "Could not find InputFile associated with %s", task);
 
-    // select out constant fields when pushing down filter to row reader
+    // Retain predicates on non-constant fields for row reader filter
     Map<Integer, ?> idToConstant = constantsMap(task, expectedSchema());
-    Set<Integer> nonConstantFieldIds = nonConstantFieldIds(idToConstant);
+    int[] nonConstantFieldIds =
+        expectedSchema().idToName().keySet().stream()
+            .filter(id -> !idToConstant.containsKey(id))
+            .mapToInt(Integer::intValue)
+            .toArray();
     Expression residualWithoutConstants =
         ExpressionUtil.extractByIdInclusive(
-            task.residual(), expectedSchema(), caseSensitive(), Ints.toArray(nonConstantFieldIds));
+            task.residual(), expectedSchema(), caseSensitive(), nonConstantFieldIds);
 
     if (ContentFileUtil.isDV(task.file())) {
       return new DVIterator(inputFile, task.file(), expectedSchema(), idToConstant);
@@ -104,13 +107,5 @@ class PositionDeletesRowReader extends BaseRowReader<PositionDeletesScanTask>
             expectedSchema(),
             idToConstant)
         .iterator();
-  }
-
-  private Set<Integer> nonConstantFieldIds(Map<Integer, ?> idToConstant) {
-    Set<Integer> fields = expectedSchema().idToName().keySet();
-    return fields.stream()
-        .filter(id -> expectedSchema().findField(id).type().isPrimitiveType())
-        .filter(id -> !idToConstant.containsKey(id))
-        .collect(Collectors.toSet());
   }
 }

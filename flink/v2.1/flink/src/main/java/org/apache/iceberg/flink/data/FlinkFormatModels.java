@@ -18,7 +18,10 @@
  */
 package org.apache.iceberg.flink.data;
 
+import java.util.function.Function;
+import java.util.function.UnaryOperator;
 import org.apache.flink.table.data.RowData;
+import org.apache.flink.table.runtime.typeutils.RowDataSerializer;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.avro.AvroFormatModel;
 import org.apache.iceberg.formats.FormatModelRegistry;
@@ -31,16 +34,19 @@ public class FlinkFormatModels {
         ParquetFormatModel.create(
             RowData.class,
             RowType.class,
-            (icebergSchema, fileSchema, engineSchema) ->
-                FlinkParquetWriters.buildWriter(engineSchema, fileSchema),
+            FlinkParquetWriters::buildWriter,
             (icebergSchema, fileSchema, engineSchema, idToConstant) ->
-                FlinkParquetReaders.buildReader(icebergSchema, fileSchema, idToConstant)));
+                FlinkParquetReaders.buildReader(icebergSchema, fileSchema, idToConstant),
+            new FlinkVariantShreddingAnalyzer(),
+            (Function<RowType, UnaryOperator<RowData>>)
+                rowType -> new RowDataSerializer(rowType)::copy));
 
     FormatModelRegistry.register(
         AvroFormatModel.create(
             RowData.class,
             RowType.class,
-            (icebergSchema, fileSchema, engineSchema) -> new FlinkAvroWriter(engineSchema),
+            (icebergSchema, fileSchema, engineSchema) ->
+                new FlinkAvroWriter(icebergSchema, engineSchema),
             (icebergSchema, fileSchema, engineSchema, idToConstant) ->
                 FlinkPlannedAvroReader.create(icebergSchema, idToConstant)));
 

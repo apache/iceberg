@@ -148,9 +148,116 @@ public class TestRoaringPositionBitmap {
 
   @TestTemplate
   public void testAddEmptyRange() {
+    RoaringPositionBitmap equalRange = new RoaringPositionBitmap();
+    equalRange.setRange(10, 10);
+    assertThat(equalRange.isEmpty()).isTrue();
+    assertThat(equalRange.cardinality()).isEqualTo(0);
+    assertThat(equalRange.contains(10)).isFalse();
+  }
+
+  @TestTemplate
+  public void testSetRangeReversedThrows() {
     RoaringPositionBitmap bitmap = new RoaringPositionBitmap();
-    bitmap.setRange(10, 10);
-    assertThat(bitmap.isEmpty()).isTrue();
+    assertThatThrownBy(() -> bitmap.setRange(100, 50))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Start position must not exceed end position");
+  }
+
+  @TestTemplate
+  public void testAddRangeLargeContiguous() {
+    RoaringPositionBitmap bitmap = new RoaringPositionBitmap();
+
+    long start = 500L;
+    long end = 200_500L;
+    bitmap.setRange(start, end);
+
+    assertThat(bitmap.cardinality()).isEqualTo(200_000L);
+    assertThat(bitmap.contains(start)).isTrue();
+    assertThat(bitmap.contains(end - 1)).isTrue();
+    assertThat(bitmap.contains(start - 1)).isFalse();
+    assertThat(bitmap.contains(end)).isFalse();
+  }
+
+  @TestTemplate
+  public void testAddRangeSpanningThreeKeys() {
+    RoaringPositionBitmap bitmap = new RoaringPositionBitmap();
+
+    long start = ((long) 0 << 32) | 0xFFFFFFF0L;
+    long end = ((long) 2 << 32) | 0x10L;
+    bitmap.setRange(start, end);
+
+    assertThat(bitmap.contains(start)).isTrue();
+    assertThat(bitmap.contains(end - 1)).isTrue();
+    assertThat(bitmap.contains(start - 1)).isFalse();
+    assertThat(bitmap.contains(end)).isFalse();
+
+    // key 1 should be fully covered
+    assertThat(bitmap.contains((long) 1 << 32)).isTrue();
+    assertThat(bitmap.contains(((long) 1 << 32) | 0xFFFFFFFFL)).isTrue();
+
+    long expectedCardinality = end - start;
+    assertThat(bitmap.cardinality()).isEqualTo(expectedCardinality);
+  }
+
+  @TestTemplate
+  public void testAddRangeSinglePosition() {
+    RoaringPositionBitmap rangeBitmap = new RoaringPositionBitmap();
+    rangeBitmap.setRange(42, 43);
+
+    RoaringPositionBitmap setBitmap = new RoaringPositionBitmap();
+    setBitmap.set(42);
+
+    assertThat(rangeBitmap.cardinality()).isEqualTo(setBitmap.cardinality());
+    assertThat(rangeBitmap.contains(42)).isTrue();
+    assertThat(rangeBitmap.contains(41)).isFalse();
+    assertThat(rangeBitmap.contains(43)).isFalse();
+  }
+
+  @TestTemplate
+  public void testAddRangeAtKeyBoundary() {
+    RoaringPositionBitmap bitmap = new RoaringPositionBitmap();
+
+    bitmap.setRange(0L, 1L << 32);
+
+    assertThat(bitmap.cardinality()).isEqualTo(1L << 32);
+    assertThat(bitmap.contains(0L)).isTrue();
+    assertThat(bitmap.contains((1L << 32) - 1)).isTrue();
+    assertThat(bitmap.contains(1L << 32)).isFalse();
+    assertThat(bitmap.allocatedBitmapCount()).isEqualTo(1);
+  }
+
+  @TestTemplate
+  public void testAddRangeSameKeyForEachExact() {
+    RoaringPositionBitmap bitmap = new RoaringPositionBitmap();
+
+    long start = 1000L;
+    long end = 1200L;
+    bitmap.setRange(start, end);
+
+    assertThat(bitmap.cardinality()).isEqualTo(end - start);
+    assertThat(bitmap.contains(start - 1)).isFalse();
+    assertThat(bitmap.contains(end)).isFalse();
+
+    for (long pos = start; pos < end; pos++) {
+      assertThat(bitmap.contains(pos)).isTrue();
+    }
+  }
+
+  @TestTemplate
+  public void testAddRangeCrossKeyForEachExact() {
+    RoaringPositionBitmap bitmap = new RoaringPositionBitmap();
+
+    long start = ((long) 1 << 32) - 100L;
+    long end = ((long) 1 << 32) + 100L;
+    bitmap.setRange(start, end);
+
+    assertThat(bitmap.cardinality()).isEqualTo(end - start);
+    assertThat(bitmap.contains(start - 1)).isFalse();
+    assertThat(bitmap.contains(end)).isFalse();
+
+    for (long pos = start; pos < end; pos++) {
+      assertThat(bitmap.contains(pos)).isTrue();
+    }
   }
 
   @TestTemplate
@@ -353,6 +460,18 @@ public class TestRoaringPositionBitmap {
             RoaringPositionBitmap.MAX_POSITION);
 
     assertThatThrownBy(() -> bitmap.contains(RoaringPositionBitmap.MAX_POSITION + 1L))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining(
+            "Bitmap supports positions that are >= 0 and <= %s",
+            RoaringPositionBitmap.MAX_POSITION);
+
+    assertThatThrownBy(() -> bitmap.setRange(-1L, 1L))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining(
+            "Bitmap supports positions that are >= 0 and <= %s",
+            RoaringPositionBitmap.MAX_POSITION);
+
+    assertThatThrownBy(() -> bitmap.setRange(0L, RoaringPositionBitmap.MAX_POSITION + 2L))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining(
             "Bitmap supports positions that are >= 0 and <= %s",

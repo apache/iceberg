@@ -21,7 +21,14 @@ package org.apache.iceberg;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import java.io.IOException;
+import java.math.RoundingMode;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.atomic.AtomicReferenceArray;
+import java.util.function.Function;
 import org.apache.iceberg.ManifestReader.FileType;
 import org.apache.iceberg.avro.AvroEncoderUtil;
 import org.apache.iceberg.avro.AvroSchemaUtil;
@@ -38,7 +45,11 @@ import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTest
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.math.IntMath;
+import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.PropertyUtil;
+import org.apache.iceberg.util.Tasks;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -150,6 +161,14 @@ public class ManifestFiles {
    */
   public static ManifestReader<DataFile> read(
       ManifestFile manifest, FileIO io, Map<Integer, PartitionSpec> specsById) {
+    return read(manifest, io, specsById, true);
+  }
+
+  static ManifestReader<DataFile> read(
+      ManifestFile manifest,
+      FileIO io,
+      Map<Integer, PartitionSpec> specsById,
+      boolean isCommitted) {
     Preconditions.checkArgument(
         manifest.content() == ManifestContent.DATA,
         "Cannot read a delete manifest with a ManifestReader: %s",
@@ -162,6 +181,7 @@ public class ManifestFiles {
         specsById,
         inheritableMetadata,
         manifest.firstRowId(),
+        isCommitted,
         FileType.DATA_FILES);
   }
 
@@ -212,6 +232,25 @@ public class ManifestFiles {
   }
 
   /**
+   * Create a new {@link ManifestWriter} for the given format version with custom writer properties.
+   *
+   * @param formatVersion a target format version
+   * @param spec a {@link PartitionSpec}
+   * @param encryptedOutputFile an {@link EncryptedOutputFile} where the manifest will be written
+   * @param snapshotId a snapshot ID for the manifest entries, or null for an inherited ID
+   * @param writerProperties properties passed through to the underlying file writer
+   * @return a manifest writer
+   */
+  public static ManifestWriter<DataFile> write(
+      int formatVersion,
+      PartitionSpec spec,
+      EncryptedOutputFile encryptedOutputFile,
+      Long snapshotId,
+      Map<String, String> writerProperties) {
+    return newWriter(formatVersion, spec, encryptedOutputFile, snapshotId, null, writerProperties);
+  }
+
+  /**
    * Create a new {@link ManifestWriter} for the given format version.
    *
    * @param formatVersion a target format version
@@ -227,15 +266,54 @@ public class ManifestFiles {
       EncryptedOutputFile encryptedOutputFile,
       Long snapshotId,
       Long firstRowId) {
+    return newWriter(
+        formatVersion, spec, encryptedOutputFile, snapshotId, firstRowId, Collections.emptyMap());
+  }
+
+  /**
+   * Create a new {@link ManifestWriter} for the given format version with custom writer properties.
+   *
+   * @param formatVersion a target format version
+   * @param spec a {@link PartitionSpec}
+   * @param outputFile an {@link OutputFile} where the manifest will be written
+   * @param snapshotId a snapshot ID for the manifest entries, or null for an inherited ID
+   * @param writerProperties properties passed through to the underlying file writer
+   * @return a manifest writer
+   */
+  public static ManifestWriter<DataFile> write(
+      int formatVersion,
+      PartitionSpec spec,
+      OutputFile outputFile,
+      Long snapshotId,
+      Map<String, String> writerProperties) {
+    return newWriter(
+        formatVersion,
+        spec,
+        EncryptedFiles.plainAsEncryptedOutput(outputFile),
+        snapshotId,
+        null,
+        writerProperties);
+  }
+
+  @VisibleForTesting
+  static ManifestWriter<DataFile> newWriter(
+      int formatVersion,
+      PartitionSpec spec,
+      EncryptedOutputFile encryptedOutputFile,
+      Long snapshotId,
+      Long firstRowId,
+      Map<String, String> writerProperties) {
     switch (formatVersion) {
       case 1:
-        return new ManifestWriter.V1Writer(spec, encryptedOutputFile, snapshotId);
+        return new ManifestWriter.V1Writer(spec, encryptedOutputFile, snapshotId, writerProperties);
       case 2:
-        return new ManifestWriter.V2Writer(spec, encryptedOutputFile, snapshotId);
+        return new ManifestWriter.V2Writer(spec, encryptedOutputFile, snapshotId, writerProperties);
       case 3:
-        return new ManifestWriter.V3Writer(spec, encryptedOutputFile, snapshotId, firstRowId);
+        return new ManifestWriter.V3Writer(
+            spec, encryptedOutputFile, snapshotId, firstRowId, writerProperties);
       case 4:
-        return new ManifestWriter.V4Writer(spec, encryptedOutputFile, snapshotId, firstRowId);
+        return new ManifestWriter.V4Writer(
+            spec, encryptedOutputFile, snapshotId, firstRowId, writerProperties);
     }
     throw new UnsupportedOperationException(
         "Cannot write manifest for table version: " + formatVersion);
@@ -277,6 +355,30 @@ public class ManifestFiles {
   }
 
   /**
+   * Create a new {@link ManifestWriter} for the given format version with custom writer properties.
+   *
+   * @param formatVersion a target format version
+   * @param spec a {@link PartitionSpec}
+   * @param outputFile an {@link OutputFile} where the manifest will be written
+   * @param snapshotId a snapshot ID for the manifest entries, or null for an inherited ID
+   * @param writerProperties properties passed through to the underlying file writer
+   * @return a manifest writer
+   */
+  public static ManifestWriter<DeleteFile> writeDeleteManifest(
+      int formatVersion,
+      PartitionSpec spec,
+      OutputFile outputFile,
+      Long snapshotId,
+      Map<String, String> writerProperties) {
+    return writeDeleteManifest(
+        formatVersion,
+        spec,
+        EncryptedFiles.plainAsEncryptedOutput(outputFile),
+        snapshotId,
+        writerProperties);
+  }
+
+  /**
    * Create a new {@link ManifestWriter} for the given format version.
    *
    * @param formatVersion a target format version
@@ -287,15 +389,34 @@ public class ManifestFiles {
    */
   public static ManifestWriter<DeleteFile> writeDeleteManifest(
       int formatVersion, PartitionSpec spec, EncryptedOutputFile outputFile, Long snapshotId) {
+    return writeDeleteManifest(formatVersion, spec, outputFile, snapshotId, Collections.emptyMap());
+  }
+
+  /**
+   * Create a new {@link ManifestWriter} for the given format version with custom writer properties.
+   *
+   * @param formatVersion a target format version
+   * @param spec a {@link PartitionSpec}
+   * @param outputFile an {@link EncryptedOutputFile} where the manifest will be written
+   * @param snapshotId a snapshot ID for the manifest entries, or null for an inherited ID
+   * @param writerProperties properties passed through to the underlying file writer
+   * @return a manifest writer
+   */
+  public static ManifestWriter<DeleteFile> writeDeleteManifest(
+      int formatVersion,
+      PartitionSpec spec,
+      EncryptedOutputFile outputFile,
+      Long snapshotId,
+      Map<String, String> writerProperties) {
     switch (formatVersion) {
       case 1:
         throw new IllegalArgumentException("Cannot write delete files in a v1 table");
       case 2:
-        return new ManifestWriter.V2DeleteWriter(spec, outputFile, snapshotId);
+        return new ManifestWriter.V2DeleteWriter(spec, outputFile, snapshotId, writerProperties);
       case 3:
-        return new ManifestWriter.V3DeleteWriter(spec, outputFile, snapshotId);
+        return new ManifestWriter.V3DeleteWriter(spec, outputFile, snapshotId, writerProperties);
       case 4:
-        return new ManifestWriter.V4DeleteWriter(spec, outputFile, snapshotId);
+        return new ManifestWriter.V4DeleteWriter(spec, outputFile, snapshotId, writerProperties);
     }
     throw new UnsupportedOperationException(
         "Cannot write manifest for table version: " + formatVersion);
@@ -490,5 +611,55 @@ public class ManifestFiles {
         io.properties(),
         CatalogProperties.IO_MANIFEST_CACHE_MAX_CONTENT_LENGTH,
         CatalogProperties.IO_MANIFEST_CACHE_MAX_CONTENT_LENGTH_DEFAULT);
+  }
+
+  /**
+   * Writes the given files into manifests in parallel, splitting them into up to {@code
+   * parallelism} groups and submitting each group to the provided executor. The actual number of
+   * groups may be smaller because the group size is rounded up.
+   *
+   * @param files content files to write
+   * @param parallelism upper bound on the number of parallel groups
+   * @param writePool executor used to run group writes concurrently
+   * @param writeFunc function that writes a single group and returns the resulting manifests
+   * @return manifests in input-group order
+   */
+  static <F> List<ManifestFile> writeParallel(
+      Collection<F> files,
+      int parallelism,
+      ExecutorService writePool,
+      Function<List<F>, List<ManifestFile>> writeFunc) {
+    List<List<F>> groups = divide(files, parallelism);
+
+    // Pair each group with its index so results can be reassembled in input order.
+    List<Pair<Integer, List<F>>> groupsWithIndex = Lists.newArrayList();
+    for (int i = 0; i < groups.size(); i++) {
+      groupsWithIndex.add(Pair.of(i, groups.get(i)));
+    }
+
+    AtomicReferenceArray<List<ManifestFile>> results = new AtomicReferenceArray<>(groups.size());
+
+    Tasks.foreach(groupsWithIndex)
+        .stopOnFailure()
+        .throwFailureWhenFinished()
+        .executeWith(writePool)
+        .run(
+            indexedGroup -> {
+              int index = indexedGroup.first();
+              List<F> group = indexedGroup.second();
+              results.set(index, writeFunc.apply(group));
+            });
+
+    ImmutableList.Builder<ManifestFile> builder = ImmutableList.builder();
+    for (int i = 0; i < results.length(); i++) {
+      builder.addAll(results.get(i));
+    }
+    return builder.build();
+  }
+
+  private static <T> List<List<T>> divide(Collection<T> collection, int groupCount) {
+    List<T> list = Lists.newArrayList(collection);
+    int groupSize = IntMath.divide(list.size(), groupCount, RoundingMode.CEILING);
+    return Lists.partition(list, groupSize);
   }
 }

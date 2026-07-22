@@ -197,6 +197,14 @@ public class CachingCatalog implements Catalog {
     return table;
   }
 
+  @Override
+  public Table registerTable(
+      TableIdentifier identifier, String metadataFileLocation, boolean overwrite) {
+    Table table = catalog.registerTable(identifier, metadataFileLocation, overwrite);
+    invalidateTable(identifier);
+    return table;
+  }
+
   private Iterable<TableIdentifier> metadataTableIdentifiers(TableIdentifier ident) {
     ImmutableList.Builder<TableIdentifier> builder = ImmutableList.builder();
 

@@ -20,6 +20,7 @@ package org.apache.iceberg.flink.sink.dynamic;
 
 import java.util.Collections;
 import java.util.Set;
+import javax.annotation.Nullable;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -47,6 +48,20 @@ class DynamicSinkUtil {
     }
 
     return equalityFieldIds;
+  }
+
+  /**
+   * Resolves the effective equality field names. Returns the user-supplied set when non-empty,
+   * otherwise falls back to the names of {@link Schema#identifierFieldIds()}. Mirrors {@link
+   * #getEqualityFieldIds} so distribution and write-side equality-field inference stay aligned.
+   */
+  static Set<String> resolveEqualityFieldNames(
+      @Nullable Set<String> equalityFields, Schema schema) {
+    if (equalityFields != null && !equalityFields.isEmpty()) {
+      return equalityFields;
+    }
+
+    return schema.identifierFieldNames();
   }
 
   static int safeAbs(int input) {

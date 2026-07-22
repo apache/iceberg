@@ -136,23 +136,26 @@ public class ScanContext implements Serializable {
       if (startingStrategy == StreamingStartingStrategy.INCREMENTAL_FROM_SNAPSHOT_ID) {
         Preconditions.checkArgument(
             startSnapshotId != null,
-            "Invalid starting snapshot id for SPECIFIC_START_SNAPSHOT_ID strategy: null");
+            "Invalid starting snapshot id for %s strategy: null",
+            startingStrategy);
         Preconditions.checkArgument(
             startSnapshotTimestamp == null,
-            "Invalid starting snapshot timestamp for SPECIFIC_START_SNAPSHOT_ID strategy: not null");
+            "Invalid starting snapshot timestamp for %s strategy: not null",
+            startingStrategy);
       }
       if (startingStrategy == StreamingStartingStrategy.INCREMENTAL_FROM_SNAPSHOT_TIMESTAMP) {
         Preconditions.checkArgument(
             startSnapshotTimestamp != null,
-            "Invalid starting snapshot timestamp for SPECIFIC_START_SNAPSHOT_TIMESTAMP strategy: null");
+            "Invalid starting snapshot timestamp for %s strategy: null",
+            startingStrategy);
         Preconditions.checkArgument(
             startSnapshotId == null,
-            "Invalid starting snapshot id for SPECIFIC_START_SNAPSHOT_ID strategy: not null");
+            "Invalid starting snapshot id for %s strategy: not null",
+            startingStrategy);
       }
 
       Preconditions.checkArgument(
-          tag == null,
-          String.format("Cannot scan table using ref %s configured for streaming reader", tag));
+          tag == null, "Cannot scan table using ref %s configured for streaming reader", tag);
       Preconditions.checkArgument(
           snapshotId == null, "Cannot set snapshot-id option for streaming reader");
       Preconditions.checkArgument(

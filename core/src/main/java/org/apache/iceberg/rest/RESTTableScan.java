@@ -22,15 +22,18 @@ import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.RemovalListener;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.DataTableScan;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableScan;
@@ -42,11 +45,14 @@ import org.apache.iceberg.io.StorageCredential;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.rest.credentials.Credential;
 import org.apache.iceberg.rest.requests.PlanTableScanRequest;
+import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.rest.responses.FetchPlanningResultResponse;
 import org.apache.iceberg.rest.responses.PlanTableScanResponse;
-import org.apache.iceberg.types.Types;
+import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -56,7 +62,6 @@ class RESTTableScan extends DataTableScan {
   private static final long MIN_SLEEP_MS = 1000; // Initial delay
   private static final long MAX_SLEEP_MS = 60 * 1000; // Max backoff delay (1 minute)
   private static final int MAX_RETRIES = 10; // Max number of poll retries
-  private static final long MAX_WAIT_TIME_MS = 5 * 60 * 1000; // Total maximum duration (5 minutes)
   private static final double SCALE_FACTOR = 2.0; // Exponential scale factor
   private static final String DEFAULT_FILE_IO_IMPL = "org.apache.iceberg.io.ResolvingFileIO";
   private static final Cache<RESTTableScan, FileIO> FILEIO_TRACKER =
@@ -82,6 +87,7 @@ class RESTTableScan extends DataTableScan {
   private final Object hadoopConf;
   private String planId = null;
   private FileIO scanFileIO = null;
+  private boolean useSnapshotSchema = false;
 
   RESTTableScan(
       Table table,
@@ -114,25 +120,43 @@ class RESTTableScan extends DataTableScan {
   @Override
   protected TableScan newRefinedScan(
       Table refinedTable, Schema refinedSchema, TableScanContext refinedContext) {
-    return new RESTTableScan(
-        refinedTable,
-        refinedSchema,
-        refinedContext,
-        client,
-        headers,
-        operations,
-        tableIdentifier,
-        resourcePaths,
-        supportedEndpoints,
-        catalogProperties,
-        hadoopConf);
+    RESTTableScan scan =
+        new RESTTableScan(
+            refinedTable,
+            refinedSchema,
+            refinedContext,
+            client,
+            headers,
+            operations,
+            tableIdentifier,
+            resourcePaths,
+            supportedEndpoints,
+            catalogProperties,
+            hadoopConf);
+    scan.useSnapshotSchema = useSnapshotSchema;
+    return scan;
   }
 
   @Override
-  public FileIO io() {
-    Preconditions.checkState(
-        null != scanFileIO, "FileIO is not available: planFiles() must be called first");
-    return scanFileIO;
+  public TableScan useRef(String name) {
+    SnapshotRef ref = table().refs().get(name);
+    this.useSnapshotSchema = ref != null && ref.isTag();
+    return super.useRef(name);
+  }
+
+  @Override
+  public TableScan useSnapshot(long snapshotId) {
+    this.useSnapshotSchema = true;
+    return super.useSnapshot(snapshotId);
+  }
+
+  @Override
+  public Supplier<FileIO> fileIO() {
+    return () -> {
+      Preconditions.checkState(
+          null != scanFileIO, "FileIO is not available: planFiles() must be called first");
+      return scanFileIO;
+    };
   }
 
   @Override
@@ -140,8 +164,9 @@ class RESTTableScan extends DataTableScan {
     Long startSnapshotId = context().fromSnapshotId();
     Long endSnapshotId = context().toSnapshotId();
     Long snapshotId = snapshotId();
+    List<Integer> projectedFieldIds = Lists.newArrayList(TypeUtil.getProjectedIds(schema()));
     List<String> selectedColumns =
-        schema().columns().stream().map(Types.NestedField::name).collect(Collectors.toList());
+        projectedFieldIds.stream().map(schema()::findColumnName).collect(Collectors.toList());
 
     List<String> statsFields = null;
     if (columnsToKeepStats() != null) {
@@ -156,7 +181,8 @@ class RESTTableScan extends DataTableScan {
             .withSelect(selectedColumns)
             .withFilter(filter())
             .withCaseSensitive(isCaseSensitive())
-            .withStatsFields(statsFields);
+            .withStatsFields(statsFields)
+            .withMinRowsRequested(context().minRowsRequested());
 
     if (startSnapshotId != null && endSnapshotId != null) {
       builder
@@ -164,8 +190,7 @@ class RESTTableScan extends DataTableScan {
           .withEndSnapshotId(endSnapshotId)
           .withUseSnapshotSchema(true);
     } else if (snapshotId != null) {
-      boolean useSnapShotSchema = snapshotId != table().currentSnapshot().snapshotId();
-      builder.withSnapshotId(snapshotId).withUseSnapshotSchema(useSnapShotSchema);
+      builder.withSnapshotId(snapshotId).withUseSnapshotSchema(useSnapshotSchema);
     }
 
     return planTableScan(builder.build());
@@ -194,11 +219,7 @@ class RESTTableScan extends DataTableScan {
         Endpoint.check(supportedEndpoints, Endpoint.V1_FETCH_TABLE_SCAN_PLAN);
         return fetchPlanningResult();
       case FAILED:
-        throw new IllegalStateException(
-            String.format("Received status: %s for planId: %s", PlanStatus.FAILED, planId));
-      case CANCELLED:
-        throw new IllegalStateException(
-            String.format("Received status: %s for planId: %s", PlanStatus.CANCELLED, planId));
+        throw new IllegalStateException(failureMessage(planId, response.errorResponse()));
       default:
         throw new IllegalStateException(
             String.format("Invalid planStatus: %s for planId: %s", planStatus, planId));
@@ -226,38 +247,72 @@ class RESTTableScan extends DataTableScan {
   }
 
   private CloseableIterable<FileScanTask> fetchPlanningResult() {
+    long maxWaitTimeMs =
+        PropertyUtil.propertyAsLong(
+            catalogProperties,
+            RESTCatalogProperties.REST_SCAN_PLANNING_POLL_TIMEOUT_MS,
+            RESTCatalogProperties.REST_SCAN_PLANNING_POLL_TIMEOUT_MS_DEFAULT);
+    Preconditions.checkArgument(
+        maxWaitTimeMs > 0,
+        "Invalid value for %s: %s (must be positive)",
+        RESTCatalogProperties.REST_SCAN_PLANNING_POLL_TIMEOUT_MS,
+        maxWaitTimeMs);
+
     AtomicReference<FetchPlanningResultResponse> result = new AtomicReference<>();
-    Tasks.foreach(planId)
-        .exponentialBackoff(MIN_SLEEP_MS, MAX_SLEEP_MS, MAX_WAIT_TIME_MS, SCALE_FACTOR)
-        .retry(MAX_RETRIES)
-        .onlyRetryOn(NotCompleteException.class)
-        .onFailure(
-            (id, err) -> {
-              LOG.warn("Planning failed for plan ID: {}", id, err);
-              cleanupPlanResources();
-            })
-        .throwFailureWhenFinished()
-        .run(
-            id -> {
-              FetchPlanningResultResponse response =
-                  client.get(
-                      resourcePaths.plan(tableIdentifier, id),
-                      headers,
-                      FetchPlanningResultResponse.class,
-                      headers,
-                      ErrorHandlers.planErrorHandler(),
-                      parserContext);
+    try {
+      Tasks.foreach(planId)
+          .exponentialBackoff(MIN_SLEEP_MS, MAX_SLEEP_MS, maxWaitTimeMs, SCALE_FACTOR)
+          .retry(MAX_RETRIES)
+          .onlyRetryOn(NotCompleteException.class)
+          .onFailure(
+              (id, err) -> {
+                LOG.warn("Planning failed for plan ID: {}", id, err);
+                cleanupPlanResources();
+              })
+          .throwFailureWhenFinished()
+          .run(
+              id -> {
+                FetchPlanningResultResponse response =
+                    client.get(
+                        resourcePaths.plan(tableIdentifier, id),
+                        headers,
+                        FetchPlanningResultResponse.class,
+                        headers,
+                        ErrorHandlers.planErrorHandler(),
+                        parserContext);
 
-              if (response.planStatus() == PlanStatus.SUBMITTED) {
-                throw new NotCompleteException();
-              } else if (response.planStatus() != PlanStatus.COMPLETED) {
-                throw new IllegalStateException(
-                    String.format(
-                        "Invalid planStatus: %s for planId: %s", response.planStatus(), id));
-              }
-
-              result.set(response);
-            });
+                switch (response.planStatus()) {
+                  case COMPLETED:
+                    result.set(response);
+                    break;
+                  case SUBMITTED:
+                    throw new NotCompleteException();
+                  case FAILED:
+                    throw new IllegalStateException(failureMessage(id, response.errorResponse()));
+                  case CANCELLED:
+                    throw new IllegalStateException(
+                        String.format(
+                            Locale.ROOT, "Remote scan planning cancelled for planId: %s", id));
+                  default:
+                    throw new IllegalStateException(
+                        String.format(
+                            Locale.ROOT,
+                            "Invalid planStatus: %s for planId: %s",
+                            response.planStatus(),
+                            id));
+                }
+              });
+    } catch (NotCompleteException e) {
+      throw new RemotePlanTimeoutException(
+          String.format(
+              Locale.ROOT,
+              "Remote scan planning for planId: %s did not complete within configured limits"
+                  + " (timeout=%d ms, maxRetries=%d)",
+              planId,
+              maxWaitTimeMs,
+              MAX_RETRIES),
+          e);
+    }
 
     FetchPlanningResultResponse response = result.get();
 
@@ -265,6 +320,21 @@ class RESTTableScan extends DataTableScan {
         !response.credentials().isEmpty() ? scanFileIO(response.credentials()) : table().io();
 
     return scanTasksIterable(response.planTasks(), response.fileScanTasks());
+  }
+
+  private static String failureMessage(String planId, ErrorResponse error) {
+    // If a FAILED response lacks the expected error payload, still return a useful error
+    // message instead of throwing.
+    String type = error != null ? error.type() : "unknown";
+    int code = error != null ? error.code() : 0;
+    String message = error != null ? error.message() : "unknown";
+    return String.format(
+        Locale.ROOT,
+        "Remote scan planning failed for planId: %s: %s (code=%d): %s",
+        planId,
+        type,
+        code,
+        message);
   }
 
   private CloseableIterable<FileScanTask> scanTasksIterable(

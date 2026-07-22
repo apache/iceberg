@@ -38,6 +38,8 @@ import org.apache.iceberg.events.CreateSnapshotEvent;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.expressions.ManifestEvaluator;
+import org.apache.iceberg.expressions.Projections;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
@@ -287,7 +289,11 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
 
   protected void validateNewDeleteFile(DeleteFile file) {
     Preconditions.checkNotNull(file, "Invalid delete file: null");
-    switch (formatVersion()) {
+    validateDeleteFileForVersion(file, formatVersion());
+  }
+
+  private static void validateDeleteFileForVersion(DeleteFile file, int formatVersion) {
+    switch (formatVersion) {
       case 1:
         throw new IllegalArgumentException("Deletes are supported in V2 and above");
       case 2:
@@ -301,11 +307,11 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
         Preconditions.checkArgument(
             file.content() == FileContent.EQUALITY_DELETES || ContentFileUtil.isDV(file),
             "Must use DVs for position deletes in V%s: %s",
-            formatVersion(),
+            formatVersion,
             file.location());
         break;
       default:
-        throw new IllegalArgumentException("Unsupported format version: " + formatVersion());
+        throw new IllegalArgumentException("Unsupported format version: " + formatVersion);
     }
   }
 
@@ -836,7 +842,12 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     List<ManifestFile> newDeleteManifests = history.first();
     Set<Long> newSnapshotIds = history.second();
 
-    Tasks.foreach(newDeleteManifests)
+    Iterable<ManifestFile> matchingManifests =
+        Iterables.filter(
+            filterManifestsByPartition(base, conflictDetectionFilter, newDeleteManifests),
+            ManifestFile::hasAddedFiles);
+
+    Tasks.foreach(matchingManifests)
         .stopOnFailure()
         .throwFailureWhenFinished()
         .executeWith(workerPool())
@@ -864,6 +875,38 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }
+  }
+
+  private Iterable<ManifestFile> filterManifestsByPartition(
+      TableMetadata base, Expression conflictDetectionFilter, List<ManifestFile> manifests) {
+    if (conflictDetectionFilter == null || conflictDetectionFilter == Expressions.alwaysTrue()) {
+      return manifests;
+    }
+
+    // if any concurrent manifest was written with a different partition spec, skip pruning
+    // to avoid incorrectly excluding manifests when a spec change happened during validation
+    int defaultSpecId = base.defaultSpecId();
+    if (manifests.stream().anyMatch(m -> m.partitionSpecId() != defaultSpecId)) {
+      return manifests;
+    }
+
+    Map<Integer, PartitionSpec> specsById = base.specsById();
+    Map<Integer, ManifestEvaluator> evaluators = Maps.newHashMap();
+    return Iterables.filter(
+        manifests,
+        manifest -> {
+          ManifestEvaluator evaluator =
+              evaluators.computeIfAbsent(
+                  manifest.partitionSpecId(),
+                  specId -> {
+                    PartitionSpec spec = specsById.get(specId);
+                    Expression partitionFilter =
+                        Projections.inclusive(spec, caseSensitive).project(conflictDetectionFilter);
+                    return ManifestEvaluator.forPartitionFilter(
+                        partitionFilter, spec, caseSensitive);
+                  });
+          return evaluator.eval(manifest);
+        });
   }
 
   // returns newly added manifests and snapshot IDs between the starting and parent snapshots
@@ -920,8 +963,16 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     return summaryBuilder.build();
   }
 
+  // guard buffered deletes against concurrent format upgrade
+  private void validateDeleteFilesForVersion(int currentFormatVersion) {
+    for (DeleteFile file : v2Deletes) {
+      validateDeleteFileForVersion(file, currentFormatVersion);
+    }
+  }
+
   @Override
   public List<ManifestFile> apply(TableMetadata base, Snapshot snapshot) {
+    validateDeleteFilesForVersion(base.formatVersion());
     // filter any existing manifests
     List<ManifestFile> filtered =
         filterManager.filterManifests(
@@ -1199,7 +1250,13 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
 
     @Override
     protected ManifestReader<DataFile> newManifestReader(ManifestFile manifest) {
-      return MergingSnapshotProducer.this.newManifestReader(manifest);
+      return newManifestReader(manifest, true);
+    }
+
+    @Override
+    protected ManifestReader<DataFile> newManifestReader(
+        ManifestFile manifest, boolean isCommitted) {
+      return ManifestFiles.read(manifest, ops().io(), ops().current().specsById(), isCommitted);
     }
   }
 

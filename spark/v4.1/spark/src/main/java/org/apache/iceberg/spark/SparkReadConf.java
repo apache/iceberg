@@ -156,13 +156,18 @@ public class SparkReadConf {
   }
 
   public Long splitSizeOption() {
-    return confParser.longConf().option(SparkReadOptions.SPLIT_SIZE).parseOptional();
+    return confParser
+        .longConf()
+        .option(SparkReadOptions.SPLIT_SIZE)
+        .sessionConf(SparkSQLProperties.READ_SPLIT_SIZE)
+        .parseOptional();
   }
 
   public long splitSize() {
     return confParser
         .longConf()
         .option(SparkReadOptions.SPLIT_SIZE)
+        .sessionConf(SparkSQLProperties.READ_SPLIT_SIZE)
         .tableProperty(TableProperties.SPLIT_SIZE)
         .defaultValue(TableProperties.SPLIT_SIZE_DEFAULT)
         .parse();
@@ -279,6 +284,7 @@ public class SparkReadConf {
   public boolean adaptiveSplitSizeEnabled() {
     return confParser
         .booleanConf()
+        .sessionConf(SparkSQLProperties.READ_ADAPTIVE_SPLIT_SIZE_ENABLED)
         .tableProperty(TableProperties.ADAPTIVE_SPLIT_SIZE_ENABLED)
         .defaultValue(TableProperties.ADAPTIVE_SPLIT_SIZE_ENABLED_DEFAULT)
         .parse();
@@ -288,6 +294,17 @@ public class SparkReadConf {
     int defaultParallelism = spark.sparkContext().defaultParallelism();
     int numShufflePartitions = spark.sessionState().conf().numShufflePartitions();
     return Math.max(defaultParallelism, numShufflePartitions);
+  }
+
+  public int splitParallelism() {
+    int parallelism =
+        confParser
+            .intConf()
+            .sessionConf(SparkSQLProperties.READ_ADAPTIVE_SPLIT_SIZE_PARALLELISM)
+            .defaultValue(parallelism())
+            .parse();
+    Preconditions.checkArgument(parallelism > 0, "Split parallelism must be > 0: %s", parallelism);
+    return parallelism;
   }
 
   public boolean distributedPlanningEnabled() {
@@ -366,14 +383,6 @@ public class SparkReadConf {
         .booleanConf()
         .sessionConf(SparkSQLProperties.REPORT_COLUMN_STATS)
         .defaultValue(SparkSQLProperties.REPORT_COLUMN_STATS_DEFAULT)
-        .parse();
-  }
-
-  public ParquetReaderType parquetReaderType() {
-    return confParser
-        .enumConf(ParquetReaderType::fromString)
-        .sessionConf(SparkSQLProperties.PARQUET_READER_TYPE)
-        .defaultValue(SparkSQLProperties.PARQUET_READER_TYPE_DEFAULT)
         .parse();
   }
 

@@ -55,6 +55,7 @@ import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.NoSuchViewException;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.hadoop.HadoopFileIO;
+import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
@@ -65,6 +66,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.LocationUtil;
+import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.view.BaseMetastoreViewCatalog;
 import org.apache.iceberg.view.View;
 import org.apache.iceberg.view.ViewBuilder;
@@ -94,7 +96,9 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
   private KeyManagementClient keyManagementClient;
   private ClientPool<IMetaStoreClient, TException> clients;
   private boolean listAllTables = false;
+  private boolean uniqueTableLocation;
   private Map<String, String> catalogProperties;
+  private CloseableGroup closeableGroup;
 
   public HiveCatalog() {}
 
@@ -131,7 +135,19 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
       this.keyManagementClient = EncryptionUtil.createKmsClient(properties);
     }
 
+    this.uniqueTableLocation =
+        PropertyUtil.propertyAsBoolean(
+            properties,
+            CatalogProperties.UNIQUE_TABLE_LOCATION,
+            CatalogProperties.UNIQUE_TABLE_LOCATION_DEFAULT);
+
     this.clients = new CachedClientPool(conf, properties);
+
+    this.closeableGroup = new CloseableGroup();
+    closeableGroup.addCloseable(fileIO);
+    closeableGroup.addCloseable(keyManagementClient);
+    closeableGroup.addCloseable(metricsReporter());
+    closeableGroup.setSuppressCloseFailure(true);
   }
 
   @Override
@@ -708,13 +724,14 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
     // - Create the metadata in HMS, and this way committing the changes
 
     // Create a new location based on the namespace / database if it is set on database level
+    String tableLocation = LocationUtil.tableLocation(tableIdentifier, uniqueTableLocation);
     try {
       Database databaseData =
           clients.run(client -> client.getDatabase(tableIdentifier.namespace().levels()[0]));
       if (databaseData.getLocationUri() != null) {
         // If the database location is set use it as a base.
         String databaseLocation = LocationUtil.stripTrailingSlash(databaseData.getLocationUri());
-        return String.format("%s/%s", databaseLocation, tableIdentifier.name());
+        return String.format("%s/%s", databaseLocation, tableLocation);
       }
 
     } catch (NoSuchObjectException e) {
@@ -731,7 +748,7 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
 
     // Otherwise, stick to the {WAREHOUSE_DIR}/{DB_NAME}.db/{TABLE_NAME} path
     String databaseLocation = databaseLocation(tableIdentifier.namespace().levels()[0]);
-    return String.format("%s/%s", databaseLocation, tableIdentifier.name());
+    return String.format("%s/%s", databaseLocation, tableLocation);
   }
 
   private String databaseLocation(String databaseName) {
@@ -824,10 +841,8 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
 
   @Override
   public void close() throws IOException {
-    super.close();
-
-    if (keyManagementClient != null) {
-      keyManagementClient.close();
+    if (closeableGroup != null) {
+      closeableGroup.close();
     }
   }
 

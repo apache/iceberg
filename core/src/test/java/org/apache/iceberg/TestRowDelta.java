@@ -45,9 +45,14 @@ import org.apache.iceberg.deletes.BaseDVFileWriter;
 import org.apache.iceberg.deletes.DVFileWriter;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.deletes.PositionDeleteIndex;
+import org.apache.iceberg.encryption.EncryptingFileIO;
+import org.apache.iceberg.encryption.EncryptionManager;
+import org.apache.iceberg.encryption.EncryptionTestHelpers;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.expressions.ManifestEvaluator;
+import org.apache.iceberg.expressions.Projections;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -1946,11 +1951,43 @@ public class TestRowDelta extends TestBase {
     commit(table, rowDelta1, branch);
 
     Iterable<DeleteFile> addedDeleteFiles =
-        latestSnapshot(table, branch).addedDeleteFiles(table.io());
+        SnapshotChanges.builderFor(table)
+            .snapshot(latestSnapshot(table, branch))
+            .build()
+            .addedDeleteFiles();
     assertThat(Iterables.size(addedDeleteFiles)).isEqualTo(1);
     DeleteFile mergedDV = Iterables.getOnlyElement(addedDeleteFiles);
 
     assertDVHasDeletedPositions(mergedDV, LongStream.range(0, 8).boxed()::iterator);
+  }
+
+  @TestTemplate
+  public void testDuplicateDVsAreMergedWithEncryption() throws IOException {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
+
+    TestTables.TestTable encryptedTable = createEncryptedTable();
+    DataFile dataFile = newDataFile("data_bucket=0");
+    commit(encryptedTable, encryptedTable.newRowDelta().addRows(dataFile), branch);
+
+    OutputFileFactory fileFactory =
+        OutputFileFactory.builderFor(encryptedTable, 1, 1).format(FileFormat.PUFFIN).build();
+
+    DeleteFile deleteFile1 = dvWithPositions(encryptedTable, dataFile, fileFactory, 0, 2);
+    DeleteFile deleteFile2 = dvWithPositions(encryptedTable, dataFile, fileFactory, 2, 4);
+    commit(
+        encryptedTable,
+        encryptedTable.newRowDelta().addDeletes(deleteFile1).addDeletes(deleteFile2),
+        branch);
+
+    Iterable<DeleteFile> addedDeleteFiles =
+        SnapshotChanges.builderFor(encryptedTable)
+            .snapshot(latestSnapshot(encryptedTable, branch))
+            .build()
+            .addedDeleteFiles();
+    DeleteFile mergedDV = Iterables.getOnlyElement(addedDeleteFiles);
+
+    assertThat(mergedDV.keyMetadata()).isNotNull();
+    assertDVHasDeletedPositions(encryptedTable, mergedDV, LongStream.range(0, 4).boxed()::iterator);
   }
 
   @TestTemplate
@@ -2004,7 +2041,8 @@ public class TestRowDelta extends TestBase {
 
     Snapshot snapshot = latestSnapshot(table, branch);
     // Expect 3 merged DVs, one per data file
-    Iterable<DeleteFile> addedDeleteFiles = snapshot.addedDeleteFiles(table.io());
+    Iterable<DeleteFile> addedDeleteFiles =
+        SnapshotChanges.builderFor(table).snapshot(snapshot).build().addedDeleteFiles();
     List<DeleteFile> mergedDVs = Lists.newArrayList(addedDeleteFiles);
     assertThat(mergedDVs).hasSize(3);
     // Should be a Puffin produced per merged DV spec
@@ -2067,7 +2105,10 @@ public class TestRowDelta extends TestBase {
 
     // Expect two merged DVs, one per data file
     Iterable<DeleteFile> addedDeleteFiles =
-        latestSnapshot(table, branch).addedDeleteFiles(table.io());
+        SnapshotChanges.builderFor(table)
+            .snapshot(latestSnapshot(table, branch))
+            .build()
+            .addedDeleteFiles();
     List<DeleteFile> mergedDVs = Lists.newArrayList(addedDeleteFiles);
 
     assertThat(mergedDVs).hasSize(2);
@@ -2119,7 +2160,10 @@ public class TestRowDelta extends TestBase {
 
     // Expect two DVs: one merged for dataFile1 and deleteFile2
     Iterable<DeleteFile> addedDeleteFiles =
-        latestSnapshot(table, branch).addedDeleteFiles(table.io());
+        SnapshotChanges.builderFor(table)
+            .snapshot(latestSnapshot(table, branch))
+            .build()
+            .addedDeleteFiles();
     List<DeleteFile> committedDVs = Lists.newArrayList(addedDeleteFiles);
 
     assertThat(committedDVs).hasSize(2);
@@ -2167,7 +2211,10 @@ public class TestRowDelta extends TestBase {
     commit(table, rowDelta, branch);
 
     Iterable<DeleteFile> addedDeleteFiles =
-        latestSnapshot(table, branch).addedDeleteFiles(table.io());
+        SnapshotChanges.builderFor(table)
+            .snapshot(latestSnapshot(table, branch))
+            .build()
+            .addedDeleteFiles();
     List<DeleteFile> committedDeletes = Lists.newArrayList(addedDeleteFiles);
 
     // 1 DV + 1 equality delete
@@ -2185,6 +2232,167 @@ public class TestRowDelta extends TestBase {
                 .collect(Collectors.toList()));
     assertThat(committedEqDelete).isNotNull();
     assertThat(committedEqDelete.content()).isEqualTo(FileContent.EQUALITY_DELETES);
+  }
+
+  @TestTemplate
+  public void testConcurrentDVsInDifferentPartitionsWithFilter() {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
+
+    // bucket16("u") -> 0, bucket16("a") -> 2
+    DataFile dataFileInBucket0 = newDataFile("data_bucket=0");
+    DataFile dataFileInBucket2 = newDataFile("data_bucket=2");
+    commit(
+        table, table.newRowDelta().addRows(dataFileInBucket0).addRows(dataFileInBucket2), branch);
+
+    Snapshot base = latestSnapshot(table, branch);
+
+    // prepare a DV for bucket 0 with a conflict detection filter scoped to bucket 0
+    DeleteFile dvBucket0 = newDeletes(dataFileInBucket0);
+    RowDelta rowDelta =
+        table
+            .newRowDelta()
+            .addDeletes(dvBucket0)
+            .validateFromSnapshot(base.snapshotId())
+            .conflictDetectionFilter(Expressions.equal("data", "u")); // bucket16("u") -> 0
+
+    // concurrently commit a DV in bucket 2
+    DeleteFile dvBucket2 = newDeletes(dataFileInBucket2);
+    Snapshot concurrentSnapshot = commit(table, table.newRowDelta().addDeletes(dvBucket2), branch);
+
+    // commit should succeed because the concurrent DV is in bucket 2
+    // which does not overlap the conflict detection filter
+    Snapshot finalSnapshot = commit(table, rowDelta, branch);
+
+    assertThat(finalSnapshot.deleteManifests(table.io())).hasSize(2);
+    validateDeleteManifest(
+        finalSnapshot.deleteManifests(table.io()).get(0),
+        dataSeqs(finalSnapshot.sequenceNumber()),
+        fileSeqs(finalSnapshot.sequenceNumber()),
+        ids(finalSnapshot.snapshotId()),
+        files(dvBucket0),
+        statuses(Status.ADDED));
+    validateDeleteManifest(
+        finalSnapshot.deleteManifests(table.io()).get(1),
+        dataSeqs(concurrentSnapshot.sequenceNumber()),
+        fileSeqs(concurrentSnapshot.sequenceNumber()),
+        ids(concurrentSnapshot.snapshotId()),
+        files(dvBucket2),
+        statuses(Status.ADDED));
+  }
+
+  @TestTemplate
+  public void testConcurrentDVsInSamePartitionWithFilter() {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
+
+    // bucket16("u") -> 0
+    DataFile dataFile = newDataFile("data_bucket=0");
+    commit(table, table.newRowDelta().addRows(dataFile), branch);
+
+    Snapshot base = latestSnapshot(table, branch);
+
+    // prepare a DV for dataFile with a conflict detection filter scoped to bucket 0
+    DeleteFile dv1 = newDeletes(dataFile);
+    RowDelta rowDelta =
+        table
+            .newRowDelta()
+            .addDeletes(dv1)
+            .validateFromSnapshot(base.snapshotId())
+            .conflictDetectionFilter(Expressions.equal("data", "u")); // bucket16("u") -> 0
+
+    // concurrently commit another DV for the same data file in bucket 0
+    DeleteFile dv2 = newDeletes(dataFile);
+    commit(table, table.newRowDelta().addDeletes(dv2), branch);
+
+    // must be conflict because the concurrent DV is in the same partition
+    assertThatThrownBy(() -> commit(table, rowDelta, branch))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("Found concurrently added DV for %s", dataFile.location());
+  }
+
+  @TestTemplate
+  public void testDVValidationPartitionPruningManifestCount() {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
+
+    // disable manifest merging so each commit produces a separate delete manifest
+    table.updateProperties().set(TableProperties.MANIFEST_MERGE_ENABLED, "false").commit();
+
+    // create data files and DVs across 10 different partitions (buckets 0-9)
+    int numPartitions = 10;
+    DataFile[] dataFiles = new DataFile[numPartitions];
+    for (int bucket = 0; bucket < numPartitions; bucket++) {
+      dataFiles[bucket] = newDataFile("data_bucket=" + bucket);
+      commit(table, table.newRowDelta().addRows(dataFiles[bucket]), branch);
+      DeleteFile dv = newDeletes(dataFiles[bucket]);
+      commit(table, table.newRowDelta().addDeletes(dv), branch);
+    }
+
+    Snapshot base = latestSnapshot(table, branch);
+    List<ManifestFile> deleteManifests = base.deleteManifests(table.io());
+
+    // there should be one delete manifest per partition since we disabled merging
+    assertThat(deleteManifests).hasSizeGreaterThanOrEqualTo(numPartitions);
+
+    // count how many manifests match a filter scoped to bucket 0
+    // bucket16("u") -> 0
+    Expression filter = Expressions.equal("data", "u");
+    int matching = 0;
+    for (ManifestFile manifest : deleteManifests) {
+      PartitionSpec spec = table.specs().get(manifest.partitionSpecId());
+      Expression partitionFilter = Projections.inclusive(spec, true).project(filter);
+      ManifestEvaluator evaluator =
+          ManifestEvaluator.forPartitionFilter(partitionFilter, spec, true);
+      if (evaluator.eval(manifest)) {
+        matching = matching + 1;
+      }
+    }
+
+    // only 1 out of N manifests should match the filter for bucket 0
+    assertThat(matching).isEqualTo(1);
+    assertThat(deleteManifests.size() - matching)
+        .as("pruned manifests")
+        .isGreaterThanOrEqualTo(numPartitions - 1);
+
+    // verify the DV manifest pruning works: commit a new DV in bucket 0
+    // while concurrent DVs exist in all other partitions
+    DataFile newDataFileInBucket0 = newDataFile("data_bucket=0");
+    commit(table, table.newRowDelta().addRows(newDataFileInBucket0), branch);
+
+    Snapshot preCommit = latestSnapshot(table, branch);
+    DeleteFile newDV = newDeletes(newDataFileInBucket0);
+    RowDelta rowDelta =
+        table
+            .newRowDelta()
+            .addDeletes(newDV)
+            .validateFromSnapshot(preCommit.snapshotId())
+            .conflictDetectionFilter(Expressions.equal("data", "u")); // bucket16("u") -> 0
+
+    // concurrently add a DV in a different partition (bucket 5)
+    // bucket16("v") -> 5
+    DataFile newDataFileInBucket5 = newDataFile("data_bucket=5");
+    commit(table, table.newRowDelta().addRows(newDataFileInBucket5), branch);
+    DeleteFile concurrentDV = newDeletes(newDataFileInBucket5);
+    Snapshot concurrentSnapshot =
+        commit(table, table.newRowDelta().addDeletes(concurrentDV), branch);
+
+    // commit should succeed: the concurrent DV is in bucket 5, pruned by the filter
+    Snapshot finalSnapshot = commit(table, rowDelta, branch);
+
+    List<ManifestFile> finalDeleteManifests = finalSnapshot.deleteManifests(table.io());
+    // the new DV manifest and the concurrent DV manifest should be present
+    validateDeleteManifest(
+        finalDeleteManifests.get(0),
+        dataSeqs(finalSnapshot.sequenceNumber()),
+        fileSeqs(finalSnapshot.sequenceNumber()),
+        ids(finalSnapshot.snapshotId()),
+        files(newDV),
+        statuses(Status.ADDED));
+    validateDeleteManifest(
+        finalDeleteManifests.get(1),
+        dataSeqs(concurrentSnapshot.sequenceNumber()),
+        fileSeqs(concurrentSnapshot.sequenceNumber()),
+        ids(concurrentSnapshot.snapshotId()),
+        files(concurrentDV),
+        statuses(Status.ADDED));
   }
 
   @TestTemplate
@@ -2241,6 +2449,27 @@ public class TestRowDelta extends TestBase {
     assertThat(taskDV.referencedDataFile()).isEqualTo(dv.referencedDataFile());
     assertThat(taskDV.contentOffset()).isEqualTo(dv.contentOffset());
     assertThat(taskDV.contentSizeInBytes()).isEqualTo(dv.contentSizeInBytes());
+  }
+
+  @TestTemplate
+  public void testV2StagedPositionDeleteCannotCommitToV3() {
+    assumeThat(formatVersion).isEqualTo(2);
+
+    Snapshot initial = commit(table, table.newAppend().appendFile(FILE_A), branch);
+
+    // Stage RowDelta at v2: position delete for FILE_A + add new data FILE_B.
+    RowDelta rowDelta = table.newRowDelta().addDeletes(FILE_A_DELETES).addRows(FILE_B);
+
+    // upgrade the table
+    table.updateProperties().set(TableProperties.FORMAT_VERSION, "3").commit();
+
+    assertThatThrownBy(rowDelta::commit)
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Must use DVs for position deletes in V3");
+
+    table.refresh();
+    assertThat(table.operations().current().formatVersion()).isEqualTo(3);
+    assertThat(table.snapshot(branch)).isEqualTo(initial);
   }
 
   @TestTemplate
@@ -2370,18 +2599,33 @@ public class TestRowDelta extends TestBase {
   private DeleteFile dvWithPositions(
       DataFile dataFile, OutputFileFactory fileFactory, int fromInclusive, int toExclusive)
       throws IOException {
+    return dvWithPositions(table, dataFile, fileFactory, fromInclusive, toExclusive);
+  }
+
+  private DeleteFile dvWithPositions(
+      Table targetTable,
+      DataFile dataFile,
+      OutputFileFactory fileFactory,
+      int fromInclusive,
+      int toExclusive)
+      throws IOException {
 
     List<PositionDelete<?>> deletes = Lists.newArrayList();
     for (int i = fromInclusive; i < toExclusive; i++) {
       deletes.add(PositionDelete.create().set(dataFile.location(), i));
     }
 
-    return writeDV(deletes, dataFile.specId(), dataFile.partition(), fileFactory);
+    return writeDV(targetTable, deletes, dataFile.specId(), dataFile.partition(), fileFactory);
   }
 
   private void assertDVHasDeletedPositions(DeleteFile dv, Iterable<Long> positions) {
+    assertDVHasDeletedPositions(table, dv, positions);
+  }
+
+  private void assertDVHasDeletedPositions(
+      Table targetTable, DeleteFile dv, Iterable<Long> positions) {
     assertThat(dv).isNotNull();
-    PositionDeleteIndex index = DVUtil.readDV(dv, table.io());
+    PositionDeleteIndex index = DVUtil.readDV(dv, targetTable.io());
     assertThat(positions)
         .allSatisfy(
             pos ->
@@ -2391,6 +2635,7 @@ public class TestRowDelta extends TestBase {
   }
 
   private DeleteFile writeDV(
+      Table targetTable,
       List<PositionDelete<?>> deletes,
       int specId,
       StructLike partition,
@@ -2401,10 +2646,29 @@ public class TestRowDelta extends TestBase {
     try (DVFileWriter closeableWriter = writer) {
       for (PositionDelete<?> delete : deletes) {
         closeableWriter.delete(
-            delete.path().toString(), delete.pos(), table.specs().get(specId), partition);
+            delete.path().toString(), delete.pos(), targetTable.specs().get(specId), partition);
       }
     }
 
     return Iterables.getOnlyElement(writer.result().deleteFiles());
+  }
+
+  private TestTables.TestTable createEncryptedTable() {
+    EncryptionManager encryptionManager = EncryptionTestHelpers.createEncryptionManager();
+    String tableName = "encrypted-" + branch;
+    java.io.File encryptedTableDir = temp.resolve(tableName).toFile();
+    TestTables.TestTableOperations ops =
+        new TestTables.TestTableOperations(
+            tableName,
+            encryptedTableDir,
+            EncryptingFileIO.combine(new TestTables.LocalFileIO(), encryptionManager)) {
+          @Override
+          public EncryptionManager encryption() {
+            return encryptionManager;
+          }
+        };
+
+    return TestTables.create(
+        encryptedTableDir, tableName, SCHEMA, SPEC, SortOrder.unsorted(), formatVersion, ops);
   }
 }

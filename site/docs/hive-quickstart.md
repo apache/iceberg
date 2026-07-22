@@ -36,13 +36,12 @@ Take a look at the Tags tab in [Apache Hive docker images](https://hub.docker.co
 
 Set the version variable.
 ```sh
-export HIVE_VERSION=4.0.0
+export HIVE_VERSION=4.2.0
 ```
 
-To accommodate both Intel-based (x86_64) and Apple Silicon (M1, M2, M3) Macs when running your Docker container, you can use the --platform flag to specify the desired architecture. Apple Silicon Macs use the arm64 architecture, while Intel Macs use the amd64 architecture.
-Start the container, using the option `--platform linux/arm64` for a Mac with an M-Series chip:
+Start the HiveServer2 container:
 ```sh
-docker run -d --platform linux/arm64 -p 10000:10000 -p 10002:10002 --env SERVICE_NAME=hiveserver2 --name hive4 apache/hive:${HIVE_VERSION}
+docker run -d -p 10000:10000 -p 10002:10002 --env SERVICE_NAME=hiveserver2 --name hive4 apache/hive:${HIVE_VERSION}
 ```
 
 The docker run command above configures Hive to use the embedded derby database for Hive Metastore. Hive Metastore functions as the Iceberg catalog to locate Iceberg files, which can be anywhere.
@@ -106,8 +105,8 @@ SELECT * FROM nyc.taxis;
 
 #### Adding Iceberg to Hive
 
-If you already have a Hive 4.0.0 or later environment, it comes with the Iceberg 1.4.3 included. No additional downloads or jars are needed. If you have a Hive 2.3.x or Hive 3.1.x environment see [Enabling Iceberg support in Hive](docs/latest/hive.md#hive-23x-hive-31x).
+If you already have a Hive 4.0.0 or later environment, it comes with the Iceberg included. No additional downloads or jars are needed. If you have a Hive 2.3.x or Hive 3.1.x environment see [Enabling Iceberg support in Hive](docs/latest/hive.md#hive-23x-hive-31x).
 
 #### Learn More
 
-To learn more about setting up a database other than Derby, see [Apache Hive Quick Start](https://hive.apache.org/developement/quickstart/). You can also [set up a standalone metastore, HS2 and Postgres](https://github.com/apache/hive/blob/master/packaging/src/docker/docker-compose.yml). Now that you're up and running with Iceberg and Hive, check out the [Iceberg-Hive docs](docs/latest/hive.md) to learn more!
+To learn more about setting up a database other than Derby, see [Apache Hive Quick Start](https://hive.apache.org/developement/quickstart/). You can also [set up a standalone metastore, HS2 and Postgres](https://github.com/apache/hive/blob/master/packaging/src/docker/docker-compose.yml) or [use Hive Metastore as Iceberg REST Catalog](https://hive.apache.org/docs/latest/admin/iceberg-rest-catalog/). Now that you're up and running with Iceberg and Hive, check out the [Iceberg-Hive docs](docs/latest/hive.md) to learn more!

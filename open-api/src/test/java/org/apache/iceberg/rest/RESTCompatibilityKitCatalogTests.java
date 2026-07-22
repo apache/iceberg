@@ -26,6 +26,8 @@ import org.apache.iceberg.util.PropertyUtil;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -96,5 +98,20 @@ public class RESTCompatibilityKitCatalogTests extends CatalogTests<RESTCatalog> 
     // underlying JDBC catalog doesn't support namespaces with a dot
     return PropertyUtil.propertyAsBoolean(
         restCatalog.properties(), RESTCompatibilityKitSuite.RCK_SUPPORTS_NAMES_WITH_DOT, false);
+  }
+
+  @Override
+  protected boolean supportsNamesWithSlashes() {
+    // names with slashes are rejected and considered as suspicious characters after upgrading Jetty
+    // and the Servlet API. See also
+    // https://jakarta.ee/specifications/servlet/6.0/jakarta-servlet-spec-6.0.html#uri-path-canonicalization
+    // for additional details
+    return false;
+  }
+
+  @Disabled("RESTServerExtension isn’t configurable per test")
+  @Test
+  public void createTableInUniqueLocation() {
+    super.createTableInUniqueLocation();
   }
 }

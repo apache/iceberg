@@ -268,7 +268,7 @@ public class FileGenerationUtil {
   }
 
   private static long generateFileSize() {
-    return random().nextInt(50_000);
+    return 1 + random().nextInt(50_000);
   }
 
   private static long generateContentOffset() {
@@ -276,13 +276,17 @@ public class FileGenerationUtil {
   }
 
   private static long generateContentLength() {
-    return random().nextInt(10_000);
+    return 1 + random().nextInt(10_000);
   }
 
   private static Pair<ByteBuffer, ByteBuffer> generateBounds(PrimitiveType type, MetricsMode mode) {
-    Comparator<Object> cmp = Comparators.forType(type);
     Object value1 = generateBound(type, mode);
     Object value2 = generateBound(type, mode);
+
+    if (value1 == null || value2 == null) {
+      return Pair.of(null, null);
+    }
+    Comparator<Object> cmp = Comparators.forType(type);
     if (cmp.compare(value1, value2) > 0) {
       ByteBuffer lowerBuffer = Conversions.toByteBuffer(type, value2);
       ByteBuffer upperBuffer = Conversions.toByteBuffer(type, value1);

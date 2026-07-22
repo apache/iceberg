@@ -26,6 +26,7 @@ import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.io.CloseableIterator;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.spark.OrcBatchReadConf;
@@ -52,6 +53,7 @@ class BatchDataReader extends BaseBatchReader<FileScanTask>
       OrcBatchReadConf orcBatchReadConf) {
     this(
         partition.table(),
+        partition.io(),
         partition.taskGroup(),
         partition.projection(),
         partition.isCaseSensitive(),
@@ -62,6 +64,7 @@ class BatchDataReader extends BaseBatchReader<FileScanTask>
 
   BatchDataReader(
       Table table,
+      FileIO fileIO,
       ScanTaskGroup<FileScanTask> taskGroup,
       Schema expectedSchema,
       boolean caseSensitive,
@@ -70,6 +73,7 @@ class BatchDataReader extends BaseBatchReader<FileScanTask>
       boolean cacheDeleteFilesOnExecutors) {
     super(
         table,
+        fileIO,
         taskGroup,
         expectedSchema,
         caseSensitive,

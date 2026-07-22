@@ -79,7 +79,15 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
       Schema projection,
       List<Expression> filters,
       Supplier<ScanReport> scanReportSupplier) {
-    super(spark, table, schema, readConf, projection, filters, scanReportSupplier);
+    super(
+        spark,
+        table,
+        null != scan ? scan.fileIO() : table::io,
+        schema,
+        readConf,
+        projection,
+        filters,
+        scanReportSupplier);
 
     this.scan = scan;
     this.preserveDataGrouping = readConf.preserveDataGrouping();
