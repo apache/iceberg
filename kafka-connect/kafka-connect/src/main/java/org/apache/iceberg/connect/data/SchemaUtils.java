@@ -306,7 +306,15 @@ class SchemaUtils {
         return BooleanType.get();
       } else if (value instanceof BigDecimal) {
         BigDecimal bigDecimal = (BigDecimal) value;
-        return DecimalType.of(bigDecimal.precision(), bigDecimal.scale());
+        int scale = bigDecimal.scale();
+        int precision = bigDecimal.precision();
+        // BigDecimal may use a negative scale (e.g. "1E+2" has scale -2)
+        if (scale < 0) {
+          precision -= scale;
+          scale = 0;
+        }
+        // a value < 1 may have precision < scale (e.g. "0.001"); widen precision to the scale
+        return DecimalType.of(Math.max(precision, scale), scale);
       } else if (value instanceof Integer || value instanceof Long) {
         return LongType.get();
       } else if (value instanceof Float || value instanceof Double) {
