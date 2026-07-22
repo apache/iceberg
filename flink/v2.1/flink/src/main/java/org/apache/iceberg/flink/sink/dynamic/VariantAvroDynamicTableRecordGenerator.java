@@ -53,7 +53,7 @@ public class VariantAvroDynamicTableRecordGenerator extends DynamicTableRecordGe
   private static final Splitter COMMA = Splitter.on(',').trimResults().omitEmptyStrings();
 
   private final Map<String, String> writeProperties;
-  private transient int maxCacheSize;
+  private transient int inputSchemasPerTableCacheMaxSize;
   private transient Map<TableIdentifier, SchemaAndPartitionSpecCacheItem> tableCache;
 
   public VariantAvroDynamicTableRecordGenerator(
@@ -73,8 +73,9 @@ public class VariantAvroDynamicTableRecordGenerator extends DynamicTableRecordGe
   public void open(OpenContext openContext) throws Exception {
     super.open(openContext);
 
-    this.maxCacheSize = flinkDynamicSinkConf().cacheMaxSize();
-    this.tableCache = new LRUCache<>(maxCacheSize);
+    this.inputSchemasPerTableCacheMaxSize =
+        flinkDynamicSinkConf().inputSchemasPerTableCacheMaxSize();
+    this.tableCache = new LRUCache<>(flinkDynamicSinkConf().cacheMaxSize());
   }
 
   @Override
@@ -102,7 +103,8 @@ public class VariantAvroDynamicTableRecordGenerator extends DynamicTableRecordGe
 
     SchemaAndPartitionSpecCacheItem cacheItem =
         tableCache.computeIfAbsent(
-            tableIdentifier, identifier -> new SchemaAndPartitionSpecCacheItem(maxCacheSize));
+            tableIdentifier,
+            identifier -> new SchemaAndPartitionSpecCacheItem(inputSchemasPerTableCacheMaxSize));
 
     SchemaCacheItem schemaCacheItem = cacheItem.schemaItem(avroSchemaId, avroSchema);
 
