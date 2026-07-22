@@ -35,20 +35,29 @@ import org.apache.iceberg.avro.ValueWriters;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 public class DataWriter<T> implements MetricsAwareDatumWriter<T> {
+  private final boolean adjustToUtcDefault;
   private ValueWriter<T> writer = null;
 
   public static <D> DataWriter<D> create(Schema schema) {
     return new DataWriter<>(schema);
   }
 
+  public static <D> DataWriter<D> create(Schema schema, boolean adjustToUtcDefault) {
+    return new DataWriter<>(schema, adjustToUtcDefault);
+  }
+
   protected DataWriter(Schema schema) {
+    this(schema, true);
+  }
+
+  protected DataWriter(Schema schema, boolean adjustToUtcDefault) {
+    this.adjustToUtcDefault = adjustToUtcDefault;
     setSchema(schema);
   }
 
   @Override
   @SuppressWarnings("unchecked")
   public void setSchema(Schema schema) {
-    boolean adjustToUtcDefault = AvroSchemaUtil.adjustToUtcDefault(schema);
     this.writer =
         (ValueWriter<T>) AvroSchemaVisitor.visit(schema, new WriteBuilder(adjustToUtcDefault));
   }

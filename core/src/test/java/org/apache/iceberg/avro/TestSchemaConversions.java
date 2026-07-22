@@ -122,7 +122,7 @@ public class TestSchemaConversions {
                 LogicalTypes.timestampMillis().addToSchema(Schema.create(Schema.Type.LONG)), true),
             addAdjustToUtc(
                 LogicalTypes.timestampMillis().addToSchema(Schema.create(Schema.Type.LONG)), false),
-            // iceberg types can't encode local-timestamp-* types when legacy mapping enabled
+            // local-timestamp-* types are disabled in the primitive types test
             LogicalTypes.localTimestampMillis().addToSchema(Schema.create(Schema.Type.LONG)),
             LogicalTypes.localTimestampMicros().addToSchema(Schema.create(Schema.Type.LONG)),
             LogicalTypes.localTimestampNanos().addToSchema(Schema.create(Schema.Type.LONG)));
@@ -161,9 +161,11 @@ public class TestSchemaConversions {
 
     List<Schema> avroTimestamps =
         Lists.newArrayList(
-            LogicalTypes.timestampMicros().addToSchema(Schema.create(Schema.Type.LONG)),
+            addAdjustToUtc(
+                LogicalTypes.timestampMicros().addToSchema(Schema.create(Schema.Type.LONG)), true),
             LogicalTypes.localTimestampMicros().addToSchema(Schema.create(Schema.Type.LONG)),
-            LogicalTypes.timestampNanos().addToSchema(Schema.create(Schema.Type.LONG)),
+            addAdjustToUtc(
+                LogicalTypes.timestampNanos().addToSchema(Schema.create(Schema.Type.LONG)), true),
             LogicalTypes.localTimestampNanos().addToSchema(Schema.create(Schema.Type.LONG)));
 
     for (int i = 0; i < timestamps.size(); i += 1) {
@@ -184,35 +186,35 @@ public class TestSchemaConversions {
     // to round trip the avro<->iceberg conversion
     List<Schema> avroTimestamps =
         Lists.newArrayList(
-            // adjust-to-utc=true|false is still honored for timestamp-* types
+            // iceberg types can only encode adjust-to-utc=true but not a missing adjust-to-utc
+            LogicalTypes.timestampMillis().addToSchema(Schema.create(Schema.Type.LONG)),
+            LogicalTypes.timestampMicros().addToSchema(Schema.create(Schema.Type.LONG)),
+            LogicalTypes.timestampNanos().addToSchema(Schema.create(Schema.Type.LONG)),
+            // iceberg types can only encode *-micros and *-nanos types
             addAdjustToUtc(
                 LogicalTypes.timestampMillis().addToSchema(Schema.create(Schema.Type.LONG)), true),
+            LogicalTypes.localTimestampMillis().addToSchema(Schema.create(Schema.Type.LONG)),
+            // adjust-to-utc=false is still honored for timestamp-* types
             addAdjustToUtc(
                 LogicalTypes.timestampMillis().addToSchema(Schema.create(Schema.Type.LONG)), false),
             addAdjustToUtc(
-                LogicalTypes.timestampMicros().addToSchema(Schema.create(Schema.Type.LONG)), true),
-            addAdjustToUtc(
                 LogicalTypes.timestampMicros().addToSchema(Schema.create(Schema.Type.LONG)), false),
             addAdjustToUtc(
-                LogicalTypes.timestampNanos().addToSchema(Schema.create(Schema.Type.LONG)), true),
-            addAdjustToUtc(
-                LogicalTypes.timestampNanos().addToSchema(Schema.create(Schema.Type.LONG)), false),
-            // iceberg types can only encode *-micros and *-nanos types
-            LogicalTypes.timestampMillis().addToSchema(Schema.create(Schema.Type.LONG)),
-            LogicalTypes.localTimestampMillis().addToSchema(Schema.create(Schema.Type.LONG)));
+                LogicalTypes.timestampNanos().addToSchema(Schema.create(Schema.Type.LONG)), false));
 
     List<Type> timestamps =
         Lists.newArrayList(
-            // adjust-to-utc=true|false
+            // missing adjust-to-utc
             Types.TimestampType.withZone(),
-            Types.TimestampType.withoutZone(),
             Types.TimestampType.withZone(),
-            Types.TimestampType.withoutZone(),
             Types.TimestampNanoType.withZone(),
-            Types.TimestampNanoType.withoutZone(),
             // *-millis
             Types.TimestampType.withZone(),
-            Types.TimestampType.withoutZone());
+            Types.TimestampType.withoutZone(),
+            // adjust-to-utc=false
+            Types.TimestampType.withoutZone(),
+            Types.TimestampType.withoutZone(),
+            Types.TimestampNanoType.withoutZone());
 
     for (int i = 0; i < timestamps.size(); i += 1) {
       Type type = timestamps.get(i);

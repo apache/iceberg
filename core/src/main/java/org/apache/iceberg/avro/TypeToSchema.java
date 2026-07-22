@@ -42,12 +42,16 @@ abstract class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
       LogicalTypes.date().addToSchema(Schema.create(Schema.Type.INT));
   private static final Schema TIME_SCHEMA =
       LogicalTypes.timeMicros().addToSchema(Schema.create(Schema.Type.LONG));
-  private static final Schema TIMESTAMP_SCHEMA =
+  private static final Schema LOCAL_TIMESTAMP_SCHEMA =
       LogicalTypes.localTimestampMicros().addToSchema(Schema.create(Schema.Type.LONG));
+  private static final Schema TIMESTAMP_SCHEMA =
+      LogicalTypes.timestampMicros().addToSchema(Schema.create(Schema.Type.LONG));
   private static final Schema TIMESTAMPTZ_SCHEMA =
       LogicalTypes.timestampMicros().addToSchema(Schema.create(Schema.Type.LONG));
-  private static final Schema TIMESTAMP_NANO_SCHEMA =
+  private static final Schema LOCAL_TIMESTAMP_NANO_SCHEMA =
       LogicalTypes.localTimestampNanos().addToSchema(Schema.create(Schema.Type.LONG));
+  private static final Schema TIMESTAMP_NANO_SCHEMA =
+      LogicalTypes.timestampNanos().addToSchema(Schema.create(Schema.Type.LONG));
   private static final Schema TIMESTAMPTZ_NANO_SCHEMA =
       LogicalTypes.timestampNanos().addToSchema(Schema.create(Schema.Type.LONG));
   private static final Schema STRING_SCHEMA = Schema.create(Schema.Type.STRING);
@@ -55,20 +59,11 @@ abstract class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
       LogicalTypes.uuid().addToSchema(Schema.createFixed("uuid_fixed", null, null, 16));
   private static final Schema BINARY_SCHEMA = Schema.create(Schema.Type.BYTES);
 
-  private static final Schema LEGACY_TIMESTAMP_SCHEMA =
-      LogicalTypes.timestampMicros().addToSchema(Schema.create(Schema.Type.LONG));
-  private static final Schema LEGACY_TIMESTAMPTZ_SCHEMA =
-      LogicalTypes.timestampMicros().addToSchema(Schema.create(Schema.Type.LONG));
-  private static final Schema LEGACY_TIMESTAMP_NANO_SCHEMA =
-      LogicalTypes.timestampNanos().addToSchema(Schema.create(Schema.Type.LONG));
-  private static final Schema LEGACY_TIMESTAMPTZ_NANO_SCHEMA =
-      LogicalTypes.timestampNanos().addToSchema(Schema.create(Schema.Type.LONG));
-
   static {
-    LEGACY_TIMESTAMP_SCHEMA.addProp(AvroSchemaUtil.ADJUST_TO_UTC_PROP, false);
-    LEGACY_TIMESTAMPTZ_SCHEMA.addProp(AvroSchemaUtil.ADJUST_TO_UTC_PROP, true);
-    LEGACY_TIMESTAMP_NANO_SCHEMA.addProp(AvroSchemaUtil.ADJUST_TO_UTC_PROP, false);
-    LEGACY_TIMESTAMPTZ_NANO_SCHEMA.addProp(AvroSchemaUtil.ADJUST_TO_UTC_PROP, true);
+    TIMESTAMP_SCHEMA.addProp(AvroSchemaUtil.ADJUST_TO_UTC_PROP, false);
+    TIMESTAMPTZ_SCHEMA.addProp(AvroSchemaUtil.ADJUST_TO_UTC_PROP, true);
+    TIMESTAMP_NANO_SCHEMA.addProp(AvroSchemaUtil.ADJUST_TO_UTC_PROP, false);
+    TIMESTAMPTZ_NANO_SCHEMA.addProp(AvroSchemaUtil.ADJUST_TO_UTC_PROP, true);
   }
 
   private final Deque<Integer> fieldIds = Lists.newLinkedList();
@@ -251,18 +246,17 @@ abstract class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
         break;
       case TIMESTAMP:
         if (((Types.TimestampType) primitive).shouldAdjustToUTC()) {
-          primitiveSchema = localTimestampEnabled ? TIMESTAMPTZ_SCHEMA : LEGACY_TIMESTAMPTZ_SCHEMA;
+          primitiveSchema = TIMESTAMPTZ_SCHEMA;
         } else {
-          primitiveSchema = localTimestampEnabled ? TIMESTAMP_SCHEMA : LEGACY_TIMESTAMP_SCHEMA;
+          primitiveSchema = localTimestampEnabled ? LOCAL_TIMESTAMP_SCHEMA : TIMESTAMP_SCHEMA;
         }
         break;
       case TIMESTAMP_NANO:
         if (((Types.TimestampNanoType) primitive).shouldAdjustToUTC()) {
-          primitiveSchema =
-              localTimestampEnabled ? TIMESTAMPTZ_NANO_SCHEMA : LEGACY_TIMESTAMPTZ_NANO_SCHEMA;
+          primitiveSchema = TIMESTAMPTZ_NANO_SCHEMA;
         } else {
           primitiveSchema =
-              localTimestampEnabled ? TIMESTAMP_NANO_SCHEMA : LEGACY_TIMESTAMP_NANO_SCHEMA;
+              localTimestampEnabled ? LOCAL_TIMESTAMP_NANO_SCHEMA : TIMESTAMP_NANO_SCHEMA;
         }
         break;
       case STRING:

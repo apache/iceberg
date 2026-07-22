@@ -48,7 +48,6 @@ public class IcebergDecoder<D> extends MessageDecoder.BaseDecoder<D> {
 
   private final org.apache.iceberg.Schema readSchema;
   private final SchemaStore resolver;
-  private final boolean adjustToUtcDefault;
   private final Map<Long, RawDecoder<D>> decoders = new MapMaker().makeMap();
 
   /**
@@ -88,14 +87,8 @@ public class IcebergDecoder<D> extends MessageDecoder.BaseDecoder<D> {
    * @param resolver a {@link SchemaStore} used to find schemas by fingerprint
    */
   public IcebergDecoder(org.apache.iceberg.Schema readSchema, SchemaStore resolver) {
-    this(readSchema, resolver, true);
-  }
-
-  public IcebergDecoder(
-      org.apache.iceberg.Schema readSchema, SchemaStore resolver, boolean adjustToUtcDefault) {
     this.readSchema = readSchema;
     this.resolver = resolver;
-    this.adjustToUtcDefault = adjustToUtcDefault;
     addSchema(this.readSchema);
   }
 
@@ -105,9 +98,7 @@ public class IcebergDecoder<D> extends MessageDecoder.BaseDecoder<D> {
    * @param writeSchema a schema to use when decoding buffers
    */
   public void addSchema(org.apache.iceberg.Schema writeSchema) {
-    Schema avroWriteSchema = AvroSchemaUtil.convert(writeSchema, "table", adjustToUtcDefault);
-    AvroSchemaUtil.addAdjustToUtcDefaultProp(avroWriteSchema, adjustToUtcDefault);
-    addSchema(avroWriteSchema);
+    addSchema(AvroSchemaUtil.convert(writeSchema, "table"));
   }
 
   private void addSchema(Schema writeSchema) {

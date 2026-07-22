@@ -48,8 +48,6 @@ public class AvroSchemaUtil {
   public static final String VALUE_ID_PROP = "value-id";
   public static final String ELEMENT_ID_PROP = "element-id";
   public static final String ADJUST_TO_UTC_PROP = "adjust-to-utc";
-  public static final String ADJUST_TO_UTC_DEFAULT_PROP = "adjust-to-utc-default";
-  public static final boolean ADJUST_TO_UTC_DEFAULT = false;
 
   private static final Schema NULL = Schema.create(Schema.Type.NULL);
   private static final Schema.Type MAP = Schema.Type.MAP;
@@ -197,21 +195,6 @@ public class AvroSchemaUtil {
     }
 
     return fileSchema;
-  }
-
-  public static boolean adjustToUtcDefault(Schema schema) {
-    Object value = schema.getObjectProp(ADJUST_TO_UTC_DEFAULT_PROP);
-    if (value instanceof Boolean) {
-      return (Boolean) value;
-    }
-
-    return ADJUST_TO_UTC_DEFAULT;
-  }
-
-  public static void addAdjustToUtcDefaultProp(Schema schema, boolean adjustToUtcDefault) {
-    if (adjustToUtcDefault != ADJUST_TO_UTC_DEFAULT) {
-      schema.addProp(ADJUST_TO_UTC_DEFAULT_PROP, adjustToUtcDefault);
-    }
   }
 
   public static boolean isTimestamptz(Schema schema) {

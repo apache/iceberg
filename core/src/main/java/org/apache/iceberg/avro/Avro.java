@@ -212,11 +212,15 @@ public class Avro {
           PropertyUtil.propertyAsBoolean(
               config, AVRO_LOCAL_TIMESTAMP_ENABLED, AVRO_LOCAL_TIMESTAMP_ENABLED_DEFAULT);
 
-      Schema avroSchema = AvroSchemaUtil.convert(schema, name, localTimestampEnabled);
-      AvroSchemaUtil.addAdjustToUtcDefaultProp(avroSchema, localTimestampEnabled);
-
       return new AvroFileAppender<>(
-          schema, avroSchema, file, writerFunc, codec, metadata, metricsConfig, overwrite);
+          schema,
+          AvroSchemaUtil.convert(schema, name, localTimestampEnabled),
+          file,
+          writerFunc,
+          codec,
+          metadata,
+          metricsConfig,
+          overwrite);
     }
 
     static class Context {
