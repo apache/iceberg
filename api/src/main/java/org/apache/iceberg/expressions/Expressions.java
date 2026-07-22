@@ -202,6 +202,11 @@ public class Expressions {
     return new UnboundPredicate<>(Expression.Operation.NOT_STARTS_WITH, expr, value);
   }
 
+  public static UnboundSpatialPredicate stIntersects(
+      String name, org.apache.iceberg.geospatial.BoundingBox queryBound) {
+    return new UnboundSpatialPredicate(Expression.Operation.ST_INTERSECTS, ref(name), queryBound);
+  }
+
   public static <T> UnboundPredicate<T> in(String name, T... values) {
     return predicate(Operation.IN, name, Lists.newArrayList(values));
   }

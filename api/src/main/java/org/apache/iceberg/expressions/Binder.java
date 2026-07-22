@@ -160,6 +160,16 @@ public class Binder {
     }
 
     @Override
+    public Expression spatialPredicate(BoundSpatialPredicate pred) {
+      throw new IllegalStateException("Found already bound predicate: " + pred);
+    }
+
+    @Override
+    public Expression spatialPredicate(UnboundSpatialPredicate pred) {
+      return pred.bind(struct, caseSensitive);
+    }
+
+    @Override
     public <T> Expression aggregate(UnboundAggregate<T> agg) {
       return agg.bind(struct, caseSensitive);
     }
@@ -203,6 +213,12 @@ public class Binder {
       references.add(pred.ref().fieldId());
       return references;
     }
+
+    @Override
+    public Set<Integer> spatialPredicate(BoundSpatialPredicate pred) {
+      references.add(pred.ref().fieldId());
+      return references;
+    }
   }
 
   private static class IsBoundVisitor extends ExpressionVisitor<Boolean> {
@@ -228,6 +244,16 @@ public class Binder {
 
     @Override
     public <T> Boolean predicate(UnboundPredicate<T> pred) {
+      return false;
+    }
+
+    @Override
+    public Boolean spatialPredicate(BoundSpatialPredicate pred) {
+      return true;
+    }
+
+    @Override
+    public Boolean spatialPredicate(UnboundSpatialPredicate pred) {
       return false;
     }
 

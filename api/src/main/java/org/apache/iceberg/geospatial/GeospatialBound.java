@@ -44,7 +44,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
  * <p>This class represents a lower or upper geospatial bound and handles serialization and
  * deserialization of these bounds to/from byte arrays, conforming to the Iceberg specification.
  */
-public class GeospatialBound {
+public class GeospatialBound implements java.io.Serializable {
   /**
    * Parses a geospatial bound from a byte buffer according to Iceberg spec.
    *

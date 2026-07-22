@@ -29,9 +29,13 @@ import java.util.stream.Collectors;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.geospatial.BoundingBox;
+import org.apache.iceberg.geospatial.GeospatialBound;
+import org.apache.iceberg.geospatial.GeospatialPredicateEvaluators;
 import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Conversions;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.NaNUtil;
 import org.apache.iceberg.variants.Variant;
@@ -106,6 +110,35 @@ public class InclusiveMetricsEvaluator {
       this.upperBounds = file.upperBounds();
 
       return ExpressionVisitors.visitEvaluator(expr, this);
+    }
+
+    @Override
+    public Boolean spatialPredicate(BoundSpatialPredicate pred) {
+      return spatial(pred);
+    }
+
+    private Boolean spatial(BoundSpatialPredicate pred) {
+      int id = pred.ref().fieldId();
+      Type type = pred.ref().type();
+
+      if (containsNullsOnly(id)) {
+        return ROWS_CANNOT_MATCH;
+      }
+
+      ByteBuffer lower = lowerBounds != null ? lowerBounds.get(id) : null;
+      ByteBuffer upper = upperBounds != null ? upperBounds.get(id) : null;
+      if (lower == null || upper == null) {
+        // no spatial bounds recorded for this file; cannot prune
+        return ROWS_MIGHT_MATCH;
+      }
+
+      GeospatialBound fileMin = (GeospatialBound) Conversions.fromByteBuffer(type, lower);
+      GeospatialBound fileMax = (GeospatialBound) Conversions.fromByteBuffer(type, upper);
+      BoundingBox fileBound = new BoundingBox(fileMin, fileMax);
+
+      boolean intersects =
+          GeospatialPredicateEvaluators.create(type).intersects(pred.queryBound(), fileBound);
+      return intersects ? ROWS_MIGHT_MATCH : ROWS_CANNOT_MATCH;
     }
 
     @Override

@@ -37,7 +37,8 @@ public class SparkFunctions {
           "days", new DaysFunction(),
           "hours", new HoursFunction(),
           "bucket", new BucketFunction(),
-          "truncate", new TruncateFunction());
+          "truncate", new TruncateFunction(),
+          "st_intersects", new STIntersectsFunction());
 
   private static final Map<Class<?>, UnboundFunction> CLASS_TO_FUNCTIONS =
       ImmutableMap.of(
@@ -46,7 +47,8 @@ public class SparkFunctions {
           DaysFunction.class, new DaysFunction(),
           HoursFunction.class, new HoursFunction(),
           BucketFunction.class, new BucketFunction(),
-          TruncateFunction.class, new TruncateFunction());
+          TruncateFunction.class, new TruncateFunction(),
+          STIntersectsFunction.class, new STIntersectsFunction());
 
   private static final List<String> FUNCTION_NAMES = ImmutableList.copyOf(FUNCTIONS.keySet());
 

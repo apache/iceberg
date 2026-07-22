@@ -37,6 +37,7 @@ import org.apache.spark.sql.catalyst.trees.TreePattern.IN
 import org.apache.spark.sql.catalyst.trees.TreePattern.INSET
 import org.apache.spark.sql.catalyst.trees.TreePattern.JOIN
 import org.apache.spark.sql.connector.catalog.functions.ScalarFunction
+import org.apache.spark.sql.types.BooleanType
 import org.apache.spark.sql.types.StructField
 import org.apache.spark.sql.types.StructType
 
@@ -68,6 +69,16 @@ object ReplaceStaticInvoke extends Rule[LogicalPlan] {
   }
 
   private def replaceStaticInvoke(condition: Expression): Expression = {
+    // A boolean scalar function used directly as a predicate (e.g. WHERE st_intersects(...)) is the
+    // condition root itself. StaticInvoke carries no tree pattern, so it would be pruned away by
+    // the pattern-based transform below; handle it here at the root instead.
+    condition match {
+      case invoke: StaticInvoke
+          if invoke.dataType.isInstanceOf[BooleanType] && canReplace(invoke) =>
+        return replaceStaticInvoke(invoke)
+      case _ =>
+    }
+
     condition.transformWithPruning(_.containsAnyPattern(BINARY_COMPARISON, IN, INSET)) {
       case in @ In(value: StaticInvoke, _) if canReplace(value) =>
         in.copy(value = replaceStaticInvoke(value))

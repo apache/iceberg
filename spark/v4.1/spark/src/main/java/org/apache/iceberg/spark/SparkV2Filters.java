@@ -52,6 +52,8 @@ import org.apache.iceberg.expressions.Expression.Operation;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.expressions.UnboundTerm;
+import org.apache.iceberg.geospatial.BoundingBox;
+import org.apache.iceberg.geospatial.GeospatialBound;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
@@ -125,6 +127,11 @@ public class SparkV2Filters {
 
   @SuppressWarnings({"checkstyle:CyclomaticComplexity", "checkstyle:MethodLength"})
   public static Expression convert(Predicate predicate) {
+    Expression spatial = convertSpatial(predicate);
+    if (spatial != null) {
+      return spatial;
+    }
+
     Operation op = FILTERS.get(predicate.name());
     if (op != null) {
       switch (op) {
@@ -307,6 +314,43 @@ public class SparkV2Filters {
     }
 
     return null;
+  }
+
+  private static Expression convertSpatial(Predicate predicate) {
+    // A boolean scalar function used as a filter is delivered wrapped as
+    // V2Predicate("BOOLEAN_EXPRESSION", [UserDefinedScalarFunc]); unwrap to the UDF.
+    org.apache.spark.sql.connector.expressions.Expression udf = predicate;
+    if ("BOOLEAN_EXPRESSION".equals(predicate.name()) && predicate.children().length == 1) {
+      udf = predicate.children()[0];
+    }
+
+    if (!(udf instanceof UserDefinedScalarFunc)) {
+      return null;
+    }
+    UserDefinedScalarFunc func = (UserDefinedScalarFunc) udf;
+    if (!"st_intersects".equalsIgnoreCase(func.name())) {
+      return null;
+    }
+
+    // st_intersects(geomColumn, minX, minY, maxX, maxY)
+    org.apache.spark.sql.connector.expressions.Expression[] children = func.children();
+    if (children.length != 5 || !isRef(children[0])) {
+      return null;
+    }
+    for (int i = 1; i < 5; i++) {
+      if (!isLiteral(children[i])) {
+        return null;
+      }
+    }
+
+    String colName = SparkUtil.toColumnName((NamedReference) children[0]);
+    double minX = ((Number) convertLiteral((Literal<?>) children[1])).doubleValue();
+    double minY = ((Number) convertLiteral((Literal<?>) children[2])).doubleValue();
+    double maxX = ((Number) convertLiteral((Literal<?>) children[3])).doubleValue();
+    double maxY = ((Number) convertLiteral((Literal<?>) children[4])).doubleValue();
+    BoundingBox window =
+        new BoundingBox(GeospatialBound.createXY(minX, minY), GeospatialBound.createXY(maxX, maxY));
+    return Expressions.stIntersects(colName, window);
   }
 
   private static Pair<UnboundTerm<Object>, Object> predicateChildren(Predicate predicate) {

@@ -65,4 +65,12 @@ public abstract class BoundPredicate<T> extends Predicate<T, BoundTerm<T>>
   public BoundSetPredicate<T> asSetPredicate() {
     throw new IllegalStateException("Not a set predicate: " + this);
   }
+
+  public boolean isSpatialPredicate() {
+    return false;
+  }
+
+  public BoundSpatialPredicate asSpatialPredicate() {
+    throw new IllegalStateException("Not a spatial predicate: " + this);
+  }
 }

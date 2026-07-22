@@ -31,7 +31,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
  * minimum and maximum coordinates that define the box's corners. This provides a simple
  * approximation of a more complex geometry for efficient filtering and data skipping.
  */
-public class BoundingBox {
+public class BoundingBox implements java.io.Serializable {
   /**
    * Create a {@link BoundingBox} object from buffers containing min and max bounds
    *

@@ -36,6 +36,7 @@ import org.apache.avro.util.Utf8;
 import org.apache.iceberg.DoubleFieldMetrics;
 import org.apache.iceberg.FieldMetrics;
 import org.apache.iceberg.FloatFieldMetrics;
+import org.apache.iceberg.GeometryFieldMetrics;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -118,6 +119,11 @@ public class ParquetValueWriters {
 
   public static PrimitiveWriter<ByteBuffer> byteBuffers(ColumnDescriptor desc) {
     return new BytesWriter(desc);
+  }
+
+  public static PrimitiveWriter<ByteBuffer> geometry(
+      ColumnDescriptor desc, org.apache.iceberg.types.Type geometryType) {
+    return new GeometryWriter(desc, geometryType);
   }
 
   public static PrimitiveWriter<ByteBuffer> fixedBuffers(ColumnDescriptor desc) {
@@ -333,6 +339,30 @@ public class ParquetValueWriters {
     @Override
     public void write(int repetitionLevel, ByteBuffer buffer) {
       column.writeBinary(repetitionLevel, Binary.fromReusedByteBuffer(buffer));
+    }
+  }
+
+  private static class GeometryWriter extends PrimitiveWriter<ByteBuffer> {
+    private final GeometryFieldMetrics.Builder metricsBuilder;
+
+    private GeometryWriter(ColumnDescriptor desc, org.apache.iceberg.types.Type geometryType) {
+      super(desc);
+      this.metricsBuilder =
+          new GeometryFieldMetrics.Builder(
+              desc.getPrimitiveType().getId().intValue(), geometryType);
+    }
+
+    @Override
+    public void write(int repetitionLevel, ByteBuffer buffer) {
+      // Accumulate the bounding box before writing, so it reads the buffer's coordinates while the
+      // position is intact (the scanner reads a duplicate and leaves this buffer untouched).
+      metricsBuilder.addValue(buffer);
+      column.writeBinary(repetitionLevel, Binary.fromReusedByteBuffer(buffer));
+    }
+
+    @Override
+    public Stream<FieldMetrics<?>> metrics() {
+      return Stream.of(metricsBuilder.build());
     }
   }
 

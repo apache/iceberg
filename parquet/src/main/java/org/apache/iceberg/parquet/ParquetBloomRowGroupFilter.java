@@ -27,6 +27,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.Binder;
 import org.apache.iceberg.expressions.Bound;
 import org.apache.iceberg.expressions.BoundReference;
+import org.apache.iceberg.expressions.BoundSpatialPredicate;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ExpressionVisitors;
 import org.apache.iceberg.expressions.ExpressionVisitors.BoundExpressionVisitor;
@@ -130,6 +131,11 @@ public class ParquetBloomRowGroupFilter {
       }
 
       return ExpressionVisitors.visitEvaluator(expr, this);
+    }
+
+    @Override
+    public Boolean spatialPredicate(BoundSpatialPredicate pred) {
+      return ROWS_MIGHT_MATCH;
     }
 
     @Override
