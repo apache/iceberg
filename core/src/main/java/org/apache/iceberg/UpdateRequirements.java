@@ -41,7 +41,9 @@ public class UpdateRequirements {
       TableMetadata base, List<MetadataUpdate> metadataUpdates) {
     Preconditions.checkArgument(null != base, "Invalid table metadata: null");
     Preconditions.checkArgument(null != metadataUpdates, "Invalid metadata updates: null");
-    Builder builder = new Builder(base, true);
+    // use the same optimistic concurrency checks as ordinary commits; replace commits must not
+    // silently drop concurrent schema, partition spec, sort order, or ref changes.
+    Builder builder = new Builder(base, false);
     builder.require(new UpdateRequirement.AssertTableUUID(base.uuid()));
     metadataUpdates.forEach(builder::update);
     return builder.build();

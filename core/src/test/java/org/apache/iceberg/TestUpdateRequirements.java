@@ -106,6 +106,87 @@ public class TestUpdateRequirements {
   }
 
   @Test
+  public void replaceTableAddSchemaProducesFieldIdRequirement() {
+    int lastColumnId = 1;
+    when(metadata.lastColumnId()).thenReturn(lastColumnId);
+    List<UpdateRequirement> requirements =
+        UpdateRequirements.forReplaceTable(
+            metadata,
+            ImmutableList.of(
+                new MetadataUpdate.AddSchema(new Schema()),
+                new MetadataUpdate.AddSchema(new Schema())));
+    requirements.forEach(req -> req.validate(metadata));
+
+    assertThat(requirements)
+        .hasSize(2)
+        .hasOnlyElementsOfTypes(
+            UpdateRequirement.AssertTableUUID.class,
+            UpdateRequirement.AssertLastAssignedFieldId.class);
+  }
+
+  @Test
+  public void replaceTableAddSchemaFailsOnConcurrentFieldIdChange() {
+    when(metadata.lastColumnId()).thenReturn(2);
+    when(updated.lastColumnId()).thenReturn(3);
+
+    List<UpdateRequirement> requirements =
+        UpdateRequirements.forReplaceTable(
+            metadata, ImmutableList.of(new MetadataUpdate.AddSchema(new Schema())));
+
+    assertThatThrownBy(() -> requirements.forEach(req -> req.validate(updated)))
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessage("Requirement failed: last assigned field id changed: expected id 2 != 3");
+  }
+
+  @Test
+  public void replaceTableSetCurrentSchemaProducesSchemaIdRequirement() {
+    int schemaId = 3;
+    when(metadata.currentSchemaId()).thenReturn(schemaId);
+    List<UpdateRequirement> requirements =
+        UpdateRequirements.forReplaceTable(
+            metadata, ImmutableList.of(new MetadataUpdate.SetCurrentSchema(schemaId)));
+    requirements.forEach(req -> req.validate(metadata));
+
+    assertThat(requirements)
+        .hasSize(2)
+        .hasOnlyElementsOfTypes(
+            UpdateRequirement.AssertTableUUID.class, UpdateRequirement.AssertCurrentSchemaID.class);
+  }
+
+  @Test
+  public void replaceTableAddPartitionSpecProducesPartitionIdRequirement() {
+    int lastAssignedPartitionId = 999;
+    when(metadata.lastAssignedPartitionId()).thenReturn(lastAssignedPartitionId);
+    List<UpdateRequirement> requirements =
+        UpdateRequirements.forReplaceTable(
+            metadata,
+            ImmutableList.of(new MetadataUpdate.AddPartitionSpec(PartitionSpec.unpartitioned())));
+    requirements.forEach(req -> req.validate(metadata));
+
+    assertThat(requirements)
+        .hasSize(2)
+        .hasOnlyElementsOfTypes(
+            UpdateRequirement.AssertTableUUID.class,
+            UpdateRequirement.AssertLastAssignedPartitionId.class);
+  }
+
+  @Test
+  public void replaceTableSetDefaultSortOrderProducesDefaultSortOrderRequirement() {
+    int sortOrderId = 5;
+    when(metadata.defaultSortOrderId()).thenReturn(sortOrderId);
+    List<UpdateRequirement> requirements =
+        UpdateRequirements.forReplaceTable(
+            metadata, ImmutableList.of(new MetadataUpdate.SetDefaultSortOrder(sortOrderId)));
+    requirements.forEach(req -> req.validate(metadata));
+
+    assertThat(requirements)
+        .hasSize(2)
+        .hasOnlyElementsOfTypes(
+            UpdateRequirement.AssertTableUUID.class,
+            UpdateRequirement.AssertDefaultSortOrderID.class);
+  }
+
+  @Test
   public void emptyUpdatesForReplaceView() {
     assertThat(UpdateRequirements.forReplaceView(viewMetadata, ImmutableList.of()))
         .hasSize(1)
