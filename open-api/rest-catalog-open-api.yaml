@@ -2072,6 +2072,60 @@ paths:
         5XX:
           $ref: '#/components/responses/ServerErrorResponse'
 
+  /v1/{prefix}/events:
+    parameters:
+      - $ref: '#/components/parameters/prefix'
+    post:
+      tags:
+        - Catalog API
+      summary: Get events for changes to catalog objects
+      description: >
+        Returns a sequence of events describing changes to catalog objects (tables, namespaces, views)
+        that allows clients to efficiently track changes without polling individual
+        resources. Consumers track their progress through a continuation-token, enabling resumable
+        consumption of events after downtime or errors.
+
+        This endpoint primarily supports use cases like catalog federation, workflow triggering,
+        and basic audit capabilities.
+
+        The server encodes all necessary state within the continuation-token. The client should
+        treat this token as a required opaque value and pass it unchanged in subsequent requests
+        to resume consumption of events.
+
+        Consumers should be prepared to handle 410 Gone responses when requested sequences are
+        outside the server's retention window. Consumers should also de-duplicate received events based
+        on their `event-id`. Consistency guarantees vary between server implementations.
+      operationId: getEvents
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QueryEventsRequest'
+        required: true
+      responses:
+        200:
+          description: A sequence of events describing changes to catalog objects
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QueryEventsResponse'
+        400:
+          $ref: '#/components/responses/BadRequestErrorResponse'
+        401:
+          $ref: '#/components/responses/UnauthorizedResponse'
+        403:
+          $ref: '#/components/responses/ForbiddenResponse'
+        410:
+          description: Gone - The requested offset is no longer available
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
+        5XX:
+          $ref: '#/components/responses/ServerErrorResponse'
+
 components:
   #######################################################
   # Common Parameter Definitions Used In Several Routes #
@@ -3487,6 +3541,22 @@ components:
         - $ref: '#/components/schemas/AddViewVersionUpdate'
         - $ref: '#/components/schemas/SetCurrentViewVersionUpdate'
 
+    OperationType:
+      type: string
+      description: >
+        The type of an operation. The standard operation types defined by this specification are
+        listed below. This set may grow in future versions of the specification, so clients should
+        ignore (discard) events with unknown operation types.
+
+        Implementation-specific operation types SHOULD use an `x-` prefix (for example,
+        `x-mycatalog.archive-snapshot`) to avoid colliding with current or future standard
+        operation types. This mirrors the `X-` convention for HTTP headers and is a naming
+        convention rather than a schema constraint.
+
+        Known standard operation types: `create-table`, `register-table`, `drop-table`,
+        `update-table`, `rename-table`, `create-view`, `drop-view`, `update-view`, `rename-view`,
+        `create-namespace`, `update-namespace-properties`, `drop-namespace`.
+
     TableRequirement:
       type: object
       discriminator:
@@ -3881,6 +3951,82 @@ components:
       description: Response schema for fetchScanTasks
       allOf:
         - $ref: '#/components/schemas/ScanTasks'
+
+    QueryEventsRequest:
+      type: object
+      properties:
+        continuation-token:
+          type: string
+          description: >
+            A continuation token returned by a previous response. Clients should treat the
+            token as an opaque value and pass it unmodified. If not provided, events are
+            returned from the beginning of the event log subject to other filters.
+        page-size:
+          type: integer
+          format: int32
+          minimum: 1
+          description: >
+            The maximum number of events to return in a single response.
+            If not provided, the server may choose a default page size.
+            Servers may return less results than requested for various reasons, such as
+            server side limits, payload size or processing time.
+        since-timestamp-ms:
+          type: integer
+          format: int64
+          description: >
+            Optional starting timestamp (seek-to-timestamp) for the initial request. The client
+            consumes events that occurred at or after the specified timestamp, in milliseconds
+            (inclusive), without iterating the full history. If not provided, no filtering based
+            on timestamp values is applied.
+            This applies only to the initial request. When a `continuation-token` is provided, it
+            determines the resume position and `since-timestamp-ms` is ignored.
+        operation-types:
+          type: array
+          items:
+            $ref: "#/components/schemas/OperationType"
+          description: >
+            Filter events by the type of operation.
+            If not provided, all types are returned.
+        catalog-objects-by-name:
+          type: array
+          items:
+            $ref: "#/components/schemas/CatalogObjectIdentifier"
+          description: >
+            Filter events by catalog object name. Each entry is an ordered list of
+            namespace/object levels and matches by prefix: an event matches when the entry equals
+            the object's name path, or is a leading prefix of it (compared level by level). For
+            example `["a","b"]` matches the namespace `a.b` itself and every object beneath it -
+            the table `a.b.t1`, the view `a.b.v1`, the sub-namespace `a.b.c` and its contents -
+            but not the sibling namespace `a.c`. Because matching is purely by name path, it is
+            independent of object kind: the server does not resolve whether a path denotes a
+            namespace, table, or view. Use `object-types` to restrict matches to specific kinds.
+            If not provided, events for all objects must be returned subject to other filters.
+        catalog-objects-by-uuid:
+          type: array
+          items:
+            type: string
+            format: uuid
+          description: >
+            Filter events by the list of catalog object UUIDs (tables, views).
+            Combine with `object-types` to narrow to a specific object kind.
+        object-types:
+          type: array
+          items:
+            type: string
+            enum:
+              - namespace
+              - table
+              - view
+          description: >
+            Filter events by the type of catalog object.
+            If not provided, events for all object types must be returned.
+        custom-filters:
+          type: object
+          additionalProperties:
+            type: string
+          description: >
+            Implementation-specific filter extensions. Implementations may define custom filter
+            properties beyond the standard ones defined in this specification.
 
     CommitTableRequest:
       type: object
@@ -4752,6 +4898,352 @@ components:
           type: string
         metadata:
           $ref: '#/components/schemas/TableMetadata'
+
+    QueryEventsResponse:
+      type: object
+      required:
+        - continuation-token
+        - events
+      properties:
+        continuation-token:
+          type: string
+          description: >
+            An opaque continuation token to fetch the next page of events.
+            This token encodes the server's cursor position and filter state.
+            Clients should treat this as an opaque value and pass it unmodified in subsequent requests.
+            When no more events are currently available, the server returns an empty `events` array
+            and a `continuation-token` that the client can re-issue later to receive events that
+            occur after this point.
+        events:
+          type: array
+          items:
+            $ref: "#/components/schemas/Event"
+
+    Event:
+      type: object
+      required:
+        - event-id
+        - request-id
+        - request-event-count
+        - timestamp-ms
+        - operation
+      properties:
+        event-id:
+          type: string
+          description: Unique ID of this event. Clients should perform deduplication based on this ID.
+        request-id:
+          description: >
+            Opaque identifier of the catalog request that produced this event. Some catalog
+            endpoints (e.g. updateTable, commitTransaction) apply multiple updates atomically
+            and emit one event per update; all such events share the same `request-id`,
+            allowing clients to group them.
+          type: string
+        request-event-count:
+          type: integer
+          description: >
+            Number of events produced by the originating catalog request (e.g. updateTable
+            or commitTransaction) that generated this event. Such requests can apply multiple
+            updates atomically, each surfaced as a separate event sharing the same `request-id`;
+            this count reports how many events that originating request produced in total.
+        timestamp-ms:
+          type: integer
+          format: int64
+          description: >
+            Timestamp when this event occurred (epoch milliseconds).
+            Timestamps are not guaranteed to be unique. Typically all events in
+            a transaction will have the same timestamp.
+        actor:
+          type: object
+          description: >
+            The actor who performed the operation, such as a user or service account.
+            Implementations may add arbitrary additional fields; the optional `id` field is
+            recommended as a portable identifier that consumers can render and key on.
+          properties:
+            id:
+              type: string
+              description: >
+                Recommended, optional. Stable identifier of the actor (e.g. a user or
+                service account). Provided when the server can attribute the operation.
+          additionalProperties:
+            type: string
+        operation:
+          description: >
+            The operation that was performed, such as creating or updating a table.
+            The concrete type is selected by the `operation-type` discriminator defined on
+            `BaseOperation`. Parsers should route events with unknown `operation-type` values to a
+            default handler rather than failing.
+            Operations are emitted only when the underlying change is committed; staged changes
+            are not surfaced.
+          anyOf:
+            - $ref: "#/components/schemas/CreateTableOperation"
+            - $ref: "#/components/schemas/RegisterTableOperation"
+            - $ref: "#/components/schemas/DropTableOperation"
+            - $ref: "#/components/schemas/UpdateTableOperation"
+            - $ref: "#/components/schemas/RenameTableOperation"
+            - $ref: "#/components/schemas/CreateViewOperation"
+            - $ref: "#/components/schemas/DropViewOperation"
+            - $ref: "#/components/schemas/UpdateViewOperation"
+            - $ref: "#/components/schemas/RenameViewOperation"
+            - $ref: "#/components/schemas/CreateNamespaceOperation"
+            - $ref: "#/components/schemas/UpdateNamespacePropertiesOperation"
+            - $ref: "#/components/schemas/DropNamespaceOperation"
+
+    BaseOperation:
+      type: object
+      description: >
+        Base type for all catalog operations carried by an `Event`. The `operation-type`
+        discriminator selects the concrete operation schema. Standard operation types are
+        enumerated in `OperationType`; implementation-specific operation types use an `x-` prefix
+        (see `OperationType`). The schema enumerates only the standard operations; validation
+        behavior for other `operation-type` values is implementation-defined. The typical Iceberg
+        pattern is for parsers to switch on `operation-type` and route unknown values (including
+        `x-` prefixed types) to a default handler.
+      discriminator:
+        propertyName: operation-type
+        mapping:
+          create-table: "#/components/schemas/CreateTableOperation"
+          register-table: "#/components/schemas/RegisterTableOperation"
+          drop-table: "#/components/schemas/DropTableOperation"
+          update-table: "#/components/schemas/UpdateTableOperation"
+          rename-table: "#/components/schemas/RenameTableOperation"
+          create-view: "#/components/schemas/CreateViewOperation"
+          drop-view: "#/components/schemas/DropViewOperation"
+          update-view: "#/components/schemas/UpdateViewOperation"
+          rename-view: "#/components/schemas/RenameViewOperation"
+          create-namespace: "#/components/schemas/CreateNamespaceOperation"
+          update-namespace-properties: "#/components/schemas/UpdateNamespacePropertiesOperation"
+          drop-namespace: "#/components/schemas/DropNamespaceOperation"
+      required:
+        - operation-type
+      properties:
+        operation-type:
+          $ref: "#/components/schemas/OperationType"
+
+    CreateTableOperation:
+      description: >
+        Operation to create a new table in the catalog.
+      allOf:
+        - $ref: "#/components/schemas/BaseOperation"
+      required:
+        - operation-type
+        - identifier
+        - table-uuid
+        - updates
+      properties:
+        operation-type:
+          type: string
+          const: "create-table"
+        identifier:
+          $ref: "#/components/schemas/TableIdentifier"
+        table-uuid:
+          type: string
+          format: uuid
+        updates:
+          type: array
+          items:
+            $ref: "#/components/schemas/TableUpdate"
+
+    RegisterTableOperation:
+      allOf:
+        - $ref: "#/components/schemas/BaseOperation"
+      required:
+        - operation-type
+        - identifier
+        - table-uuid
+      properties:
+        operation-type:
+          type: string
+          const: "register-table"
+        identifier:
+          $ref: "#/components/schemas/TableIdentifier"
+        table-uuid:
+          type: string
+          format: uuid
+        updates:
+          type: array
+          items:
+            $ref: "#/components/schemas/TableUpdate"
+
+    DropTableOperation:
+      allOf:
+        - $ref: "#/components/schemas/BaseOperation"
+      required:
+        - operation-type
+        - identifier
+        - table-uuid
+      properties:
+        operation-type:
+          type: string
+          const: "drop-table"
+        identifier:
+          $ref: "#/components/schemas/TableIdentifier"
+        table-uuid:
+          type: string
+          format: uuid
+        purge:
+          type: boolean
+          description: >
+            Whether the originating drop request specified the purge flag, indicating that
+            the table's data files should also be deleted, not just the catalog entry.
+
+    UpdateTableOperation:
+      allOf:
+        - $ref: "#/components/schemas/BaseOperation"
+      required:
+        - operation-type
+        - identifier
+        - table-uuid
+        - updates
+      properties:
+        operation-type:
+          type: string
+          const: "update-table"
+        identifier:
+          $ref: "#/components/schemas/TableIdentifier"
+        table-uuid:
+          type: string
+          format: uuid
+        updates:
+          type: array
+          items:
+            $ref: "#/components/schemas/TableUpdate"
+        requirements:
+          type: array
+          items:
+            $ref: "#/components/schemas/TableRequirement"
+
+    RenameTableOperation:
+      allOf:
+        - $ref: "#/components/schemas/RenameTableRequest"
+        - $ref: "#/components/schemas/BaseOperation"
+      required:
+        - operation-type
+        - table-uuid
+      properties:
+        operation-type:
+          type: string
+          const: "rename-table"
+        table-uuid:
+          type: string
+          format: uuid
+
+    RenameViewOperation:
+      allOf:
+        - $ref: "#/components/schemas/RenameTableRequest"
+        - $ref: "#/components/schemas/BaseOperation"
+      required:
+        - operation-type
+        - view-uuid
+      properties:
+        operation-type:
+          type: string
+          const: "rename-view"
+        view-uuid:
+          type: string
+          format: uuid
+
+    CreateViewOperation:
+      allOf:
+        - $ref: "#/components/schemas/BaseOperation"
+      required:
+        - operation-type
+        - identifier
+        - view-uuid
+        - updates
+      properties:
+        operation-type:
+          type: string
+          const: "create-view"
+        identifier:
+          $ref: "#/components/schemas/TableIdentifier"
+        view-uuid:
+          type: string
+          format: uuid
+        updates:
+          type: array
+          items:
+            $ref: "#/components/schemas/ViewUpdate"
+
+    DropViewOperation:
+      allOf:
+        - $ref: "#/components/schemas/BaseOperation"
+      required:
+        - operation-type
+        - identifier
+        - view-uuid
+      properties:
+        operation-type:
+          type: string
+          const: "drop-view"
+        identifier:
+          $ref: "#/components/schemas/TableIdentifier"
+        view-uuid:
+          type: string
+          format: uuid
+
+    UpdateViewOperation:
+      allOf:
+        - $ref: "#/components/schemas/BaseOperation"
+      required:
+        - operation-type
+        - identifier
+        - view-uuid
+        - updates
+      properties:
+        operation-type:
+          type: string
+          const: "update-view"
+        identifier:
+          $ref: "#/components/schemas/TableIdentifier"
+        view-uuid:
+          type: string
+          format: uuid
+        updates:
+          type: array
+          items:
+            $ref: "#/components/schemas/ViewUpdate"
+        requirements:
+          type: array
+          items:
+            $ref: "#/components/schemas/ViewRequirement"
+
+    CreateNamespaceOperation:
+      allOf:
+        - $ref: "#/components/schemas/CreateNamespaceResponse"
+        - $ref: "#/components/schemas/BaseOperation"
+      required:
+        - operation-type
+      properties:
+        operation-type:
+          type: string
+          const: "create-namespace"
+
+    UpdateNamespacePropertiesOperation:
+      allOf:
+        - $ref: "#/components/schemas/UpdateNamespacePropertiesResponse"
+        - $ref: "#/components/schemas/BaseOperation"
+      required:
+        - operation-type
+        - namespace
+      properties:
+        operation-type:
+          type: string
+          const: "update-namespace-properties"
+        namespace:
+          $ref: "#/components/schemas/Namespace"
+
+    DropNamespaceOperation:
+      allOf:
+        - $ref: "#/components/schemas/BaseOperation"
+      required:
+        - operation-type
+        - namespace
+      properties:
+        operation-type:
+          type: string
+          const: "drop-namespace"
+        namespace:
+          $ref: "#/components/schemas/Namespace"
 
     StatisticsFile:
       type: object
