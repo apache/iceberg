@@ -159,14 +159,14 @@ public class EncryptingFileIO implements FileIO, Serializable {
 
   @Override
   public void close() {
-    io.close();
-
     if (em instanceof Closeable) {
-      try {
-        ((Closeable) em).close();
+      try (Closeable closeableManager = (Closeable) em) {
+        io.close();
       } catch (IOException e) {
         throw new UncheckedIOException("Failed to close encryption manager", e);
       }
+    } else {
+      io.close();
     }
   }
 
