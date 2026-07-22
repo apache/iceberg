@@ -94,4 +94,14 @@ public interface ActionsProvider {
     throw new UnsupportedOperationException(
         this.getClass().getName() + " does not implement removeDanglingDeleteFiles");
   }
+
+  /**
+   * Instantiates an action to validate the referential integrity of an Iceberg table's metadata —
+   * that every file the table's metadata references exists at its stated location, or at a
+   * corresponding rewritten location when a destination is configured.
+   */
+  default ValidateTableIntegrity validateTableIntegrity(Table table) {
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " does not implement validateTableIntegrity");
+  }
 }
