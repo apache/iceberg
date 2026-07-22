@@ -18,12 +18,15 @@
  */
 package org.apache.iceberg.spark.data.vectorized;
 
+import org.apache.spark.sql.types.ArrayType;
 import org.apache.spark.sql.types.Decimal;
+import org.apache.spark.sql.types.MapType;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.types.VariantType;
 import org.apache.spark.sql.vectorized.ColumnVector;
 import org.apache.spark.sql.vectorized.ColumnarArray;
 import org.apache.spark.sql.vectorized.ColumnarMap;
+import org.apache.spark.unsafe.types.CalendarInterval;
 import org.apache.spark.unsafe.types.UTF8String;
 
 /**
@@ -36,6 +39,8 @@ import org.apache.spark.unsafe.types.UTF8String;
  * modifying the underlying data.
  */
 public class ColumnVectorWithFilter extends ColumnVector {
+  private static final int NUM_VARIANT_CHILDREN = 2;
+
   private final ColumnVector delegate;
   private final int[] rowIdMapping;
   private volatile ColumnVectorWithFilter[] children = null;
@@ -109,6 +114,11 @@ public class ColumnVectorWithFilter extends ColumnVector {
   }
 
   @Override
+  public CalendarInterval getInterval(int rowId) {
+    return delegate.getInterval(rowIdMapping[rowId]);
+  }
+
+  @Override
   public ColumnarArray getArray(int rowId) {
     return delegate.getArray(rowIdMapping[rowId]);
   }
@@ -135,24 +145,30 @@ public class ColumnVectorWithFilter extends ColumnVector {
 
   @Override
   public ColumnVector getChild(int ordinal) {
+    if (dataType() instanceof ArrayType || dataType() instanceof MapType) {
+      return delegate.getChild(ordinal);
+    }
+
     if (children == null) {
       synchronized (this) {
         if (children == null) {
+          int numChildren;
           if (dataType() instanceof StructType) {
             StructType structType = (StructType) dataType();
-            this.children = new ColumnVectorWithFilter[structType.length()];
-            for (int index = 0; index < structType.length(); index++) {
-              children[index] = new ColumnVectorWithFilter(delegate.getChild(index), rowIdMapping);
-            }
+            numChildren = structType.length();
           } else if (dataType() instanceof VariantType) {
-            this.children =
-                new ColumnVectorWithFilter[] {
-                  new ColumnVectorWithFilter(delegate.getChild(0), rowIdMapping),
-                  new ColumnVectorWithFilter(delegate.getChild(1), rowIdMapping)
-                };
+            numChildren = NUM_VARIANT_CHILDREN;
           } else {
             throw new UnsupportedOperationException("Unsupported nested type: " + dataType());
           }
+
+          ColumnVectorWithFilter[] remappedChildren = new ColumnVectorWithFilter[numChildren];
+          for (int index = 0; index < numChildren; index++) {
+            remappedChildren[index] =
+                new ColumnVectorWithFilter(delegate.getChild(index), rowIdMapping);
+          }
+
+          this.children = remappedChildren;
         }
       }
     }
