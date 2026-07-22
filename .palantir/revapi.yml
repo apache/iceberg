@@ -669,11 +669,11 @@ acceptedBreaks:
       justification: "Removing deprecated API scheduled for removal in 1.12.0"
     - code: "java.method.removed"
       old: "method org.apache.iceberg.MetricsConfig org.apache.iceberg.MetricsConfig::forPositionDelete(org.apache.iceberg.Table)"
-      justification: "Removing deprecated API scheduled for removal in 1.12.0"
+      justification: "Deprecated for removal in 1.12.0"
     - code: "java.method.removed"
       old: "method org.apache.iceberg.Schema org.apache.iceberg.PartitionStatsHandler::schema(org.apache.iceberg.types.Types.StructType,\
         \ int)"
-      justification: "Removing deprecated API scheduled for removal in 1.12.0"
+      justification: "Removed deprecated functionality for partition stats"
     - code: "java.method.removed"
       old: "method org.apache.iceberg.catalog.Namespace org.apache.iceberg.rest.RESTUtil::decodeNamespace(java.lang.String)"
       justification: "Removing deprecated API scheduled for removal in 1.12.0"
@@ -697,7 +697,7 @@ acceptedBreaks:
       old: "method org.apache.iceberg.io.CloseableIterable<org.apache.iceberg.PartitionStats>\
         \ org.apache.iceberg.PartitionStatsHandler::readPartitionStatsFile(org.apache.iceberg.Schema,\
         \ org.apache.iceberg.io.InputFile)"
-      justification: "Removing deprecated API scheduled for removal in 1.12.0"
+      justification: "Removed deprecated functionality for partition stats"
     - code: "java.method.removed"
       old: "method org.apache.iceberg.io.FileIO org.apache.iceberg.BaseScan<ThisT,\
         \ T extends org.apache.iceberg.ScanTask, G extends org.apache.iceberg.ScanTaskGroup<T\

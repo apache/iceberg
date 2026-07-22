@@ -72,9 +72,4 @@ public class TestSparkWriterMetrics extends TestWriterMetrics<InternalRow> {
   protected void checkRowStatistics(Map<Integer, ByteBuffer> bounds) {
     assertThat(bounds).hasSize(2);
   }
-
-  @Override
-  protected void checkNotExistingRowStatistics(Map<Integer, ByteBuffer> bounds) {
-    assertThat(bounds).isNull();
-  }
 }
