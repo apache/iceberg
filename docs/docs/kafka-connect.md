@@ -63,6 +63,7 @@ for exactly-once semantics. This requires Kafka 2.5 or later.
 | iceberg.tables                             | Comma-separated list of destination tables                                                                       |
 | iceberg.tables.dynamic-enabled             | Set to `true` to route to a table specified in `routeField` instead of using `routeRegex`, default is `false`    |
 | iceberg.tables.route-field                 | For multi-table fan-out, the name of the field used to route records to tables                                   |
+| iceberg.tables.topic-to-table-map          | For topic to table mapping, statically map topic name to table identifier to route records                       |
 | iceberg.tables.default-commit-branch       | Default branch for commits, main is used if not specified                                                        |
 | iceberg.tables.default-id-columns          | Default comma-separated list of columns that identify a row in tables (primary key)                              |
 | iceberg.tables.default-partition-by        | Default comma-separated list of partition field names to use when creating tables                                |
@@ -365,6 +366,46 @@ See above for creating two tables.
 }
 ```
 
+### Topic mapped to table identifier, static routing
+
+This example writes to tables based on their mappings from connector config. For example, `events_list` is mapped to `db.event_get_log` table and `events_create` is mapped to `db.event_add_log`.
+
+#### Create two destination tables
+
+```sql
+CREATE TABLE db.event_get_log (
+    id STRING,
+    type STRING,
+    ts TIMESTAMP,
+    payload STRING)
+PARTITIONED BY (hours(ts));
+
+CREATE TABLE db.event_add_log (
+    id STRING,
+    type STRING,
+    ts TIMESTAMP,
+    payload STRING)
+PARTITIONED BY (hours(ts));
+```
+
+#### Connector config
+
+```json
+{
+"name": "events-sink",
+"config": {
+    "connector.class": "org.apache.iceberg.connect.IcebergSinkConnector",
+    "tasks.max": "2",
+    "topics": "events_list,events_create",
+    "iceberg.tables.topic-to-table-map": "event_list:db.event_get_log,events_create:db.event_add_log",
+    "iceberg.catalog.type": "rest",
+    "iceberg.catalog.uri": "https://localhost",
+    "iceberg.catalog.credential": "<credential>",
+    "iceberg.catalog.warehouse": "<warehouse name>"
+    }
+}
+```
+
 ## SMTs for the Apache Iceberg Sink Connector
 
 This project contains some SMTs that could be useful when transforming Kafka data for use by
@@ -531,3 +572,4 @@ easy processing of arrays by downstream clients.
 Value document will convert the array into a struct of structs in the similar way as done by BSON serialization.
 The main struct contains fields named _0, _1, _2 etc. where the name represents the index of the element in the array.
 Every element is then passed as the value for the given field.
+=======
