@@ -45,6 +45,8 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.BulkDeletionFailureException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.PositionOutputStream;
+import org.apache.iceberg.metrics.InMemoryMetricsReporter;
+import org.apache.iceberg.metrics.RemoveSnapshotsReport;
 import org.apache.iceberg.puffin.Blob;
 import org.apache.iceberg.puffin.Puffin;
 import org.apache.iceberg.puffin.PuffinWriter;
@@ -1074,7 +1076,12 @@ public class TestRemoveSnapshots extends TestBase {
     long fourthSnapshotTs = waitUntilAfter(fourthSnapshot.timestampMillis());
 
     Set<String> deletedFiles = Sets.newHashSet();
-    removeSnapshots(table).expireOlderThan(fourthSnapshotTs).deleteWith(deletedFiles::add).commit();
+    InMemoryMetricsReporter reporter = new InMemoryMetricsReporter();
+    removeSnapshots(table)
+        .reportWith(reporter)
+        .expireOlderThan(fourthSnapshotTs)
+        .deleteWith(deletedFiles::add)
+        .commit();
 
     assertThat(deletedFiles)
         .as("Should remove old delete files and delete file manifests")
@@ -1091,6 +1098,14 @@ public class TestRemoveSnapshots extends TestBase {
                         .map(ManifestFile::path)
                         .collect(Collectors.toList()))
                 .build());
+
+    RemoveSnapshotsReport report = reporter.removeSnapshotsReport();
+    assertThat(report.dataFilesCount()).isEqualTo(1);
+    assertThat(report.positionDeleteFilesCount()).isEqualTo(1);
+    assertThat(report.equalityDeleteFilesCount()).isEqualTo(0);
+    assertThat(report.manifestListsCount()).isEqualTo(3);
+    assertThat(report.manifestsCount()).isEqualTo(4);
+    assertThat(report.statisticsFilesCount()).isEqualTo(0);
   }
 
   @TestTemplate
@@ -1212,7 +1227,8 @@ public class TestRemoveSnapshots extends TestBase {
     assertThat(table.statisticsFiles()).hasSize(2);
 
     long tAfterCommits = waitUntilAfter(table.currentSnapshot().timestampMillis());
-    removeSnapshots(table).expireOlderThan(tAfterCommits).commit();
+    InMemoryMetricsReporter reporter = new InMemoryMetricsReporter();
+    removeSnapshots(table).reportWith(reporter).expireOlderThan(tAfterCommits).commit();
 
     // only the current snapshot and its stats file should be retained
     assertThat(table.snapshots()).hasSize(1);
@@ -1224,6 +1240,14 @@ public class TestRemoveSnapshots extends TestBase {
 
     assertThat(new File(URI.create(statsFileLocation1))).doesNotExist();
     assertThat(new File(URI.create(statsFileLocation2))).exists();
+
+    RemoveSnapshotsReport report = reporter.removeSnapshotsReport();
+    assertThat(report.dataFilesCount()).isEqualTo(0);
+    assertThat(report.positionDeleteFilesCount()).isEqualTo(0);
+    assertThat(report.equalityDeleteFilesCount()).isEqualTo(0);
+    assertThat(report.manifestListsCount()).isEqualTo(1);
+    assertThat(report.manifestsCount()).isEqualTo(0);
+    assertThat(report.statisticsFilesCount()).isEqualTo(1);
   }
 
   @TestTemplate

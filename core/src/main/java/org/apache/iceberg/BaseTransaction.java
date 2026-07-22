@@ -227,7 +227,7 @@ public class BaseTransaction implements Transaction {
 
   @Override
   public ExpireSnapshots expireSnapshots() {
-    return appendUpdate(new RemoveSnapshots(transactionOps));
+    return appendUpdate(new RemoveSnapshots(transactionOps).reportWith(reporter));
   }
 
   @Override

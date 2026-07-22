@@ -104,7 +104,7 @@ public class ManifestFiles {
   }
 
   /**
-   * Returns a {@link CloseableIterable} of file paths in the {@link ManifestFile}.
+   * Returns a {@link CloseableIterable} of {@link DataFile}s in the {@link ManifestFile}.
    *
    * @param manifest a ManifestFile
    * @param io a FileIO
@@ -116,6 +116,25 @@ public class ManifestFiles {
     return CloseableIterable.transform(
         read(manifest, io, specsById).select(ImmutableList.of("file_path")).liveEntries(),
         entry -> entry.file().location());
+  }
+
+  /**
+   * Returns a {@link CloseableIterable} of {@link DataFile}s in the {@link ManifestFile}, reading
+   * only the given columns.
+   *
+   * @param manifest a ManifestFile
+   * @param io a FileIO
+   * @param specsById a Map from spec ID to partition spec
+   * @param columns columns to read
+   * @return a manifest reader
+   */
+  public static CloseableIterable<DataFile> readColumns(
+      ManifestFile manifest,
+      FileIO io,
+      Map<Integer, PartitionSpec> specsById,
+      Collection<String> columns) {
+    return CloseableIterable.transform(
+        read(manifest, io, specsById).select(columns).liveEntries(), ManifestEntry::file);
   }
 
   /**
