@@ -595,14 +595,46 @@ class LoadCredentialsResponse(BaseModel):
     )
 
 
-class ColumnLabels(BaseModel):
+class CatalogObjectLabels(RootModel[dict[str, str]]):
+    """
+    Catalog-object-level labels, attached to the object (table, view, ...) as a whole.
+    """
+
+    root: dict[str, str]
+
+
+class FieldLabels(BaseModel):
+    """
+    Labels attached to a single field, identified by field-id.
+    """
+
     field_id: int = Field(
         ...,
         alias='field-id',
         description='Field ID from the current schema of the table or view',
     )
     labels: dict[str, str] = Field(
-        ..., description='Flat key-value labels for this column'
+        ..., description='Flat key-value labels for this field'
+    )
+
+
+class Labels(BaseModel):
+    """
+    Catalog-provided metadata enrichment (for example ownership,
+    classification, or cost attribution) returned with a table or view.
+    Labels are generated per request and optional; clients may ignore them.
+    The spec does not require how a catalog produces or stores labels, nor
+    whether they are persisted or versioned. Different catalogs may return
+    different or no labels for the same object. `object` carries
+    catalog-object-level labels; `fields` carries per-field labels, each
+    identified by field-id.
+
+    """
+
+    object: CatalogObjectLabels | None = None
+    fields: list[FieldLabels] | None = Field(
+        None,
+        description='Field-level labels. Each entry identifies its field by field-id.',
     )
 
 
@@ -1161,29 +1193,6 @@ class SetPartitionStatisticsUpdate(BaseUpdate):
 
 class ViewRequirement(RootModel[AssertViewUUID]):
     root: AssertViewUUID = Field(..., discriminator='type')
-
-
-class Labels(BaseModel):
-    """
-    Catalog-provided metadata enrichment (for example ownership,
-    classification, or cost attribution) returned with a table or view.
-    Labels are generated per request and optional; clients may ignore them.
-    The spec does not require how a catalog produces or stores labels, nor
-    whether they are persisted or versioned. Different catalogs may return
-    different or no labels for the same object. `object` carries
-    catalog-object-level labels; `columns` is an array of per-column
-    entries, each identifying its column by field-id.
-
-    """
-
-    object: dict[str, str] | None = Field(
-        None,
-        description='Catalog-object-level labels (attached to the object as a whole).',
-    )
-    columns: list[ColumnLabels] | None = Field(
-        None,
-        description='Column-level labels. Each entry identifies its column by field-id.',
-    )
 
 
 class FailedPlanningResult(IcebergErrorResponse):

@@ -3737,32 +3737,17 @@ components:
         labels:
           $ref: '#/components/schemas/Labels'
 
-    Labels:
+    CatalogObjectLabels:
       type: object
-      description: |
-        Catalog-provided metadata enrichment (for example ownership,
-        classification, or cost attribution) returned with a table or view.
-        Labels are generated per request and optional; clients may ignore them.
-        The spec does not require how a catalog produces or stores labels, nor
-        whether they are persisted or versioned. Different catalogs may return
-        different or no labels for the same object. `object` carries
-        catalog-object-level labels; `columns` is an array of per-column
-        entries, each identifying its column by field-id.
-      properties:
-        object:
-          type: object
-          description: Catalog-object-level labels (attached to the object as a whole).
-          additionalProperties:
-            type: string
-        columns:
-          type: array
-          description: >-
-            Column-level labels. Each entry identifies its column by field-id.
-          items:
-            $ref: '#/components/schemas/ColumnLabels'
+      description: >-
+        Catalog-object-level labels, attached to the object (table, view, ...)
+        as a whole.
+      additionalProperties:
+        type: string
 
-    ColumnLabels:
+    FieldLabels:
       type: object
+      description: Labels attached to a single field, identified by field-id.
       required:
         - field-id
         - labels
@@ -3772,9 +3757,30 @@ components:
           description: Field ID from the current schema of the table or view
         labels:
           type: object
-          description: Flat key-value labels for this column
+          description: Flat key-value labels for this field
           additionalProperties:
             type: string
+
+    Labels:
+      type: object
+      description: |
+        Catalog-provided metadata enrichment (for example ownership,
+        classification, or cost attribution) returned with a table or view.
+        Labels are generated per request and optional; clients may ignore them.
+        The spec does not require how a catalog produces or stores labels, nor
+        whether they are persisted or versioned. Different catalogs may return
+        different or no labels for the same object. `object` carries
+        catalog-object-level labels; `fields` carries per-field labels, each
+        identified by field-id.
+      properties:
+        object:
+          $ref: '#/components/schemas/CatalogObjectLabels'
+        fields:
+          type: array
+          description: >-
+            Field-level labels. Each entry identifies its field by field-id.
+          items:
+            $ref: '#/components/schemas/FieldLabels'
 
     ScanTasks:
       type: object
