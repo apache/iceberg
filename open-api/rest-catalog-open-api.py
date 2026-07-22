@@ -624,8 +624,7 @@ class Labels(BaseModel):
     classification, or cost attribution) returned with a table or view.
     Labels are generated per request and optional; clients may ignore them.
     The spec does not require how a catalog produces or stores labels, nor
-    whether they are persisted or versioned. Different catalogs may return
-    different or no labels for the same object. `object` carries
+    whether they are persisted or versioned. `object` carries
     catalog-object-level labels; `fields` carries per-field labels, each
     identified by field-id.
 
