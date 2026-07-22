@@ -19,8 +19,10 @@
 package org.apache.iceberg.types;
 
 import java.nio.ByteBuffer;
+import java.text.Collator;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.function.IntFunction;
 import org.apache.iceberg.StructLike;
@@ -229,8 +231,84 @@ public class Comparators {
     return CharSeqComparator.INSTANCE;
   }
 
+  /**
+   * PROTOTYPE: returns a comparator for the given collation. A null or "utf8" collation yields the
+   * default UTF-8 byte-order comparator; otherwise comparison is locale-aware via {@link Collator}.
+   *
+   * <p>This POC uses the JDK {@link Collator}, which maps case/accent sensitivity onto collator
+   * strength approximately (e.g. accent-insensitive also ignores case). A full implementation would
+   * use ICU for the complete set of modifiers, matching the collation provider in the spec.
+   */
+  public static Comparator<CharSequence> charSequences(String collation) {
+    if (collation == null || collation.equalsIgnoreCase("utf8")) {
+      return CharSeqComparator.INSTANCE;
+    }
+
+    return new CollationComparator(collation);
+  }
+
   public static Comparator<CharSequence> filePath() {
     return FilePathComparator.INSTANCE;
+  }
+
+  private static class CollationComparator implements Comparator<CharSequence> {
+    // Collator is not thread-safe; hand each thread its own configured instance.
+    private final ThreadLocal<Collator> collator;
+
+    private CollationComparator(String collation) {
+      Locale locale = localeFor(collation);
+      int strength = strengthFor(collation);
+      this.collator =
+          ThreadLocal.withInitial(
+              () -> {
+                Collator instance = Collator.getInstance(locale);
+                instance.setStrength(strength);
+                return instance;
+              });
+    }
+
+    @Override
+    public int compare(CharSequence left, CharSequence right) {
+      if (left == right) {
+        return 0;
+      }
+
+      return collator.get().compare(left.toString(), right.toString());
+    }
+
+    private static String name(String collation) {
+      int dot = collation.indexOf('.');
+      return dot < 0 ? collation : collation.substring(dot + 1);
+    }
+
+    private static Locale localeFor(String collation) {
+      String localePart = name(collation).split("-")[0];
+      if (localePart.isEmpty() || localePart.equalsIgnoreCase("utf8")) {
+        return Locale.ROOT;
+      }
+
+      return Locale.forLanguageTag(localePart.replace('_', '-'));
+    }
+
+    private static int strengthFor(String collation) {
+      boolean caseInsensitive = false;
+      boolean accentInsensitive = false;
+      for (String part : name(collation).split("-")) {
+        if (part.equalsIgnoreCase("ci")) {
+          caseInsensitive = true;
+        } else if (part.equalsIgnoreCase("ai")) {
+          accentInsensitive = true;
+        }
+      }
+
+      if (accentInsensitive) {
+        return Collator.PRIMARY; // ignores case and accents
+      } else if (caseInsensitive) {
+        return Collator.SECONDARY; // ignores case, keeps accents
+      }
+
+      return Collator.TERTIARY; // case- and accent-sensitive
+    }
   }
 
   private static class NullsFirst<T> implements Comparator<T> {
