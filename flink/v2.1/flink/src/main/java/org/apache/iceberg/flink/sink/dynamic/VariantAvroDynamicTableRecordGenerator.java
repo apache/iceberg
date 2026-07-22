@@ -200,6 +200,7 @@ public class VariantAvroDynamicTableRecordGenerator extends DynamicTableRecordGe
             for (String column : COMMA.split(key)) {
               partitionSpecBuilder.identity(column);
             }
+
             return partitionSpecBuilder.build();
           });
     }
