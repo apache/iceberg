@@ -75,14 +75,8 @@ public class IcebergEncoder<D> implements MessageEncoder<D> {
    * @param shouldCopy whether to copy buffers before returning encoded results
    */
   public IcebergEncoder(Schema schema, boolean shouldCopy) {
-    this(schema, shouldCopy, true);
-  }
-
-  public IcebergEncoder(Schema schema, boolean shouldCopy, boolean localTimestampEnabled) {
     this.copyOutputBytes = shouldCopy;
-    org.apache.avro.Schema avroSchema =
-        AvroSchemaUtil.convert(schema, "table", localTimestampEnabled);
-    AvroSchemaUtil.addAdjustToUtcDefaultProp(avroSchema, localTimestampEnabled);
+    org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(schema, "table");
     this.writer = DataWriter.create(avroSchema);
     this.headerBytes = getWriteHeader(avroSchema);
   }

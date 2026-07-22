@@ -24,7 +24,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.nio.ByteBuffer;
-import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
@@ -48,24 +47,17 @@ import org.junit.jupiter.api.Test;
 public class TestSingleMessageEncoding {
   private static final Schema SCHEMA_V1 =
       new Schema(
-          required(0, "id", Types.IntegerType.get()),
-          optional(1, "msg", Types.StringType.get()),
-          optional(3, "ts", Types.TimestampType.withoutZone()));
+          required(0, "id", Types.IntegerType.get()), optional(1, "msg", Types.StringType.get()));
 
-  private static Record v1Record(int id, String msg, LocalDateTime ts) {
+  private static Record v1Record(int id, String msg) {
     Record rec = GenericRecord.create(SCHEMA_V1.asStruct());
     rec.setField("id", id);
     rec.setField("msg", msg);
-    rec.setField("ts", ts);
     return rec;
   }
 
   private static final List<Record> V1_RECORDS =
-      Arrays.asList(
-          v1Record(1, "m-1", LocalDateTime.of(2023, 1, 1, 12, 0, 0, 123456000)),
-          v1Record(2, "m-2", LocalDateTime.of(2023, 1, 2, 12, 0, 0, 123456000)),
-          v1Record(4, "m-4", LocalDateTime.of(2023, 1, 4, 12, 0, 0, 123456000)),
-          v1Record(6, "m-6", LocalDateTime.of(2023, 1, 6, 12, 0, 0, 123456000)));
+      Arrays.asList(v1Record(1, "m-1"), v1Record(2, "m-2"), v1Record(4, "m-4"), v1Record(6, "m-6"));
 
   private static final Schema SCHEMA_V2 =
       new Schema(

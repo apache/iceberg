@@ -49,20 +49,35 @@ public class PlannedDataReader<T> implements DatumReader<T>, SupportsRowPosition
     return new PlannedDataReader<>(expectedSchema, idToConstant);
   }
 
+  public static <D> PlannedDataReader<D> create(
+      org.apache.iceberg.Schema expectedSchema,
+      Map<Integer, ?> idToConstant,
+      boolean adjustToUtcDefault) {
+    return new PlannedDataReader<>(expectedSchema, idToConstant, adjustToUtcDefault);
+  }
+
   private final org.apache.iceberg.Schema expectedSchema;
   private final Map<Integer, ?> idToConstant;
+  private final boolean adjustToUtcDefault;
   private ValueReader<T> reader;
 
   protected PlannedDataReader(
       org.apache.iceberg.Schema expectedSchema, Map<Integer, ?> idToConstant) {
+    this(expectedSchema, idToConstant, true);
+  }
+
+  protected PlannedDataReader(
+      org.apache.iceberg.Schema expectedSchema,
+      Map<Integer, ?> idToConstant,
+      boolean adjustToUtcDefault) {
     this.expectedSchema = expectedSchema;
     this.idToConstant = idToConstant;
+    this.adjustToUtcDefault = adjustToUtcDefault;
   }
 
   @Override
   @SuppressWarnings("unchecked")
   public void setSchema(Schema fileSchema) {
-    boolean adjustToUtcDefault = AvroSchemaUtil.adjustToUtcDefault(fileSchema);
     this.reader =
         (ValueReader<T>)
             AvroWithPartnerVisitor.visit(
