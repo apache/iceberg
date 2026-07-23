@@ -104,17 +104,8 @@ interface TrackedFile {
    */
   static Types.StructType schema(
       Types.StructType partitionType, Types.StructType contentStatsType) {
-    return schema(Tracking.schema(), partitionType, contentStatsType);
-  }
-
-  /** Returns the schema with the given tracking, partition, and content stats types. */
-  static Types.StructType schema(
-      Types.StructType trackingType,
-      Types.StructType partitionType,
-      Types.StructType contentStatsType) {
     return Types.StructType.of(
-        Types.NestedField.required(
-            TRACKING.fieldId(), TRACKING.name(), trackingType, TRACKING.doc()),
+        TRACKING,
         CONTENT_TYPE,
         FORMAT_VERSION,
         LOCATION,

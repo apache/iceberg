@@ -29,6 +29,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.Literal;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types.IntegerType;
@@ -1036,5 +1037,42 @@ public class TestTypeUtil {
         .containsEntry(23, "addresses_zip")
         .containsEntry(24, "addresses_value") // the leaf takes precedence
         .hasSize(22);
+  }
+
+  @Test
+  public void testReplaceFieldTypes() {
+    Types.StructType replacement = Types.StructType.of(required(10, "x", IntegerType.get()));
+    Schema schema =
+        new Schema(
+            required(1, "id", IntegerType.get()),
+            required(2, "s", Types.StructType.of(required(3, "a", Types.LongType.get()))));
+
+    Schema result = TypeUtil.replaceFieldTypes(schema, ImmutableMap.of(2, (Type) replacement));
+
+    assertThat(result.findField(1).type()).isEqualTo(IntegerType.get());
+    assertThat(result.findField(2).type()).isEqualTo(replacement);
+  }
+
+  @Test
+  public void testReplaceFieldTypesListElement() {
+    Schema schema =
+        new Schema(required(1, "list", Types.ListType.ofRequired(2, Types.StructType.of())));
+
+    Schema result =
+        TypeUtil.replaceFieldTypes(
+            schema,
+            ImmutableMap.of(2, (Type) Types.StructType.of(required(3, "x", IntegerType.get()))));
+
+    Types.ListType list = (Types.ListType) result.findField(1).type();
+    assertThat(list.elementType().asStructType().field(3).name()).isEqualTo("x");
+    assertThat(list.isElementRequired()).isTrue();
+  }
+
+  @Test
+  public void testReplaceFieldTypesNoMatchReturnsSameSchema() {
+    Schema schema = new Schema(required(1, "id", IntegerType.get()));
+    Schema result =
+        TypeUtil.replaceFieldTypes(schema, ImmutableMap.of(99, (Type) Types.LongType.get()));
+    assertThat(result).isSameAs(schema);
   }
 }

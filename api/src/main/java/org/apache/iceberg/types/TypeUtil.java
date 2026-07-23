@@ -157,6 +157,24 @@ public class TypeUtil {
     return project(schema, projectedIds);
   }
 
+  /**
+   * Returns a copy of the schema with the type of each field in {@code replacementsById} replaced
+   * by its mapped type. Fields not in the map are unchanged.
+   *
+   * @param schema a schema
+   * @param replacementsById a map from field ID to the type that should replace the field's type
+   * @return a schema with the replaced field types
+   */
+  public static Schema replaceFieldTypes(Schema schema, Map<Integer, Type> replacementsById) {
+    Types.StructType struct = visit(schema, new ReplaceTypeById(replacementsById)).asStructType();
+    if (struct.equals(schema.asStruct())) {
+      return schema;
+    }
+
+    return new Schema(
+        schema.schemaId(), struct.fields(), schema.getAliases(), schema.identifierFieldIds());
+  }
+
   public static Schema join(Schema left, Schema right) {
     List<Types.NestedField> joinedColumns = Lists.newArrayList(left.columns());
     for (Types.NestedField rightColumn : right.columns()) {

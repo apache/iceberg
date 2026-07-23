@@ -179,7 +179,7 @@ public class TestV4ManifestReader {
     }
 
     try (V4ManifestReader reader =
-        newReader(manifest, UNPARTITIONED_SPECS).includeTombstones().build()) {
+        newReader(manifest, UNPARTITIONED_SPECS).includeNonLive().build()) {
       assertThat(reader)
           .extracting(file -> file.tracking().status())
           .containsExactly(
@@ -240,10 +240,32 @@ public class TestV4ManifestReader {
       assertThat(actual.tracking()).isNotNull();
       assertThat(actual.tracking().status()).isEqualTo(EntryStatus.ADDED);
       assertThat(actual.contentType()).isEqualTo(FileContent.DATA);
-      // sort_order_id, file_format, and spec_id are null because they were not projected
+      // sort_order_id, file_format, spec_id, and record_count are null because they were not
+      // projected and no row filter forces them
       assertThat(actual.sortOrderId()).isNull();
       assertThat(actual.fileFormat()).isNull();
       assertThat(actual.specId()).isNull();
+      assertThat(actual.recordCount()).isEqualTo(-1L);
+    }
+  }
+
+  @TestTemplate
+  public void testRowFilterForcesRecordCount() throws IOException {
+    TrackedFile file = dataFile("s3://bucket/file.parquet", EMPTY_PARTITION_DATA);
+
+    InputFile manifest = writeManifest(EMPTY_PARTITION, ImmutableList.of(file));
+
+    // record_count is read when evaluating a row filter against file metrics, so it is projected
+    // even though the caller selected only location
+    Schema projection = new Schema(TrackedFile.LOCATION);
+    try (V4ManifestReader reader =
+        newReader(manifest, UNPARTITIONED_SPECS)
+            .project(projection)
+            .filterRows(Expressions.equal("id", 1))
+            .build()) {
+      TrackedFile actual = Lists.newArrayList(reader).get(0);
+      assertThat(actual.location()).isEqualTo(file.location());
+      assertThat(actual.recordCount()).isEqualTo(RECORD_COUNT);
     }
   }
 
