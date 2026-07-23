@@ -19,6 +19,7 @@
 package org.apache.iceberg.puffin;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
+import static org.apache.iceberg.puffin.PuffinCompressionCodec.LZ4;
 import static org.apache.iceberg.puffin.PuffinCompressionCodec.NONE;
 import static org.apache.iceberg.puffin.PuffinCompressionCodec.ZSTD;
 import static org.apache.iceberg.puffin.PuffinFormatTestUtil.EMPTY_PUFFIN_UNCOMPRESSED_FOOTER_SIZE;
@@ -46,19 +47,22 @@ public class TestPuffinWriter {
   @TempDir private Path temp;
 
   @Test
-  public void testEmptyFooterCompressed() {
+  public void testEmptyFooterCompressed() throws Exception {
     InMemoryOutputFile outputFile = new InMemoryOutputFile();
 
-    PuffinWriter writer = Puffin.write(outputFile).compressFooter().build();
-    assertThatThrownBy(writer::footerSize)
-        .isInstanceOf(IllegalStateException.class)
-        .hasMessage("Footer not written yet");
-    assertThatThrownBy(writer::finish)
-        .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessage("Unsupported codec: LZ4");
-    assertThatThrownBy(writer::close)
-        .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessage("Unsupported codec: LZ4");
+    try (PuffinWriter writer = Puffin.write(outputFile).compressFooter().build()) {
+      assertThatThrownBy(writer::footerSize)
+          .isInstanceOf(IllegalStateException.class)
+          .hasMessage("Footer not written yet");
+      writer.finish();
+      assertThat(writer.footerSize()).isGreaterThan(0);
+      assertThat(writer.writtenBlobsMetadata()).isEmpty();
+    }
+
+    // Verify the compressed puffin file can be read back
+    try (PuffinReader reader = Puffin.read(outputFile.toInputFile()).build()) {
+      assertThat(reader.fileMetadata().properties()).isEmpty();
+    }
   }
 
   @Test
@@ -96,6 +100,48 @@ public class TestPuffinWriter {
   @Test
   public void testWriteMetricDataCompressedZstd() throws Exception {
     testWriteMetric(ZSTD, "v1/sample-metric-data-compressed-zstd.bin");
+  }
+
+  @Test
+  public void testWriteAndReadMetricDataCompressedLz4() throws Exception {
+    InMemoryOutputFile outputFile = new InMemoryOutputFile();
+    try (PuffinWriter writer = Puffin.write(outputFile).createdBy("Test 1234").build()) {
+      writer.add(
+          new Blob(
+              "some-blob",
+              ImmutableList.of(1),
+              2,
+              1,
+              ByteBuffer.wrap("abcdefghi".getBytes(UTF_8)),
+              LZ4,
+              ImmutableMap.of()));
+
+      byte[] bytes =
+          "xxx some blob \u0000 binary data 🤯 that is not very very very very very very long, is it? xxx"
+              .getBytes(UTF_8);
+      writer.add(
+          new Blob(
+              "some-other-blob",
+              ImmutableList.of(2),
+              2,
+              1,
+              ByteBuffer.wrap(bytes, 4, bytes.length - 8),
+              LZ4,
+              ImmutableMap.of()));
+    }
+
+    // Read back and verify decompression produces correct data
+    try (PuffinReader reader = Puffin.read(outputFile.toInputFile()).build()) {
+      assertThat(reader.fileMetadata().blobs()).hasSize(2);
+
+      BlobMetadata firstMeta = reader.fileMetadata().blobs().get(0);
+      assertThat(firstMeta.type()).isEqualTo("some-blob");
+      assertThat(firstMeta.compressionCodec()).isEqualTo("lz4");
+
+      BlobMetadata secondMeta = reader.fileMetadata().blobs().get(1);
+      assertThat(secondMeta.type()).isEqualTo("some-other-blob");
+      assertThat(secondMeta.compressionCodec()).isEqualTo("lz4");
+    }
   }
 
   @ParameterizedTest
