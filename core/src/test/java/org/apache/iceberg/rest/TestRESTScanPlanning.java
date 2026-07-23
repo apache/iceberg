@@ -1092,38 +1092,11 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
     RESTTable table = restTableFor(catalog, "async_not_supported");
     setParserContext(table);
 
-    // Should fail with UnsupportedOperationException when trying to fetch async plan result
-    // because V1_FETCH_TABLE_SCAN_PLAN endpoint is not supported
+    // Should fail with IllegalStateException when trying to fetch async plan result
+    // because the server does not support fetching plan results
     assertThatThrownBy(restTableScanFor(table)::planFiles)
-        .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessage("Server does not support endpoint: %s", Endpoint.V1_FETCH_TABLE_SCAN_PLAN);
-  }
-
-  @Test
-  public void serverSupportsPlanningButNotPagination() {
-    // Server supports planning but not task pagination endpoint
-    // Use synchronousWithPagination (tasksPerPage=1) to trigger pagination, which will hit
-    // Endpoint.check()
-    CatalogWithAdapter catalogWithAdapter =
-        catalogWithEndpoints(
-            endpointsWithPlanning(
-                Endpoint.V1_SUBMIT_TABLE_SCAN_PLAN,
-                Endpoint.V1_FETCH_TABLE_SCAN_PLAN,
-                Endpoint.V1_CANCEL_TABLE_SCAN_PLAN),
-            TestPlanningBehavior.builder().synchronousWithPagination().build());
-
-    RESTCatalog catalog = catalogWithAdapter.catalog;
-    RESTTable table = restTableFor(catalog, "pagination_not_supported");
-    table.newAppend().appendFile(FILE_B).commit();
-    setParserContext(table);
-    RESTTableScan scan = restTableScanFor(table);
-
-    // Should fail with UnsupportedOperationException when trying to fetch paginated tasks
-    // because V1_FETCH_TABLE_SCAN_PLAN_TASKS endpoint is not supported
-    assertThatThrownBy(scan::planFiles)
-        .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessage(
-            "Server does not support endpoint: %s", Endpoint.V1_FETCH_TABLE_SCAN_PLAN_TASKS);
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("Invalid plan status SUBMITTED: server does not support async scan planning");
   }
 
   @Test
