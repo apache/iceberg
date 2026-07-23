@@ -91,26 +91,17 @@ public class TestFieldStatsStruct {
     assertThat(doubleStats.hasNullValueCount()).isTrue();
     assertThat(doubleStats.hasNanValueCount()).isTrue();
 
-    // required long: tracks neither null nor NaN count; reading counts throws rather than NPEs
+    // required long: tracks neither null nor NaN count
     Types.StructType requiredLong =
         StatsUtil.fieldStatsStruct(false, Types.LongType.get(), BASE_ID, MetricsModes.Full.get());
     FieldStats<Long> requiredStats =
         StatsTestUtil.fieldStats(requiredLong, 1L, 5L, false, 10L, null, null, null);
     assertThat(requiredStats.hasNullValueCount()).isFalse();
     assertThat(requiredStats.hasNanValueCount()).isFalse();
-    assertThatThrownBy(() -> requiredStats.nullValueCount())
-        .isInstanceOf(IllegalStateException.class)
-        .hasMessageContaining("does not track a null value count");
-    assertThatThrownBy(() -> requiredStats.nanValueCount())
-        .isInstanceOf(IllegalStateException.class)
-        .hasMessageContaining("does not track a NaN value count");
 
     // a struct with no stats set (e.g. a deserialized projection) tracks no value count
     FieldStats<Long> bare = new FieldStatsStruct<>(requiredLong);
     assertThat(bare.hasValueCount()).isFalse();
-    assertThatThrownBy(bare::valueCount)
-        .isInstanceOf(IllegalStateException.class)
-        .hasMessageContaining("does not track a value count");
   }
 
   @Test

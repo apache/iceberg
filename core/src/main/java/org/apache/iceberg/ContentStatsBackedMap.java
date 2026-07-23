@@ -121,8 +121,12 @@ class ContentStatsBackedMap<V> extends AbstractMap<Integer, V> {
     return materialized;
   }
 
-  /** Returns whether no column contributes an entry for the metric. */
+  /** Returns whether no column contributes an entry for the metric, including for null stats. */
   private static boolean isEmpty(ContentStats stats, Kind kind) {
+    if (stats == null) {
+      return true;
+    }
+
     for (FieldStats<?> fieldStats : stats.fieldStats()) {
       if (fieldStats != null && isKnown(fieldStats, kind)) {
         return false;

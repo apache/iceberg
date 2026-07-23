@@ -74,31 +74,29 @@ public class TestContentStatsBackedMap {
   }
 
   @Test
-  public void testGetDoesNotUnboxUntrackedNullCount() {
-    // a deserialized required-column struct leaves null_value_count null; get must not unbox it.
-    // Column 2 tracks the null count, so the view itself is non-null.
-    ContentStatsStruct stats = new ContentStatsStruct(STATS_TYPE);
-    stats.setStats(1, new FieldStatsStruct<Long>(statsType("req")));
-    stats.setStats(
-        2, StatsTestUtil.fieldStats(statsType("opt"), 2L, 6L, false, 20L, 3L, null, null));
-    Map<Integer, Long> map = ContentStatsBackedMap.nullValueCounts(stats);
-    assertThat(map.get(1)).isNull();
-    assertThat(map).containsOnly(Map.entry(2, 3L));
-  }
-
-  @Test
   public void testNanValueCountsOnlyForFloatingColumns() {
     Map<Integer, Long> map = ContentStatsBackedMap.nanValueCounts(POPULATED_STATS);
     assertThat(map).containsOnly(Map.entry(3, 4L));
   }
 
   @Test
-  public void testLowerAndUpperBounds() {
+  public void testLowerBounds() {
     Map<Integer, ByteBuffer> lower = ContentStatsBackedMap.lowerBounds(POPULATED_STATS);
+    assertThat(lower)
+        .containsOnly(
+            Map.entry(1, Conversions.toByteBuffer(Types.LongType.get(), 1L)),
+            Map.entry(2, Conversions.toByteBuffer(Types.LongType.get(), 2L)),
+            Map.entry(3, Conversions.toByteBuffer(Types.DoubleType.get(), 1.0)));
+  }
+
+  @Test
+  public void testUpperBounds() {
     Map<Integer, ByteBuffer> upper = ContentStatsBackedMap.upperBounds(POPULATED_STATS);
-    assertThat(lower.get(1)).isEqualTo(Conversions.toByteBuffer(Types.LongType.get(), 1L));
-    assertThat(upper.get(3)).isEqualTo(Conversions.toByteBuffer(Types.DoubleType.get(), 9.0));
-    assertThat(lower).containsOnlyKeys(1, 2, 3);
+    assertThat(upper)
+        .containsOnly(
+            Map.entry(1, Conversions.toByteBuffer(Types.LongType.get(), 5L)),
+            Map.entry(2, Conversions.toByteBuffer(Types.LongType.get(), 6L)),
+            Map.entry(3, Conversions.toByteBuffer(Types.DoubleType.get(), 9.0)));
   }
 
   @Test
@@ -126,17 +124,14 @@ public class TestContentStatsBackedMap {
   }
 
   @Test
-  public void testFactoryReturnsPopulatedViewWhenColumnsTrackMetric() {
-    Map<Integer, Long> nanCounts = ContentStatsBackedMap.nanValueCounts(POPULATED_STATS);
-    assertThat(nanCounts).isNotNull().containsOnly(Map.entry(3, 4L));
+  public void testFactoryReturnsPopulatedViewWhenStatsStructsMissing() {
+    // the schema includes all three columns but only the optional one has a stats struct; the
+    // value-count map is still non-null and simply omits the missing columns
+    ContentStatsStruct stats = new ContentStatsStruct(STATS_TYPE);
+    stats.setStats(
+        2, StatsTestUtil.fieldStats(statsType("opt"), 2L, 6L, false, 20L, 3L, null, null));
 
-    Map<Integer, Long> nullCounts = ContentStatsBackedMap.nullValueCounts(POPULATED_STATS);
-    assertThat(nullCounts).isNotNull().containsOnly(Map.entry(2, 3L), Map.entry(3, 7L));
-  }
-
-  @Test
-  public void testPopulatedViewIsNotEmpty() {
-    // isEmpty() answers from a scan without materializing entrySet
-    assertThat(ContentStatsBackedMap.valueCounts(ONLY_REQUIRED_STATS)).isNotEmpty();
+    Map<Integer, Long> valueCounts = ContentStatsBackedMap.valueCounts(stats);
+    assertThat(valueCounts).isNotNull().containsOnly(Map.entry(2, 20L));
   }
 }

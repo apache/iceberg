@@ -22,7 +22,6 @@ import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /** Adapts {@link TrackedFile} entries to the {@link DataFile} and {@link DeleteFile} APIs. */
@@ -175,34 +174,27 @@ class TrackedFileAdapters {
 
     @Override
     public Map<Integer, Long> valueCounts() {
-      return statsMap(ContentStatsBackedMap::valueCounts);
+      return ContentStatsBackedMap.valueCounts(file().contentStats());
     }
 
     @Override
     public Map<Integer, Long> nullValueCounts() {
-      return statsMap(ContentStatsBackedMap::nullValueCounts);
+      return ContentStatsBackedMap.nullValueCounts(file().contentStats());
     }
 
     @Override
     public Map<Integer, Long> nanValueCounts() {
-      return statsMap(ContentStatsBackedMap::nanValueCounts);
+      return ContentStatsBackedMap.nanValueCounts(file().contentStats());
     }
 
     @Override
     public Map<Integer, ByteBuffer> lowerBounds() {
-      return statsMap(ContentStatsBackedMap::lowerBounds);
+      return ContentStatsBackedMap.lowerBounds(file().contentStats());
     }
 
     @Override
     public Map<Integer, ByteBuffer> upperBounds() {
-      return statsMap(ContentStatsBackedMap::upperBounds);
-    }
-
-    // Presents the wrapped content stats as a legacy per-column stats map without eagerly
-    // materializing it.
-    private <V> Map<Integer, V> statsMap(Function<ContentStats, Map<Integer, V>> statsView) {
-      ContentStats contentStats = file().contentStats();
-      return contentStats == null ? null : statsView.apply(contentStats);
+      return ContentStatsBackedMap.upperBounds(file().contentStats());
     }
   }
 
