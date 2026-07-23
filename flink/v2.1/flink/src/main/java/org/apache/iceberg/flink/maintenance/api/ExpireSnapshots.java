@@ -19,7 +19,6 @@
 package org.apache.iceberg.flink.maintenance.api;
 
 import java.time.Duration;
-import java.util.Optional;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
@@ -109,19 +108,20 @@ public class ExpireSnapshots {
     }
 
     public Builder config(ExpireSnapshotsConfig expireSnapshotsConfig) {
-      this.scheduleOnCommitCount(expireSnapshotsConfig.scheduleOnCommitCount())
-          .scheduleOnInterval(Duration.ofSeconds(expireSnapshotsConfig.scheduleOnIntervalSecond()))
-          .deleteBatchSize(expireSnapshotsConfig.deleteBatchSize())
-          .maxSnapshotAge(
-              Optional.ofNullable(expireSnapshotsConfig.maxSnapshotAgeSeconds())
-                  .map(Duration::ofSeconds)
-                  .orElse(null))
-          .cleanExpiredMetadata(expireSnapshotsConfig.cleanExpiredMetadata())
-          .planningWorkerPoolSize(expireSnapshotsConfig.planningWorkerPoolSize());
+      scheduleOnCommitCount(expireSnapshotsConfig.scheduleOnCommitCount());
+      scheduleOnInterval(Duration.ofSeconds(expireSnapshotsConfig.scheduleOnIntervalSecond()));
+      deleteBatchSize(expireSnapshotsConfig.deleteBatchSize());
+      cleanExpiredMetadata(expireSnapshotsConfig.cleanExpiredMetadata());
+      planningWorkerPoolSize(expireSnapshotsConfig.planningWorkerPoolSize());
 
       Integer retainLast = expireSnapshotsConfig.retainLast();
       if (retainLast != null) {
         retainLast(retainLast);
+      }
+
+      Long maxSnapshotAgeSeconds = expireSnapshotsConfig.maxSnapshotAgeSeconds();
+      if (maxSnapshotAgeSeconds != null) {
+        maxSnapshotAge(Duration.ofSeconds(maxSnapshotAgeSeconds));
       }
 
       return this;
