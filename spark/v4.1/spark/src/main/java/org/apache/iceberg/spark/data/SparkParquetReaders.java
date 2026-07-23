@@ -275,6 +275,8 @@ public class SparkParquetReaders {
           case TIMESTAMP_MICROS:
           case TIMESTAMP_MILLIS:
             return ParquetValueReaders.timestamps(desc);
+          case TIME_MICROS:
+            return new TimeReader(desc);
           case DECIMAL:
             DecimalLogicalTypeAnnotation decimal =
                 (DecimalLogicalTypeAnnotation) primitive.getLogicalTypeAnnotation();
@@ -332,6 +334,23 @@ public class SparkParquetReaders {
 
     protected MessageType type() {
       return type;
+    }
+  }
+
+  private static class TimeReader extends UnboxedReader<Long> {
+    TimeReader(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public Long read(Long ignored) {
+      return readLong();
+    }
+
+    @Override
+    public long readLong() {
+      // Iceberg stores time as microseconds from midnight, but Spark stores it as nanoseconds
+      return 1000L * column.nextLong();
     }
   }
 

@@ -45,6 +45,7 @@ import org.apache.spark.sql.types.ShortType;
 import org.apache.spark.sql.types.StringType;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
+import org.apache.spark.sql.types.TimeType;
 import org.apache.spark.sql.types.TimestampNTZType;
 import org.apache.spark.sql.types.TimestampType;
 import org.apache.spark.sql.types.VarcharType;
@@ -155,6 +156,9 @@ class SparkTypeToType extends SparkTypeVisitor<Type> {
 
     } else if (atomic instanceof DateType) {
       return Types.DateType.get();
+
+    } else if (atomic instanceof TimeType) {
+      return Types.TimeType.get();
 
     } else if (atomic instanceof TimestampType) {
       return Types.TimestampType.withZone();

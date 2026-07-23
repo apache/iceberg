@@ -99,7 +99,8 @@ public class TestSparkParquetWriter {
                       optional(22, "jumpy", Types.DoubleType.get()),
                       required(23, "koala", Types.UUIDType.get()),
                       required(24, "couch rope", Types.IntegerType.get())))),
-          optional(2, "slide", Types.StringType.get()));
+          optional(2, "slide", Types.StringType.get()),
+          optional(25, "start_time", Types.TimeType.get()));
 
   @Test
   public void testCorrectness() throws IOException {

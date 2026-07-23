@@ -23,6 +23,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Supplier;
+import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MetadataColumns;
@@ -43,6 +45,7 @@ import org.apache.iceberg.spark.ParquetBatchReadConf;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.spark.api.java.JavaSparkContext;
@@ -156,6 +159,7 @@ class SparkBatch implements Batch {
   // - Parquet vectorization is enabled
   // - only primitives, unshredded variant, or metadata columns are projected, excluding geometry
   //   and geography which are primitives with no Arrow vector yet
+  // - no time type is read, either projected or required to apply equality deletes
   // - all tasks are of FileScanTask type and read only Parquet files
   private boolean useParquetBatchReads() {
     return readConf.parquetVectorizationEnabled()
@@ -173,6 +177,13 @@ class SparkBatch implements Batch {
       if (fileScanTask.file().format() != FileFormat.PARQUET) {
         return false;
       }
+
+      // equality deletes add their referenced columns to the read schema, so a time column can
+      // be read through the vectorized path even when the query does not project it
+      if (hasTimeEqualityDeleteField(fileScanTask)) {
+        return false;
+      }
+
       Map<Integer, ByteBuffer> lowerBounds = fileScanTask.file().lowerBounds();
       if (lowerBounds != null) {
         for (Types.NestedField field : projection.columns()) {
@@ -189,6 +200,16 @@ class SparkBatch implements Batch {
   }
 
   private boolean supportsParquetBatchReads(Types.NestedField field) {
+    // The vectorized Parquet reader exposes time values through Arrow's TimeMicroVector, which
+    // returns microseconds, while Spark's TimeType expects nanoseconds. Until the vectorized path
+    // performs that conversion, fall back to row-based reads when a time column is projected
+    // (time columns required only by equality deletes are checked per task above). This check
+    // must run before the metadata column check to catch a time field nested in a metadata
+    // column like _partition.
+    if (containsTime(field.type())) {
+      return false;
+    }
+
     if (MetadataColumns.isMetadataColumn(field.fieldId())) {
       return true;
     }
@@ -223,10 +244,55 @@ class SparkBatch implements Batch {
 
   // conditions for using ORC batch reads:
   // - ORC vectorization is enabled
+  // - no projected column has a time type
   // - all tasks are of type FileScanTask and read only ORC files with no delete files
   private boolean useOrcBatchReads() {
     return readConf.orcVectorizationEnabled()
+        && projection.columns().stream().allMatch(this::supportsOrcBatchReads)
         && taskGroups.stream().allMatch(this::supportsOrcBatchReads);
+  }
+
+  private boolean supportsOrcBatchReads(Types.NestedField field) {
+    // Spark 4.1's ColumnarBatch cannot expose time values (ColumnarBatchRow#get does not support
+    // TimeType), so fall back to row-based reads when a time column is projected.
+    return !containsTime(field.type());
+  }
+
+  private boolean hasTimeEqualityDeleteField(FileScanTask fileScanTask) {
+    for (DeleteFile delete : fileScanTask.deletes()) {
+      if (delete.content() == FileContent.EQUALITY_DELETES) {
+        for (int fieldId : delete.equalityFieldIds()) {
+          Types.NestedField field = findField(fieldId);
+          if (field != null && containsTime(field.type())) {
+            return true;
+          }
+        }
+      }
+    }
+
+    return false;
+  }
+
+  private static boolean containsTime(Type type) {
+    return TypeUtil.find(type, t -> t.typeId() == Type.TypeID.TIME) != null;
+  }
+
+  // resolves a field id the same way the delete filter does: against the current schema first,
+  // then historic schemas, so equality deletes keyed on a dropped time column are still detected
+  private Types.NestedField findField(int fieldId) {
+    Types.NestedField field = table.schema().findField(fieldId);
+    if (field != null) {
+      return field;
+    }
+
+    for (Schema schema : table.schemas().values()) {
+      field = schema.findField(fieldId);
+      if (field != null) {
+        return field;
+      }
+    }
+
+    return null;
   }
 
   private boolean supportsOrcBatchReads(ScanTask task) {
