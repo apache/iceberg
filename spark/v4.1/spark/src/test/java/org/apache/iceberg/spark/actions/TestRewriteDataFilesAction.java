@@ -1832,6 +1832,84 @@ public class TestRewriteDataFilesAction extends TestBase {
   }
 
   @TestTemplate
+  public void testHilbertWithHColumnCollision() {
+    Schema schema =
+        new Schema(
+            optional(1, "c1", Types.IntegerType.get()),
+            optional(2, "c2", Types.StringType.get()),
+            optional(3, "ICEHVALUE", Types.StringType.get()));
+
+    Table table =
+        TABLES.create(
+            schema,
+            PartitionSpec.unpartitioned(),
+            ImmutableMap.of(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion)),
+            tableLocation);
+
+    assertThatThrownBy(() -> basicRewrite(table).hilbert("c1", "c2").execute())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot HILBERT because the table has a column named 'ICEHVALUE'");
+  }
+
+  @TestTemplate
+  public void testHilbertSort() {
+    int originalFiles = 20;
+    Table table = createTable(originalFiles);
+    shouldHaveLastCommitUnsorted(table, "c2");
+    shouldHaveFiles(table, originalFiles);
+
+    List<Object[]> originalData = currentData();
+    double originalFilesC2 = percentFilesRequired(table, "c2", "foo23");
+    double originalFilesC3 = percentFilesRequired(table, "c3", "bar21");
+    double originalFilesC2C3 =
+        percentFilesRequired(table, new String[] {"c2", "c3"}, new String[] {"foo23", "bar23"});
+
+    assertThat(originalFilesC2).as("Should require all files to scan c2").isGreaterThan(0.99);
+    assertThat(originalFilesC3).as("Should require all files to scan c3").isGreaterThan(0.99);
+
+    long dataSizeBefore = testDataSize(table);
+    RewriteDataFiles.Result result =
+        basicRewrite(table)
+            .hilbert("c2", "c3")
+            .option(
+                SizeBasedFileRewritePlanner.MAX_FILE_SIZE_BYTES,
+                Integer.toString((averageFileSize(table) / 2) + 2))
+            // Divide files in 2
+            .option(
+                RewriteDataFiles.TARGET_FILE_SIZE_BYTES,
+                Integer.toString(averageFileSize(table) / 2))
+            .option(SizeBasedFileRewritePlanner.MIN_INPUT_FILES, "1")
+            .execute();
+
+    assertThat(result.rewriteResults()).as("Should have 1 fileGroups").hasSize(1);
+    assertThat(result.rewrittenBytesCount()).isEqualTo(dataSizeBefore);
+    assertThat(SnapshotChanges.builderFor(table).build().addedDataFiles())
+        .as("Should have written 40+ files")
+        .hasSizeGreaterThanOrEqualTo(40);
+
+    List<Object[]> postRewriteData = currentData();
+    assertEquals("We shouldn't have changed the data", originalData, postRewriteData);
+
+    shouldHaveSnapshots(table, 2);
+    shouldHaveACleanCache(table);
+
+    double filesScannedC2 = percentFilesRequired(table, "c2", "foo23");
+    double filesScannedC3 = percentFilesRequired(table, "c3", "bar21");
+    double filesScannedC2C3 =
+        percentFilesRequired(table, new String[] {"c2", "c3"}, new String[] {"foo23", "bar23"});
+
+    assertThat(originalFilesC2)
+        .as("Should have reduced the number of files required for c2")
+        .isGreaterThan(filesScannedC2);
+    assertThat(originalFilesC3)
+        .as("Should have reduced the number of files required for c3")
+        .isGreaterThan(filesScannedC3);
+    assertThat(originalFilesC2C3)
+        .as("Should have reduced the number of files required for c2,c3 predicate")
+        .isGreaterThan(filesScannedC2C3);
+  }
+
+  @TestTemplate
   public void testZOrderAllTypesSort() {
     spark.conf().set("spark.sql.ansi.enabled", "false");
     Table table = createTypeTestTable();
