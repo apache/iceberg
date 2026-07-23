@@ -25,18 +25,21 @@ import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.StreamSupport;
+import javax.annotation.Nullable;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.transforms.Transforms;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.iceberg.variants.PhysicalType;
@@ -759,5 +762,170 @@ public class ExpressionUtil {
         break;
     }
     return builder.toString();
+  }
+
+  /**
+   * Transform UUID literals in an unbound expression to use signed comparators, if the expression
+   * contains UUID bounds predicates. This maintains backward compatibility with files written
+   * before RFC 4122/9562 compliant comparison was implemented.
+   *
+   * <p>The transformed expression contains literals with signed comparators for lt/gt/eq
+   * predicates. For IN predicates, the comparator information is lost when binding converts
+   * literals to a Set of raw values, so the evaluator must handle this separately.
+   *
+   * @param expr an unbound expression
+   * @return the expression with signed UUID comparators, or null if no UUID bounds predicates are
+   *     present
+   */
+  @Nullable
+  public static Expression toSignedUUIDLiteral(Expression expr) {
+    SignedUUIDLiteralVisitor visitor = new SignedUUIDLiteralVisitor();
+    Expression transformed = ExpressionVisitors.visit(expr, visitor);
+    return visitor.foundUUIDBoundsPredicate() ? transformed : null;
+  }
+
+  /**
+   * Returns true if the expression binds to a UUID predicate that relies on lower/upper bounds.
+   *
+   * <p>This must bind the expression first because some engines represent UUID literals as strings
+   * before Iceberg coerces them to UUID values.
+   */
+  public static boolean hasBoundUUIDBoundsPredicate(
+      Schema schema, Expression unbound, boolean caseSensitive) {
+    Expression bound = Binder.bind(schema.asStruct(), unbound, caseSensitive);
+    return ExpressionVisitors.visit(bound, new BoundUUIDBoundsPredicateVisitor());
+  }
+
+  /**
+   * Visitor that transforms an expression to use the signed UUID comparator in all UUID literals,
+   * while also tracking whether any UUID bounds predicates were found.
+   */
+  private static class SignedUUIDLiteralVisitor
+      extends ExpressionVisitors.ExpressionVisitor<Expression> {
+
+    private boolean foundUUIDBoundsPredicate = false;
+
+    boolean foundUUIDBoundsPredicate() {
+      return foundUUIDBoundsPredicate;
+    }
+
+    @Override
+    public Expression alwaysTrue() {
+      return Expressions.alwaysTrue();
+    }
+
+    @Override
+    public Expression alwaysFalse() {
+      return Expressions.alwaysFalse();
+    }
+
+    @Override
+    public Expression not(Expression result) {
+      return Expressions.not(result);
+    }
+
+    @Override
+    public Expression and(Expression leftResult, Expression rightResult) {
+      return Expressions.and(leftResult, rightResult);
+    }
+
+    @Override
+    public Expression or(Expression leftResult, Expression rightResult) {
+      return Expressions.or(leftResult, rightResult);
+    }
+
+    @Override
+    public <T> Expression predicate(BoundPredicate<T> pred) {
+      // Bound predicates should not be transformed - this is for unbound expressions
+      throw new UnsupportedOperationException(
+          "Cannot transform bound predicate; use unbound expressions");
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public <T> Expression predicate(UnboundPredicate<T> pred) {
+      switch (pred.op()) {
+        case LT:
+        case LT_EQ:
+        case GT:
+        case GT_EQ:
+        case EQ:
+        case NOT_EQ:
+          if (pred.literal().value() instanceof UUID) {
+            foundUUIDBoundsPredicate = true;
+            Literals.UUIDLiteral uuidLit = (Literals.UUIDLiteral) pred.literal();
+            return new UnboundPredicate<>(
+                pred.op(), pred.term(), (T) uuidLit.withSignedComparator());
+          }
+          return pred;
+
+        case IN:
+        case NOT_IN:
+          List<Literal<T>> literals = pred.literals();
+          if (!literals.isEmpty() && literals.get(0).value() instanceof UUID) {
+            foundUUIDBoundsPredicate = true;
+            List<T> transformedValues =
+                literals.stream()
+                    .map(l -> (T) ((Literals.UUIDLiteral) l).withSignedComparator())
+                    .collect(Collectors.toList());
+            return new UnboundPredicate<>(pred.op(), pred.term(), transformedValues);
+          }
+          return pred;
+
+        default:
+          return pred;
+      }
+    }
+  }
+
+  private static class BoundUUIDBoundsPredicateVisitor
+      extends ExpressionVisitors.BoundVisitor<Boolean> {
+
+    @Override
+    public Boolean alwaysTrue() {
+      return false;
+    }
+
+    @Override
+    public Boolean alwaysFalse() {
+      return false;
+    }
+
+    @Override
+    public Boolean not(Boolean result) {
+      return result;
+    }
+
+    @Override
+    public Boolean and(Boolean leftResult, Boolean rightResult) {
+      return leftResult || rightResult;
+    }
+
+    @Override
+    public Boolean or(Boolean leftResult, Boolean rightResult) {
+      return leftResult || rightResult;
+    }
+
+    @Override
+    public <T> Boolean predicate(BoundPredicate<T> pred) {
+      if (pred.term().ref().type().typeId() != Type.TypeID.UUID) {
+        return false;
+      }
+
+      switch (pred.op()) {
+        case LT:
+        case LT_EQ:
+        case GT:
+        case GT_EQ:
+        case EQ:
+        case NOT_EQ:
+        case IN:
+        case NOT_IN:
+          return true;
+
+        default:
+          return false;
+      }
+    }
   }
 }
