@@ -24,9 +24,15 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
+import org.apache.iceberg.io.FileIOMetricsContext;
 import org.apache.iceberg.io.SeekableInputStream;
+import org.apache.iceberg.metrics.Counter;
+import org.apache.iceberg.metrics.DefaultMetricsContext;
+import org.apache.iceberg.metrics.MetricsContext;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
 import org.junit.jupiter.api.Test;
 
@@ -119,6 +125,32 @@ public class TestOSSInputStream extends AliyunOSSTestBase {
     }
   }
 
+  @Test
+  public void testReadAtEofDoesNotCountMetrics() throws Exception {
+    OSSURI uri = new OSSURI(location("eof-metrics.dat"));
+    byte[] data = new byte[] {'a', 'b'};
+    writeOSSData(uri, data);
+
+    CachingMetricsContext metrics = new CachingMetricsContext();
+    Counter readBytes = metrics.counter(FileIOMetricsContext.READ_BYTES, MetricsContext.Unit.BYTES);
+    Counter readOperations = metrics.counter(FileIOMetricsContext.READ_OPERATIONS);
+
+    try (SeekableInputStream in = new OSSInputStream(ossClient().get(), uri, metrics)) {
+      // read the two bytes of content
+      assertThat(in.read()).isEqualTo('a');
+      assertThat(in.read()).isEqualTo('b');
+      assertThat(readBytes.value()).isEqualTo(2);
+      assertThat(readOperations.value()).isEqualTo(2);
+
+      // reading past EOF must not count bytes or operations, and must not decrement
+      assertThat(in.read()).isEqualTo(-1);
+      byte[] buffer = new byte[8];
+      assertThat(in.read(buffer, 0, buffer.length)).isEqualTo(-1);
+      assertThat(readBytes.value()).isEqualTo(2);
+      assertThat(readOperations.value()).isEqualTo(2);
+    }
+  }
+
   private byte[] randomData(int size) {
     byte[] data = new byte[size];
     random.nextBytes(data);
@@ -127,5 +159,19 @@ public class TestOSSInputStream extends AliyunOSSTestBase {
 
   private void writeOSSData(OSSURI uri, byte[] data) {
     ossClient().get().putObject(uri.bucket(), uri.key(), new ByteArrayInputStream(data));
+  }
+
+  /**
+   * A {@link MetricsContext} that returns the same {@link Counter} instance for a given name, so
+   * that tests can observe the counters the stream under test increments. {@link
+   * DefaultMetricsContext} allocates a fresh counter on every {@code counter(...)} call.
+   */
+  private static class CachingMetricsContext extends DefaultMetricsContext {
+    private final Map<String, Counter> counters = Maps.newConcurrentMap();
+
+    @Override
+    public Counter counter(String name, Unit unit) {
+      return counters.computeIfAbsent(name, ignored -> super.counter(name, unit));
+    }
   }
 }
