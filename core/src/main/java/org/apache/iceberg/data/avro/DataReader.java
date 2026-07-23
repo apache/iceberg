@@ -29,6 +29,7 @@ import org.apache.avro.io.DatumReader;
 import org.apache.avro.io.Decoder;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.avro.AvroSchemaWithTypeVisitor;
+import org.apache.iceberg.avro.SupportsLocalTimestamp;
 import org.apache.iceberg.avro.SupportsRowPosition;
 import org.apache.iceberg.avro.ValueReader;
 import org.apache.iceberg.avro.ValueReaders;
@@ -40,7 +41,7 @@ import org.apache.iceberg.types.Types;
  * @deprecated will be removed in 1.12.0; use {@link PlannedDataReader} instead.
  */
 @Deprecated
-public class DataReader<T> implements DatumReader<T>, SupportsRowPosition {
+public class DataReader<T> implements DatumReader<T>, SupportsRowPosition, SupportsLocalTimestamp {
 
   public static <D> DataReader<D> create(
       org.apache.iceberg.Schema expectedSchema, Schema readSchema) {
@@ -52,38 +53,32 @@ public class DataReader<T> implements DatumReader<T>, SupportsRowPosition {
     return new DataReader<>(expectedSchema, readSchema, idToConstant);
   }
 
-  public static <D> DataReader<D> create(
-      org.apache.iceberg.Schema expectedSchema,
-      Schema readSchema,
-      Map<Integer, ?> idToConstant,
-      boolean adjustToUtcDefault) {
-    return new DataReader<>(expectedSchema, readSchema, idToConstant, adjustToUtcDefault);
-  }
-
+  private final org.apache.iceberg.Schema expectedSchema;
   private final Schema readSchema;
-  private final ValueReader<T> reader;
+  private final Map<Integer, ?> idToConstantMap;
+  private boolean adjustToUtcDefault = true;
+  private ValueReader<T> reader;
   private Schema fileSchema = null;
 
   protected DataReader(
       org.apache.iceberg.Schema expectedSchema, Schema readSchema, Map<Integer, ?> idToConstant) {
-    this(expectedSchema, readSchema, idToConstant, true);
-  }
-
-  @SuppressWarnings("unchecked")
-  protected DataReader(
-      org.apache.iceberg.Schema expectedSchema,
-      Schema readSchema,
-      Map<Integer, ?> idToConstant,
-      boolean adjustToUtcDefault) {
+    this.expectedSchema = expectedSchema;
     this.readSchema = readSchema;
-    this.reader =
-        (ValueReader<T>)
-            AvroSchemaWithTypeVisitor.visit(
-                expectedSchema, readSchema, new ReadBuilder(idToConstant, adjustToUtcDefault));
+    this.idToConstantMap = idToConstant;
   }
 
   @Override
+  public void setAdjustToUtcDefault(boolean adjustToUtcDefault) {
+    this.adjustToUtcDefault = adjustToUtcDefault;
+  }
+
+  @Override
+  @SuppressWarnings("unchecked")
   public void setSchema(Schema newFileSchema) {
+    this.reader =
+        (ValueReader<T>)
+            AvroSchemaWithTypeVisitor.visit(
+                expectedSchema, readSchema, new ReadBuilder(idToConstantMap, adjustToUtcDefault));
     this.fileSchema = Schema.applyAliases(newFileSchema, readSchema);
   }
 

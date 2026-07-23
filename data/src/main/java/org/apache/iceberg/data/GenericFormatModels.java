@@ -35,9 +35,9 @@ public class GenericFormatModels {
         AvroFormatModel.create(
             Record.class,
             Void.class,
-            (icebergSchema, fileSchema, engineSchema) -> DataWriter.create(fileSchema, false),
+            (icebergSchema, fileSchema, engineSchema) -> DataWriter.create(fileSchema),
             (icebergSchema, fileSchema, engineSchema, idToConstant) ->
-                PlannedDataReader.create(icebergSchema, idToConstant, false)));
+                PlannedDataReader.create(icebergSchema, idToConstant)));
 
     FormatModelRegistry.register(AvroFormatModel.forPositionDeletes());
 
