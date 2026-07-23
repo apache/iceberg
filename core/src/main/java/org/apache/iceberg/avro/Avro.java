@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.avro;
 
+import static org.apache.iceberg.TableProperties.AVRO_ADJUST_TO_UTC_DEFAULT;
+import static org.apache.iceberg.TableProperties.AVRO_ADJUST_TO_UTC_DEFAULT_DEFAULT;
 import static org.apache.iceberg.TableProperties.AVRO_COMPRESSION;
 import static org.apache.iceberg.TableProperties.AVRO_COMPRESSION_DEFAULT;
 import static org.apache.iceberg.TableProperties.AVRO_COMPRESSION_LEVEL;
@@ -220,7 +222,8 @@ public class Avro {
           codec,
           metadata,
           metricsConfig,
-          overwrite);
+          overwrite,
+          localTimestampEnabled);
     }
 
     static class Context {
@@ -589,6 +592,7 @@ public class Avro {
 
   public static class ReadBuilder implements InternalData.ReadBuilder {
     private final InputFile file;
+    private final Map<String, String> config = Maps.newHashMap();
     private final Map<String, String> renames = Maps.newLinkedHashMap();
     private final Map<Integer, Class<? extends StructLike>> typeMap = Maps.newHashMap();
     private Class<? extends StructLike> rootType = null;
@@ -614,6 +618,16 @@ public class Avro {
     private ReadBuilder(InputFile file) {
       Preconditions.checkNotNull(file, "Input file cannot be null");
       this.file = file;
+    }
+
+    public ReadBuilder set(String key, String value) {
+      config.put(key, value);
+      return this;
+    }
+
+    public ReadBuilder setAll(Map<String, String> properties) {
+      config.putAll(properties);
+      return this;
     }
 
     public ReadBuilder createResolvingReader(
@@ -730,6 +744,13 @@ public class Avro {
 
       if (reader instanceof SupportsCustomTypes) {
         ((SupportsCustomTypes) reader).setCustomTypes(rootType, typeMap);
+      }
+
+      if (reader instanceof SupportsLocalTimestamp) {
+        boolean adjustToUtcDefault =
+            PropertyUtil.propertyAsBoolean(
+                config, AVRO_ADJUST_TO_UTC_DEFAULT, AVRO_ADJUST_TO_UTC_DEFAULT_DEFAULT);
+        ((SupportsLocalTimestamp) reader).setAdjustToUtcDefault(adjustToUtcDefault);
       }
 
       return new AvroIterable<>(

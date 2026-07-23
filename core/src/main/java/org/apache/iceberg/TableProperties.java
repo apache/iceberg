@@ -276,6 +276,10 @@ public class TableProperties {
   public static final String ORC_BATCH_SIZE = "read.orc.vectorization.batch-size";
   public static final int ORC_BATCH_SIZE_DEFAULT = 5000;
 
+  // not used by any reader in production; table properties aren't wired to readers yet
+  public static final String AVRO_ADJUST_TO_UTC_DEFAULT = "read.avro.adjust-to-utc.default";
+  public static final boolean AVRO_ADJUST_TO_UTC_DEFAULT_DEFAULT = false;
+
   public static final String DATA_PLANNING_MODE = "read.data-planning-mode";
   public static final String DELETE_PLANNING_MODE = "read.delete-planning-mode";
   public static final String PLANNING_MODE_DEFAULT = PlanningMode.AUTO.modeName();
