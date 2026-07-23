@@ -51,6 +51,7 @@ import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.BaseTransaction;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.IncrementalAppendScan;
+import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.MetadataUpdate.UpgradeFormatVersion;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.RetryableValidationException;
@@ -95,11 +96,13 @@ import org.apache.iceberg.rest.responses.FetchPlanningResultResponse;
 import org.apache.iceberg.rest.responses.FetchScanTasksResponse;
 import org.apache.iceberg.rest.responses.GetNamespaceResponse;
 import org.apache.iceberg.rest.responses.ImmutableLoadViewResponse;
+import org.apache.iceberg.rest.responses.ImmutableUnregisterTableResponse;
 import org.apache.iceberg.rest.responses.ListNamespacesResponse;
 import org.apache.iceberg.rest.responses.ListTablesResponse;
 import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.apache.iceberg.rest.responses.LoadViewResponse;
 import org.apache.iceberg.rest.responses.PlanTableScanResponse;
+import org.apache.iceberg.rest.responses.UnregisterTableResponse;
 import org.apache.iceberg.rest.responses.UpdateNamespacePropertiesResponse;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.Tasks;
@@ -486,6 +489,32 @@ public class CatalogHandlers {
     if (!dropped) {
       throw new NoSuchTableException("Table does not exist: %s", ident);
     }
+  }
+
+  public static UnregisterTableResponse unregisterTable(Catalog catalog, TableIdentifier ident) {
+    if (MetadataTableType.from(ident.name()) != null) {
+      throw new NoSuchTableException("Table does not exist: %s", ident);
+    }
+
+    // capture the last metadata before dropping so it can be returned for re-registration
+    Table table = catalog.loadTable(ident);
+    if (!(table instanceof BaseTable)) {
+      throw new IllegalStateException("Cannot wrap catalog that does not produce BaseTable");
+    }
+
+    TableMetadata metadata = ((BaseTable) table).operations().current();
+
+    // catalog implementations should preserve the table's metadata/data files
+    boolean dropped = catalog.dropTable(ident, false /* do not purge */);
+    if (!dropped) {
+      throw new IllegalStateException(
+          String.format("Unregister failed. Table not dropped: %s", ident));
+    }
+
+    return ImmutableUnregisterTableResponse.builder()
+        .metadataLocation(metadata.metadataFileLocation())
+        .metadata(metadata)
+        .build();
   }
 
   public static void purgeTable(Catalog catalog, TableIdentifier ident) {
