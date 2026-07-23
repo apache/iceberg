@@ -594,6 +594,48 @@ class LoadCredentialsResponse(BaseModel):
     )
 
 
+class CatalogObjectLabels(RootModel[dict[str, str]]):
+    """
+    Catalog-object-level labels, attached to the object (table, view, ...) as a whole.
+    """
+
+    root: dict[str, str]
+
+
+class FieldLabels(BaseModel):
+    """
+    Labels attached to a single field, identified by field-id.
+    """
+
+    field_id: int = Field(
+        ...,
+        alias='field-id',
+        description='Field ID from the current schema of the table or view',
+    )
+    labels: dict[str, str] = Field(
+        ..., description='Flat key-value labels for this field'
+    )
+
+
+class Labels(BaseModel):
+    """
+    Catalog-provided metadata enrichment (for example ownership,
+    classification, or cost attribution) returned with a table or view.
+    Labels are generated per request and optional; clients may ignore them.
+    The spec does not require how a catalog produces or stores labels, nor
+    whether they are persisted or versioned. `object` carries
+    catalog-object-level labels; `fields` carries per-field labels, each
+    identified by field-id.
+
+    """
+
+    object: CatalogObjectLabels | None = None
+    fields: list[FieldLabels] | None = Field(
+        None,
+        description='Field-level labels. Each entry identifies its field by field-id.',
+    )
+
+
 class AsyncPlanningResult(BaseModel):
     status: Literal['submitted'] = Field(
         ..., description='Status of a server-side planning operation'
@@ -1579,6 +1621,7 @@ class LoadTableResult(BaseModel):
     storage_credentials: list[StorageCredential] | None = Field(
         None, alias='storage-credentials'
     )
+    labels: Labels | None = None
 
 
 class ScanTasks(BaseModel):
@@ -1690,6 +1733,7 @@ class LoadViewResult(BaseModel):
     metadata_location: str = Field(..., alias='metadata-location')
     metadata: ViewMetadata
     config: dict[str, str] | None = None
+    labels: Labels | None = None
 
 
 class ScanReport(BaseModel):
