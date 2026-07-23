@@ -25,4 +25,3 @@
 # jackson-databind CVEs that are only fixed in jackson >= 2.18.8.
 CVE-2026-54512
 CVE-2026-54513
-GHSA-r7wm-3cxj-wff9
