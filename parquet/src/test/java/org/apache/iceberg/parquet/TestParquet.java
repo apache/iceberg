@@ -68,6 +68,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.IntegerType;
 import org.apache.iceberg.util.Pair;
@@ -169,9 +170,13 @@ public class TestParquet {
     // Null count, lower and upper bounds should be empty because
     // one of the statistics in row groups is missing
     Metrics metrics = ParquetUtil.fileMetrics(inputFile, MetricsConfig.getDefault());
-    assertThat(metrics.nullValueCounts()).isEmpty();
-    assertThat(metrics.lowerBounds()).isEmpty();
-    assertThat(metrics.upperBounds()).isEmpty();
+    assertThat(metrics.nullValueCounts()).hasSize(1);
+
+    assertThat(metrics.lowerBounds()).hasSize(1);
+    assertThat(metrics.lowerBounds().get(1)).isEqualTo(Conversions.toByteBuffer(Types.StringType.get(), "test"));
+
+    assertThat(metrics.upperBounds()).hasSize(1);
+    assertThat(metrics.upperBounds().get(1)).isEqualTo(Conversions.toByteBuffer(Types.StringType.get(), "test"));
   }
 
   @Test
