@@ -127,7 +127,7 @@ public class TestAllManifestsTableTaskParser {
         + "\"transform\":\"bucket[16]\",\"source-id\":4,\"field-id\":1000}]}],"
         + "\"manifest-list-Location\":\"/path/manifest-list-file.avro\","
         + "\"manifest-list-key-id\":\"a\","
-        + "\"residual-filter\":{\"type\":\"eq\",\"term\":\"id\",\"value\":1},"
+        + "\"residual-filter\":{\"type\":\"eq\",\"left\":{\"type\":\"reference\",\"name\":\"id\"},\"right\":1},"
         + "\"reference-snapshot-id\":1}";
   }
 

@@ -251,7 +251,7 @@ public class TestPlanTableScanResponseParser {
             + "\"file-format\":\"parquet\",\"partition\":[0],"
             + "\"file-size-in-bytes\":10,\"record-count\":1,\"sort-order-id\":0},"
             + "\"delete-file-references\":[0],"
-            + "\"residual-filter\":{\"type\":\"eq\",\"term\":\"id\",\"value\":1}}]"
+            + "\"residual-filter\":{\"type\":\"eq\",\"left\":{\"type\":\"reference\",\"name\":\"id\"},\"right\":1}}]"
             + "}";
 
     String json = PlanTableScanResponseParser.toJson(response);
@@ -410,7 +410,7 @@ public class TestPlanTableScanResponseParser {
             + "{\"data-file\":{\"spec-id\":0,\"content\":\"data\",\"file-path\":\"/path/to/data-a.parquet\","
             + "\"file-format\":\"parquet\",\"partition\":[0],"
             + "\"file-size-in-bytes\":10,\"record-count\":1,\"sort-order-id\":0},"
-            + "\"residual-filter\":{\"type\":\"eq\",\"term\":\"id\",\"value\":1}}]"
+            + "\"residual-filter\":{\"type\":\"eq\",\"left\":{\"type\":\"reference\",\"name\":\"id\"},\"right\":1}}]"
             + "}";
 
     String json = PlanTableScanResponseParser.toJson(response);
@@ -625,8 +625,11 @@ public class TestPlanTableScanResponseParser {
             + "    \"delete-file-references\" : [ 0 ],\n"
             + "    \"residual-filter\" : {\n"
             + "      \"type\" : \"eq\",\n"
-            + "      \"term\" : \"id\",\n"
-            + "      \"value\" : 1\n"
+            + "      \"left\" : {\n"
+            + "        \"type\" : \"reference\",\n"
+            + "        \"name\" : \"id\"\n"
+            + "      },\n"
+            + "      \"right\" : 1\n"
             + "    }\n"
             + "  } ]\n"
             + "}";
