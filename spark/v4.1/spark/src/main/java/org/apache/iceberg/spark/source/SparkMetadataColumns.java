@@ -18,10 +18,14 @@
  */
 package org.apache.iceberg.spark.source;
 
+import java.util.List;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Partitioning;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableUtil;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkSchemaUtil;
+import org.apache.spark.sql.connector.catalog.MetadataColumn;
 import org.apache.spark.sql.types.DataTypes;
 
 public class SparkMetadataColumns {
@@ -82,5 +86,22 @@ public class SparkMetadataColumns {
         .dataType(SparkSchemaUtil.convert(Partitioning.partitionType(table)))
         .withNullability(true)
         .build();
+  }
+
+  public static MetadataColumn[] metadataColumnArray(Table table) {
+    List<SparkMetadataColumn> cols = Lists.newArrayList();
+
+    cols.add(SPEC_ID);
+    cols.add(partition(table));
+    cols.add(FILE_PATH);
+    cols.add(ROW_POSITION);
+    cols.add(IS_DELETED);
+
+    if (TableUtil.supportsRowLineage(table)) {
+      cols.add(ROW_ID);
+      cols.add(LAST_UPDATED_SEQUENCE_NUMBER);
+    }
+
+    return cols.toArray(SparkMetadataColumn[]::new);
   }
 }

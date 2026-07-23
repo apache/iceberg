@@ -86,12 +86,6 @@ public class SparkChangelogTable
 
   @Override
   public MetadataColumn[] metadataColumns() {
-    return new MetadataColumn[] {
-      SparkMetadataColumns.SPEC_ID,
-      SparkMetadataColumns.partition(table),
-      SparkMetadataColumns.FILE_PATH,
-      SparkMetadataColumns.ROW_POSITION,
-      SparkMetadataColumns.IS_DELETED,
-    };
+    return SparkMetadataColumns.metadataColumnArray(table);
   }
 }
