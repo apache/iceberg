@@ -93,13 +93,24 @@ public class SinkWriter {
     String routeField = config.tablesRouteField();
 
     if (routeField == null) {
-      // route to all tables
-      config
-          .tables()
-          .forEach(
-              tableName -> {
-                writerForTable(tableName, record, false).write(record);
-              });
+      // try topic-based routing: match last segment of topic to last segment of table name
+      String topicLastSegment = lastSegment(record.topic());
+      boolean matched = false;
+      for (String tableName : config.tables()) {
+        if (topicLastSegment.equalsIgnoreCase(lastSegment(tableName))) {
+          writerForTable(tableName, record, false).write(record);
+          matched = true;
+        }
+      }
+      if (!matched) {
+        // no topic match found, fall back to broadcasting for backward compatibility
+        config
+            .tables()
+            .forEach(
+                tableName -> {
+                  writerForTable(tableName, record, false).write(record);
+                });
+      }
 
     } else {
       String routeValue = extractRouteValue(record.value(), routeField);
@@ -134,6 +145,12 @@ public class SinkWriter {
     }
     Object routeValue = RecordUtils.extractFromRecordValue(recordValue, routeField);
     return routeValue == null ? null : routeValue.toString();
+  }
+
+  /** Extracts the last dot-delimited segment from a qualified name. */
+  private static String lastSegment(String name) {
+    int lastDot = name.lastIndexOf('.');
+    return lastDot >= 0 ? name.substring(lastDot + 1) : name;
   }
 
   private RecordWriter writerForTable(
