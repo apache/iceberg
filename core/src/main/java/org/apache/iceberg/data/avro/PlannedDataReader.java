@@ -29,6 +29,7 @@ import org.apache.avro.io.DatumReader;
 import org.apache.avro.io.Decoder;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.avro.AvroWithPartnerVisitor;
+import org.apache.iceberg.avro.SupportsLocalTimestamp;
 import org.apache.iceberg.avro.SupportsRowPosition;
 import org.apache.iceberg.avro.ValueReader;
 import org.apache.iceberg.avro.ValueReaders;
@@ -38,7 +39,8 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Pair;
 
-public class PlannedDataReader<T> implements DatumReader<T>, SupportsRowPosition {
+public class PlannedDataReader<T>
+    implements DatumReader<T>, SupportsRowPosition, SupportsLocalTimestamp {
 
   public static <D> PlannedDataReader<D> create(org.apache.iceberg.Schema expectedSchema) {
     return create(expectedSchema, ImmutableMap.of());
@@ -49,29 +51,19 @@ public class PlannedDataReader<T> implements DatumReader<T>, SupportsRowPosition
     return new PlannedDataReader<>(expectedSchema, idToConstant);
   }
 
-  public static <D> PlannedDataReader<D> create(
-      org.apache.iceberg.Schema expectedSchema,
-      Map<Integer, ?> idToConstant,
-      boolean adjustToUtcDefault) {
-    return new PlannedDataReader<>(expectedSchema, idToConstant, adjustToUtcDefault);
-  }
-
   private final org.apache.iceberg.Schema expectedSchema;
   private final Map<Integer, ?> idToConstant;
-  private final boolean adjustToUtcDefault;
+  private boolean adjustToUtcDefault = true;
   private ValueReader<T> reader;
 
   protected PlannedDataReader(
       org.apache.iceberg.Schema expectedSchema, Map<Integer, ?> idToConstant) {
-    this(expectedSchema, idToConstant, true);
-  }
-
-  protected PlannedDataReader(
-      org.apache.iceberg.Schema expectedSchema,
-      Map<Integer, ?> idToConstant,
-      boolean adjustToUtcDefault) {
     this.expectedSchema = expectedSchema;
     this.idToConstant = idToConstant;
+  }
+
+  @Override
+  public void setAdjustToUtcDefault(boolean adjustToUtcDefault) {
     this.adjustToUtcDefault = adjustToUtcDefault;
   }
 
