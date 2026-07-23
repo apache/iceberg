@@ -78,7 +78,8 @@ public class TestMicroBatchPlanningUtils extends CatalogTestBase {
     table.refresh();
     long snapshot2Id = table.currentSnapshot().snapshotId();
 
-    StreamingOffset offset = MicroBatchUtils.determineStartingOffset(table, snapshot1Time + 1);
+    StreamingOffset offset =
+        MicroBatchUtils.determineStartingOffset(table, snapshot1Time + 1, null);
 
     assertThat(offset.snapshotId()).isEqualTo(snapshot2Id);
     assertThat(offset.position()).isEqualTo(0L);

@@ -71,6 +71,8 @@ class AsyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner implements 
   // Cap for Trigger.AvailableNow - don't process beyond this offset
   private final StreamingOffset lastOffsetForTriggerAvailableNow;
 
+  private InitialSnapshotPlan initialPlan;
+
   /**
    * This class manages a queue of FileScanTask + StreamingOffset. On creation, it starts up an
    * asynchronous polling process which populates the queue when a new snapshot arrives or the
@@ -273,16 +275,20 @@ class AsyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner implements 
       }
       Snapshot lastValidSnapshot = table().snapshot(startOffset.snapshotId());
       Snapshot nextValidSnapshot;
+      boolean advanced = false;
       do {
         nextValidSnapshot = nextValidSnapshot(lastValidSnapshot);
         if (nextValidSnapshot != null) {
           lastValidSnapshot = nextValidSnapshot;
+          advanced = true;
         }
       } while (nextValidSnapshot != null);
+      // If we never advanced past the start snapshot, preserve the start offset's scanAllFiles
+      boolean scanAllFiles = !advanced && startOffset.shouldScanAllFiles();
       return new StreamingOffset(
           lastValidSnapshot.snapshotId(),
-          MicroBatchUtils.addedFilesCount(table(), lastValidSnapshot),
-          false);
+          MicroBatchUtils.endPositionFor(table(), lastValidSnapshot, scanAllFiles),
+          scanAllFiles);
     }
 
     return computeLimitedOffset(limit);
@@ -399,16 +405,27 @@ class AsyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner implements 
   private void addMicroBatchToQueue(
       Snapshot snapshot, long startFileIndex, long endFileIndex, boolean shouldScanAllFile) {
     LOG.info("Adding MicroBatch for snapshot: {} to the queue", snapshot.snapshotId());
-    MicroBatches.MicroBatch microBatch =
-        MicroBatches.from(snapshot, table().io())
-            .caseSensitive(readConf().caseSensitive())
-            .specsById(table().specs())
-            .generate(startFileIndex, endFileIndex, Long.MAX_VALUE, shouldScanAllFile);
+
+    List<FileScanTask> tasks;
+    if (shouldScanAllFile) {
+      // BatchScan path so each FileScanTask carries DeleteFile[] / DV refs for the reader
+      InitialSnapshotPlan plan = initialPlan(snapshot);
+      int from = (int) startFileIndex;
+      int to = (int) Math.min(endFileIndex, plan.size());
+      tasks = from < to ? plan.slice(from, to) : java.util.Collections.emptyList();
+    } else {
+      MicroBatches.MicroBatch microBatch =
+          MicroBatches.from(snapshot, table().io())
+              .caseSensitive(readConf().caseSensitive())
+              .specsById(table().specs())
+              .generate(startFileIndex, endFileIndex, Long.MAX_VALUE, false);
+      tasks = microBatch.tasks();
+    }
 
     long position = startFileIndex;
-    for (FileScanTask task : microBatch.tasks()) {
+    for (FileScanTask task : tasks) {
       Pair<StreamingOffset, FileScanTask> elem =
-          Pair.of(new StreamingOffset(microBatch.snapshotId(), position, shouldScanAllFile), task);
+          Pair.of(new StreamingOffset(snapshot.snapshotId(), position, shouldScanAllFile), task);
       queuedFileCount.incrementAndGet();
       queuedRowCount.addAndGet(task.file().recordCount());
       queue.addLast(elem);
@@ -424,6 +441,13 @@ class AsyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner implements 
     lastQueuedSnapshot = snapshot;
   }
 
+  private InitialSnapshotPlan initialPlan(Snapshot snapshot) {
+    if (initialPlan == null || initialPlan.snapshotId() != snapshot.snapshotId()) {
+      initialPlan = InitialSnapshotPlan.forSnapshot(table(), snapshot);
+    }
+    return initialPlan;
+  }
+
   private void fillQueue(StreamingOffset fromOffset, StreamingOffset toOffset) {
     LOG.debug("filling queue from {}, to: {}", fromOffset, toOffset);
     Snapshot currentSnapshot = table().snapshot(fromOffset.snapshotId());
@@ -432,7 +456,7 @@ class AsyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner implements 
       addMicroBatchToQueue(
           currentSnapshot,
           fromOffset.position(),
-          MicroBatchUtils.addedFilesCount(table(), currentSnapshot),
+          MicroBatchUtils.endPositionFor(table(), currentSnapshot, fromOffset.shouldScanAllFiles()),
           fromOffset.shouldScanAllFiles());
     }
     if (toOffset != null) {

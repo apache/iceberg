@@ -243,6 +243,10 @@ public class SparkReadConf {
         .parse();
   }
 
+  public String streamFromSnapshot() {
+    return confParser.stringConf().option(SparkReadOptions.STREAM_FROM_SNAPSHOT).parseOptional();
+  }
+
   public Long startTimestamp() {
     return confParser.longConf().option(SparkReadOptions.START_TIMESTAMP).parseOptional();
   }
