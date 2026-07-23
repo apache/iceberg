@@ -404,8 +404,8 @@ public class TestHTTPClient {
         ImmutableMap.of(HTTPClient.REST_TLS_CONFIGURER, Object.class.getName());
     assertThatThrownBy(() -> HTTPClient.configureConnectionManager(properties))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageStartingWith("Cannot initialize TLSConfigurer")
-        .hasMessageContaining("does not implement TLSConfigurer");
+        .hasMessage(
+            "Cannot use java.lang.Object as an implementation of org.apache.iceberg.rest.auth.TLSConfigurer");
   }
 
   /** A TLSConfigurer that relies on the default (built-in) JSSE verifier. */

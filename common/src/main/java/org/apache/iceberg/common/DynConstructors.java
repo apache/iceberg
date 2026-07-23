@@ -157,6 +157,7 @@ public class DynConstructors {
         return this;
       }
 
+      checkBaseClassAssignableFrom(targetClass);
       try {
         ctor = new Ctor<>(targetClass.getConstructor(types), targetClass);
       } catch (NoSuchMethodException e) {
@@ -189,6 +190,7 @@ public class DynConstructors {
         return this;
       }
 
+      checkBaseClassAssignableFrom(targetClass);
       try {
         Constructor<T> hidden = targetClass.getDeclaredConstructor(types);
         AccessController.doPrivileged(new MakeAccessible(hidden));
@@ -228,6 +230,16 @@ public class DynConstructors {
         } else {
           throw e;
         }
+      }
+    }
+
+    private void checkBaseClassAssignableFrom(Class<?> targetClass) {
+      if (baseClass != null) {
+        Preconditions.checkArgument(
+            baseClass.isAssignableFrom(targetClass),
+            "Cannot use %s as an implementation of %s",
+            targetClass.getName(),
+            baseClass.getName());
       }
     }
   }
