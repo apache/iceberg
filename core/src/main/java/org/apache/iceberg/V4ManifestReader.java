@@ -42,7 +42,7 @@ import org.apache.iceberg.util.StructProjection;
 class V4ManifestReader extends CloseableGroup implements CloseableIterable<TrackedFile> {
   private final InputFile file;
   private final Schema readSchema;
-  private final boolean includeNonLive;
+  private final boolean includeAll;
   private final ScanMetrics scanMetrics;
 
   // partition pruning state, keyed by spec ID
@@ -54,13 +54,13 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
       Schema readSchema,
       Map<Integer, Evaluator> partitionEvaluators,
       Map<Integer, StructProjection> partitionProjections,
-      boolean includeNonLive,
+      boolean includeAll,
       ScanMetrics scanMetrics) {
     this.file = file;
     this.readSchema = readSchema;
     this.partitionEvaluators = partitionEvaluators;
     this.partitionProjections = partitionProjections;
-    this.includeNonLive = includeNonLive;
+    this.includeAll = includeAll;
     this.scanMetrics = scanMetrics;
   }
 
@@ -78,7 +78,7 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
           CloseableIterable.filter(entries, entry -> isManifest(entry) || matchesPartition(entry));
     }
 
-    if (!includeNonLive) {
+    if (!includeAll) {
       entries = CloseableIterable.filter(entries, entry -> entry.tracking().isLive());
     }
 
@@ -173,7 +173,7 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
     private final Schema fullSchema;
     private Expression rowFilter = Expressions.alwaysTrue();
     private boolean caseSensitive = true;
-    private boolean includeNonLive = false;
+    private boolean includeAll = false;
     private boolean scanPlanning = false;
     private Collection<String> columns = null;
     private Schema fileProjection = null;
@@ -203,9 +203,9 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
       return this;
     }
 
-    /** Returns entries that are not {@link Tracking#isLive() live} in addition to live entries. */
-    Builder includeNonLive() {
-      this.includeNonLive = true;
+    /** Returns all entries without filtering by {@link Tracking#isLive() liveness}. */
+    Builder includeAll() {
+      this.includeAll = true;
       return this;
     }
 
@@ -267,12 +267,17 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
           readSchema(hasPartitionFilter),
           partitionEvaluators,
           partitionProjections,
-          includeNonLive,
+          includeAll,
           scanMetrics);
     }
 
     private Schema readSchema(boolean hasPartitionFilter) {
-      Schema projection = projection();
+      Schema projection = fileProjection;
+      if (columns != null) {
+        projection =
+            caseSensitive ? fullSchema.select(columns) : fullSchema.caseInsensitiveSelect(columns);
+      }
+
       if (projection == null) {
         if (scanPlanning) {
           // scan planning does not read the change-tracking fields omitted by SCAN_TYPE
@@ -304,16 +309,6 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
 
       // project instead of select to preserve narrow struct projections from the caller
       return TypeUtil.project(fullSchema, projectedIds);
-    }
-
-    private Schema projection() {
-      if (columns != null) {
-        return caseSensitive
-            ? fullSchema.select(columns)
-            : fullSchema.caseInsensitiveSelect(columns);
-      }
-
-      return fileProjection;
     }
   }
 }

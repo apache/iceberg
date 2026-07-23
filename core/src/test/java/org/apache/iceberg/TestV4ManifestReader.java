@@ -178,8 +178,7 @@ public class TestV4ManifestReader {
           .containsExactly(EntryStatus.ADDED, EntryStatus.EXISTING, EntryStatus.MODIFIED);
     }
 
-    try (V4ManifestReader reader =
-        newReader(manifest, UNPARTITIONED_SPECS).includeNonLive().build()) {
+    try (V4ManifestReader reader = newReader(manifest, UNPARTITIONED_SPECS).includeAll().build()) {
       assertThat(reader)
           .extracting(file -> file.tracking().status())
           .containsExactly(
