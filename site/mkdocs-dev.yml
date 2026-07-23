@@ -30,7 +30,7 @@ nav:
   - Docs:
     - Java:
       # First entry determines the default landing page for the Docs tab.
-      - Latest (1.11.0): '!include versioned-docs/latest/mkdocs.yml'
+      - Latest (1.11.0): '!include versioned-docs/1.11.0/mkdocs.yml'
       - Nightly: '!include versioned-docs/nightly/mkdocs.yml'
     - Other Implementations:
       - Python: https://py.iceberg.apache.org/

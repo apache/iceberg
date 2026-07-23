@@ -87,49 +87,32 @@ create_nightly () {
   # Remove any existing javadoc 'nightly' link
   rm -fr docs/javadoc/nightly
 
-  # Create symbolic link to 'nightly' javadoc
+  # Keep nightly Javadocs resolvable until separate nightly Javadocs are published.
   cd docs/javadoc
   ln -s latest nightly
   cd -
 }
 
-# Finds and retrieves the latest version of the documentation from mkdocs.yml.
+# Finds and retrieves the configured version of the documentation from mkdocs.yml.
 # Reads the icebergVersion from the extra section of mkdocs.yml.
-get_latest_version () {
+get_configured_version () {
   # Extract the icebergVersion from mkdocs.yml in the site directory
-  local latest_version=$(grep "icebergVersion:" mkdocs.yml | sed -E "s/.*icebergVersion:[[:space:]]*['\"]?([^'\"]+)['\"]?.*/\1/")
+  local configured_version=$(grep "icebergVersion:" mkdocs.yml | sed -E "s/.*icebergVersion:[[:space:]]*['\"]?([^'\"]+)['\"]?.*/\1/")
 
-  # Output the latest version number
-  echo "${latest_version}"
+  # Output the configured version number
+  echo "${configured_version}"
 }
 
-# Creates a 'latest' version of the documentation based on a specified ICEBERG_VERSION.
+# Sets up the 'latest' javadoc symlink pointing at ICEBERG_VERSION.
 # Arguments:
-#   $1: ICEBERG_VERSION - The version number of the documentation to be treated as the latest.
-create_latest () {
+#   $1: ICEBERG_VERSION - The version number to expose as 'latest'.
+create_latest_javadoc_symlink () {
   local ICEBERG_VERSION="$1"
 
   # Ensure ICEBERG_VERSION is not empty
   assert_not_empty "${ICEBERG_VERSION}"
 
-  echo " --> create latest from ${ICEBERG_VERSION}"
-
-  # Output the provided ICEBERG_VERSION for verification
-  echo "${ICEBERG_VERSION}"  
-
-  # Remove any existing 'latest' directory and recreate it
-  rm -rf versioned-docs/latest/
-  mkdir versioned-docs/latest/
-
-  # Create symbolic links and copy configuration files for the 'latest' documentation
-  ln -s "../${ICEBERG_VERSION}/docs" versioned-docs/latest/docs
-  cp "versioned-docs/${ICEBERG_VERSION}/mkdocs.yml" versioned-docs/latest/
-
-  cd versioned-docs/
-
-  # Update version information within the 'latest' documentation
-  update_version "latest"  
-  cd -
+  echo " --> create latest javadoc symlink from ${ICEBERG_VERSION}"
 
   # Remove any javadoc 'latest' symbolic link
   rm -rf docs/javadoc/latest
@@ -166,11 +149,11 @@ update_version () {
 
 # Sets up local worktrees for the documentation and performs operations related to different versions.
 pull_versioned_docs () {
-  # Retrieve the latest version of documentation for processing
-  local latest_version=$(get_latest_version)
+  # Retrieve the configured version of documentation for processing
+  local configured_version=$(get_configured_version)
 
-  # Output the latest version for debugging purposes
-  echo "Latest version is: ${latest_version}"
+  # Output the configured version for debugging purposes
+  echo "Configured version is: ${configured_version}"
 
   echo " --> pull versioned docs"
 
@@ -182,28 +165,28 @@ pull_versioned_docs () {
   local docs_branch="${ICEBERG_VERSIONED_DOCS_BRANCH:-${REMOTE}/docs}"
   local javadoc_branch="${ICEBERG_VERSIONED_JAVADOC_BRANCH:-${REMOTE}/javadoc}"
 
-  # Check if running in dev mode (only build nightly and latest for faster iteration)
+  # Check if running in dev mode (only build nightly and the configured version for faster iteration)
   if [ "${ICEBERG_DEV_MODE:-false}" = "true" ]; then
-    echo " --> running in DEV MODE - only building nightly and latest"
+    echo " --> running in DEV MODE - only building nightly and the configured version"
     echo " --> This significantly reduces build time by skipping historical versions"
 
-    # Create docs worktree with sparse checkout for latest version only
+    # Create docs worktree with sparse checkout for the configured version only
     git worktree add --no-checkout -f versioned-docs "${docs_branch}"
-    (cd versioned-docs && git sparse-checkout init --cone && git sparse-checkout set "${latest_version}" && git checkout)
+    (cd versioned-docs && git sparse-checkout init --cone && git sparse-checkout set "${configured_version}" && git checkout)
 
-    # Create javadoc worktree with sparse checkout for latest version only
+    # Create javadoc worktree with sparse checkout for the configured version only
     git worktree add --no-checkout -f docs/javadoc "${javadoc_branch}"
-    (cd docs/javadoc && git sparse-checkout init --cone && git sparse-checkout set "${latest_version}" && git checkout)
+    (cd docs/javadoc && git sparse-checkout init --cone && git sparse-checkout set "${configured_version}" && git checkout)
   else
     # Full checkout of all versions
     git worktree add -f versioned-docs "${docs_branch}"
     git worktree add -f docs/javadoc "${javadoc_branch}"
   fi
   
-  # Create the 'latest' version of documentation
-  create_latest "${latest_version}"
+  # Create the 'latest' javadoc symlink
+  create_latest_javadoc_symlink "${configured_version}"
 
-  # Create the 'nightly' version of documentation
+  # Create the 'nightly' docs source and javadoc symlinks
   create_nightly
 }
 
@@ -229,7 +212,6 @@ clean () {
   set +e 
 
   # Remove temp directories and related Git worktrees
-  rm -rf versioned-docs/latest &> /dev/null
   rm -rf versioned-docs/nightly &> /dev/null
 
   git worktree remove versioned-docs &> /dev/null
