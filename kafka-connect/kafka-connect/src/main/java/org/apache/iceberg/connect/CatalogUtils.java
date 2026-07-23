@@ -45,6 +45,7 @@ class CatalogUtils {
         config.catalogName(), config.catalogProps(), loadHadoopConfig(config));
   }
 
+  // Noop change
   // use reflection here to avoid requiring Hadoop as a dependency
   private static Object loadHadoopConfig(IcebergSinkConfig config) {
     Class<?> configClass =
