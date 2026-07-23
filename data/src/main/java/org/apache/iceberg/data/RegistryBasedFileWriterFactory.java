@@ -36,6 +36,7 @@ import org.apache.iceberg.encryption.EncryptionKeyMetadata;
 import org.apache.iceberg.formats.FileWriterBuilder;
 import org.apache.iceberg.formats.FormatModelRegistry;
 import org.apache.iceberg.io.DataWriter;
+import org.apache.iceberg.io.DeleteSchemaUtil;
 import org.apache.iceberg.io.FileWriterFactory;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -73,6 +74,10 @@ public abstract class RegistryBasedFileWriterFactory<T, S>
       Map<String, String> writerProperties,
       S inputSchema,
       S equalityDeleteInputSchema) {
+    if (equalityDeleteRowSchema != null && equalityFieldIds != null) {
+      DeleteSchemaUtil.validateEqualityFieldIds(equalityFieldIds, equalityDeleteRowSchema);
+    }
+
     this.table = table;
     this.dataFileFormat = dataFileFormat;
     this.inputType = inputType;
