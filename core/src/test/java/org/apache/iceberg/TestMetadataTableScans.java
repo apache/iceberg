@@ -468,6 +468,129 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
   }
 
   @TestTemplate
+  public void testAllManifestsTableNegatedPredicateOnNonSnapshotColumn() {
+    // Snapshots 1,2,3,4
+    preparePartitionedTableData();
+
+    Table allManifestsTable = new AllManifestsTable(table);
+    TableScan scan =
+        allManifestsTable
+            .newScan()
+            .filter(Expressions.not(Expressions.equal("content", ManifestContent.DATA.id())));
+
+    assertThat(scannedPaths(scan))
+        .as("A negated predicate on content must not prune snapshots")
+        .isEqualTo(expectedManifestListPaths(table.snapshots(), 1L, 2L, 3L, 4L));
+  }
+
+  @TestTemplate
+  public void testAllManifestsTableNotEqualPredicateOnNonSnapshotColumn() {
+    // Snapshots 1,2,3,4
+    preparePartitionedTableData();
+
+    Table allManifestsTable = new AllManifestsTable(table);
+    TableScan scan =
+        allManifestsTable
+            .newScan()
+            .filter(Expressions.notEqual("content", ManifestContent.DATA.id()));
+
+    assertThat(scannedPaths(scan))
+        .as("A not-equal predicate on content must not prune snapshots")
+        .isEqualTo(expectedManifestListPaths(table.snapshots(), 1L, 2L, 3L, 4L));
+  }
+
+  @TestTemplate
+  public void testAllManifestsTableNegatedOrPredicate() {
+    // Snapshots 1,2,3,4
+    preparePartitionedTableData();
+
+    long firstSnapshotId = 1L;
+
+    Table allManifestsTable = new AllManifestsTable(table);
+    TableScan scan =
+        allManifestsTable
+            .newScan()
+            .filter(
+                Expressions.not(
+                    Expressions.or(
+                        Expressions.equal("reference_snapshot_id", firstSnapshotId),
+                        Expressions.equal("content", ManifestContent.DELETES.id()))));
+
+    /*
+     * NOT(reference_snapshot_id = firstSnapshotId OR content = DELETES)
+     *
+     * is rewritten as:
+     *
+     * reference_snapshot_id != firstSnapshotId
+     *     AND content != DELETES
+     *
+     * The first snapshot can be pruned using reference_snapshot_id.
+     * The content predicate cannot prune the other snapshots because content
+     * is unknown while planning snapshot tasks.
+     */
+    assertThat(scannedPaths(scan))
+        .as("Only the explicitly excluded snapshot should be pruned")
+        .isEqualTo(expectedManifestListPaths(table.snapshots(), 2L, 3L, 4L));
+  }
+
+  @TestTemplate
+  public void testAllManifestsTableNegatedAndPredicate() {
+    // Snapshots 1,2,3,4
+    preparePartitionedTableData();
+
+    long firstSnapshotId = 1L;
+
+    Table allManifestsTable = new AllManifestsTable(table);
+    TableScan scan =
+        allManifestsTable
+            .newScan()
+            .filter(
+                Expressions.not(
+                    Expressions.and(
+                        Expressions.equal("reference_snapshot_id", firstSnapshotId),
+                        Expressions.equal("content", ManifestContent.DELETES.id()))));
+
+    /*
+     * NOT(reference_snapshot_id = firstSnapshotId AND content = DELETES)
+     *
+     * is rewritten as:
+     *
+     * reference_snapshot_id != firstSnapshotId
+     *     OR content != DELETES
+     *
+     * Even for firstSnapshotId, content != DELETES may match. Therefore,
+     * no snapshot can be safely pruned.
+     */
+    assertThat(scannedPaths(scan))
+        .as("A possibly matching content predicate must keep all snapshots")
+        .isEqualTo(expectedManifestListPaths(table.snapshots(), 1L, 2L, 3L, 4L));
+  }
+
+  @TestTemplate
+  public void testAllManifestsTableNegatedSnapshotOnlyPredicate() {
+    // Snapshots 1,2,3,4
+    preparePartitionedTableData();
+
+    Table allManifestsTable = new AllManifestsTable(table);
+    TableScan scan =
+        allManifestsTable
+            .newScan()
+            .filter(
+                Expressions.not(
+                    Expressions.or(
+                        Expressions.equal("reference_snapshot_id", 1L),
+                        Expressions.equal("reference_snapshot_id", 2L))));
+
+    /*
+     * This confirms that rewriteNot does not merely disable pruning.
+     * Both excluded snapshots must still be pruned.
+     */
+    assertThat(scannedPaths(scan))
+        .as("Negated snapshot-only predicates should still prune snapshots")
+        .isEqualTo(expectedManifestListPaths(table.snapshots(), 3L, 4L));
+  }
+
+  @TestTemplate
   public void testPartitionsTableScanNoFilter() {
     preparePartitionedTable();
 
