@@ -522,6 +522,28 @@ acceptedBreaks:
     - code: "java.class.removed"
       old: "class org.apache.iceberg.PartitionStats"
       justification: "Removed deprecated functionality for partition stats"
+    - code: "java.class.removed"
+      old: "class org.apache.iceberg.SystemProperties"
+      justification: "Removing deprecated API scheduled for removal in 1.12.0"
+    - code: "java.class.removed"
+      old: "class org.apache.iceberg.data.avro.DataReader<T extends java.lang.Object>"
+      justification: "Removing deprecated API scheduled for removal in 1.12.0"
+    - code: "java.element.noLongerDeprecated"
+      old: "method B org.apache.iceberg.rest.responses.BaseScanTaskResponse.Builder<B extends org.apache.iceberg.rest.responses.BaseScanTaskResponse.Builder<B extends org.apache.iceberg.rest.responses.BaseScanTaskResponse.Builder<B, R extends org.apache.iceberg.rest.responses.BaseScanTaskResponse>, R>, R extends org.apache.iceberg.rest.responses.BaseScanTaskResponse>::withSpecsById(java.util.Map<java.lang.Integer, org.apache.iceberg.PartitionSpec>)"
+      new: "method B org.apache.iceberg.rest.responses.BaseScanTaskResponse.Builder<B extends org.apache.iceberg.rest.responses.BaseScanTaskResponse.Builder<B extends org.apache.iceberg.rest.responses.BaseScanTaskResponse.Builder<B, R extends org.apache.iceberg.rest.responses.BaseScanTaskResponse>, R>, R extends org.apache.iceberg.rest.responses.BaseScanTaskResponse>::withSpecsById(java.util.Map<java.lang.Integer, org.apache.iceberg.PartitionSpec>)"
+      justification: "Reducing visibility of internal scan-planning accessor to protected; deprecated in 1.11.0"
+    - code: "java.element.noLongerDeprecated"
+      old: "method java.util.List<org.apache.iceberg.DeleteFile> org.apache.iceberg.rest.responses.BaseScanTaskResponse.Builder<B extends org.apache.iceberg.rest.responses.BaseScanTaskResponse.Builder<B extends org.apache.iceberg.rest.responses.BaseScanTaskResponse.Builder<B, R extends org.apache.iceberg.rest.responses.BaseScanTaskResponse>, R>, R extends org.apache.iceberg.rest.responses.BaseScanTaskResponse>::deleteFiles()"
+      new: "method java.util.List<org.apache.iceberg.DeleteFile> org.apache.iceberg.rest.responses.BaseScanTaskResponse.Builder<B extends org.apache.iceberg.rest.responses.BaseScanTaskResponse.Builder<B extends org.apache.iceberg.rest.responses.BaseScanTaskResponse.Builder<B, R extends org.apache.iceberg.rest.responses.BaseScanTaskResponse>, R>, R extends org.apache.iceberg.rest.responses.BaseScanTaskResponse>::deleteFiles()"
+      justification: "Reducing visibility of internal scan-planning accessor to protected; deprecated in 1.11.0"
+    - code: "java.element.noLongerDeprecated"
+      old: "method java.util.Map<java.lang.Integer, org.apache.iceberg.PartitionSpec> org.apache.iceberg.rest.responses.BaseScanTaskResponse.Builder<B extends org.apache.iceberg.rest.responses.BaseScanTaskResponse.Builder<B extends org.apache.iceberg.rest.responses.BaseScanTaskResponse.Builder<B, R extends org.apache.iceberg.rest.responses.BaseScanTaskResponse>, R>, R extends org.apache.iceberg.rest.responses.BaseScanTaskResponse>::specsById()"
+      new: "method java.util.Map<java.lang.Integer, org.apache.iceberg.PartitionSpec> org.apache.iceberg.rest.responses.BaseScanTaskResponse.Builder<B extends org.apache.iceberg.rest.responses.BaseScanTaskResponse.Builder<B extends org.apache.iceberg.rest.responses.BaseScanTaskResponse.Builder<B, R extends org.apache.iceberg.rest.responses.BaseScanTaskResponse>, R>, R extends org.apache.iceberg.rest.responses.BaseScanTaskResponse>::specsById()"
+      justification: "Reducing visibility of internal scan-planning accessor to protected; deprecated in 1.11.0"
+    - code: "java.element.noLongerDeprecated"
+      old: "method java.util.Map<java.lang.Integer, org.apache.iceberg.PartitionSpec> org.apache.iceberg.rest.responses.BaseScanTaskResponse::specsById()"
+      new: "method java.util.Map<java.lang.Integer, org.apache.iceberg.PartitionSpec> org.apache.iceberg.rest.responses.BaseScanTaskResponse::specsById()"
+      justification: "Reducing visibility of internal scan-planning accessor to protected; deprecated in 1.11.0"
     - code: "java.field.removed"
       old: "field org.apache.iceberg.PartitionStatsHandler.DATA_FILE_COUNT"
       justification: "Removed deprecated functionality for partition stats"
@@ -558,12 +580,93 @@ acceptedBreaks:
     - code: "java.field.removed"
       old: "field org.apache.iceberg.PartitionStatsHandler.TOTAL_RECORD_COUNT"
       justification: "Removed deprecated functionality for partition stats"
+    - code: "java.field.removed"
+      old: "field org.apache.iceberg.SystemConfigs.NETFLIX_UNSAFE_PARQUET_ID_FALLBACK_ENABLED"
+      justification: "Removing deprecated API scheduled for removal in 1.12.0"
+    - code: "java.field.removed"
+      old: "field org.apache.iceberg.rest.RESTUtil.NAMESPACE_JOINER"
+      justification: "Removing deprecated API scheduled for removal in 1.12.0"
+    - code: "java.field.removed"
+      old: "field org.apache.iceberg.rest.RESTUtil.NAMESPACE_SPLITTER"
+      justification: "Removing deprecated API scheduled for removal in 1.12.0"
     - code: "java.field.removedWithConstant"
       old: "field org.apache.iceberg.PartitionStatsHandler.PARTITION_FIELD_ID"
       justification: "Removed deprecated functionality for partition stats"
     - code: "java.field.removedWithConstant"
       old: "field org.apache.iceberg.PartitionStatsHandler.PARTITION_FIELD_NAME"
       justification: "Removed deprecated functionality for partition stats"
+    - code: "java.field.removedWithConstant"
+      old: "field org.apache.iceberg.TableProperties.MANIFEST_LISTS_ENABLED"
+      justification: "Removing deprecated API scheduled for removal in 1.12.0"
+    - code: "java.field.removedWithConstant"
+      old: "field org.apache.iceberg.TableProperties.MANIFEST_LISTS_ENABLED_DEFAULT"
+      justification: "Removing deprecated API scheduled for removal in 1.12.0"
+    - code: "java.field.removedWithConstant"
+      old: "field org.apache.iceberg.rest.RESTSessionCatalog.REST_PAGE_SIZE"
+      justification: "Removing deprecated API scheduled for removal in 1.12.0"
+    - code: "java.method.noLongerDefault"
+      old: "method org.apache.iceberg.deletes.PositionDeleteWriter<org.apache.iceberg.data.Record>\
+        \ org.apache.iceberg.RewriteTablePathUtil.PositionDeleteReaderWriter::writer(org.apache.iceberg.io.OutputFile,\
+        \ org.apache.iceberg.FileFormat, org.apache.iceberg.PartitionSpec, org.apache.iceberg.StructLike)\
+        \ throws java.io.IOException"
+      new: "method org.apache.iceberg.deletes.PositionDeleteWriter<org.apache.iceberg.data.Record>\
+        \ org.apache.iceberg.RewriteTablePathUtil.PositionDeleteReaderWriter::writer(org.apache.iceberg.io.OutputFile,\
+        \ org.apache.iceberg.FileFormat, org.apache.iceberg.PartitionSpec, org.apache.iceberg.StructLike)\
+        \ throws java.io.IOException"
+      justification: "Removing deprecated API scheduled for removal in 1.12.0"
+    - code: "java.method.nowAbstract"
+      old: "method org.apache.iceberg.deletes.PositionDeleteWriter<org.apache.iceberg.data.Record>\
+        \ org.apache.iceberg.RewriteTablePathUtil.PositionDeleteReaderWriter::writer(org.apache.iceberg.io.OutputFile,\
+        \ org.apache.iceberg.FileFormat, org.apache.iceberg.PartitionSpec, org.apache.iceberg.StructLike)\
+        \ throws java.io.IOException"
+      new: "method org.apache.iceberg.deletes.PositionDeleteWriter<org.apache.iceberg.data.Record>\
+        \ org.apache.iceberg.RewriteTablePathUtil.PositionDeleteReaderWriter::writer(org.apache.iceberg.io.OutputFile,\
+        \ org.apache.iceberg.FileFormat, org.apache.iceberg.PartitionSpec, org.apache.iceberg.StructLike)\
+        \ throws java.io.IOException"
+      justification: "Removing deprecated API scheduled for removal in 1.12.0"
+    - code: "java.method.removed"
+      old: "method B org.apache.iceberg.rest.responses.BaseScanTaskResponse.Builder<B\
+        \ extends org.apache.iceberg.rest.responses.BaseScanTaskResponse.Builder<B\
+        \ extends org.apache.iceberg.rest.responses.BaseScanTaskResponse.Builder<B,\
+        \ R extends org.apache.iceberg.rest.responses.BaseScanTaskResponse>, R>, R\
+        \ extends org.apache.iceberg.rest.responses.BaseScanTaskResponse>::withDeleteFiles(java.util.List<org.apache.iceberg.DeleteFile>)"
+      justification: "Removing deprecated API scheduled for removal in 1.12.0"
+    - code: "java.method.removed"
+      old: "method boolean org.apache.iceberg.util.TableScanUtil::hasDeletes(org.apache.iceberg.CombinedScanTask)"
+      justification: "Removing deprecated API scheduled for removal in 1.12.0"
+    - code: "java.method.removed"
+      old: "method boolean org.apache.iceberg.util.TableScanUtil::hasEqDeletes(org.apache.iceberg.CombinedScanTask)"
+      justification: "Removing deprecated API scheduled for removal in 1.12.0"
+    - code: "java.method.removed"
+      old: "method java.lang.String org.apache.iceberg.rest.RESTUtil::encodeNamespace(org.apache.iceberg.catalog.Namespace)"
+      justification: "Removing deprecated API scheduled for removal in 1.12.0"
+    - code: "java.method.removed"
+      old: "method java.nio.ByteBuffer org.apache.iceberg.encryption.StandardEncryptionManager::unwrapKey(java.nio.ByteBuffer)"
+      justification: "Removing deprecated API scheduled for removal in 1.12.0"
+    - code: "java.method.removed"
+      old: "method java.nio.ByteBuffer org.apache.iceberg.encryption.StandardEncryptionManager::wrapKey(java.nio.ByteBuffer)"
+      justification: "Removing deprecated API scheduled for removal in 1.12.0"
+    - code: "java.method.removed"
+      old: "method java.util.List<org.apache.iceberg.DataFile> org.apache.iceberg.util.SnapshotUtil::newFiles(java.lang.Long,\
+        \ long, java.util.function.Function<java.lang.Long, org.apache.iceberg.Snapshot>,\
+        \ org.apache.iceberg.io.FileIO)"
+      justification: "Removing deprecated API scheduled for removal in 1.12.0"
+    - code: "java.method.removed"
+      old: "method java.util.concurrent.ExecutorService org.apache.iceberg.util.ThreadPools::newWorkerPool(java.lang.String)"
+      justification: "Removing deprecated API scheduled for removal in 1.12.0"
+    - code: "java.method.removed"
+      old: "method java.util.concurrent.ExecutorService org.apache.iceberg.util.ThreadPools::newWorkerPool(java.lang.String,\
+        \ int)"
+      justification: "Removing deprecated API scheduled for removal in 1.12.0"
+    - code: "java.method.removed"
+      old: "method org.apache.avro.Schema org.apache.iceberg.avro.AvroSchemaUtil::pruneColumns(org.apache.avro.Schema,\
+        \ java.util.Set<java.lang.Integer>, org.apache.iceberg.mapping.NameMapping)"
+      justification: "Removing deprecated API scheduled for removal in 1.12.0"
+    - code: "java.method.removed"
+      old: "method org.apache.iceberg.ManifestReader<org.apache.iceberg.DataFile>\
+        \ org.apache.iceberg.ManifestFiles::read(org.apache.iceberg.ManifestFile,\
+        \ org.apache.iceberg.io.FileIO)"
+      justification: "Removing deprecated API scheduled for removal in 1.12.0"
     - code: "java.method.removed"
       old: "method org.apache.iceberg.MetricsConfig org.apache.iceberg.MetricsConfig::forPositionDelete(org.apache.iceberg.Table)"
       justification: "Deprecated for removal in 1.12.0"
@@ -572,10 +675,160 @@ acceptedBreaks:
         \ int)"
       justification: "Removed deprecated functionality for partition stats"
     - code: "java.method.removed"
+      old: "method org.apache.iceberg.catalog.Namespace org.apache.iceberg.rest.RESTUtil::decodeNamespace(java.lang.String)"
+      justification: "Removing deprecated API scheduled for removal in 1.12.0"
+    - code: "java.method.removed"
+      old: "method org.apache.iceberg.deletes.PositionDeleteWriter<org.apache.iceberg.data.Record>\
+        \ org.apache.iceberg.RewriteTablePathUtil.PositionDeleteReaderWriter::writer(org.apache.iceberg.io.OutputFile,\
+        \ org.apache.iceberg.FileFormat, org.apache.iceberg.PartitionSpec, org.apache.iceberg.StructLike,\
+        \ org.apache.iceberg.Schema) throws java.io.IOException"
+      justification: "Removing deprecated API scheduled for removal in 1.12.0"
+    - code: "java.method.removed"
+      old: "method org.apache.iceberg.io.CloseableIterable<java.lang.String> org.apache.iceberg.ManifestFiles::readPaths(org.apache.iceberg.ManifestFile,\
+        \ org.apache.iceberg.io.FileIO)"
+      justification: "Removing deprecated API scheduled for removal in 1.12.0"
+    - code: "java.method.removed"
+      old: "method org.apache.iceberg.io.CloseableIterable<org.apache.iceberg.DataFile>\
+        \ org.apache.iceberg.util.SnapshotUtil::newFilesBetween(java.lang.Long, long,\
+        \ java.util.function.Function<java.lang.Long, org.apache.iceberg.Snapshot>,\
+        \ org.apache.iceberg.io.FileIO)"
+      justification: "Removing deprecated API scheduled for removal in 1.12.0"
+    - code: "java.method.removed"
       old: "method org.apache.iceberg.io.CloseableIterable<org.apache.iceberg.PartitionStats>\
         \ org.apache.iceberg.PartitionStatsHandler::readPartitionStatsFile(org.apache.iceberg.Schema,\
         \ org.apache.iceberg.io.InputFile)"
       justification: "Removed deprecated functionality for partition stats"
+    - code: "java.method.removed"
+      old: "method org.apache.iceberg.io.FileIO org.apache.iceberg.BaseScan<ThisT,\
+        \ T extends org.apache.iceberg.ScanTask, G extends org.apache.iceberg.ScanTaskGroup<T\
+        \ extends org.apache.iceberg.ScanTask>>::io() @ org.apache.iceberg.AllDataFilesTable.AllDataFilesTableScan"
+      justification: "Removing deprecated API scheduled for removal in 1.12.0"
+    - code: "java.method.removed"
+      old: "method org.apache.iceberg.io.FileIO org.apache.iceberg.BaseScan<ThisT,\
+        \ T extends org.apache.iceberg.ScanTask, G extends org.apache.iceberg.ScanTaskGroup<T\
+        \ extends org.apache.iceberg.ScanTask>>::io() @ org.apache.iceberg.AllDeleteFilesTable.AllDeleteFilesTableScan"
+      justification: "Removing deprecated API scheduled for removal in 1.12.0"
+    - code: "java.method.removed"
+      old: "method org.apache.iceberg.io.FileIO org.apache.iceberg.BaseScan<ThisT,\
+        \ T extends org.apache.iceberg.ScanTask, G extends org.apache.iceberg.ScanTaskGroup<T\
+        \ extends org.apache.iceberg.ScanTask>>::io() @ org.apache.iceberg.AllFilesTable.AllFilesTableScan"
+      justification: "Removing deprecated API scheduled for removal in 1.12.0"
+    - code: "java.method.removed"
+      old: "method org.apache.iceberg.io.FileIO org.apache.iceberg.BaseScan<ThisT,\
+        \ T extends org.apache.iceberg.ScanTask, G extends org.apache.iceberg.ScanTaskGroup<T\
+        \ extends org.apache.iceberg.ScanTask>>::io() @ org.apache.iceberg.AllManifestsTable.AllManifestsTableScan"
+      justification: "Removing deprecated API scheduled for removal in 1.12.0"
+    - code: "java.method.removed"
+      old: "method org.apache.iceberg.io.FileIO org.apache.iceberg.BaseScan<ThisT,\
+        \ T extends org.apache.iceberg.ScanTask, G extends org.apache.iceberg.ScanTaskGroup<T\
+        \ extends org.apache.iceberg.ScanTask>>::io() @ org.apache.iceberg.DataFilesTable.DataFilesTableScan"
+      justification: "Removing deprecated API scheduled for removal in 1.12.0"
+    - code: "java.method.removed"
+      old: "method org.apache.iceberg.io.FileIO org.apache.iceberg.BaseScan<ThisT,\
+        \ T extends org.apache.iceberg.ScanTask, G extends org.apache.iceberg.ScanTaskGroup<T\
+        \ extends org.apache.iceberg.ScanTask>>::io() @ org.apache.iceberg.DataTableScan"
+      justification: "Removing deprecated API scheduled for removal in 1.12.0"
+    - code: "java.method.removed"
+      old: "method org.apache.iceberg.io.FileIO org.apache.iceberg.BaseScan<ThisT,\
+        \ T extends org.apache.iceberg.ScanTask, G extends org.apache.iceberg.ScanTaskGroup<T\
+        \ extends org.apache.iceberg.ScanTask>>::io() @ org.apache.iceberg.DeleteFilesTable.DeleteFilesTableScan"
+      justification: "Removing deprecated API scheduled for removal in 1.12.0"
+    - code: "java.method.removed"
+      old: "method org.apache.iceberg.io.FileIO org.apache.iceberg.BaseScan<ThisT,\
+        \ T extends org.apache.iceberg.ScanTask, G extends org.apache.iceberg.ScanTaskGroup<T\
+        \ extends org.apache.iceberg.ScanTask>>::io() @ org.apache.iceberg.FilesTable.FilesTableScan"
+      justification: "Removing deprecated API scheduled for removal in 1.12.0"
+    - code: "java.method.removed"
+      old: "method org.apache.iceberg.io.FileIO org.apache.iceberg.BaseScan<ThisT,\
+        \ T extends org.apache.iceberg.ScanTask, G extends org.apache.iceberg.ScanTaskGroup<T\
+        \ extends org.apache.iceberg.ScanTask>>::io() @ org.apache.iceberg.PositionDeletesTable.PositionDeletesBatchScan"
+      justification: "Removing deprecated API scheduled for removal in 1.12.0"
+    - code: "java.method.removed"
+      old: "method org.apache.iceberg.io.FileIO org.apache.iceberg.BaseScan<ThisT,\
+        \ T extends org.apache.iceberg.ScanTask, G extends org.apache.iceberg.ScanTaskGroup<T\
+        \ extends org.apache.iceberg.ScanTask>>::io() @ org.apache.iceberg.SnapshotScan<ThisT,\
+        \ T extends org.apache.iceberg.ScanTask, G extends org.apache.iceberg.ScanTaskGroup<T\
+        \ extends org.apache.iceberg.ScanTask>>"
+      justification: "Removing deprecated API scheduled for removal in 1.12.0"
+    - code: "java.method.removed"
+      old: "method org.apache.iceberg.rest.responses.LoadTableResponse org.apache.iceberg.rest.CatalogHandlers::loadTable(org.apache.iceberg.catalog.Catalog,\
+        \ org.apache.iceberg.catalog.TableIdentifier)"
+      justification: "Removing deprecated API scheduled for removal in 1.12.0"
+    - code: "java.method.removed"
+      old: "method void org.apache.iceberg.data.avro.RawDecoder<D>::<init>(org.apache.iceberg.Schema,\
+        \ java.util.function.Function<org.apache.avro.Schema, org.apache.avro.io.DatumReader<?>>,\
+        \ org.apache.avro.Schema)"
+      justification: "Removing deprecated API scheduled for removal in 1.12.0"
+    - code: "java.method.removed"
+      old: "method void org.apache.iceberg.encryption.StandardEncryptionManager::<init>(java.lang.String,\
+        \ int, org.apache.iceberg.encryption.KeyManagementClient)"
+      justification: "Removing deprecated API scheduled for removal in 1.12.0"
+    - code: "java.method.removed"
+      old: "method void org.apache.iceberg.hadoop.HadoopFileIO::<init>(org.apache.iceberg.util.SerializableSupplier<org.apache.hadoop.conf.Configuration>)"
+      justification: "Removing deprecated API scheduled for removal in 1.12.0"
+    - code: "java.method.removed"
+      old: "method void org.apache.iceberg.io.ContentCache::invalidateAll()"
+      justification: "Removing deprecated API scheduled for removal in 1.12.0"
+    - code: "java.method.visibilityReduced"
+      old: "method B org.apache.iceberg.rest.responses.BaseScanTaskResponse.Builder<B extends org.apache.iceberg.rest.responses.BaseScanTaskResponse.Builder<B extends org.apache.iceberg.rest.responses.BaseScanTaskResponse.Builder<B, R extends org.apache.iceberg.rest.responses.BaseScanTaskResponse>, R>, R extends org.apache.iceberg.rest.responses.BaseScanTaskResponse>::withSpecsById(java.util.Map<java.lang.Integer, org.apache.iceberg.PartitionSpec>)"
+      new: "method B org.apache.iceberg.rest.responses.BaseScanTaskResponse.Builder<B extends org.apache.iceberg.rest.responses.BaseScanTaskResponse.Builder<B extends org.apache.iceberg.rest.responses.BaseScanTaskResponse.Builder<B, R extends org.apache.iceberg.rest.responses.BaseScanTaskResponse>, R>, R extends org.apache.iceberg.rest.responses.BaseScanTaskResponse>::withSpecsById(java.util.Map<java.lang.Integer, org.apache.iceberg.PartitionSpec>)"
+      justification: "Reducing visibility of internal scan-planning accessor to protected; deprecated in 1.11.0"
+    - code: "java.method.visibilityReduced"
+      old: "method java.util.List<org.apache.iceberg.DeleteFile> org.apache.iceberg.rest.responses.BaseScanTaskResponse.Builder<B extends org.apache.iceberg.rest.responses.BaseScanTaskResponse.Builder<B extends org.apache.iceberg.rest.responses.BaseScanTaskResponse.Builder<B, R extends org.apache.iceberg.rest.responses.BaseScanTaskResponse>, R>, R extends org.apache.iceberg.rest.responses.BaseScanTaskResponse>::deleteFiles()"
+      new: "method java.util.List<org.apache.iceberg.DeleteFile> org.apache.iceberg.rest.responses.BaseScanTaskResponse.Builder<B extends org.apache.iceberg.rest.responses.BaseScanTaskResponse.Builder<B extends org.apache.iceberg.rest.responses.BaseScanTaskResponse.Builder<B, R extends org.apache.iceberg.rest.responses.BaseScanTaskResponse>, R>, R extends org.apache.iceberg.rest.responses.BaseScanTaskResponse>::deleteFiles()"
+      justification: "Reducing visibility of internal scan-planning accessor to protected; deprecated in 1.11.0"
+    - code: "java.method.visibilityReduced"
+      old: "method java.util.Map<java.lang.Integer, org.apache.iceberg.PartitionSpec> org.apache.iceberg.rest.responses.BaseScanTaskResponse.Builder<B extends org.apache.iceberg.rest.responses.BaseScanTaskResponse.Builder<B extends org.apache.iceberg.rest.responses.BaseScanTaskResponse.Builder<B, R extends org.apache.iceberg.rest.responses.BaseScanTaskResponse>, R>, R extends org.apache.iceberg.rest.responses.BaseScanTaskResponse>::specsById()"
+      new: "method java.util.Map<java.lang.Integer, org.apache.iceberg.PartitionSpec> org.apache.iceberg.rest.responses.BaseScanTaskResponse.Builder<B extends org.apache.iceberg.rest.responses.BaseScanTaskResponse.Builder<B extends org.apache.iceberg.rest.responses.BaseScanTaskResponse.Builder<B, R extends org.apache.iceberg.rest.responses.BaseScanTaskResponse>, R>, R extends org.apache.iceberg.rest.responses.BaseScanTaskResponse>::specsById()"
+      justification: "Reducing visibility of internal scan-planning accessor to protected; deprecated in 1.11.0"
+    - code: "java.method.visibilityReduced"
+      old: "method java.util.Map<java.lang.Integer, org.apache.iceberg.PartitionSpec> org.apache.iceberg.rest.responses.BaseScanTaskResponse::specsById()"
+      new: "method java.util.Map<java.lang.Integer, org.apache.iceberg.PartitionSpec> org.apache.iceberg.rest.responses.BaseScanTaskResponse::specsById()"
+      justification: "Reducing visibility of internal scan-planning accessor to protected; deprecated in 1.11.0"
+    org.apache.iceberg:iceberg-data:
+    - code: "java.class.removed"
+      old: "class org.apache.iceberg.data.BaseFileWriterFactory<T extends java.lang.Object>"
+      justification: "Removing deprecated API scheduled for removal in 1.12.0"
+    - code: "java.class.removed"
+      old: "class org.apache.iceberg.data.GenericAppenderFactory"
+      justification: "Removing deprecated API scheduled for removal in 1.12.0"
+    - code: "java.method.removed"
+      old: "method void org.apache.iceberg.data.GenericFileWriterFactory::configureDataWrite(org.apache.iceberg.avro.Avro.DataWriteBuilder)"
+      justification: "Removing deprecated API scheduled for removal in 1.12.0"
+    - code: "java.method.removed"
+      old: "method void org.apache.iceberg.data.GenericFileWriterFactory::configureDataWrite(org.apache.iceberg.orc.ORC.DataWriteBuilder)"
+      justification: "Removing deprecated API scheduled for removal in 1.12.0"
+    - code: "java.method.removed"
+      old: "method void org.apache.iceberg.data.GenericFileWriterFactory::configureDataWrite(org.apache.iceberg.parquet.Parquet.DataWriteBuilder)"
+      justification: "Removing deprecated API scheduled for removal in 1.12.0"
+    - code: "java.method.removed"
+      old: "method void org.apache.iceberg.data.GenericFileWriterFactory::configureEqualityDelete(org.apache.iceberg.avro.Avro.DeleteWriteBuilder)"
+      justification: "Removing deprecated API scheduled for removal in 1.12.0"
+    - code: "java.method.removed"
+      old: "method void org.apache.iceberg.data.GenericFileWriterFactory::configureEqualityDelete(org.apache.iceberg.orc.ORC.DeleteWriteBuilder)"
+      justification: "Removing deprecated API scheduled for removal in 1.12.0"
+    - code: "java.method.removed"
+      old: "method void org.apache.iceberg.data.GenericFileWriterFactory::configureEqualityDelete(org.apache.iceberg.parquet.Parquet.DeleteWriteBuilder)"
+      justification: "Removing deprecated API scheduled for removal in 1.12.0"
+    - code: "java.method.removed"
+      old: "method void org.apache.iceberg.data.GenericFileWriterFactory::configurePositionDelete(org.apache.iceberg.avro.Avro.DeleteWriteBuilder)"
+      justification: "Removing deprecated API scheduled for removal in 1.12.0"
+    - code: "java.method.removed"
+      old: "method void org.apache.iceberg.data.GenericFileWriterFactory::configurePositionDelete(org.apache.iceberg.orc.ORC.DeleteWriteBuilder)"
+      justification: "Removing deprecated API scheduled for removal in 1.12.0"
+    - code: "java.method.removed"
+      old: "method void org.apache.iceberg.data.GenericFileWriterFactory::configurePositionDelete(org.apache.iceberg.parquet.Parquet.DeleteWriteBuilder)"
+      justification: "Removing deprecated API scheduled for removal in 1.12.0"
+    org.apache.iceberg:iceberg-parquet:
+    - code: "java.method.removed"
+      old: "method org.apache.iceberg.parquet.ParquetValueReader<T> org.apache.iceberg.data.parquet.BaseParquetReaders<T>::createStructReader(java.util.List<org.apache.iceberg.parquet.ParquetValueReader<?>>,\
+        \ org.apache.iceberg.types.Types.StructType) @ org.apache.iceberg.data.parquet.GenericParquetReaders"
+      justification: "Removing deprecated API scheduled for removal in 1.12.0"
+    - code: "java.method.removed"
+      old: "method org.apache.iceberg.parquet.ParquetValueReader<T> org.apache.iceberg.data.parquet.BaseParquetReaders<T>::createStructReader(java.util.List<org.apache.iceberg.parquet.ParquetValueReader<?>>,\
+        \ org.apache.iceberg.types.Types.StructType) @ org.apache.iceberg.data.parquet.InternalReader<T\
+        \ extends org.apache.iceberg.StructLike>"
+      justification: "Removing deprecated API scheduled for removal in 1.12.0"
   "1.2.0":
     org.apache.iceberg:iceberg-api:
     - code: "java.field.constantValueChanged"

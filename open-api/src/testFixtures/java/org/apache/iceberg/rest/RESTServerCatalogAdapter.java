@@ -60,21 +60,13 @@ class RESTServerCatalogAdapter extends RESTCatalogAdapter {
       } else if (restResponse instanceof PlanTableScanResponse response
           && PlanStatus.COMPLETED == response.planStatus()) {
         return (T)
-            PlanTableScanResponse.builder()
-                .withPlanStatus(response.planStatus())
-                .withPlanId(response.planId())
-                .withFileScanTasks(response.fileScanTasks())
-                .withSpecsById(response.specsById())
+            response.toBuilder()
                 .withCredentials(createStorageCredentials(catalogContext.configuration()))
                 .build();
       } else if (restResponse instanceof FetchPlanningResultResponse response
           && PlanStatus.COMPLETED == response.planStatus()) {
         return (T)
-            FetchPlanningResultResponse.builder()
-                .withPlanStatus(response.planStatus())
-                .withFileScanTasks(response.fileScanTasks())
-                .withPlanTasks(response.planTasks())
-                .withSpecsById(response.specsById())
+            response.toBuilder()
                 .withCredentials(createStorageCredentials(catalogContext.configuration()))
                 .build();
       }

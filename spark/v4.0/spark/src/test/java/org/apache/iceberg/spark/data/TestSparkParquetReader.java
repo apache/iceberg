@@ -34,6 +34,7 @@ import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.data.IcebergGenerics;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
@@ -44,6 +45,8 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.mapping.MappingUtil;
+import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.parquet.ParquetUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -122,6 +125,7 @@ public class TestSparkParquetReader extends AvroDataTestBase {
     try (CloseableIterable<InternalRow> reader =
         Parquet.read(inputFile)
             .project(schema)
+            .withNameMapping(MappingUtil.create(schema))
             .createReaderFunc(type -> SparkParquetReaders.buildReader(schema, type))
             .build()) {
       return Lists.newArrayList(reader);
@@ -134,7 +138,9 @@ public class TestSparkParquetReader extends AvroDataTestBase {
         tables.create(
             schema,
             PartitionSpec.unpartitioned(),
-            ImmutableMap.of(),
+            ImmutableMap.of(
+                TableProperties.DEFAULT_NAME_MAPPING,
+                NameMappingParser.toJson(MappingUtil.create(schema))),
             java.nio.file.Files.createTempDirectory(temp, null).toFile().getCanonicalPath());
 
     table

@@ -270,15 +270,14 @@ public class TestManifestReader extends TestBase {
     }
   }
 
-  @SuppressWarnings("deprecation")
   @TestTemplate
-  public void testDeprecatedReadWithoutSpecsById() throws IOException {
+  public void testReadWithoutSpecsById() throws IOException {
     assumeThat(formatVersion)
         .as("Deprecated read without specsById requires Avro metadata; V4 uses Parquet")
         .isLessThan(TableMetadata.MIN_FORMAT_VERSION_PARQUET_MANIFESTS);
 
     ManifestFile manifest = writeManifest(1000L, manifestEntry(Status.EXISTING, 1000L, FILE_A));
-    try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, FILE_IO)) {
+    try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, FILE_IO, null)) {
       ManifestEntry<DataFile> entry = Iterables.getOnlyElement(reader.entries());
       assertThat(entry.status()).isEqualTo(Status.EXISTING);
       assertThat(entry.file().location()).isEqualTo(FILE_A.location());
