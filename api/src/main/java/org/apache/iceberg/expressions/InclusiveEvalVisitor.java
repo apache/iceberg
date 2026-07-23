@@ -315,11 +315,6 @@ abstract class InclusiveEvalVisitor extends ExpressionVisitors.BoundVisitor<Bool
       return ROWS_MIGHT_MATCH;
     }
 
-    T upper = evalUpperBound(term);
-    if (null == upper) {
-      return ROWS_MIGHT_MATCH;
-    }
-
     Comparator<T> comparator = ((BoundTerm<T>) term).comparator();
 
     literals =
@@ -329,6 +324,11 @@ abstract class InclusiveEvalVisitor extends ExpressionVisitors.BoundVisitor<Bool
     // if all values are less than lower bound, rows cannot match
     if (literals.isEmpty()) {
       return ROWS_CANNOT_MATCH;
+    }
+
+    T upper = evalUpperBound(term);
+    if (null == upper) {
+      return ROWS_MIGHT_MATCH;
     }
 
     literals =
