@@ -255,6 +255,47 @@ public class PartitionSpec implements Serializable {
     return true;
   }
 
+  /**
+   * Returns true if this spec satisfies the ordering requirements of the other spec. That is, for
+   * each field in the other spec, this spec has at least one field with the same source column and
+   * a transform that satisfies the order of the other field transform. In simple terms, think of
+   * this spec as a refined version of the other spec. For example, Spec(day(ts), months(ts)) is a
+   * refined spec of Spec(month(ts)).
+   *
+   * @param other other spec to check against.
+   * @return true if this spec satisfies the other spec, false otherwise.
+   */
+  public boolean satisfies(PartitionSpec other) {
+    // if old spec is same as new spec.
+    if (equals(other)) {
+      return true;
+    }
+
+    Map<Integer, List<PartitionField>> currentFields =
+        this.fields().stream().collect(Collectors.groupingBy(PartitionField::sourceId));
+
+    for (PartitionField otherField : other.fields) {
+      List<PartitionField> allPartitionFieldsWithSourceColumn =
+          currentFields.get(otherField.sourceId());
+      // old field is not even present in the current spec.
+      if (allPartitionFieldsWithSourceColumn == null) {
+        return false;
+      }
+      // check if at least one current field satisfies the old field.
+      boolean satisfiesAtLeastOne = false;
+      for (PartitionField currentField : allPartitionFieldsWithSourceColumn) {
+        if (currentField.transform().satisfiesOrderOf(otherField.transform())) {
+          satisfiesAtLeastOne = true;
+          break;
+        }
+      }
+      if (!satisfiesAtLeastOne) {
+        return false;
+      }
+    }
+    return true;
+  }
+
   @Override
   public boolean equals(Object other) {
     if (this == other) {
