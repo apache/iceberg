@@ -201,6 +201,16 @@ public class Spark3Util {
       } else if (change instanceof TableChange.UpdateColumnPosition) {
         apply(pendingUpdate, (TableChange.UpdateColumnPosition) change);
 
+      } else if (change instanceof TableChange.UpdateColumnDefaultValue) {
+        TableChange.UpdateColumnDefaultValue update = (TableChange.UpdateColumnDefaultValue) change;
+        String columnName = DOT.join(update.fieldNames());
+        Types.NestedField field = pendingUpdate.apply().findField(columnName);
+        Preconditions.checkArgument(field != null, "Cannot update missing column: %s", columnName);
+        org.apache.iceberg.expressions.Literal<?> defaultValue =
+            SparkDefaultValues.toIcebergLiteral(
+                columnName, field.type(), update.newCurrentDefault());
+        pendingUpdate.updateColumnDefault(columnName, defaultValue);
+
       } else {
         throw new UnsupportedOperationException("Cannot apply unknown table change: " + change);
       }
@@ -230,16 +240,16 @@ public class Spark3Util {
         add.isNullable(),
         "Incompatible change: cannot add required column: %s",
         leafName(add.fieldNames()));
-    if (add.defaultValue() != null) {
-      throw new UnsupportedOperationException(
-          String.format(
-              "Cannot add column %s since setting default values in Spark is currently unsupported",
-              leafName(add.fieldNames())));
-    }
 
     Type type = SparkSchemaUtil.convert(add.dataType());
+    org.apache.iceberg.expressions.Literal<?> defaultValue =
+        SparkDefaultValues.toIcebergLiteral(DOT.join(add.fieldNames()), type, add.defaultValue());
     pendingUpdate.addColumn(
-        parentName(add.fieldNames()), leafName(add.fieldNames()), type, add.comment());
+        parentName(add.fieldNames()),
+        leafName(add.fieldNames()),
+        type,
+        add.comment(),
+        defaultValue);
 
     if (add.position() instanceof TableChange.After) {
       TableChange.After after = (TableChange.After) add.position();

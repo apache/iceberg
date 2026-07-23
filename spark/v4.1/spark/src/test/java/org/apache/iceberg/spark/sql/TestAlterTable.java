@@ -155,12 +155,18 @@ public class TestAlterTable extends CatalogTestBase {
   }
 
   @TestTemplate
-  public void testAddColumnWithDefaultValuesUnsupported() {
-    assertThatThrownBy(
-            () -> sql("ALTER TABLE %s ADD COLUMN col_with_default int DEFAULT 123", tableName))
-        .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessageStartingWith(
-            "Cannot add column col_with_default since setting default values in Spark is currently unsupported");
+  public void testAddColumnWithDefaultValue() {
+    sql("DROP TABLE %s", tableName);
+    sql(
+        "CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg "
+            + "TBLPROPERTIES ('format-version'='3')",
+        tableName);
+    sql("ALTER TABLE %s ADD COLUMN col_with_default int DEFAULT 123", tableName);
+
+    NestedField field =
+        validationCatalog.loadTable(tableIdent).schema().findField("col_with_default");
+    assertThat(field.initialDefault()).as("Should have initial default").isEqualTo(123);
+    assertThat(field.writeDefault()).as("Should have write default").isEqualTo(123);
   }
 
   @TestTemplate
