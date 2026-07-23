@@ -22,6 +22,7 @@ import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
 /** A file tracked by a manifest. */
@@ -95,7 +96,13 @@ interface TrackedFile {
           Types.ListType.ofRequired(136, Types.IntegerType.get()),
           "Field ids used to determine row equality in equality delete files");
 
-  static Types.StructType schemaWithContentStats(
+  /**
+   * Returns the schema for the given partition and content stats types.
+   *
+   * <p>The partition and content stats fields use {@link Types.UnknownType} when their types have
+   * no fields, so that they are not stored in manifest files.
+   */
+  static Types.StructType schema(
       Types.StructType partitionType, Types.StructType contentStatsType) {
     return Types.StructType.of(
         TRACKING,
@@ -106,15 +113,23 @@ interface TrackedFile {
         RECORD_COUNT,
         FILE_SIZE_IN_BYTES,
         SPEC_ID,
-        Types.NestedField.optional(PARTITION_ID, PARTITION_NAME, partitionType, PARTITION_DOC),
         Types.NestedField.optional(
-            CONTENT_STATS_ID, CONTENT_STATS_NAME, contentStatsType, CONTENT_STATS_DOC),
+            PARTITION_ID, PARTITION_NAME, typeOrUnknown(partitionType), PARTITION_DOC),
+        Types.NestedField.optional(
+            CONTENT_STATS_ID,
+            CONTENT_STATS_NAME,
+            typeOrUnknown(contentStatsType),
+            CONTENT_STATS_DOC),
         SORT_ORDER_ID,
         DELETION_VECTOR,
         MANIFEST_INFO,
         KEY_METADATA,
         SPLIT_OFFSETS,
         EQUALITY_IDS);
+  }
+
+  private static Type typeOrUnknown(Types.StructType structType) {
+    return structType.fields().isEmpty() ? Types.UnknownType.get() : structType;
   }
 
   /** Returns the tracking information for this entry. */
