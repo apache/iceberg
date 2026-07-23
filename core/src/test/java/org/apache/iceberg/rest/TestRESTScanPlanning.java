@@ -36,10 +36,12 @@ import static org.mockito.Mockito.atLeastOnce;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectReader;
 import java.io.IOException;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.DataFile;
@@ -52,8 +54,10 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Scan;
 import org.apache.iceberg.ScanTask;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableScan;
+import org.apache.iceberg.TestableCachingCatalog;
 import org.apache.iceberg.catalog.SessionCatalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.expressions.Expressions;
@@ -71,6 +75,7 @@ import org.apache.iceberg.rest.responses.FetchPlanningResultResponse;
 import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.apache.iceberg.rest.responses.PlanTableScanResponse;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.FakeTicker;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -1648,6 +1653,52 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
             .create();
 
     verifyTableTypeForPlanningMode(serverMode, table);
+  }
+
+  @Test
+  public void testCachingCatalogObservesCommitAfterConcurrentReloadWithServerSidePlanning()
+      throws IOException {
+    Duration expiration = Duration.ofMinutes(5);
+    FakeTicker ticker = new FakeTicker();
+    TestableCachingCatalog cachingCatalog =
+        TestableCachingCatalog.wrap(restCatalog, expiration, ticker);
+
+    String tableName = "caching_stale_read";
+    TableIdentifier ident = TableIdentifier.of(NS, tableName);
+    createTableWithScanPlanning(restCatalog, tableName);
+
+    // The writer loads the table through the caching catalog. With server-side scan planning the
+    // catalog returns a RESTTable. Establish an initial snapshot.
+    Table writer = cachingCatalog.loadTable(ident);
+    assertThat(writer).isInstanceOf(RESTTable.class);
+    writer.newAppend().appendFile(FILE_A).commit();
+    Snapshot committedBeforeWrite = writer.currentSnapshot();
+    assertThat(committedBeforeWrite).isNotNull();
+
+    // The writer begins a long-running write that will outlive the cache TTL.
+    AppendFiles pendingWrite = writer.newAppend().appendFile(FILE_B);
+
+    // The cache entry is not present while the write is in progress.
+    ticker.advance(expiration.plus(Duration.ofSeconds(1)));
+    assertThat(cachingCatalog.cache().asMap()).doesNotContainKey(ident);
+
+    // A concurrent loader reloads the table before the write commits, re-caching the pre-commit
+    // RESTTable with a fresh TTL.
+    Table concurrentlyReloaded = cachingCatalog.loadTable(ident);
+    assertThat(concurrentlyReloaded).isInstanceOf(RESTTable.class);
+    assertThat(concurrentlyReloaded.currentSnapshot()).isEqualTo(committedBeforeWrite);
+
+    // The writer commits the in-flight write.
+    pendingWrite.commit();
+    Snapshot committedAfterWrite = writer.currentSnapshot();
+    assertThat(committedAfterWrite).isNotEqualTo(committedBeforeWrite);
+
+    // A subsequent load observes the committed snapshot, and the cached table is still a RESTTable
+    // whose newScan() plans server-side, so wrapping the operations preserved neither a stale
+    // snapshot nor downgraded the concrete type or scan planning.
+    Table reloaded = cachingCatalog.loadTable(ident);
+    assertThat(reloaded.currentSnapshot()).isEqualTo(committedAfterWrite);
+    assertThat(restTableScanFor(reloaded)).isInstanceOf(RESTTableScan.class);
   }
 
   private void verifyTableTypeForPlanningMode(String planingMode, Table table) {
