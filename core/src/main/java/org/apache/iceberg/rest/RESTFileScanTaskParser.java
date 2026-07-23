@@ -95,6 +95,9 @@ class RESTFileScanTaskParser {
     }
 
     Expression filter = null;
+    // An explicit null residual-filter is intentionally rejected to stay aligned with the OpenAPI
+    // spec, where residual-filter is a non-nullable expression: has() + fromJson throws rather than
+    // dropping the residual.
     if (jsonNode.has(RESIDUAL_FILTER)) {
       filter = ExpressionParser.fromJson(jsonNode.get(RESIDUAL_FILTER));
     }

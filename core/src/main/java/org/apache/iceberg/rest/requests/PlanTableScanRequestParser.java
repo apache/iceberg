@@ -111,6 +111,9 @@ public class PlanTableScanRequestParser {
     List<String> select = JsonUtil.getStringListOrNull(SELECT, json);
 
     Expression filter = null;
+    // Unlike the optional fields above, an explicit null filter is intentionally rejected to stay
+    // aligned with the OpenAPI spec, where filter is a non-nullable expression: has() + fromJson
+    // throws rather than treating null as "no filter" and silently widening the scan.
     if (json.has(FILTER)) {
       filter = ExpressionParser.fromJson(json.get(FILTER));
     }
