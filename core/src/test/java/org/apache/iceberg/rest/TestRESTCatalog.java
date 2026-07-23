@@ -415,11 +415,6 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   }
 
   @Override
-  protected boolean supportsVariant() {
-    return true;
-  }
-
-  @Override
   protected boolean supportsNestedNamespaces() {
     return true;
   }

@@ -1906,8 +1906,8 @@ class Schema(StructType):
     identifier_field_ids: list[int] | None = Field(None, alias='identifier-field-ids')
 
 
-class Type(RootModel[PrimitiveType | StructType | ListType | MapType | VariantType]):
-    root: PrimitiveType | StructType | ListType | MapType | VariantType
+class Type(RootModel[VariantType | PrimitiveType | StructType | ListType | MapType]):
+    root: VariantType | PrimitiveType | StructType | ListType | MapType
 
 
 class Expression(
