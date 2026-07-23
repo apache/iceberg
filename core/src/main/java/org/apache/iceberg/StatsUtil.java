@@ -55,6 +55,11 @@ class StatsUtil {
   static final int NAN_VALUE_COUNT_OFFSET = 6;
   static final int AVG_VALUE_SIZE_OFFSET = 7;
 
+  // Bound field names, shared with the read-side lookups in ContentStatsBackedMap so a rename or
+  // typo cannot silently drift between the schema and the reader.
+  static final String LOWER_BOUND_NAME = "lower_bound";
+  static final String UPPER_BOUND_NAME = "upper_bound";
+
   // Offsets used within geo_lower struct
   private static final int GEO_LOWER_X_OFFSET = 10;
   private static final int GEO_LOWER_Y_OFFSET = 11;
@@ -249,12 +254,12 @@ class StatsUtil {
 
   private static Types.NestedField lowerBoundField(Type type, int baseId) {
     Type boundType = isGeoType(type) ? geoLowerBound(baseId) : type;
-    return optional(baseId + LOWER_BOUND_OFFSET, "lower_bound", boundType);
+    return optional(baseId + LOWER_BOUND_OFFSET, LOWER_BOUND_NAME, boundType);
   }
 
   private static Types.NestedField upperBoundField(Type type, int baseId) {
     Type boundType = isGeoType(type) ? geoUpperBound(baseId) : type;
-    return optional(baseId + UPPER_BOUND_OFFSET, "upper_bound", boundType);
+    return optional(baseId + UPPER_BOUND_OFFSET, UPPER_BOUND_NAME, boundType);
   }
 
   @VisibleForTesting

@@ -22,16 +22,16 @@ import java.nio.ByteBuffer;
 import java.util.AbstractMap;
 import java.util.Map;
 import java.util.Set;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Conversions;
-import org.apache.iceberg.types.Types;
+import org.apache.iceberg.types.Type;
 
 /**
  * A lazy, read-only {@link Map} view of one stat across the columns of a {@link ContentStats},
  * keyed by field ID, mirroring the per-column stat maps on {@link ContentFile}.
  */
 class ContentStatsBackedMap<V> extends AbstractMap<Integer, V> {
-  enum Kind {
+  private enum Kind {
     VALUE_COUNT,
     NULL_VALUE_COUNT,
     NAN_VALUE_COUNT,
@@ -39,24 +39,48 @@ class ContentStatsBackedMap<V> extends AbstractMap<Integer, V> {
     UPPER_BOUND
   }
 
-  private final ContentStats stats;
-  private final Kind kind;
-  private Map<Integer, V> materialized;
-
-  ContentStatsBackedMap(ContentStats stats, Kind kind) {
-    this.stats = stats;
-    this.kind = kind;
+  /** Per-column value counts, or {@code null} if no column tracks the value count. */
+  static <V> Map<Integer, V> valueCounts(ContentStats stats) {
+    return viewOrNull(stats, Kind.VALUE_COUNT);
   }
 
-  /** Returns a lazy view of the metric across columns, or {@code null} if no column tracks it. */
-  static <V> Map<Integer, V> forKind(Kind kind, ContentStats stats) {
+  /** Per-column null value counts, or {@code null} if no column tracks the null value count. */
+  static <V> Map<Integer, V> nullValueCounts(ContentStats stats) {
+    return viewOrNull(stats, Kind.NULL_VALUE_COUNT);
+  }
+
+  /** Per-column NaN value counts, or {@code null} if no column tracks the NaN value count. */
+  static <V> Map<Integer, V> nanValueCounts(ContentStats stats) {
+    return viewOrNull(stats, Kind.NAN_VALUE_COUNT);
+  }
+
+  /** Per-column lower bounds, or {@code null} if no column tracks a lower bound. */
+  static <V> Map<Integer, V> lowerBounds(ContentStats stats) {
+    return viewOrNull(stats, Kind.LOWER_BOUND);
+  }
+
+  /** Per-column upper bounds, or {@code null} if no column tracks an upper bound. */
+  static <V> Map<Integer, V> upperBounds(ContentStats stats) {
+    return viewOrNull(stats, Kind.UPPER_BOUND);
+  }
+
+  private static <V> Map<Integer, V> viewOrNull(ContentStats stats, Kind kind) {
     return isEmpty(stats, kind) ? null : new ContentStatsBackedMap<>(stats, kind);
+  }
+
+  private final ContentStats stats;
+  private final Kind kind;
+  private Set<Entry<Integer, V>> materialized;
+
+  private ContentStatsBackedMap(ContentStats stats, Kind kind) {
+    this.stats = stats;
+    this.kind = kind;
   }
 
   @Override
   public V get(Object key) {
     if (!(key instanceof Integer)) {
-      throw new ClassCastException("Key must be an Integer field id: " + key);
+      return null;
     }
 
     FieldStats<?> fieldStats = stats.statsFor((Integer) key);
@@ -64,7 +88,7 @@ class ContentStatsBackedMap<V> extends AbstractMap<Integer, V> {
       return null;
     }
 
-    return getStatValue(fieldStats, kind);
+    return statValue(fieldStats, kind);
   }
 
   @Override
@@ -81,12 +105,12 @@ class ContentStatsBackedMap<V> extends AbstractMap<Integer, V> {
   @Override
   public Set<Entry<Integer, V>> entrySet() {
     if (materialized == null) {
-      Map<Integer, V> entries = Maps.newLinkedHashMap();
+      Set<Entry<Integer, V>> entries = Sets.newLinkedHashSet();
       for (FieldStats<?> fieldStats : stats.fieldStats()) {
         if (fieldStats != null) {
-          V value = getStatValue(fieldStats, kind);
+          V value = statValue(fieldStats, kind);
           if (value != null) {
-            entries.put(fieldStats.fieldId(), value);
+            entries.add(new SimpleImmutableEntry<>(fieldStats.fieldId(), value));
           }
         }
       }
@@ -94,13 +118,13 @@ class ContentStatsBackedMap<V> extends AbstractMap<Integer, V> {
       this.materialized = entries;
     }
 
-    return materialized.entrySet();
+    return materialized;
   }
 
   /** Returns whether no column contributes an entry for the metric. */
-  static boolean isEmpty(ContentStats stats, Kind kind) {
+  private static boolean isEmpty(ContentStats stats, Kind kind) {
     for (FieldStats<?> fieldStats : stats.fieldStats()) {
-      if (fieldStats != null && contributes(fieldStats, kind)) {
+      if (fieldStats != null && isKnown(fieldStats, kind)) {
         return false;
       }
     }
@@ -108,57 +132,48 @@ class ContentStatsBackedMap<V> extends AbstractMap<Integer, V> {
     return true;
   }
 
-  // Whether getStatValue would return a non-null value, without allocating a boxed count or
-  // decoding a bound. Must mirror getStatValue's null-ness.
-  private static boolean contributes(FieldStats<?> fieldStats, Kind kind) {
+  // Whether statValue would return a non-null value, without allocating a boxed count or decoding a
+  // bound. Must mirror statValue's null-ness.
+  private static boolean isKnown(FieldStats<?> fieldStats, Kind kind) {
     switch (kind) {
       case VALUE_COUNT:
-        return true;
+        return fieldStats.hasValueCount();
       case NULL_VALUE_COUNT:
-        return fieldStats.hasNullCount();
+        return fieldStats.hasNullValueCount();
       case NAN_VALUE_COUNT:
-        return fieldStats.hasNaNCount();
+        return fieldStats.hasNanValueCount();
       case LOWER_BOUND:
-        return fieldStats.lowerBound() != null
-            && tracksStat(fieldStats, StatsUtil.LOWER_BOUND_OFFSET);
+        return fieldStats.lowerBound() != null;
       case UPPER_BOUND:
-        return fieldStats.upperBound() != null
-            && tracksStat(fieldStats, StatsUtil.UPPER_BOUND_OFFSET);
+        return fieldStats.upperBound() != null;
       default:
         throw new IllegalArgumentException("Unknown content stats kind: " + kind);
     }
-  }
-
-  // Whether the field's stats struct declares the metric at the given offset.
-  private static boolean tracksStat(FieldStats<?> fieldStats, int statOffset) {
-    return fieldStats.type().field(StatsUtil.toBaseId(fieldStats.fieldId()) + statOffset) != null;
   }
 
   @SuppressWarnings("unchecked")
-  private static <V> V getStatValue(FieldStats<?> fieldStats, Kind kind) {
+  private static <V> V statValue(FieldStats<?> fieldStats, Kind kind) {
     switch (kind) {
       case VALUE_COUNT:
-        return (V) Long.valueOf(fieldStats.valueCount());
+        return fieldStats.hasValueCount() ? (V) Long.valueOf(fieldStats.valueCount()) : null;
       case NULL_VALUE_COUNT:
-        return fieldStats.hasNullCount() ? (V) Long.valueOf(fieldStats.nullValueCount()) : null;
+        return fieldStats.hasNullValueCount()
+            ? (V) Long.valueOf(fieldStats.nullValueCount())
+            : null;
       case NAN_VALUE_COUNT:
-        return fieldStats.hasNaNCount() ? (V) Long.valueOf(fieldStats.nanValueCount()) : null;
+        return fieldStats.hasNanValueCount() ? (V) Long.valueOf(fieldStats.nanValueCount()) : null;
       case LOWER_BOUND:
-        return (V) bound(fieldStats, fieldStats.lowerBound(), StatsUtil.LOWER_BOUND_OFFSET);
+        return (V) bound(fieldStats, fieldStats.lowerBound(), StatsUtil.LOWER_BOUND_NAME);
       case UPPER_BOUND:
-        return (V) bound(fieldStats, fieldStats.upperBound(), StatsUtil.UPPER_BOUND_OFFSET);
+        return (V) bound(fieldStats, fieldStats.upperBound(), StatsUtil.UPPER_BOUND_NAME);
       default:
         throw new IllegalArgumentException("Unknown content stats kind: " + kind);
     }
   }
 
-  private static ByteBuffer bound(FieldStats<?> fieldStats, Object bound, int boundOffset) {
-    Types.NestedField boundField =
-        fieldStats.type().field(StatsUtil.toBaseId(fieldStats.fieldId()) + boundOffset);
-    if (bound == null || boundField == null) {
-      return null;
-    }
-
-    return Conversions.toByteBuffer(boundField.type(), bound);
+  private static ByteBuffer bound(FieldStats<?> fieldStats, Object bound, String boundFieldName) {
+    Type boundType = fieldStats.type().fieldType(boundFieldName);
+    // toByteBuffer returns null for a null bound
+    return boundType == null ? null : Conversions.toByteBuffer(boundType, bound);
   }
 }

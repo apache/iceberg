@@ -21,7 +21,6 @@ package org.apache.iceberg;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.nio.ByteBuffer;
 import java.util.List;
@@ -44,6 +43,7 @@ public class TestContentStatsBackedMap {
   }
 
   private static final ContentStatsStruct POPULATED_STATS = new ContentStatsStruct(STATS_TYPE);
+  private static final ContentStatsStruct ONLY_REQUIRED_STATS = new ContentStatsStruct(STATS_TYPE);
 
   static {
     POPULATED_STATS.setStats(
@@ -52,50 +52,49 @@ public class TestContentStatsBackedMap {
         2, new FieldStatsStruct<>(statsType("opt"), 2L, 6L, false, 20L, 3L, null, null));
     POPULATED_STATS.setStats(
         3, new FieldStatsStruct<>(statsType("dbl"), 1.0, 9.0, false, 30L, 7L, 4L, null));
+
+    // only a required long column: tracks a value count but no null or NaN count
+    ONLY_REQUIRED_STATS.setStats(
+        1, new FieldStatsStruct<>(statsType("req"), 1L, 5L, false, 10L, null, null, null));
   }
 
   @Test
   public void testValueCounts() {
-    Map<Integer, Long> map =
-        new ContentStatsBackedMap<>(POPULATED_STATS, ContentStatsBackedMap.Kind.VALUE_COUNT);
+    Map<Integer, Long> map = ContentStatsBackedMap.valueCounts(POPULATED_STATS);
     assertThat(map).containsOnly(Map.entry(1, 10L), Map.entry(2, 20L), Map.entry(3, 30L));
   }
 
   @Test
   public void testNullValueCountsSkipsColumnsThatDoNotTrackIt() {
     // required column 1 does not track null_value_count; only the optional columns do
-    Map<Integer, Long> map =
-        new ContentStatsBackedMap<>(POPULATED_STATS, ContentStatsBackedMap.Kind.NULL_VALUE_COUNT);
+    Map<Integer, Long> map = ContentStatsBackedMap.nullValueCounts(POPULATED_STATS);
     assertThat(map.get(1)).isNull();
     assertThat(map.containsKey(1)).isFalse();
     assertThat(map).containsOnly(Map.entry(2, 3L), Map.entry(3, 7L));
   }
 
   @Test
-  public void testNullValueCountDoesNotThrowForUntrackedColumnWithNullValue() {
+  public void testGetDoesNotUnboxUntrackedNullCount() {
+    // a deserialized required-column struct leaves null_value_count null; get must not unbox it.
+    // Column 2 tracks the null count, so the view itself is non-null.
     ContentStatsStruct stats = new ContentStatsStruct(STATS_TYPE);
-    // a deserialized required-column struct leaves null_value_count null; get must not unbox it
     stats.setStats(1, new FieldStatsStruct<Long>(statsType("req")));
-    Map<Integer, Long> map =
-        new ContentStatsBackedMap<>(stats, ContentStatsBackedMap.Kind.NULL_VALUE_COUNT);
+    stats.setStats(2, new FieldStatsStruct<>(statsType("opt"), 2L, 6L, false, 20L, 3L, null, null));
+    Map<Integer, Long> map = ContentStatsBackedMap.nullValueCounts(stats);
     assertThat(map.get(1)).isNull();
-    assertThat(map).isEmpty();
+    assertThat(map).containsOnly(Map.entry(2, 3L));
   }
 
   @Test
   public void testNanValueCountsOnlyForFloatingColumns() {
-    Map<Integer, Long> map =
-        new ContentStatsBackedMap<>(POPULATED_STATS, ContentStatsBackedMap.Kind.NAN_VALUE_COUNT);
+    Map<Integer, Long> map = ContentStatsBackedMap.nanValueCounts(POPULATED_STATS);
     assertThat(map).containsOnly(Map.entry(3, 4L));
   }
 
   @Test
   public void testLowerAndUpperBounds() {
-    ContentStatsStruct stats = POPULATED_STATS;
-    Map<Integer, ByteBuffer> lower =
-        new ContentStatsBackedMap<>(stats, ContentStatsBackedMap.Kind.LOWER_BOUND);
-    Map<Integer, ByteBuffer> upper =
-        new ContentStatsBackedMap<>(stats, ContentStatsBackedMap.Kind.UPPER_BOUND);
+    Map<Integer, ByteBuffer> lower = ContentStatsBackedMap.lowerBounds(POPULATED_STATS);
+    Map<Integer, ByteBuffer> upper = ContentStatsBackedMap.upperBounds(POPULATED_STATS);
     assertThat(lower.get(1)).isEqualTo(Conversions.toByteBuffer(Types.LongType.get(), 1L));
     assertThat(upper.get(3)).isEqualTo(Conversions.toByteBuffer(Types.DoubleType.get(), 9.0));
     assertThat(lower).containsOnlyKeys(1, 2, 3);
@@ -103,96 +102,40 @@ public class TestContentStatsBackedMap {
 
   @Test
   public void testGetReturnsNullForMissingKey() {
-    Map<Integer, Long> map =
-        new ContentStatsBackedMap<>(POPULATED_STATS, ContentStatsBackedMap.Kind.VALUE_COUNT);
+    Map<Integer, Long> map = ContentStatsBackedMap.valueCounts(POPULATED_STATS);
     assertThat(map.get(999)).isNull();
   }
 
   @Test
-  public void testThrowsForNonIntegerKey() {
-    Map<Integer, Long> map =
-        new ContentStatsBackedMap<>(POPULATED_STATS, ContentStatsBackedMap.Kind.VALUE_COUNT);
-    assertThatThrownBy(() -> map.get("not-an-int"))
-        .isInstanceOf(ClassCastException.class)
-        .hasMessageContaining("Key must be an Integer field id");
-    assertThatThrownBy(() -> map.containsKey("not-an-int"))
-        .isInstanceOf(ClassCastException.class)
-        .hasMessageContaining("Key must be an Integer field id");
+  public void testGetReturnsNullForNonIntegerKey() {
+    // consistent with common Map implementations: a wrong-typed key is absent, not an error
+    Map<Integer, Long> map = ContentStatsBackedMap.valueCounts(POPULATED_STATS);
+    assertThat(map.get("not-an-int")).isNull();
+    assertThat(map.containsKey("not-an-int")).isFalse();
   }
 
   @Test
-  public void testConstructorYieldsEmptyMapWhenNoColumnTracksMetric() {
-    // a stats object with only a required column: null_value_count is tracked by no column. The raw
-    // constructor yields a non-null empty view; forKind restores the eager converters' null instead
-    // (see testForKindReturnsNullWhenNoColumnTracksMetric).
-    ContentStatsStruct stats = new ContentStatsStruct(STATS_TYPE);
-    stats.setStats(
-        1, new FieldStatsStruct<>(statsType("req"), 1L, 5L, false, 10L, null, null, null));
-    Map<Integer, Long> map =
-        new ContentStatsBackedMap<>(stats, ContentStatsBackedMap.Kind.NULL_VALUE_COUNT);
-    assertThat(map).isNotNull().isEmpty();
-  }
-
-  @Test
-  public void testForKindReturnsNullWhenNoColumnTracksMetric() {
+  public void testFactoryReturnsNullWhenNoColumnTracksMetric() {
     // only a required long column: it tracks neither null_value_count nor nan_value_count
-    ContentStatsStruct stats = new ContentStatsStruct(STATS_TYPE);
-    stats.setStats(
-        1, new FieldStatsStruct<>(statsType("req"), 1L, 5L, false, 10L, null, null, null));
+    assertThat(ContentStatsBackedMap.nullValueCounts(ONLY_REQUIRED_STATS)).isNull();
+    assertThat(ContentStatsBackedMap.nanValueCounts(ONLY_REQUIRED_STATS)).isNull();
 
-    assertThat(ContentStatsBackedMap.forKind(ContentStatsBackedMap.Kind.NULL_VALUE_COUNT, stats))
-        .isNull();
-    assertThat(ContentStatsBackedMap.forKind(ContentStatsBackedMap.Kind.NAN_VALUE_COUNT, stats))
-        .isNull();
-
-    Map<Integer, Long> valueCounts =
-        ContentStatsBackedMap.forKind(ContentStatsBackedMap.Kind.VALUE_COUNT, stats);
+    Map<Integer, Long> valueCounts = ContentStatsBackedMap.valueCounts(ONLY_REQUIRED_STATS);
     assertThat(valueCounts).isNotNull().containsOnly(Map.entry(1, 10L));
   }
 
   @Test
-  public void testForKindReturnsPopulatedViewWhenColumnsTrackMetric() {
-    ContentStatsStruct stats = POPULATED_STATS;
-
-    Map<Integer, Long> nanCounts =
-        ContentStatsBackedMap.forKind(ContentStatsBackedMap.Kind.NAN_VALUE_COUNT, stats);
+  public void testFactoryReturnsPopulatedViewWhenColumnsTrackMetric() {
+    Map<Integer, Long> nanCounts = ContentStatsBackedMap.nanValueCounts(POPULATED_STATS);
     assertThat(nanCounts).isNotNull().containsOnly(Map.entry(3, 4L));
 
-    Map<Integer, Long> nullCounts =
-        ContentStatsBackedMap.forKind(ContentStatsBackedMap.Kind.NULL_VALUE_COUNT, stats);
+    Map<Integer, Long> nullCounts = ContentStatsBackedMap.nullValueCounts(POPULATED_STATS);
     assertThat(nullCounts).isNotNull().containsOnly(Map.entry(2, 3L), Map.entry(3, 7L));
   }
 
   @Test
-  public void testIsEmptyScansWithoutMaterializing() {
-    ContentStatsStruct onlyRequired = new ContentStatsStruct(STATS_TYPE);
-    onlyRequired.setStats(
-        1, new FieldStatsStruct<>(statsType("req"), 1L, 5L, false, 10L, null, null, null));
-    assertThat(
-            ContentStatsBackedMap.isEmpty(
-                onlyRequired, ContentStatsBackedMap.Kind.NULL_VALUE_COUNT))
-        .isTrue();
-    assertThat(
-            ContentStatsBackedMap.isEmpty(onlyRequired, ContentStatsBackedMap.Kind.NAN_VALUE_COUNT))
-        .isTrue();
-    assertThat(ContentStatsBackedMap.isEmpty(onlyRequired, ContentStatsBackedMap.Kind.VALUE_COUNT))
-        .isFalse();
-
-    ContentStatsStruct populated = POPULATED_STATS;
-    assertThat(ContentStatsBackedMap.isEmpty(populated, ContentStatsBackedMap.Kind.NAN_VALUE_COUNT))
-        .isFalse();
-  }
-
-  @Test
-  public void testInstanceIsEmptyReflectsContents() {
-    ContentStatsStruct onlyRequired = new ContentStatsStruct(STATS_TYPE);
-    onlyRequired.setStats(
-        1, new FieldStatsStruct<>(statsType("req"), 1L, 5L, false, 10L, null, null, null));
-    // isEmpty() reflects whether any column contributes an entry for the kind
-    assertThat(
-            new ContentStatsBackedMap<>(onlyRequired, ContentStatsBackedMap.Kind.NAN_VALUE_COUNT))
-        .isEmpty();
-    assertThat(new ContentStatsBackedMap<>(onlyRequired, ContentStatsBackedMap.Kind.VALUE_COUNT))
-        .isNotEmpty();
+  public void testPopulatedViewIsNotEmpty() {
+    // isEmpty() answers from a scan without materializing entrySet
+    assertThat(ContentStatsBackedMap.valueCounts(ONLY_REQUIRED_STATS)).isNotEmpty();
   }
 }

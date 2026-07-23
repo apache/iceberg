@@ -22,6 +22,7 @@ import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /** Adapts {@link TrackedFile} entries to the {@link DataFile} and {@link DeleteFile} APIs. */
@@ -174,34 +175,34 @@ class TrackedFileAdapters {
 
     @Override
     public Map<Integer, Long> valueCounts() {
-      return statsMap(ContentStatsBackedMap.Kind.VALUE_COUNT);
+      return statsMap(ContentStatsBackedMap::valueCounts);
     }
 
     @Override
     public Map<Integer, Long> nullValueCounts() {
-      return statsMap(ContentStatsBackedMap.Kind.NULL_VALUE_COUNT);
+      return statsMap(ContentStatsBackedMap::nullValueCounts);
     }
 
     @Override
     public Map<Integer, Long> nanValueCounts() {
-      return statsMap(ContentStatsBackedMap.Kind.NAN_VALUE_COUNT);
+      return statsMap(ContentStatsBackedMap::nanValueCounts);
     }
 
     @Override
     public Map<Integer, ByteBuffer> lowerBounds() {
-      return statsMap(ContentStatsBackedMap.Kind.LOWER_BOUND);
+      return statsMap(ContentStatsBackedMap::lowerBounds);
     }
 
     @Override
     public Map<Integer, ByteBuffer> upperBounds() {
-      return statsMap(ContentStatsBackedMap.Kind.UPPER_BOUND);
+      return statsMap(ContentStatsBackedMap::upperBounds);
     }
 
     // Presents the wrapped content stats as a legacy per-column stats map without eagerly
     // materializing it.
-    private <V> Map<Integer, V> statsMap(ContentStatsBackedMap.Kind kind) {
+    private <V> Map<Integer, V> statsMap(Function<ContentStats, Map<Integer, V>> statsView) {
       ContentStats contentStats = file().contentStats();
-      return contentStats == null ? null : ContentStatsBackedMap.forKind(kind, contentStats);
+      return contentStats == null ? null : statsView.apply(contentStats);
     }
   }
 

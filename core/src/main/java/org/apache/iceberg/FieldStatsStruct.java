@@ -144,29 +144,37 @@ class FieldStatsStruct<T> implements FieldStats<T>, StructLike, Serializable {
   }
 
   @Override
+  public boolean hasValueCount() {
+    return valueCount != null;
+  }
+
+  @Override
   public long valueCount() {
+    Preconditions.checkState(hasValueCount(), "Field %s does not track a value count", fieldId);
     return valueCount;
   }
 
   @Override
-  public boolean hasNullCount() {
+  public boolean hasNullValueCount() {
     return nullValueCount != null;
   }
 
   @Override
   public long nullValueCount() {
-    Preconditions.checkState(hasNullCount(), "Field %s does not track a null value count", fieldId);
+    Preconditions.checkState(
+        hasNullValueCount(), "Field %s does not track a null value count", fieldId);
     return nullValueCount;
   }
 
   @Override
-  public boolean hasNaNCount() {
+  public boolean hasNanValueCount() {
     return nanValueCount != null;
   }
 
   @Override
   public long nanValueCount() {
-    Preconditions.checkState(hasNaNCount(), "Field %s does not track a NaN value count", fieldId);
+    Preconditions.checkState(
+        hasNanValueCount(), "Field %s does not track a NaN value count", fieldId);
     return nanValueCount;
   }
 
