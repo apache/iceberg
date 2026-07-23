@@ -60,11 +60,11 @@ public class TestDebeziumTransform {
           .build();
 
   @Test
-  public void testDmsTransformNull() {
-    try (DmsTransform<SinkRecord> smt = new DmsTransform<>()) {
+  public void testDebeziumTransformNull() {
+    try (DebeziumTransform<SinkRecord> smt = new DebeziumTransform<>()) {
       SinkRecord record = new SinkRecord("topic", 0, null, null, null, null, 0);
       SinkRecord result = smt.apply(record);
-      assertThat(result.value()).isNull();
+      assertThat(result).isSameAs(record);
     }
   }
 
