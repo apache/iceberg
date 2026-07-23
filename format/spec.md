@@ -2085,7 +2085,7 @@ Snapshot summary can include metrics fields to track numeric stats of the snapsh
 | **`total-delete-files`**            | Total number of live positional/equality delete files and deletion vectors in the snapshot       |
 | **`added-records`**                 | Number of records added in the snapshot                                                          |
 | **`deleted-records`**               | Number of records deleted in the snapshot                                                        |
-| **`total-records`**                 | Total number of records in the snapshot                                                          |
+| **`total-records`**                 | Total number of records in data files in the snapshot before applying deletes                    |
 | **`added-files-size`**              | The size of files added in the snapshot                                                          |
 | **`removed-files-size`**            | The size of files removed in the snapshot                                                        |
 | **`total-files-size`**              | Total size of live files in the snapshot                                                         |
