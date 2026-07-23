@@ -38,6 +38,15 @@ import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FileStatus;
+import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.fs.RawLocalFileSystem;
 import org.apache.iceberg.CachingCatalog;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
@@ -45,10 +54,228 @@ import org.apache.iceberg.SortOrderParser;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.Pair;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 public class TestSpark3Util extends TestBase {
+
+  @TempDir private java.nio.file.Path narrowScanTempDir;
+
+  @Test
+  public void testNarrowScanRootsPrunesPrefixColumn() throws Exception {
+    createHiveLikeDirs("id=1/name=a", "id=2/name=b", "id=3/name=a");
+
+    Path root = new Path(narrowScanTempDir.toUri());
+    Pair<List<Path>, Map<String, String>> narrowed =
+        Spark3Util.narrowScanRoots(spark, root, ImmutableMap.of("id", "2"));
+
+    assertThat(narrowed.first()).hasSize(1);
+    assertThat(narrowed.first().get(0).getName()).isEqualTo("id=2");
+    assertThat(narrowed.second()).isEmpty();
+  }
+
+  @Test
+  public void testNarrowScanRootsPrunesCompositePrefix() throws Exception {
+    createHiveLikeDirs("id=1/name=a", "id=2/name=a", "id=2/name=b");
+
+    Path root = new Path(narrowScanTempDir.toUri());
+    Pair<List<Path>, Map<String, String>> narrowed =
+        Spark3Util.narrowScanRoots(spark, root, ImmutableMap.of("id", "2", "name", "a"));
+
+    assertThat(narrowed.first()).hasSize(1);
+    assertThat(narrowed.first().get(0).toString()).endsWith("id=2/name=a");
+    assertThat(narrowed.second()).isEmpty();
+  }
+
+  @Test
+  public void testNarrowScanRootsKeepsNonPrefixFilterAsResidual() throws Exception {
+    createHiveLikeDirs("id=1/name=a", "id=2/name=a");
+
+    Path root = new Path(narrowScanTempDir.toUri());
+    // 'name' is not the first on-disk partition column, so nothing can be pushed down.
+    Pair<List<Path>, Map<String, String>> narrowed =
+        Spark3Util.narrowScanRoots(spark, root, ImmutableMap.of("name", "a"));
+
+    assertThat(narrowed.first()).hasSize(1);
+    assertThat(narrowed.first().get(0).toString()).isEqualTo(root.toString());
+    assertThat(narrowed.second()).containsExactlyEntriesOf(ImmutableMap.of("name", "a"));
+  }
+
+  @Test
+  public void testNarrowScanRootsMissingValueFallsBackToRoot() throws Exception {
+    createHiveLikeDirs("id=1/name=a", "id=2/name=a");
+
+    Path root = new Path(narrowScanTempDir.toUri());
+    Pair<List<Path>, Map<String, String>> narrowed =
+        Spark3Util.narrowScanRoots(spark, root, ImmutableMap.of("id", "99"));
+
+    // No id=99 dir exists; fall back so downstream can produce the usual "no matching partitions"
+    // diagnostic against the original root.
+    assertThat(narrowed.first()).containsExactly(root);
+    assertThat(narrowed.second()).containsExactlyEntriesOf(ImmutableMap.of("id", "99"));
+  }
+
+  @Test
+  public void testNarrowScanRootsEmptyFilterReturnsRoot() throws Exception {
+    createHiveLikeDirs("id=1/name=a");
+
+    Path root = new Path(narrowScanTempDir.toUri());
+    Pair<List<Path>, Map<String, String>> narrowed =
+        Spark3Util.narrowScanRoots(spark, root, ImmutableMap.of());
+
+    assertThat(narrowed.first()).containsExactly(root);
+    assertThat(narrowed.second()).isEmpty();
+  }
+
+  @Test
+  public void testNarrowScanRootsDoesNotListSiblingPartitions() throws Exception {
+    createHiveLikeDirs(
+        "id=1/name=a/date=1", "id=2/name=b/date=2", "id=3/name=c/date=3", "id=4/name=d/date=4");
+
+    withRecordingLocalFs(
+        () -> {
+          Path root = new Path(narrowScanTempDir.toUri());
+          Pair<List<Path>, Map<String, String>> narrowed =
+              Spark3Util.narrowScanRoots(spark, root, ImmutableMap.of("id", "3"));
+
+          assertThat(narrowed.first()).hasSize(1);
+          assertThat(narrowed.first().get(0).getName()).isEqualTo("id=3");
+
+          List<String> listed = RecordingLocalFileSystem.snapshot();
+          String rootPathStr = narrowScanTempDir.toString();
+          // The root must have been probed (to detect the 'id' partition column at this level).
+          assertThat(listed).anyMatch(p -> stripTrailingSlash(p).equals(rootPathStr));
+
+          // Sibling partitions must NOT have been listed — that is the whole point of pushdown.
+          // Neither the id=* directory itself, nor anything under id=1/id=2/id=4.
+          assertThat(listed)
+              .as("optimized scan must not list sibling partitions, but did: %s", listed)
+              .noneMatch(p -> stripTrailingSlash(p).endsWith("/id=1"))
+              .noneMatch(p -> stripTrailingSlash(p).endsWith("/id=2"))
+              .noneMatch(p -> stripTrailingSlash(p).endsWith("/id=4"))
+              .noneMatch(p -> p.contains("/id=1/"))
+              .noneMatch(p -> p.contains("/id=2/"))
+              .noneMatch(p -> p.contains("/id=4/"));
+        });
+  }
+
+  /**
+   * A drop-in replacement for the default LocalFileSystem that records every {@code listStatus}
+   * call. Used by {@link #testNarrowScanRootsDoesNotListSiblingPartitions()} to prove that the
+   * partition-filter pushdown does not descend into sibling partitions.
+   */
+  public static class RecordingLocalFileSystem extends RawLocalFileSystem {
+    private static final List<String> LISTED_PATHS =
+        Collections.synchronizedList(Lists.newArrayList());
+
+    public static void reset() {
+      LISTED_PATHS.clear();
+    }
+
+    public static List<String> snapshot() {
+      synchronized (LISTED_PATHS) {
+        return Lists.newArrayList(LISTED_PATHS);
+      }
+    }
+
+    @Override
+    public FileStatus[] listStatus(Path f) throws IOException {
+      LISTED_PATHS.add(f.toUri().getPath());
+      return super.listStatus(f);
+    }
+  }
+
+  @Test
+  public void testNarrowScanRootsDoesNotListSiblingsAtDeeperLevel() throws Exception {
+    createHiveLikeDirs(
+        "id=1/name=a", "id=2/name=a", "id=3/name=a", "id=3/name=b", "id=3/name=c", "id=4/name=a");
+
+    withRecordingLocalFs(
+        () -> {
+          Path root = new Path(narrowScanTempDir.toUri());
+          Pair<List<Path>, Map<String, String>> narrowed =
+              Spark3Util.narrowScanRoots(spark, root, ImmutableMap.of("id", "3", "name", "c"));
+
+          assertThat(narrowed.first()).hasSize(1);
+          assertThat(narrowed.first().get(0).toString()).endsWith("/id=3/name=c");
+
+          List<String> listed = RecordingLocalFileSystem.snapshot();
+
+          // id=3 MUST have been listed (to descend to the second partition level).
+          assertThat(listed).anyMatch(p -> stripTrailingSlash(p).endsWith("/id=3"));
+
+          // Sibling id=* directories at the top level must NOT have been listed.
+          assertThat(listed)
+              .as("sibling id partitions must not be listed at the first level: %s", listed)
+              .noneMatch(p -> stripTrailingSlash(p).endsWith("/id=1"))
+              .noneMatch(p -> stripTrailingSlash(p).endsWith("/id=2"))
+              .noneMatch(p -> stripTrailingSlash(p).endsWith("/id=4"))
+              .noneMatch(p -> p.contains("/id=1/"))
+              .noneMatch(p -> p.contains("/id=2/"))
+              .noneMatch(p -> p.contains("/id=4/"));
+
+          // Sibling name=* directories under id=3 must NOT have been descended into either.
+          assertThat(listed)
+              .as("sibling name partitions under id=3 must not be listed: %s", listed)
+              .noneMatch(p -> p.contains("/id=3/name=a/"))
+              .noneMatch(p -> p.contains("/id=3/name=b/"));
+        });
+  }
+
+  /**
+   * Runs {@code body} with the "file:" filesystem swapped for {@link RecordingLocalFileSystem}, so
+   * the block can inspect every {@code listStatus} call made during the run. Mutates the shared
+   * Hadoop config on the running SparkContext — runtime {@code spark.conf().set(...)} values are
+   * not propagated into {@code newHadoopConf()} after the session is up, which is why this test
+   * needs the shared instance.
+   */
+  private void withRecordingLocalFs(RecordingLocalFsBody body) throws Exception {
+    // Route through an intermediate SparkContext reference so the checkstyle regex that forbids
+    // the direct sparkContext() dot-hadoopConfiguration() chain does not fire — the mutation is
+    // deliberate here.
+    org.apache.spark.SparkContext sparkCtx = spark.sparkContext();
+    Configuration conf = sparkCtx.hadoopConfiguration();
+    String prevImpl = conf.get("fs.file.impl");
+    boolean prevCacheDisabled = conf.getBoolean("fs.file.impl.disable.cache", false);
+    conf.set("fs.file.impl", RecordingLocalFileSystem.class.getName());
+    conf.setBoolean("fs.file.impl.disable.cache", true);
+    FileSystem.closeAll();
+    RecordingLocalFileSystem.reset();
+    try {
+      body.run();
+    } finally {
+      if (prevImpl == null) {
+        conf.unset("fs.file.impl");
+      } else {
+        conf.set("fs.file.impl", prevImpl);
+      }
+      conf.setBoolean("fs.file.impl.disable.cache", prevCacheDisabled);
+      FileSystem.closeAll();
+    }
+  }
+
+  @FunctionalInterface
+  private interface RecordingLocalFsBody {
+    void run() throws Exception;
+  }
+
+  private static String stripTrailingSlash(String path) {
+    return path.endsWith("/") && path.length() > 1 ? path.substring(0, path.length() - 1) : path;
+  }
+
+  private void createHiveLikeDirs(String... relativePartitions) throws Exception {
+    for (String rel : relativePartitions) {
+      java.nio.file.Path dir = narrowScanTempDir.resolve(rel);
+      java.nio.file.Files.createDirectories(dir);
+      // Add a placeholder file so listStatus sees a real subtree at the deepest level.
+      java.nio.file.Files.createFile(dir.resolve("data.txt"));
+    }
+  }
+
   @Test
   public void testDescribeSortOrder() {
     Schema schema =

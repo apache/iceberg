@@ -1223,6 +1223,367 @@ public class TestAddFilesProcedure extends ExtensionsTestBase {
         sql("SELECT id, name, dept, subdept FROM %s ORDER BY id", tableName));
   }
 
+  @TestTemplate
+  public void testAddFilesWithOptimizedScanSinglePartition() {
+    createPartitionedFileTable("parquet");
+
+    createIcebergTable(
+        "id Integer, name String, dept String, subdept String", "PARTITIONED BY (id)");
+
+    List<Object[]> result =
+        sql(
+            "CALL %s.system.add_files("
+                + "table => '%s', "
+                + "source_table => '`parquet`.`%s`', "
+                + "partition_filter => map('id', 1), "
+                + "file_partition_filter_optimized_scan => true)",
+            catalogName, tableName, fileTableDir.getAbsolutePath());
+
+    assertOutput(result, 2L, 1L);
+    assertEquals(
+        "Iceberg table contains only the requested partition when pruning was applied",
+        sql("SELECT id, name, dept, subdept FROM %s WHERE id = 1 ORDER BY id", sourceTableName),
+        sql("SELECT id, name, dept, subdept FROM %s ORDER BY id", tableName));
+  }
+
+  @TestTemplate
+  public void testAddFilesWithOptimizedScanCompositePrefix() {
+    createCompositePartitionedTable("parquet");
+
+    createIcebergTable(
+        "id Integer, name String, dept String, subdept String", "PARTITIONED BY (id, dept)");
+
+    List<Object[]> result =
+        sql(
+            "CALL %s.system.add_files("
+                + "table => '%s', "
+                + "source_table => '`parquet`.`%s`', "
+                + "partition_filter => map('id', 1, 'dept', 'hr'), "
+                + "file_partition_filter_optimized_scan => true)",
+            catalogName, tableName, fileTableDir.getAbsolutePath());
+
+    assertOutput(result, 2L, 1L);
+    assertEquals(
+        "Iceberg table contains only the requested composite partition",
+        sql(
+            "SELECT id, name, dept, subdept FROM %s WHERE id = 1 AND dept = 'hr' ORDER BY id",
+            sourceTableName),
+        sql("SELECT id, name, dept, subdept FROM %s ORDER BY id", tableName));
+  }
+
+  @TestTemplate
+  public void testAddFilesWithOptimizedScanNonPrefixFilter() {
+    createCompositePartitionedTable("parquet");
+
+    createIcebergTable(
+        "id Integer, name String, dept String, subdept String", "PARTITIONED BY (id, dept)");
+
+    // 'dept' is the second on-disk partition column, so nothing can be pushed down at the top
+    // level. The optimized-scan path must still correctly filter down to dept='hr'.
+    List<Object[]> result =
+        sql(
+            "CALL %s.system.add_files("
+                + "table => '%s', "
+                + "source_table => '`parquet`.`%s`', "
+                + "partition_filter => map('dept', 'hr'), "
+                + "file_partition_filter_optimized_scan => true)",
+            catalogName, tableName, fileTableDir.getAbsolutePath());
+
+    assertOutput(result, 6L, 3L);
+    assertEquals(
+        "Iceberg table contains all rows in the requested dept regardless of pushdown ordering",
+        sql(
+            "SELECT id, name, dept, subdept FROM %s WHERE dept = 'hr' ORDER BY id",
+            sourceTableName),
+        sql("SELECT id, name, dept, subdept FROM %s ORDER BY id", tableName));
+  }
+
+  @TestTemplate
+  public void testAddFilesOptimizedScanRejectsCatalogSource() {
+    createPartitionedHiveTable();
+
+    createIcebergTable(
+        "id Integer, name String, dept String, subdept String", "PARTITIONED BY (id)");
+
+    assertThatThrownBy(
+            () ->
+                scalarSql(
+                    "CALL %s.system.add_files("
+                        + "table => '%s', "
+                        + "source_table => '%s', "
+                        + "partition_filter => map('id', 1), "
+                        + "file_partition_filter_optimized_scan => true)",
+                    catalogName, tableName, sourceTableName))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("file_partition_filter_optimized_scan");
+  }
+
+  @TestTemplate
+  public void testAddFilesToBranch() {
+    createPartitionedFileTable("parquet");
+
+    createIcebergTable(
+        "id Integer, name String, dept String, subdept String", "PARTITIONED BY (id)");
+
+    // Seed a snapshot on main so the branch has a well-defined starting point.
+    sql("INSERT INTO %s VALUES (100, 'Seed', 'seedDept', 'seedSub')", tableName);
+
+    String branchName = "stg";
+    sql("ALTER TABLE %s CREATE BRANCH %s", tableName, branchName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    long mainSnapshotBefore = table.currentSnapshot().snapshotId();
+    long branchSnapshotBefore = table.refs().get(branchName).snapshotId();
+
+    List<Object[]> result =
+        sql(
+            "CALL %s.system.add_files("
+                + "table => '%s', "
+                + "source_table => '`parquet`.`%s`', "
+                + "partition_filter => map('id', 1), "
+                + "branch => '%s')",
+            catalogName, tableName, fileTableDir.getAbsolutePath(), branchName);
+
+    assertOutput(result, 2L, 1L);
+
+    Table reloaded = validationCatalog.loadTable(tableIdent);
+    long mainSnapshotAfter = reloaded.currentSnapshot().snapshotId();
+    long branchSnapshotAfter = reloaded.refs().get(branchName).snapshotId();
+
+    assertThat(mainSnapshotAfter)
+        .as("main branch must not advance when add_files targets a different branch")
+        .isEqualTo(mainSnapshotBefore);
+    assertThat(branchSnapshotAfter)
+        .as("branch head must advance to a new snapshot")
+        .isNotEqualTo(branchSnapshotBefore);
+
+    // Branch head has one row from main (id=100 seed) + 2 imported rows (id=1 duplicated because
+    // createPartitionedFileTable inserts partitionedDF twice).
+    long branchRowCount =
+        (Long) sql("SELECT count(*) FROM %s.branch_%s", tableName, branchName).get(0)[0];
+    assertThat(branchRowCount).isEqualTo(3L);
+
+    long branchIdOneCount =
+        (Long)
+            sql("SELECT count(*) FROM %s.branch_%s WHERE id = 1", tableName, branchName).get(0)[0];
+    assertThat(branchIdOneCount).isEqualTo(2L);
+
+    // Main must still contain only the seed row.
+    assertEquals(
+        "Main branch is untouched",
+        ImmutableList.of(row(100, "Seed", "seedDept", "seedSub")),
+        sql("SELECT id, name, dept, subdept FROM %s ORDER BY id", tableName));
+  }
+
+  @TestTemplate
+  public void testAddFilesToBranchFromHiveCatalogSource() {
+    createPartitionedHiveTable();
+
+    createIcebergTable(
+        "id Integer, name String, dept String, subdept String", "PARTITIONED BY (id)");
+
+    // Seed a snapshot on main.
+    sql("INSERT INTO %s VALUES (100, 'Seed', 'seedDept', 'seedSub')", tableName);
+
+    String branchName = "stg";
+    sql("ALTER TABLE %s CREATE BRANCH %s", tableName, branchName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    long mainSnapshotBefore = table.currentSnapshot().snapshotId();
+
+    List<Object[]> result =
+        sql(
+            "CALL %s.system.add_files("
+                + "table => '%s', "
+                + "source_table => '%s', "
+                + "partition_filter => map('id', 1), "
+                + "branch => '%s')",
+            catalogName, tableName, sourceTableName, branchName);
+
+    assertOutput(result, 2L, 1L);
+
+    Table reloaded = validationCatalog.loadTable(tableIdent);
+    assertThat(reloaded.currentSnapshot().snapshotId())
+        .as("main branch must not advance when catalog-source add_files targets a different branch")
+        .isEqualTo(mainSnapshotBefore);
+    assertThat(reloaded.refs().get(branchName).snapshotId())
+        .as("branch head must be different from main after import")
+        .isNotEqualTo(mainSnapshotBefore);
+  }
+
+  @TestTemplate
+  public void testAddFilesToBranchThenFastForwardMain() {
+    createPartitionedFileTable("parquet");
+
+    createIcebergTable(
+        "id Integer, name String, dept String, subdept String", "PARTITIONED BY (id)");
+
+    // Seed a snapshot on main so the branch has a well-defined starting point.
+    sql("INSERT INTO %s VALUES (100, 'Seed', 'seedDept', 'seedSub')", tableName);
+
+    String branchName = "stg";
+    sql("ALTER TABLE %s CREATE BRANCH %s", tableName, branchName);
+
+    // 1) Clean the seed row on the branch (leaves main untouched).
+    sql("DELETE FROM %s.branch_%s WHERE id = 100", tableName, branchName);
+
+    // 2) Import fresh partition data into the branch via add_files.
+    List<Object[]> addResult =
+        sql(
+            "CALL %s.system.add_files("
+                + "table => '%s', "
+                + "source_table => '`parquet`.`%s`', "
+                + "partition_filter => map('id', 1), "
+                + "branch => '%s')",
+            catalogName, tableName, fileTableDir.getAbsolutePath(), branchName);
+    assertOutput(addResult, 2L, 1L);
+
+    Table beforeFF = validationCatalog.loadTable(tableIdent);
+    long mainSnapshotBeforeFF = beforeFF.currentSnapshot().snapshotId();
+    long branchSnapshotBeforeFF = beforeFF.refs().get(branchName).snapshotId();
+
+    // Sanity: branch already has the imported id=1 rows but no seed row.
+    long branchIdOne =
+        (Long)
+            sql("SELECT count(*) FROM %s.branch_%s WHERE id = 1", tableName, branchName).get(0)[0];
+    assertThat(branchIdOne).isEqualTo(2L);
+    long branchSeed =
+        (Long)
+            sql("SELECT count(*) FROM %s.branch_%s WHERE id = 100", tableName, branchName)
+                .get(0)[0];
+    assertThat(branchSeed).isEqualTo(0L);
+    // Main still shows the seed row and no id=1 rows.
+    assertEquals(
+        "Main still holds the seed row before fast-forward",
+        ImmutableList.of(row(100, "Seed", "seedDept", "seedSub")),
+        sql("SELECT id, name, dept, subdept FROM %s ORDER BY id", tableName));
+
+    // 3) Fast-forward main to the branch head.
+    sql(
+        "CALL %s.system.fast_forward(table => '%s', branch => 'main', to => '%s')",
+        catalogName, tableName, branchName);
+
+    Table afterFF = validationCatalog.loadTable(tableIdent);
+    long mainSnapshotAfterFF = afterFF.currentSnapshot().snapshotId();
+    assertThat(mainSnapshotAfterFF)
+        .as("main must be advanced to the branch head after fast_forward")
+        .isEqualTo(branchSnapshotBeforeFF)
+        .isNotEqualTo(mainSnapshotBeforeFF);
+
+    // Main now reflects: seed removed, only imported id=1 rows remain.
+    long mainRowCount = (Long) sql("SELECT count(*) FROM %s", tableName).get(0)[0];
+    assertThat(mainRowCount).isEqualTo(2L);
+    long mainSeed = (Long) sql("SELECT count(*) FROM %s WHERE id = 100", tableName).get(0)[0];
+    assertThat(mainSeed).isEqualTo(0L);
+  }
+
+  @TestTemplate
+  public void testAddFilesDuplicateCheckIsBranchScoped() {
+    createPartitionedFileTable("parquet");
+
+    createIcebergTable(
+        "id Integer, name String, dept String, subdept String", "PARTITIONED BY (id)");
+
+    // Seed main with the partition data — files are now registered on main.
+    sql(
+        "CALL %s.system.add_files("
+            + "table => '%s', "
+            + "source_table => '`parquet`.`%s`', "
+            + "partition_filter => map('id', 1))",
+        catalogName, tableName, fileTableDir.getAbsolutePath());
+
+    // Advance main once more so 'stg' branch (created next) does NOT inherit the seed-import
+    // manifests — otherwise the branch head would still see the same file entries and the check
+    // would (correctly) flag them.
+    sql("INSERT INTO %s VALUES (500, 'anchor', 'anchorDept', 'anchorSub')", tableName);
+
+    // Create branch stg BEFORE we've added anything only to it. Its head snapshot inherits the
+    // main history, so entries for the imported id=1 files would appear here too. This test
+    // demonstrates that the branch-scoped check will still catch those inherited entries — the
+    // fix eliminates FALSE positives when writing to a branch whose history does NOT contain
+    // the file (see testAddFilesInMainThenBranchWithoutInheritance for that variant).
+    String branchName = "stg";
+    sql("ALTER TABLE %s CREATE BRANCH %s", tableName, branchName);
+
+    // Now try to add the same partition on the branch. Branch-scoped check sees inherited
+    // entries and correctly refuses.
+    assertThatThrownBy(
+            () ->
+                sql(
+                    "CALL %s.system.add_files("
+                        + "table => '%s', "
+                        + "source_table => '`parquet`.`%s`', "
+                        + "partition_filter => map('id', 1), "
+                        + "branch => '%s')",
+                    catalogName, tableName, fileTableDir.getAbsolutePath(), branchName))
+        .hasMessageContaining("data files to be imported already exist");
+  }
+
+  @TestTemplate
+  public void testAddFilesInDetachedBranchIgnoresMain() {
+    createPartitionedFileTable("parquet");
+
+    createIcebergTable(
+        "id Integer, name String, dept String, subdept String", "PARTITIONED BY (id)");
+
+    // Create branch BEFORE main gets the files — branch head snapshot does NOT contain them.
+    sql("INSERT INTO %s VALUES (500, 'seed', 'seedDept', 'seedSub')", tableName);
+    String branchName = "stg";
+    sql("ALTER TABLE %s CREATE BRANCH %s", tableName, branchName);
+
+    // Advance main with the target partition. This registers the files on main only — branch
+    // head still points to the seed snapshot and does not see them.
+    sql(
+        "CALL %s.system.add_files("
+            + "table => '%s', "
+            + "source_table => '`parquet`.`%s`', "
+            + "partition_filter => map('id', 1))",
+        catalogName, tableName, fileTableDir.getAbsolutePath());
+
+    // Import the same partition into the branch — branch-scoped check must not see the files
+    // that live on main only.
+    List<Object[]> result =
+        sql(
+            "CALL %s.system.add_files("
+                + "table => '%s', "
+                + "source_table => '`parquet`.`%s`', "
+                + "partition_filter => map('id', 1), "
+                + "branch => '%s')",
+            catalogName, tableName, fileTableDir.getAbsolutePath(), branchName);
+    assertOutput(result, 2L, 1L);
+  }
+
+  @TestTemplate
+  public void testAddFilesAutoCreatesBranch() {
+    createPartitionedFileTable("parquet");
+
+    createIcebergTable(
+        "id Integer, name String, dept String, subdept String", "PARTITIONED BY (id)");
+
+    // Iceberg's AppendFiles.toBranch(name).commit() creates the ref automatically if it does not
+    // already exist — document that behavior so callers know a typo won't fail loudly.
+    String freshBranch = "auto_created_branch";
+    List<Object[]> result =
+        sql(
+            "CALL %s.system.add_files("
+                + "table => '%s', "
+                + "source_table => '`parquet`.`%s`', "
+                + "partition_filter => map('id', 1), "
+                + "branch => '%s')",
+            catalogName, tableName, fileTableDir.getAbsolutePath(), freshBranch);
+
+    assertOutput(result, 2L, 1L);
+
+    Table reloaded = validationCatalog.loadTable(tableIdent);
+    assertThat(reloaded.refs())
+        .as("Iceberg auto-creates the branch ref during add_files")
+        .containsKey(freshBranch);
+    // No pre-existing main snapshot, so main should NOT gain a snapshot from the branch commit.
+    assertThat(reloaded.currentSnapshot())
+        .as("main branch must not gain a snapshot when only a non-main branch was written")
+        .isNull();
+  }
+
   private static final List<Object[]> EMPTY_QUERY_RESULT = Lists.newArrayList();
 
   private static final StructField[] STRUCT = {

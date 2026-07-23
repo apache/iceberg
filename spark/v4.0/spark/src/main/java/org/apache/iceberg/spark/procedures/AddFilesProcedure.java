@@ -39,6 +39,7 @@ import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.SparkTableUtil.SparkPartition;
 import org.apache.iceberg.util.LocationUtil;
+import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.TableIdentifier;
@@ -68,6 +69,10 @@ class AddFilesProcedure extends BaseProcedure {
       optionalInParameter("check_duplicate_files", DataTypes.BooleanType);
   private static final ProcedureParameter PARALLELISM =
       optionalInParameter("parallelism", DataTypes.IntegerType);
+  private static final ProcedureParameter FILE_PARTITION_FILTER_OPTIMIZED_SCAN_PARAM =
+      optionalInParameter("file_partition_filter_optimized_scan", DataTypes.BooleanType);
+  private static final ProcedureParameter BRANCH_PARAM =
+      optionalInParameter("branch", DataTypes.StringType);
 
   private static final ProcedureParameter[] PARAMETERS =
       new ProcedureParameter[] {
@@ -75,7 +80,9 @@ class AddFilesProcedure extends BaseProcedure {
         SOURCE_TABLE_PARAM,
         PARTITION_FILTER_PARAM,
         CHECK_DUPLICATE_FILES_PARAM,
-        PARALLELISM
+        PARALLELISM,
+        FILE_PARTITION_FILTER_OPTIMIZED_SCAN_PARAM,
+        BRANCH_PARAM
       };
 
   private static final StructType OUTPUT_TYPE =
@@ -125,10 +132,20 @@ class AddFilesProcedure extends BaseProcedure {
     int parallelism = input.asInt(PARALLELISM, 1);
     Preconditions.checkArgument(parallelism > 0, "Parallelism should be larger than 0");
 
+    boolean optimizedScan = input.asBoolean(FILE_PARTITION_FILTER_OPTIMIZED_SCAN_PARAM, false);
+
+    String branch = input.asString(BRANCH_PARAM, null);
+
     return asScanIterator(
         OUTPUT_TYPE,
         importToIceberg(
-            tableIdent, sourceIdent, partitionFilter, checkDuplicateFiles, parallelism));
+            tableIdent,
+            sourceIdent,
+            partitionFilter,
+            checkDuplicateFiles,
+            parallelism,
+            optimizedScan,
+            branch));
   }
 
   private InternalRow[] toOutputRows(Snapshot snapshot) {
@@ -159,7 +176,9 @@ class AddFilesProcedure extends BaseProcedure {
       Identifier sourceIdent,
       Map<String, String> partitionFilter,
       boolean checkDuplicateFiles,
-      int parallelism) {
+      int parallelism,
+      boolean optimizedScan,
+      String branch) {
     return modifyIcebergTable(
         destIdent,
         table -> {
@@ -169,13 +188,24 @@ class AddFilesProcedure extends BaseProcedure {
             Path sourcePath = new Path(sourceIdent.name());
             String format = sourceIdent.namespace()[0];
             importFileTable(
-                table, sourcePath, format, partitionFilter, checkDuplicateFiles, parallelism);
+                table,
+                sourcePath,
+                format,
+                partitionFilter,
+                checkDuplicateFiles,
+                parallelism,
+                optimizedScan,
+                branch);
           } else {
+            Preconditions.checkArgument(
+                !optimizedScan,
+                "file_partition_filter_optimized_scan only applies to file-based sources "
+                    + "(orc/parquet/avro), not catalog tables");
             importCatalogTable(
-                table, sourceIdent, partitionFilter, checkDuplicateFiles, parallelism);
+                table, sourceIdent, partitionFilter, checkDuplicateFiles, parallelism, branch);
           }
 
-          Snapshot snapshot = table.currentSnapshot();
+          Snapshot snapshot = branch != null ? table.snapshot(branch) : table.currentSnapshot();
           return toOutputRows(snapshot);
         });
   }
@@ -195,10 +225,24 @@ class AddFilesProcedure extends BaseProcedure {
       String format,
       Map<String, String> partitionFilter,
       boolean checkDuplicateFiles,
-      int parallelism) {
+      int parallelism,
+      boolean optimizedScan,
+      String branch) {
+
+    List<Path> scanRoots;
+    Map<String, String> residualFilter;
+    if (optimizedScan) {
+      Pair<List<Path>, Map<String, String>> narrowed =
+          Spark3Util.narrowScanRoots(spark(), tableLocation, partitionFilter);
+      scanRoots = narrowed.first();
+      residualFilter = narrowed.second();
+    } else {
+      scanRoots = ImmutableList.of(tableLocation);
+      residualFilter = partitionFilter;
+    }
 
     org.apache.spark.sql.execution.datasources.PartitionSpec inferredSpec =
-        Spark3Util.getInferredSpec(spark(), tableLocation);
+        Spark3Util.getInferredSpec(spark(), tableLocation, scanRoots);
 
     List<String> sparkPartNames =
         JavaConverters.seqAsJavaList(inferredSpec.partitionColumns()).stream()
@@ -210,7 +254,8 @@ class AddFilesProcedure extends BaseProcedure {
 
     // List Partitions via Spark InMemory file search interface
     List<SparkPartition> partitions =
-        Spark3Util.getPartitions(spark(), tableLocation, format, partitionFilter, compatibleSpec);
+        Spark3Util.getPartitions(
+            spark(), tableLocation, scanRoots, format, residualFilter, compatibleSpec);
 
     if (table.spec().isUnpartitioned()) {
       Preconditions.checkArgument(
@@ -223,11 +268,16 @@ class AddFilesProcedure extends BaseProcedure {
       SparkPartition partition =
           new SparkPartition(Collections.emptyMap(), tableLocation.toString(), format);
       importPartitions(
-          table, ImmutableList.of(partition), checkDuplicateFiles, compatibleSpec, parallelism);
+          table,
+          ImmutableList.of(partition),
+          checkDuplicateFiles,
+          compatibleSpec,
+          parallelism,
+          branch);
     } else {
       Preconditions.checkArgument(
           !partitions.isEmpty(), "Cannot find any matching partitions in table %s", table.name());
-      importPartitions(table, partitions, checkDuplicateFiles, compatibleSpec, parallelism);
+      importPartitions(table, partitions, checkDuplicateFiles, compatibleSpec, parallelism, branch);
     }
   }
 
@@ -236,7 +286,8 @@ class AddFilesProcedure extends BaseProcedure {
       Identifier sourceIdent,
       Map<String, String> partitionFilter,
       boolean checkDuplicateFiles,
-      int parallelism) {
+      int parallelism,
+      String branch) {
     String stagingLocation = getMetadataLocation(table);
     TableIdentifier sourceTableIdentifier = Spark3Util.toV1TableIdentifier(sourceIdent);
     SparkTableUtil.importSparkTable(
@@ -246,7 +297,8 @@ class AddFilesProcedure extends BaseProcedure {
         stagingLocation,
         partitionFilter,
         checkDuplicateFiles,
-        parallelism);
+        parallelism,
+        branch);
   }
 
   private void importPartitions(
@@ -254,10 +306,18 @@ class AddFilesProcedure extends BaseProcedure {
       List<SparkTableUtil.SparkPartition> partitions,
       boolean checkDuplicateFiles,
       PartitionSpec spec,
-      int parallelism) {
+      int parallelism,
+      String branch) {
     String stagingLocation = getMetadataLocation(table);
     SparkTableUtil.importSparkPartitions(
-        spark(), partitions, table, spec, stagingLocation, checkDuplicateFiles, parallelism);
+        spark(),
+        partitions,
+        table,
+        spec,
+        stagingLocation,
+        checkDuplicateFiles,
+        parallelism,
+        branch);
   }
 
   private String getMetadataLocation(Table table) {
