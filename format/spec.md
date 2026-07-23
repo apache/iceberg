@@ -1687,6 +1687,8 @@ Types are serialized according to this table:
 | **`geometry(C)`** |`JSON string: "geometry(<C>)"`|`"geometry(srid:4326)"`|
 | **`geography(C, A)`** |`JSON string: "geography(<C>, <A>)"`|`"geography(srid:4326, spherical)"`|
 
+The schema JSON type strings in this table are the canonical serialized forms. Readers should accept optional whitespace around parameters and separators in parameterized type strings.
+
 Note that default values are serialized using the JSON single-value serialization in [Appendix D](#appendix-d-single-value-serialization).
 
 ### Partition Specs
