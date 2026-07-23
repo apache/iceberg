@@ -54,8 +54,8 @@ class FieldStatsStruct<T> implements FieldStats<T>, StructLike, Serializable {
       T upperBound,
       boolean tightBounds,
       long valueCount,
-      Long nullValueCount,
-      Long nanValueCount,
+      long nullValueCount,
+      long nanValueCount,
       Integer avgValueSize) {
     this(struct);
     setLowerBound(lowerBound);

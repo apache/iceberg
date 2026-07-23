@@ -28,6 +28,7 @@ import java.util.Map;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 
 public class TestContentStatsBackedMap {
   private static final Schema SCHEMA =
@@ -46,16 +47,12 @@ public class TestContentStatsBackedMap {
   private static final ContentStatsStruct ONLY_REQUIRED_STATS = new ContentStatsStruct(STATS_TYPE);
 
   static {
-    POPULATED_STATS.setStats(
-        1, new FieldStatsStruct<>(statsType("req"), 1L, 5L, false, 10L, null, null, null));
-    POPULATED_STATS.setStats(
-        2, new FieldStatsStruct<>(statsType("opt"), 2L, 6L, false, 20L, 3L, null, null));
-    POPULATED_STATS.setStats(
-        3, new FieldStatsStruct<>(statsType("dbl"), 1.0, 9.0, false, 30L, 7L, 4L, null));
+    POPULATED_STATS.setStats(1, mockFieldStats("req", 1, 1L, 5L, 10L, null, null));
+    POPULATED_STATS.setStats(2, mockFieldStats("opt", 2, 2L, 6L, 20L, 3L, null));
+    POPULATED_STATS.setStats(3, mockFieldStats("dbl", 3, 1.0, 9.0, 30L, 7L, 4L));
 
     // only a required long column: tracks a value count but no null or NaN count
-    ONLY_REQUIRED_STATS.setStats(
-        1, new FieldStatsStruct<>(statsType("req"), 1L, 5L, false, 10L, null, null, null));
+    ONLY_REQUIRED_STATS.setStats(1, mockFieldStats("req", 1, 1L, 5L, 10L, null, null));
   }
 
   @Test
@@ -78,8 +75,8 @@ public class TestContentStatsBackedMap {
     // a deserialized required-column struct leaves null_value_count null; get must not unbox it.
     // Column 2 tracks the null count, so the view itself is non-null.
     ContentStatsStruct stats = new ContentStatsStruct(STATS_TYPE);
-    stats.setStats(1, new FieldStatsStruct<Long>(statsType("req")));
-    stats.setStats(2, new FieldStatsStruct<>(statsType("opt"), 2L, 6L, false, 20L, 3L, null, null));
+    stats.setStats(1, mockFieldStats("req", 1, null, null, null, null, null));
+    stats.setStats(2, mockFieldStats("opt", 2, 2L, 6L, 20L, 3L, null));
     Map<Integer, Long> map = ContentStatsBackedMap.nullValueCounts(stats);
     assertThat(map.get(1)).isNull();
     assertThat(map).containsOnly(Map.entry(2, 3L));
@@ -137,5 +134,40 @@ public class TestContentStatsBackedMap {
   public void testPopulatedViewIsNotEmpty() {
     // isEmpty() answers from a scan without materializing entrySet
     assertThat(ContentStatsBackedMap.valueCounts(ONLY_REQUIRED_STATS)).isNotEmpty();
+  }
+
+  // A mock FieldStats presenting a column's stats through the interface (as a reader would after
+  // deserialization). A null count reports absent via has*(); type() returns the real per-column
+  // struct so lower/upper bounds decode against the right types.
+  @SuppressWarnings("unchecked")
+  private static FieldStats<Object> mockFieldStats(
+      String name,
+      int id,
+      Object lower,
+      Object upper,
+      Long valueCount,
+      Long nullCount,
+      Long nanCount) {
+    FieldStats<Object> stats = Mockito.mock(FieldStats.class);
+    Mockito.when(stats.fieldId()).thenReturn(id);
+    Mockito.when(stats.type()).thenReturn(statsType(name));
+    Mockito.when(stats.lowerBound()).thenReturn(lower);
+    Mockito.when(stats.upperBound()).thenReturn(upper);
+    Mockito.when(stats.hasValueCount()).thenReturn(valueCount != null);
+    Mockito.when(stats.hasNullValueCount()).thenReturn(nullCount != null);
+    Mockito.when(stats.hasNanValueCount()).thenReturn(nanCount != null);
+    if (valueCount != null) {
+      Mockito.when(stats.valueCount()).thenReturn(valueCount);
+    }
+
+    if (nullCount != null) {
+      Mockito.when(stats.nullValueCount()).thenReturn(nullCount);
+    }
+
+    if (nanCount != null) {
+      Mockito.when(stats.nanValueCount()).thenReturn(nanCount);
+    }
+
+    return stats;
   }
 }

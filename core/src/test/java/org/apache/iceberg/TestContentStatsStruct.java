@@ -54,7 +54,7 @@ public class TestContentStatsStruct {
       StatsUtil.fieldStatsStruct(false, Types.IntegerType.get(), 10_800, MetricsModes.Full.get());
 
   private static final FieldStats<Long> ID_STATS =
-      new FieldStatsStruct<>(
+      fieldStats(
           CONTENT_STATS_STRUCT.field("id").type().asStructType(),
           0L,
           25L,
@@ -64,7 +64,7 @@ public class TestContentStatsStruct {
           null,
           null);
   private static final FieldStats<String> DATA_STATS =
-      new FieldStatsStruct<>(
+      fieldStats(
           CONTENT_STATS_STRUCT.field("data").type().asStructType(),
           "a",
           "z",
@@ -109,10 +109,10 @@ public class TestContentStatsStruct {
   public void testSetStatsUnknownField() {
     ContentStatsStruct stats = new ContentStatsStruct(CONTENT_STATS_STRUCT);
 
-    FieldStats<Integer> fieldStats =
-        new FieldStatsStruct<>(UNKNOWN_FIELD_STATS_STRUCT, 0, 10, false, 8, null, null, null);
+    FieldStats<Integer> unknownStats =
+        fieldStats(UNKNOWN_FIELD_STATS_STRUCT, 0, 10, false, 8, null, null, null);
 
-    assertThatThrownBy(() -> stats.setStats(4, fieldStats))
+    assertThatThrownBy(() -> stats.setStats(4, unknownStats))
         .hasMessage("Cannot set stats for unknown field ID: 4")
         .isInstanceOf(IllegalArgumentException.class);
   }
@@ -263,5 +263,39 @@ public class TestContentStatsStruct {
     try (CloseableIterable<ContentStatsStruct> reader = read.build()) {
       return Iterables.getOnlyElement(reader);
     }
+  }
+
+  // Builds a FieldStatsStruct via the setter path, the way a reader populates one: only the fields
+  // the caller supplies that also exist in the schema are set, so a null count stays absent and
+  // hasNullValueCount()/hasNanValueCount() report false. Keeps "absent count" states out of the
+  // production constructor.
+  private static <T> FieldStatsStruct<T> fieldStats(
+      Types.StructType struct,
+      T lower,
+      T upper,
+      boolean tight,
+      long valueCount,
+      Long nullCount,
+      Long nanCount,
+      Integer avgSize) {
+    FieldStatsStruct<T> stats = new FieldStatsStruct<>(struct);
+    setIfPresent(stats, struct, "lower_bound", lower);
+    setIfPresent(stats, struct, "upper_bound", upper);
+    setIfPresent(stats, struct, "tight_bounds", tight);
+    setIfPresent(stats, struct, "value_count", valueCount);
+    setIfPresent(stats, struct, "null_value_count", nullCount);
+    setIfPresent(stats, struct, "nan_value_count", nanCount);
+    setIfPresent(stats, struct, "avg_value_size_in_bytes", avgSize);
+    return stats;
+  }
+
+  private static void setIfPresent(
+      FieldStatsStruct<?> stats, Types.StructType struct, String fieldName, Object value) {
+    Types.NestedField field = struct.field(fieldName);
+    if (value == null || field == null) {
+      return;
+    }
+
+    stats.set(struct.fields().indexOf(field), value);
   }
 }

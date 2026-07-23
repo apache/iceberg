@@ -31,6 +31,7 @@ import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.mockito.Mockito;
 
 class TestTrackedFileAdapters {
 
@@ -67,19 +68,11 @@ class TestTrackedFileAdapters {
           optional(1, "id", Types.IntegerType.get()), optional(2, "score", Types.FloatType.get()));
   private static final Types.StructType CONTENT_STATS_TYPE =
       StatsUtil.statsReadSchema(TABLE_SCHEMA, ImmutableList.of(1, 2));
-  private static final FieldStats<Integer> ID_STATS =
-      new FieldStatsStruct<>(
-          CONTENT_STATS_TYPE.fieldType("id").asStructType(), 1, 1000, true, 100L, 5L, null, null);
-  private static final FieldStats<Float> SCORE_STATS =
-      new FieldStatsStruct<>(
-          CONTENT_STATS_TYPE.fieldType("score").asStructType(),
-          1.0f,
-          100.0f,
-          true,
-          100L,
-          10L,
-          3L,
-          null);
+  private static final FieldStats<?> ID_STATS =
+      mockFieldStats(CONTENT_STATS_TYPE.fieldType("id").asStructType(), 1, 1, 1000, 100L, 5L, null);
+  private static final FieldStats<?> SCORE_STATS =
+      mockFieldStats(
+          CONTENT_STATS_TYPE.fieldType("score").asStructType(), 2, 1.0f, 100.0f, 100L, 10L, 3L);
   private static final ContentStatsStruct CONTENT_STATS =
       new ContentStatsStruct(CONTENT_STATS_TYPE);
 
@@ -359,9 +352,7 @@ class TestTrackedFileAdapters {
     Types.StructType statsType = StatsUtil.statsReadSchema(schema, ImmutableList.of(1));
     ContentStatsStruct stats = new ContentStatsStruct(statsType);
     stats.setStats(
-        1,
-        new FieldStatsStruct<>(
-            statsType.fieldType("id").asStructType(), 1, 1000, true, 100L, 5L, null, null));
+        1, mockFieldStats(statsType.fieldType("id").asStructType(), 1, 1, 1000, 100L, 5L, null));
 
     DataFile dataFile = TrackedFileAdapters.asDataFile(dataFileWithStats(stats), UNPARTITIONED);
 
@@ -563,5 +554,40 @@ class TestTrackedFileAdapters {
         .sizeInBytes(256L)
         .cardinality(10L)
         .build();
+  }
+
+  // A mock FieldStats presenting a column's stats through the interface, as a reader would after
+  // deserialization. A null count reports absent via has*(); type() returns the real per-column
+  // struct so lower/upper bounds decode against the right types.
+  @SuppressWarnings("unchecked")
+  private static FieldStats<Object> mockFieldStats(
+      Types.StructType type,
+      int id,
+      Object lower,
+      Object upper,
+      Long valueCount,
+      Long nullCount,
+      Long nanCount) {
+    FieldStats<Object> stats = Mockito.mock(FieldStats.class);
+    Mockito.when(stats.fieldId()).thenReturn(id);
+    Mockito.when(stats.type()).thenReturn(type);
+    Mockito.when(stats.lowerBound()).thenReturn(lower);
+    Mockito.when(stats.upperBound()).thenReturn(upper);
+    Mockito.when(stats.hasValueCount()).thenReturn(valueCount != null);
+    Mockito.when(stats.hasNullValueCount()).thenReturn(nullCount != null);
+    Mockito.when(stats.hasNanValueCount()).thenReturn(nanCount != null);
+    if (valueCount != null) {
+      Mockito.when(stats.valueCount()).thenReturn(valueCount);
+    }
+
+    if (nullCount != null) {
+      Mockito.when(stats.nullValueCount()).thenReturn(nullCount);
+    }
+
+    if (nanCount != null) {
+      Mockito.when(stats.nanValueCount()).thenReturn(nanCount);
+    }
+
+    return stats;
   }
 }
