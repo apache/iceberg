@@ -259,12 +259,22 @@ public class TestVariantMetrics {
     assertThat(metrics.nullValueCounts()).isEqualTo(Map.of(1, 0L, 2, 0L));
     assertThat(metrics.nanValueCounts()).isEqualTo(Map.of());
 
-    assertThat(metrics.lowerBounds())
-        .isEqualTo(Map.of(1, Conversions.toByteBuffer(Type.TypeID.LONG, 0L)));
-    assertThat(metrics.upperBounds())
-        .isEqualTo(Map.of(1, Conversions.toByteBuffer(Type.TypeID.LONG, 1L)));
+    assertThat(metrics.lowerBounds().size()).isEqualTo(2);
+    assertThat(metrics.lowerBounds().get(1))
+        .isEqualTo(Conversions.toByteBuffer(Type.TypeID.LONG, 0L));
+    assertThat(Variant.from(metrics.lowerBounds().get(2)).value().asObject().get("$"))
+        .isEqualTo(doubleValue);
 
-    assertThat(metrics).extracting("originalTypes").isEqualTo(Map.of(1, Types.LongType.get()));
+    assertThat(metrics.upperBounds().size()).isEqualTo(2);
+
+    assertThat(metrics.upperBounds().get(1))
+        .isEqualTo(Conversions.toByteBuffer(Type.TypeID.LONG, 1L));
+    assertThat(Variant.from(metrics.upperBounds().get(2)).value().asObject().get("$"))
+        .isEqualTo(doubleValue);
+
+    assertThat(metrics)
+        .extracting("originalTypes")
+        .isEqualTo(Map.of(1, Types.LongType.get(), 2, Types.VariantType.get()));
   }
 
   @Test
