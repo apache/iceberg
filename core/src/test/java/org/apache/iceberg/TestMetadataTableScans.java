@@ -468,6 +468,127 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
   }
 
   @TestTemplate
+  public void testAllManifestsTableNegatedPredicateOnNonSnapshotColumn() throws IOException {
+    List<Long> snapshotIds = prepareAllManifestsTableWithThreeSnapshots();
+
+    Table allManifestsTable = new AllManifestsTable(table);
+    TableScan scan =
+        allManifestsTable
+            .newScan()
+            .filter(Expressions.not(Expressions.equal("content", ManifestContent.DATA.id())));
+
+    assertThat(plannedReferenceSnapshotIds(scan))
+        .as("A negated predicate on content must not prune snapshots")
+        .containsExactlyInAnyOrderElementsOf(snapshotIds);
+  }
+
+  @TestTemplate
+  public void testAllManifestsTableNotEqualPredicateOnNonSnapshotColumn() throws IOException {
+    List<Long> snapshotIds = prepareAllManifestsTableWithThreeSnapshots();
+
+    Table allManifestsTable = new AllManifestsTable(table);
+    TableScan scan =
+        allManifestsTable
+            .newScan()
+            .filter(Expressions.notEqual("content", ManifestContent.DATA.id()));
+
+    assertThat(plannedReferenceSnapshotIds(scan))
+        .as("A not-equal predicate on content must not prune snapshots")
+        .containsExactlyInAnyOrderElementsOf(snapshotIds);
+  }
+
+  @TestTemplate
+  public void testAllManifestsTableNegatedOrPredicate() throws IOException {
+    List<Long> snapshotIds = prepareAllManifestsTableWithThreeSnapshots();
+    long firstSnapshotId = snapshotIds.get(0);
+    long secondSnapshotId = snapshotIds.get(1);
+    long thirdSnapshotId = snapshotIds.get(2);
+
+    Table allManifestsTable = new AllManifestsTable(table);
+    TableScan scan =
+        allManifestsTable
+            .newScan()
+            .filter(
+                Expressions.not(
+                    Expressions.or(
+                        Expressions.equal("reference_snapshot_id", firstSnapshotId),
+                        Expressions.equal("content", ManifestContent.DELETES.id()))));
+
+    /*
+     * NOT(reference_snapshot_id = firstSnapshotId OR content = DELETES)
+     *
+     * is rewritten as:
+     *
+     * reference_snapshot_id != firstSnapshotId
+     *     AND content != DELETES
+     *
+     * The first snapshot can be pruned using reference_snapshot_id.
+     * The content predicate cannot prune the other snapshots because content
+     * is unknown while planning snapshot tasks.
+     */
+    assertThat(plannedReferenceSnapshotIds(scan))
+        .as("Only the explicitly excluded snapshot should be pruned")
+        .containsExactlyInAnyOrder(secondSnapshotId, thirdSnapshotId);
+  }
+
+  @TestTemplate
+  public void testAllManifestsTableNegatedAndPredicate() throws IOException {
+    List<Long> snapshotIds = prepareAllManifestsTableWithThreeSnapshots();
+    long firstSnapshotId = snapshotIds.get(0);
+
+    Table allManifestsTable = new AllManifestsTable(table);
+    TableScan scan =
+        allManifestsTable
+            .newScan()
+            .filter(
+                Expressions.not(
+                    Expressions.and(
+                        Expressions.equal("reference_snapshot_id", firstSnapshotId),
+                        Expressions.equal("content", ManifestContent.DELETES.id()))));
+
+    /*
+     * NOT(reference_snapshot_id = firstSnapshotId AND content = DELETES)
+     *
+     * is rewritten as:
+     *
+     * reference_snapshot_id != firstSnapshotId
+     *     OR content != DELETES
+     *
+     * Even for firstSnapshotId, content != DELETES may match. Therefore,
+     * no snapshot can be safely pruned.
+     */
+    assertThat(plannedReferenceSnapshotIds(scan))
+        .as("A possibly matching content predicate must keep all snapshots")
+        .containsExactlyInAnyOrderElementsOf(snapshotIds);
+  }
+
+  @TestTemplate
+  public void testAllManifestsTableNegatedSnapshotOnlyPredicate() throws IOException {
+    List<Long> snapshotIds = prepareAllManifestsTableWithThreeSnapshots();
+    long firstSnapshotId = snapshotIds.get(0);
+    long secondSnapshotId = snapshotIds.get(1);
+    long thirdSnapshotId = snapshotIds.get(2);
+
+    Table allManifestsTable = new AllManifestsTable(table);
+    TableScan scan =
+        allManifestsTable
+            .newScan()
+            .filter(
+                Expressions.not(
+                    Expressions.or(
+                        Expressions.equal("reference_snapshot_id", firstSnapshotId),
+                        Expressions.equal("reference_snapshot_id", secondSnapshotId))));
+
+    /*
+     * This confirms that rewriteNot does not merely disable pruning.
+     * Both excluded snapshots must still be pruned.
+     */
+    assertThat(plannedReferenceSnapshotIds(scan))
+        .as("Negated snapshot-only predicates should still prune snapshots")
+        .containsExactly(thirdSnapshotId);
+  }
+
+  @TestTemplate
   public void testPartitionsTableScanNoFilter() {
     preparePartitionedTable();
 
@@ -1831,6 +1952,40 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     assertThat(rowCount(deleteFilesTable.newScan()))
         .as("DeleteFilesTable on main should have 2 delete files")
         .isEqualTo(2);
+  }
+
+  private List<Long> prepareAllManifestsTableWithThreeSnapshots() {
+    List<Long> snapshotIds = Lists.newArrayList();
+
+    table.newFastAppend().appendFile(FILE_A).commit();
+    snapshotIds.add(table.currentSnapshot().snapshotId());
+
+    table.newFastAppend().appendFile(FILE_C).commit();
+    snapshotIds.add(table.currentSnapshot().snapshotId());
+
+    table.newFastAppend().appendFile(FILE_D).commit();
+    snapshotIds.add(table.currentSnapshot().snapshotId());
+
+    return snapshotIds;
+  }
+
+  private Set<Long> plannedReferenceSnapshotIds(TableScan scan) throws IOException {
+    Set<Long> snapshotIds = Sets.newHashSet();
+
+    try (CloseableIterable<FileScanTask> tasks = scan.planFiles()) {
+      for (FileScanTask task : tasks) {
+        assertThat(task)
+            .as("All manifests task should read a manifest list")
+            .isInstanceOf(AllManifestsTable.ManifestListReadTask.class);
+
+        AllManifestsTable.ManifestListReadTask manifestListTask =
+            (AllManifestsTable.ManifestListReadTask) task;
+
+        snapshotIds.add(manifestListTask.referenceSnapshotId());
+      }
+    }
+
+    return snapshotIds;
   }
 
   private int rowCount(TableScan scan) throws IOException {
