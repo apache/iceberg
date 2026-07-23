@@ -19,11 +19,14 @@
 package org.apache.iceberg.connect.channel;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
 
 public class TestCoordinatorThread {
@@ -44,5 +47,37 @@ public class TestCoordinatorThread {
 
     verify(coordinator, timeout(1000)).stop();
     assertThat(coordinatorThread.isTerminated()).isTrue();
+  }
+
+  @Test
+  public void testTerminateWaitsForCoordinatorStop() throws Exception {
+    Coordinator coordinator = mock(Coordinator.class);
+    CountDownLatch stopStarted = new CountDownLatch(1);
+    CountDownLatch stopCanFinish = new CountDownLatch(1);
+    doAnswer(
+            invocation -> {
+              stopStarted.countDown();
+              assertThat(stopCanFinish.await(5, TimeUnit.SECONDS)).isTrue();
+              return null;
+            })
+        .when(coordinator)
+        .stop();
+    CoordinatorThread coordinatorThread = new CoordinatorThread(coordinator);
+    coordinatorThread.start();
+
+    verify(coordinator, timeout(1000)).start();
+    verify(coordinator, timeout(1000).atLeast(1)).process();
+
+    Thread terminator = new Thread(coordinatorThread::terminate);
+    terminator.start();
+
+    assertThat(stopStarted.await(1, TimeUnit.SECONDS)).isTrue();
+    assertThat(terminator.isAlive()).isTrue();
+
+    stopCanFinish.countDown();
+    terminator.join(1000);
+
+    assertThat(terminator.isAlive()).isFalse();
+    assertThat(coordinatorThread.isAlive()).isFalse();
   }
 }
