@@ -132,8 +132,6 @@ class ContentStatsBackedMap<V> extends AbstractMap<Integer, V> {
     return true;
   }
 
-  // Whether statValue would return a non-null value, without allocating a boxed count or decoding a
-  // bound. Must mirror statValue's null-ness.
   private static boolean isKnown(FieldStats<?> fieldStats, Kind kind) {
     switch (kind) {
       case VALUE_COUNT:

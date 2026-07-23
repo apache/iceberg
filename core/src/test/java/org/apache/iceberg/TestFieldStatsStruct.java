@@ -61,7 +61,8 @@ public class TestFieldStatsStruct {
 
   @Test
   public void testFieldAccess() {
-    FieldStats<String> stats = fieldStats(STRING_STATS, "a", "z", true, 28, 2L, null, 1);
+    FieldStats<String> stats =
+        StatsTestUtil.fieldStats(STRING_STATS, "a", "z", true, 28L, 2L, null, 1);
 
     assertThat(stats.fieldId()).isEqualTo(100);
     assertThat(stats.lowerBound()).isEqualTo("a");
@@ -78,7 +79,8 @@ public class TestFieldStatsStruct {
   @Test
   public void testPresenceMethods() {
     // optional string: tracks value + null count, no NaN count (strings have no NaN)
-    FieldStats<String> stringStats = fieldStats(STRING_STATS, "a", "z", true, 28, 2L, null, 1);
+    FieldStats<String> stringStats =
+        StatsTestUtil.fieldStats(STRING_STATS, "a", "z", true, 28L, 2L, null, 1);
     assertThat(stringStats.hasValueCount()).isTrue();
     assertThat(stringStats.hasNullValueCount()).isTrue();
     assertThat(stringStats.hasNanValueCount()).isFalse();
@@ -92,7 +94,8 @@ public class TestFieldStatsStruct {
     // required long: tracks neither null nor NaN count; reading counts throws rather than NPEs
     Types.StructType requiredLong =
         StatsUtil.fieldStatsStruct(false, Types.LongType.get(), BASE_ID, MetricsModes.Full.get());
-    FieldStats<Long> requiredStats = fieldStats(requiredLong, 1L, 5L, false, 10, null, null, null);
+    FieldStats<Long> requiredStats =
+        StatsTestUtil.fieldStats(requiredLong, 1L, 5L, false, 10L, null, null, null);
     assertThat(requiredStats.hasNullValueCount()).isFalse();
     assertThat(requiredStats.hasNanValueCount()).isFalse();
     assertThatThrownBy(() -> requiredStats.nullValueCount())
@@ -112,7 +115,8 @@ public class TestFieldStatsStruct {
 
   @Test
   public void testStringGetByPosition() {
-    FieldStatsStruct<String> stats = fieldStats(STRING_STATS, "a", "z", true, 28, 2L, null, 1);
+    FieldStatsStruct<String> stats =
+        StatsTestUtil.fieldStats(STRING_STATS, "a", "z", true, 28L, 2L, null, 1);
 
     assertThat(stats.get(pos(STRING_STATS, "lower_bound"), String.class)).isEqualTo("a");
     assertThat(stats.get(pos(STRING_STATS, "upper_bound"), String.class)).isEqualTo("z");
@@ -300,7 +304,7 @@ public class TestFieldStatsStruct {
         type.typeId() == Type.TypeID.STRING || type.typeId() == Type.TypeID.BINARY;
 
     FieldStatsStruct<Object> stats =
-        fieldStats(
+        StatsTestUtil.fieldStats(
             statsStruct,
             lowerBound,
             upperBound,
@@ -345,7 +349,7 @@ public class TestFieldStatsStruct {
     upperBound.set(3, 8.0d);
 
     FieldStatsStruct<Object> stats =
-        fieldStats(statsStruct, lowerBound, upperBound, false, 28L, 2L, null, null);
+        StatsTestUtil.fieldStats(statsStruct, lowerBound, upperBound, false, 28L, 2L, null, null);
 
     Comparator<StructLike> comparator = Comparators.forType(statsStruct);
 
@@ -384,7 +388,7 @@ public class TestFieldStatsStruct {
     int size = metadata.dictionarySize() + lowerObject.sizeInBytes();
 
     FieldStatsStruct<Object> stats =
-        fieldStats(statsStruct, lowerBound, upperBound, false, 28L, 2L, null, size);
+        StatsTestUtil.fieldStats(statsStruct, lowerBound, upperBound, false, 28L, 2L, null, size);
 
     FieldStatsStruct<?> copy = serializer.apply(stats);
     assertThat(copy.fieldId()).isEqualTo(stats.fieldId());
@@ -429,36 +433,5 @@ public class TestFieldStatsStruct {
     }
 
     throw new IllegalArgumentException("Missing field: " + fieldName);
-  }
-
-  // Builds a FieldStatsStruct via the setter path, the way a reader populates one: only the fields
-  // the caller supplies that also exist in the schema are set, so a null count stays absent and
-  // hasNullValueCount()/hasNanValueCount() report false. Keeps "absent count" states out of the
-  // production constructor.
-  private static <T> FieldStatsStruct<T> fieldStats(
-      Types.StructType struct,
-      T lower,
-      T upper,
-      boolean tight,
-      long valueCount,
-      Long nullCount,
-      Long nanCount,
-      Integer avgSize) {
-    FieldStatsStruct<T> stats = new FieldStatsStruct<>(struct);
-    setIfPresent(stats, struct, "lower_bound", lower);
-    setIfPresent(stats, struct, "upper_bound", upper);
-    setIfPresent(stats, struct, "tight_bounds", tight);
-    setIfPresent(stats, struct, "value_count", valueCount);
-    setIfPresent(stats, struct, "null_value_count", nullCount);
-    setIfPresent(stats, struct, "nan_value_count", nanCount);
-    setIfPresent(stats, struct, "avg_value_size_in_bytes", avgSize);
-    return stats;
-  }
-
-  private static void setIfPresent(
-      FieldStatsStruct<?> stats, Types.StructType struct, String fieldName, Object value) {
-    if (value != null && struct.field(fieldName) != null) {
-      stats.set(pos(struct, fieldName), value);
-    }
   }
 }

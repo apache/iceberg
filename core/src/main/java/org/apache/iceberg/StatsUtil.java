@@ -55,8 +55,6 @@ class StatsUtil {
   static final int NAN_VALUE_COUNT_OFFSET = 6;
   static final int AVG_VALUE_SIZE_OFFSET = 7;
 
-  // Bound field names, shared with the read-side lookups in ContentStatsBackedMap so a rename or
-  // typo cannot silently drift between the schema and the reader.
   static final String LOWER_BOUND_NAME = "lower_bound";
   static final String UPPER_BOUND_NAME = "upper_bound";
 
