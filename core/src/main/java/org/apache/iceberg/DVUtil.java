@@ -49,32 +49,12 @@ import org.apache.iceberg.util.Tasks;
 class DVUtil {
   private DVUtil() {}
 
-  /**
-   * Validate a DV. Based on the original from BaseDeleteLoader.
-   *
-   * @param dv deletion vector.
-   */
-  private static void validateDV(DeleteFile dv) {
-    Preconditions.checkArgument(
-        dv.contentOffset() != null,
-        "Invalid DV, offset cannot be null: %s",
-        ContentFileUtil.dvDesc(dv));
-    Preconditions.checkArgument(
-        dv.contentSizeInBytes() != null,
-        "Invalid DV, length is null: %s",
-        ContentFileUtil.dvDesc(dv));
-    Preconditions.checkArgument(
-        dv.contentSizeInBytes() <= Integer.MAX_VALUE,
-        "Can't read DV larger than 2GB: %s",
-        dv.contentSizeInBytes());
-  }
-
   static PositionDeleteIndex readDV(DeleteFile deleteFile, FileIO fileIO) {
     Preconditions.checkArgument(
         ContentFileUtil.isDV(deleteFile),
         "Cannot read, not a deletion vector: %s",
         deleteFile.location());
-    validateDV(deleteFile);
+    ContentFileUtil.validateDV(deleteFile);
     InputFile inputFile = fileIO.newInputFile(deleteFile);
     long offset = deleteFile.contentOffset();
     int length = deleteFile.contentSizeInBytes().intValue();
