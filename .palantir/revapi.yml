@@ -1,4 +1,10 @@
 acceptedBreaks:
+  "1.12.0":
+    org.apache.iceberg:iceberg-core:
+    - code: "java.method.addedToInterface"
+      new: "method org.apache.iceberg.rest.labels.Labels org.apache.iceberg.rest.responses.LoadViewResponse::labels()"
+      justification: "Added optional labels to the load view read path; LoadViewResponse\
+        \ is only meant to be implemented by the generated ImmutableLoadViewResponse"
   "1.0.0":
     org.apache.iceberg:iceberg-core:
     - code: "java.class.defaultSerializationChanged"

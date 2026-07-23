@@ -16,29 +16,26 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.rest.responses;
+package org.apache.iceberg.rest.labels;
 
+import java.util.List;
 import java.util.Map;
-import javax.annotation.Nullable;
-import org.apache.iceberg.rest.RESTResponse;
-import org.apache.iceberg.rest.labels.Labels;
-import org.apache.iceberg.view.ViewMetadata;
 import org.immutables.value.Value;
 
+/**
+ * Catalog-provided metadata enrichment (for example ownership, classification, or cost attribution)
+ * returned alongside a table or view on the read path.
+ *
+ * <p>Labels are generated per request and optional; clients may ignore them. They are not part of
+ * table state: the spec does not require how a catalog produces or stores labels, nor whether they
+ * are persisted or versioned. {@link #object()} carries catalog-object-level labels; {@link
+ * #fields()} carries per-field labels, each identified by field id.
+ */
 @Value.Immutable
-public interface LoadViewResponse extends RESTResponse {
-  String metadataLocation();
+public interface Labels {
+  /** Catalog-object-level labels, attached to the object (table, view, ...) as a whole. */
+  Map<String, String> object();
 
-  ViewMetadata metadata();
-
-  Map<String, String> config();
-
-  /** Optional catalog-provided labels. Returns null when the response carries no labels. */
-  @Nullable
-  Labels labels();
-
-  @Override
-  default void validate() {
-    // nothing to validate as it's not possible to create an invalid instance
-  }
+  /** Field-level labels. Each entry identifies its field by field id. */
+  List<FieldLabels> fields();
 }

@@ -25,6 +25,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.rest.labels.ImmutableFieldLabels;
+import org.apache.iceberg.rest.labels.ImmutableLabels;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.view.ImmutableViewVersion;
 import org.apache.iceberg.view.ViewMetadata;
@@ -244,5 +246,118 @@ public class TestLoadViewResponseParser {
     // can't do an equality comparison because Schema doesn't implement equals/hashCode
     assertThat(LoadViewResponseParser.toJson(LoadViewResponseParser.fromJson(json), true))
         .isEqualTo(expectedJson);
+  }
+
+  @Test
+  public void roundTripSerdeWithLabels() {
+    String uuid = "386b9f01-002b-4d8c-b77f-42c3fd3b7c9b";
+    ViewMetadata viewMetadata =
+        ViewMetadata.builder()
+            .assignUUID(uuid)
+            .setLocation("location")
+            .addSchema(new Schema(Types.NestedField.required(1, "x", Types.LongType.get())))
+            .addVersion(
+                ImmutableViewVersion.builder()
+                    .schemaId(0)
+                    .versionId(1)
+                    .timestampMillis(23L)
+                    .defaultNamespace(Namespace.of("ns1"))
+                    .build())
+            .setCurrentVersionId(1)
+            .build();
+
+    LoadViewResponse response =
+        ImmutableLoadViewResponse.builder()
+            .metadata(viewMetadata)
+            .metadataLocation("custom-location")
+            .labels(
+                ImmutableLabels.builder()
+                    .object(ImmutableMap.of("owner", "team-a"))
+                    .addFields(
+                        ImmutableFieldLabels.builder()
+                            .fieldId(1)
+                            .labels(ImmutableMap.of("classification", "pii"))
+                            .build())
+                    .build())
+            .build();
+
+    String expectedJson =
+        "{\n"
+            + "  \"metadata-location\" : \"custom-location\",\n"
+            + "  \"metadata\" : {\n"
+            + "    \"view-uuid\" : \"386b9f01-002b-4d8c-b77f-42c3fd3b7c9b\",\n"
+            + "    \"format-version\" : 1,\n"
+            + "    \"location\" : \"location\",\n"
+            + "    \"schemas\" : [ {\n"
+            + "      \"type\" : \"struct\",\n"
+            + "      \"schema-id\" : 0,\n"
+            + "      \"fields\" : [ {\n"
+            + "        \"id\" : 1,\n"
+            + "        \"name\" : \"x\",\n"
+            + "        \"required\" : true,\n"
+            + "        \"type\" : \"long\"\n"
+            + "      } ]\n"
+            + "    } ],\n"
+            + "    \"current-version-id\" : 1,\n"
+            + "    \"versions\" : [ {\n"
+            + "      \"version-id\" : 1,\n"
+            + "      \"timestamp-ms\" : 23,\n"
+            + "      \"schema-id\" : 0,\n"
+            + "      \"summary\" : { },\n"
+            + "      \"default-namespace\" : [ \"ns1\" ],\n"
+            + "      \"representations\" : [ ]\n"
+            + "    } ],\n"
+            + "    \"version-log\" : [ {\n"
+            + "      \"timestamp-ms\" : 23,\n"
+            + "      \"version-id\" : 1\n"
+            + "    } ]\n"
+            + "  },\n"
+            + "  \"labels\" : {\n"
+            + "    \"object\" : {\n"
+            + "      \"owner\" : \"team-a\"\n"
+            + "    },\n"
+            + "    \"fields\" : [ {\n"
+            + "      \"field-id\" : 1,\n"
+            + "      \"labels\" : {\n"
+            + "        \"classification\" : \"pii\"\n"
+            + "      }\n"
+            + "    } ]\n"
+            + "  }\n"
+            + "}";
+
+    String json = LoadViewResponseParser.toJson(response, true);
+    assertThat(json).isEqualTo(expectedJson);
+    // can't do an equality comparison because Schema doesn't implement equals/hashCode
+    assertThat(LoadViewResponseParser.toJson(LoadViewResponseParser.fromJson(json), true))
+        .isEqualTo(expectedJson);
+  }
+
+  @Test
+  public void labelsAreOptional() {
+    String uuid = "386b9f01-002b-4d8c-b77f-42c3fd3b7c9b";
+    ViewMetadata viewMetadata =
+        ViewMetadata.builder()
+            .assignUUID(uuid)
+            .setLocation("location")
+            .addSchema(new Schema(Types.NestedField.required(1, "x", Types.LongType.get())))
+            .addVersion(
+                ImmutableViewVersion.builder()
+                    .schemaId(0)
+                    .versionId(1)
+                    .timestampMillis(23L)
+                    .defaultNamespace(Namespace.of("ns1"))
+                    .build())
+            .setCurrentVersionId(1)
+            .build();
+
+    LoadViewResponse response =
+        ImmutableLoadViewResponse.builder()
+            .metadata(viewMetadata)
+            .metadataLocation("custom-location")
+            .build();
+
+    String json = LoadViewResponseParser.toJson(response, true);
+    assertThat(json).doesNotContain("labels");
+    assertThat(LoadViewResponseParser.fromJson(json).labels()).isNull();
   }
 }
