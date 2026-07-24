@@ -213,7 +213,7 @@ StreamNative provides a data streaming platform powered by [Ursa](https://stream
 
 ### [Teradata](https://www.teradata.com/)
 
-Teradata delivers enterprise-grade Open Table Format support for Apache Iceberg and Delta Lake with full freedom to choose storage, catalogs, and query engines, and no proprietary lock-in. 
+Teradata delivers enterprise-grade Open Table Format support for Apache Iceberg and Delta Lake with full freedom to choose storage, catalogs, and query engines, and no proprietary lock-in.
 
 Full OTF compatibility spans all major clouds, on-premises, and hybrid environments, backed by centralized security and governance. Teradata's AMPs, Cost-Based Optimizer, and Intelligent Workload Management deliver cross-lake-format, cross-catalog, and cross-deployment query performance at scale.
 
