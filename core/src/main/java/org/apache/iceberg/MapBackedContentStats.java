@@ -36,7 +36,7 @@ import org.apache.iceberg.types.Types;
  * writer serializes this view directly through {@link StructLike}, so {@code copy} is not
  * supported; a stable snapshot must be materialized via the writer instead.
  */
-final class MapBackedContentStats implements ContentStats, StructLike {
+class MapBackedContentStats implements ContentStats, StructLike {
   private final Types.StructType struct;
   private final int[] posToId;
   private final Map<Integer, FieldStats<?>> statsById;
@@ -59,7 +59,7 @@ final class MapBackedContentStats implements ContentStats, StructLike {
       statsById.put(
           fieldId,
           new MapBackedFieldStats<>(
-              this, field.type().asStructType(), fieldId, tableSchema.findType(fieldId)));
+              field.type().asStructType(), fieldId, tableSchema.findType(fieldId)));
     }
   }
 
@@ -132,16 +132,13 @@ final class MapBackedContentStats implements ContentStats, StructLike {
   }
 
   /** Reusable {@link FieldStats} view over one field's entries in a {@link ContentFile}'s maps. */
-  private static final class MapBackedFieldStats<T> implements FieldStats<T>, StructLike {
-    private final MapBackedContentStats parent;
+  private class MapBackedFieldStats<T> implements FieldStats<T>, StructLike {
     private final Types.StructType struct;
     private final int fieldId;
     private final Type boundType;
     private final int[] posToOffset;
 
-    MapBackedFieldStats(
-        MapBackedContentStats parent, Types.StructType struct, int fieldId, Type boundType) {
-      this.parent = parent;
+    MapBackedFieldStats(Types.StructType struct, int fieldId, Type boundType) {
       this.struct = struct;
       this.fieldId = fieldId;
       this.boundType = boundType;
@@ -161,14 +158,14 @@ final class MapBackedContentStats implements ContentStats, StructLike {
     @Override
     @SuppressWarnings("unchecked")
     public T lowerBound() {
-      ByteBuffer buf = parent.lowerBounds == null ? null : parent.lowerBounds.get(fieldId);
+      ByteBuffer buf = lowerBounds == null ? null : lowerBounds.get(fieldId);
       return buf == null ? null : (T) Conversions.fromByteBuffer(boundType, buf);
     }
 
     @Override
     @SuppressWarnings("unchecked")
     public T upperBound() {
-      ByteBuffer buf = parent.upperBounds == null ? null : parent.upperBounds.get(fieldId);
+      ByteBuffer buf = upperBounds == null ? null : upperBounds.get(fieldId);
       return buf == null ? null : (T) Conversions.fromByteBuffer(boundType, buf);
     }
 
@@ -178,18 +175,33 @@ final class MapBackedContentStats implements ContentStats, StructLike {
     }
 
     @Override
+    public boolean hasValueCount() {
+      return boxedCount(valueCounts) != null;
+    }
+
+    @Override
     public long valueCount() {
-      return count(parent.valueCounts);
+      return count(valueCounts);
+    }
+
+    @Override
+    public boolean hasNullValueCount() {
+      return boxedCount(nullValueCounts) != null;
     }
 
     @Override
     public long nullValueCount() {
-      return count(parent.nullValueCounts);
+      return count(nullValueCounts);
+    }
+
+    @Override
+    public boolean hasNanValueCount() {
+      return boxedCount(nanValueCounts) != null;
     }
 
     @Override
     public long nanValueCount() {
-      return count(parent.nanValueCounts);
+      return count(nanValueCounts);
     }
 
     @Override
@@ -222,9 +234,9 @@ final class MapBackedContentStats implements ContentStats, StructLike {
         case StatsUtil.LOWER_BOUND_OFFSET -> lowerBound();
         case StatsUtil.UPPER_BOUND_OFFSET -> upperBound();
         case StatsUtil.TIGHT_BOUNDS_OFFSET -> tightBounds();
-        case StatsUtil.VALUE_COUNT_OFFSET -> boxedCount(parent.valueCounts);
-        case StatsUtil.NULL_VALUE_COUNT_OFFSET -> boxedCount(parent.nullValueCounts);
-        case StatsUtil.NAN_VALUE_COUNT_OFFSET -> boxedCount(parent.nanValueCounts);
+        case StatsUtil.VALUE_COUNT_OFFSET -> boxedCount(valueCounts);
+        case StatsUtil.NULL_VALUE_COUNT_OFFSET -> boxedCount(nullValueCounts);
+        case StatsUtil.NAN_VALUE_COUNT_OFFSET -> boxedCount(nanValueCounts);
         case StatsUtil.AVG_VALUE_SIZE_OFFSET -> null;
         default -> throw new UnsupportedOperationException("Unsupported stats offset: " + offset);
       };
