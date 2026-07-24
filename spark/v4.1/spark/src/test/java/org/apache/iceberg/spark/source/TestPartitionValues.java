@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.spark.source;
 
+import static org.apache.iceberg.spark.SparkWriteOptions.WRITE_FORMAT;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -446,7 +447,12 @@ public class TestPartitionValues {
     Dataset<Row> sourceDF = spark.createDataFrame(rows, new StructType(structFields));
 
     // write into iceberg
-    sourceDF.write().format("iceberg").mode(SaveMode.Append).save(baseLocation);
+    sourceDF
+        .write()
+        .format("iceberg")
+        .option(WRITE_FORMAT, format.toString())
+        .mode(SaveMode.Append)
+        .save(baseLocation);
 
     // verify
     List<Row> actual =
@@ -509,5 +515,57 @@ public class TestPartitionValues {
     List<String> inputRecords =
         IntStream.range(0, 10).mapToObj(i -> "name_" + i).collect(Collectors.toList());
     assertThat(actual).as("Read object should be matched").isEqualTo(inputRecords);
+  }
+
+  @TestTemplate
+  public void testPartitionedByNotConstantCompoundNestedString() {
+    // this struct field is not a constant struct type since not all subfields are constants
+    Schema nestedSchema =
+        new Schema(
+            Types.NestedField.required(
+                1,
+                "col1",
+                Types.StructType.of(
+                    Types.NestedField.required(2, "col2", Types.StringType.get()),
+                    Types.NestedField.required(3, "col3", Types.IntegerType.get()))));
+    PartitionSpec spec = PartitionSpec.builderFor(nestedSchema).identity("col1.col2").build();
+
+    HadoopTables tables = new HadoopTables(spark.sessionState().newHadoopConf());
+    String baseLocation = temp.resolve("partition_by_nested_col1.col2").toString();
+    tables.create(nestedSchema, spec, baseLocation);
+
+    StructField[] structFields = {
+      new StructField(
+          "col1",
+          DataTypes.createStructType(
+              new StructField[] {
+                new StructField("col2", DataTypes.StringType, false, Metadata.empty()),
+                new StructField("col3", DataTypes.IntegerType, false, Metadata.empty())
+              }),
+          false,
+          Metadata.empty())
+    };
+
+    List<Row> rows =
+        Lists.newArrayList(
+            RowFactory.create(RowFactory.create("nested_partition_field_value", 123)));
+    Dataset<Row> sourceDF = spark.createDataFrame(rows, new StructType(structFields));
+
+    sourceDF
+        .write()
+        .format("iceberg")
+        .option(WRITE_FORMAT, format.toString())
+        .mode(SaveMode.Append)
+        .save(baseLocation);
+
+    List<Row> actual =
+        spark
+            .read()
+            .format("iceberg")
+            .option(SparkReadOptions.VECTORIZATION_ENABLED, String.valueOf(vectorized))
+            .load(baseLocation)
+            .collectAsList();
+
+    assertThat(actual).as("Number of rows should match").hasSameSizeAs(rows);
   }
 }
