@@ -756,6 +756,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     private final VectorizedReader<VectorHolder> idReader;
     private final VectorizedReader<VectorHolder> posReader;
     private NullabilityHolder nulls;
+    private BigIntVector vec;
 
     private RowIdVectorReader(long firstRowId, VectorizedArrowReader idReader) {
       this.firstRowId = firstRowId;
@@ -775,7 +776,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
         ArrowVectorAccessor<?, String, ?, ?> idsAccessor =
             ids == null ? null : ArrowVectorAccessors.getVectorAccessor(idsHolder);
 
-        BigIntVector rowIds = allocateBigIntVector(ROW_ID_ARROW_FIELD, numValsToRead);
+        BigIntVector rowIds = resultVector(numValsToRead);
         ArrowBuf dataBuffer = rowIds.getDataBuffer();
         for (int i = 0; i < numValsToRead; i += 1) {
           long bufferOffset = (long) i * Long.BYTES;
@@ -818,9 +819,29 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
       posReader.setBatchSize(batchSize);
     }
 
+    private BigIntVector resultVector(int numValsToRead) {
+      if (vec == null || vec.getValueCapacity() < numValsToRead) {
+        if (vec != null) {
+          vec.close();
+        }
+
+        this.vec = allocateBigIntVector(ROW_ID_ARROW_FIELD, numValsToRead);
+      } else {
+        vec.setValueCount(0);
+      }
+
+      return vec;
+    }
+
     @Override
     public void close() {
-      // don't close result vectors as they are not owned by readers
+      if (vec != null) {
+        vec.close();
+        this.vec = null;
+      }
+
+      idReader.close();
+      posReader.close();
     }
   }
 
@@ -831,6 +852,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     private final long lastUpdatedSeq;
     private final VectorizedReader<VectorHolder> seqReader;
     private NullabilityHolder nulls;
+    private BigIntVector vec;
 
     private LastUpdatedSeqVectorReader(
         long lastUpdatedSeq, VectorizedReader<VectorHolder> seqReader) {
@@ -847,8 +869,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
         ArrowVectorAccessor<?, String, ?, ?> seqAccessor =
             seqNumbers == null ? null : ArrowVectorAccessors.getVectorAccessor(seqNumbersHolder);
 
-        BigIntVector lastUpdatedSequenceNumbers =
-            allocateBigIntVector(LAST_UPDATED_SEQ, numValsToRead);
+        BigIntVector lastUpdatedSequenceNumbers = resultVector(numValsToRead);
         ArrowBuf dataBuffer = lastUpdatedSequenceNumbers.getDataBuffer();
         for (int i = 0; i < numValsToRead; i += 1) {
           long bufferOffset = (long) i * Long.BYTES;
@@ -885,9 +906,28 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
       seqReader.setBatchSize(batchSize);
     }
 
+    private BigIntVector resultVector(int numValsToRead) {
+      if (vec == null || vec.getValueCapacity() < numValsToRead) {
+        if (vec != null) {
+          vec.close();
+        }
+
+        this.vec = allocateBigIntVector(LAST_UPDATED_SEQ, numValsToRead);
+      } else {
+        vec.setValueCount(0);
+      }
+
+      return vec;
+    }
+
     @Override
     public void close() {
-      // don't close result vectors as they are not owned by readers
+      if (vec != null) {
+        vec.close();
+        this.vec = null;
+      }
+
+      seqReader.close();
     }
   }
 
