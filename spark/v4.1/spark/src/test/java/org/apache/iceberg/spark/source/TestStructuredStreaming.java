@@ -202,7 +202,6 @@ public class TestStructuredStreaming {
 
       // the second streaming append uses the regular append, which merges the two data manifests
       // into a single manifest; a fast append would have left two separate manifests
-      table.refresh();
       assertThat(table.currentSnapshot().dataManifests(table.io()))
           .as("Merge append should consolidate data manifests")
           .hasSize(1);
