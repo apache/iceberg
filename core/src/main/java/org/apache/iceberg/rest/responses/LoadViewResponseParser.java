@@ -22,6 +22,7 @@ import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.rest.labels.LabelsParser;
 import org.apache.iceberg.util.JsonUtil;
 import org.apache.iceberg.view.ViewMetadata;
 import org.apache.iceberg.view.ViewMetadataParser;
@@ -31,6 +32,7 @@ public class LoadViewResponseParser {
   private static final String METADATA_LOCATION = "metadata-location";
   private static final String METADATA = "metadata";
   private static final String CONFIG = "config";
+  private static final String LABELS = "labels";
 
   private LoadViewResponseParser() {}
 
@@ -56,6 +58,11 @@ public class LoadViewResponseParser {
       JsonUtil.writeStringMap(CONFIG, response.config(), gen);
     }
 
+    if (null != response.labels() && !LabelsParser.isEmpty(response.labels())) {
+      gen.writeFieldName(LABELS);
+      LabelsParser.toJson(response.labels(), gen);
+    }
+
     gen.writeEndObject();
   }
 
@@ -78,6 +85,10 @@ public class LoadViewResponseParser {
 
     if (json.has(CONFIG)) {
       builder.config(JsonUtil.getStringMap(CONFIG, json));
+    }
+
+    if (json.hasNonNull(LABELS)) {
+      builder.labels(LabelsParser.fromJson(JsonUtil.get(LABELS, json)));
     }
 
     return builder.build();
