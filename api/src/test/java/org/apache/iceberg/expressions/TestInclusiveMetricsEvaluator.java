@@ -41,7 +41,9 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.nio.ByteBuffer;
 import java.util.List;
+import java.util.Map;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TestHelpers.Row;
@@ -972,6 +974,46 @@ public class TestInclusiveMetricsEvaluator {
   }
 
   @Test
+  public void testNotEqSingleValueWithoutNaN() {
+    Schema schema = new Schema(required(1, "f", Types.FloatType.get()));
+    Map<Integer, ByteBuffer> bound = ImmutableMap.of(1, toByteBuffer(Types.FloatType.get(), 1.0f));
+    DataFile singleValueFile =
+        new TestDataFile(
+            "single_value_file.avro",
+            Row.of(),
+            10,
+            ImmutableMap.of(1, 10L),
+            ImmutableMap.of(1, 0L),
+            ImmutableMap.of(1, 0L),
+            bound,
+            bound);
+
+    assertThat(new InclusiveMetricsEvaluator(schema, notEqual("f", 1.0f)).eval(singleValueFile))
+        .as("Should skip: file contains no values not equal to 1.0")
+        .isFalse();
+  }
+
+  @Test
+  public void testNotEqSingleValueWithNaN() {
+    Schema schema = new Schema(required(1, "f", Types.FloatType.get()));
+    Map<Integer, ByteBuffer> bound = ImmutableMap.of(1, toByteBuffer(Types.FloatType.get(), 1.0f));
+    DataFile singleValueFile =
+        new TestDataFile(
+            "single_value_file.avro",
+            Row.of(),
+            10,
+            ImmutableMap.of(1, 10L),
+            ImmutableMap.of(1, 0L),
+            ImmutableMap.of(1, 1L), // contains a NaN value
+            bound,
+            bound);
+
+    assertThat(new InclusiveMetricsEvaluator(schema, notEqual("f", 1.0f)).eval(singleValueFile))
+        .as("Should read: file contains a NaN value not equal to 1.0")
+        .isTrue();
+  }
+
+  @Test
   public void testNotEqWithSingleValue() {
     DataFile rangeOfValues =
         new TestDataFile(
@@ -997,7 +1039,7 @@ public class TestInclusiveMetricsEvaluator {
             10,
             ImmutableMap.of(3, 10L),
             ImmutableMap.of(3, 0L),
-            ImmutableMap.of(3, 0L),
+            null,
             ImmutableMap.of(3, toByteBuffer(StringType.get(), "abc")),
             ImmutableMap.of(3, toByteBuffer(StringType.get(), "abc")));
 
@@ -1020,7 +1062,7 @@ public class TestInclusiveMetricsEvaluator {
             10,
             ImmutableMap.of(3, 10L),
             ImmutableMap.of(3, 2L),
-            ImmutableMap.of(3, 0L),
+            null,
             ImmutableMap.of(3, toByteBuffer(StringType.get(), "abc")),
             ImmutableMap.of(3, toByteBuffer(StringType.get(), "abc")));
 
