@@ -29,7 +29,14 @@ case class RenameV2ViewExec(catalog: ViewCatalog, oldIdent: Identifier, newIdent
   override lazy val output: Seq[Attribute] = Nil
 
   override protected def run(): Seq[InternalRow] = {
-    catalog.renameView(oldIdent, newIdent)
+    // Match Spark's v2 rename behavior: an unqualified target renames in place.
+    val qualifiedNewIdent =
+      if (newIdent.namespace().isEmpty) {
+        Identifier.of(oldIdent.namespace(), newIdent.name())
+      } else {
+        newIdent
+      }
+    catalog.renameView(oldIdent, qualifiedNewIdent)
 
     Seq.empty
   }
