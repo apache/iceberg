@@ -25,7 +25,6 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -171,14 +170,17 @@ public class TestCommitterImpl {
 
   @Test
   public void testCoordinatorStopCalledWhenCommitterClosed()
-          throws NoSuchFieldException, IllegalAccessException {
+      throws NoSuchFieldException, IllegalAccessException {
 
     Coordinator coordinator = mock(Coordinator.class);
 
-    doAnswer(invocation -> {
-      Thread.sleep(3000);
-      return null;
-    }).when(coordinator).process();
+    doAnswer(
+            invocation -> {
+              Thread.sleep(3000);
+              return null;
+            })
+        .when(coordinator)
+        .process();
 
     CoordinatorThread coordinatorThread = new CoordinatorThread(coordinator);
     coordinatorThread.start();
