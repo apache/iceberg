@@ -34,10 +34,12 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.iceberg.spark.TestBase;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
@@ -139,6 +141,69 @@ public class TestStructuredStreaming {
 
       assertThat(actual).hasSameSizeAs(expected).isEqualTo(expected);
       assertThat(table.snapshots()).as("Number of snapshots should match").hasSize(2);
+    } finally {
+      for (StreamingQuery query : spark.streams().active()) {
+        query.stop();
+      }
+    }
+  }
+
+  @Test
+  public void testStreamingWriteAppendModeWithMergeAppend() throws Exception {
+    File parent = temp.resolve("parquet").toFile();
+    File location = new File(parent, "test-table");
+    File checkpoint = new File(parent, "checkpoint");
+
+    HadoopTables tables = new HadoopTables(CONF);
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("data").build();
+    // set a low min merge count to trigger manifest merging
+    Table table =
+        tables.create(
+            SCHEMA,
+            spec,
+            ImmutableMap.of(TableProperties.MANIFEST_MIN_MERGE_COUNT, "2"),
+            location.toString());
+
+    List<SimpleRecord> expected =
+        Lists.newArrayList(
+            new SimpleRecord(1, "1"),
+            new SimpleRecord(2, "2"),
+            new SimpleRecord(3, "3"),
+            new SimpleRecord(4, "4"));
+
+    MemoryStream<Integer> inputStream = newMemoryStream(1, spark, Encoders.INT());
+    DataStreamWriter<Row> streamWriter =
+        inputStream
+            .toDF()
+            .selectExpr("value AS id", "CAST (value AS STRING) AS data")
+            .writeStream()
+            .outputMode("append")
+            .format("iceberg")
+            .option("checkpointLocation", checkpoint.toString())
+            .option("path", location.toString())
+            .option(SparkWriteOptions.STREAMING_MERGE_APPEND_ENABLED, "true");
+
+    try {
+      StreamingQuery query = streamWriter.start();
+      List<Integer> batch1 = Lists.newArrayList(1, 2);
+      send(batch1, inputStream);
+      query.processAllAvailable();
+      List<Integer> batch2 = Lists.newArrayList(3, 4);
+      send(batch2, inputStream);
+      query.processAllAvailable();
+      query.stop();
+
+      Dataset<Row> result = spark.read().format("iceberg").load(location.toString());
+      List<SimpleRecord> actual =
+          result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
+
+      assertThat(actual).hasSameSizeAs(expected).isEqualTo(expected);
+      assertThat(table.snapshots()).as("Number of snapshots should match").hasSize(2);
+
+      table.refresh();
+      assertThat(table.currentSnapshot().dataManifests(table.io()))
+          .as("Merge append should merge the manifests")
+          .hasSize(1);
     } finally {
       for (StreamingQuery query : spark.streams().active()) {
         query.stop();
