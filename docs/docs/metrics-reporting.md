@@ -41,6 +41,7 @@ A [`CommitReport`](https://github.com/apache/iceberg/blob/main/core/src/main/jav
 * number of added/removed data/delete files
 * number of added/removed equality/positional delete files
 * number of added/removed equality/positional deletes
+* metadata file size in bytes for the committed table metadata file (optional, may be null depending on catalog implementation)
 
 ## Available Metrics Reporters
 
@@ -109,7 +110,8 @@ CommitReport{
         totalPositionalDeletes=CounterResult{unit=COUNT, value=0}, 
         addedEqualityDeletes=null, 
         removedEqualityDeletes=null, 
-        totalEqualityDeletes=CounterResult{unit=COUNT, value=0}}, 
+        totalEqualityDeletes=CounterResult{unit=COUNT, value=0},
+        metadataFileSizeInBytes=CounterResult{unit=BYTES, value=1234}}, 
     metadata={
         iceberg-version=Apache Iceberg 1.4.0-SNAPSHOT (commit 4868d2823004c8c256a50ea7c25cff94314cc135)}}
 ```

@@ -300,4 +300,28 @@ public class TestCommitReportParser {
     assertThat(CommitReportParser.fromJson(json)).isEqualTo(commitReport);
     assertThat(json).isEqualTo(expectedJson);
   }
+
+  @Test
+  public void roundTripSerdeWithMetadataFileSizeInCommitMetrics() {
+    String tableName = "roundTripTableName";
+    CommitReport commitReport =
+        ImmutableCommitReport.builder()
+            .tableName(tableName)
+            .snapshotId(23L)
+            .operation("DELETE")
+            .sequenceNumber(4L)
+            .commitMetrics(
+                ImmutableCommitMetricsResult.builder()
+                    .metadataFileSizeInBytes(CounterResult.of(MetricsContext.Unit.BYTES, 123L))
+                    .build())
+            .build();
+
+    String json = CommitReportParser.toJson(commitReport, true);
+
+    assertThat(json)
+        .contains("\"metadata-file-size-bytes\"")
+        .contains("\"unit\" : \"bytes\"")
+        .contains("\"value\" : 123");
+    assertThat(CommitReportParser.fromJson(json)).isEqualTo(commitReport);
+  }
 }

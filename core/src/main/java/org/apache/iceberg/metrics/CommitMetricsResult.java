@@ -56,6 +56,7 @@ public interface CommitMetricsResult {
   String CREATED_MANIFESTS_COUNT = "manifests-created";
   String REPLACED_MANIFESTS_COUNT = "manifests-replaced";
   String PROCESSED_MANIFEST_ENTRY_COUNT = "manifest-entries-processed";
+  String METADATA_FILE_SIZE_BYTES = "metadata-file-size-bytes";
 
   @Nullable
   TimerResult totalDuration();
@@ -162,6 +163,12 @@ public interface CommitMetricsResult {
   @Nullable
   @Value.Default
   default CounterResult manifestEntriesProcessed() {
+    return null;
+  }
+
+  @Nullable
+  @Value.Default
+  default CounterResult metadataFileSizeInBytes() {
     return null;
   }
 
