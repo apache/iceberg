@@ -83,7 +83,7 @@ This table format tracks individual data files in a table instead of directories
 
 Table state is maintained in metadata files. All changes to table state create a new metadata file and replace the old metadata with an atomic swap. The table metadata file tracks the table schema, partitioning config, custom properties, and snapshots of the table contents. A snapshot represents the state of a table at some time and is used to access the complete set of data files in the table.
 
-Data files in snapshots are tracked by one or more manifest files that contain a row for each data file in the table, the file's partition data, and its metrics. The data in a snapshot is the union of all files in its manifests. Manifest files are reused across snapshots to avoid rewriting metadata that is slow-changing. Manifests can track data files with any subset of a table and are not associated with partitions.
+Data files in snapshots are tracked by one or more manifest files that contain a row for each data file in the table, the file's partition data, and its metrics. The data in a snapshot is the union of all live files in its manifests; each live file may only appear once (see [Content file uniqueness](#content-file-uniqueness)). Manifest files are reused across snapshots to avoid rewriting metadata that is slow-changing. Manifests can track data files with any subset of a table and are not associated with partitions.
 
 The manifests that make up a snapshot are stored in a manifest list file. Each manifest list stores metadata about manifests, including partition stats and data file counts. These stats are used to avoid reading manifests that are not required for an operation.
 
@@ -674,11 +674,13 @@ A manifest file must store the partition spec and other metadata as properties i
     | _optional_ | _required_ | `format-version`    | Table format version number of the manifest as a string                                                                                     |
     |            | _required_ | `content`           | Type of content files tracked by the manifest: "data" or "deletes"                                                                          |
 
-The schema of a manifest file is defined by the `manifest_entry` struct, described in the following section.
+#### Content file uniqueness
+
+Within a snapshot, each content file may be referenced by at most one manifest entry across all manifests. A snapshot in which more than one entry references the same content file has undefined behavior. Writers are not required to validate uniqueness at commit time.
 
 #### Manifest Entry Fields
 
-The `manifest_entry` struct consists of the following fields:
+The schema of a manifest file is defined by the `manifest_entry` struct, which consists of the following fields:
 
 === "v1 - v3"
     | v1         | v2 and v3  | Field id, name                | Type                                                      | Description |
@@ -1062,7 +1064,7 @@ Scan predicates are also used to filter data and delete files using column bound
 
 Data files that match the query filter must be read by the scan.
 
-Note that for any snapshot, all file paths marked with "ADDED" or "EXISTING" may appear at most once across all manifest files in the snapshot. If a file path appears more than once, the results of the scan are undefined. Reader implementations may raise an error in this case, but are not required to do so.
+Manifest entries that reference the same content file violate [content file uniqueness](#content-file-uniqueness). When duplicates are present, table behavior (including scan results) is undefined. Reader implementations may raise an error but are not required to do so.
 
 Delete files and deletion vector metadata that match the filters must be applied to data files at read time, limited by the following scope rules.
 
