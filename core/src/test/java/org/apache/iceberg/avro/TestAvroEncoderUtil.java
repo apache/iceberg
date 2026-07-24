@@ -19,6 +19,7 @@
 package org.apache.iceberg.avro;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
 import java.util.List;
@@ -27,6 +28,7 @@ import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericData;
 import org.apache.iceberg.data.DataTestBase;
 import org.apache.iceberg.types.Type;
+import org.junit.jupiter.api.Test;
 
 public class TestAvroEncoderUtil extends DataTestBase {
   @Override
@@ -72,5 +74,12 @@ public class TestAvroEncoderUtil extends DataTestBase {
       expectedRecord = AvroEncoderUtil.decode(serializedData2);
       assertThat(record.toString()).isEqualTo(expectedRecord.toString());
     }
+  }
+
+  @Test
+  public void decodeRejectsUnrecognizedHeaderBytes() {
+    assertThatThrownBy(() -> AvroEncoderUtil.decode(new byte[] {(byte) 0x10, (byte) 0x20}))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("Unrecognized header bytes: 0x10 0x20");
   }
 }
