@@ -23,6 +23,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
@@ -375,5 +377,71 @@ public class TestRewriteTablePathUtil extends TestBase {
     }
 
     return writer.toManifestFile();
+  }
+
+  @TestTemplate
+  public void testRewriteManifestListStampsRewrittenManifestLength() throws IOException {
+    table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
+    Snapshot snapshot = table.currentSnapshot();
+    List<ManifestFile> manifests = snapshot.allManifests(table.io());
+    assertThat(manifests).hasSize(1);
+    ManifestFile sourceManifest = manifests.get(0);
+
+    String manifestPath = sourceManifest.path();
+    String sourcePrefix = manifestPath.substring(0, manifestPath.indexOf("/metadata/"));
+    String targetPrefix = sourcePrefix + "/relocated";
+    String stagingDir = temp.resolve("staging").toString();
+    String outputPath = temp.resolve("rewritten-list-" + System.nanoTime() + ".avro").toString();
+
+    // a value distinct from the source length so we can tell it was applied
+    long rewrittenLength = sourceManifest.length() + 4242L;
+
+    RewriteTablePathUtil.rewriteManifestList(
+        snapshot,
+        table.io(),
+        table.ops().current(),
+        Set.of(sourceManifest.path()),
+        sourcePrefix,
+        targetPrefix,
+        stagingDir,
+        outputPath,
+        Map.of(sourceManifest.path(), rewrittenLength));
+
+    List<ManifestFile> rewritten = ManifestLists.read(table.io().newInputFile(outputPath));
+    assertThat(rewritten).hasSize(1);
+    assertThat(rewritten.get(0).length())
+        .as("manifest_length should be stamped from the rewritten length map")
+        .isEqualTo(rewrittenLength);
+    assertThat(rewritten.get(0).path()).startsWith(targetPrefix);
+  }
+
+  @TestTemplate
+  public void testRewriteManifestListFallsBackToSourceLengthWhenAbsent() throws IOException {
+    table.newFastAppend().appendFile(FILE_A).commit();
+    Snapshot snapshot = table.currentSnapshot();
+    ManifestFile sourceManifest = snapshot.allManifests(table.io()).get(0);
+
+    String manifestPath = sourceManifest.path();
+    String sourcePrefix = manifestPath.substring(0, manifestPath.indexOf("/metadata/"));
+    String targetPrefix = sourcePrefix + "/relocated";
+    String outputPath = temp.resolve("rewritten-list-" + System.nanoTime() + ".avro").toString();
+
+    // empty map: manifests not rewritten in this run must keep their original length
+    RewriteTablePathUtil.rewriteManifestList(
+        snapshot,
+        table.io(),
+        table.ops().current(),
+        Set.of(sourceManifest.path()),
+        sourcePrefix,
+        targetPrefix,
+        temp.resolve("staging-fallback").toString(),
+        outputPath,
+        Map.of());
+
+    List<ManifestFile> rewritten = ManifestLists.read(table.io().newInputFile(outputPath));
+    assertThat(rewritten).hasSize(1);
+    assertThat(rewritten.get(0).length())
+        .as("manifest_length should fall back to the source length when absent from the map")
+        .isEqualTo(sourceManifest.length());
   }
 }
