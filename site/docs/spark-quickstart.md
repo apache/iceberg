@@ -25,8 +25,12 @@ highlight some powerful features. You can learn more about Iceberg's Spark runti
 - [Creating a table](#creating-a-table)
 - [Writing Data to a Table](#writing-data-to-a-table)
 - [Reading Data from a Table](#reading-data-from-a-table)
-- [Adding A Catalog](#adding-a-catalog)
-- [Next Steps](#next-steps)
+- [Configuring Catalogs](#configuring-catalogs)
+    - [Configuring REST Catalog](#configuring-rest-catalog)
+    - [Configuring JDBC Catalog](#configuring-jdbc-catalog)
+- [Next steps](#next-steps)
+    - [Adding Iceberg to Spark](#adding-iceberg-to-spark)
+    - [Learn More](#learn-more)
 
 ### Docker-Compose
 
@@ -284,43 +288,83 @@ To read a table, simply use the Iceberg table's name.
     df = spark.table("demo.nyc.taxis").show()
     ```
 
-### Adding A Catalog
+### Configuring Catalogs
 
-Iceberg has several catalog back-ends that can be used to track tables, like JDBC, Hive MetaStore and Glue.
-Catalogs are configured using properties under `spark.sql.catalog.(catalog_name)`. In this guide,
-we use JDBC, but you can follow these instructions to configure other catalog types. To learn more, check out
-the [Catalog](docs/latest/spark-configuration.md#catalogs) page in the Spark section.
+Iceberg provides several catalog implementations to manage tables and enable SQL operations.
+Catalogs are configured using properties under `spark.sql.catalog.(catalog_name)`.
+You can configure different catalog types, such as JDBC, Hive Metastore, Glue, and REST, to manage Iceberg tables in Spark.
 
-This configuration creates a path-based catalog named `local` for tables under `$PWD/warehouse` and adds support for Iceberg tables to Spark's built-in catalog.
+This guide covers the configuration of two popular catalog types: REST and JDBC.
+To learn more, check out the [Catalog](docs/latest/spark-configuration.md#catalogs) page in the Spark section.
+
+#### Configuring REST Catalog
+
+The REST catalog provides a language-agnostic way to manage Iceberg tables through a RESTful service. The following configuration creates a REST-based catalog named `rest`, using the `apache/iceberg-rest-fixture` container from the `docker-compose.yml` above as the REST server and MinIO for S3-compatible storage:
 
 === "CLI"
 
     ```sh
-    spark-sql --packages org.apache.iceberg:iceberg-spark-runtime-{{ sparkVersionMajor }}:{{ icebergVersion }}\
-        --conf spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions \
-        --conf spark.sql.catalog.spark_catalog=org.apache.iceberg.spark.SparkSessionCatalog \
-        --conf spark.sql.catalog.spark_catalog.type=hive \
+    docker exec -it spark-iceberg spark-sql \
+        --conf spark.sql.catalog.rest=org.apache.iceberg.spark.SparkCatalog \
+        --conf spark.sql.catalog.rest.type=rest \
+        --conf spark.sql.catalog.rest.uri=http://rest:8181 \
+        --conf spark.sql.catalog.rest.warehouse=s3://warehouse/ \
+        --conf spark.sql.catalog.rest.io-impl=org.apache.iceberg.aws.s3.S3FileIO \
+        --conf spark.sql.catalog.rest.s3.endpoint=http://minio:9000 \
+        --conf spark.sql.catalog.rest.s3.path-style-access=true \
+        --conf spark.sql.defaultCatalog=rest
+    ```
+
+=== "spark-defaults.conf"
+
+    ```sh
+    docker exec spark-iceberg bash -c 'cat >> /opt/spark/conf/spark-defaults.conf <<EOF
+    spark.sql.catalog.rest                              org.apache.iceberg.spark.SparkCatalog
+    spark.sql.catalog.rest.type                         rest
+    spark.sql.catalog.rest.uri                          http://rest:8181
+    spark.sql.catalog.rest.warehouse                    s3://warehouse/
+    spark.sql.catalog.rest.io-impl                      org.apache.iceberg.aws.s3.S3FileIO
+    spark.sql.catalog.rest.s3.endpoint                  http://minio:9000
+    spark.sql.catalog.rest.s3.path-style-access         true
+    spark.sql.defaultCatalog                            rest
+    EOF'
+    ```
+
+#### Configuring JDBC Catalog
+
+The following configuration creates a JDBC-based catalog named `local` for tables under `/home/iceberg/warehouse`, using SQLite as the catalog backend.
+
+First, download the SQLite JDBC driver into the Spark jars directory:
+
+```sh
+docker exec spark-iceberg curl -sL -o /opt/spark/jars/sqlite-jdbc-3.53.1.0.jar \
+    https://repo1.maven.org/maven2/org/xerial/sqlite-jdbc/3.53.1.0/sqlite-jdbc-3.53.1.0.jar
+```
+
+Then start a Spark session with the JDBC catalog configuration:
+
+=== "CLI"
+
+    ```sh
+    docker exec -it spark-iceberg spark-sql \
         --conf spark.sql.catalog.local=org.apache.iceberg.spark.SparkCatalog \
-        --conf spark.sql.catalog.local.type=hadoop \
-        --conf spark.sql.catalog.local.warehouse=$PWD/warehouse \
+        --conf spark.sql.catalog.local.type=jdbc \
+        --conf spark.sql.catalog.local.uri=jdbc:sqlite:/home/iceberg/warehouse/iceberg_catalog_db.sqlite \
+        --conf spark.sql.catalog.local.warehouse=/home/iceberg/warehouse \
         --conf spark.sql.defaultCatalog=local
     ```
 
 === "spark-defaults.conf"
 
     ```sh
-    spark.jars.packages                                  org.apache.iceberg:iceberg-spark-runtime-{{ sparkVersionMajor }}:{{ icebergVersion }}
-    spark.sql.extensions                                 org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions
-    spark.sql.catalog.spark_catalog                      org.apache.iceberg.spark.SparkSessionCatalog
-    spark.sql.catalog.spark_catalog.type                 hive
+    docker exec spark-iceberg bash -c 'cat >> /opt/spark/conf/spark-defaults.conf <<EOF
     spark.sql.catalog.local                              org.apache.iceberg.spark.SparkCatalog
-    spark.sql.catalog.local.type                         hadoop
-    spark.sql.catalog.local.warehouse                    $PWD/warehouse
+    spark.sql.catalog.local.type                         jdbc
+    spark.sql.catalog.local.uri                          jdbc:sqlite:/home/iceberg/warehouse/iceberg_catalog_db.sqlite
+    spark.sql.catalog.local.warehouse                    /home/iceberg/warehouse
     spark.sql.defaultCatalog                             local
+    EOF'
     ```
-
-!!! note
-    If your Iceberg catalog is not set as the default catalog, you will have to switch to it by executing `USE local;`
 
 ### Next steps
 
