@@ -73,6 +73,16 @@ public class TestVariantMetrics {
 
   private static final String ROOT_FIELD = "$";
 
+  private static final byte[] BINARY_20_BYTES = new byte[20];
+  private static final byte[] BINARY_20_BYTES_ALL_FF = new byte[20];
+
+  static {
+    for (int i = 0; i < 20; i += 1) {
+      BINARY_20_BYTES[i] = (byte) (i + 1);
+      BINARY_20_BYTES_ALL_FF[i] = (byte) 0xFF;
+    }
+  }
+
   private static final VariantValue[] PRIMITIVES =
       new VariantValue[] {
         Variants.of(true),
@@ -227,11 +237,7 @@ public class TestVariantMetrics {
   @Test
   public void testShreddedBinaryBoundsTruncation() throws IOException {
     // binary longer than the 16-byte truncation length so the bounds are truncated
-    byte[] bytes = new byte[20];
-    for (int i = 0; i < bytes.length; i += 1) {
-      bytes[i] = (byte) (i + 1);
-    }
-    VariantValue value = Variants.of(ByteBuffer.wrap(bytes));
+    VariantValue value = Variants.of(ByteBuffer.wrap(BINARY_20_BYTES));
 
     Metrics metrics =
         writeParquet(
@@ -242,21 +248,17 @@ public class TestVariantMetrics {
 
     assertThat(metrics.lowerBounds().get(2))
         .extracting(b -> Variant.from(b).value().asObject().get(ROOT_FIELD))
-        .isEqualTo(Variants.of(BinaryUtil.truncateBinaryMin(ByteBuffer.wrap(bytes), 16)));
+        .isEqualTo(Variants.of(BinaryUtil.truncateBinaryMin(ByteBuffer.wrap(BINARY_20_BYTES), 16)));
 
     assertThat(metrics.upperBounds().get(2))
         .extracting(b -> Variant.from(b).value().asObject().get(ROOT_FIELD))
-        .isEqualTo(Variants.of(BinaryUtil.truncateBinaryMax(ByteBuffer.wrap(bytes), 16)));
+        .isEqualTo(Variants.of(BinaryUtil.truncateBinaryMax(ByteBuffer.wrap(BINARY_20_BYTES), 16)));
   }
 
   @Test
   public void testShreddedBinaryUpperBoundOverflow() throws IOException {
     // an all-0xFF binary cannot be truncated up so the upper bound is omitted
-    byte[] bytes = new byte[20];
-    for (int i = 0; i < bytes.length; i += 1) {
-      bytes[i] = (byte) 0xFF;
-    }
-    VariantValue value = Variants.of(ByteBuffer.wrap(bytes));
+    VariantValue value = Variants.of(ByteBuffer.wrap(BINARY_20_BYTES_ALL_FF));
 
     Metrics metrics =
         writeParquet(
@@ -267,7 +269,8 @@ public class TestVariantMetrics {
 
     assertThat(metrics.lowerBounds().get(2))
         .extracting(b -> Variant.from(b).value().asObject().get(ROOT_FIELD))
-        .isEqualTo(Variants.of(BinaryUtil.truncateBinaryMin(ByteBuffer.wrap(bytes), 16)));
+        .isEqualTo(
+            Variants.of(BinaryUtil.truncateBinaryMin(ByteBuffer.wrap(BINARY_20_BYTES_ALL_FF), 16)));
 
     assertThat(metrics.upperBounds().get(2))
         .extracting(b -> Variant.from(b).value().asObject().get(ROOT_FIELD))
@@ -277,11 +280,7 @@ public class TestVariantMetrics {
   @Test
   public void testShreddedBinaryBoundsTruncateLength() throws IOException {
     // a per-column truncate(8) overrides the default 16-byte truncation
-    byte[] bytes = new byte[20];
-    for (int i = 0; i < bytes.length; i += 1) {
-      bytes[i] = (byte) (i + 1);
-    }
-    VariantValue value = Variants.of(ByteBuffer.wrap(bytes));
+    VariantValue value = Variants.of(ByteBuffer.wrap(BINARY_20_BYTES));
 
     MetricsConfig metricsConfig =
         MetricsConfig.from(
@@ -299,21 +298,17 @@ public class TestVariantMetrics {
 
     assertThat(metrics.lowerBounds().get(2))
         .extracting(b -> Variant.from(b).value().asObject().get(ROOT_FIELD))
-        .isEqualTo(Variants.of(BinaryUtil.truncateBinaryMin(ByteBuffer.wrap(bytes), 8)));
+        .isEqualTo(Variants.of(BinaryUtil.truncateBinaryMin(ByteBuffer.wrap(BINARY_20_BYTES), 8)));
 
     assertThat(metrics.upperBounds().get(2))
         .extracting(b -> Variant.from(b).value().asObject().get(ROOT_FIELD))
-        .isEqualTo(Variants.of(BinaryUtil.truncateBinaryMax(ByteBuffer.wrap(bytes), 8)));
+        .isEqualTo(Variants.of(BinaryUtil.truncateBinaryMax(ByteBuffer.wrap(BINARY_20_BYTES), 8)));
   }
 
   @Test
   public void testShreddedBinaryBoundsFull() throws IOException {
     // full mode leaves the bounds untruncated
-    byte[] bytes = new byte[20];
-    for (int i = 0; i < bytes.length; i += 1) {
-      bytes[i] = (byte) (i + 1);
-    }
-    VariantValue value = Variants.of(ByteBuffer.wrap(bytes));
+    VariantValue value = Variants.of(ByteBuffer.wrap(BINARY_20_BYTES));
 
     MetricsConfig metricsConfig =
         MetricsConfig.from(
@@ -331,21 +326,17 @@ public class TestVariantMetrics {
 
     assertThat(metrics.lowerBounds().get(2))
         .extracting(b -> Variant.from(b).value().asObject().get(ROOT_FIELD))
-        .isEqualTo(Variants.of(ByteBuffer.wrap(bytes)));
+        .isEqualTo(Variants.of(ByteBuffer.wrap(BINARY_20_BYTES)));
 
     assertThat(metrics.upperBounds().get(2))
         .extracting(b -> Variant.from(b).value().asObject().get(ROOT_FIELD))
-        .isEqualTo(Variants.of(ByteBuffer.wrap(bytes)));
+        .isEqualTo(Variants.of(ByteBuffer.wrap(BINARY_20_BYTES)));
   }
 
   @Test
   public void testShreddedBinaryBoundsCounts() throws IOException {
     // counts mode drops shredded bounds
-    byte[] bytes = new byte[20];
-    for (int i = 0; i < bytes.length; i += 1) {
-      bytes[i] = (byte) (i + 1);
-    }
-    VariantValue value = Variants.of(ByteBuffer.wrap(bytes));
+    VariantValue value = Variants.of(ByteBuffer.wrap(BINARY_20_BYTES));
 
     MetricsConfig metricsConfig =
         MetricsConfig.from(
