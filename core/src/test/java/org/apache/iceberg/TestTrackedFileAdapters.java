@@ -67,19 +67,12 @@ class TestTrackedFileAdapters {
           optional(1, "id", Types.IntegerType.get()), optional(2, "score", Types.FloatType.get()));
   private static final Types.StructType CONTENT_STATS_TYPE =
       StatsUtil.statsReadSchema(TABLE_SCHEMA, ImmutableList.of(1, 2));
-  private static final FieldStats<Integer> ID_STATS =
-      new FieldStatsStruct<>(
-          CONTENT_STATS_TYPE.fieldType("id").asStructType(), 1, 1000, true, 100L, 5L, 0L, null);
-  private static final FieldStats<Float> SCORE_STATS =
-      new FieldStatsStruct<>(
-          CONTENT_STATS_TYPE.fieldType("score").asStructType(),
-          1.0f,
-          100.0f,
-          true,
-          100L,
-          10L,
-          3L,
-          null);
+  private static final FieldStats<?> ID_STATS =
+      StatsTestUtil.mockFieldStats(
+          CONTENT_STATS_TYPE.fieldType("id").asStructType(), 1, 1, 1000, 100L, 5L, null);
+  private static final FieldStats<?> SCORE_STATS =
+      StatsTestUtil.mockFieldStats(
+          CONTENT_STATS_TYPE.fieldType("score").asStructType(), 2, 1.0f, 100.0f, 100L, 10L, 3L);
   private static final ContentStatsStruct CONTENT_STATS =
       new ContentStatsStruct(CONTENT_STATS_TYPE);
 
