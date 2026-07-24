@@ -382,6 +382,8 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
     if (type.equals(MetadataTableType.POSITION_DELETES)) {
       // Position deletes table only uses batch scan
       assertThat(metadataTableInstance.newBatchScan().planFiles()).isNotEmpty();
+    } else if (type.equals(MetadataTableType.ALL_PUFFIN_FILES)) {
+      assertThat(metadataTableInstance.newScan().planFiles()).isEmpty();
     } else {
       assertThat(metadataTableInstance.newScan().planFiles()).isNotEmpty();
     }
