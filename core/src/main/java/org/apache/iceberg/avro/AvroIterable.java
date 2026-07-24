@@ -78,12 +78,21 @@ public class AvroIterable<D> extends CloseableGroup implements CloseableIterable
     FileReader<D> fileReader = initMetadata(newFileReader());
 
     if (start != null) {
-      if (reader instanceof SupportsRowPosition) {
-        ((SupportsRowPosition) reader)
-            .setRowPositionSupplier(
-                Suppliers.memoize(() -> AvroIO.findStartingRowPos(file::newStream, start)));
+      try {
+        if (reader instanceof SupportsRowPosition) {
+          ((SupportsRowPosition) reader)
+              .setRowPositionSupplier(
+                  Suppliers.memoize(() -> AvroIO.findStartingRowPos(file::newStream, start)));
+        }
+        fileReader = new AvroRangeIterator<>(fileReader, start, end);
+      } catch (RuntimeException e) {
+        try {
+          fileReader.close();
+        } catch (IOException closeException) {
+          e.addSuppressed(closeException);
+        }
+        throw e;
       }
-      fileReader = new AvroRangeIterator<>(fileReader, start, end);
     } else if (reader instanceof SupportsRowPosition) {
       ((SupportsRowPosition) reader).setRowPositionSupplier(() -> 0L);
     }
