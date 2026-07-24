@@ -19,43 +19,45 @@
 package org.apache.iceberg;
 
 import org.apache.iceberg.types.Types;
+import org.mockito.Mockito;
 
 class StatsTestUtil {
   private StatsTestUtil() {}
 
   /**
-   * Builds a {@link FieldStatsStruct} through the setter path, the way a reader populates one: only
-   * the supplied fields that also exist in the schema are set, so a null count stays absent and
-   * {@code hasNullValueCount()}/{@code hasNanValueCount()} report false. This keeps "absent count"
-   * states out of the production constructor.
+   * Mocks a {@link FieldStats} for a stats struct type, stubbing the bounds and only the counts
+   * that are present. A null count leaves the matching {@code has*Count()} reporting false, so a
+   * column that does not track a metric can be modeled without constructing an invalid struct.
    */
-  static <T> FieldStatsStruct<T> fieldStats(
-      Types.StructType struct,
-      T lower,
-      T upper,
-      Boolean tightBounds,
+  @SuppressWarnings("unchecked")
+  static FieldStats<Object> mockFieldStats(
+      Types.StructType type,
+      int id,
+      Object lower,
+      Object upper,
       Long valueCount,
       Long nullCount,
-      Long nanCount,
-      Integer avgSize) {
-    FieldStatsStruct<T> stats = new FieldStatsStruct<>(struct);
-    setIfPresent(stats, struct, "lower_bound", lower);
-    setIfPresent(stats, struct, "upper_bound", upper);
-    setIfPresent(stats, struct, "tight_bounds", tightBounds);
-    setIfPresent(stats, struct, "value_count", valueCount);
-    setIfPresent(stats, struct, "null_value_count", nullCount);
-    setIfPresent(stats, struct, "nan_value_count", nanCount);
-    setIfPresent(stats, struct, "avg_value_size_in_bytes", avgSize);
-    return stats;
-  }
-
-  private static void setIfPresent(
-      FieldStatsStruct<?> stats, Types.StructType struct, String fieldName, Object value) {
-    Types.NestedField field = struct.field(fieldName);
-    if (value == null || field == null) {
-      return;
+      Long nanCount) {
+    FieldStats<Object> stats = Mockito.mock(FieldStats.class);
+    Mockito.when(stats.fieldId()).thenReturn(id);
+    Mockito.when(stats.type()).thenReturn(type);
+    Mockito.when(stats.lowerBound()).thenReturn(lower);
+    Mockito.when(stats.upperBound()).thenReturn(upper);
+    Mockito.when(stats.hasValueCount()).thenReturn(valueCount != null);
+    Mockito.when(stats.hasNullValueCount()).thenReturn(nullCount != null);
+    Mockito.when(stats.hasNanValueCount()).thenReturn(nanCount != null);
+    if (valueCount != null) {
+      Mockito.when(stats.valueCount()).thenReturn(valueCount);
     }
 
-    stats.set(struct.fields().indexOf(field), value);
+    if (nullCount != null) {
+      Mockito.when(stats.nullValueCount()).thenReturn(nullCount);
+    }
+
+    if (nanCount != null) {
+      Mockito.when(stats.nanValueCount()).thenReturn(nanCount);
+    }
+
+    return stats;
   }
 }

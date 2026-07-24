@@ -47,15 +47,15 @@ public class TestContentStatsBackedMap {
 
   static {
     POPULATED_STATS.setStats(
-        1, StatsTestUtil.fieldStats(statsType("req"), 1L, 5L, false, 10L, null, null, null));
+        1, StatsTestUtil.mockFieldStats(statsType("req"), 1, 1L, 5L, 10L, null, null));
     POPULATED_STATS.setStats(
-        2, StatsTestUtil.fieldStats(statsType("opt"), 2L, 6L, false, 20L, 3L, null, null));
+        2, StatsTestUtil.mockFieldStats(statsType("opt"), 2, 2L, 6L, 20L, 3L, null));
     POPULATED_STATS.setStats(
-        3, StatsTestUtil.fieldStats(statsType("dbl"), 1.0, 9.0, false, 30L, 7L, 4L, null));
+        3, StatsTestUtil.mockFieldStats(statsType("dbl"), 3, 1.0, 9.0, 30L, 7L, 4L));
 
     // only a required long column: tracks a value count but no null or NaN count
     ONLY_REQUIRED_STATS.setStats(
-        1, StatsTestUtil.fieldStats(statsType("req"), 1L, 5L, false, 10L, null, null, null));
+        1, StatsTestUtil.mockFieldStats(statsType("req"), 1, 1L, 5L, 10L, null, null));
   }
 
   @Test
@@ -128,8 +128,7 @@ public class TestContentStatsBackedMap {
     // the schema includes all three columns but only the optional one has a stats struct; the
     // value-count map is still non-null and simply omits the missing columns
     ContentStatsStruct stats = new ContentStatsStruct(STATS_TYPE);
-    stats.setStats(
-        2, StatsTestUtil.fieldStats(statsType("opt"), 2L, 6L, false, 20L, 3L, null, null));
+    stats.setStats(2, StatsTestUtil.mockFieldStats(statsType("opt"), 2, 2L, 6L, 20L, 3L, null));
 
     Map<Integer, Long> valueCounts = ContentStatsBackedMap.valueCounts(stats);
     assertThat(valueCounts).isNotNull().containsOnly(Map.entry(2, 20L));

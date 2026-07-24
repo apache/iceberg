@@ -61,8 +61,7 @@ public class TestFieldStatsStruct {
 
   @Test
   public void testFieldAccess() {
-    FieldStats<String> stats =
-        StatsTestUtil.fieldStats(STRING_STATS, "a", "z", true, 28L, 2L, null, 1);
+    FieldStats<String> stats = new FieldStatsStruct<>(STRING_STATS, "a", "z", true, 28, 2, 0, 1);
 
     assertThat(stats.fieldId()).isEqualTo(100);
     assertThat(stats.lowerBound()).isEqualTo("a");
@@ -70,44 +69,14 @@ public class TestFieldStatsStruct {
     assertThat(stats.tightBounds()).isTrue();
     assertThat(stats.valueCount()).isEqualTo(28L);
     assertThat(stats.nullValueCount()).isEqualTo(2L);
-    assertThat(stats.hasValueCount()).isTrue();
-    assertThat(stats.hasNullValueCount()).isTrue();
-    assertThat(stats.hasNanValueCount()).isFalse(); // strings do not track a NaN count
+    assertThat(stats.nanValueCount()).isEqualTo(0L);
     assertThat(stats.avgValueSizeInBytes()).isEqualTo(1);
-  }
-
-  @Test
-  public void testPresenceMethods() {
-    // optional string: tracks value + null count, no NaN count (strings have no NaN)
-    FieldStats<String> stringStats =
-        StatsTestUtil.fieldStats(STRING_STATS, "a", "z", true, 28L, 2L, null, 1);
-    assertThat(stringStats.hasValueCount()).isTrue();
-    assertThat(stringStats.hasNullValueCount()).isTrue();
-    assertThat(stringStats.hasNanValueCount()).isFalse();
-
-    // optional double: tracks both null and NaN count
-    FieldStats<Double> doubleStats =
-        new FieldStatsStruct<>(DOUBLE_STATS, 0.0d, 25.0d, true, 34, 2L, 6L, 0);
-    assertThat(doubleStats.hasNullValueCount()).isTrue();
-    assertThat(doubleStats.hasNanValueCount()).isTrue();
-
-    // required long: tracks neither null nor NaN count
-    Types.StructType requiredLong =
-        StatsUtil.fieldStatsStruct(false, Types.LongType.get(), BASE_ID, MetricsModes.Full.get());
-    FieldStats<Long> requiredStats =
-        StatsTestUtil.fieldStats(requiredLong, 1L, 5L, false, 10L, null, null, null);
-    assertThat(requiredStats.hasNullValueCount()).isFalse();
-    assertThat(requiredStats.hasNanValueCount()).isFalse();
-
-    // a struct with no stats set (e.g. a deserialized projection) tracks no value count
-    FieldStats<Long> bare = new FieldStatsStruct<>(requiredLong);
-    assertThat(bare.hasValueCount()).isFalse();
   }
 
   @Test
   public void testStringGetByPosition() {
     FieldStatsStruct<String> stats =
-        StatsTestUtil.fieldStats(STRING_STATS, "a", "z", true, 28L, 2L, null, 1);
+        new FieldStatsStruct<>(STRING_STATS, "a", "z", true, 28, 2, 0, 1);
 
     assertThat(stats.get(pos(STRING_STATS, "lower_bound"), String.class)).isEqualTo("a");
     assertThat(stats.get(pos(STRING_STATS, "upper_bound"), String.class)).isEqualTo("z");
@@ -139,7 +108,7 @@ public class TestFieldStatsStruct {
   @Test
   public void testDoubleGetByPosition() {
     FieldStatsStruct<Double> stats =
-        new FieldStatsStruct<>(DOUBLE_STATS, 0.0d, 25.0d, true, 34, 2L, 6L, 0);
+        new FieldStatsStruct<>(DOUBLE_STATS, 0.0d, 25.0d, true, 34, 2, 6, 0);
 
     assertThat(stats.get(pos(DOUBLE_STATS, "lower_bound"), Double.class)).isEqualTo(0.0d);
     assertThat(stats.get(pos(DOUBLE_STATS, "upper_bound"), Double.class)).isEqualTo(25.0d);
@@ -295,14 +264,14 @@ public class TestFieldStatsStruct {
         type.typeId() == Type.TypeID.STRING || type.typeId() == Type.TypeID.BINARY;
 
     FieldStatsStruct<Object> stats =
-        StatsTestUtil.fieldStats(
+        new FieldStatsStruct<>(
             statsStruct,
             lowerBound,
             upperBound,
             true,
             28L,
             2L,
-            isFloatingPoint ? 6L : null,
+            isFloatingPoint ? 6L : 0L,
             isVariableLength ? 1 : null);
 
     Comparator<StructLike> comparator = Comparators.forType(statsStruct);
@@ -340,7 +309,7 @@ public class TestFieldStatsStruct {
     upperBound.set(3, 8.0d);
 
     FieldStatsStruct<Object> stats =
-        StatsTestUtil.fieldStats(statsStruct, lowerBound, upperBound, false, 28L, 2L, null, null);
+        new FieldStatsStruct<>(statsStruct, lowerBound, upperBound, false, 28L, 2L, 0L, null);
 
     Comparator<StructLike> comparator = Comparators.forType(statsStruct);
 
@@ -379,7 +348,7 @@ public class TestFieldStatsStruct {
     int size = metadata.dictionarySize() + lowerObject.sizeInBytes();
 
     FieldStatsStruct<Object> stats =
-        StatsTestUtil.fieldStats(statsStruct, lowerBound, upperBound, false, 28L, 2L, null, size);
+        new FieldStatsStruct<>(statsStruct, lowerBound, upperBound, false, 28L, 2L, 0L, size);
 
     FieldStatsStruct<?> copy = serializer.apply(stats);
     assertThat(copy.fieldId()).isEqualTo(stats.fieldId());
