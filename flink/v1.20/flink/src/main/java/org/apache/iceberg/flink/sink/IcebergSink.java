@@ -249,7 +249,8 @@ public class IcebergSink
         workerPoolSize,
         sinkId,
         metrics,
-        maintenanceEnabled);
+        maintenanceEnabled,
+        context.getTaskInfo().getIndexOfThisSubtask());
   }
 
   @Override
