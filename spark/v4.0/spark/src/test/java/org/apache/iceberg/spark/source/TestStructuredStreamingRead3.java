@@ -826,6 +826,27 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
   }
 
   @TestTemplate
+  public void testStreamingWithReplaceSnapshot() throws Exception {
+    List<SimpleRecord> batchAddedBeforeCompaction =
+        Lists.newArrayList(new SimpleRecord(1, "val1"), new SimpleRecord(2, "val2"));
+    appendData(batchAddedBeforeCompaction);
+    table.refresh();
+
+    long timeAfterFirstAppend = table.currentSnapshot().timestampMillis() + 1;
+    waitUntilAfter(timeAfterFirstAppend);
+    makeRewriteDataFiles();
+
+    List<SimpleRecord> batchAddedAfterCompaction =
+        Lists.newArrayList(new SimpleRecord(3, "val3"), new SimpleRecord(4, "val4"));
+    appendData(batchAddedAfterCompaction);
+    StreamingQuery query =
+        startStream(SparkReadOptions.STREAM_FROM_TIMESTAMP, Long.toString(timeAfterFirstAppend));
+    // without the async planner fix that filters out the compaction snapshots, this assertion will
+    // also observe rows from batchAddedBeforeCompaction and fail
+    assertThat(rowsAvailable(query)).containsExactlyInAnyOrderElementsOf(batchAddedAfterCompaction);
+  }
+
+  @TestTemplate
   public void testReadStreamWithSnapshotTypeOverwriteErrorsOut() throws Exception {
     // upgrade table to version 2 - to facilitate creation of Snapshot of type OVERWRITE.
     TableOperations ops = ((BaseTable) table).operations();
