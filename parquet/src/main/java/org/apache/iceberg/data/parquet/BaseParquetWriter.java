@@ -268,8 +268,11 @@ abstract class BaseParquetWriter<T> {
     @Override
     public Optional<ParquetValueWriter<?>> visit(
         LogicalTypeAnnotation.GeometryLogicalTypeAnnotation geometryType) {
-      // geometry values are pure WKB stored in a BINARY column
-      return Optional.of(ParquetValueWriters.byteBuffers(desc));
+      // geometry values are pure WKB stored in a BINARY column; the writer also scans the
+      // coordinates to produce a bounding box (the Parquet footer cannot). The concrete CRS is
+      // immaterial here: ParquetMetrics rewrites the bound's type from the table schema before
+      // serialization, and the serialization is keyed on the type id, which ignores the CRS.
+      return Optional.of(ParquetValueWriters.geometry(desc, Types.GeometryType.crs84()));
     }
 
     @Override
