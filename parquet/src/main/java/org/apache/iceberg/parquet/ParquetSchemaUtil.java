@@ -24,11 +24,13 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.mapping.NameMapping;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.parquet.io.InvalidRecordException;
 import org.apache.parquet.schema.GroupType;
+import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
@@ -129,10 +131,87 @@ public class ParquetSchemaUtil {
 
   public static MessageType pruneColumns(MessageType fileSchema, Schema expectedSchema) {
     // column order must match the incoming type, so it doesn't matter that the ids are unordered
-    Set<Integer> selectedIds = TypeUtil.getProjectedIds(expectedSchema);
+    Set<Integer> selectedIds = Sets.newHashSet(TypeUtil.getProjectedIds(expectedSchema));
+    // Retain one real leaf under each struct that projects only constants like default values,
+    // so its definition level still shows whether its parent struct is null.
+    collectDefinitionLevelProbeIds(expectedSchema.asStruct(), fileSchema, selectedIds);
     return (MessageType)
         TypeWithSchemaVisitor.visit(
             expectedSchema.asStruct(), fileSchema, new PruneColumns(selectedIds));
+  }
+
+  /**
+   * Walks the expected struct alongside the file schema. For each projected struct whose fields are
+   * all constants and would otherwise retain no file leaf, adds one leaf id under the matching file
+   * group so its definition level can signal whether the struct is null.
+   */
+  private static void collectDefinitionLevelProbeIds(
+      Types.StructType expectedStruct, GroupType fileGroup, Set<Integer> selectedIds) {
+    for (Types.NestedField field : expectedStruct.fields()) {
+      if (!field.type().isStructType()) {
+        continue;
+      }
+
+      Types.StructType expectedFieldStruct = field.type().asStructType();
+      if (expectedFieldStruct.fields().isEmpty()) {
+        // an explicitly empty struct projection has no fields to read and no default to apply,
+        // so there is no per-row null-ness to preserve
+        continue;
+      }
+
+      Type fileField = fieldById(fileGroup, field.fieldId());
+      if (fileField == null || fileField.isPrimitive()) {
+        continue;
+      }
+
+      GroupType fileFieldGroup = fileField.asGroupType();
+      if (isListOrMap(fileFieldGroup)) {
+        continue;
+      }
+
+      List<Integer> leafIds = leafIds(fileFieldGroup);
+      // recurse if a leaf is already selected here, else just add the first one below
+      if (leafIds.stream().anyMatch(selectedIds::contains)) {
+        collectDefinitionLevelProbeIds(field.type().asStructType(), fileFieldGroup, selectedIds);
+      } else if (!leafIds.isEmpty()) {
+        selectedIds.add(leafIds.get(0));
+      }
+    }
+  }
+
+  private static Type fieldById(GroupType group, int id) {
+    for (Type field : group.getFields()) {
+      if (field.getId() != null && field.getId().intValue() == id) {
+        return field;
+      }
+    }
+
+    return null;
+  }
+
+  private static boolean isListOrMap(GroupType group) {
+    LogicalTypeAnnotation annotation = group.getLogicalTypeAnnotation();
+    return LogicalTypeAnnotation.listType().equals(annotation)
+        || LogicalTypeAnnotation.mapType().equals(annotation);
+  }
+
+  /** Returns the ids of all leaf columns reachable under the given group. */
+  private static List<Integer> leafIds(GroupType group) {
+    List<Integer> ids = Lists.newArrayList();
+    collectLeafIds(group, ids);
+    return ids;
+  }
+
+  private static void collectLeafIds(GroupType group, List<Integer> ids) {
+    for (Type field : group.getFields()) {
+      if (field.isPrimitive()) {
+        if (field.getId() != null) {
+          ids.add(field.getId().intValue());
+        }
+      } else {
+        collectLeafIds(field.asGroupType(), ids);
+      }
+    }
   }
 
   /**
