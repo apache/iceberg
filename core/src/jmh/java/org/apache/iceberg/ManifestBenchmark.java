@@ -52,7 +52,8 @@ import org.openjdk.jmh.infra.Blackhole;
  * "4_PARQUET"}) so that only meaningful pairings are benchmarked.
  *
  * <p>Entry counts are calibrated per column count via {@link #ENTRY_BASE}. Set to 300_000 for ~8 MB
- * manifests (matching the default {@code commit.manifest.target-size-bytes}) or 15_000 for ~400 KB.
+ * manifests (matching the default {@code commit.manifest.target-size-bytes}), 37_500 for ~1 MB, or
+ * 15_000 for ~400 KB.
  *
  * <p>To run this benchmark:
  *

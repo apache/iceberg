@@ -119,6 +119,21 @@ public class CatalogProperties {
 
   public static final long IO_MANIFEST_CACHE_MAX_CONTENT_LENGTH_DEFAULT = 8 * 1024 * 1024;
 
+  /**
+   * Controls whether to eagerly buffer entire manifest files on the first read, collapsing multiple
+   * object-store GET requests (header, data, footer) into one.
+   */
+  public static final String IO_MANIFEST_EAGER_FETCH_ENABLED = "io.manifest.eager-fetch-enabled";
+
+  public static final boolean IO_MANIFEST_EAGER_FETCH_ENABLED_DEFAULT = false;
+
+  /**
+   * Size threshold (bytes) below which {@link #IO_MANIFEST_EAGER_FETCH_ENABLED eager fetch} buffers
+   * a manifest whole. Intentionally fixed internally (1 MB) and not user-configurable (no property
+   * key).
+   */
+  static final long IO_MANIFEST_EAGER_FETCH_THRESHOLD_BYTES = 1024 * 1024;
+
   public static final String URI = "uri";
   public static final String CLIENT_POOL_SIZE = "clients";
   public static final int CLIENT_POOL_SIZE_DEFAULT = 2;
