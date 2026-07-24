@@ -22,12 +22,14 @@ import java.util.Map;
 import java.util.Optional;
 import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.memory.BufferAllocator;
+import org.apache.arrow.vector.BaseVariableWidthVector;
 import org.apache.arrow.vector.BigIntVector;
 import org.apache.arrow.vector.BitVector;
 import org.apache.arrow.vector.BitVectorHelper;
 import org.apache.arrow.vector.DateDayVector;
 import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.FixedSizeBinaryVector;
+import org.apache.arrow.vector.FixedWidthVector;
 import org.apache.arrow.vector.Float4Vector;
 import org.apache.arrow.vector.Float8Vector;
 import org.apache.arrow.vector.IntVector;
@@ -64,7 +66,7 @@ import org.apache.parquet.schema.PrimitiveType;
 public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
   public static final int DEFAULT_BATCH_SIZE = 5000;
   private static final Integer UNKNOWN_WIDTH = null;
-  private static final int AVERAGE_VARIABLE_WIDTH_RECORD_SIZE = 10;
+  private static final int AVERAGE_VARIABLE_WIDTH_RECORD_SIZE_BYTES = 10;
 
   private final ColumnDescriptor columnDescriptor;
   private final VectorizedColumnIterator vectorizedColumnIterator;
@@ -304,15 +306,15 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
           this.readType = ReadType.FIXED_WIDTH_BINARY;
         }
         this.vec = arrowField.createVector(rootAlloc);
-        vec.setInitialCapacity(batchSize * len);
-        vec.allocateNew();
+        ((FixedSizeBinaryVector) vec).allocateNew(batchSize);
         this.typeWidth = len;
         break;
       case BINARY:
         this.vec = arrowField.createVector(rootAlloc);
         // TODO: Possibly use the uncompressed page size info to set the initial capacity
-        vec.setInitialCapacity(batchSize * AVERAGE_VARIABLE_WIDTH_RECORD_SIZE);
-        vec.allocateNewSafe();
+        ((BaseVariableWidthVector) vec)
+            .setInitialCapacity(batchSize, AVERAGE_VARIABLE_WIDTH_RECORD_SIZE_BYTES);
+        vec.allocateNew();
         this.readType = ReadType.VARBINARY;
         this.typeWidth = UNKNOWN_WIDTH;
         break;
@@ -332,12 +334,10 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
         // Impala & Spark used to write timestamps as INT96 by default. For backwards
         // compatibility we try to read INT96 as timestamps. But INT96 is not recommended
         // and deprecated (see https://issues.apache.org/jira/browse/PARQUET-323)
-        int length = BigIntVector.TYPE_WIDTH;
         this.readType = ReadType.TIMESTAMP_INT96;
         this.vec = arrowField.createVector(rootAlloc);
-        vec.setInitialCapacity(batchSize * length);
-        vec.allocateNew();
-        this.typeWidth = length;
+        ((FixedWidthVector) vec).allocateNew(batchSize);
+        this.typeWidth = (int) BigIntVector.TYPE_WIDTH;
         break;
       case FLOAT:
         Field floatField =
@@ -631,8 +631,9 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     private Optional<LogicalTypeVisitorResult> allocateVectorForEnumJsonBsonString() {
       FieldVector vector = arrowField.createVector(rootAlloc);
       // TODO: Possibly use the uncompressed page size info to set the initial capacity
-      vector.setInitialCapacity(batchSize * AVERAGE_VARIABLE_WIDTH_RECORD_SIZE);
-      vector.allocateNewSafe();
+      ((BaseVariableWidthVector) vector)
+          .setInitialCapacity(batchSize, AVERAGE_VARIABLE_WIDTH_RECORD_SIZE_BYTES);
+      vector.allocateNew();
       return Optional.of(new LogicalTypeVisitorResult(vector, ReadType.VARCHAR, UNKNOWN_WIDTH));
     }
 
