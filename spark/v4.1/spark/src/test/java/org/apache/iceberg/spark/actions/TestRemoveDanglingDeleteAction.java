@@ -23,6 +23,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -33,6 +35,8 @@ import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileGenerationUtil;
 import org.apache.iceberg.FileMetadata;
+import org.apache.iceberg.MetadataColumns;
+import org.apache.iceberg.Metrics;
 import org.apache.iceberg.Parameter;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
@@ -509,6 +513,108 @@ public class TestRemoveDanglingDeleteAction extends TestBase {
             Tuple2.apply(2L, FILE_C.location()),
             Tuple2.apply(2L, fileADeletes.location()));
     assertThat(actualAfter).containsExactlyInAnyOrderElementsOf(expectedAfter);
+  }
+
+  @TestTemplate
+  public void testFileScopedPositionDeleteWithMissingDataFile() {
+    // Only v2 — v3 uses DVs which are already handled by findDanglingDvs
+    assumeThat(formatVersion).isEqualTo(2);
+    setupPartitionedTable();
+
+    // Step 1: Add data files A and B in partition c1=a (seq 1)
+    table.newAppend().appendFile(FILE_A).appendFile(FILE_A2).commit();
+
+    // Step 2: Add a file-scoped position delete referencing only FILE_A (seq 2)
+    // Set lower_bounds and upper_bounds for DELETE_FILE_PATH field to FILE_A's path
+    int pathFieldId = MetadataColumns.DELETE_FILE_PATH.fieldId();
+    ByteBuffer pathBytes = ByteBuffer.wrap(FILE_A.location().getBytes(StandardCharsets.UTF_8));
+    DeleteFile fileScopedPosDelete =
+        FileMetadata.deleteFileBuilder(SPEC)
+            .ofPositionDeletes()
+            .withPath("/path/to/pos-delete-for-a.parquet")
+            .withFileSizeInBytes(10)
+            .withPartitionPath("c1=a")
+            .withMetrics(
+                new Metrics(
+                    1L,
+                    null,
+                    null,
+                    null,
+                    null,
+                    ImmutableMap.of(pathFieldId, pathBytes),
+                    ImmutableMap.of(pathFieldId, pathBytes)))
+            .build();
+    table.newRowDelta().addDeletes(fileScopedPosDelete).commit();
+
+    // Step 3: Remove FILE_A via overwrite, keep FILE_A2 (seq 3)
+    table.newOverwrite().deleteFile(FILE_A).addFile(FILE_B).commit();
+
+    // Now: fileScopedPosDelete has seq=2, partition c1=a min_data_sequence_number = 1 (from
+    // FILE_A2)
+    // findDanglingDeletes() won't catch it because seq 2 >= min 1
+    // findDanglingDvs() won't catch it because it's not PUFFIN format
+    // BUG: the position delete for the now-absent FILE_A lingers forever
+
+    RemoveDanglingDeleteFiles.Result result =
+        SparkActions.get().removeDanglingDeleteFiles(table).execute();
+
+    // Assert the file-scoped pos-delete IS removed since FILE_A no longer exists
+    Set<CharSequence> removedDeleteFiles =
+        StreamSupport.stream(result.removedDeleteFiles().spliterator(), false)
+            .map(DeleteFile::location)
+            .collect(Collectors.toSet());
+    assertThat(removedDeleteFiles)
+        .as("Expected file-scoped position delete for missing data file to be removed")
+        .containsExactly(fileScopedPosDelete.location());
+  }
+
+  @TestTemplate
+  public void testPartitionScopedPositionDeleteNotRemovedWhenDataFileExists() {
+    // Only v2 — partition-scoped deletes should NOT be removed even if they reference
+    // multiple data files and some of them are gone
+    assumeThat(formatVersion).isEqualTo(2);
+    setupPartitionedTable();
+
+    // Step 1: Add data files A and A2 in partition c1=a (seq 1)
+    table.newAppend().appendFile(FILE_A).appendFile(FILE_A2).commit();
+
+    // Step 2: Add a partition-scoped position delete (no file_path bounds or different bounds)
+    // This means lower_bounds != upper_bounds for DELETE_FILE_PATH field
+    int pathFieldId = MetadataColumns.DELETE_FILE_PATH.fieldId();
+    ByteBuffer pathBytesA = ByteBuffer.wrap(FILE_A.location().getBytes(StandardCharsets.UTF_8));
+    ByteBuffer pathBytesA2 = ByteBuffer.wrap(FILE_A2.location().getBytes(StandardCharsets.UTF_8));
+    DeleteFile partitionScopedPosDelete =
+        FileMetadata.deleteFileBuilder(SPEC)
+            .ofPositionDeletes()
+            .withPath("/path/to/pos-delete-partition-scoped.parquet")
+            .withFileSizeInBytes(10)
+            .withPartitionPath("c1=a")
+            .withMetrics(
+                new Metrics(
+                    2L,
+                    null,
+                    null,
+                    null,
+                    null,
+                    ImmutableMap.of(pathFieldId, pathBytesA),
+                    ImmutableMap.of(pathFieldId, pathBytesA2)))
+            .build();
+    table.newRowDelta().addDeletes(partitionScopedPosDelete).commit();
+
+    // Step 3: Remove FILE_A via overwrite, keep FILE_A2 (seq 3)
+    table.newOverwrite().deleteFile(FILE_A).addFile(FILE_B).commit();
+
+    // The partition-scoped delete still covers FILE_A2 which exists, so it must NOT be removed
+    RemoveDanglingDeleteFiles.Result result =
+        SparkActions.get().removeDanglingDeleteFiles(table).execute();
+
+    Set<CharSequence> removedDeleteFiles =
+        StreamSupport.stream(result.removedDeleteFiles().spliterator(), false)
+            .map(DeleteFile::location)
+            .collect(Collectors.toSet());
+    assertThat(removedDeleteFiles)
+        .as("Partition-scoped position delete should NOT be removed")
+        .isEmpty();
   }
 
   private List<Tuple2<Long, String>> liveEntries() {
