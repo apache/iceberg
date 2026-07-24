@@ -489,6 +489,7 @@ project(':iceberg-aliyun') {
     compileOnly libs.aliyun.sdk.oss
     compileOnly libs.aliyun.credentials.java
     compileOnly libs.aliyun.tea
+    implementation libs.failsafe
     compileOnly libs.jaxb.api
     compileOnly libs.activation
     compileOnly libs.jaxb.runtime
