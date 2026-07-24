@@ -526,7 +526,9 @@ public class GenericManifestFile extends SupportsIndexProjection
                 toCopy.existingRowsCount(),
                 toCopy.deletedFilesCount(),
                 toCopy.deletedRowsCount(),
-                toCopy.firstRowId());
+                toCopy.firstRowId(),
+                toCopy.recordCount(),
+                toCopy.formatVersion());
       }
     }
 

@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg;
 
-import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
@@ -37,7 +36,7 @@ import org.apache.iceberg.types.Types;
  * writer serializes this view directly through {@link StructLike}, so {@code copy} is not
  * supported; a stable snapshot must be materialized via the writer instead.
  */
-final class MapBackedContentStats implements ContentStats, StructLike, Serializable {
+final class MapBackedContentStats implements ContentStats, StructLike {
   private final Types.StructType struct;
   private final int[] posToId;
   private final Map<Integer, FieldStats<?>> statsById;
@@ -133,8 +132,7 @@ final class MapBackedContentStats implements ContentStats, StructLike, Serializa
   }
 
   /** Reusable {@link FieldStats} view over one field's entries in a {@link ContentFile}'s maps. */
-  private static final class MapBackedFieldStats<T>
-      implements FieldStats<T>, StructLike, Serializable {
+  private static final class MapBackedFieldStats<T> implements FieldStats<T>, StructLike {
     private final MapBackedContentStats parent;
     private final Types.StructType struct;
     private final int fieldId;
