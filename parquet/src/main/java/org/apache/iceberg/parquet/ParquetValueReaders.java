@@ -173,17 +173,17 @@ public class ParquetValueReaders {
     if (baseRowId != null) {
       return new RowIdReader(baseRowId, (ParquetValueReader<Long>) idReader);
     } else {
-      return ParquetValueReaders.nulls();
+      return idReader != null ? (ParquetValueReader<Long>) idReader : ParquetValueReaders.nulls();
     }
   }
 
   @SuppressWarnings("unchecked")
   public static ParquetValueReader<Long> lastUpdated(
       Long baseRowId, Long fileLastUpdated, ParquetValueReader<?> seqReader) {
-    if (fileLastUpdated != null && baseRowId != null) {
+    if (fileLastUpdated != null) {
       return new LastUpdatedSeqReader(fileLastUpdated, (ParquetValueReader<Long>) seqReader);
     } else {
-      return ParquetValueReaders.nulls();
+      return seqReader != null ? (ParquetValueReader<Long>) seqReader : ParquetValueReaders.nulls();
     }
   }
 

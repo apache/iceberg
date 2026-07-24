@@ -414,16 +414,16 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     if (baseRowId != null) {
       return new RowIdVectorReader(baseRowId, idReader);
     } else {
-      return nulls();
+      return idReader != null ? idReader : nulls();
     }
   }
 
   public static VectorizedArrowReader lastUpdated(
       Long baseRowId, Long fileLastUpdated, VectorizedArrowReader seqReader) {
-    if (fileLastUpdated != null && baseRowId != null) {
+    if (fileLastUpdated != null) {
       return new LastUpdatedSeqVectorReader(fileLastUpdated, seqReader);
     } else {
-      return nulls();
+      return seqReader != null ? seqReader : nulls();
     }
   }
 
