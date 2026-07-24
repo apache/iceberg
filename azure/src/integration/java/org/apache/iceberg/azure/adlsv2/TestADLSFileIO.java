@@ -169,7 +169,8 @@ public class TestADLSFileIO extends AzuriteTestBase {
 
     // assert that only files were returned and not directories
     FileInfo fileInfo = result.next();
-    assertThat(fileInfo.location()).isEqualTo("dir/file");
+    assertThat(fileInfo.location())
+        .isEqualTo("abfs://container@account.dfs.core.windows.net/dir/file");
     assertThat(fileInfo.size()).isEqualTo(123L);
     assertThat(fileInfo.createdAtMillis()).isEqualTo(now.toInstant().toEpochMilli());
 

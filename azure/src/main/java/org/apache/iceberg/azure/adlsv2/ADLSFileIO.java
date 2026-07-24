@@ -227,7 +227,12 @@ public class ADLSFileIO implements DelegateFileIO {
             .map(
                 pathItem ->
                     new FileInfo(
-                        pathItem.getName(),
+                        String.format(
+                            "%s://%s%s/%s",
+                            location.scheme(),
+                            location.container().map(c -> c + "@").orElse(""),
+                            location.host(),
+                            pathItem.getName()),
                         pathItem.getContentLength(),
                         pathItem.getCreationTime().toInstant().toEpochMilli()))
             .iterator();
