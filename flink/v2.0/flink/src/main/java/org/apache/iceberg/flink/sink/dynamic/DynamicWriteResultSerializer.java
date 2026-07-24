@@ -61,11 +61,10 @@ class DynamicWriteResultSerializer implements SimpleVersionedSerializer<DynamicW
   }
 
   /**
-   * Deserializes version-1 bytes, which are ambiguous: Iceberg 1.10.x wrote the old layout
-   * tagged as version 1, while the buggy 1.11.0 wrote the new layout also tagged as version 1.
-   * This method distinguishes the two by sniffing for the Java serialization magic bytes
-   * ({@code 0xACED}) at the expected position where the {@code WriteResult} payload would begin
-   * in the new format.
+   * Deserializes version-1 bytes, which are ambiguous: Iceberg 1.10.x wrote the old layout tagged
+   * as version 1, while the buggy 1.11.0 wrote the new layout also tagged as version 1. This method
+   * distinguishes the two by sniffing for the Java serialization magic bytes ({@code 0xACED}) at
+   * the expected position where the {@code WriteResult} payload would begin in the new format.
    */
   private DynamicWriteResult deserializeV1(byte[] serialized) throws IOException {
     DataInputDeserializer view = new DataInputDeserializer(serialized);
