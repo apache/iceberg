@@ -47,8 +47,12 @@ import org.apache.iceberg.PartitionStatisticsFile;
 import org.apache.iceberg.ReachableFileUtil;
 import org.apache.iceberg.StatisticsFile;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.puffin.Blob;
 import org.apache.iceberg.puffin.Puffin;
 import org.apache.iceberg.puffin.PuffinWriter;
@@ -748,5 +752,69 @@ public class TestRemoveOrphanFilesProcedure extends ExtensionsTestBase {
     // Drop table in afterEach has purge and fails due to invalid authority "localhost"
     // Dropping the table here
     sql("DROP TABLE %s", tableName);
+  }
+
+  @TestTemplate
+  public void testRemoveOrphanFilesProcedureWithLocationConflictMode()
+      throws NoSuchTableException, ParseException, IOException {
+    if (catalogName.equals("testhadoop")) {
+      sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
+    } else {
+      sql(
+          "CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg LOCATION '%s'",
+          tableName, java.nio.file.Files.createTempDirectory(temp, "junit"));
+    }
+    Table table = Spark3Util.loadIcebergTable(spark, tableName);
+    Path metadataDir = new Path(table.location(), "metadata");
+
+    // Simulate another table sharing this table's metadata location: write a foreign
+    // metadata.json (its own random table-uuid) into the metadata directory.
+    TableMetadata foreign =
+        TableMetadata.newTableMetadata(
+            table.schema(), table.spec(), table.location(), java.util.Collections.emptyMap());
+    OutputFile foreignFile =
+        table.io().newOutputFile(new Path(metadataDir, "00002-foreign.metadata.json").toString());
+    TableMetadataParser.write(foreign, foreignFile);
+
+    // All three modes use an explicit older_than so the freshly-written foreign file is not
+    // filtered out by the default 3-day threshold (its modification time is "now", so it must be
+    // older than now). Wait so the timestamp is strictly after the foreign file was written.
+    waitUntilAfter(System.currentTimeMillis());
+    Timestamp conflictTimestamp = Timestamp.from(Instant.ofEpochMilli(System.currentTimeMillis()));
+
+    // Default mode (ERROR) must abort when a location conflict is detected.
+    assertThatThrownBy(
+            () ->
+                sql(
+                    "CALL %s.system.remove_orphan_files(table => '%s', older_than => TIMESTAMP '%s')",
+                    catalogName, tableIdent, conflictTimestamp))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("Cannot delete orphan files");
+
+    // IGNORE takes no action: the cleanup is skipped and the other table's files are preserved.
+    InputFile foreignInput =
+        table.io().newInputFile(new Path(metadataDir, "00002-foreign.metadata.json").toString());
+    assertThat(foreignInput.exists()).isTrue();
+
+    List<Object[]> ignoreOutput =
+        sql(
+            "CALL %s.system.remove_orphan_files(table => '%s', older_than => TIMESTAMP '%s', location_conflict_mode => 'IGNORE')",
+            catalogName, tableIdent, conflictTimestamp);
+    assertThat(ignoreOutput).isEmpty(); // nothing was deleted
+    assertThat(foreignInput.exists()).isTrue(); // preserved
+
+    // DELETE proceeds with cleanup and removes the foreign metadata.json (reusing the same
+    // older_than so it is not filtered out by the default 3-day threshold).
+    sql(
+        "CALL %s.system.remove_orphan_files("
+            + "table => '%s',"
+            + "older_than => TIMESTAMP '%s',"
+            + "location_conflict_mode => 'DELETE')",
+        catalogName, tableIdent, conflictTimestamp);
+    // Verify deletion via a plain local file (not table.io(): Hadoop FileSystem may keep a stale
+    // cache entry for a file deleted moments ago and report it as still present).
+    File foreignFileLocal =
+        new File(new Path(metadataDir, "00002-foreign.metadata.json").toUri().getPath());
+    assertThat(foreignFileLocal.exists()).isFalse(); // deleted
   }
 }

@@ -138,6 +138,38 @@ public interface DeleteOrphanFiles extends Action<DeleteOrphanFiles, DeleteOrpha
         this.getClass().getName() + " does not implement equalAuthorities");
   }
 
+  /**
+   * Passes a location conflict mode that determines how this action should handle the situation
+   * when another Iceberg table appears to share the same table location.
+   *
+   * <p>The action detects this by inspecting the table's metadata directory: every {@code
+   * metadata.json} carries the creating table's immutable {@code table-uuid}. If the directory
+   * contains a {@code metadata.json} whose {@code table-uuid} differs from (or cannot be read for)
+   * the table being cleaned, it is strong evidence that another table shares this location and its
+   * files would be deleted as "orphans", corrupting that other table.
+   *
+   * <p>Possible values are {@link LocationConflictMode}: "ERROR" (default), "IGNORE", "DELETE".
+   *
+   * <ul>
+   *   <li>{@link LocationConflictMode#ERROR} - abort with a {@link
+   *       org.apache.iceberg.exceptions.ValidationException} when a location conflict is detected,
+   *       protecting the other table from data loss (recommended default).
+   *   <li>{@link LocationConflictMode#IGNORE} - no action. The cleanup is skipped entirely and the
+   *       other table's files are preserved.
+   *   <li>{@link LocationConflictMode#DELETE} - delete files. The shared-location check is skipped
+   *       entirely (legacy behavior); the cleanup proceeds and may delete files belonging to
+   *       another table. Use it only when you are absolutely certain no other table shares this
+   *       location, or when you intentionally accept the risk.
+   * </ul>
+   *
+   * @param newLocationConflictMode mode for handling location conflicts
+   * @return this for method chaining
+   */
+  default DeleteOrphanFiles locationConflictMode(LocationConflictMode newLocationConflictMode) {
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " does not implement locationConflictMode");
+  }
+
   /** The action result that contains a summary of the execution. */
   interface Result {
     /** Returns locations of orphan files. */
@@ -164,6 +196,30 @@ public interface DeleteOrphanFiles extends Action<DeleteOrphanFiles, DeleteOrpha
       Preconditions.checkArgument(modeAsString != null, "Invalid mode: null");
       try {
         return PrefixMismatchMode.valueOf(modeAsString.toUpperCase(Locale.ENGLISH));
+      } catch (IllegalArgumentException e) {
+        throw new IllegalArgumentException(String.format("Invalid mode: %s", modeAsString), e);
+      }
+    }
+  }
+
+  /**
+   * Defines the action behavior when another Iceberg table appears to share this table's location.
+   *
+   * <p>{@link #ERROR} - abort with a {@link org.apache.iceberg.exceptions.ValidationException} when
+   * a location conflict is detected, protecting the other table from data loss. {@link #IGNORE} -
+   * no action, the cleanup is skipped and the other table's files are preserved. {@link #DELETE} -
+   * delete files, the shared-location check is skipped entirely and the cleanup proceeds (legacy
+   * behavior); only use it when certain no other table shares this location.
+   */
+  enum LocationConflictMode {
+    ERROR,
+    IGNORE,
+    DELETE;
+
+    public static LocationConflictMode fromString(String modeAsString) {
+      Preconditions.checkArgument(modeAsString != null, "Invalid mode: null");
+      try {
+        return LocationConflictMode.valueOf(modeAsString.toUpperCase(Locale.ENGLISH));
       } catch (IllegalArgumentException e) {
         throw new IllegalArgumentException(String.format("Invalid mode: %s", modeAsString), e);
       }
