@@ -90,7 +90,8 @@ class RowDataReader extends BaseRowReader<FileScanTask> implements PartitionRead
 
     // schema or rows returned by readers
     Schema requiredSchema = deleteFilter.requiredSchema();
-    Map<Integer, ?> idToConstant = constantsMap(task, requiredSchema);
+    Map<Integer, ?> idToConstant =
+        findMoreCompoundConstants(expectedSchema(), constantsMap(task, requiredSchema));
 
     // update the current file for Spark's filename() function
     InputFileBlockHolder.set(filePath, task.start(), task.length());
