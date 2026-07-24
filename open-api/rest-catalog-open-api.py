@@ -1120,6 +1120,41 @@ class RemoteSignResult(BaseModel):
     headers: MultiValuedMap
 
 
+class PresignRequest(BaseModel):
+    """
+    A request to refresh pre-signed URLs for a set of files that were returned as part of a previous server-side scan planning result.
+
+    """
+
+    plan_id: str = Field(
+        ...,
+        alias='plan-id',
+        description='The plan-id of the scan planning result that produced the files being refreshed. The server uses this to authorize the request and resolve the query state needed to reissue signatures.',
+    )
+    file_paths: list[str] = Field(
+        ...,
+        alias='file-paths',
+        description='The logical file-paths for which fresh pre-signed URLs are requested.',
+    )
+
+
+class PresignResponse(BaseModel):
+    """
+    The response containing refreshed pre-signed URLs.
+    """
+
+    pre_signed_urls: dict[str, str] = Field(
+        ...,
+        alias='pre-signed-urls',
+        description="A map of file-path to a fresh pre-signed HTTP URL that can be used to read the file's contents directly.",
+    )
+    url_expiration_timestamp_ms: int = Field(
+        ...,
+        alias='url-expiration-timestamp-ms',
+        description='The timestamp, as milliseconds since the Unix epoch, when the refreshed URLs in `pre-signed-urls` expire.',
+    )
+
+
 class CreateNamespaceRequest(BaseModel):
     namespace: Namespace
     properties: dict[str, str] | None = Field(
@@ -2017,6 +2052,16 @@ class CompletedPlanningResult(ScanTasks):
         None,
         alias='storage-credentials',
         description='Storage credentials for accessing the files returned in the scan result.\nIf the server returns storage credentials as part of the completed scan planning response, the expectation is for the client to use these credentials to read the files returned in the FileScanTasks as part of the scan result.',
+    )
+    pre_signed_urls: dict[str, str] | None = Field(
+        None,
+        alias='pre-signed-urls',
+        description="A map of file-path (matching the `path` of a `ContentFile` referenced by a returned `FileScanTask` or `DeleteFile`) to a pre-signed HTTP URL that can be used to read the file's contents directly, without requiring cloud provider-specific credentials or request signing.\nThis is only returned when the client requests the `pre-signed-urls` access delegation mechanism via the `X-Iceberg-Access-Delegation` header. The underlying `path` values of the `DataFile` and `DeleteFile` objects returned in the scan result are unaffected and remain the immutable logical file locations.\n",
+    )
+    url_expiration_timestamp_ms: int | None = Field(
+        None,
+        alias='url-expiration-timestamp-ms',
+        description='The timestamp, as milliseconds since the Unix epoch, when the URLs in `pre-signed-urls` expire. Clients should request fresh URLs, for example via the presignFiles endpoint, before this timestamp elapses. Required when `pre-signed-urls` is present.\n',
     )
 
 
