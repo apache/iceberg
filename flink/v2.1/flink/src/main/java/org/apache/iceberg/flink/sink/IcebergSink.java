@@ -531,7 +531,7 @@ public class IcebergSink
     /**
      * If sort order contains partition columns, each sort key would map to one partition and data
      * file. This relative weight can avoid placing too many small files for sort keys with low
-     * traffic. It is a double value that defines the minimal weight for each sort key. `0.02` means
+     * traffic. It is a double value that defines the minimal weight for each sort key. `2.0` means
      * each key has a base weight of `2%` of the targeted traffic weight per writer task.
      *
      * <p>E.g. the sink Iceberg table is partitioned daily by event time. Assume the data stream
