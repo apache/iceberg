@@ -156,7 +156,7 @@ public class TestStructuredStreaming {
 
     HadoopTables tables = new HadoopTables(CONF);
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("data").build();
-    // set a low min-count-to-merge so the merge append visibly consolidates manifests
+    // set a low min merge count to trigger manifest merging
     Table table =
         tables.create(
             SCHEMA,
@@ -200,11 +200,9 @@ public class TestStructuredStreaming {
       assertThat(actual).hasSameSizeAs(expected).isEqualTo(expected);
       assertThat(table.snapshots()).as("Number of snapshots should match").hasSize(2);
 
-      // the second streaming append uses the regular append, which merges the two data manifests
-      // into a single manifest; a fast append would have left two separate manifests
       table.refresh();
       assertThat(table.currentSnapshot().dataManifests(table.io()))
-          .as("Merge append should consolidate data manifests")
+          .as("Merge append should merge the manifests")
           .hasSize(1);
     } finally {
       for (StreamingQuery query : spark.streams().active()) {
