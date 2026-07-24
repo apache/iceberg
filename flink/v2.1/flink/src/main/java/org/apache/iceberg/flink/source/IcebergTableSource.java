@@ -18,11 +18,13 @@
  */
 package org.apache.iceberg.flink.source;
 
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
+import javax.annotation.Nullable;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.configuration.ReadableConfig;
 import org.apache.flink.streaming.api.datastream.DataStream;
@@ -33,22 +35,30 @@ import org.apache.flink.table.connector.ChangelogMode;
 import org.apache.flink.table.connector.ProviderContext;
 import org.apache.flink.table.connector.source.DataStreamScanProvider;
 import org.apache.flink.table.connector.source.DynamicTableSource;
+import org.apache.flink.table.connector.source.LookupTableSource;
 import org.apache.flink.table.connector.source.ScanTableSource;
 import org.apache.flink.table.connector.source.abilities.SupportsFilterPushDown;
 import org.apache.flink.table.connector.source.abilities.SupportsLimitPushDown;
 import org.apache.flink.table.connector.source.abilities.SupportsProjectionPushDown;
 import org.apache.flink.table.connector.source.abilities.SupportsSourceWatermark;
+import org.apache.flink.table.connector.source.lookup.LookupFunctionProvider;
+import org.apache.flink.table.connector.source.lookup.PartialCachingLookupProvider;
+import org.apache.flink.table.connector.source.lookup.cache.LookupCache;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.expressions.ResolvedExpression;
 import org.apache.flink.table.factories.FactoryUtil;
+import org.apache.flink.table.functions.LookupFunction;
 import org.apache.flink.table.legacy.api.TableSchema;
 import org.apache.flink.table.types.DataType;
+import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.flink.FlinkConfigOptions;
 import org.apache.iceberg.flink.FlinkFilters;
 import org.apache.iceberg.flink.FlinkReadOptions;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.source.assigner.SplitAssignerType;
+import org.apache.iceberg.flink.source.lookup.IcebergFullCachingLookupFunction;
+import org.apache.iceberg.flink.source.lookup.IcebergLookupFunction;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -61,7 +71,8 @@ public class IcebergTableSource
         SupportsProjectionPushDown,
         SupportsFilterPushDown,
         SupportsLimitPushDown,
-        SupportsSourceWatermark {
+        SupportsSourceWatermark,
+        LookupTableSource {
 
   private int[] projectedFields;
   private Long limit;
@@ -72,6 +83,8 @@ public class IcebergTableSource
   private final Map<String, String> properties;
   private final boolean isLimitPushDown;
   private final ReadableConfig readableConfig;
+  private final @Nullable LookupCache cache;
+  private final @Nullable Duration refreshInterval;
 
   private IcebergTableSource(IcebergTableSource toCopy) {
     this.loader = toCopy.loader;
@@ -82,6 +95,8 @@ public class IcebergTableSource
     this.limit = toCopy.limit;
     this.filters = toCopy.filters;
     this.readableConfig = toCopy.readableConfig;
+    this.cache = toCopy.cache;
+    this.refreshInterval = toCopy.refreshInterval;
   }
 
   public IcebergTableSource(
@@ -89,7 +104,46 @@ public class IcebergTableSource
       ResolvedSchema schema,
       Map<String, String> properties,
       ReadableConfig readableConfig) {
-    this(loader, schema, properties, null, false, null, ImmutableList.of(), readableConfig);
+    this(
+        loader,
+        schema,
+        properties,
+        null,
+        false,
+        null,
+        ImmutableList.of(),
+        readableConfig,
+        null,
+        null);
+  }
+
+  public IcebergTableSource(
+      TableLoader loader,
+      ResolvedSchema schema,
+      Map<String, String> properties,
+      ReadableConfig readableConfig,
+      @Nullable LookupCache cache) {
+    this(loader, schema, properties, readableConfig, cache, null);
+  }
+
+  public IcebergTableSource(
+      TableLoader loader,
+      ResolvedSchema schema,
+      Map<String, String> properties,
+      ReadableConfig readableConfig,
+      @Nullable LookupCache cache,
+      @Nullable Duration refreshInterval) {
+    this(
+        loader,
+        schema,
+        properties,
+        null,
+        false,
+        null,
+        ImmutableList.of(),
+        readableConfig,
+        cache,
+        refreshInterval);
   }
 
   private IcebergTableSource(
@@ -100,7 +154,9 @@ public class IcebergTableSource
       boolean isLimitPushDown,
       Long limit,
       List<Expression> filters,
-      ReadableConfig readableConfig) {
+      ReadableConfig readableConfig,
+      @Nullable LookupCache cache,
+      @Nullable Duration refreshInterval) {
     this.loader = loader;
     this.schema = schema;
     this.properties = properties;
@@ -109,6 +165,8 @@ public class IcebergTableSource
     this.limit = limit;
     this.filters = filters;
     this.readableConfig = readableConfig;
+    this.cache = cache;
+    this.refreshInterval = refreshInterval;
   }
 
   @Override
@@ -236,5 +294,38 @@ public class IcebergTableSource
   @Override
   public String asSummaryString() {
     return "Iceberg table source";
+  }
+
+  @Override
+  public LookupRuntimeProvider getLookupRuntimeProvider(LookupContext context) {
+    int[][] lookupKeys = context.getKeys();
+    int[] keyIndices = new int[lookupKeys.length];
+    for (int i = 0; i < lookupKeys.length; i++) {
+      Preconditions.checkArgument(
+          lookupKeys[i].length == 1, "Iceberg lookup source doesn't support nested lookup key.");
+      keyIndices[i] = lookupKeys[i][0];
+    }
+
+    ResolvedSchema projected = getProjectedSchema();
+    String[] projectedColumns = projected.getColumnNames().toArray(new String[0]);
+    RowType projectedRowType = (RowType) projected.toPhysicalRowDataType().getLogicalType();
+    List<Expression> pushedFilters = filters == null ? ImmutableList.of() : filters;
+
+    if (cache != null) {
+      LookupFunction lookupFn =
+          new IcebergLookupFunction(
+              loader, projectedColumns, projectedRowType, keyIndices, pushedFilters);
+      return PartialCachingLookupProvider.of(lookupFn, cache);
+    } else {
+      LookupFunction lookupFn =
+          new IcebergFullCachingLookupFunction(
+              loader,
+              projectedColumns,
+              projectedRowType,
+              keyIndices,
+              pushedFilters,
+              refreshInterval);
+      return LookupFunctionProvider.of(lookupFn);
+    }
   }
 }
