@@ -568,8 +568,7 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
       return false;
     }
 
-    java.util.Map<String, String> parameters =
-        table.getExternalCatalogTableOptions().getParameters();
+    Map<String, String> parameters = table.getExternalCatalogTableOptions().getParameters();
 
     if (!parameters.containsKey(BaseMetastoreTableOperations.METADATA_LOCATION_PROP)
         || !parameters.containsKey(BaseMetastoreTableOperations.TABLE_TYPE_PROP)) {
