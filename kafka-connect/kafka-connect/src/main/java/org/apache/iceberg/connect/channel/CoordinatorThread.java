@@ -33,6 +33,11 @@ class CoordinatorThread extends Thread {
     this.coordinator = coordinator;
   }
 
+  CoordinatorThread(Coordinator coordinator, String connectorName) {
+    super(THREAD_NAME + "-" + connectorName);
+    this.coordinator = coordinator;
+  }
+
   @Override
   public void run() {
     try {
