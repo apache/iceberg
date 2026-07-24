@@ -42,10 +42,14 @@ abstract class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
       LogicalTypes.date().addToSchema(Schema.create(Schema.Type.INT));
   private static final Schema TIME_SCHEMA =
       LogicalTypes.timeMicros().addToSchema(Schema.create(Schema.Type.LONG));
+  private static final Schema LOCAL_TIMESTAMP_SCHEMA =
+      LogicalTypes.localTimestampMicros().addToSchema(Schema.create(Schema.Type.LONG));
   private static final Schema TIMESTAMP_SCHEMA =
       LogicalTypes.timestampMicros().addToSchema(Schema.create(Schema.Type.LONG));
   private static final Schema TIMESTAMPTZ_SCHEMA =
       LogicalTypes.timestampMicros().addToSchema(Schema.create(Schema.Type.LONG));
+  private static final Schema LOCAL_TIMESTAMP_NANO_SCHEMA =
+      LogicalTypes.localTimestampNanos().addToSchema(Schema.create(Schema.Type.LONG));
   private static final Schema TIMESTAMP_NANO_SCHEMA =
       LogicalTypes.timestampNanos().addToSchema(Schema.create(Schema.Type.LONG));
   private static final Schema TIMESTAMPTZ_NANO_SCHEMA =
@@ -64,9 +68,12 @@ abstract class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
 
   private final Deque<Integer> fieldIds = Lists.newLinkedList();
   private final BiFunction<Integer, Types.StructType, String> namesFunction;
+  private final boolean localTimestampEnabled;
 
-  TypeToSchema(BiFunction<Integer, Types.StructType, String> namesFunction) {
+  TypeToSchema(
+      BiFunction<Integer, Types.StructType, String> namesFunction, boolean localTimestampEnabled) {
     this.namesFunction = namesFunction;
+    this.localTimestampEnabled = localTimestampEnabled;
   }
 
   @Override
@@ -241,14 +248,15 @@ abstract class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
         if (((Types.TimestampType) primitive).shouldAdjustToUTC()) {
           primitiveSchema = TIMESTAMPTZ_SCHEMA;
         } else {
-          primitiveSchema = TIMESTAMP_SCHEMA;
+          primitiveSchema = localTimestampEnabled ? LOCAL_TIMESTAMP_SCHEMA : TIMESTAMP_SCHEMA;
         }
         break;
       case TIMESTAMP_NANO:
         if (((Types.TimestampNanoType) primitive).shouldAdjustToUTC()) {
           primitiveSchema = TIMESTAMPTZ_NANO_SCHEMA;
         } else {
-          primitiveSchema = TIMESTAMP_NANO_SCHEMA;
+          primitiveSchema =
+              localTimestampEnabled ? LOCAL_TIMESTAMP_NANO_SCHEMA : TIMESTAMP_NANO_SCHEMA;
         }
         break;
       case STRING:
@@ -290,8 +298,8 @@ abstract class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
 
     private final Map<Type, Schema> results = Maps.newHashMap();
 
-    WithTypeToName(Map<Types.StructType, String> names) {
-      super((id, struct) -> names.get(struct));
+    WithTypeToName(Map<Types.StructType, String> names, boolean localTimestampEnabled) {
+      super((id, struct) -> names.get(struct), localTimestampEnabled);
     }
 
     Map<Type, Schema> getConversionMap() {
@@ -312,8 +320,10 @@ abstract class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
   static class WithNamesFunction extends TypeToSchema {
     private final Map<String, Schema> schemaCache = Maps.newHashMap();
 
-    WithNamesFunction(BiFunction<Integer, Types.StructType, String> namesFunction) {
-      super(namesFunction);
+    WithNamesFunction(
+        BiFunction<Integer, Types.StructType, String> namesFunction,
+        boolean localTimestampEnabled) {
+      super(namesFunction, localTimestampEnabled);
     }
 
     @Override

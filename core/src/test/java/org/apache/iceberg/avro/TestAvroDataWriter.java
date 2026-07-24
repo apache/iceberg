@@ -20,10 +20,16 @@ package org.apache.iceberg.avro;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
+import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
+import org.apache.avro.file.DataFileReader;
+import org.apache.avro.generic.GenericDatumReader;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileFormat;
@@ -31,6 +37,7 @@ import org.apache.iceberg.Files;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.avro.PlannedDataReader;
@@ -163,5 +170,127 @@ public class TestAvroDataWriter {
 
   private static ByteBuffer wkbPoint(double xCoord, double yCoord) {
     return ByteBuffer.wrap(RandomUtil.wkbPoint(xCoord, yCoord));
+  }
+
+  private static final Schema TIMESTAMP_SCHEMA =
+      new Schema(
+          Types.NestedField.required(1, "id", Types.LongType.get()),
+          Types.NestedField.required(2, "ts", Types.TimestampType.withoutZone()),
+          Types.NestedField.required(3, "ts_tz", Types.TimestampType.withZone()),
+          Types.NestedField.required(4, "ts_ns", Types.TimestampNanoType.withoutZone()),
+          Types.NestedField.required(5, "ts_tz_ns", Types.TimestampNanoType.withZone()));
+
+  private static final Record TIMESTAMP_RECORD =
+      GenericRecord.create(TIMESTAMP_SCHEMA)
+          .copy(
+              ImmutableMap.of(
+                  "id", 1L,
+                  "ts", LocalDateTime.of(2023, 10, 15, 14, 30, 45, 123456000),
+                  "ts_tz", OffsetDateTime.of(2023, 10, 15, 14, 30, 45, 123456000, ZoneOffset.UTC),
+                  "ts_ns", LocalDateTime.of(2023, 10, 15, 14, 30, 45, 123456789),
+                  "ts_tz_ns",
+                      OffsetDateTime.of(2023, 10, 15, 14, 30, 45, 123456789, ZoneOffset.UTC)));
+
+  @Test
+  public void testDataWriterDefaultLocalTimestampDisabled() throws IOException {
+    File file = temp.resolve("local-timestamp-disabled.avro").toFile();
+    OutputFile outputFile = Files.localOutput(file);
+
+    DataWriter<Record> dataWriter =
+        Avro.writeData(outputFile)
+            .schema(TIMESTAMP_SCHEMA)
+            .createWriterFunc(org.apache.iceberg.data.avro.DataWriter::create)
+            .overwrite()
+            .withSpec(PartitionSpec.unpartitioned())
+            .build();
+    try {
+      dataWriter.write(TIMESTAMP_RECORD);
+    } finally {
+      dataWriter.close();
+    }
+
+    try (DataFileReader<org.apache.avro.generic.GenericRecord> rawReader =
+        new DataFileReader<>(file, new GenericDatumReader<>())) {
+      org.apache.avro.Schema avroSchema = rawReader.getSchema();
+
+      org.apache.avro.Schema tsFieldSchema = avroSchema.getField("ts").schema();
+      assertThat(tsFieldSchema.getLogicalType().getName()).isEqualTo("timestamp-micros");
+      assertThat(tsFieldSchema.getObjectProp(AvroSchemaUtil.ADJUST_TO_UTC_PROP)).isEqualTo(false);
+
+      org.apache.avro.Schema tsTzFieldSchema = avroSchema.getField("ts_tz").schema();
+      assertThat(tsTzFieldSchema.getLogicalType().getName()).isEqualTo("timestamp-micros");
+      assertThat(tsTzFieldSchema.getObjectProp(AvroSchemaUtil.ADJUST_TO_UTC_PROP)).isEqualTo(true);
+
+      org.apache.avro.Schema tsNsFieldSchema = avroSchema.getField("ts_ns").schema();
+      assertThat(tsNsFieldSchema.getLogicalType().getName()).isEqualTo("timestamp-nanos");
+      assertThat(tsNsFieldSchema.getObjectProp(AvroSchemaUtil.ADJUST_TO_UTC_PROP)).isEqualTo(false);
+
+      org.apache.avro.Schema tsTzNsFieldSchema = avroSchema.getField("ts_tz_ns").schema();
+      assertThat(tsTzNsFieldSchema.getLogicalType().getName()).isEqualTo("timestamp-nanos");
+      assertThat(tsTzNsFieldSchema.getObjectProp(AvroSchemaUtil.ADJUST_TO_UTC_PROP))
+          .isEqualTo(true);
+    }
+
+    List<Record> writtenRecords;
+    try (AvroIterable<Record> reader =
+        Avro.read(outputFile.toInputFile())
+            .project(TIMESTAMP_SCHEMA)
+            .createResolvingReader(PlannedDataReader::create)
+            .build()) {
+      writtenRecords = Lists.newArrayList(reader);
+    }
+
+    assertThat(writtenRecords).containsExactly(TIMESTAMP_RECORD);
+  }
+
+  @Test
+  public void testDataWriterLocalTimestampEnabled() throws IOException {
+    File file = temp.resolve("local-timestamp-enabled.avro").toFile();
+    OutputFile outputFile = Files.localOutput(file);
+
+    DataWriter<Record> dataWriter =
+        Avro.writeData(outputFile)
+            .schema(TIMESTAMP_SCHEMA)
+            .set(TableProperties.AVRO_LOCAL_TIMESTAMP_ENABLED, "true")
+            .createWriterFunc(org.apache.iceberg.data.avro.DataWriter::create)
+            .overwrite()
+            .withSpec(PartitionSpec.unpartitioned())
+            .build();
+    try {
+      dataWriter.write(TIMESTAMP_RECORD);
+    } finally {
+      dataWriter.close();
+    }
+
+    try (DataFileReader<org.apache.avro.generic.GenericRecord> rawReader =
+        new DataFileReader<>(file, new GenericDatumReader<>())) {
+      org.apache.avro.Schema avroSchema = rawReader.getSchema();
+
+      org.apache.avro.Schema tsFieldSchema = avroSchema.getField("ts").schema();
+      assertThat(tsFieldSchema.getLogicalType().getName()).isEqualTo("local-timestamp-micros");
+
+      org.apache.avro.Schema tsTzFieldSchema = avroSchema.getField("ts_tz").schema();
+      assertThat(tsTzFieldSchema.getLogicalType().getName()).isEqualTo("timestamp-micros");
+      assertThat(tsTzFieldSchema.getObjectProp(AvroSchemaUtil.ADJUST_TO_UTC_PROP)).isEqualTo(true);
+
+      org.apache.avro.Schema tsNsFieldSchema = avroSchema.getField("ts_ns").schema();
+      assertThat(tsNsFieldSchema.getLogicalType().getName()).isEqualTo("local-timestamp-nanos");
+
+      org.apache.avro.Schema tsTzNsFieldSchema = avroSchema.getField("ts_tz_ns").schema();
+      assertThat(tsTzNsFieldSchema.getLogicalType().getName()).isEqualTo("timestamp-nanos");
+      assertThat(tsTzNsFieldSchema.getObjectProp(AvroSchemaUtil.ADJUST_TO_UTC_PROP))
+          .isEqualTo(true);
+    }
+
+    List<Record> writtenRecords;
+    try (AvroIterable<Record> reader =
+        Avro.read(outputFile.toInputFile())
+            .project(TIMESTAMP_SCHEMA)
+            .createResolvingReader(PlannedDataReader::create)
+            .build()) {
+      writtenRecords = Lists.newArrayList(reader);
+    }
+
+    assertThat(writtenRecords).containsExactly(TIMESTAMP_RECORD);
   }
 }

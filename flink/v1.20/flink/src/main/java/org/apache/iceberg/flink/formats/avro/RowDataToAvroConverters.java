@@ -76,7 +76,7 @@ public class RowDataToAvroConverters {
    * Table &amp; SQL internal data structures to corresponding Avro data structures.
    */
   public static RowDataToAvroConverter createConverter(LogicalType type) {
-    return createConverter(type, true);
+    return createConverter(type, false);
   }
 
   @SuppressWarnings("checkstyle:MethodLength")
