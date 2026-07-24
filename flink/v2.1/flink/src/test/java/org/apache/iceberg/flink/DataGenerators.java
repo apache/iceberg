@@ -153,8 +153,17 @@ public class DataGenerators {
           fixedFields);
     }
 
-    private final org.apache.avro.Schema avroSchema =
-        fixupAvroSchemaConvertedFromIcebergSchema(AvroSchemaUtil.convert(icebergSchema, "table"));
+    private final org.apache.avro.Schema avroSchema;
+
+    public Primitives() {
+      this(true);
+    }
+
+    public Primitives(boolean legacyTimestampMapping) {
+      avroSchema =
+          fixupAvroSchemaConvertedFromIcebergSchema(
+              AvroSchemaUtil.convert(icebergSchema, "table", legacyTimestampMapping));
+    }
 
     @Override
     public Schema icebergSchema() {
