@@ -150,14 +150,14 @@ public class TestFieldStatsStruct {
   public void testFromFieldMetricsString() {
     FieldStatsStruct<String> stats = new FieldStatsStruct<>(STRING_STATS);
 
-    stats.fromFieldMetrics(new FieldMetrics<>(100, 28, 2, "a", "z"));
+    stats.fromFieldMetrics(new FieldMetrics<>(100, 28, 2, -1, "a", "z", null, 4));
 
     assertThat(stats.lowerBound()).isEqualTo("a");
     assertThat(stats.upperBound()).isEqualTo("z");
     assertThat(stats.tightBounds()).isFalse();
     assertThat(stats.valueCount()).isEqualTo(28L);
     assertThat(stats.nullValueCount()).isEqualTo(2L);
-    assertThat(stats.avgValueSizeInBytes()).isNull(); // unknown
+    assertThat(stats.avgValueSizeInBytes()).isEqualTo(4);
   }
 
   @Test

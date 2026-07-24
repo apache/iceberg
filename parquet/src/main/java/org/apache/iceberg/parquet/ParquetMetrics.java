@@ -264,7 +264,11 @@ class ParquetMetrics {
             fieldMetrics.id(),
             fieldMetrics.valueCount(),
             fieldMetrics.nullValueCount(),
-            fieldMetrics.nanValueCount());
+            fieldMetrics.nanValueCount(),
+            null,
+            null,
+            null,
+            fieldMetrics.avgValueSizeInBytes());
       } else {
         T lowerBound = truncateLowerBound(icebergType, fieldMetrics.lowerBound(), truncateLength);
         T upperBound = truncateUpperBound(icebergType, fieldMetrics.upperBound(), truncateLength);
@@ -275,7 +279,8 @@ class ParquetMetrics {
             fieldMetrics.nanValueCount(),
             lowerBound,
             upperBound,
-            icebergType);
+            icebergType,
+            fieldMetrics.avgValueSizeInBytes());
       }
     }
 
