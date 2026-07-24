@@ -1972,6 +1972,49 @@ public class TestRewriteDataFilesAction extends TestBase {
   }
 
   @TestTemplate
+  public void testBinPackRewritePartitionSpecMismatchOption() {
+    Table table = createTable(10);
+    shouldHaveFiles(table, 10);
+
+    int oldSpecId = table.spec().specId();
+    table.updateSpec().addField(Expressions.truncate("c2", 2)).commit();
+    int currentSpecId = table.spec().specId();
+
+    writeRecords(2, SCALE);
+    table.refresh();
+
+    List<Object[]> expectedRecords = currentData();
+    long oldSpecFileCountBeforeRewrite =
+        currentDataFiles(table).stream().filter(file -> file.specId() == oldSpecId).count();
+
+    assertThat(oldSpecFileCountBeforeRewrite)
+        .as("Test setup must include files written with the previous partition spec")
+        .isGreaterThan(0);
+
+    RewriteDataFiles.Result skippedByDefault =
+        basicRewrite(table)
+            .option(SizeBasedFileRewritePlanner.MIN_FILE_SIZE_BYTES, "0")
+            .binPack()
+            .execute();
+
+    assertThat(skippedByDefault.rewrittenDataFilesCount()).isZero();
+    assertThat(currentDataFiles(table).stream().filter(file -> file.specId() == oldSpecId).count())
+        .isEqualTo(oldSpecFileCountBeforeRewrite);
+
+    RewriteDataFiles.Result rewriteMismatchedSpecFiles =
+        basicRewrite(table)
+            .option(SizeBasedFileRewritePlanner.MIN_FILE_SIZE_BYTES, "0")
+            .option(BinPackRewriteFilePlanner.REWRITE_PARTITION_SPEC_MISMATCH, "true")
+            .binPack()
+            .execute();
+
+    assertThat(rewriteMismatchedSpecFiles.rewrittenDataFilesCount())
+        .isEqualTo(oldSpecFileCountBeforeRewrite);
+    assertThat(currentDataFiles(table)).allMatch(file -> file.specId() == currentSpecId);
+    assertThat(currentData()).containsExactlyInAnyOrderElementsOf(expectedRecords);
+  }
+
+  @TestTemplate
   public void testBinpackRewriteWithInvalidOutputSpecId() {
     Table table = createTable(10);
     shouldHaveFiles(table, 10);
