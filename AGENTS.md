@@ -94,7 +94,7 @@ The `api/` module has the strongest stability guarantees — breaking changes ar
 - Comments and Javadocs should describe the current behavior or contract, not how it changed over time.
 - `} else {` on same line. Minimize variable scope. `try-with-resources` for all `AutoCloseable`.
 - Prefer method references over lambdas. Wrap lines at the highest semantic level.
-- Prefer switch expressions (`case X -> ...`) over statement switches; an exhaustive enum switch needs no `default`.
+- Prefer switch expressions (`case X -> ...`) over statement switches. Exhaustive enum switches need no `default`; others must have one.
 - Always use imports — never use fully-qualified class names inline.
 
 ### Code Placement
