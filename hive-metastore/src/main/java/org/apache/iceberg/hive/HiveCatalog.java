@@ -242,6 +242,11 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
       return false;
     }
 
+    // a view with the same name is not a table, so there is nothing to drop
+    if (viewExists(identifier)) {
+      return false;
+    }
+
     String database = identifier.namespace().level(0);
 
     TableOperations ops = newTableOps(identifier);

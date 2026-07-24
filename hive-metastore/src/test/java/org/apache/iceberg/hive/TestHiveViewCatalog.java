@@ -350,6 +350,28 @@ public class TestHiveViewCatalog extends ViewCatalogTests<HiveCatalog> {
     assertThat(catalog.viewExists(identifier)).isFalse();
   }
 
+  @Test
+  void dropTableShouldNotDropIcebergView() {
+    String dbName = "hivedb";
+    Namespace ns = Namespace.of(dbName);
+    TableIdentifier identifier = TableIdentifier.of(ns, "test_iceberg_view_drop_table");
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(identifier.namespace());
+    }
+
+    catalog
+        .buildView(identifier)
+        .withSchema(SCHEMA)
+        .withDefaultNamespace(ns)
+        .withQuery("hive", "select * from hivedb.tbl")
+        .create();
+
+    assertThat(catalog.dropTable(identifier, false))
+        .as("Should not drop a view via dropTable")
+        .isFalse();
+    assertThat(catalog.viewExists(identifier)).as("View should still exist").isTrue();
+  }
+
   private Table createHiveTableWithType(
       String hiveTableName, String dbName, String location, TableType type) {
     Map<String, String> parameters = Maps.newHashMap();
