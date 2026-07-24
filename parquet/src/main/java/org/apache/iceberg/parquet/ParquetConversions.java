@@ -94,6 +94,12 @@ class ParquetConversions {
     if (type.getOriginalType() != null) {
       switch (type.getOriginalType()) {
         case UTF8:
+        case ENUM:
+        case JSON:
+          // ENUM and JSON are UTF-8 strings that map to Iceberg StringType (see MessageTypeToType),
+          // so they must be decoded to a CharSequence like UTF8; otherwise read-time row-group
+          // filters compare a ByteBuffer against a CharSequence literal and throw
+          // ClassCastException
           // decode to CharSequence to avoid copying into a new String
           return binary -> StandardCharsets.UTF_8.decode(((Binary) binary).toByteBuffer());
         case DECIMAL:
