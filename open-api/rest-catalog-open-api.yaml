@@ -2429,6 +2429,23 @@ components:
         - "fixed[16]"
         - "decimal(10,2)"
 
+    CollationMetric:
+      type: object
+      required:
+        - id
+        - collation
+        - version
+      properties:
+        id:
+          type: integer
+          description: Field id (allocated from the table column ID space) whose content_stats struct holds the collation-aware bounds for this collation and version
+        collation:
+          type: string
+          description: Provider-qualified collation the bounds are produced for, e.g. icu.en_US-ci
+        version:
+          type: string
+          description: Collation implementation version the bounds were selected under
+
     StructField:
       type: object
       required:
@@ -2451,6 +2468,14 @@ components:
           $ref: "#/components/schemas/PrimitiveTypeValue"
         write-default:
           $ref: "#/components/schemas/PrimitiveTypeValue"
+        collation:
+          type: string
+          description: Provider-qualified collation for a string field, e.g. icu.en_US-ci; absent means UTF-8 byte order
+        collation-metrics:
+          type: array
+          items:
+            $ref: "#/components/schemas/CollationMetric"
+          description: Collation metric fields declaring where collation-aware bounds for this field are stored in content_stats
 
     StructType:
       type: object
@@ -2483,6 +2508,9 @@ components:
           $ref: '#/components/schemas/Type'
         element-required:
           type: boolean
+        element-collation:
+          type: string
+          description: Provider-qualified collation for a string element, e.g. icu.en_US-ci; absent means UTF-8 byte order
 
     MapType:
       type: object
@@ -2501,12 +2529,18 @@ components:
           type: integer
         key:
           $ref: '#/components/schemas/Type'
+        key-collation:
+          type: string
+          description: Provider-qualified collation for a string key, e.g. icu.en_US-ci; absent means UTF-8 byte order
         value-id:
           type: integer
         value:
           $ref: '#/components/schemas/Type'
         value-required:
           type: boolean
+        value-collation:
+          type: string
+          description: Provider-qualified collation for a string value, e.g. icu.en_US-ci; absent means UTF-8 byte order
 
     Type:
       oneOf:
