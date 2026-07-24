@@ -82,6 +82,7 @@ class Coordinator extends Channel {
   private final String snapshotOffsetsProp;
   private final ExecutorService exec;
   private final CommitState commitState;
+  private final CoordinatorMetrics coordinatorMetrics;
   private final AtomicLong partialCommitFailures = new AtomicLong();
   private volatile boolean terminated;
   private final String taskId;
@@ -116,6 +117,11 @@ class Coordinator extends Channel {
                 .build());
     this.commitState = new CommitState(config);
     this.taskId = config.connectorName() + "-" + config.taskId();
+    this.coordinatorMetrics =
+        new CoordinatorMetrics(
+            config.connectorName(),
+            () -> (long) commitState.commitBufferSize(),
+            () -> (long) commitState.readyBufferSize());
   }
 
   void process() {
@@ -125,6 +131,7 @@ class Coordinator extends Channel {
       Event event =
           new Event(config.connectGroupId(), new StartCommit(commitState.currentCommitId()));
       send(event);
+      coordinatorMetrics.incStartCommit();
       LOG.info("Coordinator {} initiated commit {}", taskId, commitState.currentCommitId());
     }
 
@@ -133,6 +140,11 @@ class Coordinator extends Channel {
     if (commitState.isCommitTimedOut()) {
       commit(true);
     }
+  }
+
+  @Override
+  protected ChannelMetrics getChannelMetrics() {
+    return coordinatorMetrics;
   }
 
   @Override
@@ -152,6 +164,7 @@ class Coordinator extends Channel {
   }
 
   private void commit(boolean partialCommit) {
+    long start = System.nanoTime();
     try {
       doCommit(partialCommit);
       if (!partialCommit) {
@@ -192,6 +205,7 @@ class Coordinator extends Channel {
           e);
     } finally {
       commitState.endCurrentCommit();
+      coordinatorMetrics.recordCommit(partialCommit, (System.nanoTime() - start) / 1_000L);
     }
   }
 
@@ -216,6 +230,7 @@ class Coordinator extends Channel {
             config.connectGroupId(),
             new CommitComplete(commitState.currentCommitId(), validThroughTs));
     send(event);
+    coordinatorMetrics.incCommitComplete();
 
     LOG.info(
         "Coordinator {} completed commit {}, committed to {} table(s), valid-through {}",
@@ -439,5 +454,14 @@ class Coordinator extends Channel {
     } catch (InterruptedException e) {
       throw new ConnectException("Interrupted while waiting for coordinator shutdown", e);
     }
+  }
+
+  @Override
+  void stop() {
+    // stop() runs at the very end of the CoordinatorThread run loop, after process() (and any
+    // commit() recording) can no longer fire, so closing the registry here avoids racing a
+    // record* call against a closed Metrics instance.
+    super.stop();
+    coordinatorMetrics.close();
   }
 }
