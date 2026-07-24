@@ -98,15 +98,9 @@ public class TestExpressionParser {
         };
 
     for (Expression expr : expressions) {
-      Expression bound = Binder.bind(SUPPORTED_PRIMITIVES, expr);
-      String boundJson = ExpressionParser.toJson(bound, true);
       String unboundJson = ExpressionParser.toJson(expr, true);
 
-      assertThat(boundJson)
-          .as("Bound and unbound should produce identical json")
-          .isEqualTo(unboundJson);
-
-      Expression parsed = ExpressionParser.fromJson(boundJson, SCHEMA);
+      Expression parsed = ExpressionParser.fromJson(unboundJson, SCHEMA);
       assertThat(ExpressionUtil.equivalent(expr, parsed, SUPPORTED_PRIMITIVES, true))
           .as("Round-trip value should be equivalent")
           .isTrue();
@@ -147,7 +141,14 @@ public class TestExpressionParser {
   @Test
   public void eqExpression() {
     String expected =
-        "{\n" + "  \"type\" : \"eq\",\n" + "  \"term\" : \"name\",\n" + "  \"value\" : 25\n" + "}";
+        "{\n"
+            + "  \"type\" : \"eq\",\n"
+            + "  \"left\" : {\n"
+            + "    \"type\" : \"reference\",\n"
+            + "    \"name\" : \"name\"\n"
+            + "  },\n"
+            + "  \"right\" : 25\n"
+            + "}";
     assertThat(ExpressionParser.toJson(Expressions.equal("name", 25), true)).isEqualTo(expected);
     Expression expression = ExpressionParser.fromJson(expected);
     assertThat(ExpressionParser.toJson(expression, true)).isEqualTo(expected);
@@ -158,42 +159,49 @@ public class TestExpressionParser {
     String expected =
         "{\n"
             + "  \"type\" : \"lt-eq\",\n"
-            + "  \"term\" : {\n"
-            + "    \"type\" : \"transform\",\n"
-            + "    \"transform\" : \"bucket[100]\",\n"
-            + "    \"term\" : \"id\"\n"
+            + "  \"left\" : {\n"
+            + "    \"type\" : \"apply\",\n"
+            + "    \"function\" : \"bucket\",\n"
+            + "    \"arguments\" : [ 100, {\n"
+            + "      \"type\" : \"reference\",\n"
+            + "      \"name\" : \"id\"\n"
+            + "    } ]\n"
             + "  },\n"
-            + "  \"value\" : 50\n"
+            + "  \"right\" : 50\n"
             + "}";
 
     assertThat(
             ExpressionParser.toJson(
                 Expressions.lessThanOrEqual(Expressions.bucket("id", 100), 50), true))
         .isEqualTo(expected);
-    // schema is required to parse transform expressions
-    assertThat(ExpressionParser.toJson(ExpressionParser.fromJson(expected, SCHEMA), true))
-        .isEqualTo(expected);
+    Expression parsed = ExpressionParser.fromJson(expected, SCHEMA);
+    assertThat(ExpressionParser.toJson(parsed, true)).isEqualTo(expected);
   }
 
   @Test
   public void extraFields() {
-    assertThat(
-            ExpressionParser.toJson(
-                ExpressionParser.fromJson(
-                    "{\n"
-                        + "  \"type\" : \"in\",\n"
-                        + "  \"term\" : \"column-name\",\n"
-                        + "  \"extra-one\" : \"x\",\n"
-                        + "  \"extra-twp\" : \"y\",\n"
-                        + "  \"values\" : [ 1, 2, 3 ]\n"
-                        + "}"),
-                true))
-        .isEqualTo(
-            "{\n"
-                + "  \"type\" : \"in\",\n"
-                + "  \"term\" : \"column-name\",\n"
-                + "  \"values\" : [ 1, 2, 3 ]\n"
-                + "}");
+    // deprecated format input with extra fields should still parse
+    String deprecatedInput =
+        "{\n"
+            + "  \"type\" : \"in\",\n"
+            + "  \"term\" : \"column-name\",\n"
+            + "  \"extra-one\" : \"x\",\n"
+            + "  \"extra-twp\" : \"y\",\n"
+            + "  \"values\" : [ 1, 2, 3 ]\n"
+            + "}";
+
+    String expected =
+        "{\n"
+            + "  \"type\" : \"in\",\n"
+            + "  \"child\" : {\n"
+            + "    \"type\" : \"reference\",\n"
+            + "    \"name\" : \"column-name\"\n"
+            + "  },\n"
+            + "  \"values\" : [ 1, 2, 3 ]\n"
+            + "}";
+
+    assertThat(ExpressionParser.toJson(ExpressionParser.fromJson(deprecatedInput), true))
+        .isEqualTo(expected);
   }
 
   @Test
@@ -337,8 +345,11 @@ public class TestExpressionParser {
     String expected =
         "{\n"
             + "  \"type\" : \"lt-eq\",\n"
-            + "  \"term\" : \"column-name\",\n"
-            + "  \"value\" : 50\n"
+            + "  \"left\" : {\n"
+            + "    \"type\" : \"reference\",\n"
+            + "    \"name\" : \"column-name\"\n"
+            + "  },\n"
+            + "  \"right\" : 50\n"
             + "}";
 
     assertThat(ExpressionParser.toJson(Expressions.lessThanOrEqual("column-name", 50), true))
@@ -349,13 +360,7 @@ public class TestExpressionParser {
 
   @Test
   public void testPredicateWithObjectLiteral() {
-    String expected =
-        "{\n"
-            + "  \"type\" : \"lt-eq\",\n"
-            + "  \"term\" : \"column-name\",\n"
-            + "  \"value\" : 50\n"
-            + "}";
-
+    // deprecated format input with object literal should still parse
     String json =
         "{\n"
             + "  \"type\" : \"lt-eq\",\n"
@@ -366,18 +371,22 @@ public class TestExpressionParser {
             + "  }\n"
             + "}";
 
+    String expected =
+        "{\n"
+            + "  \"type\" : \"lt-eq\",\n"
+            + "  \"left\" : {\n"
+            + "    \"type\" : \"reference\",\n"
+            + "    \"name\" : \"column-name\"\n"
+            + "  },\n"
+            + "  \"right\" : 50\n"
+            + "}";
+
     assertThat(ExpressionParser.toJson(ExpressionParser.fromJson(json), true)).isEqualTo(expected);
   }
 
   @Test
   public void testPredicateWithObjectReference() {
-    String expected =
-        "{\n"
-            + "  \"type\" : \"lt-eq\",\n"
-            + "  \"term\" : \"column-name\",\n"
-            + "  \"value\" : 50\n"
-            + "}";
-
+    // deprecated format input with object reference should still parse
     String json =
         "{\n"
             + "  \"type\" : \"lt-eq\",\n"
@@ -386,6 +395,16 @@ public class TestExpressionParser {
             + "    \"term\" : \"column-name\"\n"
             + "  },\n"
             + "  \"value\" : 50\n"
+            + "}";
+
+    String expected =
+        "{\n"
+            + "  \"type\" : \"lt-eq\",\n"
+            + "  \"left\" : {\n"
+            + "    \"type\" : \"reference\",\n"
+            + "    \"name\" : \"column-name\"\n"
+            + "  },\n"
+            + "  \"right\" : 50\n"
             + "}";
 
     assertThat(ExpressionParser.toJson(ExpressionParser.fromJson(json), true)).isEqualTo(expected);
@@ -398,12 +417,18 @@ public class TestExpressionParser {
             + "  \"type\" : \"and\",\n"
             + "  \"left\" : {\n"
             + "    \"type\" : \"gt-eq\",\n"
-            + "    \"term\" : \"column-name-1\",\n"
-            + "    \"value\" : 50\n"
+            + "    \"left\" : {\n"
+            + "      \"type\" : \"reference\",\n"
+            + "      \"name\" : \"column-name-1\"\n"
+            + "    },\n"
+            + "    \"right\" : 50\n"
             + "  },\n"
             + "  \"right\" : {\n"
             + "    \"type\" : \"in\",\n"
-            + "    \"term\" : \"column-name-2\",\n"
+            + "    \"child\" : {\n"
+            + "      \"type\" : \"reference\",\n"
+            + "      \"name\" : \"column-name-2\"\n"
+            + "    },\n"
             + "    \"values\" : [ \"one\", \"two\" ]\n"
             + "  }\n"
             + "}";
@@ -425,12 +450,18 @@ public class TestExpressionParser {
             + "  \"type\" : \"or\",\n"
             + "  \"left\" : {\n"
             + "    \"type\" : \"lt\",\n"
-            + "    \"term\" : \"column-name-1\",\n"
-            + "    \"value\" : 50\n"
+            + "    \"left\" : {\n"
+            + "      \"type\" : \"reference\",\n"
+            + "      \"name\" : \"column-name-1\"\n"
+            + "    },\n"
+            + "    \"right\" : 50\n"
             + "  },\n"
             + "  \"right\" : {\n"
             + "    \"type\" : \"not-null\",\n"
-            + "    \"term\" : \"column-name-2\"\n"
+            + "    \"child\" : {\n"
+            + "      \"type\" : \"reference\",\n"
+            + "      \"name\" : \"column-name-2\"\n"
+            + "    }\n"
             + "  }\n"
             + "}";
 
@@ -449,8 +480,11 @@ public class TestExpressionParser {
             + "  \"type\" : \"not\",\n"
             + "  \"child\" : {\n"
             + "    \"type\" : \"gt-eq\",\n"
-            + "    \"term\" : \"column-name-1\",\n"
-            + "    \"value\" : 50\n"
+            + "    \"left\" : {\n"
+            + "      \"type\" : \"reference\",\n"
+            + "      \"name\" : \"column-name-1\"\n"
+            + "    },\n"
+            + "    \"right\" : 50\n"
             + "  }\n"
             + "}";
 
@@ -470,18 +504,27 @@ public class TestExpressionParser {
             + "    \"type\" : \"and\",\n"
             + "    \"left\" : {\n"
             + "      \"type\" : \"in\",\n"
-            + "      \"term\" : \"column-name-1\",\n"
+            + "      \"child\" : {\n"
+            + "        \"type\" : \"reference\",\n"
+            + "        \"name\" : \"column-name-1\"\n"
+            + "      },\n"
             + "      \"values\" : [ 50, 51, 52 ]\n"
             + "    },\n"
             + "    \"right\" : {\n"
             + "      \"type\" : \"eq\",\n"
-            + "      \"term\" : \"column-name-2\",\n"
-            + "      \"value\" : \"test\"\n"
+            + "      \"left\" : {\n"
+            + "        \"type\" : \"reference\",\n"
+            + "        \"name\" : \"column-name-2\"\n"
+            + "      },\n"
+            + "      \"right\" : \"test\"\n"
             + "    }\n"
             + "  },\n"
             + "  \"right\" : {\n"
             + "    \"type\" : \"is-nan\",\n"
-            + "    \"term\" : \"column-name-3\"\n"
+            + "    \"child\" : {\n"
+            + "      \"type\" : \"reference\",\n"
+            + "      \"name\" : \"column-name-3\"\n"
+            + "    }\n"
             + "  }\n"
             + "}";
 
@@ -501,8 +544,11 @@ public class TestExpressionParser {
     String expected =
         "{\n"
             + "  \"type\" : \"eq\",\n"
-            + "  \"term\" : \"column-name\",\n"
-            + "  \"value\" : \"010203\"\n"
+            + "  \"left\" : {\n"
+            + "    \"type\" : \"reference\",\n"
+            + "    \"name\" : \"column-name\"\n"
+            + "  },\n"
+            + "  \"right\" : \"010203\"\n"
             + "}";
 
     ByteBuffer byteBuffer = ByteBuffer.wrap(new byte[] {1, 2, 3});
@@ -518,7 +564,10 @@ public class TestExpressionParser {
     String expected =
         "{\n"
             + "  \"type\" : \"in\",\n"
-            + "  \"term\" : \"column-name\",\n"
+            + "  \"child\" : {\n"
+            + "    \"type\" : \"reference\",\n"
+            + "    \"name\" : \"column-name\"\n"
+            + "  },\n"
             + "  \"values\" : [ \"3.14\" ]\n"
             + "}";
 
@@ -534,7 +583,10 @@ public class TestExpressionParser {
     String expected =
         "{\n"
             + "  \"type\" : \"in\",\n"
-            + "  \"term\" : \"column-name\",\n"
+            + "  \"child\" : {\n"
+            + "    \"type\" : \"reference\",\n"
+            + "    \"name\" : \"column-name\"\n"
+            + "  },\n"
             + "  \"values\" : [ \"3.14E+4\" ]\n"
             + "}";
 
@@ -543,5 +595,196 @@ public class TestExpressionParser {
     assertThat(ExpressionParser.toJson(expression, true)).isEqualTo(expected);
     assertThat(ExpressionParser.toJson(ExpressionParser.fromJson(expected), true))
         .isEqualTo(expected);
+  }
+
+  // Backward compatibility: deprecated format should still parse correctly
+
+  @Test
+  public void testReadDeprecatedUnaryPredicate() {
+    String deprecated = "{\n  \"type\" : \"is-null\",\n  \"term\" : \"data\"\n}";
+    Expression parsed = ExpressionParser.fromJson(deprecated);
+    assertThat(
+            ExpressionUtil.equivalent(
+                parsed, Expressions.isNull("data"), SUPPORTED_PRIMITIVES, true))
+        .isTrue();
+  }
+
+  @Test
+  public void testReadDeprecatedComparisonPredicate() {
+    String deprecated = "{\n  \"type\" : \"eq\",\n  \"term\" : \"id\",\n  \"value\" : 5\n}";
+    Expression parsed = ExpressionParser.fromJson(deprecated);
+    assertThat(
+            ExpressionUtil.equivalent(
+                parsed, Expressions.equal("id", 5), SUPPORTED_PRIMITIVES, true))
+        .isTrue();
+  }
+
+  @Test
+  public void testReadDeprecatedSetPredicate() {
+    String deprecated =
+        "{\n  \"type\" : \"in\",\n  \"term\" : \"id\",\n  \"values\" : [ 1, 2, 3 ]\n}";
+    Expression parsed = ExpressionParser.fromJson(deprecated);
+    assertThat(
+            ExpressionUtil.equivalent(
+                parsed, Expressions.in("id", 1, 2, 3), SUPPORTED_PRIMITIVES, true))
+        .isTrue();
+  }
+
+  @Test
+  public void testReadDeprecatedTransformPredicate() {
+    String deprecated =
+        "{\n"
+            + "  \"type\" : \"lt-eq\",\n"
+            + "  \"term\" : {\n"
+            + "    \"type\" : \"transform\",\n"
+            + "    \"transform\" : \"bucket[100]\",\n"
+            + "    \"term\" : \"id\"\n"
+            + "  },\n"
+            + "  \"value\" : 50\n"
+            + "}";
+    Expression parsed = ExpressionParser.fromJson(deprecated, SCHEMA);
+    assertThat(
+            ExpressionUtil.equivalent(
+                parsed,
+                Expressions.lessThanOrEqual(Expressions.bucket("id", 100), 50),
+                SUPPORTED_PRIMITIVES,
+                true))
+        .isTrue();
+  }
+
+  @Test
+  public void testReadDeprecatedObjectReference() {
+    String deprecated =
+        "{\n"
+            + "  \"type\" : \"eq\",\n"
+            + "  \"term\" : {\n"
+            + "    \"type\" : \"reference\",\n"
+            + "    \"term\" : \"id\"\n"
+            + "  },\n"
+            + "  \"value\" : 42\n"
+            + "}";
+    Expression parsed = ExpressionParser.fromJson(deprecated);
+    assertThat(
+            ExpressionUtil.equivalent(
+                parsed, Expressions.equal("id", 42), SUPPORTED_PRIMITIVES, true))
+        .isTrue();
+  }
+
+  // New format specific tests
+
+  @Test
+  public void testNewFormatRoundTrip() {
+    Expression[] expressions =
+        new Expression[] {
+          Expressions.isNull("data"),
+          Expressions.equal("id", 100),
+          Expressions.in("id", 1, 2, 3),
+          Expressions.lessThanOrEqual(Expressions.bucket("id", 100), 50),
+          Expressions.and(Expressions.equal("id", 1), Expressions.notNull("data")),
+          Expressions.not(Expressions.isNaN("d")),
+        };
+
+    for (Expression expr : expressions) {
+      String json = ExpressionParser.toJson(expr, true);
+      Expression parsed = ExpressionParser.fromJson(json, SCHEMA);
+      String roundTripped = ExpressionParser.toJson(parsed, true);
+      assertThat(roundTripped).as("Round-trip JSON should be stable").isEqualTo(json);
+    }
+  }
+
+  @Test
+  public void testApplySimpleFunctionName() {
+    // Apply with simple string function name
+    String json =
+        "{\n"
+            + "  \"type\" : \"lt-eq\",\n"
+            + "  \"left\" : {\n"
+            + "    \"type\" : \"apply\",\n"
+            + "    \"function\" : \"year\",\n"
+            + "    \"arguments\" : [ {\n"
+            + "      \"type\" : \"reference\",\n"
+            + "      \"name\" : \"ts\"\n"
+            + "    } ]\n"
+            + "  },\n"
+            + "  \"right\" : 50\n"
+            + "}";
+
+    Expression parsed = ExpressionParser.fromJson(json, SCHEMA);
+    assertThat(
+            ExpressionUtil.equivalent(
+                parsed,
+                Expressions.lessThanOrEqual(Expressions.year("ts"), 50),
+                SUPPORTED_PRIMITIVES,
+                true))
+        .isTrue();
+  }
+
+  @Test
+  public void testApplyWithCatalogFunction() {
+    // Apply with catalog-qualified function reference
+    String json =
+        "{\n"
+            + "  \"type\" : \"eq\",\n"
+            + "  \"left\" : {\n"
+            + "    \"type\" : \"apply\",\n"
+            + "    \"function\" : {\n"
+            + "      \"catalog\" : \"iceberg_functions\",\n"
+            + "      \"identifier\" : [ \"bucket\" ]\n"
+            + "    },\n"
+            + "    \"arguments\" : [ 100, {\n"
+            + "      \"type\" : \"reference\",\n"
+            + "      \"name\" : \"id\"\n"
+            + "    } ]\n"
+            + "  },\n"
+            + "  \"right\" : 5\n"
+            + "}";
+
+    Expression parsed = ExpressionParser.fromJson(json, SCHEMA);
+    assertThat(
+            ExpressionUtil.equivalent(
+                parsed,
+                Expressions.equal(Expressions.bucket("id", 100), 5),
+                SUPPORTED_PRIMITIVES,
+                true))
+        .isTrue();
+  }
+
+  @Test
+  public void testNewFormatNamedReference() {
+    String json =
+        "{\n"
+            + "  \"type\" : \"is-null\",\n"
+            + "  \"child\" : {\n"
+            + "    \"type\" : \"reference\",\n"
+            + "    \"name\" : \"data\"\n"
+            + "  }\n"
+            + "}";
+    Expression parsed = ExpressionParser.fromJson(json);
+    assertThat(
+            ExpressionUtil.equivalent(
+                parsed, Expressions.isNull("data"), SUPPORTED_PRIMITIVES, true))
+        .isTrue();
+  }
+
+  @Test
+  public void testNewFormatTypedLiteral() {
+    // Typed literal object form
+    String json =
+        "{\n"
+            + "  \"type\" : \"eq\",\n"
+            + "  \"left\" : {\n"
+            + "    \"type\" : \"reference\",\n"
+            + "    \"name\" : \"id\"\n"
+            + "  },\n"
+            + "  \"right\" : {\n"
+            + "    \"type\" : \"literal\",\n"
+            + "    \"value\" : 42\n"
+            + "  }\n"
+            + "}";
+    Expression parsed = ExpressionParser.fromJson(json);
+    assertThat(
+            ExpressionUtil.equivalent(
+                parsed, Expressions.equal("id", 42), SUPPORTED_PRIMITIVES, true))
+        .isTrue();
   }
 }

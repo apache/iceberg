@@ -136,7 +136,7 @@ public class TestFetchScanTasksResponseParser {
             + "\"file-format\":\"parquet\",\"partition\":[0],"
             + "\"file-size-in-bytes\":10,\"record-count\":1,\"sort-order-id\":0},"
             + "\"delete-file-references\":[0],"
-            + "\"residual-filter\":{\"type\":\"eq\",\"term\":\"id\",\"value\":1}}]"
+            + "\"residual-filter\":{\"type\":\"eq\",\"left\":{\"type\":\"reference\",\"name\":\"id\"},\"right\":1}}]"
             + "}";
 
     String json = FetchScanTasksResponseParser.toJson(response, false);
