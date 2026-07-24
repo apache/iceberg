@@ -134,4 +134,14 @@ public class TestContentStatsBackedMap {
     Map<Integer, Long> valueCounts = ContentStatsBackedMap.valueCounts(stats);
     assertThat(valueCounts).isNotNull().containsOnly(Map.entry(2, 20L));
   }
+
+  @Test
+  public void testIsEmptyMatchesEntrySet() {
+    // a factory returns null for an empty view, so a live map always has entries; isEmpty() must
+    // agree with entrySet() and never report a false positive
+    Map<Integer, Long> valueCounts = ContentStatsBackedMap.valueCounts(POPULATED_STATS);
+    assertThat(valueCounts).isNotNull();
+    assertThat(valueCounts.isEmpty()).isFalse();
+    assertThat(valueCounts.isEmpty()).isEqualTo(valueCounts.entrySet().isEmpty());
+  }
 }
