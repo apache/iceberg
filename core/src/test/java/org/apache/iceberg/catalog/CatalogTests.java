@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.catalog;
 
+import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -200,6 +201,10 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   }
 
   protected boolean supportsEmptyNamespace() {
+    return false;
+  }
+
+  protected boolean supportsVariant() {
     return false;
   }
 
@@ -924,6 +929,34 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
         .create();
     assertThat(catalog.tableExists(TBL)).as("Table should exist").isTrue();
     assertThat(schemaWithDefault.asStruct()).isEqualTo(catalog.loadTable(TBL).schema().asStruct());
+  }
+
+  @Test
+  public void testCreateTableWithVariantColumn() {
+    assumeThat(supportsVariant()).as("Catalog does not support the variant type").isTrue();
+
+    C catalog = catalog();
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(TBL.namespace());
+    }
+
+    assertThat(catalog.tableExists(TBL)).as("Table should not exist").isFalse();
+
+    Schema variantSchema =
+        new Schema(
+            required(1, "id", Types.LongType.get()), optional(2, "data", Types.VariantType.get()));
+
+    catalog
+        .buildTable(TBL, variantSchema)
+        .withLocation(baseTableLocation(TBL))
+        .withProperty(TableProperties.FORMAT_VERSION, "3")
+        .create();
+
+    assertThat(catalog.tableExists(TBL)).as("Table should exist").isTrue();
+    assertThat(catalog.loadTable(TBL).schema().asStruct())
+        .as("Variant column should round-trip through the catalog")
+        .isEqualTo(variantSchema.asStruct());
   }
 
   @Test

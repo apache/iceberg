@@ -86,6 +86,11 @@ public class RESTCompatibilityKitCatalogTests extends CatalogTests<RESTCatalog> 
   }
 
   @Override
+  protected boolean supportsVariant() {
+    return true;
+  }
+
+  @Override
   protected boolean overridesRequestedLocation() {
     return PropertyUtil.propertyAsBoolean(
         restCatalog.properties(),
