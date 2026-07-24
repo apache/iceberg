@@ -40,7 +40,7 @@ public class TestTrackedFile {
 
   @Test
   public void schemaFieldOrder() {
-    Types.StructType type = TrackedFile.schema(PARTITION_TYPE, CONTENT_STATS_TYPE);
+    Types.StructType type = TrackedFile.schema(PARTITION_TYPE, CONTENT_STATS_TYPE).asStruct();
     List<Types.NestedField> fields = type.fields();
 
     assertThat(fields)
@@ -66,7 +66,7 @@ public class TestTrackedFile {
 
   @Test
   public void schemaFieldIds() {
-    Types.StructType type = TrackedFile.schema(PARTITION_TYPE, CONTENT_STATS_TYPE);
+    Types.StructType type = TrackedFile.schema(PARTITION_TYPE, CONTENT_STATS_TYPE).asStruct();
     List<Types.NestedField> fields = type.fields();
 
     assertThat(fields)
@@ -77,7 +77,7 @@ public class TestTrackedFile {
 
   @Test
   public void schemaUsesProvidedType() {
-    Types.StructType type = TrackedFile.schema(PARTITION_TYPE, CONTENT_STATS_TYPE);
+    Types.StructType type = TrackedFile.schema(PARTITION_TYPE, CONTENT_STATS_TYPE).asStruct();
     Types.NestedField contentStatsField = type.field(TrackedFile.CONTENT_STATS_ID);
     Types.NestedField partitionField = type.field(TrackedFile.PARTITION_ID);
 
@@ -97,8 +97,8 @@ public class TestTrackedFile {
     Types.StructType smallStats = StatsUtil.statsReadSchema(smallSchema, ImmutableList.of(1));
     Types.StructType largeStats = StatsUtil.statsReadSchema(largeSchema, ImmutableList.of(1, 3));
 
-    Types.StructType smallType = TrackedFile.schema(PARTITION_TYPE, smallStats);
-    Types.StructType largeType = TrackedFile.schema(PARTITION_TYPE, largeStats);
+    Types.StructType smallType = TrackedFile.schema(PARTITION_TYPE, smallStats).asStruct();
+    Types.StructType largeType = TrackedFile.schema(PARTITION_TYPE, largeStats).asStruct();
 
     Types.StructType smallResult =
         smallType.field(TrackedFile.CONTENT_STATS_ID).type().asStructType();
@@ -111,7 +111,7 @@ public class TestTrackedFile {
 
   @Test
   public void schemaPartitionIsOptional() {
-    Types.StructType type = TrackedFile.schema(PARTITION_TYPE, CONTENT_STATS_TYPE);
+    Types.StructType type = TrackedFile.schema(PARTITION_TYPE, CONTENT_STATS_TYPE).asStruct();
     Types.NestedField partitionField = type.field(TrackedFile.PARTITION_ID);
 
     assertThat(partitionField.isOptional()).isTrue();
@@ -121,12 +121,14 @@ public class TestTrackedFile {
 
   @Test
   public void schemaUsesUnknownForEmptyStructs() {
-    Types.StructType type = TrackedFile.schema(Types.StructType.of(), Types.StructType.of());
+    Types.StructType type =
+        TrackedFile.schema(Types.StructType.of(), Types.StructType.of()).asStruct();
 
     assertThat(type.field(TrackedFile.PARTITION_ID).type()).isEqualTo(Types.UnknownType.get());
     assertThat(type.field(TrackedFile.CONTENT_STATS_ID).type()).isEqualTo(Types.UnknownType.get());
 
-    Types.StructType partitionedType = TrackedFile.schema(PARTITION_TYPE, Types.StructType.of());
+    Types.StructType partitionedType =
+        TrackedFile.schema(PARTITION_TYPE, Types.StructType.of()).asStruct();
     assertThat(partitionedType.field(TrackedFile.PARTITION_ID).type()).isEqualTo(PARTITION_TYPE);
     assertThat(partitionedType.field(TrackedFile.CONTENT_STATS_ID).type())
         .isEqualTo(Types.UnknownType.get());

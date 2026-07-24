@@ -102,9 +102,8 @@ interface TrackedFile {
    * <p>The partition and content stats fields use {@link Types.UnknownType} when their types have
    * no fields, so that they are not stored in manifest files.
    */
-  static Types.StructType schema(
-      Types.StructType partitionType, Types.StructType contentStatsType) {
-    return Types.StructType.of(
+  static Schema schema(Types.StructType partitionType, Types.StructType contentStatsType) {
+    return new Schema(
         TRACKING,
         CONTENT_TYPE,
         FORMAT_VERSION,

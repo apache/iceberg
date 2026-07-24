@@ -35,7 +35,7 @@ class TestTrackedFileStruct {
   private static final int FORMAT_VERSION_V4 = 4;
 
   private static final List<Types.NestedField> FIELDS =
-      TrackedFile.schema(Types.StructType.of(), Types.StructType.of()).fields();
+      TrackedFile.schema(Types.StructType.of(), Types.StructType.of()).asStruct().fields();
 
   private static final Tracking TRACKING = Mockito.mock(Tracking.class);
   private static final Tracking TRACKING_COPY = Mockito.mock(Tracking.class);
@@ -69,10 +69,10 @@ class TestTrackedFileStruct {
             FORMAT_VERSION_V4,
             "s3://bucket/data/00000-0-file.parquet",
             FileFormat.PARQUET,
-            PARTITION,
             50L,
             512L,
             1,
+            PARTITION,
             CONTENT_STATS,
             5,
             DELETION_VECTOR,
@@ -146,10 +146,10 @@ class TestTrackedFileStruct {
             FORMAT_VERSION_V4,
             "s3://bucket/data/00000-0-file.parquet",
             FileFormat.PARQUET,
-            PARTITION,
             50L,
             512L,
             1,
+            PARTITION,
             CONTENT_STATS,
             5,
             DELETION_VECTOR,
@@ -187,10 +187,10 @@ class TestTrackedFileStruct {
             FORMAT_VERSION_V4,
             "s3://bucket/data/00000-0-file.parquet",
             FileFormat.PARQUET,
-            PARTITION,
             50L,
             512L,
             1,
+            PARTITION,
             CONTENT_STATS,
             5,
             DELETION_VECTOR,
@@ -236,10 +236,10 @@ class TestTrackedFileStruct {
             FORMAT_VERSION_V4,
             "s3://bucket/data/00000-0-file.parquet",
             FileFormat.PARQUET,
-            PARTITION,
             50L,
             512L,
             1,
+            PARTITION,
             stats,
             5,
             DELETION_VECTOR,
@@ -283,10 +283,10 @@ class TestTrackedFileStruct {
             FORMAT_VERSION_V4,
             "s3://bucket/data/00000-0-file.parquet",
             FileFormat.PARQUET,
-            PARTITION,
             50L,
             512L,
             1,
+            PARTITION,
             stats,
             5,
             DELETION_VECTOR,
@@ -355,11 +355,11 @@ class TestTrackedFileStruct {
             FileContent.DATA,
             FORMAT_VERSION_V4,
             "s3://bucket/data/file.parquet",
-            FileFormat.PARQUET,
-            null, // PartitionData has its own serialization tests
+            FileFormat.PARQUET, // PartitionData has its own serialization tests
             100L,
             1024L,
             7,
+            null,
             null,
             1,
             null, // DeletionVector has its own serialization tests

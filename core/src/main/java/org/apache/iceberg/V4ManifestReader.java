@@ -36,6 +36,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.StructProjection;
 
 /** Reader that reads a v4+ manifest file as {@link TrackedFile}s. */
@@ -45,21 +46,18 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
   private final boolean includeAll;
   private final ScanMetrics scanMetrics;
 
-  // partition pruning state, keyed by spec ID
-  private final Map<Integer, Evaluator> partitionEvaluators;
-  private final Map<Integer, StructProjection> partitionProjections;
+  // partition filters keyed by spec ID; empty when no partition filter applies
+  private final Map<Integer, Pair<Evaluator, StructProjection>> partitionFilters;
 
   private V4ManifestReader(
       InputFile file,
       Schema readSchema,
-      Map<Integer, Evaluator> partitionEvaluators,
-      Map<Integer, StructProjection> partitionProjections,
+      Map<Integer, Pair<Evaluator, StructProjection>> partitionFilters,
       boolean includeAll,
       ScanMetrics scanMetrics) {
     this.file = file;
     this.readSchema = readSchema;
-    this.partitionEvaluators = partitionEvaluators;
-    this.partitionProjections = partitionProjections;
+    this.partitionFilters = partitionFilters;
     this.includeAll = includeAll;
     this.scanMetrics = scanMetrics;
   }
@@ -72,8 +70,8 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
   @Override
   public CloseableIterator<TrackedFile> iterator() {
     CloseableIterable<TrackedFile> entries = CloseableIterable.transform(open(), this::prepare);
-    if (!partitionEvaluators.isEmpty()) {
-      // manifest references are expanded later and are not pruned by the partition filter
+    if (!partitionFilters.isEmpty()) {
+      // manifests have no partition, so the partition filter cannot apply to them
       entries =
           CloseableIterable.filter(entries, entry -> isManifest(entry) || matchesPartition(entry));
     }
@@ -92,19 +90,14 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
       return true;
     }
 
-    Evaluator evaluator = partitionEvaluators.get(specId);
-    if (evaluator == null) {
+    Pair<Evaluator, StructProjection> partitionFilter = partitionFilters.get(specId);
+    if (partitionFilter == null) {
       // the row filter does not project to a partition filter for this spec
       return true;
     }
 
-    StructProjection projection = partitionProjections.get(specId);
-    Preconditions.checkState(
-        projection != null,
-        "Cannot produce partition tuple for spec ID %s in manifest %s",
-        specId,
-        file.location());
-
+    Evaluator evaluator = partitionFilter.first();
+    StructProjection projection = partitionFilter.second();
     boolean matches = evaluator.eval(projection.wrap(trackedFile.partition()));
     if (!matches) {
       incrementSkipCount(trackedFile.contentType());
@@ -176,24 +169,23 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
     private boolean includeAll = false;
     private boolean scanPlanning = false;
     private Collection<String> columns = null;
-    private Schema fileProjection = null;
+    private Schema requestedProjection = null;
     private ScanMetrics scanMetrics = ScanMetrics.noop();
 
     private Builder(InputFile file, Map<Integer, PartitionSpec> specsById) {
       this.file = file;
       this.specsById = specsById;
       this.unionPartitionType = Partitioning.unionPartitionTypes(specsById.values());
-      Schema base =
-          new Schema(TrackedFile.schema(unionPartitionType, Types.StructType.of()).fields());
+      Schema base = TrackedFile.schema(unionPartitionType, Types.StructType.of());
       // the read schema carries row_position (via BASE_TYPE) so the reader can fill manifestPos
       this.fullSchema =
           TypeUtil.replaceFieldTypes(
               base, ImmutableMap.of(TrackedFile.TRACKING.fieldId(), TrackingStruct.BASE_TYPE));
     }
 
-    /** Sets a row filter; files that cannot match the expression are skipped. */
-    Builder filterRows(Expression expr) {
-      Preconditions.checkArgument(expr != null, "Invalid row filter: null");
+    /** Sets a filter; files that cannot match the expression are skipped. */
+    Builder filter(Expression expr) {
+      Preconditions.checkArgument(expr != null, "Invalid filter: null");
       this.rowFilter = expr;
       return this;
     }
@@ -212,7 +204,7 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
     /** Configures the reader to select the minimal fields needed for scan planning. */
     Builder forScanPlanning() {
       Preconditions.checkState(
-          columns == null && fileProjection == null,
+          columns == null && requestedProjection == null,
           "Cannot use forScanPlanning() with select(Collection<String>) or project(Schema)");
       this.scanPlanning = true;
       return this;
@@ -224,19 +216,19 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
       Preconditions.checkState(
           !scanPlanning, "Cannot use select(Collection<String>) with forScanPlanning()");
       Preconditions.checkState(
-          fileProjection == null,
+          requestedProjection == null,
           "Cannot select columns using both select(Collection<String>) and project(Schema)");
       this.columns = newColumns;
       return this;
     }
 
     /** Sets the exact schema to read; used in place of {@link #select(Collection)}. */
-    Builder project(Schema newFileProjection) {
+    Builder project(Schema newProjection) {
       Preconditions.checkState(!scanPlanning, "Cannot use project(Schema) with forScanPlanning()");
       Preconditions.checkState(
           columns == null,
           "Cannot select columns using both select(Collection<String>) and project(Schema)");
-      this.fileProjection = newFileProjection;
+      this.requestedProjection = newProjection;
       return this;
     }
 
@@ -247,48 +239,45 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
     }
 
     V4ManifestReader build() {
-      Map<Integer, Evaluator> partitionEvaluators = Maps.newHashMap();
-      Map<Integer, StructProjection> partitionProjections = Maps.newHashMap();
+      Map<Integer, Pair<Evaluator, StructProjection>> partitionFilters = Maps.newHashMap();
       if (rowFilter != Expressions.alwaysTrue() && !unionPartitionType.fields().isEmpty()) {
         for (PartitionSpec spec : specsById.values()) {
           Expression partFilter = Projections.inclusive(spec, caseSensitive).project(rowFilter);
           if (partFilter != Expressions.alwaysTrue()) {
-            partitionEvaluators.put(
-                spec.specId(), new Evaluator(spec.partitionType(), partFilter, caseSensitive));
-            partitionProjections.put(
-                spec.specId(), StructProjection.create(unionPartitionType, spec.partitionType()));
+            Evaluator evaluator = new Evaluator(spec.partitionType(), partFilter, caseSensitive);
+            StructProjection projection =
+                StructProjection.create(unionPartitionType, spec.partitionType());
+            partitionFilters.put(spec.specId(), Pair.of(evaluator, projection));
           }
         }
       }
 
-      boolean hasPartitionFilter = !partitionEvaluators.isEmpty();
+      boolean hasPartitionFilter = !partitionFilters.isEmpty();
       return new V4ManifestReader(
-          file,
-          readSchema(hasPartitionFilter),
-          partitionEvaluators,
-          partitionProjections,
-          includeAll,
-          scanMetrics);
+          file, readSchema(hasPartitionFilter), partitionFilters, includeAll, scanMetrics);
     }
 
     private Schema readSchema(boolean hasPartitionFilter) {
-      Schema projection = fileProjection;
+      if (scanPlanning) {
+        // scan planning does not read the change-tracking fields omitted by SCAN_TYPE
+        return TypeUtil.replaceFieldTypes(
+            fullSchema, ImmutableMap.of(TrackedFile.TRACKING.fieldId(), TrackingStruct.SCAN_TYPE));
+      }
+
       if (columns != null) {
-        projection =
+        Schema selected =
             caseSensitive ? fullSchema.select(columns) : fullSchema.caseInsensitiveSelect(columns);
+        return addRequiredColumns(selected, hasPartitionFilter);
       }
 
-      if (projection == null) {
-        if (scanPlanning) {
-          // scan planning does not read the change-tracking fields omitted by SCAN_TYPE
-          return TypeUtil.replaceFieldTypes(
-              fullSchema,
-              ImmutableMap.of(TrackedFile.TRACKING.fieldId(), TrackingStruct.SCAN_TYPE));
-        }
-
-        return fullSchema;
+      if (requestedProjection != null) {
+        return addRequiredColumns(requestedProjection, hasPartitionFilter);
       }
 
+      return fullSchema;
+    }
+
+    private Schema addRequiredColumns(Schema projection, boolean hasPartitionFilter) {
       Set<Integer> projectedIds = Sets.newHashSet(TypeUtil.getProjectedIds(projection));
 
       // fields the reader consumes internally: status for liveness filtering, row_position for
@@ -301,6 +290,7 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
         projectedIds.add(TrackedFile.RECORD_COUNT.fieldId());
       }
 
+      // add the partition tuple only when it is needed to evaluate a partition filter
       if (hasPartitionFilter) {
         projectedIds.add(TrackedFile.SPEC_ID.fieldId());
         projectedIds.add(TrackedFile.PARTITION_ID);

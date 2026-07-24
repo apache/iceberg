@@ -102,10 +102,10 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
       int formatVersion,
       String location,
       FileFormat fileFormat,
-      PartitionData partition,
       long recordCount,
       long fileSizeInBytes,
       Integer specId,
+      PartitionData partition,
       ContentStats contentStats,
       Integer sortOrderId,
       DeletionVector deletionVector,
@@ -121,9 +121,8 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
     this.fileFormat = fileFormat;
     this.recordCount = recordCount;
     this.fileSizeInBytes = fileSizeInBytes;
-    this.partitionData = partition;
-
     this.specId = specId;
+    this.partitionData = partition;
     this.contentStats = contentStats;
     this.sortOrderId = sortOrderId;
     this.deletionVector = deletionVector;
