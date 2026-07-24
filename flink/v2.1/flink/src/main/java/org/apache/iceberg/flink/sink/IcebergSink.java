@@ -543,7 +543,7 @@ public class IcebergSink
      * the range partitioner would put all the oldest 150 days in one writer task. That writer task
      * would write to 150 small files (one per day). Keeping 150 open files can potentially consume
      * large amount of memory. Flushing and uploading 150 files (however small) at checkpoint time
-     * can also be potentially slow. If this config is set to `0.02`. It means every sort key has a
+     * can also be potentially slow. If this config is set to `2.0`. It means every sort key has a
      * base weight of `2%` of targeted weight of `1,000` for every write task. It would essentially
      * avoid placing more than `50` data files (one per day) on one writer task no matter how small
      * they are.
