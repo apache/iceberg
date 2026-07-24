@@ -69,7 +69,7 @@ Iceberg supports `UPSERT` based on the primary key when writing data into v2 tab
     ) with ('format-version'='2', 'write.upsert.enabled'='true');
     ```
 
-2. Enabling `UPSERT` mode using `upsert-enabled` in the [write options](#write-options) provides more flexibility than a table level config. Note that you still need to use v2 table format and specify the [primary key](flink-ddl.md/#primary-key) or [identifier fields](../../spec.md#identifier-field-ids) when creating the table.
+2. Enabling `UPSERT` mode using `upsert-enabled` in the [write options](#write-options) provides more flexibility than a table level config. Note that you still need to use v2 table format and specify the [primary key](flink-ddl.md#primary-key) or [identifier fields](../../spec.md#identifier-field-ids) when creating the table.
 
     ```sql
     INSERT INTO tableName /*+ OPTIONS('upsert-enabled'='true') */
