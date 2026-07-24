@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.spark;
 
+import java.io.Closeable;
 import org.apache.iceberg.spark.procedures.SparkProcedures;
 import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
 import org.apache.iceberg.spark.source.HasIcebergCatalog;
@@ -37,7 +38,8 @@ abstract class BaseCatalog
         HasIcebergCatalog,
         SupportsFunctions,
         ViewCatalog,
-        SupportsReplaceView {
+        SupportsReplaceView,
+        Closeable {
   private static final String USE_NULLABLE_QUERY_SCHEMA_CTAS_RTAS = "use-nullable-query-schema";
   private static final boolean USE_NULLABLE_QUERY_SCHEMA_CTAS_RTAS_DEFAULT = true;
 

@@ -21,6 +21,8 @@ package org.apache.iceberg.spark;
 import static org.apache.iceberg.TableProperties.GC_ENABLED;
 import static org.apache.iceberg.TableProperties.GC_ENABLED_DEFAULT;
 
+import java.io.Closeable;
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -1076,5 +1078,12 @@ public class SparkCatalog extends BaseCatalog {
   @Override
   public Catalog icebergCatalog() {
     return icebergCatalog;
+  }
+
+  @Override
+  public void close() throws IOException {
+    if (icebergCatalog instanceof Closeable) {
+      ((Closeable) icebergCatalog).close();
+    }
   }
 }
