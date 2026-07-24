@@ -84,7 +84,7 @@ For detailed usage and other optional configurations, please refer to the [Snaps
 #### Output
 | Output Name | Type | Description |
 | ------------|------|-------------|
-| `imported_files_count` | long | Number of files added to the new table |
+| `snapshotDataFilesCount` | long | Number of files added to the new table |
 
 #### Added Table Properties
 The following table properties are added to the Iceberg table to be created by default:
