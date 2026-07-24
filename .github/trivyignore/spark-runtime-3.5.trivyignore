@@ -22,6 +22,3 @@
 # compatibility with Spark 3.5. Newer Spark lines (4.0, 4.1) align Jackson to a
 # fixed version instead of ignoring the finding.
 #
-# jackson-databind CVEs that are only fixed in jackson >= 2.18.8.
-CVE-2026-54512
-CVE-2026-54513
