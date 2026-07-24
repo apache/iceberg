@@ -31,13 +31,18 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.BaseMetadataTable;
+import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.CachingCatalog;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SupportsOperationsReplacement;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TestableCachingCatalog;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
@@ -89,14 +94,14 @@ public class TestCachingCatalog extends HadoopTableTestBase {
     Table filesMetaTable2 = catalog.loadTable(filesMetaTableIdent);
     Table manifestsMetaTable2 = catalog.loadTable(manifestsMetaTableIdent);
 
-    // metadata tables are cached
-    assertThat(filesMetaTable2).isEqualTo(filesMetaTable);
-    assertThat(manifestsMetaTable2).isEqualTo(manifestsMetaTable);
+    // committing through the origin table invalidates its metadata tables, so they are reloaded
+    assertThat(filesMetaTable2).isNotEqualTo(filesMetaTable);
+    assertThat(manifestsMetaTable2).isNotEqualTo(manifestsMetaTable);
 
     // the current snapshot of origin table is updated after committing
     assertThat(table.currentSnapshot()).isNotEqualTo(oldSnapshot);
 
-    // underlying table operation in metadata tables are shared with the origin table
+    // reloaded metadata tables observe the origin table's new snapshot
     assertThat(filesMetaTable2.currentSnapshot()).isEqualTo(table.currentSnapshot());
     assertThat(manifestsMetaTable2.currentSnapshot()).isEqualTo(table.currentSnapshot());
   }
@@ -270,9 +275,154 @@ public class TestCachingCatalog extends HadoopTableTestBase {
     assertThat(catalog.ageOf(tableIdent)).get().isEqualTo(HALF_OF_EXPIRATION);
     assertThat(catalog.remainingAgeFor(tableIdent)).get().isEqualTo(HALF_OF_EXPIRATION);
 
+    // Committing through a table obtained from the catalog invalidates its cache entry so that a
+    // subsequent load observes the commit (https://github.com/apache/iceberg/issues/10493).
     table.newAppend().appendFile(FILE_A).commit();
-    assertThat(catalog.ageOf(tableIdent)).get().isEqualTo(HALF_OF_EXPIRATION);
-    assertThat(catalog.remainingAgeFor(tableIdent)).get().isEqualTo(HALF_OF_EXPIRATION);
+    assertThat(catalog.cache().asMap()).doesNotContainKey(tableIdent);
+  }
+
+  @Test
+  public void testLoadTableObservesCommitAfterConcurrentReloadDuringWrite() throws IOException {
+    TestableCachingCatalog catalog =
+        TestableCachingCatalog.wrap(hadoopCatalog(), EXPIRATION_TTL, ticker);
+    Namespace namespace = Namespace.of("db", "ns1", "ns2");
+    TableIdentifier tableIdent = TableIdentifier.of(namespace, "tbl");
+    catalog.createTable(tableIdent, SCHEMA, SPEC, ImmutableMap.of("key", "value"));
+
+    // Start from a clean cache so the writer is loaded fresh from the underlying catalog.
+    catalog.cache().invalidateAll();
+
+    // A writer loads the table and establishes an initial snapshot.
+    Table writer = catalog.loadTable(tableIdent);
+    writer.newAppend().appendFile(FILE_A).commit();
+    Snapshot committedBeforeWrite = writer.currentSnapshot();
+    assertThat(committedBeforeWrite).isNotNull();
+
+    // The writer begins a long-running write that will outlive the cache TTL.
+    AppendFiles pendingWrite = writer.newAppend().appendFile(FILE_B);
+
+    // The cache entry expires while the write is still in progress.
+    ticker.advance(EXPIRATION_TTL.plus(Duration.ofSeconds(1)));
+    assertThat(catalog.cache().asMap()).doesNotContainKey(tableIdent);
+
+    // A concurrent loader (e.g. an OpenLineage listener thread) reloads the table before the
+    // write commits, re-caching the pre-commit table with a fresh TTL.
+    Table concurrentlyReloaded = catalog.loadTable(tableIdent);
+    assertThat(catalog.cache().asMap()).containsKey(tableIdent);
+    assertThat(concurrentlyReloaded.currentSnapshot()).isEqualTo(committedBeforeWrite);
+
+    // The writer commits the in-flight write through its own table reference.
+    pendingWrite.commit();
+    Snapshot committedAfterWrite = writer.currentSnapshot();
+    assertThat(committedAfterWrite).isNotEqualTo(committedBeforeWrite);
+
+    // A subsequent load must observe the committed snapshot, not the stale table that was
+    // re-cached during the write (https://github.com/apache/iceberg/issues/10493).
+    assertThat(catalog.loadTable(tableIdent).currentSnapshot())
+        .as("loadTable after commit must not return a snapshot re-cached during the write")
+        .isEqualTo(committedAfterWrite);
+  }
+
+  @Test
+  public void testCreatedTableObservesCommitAfterConcurrentReloadDuringWrite() throws IOException {
+    TestableCachingCatalog catalog =
+        TestableCachingCatalog.wrap(hadoopCatalog(), EXPIRATION_TTL, ticker);
+    Namespace namespace = Namespace.of("db", "ns1", "ns2");
+    TableIdentifier tableIdent = TableIdentifier.of(namespace, "tbl");
+
+    // The writer keeps the table reference returned by createTable.
+    Table writer = catalog.createTable(tableIdent, SCHEMA, SPEC, ImmutableMap.of("key", "value"));
+    writer.newAppend().appendFile(FILE_A).commit();
+    Snapshot committedBeforeWrite = writer.currentSnapshot();
+    assertThat(committedBeforeWrite).isNotNull();
+
+    // The writer begins a long-running write that will outlive the cache TTL.
+    AppendFiles pendingWrite = writer.newAppend().appendFile(FILE_B);
+
+    // The cache entry is not present while the write is in progress.
+    ticker.advance(EXPIRATION_TTL.plus(Duration.ofSeconds(1)));
+    assertThat(catalog.cache().asMap()).doesNotContainKey(tableIdent);
+
+    // A concurrent loader reloads the table before the write commits, re-caching the pre-commit
+    // table with a fresh TTL.
+    Table concurrentlyReloaded = catalog.loadTable(tableIdent);
+    assertThat(catalog.cache().asMap()).containsKey(tableIdent);
+    assertThat(concurrentlyReloaded.currentSnapshot()).isEqualTo(committedBeforeWrite);
+
+    // The writer commits the in-flight write through the created-table reference.
+    pendingWrite.commit();
+    Snapshot committedAfterWrite = writer.currentSnapshot();
+    assertThat(committedAfterWrite).isNotEqualTo(committedBeforeWrite);
+
+    // A subsequent load must observe the committed snapshot, not the stale re-cached table.
+    assertThat(catalog.loadTable(tableIdent).currentSnapshot())
+        .as("loadTable after a commit through a created table must not return a stale snapshot")
+        .isEqualTo(committedAfterWrite);
+  }
+
+  @Test
+  public void testCachingCatalogPreservesTableSubtypeAndInvalidatesOnCommit() throws IOException {
+    // A delegate catalog that returns a BaseTable subclass (like RESTTable) from loadTable.
+    HadoopCatalog subtypeReturningCatalog =
+        new HadoopCatalog() {
+          @Override
+          public Table loadTable(TableIdentifier ident) {
+            Table loaded = super.loadTable(ident);
+            return new CustomBaseTable(((HasTableOperations) loaded).operations(), loaded.name());
+          }
+        };
+    subtypeReturningCatalog.setConf(new Configuration());
+    subtypeReturningCatalog.initialize(
+        "hadoop", ImmutableMap.of(CatalogProperties.WAREHOUSE_LOCATION, tempDir.getAbsolutePath()));
+
+    TestableCachingCatalog catalog =
+        TestableCachingCatalog.wrap(subtypeReturningCatalog, EXPIRATION_TTL, ticker);
+    Namespace namespace = Namespace.of("db", "ns1", "ns2");
+    TableIdentifier tableIdent = TableIdentifier.of(namespace, "tbl");
+    catalog.createTable(tableIdent, SCHEMA, SPEC, ImmutableMap.of("key", "value"));
+
+    // Load fresh from the delegate so the cache wraps the delegate's subtype.
+    catalog.cache().invalidateAll();
+    Table loaded = catalog.loadTable(tableIdent);
+
+    // The cache preserves the delegate's concrete table type via SupportsOperationsReplacement,
+    // rather than downgrading it to a plain BaseTable (which would discard specialized behavior).
+    assertThat(loaded).isInstanceOf(CustomBaseTable.class);
+
+    // A commit through the subtype still invalidates the cache entry.
+    loaded.newAppend().appendFile(FILE_A).commit();
+    assertThat(catalog.cache().asMap()).doesNotContainKey(tableIdent);
+  }
+
+  @Test
+  public void testCachingCatalogLeavesUnknownSubclassUnchanged() throws IOException {
+    // A delegate that returns a BaseTable subclass which does NOT opt in to operations replacement.
+    HadoopCatalog subtypeReturningCatalog =
+        new HadoopCatalog() {
+          @Override
+          public Table loadTable(TableIdentifier ident) {
+            Table loaded = super.loadTable(ident);
+            return new NonReplaceableBaseTable(
+                ((HasTableOperations) loaded).operations(), loaded.name());
+          }
+        };
+    subtypeReturningCatalog.setConf(new Configuration());
+    subtypeReturningCatalog.initialize(
+        "hadoop", ImmutableMap.of(CatalogProperties.WAREHOUSE_LOCATION, tempDir.getAbsolutePath()));
+
+    TestableCachingCatalog catalog =
+        TestableCachingCatalog.wrap(subtypeReturningCatalog, EXPIRATION_TTL, ticker);
+    Namespace namespace = Namespace.of("db", "ns1", "ns2");
+    TableIdentifier tableIdent = TableIdentifier.of(namespace, "tbl");
+    catalog.createTable(tableIdent, SCHEMA, SPEC, ImmutableMap.of("key", "value"));
+
+    // Load fresh from the delegate so the cache processes the subtype.
+    catalog.cache().invalidateAll();
+    Table loaded = catalog.loadTable(tableIdent);
+
+    // A subclass that does not opt in must be returned unchanged, not downgraded to a plain
+    // BaseTable (which would discard its overridden behavior).
+    assertThat(loaded).isInstanceOf(NonReplaceableBaseTable.class);
   }
 
   @Test
@@ -285,6 +435,9 @@ public class TestCachingCatalog extends HadoopTableTestBase {
     assertThat(catalog.cache().asMap()).containsKey(tableIdent);
 
     table.newAppend().appendFile(FILE_A).commit();
+
+    // The commit invalidates the cached entry; reload so the data table is cached again.
+    catalog.loadTable(tableIdent);
     assertThat(catalog.cache().asMap()).containsKey(tableIdent);
     assertThat(catalog.ageOf(tableIdent)).get().isEqualTo(Duration.ZERO);
 
@@ -440,5 +593,27 @@ public class TestCachingCatalog extends HadoopTableTestBase {
     return Arrays.stream(MetadataTableType.values())
         .map(type -> TableIdentifier.parse(tableIdent + "." + type.name().toLowerCase(Locale.ROOT)))
         .toArray(TableIdentifier[]::new);
+  }
+
+  /**
+   * A {@link BaseTable} subclass that opts in to operations replacement, preserving its type when
+   * re-created with new operations.
+   */
+  private static class CustomBaseTable extends BaseTable implements SupportsOperationsReplacement {
+    private CustomBaseTable(TableOperations ops, String name) {
+      super(ops, name);
+    }
+
+    @Override
+    public Table withOperations(TableOperations newOps) {
+      return new CustomBaseTable(newOps, name());
+    }
+  }
+
+  /** A {@link BaseTable} subclass that does not opt in to operations replacement. */
+  private static class NonReplaceableBaseTable extends BaseTable {
+    private NonReplaceableBaseTable(TableOperations ops, String name) {
+      super(ops, name);
+    }
   }
 }
