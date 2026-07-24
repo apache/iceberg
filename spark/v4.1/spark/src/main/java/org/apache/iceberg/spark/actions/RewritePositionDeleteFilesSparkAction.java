@@ -120,7 +120,7 @@ public class RewritePositionDeleteFilesSparkAction
     validateAndInitOptions();
 
     if (TableUtil.formatVersion(table) >= 3 && !requiresRewriteToDVs()) {
-      LOG.info("v2 deletes in {} have already been rewritten to v3 DVs", table.name());
+      LOG.info("v2 deletes in {} have already been rewritten to DVs", table.name());
       return EMPTY_RESULT;
     }
 

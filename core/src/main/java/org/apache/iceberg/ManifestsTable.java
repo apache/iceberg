@@ -77,15 +77,25 @@ public class ManifestsTable extends BaseMetadataTable {
 
   protected DataTask task(TableScan scan) {
     FileIO io = table().io();
-    String location = scan.snapshot().manifestListLocation();
+    Snapshot snapshot = scan.snapshot();
     Map<Integer, PartitionSpec> specs = Maps.newHashMap(table().specs());
 
+    // v4+ snapshots address the manifest tree via a root manifest; legacy snapshots without a
+    // manifest list (synthetic) fall back to the table metadata file.
+    String inputLocation;
+    if (snapshot.manifestListLocation() != null) {
+      inputLocation = snapshot.manifestListLocation();
+    } else if (snapshot.rootManifestLocation() != null) {
+      inputLocation = snapshot.rootManifestLocation();
+    } else {
+      inputLocation = table().operations().current().metadataFileLocation();
+    }
+
     return StaticDataTask.of(
-        io.newInputFile(
-            location != null ? location : table().operations().current().metadataFileLocation()),
+        io.newInputFile(inputLocation),
         schema(),
         scan.schema(),
-        scan.snapshot().allManifests(io),
+        snapshot.allManifests(io),
         manifest -> {
           PartitionSpec spec = specs.get(manifest.partitionSpecId());
           return ManifestsTable.manifestFileToRow(spec, manifest);

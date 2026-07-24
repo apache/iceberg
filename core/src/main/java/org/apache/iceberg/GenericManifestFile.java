@@ -60,6 +60,13 @@ public class GenericManifestFile extends SupportsIndexProjection
   private PartitionFieldSummary[] partitions = null;
   private byte[] keyMetadata = null;
   private Long firstRowId = null;
+  private Long recordCount = null;
+  private int formatVersion = LEGACY_FORMAT_VERSION;
+  // v4+: counts for REPLACED entries persisted on the v4+ root manifest. Null for
+  // pre-v4 manifest list entries which don't carry these fields. Populated via the 21-arg v4+
+  // constructor variant by v4+ writers/readers; no public setter.
+  private Integer replacedFilesCount = null;
+  private Long replacedRowsCount = null;
 
   /** Used by Avro reflection to instantiate this class when reading manifest files. */
   public GenericManifestFile(Schema avroSchema) {
@@ -94,7 +101,7 @@ public class GenericManifestFile extends SupportsIndexProjection
     this.firstRowId = null;
   }
 
-  /** Adjust the arg order to avoid conflict with the public constructor below */
+  /** Pre-v4 constructor. */
   GenericManifestFile(
       String path,
       long length,
@@ -130,6 +137,102 @@ public class GenericManifestFile extends SupportsIndexProjection
     this.partitions = partitions == null ? null : partitions.toArray(new PartitionFieldSummary[0]);
     this.keyMetadata = ByteBuffers.toByteArray(keyMetadata);
     this.firstRowId = firstRowId;
+    this.recordCount = null;
+    this.formatVersion = LEGACY_FORMAT_VERSION;
+  }
+
+  /** v4+ constructor variant that accepts recordCount and formatVersion. */
+  GenericManifestFile(
+      String path,
+      long length,
+      int specId,
+      ManifestContent content,
+      long sequenceNumber,
+      long minSequenceNumber,
+      Long snapshotId,
+      List<PartitionFieldSummary> partitions,
+      ByteBuffer keyMetadata,
+      Integer addedFilesCount,
+      Long addedRowsCount,
+      Integer existingFilesCount,
+      Long existingRowsCount,
+      Integer deletedFilesCount,
+      Long deletedRowsCount,
+      Long firstRowId,
+      Long recordCount,
+      int formatVersion) {
+    this(
+        path,
+        length,
+        specId,
+        content,
+        sequenceNumber,
+        minSequenceNumber,
+        snapshotId,
+        partitions,
+        keyMetadata,
+        addedFilesCount,
+        addedRowsCount,
+        existingFilesCount,
+        existingRowsCount,
+        deletedFilesCount,
+        deletedRowsCount,
+        firstRowId,
+        recordCount,
+        formatVersion,
+        null /* replacedFilesCount */,
+        null /* replacedRowsCount */);
+  }
+
+  /**
+   * v4+ constructor variant that additionally accepts the v4+ {@code replacedFilesCount} and {@code
+   * replacedRowsCount} fields. Callers that do not track REPLACED entries (e.g., pre-v4 writers and
+   * v4+ leaf writers without colocated DVs) should use the 19-arg variant which defaults both to
+   * {@code null}.
+   */
+  GenericManifestFile(
+      String path,
+      long length,
+      int specId,
+      ManifestContent content,
+      long sequenceNumber,
+      long minSequenceNumber,
+      Long snapshotId,
+      List<PartitionFieldSummary> partitions,
+      ByteBuffer keyMetadata,
+      Integer addedFilesCount,
+      Long addedRowsCount,
+      Integer existingFilesCount,
+      Long existingRowsCount,
+      Integer deletedFilesCount,
+      Long deletedRowsCount,
+      Long firstRowId,
+      Long recordCount,
+      int formatVersion,
+      Integer replacedFilesCount,
+      Long replacedRowsCount) {
+    super(ManifestFile.schema().columns().size());
+    this.avroSchema = AVRO_SCHEMA;
+    this.manifestPath = path;
+    this.length = length;
+    this.specId = specId;
+    this.content = content;
+    this.sequenceNumber = sequenceNumber;
+    this.minSequenceNumber = minSequenceNumber;
+    this.snapshotId = snapshotId;
+    this.addedFilesCount = addedFilesCount;
+    this.addedRowsCount = addedRowsCount;
+    this.existingFilesCount = existingFilesCount;
+    this.existingRowsCount = existingRowsCount;
+    this.deletedFilesCount = deletedFilesCount;
+    this.deletedRowsCount = deletedRowsCount;
+    this.partitions = partitions == null ? null : partitions.toArray(new PartitionFieldSummary[0]);
+    this.keyMetadata = ByteBuffers.toByteArray(keyMetadata);
+    this.firstRowId = firstRowId;
+    this.recordCount = recordCount;
+    this.formatVersion = formatVersion;
+    this.replacedFilesCount = replacedFilesCount;
+    this.replacedRowsCount = replacedRowsCount;
   }
 
   /**
@@ -172,6 +275,10 @@ public class GenericManifestFile extends SupportsIndexProjection
             ? null
             : Arrays.copyOf(toCopy.keyMetadata, toCopy.keyMetadata.length);
     this.firstRowId = toCopy.firstRowId;
+    this.recordCount = toCopy.recordCount;
+    this.formatVersion = toCopy.formatVersion;
+    this.replacedFilesCount = toCopy.replacedFilesCount;
+    this.replacedRowsCount = toCopy.replacedRowsCount;
   }
 
   /** Constructor for Java serialization. */
@@ -258,6 +365,16 @@ public class GenericManifestFile extends SupportsIndexProjection
   }
 
   @Override
+  public Integer replacedFilesCount() {
+    return replacedFilesCount;
+  }
+
+  @Override
+  public Long replacedRowsCount() {
+    return replacedRowsCount;
+  }
+
+  @Override
   public List<PartitionFieldSummary> partitions() {
     return partitions == null ? null : Arrays.asList(partitions);
   }
@@ -270,6 +387,16 @@ public class GenericManifestFile extends SupportsIndexProjection
   @Override
   public Long firstRowId() {
     return firstRowId;
+  }
+
+  @Override
+  public Long recordCount() {
+    return recordCount;
+  }
+
+  @Override
+  public int formatVersion() {
+    return formatVersion;
   }
 
   @Override
@@ -474,6 +601,18 @@ public class GenericManifestFile extends SupportsIndexProjection
 
     public CopyBuilder withSnapshotId(Long newSnapshotId) {
       manifestFile.snapshotId = newSnapshotId;
+      return this;
+    }
+
+    /**
+     * Replaces the sequence number and min sequence number on the copy. Used by {@link
+     * RootManifestWriter} to resolve {@link ManifestWriter#UNASSIGNED_SEQ} on a freshly written
+     * leaf manifest before it is emitted as a root-manifest entry, mirroring {@code
+     * V3Metadata.ManifestFileWrapper}.
+     */
+    CopyBuilder withSequenceNumbers(long newSequenceNumber, long newMinSequenceNumber) {
+      manifestFile.sequenceNumber = newSequenceNumber;
+      manifestFile.minSequenceNumber = newMinSequenceNumber;
       return this;
     }
 

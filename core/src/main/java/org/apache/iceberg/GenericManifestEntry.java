@@ -79,6 +79,20 @@ class GenericManifestEntry<F extends ContentFile<F>>
     return this;
   }
 
+  /**
+   * Wraps a newly added file without suppressing {@code firstRowId}. Used by v4+ writers that store
+   * {@code firstRowId} per-entry in the tracking struct rather than at manifest level.
+   */
+  ManifestEntry<F> wrapAppendPreservingFirstRowId(
+      Long newSnapshotId, Long newDataSequenceNumber, F newFile) {
+    this.status = Status.ADDED;
+    this.snapshotId = newSnapshotId;
+    this.dataSequenceNumber = newDataSequenceNumber;
+    this.fileSequenceNumber = null;
+    this.file = newFile;
+    return this;
+  }
+
   ManifestEntry<F> wrapDelete(Long newSnapshotId, ManifestEntry<F> entry) {
     return wrapDelete(
         newSnapshotId, entry.dataSequenceNumber(), entry.fileSequenceNumber(), entry.file());

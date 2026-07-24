@@ -242,6 +242,9 @@ public class TestRewriteFiles extends TestBase {
     assumeThat(formatVersion)
         .as("Rewriting delete files is only supported in iceberg format v2 or later")
         .isGreaterThan(1);
+    // v4+ colocates DVs in data manifests; the snapshot_id on rewritten entries and the
+    // v3 separate-delete-manifest assertions no longer hold (Phase 10 follow-up).
+    assumeThat(formatVersion).isLessThan(4);
     assertThat(listManifestFiles()).isEmpty();
 
     commit(
@@ -317,6 +320,9 @@ public class TestRewriteFiles extends TestBase {
     assumeThat(formatVersion)
         .as("Sequence number is only supported in iceberg format v2 or later")
         .isGreaterThan(1);
+    // v4+ colocates DVs and rewrites data manifests, changing the snapshot_id on
+    // affected entries (Phase 10 architectural follow-up).
+    assumeThat(formatVersion).isLessThan(4);
     assertThat(listManifestFiles()).isEmpty();
 
     commit(
@@ -420,6 +426,10 @@ public class TestRewriteFiles extends TestBase {
     assumeThat(formatVersion)
         .as("Rewriting delete files is only supported in iceberg format v2 or later")
         .isGreaterThan(1);
+    // v4+ colocates DVs in data manifests; the "Missing required files to delete"
+    // assertions assume separate delete files which v4+ does not produce
+    // (Phase 10 architectural follow-up).
+    assumeThat(formatVersion).isLessThan(4);
 
     commit(
         table,
@@ -517,6 +527,8 @@ public class TestRewriteFiles extends TestBase {
     assumeThat(formatVersion)
         .as("Rewriting delete files is only supported in iceberg format v2 or later")
         .isGreaterThan(1);
+    // v4+ colocates DVs in data manifests (Phase 10 architectural follow-up).
+    assumeThat(formatVersion).isLessThan(4);
 
     commit(
         table,
@@ -584,6 +596,9 @@ public class TestRewriteFiles extends TestBase {
     assumeThat(formatVersion)
         .as("Rewriting delete files is only supported in iceberg format v2 or later")
         .isGreaterThan(1);
+    // v4+ requires position deletes to be colocated DVs in data manifests, not separate
+    // delete manifest entries (Phase 10 architectural follow-up).
+    assumeThat(formatVersion).isLessThan(4);
 
     commit(table, table.newRowDelta().addRows(FILE_A2).addDeletes(FILE_A2_DELETES), branch);
 
@@ -642,6 +657,9 @@ public class TestRewriteFiles extends TestBase {
     assumeThat(formatVersion)
         .as("Rewriting delete files is only supported in iceberg format v2 or later")
         .isGreaterThan(1);
+    // v4+ colocates DVs in data manifests; rewrites removing DVs require different
+    // bookkeeping than v3's separate delete files (Phase 10 architectural follow-up).
+    assumeThat(formatVersion).isLessThan(4);
 
     commit(table, table.newRowDelta().addRows(FILE_A).addDeletes(fileADeletes()), branch);
 
@@ -749,6 +767,9 @@ public class TestRewriteFiles extends TestBase {
     assumeThat(formatVersion)
         .as("Rewriting delete files is only supported in iceberg format v2 or later")
         .isGreaterThan(1);
+    // v4+ colocates DVs by rewriting data manifests, changing the manifest_id /
+    // snapshot_id assertions used here (Phase 10 architectural follow-up).
+    assumeThat(formatVersion).isLessThan(4);
 
     commit(table, table.newAppend().appendFile(FILE_A), branch);
 
@@ -781,6 +802,9 @@ public class TestRewriteFiles extends TestBase {
   @TestTemplate
   public void removingDataFileAlsoRemovesDV() {
     assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
+    // v4+ has no separate delete manifests; DVs are colocated in data manifests
+    // (Phase 10 architectural follow-up).
+    assumeThat(formatVersion).isLessThan(4);
     commit(
         table,
         table
