@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.aws;
 
-import java.net.URI;
 import java.time.Duration;
 import java.util.Map;
 import java.util.Objects;
@@ -27,16 +26,13 @@ import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTest
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.PropertyUtil;
 import software.amazon.awssdk.http.SdkHttpClient;
-import software.amazon.awssdk.http.urlconnection.ProxyConfiguration;
 import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
 
 class UrlConnectionHttpClientConfigurations extends BaseHttpClientConfigurations {
 
   private Long httpClientUrlConnectionConnectionTimeoutMs;
   private Long httpClientUrlConnectionSocketTimeoutMs;
-  private String proxyEndpoint;
-  private Boolean proxyUseSystemPropertyValues;
-  private Boolean proxyUseEnvironmentVariableValues;
+  private ProxyConfiguration proxyConfiguration;
 
   private UrlConnectionHttpClientConfigurations() {}
 
@@ -55,15 +51,7 @@ class UrlConnectionHttpClientConfigurations extends BaseHttpClientConfigurations
     this.httpClientUrlConnectionSocketTimeoutMs =
         PropertyUtil.propertyAsNullableLong(
             httpClientProperties, HttpClientProperties.URLCONNECTION_SOCKET_TIMEOUT_MS);
-    this.proxyEndpoint =
-        PropertyUtil.propertyAsString(
-            httpClientProperties, HttpClientProperties.PROXY_ENDPOINT, null);
-    this.proxyUseSystemPropertyValues =
-        PropertyUtil.propertyAsNullableBoolean(
-            httpClientProperties, HttpClientProperties.PROXY_USE_SYSTEM_PROPERTY_VALUES);
-    this.proxyUseEnvironmentVariableValues =
-        PropertyUtil.propertyAsNullableBoolean(
-            httpClientProperties, HttpClientProperties.PROXY_USE_ENVIRONMENT_VARIABLE_VALUES);
+    this.proxyConfiguration = ProxyConfiguration.create(httpClientProperties);
   }
 
   @VisibleForTesting
@@ -81,22 +69,8 @@ class UrlConnectionHttpClientConfigurations extends BaseHttpClientConfigurations
   }
 
   private void configureProxy(UrlConnectionHttpClient.Builder urlConnectionHttpClientBuilder) {
-    if (proxyEndpoint != null
-        || proxyUseSystemPropertyValues != null
-        || proxyUseEnvironmentVariableValues != null) {
-      ProxyConfiguration.Builder proxyBuilder = ProxyConfiguration.builder();
-
-      if (proxyEndpoint != null) {
-        proxyBuilder.endpoint(URI.create(proxyEndpoint));
-      }
-      if (proxyUseSystemPropertyValues != null) {
-        proxyBuilder.useSystemPropertyValues(proxyUseSystemPropertyValues);
-      }
-      if (proxyUseEnvironmentVariableValues != null) {
-        proxyBuilder.useEnvironmentVariablesValues(proxyUseEnvironmentVariableValues);
-      }
-
-      urlConnectionHttpClientBuilder.proxyConfiguration(proxyBuilder.build());
+    if (proxyConfiguration.isConfigured()) {
+      urlConnectionHttpClientBuilder.proxyConfiguration(proxyConfiguration.toUrlConnection());
     }
   }
 
@@ -111,9 +85,7 @@ class UrlConnectionHttpClientConfigurations extends BaseHttpClientConfigurations
     keyComponents.put("type", "urlconnection");
     keyComponents.put("connectionTimeoutMs", httpClientUrlConnectionConnectionTimeoutMs);
     keyComponents.put("socketTimeoutMs", httpClientUrlConnectionSocketTimeoutMs);
-    keyComponents.put("proxyEndpoint", proxyEndpoint);
-    keyComponents.put("proxyUseSystemPropertyValues", proxyUseSystemPropertyValues);
-    keyComponents.put("proxyUseEnvironmentVariableValues", proxyUseEnvironmentVariableValues);
+    proxyConfiguration.addToCacheKey(keyComponents);
 
     return keyComponents.entrySet().stream()
         .map(entry -> entry.getKey() + "=" + Objects.toString(entry.getValue(), "null"))
