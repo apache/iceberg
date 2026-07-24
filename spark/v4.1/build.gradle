@@ -280,6 +280,10 @@ project(":iceberg-spark:iceberg-spark-runtime-${sparkMajorVersion}_${scalaVersio
       include 'NOTICE'
     }
 
+    // exclude dependency-provided LICENSE/NOTICE files in favor of the bundled Iceberg ones
+    exclude 'META-INF/LICENSE*'
+    exclude 'META-INF/NOTICE*'
+
     // Relocate dependencies to avoid conflicts
     relocate 'com.google.errorprone', 'org.apache.iceberg.shaded.com.google.errorprone'
     relocate 'com.google.flatbuffers', 'org.apache.iceberg.shaded.com.google.flatbuffers'
