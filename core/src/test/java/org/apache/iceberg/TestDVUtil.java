@@ -23,74 +23,43 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import org.junit.jupiter.api.Test;
+import java.util.stream.Stream;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 public class TestDVUtil {
 
-  @Test
-  public void validateDVRejectsNullOffset() {
-    DeleteFile dv = dv(null, 10L);
+  @ParameterizedTest
+  @MethodSource("invalidDVs")
+  public void validateDVRejectsInvalidOffsetOrLength(
+      Long offset, Long length, String expectedMessage) {
+    DeleteFile dv = dv(offset, length);
     assertThatThrownBy(() -> DVUtil.validateDV(dv))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("offset cannot be null");
+        .hasMessageContaining(expectedMessage);
   }
 
-  @Test
-  public void validateDVRejectsNullLength() {
-    DeleteFile dv = dv(0L, null);
-    assertThatThrownBy(() -> DVUtil.validateDV(dv))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("length cannot be null");
+  private static Stream<Arguments> invalidDVs() {
+    return Stream.of(
+        Arguments.of(null, 10L, "offset cannot be null"),
+        Arguments.of(0L, null, "length cannot be null"),
+        Arguments.of(-1L, 10L, "offset must be non-negative"),
+        Arguments.of(0L, -1L, "length must be non-negative"),
+        Arguments.of(0L, (long) Integer.MAX_VALUE, "Can't read DV larger than 2GB"),
+        Arguments.of(0L, Integer.MAX_VALUE + 1L, "Can't read DV larger than 2GB"));
   }
 
-  @Test
-  public void validateDVRejectsNegativeOffset() {
-    DeleteFile dv = dv(-1L, 10L);
-    assertThatThrownBy(() -> DVUtil.validateDV(dv))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("offset must be non-negative");
-  }
-
-  @Test
-  public void validateDVRejectsNegativeLength() {
-    DeleteFile dv = dv(0L, -1L);
-    assertThatThrownBy(() -> DVUtil.validateDV(dv))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("length must be non-negative");
-  }
-
-  @Test
-  public void validateDVRejectsLengthEqualToIntegerMax() {
-    DeleteFile dv = dv(0L, (long) Integer.MAX_VALUE);
-    assertThatThrownBy(() -> DVUtil.validateDV(dv))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Can't read DV larger than 2GB");
-  }
-
-  @Test
-  public void validateDVRejectsLengthAboveIntegerMax() {
-    DeleteFile dv = dv(0L, (long) Integer.MAX_VALUE + 1);
-    assertThatThrownBy(() -> DVUtil.validateDV(dv))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Can't read DV larger than 2GB");
-  }
-
-  @Test
-  public void validateDVAcceptsZero() {
-    DeleteFile dv = dv(0L, 0L);
+  @ParameterizedTest
+  @MethodSource("validDVs")
+  public void validateDVAcceptsValidOffsetAndLength(Long offset, Long length) {
+    DeleteFile dv = dv(offset, length);
     assertThatCode(() -> DVUtil.validateDV(dv)).doesNotThrowAnyException();
   }
 
-  @Test
-  public void validateDVAcceptsTypicalValues() {
-    DeleteFile dv = dv(4L, 4096L);
-    assertThatCode(() -> DVUtil.validateDV(dv)).doesNotThrowAnyException();
-  }
-
-  @Test
-  public void validateDVAcceptsMaximumLength() {
-    DeleteFile dv = dv(0L, (long) Integer.MAX_VALUE - 1);
-    assertThatCode(() -> DVUtil.validateDV(dv)).doesNotThrowAnyException();
+  private static Stream<Arguments> validDVs() {
+    return Stream.of(
+        Arguments.of(0L, 0L), Arguments.of(4L, 4096L), Arguments.of(0L, Integer.MAX_VALUE - 1L));
   }
 
   private static DeleteFile dv(Long offset, Long length) {
