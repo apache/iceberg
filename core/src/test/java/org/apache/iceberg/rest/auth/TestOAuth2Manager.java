@@ -36,6 +36,7 @@ import org.apache.iceberg.rest.RESTClient;
 import org.apache.iceberg.rest.responses.OAuthTokenResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
 class TestOAuth2Manager {
@@ -478,6 +479,21 @@ class TestOAuth2Manager {
   }
 
   @Test
+  void standaloneTableSessionTokenProvidedWithCustomHeaders() {
+    Map<String, String> tableProperties =
+        Map.of(OAuth2Properties.TOKEN, "table-token", "header.Polaris-Realm", "tenant-a");
+    try (OAuth2Manager manager = new OAuth2Manager("test");
+        OAuth2Util.AuthSession tableSession =
+            (OAuth2Util.AuthSession) manager.tableSession(client, tableProperties)) {
+      assertThat(tableSession.headers())
+          .containsOnly(
+              entry("Authorization", "Bearer table-token"), entry("Polaris-Realm", "tenant-a"));
+    }
+    Mockito.verify(client).withAuthSession(any());
+    Mockito.verifyNoMoreInteractions(client);
+  }
+
+  @Test
   void standaloneTableSessionCredentialProvided() {
     Map<String, String> tableProperties = Map.of(OAuth2Properties.CREDENTIAL, "client:secret");
     try (OAuth2Manager manager = new OAuth2Manager("test");
@@ -491,6 +507,38 @@ class TestOAuth2Manager {
           .satisfies(cache -> assertThat(cache.sessionCache().asMap()).hasSize(1));
     }
     Mockito.verify(client).withAuthSession(any());
+    Mockito.verify(client)
+        .postForm(
+            any(),
+            eq(
+                Map.of(
+                    "grant_type", "client_credentials",
+                    "client_id", "client",
+                    "client_secret", "secret",
+                    "scope", "catalog")),
+            eq(OAuthTokenResponse.class),
+            eq(Map.of()),
+            any());
+    Mockito.verifyNoMoreInteractions(client);
+  }
+
+  @Test
+  void standaloneTableSessionCredentialProvidedWithCustomHeaders() {
+    Map<String, String> tableProperties =
+        Map.of(OAuth2Properties.CREDENTIAL, "client:secret", "header.Polaris-Realm", "tenant-a");
+    try (OAuth2Manager manager = new OAuth2Manager("test");
+        OAuth2Util.AuthSession tableSession =
+            (OAuth2Util.AuthSession) manager.tableSession(client, tableProperties)) {
+      assertThat(tableSession.headers())
+          .containsOnly(entry("Authorization", "Bearer test"), entry("Polaris-Realm", "tenant-a"));
+    }
+
+    ArgumentCaptor<AuthSession> parentSession = ArgumentCaptor.forClass(AuthSession.class);
+    Mockito.verify(client).withAuthSession(parentSession.capture());
+    assertThat(parentSession.getValue())
+        .isInstanceOfSatisfying(
+            OAuth2Util.AuthSession.class,
+            session -> assertThat(session.headers()).containsEntry("Polaris-Realm", "tenant-a"));
     Mockito.verify(client)
         .postForm(
             any(),
