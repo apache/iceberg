@@ -64,6 +64,16 @@ public class OAuth2Properties {
   /** Optional param resource for OAuth2. */
   public static final String RESOURCE = "resource";
 
+  /**
+   * When enabled, the Authorization header inherited from the parent session is not forwarded when
+   * fetching a new token via the client credentials flow. This prevents strict identity providers
+   * from rejecting the token request due to using multiple authentication methods.
+   */
+  public static final String SKIP_INHERITED_AUTH_HEADER_IN_TOKEN_REQUEST =
+      "skip-inherited-auth-header-in-token-request";
+
+  public static final boolean SKIP_INHERITED_AUTH_HEADER_IN_TOKEN_REQUEST_DEFAULT = false;
+
   /** Scope for OAuth2 flows. */
   public static final String CATALOG_SCOPE = "catalog";
 
