@@ -43,13 +43,22 @@ interface FieldStats<T> {
    */
   boolean tightBounds();
 
-  /** The total value count, including null and NaN */
+  /** Whether a value count is tracked for this field. */
+  boolean hasValueCount();
+
+  /** The total value count, including null and NaN, defined only when {@link #hasValueCount()}. */
   long valueCount();
 
-  /** The total null value count */
+  /** Whether a null value count is tracked for this field. */
+  boolean hasNullValueCount();
+
+  /** The total null value count, defined only when {@link #hasNullValueCount()}. */
   long nullValueCount();
 
-  /** The total NaN value count */
+  /** Whether a NaN value count is tracked for this field. */
+  boolean hasNanValueCount();
+
+  /** The total NaN value count, defined only when {@link #hasNanValueCount()}. */
   long nanValueCount();
 
   /**

@@ -144,13 +144,28 @@ class FieldStatsStruct<T> implements FieldStats<T>, StructLike, Serializable {
   }
 
   @Override
+  public boolean hasValueCount() {
+    return valueCount != null;
+  }
+
+  @Override
   public long valueCount() {
     return valueCount;
   }
 
   @Override
+  public boolean hasNullValueCount() {
+    return nullValueCount != null;
+  }
+
+  @Override
   public long nullValueCount() {
     return nullValueCount;
+  }
+
+  @Override
+  public boolean hasNanValueCount() {
+    return nanValueCount != null;
   }
 
   @Override

@@ -54,17 +54,24 @@ public class TestContentStatsStruct {
       StatsUtil.fieldStatsStruct(false, Types.IntegerType.get(), 10_800, MetricsModes.Full.get());
 
   private static final FieldStats<Long> ID_STATS =
-      new FieldStatsStruct<>(
-          CONTENT_STATS_STRUCT.field("id").type().asStructType(), 0L, 25L, true, 26L, 0L, 0L, null);
+      StatsTestUtil.fieldStats(
+          CONTENT_STATS_STRUCT.field("id").type().asStructType(),
+          0L,
+          25L,
+          true,
+          26L,
+          null,
+          null,
+          null);
   private static final FieldStats<String> DATA_STATS =
-      new FieldStatsStruct<>(
+      StatsTestUtil.fieldStats(
           CONTENT_STATS_STRUCT.field("data").type().asStructType(),
           "a",
           "z",
           true,
           26L,
           0L,
-          0L,
+          null,
           null);
 
   @Test
@@ -102,10 +109,10 @@ public class TestContentStatsStruct {
   public void testSetStatsUnknownField() {
     ContentStatsStruct stats = new ContentStatsStruct(CONTENT_STATS_STRUCT);
 
-    FieldStats<Integer> fieldStats =
-        new FieldStatsStruct<>(UNKNOWN_FIELD_STATS_STRUCT, 0, 10, false, 8, 3, 0, null);
+    FieldStats<Integer> unknownStats =
+        StatsTestUtil.fieldStats(UNKNOWN_FIELD_STATS_STRUCT, 0, 10, false, 8L, null, null, null);
 
-    assertThatThrownBy(() -> stats.setStats(4, fieldStats))
+    assertThatThrownBy(() -> stats.setStats(4, unknownStats))
         .hasMessage("Cannot set stats for unknown field ID: 4")
         .isInstanceOf(IllegalArgumentException.class);
   }

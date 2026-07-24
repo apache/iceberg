@@ -174,27 +174,27 @@ class TrackedFileAdapters {
 
     @Override
     public Map<Integer, Long> valueCounts() {
-      return MetricsUtil.valueCounts(file().contentStats());
+      return ContentStatsBackedMap.valueCounts(file().contentStats());
     }
 
     @Override
     public Map<Integer, Long> nullValueCounts() {
-      return MetricsUtil.nullValueCounts(file().contentStats());
+      return ContentStatsBackedMap.nullValueCounts(file().contentStats());
     }
 
     @Override
     public Map<Integer, Long> nanValueCounts() {
-      return MetricsUtil.nanValueCounts(file().contentStats());
+      return ContentStatsBackedMap.nanValueCounts(file().contentStats());
     }
 
     @Override
     public Map<Integer, ByteBuffer> lowerBounds() {
-      return MetricsUtil.lowerBounds(file().contentStats());
+      return ContentStatsBackedMap.lowerBounds(file().contentStats());
     }
 
     @Override
     public Map<Integer, ByteBuffer> upperBounds() {
-      return MetricsUtil.upperBounds(file().contentStats());
+      return ContentStatsBackedMap.upperBounds(file().contentStats());
     }
   }
 
