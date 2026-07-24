@@ -360,14 +360,8 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
   /**
    * Lists the {@link TableIdentifier} of all Iceberg tables under the given database.
    *
-   * <p>Implementation uses the HMS {@code get_table_names_by_filter} API, filtering on {@code
-   * parameters.table_type} on the server side so that only matching table names (rather than full
-   * Table objects) are returned.
-   *
    * @param namespace the namespace corresponding to the database
-   * @param tableTypeValue the value of {@code parameters.table_type} to filter on, e.g. {@link
-   *     BaseMetastoreTableOperations#ICEBERG_TABLE_TYPE_VALUE} for tables. HMS normalizes this
-   *     value to upper case when persisting it, so the filter value is upper-cased to match.
+   * @param tableTypeValue the value of {@code parameters.table_type} to filter on.
    */
   private List<TableIdentifier> listIcebergTablesByFilter(
       Namespace namespace, String tableTypeValue) throws TException, InterruptedException {
