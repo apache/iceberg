@@ -215,4 +215,49 @@ public class TestBitmapPositionDeleteIndex {
     index.forEach(positions::add);
     return positions;
   }
+
+  @Test
+  public void testEndToEndDVBitmapUnion() {
+    // End-to-end integration test for issue #17206: two different DV blobs for the same data
+    // file with known positions {0,2} and {1,3}. After serialize → deserialize → merge (the
+    // exact pipeline BaseDeleteLoader.readAndMergeDVs uses), all four positions {0,1,2,3} must
+    // be marked as deleted.
+    BitmapPositionDeleteIndex dv1Index = new BitmapPositionDeleteIndex();
+    dv1Index.delete(0L);
+    dv1Index.delete(2L);
+
+    BitmapPositionDeleteIndex dv2Index = new BitmapPositionDeleteIndex();
+    dv2Index.delete(1L);
+    dv2Index.delete(3L);
+
+    // Serialize each DV (mimics what a Puffin writer produces)
+    ByteBuffer dv1Bytes = dv1Index.serialize();
+    ByteBuffer dv2Bytes = dv2Index.serialize();
+
+    // Deserialize each (mimics BaseDeleteLoader.readDV)
+    DeleteFile mockDv1 = mockDV(dv1Bytes.remaining(), 2);
+    DeleteFile mockDv2 = mockDV(dv2Bytes.remaining(), 2);
+    PositionDeleteIndex deserialized1 =
+        PositionDeleteIndex.deserialize(toByteArray(dv1Bytes), mockDv1);
+    PositionDeleteIndex deserialized2 =
+        PositionDeleteIndex.deserialize(toByteArray(dv2Bytes), mockDv2);
+
+    // Merge (mimics PositionDeleteIndexUtil.merge in readAndMergeDVs)
+    PositionDeleteIndex merged =
+        PositionDeleteIndexUtil.merge(Lists.newArrayList(deserialized1, deserialized2));
+
+    // Assert the union: all 4 positions {0, 1, 2, 3} must be deleted
+    assertThat(merged.isDeleted(0L)).as("Position 0 must be deleted").isTrue();
+    assertThat(merged.isDeleted(1L)).as("Position 1 must be deleted").isTrue();
+    assertThat(merged.isDeleted(2L)).as("Position 2 must be deleted").isTrue();
+    assertThat(merged.isDeleted(3L)).as("Position 3 must be deleted").isTrue();
+    assertThat(merged.isDeleted(4L)).as("Position 4 must NOT be deleted").isFalse();
+    assertThat(merged.cardinality()).isEqualTo(4L);
+  }
+
+  private static byte[] toByteArray(ByteBuffer buffer) {
+    byte[] bytes = new byte[buffer.remaining()];
+    buffer.get(bytes);
+    return bytes;
+  }
 }

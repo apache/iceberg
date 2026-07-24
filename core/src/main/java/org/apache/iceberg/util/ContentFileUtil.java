@@ -147,6 +147,10 @@ public class ContentFileUtil {
     return Iterables.size(deleteFiles) == 1 && Iterables.all(deleteFiles, ContentFileUtil::isDV);
   }
 
+  public static boolean containsOnlyDVs(Iterable<DeleteFile> deleteFiles) {
+    return !Iterables.isEmpty(deleteFiles) && Iterables.all(deleteFiles, ContentFileUtil::isDV);
+  }
+
   public static String dvDesc(DeleteFile deleteFile) {
     return String.format(
         "DV{location=%s, offset=%s, length=%s, referencedDataFile=%s}",
