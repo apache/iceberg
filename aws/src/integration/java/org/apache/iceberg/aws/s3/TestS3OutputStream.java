@@ -62,8 +62,10 @@ import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.AbortMultipartUploadRequest;
 import software.amazon.awssdk.services.s3.model.BucketAlreadyExistsException;
 import software.amazon.awssdk.services.s3.model.BucketAlreadyOwnedByYouException;
+import software.amazon.awssdk.services.s3.model.ChecksumAlgorithm;
 import software.amazon.awssdk.services.s3.model.CompleteMultipartUploadRequest;
 import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
+import software.amazon.awssdk.services.s3.model.CreateMultipartUploadRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
@@ -171,6 +173,48 @@ public class TestS3OutputStream {
   public void testWriteWithChecksumEnabled() {
     properties.setChecksumEnabled(true);
     writeTest();
+  }
+
+  @Test
+  public void testWriteWithChecksumAlgorithm() throws IOException {
+    S3FileIOProperties checksumProperties =
+        new S3FileIOProperties(
+            ImmutableMap.of(
+                S3FileIOProperties.MULTIPART_SIZE,
+                Integer.toString(FIVE_MBS),
+                S3FileIOProperties.STAGING_DIRECTORY,
+                tmpDir.toString(),
+                S3FileIOProperties.CHECKSUM_ALGORITHM,
+                "CRC64NVME"));
+
+    // single put
+    try (S3OutputStream stream =
+        new S3OutputStream(s3mock, randomURI(), checksumProperties, nullMetrics())) {
+      stream.write(randomData(1024));
+    }
+
+    ArgumentCaptor<PutObjectRequest> putCaptor = ArgumentCaptor.forClass(PutObjectRequest.class);
+    verify(s3mock).putObject(putCaptor.capture(), (RequestBody) any());
+    assertThat(putCaptor.getValue().checksumAlgorithm()).isEqualTo(ChecksumAlgorithm.CRC64_NVME);
+
+    // multipart upload
+    reset(s3mock);
+    try (S3OutputStream stream =
+        new S3OutputStream(s3mock, randomURI(), checksumProperties, nullMetrics())) {
+      stream.write(randomData(10 * 1024 * 1024));
+    }
+
+    ArgumentCaptor<CreateMultipartUploadRequest> createCaptor =
+        ArgumentCaptor.forClass(CreateMultipartUploadRequest.class);
+    verify(s3mock).createMultipartUpload(createCaptor.capture());
+    assertThat(createCaptor.getValue().checksumAlgorithm()).isEqualTo(ChecksumAlgorithm.CRC64_NVME);
+
+    ArgumentCaptor<UploadPartRequest> partCaptor = ArgumentCaptor.forClass(UploadPartRequest.class);
+    verify(s3mock, times(2)).uploadPart(partCaptor.capture(), (RequestBody) any());
+    assertThat(partCaptor.getAllValues())
+        .allSatisfy(
+            request ->
+                assertThat(request.checksumAlgorithm()).isEqualTo(ChecksumAlgorithm.CRC64_NVME));
   }
 
   @Test
