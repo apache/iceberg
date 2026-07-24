@@ -19,6 +19,7 @@
 package org.apache.iceberg.aws.s3.signer;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.InstanceOfAssertFactories.type;
 import static org.mockito.Mockito.when;
 
@@ -35,6 +36,7 @@ import org.apache.iceberg.rest.responses.OAuthTokenResponse;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -187,8 +189,8 @@ class TestS3V4RestSignerClient {
   }
 
   @ParameterizedTest
-  @MethodSource("legacySignerProperties")
-  void legacySignerProperties(
+  @MethodSource("signerUriResolution")
+  void signerUriResolution(
       Map<String, String> properties, String expectedBaseSignerUri, String expectedEndpoint)
       throws Exception {
     try (S3V4RestSignerClient client =
@@ -198,7 +200,7 @@ class TestS3V4RestSignerClient {
     }
   }
 
-  public static Stream<Arguments> legacySignerProperties() {
+  public static Stream<Arguments> signerUriResolution() {
     return Stream.of(
         // Signer URI + endpoint
         Arguments.of(
@@ -220,5 +222,18 @@ class TestS3V4RestSignerClient {
                 "v1/tables/t/sign"),
             "https://catalog.com",
             "https://catalog.com/v1/tables/t/sign"));
+  }
+
+  @Test
+  void signerEndpointIsRequired() {
+    assertThatThrownBy(
+            () ->
+                ImmutableS3V4RestSignerClient.builder()
+                    .properties(Map.of(CatalogProperties.URI, "https://catalog.com"))
+                    .build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining(
+            String.format(
+                "S3 signer endpoint (%s) is required", RESTCatalogProperties.SIGNER_ENDPOINT));
   }
 }
