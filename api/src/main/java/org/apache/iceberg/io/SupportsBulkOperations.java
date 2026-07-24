@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.io;
 
+import javax.annotation.Nullable;
+
 public interface SupportsBulkOperations extends FileIO {
   /**
    * Delete the files at the given paths.
@@ -26,4 +28,32 @@ public interface SupportsBulkOperations extends FileIO {
    * @throws BulkDeletionFailureException in case of failure to delete at least 1 file
    */
   void deleteFiles(Iterable<String> pathsToDelete) throws BulkDeletionFailureException;
+
+  /**
+   * Delete the files at the given paths, invoking {@code failureHandler} for each per-file failure.
+   *
+   * <p>The handler receives a {@link FileFailure} for every object that failed to delete, allowing
+   * callers to inspect categorized failures (e.g. for retry decisions) without parsing
+   * cloud-specific errors. The default implementation ignores the handler and delegates to {@link
+   * #deleteFiles(Iterable)}; FileIO implementations should override to invoke the handler.
+   *
+   * <p>Deleting an object that does not exist is the desired end state for a delete and is treated
+   * as success: such an object is neither reported to the handler nor counted toward {@link
+   * BulkDeletionFailureException}, regardless of whether the underlying store signals the missing
+   * object with a success code or an exception. The handler therefore only sees objects that may
+   * still exist (e.g. {@link FailureCategory#AUTH}, {@link FailureCategory#THROTTLED}, {@link
+   * FailureCategory#TRANSIENT}).
+   *
+   * <p>The handler may be invoked concurrently from multiple threads and must be thread-safe; see
+   * {@link FailureHandler}.
+   *
+   * @param pathsToDelete The paths to delete
+   * @param failureHandler Callback invoked once per failed object; a null handler is treated as
+   *     {@link FailureHandler#NOOP}
+   * @throws BulkDeletionFailureException in case of failure to delete at least 1 file
+   */
+  default void deleteFiles(Iterable<String> pathsToDelete, @Nullable FailureHandler failureHandler)
+      throws BulkDeletionFailureException {
+    deleteFiles(pathsToDelete);
+  }
 }
