@@ -210,24 +210,7 @@ public class TestV4ManifestReader {
   @ParameterizedTest
   @FieldSource("FORMATS")
   public void testProjectionRestrictsFields(FileFormat format) throws IOException {
-    TrackedFile file =
-        new TrackedFileStruct(
-            addedTracking(),
-            FileContent.DATA,
-            FORMAT_VERSION_V4,
-            "s3://bucket/file.parquet",
-            FileFormat.PARQUET,
-            RECORD_COUNT,
-            FILE_SIZE_IN_BYTES,
-            0,
-            EMPTY_PARTITION_DATA,
-            null,
-            SORT_ORDER_ID,
-            null,
-            null,
-            null,
-            null,
-            null);
+    TrackedFile file = dataFile("s3://bucket/file.parquet", EMPTY_PARTITION_DATA);
 
     InputFile manifest = writeManifest(format, EMPTY_PARTITION, ImmutableList.of(file));
 
