@@ -19,10 +19,13 @@
 package org.apache.iceberg.aliyun.oss;
 
 import com.aliyun.oss.OSS;
+import com.aliyun.oss.OSSErrorCode;
+import com.aliyun.oss.OSSException;
 import com.aliyun.oss.model.GetObjectRequest;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Arrays;
+import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.io.FileIOMetricsContext;
 import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.metrics.Counter;
@@ -147,7 +150,16 @@ class OSSInputStream extends SeekableInputStream {
     closeStream();
 
     GetObjectRequest request = new GetObjectRequest(uri.bucket(), uri.key()).withRange(pos, -1);
-    stream = client.getObject(request).getObjectContent();
+    try {
+      stream = client.getObject(request).getObjectContent();
+    } catch (OSSException e) {
+      if (OSSErrorCode.NO_SUCH_BUCKET.equals(e.getErrorCode())
+          || OSSErrorCode.NO_SUCH_KEY.equals(e.getErrorCode())) {
+        throw new NotFoundException(e, "Location does not exist: %s", uri);
+      }
+
+      throw e;
+    }
   }
 
   private void closeStream() throws IOException {
