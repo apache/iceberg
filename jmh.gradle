@@ -62,11 +62,33 @@ configure(jmhProjects) {
 
   jmh {
     jmhVersion = '1.37'
-    failOnError = true
+    // Was hard-coded true; one failing param combination aborted the whole suite and discarded
+    // already-completed results. Make it configurable, default preserved.
+    failOnError = project.hasProperty('jmhFailOnError') ? project.property('jmhFailOnError').toBoolean() : true
     forceGC = true
     includeTests = true
     humanOutputFile = file(jmhOutputPath)
-    jvmArgs = ['-Xmx32g']
+    // Configurable heap (default preserved at 32g); full-scale PlanningBenchmark ...WithStats OOMs at 32g.
+    // Plus the JDK 17 module opens Spark 4.x needs (sun.util.calendar for date conversion, etc.).
+    jvmArgs = [
+      '-Xmx' + (project.findProperty('jmhHeap') ?: '32g'),
+      '-XX:+IgnoreUnrecognizedVMOptions',
+      '--add-opens=java.base/java.lang=ALL-UNNAMED',
+      '--add-opens=java.base/java.lang.invoke=ALL-UNNAMED',
+      '--add-opens=java.base/java.lang.reflect=ALL-UNNAMED',
+      '--add-opens=java.base/java.io=ALL-UNNAMED',
+      '--add-opens=java.base/java.net=ALL-UNNAMED',
+      '--add-opens=java.base/java.nio=ALL-UNNAMED',
+      '--add-opens=java.base/java.util=ALL-UNNAMED',
+      '--add-opens=java.base/java.util.concurrent=ALL-UNNAMED',
+      '--add-opens=java.base/java.util.concurrent.atomic=ALL-UNNAMED',
+      '--add-opens=java.base/jdk.internal.ref=ALL-UNNAMED',
+      '--add-opens=java.base/sun.nio.ch=ALL-UNNAMED',
+      '--add-opens=java.base/sun.nio.cs=ALL-UNNAMED',
+      '--add-opens=java.base/sun.security.action=ALL-UNNAMED',
+      '--add-opens=java.base/sun.util.calendar=ALL-UNNAMED',
+      '--add-opens=java.security.jgss/sun.security.krb5=ALL-UNNAMED'
+    ]
     resultsFile = file(jmhJsonOutputPath)
     resultFormat = 'JSON'
     includes = [jmhIncludeRegex]
