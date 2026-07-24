@@ -35,6 +35,7 @@ Iceberg catalogs support using catalog properties to configure catalog behaviors
 | cache.expiration-interval-ms      | 30000              | How long catalog entries are locally cached, in milliseconds; 0 disables caching, negative values disable expiration |
 | metrics-reporter-impl | org.apache.iceberg.metrics.LoggingMetricsReporter | Custom `MetricsReporter` implementation to use in a catalog. See the [Metrics reporting](metrics-reporting.md) section for additional details |
 | unique-table-location             | false              | Whether to use a unique location for new tables |
+| encryption.kms-type               | null               | a predefined KMS client type to use in a catalog for encrypted tables, for example `aws`, `gcp`, or `azure`. See the [Encryption](encryption.md) document for additional details |
 | encryption.kms-impl               | null               | a custom `KeyManagementClient` implementation to use in a catalog for interactions with KMS (key management service). See the [Encryption](encryption.md) document for additional details |
 
 `HadoopCatalog` and `HiveCatalog` can access the properties in their constructors.
@@ -45,7 +46,7 @@ Flink passes in catalog properties through `CREATE CATALOG` statement, see more 
 
 ## REST catalog properties
 
-The following properties configure the behavior of the REST catalog client.
+The following properties configure the behavior of the REST catalog client or may be advertised by a REST catalog server in the configuration response.
 
 | Property                              | Default           | Description                                                                                                                                                                                      |
 |---------------------------------------|-------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -55,6 +56,7 @@ The following properties configure the behavior of the REST catalog client.
 | `rest-page-size`                      | null              | The page size to use when listing namespaces, tables, or other paginated resources.                                                                                                              |
 | `namespace-separator`                 | `%1F`             | The separator character used for namespace levels when communicating with the REST server.                                                                                                       |
 | `scan-planning-mode`                  | `CLIENT`          | Controls where scan planning is performed. Supported values: `CLIENT` (client-side planning), `SERVER` (server-side planning). Can be overridden per-table by the server in LoadTableResponse. |
+| `encryption.kms-type`                 | null              | KMS provider type used for encrypted tables. Clients may configure this value, but REST catalog servers may advertise it through `/v1/config`; server `overrides` take precedence over client configuration. When using `key-management-credentials`, clients should use the final catalog configuration value after applying server defaults and overrides. The value is an open enum with initial values `aws`, `gcp`, and `azure`; catalogs may return additional values when the catalog and client agree on KMS client resolution and credential config. |
 
 ### Table cache properties
 

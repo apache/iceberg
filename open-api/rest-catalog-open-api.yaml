@@ -2147,8 +2147,18 @@ components:
         to supply access via any or none of the requested mechanisms.
 
 
-        Specific properties and handling for `vended-credentials` and `remote-signing`
+        Specific properties and handling for `vended-credentials`, `remote-signing`, and `kms-vended-credentials`
         are documented in the `LoadTableResult` schema section of this spec document.
+
+        `kms-vended-credentials` does not subsume `vended-credentials`. Clients that support both storage
+        and KMS credential vending should request both mechanisms for encrypted table operations.
+
+        For encrypted table operations, delegated credential sourcing should be consistent across storage
+        and KMS access. If a catalog honors REST access delegation for such an operation, it should return
+        all delegated credentials required by the operation, including storage credentials and KMS
+        credentials. If the catalog cannot return the complete delegated credential set, it should not
+        return partial delegated credentials for that operation; the client remains responsible for
+        providing all credentials locally.
 
       required: false
       schema:
@@ -2158,9 +2168,10 @@ components:
           enum:
             - vended-credentials
             - remote-signing
+            - kms-vended-credentials
       style: simple
       explode: false
-      example: "vended-credentials,remote-signing"
+      example: "vended-credentials,remote-signing,kms-vended-credentials"
 
     page-token:
       name: pageToken
@@ -3665,6 +3676,43 @@ components:
           additionalProperties:
             type: string
 
+    KeyManagementCredential:
+      type: object
+      description: |
+        Provider-specific credential config for accessing one or more KMS keys required by an encrypted
+        table operation.
+
+        The key-management provider is advertised in catalog configuration, such as `encryption.kms-type`
+        returned from `/v1/config`. The `config` map contains provider-specific properties for the
+        selected key-management provider.
+
+        Catalogs that return `key-management-credentials` for an operation must include credentials for all
+        KMS key IDs required by table encryption metadata. Clients should select the credential config by
+        matching KMS key identifiers referenced by table encryption metadata, such as
+        `EncryptedKey.encrypted-by-id`, against `kms-key-ids`.
+
+        Credential configs should use provider-specific expiration mechanisms where available and should
+        be scoped to the minimum required KMS operations and listed KMS key IDs where the provider
+        supports it. Clients must not persist credentials beyond any provider-specific expiration.
+      required:
+        - kms-key-ids
+        - config
+      properties:
+        kms-key-ids:
+          type: array
+          description: |
+            KMS key identifiers for which the credential config is relevant.
+
+            Clients should match these values against KMS key identifiers referenced by table encryption
+            metadata, such as `EncryptedKey.encrypted-by-id`.
+          items:
+            type: string
+        config:
+          type: object
+          description: Provider-specific credential configuration for accessing the listed KMS key IDs.
+          additionalProperties:
+            type: string
+
     LoadCredentialsResponse:
       type: object
       required:
@@ -3674,6 +3722,10 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/StorageCredential'
+        key-management-credentials:
+          type: array
+          items:
+            $ref: '#/components/schemas/KeyManagementCredential'
 
     LoadTableResult:
       description: |
@@ -3711,6 +3763,13 @@ components:
         Credentials for ADLS / GCS / S3 / ... are provided through the `storage-credentials` field.
         Clients must first check whether the respective credentials exist in the `storage-credentials` field before checking the `config` for credentials.
 
+        ## Key Management Credentials
+
+        Credentials for KMS / key-management systems are provided through the `key-management-credentials` field.
+        Clients must first check whether the respective credentials exist in the `key-management-credentials`
+        field before checking the `config` for credentials.
+        Clients must use `key-management-credentials` consistently with the REST access-delegation credential sourcing rules.
+
         ## Remote Signing
 
         If remote signing for a specific storage provider is enabled, clients must respect the following configurations when creating a remote signer client:
@@ -3734,6 +3793,10 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/StorageCredential'
+        key-management-credentials:
+          type: array
+          items:
+            $ref: '#/components/schemas/KeyManagementCredential'
 
     ScanTasks:
       type: object
@@ -3791,6 +3854,17 @@ components:
                 to read the files returned in the FileScanTasks as part of the scan result.
               items:
                 $ref: '#/components/schemas/StorageCredential'
+            key-management-credentials:
+              type: array
+              description:
+                KMS credentials for encrypted files returned in the scan result.
+
+                If the server returns key-management credentials as part of the completed scan
+                planning response, the expectation is for the client to use these credentials
+                to access the KMS keys required to read encrypted files returned in the
+                FileScanTasks as part of the scan result.
+              items:
+                $ref: '#/components/schemas/KeyManagementCredential'
 
     CompletedPlanningWithIDResult:
       type: object
