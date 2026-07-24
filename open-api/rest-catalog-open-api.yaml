@@ -3120,6 +3120,10 @@ components:
     AddSchemaUpdate:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
+      description:
+        Adds a schema. The field IDs (`StructField.id`) in `schema` are assigned by the client. A
+        server SHOULD preserve them rather than reassigning them - a field ID is the durable identifier
+        of a field, and reassigning it can break references that depend on it.
       required:
         - action
         - schema
@@ -3930,6 +3934,9 @@ components:
 
     CreateTableRequest:
       type: object
+      description:
+        Table creation request. The field IDs in `schema` are assigned by the client, but because a newly
+        created table has no committed data, a server MAY (re)assign them when creating the table.
       required:
         - name
         - schema
