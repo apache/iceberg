@@ -21,9 +21,11 @@ package org.apache.iceberg.connect.channel;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -32,6 +34,7 @@ import java.lang.reflect.Field;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.iceberg.connect.IcebergSinkConfig;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
@@ -164,5 +167,35 @@ public class TestCommitterImpl {
     assertThatThrownBy(() -> committer.save(Collections.emptyList()))
         .isInstanceOf(NotRunningException.class)
         .hasMessageContaining("Coordinator unexpectedly terminated");
+  }
+
+  @Test
+  public void testCoordinatorStopCalledWhenCommitterClosed()
+          throws NoSuchFieldException, IllegalAccessException {
+
+    Coordinator coordinator = mock(Coordinator.class);
+
+    doAnswer(invocation -> {
+      Thread.sleep(3000);
+      return null;
+    }).when(coordinator).process();
+
+    CoordinatorThread coordinatorThread = new CoordinatorThread(coordinator);
+    coordinatorThread.start();
+
+    CommitterImpl committer = new CommitterImpl();
+
+    Field coordinatorThreadField = CommitterImpl.class.getDeclaredField("coordinatorThread");
+    coordinatorThreadField.setAccessible(true);
+    coordinatorThreadField.set(committer, coordinatorThread);
+    Field isInitializedField = CommitterImpl.class.getDeclaredField("isInitialized");
+    isInitializedField.setAccessible(true);
+    isInitializedField.set(committer, new AtomicBoolean(true));
+
+    // when the committer is closed, the coordinator should be stopped
+    committer.close(Collections.emptyList());
+
+    assertThat(coordinatorThread.isTerminated()).isTrue();
+    verify(coordinator).stop();
   }
 }
