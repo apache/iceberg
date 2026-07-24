@@ -80,6 +80,67 @@ public class MetricsUtil {
         copyWithoutKeys(metrics.originalTypes(), excludedFieldIds));
   }
 
+  /**
+   * Copies a metrics object, dropping stats that exceed the metrics modes configured for the table.
+   *
+   * <p>Stats are only removed, never re-truncated: columns configured as {@link MetricsModes.None}
+   * lose all stats, columns configured as {@link MetricsModes.Counts} lose their bounds, and
+   * columns configured as {@link MetricsModes.Truncate} or {@link MetricsModes.Full} keep their
+   * stats unchanged. Stats for fields that are not present in the schema are left untouched.
+   *
+   * @param schema the table schema the metrics are bound against
+   * @param metricsConfig the table's metrics configuration
+   * @param metrics the metrics to prune
+   * @return a new metrics object retaining only the stats permitted by the metrics configuration
+   */
+  public static Metrics pruneColumnStats(
+      Schema schema, MetricsConfig metricsConfig, Metrics metrics) {
+    Set<Integer> allStatsExcludedIds = Sets.newHashSet();
+    Set<Integer> boundsExcludedIds = Sets.newHashSet();
+
+    for (int fieldId : fieldIdsWithStats(metrics)) {
+      String columnName = schema.findColumnName(fieldId);
+      if (columnName == null) {
+        continue;
+      }
+
+      MetricsModes.MetricsMode mode = metricsConfig.columnMode(columnName);
+      if (mode == MetricsModes.None.get()) {
+        allStatsExcludedIds.add(fieldId);
+        boundsExcludedIds.add(fieldId);
+      } else if (mode == MetricsModes.Counts.get()) {
+        boundsExcludedIds.add(fieldId);
+      }
+    }
+
+    return new Metrics(
+        metrics.recordCount(),
+        copyWithoutKeys(metrics.columnSizes(), allStatsExcludedIds),
+        copyWithoutKeys(metrics.valueCounts(), allStatsExcludedIds),
+        copyWithoutKeys(metrics.nullValueCounts(), allStatsExcludedIds),
+        copyWithoutKeys(metrics.nanValueCounts(), allStatsExcludedIds),
+        copyWithoutKeys(metrics.lowerBounds(), boundsExcludedIds),
+        copyWithoutKeys(metrics.upperBounds(), boundsExcludedIds),
+        copyWithoutKeys(metrics.originalTypes(), boundsExcludedIds));
+  }
+
+  private static Set<Integer> fieldIdsWithStats(Metrics metrics) {
+    Set<Integer> fieldIds = Sets.newHashSet();
+    addKeys(fieldIds, metrics.columnSizes());
+    addKeys(fieldIds, metrics.valueCounts());
+    addKeys(fieldIds, metrics.nullValueCounts());
+    addKeys(fieldIds, metrics.nanValueCounts());
+    addKeys(fieldIds, metrics.lowerBounds());
+    addKeys(fieldIds, metrics.upperBounds());
+    return fieldIds;
+  }
+
+  private static void addKeys(Set<Integer> fieldIds, Map<Integer, ?> map) {
+    if (map != null) {
+      fieldIds.addAll(map.keySet());
+    }
+  }
+
   private static <K, V> Map<K, V> copyWithoutKeys(Map<K, V> map, Set<K> keys) {
     if (map == null) {
       return null;

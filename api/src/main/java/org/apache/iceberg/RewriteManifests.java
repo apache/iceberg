@@ -86,4 +86,26 @@ public interface RewriteManifests extends SnapshotUpdate<RewriteManifests> {
    * @return this for method chaining
    */
   RewriteManifests addManifest(ManifestFile manifest);
+
+  /**
+   * Prunes column-level stats from rewritten data files that exceed the table's current {@code
+   * write.metadata.metrics.*} configuration.
+   *
+   * <p>Rewriting manifests normally copies each data file's stats verbatim, so tightening the
+   * metrics configuration does not shrink existing manifests. When this is enabled, stats are
+   * dropped to match the configured modes as files are rewritten: columns configured as {@code
+   * none} lose all stats and columns configured as {@code counts} lose their bounds. Existing
+   * bounds are never re-truncated, so columns configured as {@code truncate(n)} or {@code full}
+   * keep their stats unchanged.
+   *
+   * <p>Pruning only applies to files in manifests that are actually rewritten. If no clustering
+   * function is set via {@link #clusterBy(Function)}, enabling this triggers a full rewrite that
+   * groups all data files together.
+   *
+   * @return this for method chaining
+   */
+  default RewriteManifests pruneColumnStats() {
+    throw new UnsupportedOperationException(
+        getClass().getName() + " doesn't implement pruneColumnStats");
+  }
 }
