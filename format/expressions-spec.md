@@ -235,7 +235,7 @@ Note that `year`, `month`, and `hour` transforms produce ordinal values and not 
 
 | Parameterized function name | Description                                                           | Source types                                                                                 | Result type |
 |-----------------------------|-----------------------------------------------------------------------|----------------------------------------------------------------------------------------------|-------------|
-| `bucket(N, value)`          | Hash of value, mod `N` (see [table spec details][bucket-ref])         | `int`, `long`, `decimal`, `date`, `time`, `timestamp`, `timestamptz`, `timestamp_ns`, `timestamptz_ns`, `string`, `uuid`, `fixed`, `binary` | `int`       |
+| `bucket(N, value)`          | Hash of value, mod `N` (see [table spec details][bucket-ref])         | Any primitive except for `geometry`, `geography`, `boolean`, `float`, `double`, or `variant` | `int`       |
 | `truncate(W, value)`        | Value truncated to width `W` (see [table spec details][truncate-ref]) | `int`, `long`, `decimal`, `string`, `binary`                                                 | Source type |
 
 [bucket-ref]: spec/#bucket-transform-details
