@@ -170,13 +170,9 @@ public class TestParquet {
     // Null count, lower and upper bounds should be empty because
     // one of the statistics in row groups is missing
     Metrics metrics = ParquetUtil.fileMetrics(inputFile, MetricsConfig.getDefault());
-    assertThat(metrics.nullValueCounts()).hasSize(1);
-
-    assertThat(metrics.lowerBounds()).hasSize(1);
-    assertThat(metrics.lowerBounds().get(1)).isEqualTo(Conversions.toByteBuffer(Types.StringType.get(), "test"));
-
-    assertThat(metrics.upperBounds()).hasSize(1);
-    assertThat(metrics.upperBounds().get(1)).isEqualTo(Conversions.toByteBuffer(Types.StringType.get(), "test"));
+    assertThat(metrics.nullValueCounts()).isEmpty();
+    assertThat(metrics.lowerBounds()).isEmpty();
+    assertThat(metrics.upperBounds()).isEmpty();
   }
 
   @Test

@@ -335,7 +335,7 @@ class ParquetMetrics {
 
       for (ColumnChunkMetaData column : columns.get(path)) {
         Statistics<?> stats = column.getStatistics();
-        if (stats == null || stats.isEmpty()) {
+        if (stats == null || stats.isEmpty() || (stats.genericGetMin() == null && stats.genericGetMax() == null)) {
           return null;
         }
 
