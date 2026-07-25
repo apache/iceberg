@@ -128,6 +128,10 @@ public class FlinkMaintenanceConfig {
     return new DeleteOrphanFilesConfig(table, writeProperties, readableConfig);
   }
 
+  public ConvertEqualityDeletesConfig createConvertEqualityDeletesConfig() {
+    return new ConvertEqualityDeletesConfig(table, writeProperties, readableConfig);
+  }
+
   public LockConfig createLockConfig() {
     return new LockConfig(table, writeProperties, readableConfig);
   }

@@ -100,4 +100,9 @@ public class TestGenericData extends DataTestBase {
   protected boolean supportsVariant() {
     return true;
   }
+
+  @Override
+  protected boolean supportsGeospatial() {
+    return true;
+  }
 }

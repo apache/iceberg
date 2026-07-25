@@ -55,6 +55,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.rest.RESTCatalog;
 import org.apache.iceberg.spark.actions.SparkActions;
 import org.apache.iceberg.spark.source.SparkChangelogTable;
 import org.apache.iceberg.spark.source.SparkTable;
@@ -79,12 +80,15 @@ import org.apache.spark.sql.connector.catalog.TableChange;
 import org.apache.spark.sql.connector.catalog.TableChange.ColumnChange;
 import org.apache.spark.sql.connector.catalog.TableChange.RemoveProperty;
 import org.apache.spark.sql.connector.catalog.TableChange.SetProperty;
+import org.apache.spark.sql.connector.catalog.TableSummary;
 import org.apache.spark.sql.connector.catalog.View;
 import org.apache.spark.sql.connector.catalog.ViewChange;
 import org.apache.spark.sql.connector.catalog.ViewInfo;
 import org.apache.spark.sql.connector.expressions.Transform;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * A Spark TableCatalog implementation that wraps an Iceberg {@link Catalog}.
@@ -116,6 +120,8 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap;
  * <p>
  */
 public class SparkCatalog extends BaseCatalog {
+
+  private static final Logger LOG = LoggerFactory.getLogger(SparkCatalog.class);
   private static final Set<String> DEFAULT_NS_KEYS = ImmutableSet.of(TableCatalog.PROP_OWNER);
   private static final Splitter COMMA = Splitter.on(",");
   private static final Joiner COMMA_JOINER = Joiner.on(",");
@@ -130,6 +136,8 @@ public class SparkCatalog extends BaseCatalog {
   private ViewCatalog asViewCatalog = null;
   private String[] defaultNamespace = null;
   private HadoopTables tables;
+  private boolean restCatalogPurge;
+  private boolean isRestCatalog;
 
   /**
    * Build an Iceberg {@link Catalog} to be used by this Spark catalog adapter.
@@ -301,7 +309,7 @@ public class SparkCatalog extends BaseCatalog {
 
   @Override
   public boolean dropTable(Identifier ident) {
-    return dropTableWithoutPurging(ident);
+    return catalogDropTable(ident);
   }
 
   @Override
@@ -314,7 +322,17 @@ public class SparkCatalog extends BaseCatalog {
       String metadataFileLocation =
           ((HasTableOperations) table).operations().current().metadataFileLocation();
 
-      boolean dropped = dropTableWithoutPurging(ident);
+      if (isRestCatalog && !isPathIdentifier(ident)) {
+        if (restCatalogPurge) {
+          return icebergCatalog.dropTable(buildIdentifier(ident), true);
+        } else {
+          LOG.info(
+              "Set '{}' to true to use the REST catalog's capabilities to purge the table.",
+              SparkCatalogProperties.REST_CATALOG_PURGE);
+        }
+      }
+
+      boolean dropped = catalogDropTable(ident);
 
       if (dropped) {
         // check whether the metadata file exists because HadoopCatalog/HadoopTables
@@ -332,7 +350,7 @@ public class SparkCatalog extends BaseCatalog {
     }
   }
 
-  private boolean dropTableWithoutPurging(Identifier ident) {
+  private boolean catalogDropTable(Identifier ident) {
     if (isPathIdentifier(ident)) {
       return tables.dropTable(((PathIdentifier) ident).location(), false /* don't purge data */);
     } else {
@@ -366,6 +384,31 @@ public class SparkCatalog extends BaseCatalog {
     return icebergCatalog.listTables(Namespace.of(namespace)).stream()
         .map(ident -> Identifier.of(ident.namespace().levels(), ident.name()))
         .toArray(Identifier[]::new);
+  }
+
+  @Override
+  public TableSummary[] listTableSummaries(String[] namespace) {
+    // Build summaries directly from the catalog listings to avoid loading every table, which the
+    // default TableCatalog.listTableSummaries implementation would do. Iceberg tables are always
+    // reported as EXTERNAL (see BaseSparkTable#properties), and views are reported as VIEW.
+    List<TableSummary> summaries = Lists.newArrayList();
+
+    // Collect views first. Most catalogs return only tables from listTables, but HiveCatalog with
+    // list-all-tables=true returns every metastore entry, including views. De-duplicate against the
+    // view identifiers so a view is never also reported as a table.
+    Set<Identifier> viewIdents = Sets.newHashSet(listViews(namespace));
+
+    for (Identifier ident : listTables(namespace)) {
+      if (!viewIdents.contains(ident)) {
+        summaries.add(TableSummary.of(ident, TableSummary.EXTERNAL_TABLE_TYPE));
+      }
+    }
+
+    for (Identifier ident : viewIdents) {
+      summaries.add(TableSummary.of(ident, TableSummary.VIEW_TABLE_TYPE));
+    }
+
+    return summaries.toArray(new TableSummary[0]);
   }
 
   @Override
@@ -702,6 +745,12 @@ public class SparkCatalog extends BaseCatalog {
             CatalogProperties.CACHE_EXPIRATION_INTERVAL_MS,
             CatalogProperties.CACHE_EXPIRATION_INTERVAL_MS_DEFAULT);
 
+    this.restCatalogPurge =
+        PropertyUtil.propertyAsBoolean(
+            options,
+            SparkCatalogProperties.REST_CATALOG_PURGE,
+            SparkCatalogProperties.REST_CATALOG_PURGE_DEFAULT);
+
     // An expiration interval of 0ms effectively disables caching.
     // Do not wrap with CachingCatalog.
     if (cacheExpirationIntervalMs == 0) {
@@ -709,6 +758,13 @@ public class SparkCatalog extends BaseCatalog {
     }
 
     Catalog catalog = buildIcebergCatalog(name, options);
+    this.isRestCatalog = catalog instanceof RESTCatalog;
+
+    Preconditions.checkArgument(
+        !restCatalogPurge || isRestCatalog,
+        "Cannot enable '%s': the configured catalog is not a REST catalog: %s",
+        SparkCatalogProperties.REST_CATALOG_PURGE,
+        catalog.getClass().getName());
 
     this.catalogName = name;
     SparkSession sparkSession = SparkSession.getActiveSession().get();

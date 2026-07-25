@@ -128,6 +128,8 @@ public class DataTestHelpers {
       case UUID:
       case BINARY:
       case DECIMAL:
+      case GEOMETRY:
+      case GEOGRAPHY:
         assertThat(actual)
             .as("Primitive value should be equal to expected for type " + type)
             .isEqualTo(expected);
