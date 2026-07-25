@@ -224,6 +224,56 @@ public class TestVariantMetrics {
   }
 
   @Test
+  public void testShreddedBinaryBoundsTruncation() throws IOException {
+    // binary longer than the 16-byte truncation length so the bounds are truncated
+    byte[] bytes = new byte[20];
+    for (int i = 0; i < bytes.length; i += 1) {
+      bytes[i] = (byte) (i + 1);
+    }
+    VariantValue value = Variants.of(ByteBuffer.wrap(bytes));
+
+    Metrics metrics =
+        writeParquet(
+            (id, name) -> ParquetVariantUtil.toParquetSchema(value),
+            Variant.of(EMPTY, value),
+            Variant.of(EMPTY, Variants.ofNull()),
+            null);
+
+    assertThat(metrics.lowerBounds().get(2))
+        .extracting(b -> Variant.from(b).value().asObject().get(ROOT_FIELD))
+        .isEqualTo(Variants.of(BinaryUtil.truncateBinaryMin(ByteBuffer.wrap(bytes), 16)));
+
+    assertThat(metrics.upperBounds().get(2))
+        .extracting(b -> Variant.from(b).value().asObject().get(ROOT_FIELD))
+        .isEqualTo(Variants.of(BinaryUtil.truncateBinaryMax(ByteBuffer.wrap(bytes), 16)));
+  }
+
+  @Test
+  public void testShreddedBinaryUpperBoundOverflow() throws IOException {
+    // an all-0xFF binary cannot be truncated up so the upper bound is omitted
+    byte[] bytes = new byte[20];
+    for (int i = 0; i < bytes.length; i += 1) {
+      bytes[i] = (byte) 0xFF;
+    }
+    VariantValue value = Variants.of(ByteBuffer.wrap(bytes));
+
+    Metrics metrics =
+        writeParquet(
+            (id, name) -> ParquetVariantUtil.toParquetSchema(value),
+            Variant.of(EMPTY, value),
+            Variant.of(EMPTY, Variants.ofNull()),
+            null);
+
+    assertThat(metrics.lowerBounds().get(2))
+        .extracting(b -> Variant.from(b).value().asObject().get(ROOT_FIELD))
+        .isEqualTo(Variants.of(BinaryUtil.truncateBinaryMin(ByteBuffer.wrap(bytes), 16)));
+
+    assertThat(metrics.upperBounds().get(2))
+        .extracting(b -> Variant.from(b).value().asObject().get(ROOT_FIELD))
+        .isNull();
+  }
+
+  @Test
   public void testVariantFloatNaN() throws IOException {
     // NaN values are not counted because there is no ID for FieldMetrics
     VariantValue floatValue = Variants.of(1.0F);

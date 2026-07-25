@@ -24,6 +24,7 @@ import com.fasterxml.jackson.databind.node.IntNode;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -45,6 +46,8 @@ import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.data.StringData;
 import org.apache.flink.table.data.TimestampData;
 import org.apache.flink.table.types.logical.RowType;
+import org.apache.flink.types.variant.Variant;
+import org.apache.flink.types.variant.VariantBuilder;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.data.GenericRecord;
@@ -74,6 +77,8 @@ public class DataGenerators {
     private static final LocalTime JAVA_LOCAL_TIME_HOUR8 = LocalTime.of(8, 0);
     private static final OffsetDateTime JAVA_OFFSET_DATE_TIME_20220110 =
         OffsetDateTime.of(2022, 1, 10, 0, 0, 0, 0, ZoneOffset.UTC);
+    private static final Instant JAVA_INSTANT_DATE_TIME_20220110 =
+        Instant.ofEpochSecond(JAVA_OFFSET_DATE_TIME_20220110.toEpochSecond(), 0);
     private static final LocalDateTime JAVA_LOCAL_DATE_TIME_20220110 =
         LocalDateTime.of(2022, 1, 10, 0, 0, 0);
     private static final OffsetDateTime JAVA_OFFSET_DATE_TIME_MAX_NANO =
@@ -242,6 +247,50 @@ public class DataGenerators {
     }
 
     @Override
+    public Variant generateFlinkVariantData() {
+      byte[] uuidBytes = new byte[16];
+      for (int i = 0; i < 16; ++i) {
+        uuidBytes[i] = (byte) i;
+      }
+
+      byte[] binaryBytes = new byte[7];
+      for (int i = 0; i < 7; ++i) {
+        binaryBytes[i] = (byte) i;
+      }
+
+      VariantBuilder builder = Variant.newBuilder();
+      return builder
+          .object()
+          .add("row_id", builder.of("row_id_value"))
+          .add("boolean_field", builder.of(false))
+          .add("int_field", builder.of(Integer.MAX_VALUE))
+          .add("long_field", builder.of(Long.MAX_VALUE))
+          .add("float_field", builder.of(Float.MAX_VALUE))
+          .add("double_field", builder.of(Double.MAX_VALUE))
+          .add("string_field", builder.of("str"))
+          .add("date_field", builder.of(DAYS_BTW_EPOC_AND_20220110))
+          .add("time_field", builder.of(HOUR_8_IN_MILLI))
+          .add(
+              "ts_with_zone_field",
+              builder.of(
+                  JAVA_INSTANT_DATE_TIME_20220110.plusNanos(MICROS_OF_MILLI_20220110 * 1000)))
+          .add(
+              "ts_without_zone_field",
+              builder.of(JAVA_LOCAL_DATE_TIME_20220110.plusNanos(MICROS_OF_MILLI_20220110 * 1000)))
+          .add("uuid_field", builder.of(uuidBytes))
+          .add("binary_field", builder.of(binaryBytes))
+          .add("decimal_field", builder.of(BIG_DECIMAL_NEGATIVE))
+          .add("fixed_field", builder.of(FIXED_BYTES))
+          // Flink Variant natively supports TIMESTAMP, TIMESTAMP_LTZ for timestamp and both assume
+          // MicroSecond Precision.
+          // Fields need to be serialized as BIGINT Variant type inorder to be read using Nano
+          // precision.
+          .add("ts_ns_with_zone_field", builder.of(ICEBERG_MAX_NANOS_EPOCH))
+          .add("ts_ns_without_zone_field", builder.of(ICEBERG_MAX_NANOS_EPOCH))
+          .build();
+    }
+
+    @Override
     public org.apache.avro.generic.GenericRecord generateAvroGenericRecord() {
       org.apache.avro.generic.GenericRecord genericRecord = new GenericData.Record(avroSchema);
       genericRecord.put("row_id", new Utf8("row_id_value"));
@@ -340,6 +389,18 @@ public class DataGenerators {
     }
 
     @Override
+    public Variant generateFlinkVariantData() {
+      VariantBuilder builder = Variant.newBuilder();
+      return builder
+          .object()
+          .add("row_id", builder.of("row_id_value"))
+          .add(
+              "struct_of_primitive",
+              builder.object().add("id", builder.of(1)).add("name", builder.of("Jane")).build())
+          .build();
+    }
+
+    @Override
     public org.apache.avro.generic.GenericRecord generateAvroGenericRecord() {
       org.apache.avro.Schema structSchema = avroSchema.getField("struct_of_primitive").schema();
       org.apache.avro.generic.GenericRecord struct = new GenericData.Record(structSchema);
@@ -402,6 +463,24 @@ public class DataGenerators {
       StringData[] names = {StringData.fromString("Jane"), StringData.fromString("Joe")};
       return GenericRowData.of(
           StringData.fromString("row_id_value"), GenericRowData.of(1, new GenericArrayData(names)));
+    }
+
+    @Override
+    public Variant generateFlinkVariantData() {
+      VariantBuilder builder = Variant.newBuilder();
+      return builder
+          .object()
+          .add("row_id", builder.of("row_id_value"))
+          .add(
+              "struct_of_array",
+              builder
+                  .object()
+                  .add("id", builder.of(1))
+                  .add(
+                      "names",
+                      builder.array().add(builder.of("Jane")).add(builder.of("Joe")).build())
+                  .build())
+          .build();
     }
 
     @Override
@@ -477,6 +556,28 @@ public class DataGenerators {
                       StringData.fromString("female"),
                       StringData.fromString("Joe"),
                       StringData.fromString("male")))));
+    }
+
+    @Override
+    public Variant generateFlinkVariantData() {
+      VariantBuilder builder = Variant.newBuilder();
+      return builder
+          .object()
+          .add("row_id", builder.of("row_id_value"))
+          .add(
+              "struct_of_map",
+              builder
+                  .object()
+                  .add("id", builder.of(1))
+                  .add(
+                      "names",
+                      builder
+                          .object()
+                          .add("Jane", builder.of("female"))
+                          .add("Joe", builder.of("male"))
+                          .build())
+                  .build())
+          .build();
     }
 
     @Override
@@ -557,6 +658,28 @@ public class DataGenerators {
     }
 
     @Override
+    public Variant generateFlinkVariantData() {
+      VariantBuilder builder = Variant.newBuilder();
+      return builder
+          .object()
+          .add("row_id", builder.of("row_id_value"))
+          .add(
+              "struct_of_struct",
+              builder
+                  .object()
+                  .add("id", builder.of(1))
+                  .add(
+                      "person_struct",
+                      builder
+                          .object()
+                          .add("name", builder.of("Jane"))
+                          .add("address", builder.of("Apple Park"))
+                          .build())
+                  .build())
+          .build();
+    }
+
+    @Override
     public org.apache.avro.generic.GenericRecord generateAvroGenericRecord() {
       org.apache.avro.Schema structSchema = avroSchema.getField("struct_of_struct").schema();
       org.apache.avro.Schema personSchema = structSchema.getField("person_struct").schema();
@@ -585,6 +708,9 @@ public class DataGenerators {
                 Types.ListType.ofRequired(102, Types.TimestampNanoType.withoutZone())));
 
     private final RowType flinkRowType = FlinkSchemaUtil.convert(icebergSchema);
+    private final LocalDateTime tsAfterEpoch = LocalDateTime.of(2023, 1, 1, 12, 0, 0, 123456789);
+    private final LocalDateTime tsBeforeEpoch =
+        LocalDateTime.of(1969, 12, 31, 23, 59, 59, 987654321);
 
     private final org.apache.avro.Schema avroSchema =
         AvroSchemaUtil.convert(icebergSchema, "table");
@@ -620,12 +746,9 @@ public class DataGenerators {
     public GenericRowData generateFlinkRowData() {
       Integer[] arr = {1, 2, 3};
 
-      long posNanos =
-          org.apache.iceberg.util.DateTimeUtil.nanosFromTimestamp(
-              LocalDateTime.of(2023, 1, 1, 12, 0, 0, 123456789));
-      long negNanos =
-          org.apache.iceberg.util.DateTimeUtil.nanosFromTimestamp(
-              LocalDateTime.of(1969, 12, 31, 23, 59, 59, 987654321));
+      long posNanos = org.apache.iceberg.util.DateTimeUtil.nanosFromTimestamp(tsAfterEpoch);
+      long negNanos = org.apache.iceberg.util.DateTimeUtil.nanosFromTimestamp(tsBeforeEpoch);
+
       TimestampData[] tsArr = {
         TimestampData.fromEpochMillis(
             Math.floorDiv(posNanos, 1_000_000L), (int) Math.floorMod(posNanos, 1_000_000L)),
@@ -639,17 +762,32 @@ public class DataGenerators {
     }
 
     @Override
+    public Variant generateFlinkVariantData() {
+      VariantBuilder builder = Variant.newBuilder();
+
+      long posNanos = org.apache.iceberg.util.DateTimeUtil.nanosFromTimestamp(tsAfterEpoch);
+      long negNanos = org.apache.iceberg.util.DateTimeUtil.nanosFromTimestamp(tsBeforeEpoch);
+
+      return builder
+          .object()
+          .add("row_id", builder.of("row_id_value"))
+          .add(
+              "array_of_int",
+              builder.array().add(builder.of(1)).add(builder.of(2)).add(builder.of(3)).build())
+          .add(
+              "array_of_ts_ns",
+              builder.array().add(builder.of(posNanos)).add(builder.of(negNanos)).build())
+          .build();
+    }
+
+    @Override
     public org.apache.avro.generic.GenericRecord generateAvroGenericRecord() {
       org.apache.avro.generic.GenericRecord genericRecord = new GenericData.Record(avroSchema);
       genericRecord.put("row_id", "row_id_value");
       genericRecord.put("array_of_int", Arrays.asList(1, 2, 3));
 
-      long posNanos =
-          org.apache.iceberg.util.DateTimeUtil.nanosFromTimestamp(
-              LocalDateTime.of(2023, 1, 1, 12, 0, 0, 123456789));
-      long negNanos =
-          org.apache.iceberg.util.DateTimeUtil.nanosFromTimestamp(
-              LocalDateTime.of(1969, 12, 31, 23, 59, 59, 987654321));
+      long posNanos = org.apache.iceberg.util.DateTimeUtil.nanosFromTimestamp(tsAfterEpoch);
+      long negNanos = org.apache.iceberg.util.DateTimeUtil.nanosFromTimestamp(tsBeforeEpoch);
       genericRecord.put("array_of_ts_ns", Arrays.asList(posNanos, negNanos));
       return genericRecord;
     }
@@ -704,6 +842,34 @@ public class DataGenerators {
       };
       return GenericRowData.of(
           StringData.fromString("row_id_value"), new GenericArrayData(arrayOfArrays));
+    }
+
+    @Override
+    public Variant generateFlinkVariantData() {
+      VariantBuilder builder = Variant.newBuilder();
+      return builder
+          .object()
+          .add("row_id", builder.of("row_id_value"))
+          .add(
+              "array_of_array",
+              builder
+                  .array()
+                  .add(
+                      builder
+                          .array()
+                          .add(builder.of(1))
+                          .add(builder.of(2))
+                          .add(builder.of(3))
+                          .build())
+                  .add(
+                      builder
+                          .array()
+                          .add(builder.of(4))
+                          .add(builder.of(5))
+                          .add(builder.of(6))
+                          .build())
+                  .build())
+          .build();
     }
 
     @Override
@@ -768,6 +934,28 @@ public class DataGenerators {
             ImmutableMap.of(StringData.fromString("Alice"), 3, StringData.fromString("Bob"), 4))
       };
       return GenericRowData.of(StringData.fromString("row_id_value"), new GenericArrayData(array));
+    }
+
+    @Override
+    public Variant generateFlinkVariantData() {
+      VariantBuilder builder = Variant.newBuilder();
+      return builder
+          .object()
+          .add("row_id", builder.of("row_id_value"))
+          .add(
+              "array_of_map",
+              builder
+                  .array()
+                  .add(
+                      builder.object().add("Jane", builder.of(1)).add("Joe", builder.of(2)).build())
+                  .add(
+                      builder
+                          .object()
+                          .add("Alice", builder.of(3))
+                          .add("Bob", builder.of(4))
+                          .build())
+                  .build())
+          .build();
     }
 
     @Override
@@ -842,6 +1030,32 @@ public class DataGenerators {
     }
 
     @Override
+    public Variant generateFlinkVariantData() {
+      VariantBuilder builder = Variant.newBuilder();
+      return builder
+          .object()
+          .add("row_id", builder.of("row_id_value"))
+          .add(
+              "array_of_struct",
+              builder
+                  .array()
+                  .add(
+                      builder
+                          .object()
+                          .add("id", builder.of(1))
+                          .add("name", builder.of("Jane"))
+                          .build())
+                  .add(
+                      builder
+                          .object()
+                          .add("id", builder.of(2))
+                          .add("name", builder.of("Joe"))
+                          .build())
+                  .build())
+          .build();
+    }
+
+    @Override
     public org.apache.avro.generic.GenericRecord generateAvroGenericRecord() {
       org.apache.avro.generic.GenericRecord struct1 = new GenericData.Record(structAvroSchema);
       struct1.put("id", 1);
@@ -857,6 +1071,10 @@ public class DataGenerators {
   }
 
   public static class MapOfPrimitives implements DataGenerator {
+    private final LocalDateTime tsAfterEpoch = LocalDateTime.of(2023, 1, 1, 12, 0, 0, 123456789);
+    private final LocalDateTime tsBeforeEpoch =
+        LocalDateTime.of(1969, 12, 31, 23, 59, 59, 987654321);
+
     private final Schema icebergSchema =
         new Schema(
             Types.NestedField.required(1, "row_id", Types.StringType.get()),
@@ -897,21 +1115,15 @@ public class DataGenerators {
       genericRecord.setField("row_id", "row_id_value");
       genericRecord.setField("map_of_primitives", ImmutableMap.of("Jane", 1, "Joe", 2));
 
-      LocalDateTime posNanos = LocalDateTime.of(2023, 1, 1, 12, 0, 0, 123456789);
-      LocalDateTime negNanos = LocalDateTime.of(1969, 12, 31, 23, 59, 59, 987654321);
       genericRecord.setField(
-          "map_of_ts_ns", ImmutableMap.of("positive", posNanos, "negative", negNanos));
+          "map_of_ts_ns", ImmutableMap.of("positive", tsAfterEpoch, "negative", tsBeforeEpoch));
       return genericRecord;
     }
 
     @Override
     public GenericRowData generateFlinkRowData() {
-      long posNanos =
-          org.apache.iceberg.util.DateTimeUtil.nanosFromTimestamp(
-              LocalDateTime.of(2023, 1, 1, 12, 0, 0, 123456789));
-      long negNanos =
-          org.apache.iceberg.util.DateTimeUtil.nanosFromTimestamp(
-              LocalDateTime.of(1969, 12, 31, 23, 59, 59, 987654321));
+      long posNanos = org.apache.iceberg.util.DateTimeUtil.nanosFromTimestamp(tsAfterEpoch);
+      long negNanos = org.apache.iceberg.util.DateTimeUtil.nanosFromTimestamp(tsBeforeEpoch);
 
       return GenericRowData.of(
           StringData.fromString("row_id_value"),
@@ -927,6 +1139,28 @@ public class DataGenerators {
                   TimestampData.fromEpochMillis(
                       Math.floorDiv(negNanos, 1_000_000L),
                       (int) Math.floorMod(negNanos, 1_000_000L)))));
+    }
+
+    @Override
+    public Variant generateFlinkVariantData() {
+      VariantBuilder builder = Variant.newBuilder();
+      long posNanos = org.apache.iceberg.util.DateTimeUtil.nanosFromTimestamp(tsAfterEpoch);
+      long negNanos = org.apache.iceberg.util.DateTimeUtil.nanosFromTimestamp(tsBeforeEpoch);
+
+      return builder
+          .object()
+          .add("row_id", builder.of("row_id_value"))
+          .add(
+              "map_of_primitives",
+              builder.object().add("Jane", builder.of(1)).add("Joe", builder.of(2)).build())
+          .add(
+              "map_of_ts_ns",
+              builder
+                  .object()
+                  .add("positive", builder.of(posNanos))
+                  .add("negative", builder.of(negNanos))
+                  .build())
+          .build();
     }
 
     @Override
@@ -1007,6 +1241,36 @@ public class DataGenerators {
     }
 
     @Override
+    public Variant generateFlinkVariantData() {
+      VariantBuilder builder = Variant.newBuilder();
+      return builder
+          .object()
+          .add("row_id", builder.of("row_id_value"))
+          .add(
+              "map_of_array",
+              builder
+                  .object()
+                  .add(
+                      "Jane",
+                      builder
+                          .array()
+                          .add(builder.of(1))
+                          .add(builder.of(2))
+                          .add(builder.of(3))
+                          .build())
+                  .add(
+                      "Joe",
+                      builder
+                          .array()
+                          .add(builder.of(4))
+                          .add(builder.of(5))
+                          .add(builder.of(6))
+                          .build())
+                  .build())
+          .build();
+    }
+
+    @Override
     public org.apache.avro.generic.GenericRecord generateAvroGenericRecord() {
       org.apache.avro.generic.GenericRecord genericRecord = new GenericData.Record(avroSchema);
       genericRecord.put("row_id", "row_id_value");
@@ -1079,6 +1343,30 @@ public class DataGenerators {
                   new GenericMapData(
                       ImmutableMap.of(
                           StringData.fromString("Joe"), 3, StringData.fromString("Bob"), 4)))));
+    }
+
+    @Override
+    public Variant generateFlinkVariantData() {
+      VariantBuilder builder = Variant.newBuilder();
+      return builder
+          .object()
+          .add("row_id", builder.of("row_id_value"))
+          .add(
+              "map_of_map",
+              builder
+                  .object()
+                  .add(
+                      "female",
+                      builder
+                          .object()
+                          .add("Jane", builder.of(1))
+                          .add("Alice", builder.of(2))
+                          .build())
+                  .add(
+                      "male",
+                      builder.object().add("Joe", builder.of(3)).add("Bob", builder.of(4)).build())
+                  .build())
+          .build();
     }
 
     @Override
@@ -1192,6 +1480,34 @@ public class DataGenerators {
     }
 
     @Override
+    public Variant generateFlinkVariantData() {
+      VariantBuilder builder = Variant.newBuilder();
+      return builder
+          .object()
+          .add("row_id", builder.of("row_id_value"))
+          .add(
+              "map_of_struct",
+              builder
+                  .object()
+                  .add(
+                      "struct1",
+                      builder
+                          .object()
+                          .add("id", builder.of(1))
+                          .add("name", builder.of("Jane"))
+                          .build())
+                  .add(
+                      "struct2",
+                      builder
+                          .object()
+                          .add("id", builder.of(2))
+                          .add("name", builder.of("Joe"))
+                          .build())
+                  .build())
+          .build();
+    }
+
+    @Override
     public org.apache.avro.generic.GenericRecord generateAvroGenericRecord() {
       org.apache.avro.generic.GenericRecord struct1 = new GenericData.Record(structAvroSchema);
       struct1.put("id", 1);
@@ -1254,6 +1570,11 @@ public class DataGenerators {
               ImmutableMap.of(
                   GenericRowData.of(1L, StringData.fromString("key_data")),
                   GenericRowData.of(1L, StringData.fromString("value_data")))));
+    }
+
+    @Override
+    public Variant generateFlinkVariantData() {
+      throw new UnsupportedOperationException("Variant Map only support string key type");
     }
 
     @Override

@@ -110,7 +110,12 @@ public class TestVariantShredding extends CatalogTestBase {
   public void before() {
     super.before();
     validationCatalog.createTable(
-        tableIdent, SCHEMA, null, Map.of(TableProperties.FORMAT_VERSION, "3"));
+        tableIdent,
+        SCHEMA,
+        null,
+        Map.of(
+            TableProperties.FORMAT_VERSION, "3",
+            TableProperties.PARQUET_SHRED_VARIANTS, "true"));
   }
 
   @AfterEach
