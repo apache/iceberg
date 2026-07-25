@@ -176,7 +176,7 @@ class MapBackedContentStats implements ContentStats, StructLike {
 
     @Override
     public boolean hasValueCount() {
-      return boxedCount(valueCounts) != null;
+      return count(valueCounts) != null;
     }
 
     @Override
@@ -186,7 +186,7 @@ class MapBackedContentStats implements ContentStats, StructLike {
 
     @Override
     public boolean hasNullValueCount() {
-      return boxedCount(nullValueCounts) != null;
+      return count(nullValueCounts) != null;
     }
 
     @Override
@@ -196,7 +196,7 @@ class MapBackedContentStats implements ContentStats, StructLike {
 
     @Override
     public boolean hasNanValueCount() {
-      return boxedCount(nanValueCounts) != null;
+      return count(nanValueCounts) != null;
     }
 
     @Override
@@ -209,13 +209,7 @@ class MapBackedContentStats implements ContentStats, StructLike {
       return null;
     }
 
-    private long count(Map<Integer, Long> counts) {
-      Long value = counts == null ? null : counts.get(fieldId);
-      // -1 signals "not tracked", matching FieldMetrics; 0 would falsely assert a known zero count
-      return value == null ? -1L : value;
-    }
-
-    private Long boxedCount(Map<Integer, Long> counts) {
+    private Long count(Map<Integer, Long> counts) {
       return counts == null ? null : counts.get(fieldId);
     }
 
@@ -234,9 +228,9 @@ class MapBackedContentStats implements ContentStats, StructLike {
         case StatsUtil.LOWER_BOUND_OFFSET -> lowerBound();
         case StatsUtil.UPPER_BOUND_OFFSET -> upperBound();
         case StatsUtil.TIGHT_BOUNDS_OFFSET -> tightBounds();
-        case StatsUtil.VALUE_COUNT_OFFSET -> boxedCount(valueCounts);
-        case StatsUtil.NULL_VALUE_COUNT_OFFSET -> boxedCount(nullValueCounts);
-        case StatsUtil.NAN_VALUE_COUNT_OFFSET -> boxedCount(nanValueCounts);
+        case StatsUtil.VALUE_COUNT_OFFSET -> count(valueCounts);
+        case StatsUtil.NULL_VALUE_COUNT_OFFSET -> count(nullValueCounts);
+        case StatsUtil.NAN_VALUE_COUNT_OFFSET -> count(nanValueCounts);
         case StatsUtil.AVG_VALUE_SIZE_OFFSET -> null;
         default -> throw new UnsupportedOperationException("Unsupported stats offset: " + offset);
       };
