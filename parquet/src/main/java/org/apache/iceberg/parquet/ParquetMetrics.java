@@ -317,6 +317,7 @@ class ParquetMetrics {
       return new FieldMetrics<>(fieldId, valueCount, nullCount);
     }
 
+    @SuppressWarnings("CyclomaticComplexity")
     private <T> FieldMetrics<T> bounds(
         int fieldId,
         org.apache.iceberg.types.Type.PrimitiveType icebergType,
