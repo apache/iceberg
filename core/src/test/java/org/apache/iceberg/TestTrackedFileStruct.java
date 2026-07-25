@@ -355,11 +355,11 @@ class TestTrackedFileStruct {
             FileContent.DATA,
             FORMAT_VERSION_V4,
             "s3://bucket/data/file.parquet",
-            FileFormat.PARQUET, // PartitionData has its own serialization tests
+            FileFormat.PARQUET,
             100L,
             1024L,
             7,
-            null,
+            null, // PartitionData has its own serialization tests
             null,
             1,
             null, // DeletionVector has its own serialization tests

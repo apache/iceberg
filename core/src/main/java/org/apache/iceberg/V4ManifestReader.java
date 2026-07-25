@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
@@ -208,6 +209,11 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
           "Cannot use forScanPlanning() with select(Collection<String>) or project(Schema)");
       this.scanPlanning = true;
       return this;
+    }
+
+    /** Selects columns to read by name; fields needed by the reader are always read. */
+    Builder select(String... newColumns) {
+      return select(Arrays.asList(newColumns));
     }
 
     /** Selects columns to read by name; fields needed by the reader are always read. */
