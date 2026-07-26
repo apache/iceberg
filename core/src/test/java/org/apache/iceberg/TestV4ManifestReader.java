@@ -59,17 +59,12 @@ public class TestV4ManifestReader {
   private static final int FORMAT_VERSION_V4 = 4;
   private static final long RECORD_COUNT = 100L;
   private static final long FILE_SIZE_IN_BYTES = 1024L;
-  private static final int SORT_ORDER_ID = 1;
-  private static final String DV_LOCATION = "s3://bucket/dv.puffin";
-  private static final long DV_OFFSET = 100L;
-  private static final long DV_SIZE_IN_BYTES = 50L;
-  private static final long DV_CARDINALITY = 5L;
   private static final DeletionVector DV =
       DeletionVectorStruct.builder()
-          .location(DV_LOCATION)
-          .offset(DV_OFFSET)
-          .sizeInBytes(DV_SIZE_IN_BYTES)
-          .cardinality(DV_CARDINALITY)
+          .location("s3://bucket/dv.puffin")
+          .offset(100L)
+          .sizeInBytes(50L)
+          .cardinality(5L)
           .build();
 
   private static final Schema TABLE_SCHEMA =
@@ -116,6 +111,16 @@ public class TestV4ManifestReader {
           null,
           null);
 
+  // shared data files: FILE_A is in partition id=1, FILE_B in partition id=2
+  private static final TrackedFile FILE_A = dataFile("data-a.parquet", partition(1));
+  private static final TrackedFile FILE_B = dataFile("data-b.parquet", partition(2));
+  private static final TrackedFile EQ_DELETES_A = deleteFile("eq-deletes-a.parquet", partition(1));
+  private static final TrackedFile EQ_DELETES_B = deleteFile("eq-deletes-b.parquet", partition(2));
+  private static final TrackedFile DATA_MANIFEST_REF =
+      manifestRef(FileContent.DATA_MANIFEST, "data-leaf.parquet");
+  private static final TrackedFile DELETE_MANIFEST_REF =
+      manifestRef(FileContent.DELETE_MANIFEST, "delete-leaf.parquet");
+
   @TempDir private Path tempDir;
 
   private final FileIO fileIO = new TestTables.LocalFileIO();
@@ -135,7 +140,7 @@ public class TestV4ManifestReader {
             ID_PARTITIONING.specId(),
             partition(7),
             null,
-            SORT_ORDER_ID,
+            1, // sort order id
             DV,
             null,
             ByteBuffer.wrap(new byte[] {1, 2, 3}),
@@ -426,10 +431,7 @@ public class TestV4ManifestReader {
   @ParameterizedTest
   @FieldSource("FORMATS")
   public void testPartitionFilterForceProjectsFilterFields(FileFormat format) throws IOException {
-    TrackedFile keep = dataFile("keep.parquet", partition(1));
-    TrackedFile prune = dataFile("prune.parquet", partition(2));
-
-    InputFile manifest = writeManifest(format, PARTITION_TYPE, ImmutableList.of(keep, prune));
+    InputFile manifest = writeManifest(format, PARTITION_TYPE, ImmutableList.of(FILE_A, FILE_B));
 
     // the caller projects only location; the reader must still project the fields the partition
     // filter reads (content_type, spec_id, partition) or every row would be pruned
@@ -439,7 +441,7 @@ public class TestV4ManifestReader {
             .project(projection)
             .filter(Expressions.equal("id", 1))
             .build()) {
-      assertThat(reader).extracting(TrackedFile::location).containsExactly(keep.location());
+      assertThat(reader).extracting(TrackedFile::location).containsExactly(FILE_A.location());
     }
   }
 
@@ -447,10 +449,7 @@ public class TestV4ManifestReader {
   @FieldSource("FORMATS")
   public void testSelectWithPartitionFilterProjectsFilterFields(FileFormat format)
       throws IOException {
-    TrackedFile keep = dataFile("keep.parquet", partition(1));
-    TrackedFile prune = dataFile("prune.parquet", partition(2));
-
-    InputFile manifest = writeManifest(format, PARTITION_TYPE, ImmutableList.of(keep, prune));
+    InputFile manifest = writeManifest(format, PARTITION_TYPE, ImmutableList.of(FILE_A, FILE_B));
 
     // the caller selects only location; the reader must still project spec_id and partition
     // for the partition filter or every row would be pruned
@@ -459,7 +458,7 @@ public class TestV4ManifestReader {
             .select("location")
             .filter(Expressions.equal("id", 1))
             .build()) {
-      assertThat(reader).extracting(TrackedFile::location).containsExactly(keep.location());
+      assertThat(reader).extracting(TrackedFile::location).containsExactly(FILE_A.location());
     }
   }
 
@@ -478,21 +477,19 @@ public class TestV4ManifestReader {
   @ParameterizedTest
   @FieldSource("FORMATS")
   public void testPartitionFilterPrunesFilesAndCountsSkips(FileFormat format) throws IOException {
-    // one data file and one delete file match the filter; their counterparts are pruned; manifest
+    // FILE_A and EQ_DELETES_A match the filter; FILE_B and EQ_DELETES_B are pruned; manifest
     // references have no partition and are always kept
-    TrackedFile keepData = dataFile("keep-data.parquet", partition(1));
-    TrackedFile pruneData = dataFile("prune-data.parquet", partition(2));
-    TrackedFile keepDelete = deleteFile("keep-delete.parquet", partition(1));
-    TrackedFile pruneDelete = deleteFile("prune-delete.parquet", partition(2));
-    TrackedFile dataManifestRef = manifestRef(FileContent.DATA_MANIFEST, "data-leaf.parquet");
-    TrackedFile deleteManifestRef = manifestRef(FileContent.DELETE_MANIFEST, "delete-leaf.parquet");
-
     InputFile manifest =
         writeManifest(
             format,
             PARTITION_TYPE,
             ImmutableList.of(
-                keepData, pruneData, keepDelete, pruneDelete, dataManifestRef, deleteManifestRef));
+                FILE_A,
+                FILE_B,
+                EQ_DELETES_A,
+                EQ_DELETES_B,
+                DATA_MANIFEST_REF,
+                DELETE_MANIFEST_REF));
 
     ScanMetrics metrics = ScanMetrics.of(new DefaultMetricsContext());
     try (V4ManifestReader reader =
@@ -503,10 +500,10 @@ public class TestV4ManifestReader {
       assertThat(reader)
           .extracting(TrackedFile::location)
           .containsExactlyInAnyOrder(
-              keepData.location(),
-              keepDelete.location(),
-              dataManifestRef.location(),
-              deleteManifestRef.location());
+              FILE_A.location(),
+              EQ_DELETES_A.location(),
+              DATA_MANIFEST_REF.location(),
+              DELETE_MANIFEST_REF.location());
     }
 
     assertThat(metrics.skippedDataFiles().value())
@@ -550,17 +547,14 @@ public class TestV4ManifestReader {
   @ParameterizedTest
   @FieldSource("FORMATS")
   public void testCaseInsensitivePartitionFilter(FileFormat format) throws IOException {
-    TrackedFile keep = dataFile("keep.parquet", partition(1));
-    TrackedFile prune = dataFile("prune.parquet", partition(2));
-
-    InputFile manifest = writeManifest(format, PARTITION_TYPE, ImmutableList.of(keep, prune));
+    InputFile manifest = writeManifest(format, PARTITION_TYPE, ImmutableList.of(FILE_A, FILE_B));
 
     try (V4ManifestReader reader =
         V4ManifestReader.builder(manifest, PARTITIONED_SPECS)
             .filter(Expressions.equal("ID", 1))
             .caseSensitive(false)
             .build()) {
-      assertThat(reader).extracting(TrackedFile::location).containsExactly(keep.location());
+      assertThat(reader).extracting(TrackedFile::location).containsExactly(FILE_A.location());
     }
   }
 
