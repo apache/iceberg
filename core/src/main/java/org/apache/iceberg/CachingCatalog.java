@@ -144,29 +144,41 @@ public class CachingCatalog implements Catalog {
       return cached;
     }
 
-    Table table = tableCache.get(canonicalized, catalog::loadTable);
+    // Use asMap().compute() atomically so that any concurrent invalidate() will not race with a
+    // put that would otherwise resurrect a stale value in the cache. See issue #17338.
+    return tableCache
+        .asMap()
+        .compute(
+            canonicalized,
+            (key, existing) -> {
+              if (existing != null) {
+                return existing;
+              }
 
-    if (table instanceof BaseMetadataTable) {
-      // Cache underlying table
-      TableIdentifier originTableIdentifier =
-          TableIdentifier.of(canonicalized.namespace().levels());
-      Table originTable = tableCache.get(originTableIdentifier, catalog::loadTable);
+              Table table = catalog.loadTable(key);
 
-      // Share TableOperations instance of origin table for all metadata tables, so that metadata
-      // table instances are refreshed as well when origin table instance is refreshed.
-      if (originTable instanceof HasTableOperations) {
-        TableOperations ops = ((HasTableOperations) originTable).operations();
-        MetadataTableType type = MetadataTableType.from(canonicalized.name());
+              if (table instanceof BaseMetadataTable) {
+                // For metadata tables, share the TableOperations of the origin table so that
+                // metadata table instances are refreshed as well when the origin table instance
+                // is refreshed. The origin table is loaded (and cached) via a separate atomic
+                // compute below.
+                TableIdentifier originTableIdentifier =
+                    TableIdentifier.of(key.namespace().levels());
+                Table originTable =
+                    tableCache
+                        .asMap()
+                        .computeIfAbsent(originTableIdentifier, catalog::loadTable);
 
-        Table metadataTable =
-            MetadataTableUtils.createMetadataTableInstance(
-                ops, catalog.name(), originTableIdentifier, canonicalized, type);
-        tableCache.put(canonicalized, metadataTable);
-        return metadataTable;
-      }
-    }
+                if (originTable instanceof HasTableOperations) {
+                  TableOperations ops = ((HasTableOperations) originTable).operations();
+                  MetadataTableType type = MetadataTableType.from(key.name());
+                  return MetadataTableUtils.createMetadataTableInstance(
+                      ops, catalog.name(), originTableIdentifier, key, type);
+                }
+              }
 
-    return table;
+              return table;
+            });
   }
 
   @Override

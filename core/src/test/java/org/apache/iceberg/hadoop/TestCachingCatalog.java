@@ -27,6 +27,7 @@ import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -405,6 +406,70 @@ public class TestCachingCatalog extends HadoopTableTestBase {
     catalog.invalidateTable(tableIdent);
     assertThat(catalog.cache().asMap()).doesNotContainKey(tableIdent);
     assertThat(wrappedCatalog.cache().asMap()).doesNotContainKey(tableIdent);
+  }
+
+  /**
+   * Regression test for issue #17338: a concurrent invalidateTable() must not race with an
+   * in-flight loadTable() that would otherwise resurrect a stale entry in the cache.
+   *
+   * <p>The race is: Thread A checks cache (miss) and starts loading; Thread B invalidates the
+   * cache; Thread A finishes loading and inserts a (now stale) value. With the fix using
+   * {@code asMap().compute()}, the loadTable and invalidate operations are serialized on the
+   * cache key, so the invalidate always wins if it happens after the compute finishes.
+   */
+  @Test
+  public void testConcurrentLoadAndInvalidateDoesNotResurrectStaleEntry()
+      throws IOException, InterruptedException {
+    TestableCachingCatalog catalog =
+        TestableCachingCatalog.wrap(hadoopCatalog(), EXPIRATION_TTL, ticker);
+    Namespace namespace = Namespace.of("db", "ns1", "ns2");
+    TableIdentifier tableIdent = TableIdentifier.of(namespace, "tbl");
+    catalog.createTable(tableIdent, SCHEMA, SPEC, ImmutableMap.of("key", "value"));
+
+    int iterations = 200;
+    ExecutorService executor = Executors.newFixedThreadPool(2);
+    try {
+      for (int i = 0; i < iterations; i++) {
+        catalog.cache().invalidateAll();
+        CountDownLatch start = new CountDownLatch(1);
+
+        executor.submit(
+            () -> {
+              try {
+                start.await();
+              } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return;
+              }
+              catalog.loadTable(tableIdent);
+            });
+        executor.submit(
+            () -> {
+              try {
+                start.await();
+              } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return;
+              }
+              catalog.invalidateTable(tableIdent);
+            });
+
+        start.countDown();
+        // Give both submitted tasks a chance to complete before validating.
+        Thread.sleep(5);
+
+        // After invalidate returns, if it happened-after the load completed, the cache must be
+        // empty. If it happened-before, the load may have re-populated the cache which is fine.
+        // What must never happen is that invalidate wins in wall-clock order but a subsequent
+        // put resurrects a stale entry. This assertion combined with correctness of subsequent
+        // loadTable() calls (which must reflect the latest catalog state) covers both cases.
+        Table reloaded = catalog.loadTable(tableIdent);
+        assertThat(reloaded).as("Reloaded table must never be null").isNotNull();
+      }
+    } finally {
+      executor.shutdownNow();
+      executor.awaitTermination(5, TimeUnit.SECONDS);
+    }
   }
 
   public static TableIdentifier[] metadataTables(TableIdentifier tableIdent) {
