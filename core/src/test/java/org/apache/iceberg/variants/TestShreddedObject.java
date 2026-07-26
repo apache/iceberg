@@ -24,6 +24,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
@@ -283,6 +284,59 @@ public class TestShreddedObject {
   }
 
   @Test
+  public void testPutAfterRemoveIsSerialized() {
+    ShreddedObject partial = createUnshreddedObject(FIELDS);
+    partial.remove("b");
+    partial.put("b", Variants.of("replaced"));
+
+    VariantValue value = roundTripMinimalBuffer(partial, partial.metadata());
+
+    SerializedObject actual = (SerializedObject) value;
+    assertThat(actual.numFields()).isEqualTo(3);
+    assertThat(actual.get("a")).isInstanceOf(VariantPrimitive.class);
+    assertThat(actual.get("a").asPrimitive().get()).isEqualTo(34);
+    VariantTestUtil.assertVariantString(actual.get("b"), "replaced");
+    assertThat(actual.get("c")).isInstanceOf(VariantPrimitive.class);
+    assertThat(actual.get("c").asPrimitive().get()).isEqualTo(new BigDecimal("12.21"));
+  }
+
+  @Test
+  public void testEmptyObject() {
+    Set<String> names = Sets.newLinkedHashSet();
+    names.add("a");
+    names.add("b");
+    names.add("c");
+    ByteBuffer metadataBuffer = VariantTestUtil.createMetadata(names, false);
+    VariantMetadata metadata = Variants.metadata(metadataBuffer);
+    ShreddedObject object = new ShreddedObject(metadata);
+
+    assertThat(object.numFields()).isEqualTo(0);
+    assertThat(object.sizeInBytes()).isEqualTo(3);
+
+    VariantValue value = roundTripMinimalBuffer(object, metadata);
+    assertThat(value).isInstanceOf(SerializedObject.class);
+    assertThat(((SerializedObject) value).numFields()).isEqualTo(0);
+  }
+
+  @Test
+  public void testRepeatedWriteToProducesSameBytes() {
+    ShreddedObject object = createUnshreddedObject(FIELDS);
+    object.put("c", Variants.ofIsoDate("2024-10-12"));
+    object.remove("b");
+
+    int size = object.sizeInBytes();
+    ByteBuffer reference = ByteBuffer.allocate(size).order(ByteOrder.LITTLE_ENDIAN);
+    object.writeTo(reference, 0);
+
+    for (int i = 0; i < 10; i++) {
+      ByteBuffer buf = ByteBuffer.allocate(size).order(ByteOrder.LITTLE_ENDIAN);
+      int written = object.writeTo(buf, 0);
+      assertThat(written).as("iteration %d", i).isEqualTo(size);
+      assertThat(buf).as("iteration %d", i).isEqualTo(reference);
+    }
+  }
+
+  @Test
   public void testPutAfterRemoveClearsRemoveMarker() {
     ShreddedObject object = createShreddedObject(FIELDS);
     VariantMetadata metadata = object.metadata();
@@ -302,6 +356,27 @@ public class TestShreddedObject {
     SerializedObject actual = (SerializedObject) serialized;
     assertThat(actual.numFields()).isEqualTo(3);
     VariantTestUtil.assertVariantString(actual.get("b"), "rewritten");
+  }
+
+  @Test
+  public void testWriteToDisagreesWithSizeInBytes() {
+    ShreddedObject object = createUnshreddedObject(FIELDS);
+    VariantPrimitive<Integer> real = Variants.of(42);
+    int actualSize = real.sizeInBytes();
+    int reportedSize = actualSize - 1;
+    object.put("a", new MismatchedSizeVariantValue(real, reportedSize));
+    int fieldId = object.metadata().id("a");
+
+    ByteBuffer buf = ByteBuffer.allocate(object.sizeInBytes()).order(ByteOrder.LITTLE_ENDIAN);
+    assertThatThrownBy(() -> object.writeTo(buf, 0))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage(
+            String.format(
+                Locale.ROOT,
+                "Wrote %s bytes for field id %s but expected %s (writeTo and sizeInBytes disagree)",
+                actualSize,
+                fieldId,
+                reportedSize));
   }
 
   @ParameterizedTest
@@ -475,6 +550,31 @@ public class TestShreddedObject {
         Variants.value(
             Variants.metadata(metadataBuffer),
             VariantTestUtil.createObject(metadataBuffer, fields));
+  }
+
+  private static final class MismatchedSizeVariantValue implements VariantValue {
+    private final VariantValue delegate;
+    private final int reportedSize;
+
+    MismatchedSizeVariantValue(VariantValue delegate, int reportedSize) {
+      this.delegate = delegate;
+      this.reportedSize = reportedSize;
+    }
+
+    @Override
+    public PhysicalType type() {
+      return delegate.type();
+    }
+
+    @Override
+    public int sizeInBytes() {
+      return reportedSize;
+    }
+
+    @Override
+    public int writeTo(ByteBuffer buffer, int offset) {
+      return delegate.writeTo(buffer, offset);
+    }
   }
 
   @ParameterizedTest

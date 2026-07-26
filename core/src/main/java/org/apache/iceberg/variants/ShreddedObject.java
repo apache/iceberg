@@ -25,12 +25,10 @@ import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.ByteBuffers;
-import org.apache.iceberg.util.SortedMerge;
 
 /**
  * A variant Object that handles full or partial shredding.
@@ -145,9 +143,7 @@ public class ShreddedObject implements VariantObject, Serializable {
 
   /** Common state for {@link #size()} and {@link #writeTo(ByteBuffer, int)} */
   private static class SerializationState {
-    private final VariantMetadata metadata;
-    private final Map<String, ByteBuffer> unshreddedFields;
-    private final Map<String, VariantValue> shreddedFields;
+    private final Entry[] entries;
     private final int dataSize;
     private final int numElements;
     private final boolean isLarge;
@@ -159,46 +155,54 @@ public class ShreddedObject implements VariantObject, Serializable {
         VariantObject unshredded,
         Map<String, VariantValue> shredded,
         Set<String> removedFields) {
-      this.metadata = metadata;
-      // field ID size is the size needed to store the largest field ID in the data
       this.fieldIdSize = VariantUtil.sizeOf(metadata.dictionarySize());
-      this.shreddedFields = Maps.newHashMap(shredded);
 
+      Map<String, Entry> sorted = Maps.newTreeMap();
       int totalDataSize = 0;
-      // get the unshredded field names and values as byte buffers
-      ImmutableMap.Builder<String, ByteBuffer> unshreddedBuilder = ImmutableMap.builder();
+
+      for (Map.Entry<String, VariantValue> field : shredded.entrySet()) {
+        String name = field.getKey();
+        int id = metadata.id(name);
+        Preconditions.checkState(id >= 0, "Invalid metadata, missing: %s", name);
+        VariantValue value = field.getValue();
+        int valueSize = value.sizeInBytes();
+        sorted.put(name, Entry.ofShredded(id, value, valueSize));
+        totalDataSize += valueSize;
+      }
+
       if (unshredded instanceof SerializedObject) {
         // for serialized objects, use existing buffers instead of materializing values
         SerializedObject serialized = (SerializedObject) unshredded;
         for (Map.Entry<String, Integer> field : serialized.fields()) {
-          // if the value is replaced by an unshredded field, don't include it
           String name = field.getKey();
-          boolean replaced = shreddedFields.containsKey(name) || removedFields.contains(name);
-          if (!replaced) {
-            ByteBuffer value = serialized.sliceValue(field.getValue());
-            unshreddedBuilder.put(name, value);
-            totalDataSize += value.remaining();
+          if (sorted.containsKey(name) || removedFields.contains(name)) {
+            continue;
           }
+          int id = metadata.id(name);
+          Preconditions.checkState(id >= 0, "Invalid metadata, missing: %s", name);
+          ByteBuffer value = serialized.sliceValue(field.getValue());
+          int valueSize = value.remaining();
+          sorted.put(name, Entry.ofBuffer(id, value, valueSize));
+          totalDataSize += valueSize;
         }
       } else if (unshredded != null) {
         for (String name : unshredded.fieldNames()) {
-          boolean replaced = shreddedFields.containsKey(name) || removedFields.contains(name);
-          if (!replaced) {
-            shreddedFields.put(name, unshredded.get(name));
+          if (sorted.containsKey(name) || removedFields.contains(name)) {
+            continue;
           }
+          int id = metadata.id(name);
+          Preconditions.checkState(id >= 0, "Invalid metadata, missing: %s", name);
+          VariantValue value = unshredded.get(name);
+          int valueSize = value.sizeInBytes();
+          sorted.put(name, Entry.ofShredded(id, value, valueSize));
+          totalDataSize += valueSize;
         }
       }
 
-      this.unshreddedFields = unshreddedBuilder.build();
-      // duplicates are suppressed when creating unshreddedFields
-      this.numElements = unshreddedFields.size() + shreddedFields.size();
+      this.entries = sorted.values().toArray(new Entry[0]);
+      this.numElements = entries.length;
       // object is large if the number of elements can't be stored in 1 byte
       this.isLarge = numElements > 0xFF;
-
-      for (VariantValue value : shreddedFields.values()) {
-        totalDataSize += value.sizeInBytes();
-      }
-
       this.dataSize = totalDataSize;
       // offset size is the size needed to store the length of the data section
       this.offsetSize = VariantUtil.sizeOf(totalDataSize);
@@ -213,59 +217,65 @@ public class ShreddedObject implements VariantObject, Serializable {
     }
 
     private int writeTo(ByteBuffer buffer, int offset) {
-      int fieldIdListOffset =
-          offset + 1 /* header size */ + (isLarge ? 4 : 1) /* num elements size */;
+      int numElementsSize = isLarge ? 4 : 1;
+      int fieldIdListOffset = offset + 1 /* header size */ + numElementsSize;
       int offsetListOffset = fieldIdListOffset + (numElements * fieldIdSize);
       int dataOffset = offsetListOffset + ((1 + numElements) * offsetSize);
       byte header = VariantUtil.objectHeader(isLarge, fieldIdSize, offsetSize);
 
       ByteBuffers.writeByte(buffer, header, offset);
-      ByteBuffers.writeLittleEndianUnsigned(buffer, numElements, offset + 1, isLarge ? 4 : 1);
-
-      // neither iterable is closeable, so it is okay to use Iterable
-      Iterable<String> fields =
-          SortedMerge.of(
-              () -> unshreddedFields.keySet().stream().sorted().iterator(),
-              () -> shreddedFields.keySet().stream().sorted().iterator());
+      ByteBuffers.writeLittleEndianUnsigned(buffer, numElements, offset + 1, numElementsSize);
 
       int nextValueOffset = 0;
-      int index = 0;
-      for (String field : fields) {
-        // write the field ID from the metadata dictionary
-        int id = metadata.id(field);
-        Preconditions.checkState(id >= 0, "Invalid metadata, missing: %s", field);
+      for (int index = 0; index < numElements; index++) {
+        Entry entry = entries[index];
         ByteBuffers.writeLittleEndianUnsigned(
-            buffer, id, fieldIdListOffset + (index * fieldIdSize), fieldIdSize);
-        // write the data offset
+            buffer, entry.id, fieldIdListOffset + (index * fieldIdSize), fieldIdSize);
         ByteBuffers.writeLittleEndianUnsigned(
             buffer, nextValueOffset, offsetListOffset + (index * offsetSize), offsetSize);
 
-        // copy or serialize the value into the data section
-        int valueSize;
-        VariantValue shreddedValue = shreddedFields.get(field);
-        if (shreddedValue != null) {
-          valueSize = shreddedValue.writeTo(buffer, dataOffset + nextValueOffset);
+        if (entry.shredded != null) {
+          int writtenSize = entry.shredded.writeTo(buffer, dataOffset + nextValueOffset);
+          Preconditions.checkState(
+              writtenSize == entry.size,
+              "Wrote %s bytes for field id %s but expected %s (writeTo and sizeInBytes disagree)",
+              writtenSize,
+              entry.id,
+              entry.size);
         } else {
-          ByteBuffer unshreddedValue = unshreddedFields.get(field);
-          buffer.put(
-              dataOffset + nextValueOffset,
-              unshreddedValue,
-              unshreddedValue.position(),
-              unshreddedValue.remaining());
-          valueSize = unshreddedValue.remaining();
+          ByteBuffer src = entry.buffer;
+          buffer.put(dataOffset + nextValueOffset, src, src.position(), src.remaining());
         }
-
-        // update tracking
-        nextValueOffset += valueSize;
-        index += 1;
+        nextValueOffset += entry.size;
       }
 
       // write the final size of the data section
       ByteBuffers.writeLittleEndianUnsigned(
-          buffer, nextValueOffset, offsetListOffset + (index * offsetSize), offsetSize);
+          buffer, nextValueOffset, offsetListOffset + (numElements * offsetSize), offsetSize);
 
-      // return the total size
       return (dataOffset - offset) + dataSize;
+    }
+
+    private static final class Entry {
+      private final int id;
+      private final VariantValue shredded;
+      private final ByteBuffer buffer;
+      private final int size;
+
+      private Entry(int id, VariantValue shredded, ByteBuffer buffer, int size) {
+        this.id = id;
+        this.shredded = shredded;
+        this.buffer = buffer;
+        this.size = size;
+      }
+
+      static Entry ofShredded(int id, VariantValue value, int size) {
+        return new Entry(id, value, null, size);
+      }
+
+      static Entry ofBuffer(int id, ByteBuffer buffer, int size) {
+        return new Entry(id, null, buffer, size);
+      }
     }
   }
 
