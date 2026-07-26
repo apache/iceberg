@@ -336,7 +336,17 @@ class ParquetMetrics {
 
       for (ColumnChunkMetaData column : columns.get(path)) {
         Statistics<?> stats = column.getStatistics();
-        if (stats == null || stats.isEmpty() || (stats.genericGetMin() == null && stats.genericGetMax() == null)) {
+        if (stats == null || stats.isEmpty()) {
+          return null;
+        }
+
+        // Min/max may be dropped (e.g. when they exceed the max stats size) even though the column
+        // has non-null values. In that case the bounds are unusable and must not be reported. An
+        // all-null column also has no min/max, but its counts are still valid and should be kept,
+        // so only bail out when non-null values exist (value count exceeds the null count).
+        if (stats.genericGetMin() == null
+            && stats.genericGetMax() == null
+            && column.getValueCount() > stats.getNumNulls()) {
           return null;
         }
 
