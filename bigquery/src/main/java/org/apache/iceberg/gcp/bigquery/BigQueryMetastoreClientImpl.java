@@ -92,8 +92,8 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
 
         @Override
         public RetryResult beforeEval(Exception exception) {
-          if (exception instanceof BaseServiceException) {
-            boolean retriable = ((BaseServiceException) exception).isRetryable();
+          if (exception instanceof BaseServiceException serviceException) {
+            boolean retriable = serviceException.isRetryable();
             return retriable
                 ? ExceptionHandler.Interceptor.RetryResult.RETRY
                 : ExceptionHandler.Interceptor.RetryResult.CONTINUE_EVALUATION;
@@ -672,8 +672,8 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
       BigQueryRetryHelper.BigQueryRetryHelperException retryException) {
     Throwable cause = retryException.getCause();
     String message = retryException.getMessage();
-    if (cause instanceof RuntimeException) {
-      throw (RuntimeException) cause;
+    if (cause instanceof RuntimeException runtimeException) {
+      throw runtimeException;
     } else {
       throw new RuntimeException(message, cause);
     }
