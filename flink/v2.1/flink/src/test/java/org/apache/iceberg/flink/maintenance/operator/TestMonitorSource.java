@@ -45,13 +45,13 @@ import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.FileGenerationUtil;
 import org.apache.iceberg.RewriteFiles;
 import org.apache.iceberg.SnapshotChanges;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.data.GenericAppenderHelper;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
-import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.awaitility.Awaitility;
@@ -66,7 +66,6 @@ class TestMonitorSource extends OperatorTestBase {
   private static final RateLimiterStrategy LOW_RATE = RateLimiterStrategy.perSecond(1.0 / 10000.0);
 
   @TempDir private File checkpointDir;
-  @TempDir private java.nio.file.Path dataDir;
 
   @ParameterizedTest
   @ValueSource(booleans = {true, false})
@@ -321,9 +320,7 @@ class TestMonitorSource extends OperatorTestBase {
     DataFile dataFile =
         SnapshotChanges.builderFor(table).build().addedDataFiles().iterator().next();
     // Replace the file with a new file to produce a REPLACE snapshot
-    DataFile replacement =
-        new GenericAppenderHelper(table, FileFormat.PARQUET, dataDir)
-            .writeFile(Lists.newArrayList(SimpleDataUtil.createRecord(2, "b")));
+    DataFile replacement = FileGenerationUtil.generateDataFile(table, null);
     RewriteFiles rewrite = tableLoader.loadTable().newRewrite();
     rewrite.deleteFile(dataFile);
     rewrite.addFile(replacement);
