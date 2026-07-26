@@ -67,18 +67,13 @@ class TrackedFileAdapters {
 
   /**
    * Returns a reusable wrapper that presents a {@link DataFile} as a {@link TrackedFile} row.
-   * Instantiate once per writer; call {@code wrap} on each row with a caller-supplied {@link
-   * Tracking}.
+   * Instantiate once per writer.
    *
-   * @param formatVersion the target table's format version at commit time (must be v4 or higher).
-   *     The source file may be pre-v4 (e.g., during migration or when existing pre-v4 files are
-   *     carried into a new v4 manifest).
-   * @param tableSchema table schema for building {@link ContentStats} from the file's stats
-   * @param metricsConfig the table's metrics config, used to prune the content stats schema to the
-   *     columns that carry stats
-   * @param partitionType target partition struct type the wrapper projects the file's partition
-   *     tuple into. Callers pass a single spec's partition type when writing a single-spec manifest
-   *     or the union of all live specs when a manifest holds files from multiple specs.
+   * @param formatVersion the target table's format version (must be 4+)
+   * @param tableSchema table schema used to build {@link ContentStats} from the file's stats
+   * @param metricsConfig metrics config used to prune the content stats schema
+   * @param partitionType target partition struct type; use one spec's partition type for a
+   *     single-spec manifest, or the union across live specs for a multi-spec manifest
    */
   static DataTrackedFile forDataFile(
       int formatVersion,
@@ -90,18 +85,13 @@ class TrackedFileAdapters {
 
   /**
    * Returns a reusable wrapper that presents an equality {@link DeleteFile} as a {@link
-   * TrackedFile} row. Rejects non-{@code EQUALITY_DELETES} inputs on {@code wrap} (v3 DVs and v2
-   * position deletes have no v4 leaf representation).
+   * TrackedFile} row.
    *
-   * @param formatVersion the target table's format version at commit time (must be v4 or higher).
-   *     The source file may be pre-v4 (e.g., during migration or when existing pre-v4 files are
-   *     carried into a new v4 manifest).
-   * @param tableSchema table schema for building {@link ContentStats} from the file's stats
-   * @param metricsConfig the table's metrics config, used to prune the content stats schema to the
-   *     columns that carry stats
-   * @param partitionType target partition struct type the wrapper projects the file's partition
-   *     tuple into. Callers pass a single spec's partition type when writing a single-spec manifest
-   *     or the union of all live specs when a manifest holds files from multiple specs.
+   * @param formatVersion the target table's format version (must be 4+)
+   * @param tableSchema table schema used to build {@link ContentStats} from the file's stats
+   * @param metricsConfig metrics config used to prune the content stats schema
+   * @param partitionType target partition struct type; use one spec's partition type for a
+   *     single-spec manifest, or the union across live specs for a multi-spec manifest
    */
   static EqualityDeleteTrackedFile forEqualityDeleteFile(
       int formatVersion,
@@ -633,11 +623,7 @@ class TrackedFileAdapters {
       super(formatVersion, tableSchema, metricsConfig, partitionType);
     }
 
-    /**
-     * Re-points this wrapper at {@code newFile} in place and returns {@code this} for fluent usage
-     * (e.g. {@code writer.append(wrapper.wrap(file, tracking))}). The caller builds the {@link
-     * Tracking} to encode the entry's status and sequence numbers.
-     */
+    /** Re-points this wrapper at {@code newFile} in place. */
     public DataTrackedFile wrap(DataFile newFile, Tracking tracking) {
       wrapWithTracking(newFile, tracking);
       return this;
@@ -672,11 +658,7 @@ class TrackedFileAdapters {
       super(formatVersion, tableSchema, metricsConfig, partitionType);
     }
 
-    /**
-     * Re-points this wrapper at {@code newFile} in place and returns {@code this} for fluent usage
-     * (e.g. {@code writer.append(wrapper.wrap(file, tracking))}). The caller builds the {@link
-     * Tracking} to encode the entry's status and sequence numbers.
-     */
+    /** Re-points this wrapper at {@code newFile} in place. */
     public EqualityDeleteTrackedFile wrap(DeleteFile newFile, Tracking tracking) {
       wrapWithTracking(newFile, tracking);
       return this;
@@ -703,8 +685,8 @@ class TrackedFileAdapters {
 
   /** Wraps a {@link ManifestFile} as a v4+ leaf manifest row. */
   static class ManifestTrackedFile implements TrackedFile, StructLike {
-    private Tracking tracking;
     private final WrappedManifestInfo manifestInfo = new WrappedManifestInfo();
+    private Tracking tracking;
     private ManifestFile manifest;
     private long recordCount;
     private FileContent contentType;
@@ -712,8 +694,7 @@ class TrackedFileAdapters {
     ManifestTrackedFile() {}
 
     /**
-     * Re-points this wrapper at {@code newManifest} in place and returns {@code this} for fluent
-     * usage.
+     * Re-points this wrapper at {@code newManifest} in place.
      *
      * @param newManifest manifest file being referenced; must carry an assigned {@code
      *     sequence_number} and {@code min_sequence_number}
@@ -1045,6 +1026,7 @@ class TrackedFileAdapters {
               "Cannot project partition for %s: partition type is unavailable for %s",
               file.location(), partition));
     }
+
     return StructProjection.createAllowMissing(sourceType, partitionType).wrap(partition);
   }
 

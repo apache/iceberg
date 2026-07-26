@@ -127,8 +127,13 @@ class TestMapBackedContentStats {
     // when the count is absent (as with FieldStatsStruct)
     assertThat(id.hasNullValueCount()).isFalse();
     assertThat(id.hasNanValueCount()).isFalse();
-    assertThatThrownBy(id::nullValueCount).isInstanceOf(NullPointerException.class);
-    assertThatThrownBy(id::nanValueCount).isInstanceOf(NullPointerException.class);
+    // primitive unbox of an absent Long count throws the JVM's helpful NPE
+    assertThatThrownBy(id::nullValueCount)
+        .isInstanceOf(NullPointerException.class)
+        .hasMessageContaining("Long.longValue()");
+    assertThatThrownBy(id::nanValueCount)
+        .isInstanceOf(NullPointerException.class)
+        .hasMessageContaining("Long.longValue()");
     // the wrapper never tracks tight bounds or avg value size on the write path
     assertThat(id.tightBounds()).isFalse();
     assertThat(id.avgValueSizeInBytes()).isNull();
@@ -142,7 +147,9 @@ class TestMapBackedContentStats {
     // ts has other stats but no value_count entry — statsFor is non-null, valueCount() must throw
     FieldStats<?> ts = stats.statsFor(3);
     assertThat(ts.hasValueCount()).isFalse();
-    assertThatThrownBy(ts::valueCount).isInstanceOf(NullPointerException.class);
+    assertThatThrownBy(ts::valueCount)
+        .isInstanceOf(NullPointerException.class)
+        .hasMessageContaining("Long.longValue()");
     assertThat(ts.hasNullValueCount()).isTrue();
     assertThat(ts.nullValueCount()).isEqualTo(1L);
   }

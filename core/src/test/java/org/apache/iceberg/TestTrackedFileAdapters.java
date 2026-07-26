@@ -27,12 +27,12 @@ import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
-import org.junit.jupiter.params.provider.FieldSource;
 
 class TestTrackedFileAdapters {
 
@@ -64,11 +64,11 @@ class TestTrackedFileAdapters {
   // manifestPos is populated by readers using the setter with the position of the field.
   private static final int MANIFEST_POS_ORDINAL = Tracking.schema().fields().size();
 
-  private static final Schema STATS_SCHEMA =
+  private static final Schema TABLE_SCHEMA =
       new Schema(
           optional(1, "id", Types.IntegerType.get()), optional(2, "score", Types.FloatType.get()));
   private static final Types.StructType CONTENT_STATS_TYPE =
-      StatsUtil.statsReadSchema(STATS_SCHEMA, ImmutableList.of(1, 2));
+      StatsUtil.statsReadSchema(TABLE_SCHEMA, ImmutableList.of(1, 2));
   private static final FieldStats<?> ID_STATS =
       StatsTestUtil.mockFieldStats(
           CONTENT_STATS_TYPE.fieldType("id").asStructType(), 1, 1, 1000, 100L, 5L, null);
@@ -83,15 +83,9 @@ class TestTrackedFileAdapters {
     CONTENT_STATS.setStats(2, SCORE_STATS);
   }
 
-  private static final Schema TABLE_SCHEMA =
-      new Schema(
-          Types.NestedField.required(1, "id", Types.IntegerType.get()),
-          Types.NestedField.required(2, "data", Types.StringType.get()));
   private static final MetricsConfig METRICS_CONFIG =
       MetricsConfig.from(ImmutableMap.of(), TABLE_SCHEMA, SortOrder.unsorted());
   private static final PartitionSpec UNPARTITIONED_SPEC = PartitionSpec.unpartitioned();
-  private static final PartitionData EMPTY_PARTITION_DATA =
-      new PartitionData(UNPARTITIONED_SPEC.partitionType());
   private static final Types.StructType PARTITION_TYPE = UNPARTITIONED_SPEC.partitionType();
   private static final long SNAPSHOT_ID = 42L;
   private static final long DATA_SEQ = 7L;
@@ -123,7 +117,7 @@ class TestTrackedFileAdapters {
           UNPARTITIONED_SPEC.specId(),
           DATA_PATH,
           FileFormat.PARQUET,
-          EMPTY_PARTITION_DATA,
+          PartitionData.EMPTY,
           1024L,
           new Metrics(100L, null, null, null, null),
           null,
@@ -135,7 +129,7 @@ class TestTrackedFileAdapters {
           UNPARTITIONED_SPEC.specId(),
           DATA_PATH,
           FileFormat.PARQUET,
-          EMPTY_PARTITION_DATA,
+          PartitionData.EMPTY,
           1024L,
           METRICS_WITH_BOUNDS,
           null,
@@ -148,7 +142,7 @@ class TestTrackedFileAdapters {
           FileContent.EQUALITY_DELETES,
           DELETE_PATH,
           FileFormat.PARQUET,
-          EMPTY_PARTITION_DATA,
+          PartitionData.EMPTY,
           512L,
           new Metrics(50L, null, null, null, null),
           new int[] {1},
@@ -555,53 +549,12 @@ class TestTrackedFileAdapters {
             PARTITIONED_SPEC_ID, mismatchedSpecId);
   }
 
-  private static void assertNullTrackingFields(ContentFile<?> file) {
-    assertThat(file.pos()).isNull();
-    assertThat(file.manifestLocation()).isNull();
-    assertThat(file.dataSequenceNumber()).isNull();
-    assertThat(file.fileSequenceNumber()).isNull();
-    assertThat(file.firstRowId()).isNull();
-  }
-
-  private static Map<Integer, PartitionSpec> specsById(PartitionSpec spec) {
-    return ImmutableMap.of(spec.specId(), spec);
-  }
-
-  // Builds a partition tuple whose struct type matches PARTITIONED_SPEC.
-  private static PartitionData partition(String category) {
-    PartitionData partition = new PartitionData(PARTITIONED_SPEC.partitionType());
-    partition.set(0, category);
-    return partition;
-  }
-
-  /** Minimal file with no tracking, used by the rejection and null-tracking tests. */
-  private static TrackedFileStruct dummyTrackedFile(FileContent contentType) {
-    return new TrackedFileStruct(
-        null,
-        contentType,
-        FORMAT_VERSION_V4,
-        DATA_FILE_LOCATION,
-        FileFormat.PARQUET,
-        1L,
-        1L,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null);
-  }
-
-  @ParameterizedTest
-  @FieldSource("org.apache.iceberg.TestHelpers#V4_AND_ABOVE")
-  void testDataFileWrapperAdded(int formatVersion) {
+  @Test
+  void testDataFileWrapperAdded() {
     DataFile file = DATA_FILE;
     TrackedFileAdapters.DataTrackedFile wrapper =
         TrackedFileAdapters.forDataFile(
-            formatVersion, TABLE_SCHEMA, METRICS_CONFIG, PARTITION_TYPE);
+            FORMAT_VERSION_V4, TABLE_SCHEMA, METRICS_CONFIG, PARTITION_TYPE);
     TrackedFile result = wrapper.wrap(file, ADDED_TRACKING);
 
     assertThat(result.tracking().status()).isEqualTo(EntryStatus.ADDED);
@@ -609,7 +562,7 @@ class TestTrackedFileAdapters {
     assertThat(result.tracking().dataSequenceNumber()).isNull();
     assertThat(result.tracking().fileSequenceNumber()).isNull();
     assertThat(result.tracking().firstRowId()).isNull();
-    assertWriteDataFields(result, file, formatVersion);
+    assertWriteDataFields(result, file, FORMAT_VERSION_V4);
   }
 
   @Test
@@ -669,7 +622,7 @@ class TestTrackedFileAdapters {
             UNPARTITIONED_SPEC.specId(),
             "s3://bucket/data/file2.parquet",
             FileFormat.PARQUET,
-            EMPTY_PARTITION_DATA,
+            PartitionData.EMPTY,
             2048L,
             new Metrics(200L, null, null, null, null),
             null,
@@ -745,7 +698,7 @@ class TestTrackedFileAdapters {
             FileContent.POSITION_DELETES,
             DELETE_PATH,
             FileFormat.PUFFIN,
-            EMPTY_PARTITION_DATA,
+            PartitionData.EMPTY,
             512L,
             new Metrics(10L, null, null, null, null),
             null,
@@ -773,7 +726,7 @@ class TestTrackedFileAdapters {
             FileContent.POSITION_DELETES,
             DELETE_PATH,
             FileFormat.PARQUET,
-            EMPTY_PARTITION_DATA,
+            PartitionData.EMPTY,
             512L,
             new Metrics(10L, null, null, null, null),
             null,
@@ -861,28 +814,44 @@ class TestTrackedFileAdapters {
 
     DataFile roundTripped = TrackedFileAdapters.asDataFile(tracked, specs);
 
+    assertThat(roundTripped.content()).isEqualTo(FileContent.DATA);
     assertThat(roundTripped.location()).isEqualTo(source.location());
     assertThat(roundTripped.format()).isEqualTo(source.format());
     assertThat(roundTripped.recordCount()).isEqualTo(source.recordCount());
     assertThat(roundTripped.fileSizeInBytes()).isEqualTo(source.fileSizeInBytes());
     assertThat(roundTripped.specId()).isEqualTo(source.specId());
+    // partition survives as a StructProjection view; compare positionally by field type
+    assertThat(
+            Comparators.forType(PARTITION_TYPE)
+                .compare(roundTripped.partition(), source.partition()))
+        .isEqualTo(0);
+    assertThat(roundTripped.sortOrderId()).isEqualTo(source.sortOrderId());
+    assertThat(roundTripped.splitOffsets()).isEqualTo(source.splitOffsets());
+    assertThat(roundTripped.keyMetadata()).isEqualTo(source.keyMetadata());
     assertThat(roundTripped.dataSequenceNumber()).isEqualTo(DATA_SEQ);
     assertThat(roundTripped.fileSequenceNumber()).isEqualTo(FILE_SEQ);
+    assertThat(roundTripped.firstRowId()).isNull();
     assertThat(roundTripped.valueCounts()).containsAllEntriesOf(source.valueCounts());
     assertThat(roundTripped.nullValueCounts()).containsAllEntriesOf(source.nullValueCounts());
+    // METRICS_WITH_BOUNDS has an empty nan_value_counts map; the read side surfaces null when no
+    // column tracks nan
+    assertThat(roundTripped.nanValueCounts()).isNull();
     assertThat(roundTripped.lowerBounds()).containsAllEntriesOf(source.lowerBounds());
     assertThat(roundTripped.upperBounds()).containsAllEntriesOf(source.upperBounds());
+    // the write wrapper deliberately does not carry column_sizes; a round-trip loses that field
+    assertThat(roundTripped.columnSizes()).isNull();
   }
 
   @Test
   void testManifestReferenceWrapperForV4Manifest() {
-    GenericManifestFile manifest = v4WriteManifestFile(ManifestContent.DATA, 4, 6L);
+    GenericManifestFile manifest = v4WriteManifestFile(ManifestContent.DATA, 6L, 4);
     TrackedFileAdapters.ManifestTrackedFile wrapper = TrackedFileAdapters.forManifestReference();
     TrackedFile result = wrapper.wrap(manifest, EntryStatus.ADDED, 1000L);
 
     assertThat(result.contentType()).isEqualTo(FileContent.DATA_MANIFEST);
     assertThat(result.formatVersion()).isEqualTo(4);
     assertThat(result.location()).isEqualTo(MANIFEST_PATH);
+    assertThat(result.tracking().status()).isEqualTo(EntryStatus.ADDED);
     assertThat(result.tracking().firstRowId()).isEqualTo(1000L);
     assertThat(result.recordCount()).isEqualTo(6L);
     assertThat(result.manifestInfo()).isNotNull();
@@ -931,7 +900,7 @@ class TestTrackedFileAdapters {
   @Test
   void testManifestReferenceWrapperRejectsV4WithoutRecordCount() {
     GenericManifestFile manifest =
-        v4WriteManifestFile(ManifestContent.DATA, 4, null /* recordCount */);
+        v4WriteManifestFile(ManifestContent.DATA, null /* recordCount */, 4);
     TrackedFileAdapters.ManifestTrackedFile wrapper = TrackedFileAdapters.forManifestReference();
     assertThatThrownBy(() -> wrapper.wrap(manifest, EntryStatus.ADDED, null))
         .isInstanceOf(IllegalArgumentException.class)
@@ -946,7 +915,14 @@ class TestTrackedFileAdapters {
     assertThat(result.recordCount()).isEqualTo(file.recordCount());
     assertThat(result.fileSizeInBytes()).isEqualTo(file.fileSizeInBytes());
     assertThat(result.specId()).isEqualTo(file.specId());
+    assertThat(result.sortOrderId()).isEqualTo(file.sortOrderId());
+    assertThat(result.keyMetadata()).isEqualTo(file.keyMetadata());
     assertThat(result.splitOffsets()).isEqualTo(file.splitOffsets());
+    // data files carry no manifest-info or deletion-vector metadata
+    assertThat(result.manifestInfo()).isNull();
+    assertThat(result.deletionVector()).isNull();
+    // equalityIds is null for data files (only equality-delete files populate it)
+    assertThat(result.equalityIds()).isNull();
   }
 
   private static ManifestFile writeManifestFile(ManifestContent content) {
@@ -976,7 +952,7 @@ class TestTrackedFileAdapters {
   }
 
   private static GenericManifestFile v4WriteManifestFile(
-      ManifestContent content, int formatVersion, Long recordCount) {
+      ManifestContent content, Long recordCount, int formatVersion) {
     List<ManifestFile.PartitionFieldSummary> partitions = ImmutableList.of();
     return new GenericManifestFile(
         MANIFEST_PATH,
@@ -997,5 +973,45 @@ class TestTrackedFileAdapters {
         null,
         recordCount,
         formatVersion);
+  }
+
+  private static void assertNullTrackingFields(ContentFile<?> file) {
+    assertThat(file.pos()).isNull();
+    assertThat(file.manifestLocation()).isNull();
+    assertThat(file.dataSequenceNumber()).isNull();
+    assertThat(file.fileSequenceNumber()).isNull();
+    assertThat(file.firstRowId()).isNull();
+  }
+
+  private static Map<Integer, PartitionSpec> specsById(PartitionSpec spec) {
+    return ImmutableMap.of(spec.specId(), spec);
+  }
+
+  // Builds a partition tuple whose struct type matches PARTITIONED_SPEC.
+  private static PartitionData partition(String category) {
+    PartitionData partition = new PartitionData(PARTITIONED_SPEC.partitionType());
+    partition.set(0, category);
+    return partition;
+  }
+
+  /** Minimal file with no tracking, used by the rejection and null-tracking tests. */
+  private static TrackedFileStruct dummyTrackedFile(FileContent contentType) {
+    return new TrackedFileStruct(
+        null,
+        contentType,
+        FORMAT_VERSION_V4,
+        DATA_FILE_LOCATION,
+        FileFormat.PARQUET,
+        null,
+        1L,
+        1L,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null);
   }
 }
