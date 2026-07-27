@@ -580,30 +580,23 @@ License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2
 
 --------------------------------------------------------------------------------
 
-This product bundles Nimbus Language Tags.
+This product bundles Nimbus Lang Tag.
 
 Project URL: https://bitbucket.org/connect2id/nimbus-language-tags
 License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-This product bundles Nimbus JOSE+JWT.
+This product bundles Nimbus Jose JWT.
 
 Project URL: https://bitbucket.org/connect2id/nimbus-jose-jwt
 License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-This product bundles Nimbus OAuth 2.0 & 2.1 SDK with OpenID Connect extensions.
+This product bundles Nimbus OIDC SDK.
 
 Project URL: https://bitbucket.org/connect2id/oauth-2.0-sdk-with-openid-connect-extensions
-License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
-
---------------------------------------------------------------------------------
-
-This product bundles JSON Smart.
-
-Project URL: https://github.com/netplex/json-smart-v2
 License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
@@ -939,6 +932,20 @@ License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2
 This product bundles JNA.
 
 Project URL: https://github.com/java-native-access/jna
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
+This product bundles Accessors Smart.
+
+Project URL: https://urielch.github.io/
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
+This product bundles Json Smart.
+
+Project URL: https://urielch.github.io/
 License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
