@@ -54,13 +54,18 @@ public class AuthManagers {
       if (authType == null) {
         boolean hasCredential = properties.containsKey(OAuth2Properties.CREDENTIAL);
         boolean hasToken = properties.containsKey(OAuth2Properties.TOKEN);
-        if (hasCredential || hasToken) {
+        boolean hasTokenPath = properties.containsKey(OAuth2Properties.TOKEN_PATH);
+        if (hasCredential || hasToken || hasTokenPath) {
+          String inferredFrom =
+              hasCredential
+                  ? OAuth2Properties.CREDENTIAL
+                  : hasToken ? OAuth2Properties.TOKEN : OAuth2Properties.TOKEN_PATH;
           LOG.warn(
               "Inferring {}={} since property {} was provided. "
                   + "Please explicitly set {} to avoid this warning.",
               AuthProperties.AUTH_TYPE,
               AuthProperties.AUTH_TYPE_OAUTH2,
-              hasCredential ? OAuth2Properties.CREDENTIAL : OAuth2Properties.TOKEN,
+              inferredFrom,
               AuthProperties.AUTH_TYPE);
           authType = AuthProperties.AUTH_TYPE_OAUTH2;
         } else {

@@ -25,7 +25,10 @@ import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFA
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
@@ -416,6 +419,7 @@ public class OAuth2Util {
     private static int tokenRefreshNumRetries = 5;
     private static final long MAX_REFRESH_WINDOW_MILLIS = 300_000; // 5 minutes
     private static final long MIN_REFRESH_WAIT_MILLIS = 10;
+    private static final long FILE_REFRESH_RETRY_WAIT_MILLIS = 5_000; // 5 seconds
     private volatile Map<String, String> headers;
     private volatile AuthConfig config;
 
@@ -649,6 +653,121 @@ public class OAuth2Util {
       }
 
       return session;
+    }
+
+    /**
+     * Creates a session whose token is sourced from a file, such as a Kubernetes-mounted projected
+     * service account token. The file is periodically re-read ahead of the current token's
+     * expiration (see {@code refreshBufferMillis}) so that a token rotated in place is picked up
+     * without restarting the process. No {@link RESTClient} is required since refreshing never
+     * calls out over the network; it only re-reads the file.
+     */
+    public static AuthSession fromTokenFile(
+        ScheduledExecutorService executor,
+        String tokenPath,
+        long refreshBufferMillis,
+        AuthSession parent) {
+      String token;
+      try {
+        token = readTokenFile(tokenPath);
+      } catch (IOException e) {
+        throw new UncheckedIOException("Failed to read token file: " + tokenPath, e);
+      }
+
+      Long expiresAtMillis = OAuth2Util.expiresAtMillis(token);
+      if (null == expiresAtMillis) {
+        expiresAtMillis = System.currentTimeMillis() + OAuth2Properties.TOKEN_EXPIRES_IN_MS_DEFAULT;
+      }
+
+      AuthSession session =
+          new AuthSession(
+              RESTUtil.merge(parent.headers(), authHeaders(token)),
+              AuthConfig.builder()
+                  .from(parent.config())
+                  .token(token)
+                  .tokenPath(tokenPath)
+                  .tokenType(OAuth2Properties.ACCESS_TOKEN_TYPE)
+                  .expiresAtMillis(expiresAtMillis)
+                  .tokenPathRefreshBufferMillis(refreshBufferMillis)
+                  .build());
+
+      if (null != executor) {
+        scheduleFileTokenRefresh(executor, session, expiresAtMillis, refreshBufferMillis);
+      }
+
+      return session;
+    }
+
+    private static String readTokenFile(String tokenPath) throws IOException {
+      return Files.readString(Path.of(tokenPath)).trim();
+    }
+
+    /**
+     * Re-reads the token from {@link AuthConfig#tokenPath()} and updates this session's headers and
+     * config accordingly.
+     *
+     * @return the new token's expiration time in epoch millis, or null if the file could not be
+     *     read
+     */
+    Long refreshFromFile() {
+      String tokenPath = config.tokenPath();
+      String token;
+      try {
+        token = readTokenFile(tokenPath);
+      } catch (IOException e) {
+        LOG.warn("Failed to re-read token file {}, will retry", tokenPath, e);
+        return null;
+      }
+
+      Long expiresAtMillis = OAuth2Util.expiresAtMillis(token);
+      if (null == expiresAtMillis) {
+        expiresAtMillis = System.currentTimeMillis() + OAuth2Properties.TOKEN_EXPIRES_IN_MS_DEFAULT;
+      }
+
+      this.config =
+          AuthConfig.builder()
+              .from(config())
+              .token(token)
+              .tokenType(OAuth2Properties.ACCESS_TOKEN_TYPE)
+              .expiresAtMillis(expiresAtMillis)
+              .build();
+      this.headers = RESTUtil.merge(this.headers, authHeaders(token));
+
+      return expiresAtMillis;
+    }
+
+    /**
+     * Schedule the next file-based token refresh, {@code refreshBufferMillis} ahead of {@code
+     * expiresAtMillis}. Unlike {@link #scheduleTokenRefresh}, this never calls out over the
+     * network: on a transient read failure, it retries after a short fixed delay instead of giving
+     * up.
+     */
+    @SuppressWarnings("FutureReturnValueIgnored")
+    private static void scheduleFileTokenRefresh(
+        ScheduledExecutorService executor,
+        AuthSession session,
+        long expiresAtMillis,
+        long refreshBufferMillis) {
+      long waitMillis =
+          Math.max(
+              expiresAtMillis - refreshBufferMillis - System.currentTimeMillis(),
+              MIN_REFRESH_WAIT_MILLIS);
+
+      executor.schedule(
+          () -> {
+            if (!session.config().keepRefreshed()) {
+              return;
+            }
+
+            Long newExpiresAtMillis = session.refreshFromFile();
+            long nextExpiresAtMillis =
+                null != newExpiresAtMillis
+                    ? newExpiresAtMillis
+                    : System.currentTimeMillis() + FILE_REFRESH_RETRY_WAIT_MILLIS;
+            scheduleFileTokenRefresh(executor, session, nextExpiresAtMillis, refreshBufferMillis);
+          },
+          waitMillis,
+          TimeUnit.MILLISECONDS);
     }
 
     public static AuthSession fromCredential(

@@ -20,6 +20,7 @@ package org.apache.iceberg.rest.auth;
 
 import java.util.Map;
 import javax.annotation.Nullable;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.rest.ResourcePaths;
 import org.apache.iceberg.util.PropertyUtil;
 import org.immutables.value.Value;
@@ -35,6 +36,15 @@ public interface AuthConfig {
   @Nullable
   @Value.Redacted
   String token();
+
+  /** Path to a file containing a Bearer token, as an alternative to {@link #token()}. */
+  @Nullable
+  String tokenPath();
+
+  @Value.Default
+  default long tokenPathRefreshBufferMillis() {
+    return OAuth2Properties.TOKEN_PATH_REFRESH_BUFFER_MS_DEFAULT;
+  }
 
   @Nullable
   String tokenType();
@@ -77,9 +87,22 @@ public interface AuthConfig {
   }
 
   static AuthConfig fromProperties(Map<String, String> properties) {
+    String token = properties.get(OAuth2Properties.TOKEN);
+    String tokenPath = properties.get(OAuth2Properties.TOKEN_PATH);
+    Preconditions.checkArgument(
+        token == null || tokenPath == null,
+        "Cannot specify both %s and %s",
+        OAuth2Properties.TOKEN,
+        OAuth2Properties.TOKEN_PATH);
     return builder()
         .credential(properties.get(OAuth2Properties.CREDENTIAL))
-        .token(properties.get(OAuth2Properties.TOKEN))
+        .token(token)
+        .tokenPath(tokenPath)
+        .tokenPathRefreshBufferMillis(
+            PropertyUtil.propertyAsLong(
+                properties,
+                OAuth2Properties.TOKEN_PATH_REFRESH_BUFFER_MS,
+                OAuth2Properties.TOKEN_PATH_REFRESH_BUFFER_MS_DEFAULT))
         .scope(properties.getOrDefault(OAuth2Properties.SCOPE, OAuth2Properties.CATALOG_SCOPE))
         .oauth2ServerUri(
             properties.getOrDefault(OAuth2Properties.OAUTH2_SERVER_URI, ResourcePaths.tokens()))
