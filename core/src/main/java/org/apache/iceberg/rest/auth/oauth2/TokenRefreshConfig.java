@@ -37,12 +37,12 @@ interface TokenRefreshConfig {
   String PREFETCH = PREFIX + "prefetch";
   String JITTER = PREFIX + "jitter";
 
-  Duration DEFAULT_ACCESS_TOKEN_LIFESPAN = Duration.parse("PT1H");
-  Duration DEFAULT_PREFETCH = Duration.parse("PT10S");
-  Duration DEFAULT_JITTER = Duration.parse("PT5S");
+  Duration DEFAULT_ACCESS_TOKEN_LIFESPAN = Duration.ofHours(1);
+  Duration DEFAULT_PREFETCH = Duration.ofSeconds(10);
+  Duration DEFAULT_JITTER = Duration.ofSeconds(5);
 
-  Duration MIN_ACCESS_TOKEN_LIFESPAN = Duration.parse("PT15S");
-  Duration MIN_PREFETCH = Duration.parse("PT10S");
+  Duration MIN_ACCESS_TOKEN_LIFESPAN = Duration.ofSeconds(15);
+  Duration MIN_PREFETCH = Duration.ofSeconds(10);
 
   /**
    * Whether to enable token refresh. If enabled, the OAuth2 client will automatically refresh its

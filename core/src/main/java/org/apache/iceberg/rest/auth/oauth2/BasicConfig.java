@@ -59,10 +59,10 @@ interface BasicConfig {
 
   GrantType DEFAULT_GRANT_TYPE = GrantType.CLIENT_CREDENTIALS;
   ClientAuthenticationMethod DEFAULT_CLIENT_AUTH = ClientAuthenticationMethod.CLIENT_SECRET_BASIC;
-  Duration DEFAULT_TIMEOUT = Duration.parse("PT5M");
-  Duration DEFAULT_SESSION_CACHE_TIMEOUT = Duration.parse("PT1H");
+  Duration DEFAULT_TIMEOUT = Duration.ofMinutes(5);
+  Duration DEFAULT_SESSION_CACHE_TIMEOUT = Duration.ofHours(1);
 
-  Duration MIN_TIMEOUT = Duration.parse("PT30S");
+  Duration MIN_TIMEOUT = Duration.ofSeconds(30);
 
   /**
    * The initial access token to use. Optional. If this is set, the OAuth2 client will not attempt
