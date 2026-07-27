@@ -3883,8 +3883,12 @@ components:
             action: mask-alphanum
         required-row-filter:
           type: eq
-          term: region
-          value: US
+          left:
+            type: reference
+            id: 14
+          right:
+            type: literal
+            value: "US"
       properties:
         required-column-projections:
           description: >
@@ -3924,8 +3928,12 @@ components:
               included in the query result.
 
             2. If this property is absent, null, or always true then no mandatory filtering is required.
+
+            3. Column references within the expression must use field IDs (IdReference),
+              not column names. This ensures the filter remains valid across column renames,
+              consistent with required-column-projections which also reference columns by field-id.
           allOf:
-            - $ref: '#/components/schemas/Expression'
+            - $ref: '#/components/schemas/Predicate'
 
     Action:
       discriminator:
