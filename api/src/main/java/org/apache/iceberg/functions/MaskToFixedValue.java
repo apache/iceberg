@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.functions;
 
+import java.io.Serializable;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
@@ -25,7 +26,9 @@ import java.nio.ByteOrder;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Collections;
+import java.util.List;
 import java.util.UUID;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
@@ -87,9 +90,8 @@ public final class MaskToFixedValue extends IcebergFunction.BaseFunction<Object,
       case VARIANT:
       case LIST:
       case MAP:
+      case STRUCT:
         return true;
-        // TODO: support STRUCT (recursive type-specific defaults). Tracked as follow-up.
-        // Per spec, mask-to-fixed-value does not apply to unknown, geometry, or geography.
       default:
         return false;
     }
@@ -141,9 +143,20 @@ public final class MaskToFixedValue extends IcebergFunction.BaseFunction<Object,
         return Collections.emptyList();
       case MAP:
         return Collections.emptyMap();
+      case STRUCT:
+        return defaultStruct(type.asStructType());
       default:
         throw new IllegalStateException("unreachable: canBind should have rejected " + type);
     }
+  }
+
+  private static StructLike defaultStruct(Types.StructType structType) {
+    List<Types.NestedField> fields = structType.fields();
+    Object[] values = new Object[fields.size()];
+    for (int i = 0; i < fields.size(); i++) {
+      values[i] = defaultValueFor(fields.get(i).type());
+    }
+    return new DefaultStruct(values);
   }
 
   private static final class ConstantFn implements SerializableFunction<Object, Object> {
@@ -169,6 +182,30 @@ public final class MaskToFixedValue extends IcebergFunction.BaseFunction<Object,
     @Override
     public Object apply(Object value) {
       return constant.duplicate();
+    }
+  }
+
+  private static final class DefaultStruct implements StructLike, Serializable {
+    private final Object[] values;
+
+    DefaultStruct(Object[] values) {
+      this.values = values;
+    }
+
+    @Override
+    public int size() {
+      return values.length;
+    }
+
+    @SuppressWarnings("unchecked")
+    @Override
+    public <T> T get(int pos, Class<T> javaClass) {
+      return (T) values[pos];
+    }
+
+    @Override
+    public <T> void set(int pos, T value) {
+      throw new UnsupportedOperationException("DefaultStruct is immutable");
     }
   }
 }
