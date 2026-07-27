@@ -152,6 +152,11 @@ class ExpressionType(RootModel[str]):
 
 
 class TrueExpression(BaseModel):
+    """
+    Deprecated. Use the bare boolean literal `true` as a predicate instead.
+
+    """
+
     type: Literal['true'] = Field(
         ...,
         examples=[
@@ -181,6 +186,11 @@ class TrueExpression(BaseModel):
 
 
 class FalseExpression(BaseModel):
+    """
+    Deprecated. Use the bare boolean literal `false` as a predicate instead.
+
+    """
+
     type: Literal['false'] = Field(
         ...,
         examples=[
@@ -209,8 +219,49 @@ class FalseExpression(BaseModel):
     )
 
 
-class Reference(RootModel[str]):
-    root: str = Field(..., examples=[['column-name']])
+class IdReference(BaseModel):
+    """
+    A bound reference to a field by field ID.
+    """
+
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    type: Literal['reference']
+    id: int
+
+
+class NamedReference(BaseModel):
+    """
+    An unbound reference to a field by name.
+    """
+
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    type: Literal['reference']
+    name: str
+
+
+class Function(RootModel[str]):
+    root: str = Field(..., min_length=1)
+
+
+class Function1(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    catalog: str | None = None
+    identifier: CatalogObjectIdentifier
+
+
+class TermReference(RootModel[str]):
+    root: str = Field(
+        ...,
+        deprecated=True,
+        description='Deprecated string-form field reference used in older REST predicates. Use Reference (IdReference or NamedReference) instead.\n',
+        examples=[['column-name']],
+    )
 
 
 class Transform(RootModel[str]):
@@ -1297,10 +1348,64 @@ class RenameTableRequest(BaseModel):
     destination: TableIdentifier
 
 
+class Literal1(BaseModel):
+    """
+    A literal is either a bare value, an untyped literal object, or a typed literal object.
+
+    """
+
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    type: Literal['literal']
+    value: PrimitiveTypeValue
+    data_type: PrimitiveType | None = Field(None, alias='data-type')
+
+
+class LiteralModel(RootModel[PrimitiveTypeValue | Literal1]):
+    root: PrimitiveTypeValue | Literal1 = Field(
+        ...,
+        description='A literal is either a bare value, an untyped literal object, or a typed literal object.\n',
+    )
+
+
+class Literals1(BaseModel):
+    """
+    Literals is either a bare array of literals or a typed object with an explicit data-type applied to all values.
+
+    """
+
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    type: Literal['literals']
+    values: list[PrimitiveTypeValue]
+    data_type: PrimitiveType = Field(..., alias='data-type')
+
+
+class Literals(RootModel[list[LiteralModel] | Literals1]):
+    root: list[LiteralModel] | Literals1 = Field(
+        ...,
+        description='Literals is either a bare array of literals or a typed object with an explicit data-type applied to all values.\n',
+    )
+
+
+class Reference(RootModel[IdReference | NamedReference]):
+    root: IdReference | NamedReference = Field(
+        ...,
+        description='A reference to a field. Either a bound reference (by field ID) or an unbound reference (by name). The context in which an expression is used determines which form is valid.\n',
+    )
+
+
 class TransformTerm(BaseModel):
+    """
+    Deprecated. Legacy transform-applied-to-a-term form. Use Apply with a Reference argument instead.
+
+    """
+
     type: Literal['transform']
     transform: Transform
-    term: Reference
+    term: TermReference
 
 
 class SetPartitionStatisticsUpdate(BaseUpdate):
@@ -1409,8 +1514,12 @@ class FetchScanTasksRequest(BaseModel):
     plan_task: PlanTask = Field(..., alias='plan-task')
 
 
-class Term(RootModel[Reference | TransformTerm]):
-    root: Reference | TransformTerm
+class Term(RootModel[TermReference | TransformTerm]):
+    root: TermReference | TransformTerm = Field(
+        ...,
+        deprecated=True,
+        description='Deprecated. Legacy term form used by older REST predicates. Use Reference or Apply instead.\n',
+    )
 
 
 class SetStatisticsUpdate(BaseUpdate):
@@ -1448,100 +1557,6 @@ class FunctionDefinitionVersion(BaseModel):
     )
 
 
-class UnaryExpression(BaseModel):
-    type: Literal['is-null', 'not-null', 'is-nan', 'not-nan'] = Field(
-        ...,
-        examples=[
-            [
-                'true',
-                'false',
-                'eq',
-                'and',
-                'or',
-                'not',
-                'in',
-                'not-in',
-                'lt',
-                'lt-eq',
-                'gt',
-                'gt-eq',
-                'not-eq',
-                'starts-with',
-                'not-starts-with',
-                'is-null',
-                'not-null',
-                'is-nan',
-                'not-nan',
-            ]
-        ],
-    )
-    term: Term
-
-
-class LiteralExpression(BaseModel):
-    type: Literal[
-        'lt', 'lt-eq', 'gt', 'gt-eq', 'eq', 'not-eq', 'starts-with', 'not-starts-with'
-    ] = Field(
-        ...,
-        examples=[
-            [
-                'true',
-                'false',
-                'eq',
-                'and',
-                'or',
-                'not',
-                'in',
-                'not-in',
-                'lt',
-                'lt-eq',
-                'gt',
-                'gt-eq',
-                'not-eq',
-                'starts-with',
-                'not-starts-with',
-                'is-null',
-                'not-null',
-                'is-nan',
-                'not-nan',
-            ]
-        ],
-    )
-    term: Term
-    value: PrimitiveTypeValue
-
-
-class SetExpression(BaseModel):
-    type: Literal['in', 'not-in'] = Field(
-        ...,
-        examples=[
-            [
-                'true',
-                'false',
-                'eq',
-                'and',
-                'or',
-                'not',
-                'in',
-                'not-in',
-                'lt',
-                'lt-eq',
-                'gt',
-                'gt-eq',
-                'not-eq',
-                'starts-with',
-                'not-starts-with',
-                'is-null',
-                'not-null',
-                'is-nan',
-                'not-nan',
-            ]
-        ],
-    )
-    term: Term
-    values: list[PrimitiveTypeValue]
-
-
 class StructField(BaseModel):
     id: int
     name: str
@@ -1573,7 +1588,7 @@ class MapType(BaseModel):
     value_required: bool = Field(..., alias='value-required')
 
 
-class AndOrExpression(BaseModel):
+class AndOrPredicate(BaseModel):
     type: Literal['and', 'or'] = Field(
         ...,
         examples=[
@@ -1600,11 +1615,11 @@ class AndOrExpression(BaseModel):
             ]
         ],
     )
-    left: Expression
-    right: Expression
+    left: Predicate
+    right: Predicate
 
 
-class NotExpression(BaseModel):
+class NotPredicate(BaseModel):
     type: Literal['not'] = Field(
         ...,
         examples=[
@@ -1631,7 +1646,151 @@ class NotExpression(BaseModel):
             ]
         ],
     )
-    child: Expression
+    child: Predicate
+
+
+class UnaryPredicate(BaseModel):
+    """
+    A predicate that tests a single value expression. Accepts either 'child' (preferred) or 'term' (deprecated) to identify the operand.
+
+    """
+
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    type: Literal['is-null', 'not-null', 'is-nan', 'not-nan'] = Field(
+        ...,
+        examples=[
+            [
+                'true',
+                'false',
+                'eq',
+                'and',
+                'or',
+                'not',
+                'in',
+                'not-in',
+                'lt',
+                'lt-eq',
+                'gt',
+                'gt-eq',
+                'not-eq',
+                'starts-with',
+                'not-starts-with',
+                'is-null',
+                'not-null',
+                'is-nan',
+                'not-nan',
+            ]
+        ],
+    )
+    child: ValueExpression | None = None
+    term: Term | None = Field(
+        None, deprecated=True, description="Deprecated. Use 'child' instead."
+    )
+
+
+class ComparisonPredicate(BaseModel):
+    """
+    A predicate that compares two value expressions. Accepts either 'left'/'right' (preferred) or 'term'/'value' (deprecated).
+
+    """
+
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    type: Literal[
+        'lt', 'lt-eq', 'gt', 'gt-eq', 'eq', 'not-eq', 'starts-with', 'not-starts-with'
+    ] = Field(
+        ...,
+        examples=[
+            [
+                'true',
+                'false',
+                'eq',
+                'and',
+                'or',
+                'not',
+                'in',
+                'not-in',
+                'lt',
+                'lt-eq',
+                'gt',
+                'gt-eq',
+                'not-eq',
+                'starts-with',
+                'not-starts-with',
+                'is-null',
+                'not-null',
+                'is-nan',
+                'not-nan',
+            ]
+        ],
+    )
+    left: ValueExpression | None = None
+    right: ValueExpression | None = None
+    term: Term | None = Field(
+        None, deprecated=True, description="Deprecated. Use 'left' instead."
+    )
+    value: LiteralModel | None = Field(
+        None, deprecated=True, description="Deprecated. Use 'right' instead."
+    )
+
+
+class SetPredicate(BaseModel):
+    """
+    A predicate that tests whether a value is in a set of literals. Accepts either 'child' (preferred) or 'term' (deprecated) to identify the operand.
+
+    """
+
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    type: Literal['in', 'not-in'] = Field(
+        ...,
+        examples=[
+            [
+                'true',
+                'false',
+                'eq',
+                'and',
+                'or',
+                'not',
+                'in',
+                'not-in',
+                'lt',
+                'lt-eq',
+                'gt',
+                'gt-eq',
+                'not-eq',
+                'starts-with',
+                'not-starts-with',
+                'is-null',
+                'not-null',
+                'is-nan',
+                'not-nan',
+            ]
+        ],
+    )
+    child: ValueExpression | None = None
+    term: Term | None = Field(
+        None, deprecated=True, description="Deprecated. Use 'child' instead."
+    )
+    values: Literals
+
+
+class Apply(BaseModel):
+    """
+    A function application on zero or more value expressions or predicates.
+
+    """
+
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    type: Literal['apply']
+    function: Function | CatalogObjectIdentifier | Function1
+    arguments: list[FunctionArgument]
 
 
 class TableMetadata(BaseModel):
@@ -1715,10 +1874,10 @@ class ReadRestrictions(BaseModel):
         alias='required-column-projections',
         description='A list of columns that require specific actions to be applied when reading. A server must not return an action for a column whose type is not listed in that action\'s "Applicable to" set. If absent or empty, no required actions apply; columns not listed are not subject to any required action.\n1. For each column listed, the reader must apply the specified action before\n  returning values for that column.\n\n2. The reader must replace all output references to the column with the result\n  of the action, presenting the result under the original field-id. For\n  example, if the action for field-id `9` is mask-alphanum, the reader must\n  return the masked value as field-id `9` in the query output.\n\n3. A server must not return more than one projection for the same field-id\n  in required-column-projections. If a duplicate field-id appears, the reader\n  must fail the query.\n\n4. A projection must not target a map\'s key field-id. Applying an action\n  to keys can produce duplicate or null keys, which readers silently\n  coalesce or reject, causing data loss.\n\n5. A reader must enforce projections on the columns it is actually reading.\n  Projections referencing columns that are not being read do not apply.\n',
     )
-    required_row_filter: Expression | None = Field(
+    required_row_filter: Predicate | None = Field(
         None,
         alias='required-row-filter',
-        description='An expression that limits which rows the reader may return.\n1. The expression must evaluate to a boolean (TRUE or FALSE; Iceberg predicates\n  never produce NULL). A reader must discard any row for which the filter\n  evaluates to FALSE, and no information derived from discarded rows may be\n  included in the query result.\n\n2. If this property is absent, null, or always true then no mandatory filtering is required.\n',
+        description='An expression that limits which rows the reader may return.\n1. The expression must evaluate to a boolean (TRUE or FALSE; Iceberg predicates\n  never produce NULL). A reader must discard any row for which the filter\n  evaluates to FALSE, and no information derived from discarded rows may be\n  included in the query result.\n\n2. If this property is absent, null, or always true then no mandatory filtering is required.\n3. Column references within the expression must use field IDs (IdReference),\n  not column names. This ensures the filter remains valid across column renames,\n  consistent with required-column-projections which also reference columns by field-id.\n',
     )
 
 
@@ -1902,7 +2061,7 @@ class LoadViewResult(BaseModel):
 class ScanReport(BaseModel):
     table_name: str = Field(..., alias='table-name')
     snapshot_id: int = Field(..., alias='snapshot-id')
-    filter: Expression
+    filter: Predicate
     schema_id: int = Field(..., alias='schema-id')
     projected_field_ids: list[int] = Field(..., alias='projected-field-ids')
     projected_field_names: list[str] = Field(..., alias='projected-field-names')
@@ -2059,8 +2218,8 @@ class PlanTableScanRequest(BaseModel):
     select: list[FieldName] | None = Field(
         None, description='List of selected schema fields'
     )
-    filter: Expression | None = Field(
-        None, description='Expression used to filter the table data'
+    filter: Predicate | None = Field(
+        None, description='Predicate used to filter the table data'
     )
     min_rows_requested: int | None = Field(
         None,
@@ -2101,7 +2260,7 @@ class FileScanTask(BaseModel):
         alias='delete-file-references',
         description='A list of indices in the delete files array (0-based)',
     )
-    residual_filter: Expression | None = Field(
+    residual_filter: Predicate | None = Field(
         None,
         alias='residual-filter',
         description='An optional filter to be applied to rows in this file scan task.\nIf the residual is not present, the client must produce the residual or use the original filter.',
@@ -2117,25 +2276,34 @@ class Type(RootModel[PrimitiveType | StructType | ListType | MapType]):
     root: PrimitiveType | StructType | ListType | MapType
 
 
-class Expression(
+class Predicate(
     RootModel[
-        TrueExpression
+        bool
+        | TrueExpression
         | FalseExpression
-        | AndOrExpression
-        | NotExpression
-        | SetExpression
-        | LiteralExpression
-        | UnaryExpression
+        | AndOrPredicate
+        | NotPredicate
+        | UnaryPredicate
+        | ComparisonPredicate
+        | SetPredicate
     ]
 ):
     root: (
-        TrueExpression
+        bool
+        | TrueExpression
         | FalseExpression
-        | AndOrExpression
-        | NotExpression
-        | SetExpression
-        | LiteralExpression
-        | UnaryExpression
+        | AndOrPredicate
+        | NotPredicate
+        | UnaryPredicate
+        | ComparisonPredicate
+        | SetPredicate
+    )
+
+
+class ValueExpression(RootModel[LiteralModel | Reference | Apply]):
+    root: LiteralModel | Reference | Apply = Field(
+        ...,
+        description='A value expression: a literal, a field reference, or a function application.\n',
     )
 
 
@@ -2251,6 +2419,10 @@ class FunctionDataType(
     )
 
 
+class FunctionArgument(RootModel[ValueExpression | Predicate]):
+    root: ValueExpression | Predicate
+
+
 class CompletedPlanningWithIDResult(CompletedPlanningResult):
     plan_id: str = Field(
         ..., alias='plan-id', description='ID used to track a planning request'
@@ -2295,8 +2467,12 @@ class PlanTableScanResult(
 StructField.model_rebuild()
 ListType.model_rebuild()
 MapType.model_rebuild()
-AndOrExpression.model_rebuild()
-NotExpression.model_rebuild()
+AndOrPredicate.model_rebuild()
+NotPredicate.model_rebuild()
+UnaryPredicate.model_rebuild()
+ComparisonPredicate.model_rebuild()
+SetPredicate.model_rebuild()
+Apply.model_rebuild()
 TableMetadata.model_rebuild()
 ViewMetadata.model_rebuild()
 AddSchemaUpdate.model_rebuild()
