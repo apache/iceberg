@@ -290,7 +290,8 @@ public class TestOAuth2Util {
     AuthSession parent = new AuthSession(Map.of(), AuthConfig.builder().build());
 
     assertThatThrownBy(() -> AuthSession.fromTokenFile(null, missing.toString(), 300_000L, parent))
-        .isInstanceOf(UncheckedIOException.class);
+        .isInstanceOf(UncheckedIOException.class)
+        .hasMessageContaining("Failed to read token file: " + missing);
   }
 
   @Test

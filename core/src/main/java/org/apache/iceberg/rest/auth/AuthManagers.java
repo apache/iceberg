@@ -52,25 +52,7 @@ public class AuthManagers {
     } else {
       authType = properties.get(AuthProperties.AUTH_TYPE);
       if (authType == null) {
-        boolean hasCredential = properties.containsKey(OAuth2Properties.CREDENTIAL);
-        boolean hasToken = properties.containsKey(OAuth2Properties.TOKEN);
-        boolean hasTokenPath = properties.containsKey(OAuth2Properties.TOKEN_PATH);
-        if (hasCredential || hasToken || hasTokenPath) {
-          String inferredFrom =
-              hasCredential
-                  ? OAuth2Properties.CREDENTIAL
-                  : hasToken ? OAuth2Properties.TOKEN : OAuth2Properties.TOKEN_PATH;
-          LOG.warn(
-              "Inferring {}={} since property {} was provided. "
-                  + "Please explicitly set {} to avoid this warning.",
-              AuthProperties.AUTH_TYPE,
-              AuthProperties.AUTH_TYPE_OAUTH2,
-              inferredFrom,
-              AuthProperties.AUTH_TYPE);
-          authType = AuthProperties.AUTH_TYPE_OAUTH2;
-        } else {
-          authType = AuthProperties.AUTH_TYPE_NONE;
-        }
+        authType = inferAuthType(properties);
       }
     }
 
@@ -136,5 +118,27 @@ public class AuthManagers {
     }
 
     return authManager;
+  }
+
+  private static String inferAuthType(Map<String, String> properties) {
+    boolean hasCredential = properties.containsKey(OAuth2Properties.CREDENTIAL);
+    boolean hasToken = properties.containsKey(OAuth2Properties.TOKEN);
+    boolean hasTokenPath = properties.containsKey(OAuth2Properties.TOKEN_PATH);
+    if (!hasCredential && !hasToken && !hasTokenPath) {
+      return AuthProperties.AUTH_TYPE_NONE;
+    }
+
+    String inferredFrom =
+        hasCredential
+            ? OAuth2Properties.CREDENTIAL
+            : hasToken ? OAuth2Properties.TOKEN : OAuth2Properties.TOKEN_PATH;
+    LOG.warn(
+        "Inferring {}={} since property {} was provided. "
+            + "Please explicitly set {} to avoid this warning.",
+        AuthProperties.AUTH_TYPE,
+        AuthProperties.AUTH_TYPE_OAUTH2,
+        inferredFrom,
+        AuthProperties.AUTH_TYPE);
+    return AuthProperties.AUTH_TYPE_OAUTH2;
   }
 }

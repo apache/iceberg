@@ -39,7 +39,10 @@ public interface AuthConfig {
 
   /** Path to a file containing a Bearer token, as an alternative to {@link #token()}. */
   @Nullable
-  String tokenPath();
+  @Value.Default
+  default String tokenPath() {
+    return null;
+  }
 
   @Value.Default
   default long tokenPathRefreshBufferMillis() {
