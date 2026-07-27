@@ -26,6 +26,7 @@ import org.apache.flink.api.common.functions.OpenContext;
 import org.apache.flink.metrics.Counter;
 import org.apache.flink.streaming.api.functions.ProcessFunction;
 import org.apache.flink.util.Collector;
+import org.apache.flink.util.function.SerializableSupplier;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.SerializableTable;
@@ -62,8 +63,9 @@ public class DataFileRewritePlanner
   private final long maxRewriteBytes;
   private final Map<String, String> rewriterOptions;
   private transient Counter errorCounter;
-  private final Expression filter;
+  private transient Counter plannedGroupsCounter;
   private final String branch;
+  private final SerializableSupplier<Expression> filterSupplier;
 
   public DataFileRewritePlanner(
       String tableName,
@@ -73,7 +75,7 @@ public class DataFileRewritePlanner
       int newPartialProgressMaxCommits,
       long maxRewriteBytes,
       Map<String, String> rewriterOptions,
-      Expression filter,
+      SerializableSupplier<Expression> filterSupplier,
       String branch) {
 
     Preconditions.checkNotNull(tableName, "Table name should no be null");
@@ -89,8 +91,8 @@ public class DataFileRewritePlanner
     this.partialProgressMaxCommits = newPartialProgressMaxCommits;
     this.maxRewriteBytes = maxRewriteBytes;
     this.rewriterOptions = rewriterOptions;
-    this.filter = filter;
     this.branch = branch;
+    this.filterSupplier = filterSupplier;
   }
 
   @Override
@@ -99,6 +101,9 @@ public class DataFileRewritePlanner
     this.errorCounter =
         TableMaintenanceMetrics.groupFor(getRuntimeContext(), tableName, taskName, taskIndex)
             .counter(TableMaintenanceMetrics.ERROR_COUNTER);
+    this.plannedGroupsCounter =
+        TableMaintenanceMetrics.groupFor(getRuntimeContext(), tableName, taskName, taskIndex)
+            .counter(TableMaintenanceMetrics.PLANNED_GROUPS_COUNTER);
   }
 
   @Override
@@ -125,7 +130,7 @@ public class DataFileRewritePlanner
       }
 
       BinPackRewriteFilePlanner planner =
-          new BinPackRewriteFilePlanner(table, filter, snapshot.snapshotId(), false);
+          new BinPackRewriteFilePlanner(table, filterSupplier.get(), snapshot.snapshotId(), false);
       planner.init(rewriterOptions);
 
       FileRewritePlan<RewriteDataFiles.FileGroupInfo, FileScanTask, DataFile, RewriteFileGroup>
@@ -156,12 +161,14 @@ public class DataFileRewritePlanner
           IntMath.divide(groups.size(), partialProgressMaxCommits, RoundingMode.CEILING);
 
       LOG.info(
-          DataFileRewritePlanner.MESSAGE_PREFIX + "Rewrite plan created {}",
+          DataFileRewritePlanner.MESSAGE_PREFIX + "Rewrite plan created, {} groups: {}",
           tableName,
           taskName,
           taskIndex,
           ctx.timestamp(),
+          groups.size(),
           groups);
+      plannedGroupsCounter.inc(groups.size());
 
       for (RewriteFileGroup group : groups) {
         LOG.info(

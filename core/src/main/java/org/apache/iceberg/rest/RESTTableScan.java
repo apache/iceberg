@@ -48,6 +48,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.rest.credentials.Credential;
 import org.apache.iceberg.rest.requests.PlanTableScanRequest;
+import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.rest.responses.FetchPlanningResultResponse;
 import org.apache.iceberg.rest.responses.PlanTableScanResponse;
 import org.apache.iceberg.types.TypeUtil;
@@ -218,11 +219,7 @@ class RESTTableScan extends DataTableScan {
         Endpoint.check(supportedEndpoints, Endpoint.V1_FETCH_TABLE_SCAN_PLAN);
         return fetchPlanningResult();
       case FAILED:
-        throw new IllegalStateException(
-            String.format("Received status: %s for planId: %s", PlanStatus.FAILED, planId));
-      case CANCELLED:
-        throw new IllegalStateException(
-            String.format("Received status: %s for planId: %s", PlanStatus.CANCELLED, planId));
+        throw new IllegalStateException(failureMessage(planId, response.errorResponse()));
       default:
         throw new IllegalStateException(
             String.format("Invalid planStatus: %s for planId: %s", planStatus, planId));
@@ -284,15 +281,26 @@ class RESTTableScan extends DataTableScan {
                         ErrorHandlers.planErrorHandler(),
                         parserContext);
 
-                if (response.planStatus() == PlanStatus.SUBMITTED) {
-                  throw new NotCompleteException();
-                } else if (response.planStatus() != PlanStatus.COMPLETED) {
-                  throw new IllegalStateException(
-                      String.format(
-                          "Invalid planStatus: %s for planId: %s", response.planStatus(), id));
+                switch (response.planStatus()) {
+                  case COMPLETED:
+                    result.set(response);
+                    break;
+                  case SUBMITTED:
+                    throw new NotCompleteException();
+                  case FAILED:
+                    throw new IllegalStateException(failureMessage(id, response.errorResponse()));
+                  case CANCELLED:
+                    throw new IllegalStateException(
+                        String.format(
+                            Locale.ROOT, "Remote scan planning cancelled for planId: %s", id));
+                  default:
+                    throw new IllegalStateException(
+                        String.format(
+                            Locale.ROOT,
+                            "Invalid planStatus: %s for planId: %s",
+                            response.planStatus(),
+                            id));
                 }
-
-                result.set(response);
               });
     } catch (NotCompleteException e) {
       throw new RemotePlanTimeoutException(
@@ -312,6 +320,21 @@ class RESTTableScan extends DataTableScan {
         !response.credentials().isEmpty() ? scanFileIO(response.credentials()) : table().io();
 
     return scanTasksIterable(response.planTasks(), response.fileScanTasks());
+  }
+
+  private static String failureMessage(String planId, ErrorResponse error) {
+    // If a FAILED response lacks the expected error payload, still return a useful error
+    // message instead of throwing.
+    String type = error != null ? error.type() : "unknown";
+    int code = error != null ? error.code() : 0;
+    String message = error != null ? error.message() : "unknown";
+    return String.format(
+        Locale.ROOT,
+        "Remote scan planning failed for planId: %s: %s (code=%d): %s",
+        planId,
+        type,
+        code,
+        message);
   }
 
   private CloseableIterable<FileScanTask> scanTasksIterable(

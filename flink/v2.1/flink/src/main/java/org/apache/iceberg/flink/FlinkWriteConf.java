@@ -247,6 +247,15 @@ public class FlinkWriteConf {
         .parse();
   }
 
+  public boolean convertEqualityDeletesMode() {
+    return confParser
+        .booleanConf()
+        .option(FlinkWriteOptions.CONVERT_EQUALITY_DELETES_ENABLE.key())
+        .flinkConfig(FlinkWriteOptions.CONVERT_EQUALITY_DELETES_ENABLE)
+        .defaultValue(FlinkWriteOptions.CONVERT_EQUALITY_DELETES_ENABLE.defaultValue())
+        .parse();
+  }
+
   /**
    * NOTE: This may be removed or changed in a future release. This value specifies the interval for
    * refreshing the table instances in sink writer subtasks. If not specified then the default
@@ -261,5 +270,23 @@ public class FlinkWriteConf {
         .option(FlinkWriteOptions.TABLE_REFRESH_INTERVAL.key())
         .flinkConfig(FlinkWriteOptions.TABLE_REFRESH_INTERVAL)
         .parseOptional();
+  }
+
+  public boolean parquetShredVariants() {
+    return confParser
+        .booleanConf()
+        .option(FlinkWriteOptions.SHRED_VARIANTS.key())
+        .tableProperty(TableProperties.PARQUET_SHRED_VARIANTS)
+        .defaultValue(TableProperties.PARQUET_SHRED_VARIANTS_DEFAULT)
+        .parse();
+  }
+
+  public int parquetVariantInferenceBufferSize() {
+    return confParser
+        .intConf()
+        .option(FlinkWriteOptions.VARIANT_INFERENCE_BUFFER_SIZE.key())
+        .tableProperty(TableProperties.PARQUET_VARIANT_BUFFER_SIZE)
+        .defaultValue(TableProperties.PARQUET_VARIANT_BUFFER_SIZE_DEFAULT)
+        .parse();
   }
 }

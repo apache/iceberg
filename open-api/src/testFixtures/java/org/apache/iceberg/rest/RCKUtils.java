@@ -37,7 +37,13 @@ class RCKUtils {
   static final String RCK_LOCAL = "rck.local";
   static final String RCK_PURGE_TEST_NAMESPACES = "rck.purge-test-namespaces";
 
-  static final List<Namespace> TEST_NAMESPACES = List.of(Namespace.of("ns"), Namespace.of("newdb"));
+  static final List<Namespace> TEST_NAMESPACES =
+      List.of(
+          Namespace.of("ns"),
+          Namespace.of("newdb"),
+          Namespace.of("ns1"),
+          Namespace.of("ns2"),
+          Namespace.of("other_ns"));
 
   private RCKUtils() {}
 

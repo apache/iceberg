@@ -79,14 +79,45 @@ class RoaringPositionBitmap {
   }
 
   /**
-   * Sets a range of positions in the bitmap.
+   * Sets a range of positions in the bitmap. If {@code posStartInclusive} equals {@code
+   * posEndExclusive}, this method does nothing.
    *
    * @param posStartInclusive the start position of the range (inclusive)
    * @param posEndExclusive the end position of the range (exclusive)
+   * @throws IllegalArgumentException if posStartInclusive &gt; posEndExclusive
    */
   public void setRange(long posStartInclusive, long posEndExclusive) {
-    for (long pos = posStartInclusive; pos < posEndExclusive; pos++) {
-      set(pos);
+    Preconditions.checkArgument(
+        posStartInclusive <= posEndExclusive,
+        "Start position must not exceed end position: [%s, %s)",
+        posStartInclusive,
+        posEndExclusive);
+
+    if (posStartInclusive == posEndExclusive) {
+      return;
+    }
+
+    validatePosition(posStartInclusive);
+    validatePosition(posEndExclusive - 1);
+
+    int startKey = key(posStartInclusive);
+    int endKey = key(posEndExclusive - 1);
+    allocateBitmapsIfNeeded(endKey + 1);
+
+    if (startKey == endKey) {
+      long lowStart = Integer.toUnsignedLong(pos32Bits(posStartInclusive));
+      long lowEnd = Integer.toUnsignedLong(pos32Bits(posEndExclusive - 1)) + 1;
+      bitmaps[startKey].add(lowStart, lowEnd);
+    } else {
+      long firstLowStart = Integer.toUnsignedLong(pos32Bits(posStartInclusive));
+      bitmaps[startKey].add(firstLowStart, 1L << 32);
+
+      for (int key = startKey + 1; key < endKey; key++) {
+        bitmaps[key].add(0L, 1L << 32);
+      }
+
+      long lastLowEnd = Integer.toUnsignedLong(pos32Bits(posEndExclusive - 1)) + 1;
+      bitmaps[endKey].add(0L, lastLowEnd);
     }
   }
 

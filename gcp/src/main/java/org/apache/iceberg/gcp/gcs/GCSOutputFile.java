@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.gcp.gcs;
 
-import com.google.cloud.gcs.analyticscore.client.GcsFileSystem;
 import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.Storage;
 import java.io.IOException;
@@ -44,7 +43,9 @@ class GCSOutputFile extends BaseGCSFile implements OutputFile {
 
   GCSOutputFile(
       Storage storage,
-      GcsFileSystem gcsFileSystem,
+      // Using AutoCloseable avoids a runtime dependency on gcs-analytics-core. Cast via
+      // AnalyticsCoreUtil.
+      AutoCloseable gcsFileSystem,
       BlobId blobId,
       GCPProperties gcpProperties,
       MetricsContext metrics) {

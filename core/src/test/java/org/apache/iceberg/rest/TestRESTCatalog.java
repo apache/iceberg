@@ -30,6 +30,7 @@ import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
@@ -62,6 +63,7 @@ import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.HasTableOperations;
+import org.apache.iceberg.HistoryEntry;
 import org.apache.iceberg.MetadataUpdate;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -274,12 +276,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
   @BeforeEach
   public void createCatalog() throws Exception {
-    File warehouse = temp.toFile();
-
     this.backendCatalog = new InMemoryCatalog();
-    this.backendCatalog.initialize(
-        "in-memory",
-        ImmutableMap.of(CatalogProperties.WAREHOUSE_LOCATION, warehouse.getAbsolutePath()));
 
     HTTPHeaders catalogHeaders =
         HTTPHeaders.of(
@@ -317,6 +314,14 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   @Override
   protected RESTCatalog initCatalog(String catalogName, Map<String, String> additionalProperties) {
     Configuration conf = new Configuration();
+    File warehouse = temp.toFile();
+
+    backendCatalog.initialize(
+        "in-memory",
+        ImmutableMap.<String, String>builder()
+            .put(CatalogProperties.WAREHOUSE_LOCATION, warehouse.getAbsolutePath())
+            .putAll(additionalProperties)
+            .build());
 
     RESTCatalog catalog =
         new RESTCatalog(
@@ -1083,6 +1088,14 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
         .asInstanceOf(InstanceOfAssertFactories.list(Snapshot.class))
         .hasSize(1);
 
+    // snapshot log is complete regardless REFS mode
+    assertThat(((BaseTable) refsTable).operations().current())
+        .extracting("snapshotLog")
+        .asInstanceOf(InstanceOfAssertFactories.list(HistoryEntry.class))
+        .hasSize(2)
+        .containsExactlyInAnyOrderElementsOf(
+            ((BaseTable) table).operations().current().snapshotLog());
+
     assertThat(refsTable.currentSnapshot()).isEqualTo(table.currentSnapshot());
 
     // verify that the table was loaded with the refs argument
@@ -1177,6 +1190,14 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
         .asInstanceOf(InstanceOfAssertFactories.list(Snapshot.class))
         .hasSize(2);
 
+    // snapshot log is complete regardless REFS mode
+    assertThat(((BaseTable) refsTable).operations().current())
+        .extracting("snapshotLog")
+        .asInstanceOf(InstanceOfAssertFactories.list(HistoryEntry.class))
+        .hasSize(1) // main branch has a single snapshot
+        .containsExactlyInAnyOrderElementsOf(
+            ((BaseTable) table).operations().current().snapshotLog());
+
     assertThat(refsTable.currentSnapshot()).isEqualTo(table.currentSnapshot());
 
     // verify that the table was loaded with the refs argument
@@ -1261,6 +1282,14 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
         .extracting("snapshots")
         .asInstanceOf(InstanceOfAssertFactories.list(Snapshot.class))
         .hasSize(1);
+
+    // snapshot log is complete regardless REFS mode
+    assertThat(((BaseTable) refsTable).operations().current())
+        .extracting("snapshotLog")
+        .asInstanceOf(InstanceOfAssertFactories.list(HistoryEntry.class))
+        .hasSize(numSnapshots)
+        .containsExactlyInAnyOrderElementsOf(
+            ((BaseTable) table).operations().current().snapshotLog());
 
     assertThat(refsTable.currentSnapshot()).isEqualTo(table.currentSnapshot());
     assertThat(refsTable.snapshots()).hasSize(numSnapshots);
@@ -3681,8 +3710,8 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     Mockito.verify(adapter, times(2))
         .execute(matches(HTTPMethod.GET, RESOURCE_PATHS.table(TABLE)), any(), any(), any());
 
-    // CommitReport reflects the table state after the commit
-    Mockito.verify(adapter)
+    // CommitReport reflects the table state after the commit (reported asynchronously)
+    Mockito.verify(adapter, timeout(5000))
         .execute(
             matches(
                 HTTPMethod.POST,
@@ -3719,6 +3748,13 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             .build();
 
     catalog.loadTable(TABLE).newFastAppend().appendFile(fileOnMain).commit();
+
+    // Wait for the async metrics report from the first commit to reach the adapter before
+    // setting up the next stub. Without this, the background metrics thread can call
+    // adapter.execute() while Mockito is in the middle of stubbing, causing
+    // UnfinishedStubbingException.
+    Mockito.verify(adapter, timeout(5000))
+        .execute(matches(HTTPMethod.POST, RESOURCE_PATHS.metrics(TABLE)), any(), any(), any());
 
     DataFile fileOnAnotherBranch =
         DataFiles.builder(SPEC)

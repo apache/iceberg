@@ -91,11 +91,13 @@ public class ParquetDictionaryRowGroupFilter {
         BlockMetaData rowGroup,
         DictionaryPageReadStore dictionaryReadStore) {
       this.dictionaries = dictionaryReadStore;
+      int fileColumnCount = fileSchema.getColumns().size();
+      int rowGroupColumnCount = rowGroup.getColumns().size();
       this.dictCache = Maps.newHashMap();
-      this.isFallback = Maps.newHashMap();
-      this.mayContainNulls = Maps.newHashMap();
-      this.cols = Maps.newHashMap();
-      this.conversions = Maps.newHashMap();
+      this.isFallback = Maps.newHashMapWithExpectedSize(rowGroupColumnCount);
+      this.mayContainNulls = Maps.newHashMapWithExpectedSize(rowGroupColumnCount);
+      this.cols = Maps.newHashMapWithExpectedSize(fileColumnCount);
+      this.conversions = Maps.newHashMapWithExpectedSize(fileColumnCount);
 
       for (ColumnDescriptor desc : fileSchema.getColumns()) {
         PrimitiveType colType = fileSchema.getType(desc.getPath()).asPrimitiveType();

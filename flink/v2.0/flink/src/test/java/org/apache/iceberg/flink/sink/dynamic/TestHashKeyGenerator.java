@@ -25,6 +25,7 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 import org.apache.flink.api.java.functions.KeySelector;
+import org.apache.flink.configuration.Configuration;
 import org.apache.flink.runtime.state.KeyGroupRangeAssignment;
 import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.data.RowData;
@@ -34,6 +35,10 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.flink.FlinkWriteConf;
+import org.apache.iceberg.flink.FlinkWriteOptions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
@@ -230,6 +235,38 @@ class TestHashKeyGenerator {
   }
 
   @Test
+  void testNonPositiveWriteParallelismConfigFallback() throws Exception {
+    int maxWriteParallelism = 5;
+    HashKeyGenerator generator = new HashKeyGenerator(16, maxWriteParallelism);
+    PartitionSpec unpartitioned = PartitionSpec.unpartitioned();
+    FlinkWriteConf flinkWriteConf =
+        new FlinkWriteConf(
+            ImmutableMap.of(FlinkWriteOptions.WRITE_PARALLELISM.key(), "2"), new Configuration());
+
+    Set<Integer> writeKeys = Sets.newHashSet();
+    for (int i = 0; i < 20; i++) {
+      GenericRowData row = GenericRowData.of(i, StringData.fromString("z"));
+      writeKeys.add(
+          getWriteKey(
+              generator,
+              unpartitioned,
+              DistributionMode.NONE,
+              i % 2 == 0 ? 0 : -1,
+              Collections.emptySet(),
+              row,
+              flinkWriteConf));
+    }
+
+    assertThat(writeKeys).hasSize(2);
+    assertThat(
+            writeKeys.stream()
+                .map(key -> getSubTaskId(key, 2, maxWriteParallelism))
+                .distinct()
+                .count())
+        .isEqualTo(2);
+  }
+
+  @Test
   void testCapAtMaxWriteParallelism() throws Exception {
     int writeParallelism = 10;
     int maxWriteParallelism = 5;
@@ -256,6 +293,102 @@ class TestHashKeyGenerator {
                 .distinct()
                 .count())
         .isEqualTo(maxWriteParallelism);
+  }
+
+  @Test
+  void testIdentifierFieldsResolvedAsEqualityFields() throws Exception {
+    int writeParallelism = 2;
+    int maxWriteParallelism = 8;
+    HashKeyGenerator generator = new HashKeyGenerator(16, maxWriteParallelism);
+
+    Schema schemaWithIdentifier =
+        new Schema(
+            Lists.newArrayList(
+                Types.NestedField.required(1, "id", Types.IntegerType.get()),
+                Types.NestedField.required(2, "data", Types.StringType.get())),
+            Sets.newHashSet(1));
+    PartitionSpec unpartitioned = PartitionSpec.unpartitioned();
+
+    GenericRowData row1 = GenericRowData.of(1, StringData.fromString("foo"));
+    GenericRowData row2 = GenericRowData.of(1, StringData.fromString("bar"));
+    GenericRowData row3 = GenericRowData.of(2, StringData.fromString("baz"));
+
+    DynamicRecord record1 =
+        new DynamicRecord(
+            TABLE_IDENTIFIER,
+            BRANCH,
+            schemaWithIdentifier,
+            row1,
+            unpartitioned,
+            DistributionMode.NONE,
+            writeParallelism);
+    DynamicRecord record2 =
+        new DynamicRecord(
+            TABLE_IDENTIFIER,
+            BRANCH,
+            schemaWithIdentifier,
+            row2,
+            unpartitioned,
+            DistributionMode.NONE,
+            writeParallelism);
+    DynamicRecord record3 =
+        new DynamicRecord(
+            TABLE_IDENTIFIER,
+            BRANCH,
+            schemaWithIdentifier,
+            row3,
+            unpartitioned,
+            DistributionMode.NONE,
+            writeParallelism);
+
+    int writeKey1 = generator.generateKey(record1);
+    int writeKey2 = generator.generateKey(record2);
+    int writeKey3 = generator.generateKey(record3);
+
+    assertThat(writeKey1).isEqualTo(writeKey2);
+    assertThat(writeKey3).isNotEqualTo(writeKey1);
+  }
+
+  @Test
+  void testForwardRecordWithIdentifierFieldsRoutesByEqualityFields() throws Exception {
+    int writeParallelism = 2;
+    int maxWriteParallelism = 8;
+    HashKeyGenerator generator = new HashKeyGenerator(16, maxWriteParallelism);
+
+    Schema schemaWithIdentifier =
+        new Schema(
+            Lists.newArrayList(
+                Types.NestedField.required(1, "id", Types.IntegerType.get()),
+                Types.NestedField.required(2, "data", Types.StringType.get())),
+            Sets.newHashSet(1));
+    PartitionSpec unpartitioned = PartitionSpec.unpartitioned();
+
+    GenericRowData rowSameKey1 = GenericRowData.of(1, StringData.fromString("foo"));
+    GenericRowData rowSameKey2 = GenericRowData.of(1, StringData.fromString("bar"));
+    GenericRowData rowDifferentKey = GenericRowData.of(2, StringData.fromString("baz"));
+
+    // Forward records (null distribution mode) with identifier fields on the schema must still
+    // route by equality fields, so HashKeyGenerator can handle them when the processor falls back
+    // off the forward path.
+    DynamicRecord record1 =
+        new DynamicRecord(
+            TABLE_IDENTIFIER, BRANCH, schemaWithIdentifier, rowSameKey1, unpartitioned);
+    DynamicRecord record2 =
+        new DynamicRecord(
+            TABLE_IDENTIFIER, BRANCH, schemaWithIdentifier, rowSameKey2, unpartitioned);
+    DynamicRecord record3 =
+        new DynamicRecord(
+            TABLE_IDENTIFIER, BRANCH, schemaWithIdentifier, rowDifferentKey, unpartitioned);
+    record1.writeParallelism(writeParallelism);
+    record2.writeParallelism(writeParallelism);
+    record3.writeParallelism(writeParallelism);
+
+    int writeKey1 = generator.generateKey(record1);
+    int writeKey2 = generator.generateKey(record2);
+    int writeKey3 = generator.generateKey(record3);
+
+    assertThat(writeKey1).isEqualTo(writeKey2);
+    assertThat(writeKey3).isNotEqualTo(writeKey1);
   }
 
   @Test
@@ -477,10 +610,31 @@ class TestHashKeyGenerator {
       Set<String> equalityFields,
       GenericRowData row)
       throws Exception {
-    DynamicRecord record =
+    return getWriteKey(
+        generator,
+        spec,
+        mode,
+        writeParallelism,
+        equalityFields,
+        row,
+        new FlinkWriteConf(Collections.emptyMap(), new Configuration()));
+  }
+
+  private static int getWriteKey(
+      HashKeyGenerator generator,
+      PartitionSpec spec,
+      DistributionMode mode,
+      int writeParallelism,
+      Set<String> equalityFields,
+      GenericRowData row,
+      FlinkWriteConf flinkWriteConf)
+      throws Exception {
+    DynamicRecord inputRecord =
         new DynamicRecord(TABLE_IDENTIFIER, BRANCH, SCHEMA, row, spec, mode, writeParallelism);
-    record.setEqualityFields(equalityFields);
-    return generator.generateKey(record);
+    inputRecord.setEqualityFields(equalityFields);
+
+    DynamicRecordWithConfig dynamicRecordWithConfig = new DynamicRecordWithConfig(flinkWriteConf);
+    return generator.generateKey(dynamicRecordWithConfig.wrap(inputRecord));
   }
 
   private static int getSubTaskId(int writeKey1, int writeParallelism, int maxWriteParallelism) {

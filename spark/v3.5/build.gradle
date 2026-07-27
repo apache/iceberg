@@ -105,6 +105,7 @@ project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}") {
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-data', configuration: 'testArtifacts')
+    testImplementation project(path: ':iceberg-orc', configuration: 'testArtifacts')
     testImplementation (project(path: ':iceberg-open-api', configuration: 'testFixturesRuntimeElements'))
     testImplementation libs.awaitility
     testImplementation(testFixtures(project(':iceberg-parquet')))

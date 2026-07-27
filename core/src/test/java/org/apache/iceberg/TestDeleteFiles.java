@@ -615,6 +615,10 @@ public class TestDeleteFiles extends TestBase {
         .containsEntry(SnapshotSummary.REPLACED_MANIFESTS_COUNT, "2");
 
     assertThat(deleteSnap.deleteManifests(table.io())).hasSize(1);
+    assertThat(deleteSnap.summary())
+        .containsEntry(SnapshotSummary.REMOVED_DVS_PROP, "1")
+        .containsEntry(SnapshotSummary.REMOVED_DELETE_FILES_PROP, "1");
+
     validateDeleteManifest(
         deleteSnap.deleteManifests(table.io()).get(0),
         dataSeqs(1L, 1L),
@@ -658,6 +662,10 @@ public class TestDeleteFiles extends TestBase {
         .containsEntry(SnapshotSummary.REPLACED_MANIFESTS_COUNT, "2");
 
     assertThat(deleteSnap.deleteManifests(table.io())).hasSize(1);
+    assertThat(deleteSnap.summary())
+        .containsEntry(SnapshotSummary.REMOVED_DVS_PROP, "1")
+        .containsEntry(SnapshotSummary.REMOVED_DELETE_FILES_PROP, "1");
+
     validateDeleteManifest(
         deleteSnap.deleteManifests(table.io()).get(0),
         dataSeqs(1L, 1L),
@@ -665,6 +673,69 @@ public class TestDeleteFiles extends TestBase {
         ids(deleteSnap.snapshotId(), snapshot.snapshotId()),
         files(fileADeletes(), fileBDeletes()),
         statuses(ManifestEntry.Status.DELETED, ManifestEntry.Status.EXISTING));
+  }
+
+  @TestTemplate
+  public void removingDataFilesWhenTruncatingAlsoRemovesDVs() {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
+    DeleteFile dv1 =
+        FileMetadata.deleteFileBuilder(SPEC)
+            .ofPositionDeletes()
+            .withPath("/path/to/data-1-deletes.puffin")
+            .withFileSizeInBytes(10)
+            .withPartitionPath("data_bucket=0")
+            .withRecordCount(5)
+            .withReferencedDataFile(DATA_FILE_BUCKET_0_IDS_0_2.location())
+            .withContentOffset(4)
+            .withContentSizeInBytes(6)
+            .build();
+
+    DeleteFile dv2 =
+        FileMetadata.deleteFileBuilder(SPEC)
+            .ofPositionDeletes()
+            .withPath("/path/to/data-2-deletes.puffin")
+            .withFileSizeInBytes(10)
+            .withPartitionPath("data_bucket=0")
+            .withRecordCount(5)
+            .withReferencedDataFile(DATA_FILE_BUCKET_0_IDS_8_10.location())
+            .withContentOffset(4)
+            .withContentSizeInBytes(6)
+            .build();
+
+    commit(
+        table,
+        table
+            .newRowDelta()
+            .addRows(DATA_FILE_BUCKET_0_IDS_0_2)
+            .addRows(DATA_FILE_BUCKET_0_IDS_8_10)
+            .addDeletes(dv1)
+            .addDeletes(dv2),
+        branch);
+
+    Snapshot snapshot = latestSnapshot(table, branch);
+    assertThat(snapshot.sequenceNumber()).isEqualTo(1);
+    assertThat(table.ops().current().lastSequenceNumber()).isEqualTo(1);
+
+    // deleting by row filter should also remove the orphaned dv1 from delete manifests. When a
+    // table is truncated via TRUNCATE, the row filter is sent as Expressions.alwaysTrue()
+    commit(table, table.newDelete().deleteFromRowFilter(Expressions.alwaysTrue()), branch);
+
+    Snapshot deleteSnap = latestSnapshot(table, branch);
+    assertThat(deleteSnap.sequenceNumber()).isEqualTo(2);
+    assertThat(table.ops().current().lastSequenceNumber()).isEqualTo(2);
+
+    assertThat(deleteSnap.deleteManifests(table.io())).hasSize(1);
+    assertThat(deleteSnap.summary())
+        .containsEntry(SnapshotSummary.REMOVED_DVS_PROP, "2")
+        .containsEntry(SnapshotSummary.REMOVED_DELETE_FILES_PROP, "2");
+
+    validateDeleteManifest(
+        deleteSnap.deleteManifests(table.io()).get(0),
+        dataSeqs(1L, 1L),
+        fileSeqs(1L, 1L),
+        ids(deleteSnap.snapshotId(), deleteSnap.snapshotId()),
+        files(dv1, dv2),
+        statuses(Status.DELETED, Status.DELETED));
   }
 
   private static ByteBuffer longToBuffer(long value) {

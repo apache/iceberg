@@ -26,6 +26,8 @@ import org.apache.iceberg.util.PropertyUtil;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -105,5 +107,11 @@ public class RESTCompatibilityKitCatalogTests extends CatalogTests<RESTCatalog> 
     // https://jakarta.ee/specifications/servlet/6.0/jakarta-servlet-spec-6.0.html#uri-path-canonicalization
     // for additional details
     return false;
+  }
+
+  @Disabled("RESTServerExtension isn’t configurable per test")
+  @Test
+  public void createTableInUniqueLocation() {
+    super.createTableInUniqueLocation();
   }
 }

@@ -28,7 +28,7 @@ Tables are created using either a [`Catalog`](../../javadoc/{{ icebergVersion }}
 
 The Hive catalog connects to a Hive metastore to keep track of Iceberg tables.
 You can initialize a Hive catalog with a name and some properties.
-(see: [Catalog properties](configuration.md#catalog-properties))
+(see: [Catalog properties](catalog-properties.md))
 
 ```java
 import java.util.HashMap;

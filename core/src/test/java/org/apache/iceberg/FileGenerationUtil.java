@@ -268,7 +268,7 @@ public class FileGenerationUtil {
   }
 
   private static long generateFileSize() {
-    return random().nextInt(50_000);
+    return 1 + random().nextInt(50_000);
   }
 
   private static long generateContentOffset() {
@@ -276,7 +276,7 @@ public class FileGenerationUtil {
   }
 
   private static long generateContentLength() {
-    return random().nextInt(10_000);
+    return 1 + random().nextInt(10_000);
   }
 
   private static Pair<ByteBuffer, ByteBuffer> generateBounds(PrimitiveType type, MetricsMode mode) {

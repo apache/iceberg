@@ -68,6 +68,11 @@ public class TestGenericData extends DataTestBase {
     return true;
   }
 
+  @Override
+  protected boolean supportsRowLineage() {
+    return true;
+  }
+
   /** Orc writers don't have notion of non-null / required fields. */
   @Override
   protected boolean allowsWritingNullValuesForRequiredFields() {
@@ -250,13 +255,15 @@ public class TestGenericData extends DataTestBase {
     try (CloseableIterable<Record> reader =
         ORC.read(Files.localInput(testFile))
             .project(schema)
-            .createReaderFunc(fileSchema -> GenericOrcReader.buildReader(schema, fileSchema))
+            .createReaderFunc(
+                fileSchema -> GenericOrcReader.buildReader(schema, fileSchema, ID_TO_CONSTANT))
             .build()) {
       rows = Lists.newArrayList(reader);
     }
 
     for (int i = 0; i < expected.size(); i += 1) {
-      DataTestHelpers.assertEquals(schema.asStruct(), expected.get(i), rows.get(i));
+      DataTestHelpers.assertEquals(
+          schema.asStruct(), expected.get(i), rows.get(i), ID_TO_CONSTANT, i);
     }
   }
 }

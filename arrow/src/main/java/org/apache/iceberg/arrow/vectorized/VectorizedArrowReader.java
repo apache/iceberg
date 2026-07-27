@@ -252,7 +252,14 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
         // Use FixedSizeBinaryVector for binary backed decimal
         type = Types.FixedType.ofLength(primitive.getTypeLength());
       }
-      physicalType = Types.NestedField.from(logicalType).ofType(type).build();
+      // drop initialDefault/writeDefault: they are typed for the logical (decimal) type and
+      // cannot be cast to the underlying physical type
+      physicalType =
+          Types.NestedField.from(logicalType)
+              .ofType(type)
+              .withInitialDefault(null)
+              .withWriteDefault(null)
+              .build();
     }
 
     return physicalType;
@@ -584,14 +591,35 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     @Override
     public Optional<LogicalTypeVisitorResult> visit(
         LogicalTypeAnnotation.IntLogicalTypeAnnotation intLogicalType) {
-      FieldVector vector = arrowField.createVector(rootAlloc);
       int bitWidth = intLogicalType.getBitWidth();
 
       if (bitWidth == 8 || bitWidth == 16 || bitWidth == 32) {
+        // Iceberg has no unsigned integer type. Reading UINT32 into a 32-bit signed value would
+        // silently produce negative results for inputs above Integer.MAX_VALUE. UINT8 and UINT16
+        // both fit losslessly in a signed int32 and are allowed, matching the policy in
+        // BaseParquetReaders for the non-vectorized path.
+        Preconditions.checkArgument(
+            intLogicalType.isSigned() || bitWidth < 32, "Cannot read UINT32 as an int value");
+        Field intField =
+            new Field(
+                icebergField.name(),
+                new FieldType(
+                    icebergField.isOptional(), new ArrowType.Int(Integer.SIZE, true), null, null),
+                null);
+        FieldVector vector = intField.createVector(rootAlloc);
         ((IntVector) vector).allocateNew(batchSize);
         return Optional.of(
             new LogicalTypeVisitorResult(vector, ReadType.INT, (int) IntVector.TYPE_WIDTH));
       } else if (bitWidth == 64) {
+        Preconditions.checkArgument(
+            intLogicalType.isSigned(), "Cannot read UINT64 as a long value");
+        Field longField =
+            new Field(
+                icebergField.name(),
+                new FieldType(
+                    icebergField.isOptional(), new ArrowType.Int(Long.SIZE, true), null, null),
+                null);
+        FieldVector vector = longField.createVector(rootAlloc);
         ((BigIntVector) vector).allocateNew(batchSize);
         return Optional.of(
             new LogicalTypeVisitorResult(vector, ReadType.LONG, (int) BigIntVector.TYPE_WIDTH));
@@ -936,5 +964,58 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
 
     @Override
     public void setBatchSize(int batchSize) {}
+  }
+
+  public static class VectorizedVariantReader extends VectorizedArrowReader {
+    private final VectorizedArrowReader metadataReader;
+    private final VectorizedArrowReader valueReader;
+
+    public VectorizedVariantReader(
+        Types.NestedField icebergField,
+        VectorizedArrowReader metadataReader,
+        VectorizedArrowReader valueReader) {
+      super(icebergField);
+      this.metadataReader = metadataReader;
+      this.valueReader = valueReader;
+    }
+
+    @Override
+    public VectorHolder read(VectorHolder reuse, int numValsToRead) {
+      VectorHolder reuseMetadata = null;
+      VectorHolder reuseValue = null;
+      if (reuse instanceof VectorHolder.VariantVectorHolder) {
+        VectorHolder.VariantVectorHolder variantReuse = (VectorHolder.VariantVectorHolder) reuse;
+        reuseMetadata = variantReuse.metadataHolder();
+        reuseValue = variantReuse.valueHolder();
+      }
+      VectorHolder metadataHolder = metadataReader.read(reuseMetadata, numValsToRead);
+      VectorHolder valueHolder = valueReader.read(reuseValue, numValsToRead);
+      return new VectorHolder.VariantVectorHolder(
+          icebergField(), numValsToRead, metadataHolder, valueHolder);
+    }
+
+    @Override
+    public void setRowGroupInfo(
+        PageReadStore source, Map<ColumnPath, ColumnChunkMetaData> metadata) {
+      metadataReader.setRowGroupInfo(source, metadata);
+      valueReader.setRowGroupInfo(source, metadata);
+    }
+
+    @Override
+    public void setBatchSize(int batchSize) {
+      metadataReader.setBatchSize(batchSize);
+      valueReader.setBatchSize(batchSize);
+    }
+
+    @Override
+    public void close() {
+      metadataReader.close();
+      valueReader.close();
+    }
+
+    @Override
+    public String toString() {
+      return "VectorizedVariantReader";
+    }
   }
 }

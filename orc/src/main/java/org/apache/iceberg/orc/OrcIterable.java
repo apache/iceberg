@@ -103,6 +103,8 @@ class OrcIterable<T> extends CloseableGroup implements CloseableIterable<T> {
 
     VectorizedRowBatchIterator rowBatchIterator =
         newOrcIterator(file, readOrcSchema, start, length, orcFileReader, sarg, recordsPerBatch);
+    addCloseable(rowBatchIterator);
+
     if (batchReaderFunction != null) {
       OrcBatchReader<T> batchReader = (OrcBatchReader<T>) batchReaderFunction.apply(readOrcSchema);
       return CloseableIterator.transform(

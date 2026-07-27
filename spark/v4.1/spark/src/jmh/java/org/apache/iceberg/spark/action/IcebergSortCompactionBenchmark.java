@@ -25,42 +25,30 @@ import static org.apache.spark.sql.functions.current_date;
 import static org.apache.spark.sql.functions.date_add;
 import static org.apache.spark.sql.functions.expr;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.nio.file.Files;
 import java.util.Collections;
-import java.util.UUID;
 import java.util.concurrent.TimeUnit;
-import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.NullOrder;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortDirection;
 import org.apache.iceberg.SortOrder;
-import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.SizeBasedFileRewritePlanner;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkSessionCatalog;
-import org.apache.iceberg.spark.TestBase;
 import org.apache.iceberg.spark.actions.SparkActions;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
-import org.apache.spark.sql.SaveMode;
-import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.expressions.Transform;
 import org.apache.spark.sql.types.DataTypes;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
-import org.openjdk.jmh.annotations.Level;
 import org.openjdk.jmh.annotations.Measurement;
 import org.openjdk.jmh.annotations.Mode;
 import org.openjdk.jmh.annotations.Scope;
-import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
-import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Threads;
 import org.openjdk.jmh.annotations.Timeout;
 
@@ -69,7 +57,7 @@ import org.openjdk.jmh.annotations.Timeout;
 @Measurement(iterations = 10)
 @BenchmarkMode(Mode.SingleShotTime)
 @Timeout(time = 1000, timeUnit = TimeUnit.HOURS)
-public class IcebergSortCompactionBenchmark {
+public class IcebergSortCompactionBenchmark extends IcebergCompactionBenchmark {
 
   private static final String[] NAMESPACE = new String[] {"default"};
   private static final String NAME = "sortbench";
@@ -78,28 +66,9 @@ public class IcebergSortCompactionBenchmark {
   private static final long NUM_ROWS = 7500000L;
   private static final long UNIQUE_VALUES = NUM_ROWS / 4;
 
-  private final Configuration hadoopConf = initHadoopConf();
-  private SparkSession spark;
-
-  @Setup
-  public void setupBench() {
-    setupSpark();
-  }
-
-  @TearDown
-  public void teardownBench() {
-    tearDownSpark();
-  }
-
-  @Setup(Level.Iteration)
-  public void setupIteration() {
-    initTable();
-    appendData();
-  }
-
-  @TearDown(Level.Iteration)
-  public void cleanUpIteration() throws IOException {
-    cleanupFiles();
+  @Override
+  protected String tableName() {
+    return NAME;
   }
 
   @Benchmark
@@ -278,11 +247,8 @@ public class IcebergSortCompactionBenchmark {
         .execute();
   }
 
-  protected Configuration initHadoopConf() {
-    return new Configuration();
-  }
-
-  protected final void initTable() {
+  @Override
+  protected void initTable() {
     Schema schema =
         new Schema(
             required(1, "longCol", Types.LongType.get()),
@@ -309,7 +275,8 @@ public class IcebergSortCompactionBenchmark {
     }
   }
 
-  private void appendData() {
+  @Override
+  protected void appendData() {
     Dataset<Row> df =
         spark()
             .range(0, NUM_ROWS * NUM_FILES, 1, NUM_FILES)
@@ -355,54 +322,5 @@ public class IcebergSortCompactionBenchmark {
             .withColumn("timestampCol", expr("TO_TIMESTAMP(dateCol)"))
             .withColumn("stringCol", new RandomGeneratingUDF(UNIQUE_VALUES).randomString().apply());
     writeData(df);
-  }
-
-  private void writeData(Dataset<Row> df) {
-    df.write().format("iceberg").mode(SaveMode.Append).save(NAME);
-  }
-
-  protected final Table table() {
-    try {
-      return Spark3Util.loadIcebergTable(spark(), NAME);
-    } catch (Exception e) {
-      throw new RuntimeException(e);
-    }
-  }
-
-  protected final SparkSession spark() {
-    return spark;
-  }
-
-  protected String getCatalogWarehouse() {
-    try {
-      return Files.createTempDirectory("benchmark-").toAbsolutePath()
-          + "/"
-          + UUID.randomUUID()
-          + "/";
-    } catch (IOException e) {
-      throw new UncheckedIOException(e);
-    }
-  }
-
-  protected void cleanupFiles() throws IOException {
-    spark.sql("DROP TABLE IF EXISTS " + NAME);
-  }
-
-  protected void setupSpark() {
-    SparkSession.Builder builder =
-        SparkSession.builder()
-            .config(
-                "spark.sql.catalog.spark_catalog", "org.apache.iceberg.spark.SparkSessionCatalog")
-            .config("spark.sql.catalog.spark_catalog.type", "hadoop")
-            .config("spark.sql.catalog.spark_catalog.warehouse", getCatalogWarehouse())
-            .config(TestBase.DISABLE_UI)
-            .master("local[*]");
-    spark = builder.getOrCreate();
-    Configuration sparkHadoopConf = spark.sessionState().newHadoopConf();
-    hadoopConf.forEach(entry -> sparkHadoopConf.set(entry.getKey(), entry.getValue()));
-  }
-
-  protected void tearDownSpark() {
-    spark.stop();
   }
 }

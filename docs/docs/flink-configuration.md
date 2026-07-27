@@ -160,6 +160,8 @@ INSERT INTO tableName /*+ OPTIONS('upsert-enabled'='true') */
 | compression-strategy                    | Table write.orc.compression-strategy       | Overrides this table's compression strategy for ORC tables for this write                                                                       |
 | write-parallelism                       | Upstream operator parallelism              | Overrides the writer parallelism                                                                                                                |
 | uid-suffix                              | As per table property                      | Overrides the uid suffix used in the underlying IcebergSink for this table                                                                      |
+| shred-variants                          | Table write.parquet.shred-variants         | Overrides this table's shred variants for this write |
+| variant-inference-buffer-size           | Table write.parquet.variant-inference-buffer-size | Overrides this table's variant inference buffer size for this write |
 
 #### Range distribution statistics type
 
@@ -179,7 +181,7 @@ than a threshold (currently 10,000), statistics are automatically switched to Sk
 
 If sort order contains partition columns, each sort key would map to one partition and data
 file. This relative weight can avoid placing too many small files for sort keys with low
-traffic. It is a double value that defines the minimal weight for each sort key. `0.02` means
+traffic. It is a double value that defines the minimal weight for each sort key. `2.0` means
 each key has a base weight of `2%` of the targeted traffic weight per writer task.
 
 E.g. the sink Iceberg table is partitioned daily by event time. Assume the data stream
@@ -191,7 +193,7 @@ task would be `1,000`. Assume the weight sum for the oldest 150 days is `1,000`.
 the range partitioner would put all the oldest 150 days in one writer task. That writer task
 would write to 150 small files (one per day). Keeping 150 open files can potentially consume
 large amount of memory. Flushing and uploading 150 files (however small) at checkpoint time
-can also be potentially slow. If this config is set to `0.02`. It means every sort key has a
+can also be potentially slow. If this config is set to `2.0`. It means every sort key has a
 base weight of `2%` of targeted weight of `1,000` for every write task. It would essentially
 avoid placing more than `50` data files (one per day) on one writer task no matter how small
 they are.

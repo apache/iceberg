@@ -295,7 +295,7 @@ public class TestLocationProvider extends TestBase {
     String fileLocation =
         table.locationProvider().newDataLocation(table.spec(), partitionData, "test.parquet");
 
-    // no partition values included in the path and last part of entropy is seperated with "-"
+    // no partition values included in the path and last part of entropy is separated with "-"
     assertThat(fileLocation).endsWith("/data/0110/1010/0011/11101000-test.parquet");
   }
 

@@ -232,6 +232,10 @@ public abstract class DeleteFilter<T> {
   }
 
   private CloseableIterable<T> applyEqDeletes(CloseableIterable<T> records) {
+    if (eqDeletes.isEmpty()) {
+      return records;
+    }
+
     Predicate<T> isEqDeleted = applyEqDeletes().stream().reduce(Predicate::or).orElse(t -> false);
 
     return createDeleteIterable(records, isEqDeleted);

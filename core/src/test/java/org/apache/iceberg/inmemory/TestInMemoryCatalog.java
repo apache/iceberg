@@ -82,6 +82,11 @@ public class TestInMemoryCatalog extends CatalogTests<InMemoryCatalog> {
     return true;
   }
 
+  @Override
+  protected boolean supportsNestedNamespaces() {
+    return true;
+  }
+
   @Test
   @Override
   public void testLoadTableWithMissingMetadataFile(@TempDir Path tempDir) throws IOException {

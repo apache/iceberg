@@ -107,6 +107,10 @@ public class IcebergSinkConfig extends AbstractConfig {
   private static final String COORDINATOR_EXECUTOR_KEEP_ALIVE_TIMEOUT_MS =
       "iceberg.coordinator-executor-keep-alive-timeout-ms";
 
+  private static final String COMMIT_MAX_CONSECUTIVE_FAILURES_PROP =
+      "iceberg.control.commit.max-consecutive-failures";
+  private static final int COMMIT_MAX_CONSECUTIVE_FAILURES_DEFAULT = 1;
+
   @VisibleForTesting static final String COMMA_NO_PARENS_REGEX = ",(?![^()]*+\\))";
 
   public static final ConfigDef CONFIG_DEF = newConfigDef();
@@ -244,6 +248,13 @@ public class IcebergSinkConfig extends AbstractConfig {
         120000L,
         Importance.LOW,
         "config to control coordinator executor keep alive time");
+    configDef.define(
+        COMMIT_MAX_CONSECUTIVE_FAILURES_PROP,
+        ConfigDef.Type.INT,
+        COMMIT_MAX_CONSECUTIVE_FAILURES_DEFAULT,
+        ConfigDef.Range.atLeast(1),
+        Importance.MEDIUM,
+        "Maximum number of consecutive commit failures before the coordinator terminates");
     return configDef;
   }
 
@@ -253,7 +264,7 @@ public class IcebergSinkConfig extends AbstractConfig {
   private final Map<String, String> kafkaProps;
   private final Map<String, String> autoCreateProps;
   private final Map<String, String> writeProps;
-  private final Map<String, TableSinkConfig> tableConfigMap = Maps.newHashMap();
+  private final Map<String, TableSinkConfig> tableConfigMap = Maps.newConcurrentMap();
   private final JsonConverter jsonConverter;
 
   public IcebergSinkConfig(Map<String, String> originalProps) {
@@ -362,6 +373,10 @@ public class IcebergSinkConfig extends AbstractConfig {
 
   public long keepAliveTimeoutInMs() {
     return getLong(COORDINATOR_EXECUTOR_KEEP_ALIVE_TIMEOUT_MS);
+  }
+
+  public int commitMaxConsecutiveFailures() {
+    return getInt(COMMIT_MAX_CONSECUTIVE_FAILURES_PROP);
   }
 
   public TableSinkConfig tableConfig(String tableName) {

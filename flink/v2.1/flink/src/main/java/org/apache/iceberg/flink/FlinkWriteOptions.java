@@ -23,6 +23,7 @@ import org.apache.flink.annotation.Experimental;
 import org.apache.flink.configuration.ConfigOption;
 import org.apache.flink.configuration.ConfigOptions;
 import org.apache.iceberg.SnapshotRef;
+import org.apache.iceberg.flink.maintenance.api.ConvertEqualityDeletesConfig;
 import org.apache.iceberg.flink.maintenance.api.DeleteOrphanFilesConfig;
 import org.apache.iceberg.flink.maintenance.api.ExpireSnapshotsConfig;
 import org.apache.iceberg.flink.maintenance.api.RewriteDataFilesConfig;
@@ -98,6 +99,11 @@ public class FlinkWriteOptions {
           .booleanType()
           .defaultValue(false);
 
+  public static final ConfigOption<Boolean> CONVERT_EQUALITY_DELETES_ENABLE =
+      ConfigOptions.key(ConvertEqualityDeletesConfig.PREFIX + "enabled")
+          .booleanType()
+          .defaultValue(false);
+
   @Experimental
   public static final ConfigOption<Duration> TABLE_REFRESH_INTERVAL =
       ConfigOptions.key("table-refresh-interval").durationType().noDefaultValue();
@@ -105,4 +111,10 @@ public class FlinkWriteOptions {
   //  specify the uidSuffix to be used for the underlying IcebergSink
   public static final ConfigOption<String> UID_SUFFIX =
       ConfigOptions.key("uid-suffix").stringType().defaultValue("");
+
+  public static final ConfigOption<Boolean> SHRED_VARIANTS =
+      ConfigOptions.key("shred-variants").booleanType().defaultValue(false);
+
+  public static final ConfigOption<Integer> VARIANT_INFERENCE_BUFFER_SIZE =
+      ConfigOptions.key("variant-inference-buffer-size").intType().noDefaultValue();
 }
