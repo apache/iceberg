@@ -105,23 +105,13 @@ public class AuthManagers {
         impl = authType;
     }
 
-    if (impl.equals(AuthProperties.AUTH_MANAGER_IMPL_OAUTH2_LEGACY)) {
-      LOG.warn(
-          "The AuthManager implementation {} is deprecated and will be removed in a future release. "
-              + "Please migrate to {}.",
-          AuthProperties.AUTH_MANAGER_IMPL_OAUTH2_LEGACY,
-          AuthProperties.AUTH_MANAGER_IMPL_OAUTH2_NEW);
-    } else {
-      LOG.info("Loading AuthManager implementation: {}", impl);
-    }
-
+    LOG.info("Loading AuthManager implementation: {}", impl);
     DynConstructors.Ctor<AuthManager> ctor;
     try {
       ctor =
           DynConstructors.builder(AuthManager.class)
               .loader(AuthManagers.class.getClassLoader())
-              // TODO switch from hiddenImpl to impl when oauth2 v2 is complete
-              .hiddenImpl(impl, String.class) // with name
+              .impl(impl, String.class) // with name
               .impl(impl, String.class, AuthManager.class) // with name and delegate
               .buildChecked();
     } catch (NoSuchMethodException e) {
