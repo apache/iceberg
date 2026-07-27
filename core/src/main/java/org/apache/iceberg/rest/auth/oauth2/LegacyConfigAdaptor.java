@@ -144,8 +144,8 @@ final class LegacyConfigAdaptor {
    * @param properties The properties to migrate
    * @param catalogUri The catalog URI, for extended token endpoint checks
    */
-  public OAuth2Config migrateCatalogConfig(Map<String, String> properties, String catalogUri) {
-    Map<String, String> migrated = migrateProperties(properties);
+  public OAuth2Config fromCatalogConfig(Map<String, String> properties, String catalogUri) {
+    Map<String, String> migrated = fromProperties(properties);
     handleTokenEndpoint(migrated, catalogUri);
     return OAuth2Config.from(migrated);
   }
@@ -156,7 +156,7 @@ final class LegacyConfigAdaptor {
    * <p>Legacy Iceberg OAuth2 properties are migrated, and warnings are logged for each detected
    * legacy property.
    *
-   * <p>See {@link #migrateCatalogConfig(Map, String)} for details on token endpoint checks.
+   * <p>See {@link #fromCatalogConfig(Map, String)} for details on token endpoint checks.
    *
    * <p>Contextual configs inherit some properties from their parent config. This is legacy
    * behavior, and will be removed after 1.13; a warning will be logged when this happens.
@@ -166,9 +166,9 @@ final class LegacyConfigAdaptor {
    * @param catalogUri The catalog URI, for extended token endpoint checks
    */
   @SuppressWarnings("CyclomaticComplexity")
-  public OAuth2Config migrateContextualConfig(
+  public OAuth2Config fromContextualConfig(
       OAuth2Config parent, Map<String, String> properties, String catalogUri) {
-    Map<String, String> migrated = migrateProperties(properties);
+    Map<String, String> migrated = fromProperties(properties);
 
     if (!migrated.containsKey(BasicConfig.CLIENT_ID)
         && parent.basicConfig().clientId().isPresent()) {
@@ -240,9 +240,9 @@ final class LegacyConfigAdaptor {
    * @param parent The parent config
    * @param properties The properties to migrate
    */
-  public OAuth2Config migrateTableConfig(OAuth2Config parent, Map<String, String> properties) {
+  public OAuth2Config fromTableConfig(OAuth2Config parent, Map<String, String> properties) {
 
-    Map<String, String> migrated = migrateProperties(properties);
+    Map<String, String> migrated = fromProperties(properties);
     Map<String, String> filtered = Maps.newHashMap();
 
     for (Entry<String, String> entry : migrated.entrySet()) {
@@ -299,7 +299,7 @@ final class LegacyConfigAdaptor {
   }
 
   @VisibleForTesting
-  Map<String, String> migrateProperties(Map<String, String> properties) {
+  Map<String, String> fromProperties(Map<String, String> properties) {
     Map<String, String> migrated = Maps.newLinkedHashMap();
     for (Entry<String, String> entry : properties.entrySet()) {
       switch (entry.getKey()) {
