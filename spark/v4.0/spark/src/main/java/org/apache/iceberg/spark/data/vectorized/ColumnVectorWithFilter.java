@@ -145,6 +145,7 @@ public class ColumnVectorWithFilter extends ColumnVector {
 
   @Override
   public ColumnVector getChild(int ordinal) {
+    // Array and map children use absolute element offsets after the parent row is remapped.
     if (dataType() instanceof ArrayType || dataType() instanceof MapType) {
       return delegate.getChild(ordinal);
     }
