@@ -120,7 +120,8 @@ public class AuthManagers {
       ctor =
           DynConstructors.builder(AuthManager.class)
               .loader(AuthManagers.class.getClassLoader())
-              .impl(impl, String.class) // with name
+              // TODO switch from hiddenImpl to impl when oauth2 v2 is complete
+              .hiddenImpl(impl, String.class) // with name
               .impl(impl, String.class, AuthManager.class) // with name and delegate
               .buildChecked();
     } catch (NoSuchMethodException e) {

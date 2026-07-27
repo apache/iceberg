@@ -25,9 +25,9 @@ import org.apache.iceberg.rest.RESTClient;
 import org.apache.iceberg.rest.auth.AuthManager;
 import org.apache.iceberg.rest.auth.AuthSession;
 
-public class OAuth2Manager implements AuthManager {
+class OAuth2Manager implements AuthManager {
 
-  public OAuth2Manager(String name) {}
+  OAuth2Manager(String name) {}
 
   @Override
   public AuthSession initSession(RESTClient initClient, Map<String, String> initProperties) {

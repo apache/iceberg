@@ -44,27 +44,13 @@ class TestAuthManagers {
   }
 
   @Test
-  void oauth2NewExplicitByShortName() {
-    try (AuthManager manager =
-        AuthManagers.loadAuthManager(
-            "test",
-            Map.of(AuthProperties.AUTH_TYPE, AuthProperties.AUTH_MANAGER_IMPL_OAUTH2_NEW))) {
-      assertThat(manager).isInstanceOf(org.apache.iceberg.rest.auth.oauth2.OAuth2Manager.class);
-    }
-    assertThat(streamCaptor.toString())
-        .contains(
-            "Loading AuthManager implementation: org.apache.iceberg.rest.auth.oauth2.OAuth2Manager");
-  }
-
-  @Test
   void oauth2NewExplicitByFQCN() {
     try (AuthManager manager =
         AuthManagers.loadAuthManager(
             "test",
-            Map.of(
-                AuthProperties.AUTH_TYPE,
-                org.apache.iceberg.rest.auth.oauth2.OAuth2Manager.class.getName()))) {
-      assertThat(manager).isInstanceOf(org.apache.iceberg.rest.auth.oauth2.OAuth2Manager.class);
+            Map.of(AuthProperties.AUTH_TYPE, AuthProperties.AUTH_MANAGER_IMPL_OAUTH2_NEW))) {
+      assertThat(manager.getClass().getName())
+          .isEqualTo(AuthProperties.AUTH_MANAGER_IMPL_OAUTH2_NEW);
     }
     assertThat(streamCaptor.toString())
         .contains(
