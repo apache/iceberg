@@ -275,10 +275,6 @@ class Summary(BaseModel):
     operation: Literal['append', 'replace', 'overwrite', 'delete']
 
 
-Summary.__annotations__['__pydantic_extra__'] = Dict[str, str]
-Summary.model_rebuild(force=True)
-
-
 class Snapshot(BaseModel):
     snapshot_id: int = Field(..., alias='snapshot-id')
     parent_snapshot_id: int | None = Field(None, alias='parent-snapshot-id')
@@ -1696,7 +1692,7 @@ class ReadRestrictions(BaseModel):
     """
     Read restrictions for a table.
     A reader evaluates the row filter against original, untransformed column values, then applies required-column-projections to the surviving rows. Each action must produce a value of the same type as the input column. If a reader that supports read-restrictions cannot apply any returned restriction (a filter expression or an action), it must fail the query and must not silently return raw, partial, or empty results.
-    If a projection targets a nested-typed field (struct, list, or map), other projections in the same ReadRestrictions must not target any nested field-id (struct subfields, list elements, or map keys/values) at any depth. This avoids ambiguity about which action governs a given leaf value.
+    If a projection targets a nested-typed field (struct, list, or map), other projections in the same ReadRestrictions must not target any nested field-id (struct subfields, list elements, or map keys/values) at any depth. This specification does not define how such actions combine. A reader that receives such a response must fail the query.
     A missing or empty ReadRestrictions object (no required-column-projections and no required-row-filter) imposes no restrictions.
 
     """
