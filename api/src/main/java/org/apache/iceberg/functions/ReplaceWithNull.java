@@ -21,7 +21,13 @@ package org.apache.iceberg.functions;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.util.SerializableFunction;
 
-/** Returns null for every non-null input. Works for any type. */
+/**
+ * Returns null for every non-null input. Works for any type.
+ *
+ * <p>Per spec, replace-with-null is only valid for optional (nullable) fields. Callers must
+ * validate that the target field is optional before binding; this function cannot check nullability
+ * because {@link org.apache.iceberg.types.Type} does not carry the field's required/optional flag.
+ */
 public final class ReplaceWithNull extends IcebergFunction.BaseFunction<Object, Object> {
   public ReplaceWithNull(int fieldId) {
     super(fieldId);
