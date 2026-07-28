@@ -244,11 +244,11 @@ public class SparkWriteConf {
         .parse();
   }
 
-  public boolean streamingMergeAppendEnabled() {
+  public boolean useMergeAppendForStreaming() {
     return confParser
         .booleanConf()
-        .option(SparkWriteOptions.STREAMING_MERGE_APPEND_ENABLED)
-        .defaultValue(SparkWriteOptions.STREAMING_MERGE_APPEND_ENABLED_DEFAULT)
+        .option(SparkWriteOptions.USE_MERGE_APPEND_FOR_STREAMING)
+        .defaultValue(SparkWriteOptions.USE_MERGE_APPEND_FOR_STREAMING_DEFAULT)
         .parse();
   }
 
