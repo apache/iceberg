@@ -20,12 +20,18 @@ package org.apache.iceberg.spark.actions;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.when;
 
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
@@ -42,9 +48,13 @@ import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.actions.RepairTable;
+import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.exceptions.CommitStateUnknownException;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.TestBase;
 import org.apache.iceberg.spark.source.ThreeColumnRecord;
 import org.apache.iceberg.types.Types;
@@ -260,6 +270,210 @@ public class TestRepairTableAction extends TestBase {
     assertThat(repaired.repairedEntryCount())
         .as("column metrics must be compared by default")
         .isEqualTo(1);
+  }
+
+  @TestTemplate
+  public void testRepairSucceedsWithConcurrentAppend() throws IOException {
+    Table table = createTable(PartitionSpec.unpartitioned());
+    appendRecords(table, records(4));
+
+    DataFile original = onlyDataFile(table);
+    replaceManifestWithCorruptStats(table, original);
+
+    // append concurrently, after the repair has determined what to rewrite but before it commits
+    RepairTable.Result result =
+        repairWithConcurrentChange(table, () -> appendRecords(table, records(2)));
+
+    assertThat(result.repairedEntryCount()).isEqualTo(1);
+
+    table.refresh();
+    assertThat(currentRows())
+        .as("the concurrently appended records must survive the repair")
+        .hasSize(6);
+    assertThat(dataFiles(table))
+        .as("the stats of the repaired entry must be corrected")
+        .anySatisfy(
+            file -> {
+              assertThat(file.location()).isEqualTo(original.location());
+              assertThat(file.recordCount()).isEqualTo(original.recordCount());
+              assertThat(file.fileSizeInBytes()).isEqualTo(original.fileSizeInBytes());
+            });
+  }
+
+  @TestTemplate
+  public void testRepairFailsWhenRepairedManifestIsConcurrentlyReplaced() throws IOException {
+    Table table = createTable(PartitionSpec.unpartitioned());
+    appendRecords(table, records(4));
+
+    DataFile original = onlyDataFile(table);
+    replaceManifestWithCorruptStats(table, original);
+
+    table.refresh();
+    List<Object[]> rowsBeforeRepair = currentRows();
+    DataFile corrupt = onlyDataFile(table);
+
+    // concurrently rewrite the very manifest the repair is about to replace
+    assertThatThrownBy(
+            () ->
+                repairWithConcurrentChange(
+                    table,
+                    () -> {
+                      Table concurrent = TABLES.load(tableLocation);
+                      concurrent.rewriteManifests().clusterBy(file -> "").commit();
+                    }))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("could not be found in the latest snapshot");
+
+    table.refresh();
+    assertThat(currentRows())
+        .as("a failed repair must leave the contents of the table unchanged")
+        .containsExactlyInAnyOrderElementsOf(rowsBeforeRepair);
+    assertThat(onlyDataFile(table).recordCount())
+        .as("a failed repair must not correct any stats")
+        .isEqualTo(corrupt.recordCount());
+  }
+
+  @TestTemplate
+  public void testRepairCleansUpManifestsOnCommitFailure() throws IOException {
+    Table table = createTable(PartitionSpec.unpartitioned());
+    appendRecords(table, records(4));
+
+    DataFile original = onlyDataFile(table);
+    replaceManifestWithCorruptStats(table, original);
+    table.refresh();
+
+    List<Object[]> rowsBeforeRepair = currentRows();
+    DataFile corrupt = onlyDataFile(table);
+
+    // fail the commit with a cleanable failure, as a table whose retries are exhausted would
+    org.apache.iceberg.RewriteManifests spyRewriteManifests = spy(table.rewriteManifests());
+    doThrow(new CommitFailedException("Injected commit failure"))
+        .when(spyRewriteManifests)
+        .commit();
+
+    Table spyTable = spy(table);
+    when(spyTable.rewriteManifests()).thenReturn(spyRewriteManifests);
+
+    assertThatThrownBy(() -> SparkActions.get().repairTable(spyTable).execute())
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessage("Injected commit failure");
+
+    table.refresh();
+    assertThat(currentRows())
+        .as("a failed repair must leave the contents of the table unchanged")
+        .containsExactlyInAnyOrderElementsOf(rowsBeforeRepair);
+    assertThat(onlyDataFile(table).recordCount())
+        .as("a failed repair must not correct any stats")
+        .isEqualTo(corrupt.recordCount());
+    assertThat(repairedManifestPaths())
+        .as("the manifests written by a failed repair must be deleted")
+        .isEmpty();
+  }
+
+  @TestTemplate
+  public void testRepairKeepsManifestsOnCommitStateUnknown() throws IOException {
+    Table table = createTable(PartitionSpec.unpartitioned());
+    appendRecords(table, records(4));
+
+    DataFile original = onlyDataFile(table);
+    replaceManifestWithCorruptStats(table, original);
+    table.refresh();
+
+    // commit successfully but report the outcome as unknown
+    org.apache.iceberg.RewriteManifests rewriteManifests = table.rewriteManifests();
+    org.apache.iceberg.RewriteManifests spyRewriteManifests = spy(rewriteManifests);
+    doAnswer(
+            invocation -> {
+              rewriteManifests.commit();
+              throw new CommitStateUnknownException(new RuntimeException("Datacenter on Fire"));
+            })
+        .when(spyRewriteManifests)
+        .commit();
+
+    Table spyTable = spy(table);
+    when(spyTable.rewriteManifests()).thenReturn(spyRewriteManifests);
+
+    assertThatThrownBy(() -> SparkActions.get().repairTable(spyTable).execute())
+        .cause()
+        .isInstanceOf(RuntimeException.class)
+        .hasMessage("Datacenter on Fire");
+
+    table.refresh();
+
+    // the commit did succeed, so the repaired manifests must not have been deleted
+    assertThat(onlyDataFile(table).recordCount())
+        .as("the repair committed, so the corrected stats must be readable")
+        .isEqualTo(original.recordCount());
+    for (ManifestFile manifest : table.currentSnapshot().dataManifests(table.io())) {
+      assertThat(table.io().newInputFile(manifest.path()).exists())
+          .as("manifests of a possibly committed repair must not be deleted")
+          .isTrue();
+    }
+  }
+
+  @TestTemplate
+  public void testDryRunLeavesNoManifestsBehind() throws IOException {
+    Table table = createTable(PartitionSpec.unpartitioned());
+    appendRecords(table, records(4));
+
+    DataFile original = onlyDataFile(table);
+    replaceManifestWithCorruptStats(table, original);
+    table.refresh();
+
+    RepairTable.Result result = SparkActions.get().repairTable(table).dryRun().execute();
+
+    assertThat(result.repairedEntryCount()).isEqualTo(1);
+    assertThat(repairedManifestPaths())
+        .as("a dry run must not leave the manifests it wrote behind")
+        .isEmpty();
+  }
+
+  /**
+   * Runs the repair, applying the given change to the table after the manifests to repair have been
+   * determined but before the repair commits.
+   */
+  private RepairTable.Result repairWithConcurrentChange(Table table, Runnable change) {
+    Table spyTable = spy(table);
+    when(spyTable.rewriteManifests())
+        .thenAnswer(
+            invocation -> {
+              change.run();
+              return table.rewriteManifests();
+            });
+
+    return SparkActions.get().repairTable(spyTable).execute();
+  }
+
+  /**
+   * Returns the manifests written by the repair action that are still present in the metadata
+   * directory.
+   *
+   * <p>Only the manifests the action itself wrote are considered. A failed commit can also leave
+   * behind a copy of a manifest made by the format version 1 staging path, which is written and
+   * owned by the core rewrite manifests operation rather than by this action.
+   */
+  private Set<String> repairedManifestPaths() throws IOException {
+    Set<String> paths = Sets.newHashSet();
+    File metadataDir = new File(tableDir, "metadata");
+    File[] files = metadataDir.listFiles();
+    if (files != null) {
+      for (File file : files) {
+        if (file.getName().startsWith("repaired-m-")) {
+          paths.add(file.getCanonicalPath());
+        }
+      }
+    }
+
+    return paths;
+  }
+
+  private List<DataFile> dataFiles(Table table) throws IOException {
+    List<DataFile> files = Lists.newArrayList();
+    for (ManifestFile manifest : table.currentSnapshot().dataManifests(table.io())) {
+      files.addAll(readDataFiles(table, manifest));
+    }
+
+    return files;
   }
 
   private Table createTable(PartitionSpec spec) {
