@@ -16,30 +16,30 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.rest.responses;
+package org.apache.iceberg.rest.labels;
 
+import java.util.List;
 import java.util.Map;
-import org.apache.iceberg.rest.RESTResponse;
-import org.apache.iceberg.rest.labels.Labels;
-import org.apache.iceberg.view.ViewMetadata;
 import org.immutables.value.Value;
 
+/** Optional catalog-provided labels returned on a load response. */
 @Value.Immutable
-public interface LoadViewResponse extends RESTResponse {
-  String metadataLocation();
+public interface Labels {
+  Labels EMPTY = ImmutableLabels.builder().build();
 
-  ViewMetadata metadata();
+  /** Object-level labels. */
+  Map<String, String> objectLabels();
 
-  Map<String, String> config();
+  /** Field-level labels, keyed by field id. */
+  List<FieldLabels> fields();
 
-  /** Catalog-provided labels, or an empty instance when the response carries no labels. */
-  @Value.Default
-  default Labels labels() {
-    return Labels.empty();
+  /** Returns true when there are neither object-level nor field-level labels. */
+  default boolean isEmpty() {
+    return objectLabels().isEmpty() && fields().isEmpty();
   }
 
-  @Override
-  default void validate() {
-    // nothing to validate as it's not possible to create an invalid instance
+  /** Returns a shared empty instance. */
+  static Labels empty() {
+    return EMPTY;
   }
 }
