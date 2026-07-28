@@ -31,10 +31,9 @@ import org.apache.iceberg.types.Types;
 /**
  * Reusable {@link ContentStats} view over a legacy {@link ContentFile}'s stat maps.
  *
- * <p>Instantiated once per writer and re-pointed at each file's maps via {@link #wrap}, avoiding
- * the per-row allocation of a materialized stats object. Bounds are decoded lazily on access. The
- * writer serializes this view directly through {@link StructLike}, so {@code copy} is not
- * supported; a stable snapshot must be materialized via the writer instead.
+ * <p>Bounds are decoded lazily on access. The writer serializes this view directly through {@link
+ * StructLike}, so {@code copy} is not supported; a stable snapshot must be materialized via the
+ * writer instead.
  */
 class MapBackedContentStats implements ContentStats, StructLike {
   private final Types.StructType struct;
