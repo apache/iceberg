@@ -24,18 +24,34 @@ import org.junit.jupiter.api.Test;
 
 class TestNaNUtil {
   @Test
-  void isNaN() {
+  void doubleNaN() {
     assertThat(NaNUtil.isNaN(Double.NaN)).isTrue();
-    assertThat(NaNUtil.isNaN(Float.NaN)).isTrue();
+  }
 
-    assertThat(NaNUtil.isNaN(null)).isFalse();
+  @Test
+  void floatNaN() {
+    assertThat(NaNUtil.isNaN(Float.NaN)).isTrue();
+  }
+
+  @Test
+  void doubleNonNaN() {
     assertThat(NaNUtil.isNaN(1.0d)).isFalse();
     assertThat(NaNUtil.isNaN(-0.0d)).isFalse();
     assertThat(NaNUtil.isNaN(Double.POSITIVE_INFINITY)).isFalse();
     assertThat(NaNUtil.isNaN(Double.NEGATIVE_INFINITY)).isFalse();
+  }
+
+  @Test
+  void floatNonNaN() {
     assertThat(NaNUtil.isNaN(1.0f)).isFalse();
     assertThat(NaNUtil.isNaN(-0.0f)).isFalse();
     assertThat(NaNUtil.isNaN(Float.POSITIVE_INFINITY)).isFalse();
+    assertThat(NaNUtil.isNaN(Float.NEGATIVE_INFINITY)).isFalse();
+  }
+
+  @Test
+  void nonFloatingPointValues() {
+    assertThat(NaNUtil.isNaN(null)).isFalse();
     assertThat(NaNUtil.isNaN("NaN")).isFalse();
     assertThat(NaNUtil.isNaN(1)).isFalse();
     assertThat(NaNUtil.isNaN(1L)).isFalse();
