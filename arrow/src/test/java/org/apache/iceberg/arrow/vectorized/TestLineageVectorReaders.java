@@ -107,19 +107,46 @@ public class TestLineageVectorReaders {
   }
 
   @Test
-  public void testRowIdReaderReallocatesForLargerBatch() {
+  public void testRowIdReaderReusesBatchSizedVectorForShorterBatch() {
     long allocatedBefore = ArrowAllocation.rootAllocator().getAllocatedMemory();
 
     VectorizedArrowReader reader = VectorizedArrowReader.rowIds(100L, null);
-    reader.setBatchSize(2 * BATCH_SIZE);
+    reader.setBatchSize(BATCH_SIZE);
+
+    VectorHolder holder = reader.read(null, BATCH_SIZE);
+    BigIntVector vector = (BigIntVector) holder.vector();
+
+    // the last batch of a row group is usually shorter and must fit the batch-sized vector
+    holder = reader.read(holder, BATCH_SIZE / 2);
+    assertThat(holder.vector()).isSameAs(vector);
+    assertThat(((BigIntVector) holder.vector()).getValueCount()).isEqualTo(BATCH_SIZE / 2);
+    assertThat(holder.vector().getDataBuffer().getLong(0))
+        .isEqualTo(100L + BATCH_SIZE); // positions continue from the previous batch
+
+    reader.close();
+
+    assertThat(ArrowAllocation.rootAllocator().getAllocatedMemory()).isEqualTo(allocatedBefore);
+  }
+
+  @Test
+  public void testRowIdReaderReallocatesWhenBatchSizeGrows() {
+    long allocatedBefore = ArrowAllocation.rootAllocator().getAllocatedMemory();
+
+    VectorizedArrowReader reader = VectorizedArrowReader.rowIds(100L, null);
+    reader.setBatchSize(BATCH_SIZE);
 
     VectorHolder holder = reader.read(null, BATCH_SIZE);
     BigIntVector small = (BigIntVector) holder.vector();
+    assertThat(small.getValueCapacity()).isGreaterThanOrEqualTo(BATCH_SIZE);
 
-    // a batch that no longer fits must grow the vector, releasing the previous one
-    holder = reader.read(holder, 2 * BATCH_SIZE);
+    // vectors are allocated for a full batch, so growing the batch size must release the vector
+    // and let the next read allocate one that fits
+    reader.setBatchSize(4 * BATCH_SIZE);
+    holder = reader.read(holder, 4 * BATCH_SIZE);
     assertThat(holder.vector()).isNotSameAs(small);
-    assertThat(((BigIntVector) holder.vector()).getValueCount()).isEqualTo(2 * BATCH_SIZE);
+    assertThat(((BigIntVector) holder.vector()).getValueCapacity())
+        .isGreaterThanOrEqualTo(4 * BATCH_SIZE);
+    assertThat(((BigIntVector) holder.vector()).getValueCount()).isEqualTo(4 * BATCH_SIZE);
 
     reader.close();
 

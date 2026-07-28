@@ -757,6 +757,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     private final VectorizedReader<VectorHolder> posReader;
     private NullabilityHolder nulls;
     private BigIntVector vec;
+    private int resultBatchSize = DEFAULT_BATCH_SIZE;
 
     private RowIdVectorReader(long firstRowId, VectorizedArrowReader idReader) {
       this.firstRowId = firstRowId;
@@ -776,7 +777,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
         ArrowVectorAccessor<?, String, ?, ?> idsAccessor =
             ids == null ? null : ArrowVectorAccessors.getVectorAccessor(idsHolder);
 
-        BigIntVector rowIds = resultVector(reuse, numValsToRead);
+        BigIntVector rowIds = resultVector(reuse);
         ArrowBuf dataBuffer = rowIds.getDataBuffer();
         for (int i = 0; i < numValsToRead; i += 1) {
           long bufferOffset = (long) i * Long.BYTES;
@@ -815,6 +816,14 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
         this.nulls = newNullabilityHolder(batchSize);
       }
 
+      // release the result vector when the batch grows, so the next read allocates a vector that
+      // fits the new batch size
+      if (vec != null && vec.getValueCapacity() < batchSize) {
+        vec.close();
+        this.vec = null;
+      }
+
+      this.resultBatchSize = (batchSize == 0) ? DEFAULT_BATCH_SIZE : batchSize;
       idReader.setBatchSize(batchSize);
       posReader.setBatchSize(batchSize);
     }
@@ -823,17 +832,17 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
      * Returns the vector this batch is written into, which the reader owns and closes.
      *
      * <p>{@code reuse} is used the same way the parent reader uses it: a null holder means the
-     * caller does not want the previous vector reused, so it is released and reallocated. A
-     * non-null holder allows keeping the current vector, which is reallocated only when the batch
-     * no longer fits.
+     * caller does not want the previous vector reused, so it is released and reallocated, while a
+     * non-null holder keeps the current vector. Vectors are allocated for a full batch, so a batch
+     * always fits.
      */
-    private BigIntVector resultVector(VectorHolder reuse, int numValsToRead) {
-      if (reuse == null || vec == null || vec.getValueCapacity() < numValsToRead) {
+    private BigIntVector resultVector(VectorHolder reuse) {
+      if (reuse == null || vec == null) {
         if (vec != null) {
           vec.close();
         }
 
-        this.vec = allocateBigIntVector(ROW_ID_ARROW_FIELD, numValsToRead);
+        this.vec = allocateBigIntVector(ROW_ID_ARROW_FIELD, resultBatchSize);
       } else {
         vec.setValueCount(0);
       }
@@ -861,6 +870,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     private final VectorizedReader<VectorHolder> seqReader;
     private NullabilityHolder nulls;
     private BigIntVector vec;
+    private int resultBatchSize = DEFAULT_BATCH_SIZE;
 
     private LastUpdatedSeqVectorReader(
         long lastUpdatedSeq, VectorizedReader<VectorHolder> seqReader) {
@@ -877,7 +887,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
         ArrowVectorAccessor<?, String, ?, ?> seqAccessor =
             seqNumbers == null ? null : ArrowVectorAccessors.getVectorAccessor(seqNumbersHolder);
 
-        BigIntVector lastUpdatedSequenceNumbers = resultVector(reuse, numValsToRead);
+        BigIntVector lastUpdatedSequenceNumbers = resultVector(reuse);
         ArrowBuf dataBuffer = lastUpdatedSequenceNumbers.getDataBuffer();
         for (int i = 0; i < numValsToRead; i += 1) {
           long bufferOffset = (long) i * Long.BYTES;
@@ -911,6 +921,14 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
         this.nulls = newNullabilityHolder(batchSize);
       }
 
+      // release the result vector when the batch grows, so the next read allocates a vector that
+      // fits the new batch size
+      if (vec != null && vec.getValueCapacity() < batchSize) {
+        vec.close();
+        this.vec = null;
+      }
+
+      this.resultBatchSize = (batchSize == 0) ? DEFAULT_BATCH_SIZE : batchSize;
       seqReader.setBatchSize(batchSize);
     }
 
@@ -918,17 +936,17 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
      * Returns the vector this batch is written into, which the reader owns and closes.
      *
      * <p>{@code reuse} is used the same way the parent reader uses it: a null holder means the
-     * caller does not want the previous vector reused, so it is released and reallocated. A
-     * non-null holder allows keeping the current vector, which is reallocated only when the batch
-     * no longer fits.
+     * caller does not want the previous vector reused, so it is released and reallocated, while a
+     * non-null holder keeps the current vector. Vectors are allocated for a full batch, so a batch
+     * always fits.
      */
-    private BigIntVector resultVector(VectorHolder reuse, int numValsToRead) {
-      if (reuse == null || vec == null || vec.getValueCapacity() < numValsToRead) {
+    private BigIntVector resultVector(VectorHolder reuse) {
+      if (reuse == null || vec == null) {
         if (vec != null) {
           vec.close();
         }
 
-        this.vec = allocateBigIntVector(LAST_UPDATED_SEQ, numValsToRead);
+        this.vec = allocateBigIntVector(LAST_UPDATED_SEQ, resultBatchSize);
       } else {
         vec.setValueCount(0);
       }
