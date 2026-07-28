@@ -129,7 +129,7 @@ class StatsUtil {
   }
 
   public static Types.NestedField contentStatsField(Types.StructType contentStats) {
-    return optional(146, "content_stats", contentStats);
+    return optional(TrackedFile.CONTENT_STATS_ID, TrackedFile.CONTENT_STATS_NAME, contentStats);
   }
 
   public static Types.StructType statsWriteSchema(Schema tableSchema, MetricsConfig metricsConfig) {

@@ -85,9 +85,15 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
     super(BASE_TYPE, projection);
     // partition type may be null if the field was not projected, or unknown for unpartitioned
     // manifests
-    Type partType = projection.fieldType("partition");
+    Type partType = projection.fieldType(TrackedFile.PARTITION_NAME);
     if (partType != null && partType.isStructType()) {
       this.partitionData = new PartitionData(partType.asStructType());
+    }
+
+    // content_stats may be unknown when no stats are projected
+    Type statsType = projection.fieldType(TrackedFile.CONTENT_STATS_NAME);
+    if (statsType != null && statsType.isStructType()) {
+      this.contentStats = new ContentStatsStruct(statsType.asStructType());
     }
   }
 
