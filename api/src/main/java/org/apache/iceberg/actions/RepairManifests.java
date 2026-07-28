@@ -20,43 +20,39 @@ package org.apache.iceberg.actions;
 
 import org.apache.iceberg.ManifestFile;
 
-/** An action that will repair manifests. Implementations should produce a new set of manifests. */
+/**
+ * An action that repairs incorrect statistics in the manifests of a table.
+ *
+ * <p>Implementations rewrite the manifests of the table, producing a new set of manifests in which
+ * the statistics of the entries are corrected to match the underlying data and delete files.
+ */
 public interface RepairManifests extends SnapshotUpdate<RepairManifests, RepairManifests.Result> {
 
-  /** Configuration method for repairing manifest entry statistics */
+  /**
+   * Repairs incorrect statistics of manifest entries, such as record counts, file sizes and column
+   * level statistics.
+   *
+   * @return this for method chaining
+   */
   RepairManifests repairEntryStats();
 
   /**
-   * Configuration method for removing duplicate file entries and removing files which no longer
-   * exist in storage
-   */
-  RepairManifests repairFileEntries();
-
-  /**
-   * Configuration option for determining the rewritten and added manifests without actually
-   * committing the operation to the table
+   * Determines the repairs that would be performed without actually committing the operation to the
+   * table.
    *
    * @return this for method chaining
    */
   RepairManifests dryRun();
 
+  /** The action result that contains a summary of the execution. */
   interface Result {
     /** Returns rewritten manifests. */
     Iterable<ManifestFile> rewrittenManifests();
 
-    /** Returns the duplicate file paths removed */
-    Iterable<String> duplicateFilesRemoved();
-
-    /** Returns the paths of the missing files which were removed */
-    Iterable<String> missingFilesRemoved();
-
-    /** Returns the paths of the missing files which were recovered */
-    Iterable<String> missingFilesRecovered();
-
-    /** Returns the number of manifest entries for which stats were incorrect */
+    /** Returns the number of manifest entries for which stats were incorrect. */
     long entryStatsIncorrectCount();
 
-    /** Returns the number of manifest entries for which stats were corrected */
+    /** Returns the number of manifest entries for which stats were corrected. */
     long entryStatsRepairedCount();
   }
 }
