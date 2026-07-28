@@ -67,7 +67,6 @@ class TrackedFileAdapters {
 
   /**
    * Returns a reusable wrapper that presents a {@link DataFile} as a {@link TrackedFile} row.
-   * Instantiate once per writer.
    *
    * @param formatVersion the target table's format version (must be 4+)
    * @param tableSchema table schema used to build {@link ContentStats} from the file's stats
