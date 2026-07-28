@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.flink.maintenance.api;
 
+import java.time.Duration;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
@@ -123,6 +124,22 @@ public class ConvertEqualityDeletes {
       Preconditions.checkNotNull(columns, "equalityFieldColumns must not be null");
       Preconditions.checkArgument(!columns.isEmpty(), "equalityFieldColumns must not be empty");
       this.equalityFieldColumns = ImmutableList.copyOf(columns);
+      return this;
+    }
+
+    /**
+     * Configures the scheduling of the conversion.
+     *
+     * @param config properties for the conversion, see {@link ConvertEqualityDeletesConfig} for
+     *     available keys
+     */
+    public Builder config(ConvertEqualityDeletesConfig config) {
+      scheduleOnCommitCount(config.scheduleOnCommitCount());
+      Long intervalSecond = config.scheduleOnIntervalSecond();
+      if (intervalSecond != null) {
+        scheduleOnInterval(Duration.ofSeconds(intervalSecond));
+      }
+
       return this;
     }
 

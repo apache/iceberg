@@ -18,13 +18,14 @@
  */
 package org.apache.iceberg.variants;
 
+import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.ByteBuffers;
 
-class SerializedArray implements VariantArray, SerializedValue {
+class SerializedArray implements VariantArray, SerializedValue, Serializable {
   private static final int HEADER_SIZE = 1;
   private static final int OFFSET_SIZE_MASK = 0b1100;
   private static final int OFFSET_SIZE_SHIFT = 2;
@@ -36,12 +37,16 @@ class SerializedArray implements VariantArray, SerializedValue {
   }
 
   static SerializedArray from(VariantMetadata metadata, ByteBuffer value, int header) {
+    return from(metadata, value, header, 0);
+  }
+
+  static SerializedArray from(VariantMetadata metadata, ByteBuffer value, int header, int depth) {
     Preconditions.checkArgument(
         value.order() == ByteOrder.LITTLE_ENDIAN, "Unsupported byte order: big endian");
     BasicType basicType = VariantUtil.basicType(header);
     Preconditions.checkArgument(
         basicType == BasicType.ARRAY, "Invalid array, basic type: " + basicType);
-    return new SerializedArray(metadata, value, header);
+    return new SerializedArray(metadata, value, header, depth);
   }
 
   private final VariantMetadata metadata;
@@ -49,16 +54,33 @@ class SerializedArray implements VariantArray, SerializedValue {
   private final int offsetSize;
   private final int offsetListOffset;
   private final int dataOffset;
+  private final int depth;
   private final VariantValue[] array;
 
-  private SerializedArray(VariantMetadata metadata, ByteBuffer value, int header) {
+  private SerializedArray(VariantMetadata metadata, ByteBuffer value, int header, int depth) {
     this.metadata = metadata;
     this.value = value;
+    this.depth = depth;
     this.offsetSize = 1 + ((header & OFFSET_SIZE_MASK) >> OFFSET_SIZE_SHIFT);
     int numElementsSize = ((header & IS_LARGE) == IS_LARGE) ? 4 : 1;
+    Preconditions.checkArgument(
+        value.remaining() >= HEADER_SIZE + numElementsSize,
+        "Invalid variant array: buffer too small for element count field");
     int numElements = ByteBuffers.readLittleEndianUnsigned(value, HEADER_SIZE, numElementsSize);
+    Preconditions.checkArgument(
+        numElements >= 0, "Invalid variant array: negative element count %s", numElements);
+    Preconditions.checkArgument(
+        numElements <= VariantUtil.MAX_ELEMENTS,
+        "Invalid variant array: element count %s exceeds maximum %s",
+        numElements,
+        VariantUtil.MAX_ELEMENTS);
     this.offsetListOffset = HEADER_SIZE + numElementsSize;
-    this.dataOffset = offsetListOffset + ((1 + numElements) * offsetSize);
+    long offsetTableEnd = (long) offsetListOffset + ((long) numElements + 1L) * offsetSize;
+    Preconditions.checkArgument(
+        offsetTableEnd <= value.remaining(),
+        "Invalid variant array: element count %s exceeds buffer",
+        numElements);
+    this.dataOffset = Math.toIntExact(offsetTableEnd);
     this.array = new VariantValue[numElements];
   }
 
@@ -76,8 +98,16 @@ class SerializedArray implements VariantArray, SerializedValue {
       int next =
           ByteBuffers.readLittleEndianUnsigned(
               value, offsetListOffset + (offsetSize * (1 + index)), offsetSize);
+      long dataLen = value.remaining() - (long) dataOffset;
+      Preconditions.checkArgument(
+          offset >= 0 && next >= offset && next <= dataLen,
+          "Invalid variant array: offset range [%s, %s] out of data region [0, %s]",
+          offset,
+          next,
+          dataLen);
       array[index] =
-          VariantValue.from(metadata, VariantUtil.slice(value, dataOffset + offset, next - offset));
+          VariantUtil.fromBuffer(
+              metadata, VariantUtil.slice(value, dataOffset + offset, next - offset), depth + 1);
     }
     return array[index];
   }
@@ -90,5 +120,23 @@ class SerializedArray implements VariantArray, SerializedValue {
   @Override
   public String toString() {
     return VariantArray.asString(this);
+  }
+
+  private Object writeReplace() {
+    return new SerializationProxy(this);
+  }
+
+  private static class SerializationProxy implements Serializable {
+    private final VariantMetadata metadata;
+    private final byte[] valueBytes;
+
+    private SerializationProxy(SerializedArray array) {
+      this.metadata = array.metadata;
+      this.valueBytes = ByteBuffers.toByteArray(array.buffer());
+    }
+
+    private Object readResolve() {
+      return SerializedArray.from(metadata, valueBytes);
+    }
   }
 }

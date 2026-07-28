@@ -106,7 +106,7 @@ interface TrackedFile {
         RECORD_COUNT,
         FILE_SIZE_IN_BYTES,
         SPEC_ID,
-        Types.NestedField.required(PARTITION_ID, PARTITION_NAME, partitionType, PARTITION_DOC),
+        Types.NestedField.optional(PARTITION_ID, PARTITION_NAME, partitionType, PARTITION_DOC),
         Types.NestedField.optional(
             CONTENT_STATS_ID, CONTENT_STATS_NAME, contentStatsType, CONTENT_STATS_DOC),
         SORT_ORDER_ID,
@@ -141,7 +141,7 @@ interface TrackedFile {
   /** Returns the ID of the partition spec used to partition this file, or null. */
   Integer specId();
 
-  /** Returns partition for this file as a {@link StructLike}. */
+  /** Returns partition for this file as a {@link StructLike}, or null. */
   StructLike partition();
 
   /** Returns the content stats for this entry. */
