@@ -20,6 +20,7 @@ package org.apache.iceberg;
 
 import java.nio.ByteBuffer;
 import java.util.Comparator;
+import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.UUID;
@@ -31,6 +32,7 @@ import org.apache.iceberg.MetricsModes.Truncate;
 import org.apache.iceberg.io.DeleteSchemaUtil;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.transforms.Transforms;
@@ -38,6 +40,7 @@ import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Type.PrimitiveType;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.RandomUtil;
@@ -177,19 +180,20 @@ public class FileGenerationUtil {
     Map<Integer, ByteBuffer> upperBounds = Maps.newHashMap();
     Map<Integer, Type> originalTypes = Maps.newHashMap();
 
-    for (Types.NestedField column : schema.columns()) {
-      int fieldId = column.fieldId();
+    for (Types.NestedField field : leafFields(schema)) {
+      int fieldId = field.fieldId();
       columnSizes.put(fieldId, generateColumnSize());
       valueCounts.put(fieldId, generateValueCount());
       nullValueCounts.put(fieldId, (long) random().nextInt(5));
       nanValueCounts.put(fieldId, (long) random().nextInt(5));
-      originalTypes.put(fieldId, column.type());
+      originalTypes.put(fieldId, field.type());
+
       if (knownLowerBounds.containsKey(fieldId) && knownUpperBounds.containsKey(fieldId)) {
         lowerBounds.put(fieldId, knownLowerBounds.get(fieldId));
         upperBounds.put(fieldId, knownUpperBounds.get(fieldId));
-      } else if (column.type().isPrimitiveType()) {
-        PrimitiveType type = column.type().asPrimitiveType();
-        MetricsMode metricsMode = metricsConfig.columnMode(column.name());
+      } else {
+        PrimitiveType type = field.type().asPrimitiveType();
+        MetricsMode metricsMode = metricsConfig.columnMode(schema.findColumnName(fieldId));
         Pair<ByteBuffer, ByteBuffer> bounds = generateBounds(type, metricsMode);
         lowerBounds.put(fieldId, bounds.first());
         upperBounds.put(fieldId, bounds.second());
@@ -205,6 +209,44 @@ public class FileGenerationUtil {
         lowerBounds,
         upperBounds,
         originalTypes);
+  }
+
+  // collects leaf primitive fields, recursing through struct/list/map
+  static List<Types.NestedField> leafFields(Schema schema) {
+    List<Types.NestedField> leaves = Lists.newArrayList();
+    TypeUtil.visit(
+        schema,
+        new TypeUtil.SchemaVisitor<Void>() {
+          @Override
+          public Void struct(Types.StructType struct, List<Void> fieldResults) {
+            for (Types.NestedField field : struct.fields()) {
+              if (field.type().isPrimitiveType()) {
+                leaves.add(field);
+              }
+            }
+            return null;
+          }
+
+          @Override
+          public Void list(Types.ListType list, Void elementResult) {
+            if (list.elementType().isPrimitiveType()) {
+              leaves.add(list.field(list.elementId()));
+            }
+            return null;
+          }
+
+          @Override
+          public Void map(Types.MapType map, Void keyResult, Void valueResult) {
+            if (map.keyType().isPrimitiveType()) {
+              leaves.add(map.field(map.keyId()));
+            }
+            if (map.valueType().isPrimitiveType()) {
+              leaves.add(map.field(map.valueId()));
+            }
+            return null;
+          }
+        });
+    return leaves;
   }
 
   private static Metrics generatePositionDeleteMetrics(DataFile dataFile) {
