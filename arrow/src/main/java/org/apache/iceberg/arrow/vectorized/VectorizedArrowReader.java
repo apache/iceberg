@@ -757,7 +757,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     private final VectorizedReader<VectorHolder> posReader;
     private NullabilityHolder nulls;
     private BigIntVector vec;
-    private int resultBatchSize = DEFAULT_BATCH_SIZE;
+    private int batchSize = DEFAULT_BATCH_SIZE;
 
     private RowIdVectorReader(long firstRowId, VectorizedArrowReader idReader) {
       this.firstRowId = firstRowId;
@@ -812,20 +812,19 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
 
     @Override
     public void setBatchSize(int batchSize) {
-      if (nulls == null || nulls.size() < batchSize) {
-        this.nulls = newNullabilityHolder(batchSize);
+      this.batchSize = (batchSize == 0) ? DEFAULT_BATCH_SIZE : batchSize;
+      if (nulls == null || nulls.size() < this.batchSize) {
+        this.nulls = newNullabilityHolder(this.batchSize);
       }
 
-      // release the result vector when the batch grows, so the next read allocates a vector that
-      // fits the new batch size
-      if (vec != null && vec.getValueCapacity() < batchSize) {
+      // release the result vector when the batch grows, so the next read allocates one that fits
+      if (vec != null && vec.getValueCapacity() < this.batchSize) {
         vec.close();
         this.vec = null;
       }
 
-      this.resultBatchSize = (batchSize == 0) ? DEFAULT_BATCH_SIZE : batchSize;
-      idReader.setBatchSize(batchSize);
-      posReader.setBatchSize(batchSize);
+      idReader.setBatchSize(this.batchSize);
+      posReader.setBatchSize(this.batchSize);
     }
 
     /**
@@ -837,14 +836,14 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
      * always fits.
      */
     private BigIntVector resultVector(VectorHolder reuse) {
-      if (reuse == null || vec == null) {
+      if (reuse != null && vec != null) {
+        vec.setValueCount(0);
+      } else {
         if (vec != null) {
           vec.close();
         }
 
-        this.vec = allocateBigIntVector(ROW_ID_ARROW_FIELD, resultBatchSize);
-      } else {
-        vec.setValueCount(0);
+        this.vec = allocateBigIntVector(ROW_ID_ARROW_FIELD, batchSize);
       }
 
       return vec;
@@ -870,7 +869,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     private final VectorizedReader<VectorHolder> seqReader;
     private NullabilityHolder nulls;
     private BigIntVector vec;
-    private int resultBatchSize = DEFAULT_BATCH_SIZE;
+    private int batchSize = DEFAULT_BATCH_SIZE;
 
     private LastUpdatedSeqVectorReader(
         long lastUpdatedSeq, VectorizedReader<VectorHolder> seqReader) {
@@ -917,19 +916,18 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
 
     @Override
     public void setBatchSize(int batchSize) {
-      if (nulls == null || nulls.size() < batchSize) {
-        this.nulls = newNullabilityHolder(batchSize);
+      this.batchSize = (batchSize == 0) ? DEFAULT_BATCH_SIZE : batchSize;
+      if (nulls == null || nulls.size() < this.batchSize) {
+        this.nulls = newNullabilityHolder(this.batchSize);
       }
 
-      // release the result vector when the batch grows, so the next read allocates a vector that
-      // fits the new batch size
-      if (vec != null && vec.getValueCapacity() < batchSize) {
+      // release the result vector when the batch grows, so the next read allocates one that fits
+      if (vec != null && vec.getValueCapacity() < this.batchSize) {
         vec.close();
         this.vec = null;
       }
 
-      this.resultBatchSize = (batchSize == 0) ? DEFAULT_BATCH_SIZE : batchSize;
-      seqReader.setBatchSize(batchSize);
+      seqReader.setBatchSize(this.batchSize);
     }
 
     /**
@@ -941,14 +939,14 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
      * always fits.
      */
     private BigIntVector resultVector(VectorHolder reuse) {
-      if (reuse == null || vec == null) {
+      if (reuse != null && vec != null) {
+        vec.setValueCount(0);
+      } else {
         if (vec != null) {
           vec.close();
         }
 
-        this.vec = allocateBigIntVector(LAST_UPDATED_SEQ, resultBatchSize);
-      } else {
-        vec.setValueCount(0);
+        this.vec = allocateBigIntVector(LAST_UPDATED_SEQ, batchSize);
       }
 
       return vec;

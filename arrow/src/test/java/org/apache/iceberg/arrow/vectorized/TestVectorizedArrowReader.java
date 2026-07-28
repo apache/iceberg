@@ -24,13 +24,13 @@ import org.apache.arrow.vector.BigIntVector;
 import org.apache.iceberg.arrow.ArrowAllocation;
 import org.junit.jupiter.api.Test;
 
-public class TestLineageVectorReaders {
+class TestVectorizedArrowReader {
 
   private static final int BATCH_SIZE = 1024;
   private static final int NUM_BATCHES = 64;
 
   @Test
-  public void testRowIdReaderReleasesMemoryOnClose() {
+  void rowIdReaderReleasesMemoryOnClose() {
     long allocatedBefore = ArrowAllocation.rootAllocator().getAllocatedMemory();
 
     VectorizedArrowReader reader = VectorizedArrowReader.rowIds(100L, null);
@@ -56,7 +56,7 @@ public class TestLineageVectorReaders {
   }
 
   @Test
-  public void testLastUpdatedSeqReaderReleasesMemoryOnClose() {
+  void lastUpdatedSeqReaderReleasesMemoryOnClose() {
     long allocatedBefore = ArrowAllocation.rootAllocator().getAllocatedMemory();
 
     VectorizedArrowReader reader = VectorizedArrowReader.lastUpdated(100L, 42L, null);
@@ -78,7 +78,7 @@ public class TestLineageVectorReaders {
   }
 
   @Test
-  public void testRowIdReaderReusesVectorWhenHolderIsPassedBack() {
+  void rowIdReaderReusesVectorWhenHolderIsPassedBack() {
     long allocatedBefore = ArrowAllocation.rootAllocator().getAllocatedMemory();
 
     VectorizedArrowReader reader = VectorizedArrowReader.rowIds(100L, null);
@@ -107,7 +107,7 @@ public class TestLineageVectorReaders {
   }
 
   @Test
-  public void testRowIdReaderReusesBatchSizedVectorForShorterBatch() {
+  void rowIdReaderReusesBatchSizedVectorForShorterBatch() {
     long allocatedBefore = ArrowAllocation.rootAllocator().getAllocatedMemory();
 
     VectorizedArrowReader reader = VectorizedArrowReader.rowIds(100L, null);
@@ -129,7 +129,7 @@ public class TestLineageVectorReaders {
   }
 
   @Test
-  public void testRowIdReaderReallocatesWhenBatchSizeGrows() {
+  void rowIdReaderReallocatesWhenBatchSizeGrows() {
     long allocatedBefore = ArrowAllocation.rootAllocator().getAllocatedMemory();
 
     VectorizedArrowReader reader = VectorizedArrowReader.rowIds(100L, null);
@@ -154,7 +154,7 @@ public class TestLineageVectorReaders {
   }
 
   @Test
-  public void testLastUpdatedSeqReaderReusesVectorWhenHolderIsPassedBack() {
+  void lastUpdatedSeqReaderReusesVectorWhenHolderIsPassedBack() {
     long allocatedBefore = ArrowAllocation.rootAllocator().getAllocatedMemory();
 
     VectorizedArrowReader reader = VectorizedArrowReader.lastUpdated(100L, 42L, null);
