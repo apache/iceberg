@@ -27,6 +27,8 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
@@ -72,6 +74,8 @@ public class CachingCatalog implements Catalog {
 
   @SuppressWarnings("checkstyle:VisibilityModifier")
   protected final Cache<TableIdentifier, Table> tableCache;
+
+  private final Set<String> invalidReplacementTableTypeNames = ConcurrentHashMap.newKeySet();
 
   private CachingCatalog(Catalog catalog, boolean caseSensitive, long expirationIntervalMillis) {
     this(catalog, caseSensitive, expirationIntervalMillis, Ticker.systemTicker());
@@ -148,13 +152,24 @@ public class CachingCatalog implements Catalog {
       return cached;
     }
 
-    Table table = tableCache.get(canonicalized, this::loadTableForCache);
+    Table table;
+    try {
+      table = tableCache.get(canonicalized, this::loadTableForCache);
+    } catch (UncacheableTableException e) {
+      return e.table();
+    }
 
     if (table instanceof BaseMetadataTable) {
       // Cache underlying table
       TableIdentifier originTableIdentifier =
           TableIdentifier.of(canonicalized.namespace().levels());
-      Table originTable = tableCache.get(originTableIdentifier, this::loadTableForCache);
+      Table originTable;
+      try {
+        originTable = tableCache.get(originTableIdentifier, this::loadTableForCache);
+      } catch (UncacheableTableException e) {
+        tableCache.invalidate(canonicalized);
+        return table;
+      }
 
       // Share TableOperations instance of origin table for all metadata tables, so that metadata
       // table instances are refreshed as well when origin table instance is refreshed.
@@ -179,7 +194,7 @@ public class CachingCatalog implements Catalog {
       return loaded;
     }
 
-    return prepareTable(identifier, loaded);
+    return requireCacheable(prepareTable(identifier, loaded));
   }
 
   private Table publishMetadataTable(
@@ -222,22 +237,84 @@ public class CachingCatalog implements Catalog {
    * serving the pre-commit snapshot until the entry expires. See
    * https://github.com/apache/iceberg/issues/17338.
    *
-   * <p>A plain {@link BaseTable} is re-created directly with the tracking operations. Other table
-   * implementations are returned unchanged. Metadata tables share the safely prepared origin
-   * table's operations and are invalidated together with it.
+   * <p>The concrete table type is preserved. A plain {@link BaseTable} is re-created directly. A
+   * subclass opts in by implementing {@link SupportsOperationsReplacement} (for example {@code
+   * RESTTable}, which keeps its server-side scan planning). Other table implementations retain the
+   * existing caching behavior without commit tracking. Metadata tables share the safely prepared
+   * origin table's operations and are invalidated together with it.
    */
-  private Table prepareTable(TableIdentifier identifier, Table table) {
-    if (table.getClass() == BaseTable.class) {
-      BaseTable baseTable = (BaseTable) table;
-      TableOperations operations = baseTable.operations();
+  private PreparedTable prepareTable(TableIdentifier identifier, Table table) {
+    TableOperations operations;
+    Table wrapped;
+    if (table instanceof SupportsOperationsReplacement replaceable) {
+      operations = replaceable.operations();
       CacheInvalidatingTableOperations replacementOperations =
           new CacheInvalidatingTableOperations(operations, identifier);
-      Table wrapped = new BaseTable(replacementOperations, baseTable.name(), baseTable.reporter());
+      try {
+        wrapped = replaceable.withOperations(replacementOperations);
+      } catch (RuntimeException e) {
+        warnInvalidReplacement(identifier, table, "withOperations threw an exception", e);
+        return PreparedTable.uncacheable(table);
+      }
+
+      if (wrapped != null
+          && wrapped != table
+          && wrapped.getClass() == table.getClass()
+          && ((SupportsOperationsReplacement) wrapped).operations() == replacementOperations
+          && replaceable.operations() == operations) {
+        replacementOperations.track(wrapped);
+        return PreparedTable.cacheable(wrapped);
+      }
+
+      warnInvalidReplacement(
+          identifier,
+          table,
+          "withOperations must return an independent copy of the same concrete type without "
+              + "modifying the original table",
+          null);
+      return PreparedTable.uncacheable(table);
+    } else if (table.getClass() == BaseTable.class) {
+      BaseTable baseTable = (BaseTable) table;
+      operations = baseTable.operations();
+      CacheInvalidatingTableOperations replacementOperations =
+          new CacheInvalidatingTableOperations(operations, identifier);
+      wrapped = new BaseTable(replacementOperations, baseTable.name(), baseTable.reporter());
       replacementOperations.track(wrapped);
-      return wrapped;
+      return PreparedTable.cacheable(wrapped);
     }
 
-    return table;
+    return PreparedTable.cacheable(table);
+  }
+
+  private Table requireCacheable(PreparedTable prepared) {
+    if (!prepared.cacheable()) {
+      throw new UncacheableTableException(prepared.table());
+    }
+
+    return prepared.table();
+  }
+
+  private void warnInvalidReplacement(
+      TableIdentifier identifier, Table table, String reason, RuntimeException failure) {
+    String tableTypeName = table.getClass().getName();
+    if (invalidReplacementTableTypeNames.add(tableTypeName)) {
+      if (failure != null) {
+        LOG.warn(
+            "Table {} of type {} cannot use CachingCatalog commit tracking because {}. "
+                + "This instance will not be cached",
+            identifier,
+            tableTypeName,
+            reason,
+            failure);
+      } else {
+        LOG.warn(
+            "Table {} of type {} cannot use CachingCatalog commit tracking because {}. "
+                + "This instance will not be cached",
+            identifier,
+            tableTypeName,
+            reason);
+      }
+    }
   }
 
   /**
@@ -395,8 +472,9 @@ public class CachingCatalog implements Catalog {
   public Table registerTable(TableIdentifier identifier, String metadataFileLocation) {
     Table table =
         prepareTable(
-            canonicalizeIdentifier(identifier),
-            catalog.registerTable(identifier, metadataFileLocation));
+                canonicalizeIdentifier(identifier),
+                catalog.registerTable(identifier, metadataFileLocation))
+            .table();
     invalidateTable(identifier);
     return table;
   }
@@ -406,8 +484,9 @@ public class CachingCatalog implements Catalog {
       TableIdentifier identifier, String metadataFileLocation, boolean overwrite) {
     Table table =
         prepareTable(
-            canonicalizeIdentifier(identifier),
-            catalog.registerTable(identifier, metadataFileLocation, overwrite));
+                canonicalizeIdentifier(identifier),
+                catalog.registerTable(identifier, metadataFileLocation, overwrite))
+            .table();
     invalidateTable(identifier);
     return table;
   }
@@ -481,12 +560,16 @@ public class CachingCatalog implements Catalog {
     }
 
     private Table createThroughCache(TableIdentifier identifier, AtomicBoolean created) {
-      return tableCache.get(
-          identifier,
-          ignored -> {
-            created.set(true);
-            return prepareTable(identifier, innerBuilder.create());
-          });
+      try {
+        return tableCache.get(
+            identifier,
+            ignored -> {
+              created.set(true);
+              return requireCacheable(prepareTable(identifier, innerBuilder.create()));
+            });
+      } catch (UncacheableTableException e) {
+        return e.table();
+      }
     }
 
     @Override
@@ -518,6 +601,45 @@ public class CachingCatalog implements Catalog {
       // present.
       return CommitCallbackTransaction.addCallback(
           innerBuilder.createOrReplaceTransaction(), () -> invalidateTable(ident));
+    }
+  }
+
+  private static class PreparedTable {
+    private final Table table;
+    private final boolean cacheable;
+
+    private static PreparedTable cacheable(Table table) {
+      return new PreparedTable(table, true);
+    }
+
+    private static PreparedTable uncacheable(Table table) {
+      return new PreparedTable(table, false);
+    }
+
+    private PreparedTable(Table table, boolean cacheable) {
+      this.table = Preconditions.checkNotNull(table, "Prepared table cannot be null");
+      this.cacheable = cacheable;
+    }
+
+    private Table table() {
+      return table;
+    }
+
+    private boolean cacheable() {
+      return cacheable;
+    }
+  }
+
+  private static class UncacheableTableException extends RuntimeException {
+    private final Table table;
+
+    private UncacheableTableException(Table table) {
+      super(null, null, false, false);
+      this.table = table;
+    }
+
+    private Table table() {
+      return table;
     }
   }
 }

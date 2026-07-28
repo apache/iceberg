@@ -22,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 
 import com.github.benmanes.caffeine.cache.Cache;
@@ -39,6 +40,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiFunction;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.BaseMetadataTable;
@@ -48,6 +50,7 @@ import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SupportsOperationsReplacement;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
@@ -618,6 +621,155 @@ public class TestCachingCatalog extends HadoopTableTestBase {
   }
 
   @Test
+  public void testCachingCatalogPreservesTableSubtypeAndIdentityOnCommit() throws IOException {
+    // A delegate catalog that returns a BaseTable subclass (like RESTTable) from loadTable.
+    HadoopCatalog subtypeReturningCatalog =
+        new HadoopCatalog() {
+          @Override
+          public Table loadTable(TableIdentifier ident) {
+            Table loaded = super.loadTable(ident);
+            return new CustomBaseTable(((HasTableOperations) loaded).operations(), loaded.name());
+          }
+        };
+    subtypeReturningCatalog.setConf(new Configuration());
+    subtypeReturningCatalog.initialize(
+        "hadoop", ImmutableMap.of(CatalogProperties.WAREHOUSE_LOCATION, tempDir.getAbsolutePath()));
+
+    TestableCachingCatalog catalog =
+        TestableCachingCatalog.wrap(subtypeReturningCatalog, EXPIRATION_TTL, ticker);
+    Namespace namespace = Namespace.of("db", "ns1", "ns2");
+    TableIdentifier tableIdent = TableIdentifier.of(namespace, "tbl");
+    catalog.createTable(tableIdent, SCHEMA, SPEC, ImmutableMap.of("key", "value"));
+
+    // Load fresh from the delegate so the cache wraps the delegate's subtype.
+    catalog.cache().invalidateAll();
+    Table loaded = catalog.loadTable(tableIdent);
+
+    // The cache preserves the delegate's concrete table type via SupportsOperationsReplacement,
+    // rather than downgrading it to a plain BaseTable (which would discard specialized behavior).
+    assertThat(loaded).isInstanceOf(CustomBaseTable.class);
+
+    // A commit through the subtype preserves the committing table's cache identity.
+    loaded.newAppend().appendFile(FILE_A).commit();
+    assertThat(catalog.cache().asMap()).containsEntry(tableIdent, loaded);
+  }
+
+  @Test
+  public void testCachingCatalogLeavesUnknownSubclassUnchanged() throws IOException {
+    AtomicInteger loadCount = new AtomicInteger();
+    // A delegate that returns a BaseTable subclass which does NOT opt in to operations replacement.
+    HadoopCatalog subtypeReturningCatalog =
+        new HadoopCatalog() {
+          @Override
+          public Table loadTable(TableIdentifier ident) {
+            loadCount.incrementAndGet();
+            Table loaded = super.loadTable(ident);
+            return new NonReplaceableBaseTable(
+                ((HasTableOperations) loaded).operations(), loaded.name());
+          }
+        };
+    subtypeReturningCatalog.setConf(new Configuration());
+    subtypeReturningCatalog.initialize(
+        "hadoop", ImmutableMap.of(CatalogProperties.WAREHOUSE_LOCATION, tempDir.getAbsolutePath()));
+
+    TestableCachingCatalog catalog =
+        TestableCachingCatalog.wrap(subtypeReturningCatalog, EXPIRATION_TTL, ticker);
+    Namespace namespace = Namespace.of("db", "ns1", "ns2");
+    TableIdentifier tableIdent = TableIdentifier.of(namespace, "tbl");
+    catalog.createTable(tableIdent, SCHEMA, SPEC, ImmutableMap.of("key", "value"));
+
+    // Load fresh from the delegate so the cache processes the subtype.
+    catalog.cache().invalidateAll();
+    Table loaded = catalog.loadTable(tableIdent);
+
+    // A subclass that does not opt in must be returned unchanged, not downgraded to a plain
+    // BaseTable (which would discard its overridden behavior).
+    assertThat(loaded).isInstanceOf(NonReplaceableBaseTable.class);
+    assertThat(catalog.loadTable(tableIdent)).isSameAs(loaded);
+    assertThat(loadCount).hasValue(1);
+    assertThat(catalog.cache().asMap()).containsEntry(tableIdent, loaded);
+  }
+
+  @Test
+  public void testCachingCatalogPreservesExistingBehaviorForUnsupportedTableTypes() {
+    AtomicInteger loadCount = new AtomicInteger();
+    Table unsupported = mock(Table.class);
+    HadoopCatalog underlyingCatalog =
+        new HadoopCatalog() {
+          @Override
+          public Table loadTable(TableIdentifier ident) {
+            loadCount.incrementAndGet();
+            return unsupported;
+          }
+        };
+    TableIdentifier tableIdent = TableIdentifier.of("db", "tbl");
+    TestableCachingCatalog catalog =
+        TestableCachingCatalog.wrap(underlyingCatalog, EXPIRATION_TTL, ticker);
+
+    assertThat(catalog.loadTable(tableIdent)).isSameAs(unsupported);
+    assertThat(catalog.loadTable(tableIdent)).isSameAs(unsupported);
+    assertThat(loadCount).hasValue(1);
+    assertThat(catalog.cache().asMap()).containsEntry(tableIdent, unsupported);
+  }
+
+  @Test
+  public void brokenOperationsReplacementIsNotCached() throws IOException {
+    assertInvalidOperationsReplacementIsNotCached(BrokenReplaceableBaseTable::new);
+  }
+
+  @Test
+  public void nullOperationsReplacementIsNotCached() throws IOException {
+    assertInvalidOperationsReplacementIsNotCached(NullReplaceableBaseTable::new);
+  }
+
+  @Test
+  public void differentTypeOperationsReplacementIsNotCached() throws IOException {
+    assertInvalidOperationsReplacementIsNotCached(DifferentTypeReplaceableBaseTable::new);
+  }
+
+  @Test
+  public void wrongOperationsReplacementIsNotCached() throws IOException {
+    assertInvalidOperationsReplacementIsNotCached(WrongOperationsReplaceableBaseTable::new);
+  }
+
+  @Test
+  public void throwingOperationsReplacementIsNotCached() throws IOException {
+    assertInvalidOperationsReplacementIsNotCached(ThrowingReplaceableBaseTable::new);
+  }
+
+  @Test
+  public void mutatingOperationsReplacementIsNotCached() throws IOException {
+    assertInvalidOperationsReplacementIsNotCached(MutatingReplaceableBaseTable::new);
+  }
+
+  private void assertInvalidOperationsReplacementIsNotCached(
+      BiFunction<TableOperations, String, Table> tableFactory) throws IOException {
+    AtomicInteger loadCount = new AtomicInteger();
+    HadoopCatalog underlyingCatalog =
+        new HadoopCatalog() {
+          @Override
+          public Table loadTable(TableIdentifier ident) {
+            loadCount.incrementAndGet();
+            Table loaded = super.loadTable(ident);
+            return tableFactory.apply(((HasTableOperations) loaded).operations(), loaded.name());
+          }
+        };
+    underlyingCatalog.setConf(new Configuration());
+    underlyingCatalog.initialize(
+        "hadoop", ImmutableMap.of(CatalogProperties.WAREHOUSE_LOCATION, tempDir.getAbsolutePath()));
+
+    TableIdentifier tableIdent = TableIdentifier.of("db", "tbl");
+    underlyingCatalog.createTable(tableIdent, SCHEMA, SPEC, ImmutableMap.of());
+    TestableCachingCatalog catalog =
+        TestableCachingCatalog.wrap(underlyingCatalog, EXPIRATION_TTL, ticker);
+
+    Table loaded = catalog.loadTable(tableIdent);
+    assertThat(catalog.loadTable(tableIdent)).isInstanceOf(loaded.getClass());
+    assertThat(loadCount).hasValue(2);
+    assertThat(catalog.cache().asMap()).doesNotContainKey(tableIdent);
+  }
+
+  @Test
   public void testCacheExpirationEagerlyRemovesMetadataTables() throws IOException {
     TestableCachingCatalog catalog =
         TestableCachingCatalog.wrap(hadoopCatalog(), EXPIRATION_TTL, ticker);
@@ -784,5 +936,108 @@ public class TestCachingCatalog extends HadoopTableTestBase {
     return Arrays.stream(MetadataTableType.values())
         .map(type -> TableIdentifier.parse(tableIdent + "." + type.name().toLowerCase(Locale.ROOT)))
         .toArray(TableIdentifier[]::new);
+  }
+
+  /**
+   * A {@link BaseTable} subclass that opts in to operations replacement, preserving its type when
+   * re-created with new operations.
+   */
+  private static class CustomBaseTable extends BaseTable implements SupportsOperationsReplacement {
+    private CustomBaseTable(TableOperations ops, String name) {
+      super(ops, name);
+    }
+
+    @Override
+    public Table withOperations(TableOperations newOps) {
+      return new CustomBaseTable(newOps, name());
+    }
+  }
+
+  /** A {@link BaseTable} subclass that does not opt in to operations replacement. */
+  private static class NonReplaceableBaseTable extends BaseTable {
+    private NonReplaceableBaseTable(TableOperations ops, String name) {
+      super(ops, name);
+    }
+  }
+
+  private static class BrokenReplaceableBaseTable extends BaseTable
+      implements SupportsOperationsReplacement {
+    private BrokenReplaceableBaseTable(TableOperations operations, String name) {
+      super(operations, name);
+    }
+
+    @Override
+    public Table withOperations(TableOperations newOperations) {
+      return this;
+    }
+  }
+
+  private static class NullReplaceableBaseTable extends BaseTable
+      implements SupportsOperationsReplacement {
+    private NullReplaceableBaseTable(TableOperations operations, String name) {
+      super(operations, name);
+    }
+
+    @Override
+    public Table withOperations(TableOperations newOperations) {
+      return null;
+    }
+  }
+
+  private static class DifferentTypeReplaceableBaseTable extends BaseTable
+      implements SupportsOperationsReplacement {
+    private DifferentTypeReplaceableBaseTable(TableOperations operations, String name) {
+      super(operations, name);
+    }
+
+    @Override
+    public Table withOperations(TableOperations newOperations) {
+      return new BaseTable(newOperations, name());
+    }
+  }
+
+  private static class WrongOperationsReplaceableBaseTable extends BaseTable
+      implements SupportsOperationsReplacement {
+    private WrongOperationsReplaceableBaseTable(TableOperations operations, String name) {
+      super(operations, name);
+    }
+
+    @Override
+    public Table withOperations(TableOperations newOperations) {
+      return new WrongOperationsReplaceableBaseTable(operations(), name());
+    }
+  }
+
+  private static class ThrowingReplaceableBaseTable extends BaseTable
+      implements SupportsOperationsReplacement {
+    private ThrowingReplaceableBaseTable(TableOperations operations, String name) {
+      super(operations, name);
+    }
+
+    @Override
+    public Table withOperations(TableOperations newOperations) {
+      throw new IllegalStateException("Cannot replace operations");
+    }
+  }
+
+  private static class MutatingReplaceableBaseTable extends BaseTable
+      implements SupportsOperationsReplacement {
+    private TableOperations currentOperations;
+
+    private MutatingReplaceableBaseTable(TableOperations operations, String name) {
+      super(operations, name);
+      this.currentOperations = operations;
+    }
+
+    @Override
+    public TableOperations operations() {
+      return currentOperations;
+    }
+
+    @Override
+    public Table withOperations(TableOperations newOperations) {
+      this.currentOperations = newOperations;
+      return new MutatingReplaceableBaseTable(newOperations, name());
+    }
   }
 }
