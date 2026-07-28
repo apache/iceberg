@@ -22,16 +22,19 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import org.apache.iceberg.connect.IcebergSinkConfig;
 import org.apache.iceberg.connect.data.Offset;
 import org.apache.iceberg.connect.events.AvroUtil;
 import org.apache.iceberg.connect.events.Event;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.consumer.Consumer;
+import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.clients.producer.Producer;
@@ -51,8 +54,11 @@ abstract class Channel {
   private final Consumer<String, byte[]> consumer;
   private final SinkTaskContext context;
   private final Admin admin;
-  private final Map<Integer, Long> controlTopicOffsets = Maps.newConcurrentMap();
+  // only touched from the thread that owns the consumer, i.e. wherever consumeAvailable() runs
+  private final Map<Integer, Long> controlTopicOffsets = Maps.newHashMap();
   private final String producerId;
+  private final AtomicLong consumedRecordCount = new AtomicLong();
+  private final AtomicLong skippedRecordCount = new AtomicLong();
 
   Channel(
       String name,
@@ -116,25 +122,48 @@ abstract class Channel {
 
   protected abstract boolean receive(Envelope envelope);
 
+  /**
+   * Drains the control topic. Must always be called from the thread that owns the consumer, since
+   * {@link Consumer} is not thread safe and this also mutates {@link #controlTopicOffsets}.
+   */
   protected void consumeAvailable(Duration pollDuration) {
     ConsumerRecords<String, byte[]> records = consumer.poll(pollDuration);
     while (!records.isEmpty()) {
-      records.forEach(
-          record -> {
-            // the consumer stores the offsets that corresponds to the next record to consume,
-            // so increment the record offset by one
-            controlTopicOffsets.put(record.partition(), record.offset() + 1);
-
-            Event event = AvroUtil.decode(record.value());
-
-            if (event.groupId().equals(connectGroupId)) {
-              LOG.debug("Received event of type: {}", event.type().name());
-              if (receive(new Envelope(event, record.partition(), record.offset()))) {
-                LOG.info("Handled event of type: {}", event.type().name());
-              }
-            }
-          });
+      records.forEach(this::handleRecord);
       records = consumer.poll(pollDuration);
+    }
+  }
+
+  private void handleRecord(ConsumerRecord<String, byte[]> record) {
+    // the consumer stores the offsets that corresponds to the next record to consume,
+    // so increment the record offset by one
+    controlTopicOffsets.put(record.partition(), record.offset() + 1);
+    consumedRecordCount.incrementAndGet();
+
+    Event event;
+    try {
+      event = AvroUtil.decode(record.value());
+    } catch (Exception e) {
+      // A single malformed record (truncated, written by an incompatible version, produced by
+      // something other than this connector) must not take down the channel. The offset above has
+      // already been advanced, so skipping lets the channel keep making progress instead of
+      // failing again on every restart. Missing a START_COMMIT this way only defers this task's
+      // data to the next commit round, it cannot drop data.
+      skippedRecordCount.incrementAndGet();
+      LOG.error(
+          "Skipping undecodable control topic record at {}-{}, {} record(s) skipped so far",
+          record.partition(),
+          record.offset(),
+          skippedRecordCount.get(),
+          e);
+      return;
+    }
+
+    if (connectGroupId.equals(event.groupId())) {
+      LOG.debug("Received event of type: {}", event.type().name());
+      if (receive(new Envelope(event, record.partition(), record.offset()))) {
+        LOG.info("Handled event of type: {}", event.type().name());
+      }
     }
   }
 
@@ -151,6 +180,11 @@ abstract class Channel {
     consumer.commitSync(offsetsToCommit);
   }
 
+  /**
+   * Subscribes to the control topic and performs the initial poll that establishes the consumer
+   * position. Must be called from the thread that owns the consumer, before any other consumer
+   * access.
+   */
   protected void initializeConsumer() {
     consumer.subscribe(ImmutableList.of(controlTopic));
 
@@ -164,9 +198,30 @@ abstract class Channel {
 
   void stop() {
     LOG.info("Channel stopping");
-    producer.close();
-    consumer.close();
-    admin.close();
+    closeQuietly("producer", producer);
+    closeConsumer();
+    closeQuietly("admin", admin);
+  }
+
+  /**
+   * Closes the consumer. {@link Consumer#close()} is idempotent, so a subclass that hands the
+   * consumer to another thread can close it there and still let {@link #stop()} run unchanged.
+   */
+  protected void closeConsumer() {
+    closeQuietly("consumer", consumer);
+  }
+
+  /**
+   * Closes a Kafka client, logging instead of propagating failures. One client failing to close
+   * must not leak the others: the transactional producer in particular can block the next task
+   * start if it is left open.
+   */
+  private void closeQuietly(String name, AutoCloseable closeable) {
+    try {
+      closeable.close();
+    } catch (Exception e) {
+      LOG.warn("Error closing {} on channel, ignoring...", name, e);
+    }
   }
 
   /**
@@ -175,5 +230,17 @@ abstract class Channel {
    */
   protected void wakeupConsumer() {
     consumer.wakeup();
+  }
+
+  /** Total number of control topic records read by this channel, including skipped ones. */
+  @VisibleForTesting
+  long consumedRecordCount() {
+    return consumedRecordCount.get();
+  }
+
+  /** Number of control topic records that could not be decoded and were skipped. */
+  @VisibleForTesting
+  long skippedRecordCount() {
+    return skippedRecordCount.get();
   }
 }

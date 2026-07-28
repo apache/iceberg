@@ -21,6 +21,7 @@ package org.apache.iceberg.connect.channel;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.connect.Committer;
 import org.apache.iceberg.connect.IcebergSinkConfig;
@@ -30,6 +31,7 @@ import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.admin.ConsumerGroupDescription;
 import org.apache.kafka.clients.admin.MemberDescription;
 import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.apache.kafka.connect.sink.SinkTaskContext;
 import org.slf4j.Logger;
@@ -47,6 +49,8 @@ public class CommitterImpl implements Committer {
   private KafkaClientFactory clientFactory;
   private Collection<MemberDescription> membersWhenWorkerIsCoordinator;
   private final AtomicBoolean isInitialized = new AtomicBoolean(false);
+  // set when the worker or coordinator fails; this committer is not recoverable in place
+  private final AtomicReference<Exception> failure = new AtomicReference<>(null);
   private String taskId;
 
   private void initialize(
@@ -159,9 +163,16 @@ public class CommitterImpl implements Committer {
 
   @Override
   public void close(Collection<TopicPartition> closedPartitions) {
-    // Always try to stop the worker to avoid duplicates.
-    stopWorker();
+    // Always try to stop the worker to avoid duplicates. Wrapped in try/finally so that a failure
+    // here cannot leak the coordinator, which owns its own producer and consumer.
+    try {
+      stopWorker();
+    } finally {
+      closeCoordinator(closedPartitions);
+    }
+  }
 
+  private void closeCoordinator(Collection<TopicPartition> closedPartitions) {
     // Defensive: close called without prior initialization (should not happen).
     if (!isInitialized.get()) {
       LOG.warn("Close unexpectedly called on committer {} without partition assignment", taskId);
@@ -188,6 +199,7 @@ public class CommitterImpl implements Committer {
 
   @Override
   public void save(Collection<SinkRecord> sinkRecords) {
+    throwIfFailed();
     if (sinkRecords != null && !sinkRecords.isEmpty()) {
       startWorker();
       worker.save(sinkRecords);
@@ -197,21 +209,48 @@ public class CommitterImpl implements Committer {
 
   private void processControlEvents() {
     if (coordinatorThread != null && coordinatorThread.isTerminated()) {
-      throw new NotRunningException(
-          String.format("Coordinator unexpectedly terminated on committer %s", taskId));
+      NotRunningException notRunning =
+          new NotRunningException(
+              String.format("Coordinator unexpectedly terminated on committer %s", taskId));
+      markFailed(notRunning);
+      throw notRunning;
     }
     if (worker != null) {
       try {
         worker.process();
       } catch (Exception e) {
+        // Deliberately do not replace the worker here. It owns data that has already been written
+        // but not committed, together with the source offsets for that data. A fresh worker would
+        // answer the outstanding START_COMMIT with an empty result, letting the coordinator publish
+        // a snapshot that silently misses those rows -- a valid Iceberg snapshot that no downstream
+        // reader can tell is short. Failing the task instead makes Connect restart it from the last
+        // committed offsets so the records are re-read and re-written. Cleanup happens in close(),
+        // which Connect always calls before stopping the task.
         LOG.error(
-            "Worker {}-{} failed during control event processing, stopping worker.",
-            config.connectorName(),
-            config.taskId(),
-            e);
-        stopWorker();
+            "Committer {} failed during control event processing, failing the task", taskId, e);
+        markFailed(e);
         throw e;
       }
+    }
+  }
+
+  /**
+   * Records the failure that took this committer down. Once set, the committer refuses further
+   * records instead of silently continuing with a worker that can no longer commit.
+   */
+  private void markFailed(Exception error) {
+    failure.compareAndSet(null, error);
+  }
+
+  private void throwIfFailed() {
+    Exception cause = failure.get();
+    if (cause != null) {
+      throw new ConnectException(
+          String.format(
+              "Committer %s is in a failed state and cannot accept records, the task must be "
+                  + "restarted so it resumes from the last committed offsets",
+              taskId),
+          cause);
     }
   }
 
@@ -236,15 +275,22 @@ public class CommitterImpl implements Committer {
 
   private void stopWorker() {
     if (worker != null) {
-      worker.stop();
-      worker = null;
+      try {
+        worker.stop();
+      } finally {
+        // never reuse a stopped worker, even if stopping it went wrong
+        worker = null;
+      }
     }
   }
 
   private void stopCoordinator() {
     if (coordinatorThread != null) {
-      coordinatorThread.terminate();
-      coordinatorThread = null;
+      try {
+        coordinatorThread.terminate();
+      } finally {
+        coordinatorThread = null;
+      }
     }
   }
 }
