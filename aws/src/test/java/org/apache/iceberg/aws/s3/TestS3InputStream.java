@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.aws.s3;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -25,17 +26,22 @@ import static org.mockito.Mockito.when;
 
 import java.io.IOException;
 import java.io.InputStream;
+import org.apache.iceberg.exceptions.ForbiddenException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import software.amazon.awssdk.core.sync.ResponseTransformer;
+import software.amazon.awssdk.http.HttpStatusCode;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.S3Exception;
 
 @ExtendWith(MockitoExtension.class)
 public final class TestS3InputStream {
+
+  private static final String SERVER_ACCESS_DENIED_MESSAGE = "server-side access denied detail";
 
   @Mock private S3Client s3Client;
   @Mock private InputStream inputStream;
@@ -44,13 +50,14 @@ public final class TestS3InputStream {
 
   @BeforeEach
   void before() {
-    when(s3Client.getObject(any(GetObjectRequest.class), any(ResponseTransformer.class)))
-        .thenReturn(inputStream);
     s3InputStream = new S3InputStream(s3Client, mock());
   }
 
   @Test
   void testReadFullyClosesTheStream() throws IOException {
+    when(s3Client.getObject(any(GetObjectRequest.class), any(ResponseTransformer.class)))
+        .thenReturn(inputStream);
+
     s3InputStream.readFully(0, new byte[0]);
 
     verify(inputStream).close();
@@ -58,8 +65,25 @@ public final class TestS3InputStream {
 
   @Test
   void testReadTailClosesTheStream() throws IOException {
+    when(s3Client.getObject(any(GetObjectRequest.class), any(ResponseTransformer.class)))
+        .thenReturn(inputStream);
+
     s3InputStream.readTail(new byte[0], 0, 0);
 
     verify(inputStream).close();
+  }
+
+  @Test
+  void testAccessDeniedTranslatedToForbiddenException() {
+    when(s3Client.getObject(any(GetObjectRequest.class), any(ResponseTransformer.class)))
+        .thenThrow(
+            S3Exception.builder()
+                .statusCode(HttpStatusCode.FORBIDDEN)
+                .message(SERVER_ACCESS_DENIED_MESSAGE)
+                .build());
+
+    assertThatThrownBy(() -> s3InputStream.readFully(0, new byte[0]))
+        .isInstanceOf(ForbiddenException.class)
+        .hasMessageContaining(SERVER_ACCESS_DENIED_MESSAGE);
   }
 }
