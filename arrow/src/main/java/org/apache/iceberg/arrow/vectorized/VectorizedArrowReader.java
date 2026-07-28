@@ -776,7 +776,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
         ArrowVectorAccessor<?, String, ?, ?> idsAccessor =
             ids == null ? null : ArrowVectorAccessors.getVectorAccessor(idsHolder);
 
-        BigIntVector rowIds = resultVector(numValsToRead);
+        BigIntVector rowIds = resultVector(reuse, numValsToRead);
         ArrowBuf dataBuffer = rowIds.getDataBuffer();
         for (int i = 0; i < numValsToRead; i += 1) {
           long bufferOffset = (long) i * Long.BYTES;
@@ -819,8 +819,16 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
       posReader.setBatchSize(batchSize);
     }
 
-    private BigIntVector resultVector(int numValsToRead) {
-      if (vec == null || vec.getValueCapacity() < numValsToRead) {
+    /**
+     * Returns the vector this batch is written into, which the reader owns and closes.
+     *
+     * <p>{@code reuse} is used the same way the parent reader uses it: a null holder means the
+     * caller does not want the previous vector reused, so it is released and reallocated. A
+     * non-null holder allows keeping the current vector, which is reallocated only when the batch
+     * no longer fits.
+     */
+    private BigIntVector resultVector(VectorHolder reuse, int numValsToRead) {
+      if (reuse == null || vec == null || vec.getValueCapacity() < numValsToRead) {
         if (vec != null) {
           vec.close();
         }
@@ -869,7 +877,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
         ArrowVectorAccessor<?, String, ?, ?> seqAccessor =
             seqNumbers == null ? null : ArrowVectorAccessors.getVectorAccessor(seqNumbersHolder);
 
-        BigIntVector lastUpdatedSequenceNumbers = resultVector(numValsToRead);
+        BigIntVector lastUpdatedSequenceNumbers = resultVector(reuse, numValsToRead);
         ArrowBuf dataBuffer = lastUpdatedSequenceNumbers.getDataBuffer();
         for (int i = 0; i < numValsToRead; i += 1) {
           long bufferOffset = (long) i * Long.BYTES;
@@ -906,8 +914,16 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
       seqReader.setBatchSize(batchSize);
     }
 
-    private BigIntVector resultVector(int numValsToRead) {
-      if (vec == null || vec.getValueCapacity() < numValsToRead) {
+    /**
+     * Returns the vector this batch is written into, which the reader owns and closes.
+     *
+     * <p>{@code reuse} is used the same way the parent reader uses it: a null holder means the
+     * caller does not want the previous vector reused, so it is released and reallocated. A
+     * non-null holder allows keeping the current vector, which is reallocated only when the batch
+     * no longer fits.
+     */
+    private BigIntVector resultVector(VectorHolder reuse, int numValsToRead) {
+      if (reuse == null || vec == null || vec.getValueCapacity() < numValsToRead) {
         if (vec != null) {
           vec.close();
         }

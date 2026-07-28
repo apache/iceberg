@@ -76,4 +76,79 @@ public class TestLineageVectorReaders {
 
     assertThat(ArrowAllocation.rootAllocator().getAllocatedMemory()).isEqualTo(allocatedBefore);
   }
+
+  @Test
+  public void testRowIdReaderReusesVectorWhenHolderIsPassedBack() {
+    long allocatedBefore = ArrowAllocation.rootAllocator().getAllocatedMemory();
+
+    VectorizedArrowReader reader = VectorizedArrowReader.rowIds(100L, null);
+    reader.setBatchSize(BATCH_SIZE);
+
+    // ColumnarBatchReader and ArrowBatchReader hand the previous holder back as reuse
+    VectorHolder holder = reader.read(null, BATCH_SIZE);
+    BigIntVector first = (BigIntVector) holder.vector();
+    long allocatedAfterFirstBatch = ArrowAllocation.rootAllocator().getAllocatedMemory();
+
+    for (int batch = 1; batch < NUM_BATCHES; batch += 1) {
+      holder = reader.read(holder, BATCH_SIZE);
+      assertThat(holder.vector()).as("reuse must not allocate a new vector").isSameAs(first);
+      assertThat(((BigIntVector) holder.vector()).getValueCount()).isEqualTo(BATCH_SIZE);
+      assertThat(holder.vector().getDataBuffer().getLong(0))
+          .isEqualTo(100L + (long) batch * BATCH_SIZE);
+    }
+
+    assertThat(ArrowAllocation.rootAllocator().getAllocatedMemory())
+        .as("reused batches must not grow allocated memory")
+        .isEqualTo(allocatedAfterFirstBatch);
+
+    reader.close();
+
+    assertThat(ArrowAllocation.rootAllocator().getAllocatedMemory()).isEqualTo(allocatedBefore);
+  }
+
+  @Test
+  public void testRowIdReaderReallocatesForLargerBatch() {
+    long allocatedBefore = ArrowAllocation.rootAllocator().getAllocatedMemory();
+
+    VectorizedArrowReader reader = VectorizedArrowReader.rowIds(100L, null);
+    reader.setBatchSize(2 * BATCH_SIZE);
+
+    VectorHolder holder = reader.read(null, BATCH_SIZE);
+    BigIntVector small = (BigIntVector) holder.vector();
+
+    // a batch that no longer fits must grow the vector, releasing the previous one
+    holder = reader.read(holder, 2 * BATCH_SIZE);
+    assertThat(holder.vector()).isNotSameAs(small);
+    assertThat(((BigIntVector) holder.vector()).getValueCount()).isEqualTo(2 * BATCH_SIZE);
+
+    reader.close();
+
+    assertThat(ArrowAllocation.rootAllocator().getAllocatedMemory()).isEqualTo(allocatedBefore);
+  }
+
+  @Test
+  public void testLastUpdatedSeqReaderReusesVectorWhenHolderIsPassedBack() {
+    long allocatedBefore = ArrowAllocation.rootAllocator().getAllocatedMemory();
+
+    VectorizedArrowReader reader = VectorizedArrowReader.lastUpdated(100L, 42L, null);
+    reader.setBatchSize(BATCH_SIZE);
+
+    VectorHolder holder = reader.read(null, BATCH_SIZE);
+    BigIntVector first = (BigIntVector) holder.vector();
+    long allocatedAfterFirstBatch = ArrowAllocation.rootAllocator().getAllocatedMemory();
+
+    for (int batch = 1; batch < NUM_BATCHES; batch += 1) {
+      holder = reader.read(holder, BATCH_SIZE);
+      assertThat(holder.vector()).as("reuse must not allocate a new vector").isSameAs(first);
+      assertThat(holder.vector().getDataBuffer().getLong(0)).isEqualTo(42L);
+    }
+
+    assertThat(ArrowAllocation.rootAllocator().getAllocatedMemory())
+        .as("reused batches must not grow allocated memory")
+        .isEqualTo(allocatedAfterFirstBatch);
+
+    reader.close();
+
+    assertThat(ArrowAllocation.rootAllocator().getAllocatedMemory()).isEqualTo(allocatedBefore);
+  }
 }
