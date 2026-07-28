@@ -19,7 +19,6 @@
 package org.apache.iceberg.variants;
 
 import java.nio.ByteBuffer;
-import org.apache.iceberg.util.ByteBuffers;
 
 /** A variant value. */
 public interface VariantValue {
@@ -62,19 +61,6 @@ public interface VariantValue {
   }
 
   static VariantValue from(VariantMetadata metadata, ByteBuffer value) {
-    int header = ByteBuffers.readByte(value, 0);
-    BasicType basicType = VariantUtil.basicType(header);
-    switch (basicType) {
-      case PRIMITIVE:
-        return SerializedPrimitive.from(value, header);
-      case SHORT_STRING:
-        return SerializedShortString.from(value, header);
-      case OBJECT:
-        return SerializedObject.from(metadata, value, header);
-      case ARRAY:
-        return SerializedArray.from(metadata, value, header);
-    }
-
-    throw new UnsupportedOperationException("Unsupported basic type: " + basicType);
+    return VariantUtil.fromBuffer(metadata, value, 0);
   }
 }
