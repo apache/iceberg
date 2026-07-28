@@ -118,9 +118,12 @@ public class TestFileGenerationUtil {
     checkBounds(SCHEMA, metrics, metricsConfig);
   }
 
-  @Test
-  public void testBoundsForNestedTypes() {
-    MetricsConfig metricsConfig = MetricsConfig.getDefault();
+  @ParameterizedTest
+  @ValueSource(strings = {"none", "counts", "truncate(16)", "full"})
+  public void testBoundsForNestedTypes(String metricsMode) {
+    MetricsConfig metricsConfig =
+        MetricsConfig.from(
+            ImmutableMap.of(TableProperties.DEFAULT_WRITE_METRICS_MODE, metricsMode), SCHEMA, null);
     Metrics metrics =
         FileGenerationUtil.generateRandomMetrics(
             NESTED_SCHEMA,
