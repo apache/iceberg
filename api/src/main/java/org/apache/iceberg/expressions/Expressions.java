@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.expressions;
 
+import java.util.List;
 import java.util.stream.Stream;
 import org.apache.iceberg.expressions.Expression.Operation;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -315,6 +316,49 @@ public class Expressions {
    */
   public static <T> UnboundTerm<T> transform(String name, Transform<?, T> transform) {
     return new UnboundTransform<>(ref(name), transform);
+  }
+
+  /**
+   * Create a reference to a function by name, in the catalog of the referencing object.
+   *
+   * @param name a function name
+   * @return a function reference
+   */
+  public static FunctionReference function(String name) {
+    return new FunctionReference(null, Lists.newArrayList(name));
+  }
+
+  /**
+   * Create a reference to a function by identifier, in the catalog of the referencing object.
+   *
+   * @param identifier namespace names followed by the function name
+   * @return a function reference
+   */
+  public static FunctionReference function(List<String> identifier) {
+    return new FunctionReference(null, identifier);
+  }
+
+  /**
+   * Create a reference to a function in a specific catalog.
+   *
+   * @param catalog a catalog name
+   * @param identifier namespace names followed by the function name
+   * @return a function reference
+   */
+  public static FunctionReference function(String catalog, List<String> identifier) {
+    return new FunctionReference(catalog, identifier);
+  }
+
+  /**
+   * Create an expression that applies a function to zero or more arguments.
+   *
+   * @param function a function reference
+   * @param arguments value expressions, predicates, or constants passed to the function
+   * @param <T> the Java type of this term
+   * @return an unbound apply expression
+   */
+  public static <T> UnboundApply<T> apply(FunctionReference function, List<Object> arguments) {
+    return new UnboundApply<>(function, arguments);
   }
 
   /**
