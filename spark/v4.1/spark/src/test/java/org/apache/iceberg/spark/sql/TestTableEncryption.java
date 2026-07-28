@@ -162,6 +162,29 @@ public class TestTableEncryption extends CatalogTestBase {
     assertThat(currentDataFiles(table)).hasSize(dataFiles.size() + 2);
   }
 
+  @TestTemplate
+  public void testSharedTableTransactionInterleavedWithDirectCommit() {
+    validationCatalog.initialize(catalogName, catalogConfig);
+    // A single shared Table (and its EncryptionManager) drives both a staged transaction and a
+    // direct commit. With a mutable shared manager, the direct commit's key could be dropped from
+    // metadata, leaving its snapshot undecryptable. The metadata-sourced manager keeps every key.
+    Table table = validationCatalog.loadTable(tableIdent);
+    List<DataFile> dataFiles = currentDataFiles(table);
+    DataFile dataFile = dataFiles.get(0);
+
+    Transaction transaction = table.newTransaction();
+    transaction.newAppend().appendFile(dataFile).commit();
+
+    // Direct commit on the same shared Table, interleaved before the transaction commits.
+    table.newFastAppend().appendFile(dataFile).commit();
+
+    transaction.commitTransaction();
+
+    // Reading forces decryption of every snapshot's manifest list, including the direct commit's.
+    Table reloaded = validationCatalog.loadTable(tableIdent);
+    assertThat(currentDataFiles(reloaded)).hasSize(dataFiles.size() + 2);
+  }
+
   // See CatalogTests#testConcurrentReplaceTransactions
   @TestTemplate
   public void testConcurrentReplaceTransactions() {

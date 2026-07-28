@@ -36,6 +36,7 @@ abstract class ManifestListWriter implements FileAppender<ManifestFile> {
   private final StandardEncryptionManager standardEncryptionManager;
   private final NativeEncryptionKeyMetadata manifestListKeyMetadata;
   private final OutputFile outputFile;
+  private StandardEncryptionManager.MintedKeys lazyManifestListKeys = null;
 
   private ManifestListWriter(
       OutputFile file, EncryptionManager encryptionManager, Map<String, String> meta) {
@@ -95,13 +96,23 @@ abstract class ManifestListWriter implements FileAppender<ManifestFile> {
 
   public ManifestListFile toManifestListFile() {
     if (manifestListKeyMetadata != null && manifestListKeyMetadata.encryptionKey() != null) {
-      String manifestListKeyID =
-          standardEncryptionManager.addManifestListKeyMetadata(
-              manifestListKeyMetadata.copyWithLength(writer.length()));
-      return new BaseManifestListFile(outputFile.location(), manifestListKeyID);
+      // Mint once so repeated calls return the same key id.
+      if (lazyManifestListKeys == null) {
+        this.lazyManifestListKeys =
+            standardEncryptionManager.mintManifestListKey(
+                manifestListKeyMetadata.copyWithLength(writer.length()));
+      }
+
+      return new BaseManifestListFile(
+          outputFile.location(), lazyManifestListKeys.manifestListKey().keyId());
     } else {
       return new BaseManifestListFile(outputFile.location(), null);
     }
+  }
+
+  /** Keys minted while writing this manifest list, or {@code null} if unencrypted. */
+  public StandardEncryptionManager.MintedKeys manifestListKeys() {
+    return lazyManifestListKeys;
   }
 
   static class V4Writer extends ManifestListWriter {

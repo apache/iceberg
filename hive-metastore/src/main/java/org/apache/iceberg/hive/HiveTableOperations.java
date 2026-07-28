@@ -22,7 +22,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
@@ -39,6 +38,7 @@ import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.ClientPool;
 import org.apache.iceberg.LocationProviders;
 import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.encryption.EncryptedKey;
@@ -47,7 +47,6 @@ import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.encryption.EncryptionUtil;
 import org.apache.iceberg.encryption.KeyManagementClient;
 import org.apache.iceberg.encryption.PlaintextEncryptionManager;
-import org.apache.iceberg.encryption.StandardEncryptionManager;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
@@ -59,7 +58,6 @@ import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.thrift.TException;
 import org.slf4j.Logger;
@@ -88,12 +86,13 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
   private final KeyManagementClient keyManagementClient;
   private final ClientPool<IMetaStoreClient, TException> metaClients;
 
-  private EncryptionManager encryptionManager;
-  private EncryptingFileIO encryptingFileIO;
-  private String tableKeyId;
-  private int encryptionDekLength;
-
-  private List<EncryptedKey> encryptedKeys = List.of();
+  // Keys live only in table metadata; the manager is immutable, built on demand from a metadata's
+  // keys and memoized by identity. tableKeyId (volatile) gates the plaintext fast path.
+  private volatile String tableKeyId;
+  private volatile int encryptionDekLength;
+  private final Object managerCacheLock = new Object();
+  private TableMetadata cachedManagerMetadata;
+  private EncryptionManager cachedManager;
 
   protected HiveTableOperations(
       Configuration conf,
@@ -126,44 +125,59 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
 
   @Override
   public FileIO io() {
-    if (tableKeyId == null) {
-      return fileIO;
-    }
-
-    if (encryptingFileIO == null) {
-      encryptingFileIO = EncryptingFileIO.combine(fileIO, encryption());
-    }
-
-    return encryptingFileIO;
+    // Avoid current() (which may refresh) on the unencrypted fast path.
+    return tableKeyId == null ? fileIO : io(current());
   }
 
   @Override
   public EncryptionManager encryption() {
-    if (encryptionManager != null) {
-      return encryptionManager;
+    return tableKeyId == null ? PlaintextEncryptionManager.instance() : encryption(current());
+  }
+
+  private FileIO io(TableMetadata metadata) {
+    if (tableKeyId == null) {
+      return fileIO;
     }
 
-    if (tableKeyId != null) {
-      Preconditions.checkArgument(
-          keyManagementClient != null,
-          "Cannot create encryption manager without a key management client. Consider setting the '%s' catalog property",
-          CatalogProperties.ENCRYPTION_KMS_IMPL);
+    return EncryptingFileIO.combine(fileIO, encryption(metadata));
+  }
 
-      Map<String, String> encryptionProperties =
-          ImmutableMap.of(
-              TableProperties.ENCRYPTION_TABLE_KEY,
-              tableKeyId,
-              TableProperties.ENCRYPTION_DEK_LENGTH,
-              String.valueOf(encryptionDekLength));
-
-      encryptionManager =
-          EncryptionUtil.createEncryptionManager(
-              encryptedKeys, encryptionProperties, keyManagementClient);
-    } else {
+  /**
+   * Returns an {@link EncryptionManager} sourced from the given metadata's keys. Callers pass the
+   * metadata whose keys the manager must resolve: {@code current()} for a committed table, or the
+   * uncommitted metadata for staged transaction operations. Memoized by metadata identity so
+   * repeated calls with the same metadata reuse one manager.
+   */
+  private EncryptionManager encryption(TableMetadata metadata) {
+    if (tableKeyId == null) {
       return PlaintextEncryptionManager.instance();
     }
 
-    return encryptionManager;
+    synchronized (managerCacheLock) {
+      if (cachedManager == null || cachedManagerMetadata != metadata) {
+        cachedManager = createEncryptionManager(metadata);
+        cachedManagerMetadata = metadata;
+      }
+
+      return cachedManager;
+    }
+  }
+
+  private EncryptionManager createEncryptionManager(TableMetadata metadata) {
+    Preconditions.checkArgument(
+        keyManagementClient != null,
+        "Cannot create encryption manager without a key management client. Consider setting the '%s' catalog property",
+        CatalogProperties.ENCRYPTION_KMS_IMPL);
+
+    Map<String, String> encryptionProperties =
+        ImmutableMap.of(
+            TableProperties.ENCRYPTION_TABLE_KEY,
+            tableKeyId,
+            TableProperties.ENCRYPTION_DEK_LENGTH,
+            String.valueOf(encryptionDekLength));
+
+    List<EncryptedKey> keys = metadata == null ? List.of() : metadata.encryptionKeys();
+    return EncryptionUtil.createEncryptionManager(keys, encryptionProperties, keyManagementClient);
   }
 
   @Override
@@ -203,36 +217,23 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
       throw new RuntimeException("Interrupted during refresh", e);
     }
 
-    refreshFromMetadataLocation(metadataLocation, metadataRefreshMaxRetries);
+    // Use plain fileIO, not io(): metadata isn't envelope-encrypted and io() would re-enter
+    // refresh.
+    refreshFromMetadataLocation(
+        metadataLocation,
+        null,
+        metadataRefreshMaxRetries,
+        location -> TableMetadataParser.read(fileIO, location));
 
     if (tableKeyIdFromHMS != null) {
       checkIntegrityForEncryption(tableKeyIdFromHMS, dekLengthFromHMS, metadataHashFromHMS);
 
-      tableKeyId = tableKeyIdFromHMS;
-      encryptionDekLength =
+      // Keys aren't cached here; encryption() rebuilds the manager from metadata on demand.
+      this.encryptionDekLength =
           (dekLengthFromHMS != null)
               ? Integer.parseInt(dekLengthFromHMS)
               : TableProperties.ENCRYPTION_DEK_LENGTH_DEFAULT;
-
-      encryptedKeys =
-          Optional.ofNullable(current().encryptionKeys())
-              .map(Lists::newLinkedList)
-              .orElseGet(Lists::newLinkedList);
-
-      if (encryptionManager != null) {
-        Set<String> keyIdsFromMetadata =
-            encryptedKeys.stream().map(EncryptedKey::keyId).collect(Collectors.toSet());
-
-        for (EncryptedKey keyFromEM : EncryptionUtil.encryptionKeys(encryptionManager).values()) {
-          if (!keyIdsFromMetadata.contains(keyFromEM.keyId())) {
-            encryptedKeys.add(keyFromEM);
-          }
-        }
-      }
-
-      // Force re-creation of encryption manager with updated keys
-      encryptingFileIO = null;
-      encryptionManager = null;
+      this.tableKeyId = tableKeyIdFromHMS;
     }
   }
 
@@ -240,25 +241,11 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
   @Override
   protected void doCommit(TableMetadata base, TableMetadata metadata) {
     boolean newTable = base == null;
-    final TableMetadata tableMetadata;
     encryptionPropsFromMetadata(metadata.properties());
 
-    String newMetadataLocation;
-    EncryptionManager encrManager = encryption();
-    if (encrManager instanceof StandardEncryptionManager) {
-      // Add new encryption keys to the metadata
-      TableMetadata.Builder builder = TableMetadata.buildFrom(metadata);
-      for (Map.Entry<String, EncryptedKey> entry :
-          EncryptionUtil.encryptionKeys(encrManager).entrySet()) {
-        builder.addEncryptionKey(entry.getValue());
-      }
-
-      tableMetadata = builder.build();
-    } else {
-      tableMetadata = metadata;
-    }
-
-    newMetadataLocation = writeNewMetadataIfRequired(newTable, tableMetadata);
+    // Encryption keys are already persisted into the metadata by SnapshotProducer.
+    TableMetadata tableMetadata = metadata;
+    String newMetadataLocation = writeNewMetadataIfRequired(newTable, tableMetadata);
 
     boolean hiveEngineEnabled = hiveEngineEnabled(tableMetadata, conf);
     boolean keepHiveStats = conf.getBoolean(ConfigProperties.KEEP_HIVE_STATS, false);
@@ -488,12 +475,15 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
       @Override
       public FileIO io() {
         HiveTableOperations.this.encryptionPropsFromMetadata(uncommittedMetadata.properties());
-        return HiveTableOperations.this.io();
+        // Source keys from the uncommitted metadata so staged transaction operations can read
+        // snapshots produced by earlier operations before the transaction commits.
+        return HiveTableOperations.this.io(uncommittedMetadata);
       }
 
       @Override
       public EncryptionManager encryption() {
-        return HiveTableOperations.this.encryption();
+        HiveTableOperations.this.encryptionPropsFromMetadata(uncommittedMetadata.properties());
+        return HiveTableOperations.this.encryption(uncommittedMetadata);
       }
 
       @Override
@@ -558,16 +548,19 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
   }
 
   private void encryptionPropsFromMetadata(Map<String, String> tableProperties) {
+    // Write-once from null/unset; the manager always re-sources keys from metadata, so a benign
+    // race at worst has two threads compute the same value.
     if (tableKeyId == null) {
-      tableKeyId = tableProperties.get(TableProperties.ENCRYPTION_TABLE_KEY);
-    }
-
-    if (tableKeyId != null && encryptionDekLength <= 0) {
-      encryptionDekLength =
-          PropertyUtil.propertyAsInt(
-              tableProperties,
-              TableProperties.ENCRYPTION_DEK_LENGTH,
-              TableProperties.ENCRYPTION_DEK_LENGTH_DEFAULT);
+      String tableKeyIdFromProps = tableProperties.get(TableProperties.ENCRYPTION_TABLE_KEY);
+      if (tableKeyIdFromProps != null) {
+        this.encryptionDekLength =
+            PropertyUtil.propertyAsInt(
+                tableProperties,
+                TableProperties.ENCRYPTION_DEK_LENGTH,
+                TableProperties.ENCRYPTION_DEK_LENGTH_DEFAULT);
+        // Set last: it gates the plaintext fast path, so DEK length must be visible first.
+        this.tableKeyId = tableKeyIdFromProps;
+      }
     }
   }
 

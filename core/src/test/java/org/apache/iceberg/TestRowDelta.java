@@ -45,6 +45,7 @@ import org.apache.iceberg.deletes.BaseDVFileWriter;
 import org.apache.iceberg.deletes.DVFileWriter;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.deletes.PositionDeleteIndex;
+import org.apache.iceberg.encryption.EncryptedKey;
 import org.apache.iceberg.encryption.EncryptingFileIO;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.encryption.EncryptionTestHelpers;
@@ -1991,6 +1992,21 @@ public class TestRowDelta extends TestBase {
   }
 
   @TestTemplate
+  public void testStagedSnapshotKeysArePersistedWithEncryption() {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
+
+    TestTables.TestTable encryptedTable = createEncryptedTable();
+    AppendFiles stagedAppend =
+        encryptedTable.newAppend().appendFile(newDataFile("data_bucket=0")).stageOnly();
+    stagedAppend.commit();
+
+    Snapshot staged = Iterables.getOnlyElement(encryptedTable.snapshots());
+    // Reading the staged snapshot's manifest list decrypts it, proving its key was persisted into
+    // metadata even though the snapshot is not a branch head.
+    assertThat(staged.allManifests(encryptedTable.io())).hasSize(1);
+  }
+
+  @TestTemplate
   public void testDuplicateDVsMergedMultipleSpecs() throws IOException {
     assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
 
@@ -2654,17 +2670,20 @@ public class TestRowDelta extends TestBase {
   }
 
   private TestTables.TestTable createEncryptedTable() {
-    EncryptionManager encryptionManager = EncryptionTestHelpers.createEncryptionManager();
     String tableName = "encrypted-" + branch;
     java.io.File encryptedTableDir = temp.resolve(tableName).toFile();
     TestTables.TestTableOperations ops =
-        new TestTables.TestTableOperations(
-            tableName,
-            encryptedTableDir,
-            EncryptingFileIO.combine(new TestTables.LocalFileIO(), encryptionManager)) {
+        new TestTables.TestTableOperations(tableName, encryptedTableDir) {
           @Override
           public EncryptionManager encryption() {
-            return encryptionManager;
+            // Metadata-sourced: keys live in metadata, persisted by SnapshotProducer at commit.
+            List<EncryptedKey> keys = current() == null ? List.of() : current().encryptionKeys();
+            return EncryptionTestHelpers.createEncryptionManager(keys);
+          }
+
+          @Override
+          public EncryptingFileIO io() {
+            return EncryptingFileIO.combine(super.io(), encryption());
           }
         };
 

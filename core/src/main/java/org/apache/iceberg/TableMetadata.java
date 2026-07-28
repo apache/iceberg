@@ -353,7 +353,9 @@ public class TableMetadata implements Serializable {
     this.snapshotsLoaded = snapshotsSupplier == null;
     this.snapshotLog = snapshotLog;
     this.previousFiles = previousFiles;
-    this.encryptionKeys = encryptionKeys;
+    // Immutable so a built instance's key set is stable, which HiveTableOperations relies on to
+    // memoize its metadata-sourced encryption manager by metadata identity.
+    this.encryptionKeys = ImmutableList.copyOf(encryptionKeys);
 
     // changes are carried through until metadata is read from a file
     this.changes = changes;

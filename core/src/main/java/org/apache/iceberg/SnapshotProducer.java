@@ -46,8 +46,10 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
+import org.apache.iceberg.encryption.EncryptedKey;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.encryption.EncryptingFileIO;
+import org.apache.iceberg.encryption.StandardEncryptionManager;
 import org.apache.iceberg.events.CreateSnapshotEvent;
 import org.apache.iceberg.events.Listeners;
 import org.apache.iceberg.exceptions.CleanableFailure;
@@ -113,6 +115,9 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   private final Map<String, String> manifestWriterProps;
   private MetricsReporter reporter = LoggingMetricsReporter.instance();
   private volatile Long snapshotId = null;
+  // Keys minted while writing the manifest list in apply(), persisted in commit(). apply() and
+  // commit() run on the same thread, so no volatile is needed.
+  private StandardEncryptionManager.MintedKeys applyManifestListKeys;
   private TableMetadata base;
   private boolean stageOnly = false;
   private Consumer<String> deleteFunc = defaultDelete;
@@ -292,6 +297,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   @Override
   public Snapshot apply() {
     refresh();
+    this.applyManifestListKeys = null;
     Snapshot parentSnapshot = SnapshotUtil.latestSnapshot(base, targetBranch);
 
     long sequenceNumber = base.nextSequenceNumber();
@@ -354,6 +360,9 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
           replacedRecords);
     }
 
+    ManifestListFile manifestListFile = writer.toManifestListFile();
+    this.applyManifestListKeys = writer.manifestListKeys();
+
     return new BaseSnapshot(
         sequenceNumber,
         snapshotId(),
@@ -365,7 +374,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
         manifestList.location(),
         nextRowId,
         assignedRows,
-        writer.toManifestListFile().encryptionKeyID());
+        manifestListFile.encryptionKeyID());
   }
 
   private void runValidations(Snapshot parentSnapshot) {
@@ -500,8 +509,10 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
                     // this is a rollback operation
                     update.setBranchSnapshot(newSnapshot.snapshotId(), targetBranch);
                   } else if (stageOnly) {
+                    addEncryptionKeys(update, newSnapshot);
                     update.addSnapshot(newSnapshot);
                   } else {
+                    addEncryptionKeys(update, newSnapshot);
                     update.setBranchSnapshot(newSnapshot, targetBranch);
                   }
 
@@ -567,6 +578,25 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
       notifyListeners();
     } catch (Throwable e) {
       LOG.warn("Failed to notify event listeners", e);
+    }
+  }
+
+  private void addEncryptionKeys(TableMetadata.Builder update, Snapshot snapshot) {
+    if (applyManifestListKeys == null) {
+      return;
+    }
+
+    EncryptedKey manifestListKey = applyManifestListKeys.manifestListKey();
+    Preconditions.checkState(
+        manifestListKey.keyId().equals(snapshot.keyId()),
+        "Snapshot key id %s does not match minted manifest list key id %s",
+        snapshot.keyId(),
+        manifestListKey.keyId());
+    update.addEncryptionKey(manifestListKey);
+
+    EncryptedKey newKeyEncryptionKey = applyManifestListKeys.newKeyEncryptionKey();
+    if (newKeyEncryptionKey != null) {
+      update.addEncryptionKey(newKeyEncryptionKey);
     }
   }
 

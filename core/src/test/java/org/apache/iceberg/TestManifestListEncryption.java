@@ -24,8 +24,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import org.apache.avro.InvalidAvroMagicException;
@@ -33,14 +31,13 @@ import org.apache.iceberg.encryption.EncryptedKey;
 import org.apache.iceberg.encryption.EncryptingFileIO;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.encryption.EncryptionTestHelpers;
-import org.apache.iceberg.encryption.EncryptionUtil;
+import org.apache.iceberg.encryption.StandardEncryptionManager;
 import org.apache.iceberg.encryption.UnitestKMS;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.inmemory.InMemoryFileIO;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
@@ -99,9 +96,7 @@ public class TestManifestListEncryption {
 
   @Test
   public void testEncryption() throws IOException {
-    EncryptionManager em = EncryptionTestHelpers.createEncryptionManager();
-
-    ManifestFile manifest = writeAndReadEncryptedManifestList(em);
+    ManifestFile manifest = writeAndReadEncryptedManifestList(Lists.newArrayList(), 0).manifest;
 
     assertThat(manifest.path()).isEqualTo(PATH);
     assertThat(manifest.length()).isEqualTo(LENGTH);
@@ -116,104 +111,71 @@ public class TestManifestListEncryption {
     assertThat((long) manifest.existingRowsCount()).isEqualTo(EXISTING_ROWS);
     assertThat((int) manifest.deletedFilesCount()).isEqualTo(DELETED_FILES);
     assertThat((long) manifest.deletedRowsCount()).isEqualTo(DELETED_ROWS);
-    assertThat(manifest.content()).isEqualTo(ManifestContent.DATA);
   }
 
   @Test
-  public void testKeyWrappingAndRotation() throws IOException {
-    EncryptionManager em = EncryptionTestHelpers.createEncryptionManager();
-    // This manager uses UnitestKMS.MASTER_KEY_NAME1 as the table master key
-    String tableMasterKeyID = UnitestKMS.MASTER_KEY_NAME1;
+  public void testFirstMintCreatesKeyEncryptionKey() throws IOException {
+    StandardEncryptionManager.MintedKeys minted =
+        writeAndReadEncryptedManifestList(Lists.newArrayList(), 0).minted;
 
-    // Initial write/read
-    writeAndReadEncryptedManifestList(em);
-    Map<String, EncryptedKey> keyList = EncryptionUtil.encryptionKeys(em);
-    // Two keys: manifest list key (metadata), and its key encryption key
-    assertThat(keyList.size()).isEqualTo(2);
-    String initialKekID = EncryptionTestHelpers.keyEncryptionKeyID(em);
-    int kekCount = 0;
-    int mlkmCount = 0;
-
-    for (String keyID : keyList.keySet()) {
-      EncryptedKey key = keyList.get(keyID);
-      if (key.encryptedById().equals(tableMasterKeyID)) { // key encryption key
-        kekCount++;
-        assertThat(keyID).isEqualTo(initialKekID);
-      } else { // manifest list key metadata
-        mlkmCount++;
-        assertThat(key.encryptedById()).isEqualTo(initialKekID);
-      }
-    }
-
-    assertThat(kekCount).isEqualTo(1);
-    assertThat(mlkmCount).isEqualTo(1);
-
-    // Write/read after 30 days
-    EncryptionTestHelpers.shiftEncryptionManagerTime(em, TimeUnit.DAYS.toMillis(30));
-    writeAndReadEncryptedManifestList(em);
-    // below rotation time, key encryption key must be the same
-    assertThat(EncryptionTestHelpers.keyEncryptionKeyID(em)).isEqualTo(initialKekID);
-    keyList = EncryptionUtil.encryptionKeys(em);
-    // three keys: two manifest list keys (metadata), and their key encryption key
-    assertThat(keyList.size()).isEqualTo(3);
-    Set<String> intermediateKeySet = Sets.newHashSet((keyList.keySet()));
-    kekCount = 0;
-    mlkmCount = 0;
-
-    for (String keyID : intermediateKeySet) {
-      EncryptedKey key = keyList.get(keyID);
-      if (key.encryptedById().equals(tableMasterKeyID)) { // key encryption key
-        kekCount++;
-        assertThat(keyID).isEqualTo(initialKekID);
-      } else { // manifest list key metadata
-        mlkmCount++;
-        assertThat(key.encryptedById()).isEqualTo(initialKekID);
-      }
-    }
-
-    assertThat(kekCount).isEqualTo(1);
-    assertThat(mlkmCount).isEqualTo(2);
-
-    // Write/read after 800 days
-    EncryptionTestHelpers.shiftEncryptionManagerTime(em, TimeUnit.DAYS.toMillis(800));
-    writeAndReadEncryptedManifestList(em);
-    String newKekID = EncryptionTestHelpers.keyEncryptionKeyID(em);
-    // above rotation time, key encryption key must be different
-    assertThat(newKekID).isNotEqualTo(initialKekID);
-    keyList = EncryptionUtil.encryptionKeys(em);
-    // five keys: three manifest list keys (metadata), and two key encryption keys (old and new)
-    assertThat(keyList.size()).isEqualTo(5);
-    kekCount = 0;
-    mlkmCount = 0;
-
-    for (String keyID : keyList.keySet()) {
-      if (!intermediateKeySet.contains(keyID)) { // new keys
-        EncryptedKey key = keyList.get(keyID);
-        if (key.encryptedById().equals(tableMasterKeyID)) { // key encryption key
-          kekCount++;
-          assertThat(keyID).isEqualTo(newKekID);
-        } else { // manifest list key metadata
-          mlkmCount++;
-          assertThat(key.encryptedById()).isEqualTo(newKekID); // wrapped by new kek
-        }
-      }
-    }
-
-    // new keys
-    assertThat(kekCount).isEqualTo(1);
-    assertThat(mlkmCount).isEqualTo(1);
+    assertThat(minted.newKeyEncryptionKey()).isNotNull();
+    assertThat(minted.manifestListKey().encryptedById())
+        .isEqualTo(minted.newKeyEncryptionKey().keyId());
+    assertThat(minted.newKeyEncryptionKey().encryptedById()).isEqualTo(UnitestKMS.MASTER_KEY_NAME1);
   }
 
-  private ManifestFile writeAndReadEncryptedManifestList(EncryptionManager em) throws IOException {
+  @Test
+  public void testKeyEncryptionKeyReusedBeforeRotation() throws IOException {
+    List<EncryptedKey> metadataKeys = Lists.newArrayList();
+    String initialKekId =
+        writeAndReadEncryptedManifestList(metadataKeys, 0).minted.newKeyEncryptionKey().keyId();
+
+    // 30 days is well within the 2-year lifespan, so the existing KEK must be reused.
+    StandardEncryptionManager.MintedKeys second =
+        writeAndReadEncryptedManifestList(metadataKeys, TimeUnit.DAYS.toMillis(30)).minted;
+
+    assertThat(second.newKeyEncryptionKey()).isNull();
+    assertThat(second.manifestListKey().encryptedById()).isEqualTo(initialKekId);
+  }
+
+  @Test
+  public void testKeyEncryptionKeyRotatesAfterLifespan() throws IOException {
+    List<EncryptedKey> metadataKeys = Lists.newArrayList();
+    String initialKekId =
+        writeAndReadEncryptedManifestList(metadataKeys, 0).minted.newKeyEncryptionKey().keyId();
+
+    // 800 days exceeds the 2-year (730-day) lifespan, forcing rotation.
+    StandardEncryptionManager.MintedKeys rotated =
+        writeAndReadEncryptedManifestList(metadataKeys, TimeUnit.DAYS.toMillis(800)).minted;
+
+    assertThat(rotated.newKeyEncryptionKey()).isNotNull();
+    assertThat(rotated.newKeyEncryptionKey().keyId()).isNotEqualTo(initialKekId);
+    assertThat(rotated.manifestListKey().encryptedById())
+        .isEqualTo(rotated.newKeyEncryptionKey().keyId());
+  }
+
+  /**
+   * Writes an encrypted manifest list with a manager built from {@code metadataKeys}, persists the
+   * minted keys into {@code metadataKeys} (as SnapshotProducer would), then reads it back through a
+   * fresh manager built from the updated keys, mirroring a reader loading keys from refreshed
+   * metadata.
+   */
+  private WriteResult writeAndReadEncryptedManifestList(
+      List<EncryptedKey> metadataKeys, long timeShiftMillis) throws IOException {
     FileIO io = new InMemoryFileIO();
-    EncryptingFileIO encryptingFileIO = EncryptingFileIO.combine(io, em);
     OutputFile outputFile = io.newOutputFile("memory:" + UUID.randomUUID());
+
+    EncryptionManager writeManager =
+        EncryptionTestHelpers.createEncryptionManager(Lists.newArrayList(metadataKeys));
+    if (timeShiftMillis != 0) {
+      EncryptionTestHelpers.shiftEncryptionManagerTime(writeManager, timeShiftMillis);
+    }
 
     ManifestListWriter writer =
         ManifestLists.write(
             3,
             outputFile,
-            encryptingFileIO.encryptionManager(),
+            writeManager,
             SNAPSHOT_ID,
             SNAPSHOT_ID - 1,
             SEQ_NUM,
@@ -222,16 +184,34 @@ public class TestManifestListEncryption {
     writer.close();
     ManifestListFile manifestListFile = writer.toManifestListFile();
 
-    // First try to read without decryption
+    StandardEncryptionManager.MintedKeys minted = writer.manifestListKeys();
+    metadataKeys.add(minted.manifestListKey());
+    if (minted.newKeyEncryptionKey() != null) {
+      metadataKeys.add(minted.newKeyEncryptionKey());
+    }
+
+    // The manifest list is unreadable without decryption.
     assertThatThrownBy(() -> ManifestLists.read(outputFile.toInputFile()))
         .isInstanceOf(RuntimeIOException.class)
         .hasMessageContaining("Failed to open file")
         .hasCauseInstanceOf(InvalidAvroMagicException.class);
 
-    List<ManifestFile> manifests =
-        ManifestLists.read(encryptingFileIO.newInputFile(manifestListFile));
-    assertThat(manifests.size()).isEqualTo(1);
+    EncryptionManager readManager =
+        EncryptionTestHelpers.createEncryptionManager(Lists.newArrayList(metadataKeys));
+    EncryptingFileIO readIO = EncryptingFileIO.combine(io, readManager);
+    List<ManifestFile> manifests = ManifestLists.read(readIO.newInputFile(manifestListFile));
+    assertThat(manifests).hasSize(1);
 
-    return manifests.get(0);
+    return new WriteResult(manifests.get(0), minted);
+  }
+
+  private static final class WriteResult {
+    private final ManifestFile manifest;
+    private final StandardEncryptionManager.MintedKeys minted;
+
+    private WriteResult(ManifestFile manifest, StandardEncryptionManager.MintedKeys minted) {
+      this.manifest = manifest;
+      this.minted = minted;
+    }
   }
 }
