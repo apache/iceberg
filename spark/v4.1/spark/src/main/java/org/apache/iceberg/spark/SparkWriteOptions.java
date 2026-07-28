@@ -92,4 +92,8 @@ public class SparkWriteOptions {
 
   // Controls the buffer size for variant schema inference during writes
   public static final String VARIANT_INFERENCE_BUFFER_SIZE = "variant-inference-buffer-size";
+
+  // Uses the merge append instead of fast append for streaming appends
+  public static final String STREAMING_MERGE_APPEND_ENABLED = "streaming-merge-append-enabled";
+  public static final boolean STREAMING_MERGE_APPEND_ENABLED_DEFAULT = false;
 }
