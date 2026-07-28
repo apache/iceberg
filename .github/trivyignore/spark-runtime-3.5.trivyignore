@@ -16,9 +16,3 @@
 # under the License.
 #
 # Trivy ignore file for the Spark 3.5 runtime bundle.
-#
-# The Spark 3.5 runtime bundles the Jackson version provided by Spark 3.5
-# (jackson 2.15.x), which cannot be safely upgraded without breaking
-# compatibility with Spark 3.5. Newer Spark lines (4.0, 4.1) align Jackson to a
-# fixed version instead of ignoring the finding.
-#
