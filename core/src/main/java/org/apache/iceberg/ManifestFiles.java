@@ -573,14 +573,15 @@ public class ManifestFiles {
     return writer.toManifestFile();
   }
 
-  private static InputFile newInputFile(FileIO io, ManifestFile manifest) {
+  @VisibleForTesting
+  static InputFile newInputFile(FileIO io, ManifestFile manifest) {
     InputFile input = io.newInputFile(manifest);
     if (cachingEnabled(io)) {
       return contentCache(io).tryCache(input);
     }
 
     if (eagerFetchEnabled(io)) {
-      long length = input.getLength();
+      long length = manifest.length();
       if (canEagerFetch(length)) {
         return new EagerInputFile(input, length);
       }
