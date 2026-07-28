@@ -154,6 +154,48 @@ class TestVectorizedArrowReader {
   }
 
   @Test
+  void rowIdReaderResolvesZeroBatchSizeToTheDefault() {
+    long allocatedBefore = ArrowAllocation.rootAllocator().getAllocatedMemory();
+
+    VectorizedArrowReader reader = VectorizedArrowReader.rowIds(100L, null);
+    // a zero batch size falls back to the default, which must size the vector and the nullability
+    // holder alike: an empty holder next to a full sized vector fails every null check
+    reader.setBatchSize(0);
+
+    VectorHolder holder = reader.read(null, VectorizedArrowReader.DEFAULT_BATCH_SIZE);
+    assertThat(((BigIntVector) holder.vector()).getValueCount())
+        .isEqualTo(VectorizedArrowReader.DEFAULT_BATCH_SIZE);
+    assertThat(holder.nullabilityHolder().size())
+        .isGreaterThanOrEqualTo(VectorizedArrowReader.DEFAULT_BATCH_SIZE);
+    assertThat(holder.nullabilityHolder().isNullAt(VectorizedArrowReader.DEFAULT_BATCH_SIZE - 1))
+        .isEqualTo((byte) 0);
+
+    reader.close();
+
+    assertThat(ArrowAllocation.rootAllocator().getAllocatedMemory()).isEqualTo(allocatedBefore);
+  }
+
+  @Test
+  void positionReaderResolvesZeroBatchSizeToTheDefault() {
+    long allocatedBefore = ArrowAllocation.rootAllocator().getAllocatedMemory();
+
+    VectorizedArrowReader reader = VectorizedArrowReader.positions();
+    reader.setBatchSize(0);
+
+    VectorHolder holder = reader.read(null, VectorizedArrowReader.DEFAULT_BATCH_SIZE);
+    assertThat(holder.nullabilityHolder().size())
+        .isGreaterThanOrEqualTo(VectorizedArrowReader.DEFAULT_BATCH_SIZE);
+    assertThat(holder.nullabilityHolder().isNullAt(VectorizedArrowReader.DEFAULT_BATCH_SIZE - 1))
+        .isEqualTo((byte) 0);
+
+    // the position reader does not own its vector, its caller closes it
+    holder.vector().close();
+    reader.close();
+
+    assertThat(ArrowAllocation.rootAllocator().getAllocatedMemory()).isEqualTo(allocatedBefore);
+  }
+
+  @Test
   void lastUpdatedSeqReaderReusesVectorWhenHolderIsPassedBack() {
     long allocatedBefore = ArrowAllocation.rootAllocator().getAllocatedMemory();
 

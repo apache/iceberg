@@ -737,10 +737,13 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
 
     @Override
     public void setBatchSize(int batchSize) {
-      if (nulls == null || nulls.size() < batchSize) {
-        this.nulls = newNullabilityHolder(batchSize);
-      }
+      // resolve the batch size first: the vector and the nullability holder must be sized
+      // consistently, otherwise a zero batch size pairs a full sized vector with an empty holder
+      // and every null check on the returned holder fails
       this.batchSize = (batchSize == 0) ? DEFAULT_BATCH_SIZE : batchSize;
+      if (nulls == null || nulls.size() < this.batchSize) {
+        this.nulls = newNullabilityHolder(this.batchSize);
+      }
     }
 
     @Override
