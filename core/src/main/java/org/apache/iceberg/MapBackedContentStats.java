@@ -28,13 +28,7 @@ import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
-/**
- * Reusable {@link ContentStats} view over a legacy {@link ContentFile}'s stat maps.
- *
- * <p>Bounds are decoded lazily on access. The writer serializes this view directly through {@link
- * StructLike}, so {@code copy} is not supported; a stable snapshot must be materialized via the
- * writer instead.
- */
+/** Reusable {@link ContentStats} view over a legacy {@link ContentFile}'s stat maps. */
 class MapBackedContentStats implements ContentStats, StructLike {
   private final Types.StructType struct;
   private final int[] posToId;
