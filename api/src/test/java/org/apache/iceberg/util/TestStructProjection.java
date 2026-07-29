@@ -21,8 +21,10 @@ package org.apache.iceberg.util;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.util.Set;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.TestHelpers.Row;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.types.Types.StructType;
@@ -44,26 +46,20 @@ class TestStructProjection {
 
   // data schema is missing the optional "middle" field inside the nested "person" struct
   private static final StructType DATA_STRUCT_MISSING_NESTED_FIELD =
-      StructType.of(
-          NestedField.required(1, "id", Types.LongType.get()),
-          NestedField.required(
-              2,
-              "person",
-              StructType.of(
-                  NestedField.required(3, "first", Types.StringType.get()),
-                  NestedField.required(5, "last", Types.StringType.get()))));
+      TypeUtil.selectNot(PROJECTED_STRUCT, Set.of(4));
 
   @Test
   void createAllowMissingAllowsMissingOptionalFieldInNestedStruct() {
-    Row person = Row.of("John", "Doe");
-    Row row = Row.of(1L, person);
+    Row row = Row.of(1L, Row.of("John", "Doe"));
 
     StructProjection projection =
         StructProjection.createAllowMissing(DATA_STRUCT_MISSING_NESTED_FIELD, PROJECTED_STRUCT);
     projection.wrap(row);
 
     StructLike projectedPerson = projection.get(1, StructLike.class);
+    assertThat(projectedPerson.get(0, String.class)).isEqualTo("John");
     assertThat(projectedPerson.get(1, String.class)).isNull();
+    assertThat(projectedPerson.get(2, String.class)).isEqualTo("Doe");
   }
 
   @Test
