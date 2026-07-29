@@ -337,6 +337,50 @@ public class TestParquet {
   }
 
   @Test
+  public void testAllColumnsStatisticsDisabled() throws Exception {
+    Schema schema =
+        new Schema(
+            optional(1, "int_field", IntegerType.get()),
+            optional(2, "string_field", Types.StringType.get()),
+            optional(3, "long_field", Types.LongType.get()));
+
+    File file = createTempFile(temp);
+
+    List<GenericData.Record> records = Lists.newArrayListWithCapacity(5);
+    org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(schema.asStruct());
+    for (int i = 1; i <= 5; i++) {
+      GenericData.Record record = new GenericData.Record(avroSchema);
+      record.put("int_field", i);
+      record.put("string_field", "test");
+      record.put("long_field", (long) i);
+      records.add(record);
+    }
+
+    write(
+        file,
+        schema,
+        ImmutableMap.<String, String>builder()
+            .put(PARQUET_COLUMN_STATS_ENABLED_PREFIX + "int_field", "false")
+            .put(PARQUET_COLUMN_STATS_ENABLED_PREFIX + "string_field", "false")
+            .put(PARQUET_COLUMN_STATS_ENABLED_PREFIX + "long_field", "false")
+            .buildOrThrow(),
+        ParquetAvroWriter::buildWriter,
+        records.toArray(new GenericData.Record[] {}));
+
+    InputFile inputFile = Files.localInput(file);
+
+    try (ParquetFileReader reader = ParquetFileReader.open(ParquetIO.file(inputFile))) {
+      for (BlockMetaData block : reader.getFooter().getBlocks()) {
+        for (ColumnChunkMetaData column : block.getColumns()) {
+          assertThat(column.getStatistics().isEmpty())
+              .as("%s statistics are disabled", column.getPath().toDotString())
+              .isTrue();
+        }
+      }
+    }
+  }
+
+  @Test
   public void testGeospatialFooterMetricsSkipParquetBounds() throws IOException {
     Schema binarySchema = new Schema(optional(1, "geom", Types.BinaryType.get()));
     Schema geometrySchema = new Schema(optional(1, "geom", Types.GeometryType.crs84()));
