@@ -94,6 +94,6 @@ public class SparkWriteOptions {
   public static final String VARIANT_INFERENCE_BUFFER_SIZE = "variant-inference-buffer-size";
 
   // Uses the merge append instead of fast append for streaming appends
-  public static final String STREAMING_MERGE_APPEND_ENABLED = "streaming-merge-append-enabled";
-  public static final boolean STREAMING_MERGE_APPEND_ENABLED_DEFAULT = false;
+  public static final String USE_MERGE_APPEND_FOR_STREAMING = "use-merge-append-for-streaming";
+  public static final boolean USE_MERGE_APPEND_FOR_STREAMING_DEFAULT = false;
 }

@@ -269,7 +269,7 @@ df.writeTo("catalog.db.table")
 | delete-granularity | file | Override this table's delete granularity for this write |
 | shred-variants | false | Overrides this table's write.parquet.shred-variants for this write |
 | variant-inference-buffer-size | 100 | Overrides this table's write.parquet.variant-inference-buffer-size for this write |
-| streaming-merge-append-enabled | false | Use a merge append instead of a fast append for streaming appends, so manifests are merged on commit rather than accumulating as small manifests |
+| use-merge-append-for-streaming | false | Use a merge append instead of a fast append for streaming appends, so manifests are merged on commit rather than accumulating as small manifests |
 
 CommitMetadata provides an interface to add custom metadata to a snapshot summary during a SQL execution, which can be beneficial for purposes such as auditing or change tracking. If properties start with `snapshot-property.`, then that prefix will be removed from each property. Here is an example:
 

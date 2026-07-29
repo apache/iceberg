@@ -181,7 +181,7 @@ public class TestStructuredStreaming {
             .format("iceberg")
             .option("checkpointLocation", checkpoint.toString())
             .option("path", location.toString())
-            .option(SparkWriteOptions.STREAMING_MERGE_APPEND_ENABLED, "true");
+            .option(SparkWriteOptions.USE_MERGE_APPEND_FOR_STREAMING, "true");
 
     try {
       StreamingQuery query = streamWriter.start();
