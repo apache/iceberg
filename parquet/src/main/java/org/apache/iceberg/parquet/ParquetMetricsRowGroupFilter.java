@@ -189,8 +189,7 @@ public class ParquetMetricsRowGroupFilter {
       // When filtering nested types or variant types, notNull() is an implicit filter passed
       // even though complex filters aren't pushed down in Parquet. Leave these type filters
       // to be evaluated post scan.
-      Type type = schema.findType(id);
-      if (type instanceof Type.NestedType || type.isVariantType()) {
+      if (isNestedOrVariantType(id)) {
         return ROWS_MIGHT_MATCH;
       }
 
@@ -359,8 +358,7 @@ public class ParquetMetricsRowGroupFilter {
 
       // Leave all nested column type and variant type filters to be
       // evaluated post scan.
-      Type type = schema.findType(id);
-      if (type instanceof Type.NestedType || type.isVariantType()) {
+      if (isNestedOrVariantType(id)) {
         return ROWS_MIGHT_MATCH;
       }
 
@@ -409,8 +407,7 @@ public class ParquetMetricsRowGroupFilter {
 
       // Leave all nested column type and variant type filters to be
       // evaluated post scan.
-      Type type = schema.findType(id);
-      if (type instanceof Type.NestedType || type.isVariantType()) {
+      if (isNestedOrVariantType(id)) {
         return ROWS_MIGHT_MATCH;
       }
 
@@ -589,6 +586,11 @@ public class ParquetMetricsRowGroupFilter {
     @SuppressWarnings("unchecked")
     private <T> T max(Statistics<?> statistics, int id) {
       return (T) conversions.get(id).apply(statistics.genericGetMax());
+    }
+
+    private boolean isNestedOrVariantType(int id) {
+      Type type = schema.findType(id);
+      return type instanceof Type.NestedType || type.isVariantType();
     }
 
     @Override
