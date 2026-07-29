@@ -147,7 +147,7 @@ class StatsUtil {
         int baseId = toBaseId(id);
         Types.StructType fieldStruct =
             fieldStatsStruct(
-                isNullable(tableSchema, parentIndex, id),
+                TypeUtil.isNullable(tableSchema, id),
                 field.type(),
                 baseId,
                 metricsConfig.columnMode(id));
@@ -182,7 +182,7 @@ class StatsUtil {
         int baseId = toBaseId(id);
         Types.StructType fieldStruct =
             fieldStatsStruct(
-                isNullable(tableSchema, parentIndex, id),
+                TypeUtil.isNullable(tableSchema, id),
                 field.type(),
                 baseId,
                 MetricsModes.Full.get());
@@ -322,20 +322,6 @@ class StatsUtil {
     }
 
     return Types.StructType.of(fields);
-  }
-
-  /** Return whether a field may be null, either because it or any ancestor is optional. */
-  private static boolean isNullable(Schema schema, Map<Integer, Integer> parentIndex, int id) {
-    Integer currentId = id;
-    while (currentId != null) {
-      if (schema.findField(currentId).isOptional()) {
-        return true;
-      }
-
-      currentId = parentIndex.get(currentId);
-    }
-
-    return false;
   }
 
   /** Return whether a field has one value or may be repeated in map or list. */

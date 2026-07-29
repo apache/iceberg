@@ -973,6 +973,103 @@ public class TestTypeUtil {
   }
 
   @Test
+  public void isNullableWithUnknownFieldId() {
+    Schema schema = new Schema(required(1, "id", IntegerType.get()));
+
+    assertThat(TypeUtil.isNullable(schema, 2)).isTrue();
+  }
+
+  @Test
+  public void isNullableWithTopLevelFields() {
+    Schema schema =
+        new Schema(
+            required(1, "id", IntegerType.get()), optional(2, "data", Types.StringType.get()));
+
+    assertThat(TypeUtil.isNullable(schema, 1)).isFalse();
+    assertThat(TypeUtil.isNullable(schema, 2)).isTrue();
+  }
+
+  @Test
+  public void isNullableWithNestedStructs() {
+    Schema schema =
+        new Schema(
+            required(
+                1,
+                "required_location",
+                Types.StructType.of(
+                    required(3, "required_lat", Types.DoubleType.get()),
+                    optional(4, "optional_lon", Types.DoubleType.get()),
+                    required(
+                        5,
+                        "required_inner",
+                        Types.StructType.of(required(6, "required_zip", IntegerType.get()))))),
+            optional(
+                2,
+                "optional_location",
+                Types.StructType.of(
+                    required(7, "required_lat", Types.DoubleType.get()),
+                    required(
+                        8,
+                        "required_inner",
+                        Types.StructType.of(required(9, "required_zip", IntegerType.get()))))));
+
+    // a required field is not null when every field that contains it is required
+    assertThat(TypeUtil.isNullable(schema, 1)).isFalse();
+    assertThat(TypeUtil.isNullable(schema, 3)).isFalse();
+    assertThat(TypeUtil.isNullable(schema, 5)).isFalse();
+    assertThat(TypeUtil.isNullable(schema, 6)).isFalse();
+
+    // an optional field is null regardless of the fields that contain it
+    assertThat(TypeUtil.isNullable(schema, 4)).isTrue();
+
+    // a required field nested in an optional struct is null when the struct is null
+    assertThat(TypeUtil.isNullable(schema, 2)).isTrue();
+    assertThat(TypeUtil.isNullable(schema, 7)).isTrue();
+    assertThat(TypeUtil.isNullable(schema, 8)).isTrue();
+    assertThat(TypeUtil.isNullable(schema, 9)).isTrue();
+  }
+
+  @Test
+  public void isNullableWithListsAndMaps() {
+    Schema schema =
+        new Schema(
+            required(
+                1,
+                "required_points",
+                Types.ListType.ofRequired(
+                    4, Types.StructType.of(required(5, "required_x", Types.LongType.get())))),
+            optional(
+                2,
+                "optional_points",
+                Types.ListType.ofOptional(
+                    6, Types.StructType.of(required(7, "required_x", Types.LongType.get())))),
+            required(
+                3,
+                "locations",
+                Types.MapType.ofRequired(
+                    8,
+                    9,
+                    Types.StringType.get(),
+                    Types.StructType.of(required(10, "required_lat", Types.DoubleType.get())))));
+
+    // a required element of a required list is not null, nor is anything it contains
+    assertThat(TypeUtil.isNullable(schema, 1)).isFalse();
+    assertThat(TypeUtil.isNullable(schema, 4)).isFalse();
+    assertThat(TypeUtil.isNullable(schema, 5)).isFalse();
+
+    // an optional element is null, as is anything it contains
+    assertThat(TypeUtil.isNullable(schema, 2)).isTrue();
+    assertThat(TypeUtil.isNullable(schema, 6)).isTrue();
+    assertThat(TypeUtil.isNullable(schema, 7)).isTrue();
+
+    // required map keys and values are not null
+    assertThat(TypeUtil.isNullable(schema, 3)).isFalse();
+    assertThat(TypeUtil.isNullable(schema, 8)).isFalse();
+    assertThat(TypeUtil.isNullable(schema, 9)).isFalse();
+    assertThat(TypeUtil.isNullable(schema, 10)).isFalse();
+  }
+
+  @Test
   public void testIndexStatsNames() {
     Schema schema =
         new Schema(

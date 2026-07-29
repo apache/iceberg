@@ -73,18 +73,12 @@ public class InclusiveStatsEvaluator {
     ImmutableSet.Builder<Integer> neverNull = ImmutableSet.builder();
 
     for (int id : referencedIds) {
-      Types.NestedField field = schema.findField(id);
-      if (field != null && field.isRequired() && allAncestorFieldsAreRequired(schema, id)) {
+      if (!TypeUtil.isNullable(schema, id)) {
         neverNull.add(id);
       }
     }
 
     return neverNull.build();
-  }
-
-  private static boolean allAncestorFieldsAreRequired(Schema schema, int fieldId) {
-    return TypeUtil.ancestorFields(schema, fieldId).stream()
-        .allMatch(Types.NestedField::isRequired);
   }
 
   /**
