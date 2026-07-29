@@ -210,9 +210,9 @@ public class TestInclusiveMetricsEvaluator {
           Row.of(),
           10,
           // any value counts, including nulls
-          ImmutableMap.of(100, 5L, 101, 5L, 102, 5L, 103, 5L, 104, 5L, 105, 5L),
+          ImmutableMap.of(102, 5L, 103, 5L, 104, 5L, 105, 5L),
           // null value counts
-          ImmutableMap.of(100, 0L, 101, 5L, 103, 5L, 104, 5L, 105, 5L),
+          ImmutableMap.of(103, 5L, 104, 5L, 105, 5L),
           // nan value counts
           null,
           // lower bounds
@@ -921,7 +921,7 @@ public class TestInclusiveMetricsEvaluator {
     // read optional_address and its nested fields
     shouldRead =
         new InclusiveMetricsEvaluator(NESTED_SCHEMA, isNull("optional_address")).eval(FILE_6);
-    assertThat(shouldRead).as("Should read: optional_address is optional").isTrue();
+    assertThat(shouldRead).as("Should read: metrics are not tracked for structs").isTrue();
 
     shouldRead =
         new InclusiveMetricsEvaluator(NESTED_SCHEMA, isNull("optional_address.required_street2"))
@@ -958,7 +958,7 @@ public class TestInclusiveMetricsEvaluator {
     // read optional_address and its nested fields
     shouldRead =
         new InclusiveMetricsEvaluator(NESTED_SCHEMA, notNull("optional_address")).eval(FILE_6);
-    assertThat(shouldRead).as("Should not read: optional_address is optional").isFalse();
+    assertThat(shouldRead).as("Should read: metrics are not tracked for structs").isTrue();
 
     shouldRead =
         new InclusiveMetricsEvaluator(NESTED_SCHEMA, notNull("optional_address.required_street2"))
