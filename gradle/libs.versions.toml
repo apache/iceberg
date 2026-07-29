@@ -36,7 +36,7 @@ awaitility = "4.3.0"
 awssdk-bom = "2.47.5"
 azuresdk-bom = "1.3.7"
 awssdk-s3accessgrants = "2.4.1"
-bouncycastle = "1.84"
+bouncycastle = "1.85"
 bson-ver = "4.11.5"
 caffeine = "2.9.3"
 calcite = "1.42.0"
@@ -60,7 +60,6 @@ hive2 = { strictly = "2.3.10"} # see rich version usage explanation above
 immutables-value = "2.12.2"
 jackson-annotations = "2.22"
 jackson-bom = "2.22.1"
-jackson215 = { strictly = "2.15.2"} # see rich version usage explanation above
 jackson218 = { strictly = "2.18.8"}
 jackson221 = { strictly = "2.21.4"}
 jakarta-el-api = "3.0.3"

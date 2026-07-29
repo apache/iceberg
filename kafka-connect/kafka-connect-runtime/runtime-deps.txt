@@ -179,7 +179,7 @@ org.apache.parquet:parquet-format-structures:1.17
 org.apache.parquet:parquet-hadoop:1.17
 org.apache.parquet:parquet-jackson:1.17
 org.apache.parquet:parquet-variant:1.17
-org.bouncycastle:bcprov-jdk18on:1.84
+org.bouncycastle:bcprov-jdk18on:1.85
 org.checkerframework:checker-compat-qual:2.5
 org.checkerframework:checker-qual:3.49
 org.codehaus.jettison:jettison:1.5

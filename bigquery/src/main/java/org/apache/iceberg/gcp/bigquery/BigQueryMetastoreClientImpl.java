@@ -553,32 +553,6 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
     }
   }
 
-  //  private Dataset internalUpdate(Dataset dataset) {
-  //    Preconditions.checkArgument(
-  //        dataset.getDatasetReference() != null, "Dataset Reference can not be null!");
-  //    Preconditions.checkArgument(
-  //        dataset.getDatasetReference().getDatasetId() != null, "Dataset Id can not be null!");
-  //
-  //    try {
-  //      HttpResponse response =
-  //          client
-  //              .datasets()
-  //              .update(
-  //                  dataset.getDatasetReference().getProjectId(),
-  //                  dataset.getDatasetReference().getDatasetId(),
-  //                  dataset)
-  //              .setRequestHeaders(new HttpHeaders().setIfMatch(dataset.getEtag()))
-  //              .executeUnparsed();
-  //      if (response.getStatusCode() == HttpStatusCodes.STATUS_CODE_NOT_FOUND) {
-  //        throw new NoSuchNamespaceException("%s", response.getStatusMessage());
-  //      }
-  //
-  //      return convertExceptionIfUnsuccessful(response).parseAs(Dataset.class);
-  //    } catch (IOException e) {
-  //      throw new RuntimeIOException("%s", e);
-  //    }
-  //  }
-
   /**
    * Checks if the given table represents a BigQuery Metastore Iceberg table. A table is considered
    * an Iceberg table if it has ExternalCatalogTableOptions, a non-empty parameters map containing
@@ -594,8 +568,7 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
       return false;
     }
 
-    java.util.Map<String, String> parameters =
-        table.getExternalCatalogTableOptions().getParameters();
+    Map<String, String> parameters = table.getExternalCatalogTableOptions().getParameters();
 
     if (!parameters.containsKey(BaseMetastoreTableOperations.METADATA_LOCATION_PROP)
         || !parameters.containsKey(BaseMetastoreTableOperations.TABLE_TYPE_PROP)) {
