@@ -111,6 +111,16 @@ public class StandardEncryptionManager implements EncryptionManager {
     return EncryptionUtil.decryptKeyMetadata(keyId, this);
   }
 
+  @Override
+  public String encryptKeyMetadata(EncryptionKeyMetadata keyMetadata, long fileLength) {
+    if (!(keyMetadata instanceof NativeEncryptionKeyMetadata nativeKeyMetadata)
+        || nativeKeyMetadata.encryptionKey() == null) {
+      return null;
+    }
+
+    return addKeyMetadata(nativeKeyMetadata.copyWithLength(fileLength));
+  }
+
   private LoadingCache<String, ByteBuffer> unwrappedKeyCache() {
     if (this.unwrappedKeyCache == null) {
       this.unwrappedKeyCache =
@@ -207,7 +217,7 @@ public class StandardEncryptionManager implements EncryptionManager {
     return manifestListKeyID;
   }
 
-  public String addKeyMetadata(NativeEncryptionKeyMetadata keyMetadata) {
+  private String addKeyMetadata(NativeEncryptionKeyMetadata keyMetadata) {
     String keyID = generateKeyId();
     String keyEncryptionKeyID = keyEncryptionKeyID();
     String keyEncryptionKeyTimestamp =

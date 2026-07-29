@@ -265,6 +265,7 @@ public class TestCatalogUtilDropTable extends HadoopTableTestBase {
           statsLocation,
           puffinWriter.fileSize(),
           puffinWriter.footerSize(),
+          null,
           puffinWriter.writtenBlobsMetadata().stream()
               .map(GenericBlobMetadata::from)
               .collect(ImmutableList.toImmutableList()));

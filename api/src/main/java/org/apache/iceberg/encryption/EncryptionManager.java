@@ -64,6 +64,19 @@ public interface EncryptionManager extends Serializable {
   }
 
   /**
+   * Encrypt the key metadata of a written file.
+   *
+   * @param keyMetadata the key metadata of the written file
+   * @param fileLength the length of the written file
+   * @return the encryption key ID referring to the encrypted key metadata, or null if the file is
+   *     written in plain text
+   */
+  default String encryptKeyMetadata(EncryptionKeyMetadata keyMetadata, long fileLength) {
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " does not support key metadata encryption");
+  }
+
+  /**
    * Given a handle on an {@link OutputFile} that writes raw bytes to the underlying file system,
    * return a bundle of an {@link EncryptedOutputFile#encryptingOutputFile()} that writes encrypted
    * bytes to the underlying file system, and the {@link EncryptedOutputFile#keyMetadata()} that
