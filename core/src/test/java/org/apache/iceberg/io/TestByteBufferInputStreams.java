@@ -173,6 +173,32 @@ public abstract class TestByteBufferInputStreams {
   }
 
   @Test
+  public void testReadByteBuffer() throws Exception {
+    ByteBufferInputStream stream = newStream();
+    ByteBuffer destination = ByteBuffer.allocate(12);
+    destination.position(2);
+    destination.limit(10);
+
+    assertThat(stream.read(destination)).as("Should fill the destination").isEqualTo(8);
+    assertThat(destination.position()).as("Should advance the destination position").isEqualTo(10);
+    assertThat(destination.limit()).as("Should preserve the destination limit").isEqualTo(10);
+
+    destination.flip();
+    destination.position(2);
+    for (int i = 0; i < 8; i += 1) {
+      assertThat(destination.get()).as("Byte i should be i").isEqualTo((byte) i);
+    }
+
+    ByteBuffer full = ByteBuffer.allocate(0);
+    assertThat(stream.read(full)).as("Should read 0 bytes into a full destination").isEqualTo(0);
+
+    stream.skipFully(stream.available());
+    assertThat(stream.read(ByteBuffer.allocate(1))).as("Should return -1 at EOF").isEqualTo(-1);
+
+    checkOriginalData();
+  }
+
+  @Test
   @SuppressWarnings("LocalVariableName")
   public void testSlice() throws Exception {
     ByteBufferInputStream stream = newStream();
