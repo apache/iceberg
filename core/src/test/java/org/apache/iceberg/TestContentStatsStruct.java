@@ -68,7 +68,7 @@ public class TestContentStatsStruct {
           null);
 
   @Test
-  public void testEmptyContentStats() {
+  public void emptyContentStats() {
     ContentStats stats = new ContentStatsStruct(CONTENT_STATS_STRUCT);
 
     assertThat(stats.statsFor(1)).isNull();
@@ -78,7 +78,7 @@ public class TestContentStatsStruct {
   }
 
   @Test
-  public void testSetStats() {
+  public void setStats() {
     ContentStatsStruct stats = new ContentStatsStruct(CONTENT_STATS_STRUCT);
 
     stats.setStats(1, ID_STATS);
@@ -90,7 +90,7 @@ public class TestContentStatsStruct {
   }
 
   @Test
-  public void testSetStatsWrongId() {
+  public void setStatsWrongId() {
     ContentStatsStruct stats = new ContentStatsStruct(CONTENT_STATS_STRUCT);
 
     assertThatThrownBy(() -> stats.setStats(2, ID_STATS))
@@ -99,7 +99,7 @@ public class TestContentStatsStruct {
   }
 
   @Test
-  public void testSetStatsUnknownField() {
+  public void setStatsUnknownField() {
     ContentStatsStruct stats = new ContentStatsStruct(CONTENT_STATS_STRUCT);
 
     FieldStats<Integer> fieldStats =
@@ -111,7 +111,7 @@ public class TestContentStatsStruct {
   }
 
   @Test
-  public void testGetByPosition() {
+  public void getByPosition() {
     // the content stats struct with a known field order
     Types.StructType contentStatsStruct =
         Types.StructType.of(
@@ -130,7 +130,7 @@ public class TestContentStatsStruct {
   }
 
   @Test
-  public void testSetByPosition() {
+  public void setByPosition() {
     // the content stats struct with a known field order
     Types.StructType statsStruct =
         Types.StructType.of(
@@ -150,7 +150,7 @@ public class TestContentStatsStruct {
   }
 
   @Test
-  public void testSize() {
+  public void size() {
     ContentStatsStruct stats = new ContentStatsStruct(CONTENT_STATS_STRUCT);
 
     assertThat(stats.size()).isEqualTo(3);
@@ -158,7 +158,7 @@ public class TestContentStatsStruct {
 
   @Test
   @SuppressWarnings("unchecked")
-  public void testCopy() {
+  public void copy() {
     FieldStats<Long> idStats = Mockito.mock(FieldStats.class);
     FieldStats<Long> idStatsCopy = Mockito.mock(FieldStats.class);
     Mockito.when(idStats.fieldId()).thenReturn(1);
@@ -186,7 +186,7 @@ public class TestContentStatsStruct {
 
   @Test
   @SuppressWarnings("unchecked")
-  public void testFilteredCopy() {
+  public void filteredCopy() {
     FieldStats<Long> idStats = Mockito.mock(FieldStats.class);
     FieldStats<Long> idStatsCopy = Mockito.mock(FieldStats.class);
     Mockito.when(idStats.fieldId()).thenReturn(1);
@@ -221,7 +221,7 @@ public class TestContentStatsStruct {
 
   @ParameterizedTest
   @FieldSource("SERIALIZERS")
-  public void testSerialization(RoundTripSerializer<ContentStatsStruct> serializer)
+  public void serialization(RoundTripSerializer<ContentStatsStruct> serializer)
       throws Exception {
     ContentStatsStruct stats = new ContentStatsStruct(CONTENT_STATS_STRUCT);
     stats.setStats(1, ID_STATS);
