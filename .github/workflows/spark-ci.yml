@@ -81,7 +81,7 @@ jobs:
       # Keep matrix <= 20 jobs; exceeding it queues a second wave and slows CI.
       max-parallel: 20
       matrix:
-        jvm: [17, 21]
+        jvm: [17, 21, 25]
         event_name: ['${{ github.event_name }}']
         spark: ['3.5', '4.0', '4.1']
         scala: ['2.12', '2.13']
@@ -95,9 +95,18 @@ jobs:
             scala: '2.12'
           - spark: '4.1'
             scala: '2.12'
+          # Java 25 is only validated against Spark 4.1. Spark 3.5 supports Java 8/11/17 and
+          # Spark 4.0 supports Java 17/21, so neither runs on Java 25. Restricting Java 25 to
+          # Spark 4.1 also keeps the matrix within the 20-job Apache infra ceiling above.
+          - jvm: 25
+            spark: '3.5'
+          - jvm: 25
+            spark: '4.0'
           # Pull requests run the baseline JDK only.
           - event_name: pull_request
             jvm: 21
+          - event_name: pull_request
+            jvm: 25
     env:
       SPARK_LOCAL_IP: localhost
     steps:

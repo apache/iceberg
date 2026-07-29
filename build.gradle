@@ -51,7 +51,7 @@ try {
   project.logger.error(e.getMessage())
 }
 
-if (JavaVersion.current() == JavaVersion.VERSION_17 || JavaVersion.current() == JavaVersion.VERSION_21) {
+if (JavaVersion.current() == JavaVersion.VERSION_17 || JavaVersion.current() == JavaVersion.VERSION_21 || JavaVersion.current() == JavaVersion.VERSION_25) {
   project.ext.jdkVersion = JavaVersion.current().getMajorVersion().toString()
   project.ext.extraJvmArgs = ["--add-opens", "java.base/java.io=ALL-UNNAMED",
                               "--add-opens", "java.base/java.lang.invoke=ALL-UNNAMED",
@@ -74,8 +74,18 @@ if (JavaVersion.current() == JavaVersion.VERSION_17 || JavaVersion.current() == 
                               "--add-opens", "java.base/sun.nio.cs=ALL-UNNAMED",
                               "--add-opens", "java.base/sun.security.action=ALL-UNNAMED",
                               "--add-opens", "java.base/sun.util.calendar=ALL-UNNAMED"]
+
+  if (JavaVersion.current() > JavaVersion.VERSION_21) {
+    // Netty disables sun.misc.Unsafe by default on Java 24+, but arrow-memory-netty's
+    // PooledByteBufAllocatorL casts allocations to PooledUnsafeDirectByteBuf, so the
+    // non-Unsafe fallback fails with a ClassCastException. Keep the Unsafe path enabled
+    // and allow the memory-access methods it relies on.
+    project.ext.extraJvmArgs += ["--sun-misc-unsafe-memory-access=allow",
+                                 "-Dio.netty.noUnsafe=false",
+                                 "-Dio.netty.tryReflectionSetAccessible=true"]
+  }
 } else {
-  throw new GradleException("This build must be run with JDK 17 or 21 but was executed with JDK " + JavaVersion.current())
+  throw new GradleException("This build must be run with JDK 17, 21, or 25 but was executed with JDK " + JavaVersion.current())
 }
 
 tasks.withType(AbstractArchiveTask).configureEach {
@@ -188,7 +198,12 @@ subprojects {
 
     compileClasspath {
       // do not exclude Guava so the bundle project can reference classes.
-      if (project.name != 'iceberg-bundled-guava') {
+      // iceberg-gcp needs the real Guava on the compile classpath only so that javac can
+      // resolve the Guava types referenced by annotated google-cloud-storage signatures;
+      // on JDK 22+ javac attaches type annotations across compilation boundaries
+      // (JDK-8225377) and errors when the annotated type is absent. Iceberg code still
+      // uses the shaded copy at runtime.
+      if (project.name != 'iceberg-bundled-guava' && project.name != 'iceberg-gcp') {
         exclude group: 'com.google.guava', module: 'guava'
       }
       // contains a copy of Guava
@@ -207,6 +222,7 @@ subprojects {
           substitute module("org.lz4:lz4-java") using module(libs.lz4Java.get().toString()) because("Enforce lz4-java that contains CVE-2025-12183 and CVE-2025-66566 fixes")
           substitute module("io.airlift:aircompressor") using module(libs.aircompressor.get().toString()) because("Enforce aircompressor that contains CVE-2025-67721 fix")
           substitute module("org.bouncycastle:bcprov-jdk18on") using module(libs.bouncycastle.bcprov.get().toString()) because("Enforce BouncyCastle that contains CVE-2026-5598 fix")
+          substitute module("org.apache.datasketches:datasketches-memory") using module(libs.datasketchesMemory.get().toString()) because("datasketches-memory rejects any JDK outside 1.8/8/11/17/21; the java17_25 artifact targets Java 17 bytecode without a version gate, so it runs on 17, 21 and 25")
         }
         eachDependency { details ->
           if (details.requested.group == 'io.netty'
@@ -769,6 +785,9 @@ project(':iceberg-gcp') {
     compileOnly "com.google.cloud:google-cloud-storage"
     compileOnly "com.google.cloud:google-cloud-kms"
     compileOnly(libs.gcs.analytics.core)
+    // Required so javac can resolve the Guava types in annotated google-cloud-storage
+    // signatures; see the iceberg-gcp note on the compileClasspath Guava exclusion.
+    compileOnly libs.guava.guava
 
     testImplementation "com.google.cloud:google-cloud-nio"
 
