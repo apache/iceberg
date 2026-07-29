@@ -27,8 +27,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.BaseTable;
+import org.apache.iceberg.FieldLabels;
+import org.apache.iceberg.Labels;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SupportsLabels;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableUtil;
@@ -53,6 +56,8 @@ abstract class BaseSparkTable
   private static final String LOCATION = "location";
   private static final String SORT_ORDER = "sort-order";
   private static final String IDENTIFIER_FIELDS = "identifier-fields";
+  private static final String LABELS_OBJECT_PREFIX = "labels.object.";
+  private static final String LABELS_FIELD_PREFIX = "labels.field.";
   private static final Set<String> RESERVED_PROPERTIES =
       ImmutableSet.of(
           PROVIDER,
@@ -135,6 +140,23 @@ abstract class BaseSparkTable
     table.properties().entrySet().stream()
         .filter(entry -> !RESERVED_PROPERTIES.contains(entry.getKey()))
         .forEach(propsBuilder::put);
+
+    // Surface catalog-provided labels (driver-side only; not part of table state) so they are
+    // visible in DESCRIBE EXTENDED. The tbl.labels metadata table is the queryable counterpart.
+    if (table instanceof SupportsLabels) {
+      Labels labels = ((SupportsLabels) table).labels();
+      labels
+          .objectLabels()
+          .forEach((key, value) -> propsBuilder.put(LABELS_OBJECT_PREFIX + key, value));
+      for (FieldLabels fieldLabels : labels.fields()) {
+        fieldLabels
+            .labels()
+            .forEach(
+                (key, value) ->
+                    propsBuilder.put(
+                        LABELS_FIELD_PREFIX + fieldLabels.fieldId() + "." + key, value));
+      }
+    }
 
     return propsBuilder.build();
   }
