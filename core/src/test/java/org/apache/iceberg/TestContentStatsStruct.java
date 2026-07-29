@@ -221,8 +221,7 @@ public class TestContentStatsStruct {
 
   @ParameterizedTest
   @FieldSource("SERIALIZERS")
-  public void serialization(RoundTripSerializer<ContentStatsStruct> serializer)
-      throws Exception {
+  public void serialization(RoundTripSerializer<ContentStatsStruct> serializer) throws Exception {
     ContentStatsStruct stats = new ContentStatsStruct(CONTENT_STATS_STRUCT);
     stats.setStats(1, ID_STATS);
     stats.setStats(2, DATA_STATS);

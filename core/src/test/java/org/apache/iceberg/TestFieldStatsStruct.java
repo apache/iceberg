@@ -289,8 +289,8 @@ public class TestFieldStatsStruct {
 
   @ParameterizedTest
   @MethodSource("geoCases")
-  public void geoSerialization(
-      Type geoType, RoundTripSerializer<FieldStatsStruct<?>> serializer) throws Exception {
+  public void geoSerialization(Type geoType, RoundTripSerializer<FieldStatsStruct<?>> serializer)
+      throws Exception {
     Types.StructType statsStruct =
         StatsUtil.fieldStatsStruct(true, geoType, BASE_ID, MetricsModes.Full.get());
 
