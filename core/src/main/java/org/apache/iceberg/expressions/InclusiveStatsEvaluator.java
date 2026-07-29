@@ -20,10 +20,14 @@ package org.apache.iceberg.expressions;
 
 import static org.apache.iceberg.expressions.Expressions.rewriteNot;
 
+import java.util.Collections;
+import java.util.Set;
 import org.apache.iceberg.ContentStats;
 import org.apache.iceberg.FieldStats;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TrackedFile;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.variants.Variant;
 import org.apache.iceberg.variants.VariantObject;
@@ -46,6 +50,7 @@ import org.apache.iceberg.variants.VariantObject;
  */
 public class InclusiveStatsEvaluator {
   private final Expression expr;
+  private final Set<Integer> neverNullIds;
 
   public InclusiveStatsEvaluator(Schema schema, Expression unbound) {
     this(schema, unbound, true);
@@ -54,6 +59,32 @@ public class InclusiveStatsEvaluator {
   public InclusiveStatsEvaluator(Schema schema, Expression unbound, boolean caseSensitive) {
     Types.StructType struct = schema.asStruct();
     this.expr = Binder.bind(struct, rewriteNot(unbound), caseSensitive);
+    this.neverNullIds =
+        neverNullIds(
+            schema, Binder.boundReferences(struct, Collections.singletonList(expr), caseSensitive));
+  }
+
+  /**
+   * Returns the IDs of the referenced fields that cannot contain null values.
+   *
+   * <p>Stats omit the null count for such fields, which must not be confused with an unknown count.
+   */
+  private static Set<Integer> neverNullIds(Schema schema, Set<Integer> referencedIds) {
+    ImmutableSet.Builder<Integer> neverNull = ImmutableSet.builder();
+
+    for (int id : referencedIds) {
+      Types.NestedField field = schema.findField(id);
+      if (field != null && field.isRequired() && allAncestorFieldsAreRequired(schema, id)) {
+        neverNull.add(id);
+      }
+    }
+
+    return neverNull.build();
+  }
+
+  private static boolean allAncestorFieldsAreRequired(Schema schema, int fieldId) {
+    return TypeUtil.ancestorFields(schema, fieldId).stream()
+        .allMatch(Types.NestedField::isRequired);
   }
 
   /**
@@ -90,6 +121,10 @@ public class InclusiveStatsEvaluator {
 
     @Override
     protected boolean mayContainNull(int id) {
+      if (neverNullIds.contains(id)) {
+        return false;
+      }
+
       FieldStats<?> fieldStats = stats.statsFor(id);
       return fieldStats == null
           || !fieldStats.hasNullValueCount()
