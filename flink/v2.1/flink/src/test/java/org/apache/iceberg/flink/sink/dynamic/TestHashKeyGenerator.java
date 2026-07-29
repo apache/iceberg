@@ -165,7 +165,7 @@ class TestHashKeyGenerator {
   }
 
   @Test
-  void rangeModeWithEqualityFields() throws Exception {
+  void testRangeModeWithEqualityFields() throws Exception {
     int writeParallelism = 2;
     int maxWriteParallelism = 8;
     HashKeyGenerator generator = new HashKeyGenerator(16, maxWriteParallelism);
@@ -204,6 +204,35 @@ class TestHashKeyGenerator {
 
     assertThat(writeKey1).isEqualTo(writeKey2);
     assertThat(writeKey2).isNotEqualTo(writeKey3);
+  }
+
+  @Test
+  void testRangeModeFallsBackToDistributionModeNone() throws Exception {
+    int writeParallelism = 2;
+    int maxWriteParallelism = 8;
+    HashKeyGenerator generator = new HashKeyGenerator(16, maxWriteParallelism);
+    Schema noIdSchema = new Schema(Types.NestedField.required(1, "x", Types.StringType.get()));
+    PartitionSpec unpartitioned = PartitionSpec.unpartitioned();
+
+    DynamicRecord record =
+        new DynamicRecord(
+            TABLE_IDENTIFIER,
+            BRANCH,
+            noIdSchema,
+            GenericRowData.of(StringData.fromString("v")),
+            unpartitioned,
+            DistributionMode.RANGE,
+            writeParallelism);
+
+    int writeKey1 = generator.generateKey(record);
+    int writeKey2 = generator.generateKey(record);
+    int writeKey3 = generator.generateKey(record);
+    assertThat(writeKey1).isNotEqualTo(writeKey2);
+    assertThat(writeKey3).isEqualTo(writeKey1);
+
+    assertThat(getSubTaskId(writeKey1, writeParallelism, maxWriteParallelism)).isEqualTo(1);
+    assertThat(getSubTaskId(writeKey2, writeParallelism, maxWriteParallelism)).isEqualTo(0);
+    assertThat(getSubTaskId(writeKey3, writeParallelism, maxWriteParallelism)).isEqualTo(1);
   }
 
   @Test
