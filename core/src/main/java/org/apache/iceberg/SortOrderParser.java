@@ -56,7 +56,7 @@ public class SortOrderParser {
   }
 
   private static String toJson(SortDirection direction) {
-    return direction.toString().toLowerCase(Locale.ENGLISH);
+    return direction.toString().toLowerCase(Locale.ROOT);
   }
 
   private static String toJson(NullOrder nullOrder) {
