@@ -475,15 +475,9 @@ public abstract class VariantShreddingAnalyzer<T, S> {
         PhysicalType type = PHYSICAL_TYPES[i];
 
         if (isIntegerType(type)) {
-          if (widestInteger == null
-              || INTEGER_PRIORITY.get(type) > INTEGER_PRIORITY.get(widestInteger)) {
-            widestInteger = type;
-          }
+          widestInteger = widerType(widestInteger, type, INTEGER_PRIORITY);
         } else if (isDecimalType(type)) {
-          if (widestDecimal == null
-              || DECIMAL_PRIORITY.get(type) > DECIMAL_PRIORITY.get(widestDecimal)) {
-            widestDecimal = type;
-          }
+          widestDecimal = widerType(widestDecimal, type, DECIMAL_PRIORITY);
         } else {
           families.add(type);
         }
@@ -507,6 +501,14 @@ public abstract class VariantShreddingAnalyzer<T, S> {
       admittedTypeCached = families.iterator().next();
       admittedTypeComputed = true;
       return admittedTypeCached;
+    }
+
+    private static PhysicalType widerType(
+        PhysicalType current, PhysicalType candidate, Map<PhysicalType, Integer> priority) {
+      if (current == null) {
+        return candidate;
+      }
+      return priority.get(candidate) > priority.get(current) ? candidate : current;
     }
 
     private static boolean isIntegerType(PhysicalType type) {
