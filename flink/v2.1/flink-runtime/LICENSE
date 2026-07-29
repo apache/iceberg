@@ -203,7 +203,9 @@
 
 --------------------------------------------------------------------------------
 
-This product bundles Apache Avro.
+This product bundles and includes code from Apache Avro.
+
+* Conversion in DecimalWriter is based on Avro's Conversions.DecimalConversion.
 
 Copyright: 2014-2020 The Apache Software Foundation.
 Project URL: https://avro.apache.org/
@@ -307,7 +309,12 @@ License: BSD 2-Clause
 
 --------------------------------------------------------------------------------
 
-This product bundles Apache Parquet.
+This product bundles and includes code from Apache Parquet.
+
+* DynMethods.java
+* DynConstructors.java
+* IOUtil.java readFully
+* ByteBufferInputStream implementations
 
 Copyright: 2014-2020 The Apache Software Foundation.
 Project URL: https://parquet.apache.org/
@@ -418,6 +425,26 @@ License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2
 
 --------------------------------------------------------------------------------
 
+This product includes code from Cloudera Kite.
+
+* SchemaVisitor and visit methods
+
+Copyright: 2013-2017 Cloudera Inc.
+Project URL: https://kitesdk.org/
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
+This product includes code from Presto.
+
+* Retry wait and jitter logic in Tasks.java
+
+Copyright: 2016 Facebook and contributors
+Project URL: https://prestodb.io/
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
 This product bundles Google Guava.
 
 Copyright: 2006-2020 The Guava Authors
@@ -490,6 +517,31 @@ This product bundles Project Nessie.
 
 Copyright: Copyright 2015-2025 Dremio Corporation
 Project URL: https://projectnessie.org/
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
+This product includes code from Apache Flink.
+
+* Primary key validation logic in FlinkSchemaUtil.java
+* Avro to RowData conversion logic in AvroToRowDataConverters.java
+* RowData to Avro conversion logic in RowDataToAvroConverters.java
+* Avro schema conversion logic in AvroSchemaConverter.java
+* Joda optional dependency encapsulation in JodaConverter.java
+* Binary variant accessor utility methods in BinaryVariantAccessorUtils.java
+
+Copyright: 1999-2022 The Apache Software Foundation.
+Project URL: https://flink.apache.org/
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
+This product includes code from Delta Lake.
+
+* RoaringPositionBitmap is a Java implementation of RoaringBitmapArray in Delta.
+
+Copyright: 2020 The Delta Lake Project Authors.
+Project URL: https://delta.io/
 License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------

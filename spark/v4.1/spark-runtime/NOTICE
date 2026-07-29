@@ -25,6 +25,20 @@ the following in its NOTICE file:
 
 --------------------------------------------------------------------------------
 
+This product includes code from Presto, developed at Facebook, with the
+following copyright notice:
+
+| Copyright 2016 Facebook and contributors.
+
+--------------------------------------------------------------------------------
+
+This product includes code from Delta Lake, developed at The Delta Lake Project,
+with the following copyright notice:
+
+| Copyright (2021) The Delta Lake Project Authors.
+
+--------------------------------------------------------------------------------
+
 This product bundles Airlift Aircompressor with the following in its NOTICE file:
 | Snappy Copyright Notices
 | =========================
