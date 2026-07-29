@@ -160,7 +160,7 @@ public class TestVariantShreddingAnalyzer {
 
     ShreddedObject row2 = Variants.object(meta);
     for (int i = 0; i < 10; i++) {
-      row2.put(fieldNames[i], Variants.of("text"));
+      row2.put(fieldNames[i], Variants.of(7));
     }
 
     ShreddedObject row3 = Variants.object(meta);
@@ -432,8 +432,6 @@ public class TestVariantShreddingAnalyzer {
           item.put("key", Variants.of(j));
           arr.add(item);
         }
-      } else {
-        arr.add(Variants.of("no_key"));
       }
       rows.add(arr);
     }
@@ -469,6 +467,112 @@ public class TestVariantShreddingAnalyzer {
     PrimitiveType idTyped = idGroup.getType("typed_value").asPrimitiveType();
     assertThat(idTyped.getLogicalTypeAnnotation())
         .isInstanceOf(LogicalTypeAnnotation.UUIDLogicalTypeAnnotation.class);
+  }
+
+  @Test
+  public void testMixedPrimitiveTypesFieldNotShredded() {
+    VariantMetadata meta = Variants.metadata("mixed", "keep");
+    ShreddedObject row1 = Variants.object(meta);
+    row1.put("mixed", Variants.of(42));
+    row1.put("keep", Variants.of(1));
+    ShreddedObject row2 = Variants.object(meta);
+    row2.put("mixed", Variants.of("text"));
+    row2.put("keep", Variants.of(2));
+
+    DirectAnalyzer analyzer = new DirectAnalyzer();
+    Type schema = analyzer.analyzeAndCreateSchema(List.of(row1, row2), 0);
+
+    assertThat(schema).isNotNull().isInstanceOf(GroupType.class);
+    GroupType typedValue = (GroupType) schema;
+    assertThat(typedValue.containsField("mixed")).isFalse();
+    assertThat(typedValue.containsField("keep")).isTrue();
+  }
+
+  @Test
+  public void testIntegerWideningAdmitsField() {
+    VariantMetadata meta = Variants.metadata("n");
+    ShreddedObject row1 = Variants.object(meta);
+    row1.put("n", Variants.of(42));
+    ShreddedObject row2 = Variants.object(meta);
+    row2.put("n", Variants.of(5_000_000_000L));
+
+    DirectAnalyzer analyzer = new DirectAnalyzer();
+    Type schema = analyzer.analyzeAndCreateSchema(List.of(row1, row2), 0);
+
+    assertThat(schema).isNotNull().isInstanceOf(GroupType.class);
+    GroupType typedValue = (GroupType) schema;
+    assertThat(typedValue.containsField("n")).isTrue();
+    GroupType nGroup = typedValue.getType("n").asGroupType();
+    assertThat(nGroup.getType("typed_value").asPrimitiveType().getPrimitiveTypeName())
+        .isEqualTo(PrimitiveType.PrimitiveTypeName.INT64);
+  }
+
+  @Test
+  public void testIntAndDecimalAtSameFieldNotShredded() {
+    VariantMetadata meta = Variants.metadata("mixed", "keep");
+    ShreddedObject row1 = Variants.object(meta);
+    row1.put("mixed", Variants.of(42));
+    row1.put("keep", Variants.of(1));
+    ShreddedObject row2 = Variants.object(meta);
+    row2.put("mixed", Variants.of(new BigDecimal("3.14")));
+    row2.put("keep", Variants.of(2));
+
+    DirectAnalyzer analyzer = new DirectAnalyzer();
+    Type schema = analyzer.analyzeAndCreateSchema(List.of(row1, row2), 0);
+
+    assertThat(schema).isNotNull().isInstanceOf(GroupType.class);
+    GroupType typedValue = (GroupType) schema;
+    assertThat(typedValue.containsField("mixed")).isFalse();
+    assertThat(typedValue.containsField("keep")).isTrue();
+  }
+
+  @Test
+  public void testMixedObjectAndPrimitiveAtFieldNotShredded() {
+    VariantMetadata outerMeta = Variants.metadata("mixed", "keep");
+    VariantMetadata innerMeta = Variants.metadata("x");
+    ShreddedObject inner = Variants.object(innerMeta);
+    inner.put("x", Variants.of(1));
+
+    ShreddedObject row1 = Variants.object(outerMeta);
+    row1.put("mixed", inner);
+    row1.put("keep", Variants.of(1));
+    ShreddedObject row2 = Variants.object(outerMeta);
+    row2.put("mixed", Variants.of("hello"));
+    row2.put("keep", Variants.of(2));
+
+    DirectAnalyzer analyzer = new DirectAnalyzer();
+    Type schema = analyzer.analyzeAndCreateSchema(List.of(row1, row2), 0);
+
+    assertThat(schema).isNotNull().isInstanceOf(GroupType.class);
+    GroupType typedValue = (GroupType) schema;
+    assertThat(typedValue.containsField("mixed")).isFalse();
+    assertThat(typedValue.containsField("keep")).isTrue();
+  }
+
+  @Test
+  public void testArrayWithMixedElementTypesNotShredded() {
+    VariantMetadata meta = Variants.metadata("arr", "keep");
+
+    ValueArray arr1 = Variants.array();
+    arr1.add(Variants.of(1));
+    arr1.add(Variants.of(2));
+    ShreddedObject row1 = Variants.object(meta);
+    row1.put("arr", arr1);
+    row1.put("keep", Variants.of(1));
+
+    ValueArray arr2 = Variants.array();
+    arr2.add(Variants.of("text"));
+    ShreddedObject row2 = Variants.object(meta);
+    row2.put("arr", arr2);
+    row2.put("keep", Variants.of(2));
+
+    DirectAnalyzer analyzer = new DirectAnalyzer();
+    Type schema = analyzer.analyzeAndCreateSchema(List.of(row1, row2), 0);
+
+    assertThat(schema).isNotNull().isInstanceOf(GroupType.class);
+    GroupType typedValue = (GroupType) schema;
+    assertThat(typedValue.containsField("arr")).isFalse();
+    assertThat(typedValue.containsField("keep")).isTrue();
   }
 
   /**

@@ -51,10 +51,10 @@ import org.apache.parquet.schema.Types;
  *
  * <ul>
  *   <li>Object fields are emitted in alphabetical order in the shredded schema.
- *   <li>Type selection picks the most common type with explicit tie-break priority (see {@link
- *       FieldInfo#TIE_BREAK_PRIORITY}), not enum ordinal.
+ *   <li>A field is admitted only if all observations fall into a single type family after numeric
+ *       widening; mixed-type fields remain in the residual {@code value}.
  *   <li>Integer types (INT8/16/32/64) and decimal types (DECIMAL4/8/16) are each promoted to the
- *       widest observed before competing with other types.
+ *       widest observed within their family.
  *   <li>Fields below {@code MIN_FIELD_FREQUENCY} are pruned. Above {@code MAX_SHREDDED_FIELDS}, the
  *       most frequent are kept with alphabetical tie-breaking.
  *   <li>Recursion into nested objects/arrays stops at {@code MAX_SHREDDING_DEPTH} (default 50).
@@ -96,7 +96,7 @@ public abstract class VariantShreddingAnalyzer<T, S> {
     }
 
     PathNode root = buildPathTree(variantValues);
-    PhysicalType rootType = root.info.getMostCommonType();
+    PhysicalType rootType = root.info.admittedType();
     if (rootType == null) {
       return null;
     }
@@ -251,12 +251,12 @@ public abstract class VariantShreddingAnalyzer<T, S> {
   }
 
   private static Type buildFieldGroup(PathNode node) {
-    PhysicalType commonType = node.info.getMostCommonType();
-    if (commonType == null) {
+    PhysicalType admittedType = node.info.admittedType();
+    if (admittedType == null) {
       return null;
     }
 
-    Type typedValue = buildTypedValue(node, commonType);
+    Type typedValue = buildTypedValue(node, admittedType);
     if (typedValue == null) {
       return null;
     }
@@ -303,7 +303,7 @@ public abstract class VariantShreddingAnalyzer<T, S> {
     if (elementNode == null) {
       return null;
     }
-    PhysicalType elementType = elementNode.info.getMostCommonType();
+    PhysicalType elementType = elementNode.info.admittedType();
     if (elementType == null) {
       return null;
     }
@@ -425,8 +425,8 @@ public abstract class VariantShreddingAnalyzer<T, S> {
     private int maxDecimalScale = 0;
     private int maxDecimalIntegerDigits = 0;
     private int observationCount = 0;
-    private boolean mostCommonComputed = false;
-    private PhysicalType mostCommonCached = null;
+    private boolean admittedTypeComputed = false;
+    private PhysicalType admittedTypeCached = null;
 
     private static final Map<PhysicalType, Integer> INTEGER_PRIORITY =
         ImmutableMap.of(
@@ -441,32 +441,8 @@ public abstract class VariantShreddingAnalyzer<T, S> {
             PhysicalType.DECIMAL8, 1,
             PhysicalType.DECIMAL16, 2);
 
-    /** Tie-break ordering when two physical types have equal counts. Higher value wins. */
-    private static final Map<PhysicalType, Integer> TIE_BREAK_PRIORITY =
-        ImmutableMap.<PhysicalType, Integer>builder()
-            .put(PhysicalType.BOOLEAN_TRUE, 0)
-            .put(PhysicalType.INT8, 1)
-            .put(PhysicalType.INT16, 2)
-            .put(PhysicalType.INT32, 3)
-            .put(PhysicalType.INT64, 4)
-            .put(PhysicalType.FLOAT, 5)
-            .put(PhysicalType.DOUBLE, 6)
-            .put(PhysicalType.DECIMAL4, 7)
-            .put(PhysicalType.DECIMAL8, 8)
-            .put(PhysicalType.DECIMAL16, 9)
-            .put(PhysicalType.DATE, 10)
-            .put(PhysicalType.TIME, 11)
-            .put(PhysicalType.TIMESTAMPTZ, 12)
-            .put(PhysicalType.TIMESTAMPNTZ, 13)
-            .put(PhysicalType.BINARY, 14)
-            .put(PhysicalType.STRING, 15)
-            .put(PhysicalType.TIMESTAMPTZ_NANOS, 16)
-            .put(PhysicalType.TIMESTAMPNTZ_NANOS, 17)
-            .put(PhysicalType.UUID, 18)
-            .buildOrThrow();
-
     void observe(VariantValue value) {
-      mostCommonComputed = false;
+      admittedTypeComputed = false;
       observationCount++;
       // Use BOOLEAN_TRUE for both TRUE/FALSE values
       PhysicalType type =
@@ -483,62 +459,54 @@ public abstract class VariantShreddingAnalyzer<T, S> {
       }
     }
 
-    PhysicalType getMostCommonType() {
-      if (mostCommonComputed) {
-        return mostCommonCached;
+    PhysicalType admittedType() {
+      if (admittedTypeComputed) {
+        return admittedTypeCached;
       }
 
-      Map<PhysicalType, Integer> combinedCounts = Maps.newHashMap();
-
-      int integerTotalCount = 0;
-      PhysicalType mostCapableInteger = null;
-
-      int decimalTotalCount = 0;
-      PhysicalType mostCapableDecimal = null;
+      Set<PhysicalType> families = Sets.newHashSet();
+      PhysicalType widestInteger = null;
+      PhysicalType widestDecimal = null;
 
       for (int i = 0; i < typeCounts.length; i++) {
-        int count = typeCounts[i];
-        if (count == 0) {
+        if (typeCounts[i] == 0) {
           continue;
         }
         PhysicalType type = PHYSICAL_TYPES[i];
 
         if (isIntegerType(type)) {
-          integerTotalCount += count;
-          if (mostCapableInteger == null
-              || INTEGER_PRIORITY.get(type) > INTEGER_PRIORITY.get(mostCapableInteger)) {
-            mostCapableInteger = type;
+          if (widestInteger == null
+              || INTEGER_PRIORITY.get(type) > INTEGER_PRIORITY.get(widestInteger)) {
+            widestInteger = type;
           }
         } else if (isDecimalType(type)) {
-          decimalTotalCount += count;
-          if (mostCapableDecimal == null
-              || DECIMAL_PRIORITY.get(type) > DECIMAL_PRIORITY.get(mostCapableDecimal)) {
-            mostCapableDecimal = type;
+          if (widestDecimal == null
+              || DECIMAL_PRIORITY.get(type) > DECIMAL_PRIORITY.get(widestDecimal)) {
+            widestDecimal = type;
           }
         } else {
-          combinedCounts.put(type, count);
+          families.add(type);
         }
       }
 
-      if (mostCapableInteger != null) {
-        combinedCounts.put(mostCapableInteger, integerTotalCount);
+      if (widestInteger != null) {
+        families.add(widestInteger);
       }
 
-      if (mostCapableDecimal != null) {
-        combinedCounts.put(mostCapableDecimal, decimalTotalCount);
+      if (widestDecimal != null) {
+        families.add(widestDecimal);
       }
 
-      // Pick the most common type with tie-breaking
-      mostCommonCached =
-          combinedCounts.entrySet().stream()
-              .max(
-                  Map.Entry.<PhysicalType, Integer>comparingByValue()
-                      .thenComparingInt(
-                          entry -> TIE_BREAK_PRIORITY.getOrDefault(entry.getKey(), -1)))
-              .map(Map.Entry::getKey)
-              .orElse(null);
-      mostCommonComputed = true;
-      return mostCommonCached;
+      // Type-uniformity: admit only if exactly one family remains after widening.
+      if (families.size() != 1) {
+        admittedTypeCached = null;
+        admittedTypeComputed = true;
+        return null;
+      }
+
+      admittedTypeCached = families.iterator().next();
+      admittedTypeComputed = true;
+      return admittedTypeCached;
     }
 
     private static boolean isIntegerType(PhysicalType type) {
