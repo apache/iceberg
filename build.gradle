@@ -664,8 +664,6 @@ project(':iceberg-delta-lake') {
     implementation project(':iceberg-common')
     implementation project(':iceberg-core')
     implementation project(':iceberg-parquet')
-    implementation platform(libs.jackson.bom)
-    implementation libs.jackson.databind
     annotationProcessor libs.immutables.value
     compileOnly libs.immutables.value
 
