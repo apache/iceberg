@@ -31,6 +31,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.inmemory.InMemoryOutputFile;
 import org.apache.iceberg.io.FileAppender;
@@ -47,6 +48,7 @@ import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
+import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -54,7 +56,7 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.FieldSource;
 import org.junit.jupiter.params.provider.MethodSource;
 
-public class TestV4ManifestReader {
+class TestV4ManifestReader {
   private static final long SNAPSHOT_ID = 42L;
   private static final int FORMAT_VERSION_V4 = 4;
   private static final long RECORD_COUNT = 100L;
@@ -72,15 +74,15 @@ public class TestV4ManifestReader {
           optional(1, "id", Types.IntegerType.get()), optional(2, "data", Types.StringType.get()));
   private static final PartitionSpec ID_PARTITIONING =
       PartitionSpec.builderFor(TABLE_SCHEMA).identity("id").build();
-  private static final Types.StructType PARTITION_TYPE = ID_PARTITIONING.partitionType();
+  private static final Types.StructType ID_PARTITION_TYPE = ID_PARTITIONING.partitionType();
   private static final Types.StructType EMPTY_PARTITION = Types.StructType.of();
   private static final PartitionData EMPTY_PARTITION_DATA = new PartitionData(EMPTY_PARTITION);
-  private static final Map<Integer, PartitionSpec> PARTITIONED_SPECS =
+  private static final Map<Integer, PartitionSpec> ID_PARTITIONING_SPECS =
       ImmutableMap.of(ID_PARTITIONING.specId(), ID_PARTITIONING);
   private static final Map<Integer, PartitionSpec> UNPARTITIONED_SPECS =
       ImmutableMap.of(PartitionSpec.unpartitioned().specId(), PartitionSpec.unpartitioned());
 
-  private static final List<FileFormat> FORMATS =
+  private static final List<FileFormat> MANIFEST_FORMATS =
       ImmutableList.of(FileFormat.AVRO, FileFormat.PARQUET);
 
   // a data file whose tracking carries every inheritable and change-tracking value set
@@ -126,7 +128,7 @@ public class TestV4ManifestReader {
   private final FileIO fileIO = new TestTables.LocalFileIO();
 
   @ParameterizedTest
-  @FieldSource("FORMATS")
+  @FieldSource("MANIFEST_FORMATS")
   public void testReadsWrittenFile(FileFormat format) throws IOException {
     TrackedFile file =
         new TrackedFileStruct(
@@ -147,25 +149,25 @@ public class TestV4ManifestReader {
             ImmutableList.of(50L, 100L),
             null);
 
-    InputFile manifest = writeManifest(format, PARTITION_TYPE, ImmutableList.of(file));
+    InputFile manifest = writeManifest(format, ID_PARTITION_TYPE, ImmutableList.of(file));
 
-    TrackedFile actual = Iterables.getOnlyElement(read(manifest, PARTITIONED_SPECS));
+    TrackedFile actual = Iterables.getOnlyElement(read(manifest, ID_PARTITIONING_SPECS));
 
     // compare with tracking reduced to status: the reader fills status-independent tracking
     // fields (row position, sequence numbers via inheritance) that the written file does not have
     Types.StructType comparisonType =
         TypeUtil.replaceFieldTypes(
-                TrackedFile.schema(PARTITION_TYPE, Types.StructType.of()),
+                TrackedFile.schema(ID_PARTITION_TYPE, Types.StructType.of()),
                 ImmutableMap.of(
                     TrackedFile.TRACKING.fieldId(), Types.StructType.of(Tracking.STATUS)))
             .asStruct();
     assertThat((StructLike) actual)
         .usingComparator(Comparators.forType(comparisonType))
-        .isEqualTo((StructLike) file);
+        .isEqualTo(file);
   }
 
   @ParameterizedTest
-  @FieldSource("FORMATS")
+  @FieldSource("MANIFEST_FORMATS")
   public void testEqualityDeleteRoundTrip(FileFormat format) throws IOException {
     TrackedFile delete =
         new TrackedFileStruct(
@@ -194,7 +196,7 @@ public class TestV4ManifestReader {
   }
 
   @ParameterizedTest
-  @FieldSource("FORMATS")
+  @FieldSource("MANIFEST_FORMATS")
   public void testStatusFiltering(FileFormat format) throws IOException {
     List<TrackedFile> files =
         ImmutableList.of(
@@ -227,7 +229,7 @@ public class TestV4ManifestReader {
   }
 
   @ParameterizedTest
-  @FieldSource("FORMATS")
+  @FieldSource("MANIFEST_FORMATS")
   public void testManifestLocationAndPosition(FileFormat format) throws IOException {
     List<TrackedFile> files =
         ImmutableList.of(
@@ -244,11 +246,10 @@ public class TestV4ManifestReader {
     assertThat(read).extracting(file -> file.tracking().manifestPos()).containsExactly(0L, 1L, 2L);
   }
 
-  @ParameterizedTest(name = "{0} / {2}")
-  @MethodSource("restrictedReadModes")
-  public void testRestrictedReadReturnsOnlyRequestedFields(
-      FileFormat format, Consumer<V4ManifestReader.Builder> configureRead, String description)
-      throws IOException {
+  @ParameterizedTest(name = "{0} / {1}")
+  @MethodSource("selectiveReadModes")
+  void testSelectiveReadReturnsOnlyRequestedFields(
+      FileFormat format, Consumer<V4ManifestReader.Builder> configureRead) throws IOException {
     List<TrackedFile> files =
         ImmutableList.of(
             dataFile("s3://bucket/live.parquet", EMPTY_PARTITION_DATA),
@@ -260,18 +261,35 @@ public class TestV4ManifestReader {
     V4ManifestReader.Builder builder = V4ManifestReader.builder(manifest, UNPARTITIONED_SPECS);
     configureRead.accept(builder);
     try (V4ManifestReader reader = builder.build()) {
-      // content_type and status are projected for liveness filtering, so only the live entry
-      // survives even though the caller requested only location
       TrackedFile actual = Iterables.getOnlyElement(reader);
+
+      // the requested field is read
       assertThat(actual.location()).isEqualTo("s3://bucket/live.parquet");
-      // fields the caller did not request are not read
+
+      // the reader always projects the fields it consumes internally, even though the caller
+      // selected only location: content type and status (liveness filtering keeps only the live
+      // entry), and manifest position (from row_position)
+      assertThat(actual.contentType()).isEqualTo(FileContent.DATA);
+      assertThat(actual.tracking().status()).isEqualTo(EntryStatus.ADDED);
+      assertThat(actual.tracking().manifestPos()).isEqualTo(0L);
+
+      // every field the caller did not request and the reader does not require is omitted;
+      // content stats in particular (the largest projection) is not read
+      assertThat(actual.contentStats()).isNull();
       assertThat(actual.fileFormat()).isNull();
+      assertThat(actual.recordCount()).isEqualTo(-1L);
+      assertThat(actual.fileSizeInBytes()).isEqualTo(-1L);
       assertThat(actual.specId()).isNull();
+      assertThat(actual.partition()).isNull();
       assertThat(actual.sortOrderId()).isNull();
+      assertThat(actual.deletionVector()).isNull();
+      assertThat(actual.keyMetadata()).isNull();
+      assertThat(actual.splitOffsets()).isNull();
+      assertThat(actual.equalityIds()).isNull();
     }
   }
 
-  private static Stream<Arguments> restrictedReadModes() {
+  private static Stream<Arguments> selectiveReadModes() {
     Map<String, Consumer<V4ManifestReader.Builder>> modes =
         ImmutableMap.of(
             "project",
@@ -280,15 +298,15 @@ public class TestV4ManifestReader {
             builder -> builder.select("location"),
             "case-insensitive select",
             builder -> builder.select("LOCATION").caseSensitive(false));
-    return FORMATS.stream()
+    return MANIFEST_FORMATS.stream()
         .flatMap(
             format ->
                 modes.entrySet().stream()
-                    .map(mode -> Arguments.of(format, mode.getValue(), mode.getKey())));
+                    .map(mode -> Arguments.of(format, Named.of(mode.getKey(), mode.getValue()))));
   }
 
   @ParameterizedTest
-  @FieldSource("FORMATS")
+  @FieldSource("MANIFEST_FORMATS")
   public void testRowFilterForcesRecordCount(FileFormat format) throws IOException {
     TrackedFile file = dataFile("s3://bucket/file.parquet", EMPTY_PARTITION_DATA);
 
@@ -318,8 +336,7 @@ public class TestV4ManifestReader {
                     .select("location")
                     .project(new Schema(TrackedFile.LOCATION)))
         .isInstanceOf(IllegalStateException.class)
-        .hasMessage(
-            "Cannot select columns using both select(Collection<String>) and project(Schema)");
+        .hasMessage("Cannot use project(Schema) with select(Collection<String>)");
 
     assertThatThrownBy(
             () ->
@@ -327,8 +344,7 @@ public class TestV4ManifestReader {
                     .project(new Schema(TrackedFile.LOCATION))
                     .select("location"))
         .isInstanceOf(IllegalStateException.class)
-        .hasMessage(
-            "Cannot select columns using both select(Collection<String>) and project(Schema)");
+        .hasMessage("Cannot use select(Collection<String>) with project(Schema)");
 
     assertThatThrownBy(
             () ->
@@ -366,7 +382,7 @@ public class TestV4ManifestReader {
   }
 
   @ParameterizedTest
-  @FieldSource("FORMATS")
+  @FieldSource("MANIFEST_FORMATS")
   public void testProjectionPreservesNarrowTrackingProjection(FileFormat format)
       throws IOException {
     InputFile manifest =
@@ -385,7 +401,7 @@ public class TestV4ManifestReader {
   }
 
   @ParameterizedTest
-  @FieldSource("FORMATS")
+  @FieldSource("MANIFEST_FORMATS")
   public void testForScanPlanningOmitsChangeTrackingFields(FileFormat format) throws IOException {
     InputFile manifest =
         writeManifest(format, EMPTY_PARTITION, ImmutableList.of(FILE_WITH_FULL_TRACKING));
@@ -407,7 +423,7 @@ public class TestV4ManifestReader {
   }
 
   @ParameterizedTest
-  @FieldSource("FORMATS")
+  @FieldSource("MANIFEST_FORMATS")
   public void testDefaultReadsFullTracking(FileFormat format) throws IOException {
     InputFile manifest =
         writeManifest(format, EMPTY_PARTITION, ImmutableList.of(FILE_WITH_FULL_TRACKING));
@@ -429,42 +445,65 @@ public class TestV4ManifestReader {
   }
 
   @ParameterizedTest
-  @FieldSource("FORMATS")
-  public void testPartitionFilterForceProjectsFilterFields(FileFormat format) throws IOException {
-    InputFile manifest = writeManifest(format, PARTITION_TYPE, ImmutableList.of(FILE_A, FILE_B));
+  @FieldSource("MANIFEST_FORMATS")
+  public void testProjectNullReadsFullSchema(FileFormat format) throws IOException {
+    InputFile manifest =
+        writeManifest(format, EMPTY_PARTITION, ImmutableList.of(FILE_WITH_FULL_TRACKING));
 
-    // the caller projects only location; the reader must still project the fields the partition
-    // filter reads (content_type, spec_id, partition) or every row would be pruned
-    Schema projection = new Schema(TrackedFile.LOCATION);
+    // project(null) clears the projection and reads the full schema, like no projection at all
     try (V4ManifestReader reader =
-        V4ManifestReader.builder(manifest, PARTITIONED_SPECS)
-            .project(projection)
-            .filter(Expressions.equal("id", 1))
-            .build()) {
-      assertThat(reader).extracting(TrackedFile::location).containsExactly(FILE_A.location());
+        V4ManifestReader.builder(manifest, UNPARTITIONED_SPECS).project(null).build()) {
+      TrackedFile actual = Iterables.getOnlyElement(reader);
+      assertThat(actual.location()).isEqualTo("s3://bucket/file.parquet");
+      assertThat(actual.fileFormat()).isEqualTo(FileFormat.PARQUET);
+      assertThat(actual.recordCount()).isEqualTo(RECORD_COUNT);
+      assertThat(actual.fileSizeInBytes()).isEqualTo(FILE_SIZE_IN_BYTES);
     }
   }
 
   @ParameterizedTest
-  @FieldSource("FORMATS")
+  @FieldSource("MANIFEST_FORMATS")
+  public void testPartitionFilterForceProjectsFilterFields(FileFormat format) throws IOException {
+    InputFile manifest = writeManifest(format, ID_PARTITION_TYPE, ImmutableList.of(FILE_A, FILE_B));
+
+    // the caller projects only location; the reader must still project the fields the partition
+    // filter reads (spec_id, partition) or every row would be pruned
+    Schema projection = new Schema(TrackedFile.LOCATION);
+    try (V4ManifestReader reader =
+        V4ManifestReader.builder(manifest, ID_PARTITIONING_SPECS)
+            .project(projection)
+            .filter(Expressions.equal("id", 1))
+            .build()) {
+      TrackedFile actual = Iterables.getOnlyElement(reader);
+      assertThat(actual.location()).isEqualTo(FILE_A.location());
+      assertThat(actual.specId()).isEqualTo(ID_PARTITIONING.specId());
+      assertThat(actual.partition().get(0, Integer.class)).isEqualTo(1);
+    }
+  }
+
+  @ParameterizedTest
+  @FieldSource("MANIFEST_FORMATS")
   public void testSelectWithPartitionFilterProjectsFilterFields(FileFormat format)
       throws IOException {
-    InputFile manifest = writeManifest(format, PARTITION_TYPE, ImmutableList.of(FILE_A, FILE_B));
+    InputFile manifest = writeManifest(format, ID_PARTITION_TYPE, ImmutableList.of(FILE_A, FILE_B));
 
     // the caller selects only location; the reader must still project spec_id and partition
     // for the partition filter or every row would be pruned
     try (V4ManifestReader reader =
-        V4ManifestReader.builder(manifest, PARTITIONED_SPECS)
+        V4ManifestReader.builder(manifest, ID_PARTITIONING_SPECS)
             .select("location")
             .filter(Expressions.equal("id", 1))
             .build()) {
-      assertThat(reader).extracting(TrackedFile::location).containsExactly(FILE_A.location());
+      TrackedFile actual = Iterables.getOnlyElement(reader);
+      assertThat(actual.location()).isEqualTo(FILE_A.location());
+      assertThat(actual.specId()).isEqualTo(ID_PARTITIONING.specId());
+      assertThat(actual.partition().get(0, Integer.class)).isEqualTo(1);
     }
   }
 
   @ParameterizedTest
-  @FieldSource("FORMATS")
-  public void testUnpartitioned(FileFormat format) throws IOException {
+  @FieldSource("MANIFEST_FORMATS")
+  public void testUnpartitionedProducesNullPartitionValue(FileFormat format) throws IOException {
     TrackedFile file = dataFile("s3://bucket/file.parquet", EMPTY_PARTITION_DATA);
 
     InputFile manifest = writeManifest(format, EMPTY_PARTITION, ImmutableList.of(file));
@@ -475,14 +514,14 @@ public class TestV4ManifestReader {
   }
 
   @ParameterizedTest
-  @FieldSource("FORMATS")
+  @FieldSource("MANIFEST_FORMATS")
   public void testPartitionFilterPrunesFilesAndCountsSkips(FileFormat format) throws IOException {
     // FILE_A and EQ_DELETES_A match the filter; FILE_B and EQ_DELETES_B are pruned; manifest
     // references have no partition and are always kept
     InputFile manifest =
         writeManifest(
             format,
-            PARTITION_TYPE,
+            ID_PARTITION_TYPE,
             ImmutableList.of(
                 FILE_A,
                 FILE_B,
@@ -493,7 +532,7 @@ public class TestV4ManifestReader {
 
     ScanMetrics metrics = ScanMetrics.of(new DefaultMetricsContext());
     try (V4ManifestReader reader =
-        V4ManifestReader.builder(manifest, PARTITIONED_SPECS)
+        V4ManifestReader.builder(manifest, ID_PARTITIONING_SPECS)
             .filter(Expressions.equal("id", 1))
             .scanMetrics(metrics)
             .build()) {
@@ -521,7 +560,7 @@ public class TestV4ManifestReader {
   }
 
   @ParameterizedTest
-  @FieldSource("FORMATS")
+  @FieldSource("MANIFEST_FORMATS")
   public void testRowFilterKeepsFilesWithoutStats(FileFormat format) throws IOException {
     // with no content stats to evaluate, the row filter cannot prune any file
     TrackedFile file1 = dataFile("s3://bucket/a.parquet", EMPTY_PARTITION_DATA);
@@ -545,22 +584,32 @@ public class TestV4ManifestReader {
   }
 
   @ParameterizedTest
-  @FieldSource("FORMATS")
+  @FieldSource("MANIFEST_FORMATS")
   public void testCaseInsensitivePartitionFilter(FileFormat format) throws IOException {
-    InputFile manifest = writeManifest(format, PARTITION_TYPE, ImmutableList.of(FILE_A, FILE_B));
+    InputFile manifest = writeManifest(format, ID_PARTITION_TYPE, ImmutableList.of(FILE_A, FILE_B));
 
+    // a case-insensitive filter binds the mismatched-case "ID" reference and prunes FILE_B
     try (V4ManifestReader reader =
-        V4ManifestReader.builder(manifest, PARTITIONED_SPECS)
+        V4ManifestReader.builder(manifest, ID_PARTITIONING_SPECS)
             .filter(Expressions.equal("ID", 1))
             .caseSensitive(false)
             .build()) {
       assertThat(reader).extracting(TrackedFile::location).containsExactly(FILE_A.location());
     }
+
+    // the same filter is case-sensitive by default, so "ID" fails to bind to the "id" field
+    assertThatThrownBy(
+            () ->
+                V4ManifestReader.builder(manifest, ID_PARTITIONING_SPECS)
+                    .filter(Expressions.equal("ID", 1))
+                    .build())
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("Cannot find field 'ID'");
   }
 
   @ParameterizedTest
-  @FieldSource("FORMATS")
-  public void testMultiSpecPartitionPruning(FileFormat format) throws IOException {
+  @FieldSource("MANIFEST_FORMATS")
+  public void testFilterMatchesFilesAcrossDisjointSpecs(FileFormat format) throws IOException {
     PartitionSpec spec0 =
         PartitionSpec.builderFor(TABLE_SCHEMA)
             .withSpecId(0)
@@ -595,16 +644,16 @@ public class TestV4ManifestReader {
   }
 
   @ParameterizedTest
-  @FieldSource("FORMATS")
+  @FieldSource("MANIFEST_FORMATS")
   public void testPartitionFilterKeepsFileWithUnknownSpec(FileFormat format) throws IOException {
-    // spec ID 5 is not in PARTITIONED_SPECS, so no partition filter applies to this file
+    // spec ID 5 is not in ID_PARTITIONING_SPECS, so no partition filter applies to this file
     TrackedFile file = dataFile("orphan.parquet", 5, partition(1));
 
-    InputFile manifest = writeManifest(format, PARTITION_TYPE, ImmutableList.of(file));
+    InputFile manifest = writeManifest(format, ID_PARTITION_TYPE, ImmutableList.of(file));
 
     // the filter would prune partition id=1 under spec 0, but cannot be applied to spec 5
     try (V4ManifestReader reader =
-        V4ManifestReader.builder(manifest, PARTITIONED_SPECS)
+        V4ManifestReader.builder(manifest, ID_PARTITIONING_SPECS)
             .filter(Expressions.equal("id", 2))
             .build()) {
       assertThat(reader).extracting(TrackedFile::location).containsExactly(file.location());
@@ -612,14 +661,14 @@ public class TestV4ManifestReader {
   }
 
   @ParameterizedTest
-  @FieldSource("FORMATS")
+  @FieldSource("MANIFEST_FORMATS")
   public void testPartitionFilterKeepsFileWithNullSpecId(FileFormat format) throws IOException {
     TrackedFile file = dataFile("no-spec.parquet", null, null);
 
-    InputFile manifest = writeManifest(format, PARTITION_TYPE, ImmutableList.of(file));
+    InputFile manifest = writeManifest(format, ID_PARTITION_TYPE, ImmutableList.of(file));
 
     try (V4ManifestReader reader =
-        V4ManifestReader.builder(manifest, PARTITIONED_SPECS)
+        V4ManifestReader.builder(manifest, ID_PARTITIONING_SPECS)
             .filter(Expressions.equal("id", 2))
             .build()) {
       assertThat(reader).extracting(TrackedFile::location).containsExactly(file.location());
@@ -627,7 +676,7 @@ public class TestV4ManifestReader {
   }
 
   @ParameterizedTest
-  @FieldSource("FORMATS")
+  @FieldSource("MANIFEST_FORMATS")
   public void testIteratorReturnsLiveCopies(FileFormat format) throws IOException {
     TrackedFile added1 = dataFile("s3://bucket/added-1.parquet", EMPTY_PARTITION_DATA);
     TrackedFile added2 = dataFile("s3://bucket/added-2.parquet", EMPTY_PARTITION_DATA);
@@ -650,9 +699,8 @@ public class TestV4ManifestReader {
     }
   }
 
-  @ParameterizedTest
-  @FieldSource("FORMATS")
-  public void testUnknownManifestFormatThrows(FileFormat format) throws IOException {
+  @Test
+  void testUnknownManifestFormatThrows() throws IOException {
     InputFile badFile =
         fileIO.newInputFile(tempDir.resolve("manifest-" + System.nanoTime() + ".txt").toString());
 
@@ -784,7 +832,7 @@ public class TestV4ManifestReader {
   }
 
   private static PartitionData partition(int id) {
-    PartitionData partition = new PartitionData(PARTITION_TYPE);
+    PartitionData partition = new PartitionData(ID_PARTITION_TYPE);
     partition.set(0, id);
     return partition;
   }

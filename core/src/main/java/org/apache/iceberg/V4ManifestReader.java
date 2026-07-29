@@ -109,20 +109,11 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
 
   private void incrementSkipCount(FileContent content) {
     switch (content) {
-      case DATA:
-        scanMetrics.skippedDataFiles().increment();
-        break;
-      case EQUALITY_DELETES:
-        scanMetrics.skippedDeleteFiles().increment();
-        break;
-      case DATA_MANIFEST:
-        scanMetrics.skippedDataManifests().increment();
-        break;
-      case DELETE_MANIFEST:
-        scanMetrics.skippedDeleteManifests().increment();
-        break;
-      default:
-        throw new UnsupportedOperationException("Unsupported content type: " + content);
+      case DATA -> scanMetrics.skippedDataFiles().increment();
+      case EQUALITY_DELETES -> scanMetrics.skippedDeleteFiles().increment();
+      case DATA_MANIFEST -> scanMetrics.skippedDataManifests().increment();
+      case DELETE_MANIFEST -> scanMetrics.skippedDeleteManifests().increment();
+      default -> throw new UnsupportedOperationException("Unsupported content type: " + content);
     }
   }
 
@@ -223,7 +214,7 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
           !scanPlanning, "Cannot use select(Collection<String>) with forScanPlanning()");
       Preconditions.checkState(
           requestedProjection == null,
-          "Cannot select columns using both select(Collection<String>) and project(Schema)");
+          "Cannot use select(Collection<String>) with project(Schema)");
       this.columns = newColumns;
       return this;
     }
@@ -232,8 +223,7 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
     Builder project(Schema newProjection) {
       Preconditions.checkState(!scanPlanning, "Cannot use project(Schema) with forScanPlanning()");
       Preconditions.checkState(
-          columns == null,
-          "Cannot select columns using both select(Collection<String>) and project(Schema)");
+          columns == null, "Cannot use project(Schema) with select(Collection<String>)");
       this.requestedProjection = newProjection;
       return this;
     }
