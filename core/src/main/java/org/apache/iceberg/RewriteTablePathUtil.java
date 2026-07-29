@@ -783,9 +783,12 @@ public class RewriteTablePathUtil {
       throws IOException {
     try (PuffinReader reader = Puffin.read(io.newInputFile(deleteFile.location())).build()) {
       List<BlobMetadata> blobs = reader.fileMetadata().blobs();
+      boolean writerCreated = false;
 
       try (PuffinWriter writer =
           Puffin.write(outputFile).createdBy(IcebergBuild.fullVersion()).build()) {
+        writerCreated = true;
+
         for (Pair<BlobMetadata, ByteBuffer> blobPair : reader.readAll(blobs)) {
           BlobMetadata blobMetadata = blobPair.first();
           ByteBuffer blobData = blobPair.second();
@@ -810,7 +813,21 @@ public class RewriteTablePathUtil {
 
         writer.finish();
         return writer.length();
+      } catch (IOException | RuntimeException e) {
+        if (writerCreated) {
+          cleanUpOutputFile(io, outputFile, e);
+        }
+
+        throw e;
       }
+    }
+  }
+
+  private static void cleanUpOutputFile(FileIO io, OutputFile outputFile, Exception failure) {
+    try {
+      io.deleteFile(outputFile.location());
+    } catch (RuntimeException deleteFailure) {
+      failure.addSuppressed(deleteFailure);
     }
   }
 
