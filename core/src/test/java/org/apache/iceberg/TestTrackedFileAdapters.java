@@ -235,7 +235,7 @@ class TestTrackedFileAdapters {
   }
 
   @Test
-  void dVDeleteFileAdapterDelegation() {
+  void dvDeleteFileAdapterDelegation() {
     DeletionVector dv =
         DeletionVectorStruct.builder()
             .location(DV_LOCATION)
@@ -314,7 +314,7 @@ class TestTrackedFileAdapters {
 
   @ParameterizedTest
   @EnumSource(value = FileContent.class, mode = EnumSource.Mode.EXCLUDE, names = "DATA")
-  void dVDeleteFileAdapterRejectsNonDataContent(FileContent contentType) {
+  void dvDeleteFileAdapterRejectsNonDataContent(FileContent contentType) {
     TrackedFileStruct file = dummyTrackedFile(contentType);
 
     assertThatThrownBy(() -> TrackedFileAdapters.asDVDeleteFile(file, UNPARTITIONED))
@@ -323,7 +323,7 @@ class TestTrackedFileAdapters {
   }
 
   @Test
-  void dVDeleteFileAdapterRejectsNullDeletionVector() {
+  void dvDeleteFileAdapterRejectsNullDeletionVector() {
     TrackedFileStruct file = dummyTrackedFile(FileContent.DATA);
 
     assertThatThrownBy(() -> TrackedFileAdapters.asDVDeleteFile(file, UNPARTITIONED))
