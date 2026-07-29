@@ -645,6 +645,27 @@ class TestV4ManifestReader {
 
   @ParameterizedTest
   @FieldSource("MANIFEST_FORMATS")
+  public void testPartialFilterStillPrunesOnCompatibleField(FileFormat format) throws IOException {
+    // the spec partitions on id only; a filter of id = 1 AND data = 'z' should still prune by id
+    // even though data is not a partition source
+    TrackedFile keep = dataFile("id1.parquet", partition(1));
+    TrackedFile prune = dataFile("id2.parquet", partition(2));
+
+    InputFile manifest = writeManifest(format, ID_PARTITION_TYPE, ImmutableList.of(keep, prune));
+
+    try (V4ManifestReader reader =
+        V4ManifestReader.builder(manifest, ID_PARTITIONING_SPECS)
+            .filter(Expressions.and(Expressions.equal("id", 1), Expressions.equal("data", "z")))
+            .build()) {
+      assertThat(reader)
+          .extracting(TrackedFile::location)
+          .as("the id predicate prunes even though data is not a partition field")
+          .containsExactly(keep.location());
+    }
+  }
+
+  @ParameterizedTest
+  @FieldSource("MANIFEST_FORMATS")
   public void testPartitionFilterKeepsFileWithUnknownSpec(FileFormat format) throws IOException {
     // spec ID 5 is not in ID_PARTITIONING_SPECS, so no partition filter applies to this file
     TrackedFile file = dataFile("orphan.parquet", 5, partition(1));
