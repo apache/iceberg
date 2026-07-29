@@ -388,7 +388,7 @@ public class TestVariantMetrics {
   @Test
   public void testShreddedStringBoundsFull() throws IOException {
     // full mode leaves the string bound untruncated
-    VariantValue value = Variants.of("iceberg_variant");
+    VariantValue value = Variants.of("iceberg_variant_full");
 
     MetricsConfig metricsConfig =
         MetricsConfig.from(
@@ -406,11 +406,11 @@ public class TestVariantMetrics {
 
     assertThat(metrics.lowerBounds().get(2))
         .extracting(b -> Variant.from(b).value().asObject().get(ROOT_FIELD))
-        .isEqualTo(Variants.of("iceberg_variant"));
+        .isEqualTo(Variants.of("iceberg_variant_full"));
 
     assertThat(metrics.upperBounds().get(2))
         .extracting(b -> Variant.from(b).value().asObject().get(ROOT_FIELD))
-        .isEqualTo(Variants.of("iceberg_variant"));
+        .isEqualTo(Variants.of("iceberg_variant_full"));
   }
 
   @Test
