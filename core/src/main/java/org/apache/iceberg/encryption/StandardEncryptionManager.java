@@ -193,36 +193,50 @@ public class StandardEncryptionManager implements EncryptionManager {
     return System.currentTimeMillis() + testTimeShift;
   }
 
-  ByteBuffer encryptedByKey(String manifestListKeyID) {
-    EncryptedKey encryptedKeyMetadata = encryptionKeys.get(manifestListKeyID);
+  ByteBuffer encryptedByKey(String keyID) {
+    EncryptedKey encryptedKeyMetadata = encryptionKeys.get(keyID);
 
     Preconditions.checkState(
-        encryptedKeyMetadata != null,
-        "Cannot find manifest list key metadata with id %s",
-        manifestListKeyID);
+        encryptedKeyMetadata != null, "Cannot find key metadata with id %s", keyID);
 
     Preconditions.checkArgument(
         !encryptedKeyMetadata.encryptedById().equals(tableKeyId),
-        "%s is a key encryption key, not manifest list key metadata",
-        manifestListKeyID);
+        "%s is a key encryption key, not key metadata",
+        keyID);
 
     return unwrappedKeyCache().get(encryptedKeyMetadata.encryptedById());
   }
 
+  /**
+   * @deprecated will be removed in 1.13.0. Use {@link #addKeyMetadata(NativeEncryptionKeyMetadata)}
+   *     instead.
+   */
+  @Deprecated
   public String addManifestListKeyMetadata(NativeEncryptionKeyMetadata keyMetadata) {
-    String manifestListKeyID = generateKeyId();
+    return addKeyMetadata(keyMetadata);
+  }
+
+  /**
+   * Wraps the given key metadata with the current key encryption key and registers it into this
+   * encryption manager.
+   *
+   * @param keyMetadata the key metadata to wrap
+   * @return the ID of the wrapped and registered encrypted key
+   */
+  public String addKeyMetadata(NativeEncryptionKeyMetadata keyMetadata) {
+    String keyID = generateKeyId();
     String keyEncryptionKeyID = keyEncryptionKeyID();
     String keyEncryptionKeyTimestamp =
         encryptionKeys.get(keyEncryptionKeyID).properties().get(KEY_TIMESTAMP);
     ByteBuffer encryptedKeyMetadata =
-        EncryptionUtil.encryptManifestListKeyMetadata(
+        EncryptionUtil.encryptKeyMetadata(
             unwrappedKeyCache().get(keyEncryptionKeyID), keyEncryptionKeyTimestamp, keyMetadata);
     BaseEncryptedKey key =
-        new BaseEncryptedKey(manifestListKeyID, encryptedKeyMetadata, keyEncryptionKeyID, null);
+        new BaseEncryptedKey(keyID, encryptedKeyMetadata, keyEncryptionKeyID, null);
 
     encryptionKeys.put(key.keyId(), key);
 
-    return manifestListKeyID;
+    return keyID;
   }
 
   private String generateKeyId() {

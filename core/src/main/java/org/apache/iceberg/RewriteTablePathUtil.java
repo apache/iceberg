@@ -181,6 +181,7 @@ public class RewriteTablePathUtil {
                     newPath(existing.path(), sourcePrefix, targetPrefix),
                     existing.fileSizeInBytes(),
                     existing.fileFooterSizeInBytes(),
+                    existing.keyId(),
                     existing.blobMetadata()))
         .collect(Collectors.toList());
   }
