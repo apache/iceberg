@@ -62,6 +62,7 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
@@ -98,7 +99,6 @@ public class FlinkCatalog extends AbstractCatalog {
   private final Namespace baseNamespace;
   private final SupportsNamespaces asNamespaceCatalog;
   private final Closeable closeable;
-  private final Map<String, String> catalogProps;
   private final boolean cacheEnabled;
 
   public FlinkCatalog(
@@ -106,12 +106,10 @@ public class FlinkCatalog extends AbstractCatalog {
       String defaultDatabase,
       Namespace baseNamespace,
       CatalogLoader catalogLoader,
-      Map<String, String> catalogProps,
       boolean cacheEnabled,
       long cacheExpirationIntervalMs) {
     super(catalogName, defaultDatabase);
     this.catalogLoader = catalogLoader;
-    this.catalogProps = catalogProps;
     this.baseNamespace = baseNamespace;
     this.cacheEnabled = cacheEnabled;
 
@@ -338,13 +336,12 @@ public class FlinkCatalog extends AbstractCatalog {
     Table table = loadIcebergTable(tablePath);
 
     // Flink's CREATE TABLE LIKE clause relies on properties sent back here to create new table.
-    // Inorder to create such table in non iceberg catalog, we need to send across catalog
-    // properties also.
     // As Flink API accepts only Map<String, String> for props, here we are serializing catalog
-    // props as json string to distinguish between catalog and table properties in createTable.
+    // name, database, table as json string to distinguish between catalog info
+    // and table properties in createTable.
     String srcCatalogProps =
         FlinkCreateTableOptions.toJson(
-            getName(), tablePath.getDatabaseName(), tablePath.getObjectName(), catalogProps);
+            getName(), tablePath.getDatabaseName(), tablePath.getObjectName());
 
     Map<String, String> tableProps = table.properties();
     if (tableProps.containsKey(FlinkCreateTableOptions.CONNECTOR_PROPS_KEY)
@@ -426,7 +423,12 @@ public class FlinkCatalog extends AbstractCatalog {
               + "create table without 'connector'='iceberg' related properties in an iceberg table.");
     }
 
-    Preconditions.checkArgument(table instanceof ResolvedCatalogTable, "table should be resolved");
+    Preconditions.checkArgument(
+        table instanceof ResolvedCatalogTable,
+        "Expected a ResolvedCatalogTable but got: %s. "
+            + "Iceberg Flink catalog only supports resolved catalog tables "
+            + "(Materialized tables and other table kinds are not supported).",
+        table == null ? "null" : table.getClass().getName());
     createIcebergTable(tablePath, (ResolvedCatalogTable) table, ignoreIfExists);
   }
 
@@ -448,6 +450,11 @@ public class FlinkCatalog extends AbstractCatalog {
           location = entry.getValue();
         }
       }
+    }
+
+    String comment = table.getComment();
+    if (comment != null && !comment.isEmpty()) {
+      properties.put(TableProperties.COMMENT, comment);
     }
 
     try {

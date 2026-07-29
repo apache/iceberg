@@ -30,6 +30,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
+import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
@@ -52,7 +53,6 @@ import org.apache.iceberg.deletes.PositionDeleteIndex;
 import org.apache.iceberg.encryption.EncryptingFileIO;
 import org.apache.iceberg.exceptions.CleanableFailure;
 import org.apache.iceberg.expressions.Expression;
-import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.BasePositionDeltaWriter;
 import org.apache.iceberg.io.ClusteredDataWriter;
 import org.apache.iceberg.io.ClusteredPositionDeleteWriter;
@@ -66,12 +66,14 @@ import org.apache.iceberg.io.PartitioningDVWriter;
 import org.apache.iceberg.io.PartitioningWriter;
 import org.apache.iceberg.io.PositionDeltaWriter;
 import org.apache.iceberg.io.WriteResult;
+import org.apache.iceberg.metrics.InMemoryMetricsReporter;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.CommitMetadata;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkWriteConf;
 import org.apache.iceberg.spark.SparkWriteRequirements;
+import org.apache.iceberg.spark.SparkWriteUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.CharSequenceSet;
 import org.apache.iceberg.util.DeleteFileSet;
@@ -83,43 +85,51 @@ import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.JoinedRow;
 import org.apache.spark.sql.connector.distributions.Distribution;
 import org.apache.spark.sql.connector.expressions.SortOrder;
+import org.apache.spark.sql.connector.metric.CustomMetric;
+import org.apache.spark.sql.connector.metric.CustomTaskMetric;
 import org.apache.spark.sql.connector.write.DeltaBatchWrite;
 import org.apache.spark.sql.connector.write.DeltaWrite;
 import org.apache.spark.sql.connector.write.DeltaWriter;
 import org.apache.spark.sql.connector.write.DeltaWriterFactory;
 import org.apache.spark.sql.connector.write.LogicalWriteInfo;
+import org.apache.spark.sql.connector.write.MergeSummary;
 import org.apache.spark.sql.connector.write.PhysicalWriteInfo;
 import org.apache.spark.sql.connector.write.RequiresDistributionAndOrdering;
 import org.apache.spark.sql.connector.write.RowLevelOperation.Command;
+import org.apache.spark.sql.connector.write.WriteSummary;
 import org.apache.spark.sql.connector.write.WriterCommitMessage;
 import org.apache.spark.sql.types.LongType$;
 import org.apache.spark.sql.types.StructType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrdering {
+class SparkPositionDeltaWrite extends BaseSparkWrite
+    implements DeltaWrite, RequiresDistributionAndOrdering {
 
   private static final Logger LOG = LoggerFactory.getLogger(SparkPositionDeltaWrite.class);
 
   private final JavaSparkContext sparkContext;
   private final Table table;
+  private final String branch;
   private final Command command;
   private final SparkBatchQueryScan scan;
   private final IsolationLevel isolationLevel;
   private final String applicationId;
   private final boolean wapEnabled;
   private final String wapId;
-  private final String branch;
   private final Map<String, String> extraSnapshotMetadata;
   private final SparkWriteRequirements writeRequirements;
+  private final int sortOrderId;
   private final Context context;
   private final Map<String, String> writeProperties;
 
   private boolean cleanupOnAbort = false;
+  private InMemoryMetricsReporter metricsReporter;
 
   SparkPositionDeltaWrite(
       SparkSession spark,
       Table table,
+      String branch,
       Command command,
       SparkBatchQueryScan scan,
       IsolationLevel isolationLevel,
@@ -128,17 +138,23 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
       Schema dataSchema) {
     this.sparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
     this.table = table;
+    this.branch = branch;
     this.command = command;
     this.scan = scan;
     this.isolationLevel = isolationLevel;
     this.applicationId = spark.sparkContext().applicationId();
     this.wapEnabled = writeConf.wapEnabled();
     this.wapId = writeConf.wapId();
-    this.branch = writeConf.branch();
     this.extraSnapshotMetadata = writeConf.extraSnapshotMetadata();
     this.writeRequirements = writeConf.positionDeltaRequirements(command);
+    this.sortOrderId = writeConf.outputSortOrderId(writeRequirements);
     this.context = new Context(dataSchema, writeConf, info, writeRequirements);
     this.writeProperties = writeConf.writeProperties();
+
+    if (this.table instanceof BaseTable) {
+      this.metricsReporter = new InMemoryMetricsReporter();
+      ((BaseTable) this.table).combineMetricsReporter(metricsReporter);
+    }
   }
 
   @Override
@@ -172,6 +188,16 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
     return new PositionDeltaBatchWrite();
   }
 
+  @Override
+  public CustomMetric[] supportedCustomMetrics() {
+    return SparkWriteUtil.supportedCustomMetrics();
+  }
+
+  @Override
+  public CustomTaskMetric[] reportDriverMetrics() {
+    return SparkWriteUtil.customTaskMetrics(metricsReporter);
+  }
+
   private class PositionDeltaBatchWrite implements DeltaBatchWrite {
 
     @Override
@@ -182,7 +208,8 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
           broadcastRewritableDeletes(),
           command,
           context,
-          writeProperties);
+          writeProperties,
+          sortOrderId);
     }
 
     private Broadcast<Map<String, DeleteFileSet>> broadcastRewritableDeletes() {
@@ -207,6 +234,11 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
 
     @Override
     public void commit(WriterCommitMessage[] messages) {
+      commit(messages, null);
+    }
+
+    @Override
+    public void commit(WriterCommitMessage[] messages, WriteSummary summary) {
       RowDelta rowDelta = table.newRowDelta();
 
       CharSequenceSet referencedDataFiles = CharSequenceSet.empty();
@@ -239,7 +271,7 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
       // the scan may be null if the optimizer replaces it with an empty relation
       // no validation is needed in this case as the command is independent of the table state
       if (scan != null) {
-        Expression conflictDetectionFilter = conflictDetectionFilter(scan);
+        Expression conflictDetectionFilter = scan.filter();
         rowDelta.conflictDetectionFilter(conflictDetectionFilter);
 
         rowDelta.validateDataFilesExist(referencedDataFiles);
@@ -270,7 +302,7 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
                 scan.snapshotId(),
                 conflictDetectionFilter,
                 isolationLevel);
-        commitOperation(rowDelta, commitMsg);
+        commitOperation(rowDelta, commitMsg, summary);
 
       } else {
         String commitMsg =
@@ -279,18 +311,8 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
                 "position delta with %d data files and %d delete files (no validation required)",
                 addedDataFilesCount,
                 addedDeleteFilesCount);
-        commitOperation(rowDelta, commitMsg);
+        commitOperation(rowDelta, commitMsg, summary);
       }
-    }
-
-    private Expression conflictDetectionFilter(SparkBatchQueryScan queryScan) {
-      Expression filter = Expressions.alwaysTrue();
-
-      for (Expression expr : queryScan.filterExpressions()) {
-        filter = Expressions.and(filter, expr);
-      }
-
-      return filter;
     }
 
     @Override
@@ -316,7 +338,8 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
       return files;
     }
 
-    private void commitOperation(SnapshotUpdate<?> operation, String description) {
+    private void commitOperation(
+        SnapshotUpdate<?> operation, String description, WriteSummary summary) {
       LOG.info("Committing {} to table {}", description, table);
       if (applicationId != null) {
         operation.set("spark.app.id", applicationId);
@@ -325,6 +348,10 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
       extraSnapshotMetadata.forEach(operation::set);
 
       CommitMetadata.commitProperties().forEach(operation::set);
+
+      if (summary instanceof MergeSummary) {
+        setMergeSummaryProperties(operation, (MergeSummary) summary);
+      }
 
       if (wapEnabled && wapId != null) {
         // write-audit-publish is enabled for this table and job
@@ -392,18 +419,21 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
     private final Command command;
     private final Context context;
     private final Map<String, String> writeProperties;
+    private final int sortOrderId;
 
     PositionDeltaWriteFactory(
         Broadcast<Table> tableBroadcast,
         Broadcast<Map<String, DeleteFileSet>> rewritableDeletesBroadcast,
         Command command,
         Context context,
-        Map<String, String> writeProperties) {
+        Map<String, String> writeProperties,
+        int sortOrderId) {
       this.tableBroadcast = tableBroadcast;
       this.rewritableDeletesBroadcast = rewritableDeletesBroadcast;
       this.command = command;
       this.context = context;
       this.writeProperties = writeProperties;
+      this.sortOrderId = sortOrderId;
     }
 
     @Override
@@ -430,6 +460,7 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
               .deleteFileFormat(context.deleteFileFormat())
               .positionDeleteSparkType(context.deleteSparkType())
               .writeProperties(writeProperties)
+              .dataSortOrder(table.sortOrders().get(sortOrderId))
               .build();
 
       if (command == DELETE) {

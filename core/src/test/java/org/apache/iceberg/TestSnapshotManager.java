@@ -244,10 +244,11 @@ public class TestSnapshotManager extends TestBase {
 
     Snapshot snapshot = table.snapshot(branch1SnapshotRef.snapshotId());
     assertThat(snapshot.parentId()).isNull();
-    assertThat(snapshot.addedDataFiles(table.io())).isEmpty();
-    assertThat(snapshot.removedDataFiles(table.io())).isEmpty();
-    assertThat(snapshot.addedDeleteFiles(table.io())).isEmpty();
-    assertThat(snapshot.removedDeleteFiles(table.io())).isEmpty();
+    SnapshotChanges changes = SnapshotChanges.builderFor(table).snapshot(snapshot).build();
+    assertThat(changes.addedDataFiles()).isEmpty();
+    assertThat(changes.removedDataFiles()).isEmpty();
+    assertThat(changes.addedDeleteFiles()).isEmpty();
+    assertThat(changes.removedDeleteFiles()).isEmpty();
   }
 
   @TestTemplate
@@ -320,6 +321,25 @@ public class TestSnapshotManager extends TestBase {
                     .commit())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Ref tag2 already exists");
+  }
+
+  @TestTemplate
+  public void testCreateTagNamedMainFails() {
+    // stage a snapshot so that the table has a snapshot but no main branch ref yet
+    table.newAppend().appendFile(FILE_A).stageOnly().commit();
+    Snapshot stagedSnapshot = Iterables.getOnlyElement(table.snapshots());
+
+    assertThatThrownBy(
+            () ->
+                table
+                    .manageSnapshots()
+                    .createTag(SnapshotRef.MAIN_BRANCH, stagedSnapshot.snapshotId())
+                    .commit())
+        .isInstanceOf(ValidationException.class)
+        .hasMessage("Cannot set main to a tag, it must be a branch");
+
+    // the failed commit must not have created the main ref
+    assertThat(table.ops().refresh().ref(SnapshotRef.MAIN_BRANCH)).isNull();
   }
 
   @TestTemplate

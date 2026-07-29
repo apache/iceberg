@@ -254,7 +254,10 @@ public class ValueReaders {
       Integer projectionPos,
       ValueReader<?> fieldReader,
       Map<Integer, ?> idToConstant) {
-    if (Objects.equals(fieldId, MetadataColumns.ROW_ID.fieldId())) {
+    if (projectionPos == null) {
+      // field is in the file but not projected; keep the reader only for skipping
+      return Pair.of(null, fieldReader);
+    } else if (Objects.equals(fieldId, MetadataColumns.ROW_ID.fieldId())) {
       Long firstRowId = (Long) idToConstant.get(fieldId);
       return Pair.of(projectionPos, ValueReaders.rowIds(firstRowId, fieldReader));
     } else if (Objects.equals(fieldId, MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.fieldId())) {
@@ -273,7 +276,7 @@ public class ValueReaders {
       ValueReader<?> fieldReader,
       Map<Integer, ?> idToConstant) {
     Object constant = idToConstant.get(fieldId);
-    if (projectionPos != null && constant != null) {
+    if (constant != null) {
       return Pair.of(projectionPos, ValueReaders.replaceWithConstant(fieldReader, constant));
     }
 
@@ -305,6 +308,9 @@ public class ValueReaders {
     Types.NestedField field = expected.field(fieldId);
 
     if (constant != null) {
+      if (fieldId == MetadataColumns.ROW_ID.fieldId()) {
+        return ValueReaders.rowIds((Long) constant, null);
+      }
       return ValueReaders.constant(constant);
     } else if (field.initialDefault() != null) {
       return ValueReaders.constant(convert.apply(field.type(), field.initialDefault()));

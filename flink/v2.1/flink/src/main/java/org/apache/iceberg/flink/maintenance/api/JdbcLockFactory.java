@@ -260,10 +260,6 @@ public class JdbcLockFactory implements TriggerLockFactory {
                       this,
                       instanceId,
                       count);
-                } catch (SQLException e) {
-                  // SQL exception happened when deleting lock information
-                  throw new UncheckedSQLException(
-                      e, "Failed to delete %s lock with instanceId %s", this, instanceId);
                 }
 
                 return null;
@@ -298,9 +294,6 @@ public class JdbcLockFactory implements TriggerLockFactory {
                     return null;
                   }
                 }
-              } catch (SQLException e) {
-                // SQL exception happened when getting lock information
-                throw new UncheckedSQLException(e, "Failed to get lock information for %s", type);
               }
             });
       } catch (InterruptedException e) {

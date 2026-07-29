@@ -54,7 +54,7 @@ public interface RowDelta extends SnapshotUpdate<RowDelta> {
    */
   default RowDelta removeRows(DataFile file) {
     throw new UnsupportedOperationException(
-        getClass().getName() + " does not implement deleteFile");
+        getClass().getName() + " does not implement removeRows");
   }
 
   /**

@@ -22,7 +22,7 @@ import org.apache.spark.sql.connector.metric.CustomSumMetric;
 
 public class PositionalDeleteFiles extends CustomSumMetric {
 
-  static final String NAME = "positionalDeleteFiles";
+  public static final String NAME = "positionalDeleteFiles";
 
   @Override
   public String name() {

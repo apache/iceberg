@@ -167,7 +167,9 @@ public class TableMetadataParser {
 
     generator.writeNumberField(FORMAT_VERSION, metadata.formatVersion());
     generator.writeStringField(TABLE_UUID, metadata.uuid());
-    generator.writeStringField(LOCATION, metadata.location());
+    if (metadata.location() != null) {
+      generator.writeStringField(LOCATION, metadata.location());
+    }
     if (metadata.formatVersion() > 1) {
       generator.writeNumberField(LAST_SEQUENCE_NUMBER, metadata.lastSequenceNumber());
     }
@@ -347,7 +349,11 @@ public class TableMetadataParser {
         formatVersion);
 
     String uuid = JsonUtil.getStringOrNull(TABLE_UUID, node);
-    String location = JsonUtil.getString(LOCATION, node);
+    // location is required in v1-v3 but optional in v4 and later
+    String location =
+        formatVersion >= TableMetadata.MIN_FORMAT_VERSION_OPTIONAL_LOCATION
+            ? JsonUtil.getStringOrNull(LOCATION, node)
+            : JsonUtil.getString(LOCATION, node);
     long lastSequenceNumber;
     if (formatVersion > 1) {
       lastSequenceNumber = JsonUtil.getLong(LAST_SEQUENCE_NUMBER, node);

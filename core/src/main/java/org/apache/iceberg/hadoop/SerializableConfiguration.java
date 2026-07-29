@@ -18,33 +18,34 @@
  */
 package org.apache.iceberg.hadoop;
 
-import java.io.IOException;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
 import java.io.Serializable;
+import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.util.SerializableSupplier;
 
 /** Wraps a {@link Configuration} object in a {@link Serializable} layer. */
-public class SerializableConfiguration implements Serializable {
-
-  private transient Configuration hadoopConf;
+public class SerializableConfiguration implements SerializableSupplier<Configuration> {
+  private final Map<String, String> confAsMap;
+  private transient volatile Configuration hadoopConf = null;
 
   public SerializableConfiguration(Configuration hadoopConf) {
-    this.hadoopConf = hadoopConf;
+    this.confAsMap = Maps.newHashMapWithExpectedSize(hadoopConf.size());
+    hadoopConf.forEach(entry -> confAsMap.put(entry.getKey(), entry.getValue()));
   }
 
-  private void writeObject(ObjectOutputStream out) throws IOException {
-    out.defaultWriteObject();
-    hadoopConf.write(out);
-  }
-
-  private void readObject(ObjectInputStream in) throws ClassNotFoundException, IOException {
-    in.defaultReadObject();
-    hadoopConf = new Configuration(false);
-    hadoopConf.readFields(in);
-  }
-
+  @Override
   public Configuration get() {
+    if (hadoopConf == null) {
+      synchronized (this) {
+        if (hadoopConf == null) {
+          Configuration newConf = new Configuration(false);
+          confAsMap.forEach(newConf::set);
+          this.hadoopConf = newConf;
+        }
+      }
+    }
+
     return hadoopConf;
   }
 }

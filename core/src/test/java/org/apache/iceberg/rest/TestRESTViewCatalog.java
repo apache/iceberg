@@ -18,7 +18,7 @@
  */
 package org.apache.iceberg.rest;
 
-import static org.apache.iceberg.rest.TestRESTCatalog.reqMatcher;
+import static org.apache.iceberg.rest.RequestMatcher.matches;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -57,10 +57,11 @@ import org.apache.iceberg.rest.responses.ListTablesResponse;
 import org.apache.iceberg.rest.responses.LoadViewResponse;
 import org.apache.iceberg.view.ViewCatalogTests;
 import org.apache.iceberg.view.ViewMetadata;
+import org.eclipse.jetty.compression.gzip.GzipCompression;
+import org.eclipse.jetty.compression.server.CompressionHandler;
+import org.eclipse.jetty.ee10.servlet.ServletContextHandler;
+import org.eclipse.jetty.ee10.servlet.ServletHolder;
 import org.eclipse.jetty.server.Server;
-import org.eclipse.jetty.server.handler.gzip.GzipHandler;
-import org.eclipse.jetty.servlet.ServletContextHandler;
-import org.eclipse.jetty.servlet.ServletHolder;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -114,7 +115,9 @@ public class TestRESTViewCatalog extends ViewCatalogTests<RESTCatalog> {
         new ServletContextHandler(ServletContextHandler.NO_SESSIONS);
     servletContext.setContextPath("/");
     servletContext.addServlet(new ServletHolder(new RESTCatalogServlet(adaptor)), "/*");
-    servletContext.setHandler(new GzipHandler());
+    CompressionHandler compressionHandler = new CompressionHandler();
+    compressionHandler.putCompression(new GzipCompression());
+    servletContext.insertHandler(compressionHandler);
 
     this.httpServer = new Server(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0));
     httpServer.setHandler(servletContext);
@@ -199,11 +202,11 @@ public class TestRESTViewCatalog extends ViewCatalogTests<RESTCatalog> {
     assertThat(views).hasSize(numberOfItems);
 
     Mockito.verify(adapter)
-        .execute(reqMatcher(HTTPMethod.GET, "v1/config"), eq(ConfigResponse.class), any(), any());
+        .execute(matches(HTTPMethod.GET, "v1/config"), eq(ConfigResponse.class), any(), any());
 
     Mockito.verify(adapter, times(numberOfItems))
         .execute(
-            reqMatcher(HTTPMethod.POST, String.format("v1/namespaces/%s/views", namespaceName)),
+            matches(HTTPMethod.POST, String.format("v1/namespaces/%s/views", namespaceName)),
             eq(LoadViewResponse.class),
             any(),
             any());
@@ -249,13 +252,13 @@ public class TestRESTViewCatalog extends ViewCatalogTests<RESTCatalog> {
 
     Mockito.verify(adapter)
         .execute(
-            reqMatcher(HTTPMethod.GET, "v1/config", Map.of(), Map.of()),
+            matches(HTTPMethod.GET, "v1/config", Map.of(), Map.of()),
             eq(ConfigResponse.class),
             any(),
             any());
     Mockito.verify(adapter)
         .execute(
-            reqMatcher(HTTPMethod.HEAD, "v1/namespaces/ns/views/view", Map.of(), Map.of()),
+            matches(HTTPMethod.HEAD, "v1/namespaces/ns/views/view", Map.of(), Map.of()),
             any(),
             any(),
             any());
@@ -296,13 +299,13 @@ public class TestRESTViewCatalog extends ViewCatalogTests<RESTCatalog> {
 
     Mockito.verify(adapter)
         .execute(
-            reqMatcher(HTTPMethod.GET, "v1/config", Map.of(), Map.of()),
+            matches(HTTPMethod.GET, "v1/config", Map.of(), Map.of()),
             eq(ConfigResponse.class),
             any(),
             any());
     Mockito.verify(adapter)
         .execute(
-            reqMatcher(HTTPMethod.GET, "v1/namespaces/ns/views/view", Map.of(), Map.of()),
+            matches(HTTPMethod.GET, "v1/namespaces/ns/views/view", Map.of(), Map.of()),
             any(),
             any(),
             any());
@@ -394,7 +397,7 @@ public class TestRESTViewCatalog extends ViewCatalogTests<RESTCatalog> {
       ResourcePaths resourcePaths = ResourcePaths.forCatalogProperties(Maps.newHashMap());
       Mockito.verify(adapter, Mockito.atLeastOnce())
           .execute(
-              reqMatcher(HTTPMethod.POST, resourcePaths.view(viewIdentifier), customHeaders),
+              matches(HTTPMethod.POST, resourcePaths.view(viewIdentifier), customHeaders),
               eq(LoadViewResponse.class),
               any(),
               any());

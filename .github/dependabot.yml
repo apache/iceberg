@@ -24,12 +24,23 @@ updates:
     schedule:
       interval: "weekly"
       day: "sunday"
+    cooldown:
+      default-days: 7
+    groups:
+      # The codeql-action init/autobuild/analyze steps must all run the
+      # same version - split PRs cause a version mismatch that fails the
+      # Analyze jobs. Group them so a single PR bumps all of them together.
+      codeql-action:
+        patterns:
+          - "github/codeql-action*"
   - package-ecosystem: "gradle"
     directory: "/"
     schedule:
       interval: "weekly"
       day: "sunday"
     open-pull-requests-limit: 50
+    cooldown:
+      default-days: 7
     ignore:
       - dependency-name: "*"
         update-types: ["version-update:semver-major"]
@@ -39,6 +50,8 @@ updates:
       interval: "weekly"
       day: "sunday"
     open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
     ignore:
       - dependency-name: "*"
         update-types: ["version-update:semver-major"]

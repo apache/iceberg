@@ -338,6 +338,8 @@ public interface Catalog {
   /**
    * Register a table with the catalog if it does not exist.
    *
+   * <p>For overwrite support, see {@link #registerTable(TableIdentifier, String, boolean)}.
+   *
    * @param identifier a table identifier
    * @param metadataFileLocation the location of a metadata file
    * @return a Table instance
@@ -345,6 +347,25 @@ public interface Catalog {
    */
   default Table registerTable(TableIdentifier identifier, String metadataFileLocation) {
     throw new UnsupportedOperationException("Registering tables is not supported");
+  }
+
+  /**
+   * Register a table with the catalog.
+   *
+   * @param identifier a table identifier
+   * @param metadataFileLocation the location of a metadata file
+   * @param overwrite whether to overwrite an existing table registration
+   * @return a Table instance
+   * @throws AlreadyExistsException if {@code overwrite} is false and the table already exists in
+   *     the catalog
+   */
+  default Table registerTable(
+      TableIdentifier identifier, String metadataFileLocation, boolean overwrite) {
+    if (!overwrite) {
+      return registerTable(identifier, metadataFileLocation);
+    }
+
+    throw new UnsupportedOperationException("Registering tables with overwrite is not supported");
   }
 
   /**

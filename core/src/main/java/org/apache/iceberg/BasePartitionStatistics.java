@@ -23,6 +23,21 @@ import org.apache.iceberg.types.Types;
 
 public class BasePartitionStatistics extends SupportsIndexProjection
     implements PartitionStatistics {
+  private static final Types.StructType BASE_TYPE =
+      Types.StructType.of(
+          EMPTY_PARTITION_FIELD,
+          SPEC_ID,
+          DATA_RECORD_COUNT,
+          DATA_FILE_COUNT,
+          TOTAL_DATA_FILE_SIZE_IN_BYTES,
+          POSITION_DELETE_RECORD_COUNT,
+          POSITION_DELETE_FILE_COUNT,
+          EQUALITY_DELETE_RECORD_COUNT,
+          EQUALITY_DELETE_FILE_COUNT,
+          TOTAL_RECORD_COUNT,
+          LAST_UPDATED_AT,
+          LAST_UPDATED_SNAPSHOT_ID,
+          DV_COUNT);
 
   private StructLike partition;
   private Integer specId;
@@ -38,10 +53,8 @@ public class BasePartitionStatistics extends SupportsIndexProjection
   private Long lastUpdatedSnapshotId;
   private Integer dvCount;
 
-  private static final int STATS_COUNT = 13;
-
   BasePartitionStatistics(StructLike partition, int specId) {
-    super(STATS_COUNT);
+    super(BASE_TYPE.fields().size());
 
     this.partition = partition;
     this.specId = specId;
@@ -58,7 +71,7 @@ public class BasePartitionStatistics extends SupportsIndexProjection
 
   /** Used by internal readers to instantiate this class with a projection schema. */
   BasePartitionStatistics(Types.StructType projection) {
-    super(STATS_COUNT);
+    super(BASE_TYPE, projection);
   }
 
   @Override

@@ -28,11 +28,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
-import org.apache.hadoop.fs.LocalFileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.RemoteIterator;
-import org.apache.hadoop.fs.Trash;
-import org.apache.hadoop.hdfs.DistributedFileSystem;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.BulkDeletionFailureException;
 import org.apache.iceberg.io.DelegateFileIO;
@@ -69,9 +66,14 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
   public HadoopFileIO() {}
 
   public HadoopFileIO(Configuration hadoopConf) {
-    this(new SerializableConfiguration(hadoopConf)::get);
+    this(new SerializableConfiguration(hadoopConf));
   }
 
+  /**
+   * @deprecated since 1.11.0, will be removed in 1.12.0; use {@link
+   *     HadoopFileIO#HadoopFileIO(Configuration)} instead.
+   */
+  @Deprecated
   public HadoopFileIO(SerializableSupplier<Configuration> hadoopConf) {
     this.hadoopConf = hadoopConf;
   }
@@ -105,7 +107,7 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
     Path toDelete = new Path(path);
     FileSystem fs = Util.getFs(toDelete, getConf());
     try {
-      deletePath(fs, toDelete, false);
+      fs.delete(toDelete, false /* not recursive */);
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to delete file: %s", path);
     }
@@ -118,7 +120,7 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
 
   @Override
   public void setConf(Configuration conf) {
-    this.hadoopConf = new SerializableConfiguration(conf)::get;
+    this.hadoopConf = new SerializableConfiguration(conf);
   }
 
   @Override
@@ -128,7 +130,7 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
     if (hadoopConf == null) {
       synchronized (this) {
         if (hadoopConf == null) {
-          this.hadoopConf = new SerializableConfiguration(new Configuration())::get;
+          this.hadoopConf = new SerializableConfiguration(new Configuration());
         }
       }
     }
@@ -136,6 +138,10 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
     return hadoopConf.get();
   }
 
+  /**
+   * @deprecated since 1.11.0, will be removed in 1.12.0.
+   */
+  @Deprecated
   @Override
   public void serializeConfWith(
       Function<Configuration, SerializableSupplier<Configuration>> confSerializer) {
@@ -170,7 +176,7 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
     FileSystem fs = Util.getFs(prefixToDelete, getConf());
 
     try {
-      deletePath(fs, prefixToDelete, true);
+      fs.delete(prefixToDelete, true /* recursive */);
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }
@@ -212,16 +218,6 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
     }
 
     return executorService;
-  }
-
-  private void deletePath(FileSystem fs, Path toDelete, boolean recursive) throws IOException {
-    Trash trash = new Trash(fs, getConf());
-    if ((fs instanceof LocalFileSystem || fs instanceof DistributedFileSystem)
-        && trash.isEnabled()) {
-      trash.moveToTrash(toDelete);
-    } else {
-      fs.delete(toDelete, recursive);
-    }
   }
 
   /**

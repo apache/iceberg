@@ -32,7 +32,10 @@ import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.Parameter;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
+import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.events.Listeners;
 import org.apache.iceberg.events.ScanEvent;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -43,6 +46,7 @@ import org.apache.iceberg.spark.CatalogTestBase;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkCatalogConfig;
 import org.apache.iceberg.spark.SparkReadOptions;
+import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.junit.jupiter.api.AfterEach;
@@ -639,6 +643,29 @@ public class TestSelect extends CatalogTestBase {
   }
 
   @TestTemplate
+  public void testFixedInFilter() {
+    // Create table programmatically with fixed type since Spark SQL DDL doesn't support it
+    Schema schema =
+        new Schema(
+            Types.NestedField.required(1, "id", Types.LongType.get()),
+            Types.NestedField.required(2, "fixed", Types.FixedType.ofLength(2)));
+
+    TableIdentifier fixedTableIdent = TableIdentifier.of(tableIdent.namespace(), "fixed_table");
+    validationCatalog.createTable(fixedTableIdent, schema, PartitionSpec.unpartitioned());
+
+    String fixedTableName = tableName("fixed_table");
+    sql("INSERT INTO %s VALUES (1, X'0000'), (2, X'1111'), (3, X'0011')", fixedTableName);
+    List<Object[]> expected = ImmutableList.of(row(2L, new byte[] {0x11, 0x11}));
+
+    assertEquals(
+        "Should return all expected rows",
+        expected,
+        sql("SELECT id, fixed FROM %s WHERE fixed > X'0011'", fixedTableName));
+
+    sql("DROP TABLE IF EXISTS %s", fixedTableName);
+  }
+
+  @TestTemplate
   public void testComplexTypeFilter() {
     String complexTypeTableName = tableName("complex_table");
     sql(
@@ -711,6 +738,81 @@ public class TestSelect extends CatalogTestBase {
             row(new Timestamp(dateOne.getTime())), row(new Timestamp(dateTwo.getTime())));
 
     sql("DROP TABLE IF EXISTS %s", tableName);
+  }
+
+  @TestTemplate
+  public void testTimeTravelFilterOnRenamedColumn() {
+    String ttTableName = tableName("tt_rename_table");
+    sql("DROP TABLE IF EXISTS %s", ttTableName);
+    sql(
+        "CREATE TABLE %s (id BIGINT, col DOUBLE) USING iceberg TBLPROPERTIES ("
+            + "'read.data-planning-mode'='distributed',"
+            + "'read.delete-planning-mode'='distributed')",
+        ttTableName);
+    sql("INSERT INTO %s VALUES (1, 100.0), (2, 200.0), (3, 0.0)", ttTableName);
+
+    TableIdentifier ttTableIdent = TableIdentifier.of(tableIdent.namespace(), "tt_rename_table");
+    long snapshotId = validationCatalog.loadTable(ttTableIdent).currentSnapshot().snapshotId();
+
+    sql("ALTER TABLE %s RENAME COLUMN col TO value", ttTableName);
+    sql("INSERT INTO %s VALUES (4, 400.0)", ttTableName);
+
+    Dataset<Row> df =
+        spark
+            .read()
+            .format("iceberg")
+            .option(SparkReadOptions.VERSION_AS_OF, snapshotId)
+            .load(ttTableName);
+
+    assertThat(df.columns()).containsExactly("id", "col");
+
+    List<Object[]> results =
+        rowsToJava(df.filter(df.col("col").gt(0)).orderBy("id").collectAsList());
+    assertEquals(
+        "Should return rows where col > 0",
+        ImmutableList.of(row(1L, 100.0), row(2L, 200.0)),
+        results);
+
+    List<Object[]> sqlResults =
+        sql("SELECT * FROM %s VERSION AS OF %s WHERE col > 0 ORDER BY id", ttTableName, snapshotId);
+    assertEquals(
+        "SQL time-travel filter should also work",
+        ImmutableList.of(row(1L, 100.0), row(2L, 200.0)),
+        sqlResults);
+
+    sql("DROP TABLE IF EXISTS %s", ttTableName);
+  }
+
+  @TestTemplate
+  public void testTimeTravelFilterOnRenamedColumnWithDeleteFiles() {
+    String ttTableName = tableName("tt_rename_delete_table");
+    sql("DROP TABLE IF EXISTS %s", ttTableName);
+    sql(
+        "CREATE TABLE %s (id BIGINT, col DOUBLE) USING iceberg PARTITIONED BY (col) TBLPROPERTIES ("
+            + "'format-version'='2',"
+            + "'write.delete.mode'='merge-on-read',"
+            + "'read.data-planning-mode'='distributed',"
+            + "'read.delete-planning-mode'='distributed')",
+        ttTableName);
+    sql("INSERT INTO %s VALUES (1, 100.0), (2, 200.0), (3, 0.0)", ttTableName);
+
+    sql("DELETE FROM %s WHERE id = 3", ttTableName);
+
+    TableIdentifier ttTableIdent =
+        TableIdentifier.of(tableIdent.namespace(), "tt_rename_delete_table");
+    long snapshotId = validationCatalog.loadTable(ttTableIdent).currentSnapshot().snapshotId();
+
+    sql("ALTER TABLE %s RENAME COLUMN col TO value", ttTableName);
+    sql("INSERT INTO %s VALUES (4, 400.0)", ttTableName);
+
+    List<Object[]> results =
+        sql("SELECT * FROM %s VERSION AS OF %s WHERE col > 0 ORDER BY id", ttTableName, snapshotId);
+    assertEquals(
+        "Should return rows where col > 0, excluding deleted row",
+        ImmutableList.of(row(1L, 100.0), row(2L, 200.0)),
+        results);
+
+    sql("DROP TABLE IF EXISTS %s", ttTableName);
   }
 
   @TestTemplate

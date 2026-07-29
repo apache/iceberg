@@ -43,8 +43,11 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.PartitionSet;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Base reader for data and delete manifest files.
@@ -53,7 +56,16 @@ import org.apache.iceberg.util.PartitionSet;
  */
 public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
     implements CloseableIterable<F> {
+  private static final Logger LOG = LoggerFactory.getLogger(ManifestReader.class);
+
   static final ImmutableList<String> ALL_COLUMNS = ImmutableList.of("*");
+
+  private static final Types.NestedField UNPARTITIONED_PARTITION_FIELD =
+      Types.NestedField.optional(
+          DataFile.PARTITION_ID,
+          DataFile.PARTITION_NAME,
+          Types.StructType.of(),
+          DataFile.PARTITION_DOC);
 
   private static final Set<String> STATS_COLUMNS =
       ImmutableSet.of(
@@ -63,6 +75,11 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
           "lower_bounds",
           "upper_bounds",
           "record_count");
+
+  private static final Schema STATUS_ONLY_PROJECTION =
+      TypeUtil.select(
+          ManifestEntry.getSchema(Types.StructType.of()),
+          ImmutableSet.of(ManifestEntry.STATUS.fieldId()));
 
   protected enum FileType {
     DATA_FILES(GenericDataFile.class),
@@ -82,6 +99,7 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
   private final InputFile file;
   private final InheritableMetadata inheritableMetadata;
   private final Long firstRowId;
+  private final boolean isCommitted;
   private final FileType content;
   private final PartitionSpec spec;
   private final Schema fileSchema;
@@ -115,17 +133,33 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
       InheritableMetadata inheritableMetadata,
       Long firstRowId,
       FileType content) {
+    this(file, specId, specsById, inheritableMetadata, firstRowId, true, content);
+  }
+
+  protected ManifestReader(
+      InputFile file,
+      int specId,
+      Map<Integer, PartitionSpec> specsById,
+      InheritableMetadata inheritableMetadata,
+      Long firstRowId,
+      boolean isCommitted,
+      FileType content) {
     Preconditions.checkArgument(
         firstRowId == null || content == FileType.DATA_FILES,
         "First row ID is not valid for delete manifests");
     this.file = file;
     this.inheritableMetadata = inheritableMetadata;
     this.firstRowId = firstRowId;
+    this.isCommitted = isCommitted;
     this.content = content;
 
     if (specsById != null) {
       this.spec = specsById.get(specId);
     } else {
+      LOG.warn(
+          "Reading partition spec from manifest file metadata is deprecated and will be "
+              + "removed in the 1.12.0 release. Pass specsById to avoid reading from file metadata: {}",
+          file.location());
       this.spec = readPartitionSpec(file);
     }
 
@@ -146,12 +180,16 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
   }
 
   private static <T extends ContentFile<T>> Map<String, String> readMetadata(InputFile inputFile) {
+    FileFormat manifestFormat = FileFormat.fromFileName(inputFile.location());
+    Preconditions.checkArgument(
+        manifestFormat == FileFormat.AVRO,
+        "Reading manifest metadata is only supported for Avro manifests: %s",
+        inputFile.location());
+
     Map<String, String> metadata;
     try {
       try (CloseableIterable<ManifestEntry<T>> headerReader =
-          InternalData.read(FileFormat.AVRO, inputFile)
-              .project(ManifestEntry.getSchema(Types.StructType.of()).select("status"))
-              .build()) {
+          InternalData.read(FileFormat.AVRO, inputFile).project(STATUS_ONLY_PROJECTION).build()) {
 
         if (headerReader instanceof AvroIterable) {
           metadata = ((AvroIterable<ManifestEntry<T>>) headerReader).getMetadata();
@@ -273,8 +311,22 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
     Preconditions.checkArgument(
         format != null, "Unable to determine format of manifest: %s", file.location());
 
+    boolean unpartitioned = spec.rawPartitionType().fields().isEmpty();
+
+    // V4+ manifests omit the partition field when unpartitioned (Parquet cannot represent
+    // empty structs, and the field is meaningless regardless of format). Mark it optional so
+    // the reader returns null for the missing field instead of throwing. The field must stay
+    // in the projection to preserve positional access for callers like StructProjection.
+    // For older versions where the empty struct is present, making it optional is harmless.
     List<Types.NestedField> fields = Lists.newArrayList();
-    fields.addAll(projection.asStruct().fields());
+    for (Types.NestedField field : projection.asStruct().fields()) {
+      if (unpartitioned && field.fieldId() == DataFile.PARTITION_ID) {
+        fields.add(UNPARTITIONED_PARTITION_FIELD);
+      } else {
+        fields.add(field);
+      }
+    }
+
     if (projection.findField(DataFile.RECORD_COUNT.fieldId()) == null) {
       fields.add(DataFile.RECORD_COUNT);
     }
@@ -296,7 +348,7 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
 
     CloseableIterable<ManifestEntry<F>> withMetadata =
         CloseableIterable.transform(reader, inheritableMetadata::apply);
-    return CloseableIterable.transform(withMetadata, idAssigner(firstRowId));
+    return CloseableIterable.transform(withMetadata, idAssigner(firstRowId, isCommitted));
   }
 
   CloseableIterable<ManifestEntry<F>> liveEntries() {
@@ -386,7 +438,7 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
   }
 
   private static <F extends ContentFile<F>> Function<ManifestEntry<F>, ManifestEntry<F>> idAssigner(
-      Long firstRowId) {
+      Long firstRowId, boolean isCommitted) {
     if (firstRowId != null) {
       return new Function<>() {
         private long nextRowId = firstRowId;
@@ -404,8 +456,13 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
           return entry;
         }
       };
+    } else if (!isCommitted) {
+      // Preserve firstRowId for entries in uncommitted manifests, including EXISTING entries that
+      // may be merged later
+      return Function.identity();
     } else {
-      // data file's first_row_id is null when the manifest's first_row_id is null
+      // committed manifest with null manifest-level firstRowId (pre-v3 upgrade path)
+      // defensively set the first row ID for every entry to be null
       return entry -> {
         if (entry.file() instanceof BaseFile) {
           ((BaseFile<?>) entry.file()).setFirstRowId(null);

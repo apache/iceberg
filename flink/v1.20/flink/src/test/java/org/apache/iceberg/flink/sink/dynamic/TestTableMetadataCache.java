@@ -36,6 +36,12 @@ import org.junit.jupiter.api.Test;
 
 public class TestTableMetadataCache extends TestFlinkIcebergSinkBase {
 
+  private static final boolean CASE_SENSITIVE = true;
+  private static final boolean CASE_INSENSITIVE = false;
+
+  private static final boolean DROP_COLUMNS = true;
+  private static final boolean PRESERVE_COLUMNS = false;
+
   static final Schema SCHEMA =
       new Schema(
           Types.NestedField.optional(1, "id", Types.IntegerType.get()),
@@ -47,29 +53,35 @@ public class TestTableMetadataCache extends TestFlinkIcebergSinkBase {
           Types.NestedField.optional(2, "data", Types.StringType.get()),
           Types.NestedField.optional(3, "extra", Types.StringType.get()));
 
+  static final Schema SCHEMA_UPPERCASE =
+      new Schema(
+          Types.NestedField.optional(1, "ID", Types.IntegerType.get()),
+          Types.NestedField.optional(2, "DATA", Types.StringType.get()));
+
+  static final Schema SCHEMA_MIXEDCASE =
+      new Schema(
+          Types.NestedField.optional(1, "Id", Types.IntegerType.get()),
+          Types.NestedField.optional(2, "Data", Types.StringType.get()));
+
   @Test
   void testCaching() {
     Catalog catalog = CATALOG_EXTENSION.catalog();
     TableIdentifier tableIdentifier = TableIdentifier.parse("default.myTable");
     catalog.createTable(tableIdentifier, SCHEMA);
-    TableMetadataCache cache = new TableMetadataCache(catalog, 10, Long.MAX_VALUE, 10);
+    TableMetadataCache cache =
+        new TableMetadataCache(catalog, 10, Long.MAX_VALUE, 10, CASE_SENSITIVE, PRESERVE_COLUMNS);
 
-    Schema schema1 = cache.schema(tableIdentifier, SCHEMA, false).resolvedTableSchema();
+    Schema schema1 = cache.schema(tableIdentifier, SCHEMA).resolvedTableSchema();
     assertThat(schema1.sameSchema(SCHEMA)).isTrue();
     assertThat(
-            cache
-                .schema(tableIdentifier, SerializationUtils.clone(SCHEMA), false)
-                .resolvedTableSchema())
+            cache.schema(tableIdentifier, SerializationUtils.clone(SCHEMA)).resolvedTableSchema())
         .isEqualTo(schema1);
 
-    assertThat(cache.schema(tableIdentifier, SCHEMA2, false))
-        .isEqualTo(TableMetadataCache.NOT_FOUND);
+    assertThat(cache.schema(tableIdentifier, SCHEMA2)).isEqualTo(TableMetadataCache.NOT_FOUND);
 
-    schema1 = cache.schema(tableIdentifier, SCHEMA, false).resolvedTableSchema();
+    schema1 = cache.schema(tableIdentifier, SCHEMA).resolvedTableSchema();
     assertThat(
-            cache
-                .schema(tableIdentifier, SerializationUtils.clone(SCHEMA), false)
-                .resolvedTableSchema())
+            cache.schema(tableIdentifier, SerializationUtils.clone(SCHEMA)).resolvedTableSchema())
         .isEqualTo(schema1);
   }
 
@@ -78,10 +90,11 @@ public class TestTableMetadataCache extends TestFlinkIcebergSinkBase {
     Catalog catalog = CATALOG_EXTENSION.catalog();
     TableIdentifier tableIdentifier = TableIdentifier.parse("default.myTable");
     catalog.createTable(tableIdentifier, SCHEMA);
-    TableMetadataCache cache = new TableMetadataCache(catalog, 10, Long.MAX_VALUE, 10);
-    TableUpdater tableUpdater = new TableUpdater(cache, catalog, false);
+    TableMetadataCache cache =
+        new TableMetadataCache(catalog, 10, Long.MAX_VALUE, 10, CASE_SENSITIVE, PRESERVE_COLUMNS);
+    TableUpdater tableUpdater = new TableUpdater(cache, catalog, CASE_SENSITIVE, PRESERVE_COLUMNS);
 
-    Schema schema1 = cache.schema(tableIdentifier, SCHEMA, false).resolvedTableSchema();
+    Schema schema1 = cache.schema(tableIdentifier, SCHEMA).resolvedTableSchema();
     assertThat(schema1.sameSchema(SCHEMA)).isTrue();
 
     catalog.dropTable(tableIdentifier);
@@ -93,7 +106,7 @@ public class TestTableMetadataCache extends TestFlinkIcebergSinkBase {
         PartitionSpec.unpartitioned(),
         TableCreator.DEFAULT);
 
-    Schema schema2 = cache.schema(tableIdentifier, SCHEMA2, false).resolvedTableSchema();
+    Schema schema2 = cache.schema(tableIdentifier, SCHEMA2).resolvedTableSchema();
     assertThat(schema2.sameSchema(SCHEMA2)).isTrue();
   }
 
@@ -102,7 +115,8 @@ public class TestTableMetadataCache extends TestFlinkIcebergSinkBase {
     Catalog catalog = CATALOG_EXTENSION.catalog();
     TableIdentifier tableIdentifier = TableIdentifier.parse("default.myTable");
     catalog.createTable(tableIdentifier, SCHEMA);
-    TableMetadataCache cache = new TableMetadataCache(catalog, 0, Long.MAX_VALUE, 10);
+    TableMetadataCache cache =
+        new TableMetadataCache(catalog, 0, Long.MAX_VALUE, 10, CASE_SENSITIVE, PRESERVE_COLUMNS);
 
     assertThat(cache.getInternalCache()).isEmpty();
   }
@@ -117,15 +131,21 @@ public class TestTableMetadataCache extends TestFlinkIcebergSinkBase {
     // Init cache
     TableMetadataCache cache =
         new TableMetadataCache(
-            catalog, 10, 100L, 10, Clock.fixed(Instant.now(), ZoneId.systemDefault()));
+            catalog,
+            10,
+            100L,
+            10,
+            CASE_INSENSITIVE,
+            PRESERVE_COLUMNS,
+            Clock.fixed(Instant.now(), ZoneId.systemDefault()));
     cache.update(tableIdentifier, table);
 
     // Cache schema
-    Schema schema = cache.schema(tableIdentifier, SCHEMA2, false).resolvedTableSchema();
+    Schema schema = cache.schema(tableIdentifier, SCHEMA2).resolvedTableSchema();
     assertThat(schema.sameSchema(SCHEMA2)).isTrue();
 
     // Cache schema with fewer fields
-    TableMetadataCache.ResolvedSchemaInfo schemaInfo = cache.schema(tableIdentifier, SCHEMA, false);
+    TableMetadataCache.ResolvedSchemaInfo schemaInfo = cache.schema(tableIdentifier, SCHEMA);
     assertThat(schemaInfo.resolvedTableSchema().sameSchema(SCHEMA2)).isTrue();
     assertThat(schemaInfo.compareResult())
         .isEqualTo(CompareSchemasVisitor.Result.DATA_CONVERSION_NEEDED);
@@ -140,9 +160,10 @@ public class TestTableMetadataCache extends TestFlinkIcebergSinkBase {
   void testNoSuchNamespaceExceptionHandling() {
     Catalog catalog = CATALOG_EXTENSION.catalog();
     TableIdentifier tableIdentifier = TableIdentifier.of("nonexistent_namespace", "myTable");
-    TableMetadataCache cache = new TableMetadataCache(catalog, 10, Long.MAX_VALUE, 10);
+    TableMetadataCache cache =
+        new TableMetadataCache(catalog, 10, Long.MAX_VALUE, 10, CASE_SENSITIVE, PRESERVE_COLUMNS);
 
-    TableMetadataCache.ResolvedSchemaInfo result = cache.schema(tableIdentifier, SCHEMA, false);
+    TableMetadataCache.ResolvedSchemaInfo result = cache.schema(tableIdentifier, SCHEMA);
 
     assertThat(result).isEqualTo(TableMetadataCache.NOT_FOUND);
     assertThat(cache.getInternalCache().get(tableIdentifier)).isNotNull();
@@ -152,11 +173,48 @@ public class TestTableMetadataCache extends TestFlinkIcebergSinkBase {
   void testNoSuchTableExceptionHandling() {
     Catalog catalog = CATALOG_EXTENSION.catalog();
     TableIdentifier tableIdentifier = TableIdentifier.parse("default.nonexistent_table");
-    TableMetadataCache cache = new TableMetadataCache(catalog, 10, Long.MAX_VALUE, 10);
+    TableMetadataCache cache =
+        new TableMetadataCache(catalog, 10, Long.MAX_VALUE, 10, CASE_SENSITIVE, PRESERVE_COLUMNS);
 
-    TableMetadataCache.ResolvedSchemaInfo result = cache.schema(tableIdentifier, SCHEMA, false);
+    TableMetadataCache.ResolvedSchemaInfo result = cache.schema(tableIdentifier, SCHEMA);
 
     assertThat(result).isEqualTo(TableMetadataCache.NOT_FOUND);
     assertThat(cache.getInternalCache().get(tableIdentifier)).isNotNull();
+  }
+
+  @Test
+  void testCaseInsensitiveCaching() {
+    Catalog catalog = CATALOG_EXTENSION.catalog();
+    TableIdentifier tableIdentifier = TableIdentifier.parse("default.myTable");
+    catalog.createTable(tableIdentifier, SCHEMA);
+    TableMetadataCache cache =
+        new TableMetadataCache(catalog, 10, Long.MAX_VALUE, 10, CASE_INSENSITIVE, PRESERVE_COLUMNS);
+
+    Schema schema1 = cache.schema(tableIdentifier, SCHEMA).resolvedTableSchema();
+    assertThat(schema1.sameSchema(SCHEMA)).isTrue();
+
+    Schema schemaUpperCase = cache.schema(tableIdentifier, SCHEMA_UPPERCASE).resolvedTableSchema();
+    assertThat(schemaUpperCase).isEqualTo(schema1);
+
+    Schema schemaMixedCase = cache.schema(tableIdentifier, SCHEMA_MIXEDCASE).resolvedTableSchema();
+    assertThat(schemaMixedCase).isEqualTo(schema1);
+  }
+
+  @Test
+  void testCaseSensitiveCachingDoesNotMatch() {
+    Catalog catalog = CATALOG_EXTENSION.catalog();
+    TableIdentifier tableIdentifier = TableIdentifier.parse("default.myTable");
+    catalog.createTable(tableIdentifier, SCHEMA);
+    TableMetadataCache cache =
+        new TableMetadataCache(catalog, 10, Long.MAX_VALUE, 10, CASE_SENSITIVE, PRESERVE_COLUMNS);
+
+    Schema schema1 = cache.schema(tableIdentifier, SCHEMA).resolvedTableSchema();
+    assertThat(schema1.sameSchema(SCHEMA)).isTrue();
+
+    assertThat(cache.schema(tableIdentifier, SCHEMA_UPPERCASE))
+        .isEqualTo(TableMetadataCache.NOT_FOUND);
+
+    assertThat(cache.schema(tableIdentifier, SCHEMA_MIXEDCASE))
+        .isEqualTo(TableMetadataCache.NOT_FOUND);
   }
 }

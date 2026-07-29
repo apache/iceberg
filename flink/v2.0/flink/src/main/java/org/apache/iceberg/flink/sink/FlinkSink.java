@@ -159,7 +159,11 @@ public class FlinkSink {
     private Function<String, DataStream<RowData>> inputCreator = null;
     private TableLoader tableLoader;
     private Table table;
-    @Deprecated private TableSchema tableSchema;
+
+    @SuppressWarnings("deprecation")
+    @Deprecated
+    private TableSchema tableSchema;
+
     private ResolvedSchema resolvedSchema;
     private List<String> equalityFieldColumns = null;
     private String uidPrefix = null;
@@ -240,6 +244,7 @@ public class FlinkSink {
       return this;
     }
 
+    @SuppressWarnings("deprecation")
     @Override
     public Builder tableSchema(TableSchema newTableSchema) {
       this.tableSchema = newTableSchema;
@@ -305,7 +310,7 @@ public class FlinkSink {
     /**
      * If sort order contains partition columns, each sort key would map to one partition and data
      * file. This relative weight can avoid placing too many small files for sort keys with low
-     * traffic. It is a double value that defines the minimal weight for each sort key. `0.02` means
+     * traffic. It is a double value that defines the minimal weight for each sort key. `2.0` means
      * each key has a base weight of `2%` of the targeted traffic weight per writer task.
      *
      * <p>E.g. the sink Iceberg table is partitioned daily by event time. Assume the data stream
@@ -317,7 +322,7 @@ public class FlinkSink {
      * the range partitioner would put all the oldest 150 days in one writer task. That writer task
      * would write to 150 small files (one per day). Keeping 150 open files can potentially consume
      * large amount of memory. Flushing and uploading 150 files (however small) at checkpoint time
-     * can also be potentially slow. If this config is set to `0.02`. It means every sort key has a
+     * can also be potentially slow. If this config is set to `2.0`. It means every sort key has a
      * base weight of `2%` of targeted weight of `1,000` for every write task. It would essentially
      * avoid placing more than `50` data files (one per day) on one writer task no matter how small
      * they are.
@@ -727,9 +732,8 @@ public class FlinkSink {
   @Deprecated
   static RowType toFlinkRowType(Schema schema, TableSchema requestedSchema) {
     if (requestedSchema != null) {
-      // Convert the flink schema to iceberg schema firstly, then reassign ids to match the existing
-      // iceberg schema.
-      Schema writeSchema = TypeUtil.reassignIds(FlinkSchemaUtil.convert(requestedSchema), schema);
+      // Convert the flink schema to iceberg schema using the table schema as the reference.
+      Schema writeSchema = FlinkSchemaUtil.convert(schema, requestedSchema);
       TypeUtil.validateWriteSchema(schema, writeSchema, true, true);
 
       // We use this flink schema to read values from RowData. The flink's TINYINT and SMALLINT will
@@ -744,9 +748,8 @@ public class FlinkSink {
 
   static RowType toFlinkRowType(Schema schema, ResolvedSchema requestedSchema) {
     if (requestedSchema != null) {
-      // Convert the flink schema to iceberg schema firstly, then reassign ids to match the existing
-      // iceberg schema.
-      Schema writeSchema = TypeUtil.reassignIds(FlinkSchemaUtil.convert(requestedSchema), schema);
+      // Convert the flink schema to iceberg schema using the table schema as the reference.
+      Schema writeSchema = FlinkSchemaUtil.convert(schema, requestedSchema);
       TypeUtil.validateWriteSchema(schema, writeSchema, true, true);
 
       // We use this flink schema to read values from RowData. The flink's TINYINT and SMALLINT will

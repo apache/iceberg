@@ -54,9 +54,6 @@ class OrcFileAppender<D> implements FileAppender<D> {
   private final OrcRowWriter<D> valueWriter;
   private boolean isClosed = false;
 
-  @SuppressWarnings("unused") // Currently used in tests TODO remove this redundant field
-  private final Configuration conf;
-
   private final MetricsConfig metricsConfig;
 
   OrcFileAppender(
@@ -67,7 +64,6 @@ class OrcFileAppender<D> implements FileAppender<D> {
       Map<String, byte[]> metadata,
       int batchSize,
       MetricsConfig metricsConfig) {
-    this.conf = conf;
     this.file = file;
     this.batchSize = batchSize;
     this.metricsConfig = metricsConfig;
@@ -138,7 +134,7 @@ class OrcFileAppender<D> implements FileAppender<D> {
           e);
     }
 
-    // This value is estimated, not actual.
+    // This value is an estimate, not the actual length.
     return (long)
         Math.ceil(dataLength + (estimateMemory + (long) batch.size * avgRowByteSize) * 0.2);
   }

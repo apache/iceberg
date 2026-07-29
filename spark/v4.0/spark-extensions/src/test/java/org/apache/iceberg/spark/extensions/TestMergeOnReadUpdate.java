@@ -25,11 +25,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.RowLevelOperationMode;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotChanges;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.deletes.DeleteGranularity;
@@ -75,7 +77,12 @@ public class TestMergeOnReadUpdate extends TestUpdate {
     String expectedDeleteFilesCount = "2";
     validateMergeOnRead(currentSnapshot, "2", expectedDeleteFilesCount, "2");
 
-    assertThat(currentSnapshot.removedDeleteFiles(table.io())).hasSize(2);
+    assertThat(
+            SnapshotChanges.builderFor(table)
+                .snapshot(currentSnapshot)
+                .build()
+                .removedDeleteFiles())
+        .hasSize(2);
     assertEquals(
         "Should have expected rows",
         ImmutableList.of(
@@ -123,7 +130,12 @@ public class TestMergeOnReadUpdate extends TestUpdate {
     expectedDeleteFilesCount = "2";
 
     validateMergeOnRead(currentSnapshot, "1", expectedDeleteFilesCount, "1");
-    assertThat(currentSnapshot.removedDeleteFiles(table.io())).hasSize(2);
+    assertThat(
+            SnapshotChanges.builderFor(table)
+                .snapshot(currentSnapshot)
+                .build()
+                .removedDeleteFiles())
+        .hasSize(2);
     assertEquals(
         "Should have expected rows",
         ImmutableList.of(
@@ -211,6 +223,25 @@ public class TestMergeOnReadUpdate extends TestUpdate {
     assertThat(dvs).hasSize(1);
     assertThat(dvs.get(0).recordCount()).isEqualTo(3);
     assertThat(dvs).allMatch(dv -> FileFormat.fromFileName(dv.location()) == FileFormat.PUFFIN);
+  }
+
+  @TestTemplate
+  public void testMergeOnReadUpdateSetsSortOrderIdOnNewDataFiles() {
+    createAndInitTable(
+        "id INT, dep STRING",
+        "PARTITIONED BY (dep)",
+        "{ \"id\": 1, \"dep\": \"hr\" }\n" + "{ \"id\": 2, \"dep\": \"hr\" }");
+
+    sql("ALTER TABLE %s WRITE ORDERED BY id", tableName);
+
+    sql("UPDATE %s SET id = id + 10 WHERE id = 1", commitTarget());
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    Snapshot snapshot = SnapshotUtil.latestSnapshot(table, branch);
+    assertThat(snapshot.addedDataFiles(table.io()))
+        .extracting(DataFile::sortOrderId)
+        .as("All new data files should carry the table sort order id")
+        .containsOnly(table.sortOrder().orderId());
   }
 
   private void initTable(String partitionedBy, DeleteGranularity deleteGranularity) {

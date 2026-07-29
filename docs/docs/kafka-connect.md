@@ -83,7 +83,8 @@ for exactly-once semantics. This requires Kafka 2.5 or later.
 | iceberg.control.group-id-prefix            | Prefix for the control consumer group, default is `cg-control`                                                   |
 | iceberg.control.commit.interval-ms         | Commit interval in msec, default is 300,000 (5 min)                                                              |
 | iceberg.control.commit.timeout-ms          | Commit timeout interval in msec, default is 30,000 (30 sec)                                                      |
-| iceberg.control.commit.threads             | Number of threads to use for commits, default is (`cores * 2`)                                                   |
+| iceberg.control.commit.threads             | Number of threads to use for commits, default is (`cores * 2`)                                                     |
+| iceberg.control.commit.max-consecutive-failures | Maximum number of consecutive commit failures before the coordinator terminates, default is `1`              |
 | iceberg.coordinator.transactional.prefix   | Prefix for the transactional id to use for the coordinator producer, default is to use no/empty prefix           |
 | iceberg.catalog                            | Name of the catalog, default is `iceberg`                                                                        |
 | iceberg.catalog.*                          | Properties passed through to Iceberg catalog initialization                                                      |

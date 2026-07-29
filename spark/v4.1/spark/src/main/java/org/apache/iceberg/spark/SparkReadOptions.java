@@ -23,8 +23,14 @@ public class SparkReadOptions {
 
   private SparkReadOptions() {}
 
-  // Snapshot ID of the table snapshot to read
-  public static final String SNAPSHOT_ID = "snapshot-id";
+  // legacy time travel option that is no longer supported
+  public static final String LEGACY_SNAPSHOT_ID = "snapshot-id";
+
+  // legacy time travel option that is no longer supported
+  public static final String LEGACY_AS_OF_TIMESTAMP = "as-of-timestamp";
+
+  // legacy time travel option that is no longer supported
+  public static final String LEGACY_TAG = "tag";
 
   // Start snapshot ID used in incremental scans (exclusive)
   public static final String START_SNAPSHOT_ID = "start-snapshot-id";
@@ -38,14 +44,8 @@ public class SparkReadOptions {
   // End timestamp used in multi-snapshot scans (inclusive)
   public static final String END_TIMESTAMP = "end-timestamp";
 
-  // A timestamp in milliseconds; the snapshot used will be the snapshot current at this time.
-  public static final String AS_OF_TIMESTAMP = "as-of-timestamp";
-
   // Branch to read from
   public static final String BRANCH = "branch";
-
-  // Tag to read from
-  public static final String TAG = "tag";
 
   // Overrides the table's read.split.target-size and read.split.metadata-target-size
   public static final String SPLIT_SIZE = "split-size";
@@ -61,9 +61,6 @@ public class SparkReadOptions {
 
   // Overrides the table's read.parquet.vectorization.batch-size
   public static final String VECTORIZATION_BATCH_SIZE = "batch-size";
-
-  // Set ID that is used to fetch scan tasks
-  public static final String SCAN_TASK_SET_ID = "scan-task-set-id";
 
   // skip snapshots of type delete while reading stream out of iceberg table
   public static final String STREAMING_SKIP_DELETE_SNAPSHOTS = "streaming-skip-delete-snapshots";
@@ -86,6 +83,19 @@ public class SparkReadOptions {
   // maximum rows per micro_batch
   public static final String STREAMING_MAX_ROWS_PER_MICRO_BATCH =
       "streaming-max-rows-per-micro-batch";
+
+  // Enable async micro batch planning
+  public static final String ASYNC_MICRO_BATCH_PLANNING_ENABLED =
+      "async-micro-batch-planning-enabled";
+  // Polling interval for async planner to refresh table metadata (ms)
+  public static final String STREAMING_SNAPSHOT_POLLING_INTERVAL_MS =
+      "streaming-snapshot-polling-interval-ms";
+  public static final long STREAMING_SNAPSHOT_POLLING_INTERVAL_MS_DEFAULT = 30000L;
+  // Initial queue preload limits for async micro batch planner
+  public static final String ASYNC_QUEUE_PRELOAD_FILE_LIMIT = "async-queue-preload-file-limit";
+  public static final long ASYNC_QUEUE_PRELOAD_FILE_LIMIT_DEFAULT = 100L;
+  public static final String ASYNC_QUEUE_PRELOAD_ROW_LIMIT = "async-queue-preload-row-limit";
+  public static final long ASYNC_QUEUE_PRELOAD_ROW_LIMIT_DEFAULT = 100000L;
 
   // Table path
   public static final String PATH = "path";

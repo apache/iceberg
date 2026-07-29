@@ -20,6 +20,7 @@ package org.apache.iceberg.spark.source;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -44,12 +45,14 @@ import org.apache.iceberg.data.DeleteLoader;
 import org.apache.iceberg.deletes.DeleteCounter;
 import org.apache.iceberg.encryption.EncryptingFileIO;
 import org.apache.iceberg.io.CloseableIterator;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.spark.SparkExecutorCache;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkUtil;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.PartitionUtil;
 import org.apache.spark.rdd.InputFileBlockHolder;
@@ -66,7 +69,7 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
   private static final Logger LOG = LoggerFactory.getLogger(BaseReader.class);
 
   private final Table table;
-  private final Schema tableSchema;
+  private final EncryptingFileIO fileIO;
   private final Schema expectedSchema;
   private final boolean caseSensitive;
   private final NameMapping nameMapping;
@@ -82,16 +85,16 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
 
   BaseReader(
       Table table,
+      FileIO fileIO,
       ScanTaskGroup<TaskT> taskGroup,
-      Schema tableSchema,
       Schema expectedSchema,
       boolean caseSensitive,
       boolean cacheDeleteFilesOnExecutors) {
     this.table = table;
+    this.fileIO = EncryptingFileIO.combine(fileIO, table().encryption());
     this.taskGroup = taskGroup;
     this.tasks = taskGroup.tasks().iterator();
     this.currentIterator = CloseableIterator.empty();
-    this.tableSchema = tableSchema;
     this.expectedSchema = expectedSchema;
     this.caseSensitive = caseSensitive;
     String nameMappingString = table.properties().get(TableProperties.DEFAULT_NAME_MAPPING);
@@ -180,9 +183,8 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
   private Map<String, InputFile> inputFiles() {
     if (lazyInputFiles == null) {
       this.lazyInputFiles =
-          EncryptingFileIO.combine(table().io(), table().encryption())
-              .bulkDecrypt(
-                  () -> taskGroup.tasks().stream().flatMap(this::referencedFiles).iterator());
+          fileIO.bulkDecrypt(
+              () -> taskGroup.tasks().stream().flatMap(this::referencedFiles).iterator());
     }
 
     return lazyInputFiles;
@@ -202,7 +204,7 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
 
     SparkDeleteFilter(
         String filePath, List<DeleteFile> deletes, DeleteCounter counter, boolean needRowPosCol) {
-      super(filePath, deletes, tableSchema, expectedSchema, counter, needRowPosCol);
+      super(filePath, deletes, new FieldLookup(table), expectedSchema, counter, needRowPosCol);
       this.asStructLike =
           new InternalRowWrapper(
               SparkSchemaUtil.convert(requiredSchema()), requiredSchema().asStruct());
@@ -250,6 +252,39 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
       @Override
       protected <V> V getOrLoad(String key, Supplier<V> valueSupplier, long valueSize) {
         return cache.getOrLoad(table().name(), key, valueSupplier, valueSize);
+      }
+    }
+
+    // field lookup for serializable tables that assumes fetching historic schemas is expensive
+    private static class FieldLookup implements Function<Integer, Types.NestedField> {
+      private final Table table;
+      private volatile Map<Integer, Types.NestedField> historicSchemaFields;
+
+      private FieldLookup(Table table) {
+        this.table = table;
+      }
+
+      @Override
+      public Types.NestedField apply(Integer id) {
+        Types.NestedField field = table.schema().findField(id);
+        return field != null ? field : historicSchemaFields().get(id);
+      }
+
+      private Map<Integer, Types.NestedField> historicSchemaFields() {
+        if (historicSchemaFields == null) {
+          synchronized (this) {
+            if (historicSchemaFields == null) {
+              this.historicSchemaFields = Schema.indexFields(historicSchemas(table));
+            }
+          }
+        }
+        return historicSchemaFields;
+      }
+
+      private static Collection<Schema> historicSchemas(Table table) {
+        return table.schemas().values().stream()
+            .filter(schema -> schema.schemaId() != table.schema().schemaId())
+            .collect(Collectors.toList());
       }
     }
   }

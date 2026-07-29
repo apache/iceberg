@@ -130,15 +130,8 @@ public class PartitionSpec implements Serializable {
           List<Types.NestedField> structFields = Lists.newArrayListWithExpectedSize(fields.length);
 
           for (PartitionField field : fields) {
-            Type sourceType = schema.findType(field.sourceId());
-            Type resultType = field.transform().getResultType(sourceType);
-
-            // When the source field has been dropped we cannot determine the type
-            if (sourceType == null) {
-              resultType = Types.UnknownType.get();
-            }
-
-            structFields.add(Types.NestedField.optional(field.fieldId(), field.name(), resultType));
+            structFields.add(
+                Types.NestedField.optional(field.fieldId(), field.name(), resultType(field)));
           }
 
           this.lazyPartitionType = Types.StructType.of(structFields);
@@ -183,14 +176,7 @@ public class PartitionSpec implements Serializable {
             if (field.transform() instanceof UnknownTransform) {
               classes[i] = Object.class;
             } else {
-              Type sourceType = schema.findType(field.sourceId());
-              if (null == sourceType) {
-                // When the source field has been dropped we cannot determine the type
-                sourceType = Types.UnknownType.get();
-              }
-
-              Type result = field.transform().getResultType(sourceType);
-              classes[i] = result.typeId().javaClass();
+              classes[i] = resultType(field).typeId().javaClass();
             }
           }
 
@@ -200,6 +186,17 @@ public class PartitionSpec implements Serializable {
     }
 
     return lazyJavaClasses;
+  }
+
+  private Type resultType(PartitionField field) {
+    Type sourceType = schema.findType(field.sourceId());
+    if (sourceType == null) {
+      // When the source field has been dropped, the source type has been lost
+      // Transforms with a fixed result type still work, so use unknown for source
+      sourceType = Types.UnknownType.get();
+    }
+
+    return field.transform().getResultType(sourceType);
   }
 
   @SuppressWarnings("unchecked")
@@ -402,21 +399,22 @@ public class PartitionSpec implements Serializable {
       Types.NestedField schemaField =
           this.caseSensitive ? schema.findField(name) : schema.caseInsensitiveFindField(name);
       if (checkConflicts) {
-        if (sourceColumnId != null) {
-          // for identity transform case we allow conflicts between partition and schema field name
-          // as
-          //   long as they are sourced from the same schema field
-          Preconditions.checkArgument(
-              schemaField == null || schemaField.fieldId() == sourceColumnId,
-              "Cannot create identity partition sourced from different field in schema: %s",
-              name);
-        } else {
-          // for all other transforms we don't allow conflicts between partition name and schema
-          // field name
+        if (sourceColumnId == null) {
           Preconditions.checkArgument(
               schemaField == null,
               "Cannot create partition from name that exists in schema: %s",
               name);
+        } else {
+          boolean sourceFieldExists = schema.findField(sourceColumnId) != null;
+          // For identity transforms, require the partition name to match the source column when it
+          // still exists in the schema. When the source was dropped, the spec may be historical;
+          // skip the identity name check in that case.
+          if (sourceFieldExists) {
+            Preconditions.checkArgument(
+                schemaField == null || schemaField.fieldId() == sourceColumnId,
+                "Cannot create identity partition sourced from different field in schema: %s",
+                name);
+          }
         }
       }
       Preconditions.checkArgument(!name.isEmpty(), "Cannot use empty partition name: %s", name);

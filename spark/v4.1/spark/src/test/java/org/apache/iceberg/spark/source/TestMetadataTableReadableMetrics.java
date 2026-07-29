@@ -33,6 +33,7 @@ import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.SnapshotChanges;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -200,7 +201,8 @@ public class TestMetadataTableReadableMetrics extends TestBaseWithCatalog {
   @TestTemplate
   public void testPrimitiveColumns() throws Exception {
     Table table = createPrimitiveTable();
-    DataFile dataFile = table.currentSnapshot().addedDataFiles(table.io()).iterator().next();
+    DataFile dataFile =
+        SnapshotChanges.builderFor(table).build().addedDataFiles().iterator().next();
     Map<Integer, Long> columnSizeStats = dataFile.columnSizes();
 
     Object[] binaryCol =

@@ -108,6 +108,62 @@ public class TestMiscLiteralConversions {
   }
 
   @Test
+  public void testStringToFixed() {
+    // Test valid hex string to fixed conversion
+    Literal<CharSequence> hexString = Literal.of("000102");
+    Literal<ByteBuffer> fixedLit = hexString.to(Types.FixedType.ofLength(3));
+    assertThat(fixedLit).as("Should convert valid hex string to fixed").isNotNull();
+    assertThat(fixedLit.value().array())
+        .as("Should decode hex string correctly")
+        .isEqualTo(new byte[] {0, 1, 2});
+
+    // Test lowercase hex string
+    Literal<CharSequence> lowercaseHex = Literal.of("0a0b0c");
+    Literal<ByteBuffer> lowercaseFixed = lowercaseHex.to(Types.FixedType.ofLength(3));
+    assertThat(lowercaseFixed).as("Should convert lowercase hex string to fixed").isNotNull();
+    assertThat(lowercaseFixed.value().array())
+        .as("Should decode lowercase hex string correctly")
+        .isEqualTo(new byte[] {10, 11, 12});
+
+    // Test wrong length returns null
+    Literal<CharSequence> wrongLength = Literal.of("0001");
+    assertThat(wrongLength.to(Types.FixedType.ofLength(3)))
+        .as("Should return null for wrong length")
+        .isNull();
+
+    // Test invalid hex string returns null
+    Literal<CharSequence> invalidHex = Literal.of("GGHHII");
+    assertThat(invalidHex.to(Types.FixedType.ofLength(3)))
+        .as("Should return null for invalid hex string")
+        .isNull();
+  }
+
+  @Test
+  public void testStringToBinary() {
+    // Test valid hex string to binary conversion
+    Literal<CharSequence> hexString = Literal.of("000102");
+    Literal<ByteBuffer> binaryLit = hexString.to(Types.BinaryType.get());
+    assertThat(binaryLit).as("Should convert valid hex string to binary").isNotNull();
+    assertThat(binaryLit.value().array())
+        .as("Should decode hex string correctly")
+        .isEqualTo(new byte[] {0, 1, 2});
+
+    // Test lowercase hex string
+    Literal<CharSequence> lowercaseHex = Literal.of("0a0b0c");
+    Literal<ByteBuffer> lowercaseBinary = lowercaseHex.to(Types.BinaryType.get());
+    assertThat(lowercaseBinary).as("Should convert lowercase hex string to binary").isNotNull();
+    assertThat(lowercaseBinary.value().array())
+        .as("Should decode lowercase hex string correctly")
+        .isEqualTo(new byte[] {10, 11, 12});
+
+    // Test invalid hex string returns null
+    Literal<CharSequence> invalidHex = Literal.of("GGHHII");
+    assertThat(invalidHex.to(Types.BinaryType.get()))
+        .as("Should return null for invalid hex string")
+        .isNull();
+  }
+
+  @Test
   public void testInvalidBooleanConversions() {
     testInvalidConversions(
         Literal.of(true),

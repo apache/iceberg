@@ -26,9 +26,14 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.argThat;
 
+import com.nimbusds.jwt.JWTClaimsSet;
+import com.nimbusds.jwt.PlainJWT;
 import java.io.IOException;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.rest.RESTClient;
+import org.apache.iceberg.rest.auth.OAuth2Util.AuthSession;
 import org.apache.iceberg.rest.responses.OAuthTokenResponse;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -134,5 +139,145 @@ public class TestOAuth2Util {
               anyMap(),
               any());
     }
+  }
+
+  @Test
+  void fromTokenResponseUsesChildTokenExpiry() {
+    AuthSession parent = parentSession(7200);
+    OAuthTokenResponse response = childTokenResponse(tokenWithExp(300), 300);
+
+    AuthSession child =
+        AuthSession.fromTokenResponse(null, null, response, System.currentTimeMillis(), parent);
+    assertThat(child.expiresAtMillis())
+        .as("Child session should use the child token's exp, not the parent's")
+        .isEqualTo(TimeUnit.SECONDS.toMillis(300));
+  }
+
+  @Test
+  void fromTokenResponseOpaqueTokenDoesNotInheritParentExpiry() {
+    AuthSession parent = parentSession(7200);
+    OAuthTokenResponse response = childTokenResponse("opaque-access-token", 600);
+
+    AuthSession child =
+        AuthSession.fromTokenResponse(null, null, response, System.currentTimeMillis(), parent);
+
+    assertThat(child.expiresAtMillis())
+        .as("Child session with opaque token should not inherit parent's expiresAtMillis")
+        .isNull();
+  }
+
+  @Test
+  void fromAccessTokenUsesChildTokenExpiry() {
+    AuthSession parent = parentSession(7200);
+    String childToken = tokenWithExp(300);
+
+    AuthSession child = AuthSession.fromAccessToken(null, null, childToken, null, parent);
+    assertThat(child.expiresAtMillis())
+        .as("Child session should use the child token's exp, not the parent's")
+        .isEqualTo(TimeUnit.SECONDS.toMillis(300));
+  }
+
+  @Test
+  void refreshUsesRefreshedTokenExpiry() throws IOException {
+    String parentToken = tokenWithExp(7200);
+    String refreshedToken = tokenWithExp(500);
+
+    AuthConfig authConfig =
+        AuthConfig.builder()
+            .token(parentToken)
+            .tokenType(OAuth2Properties.ACCESS_TOKEN_TYPE)
+            .keepRefreshed(true)
+            .credential("testClientId:testClientSecret")
+            .oauth2ServerUri("/v1/token")
+            .expiresAtMillis(OAuth2Util.expiresAtMillis(parentToken))
+            .build();
+
+    OAuthTokenResponse response = childTokenResponse(refreshedToken, 500);
+
+    try (RESTClient client = Mockito.mock(RESTClient.class);
+        AuthSession session = new AuthSession(Map.of(), authConfig)) {
+      Mockito.when(client.postForm(any(), anyMap(), any(), anyMap(), any())).thenReturn(response);
+
+      session.refresh(client);
+
+      assertThat(session.expiresAtMillis())
+          .as("After refresh, session should use the refreshed token's exp")
+          .isEqualTo(TimeUnit.SECONDS.toMillis(500));
+    }
+  }
+
+  @Test
+  void refreshExpiredTokenShouldIncludeOptionalOAuthParams() throws IOException {
+    assertRefreshIncludesOptionalOAuthParams(System.currentTimeMillis() - 10_000);
+  }
+
+  @Test
+  void refreshCurrentTokenNonExchangeShouldIncludeOptionalOAuthParams() throws IOException {
+    assertRefreshIncludesOptionalOAuthParams(System.currentTimeMillis() + 300_000);
+  }
+
+  private static void assertRefreshIncludesOptionalOAuthParams(long expiresAtMillis)
+      throws IOException {
+    String audience = "https://my-catalog.example.com";
+    AuthConfig authConfig =
+        ImmutableAuthConfig.builder()
+            .keepRefreshed(true)
+            .exchangeEnabled(false)
+            .token("token")
+            .credential("testClientId:testClientSecret")
+            .oauth2ServerUri("/v1/token")
+            .expiresAtMillis(expiresAtMillis)
+            .optionalOAuthParams(ImmutableMap.of("audience", audience, "scope", "catalog"))
+            .build();
+
+    OAuthTokenResponse response =
+        OAuthTokenResponse.builder().withToken("refreshed_token").withTokenType(BEARER).build();
+
+    try (RESTClient client = Mockito.mock(RESTClient.class);
+        OAuth2Util.AuthSession session = new OAuth2Util.AuthSession(Map.of(), authConfig)) {
+      Mockito.when(client.postForm(any(), anyMap(), any(), anyMap(), any())).thenReturn(response);
+
+      session.refresh(client);
+
+      Mockito.verify(client)
+          .postForm(
+              any(),
+              argThat(
+                  formData ->
+                      CLIENT_CREDENTIALS.equals(formData.get(GRANT_TYPE))
+                          && audience.equals(formData.get("audience"))
+                          && "catalog".equals(formData.get("scope"))),
+              Mockito.eq(OAuthTokenResponse.class),
+              anyMap(),
+              any());
+    }
+  }
+
+  private static AuthSession parentSession(long expSeconds) {
+    String parentToken = tokenWithExp(expSeconds);
+    AuthConfig parentConfig =
+        AuthConfig.builder()
+            .token(parentToken)
+            .tokenType(OAuth2Properties.ACCESS_TOKEN_TYPE)
+            .keepRefreshed(false)
+            .build();
+    AuthSession parent = new AuthSession(Map.of(), parentConfig);
+    assertThat(parent.expiresAtMillis()).isEqualTo(TimeUnit.SECONDS.toMillis(expSeconds));
+    return parent;
+  }
+
+  private static OAuthTokenResponse childTokenResponse(String token, int expiresInSeconds) {
+    return OAuthTokenResponse.builder()
+        .withToken(token)
+        .withTokenType(BEARER)
+        .withIssuedTokenType(OAuth2Properties.ACCESS_TOKEN_TYPE)
+        .setExpirationInSeconds(expiresInSeconds)
+        .build();
+  }
+
+  private static String tokenWithExp(long expSeconds) {
+    JWTClaimsSet claimsSet =
+        new JWTClaimsSet.Builder().subject("test").claim("exp", expSeconds).build();
+    return new PlainJWT(claimsSet).serialize();
   }
 }

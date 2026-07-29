@@ -25,28 +25,19 @@ import static org.apache.iceberg.TableProperties.DELETE_DEFAULT_FILE_FORMAT;
 import java.io.Serializable;
 import java.util.Map;
 import org.apache.flink.table.data.RowData;
-import org.apache.flink.table.data.StringData;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.avro.Avro;
-import org.apache.iceberg.data.BaseFileWriterFactory;
+import org.apache.iceberg.data.RegistryBasedFileWriterFactory;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
-import org.apache.iceberg.flink.data.FlinkAvroWriter;
-import org.apache.iceberg.flink.data.FlinkOrcWriter;
-import org.apache.iceberg.flink.data.FlinkParquetWriters;
-import org.apache.iceberg.orc.ORC;
-import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 
-public class FlinkFileWriterFactory extends BaseFileWriterFactory<RowData> implements Serializable {
-  private RowType dataFlinkType;
-  private RowType equalityDeleteFlinkType;
-
-  private FlinkFileWriterFactory(
+public class FlinkFileWriterFactory extends RegistryBasedFileWriterFactory<RowData, RowType>
+    implements Serializable {
+  FlinkFileWriterFactory(
       Table table,
       FileFormat dataFileFormat,
       Schema dataSchema,
@@ -62,85 +53,30 @@ public class FlinkFileWriterFactory extends BaseFileWriterFactory<RowData> imple
     super(
         table,
         dataFileFormat,
+        RowData.class,
         dataSchema,
         dataSortOrder,
         deleteFileFormat,
         equalityFieldIds,
         equalityDeleteRowSchema,
         equalityDeleteSortOrder,
-        writeProperties);
+        writeProperties,
+        dataFlinkType == null ? FlinkSchemaUtil.convert(dataSchema) : dataFlinkType,
+        equalityDeleteInputSchema(equalityDeleteFlinkType, equalityDeleteRowSchema));
+  }
 
-    this.dataFlinkType = dataFlinkType;
-    this.equalityDeleteFlinkType = equalityDeleteFlinkType;
+  private static RowType equalityDeleteInputSchema(RowType rowType, Schema rowSchema) {
+    if (rowType != null) {
+      return rowType;
+    } else if (rowSchema != null) {
+      return FlinkSchemaUtil.convert(rowSchema);
+    } else {
+      return null;
+    }
   }
 
   static Builder builderFor(Table table) {
     return new Builder(table);
-  }
-
-  @Override
-  protected void configureDataWrite(Avro.DataWriteBuilder builder) {
-    builder.createWriterFunc(ignore -> new FlinkAvroWriter(dataFlinkType()));
-  }
-
-  @Override
-  protected void configureEqualityDelete(Avro.DeleteWriteBuilder builder) {
-    builder.createWriterFunc(ignored -> new FlinkAvroWriter(equalityDeleteFlinkType()));
-  }
-
-  @Override
-  protected void configurePositionDelete(Avro.DeleteWriteBuilder builder) {}
-
-  @Override
-  protected void configureDataWrite(Parquet.DataWriteBuilder builder) {
-    builder.createWriterFunc(msgType -> FlinkParquetWriters.buildWriter(dataFlinkType(), msgType));
-  }
-
-  @Override
-  protected void configureEqualityDelete(Parquet.DeleteWriteBuilder builder) {
-    builder.createWriterFunc(
-        msgType -> FlinkParquetWriters.buildWriter(equalityDeleteFlinkType(), msgType));
-  }
-
-  @Override
-  protected void configurePositionDelete(Parquet.DeleteWriteBuilder builder) {
-    builder.transformPaths(path -> StringData.fromString(path.toString()));
-  }
-
-  @Override
-  protected void configureDataWrite(ORC.DataWriteBuilder builder) {
-    builder.createWriterFunc(
-        (iSchema, typDesc) -> FlinkOrcWriter.buildWriter(dataFlinkType(), iSchema));
-  }
-
-  @Override
-  protected void configureEqualityDelete(ORC.DeleteWriteBuilder builder) {
-    builder.createWriterFunc(
-        (iSchema, typDesc) -> FlinkOrcWriter.buildWriter(equalityDeleteFlinkType(), iSchema));
-  }
-
-  @Override
-  protected void configurePositionDelete(ORC.DeleteWriteBuilder builder) {
-    builder.transformPaths(path -> StringData.fromString(path.toString()));
-  }
-
-  private RowType dataFlinkType() {
-    if (dataFlinkType == null) {
-      Preconditions.checkNotNull(dataSchema(), "Data schema must not be null");
-      this.dataFlinkType = FlinkSchemaUtil.convert(dataSchema());
-    }
-
-    return dataFlinkType;
-  }
-
-  private RowType equalityDeleteFlinkType() {
-    if (equalityDeleteFlinkType == null) {
-      Preconditions.checkNotNull(
-          equalityDeleteRowSchema(), "Equality delete schema must not be null");
-      this.equalityDeleteFlinkType = FlinkSchemaUtil.convert(equalityDeleteRowSchema());
-    }
-
-    return equalityDeleteFlinkType;
   }
 
   public static class Builder {

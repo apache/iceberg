@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.procedures;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.RewriteDataFiles;
@@ -30,6 +31,7 @@ import org.apache.iceberg.expressions.Zorder;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.ExtendedParser;
+import org.apache.iceberg.spark.actions.RewriteDataFilesSparkAction;
 import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.catalog.Identifier;
@@ -57,10 +59,12 @@ class RewriteDataFilesProcedure extends BaseProcedure {
       ProcedureParameter.optional("options", STRING_MAP);
   private static final ProcedureParameter WHERE_PARAM =
       ProcedureParameter.optional("where", DataTypes.StringType);
+  private static final ProcedureParameter BRANCH_PARAM =
+      ProcedureParameter.optional("branch", DataTypes.StringType);
 
   private static final ProcedureParameter[] PARAMETERS =
       new ProcedureParameter[] {
-        TABLE_PARAM, STRATEGY_PARAM, SORT_ORDER_PARAM, OPTIONS_PARAM, WHERE_PARAM
+        TABLE_PARAM, STRATEGY_PARAM, SORT_ORDER_PARAM, OPTIONS_PARAM, WHERE_PARAM, BRANCH_PARAM
       };
 
   // counts are not nullable since the action result is never null
@@ -109,17 +113,29 @@ class RewriteDataFilesProcedure extends BaseProcedure {
     String sortOrderString = input.asString(SORT_ORDER_PARAM, null);
     Map<String, String> options = input.asStringMap(OPTIONS_PARAM, ImmutableMap.of());
     String where = input.asString(WHERE_PARAM, null);
+    String branchParam = input.asString(BRANCH_PARAM, null);
+    if (branchParam == null) {
+      branchParam = loadSparkTable(tableIdent).branch();
+      if (branchParam == null) {
+        branchParam = SnapshotRef.MAIN_BRANCH;
+      }
+    }
+    String branch = branchParam;
 
     return modifyIcebergTable(
         tableIdent,
         table -> {
-          RewriteDataFiles action = actions().rewriteDataFiles(table).options(options);
+          RewriteDataFilesSparkAction action =
+              (RewriteDataFilesSparkAction)
+                  actions().rewriteDataFiles(table).options(options).toBranch(branch);
 
           if (strategy != null || sortOrderString != null) {
-            action = checkAndApplyStrategy(action, strategy, sortOrderString, table.schema());
+            action =
+                (RewriteDataFilesSparkAction)
+                    checkAndApplyStrategy(action, strategy, sortOrderString, table.schema());
           }
 
-          action = checkAndApplyFilter(action, where, tableIdent);
+          action = (RewriteDataFilesSparkAction) checkAndApplyFilter(action, where, tableIdent);
 
           RewriteDataFiles.Result result = action.execute();
 

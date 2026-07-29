@@ -20,55 +20,50 @@ package org.apache.iceberg.spark.source;
 
 import java.util.Set;
 import org.apache.iceberg.ChangelogUtil;
-import org.apache.iceberg.MetadataColumns;
-import org.apache.iceberg.Partitioning;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.catalog.MetadataColumn;
 import org.apache.spark.sql.connector.catalog.SupportsMetadataColumns;
 import org.apache.spark.sql.connector.catalog.SupportsRead;
-import org.apache.spark.sql.connector.catalog.Table;
 import org.apache.spark.sql.connector.catalog.TableCapability;
-import org.apache.spark.sql.connector.read.Scan;
 import org.apache.spark.sql.connector.read.ScanBuilder;
-import org.apache.spark.sql.types.DataType;
-import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 
-public class SparkChangelogTable implements Table, SupportsRead, SupportsMetadataColumns {
+public class SparkChangelogTable
+    implements org.apache.spark.sql.connector.catalog.Table, SupportsRead, SupportsMetadataColumns {
 
   public static final String TABLE_NAME = "changes";
 
   private static final Set<TableCapability> CAPABILITIES =
       ImmutableSet.of(TableCapability.BATCH_READ);
 
-  private final org.apache.iceberg.Table icebergTable;
-  private final boolean refreshEagerly;
+  private final Table table;
+  private final Schema schema;
 
   private SparkSession lazySpark = null;
-  private StructType lazyTableSparkType = null;
-  private Schema lazyChangelogSchema = null;
+  private StructType lazySparkSchema = null;
 
-  public SparkChangelogTable(org.apache.iceberg.Table icebergTable, boolean refreshEagerly) {
-    this.icebergTable = icebergTable;
-    this.refreshEagerly = refreshEagerly;
+  public SparkChangelogTable(Table table) {
+    this.table = table;
+    this.schema = ChangelogUtil.changelogSchema(table.schema());
   }
 
   @Override
   public String name() {
-    return icebergTable.name() + "." + TABLE_NAME;
+    return table.name() + "." + TABLE_NAME;
   }
 
   @Override
   public StructType schema() {
-    if (lazyTableSparkType == null) {
-      this.lazyTableSparkType = SparkSchemaUtil.convert(changelogSchema());
+    if (lazySparkSchema == null) {
+      this.lazySparkSchema = SparkSchemaUtil.convert(schema);
     }
 
-    return lazyTableSparkType;
+    return lazySparkSchema;
   }
 
   @Override
@@ -78,24 +73,7 @@ public class SparkChangelogTable implements Table, SupportsRead, SupportsMetadat
 
   @Override
   public ScanBuilder newScanBuilder(CaseInsensitiveStringMap options) {
-    if (refreshEagerly) {
-      icebergTable.refresh();
-    }
-
-    return new SparkScanBuilder(spark(), icebergTable, changelogSchema(), options) {
-      @Override
-      public Scan build() {
-        return buildChangelogScan();
-      }
-    };
-  }
-
-  private Schema changelogSchema() {
-    if (lazyChangelogSchema == null) {
-      this.lazyChangelogSchema = ChangelogUtil.changelogSchema(icebergTable.schema());
-    }
-
-    return lazyChangelogSchema;
+    return new SparkChangelogScanBuilder(spark(), table, schema, options);
   }
 
   private SparkSession spark() {
@@ -108,33 +86,12 @@ public class SparkChangelogTable implements Table, SupportsRead, SupportsMetadat
 
   @Override
   public MetadataColumn[] metadataColumns() {
-    DataType sparkPartitionType = SparkSchemaUtil.convert(Partitioning.partitionType(icebergTable));
     return new MetadataColumn[] {
-      SparkMetadataColumn.builder()
-          .name(MetadataColumns.SPEC_ID.name())
-          .dataType(DataTypes.IntegerType)
-          .withNullability(true)
-          .build(),
-      SparkMetadataColumn.builder()
-          .name(MetadataColumns.PARTITION_COLUMN_NAME)
-          .dataType(sparkPartitionType)
-          .withNullability(true)
-          .build(),
-      SparkMetadataColumn.builder()
-          .name(MetadataColumns.FILE_PATH.name())
-          .dataType(DataTypes.StringType)
-          .withNullability(false)
-          .build(),
-      SparkMetadataColumn.builder()
-          .name(MetadataColumns.ROW_POSITION.name())
-          .dataType(DataTypes.LongType)
-          .withNullability(false)
-          .build(),
-      SparkMetadataColumn.builder()
-          .name(MetadataColumns.IS_DELETED.name())
-          .dataType(DataTypes.BooleanType)
-          .withNullability(false)
-          .build(),
+      SparkMetadataColumns.SPEC_ID,
+      SparkMetadataColumns.partition(table),
+      SparkMetadataColumns.FILE_PATH,
+      SparkMetadataColumns.ROW_POSITION,
+      SparkMetadataColumns.IS_DELETED,
     };
   }
 }

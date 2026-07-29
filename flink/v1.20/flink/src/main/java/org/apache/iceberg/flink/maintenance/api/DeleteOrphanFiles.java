@@ -53,6 +53,11 @@ public class DeleteOrphanFiles {
       ScanContext.builder().streaming(true).project(FILE_PATH_SCHEMA).build();
   private static final Splitter COMMA_SPLITTER = Splitter.on(",");
 
+  static final Map<String, String> DEFAULT_EQUAL_SCHEMES =
+      ImmutableMap.of(
+          "s3n", "s3",
+          "s3a", "s3");
+
   @Internal
   public static final OutputTag<Exception> ERROR_STREAM =
       new OutputTag<>("error-stream", TypeInformation.of(Exception.class));
@@ -79,12 +84,8 @@ public class DeleteOrphanFiles {
     private Duration minAge = Duration.ofDays(3);
     private int planningWorkerPoolSize = ThreadPools.WORKER_THREAD_POOL_SIZE;
     private int deleteBatchSize = 1000;
-    private boolean usePrefixListing = false;
-    private Map<String, String> equalSchemes =
-        Maps.newHashMap(
-            ImmutableMap.of(
-                "s3n", "s3",
-                "s3a", "s3"));
+    private boolean usePrefixListing = true;
+    private Map<String, String> equalSchemes = Maps.newHashMap(DEFAULT_EQUAL_SCHEMES);
     private final Map<String, String> equalAuthorities = Maps.newHashMap();
     private PrefixMismatchMode prefixMismatchMode = PrefixMismatchMode.ERROR;
 
@@ -189,78 +190,92 @@ public class DeleteOrphanFiles {
       return this;
     }
 
+    public Builder config(DeleteOrphanFilesConfig deleteOrphanFilesConfig) {
+      return this.scheduleOnInterval(
+              Duration.ofSeconds(deleteOrphanFilesConfig.scheduleOnIntervalSecond()))
+          .minAge(Duration.ofSeconds(deleteOrphanFilesConfig.minAgeSeconds()))
+          .deleteBatchSize(deleteOrphanFilesConfig.deleteBatchSize())
+          .usePrefixListing(deleteOrphanFilesConfig.usePrefixListing())
+          .prefixMismatchMode(deleteOrphanFilesConfig.prefixMismatchMode())
+          .location(deleteOrphanFilesConfig.location())
+          .planningWorkerPoolSize(deleteOrphanFilesConfig.planningWorkerPoolSize())
+          .equalSchemes(deleteOrphanFilesConfig.equalSchemes())
+          .equalAuthorities(deleteOrphanFilesConfig.equalAuthorities());
+    }
+
     @Override
     DataStream<TaskResult> append(DataStream<Trigger> trigger) {
       tableLoader().open();
 
       // Collect all data files
       SingleOutputStreamOperator<MetadataTablePlanner.SplitInfo> splits =
-          trigger
-              .process(
-                  new MetadataTablePlanner(
-                      taskName(),
-                      index(),
-                      tableLoader(),
-                      FILE_PATH_SCAN_CONTEXT,
-                      MetadataTableType.ALL_FILES,
-                      planningWorkerPoolSize))
-              .name(operatorName(PLANNER_TASK_NAME))
-              .uid(PLANNER_TASK_NAME + uidSuffix())
-              .slotSharingGroup(slotSharingGroup())
-              .forceNonParallel();
+          setSlotSharingGroup(
+              trigger
+                  .process(
+                      new MetadataTablePlanner(
+                          taskName(),
+                          index(),
+                          tableLoader(),
+                          FILE_PATH_SCAN_CONTEXT,
+                          MetadataTableType.ALL_FILES,
+                          planningWorkerPoolSize))
+                  .name(operatorName(PLANNER_TASK_NAME))
+                  .uid(PLANNER_TASK_NAME + uidSuffix())
+                  .forceNonParallel());
 
       // Read the records and get all data files
       SingleOutputStreamOperator<String> tableDataFiles =
-          splits
-              .rebalance()
-              .process(
-                  new FileNameReader(
-                      taskName(),
-                      index(),
-                      tableLoader(),
-                      FILE_PATH_SCHEMA,
-                      FILE_PATH_SCAN_CONTEXT,
-                      MetadataTableType.ALL_FILES))
-              .name(operatorName(READER_TASK_NAME))
-              .uid(READER_TASK_NAME + uidSuffix())
-              .slotSharingGroup(slotSharingGroup())
-              .setParallelism(parallelism());
+          setSlotSharingGroup(
+              splits
+                  .rebalance()
+                  .process(
+                      new FileNameReader(
+                          taskName(),
+                          index(),
+                          tableLoader(),
+                          FILE_PATH_SCHEMA,
+                          FILE_PATH_SCAN_CONTEXT,
+                          MetadataTableType.ALL_FILES))
+                  .name(operatorName(READER_TASK_NAME))
+                  .uid(READER_TASK_NAME + uidSuffix())
+                  .setParallelism(parallelism()));
 
       // Collect all meta data files
       SingleOutputStreamOperator<String> tableMetadataFiles =
-          trigger
-              .process(new ListMetadataFiles(taskName(), index(), tableLoader()))
-              .name(operatorName(METADATA_FILES_TASK_NAME))
-              .uid(METADATA_FILES_TASK_NAME + uidSuffix())
-              .slotSharingGroup(slotSharingGroup())
-              .forceNonParallel();
+          setSlotSharingGroup(
+              trigger
+                  .process(new ListMetadataFiles(taskName(), index(), tableLoader()))
+                  .name(operatorName(METADATA_FILES_TASK_NAME))
+                  .uid(METADATA_FILES_TASK_NAME + uidSuffix())
+                  .forceNonParallel());
 
       // List the all file system files
       SingleOutputStreamOperator<String> allFsFiles =
-          trigger
-              .process(
-                  new ListFileSystemFiles(
-                      taskName(),
-                      index(),
-                      tableLoader(),
-                      location,
-                      minAge.toMillis(),
-                      usePrefixListing))
-              .name(operatorName(FILESYSTEM_FILES_TASK_NAME))
-              .uid(FILESYSTEM_FILES_TASK_NAME + uidSuffix())
-              .slotSharingGroup(slotSharingGroup())
-              .forceNonParallel();
+          setSlotSharingGroup(
+              trigger
+                  .process(
+                      new ListFileSystemFiles(
+                          taskName(),
+                          index(),
+                          tableLoader(),
+                          location,
+                          minAge.toMillis(),
+                          usePrefixListing))
+                  .name(operatorName(FILESYSTEM_FILES_TASK_NAME))
+                  .uid(FILESYSTEM_FILES_TASK_NAME + uidSuffix())
+                  .forceNonParallel());
 
       SingleOutputStreamOperator<String> filesToDelete =
-          tableMetadataFiles
-              .union(tableDataFiles)
-              .keyBy(new FileUriKeySelector(equalSchemes, equalAuthorities))
-              .connect(allFsFiles.keyBy(new FileUriKeySelector(equalSchemes, equalAuthorities)))
-              .process(new OrphanFilesDetector(prefixMismatchMode, equalSchemes, equalAuthorities))
-              .slotSharingGroup(slotSharingGroup())
-              .name(operatorName(FILTER_FILES_TASK_NAME))
-              .uid(FILTER_FILES_TASK_NAME + uidSuffix())
-              .setParallelism(parallelism());
+          setSlotSharingGroup(
+              tableMetadataFiles
+                  .union(tableDataFiles)
+                  .keyBy(new FileUriKeySelector(equalSchemes, equalAuthorities))
+                  .connect(allFsFiles.keyBy(new FileUriKeySelector(equalSchemes, equalAuthorities)))
+                  .process(
+                      new OrphanFilesDetector(prefixMismatchMode, equalSchemes, equalAuthorities))
+                  .name(operatorName(FILTER_FILES_TASK_NAME))
+                  .uid(FILTER_FILES_TASK_NAME + uidSuffix())
+                  .setParallelism(parallelism()));
 
       DataStream<Exception> errorStream =
           tableMetadataFiles
@@ -273,38 +288,38 @@ public class DeleteOrphanFiles {
 
       // Stop deleting the files if there is an error
       SingleOutputStreamOperator<String> filesOrSkip =
-          filesToDelete
-              .connect(errorStream)
-              .transform(
-                  operatorName(SKIP_ON_ERROR_TASK_NAME),
-                  TypeInformation.of(String.class),
-                  new SkipOnError())
-              .uid(SKIP_ON_ERROR_TASK_NAME + uidSuffix())
-              .slotSharingGroup(slotSharingGroup())
-              .forceNonParallel();
+          setSlotSharingGroup(
+              filesToDelete
+                  .connect(errorStream)
+                  .transform(
+                      operatorName(SKIP_ON_ERROR_TASK_NAME),
+                      TypeInformation.of(String.class),
+                      new SkipOnError())
+                  .uid(SKIP_ON_ERROR_TASK_NAME + uidSuffix())
+                  .forceNonParallel());
 
       // delete the files
-      filesOrSkip
-          .rebalance()
-          .transform(
-              operatorName(DELETE_FILES_TASK_NAME),
-              TypeInformation.of(Void.class),
-              new DeleteFilesProcessor(
-                  tableLoader().loadTable(), taskName(), index(), deleteBatchSize))
-          .uid(DELETE_FILES_TASK_NAME + uidSuffix())
-          .slotSharingGroup(slotSharingGroup())
-          .setParallelism(parallelism());
+      setSlotSharingGroup(
+          filesOrSkip
+              .rebalance()
+              .transform(
+                  operatorName(DELETE_FILES_TASK_NAME),
+                  TypeInformation.of(Void.class),
+                  new DeleteFilesProcessor(
+                      tableLoader().loadTable(), taskName(), index(), deleteBatchSize))
+              .uid(DELETE_FILES_TASK_NAME + uidSuffix())
+              .setParallelism(parallelism()));
 
       // Ignore the file deletion result and return the DataStream<TaskResult> directly
-      return trigger
-          .connect(errorStream)
-          .transform(
-              operatorName(AGGREGATOR_TASK_NAME),
-              TypeInformation.of(TaskResult.class),
-              new TaskResultAggregator(tableName(), taskName(), index()))
-          .uid(AGGREGATOR_TASK_NAME + uidSuffix())
-          .slotSharingGroup(slotSharingGroup())
-          .forceNonParallel();
+      return setSlotSharingGroup(
+          trigger
+              .connect(errorStream)
+              .transform(
+                  operatorName(AGGREGATOR_TASK_NAME),
+                  TypeInformation.of(TaskResult.class),
+                  new TaskResultAggregator(tableName(), taskName(), index()))
+              .uid(AGGREGATOR_TASK_NAME + uidSuffix())
+              .forceNonParallel());
     }
   }
 

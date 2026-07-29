@@ -152,6 +152,34 @@ public class TestCopyOnWriteMerge extends TestMerge {
   }
 
   @TestTemplate
+  public void testCopyOnWriteMergeSetsSortOrderIdOnRewrittenDataFiles() {
+    createAndInitTable("id INT, dep STRING");
+    sql("ALTER TABLE %s ADD PARTITION FIELD dep", tableName);
+    sql("ALTER TABLE %s WRITE ORDERED BY id", tableName);
+
+    append(tableName, "{ \"id\": 1, \"dep\": \"hr\" }\n" + "{ \"id\": 2, \"dep\": \"hr\" }");
+    createBranchIfNeeded();
+
+    createOrReplaceView("source", Collections.singletonList(1), Encoders.INT());
+
+    sql(
+        "MERGE INTO %s t USING source s "
+            + "ON t.id == s.value "
+            + "WHEN MATCHED THEN "
+            + "  UPDATE SET dep = 'changed' "
+            + "WHEN NOT MATCHED THEN "
+            + "  INSERT (id, dep) VALUES (s.value, 'new')",
+        commitTarget());
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    Snapshot snapshot = SnapshotUtil.latestSnapshot(table, branch);
+    assertThat(snapshot.addedDataFiles(table.io()))
+        .extracting(DataFile::sortOrderId)
+        .as("Rewritten data files should carry the table sort order id")
+        .containsOnly(table.sortOrder().orderId());
+  }
+
+  @TestTemplate
   public void testRuntimeFilteringWithReportedPartitioning() {
     createAndInitTable("id INT, dep STRING");
     sql("ALTER TABLE %s ADD PARTITION FIELD dep", tableName);

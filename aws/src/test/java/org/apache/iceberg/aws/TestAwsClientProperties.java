@@ -30,6 +30,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.auth.credentials.AwsCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
@@ -38,6 +39,17 @@ import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3ClientBuilder;
 
 public class TestAwsClientProperties {
+
+  public static class CustomCredentialProvider implements AwsCredentialsProvider {
+    public static AwsCredentialsProvider create(Map<String, String> properties) {
+      return new CustomCredentialProvider();
+    }
+
+    @Override
+    public AwsCredentials resolveCredentials() {
+      return AwsBasicCredentials.builder().build();
+    }
+  }
 
   @Test
   public void testApplyClientRegion() {
@@ -235,5 +247,19 @@ public class TestAwsClientProperties {
                 "/relative/credentials/endpoint",
                 OAuth2Properties.TOKEN,
                 "oauth-token"));
+  }
+
+  @Test
+  public void customCredentialsProviderTakesPrecedence() {
+    AwsClientProperties awsClientProperties =
+        new AwsClientProperties(
+            ImmutableMap.of(
+                AwsClientProperties.REFRESH_CREDENTIALS_ENDPOINT,
+                "http://localhost:1234/v1/credentials",
+                AwsClientProperties.CLIENT_CREDENTIALS_PROVIDER,
+                CustomCredentialProvider.class.getName()));
+    AwsCredentialsProvider provider =
+        awsClientProperties.credentialsProvider("key", "secret", "token");
+    assertThat(provider).isInstanceOf(CustomCredentialProvider.class);
   }
 }

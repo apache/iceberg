@@ -24,13 +24,10 @@ import static org.apache.iceberg.TableProperties.GC_ENABLED_DEFAULT;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
-import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Stream;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.CachingCatalog;
 import org.apache.iceberg.CatalogProperties;
@@ -39,8 +36,6 @@ import org.apache.iceberg.EnvironmentContext;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.Snapshot;
-import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
@@ -60,6 +55,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.rest.RESTCatalog;
 import org.apache.iceberg.spark.actions.SparkActions;
 import org.apache.iceberg.spark.source.SparkChangelogTable;
 import org.apache.iceberg.spark.source.SparkTable;
@@ -67,7 +63,6 @@ import org.apache.iceberg.spark.source.SparkView;
 import org.apache.iceberg.spark.source.StagedSparkTable;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.PropertyUtil;
-import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.view.UpdateViewProperties;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.analysis.NamespaceAlreadyExistsException;
@@ -85,12 +80,15 @@ import org.apache.spark.sql.connector.catalog.TableChange;
 import org.apache.spark.sql.connector.catalog.TableChange.ColumnChange;
 import org.apache.spark.sql.connector.catalog.TableChange.RemoveProperty;
 import org.apache.spark.sql.connector.catalog.TableChange.SetProperty;
+import org.apache.spark.sql.connector.catalog.TableSummary;
 import org.apache.spark.sql.connector.catalog.View;
 import org.apache.spark.sql.connector.catalog.ViewChange;
 import org.apache.spark.sql.connector.catalog.ViewInfo;
 import org.apache.spark.sql.connector.expressions.Transform;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * A Spark TableCatalog implementation that wraps an Iceberg {@link Catalog}.
@@ -122,6 +120,8 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap;
  * <p>
  */
 public class SparkCatalog extends BaseCatalog {
+
+  private static final Logger LOG = LoggerFactory.getLogger(SparkCatalog.class);
   private static final Set<String> DEFAULT_NS_KEYS = ImmutableSet.of(TableCatalog.PROP_OWNER);
   private static final Splitter COMMA = Splitter.on(",");
   private static final Joiner COMMA_JOINER = Joiner.on(",");
@@ -129,15 +129,15 @@ public class SparkCatalog extends BaseCatalog {
   private static final Pattern SNAPSHOT_ID = Pattern.compile("snapshot_id_(\\d+)");
   private static final Pattern BRANCH = Pattern.compile("branch_(.*)");
   private static final Pattern TAG = Pattern.compile("tag_(.*)");
-  private static final String REWRITE = "rewrite";
 
   private String catalogName = null;
   private Catalog icebergCatalog = null;
-  private boolean cacheEnabled = CatalogProperties.CACHE_ENABLED_DEFAULT;
   private SupportsNamespaces asNamespaceCatalog = null;
   private ViewCatalog asViewCatalog = null;
   private String[] defaultNamespace = null;
   private HadoopTables tables;
+  private boolean restCatalogPurge;
+  private boolean isRestCatalog;
 
   /**
    * Build an Iceberg {@link Catalog} to be used by this Spark catalog adapter.
@@ -167,71 +167,17 @@ public class SparkCatalog extends BaseCatalog {
 
   @Override
   public Table loadTable(Identifier ident) throws NoSuchTableException {
-    try {
-      return load(ident);
-    } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
-      throw new NoSuchTableException(ident);
-    }
+    return load(ident, null /* no time travel */);
   }
 
   @Override
   public Table loadTable(Identifier ident, String version) throws NoSuchTableException {
-    Table table = loadTable(ident);
-
-    if (table instanceof SparkTable) {
-      SparkTable sparkTable = (SparkTable) table;
-
-      Preconditions.checkArgument(
-          sparkTable.snapshotId() == null && sparkTable.branch() == null,
-          "Cannot do time-travel based on both table identifier and AS OF");
-
-      try {
-        return sparkTable.copyWithSnapshotId(Long.parseLong(version));
-      } catch (NumberFormatException e) {
-        SnapshotRef ref = sparkTable.table().refs().get(version);
-        ValidationException.check(
-            ref != null,
-            "Cannot find matching snapshot ID or reference name for version %s",
-            version);
-
-        if (ref.isBranch()) {
-          return sparkTable.copyWithBranch(version);
-        } else {
-          return sparkTable.copyWithSnapshotId(ref.snapshotId());
-        }
-      }
-
-    } else if (table instanceof SparkChangelogTable) {
-      throw new UnsupportedOperationException("AS OF is not supported for changelogs");
-
-    } else {
-      throw new IllegalArgumentException("Unknown Spark table type: " + table.getClass().getName());
-    }
+    return load(ident, TimeTravel.version(version));
   }
 
   @Override
-  public Table loadTable(Identifier ident, long timestamp) throws NoSuchTableException {
-    Table table = loadTable(ident);
-
-    if (table instanceof SparkTable) {
-      SparkTable sparkTable = (SparkTable) table;
-
-      Preconditions.checkArgument(
-          sparkTable.snapshotId() == null && sparkTable.branch() == null,
-          "Cannot do time-travel based on both table identifier and AS OF");
-
-      // convert the timestamp to milliseconds as Spark passes microseconds
-      // but Iceberg uses milliseconds for snapshot timestamps
-      long timestampMillis = TimeUnit.MICROSECONDS.toMillis(timestamp);
-      long snapshotId = SnapshotUtil.snapshotIdAsOfTime(sparkTable.table(), timestampMillis);
-      return sparkTable.copyWithSnapshotId(snapshotId);
-
-    } else if (table instanceof SparkChangelogTable) {
-      throw new UnsupportedOperationException("AS OF is not supported for changelogs");
-
-    } else {
-      throw new IllegalArgumentException("Unknown Spark table type: " + table.getClass().getName());
-    }
+  public Table loadTable(Identifier ident, long timestampMicros) throws NoSuchTableException {
+    return load(ident, TimeTravel.timestampMicros(timestampMicros));
   }
 
   @Override
@@ -256,7 +202,7 @@ public class SparkCatalog extends BaseCatalog {
               .withLocation(properties.get("location"))
               .withProperties(Spark3Util.rebuildCreateProperties(properties))
               .create();
-      return new SparkTable(icebergTable, !cacheEnabled);
+      return new SparkTable(icebergTable);
     } catch (AlreadyExistsException e) {
       throw new TableAlreadyExistsException(ident);
     }
@@ -355,7 +301,7 @@ public class SparkCatalog extends BaseCatalog {
       org.apache.iceberg.Table table = icebergCatalog.loadTable(buildIdentifier(ident));
       commitChanges(
           table, setLocation, setSnapshotId, pickSnapshotId, propertyChanges, schemaChanges);
-      return new SparkTable(table, true /* refreshEagerly */);
+      return new SparkTable(table);
     } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
       throw new NoSuchTableException(ident);
     }
@@ -363,7 +309,7 @@ public class SparkCatalog extends BaseCatalog {
 
   @Override
   public boolean dropTable(Identifier ident) {
-    return dropTableWithoutPurging(ident);
+    return catalogDropTable(ident);
   }
 
   @Override
@@ -376,7 +322,17 @@ public class SparkCatalog extends BaseCatalog {
       String metadataFileLocation =
           ((HasTableOperations) table).operations().current().metadataFileLocation();
 
-      boolean dropped = dropTableWithoutPurging(ident);
+      if (isRestCatalog && !isPathIdentifier(ident)) {
+        if (restCatalogPurge) {
+          return icebergCatalog.dropTable(buildIdentifier(ident), true);
+        } else {
+          LOG.info(
+              "Set '{}' to true to use the REST catalog's capabilities to purge the table.",
+              SparkCatalogProperties.REST_CATALOG_PURGE);
+        }
+      }
+
+      boolean dropped = catalogDropTable(ident);
 
       if (dropped) {
         // check whether the metadata file exists because HadoopCatalog/HadoopTables
@@ -394,7 +350,7 @@ public class SparkCatalog extends BaseCatalog {
     }
   }
 
-  private boolean dropTableWithoutPurging(Identifier ident) {
+  private boolean catalogDropTable(Identifier ident) {
     if (isPathIdentifier(ident)) {
       return tables.dropTable(((PathIdentifier) ident).location(), false /* don't purge data */);
     } else {
@@ -428,6 +384,31 @@ public class SparkCatalog extends BaseCatalog {
     return icebergCatalog.listTables(Namespace.of(namespace)).stream()
         .map(ident -> Identifier.of(ident.namespace().levels(), ident.name()))
         .toArray(Identifier[]::new);
+  }
+
+  @Override
+  public TableSummary[] listTableSummaries(String[] namespace) {
+    // Build summaries directly from the catalog listings to avoid loading every table, which the
+    // default TableCatalog.listTableSummaries implementation would do. Iceberg tables are always
+    // reported as EXTERNAL (see BaseSparkTable#properties), and views are reported as VIEW.
+    List<TableSummary> summaries = Lists.newArrayList();
+
+    // Collect views first. Most catalogs return only tables from listTables, but HiveCatalog with
+    // list-all-tables=true returns every metastore entry, including views. De-duplicate against the
+    // view identifiers so a view is never also reported as a table.
+    Set<Identifier> viewIdents = Sets.newHashSet(listViews(namespace));
+
+    for (Identifier ident : listTables(namespace)) {
+      if (!viewIdents.contains(ident)) {
+        summaries.add(TableSummary.of(ident, TableSummary.EXTERNAL_TABLE_TYPE));
+      }
+    }
+
+    for (Identifier ident : viewIdents) {
+      summaries.add(TableSummary.of(ident, TableSummary.VIEW_TABLE_TYPE));
+    }
+
+    return summaries.toArray(new TableSummary[0]);
   }
 
   @Override
@@ -748,7 +729,7 @@ public class SparkCatalog extends BaseCatalog {
   public final void initialize(String name, CaseInsensitiveStringMap options) {
     super.initialize(name, options);
 
-    this.cacheEnabled =
+    boolean cacheEnabled =
         PropertyUtil.propertyAsBoolean(
             options, CatalogProperties.CACHE_ENABLED, CatalogProperties.CACHE_ENABLED_DEFAULT);
 
@@ -764,13 +745,26 @@ public class SparkCatalog extends BaseCatalog {
             CatalogProperties.CACHE_EXPIRATION_INTERVAL_MS,
             CatalogProperties.CACHE_EXPIRATION_INTERVAL_MS_DEFAULT);
 
+    this.restCatalogPurge =
+        PropertyUtil.propertyAsBoolean(
+            options,
+            SparkCatalogProperties.REST_CATALOG_PURGE,
+            SparkCatalogProperties.REST_CATALOG_PURGE_DEFAULT);
+
     // An expiration interval of 0ms effectively disables caching.
     // Do not wrap with CachingCatalog.
     if (cacheExpirationIntervalMs == 0) {
-      this.cacheEnabled = false;
+      cacheEnabled = false;
     }
 
     Catalog catalog = buildIcebergCatalog(name, options);
+    this.isRestCatalog = catalog instanceof RESTCatalog;
+
+    Preconditions.checkArgument(
+        !restCatalogPurge || isRestCatalog,
+        "Cannot enable '%s': the configured catalog is not a REST catalog: %s",
+        SparkCatalogProperties.REST_CATALOG_PURGE,
+        catalog.getClass().getName());
 
     this.catalogName = name;
     SparkSession sparkSession = SparkSession.getActiveSession().get();
@@ -858,18 +852,18 @@ public class SparkCatalog extends BaseCatalog {
     }
   }
 
-  private Table load(Identifier ident) {
+  private Table load(Identifier ident, TimeTravel timeTravel) throws NoSuchTableException {
     if (isPathIdentifier(ident)) {
-      return loadFromPathIdentifier((PathIdentifier) ident);
+      return loadPath((PathIdentifier) ident, timeTravel);
     }
 
     try {
       org.apache.iceberg.Table table = icebergCatalog.loadTable(buildIdentifier(ident));
-      return new SparkTable(table, !cacheEnabled);
+      return SparkTable.create(table, timeTravel);
 
     } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
       if (ident.namespace().length == 0) {
-        throw e;
+        throw new NoSuchTableException(ident);
       }
 
       // if the original load didn't work, try using the namespace as an identifier because
@@ -880,50 +874,35 @@ public class SparkCatalog extends BaseCatalog {
         table = icebergCatalog.loadTable(namespaceAsIdent);
       } catch (Exception ignored) {
         // the namespace does not identify a table, so it cannot be a table with a snapshot selector
-        // throw the original exception
-        throw e;
+        // throw an exception for the original identifier
+        throw new NoSuchTableException(ident);
       }
 
       // loading the namespace as a table worked, check the name to see if it is a valid selector
       // or if the name points to the changelog
 
       if (ident.name().equalsIgnoreCase(SparkChangelogTable.TABLE_NAME)) {
-        return new SparkChangelogTable(table, !cacheEnabled);
-      }
-
-      Matcher at = AT_TIMESTAMP.matcher(ident.name());
-      if (at.matches()) {
-        long asOfTimestamp = Long.parseLong(at.group(1));
-        long snapshotId = SnapshotUtil.snapshotIdAsOfTime(table, asOfTimestamp);
-        return new SparkTable(table, snapshotId, !cacheEnabled);
-      }
-
-      Matcher id = SNAPSHOT_ID.matcher(ident.name());
-      if (id.matches()) {
-        long snapshotId = Long.parseLong(id.group(1));
-        return new SparkTable(table, snapshotId, !cacheEnabled);
+        Preconditions.checkArgument(timeTravel == null, "Can't time travel in changelog");
+        return new SparkChangelogTable(table);
       }
 
       Matcher branch = BRANCH.matcher(ident.name());
       if (branch.matches()) {
-        return new SparkTable(table, branch.group(1), !cacheEnabled);
+        Preconditions.checkArgument(timeTravel == null, "Can't time travel in branch");
+        return SparkTable.create(table, branch.group(1));
       }
 
-      Matcher tag = TAG.matcher(ident.name());
-      if (tag.matches()) {
-        Snapshot tagSnapshot = table.snapshot(tag.group(1));
-        if (tagSnapshot != null) {
-          return new SparkTable(table, tagSnapshot.snapshotId(), !cacheEnabled);
-        }
-      }
-
-      if (ident.name().equalsIgnoreCase(REWRITE)) {
-        return new SparkTable(table, null, !cacheEnabled, true);
+      TimeTravel timeTravelSelector = parseTimeTravelSelector(ident.name());
+      if (timeTravelSelector != null) {
+        Preconditions.checkArgument(
+            timeTravel == null,
+            "Can't time travel using selector and Spark time travel spec at the same time");
+        return SparkTable.create(table, timeTravelSelector);
       }
 
       // the name wasn't a valid snapshot selector and did not point to the changelog
-      // throw the original exception
-      throw e;
+      // throw an exception for the original identifier
+      throw new NoSuchTableException(ident);
     }
   }
 
@@ -939,25 +918,17 @@ public class SparkCatalog extends BaseCatalog {
   }
 
   @SuppressWarnings("CyclomaticComplexity")
-  private Table loadFromPathIdentifier(PathIdentifier ident) {
+  private Table loadPath(PathIdentifier ident, TimeTravel timeTravel) throws NoSuchTableException {
     Pair<String, List<String>> parsed = parseLocationString(ident.location());
 
     String metadataTableName = null;
-    Long asOfTimestamp = null;
-    Long snapshotId = null;
     String branch = null;
-    String tag = null;
+    TimeTravel effectiveTimeTravel = timeTravel;
     boolean isChangelog = false;
-    boolean isRewrite = false;
 
     for (String meta : parsed.second()) {
       if (meta.equalsIgnoreCase(SparkChangelogTable.TABLE_NAME)) {
         isChangelog = true;
-        continue;
-      }
-
-      if (REWRITE.equals(meta)) {
-        isRewrite = true;
         continue;
       }
 
@@ -966,67 +937,65 @@ public class SparkCatalog extends BaseCatalog {
         continue;
       }
 
-      Matcher at = AT_TIMESTAMP.matcher(meta);
-      if (at.matches()) {
-        asOfTimestamp = Long.parseLong(at.group(1));
+      Matcher branchSelector = BRANCH.matcher(meta);
+      if (branchSelector.matches()) {
+        branch = branchSelector.group(1);
         continue;
       }
 
-      Matcher id = SNAPSHOT_ID.matcher(meta);
-      if (id.matches()) {
-        snapshotId = Long.parseLong(id.group(1));
-        continue;
-      }
-
-      Matcher branchRef = BRANCH.matcher(meta);
-      if (branchRef.matches()) {
-        branch = branchRef.group(1);
-        continue;
-      }
-
-      Matcher tagRef = TAG.matcher(meta);
-      if (tagRef.matches()) {
-        tag = tagRef.group(1);
+      TimeTravel timeTravelSelector = parseTimeTravelSelector(meta);
+      if (timeTravelSelector != null) {
+        Preconditions.checkArgument(
+            timeTravel == null,
+            "Can't time travel using selector and Spark time travel spec at the same time");
+        Preconditions.checkArgument(
+            effectiveTimeTravel == null,
+            "Can't time travel using multiple time travel selectors: (%s, %s)",
+            effectiveTimeTravel,
+            timeTravelSelector);
+        effectiveTimeTravel = timeTravelSelector;
       }
     }
 
-    Preconditions.checkArgument(
-        Stream.of(snapshotId, asOfTimestamp, branch, tag).filter(Objects::nonNull).count() <= 1,
-        "Can specify only one of snapshot-id (%s), as-of-timestamp (%s), branch (%s), tag (%s)",
-        snapshotId,
-        asOfTimestamp,
-        branch,
-        tag);
-
-    Preconditions.checkArgument(
-        !isChangelog || (snapshotId == null && asOfTimestamp == null),
-        "Cannot specify snapshot-id and as-of-timestamp for changelogs");
-
-    org.apache.iceberg.Table table =
-        tables.load(parsed.first() + (metadataTableName != null ? "#" + metadataTableName : ""));
+    org.apache.iceberg.Table table;
+    try {
+      String qualifier = metadataTableName != null ? "#" + metadataTableName : "";
+      table = tables.load(parsed.first() + qualifier);
+    } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
+      throw new NoSuchTableException(ident);
+    }
 
     if (isChangelog) {
-      return new SparkChangelogTable(table, !cacheEnabled);
-
-    } else if (asOfTimestamp != null) {
-      long snapshotIdAsOfTime = SnapshotUtil.snapshotIdAsOfTime(table, asOfTimestamp);
-      return new SparkTable(table, snapshotIdAsOfTime, !cacheEnabled);
+      Preconditions.checkArgument(branch == null, "Cannot specify branch for changelogs");
+      Preconditions.checkArgument(effectiveTimeTravel == null, "Cannot time travel in changelogs");
+      return new SparkChangelogTable(table);
 
     } else if (branch != null) {
-      return new SparkTable(table, branch, !cacheEnabled);
-
-    } else if (tag != null) {
-      Snapshot tagSnapshot = table.snapshot(tag);
-      Preconditions.checkArgument(
-          tagSnapshot != null, "Cannot find snapshot associated with tag name: %s", tag);
-      return new SparkTable(table, tagSnapshot.snapshotId(), !cacheEnabled);
-
-    } else if (isRewrite) {
-      return new SparkTable(table, null, !cacheEnabled, true);
+      Preconditions.checkArgument(effectiveTimeTravel == null, "Cannot time travel in branch");
+      return SparkTable.create(table, branch);
 
     } else {
-      return new SparkTable(table, snapshotId, !cacheEnabled);
+      return SparkTable.create(table, effectiveTimeTravel);
     }
+  }
+
+  private TimeTravel parseTimeTravelSelector(String selector) {
+    Matcher at = AT_TIMESTAMP.matcher(selector);
+    if (at.matches()) {
+      return TimeTravel.timestampMillis(Long.parseLong(at.group(1)));
+    }
+
+    Matcher id = SNAPSHOT_ID.matcher(selector);
+    if (id.matches()) {
+      return TimeTravel.version(id.group(1));
+    }
+
+    Matcher tag = TAG.matcher(selector);
+    if (tag.matches()) {
+      return TimeTravel.version(tag.group(1));
+    }
+
+    return null;
   }
 
   private Identifier namespaceToIdentifier(String[] namespace) {

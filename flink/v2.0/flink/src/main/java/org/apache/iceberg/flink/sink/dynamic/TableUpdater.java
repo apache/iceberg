@@ -43,11 +43,14 @@ class TableUpdater {
   private static final Logger LOG = LoggerFactory.getLogger(TableUpdater.class);
   private final TableMetadataCache cache;
   private final Catalog catalog;
+  private final boolean caseSensitive;
   private final boolean dropUnusedColumns;
 
-  TableUpdater(TableMetadataCache cache, Catalog catalog, boolean dropUnusedColumns) {
+  TableUpdater(
+      TableMetadataCache cache, Catalog catalog, boolean caseSensitive, boolean dropUnusedColumns) {
     this.cache = cache;
     this.catalog = catalog;
+    this.caseSensitive = caseSensitive;
     this.dropUnusedColumns = dropUnusedColumns;
   }
 
@@ -120,15 +123,14 @@ class TableUpdater {
 
   private TableMetadataCache.ResolvedSchemaInfo findOrCreateSchema(
       TableIdentifier identifier, Schema schema) {
-    TableMetadataCache.ResolvedSchemaInfo fromCache =
-        cache.schema(identifier, schema, dropUnusedColumns);
+    TableMetadataCache.ResolvedSchemaInfo fromCache = cache.schema(identifier, schema);
     if (fromCache.compareResult() != CompareSchemasVisitor.Result.SCHEMA_UPDATE_NEEDED) {
       return fromCache;
     } else {
       Table table = catalog.loadTable(identifier);
       Schema tableSchema = table.schema();
       CompareSchemasVisitor.Result result =
-          CompareSchemasVisitor.visit(schema, tableSchema, true, dropUnusedColumns);
+          CompareSchemasVisitor.visit(schema, tableSchema, caseSensitive, dropUnusedColumns);
       switch (result) {
         case SAME:
           cache.update(identifier, table);
@@ -145,20 +147,20 @@ class TableUpdater {
           LOG.info(
               "Triggering schema update for table {} {} to {}", identifier, tableSchema, schema);
           UpdateSchema updateApi = table.updateSchema();
-          EvolveSchemaVisitor.visit(identifier, updateApi, tableSchema, schema, dropUnusedColumns);
+          EvolveSchemaVisitor.visit(
+              identifier, updateApi, tableSchema, schema, caseSensitive, dropUnusedColumns);
 
           try {
             updateApi.commit();
             cache.update(identifier, table);
             TableMetadataCache.ResolvedSchemaInfo comparisonAfterMigration =
-                cache.schema(identifier, schema, dropUnusedColumns);
+                cache.schema(identifier, schema);
             Schema newSchema = comparisonAfterMigration.resolvedTableSchema();
             LOG.info("Table {} schema updated from {} to {}", identifier, tableSchema, newSchema);
             return comparisonAfterMigration;
           } catch (CommitFailedException e) {
             cache.invalidate(identifier);
-            TableMetadataCache.ResolvedSchemaInfo newSchema =
-                cache.schema(identifier, schema, dropUnusedColumns);
+            TableMetadataCache.ResolvedSchemaInfo newSchema = cache.schema(identifier, schema);
             if (newSchema.compareResult() != CompareSchemasVisitor.Result.SCHEMA_UPDATE_NEEDED) {
               LOG.debug("Table {} schema updated concurrently to {}", identifier, schema);
               return newSchema;

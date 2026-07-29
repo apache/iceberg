@@ -139,18 +139,6 @@ if (flinkVersions.contains("2.1")) {
   project(":iceberg-flink:flink-runtime-2.1").name = "iceberg-flink-runtime-2.1"
 }
 
-if (sparkVersions.contains("3.4")) {
-  include ":iceberg-spark:spark-3.4_${scalaVersion}"
-  include ":iceberg-spark:spark-extensions-3.4_${scalaVersion}"
-  include ":iceberg-spark:spark-runtime-3.4_${scalaVersion}"
-  project(":iceberg-spark:spark-3.4_${scalaVersion}").projectDir = file('spark/v3.4/spark')
-  project(":iceberg-spark:spark-3.4_${scalaVersion}").name = "iceberg-spark-3.4_${scalaVersion}"
-  project(":iceberg-spark:spark-extensions-3.4_${scalaVersion}").projectDir = file('spark/v3.4/spark-extensions')
-  project(":iceberg-spark:spark-extensions-3.4_${scalaVersion}").name = "iceberg-spark-extensions-3.4_${scalaVersion}"
-  project(":iceberg-spark:spark-runtime-3.4_${scalaVersion}").projectDir = file('spark/v3.4/spark-runtime')
-  project(":iceberg-spark:spark-runtime-3.4_${scalaVersion}").name = "iceberg-spark-runtime-3.4_${scalaVersion}"
-}
-
 if (sparkVersions.contains("3.5")) {
   include ":iceberg-spark:spark-3.5_${scalaVersion}"
   include ":iceberg-spark:spark-extensions-3.5_${scalaVersion}"

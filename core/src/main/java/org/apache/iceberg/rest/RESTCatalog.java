@@ -241,6 +241,12 @@ public class RESTCatalog
   }
 
   @Override
+  public Table registerTable(
+      TableIdentifier ident, String metadataFileLocation, boolean overwrite) {
+    return delegate.registerTable(ident, metadataFileLocation, overwrite);
+  }
+
+  @Override
   public void createNamespace(Namespace ns, Map<String, String> props) {
     nsDelegate.createNamespace(ns, props);
   }
@@ -328,5 +334,10 @@ public class RESTCatalog
   @Override
   public void invalidateView(TableIdentifier identifier) {
     viewSessionCatalog.invalidateView(identifier);
+  }
+
+  @Override
+  public View registerView(TableIdentifier identifier, String metadataFileLocation) {
+    return viewSessionCatalog.registerView(identifier, metadataFileLocation);
   }
 }

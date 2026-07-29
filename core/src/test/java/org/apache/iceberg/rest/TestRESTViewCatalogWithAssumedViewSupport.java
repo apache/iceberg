@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.rest;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import java.io.File;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
@@ -29,10 +31,11 @@ import org.apache.iceberg.catalog.SessionCatalog;
 import org.apache.iceberg.inmemory.InMemoryCatalog;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.rest.responses.ConfigResponse;
+import org.eclipse.jetty.compression.gzip.GzipCompression;
+import org.eclipse.jetty.compression.server.CompressionHandler;
+import org.eclipse.jetty.ee10.servlet.ServletContextHandler;
+import org.eclipse.jetty.ee10.servlet.ServletHolder;
 import org.eclipse.jetty.server.Server;
-import org.eclipse.jetty.server.handler.gzip.GzipHandler;
-import org.eclipse.jetty.servlet.ServletContextHandler;
-import org.eclipse.jetty.servlet.ServletHolder;
 import org.junit.jupiter.api.BeforeEach;
 
 public class TestRESTViewCatalogWithAssumedViewSupport extends TestRESTViewCatalog {
@@ -69,7 +72,9 @@ public class TestRESTViewCatalogWithAssumedViewSupport extends TestRESTViewCatal
         new ServletContextHandler(ServletContextHandler.NO_SESSIONS);
     servletContext.setContextPath("/");
     servletContext.addServlet(new ServletHolder(new RESTCatalogServlet(adaptor)), "/*");
-    servletContext.setHandler(new GzipHandler());
+    CompressionHandler compressionHandler = new CompressionHandler();
+    compressionHandler.putCompression(new GzipCompression());
+    servletContext.insertHandler(compressionHandler);
 
     this.httpServer = new Server(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0));
     httpServer.setHandler(servletContext);
@@ -106,5 +111,32 @@ public class TestRESTViewCatalogWithAssumedViewSupport extends TestRESTViewCatal
             "catalog-override-key3",
             CatalogProperties.VIEW_OVERRIDE_PREFIX + "key4",
             "catalog-override-key4"));
+  }
+
+  @Override
+  public void registerView() {
+    // Older client doesn't support the newer endpoint.
+    assertThatThrownBy(super::registerView)
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessageStartingWith(
+            "Server does not support endpoint: POST /v1/{prefix}/namespaces/{namespace}/register-view");
+  }
+
+  @Override
+  public void registerExistingView() {
+    // Older client doesn't support the newer endpoint.
+    assertThatThrownBy(super::registerExistingView)
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessageStartingWith(
+            "Server does not support endpoint: POST /v1/{prefix}/namespaces/{namespace}/register-view");
+  }
+
+  @Override
+  public void registerViewThatAlreadyExistsAsTable() {
+    // Older client doesn't support the newer endpoint.
+    assertThatThrownBy(super::registerViewThatAlreadyExistsAsTable)
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessageStartingWith(
+            "Server does not support endpoint: POST /v1/{prefix}/namespaces/{namespace}/register-view");
   }
 }

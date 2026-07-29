@@ -271,18 +271,19 @@ public class TestRowDataProjection {
         GenericRowData.of(
             StringData.fromString("row_id_value"),
             new GenericMapData(
-                ImmutableMap.of(StringData.fromString("foo"), 1, StringData.fromString("bar"), 2)));
+                ImmutableMap.of(StringData.fromString("foo"), 1, StringData.fromString("bar"), 2)),
+            null);
     testEqualsAndHashCode(schema, idOnly, rowData, copyRowData, otherRowData, true);
     testEqualsAndHashCode(schema, mapOnly, rowData, copyRowData, otherRowData);
     testEqualsAndHashCode(schema, schema, rowData, copyRowData, otherRowData);
 
     GenericRowData rowDataNullOptionalFields =
-        GenericRowData.of(StringData.fromString("row_id_value"), null);
+        GenericRowData.of(StringData.fromString("row_id_value"), null, null);
     GenericRowData copyRowDataNullOptionalFields =
-        GenericRowData.of(StringData.fromString("row_id_value"), null);
+        GenericRowData.of(StringData.fromString("row_id_value"), null, null);
     // modify the map field value
     GenericRowData otherRowDataNullOptionalFields =
-        GenericRowData.of(StringData.fromString("other_row_id_value"), null);
+        GenericRowData.of(StringData.fromString("other_row_id_value"), null, null);
     testEqualsAndHashCode(
         schema,
         idOnly,
@@ -432,7 +433,8 @@ public class TestRowDataProjection {
     GenericRowData otherRowData =
         GenericRowData.of(
             StringData.fromString("other_row_id_value"),
-            new GenericArrayData(new Integer[] {4, 5, 6}));
+            new GenericArrayData(new Integer[] {4, 5, 6}),
+            null);
     testEqualsAndHashCode(schema, idOnly, rowData, copyRowData, otherRowData);
     testEqualsAndHashCode(schema, arrayOnly, rowData, copyRowData, otherRowData);
     testEqualsAndHashCode(schema, schema, rowData, copyRowData, otherRowData);
@@ -440,16 +442,19 @@ public class TestRowDataProjection {
     GenericRowData rowDataNullOptionalFields =
         GenericRowData.of(
             StringData.fromString("row_id_value"),
-            new GenericArrayData(new Integer[] {1, null, 3}));
+            new GenericArrayData(new Integer[] {1, null, 3}),
+            null);
     GenericRowData copyRowDataNullOptionalFields =
         GenericRowData.of(
             StringData.fromString("row_id_value"),
-            new GenericArrayData(new Integer[] {1, null, 3}));
+            new GenericArrayData(new Integer[] {1, null, 3}),
+            null);
     // modify the map field value
     GenericRowData otherRowDataNullOptionalFields =
         GenericRowData.of(
             StringData.fromString("other_row_id_value"),
-            new GenericArrayData(new Integer[] {4, null, 6}));
+            new GenericArrayData(new Integer[] {4, null, 6}),
+            null);
     testEqualsAndHashCode(
         schema,
         idOnly,

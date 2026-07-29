@@ -33,14 +33,15 @@ import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import org.apache.iceberg.aws.s3.MinioUtil;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.rest.RESTCatalogProperties;
 import org.apache.iceberg.rest.auth.OAuth2Properties;
 import org.apache.iceberg.util.ThreadPools;
+import org.eclipse.jetty.compression.gzip.GzipCompression;
+import org.eclipse.jetty.compression.server.CompressionHandler;
+import org.eclipse.jetty.ee10.servlet.ServletContextHandler;
+import org.eclipse.jetty.ee10.servlet.ServletHolder;
 import org.eclipse.jetty.server.Server;
-import org.eclipse.jetty.server.handler.gzip.GzipHandler;
-import org.eclipse.jetty.servlet.ServletContextHandler;
-import org.eclipse.jetty.servlet.ServletHolder;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
@@ -107,8 +108,10 @@ public class TestS3RestSigner {
             ImmutableS3V4RestSignerClient.builder()
                 .properties(
                     ImmutableMap.of(
-                        S3V4RestSignerClient.S3_SIGNER_URI,
+                        RESTCatalogProperties.SIGNER_URI,
                         httpServer.getURI().toString(),
+                        RESTCatalogProperties.SIGNER_ENDPOINT,
+                        S3SignerServlet.S3_SIGNER_ENDPOINT,
                         OAuth2Properties.CREDENTIAL,
                         "catalog:12345"))
                 .build(),
@@ -182,19 +185,13 @@ public class TestS3RestSigner {
   }
 
   private static Server initHttpServer() throws Exception {
-    S3SignerServlet.SignRequestValidator deleteObjectsWithBody =
-        new S3SignerServlet.SignRequestValidator(
-            (s3SignRequest) ->
-                "post".equalsIgnoreCase(s3SignRequest.method())
-                    && s3SignRequest.uri().getQuery().contains("delete"),
-            (s3SignRequest) -> s3SignRequest.body() != null && !s3SignRequest.body().isEmpty(),
-            "Sign request for delete objects should have a request body");
-    S3SignerServlet servlet =
-        new S3SignerServlet(S3ObjectMapper.mapper(), ImmutableList.of(deleteObjectsWithBody));
+    S3SignerServlet servlet = new S3SignerServlet();
     ServletContextHandler servletContext =
         new ServletContextHandler(ServletContextHandler.NO_SESSIONS);
     servletContext.addServlet(new ServletHolder(servlet), "/*");
-    servletContext.setHandler(new GzipHandler());
+    CompressionHandler compressionHandler = new CompressionHandler();
+    compressionHandler.putCompression(new GzipCompression());
+    servletContext.insertHandler(compressionHandler);
 
     Server server = new Server(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0));
     server.setHandler(servletContext);

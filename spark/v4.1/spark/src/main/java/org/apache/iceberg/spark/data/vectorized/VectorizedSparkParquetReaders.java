@@ -75,19 +75,6 @@ public class VectorizedSparkParquetReaders {
     return buildReader(expectedSchema, fileSchema, idToConstant, ArrowAllocation.rootAllocator());
   }
 
-  public static CometColumnarBatchReader buildCometReader(
-      Schema expectedSchema, MessageType fileSchema, Map<Integer, ?> idToConstant) {
-    return (CometColumnarBatchReader)
-        TypeWithSchemaVisitor.visit(
-            expectedSchema.asStruct(),
-            fileSchema,
-            new CometVectorizedReaderBuilder(
-                expectedSchema,
-                fileSchema,
-                idToConstant,
-                readers -> new CometColumnarBatchReader(readers, expectedSchema)));
-  }
-
   // enables unsafe memory access to avoid costly checks to see if index is within bounds
   // as long as it is not configured explicitly (see BoundsChecking in Arrow)
   private static void enableUnsafeMemoryAccess() {

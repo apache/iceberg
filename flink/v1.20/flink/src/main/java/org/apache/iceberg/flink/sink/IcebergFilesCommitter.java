@@ -155,8 +155,8 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     Preconditions.checkArgument(
         maxContinuousEmptyCommits > 0, MAX_CONTINUOUS_EMPTY_COMMITS + " must be positive");
 
-    int subTaskId = getRuntimeContext().getIndexOfThisSubtask();
-    int attemptId = getRuntimeContext().getAttemptNumber();
+    int subTaskId = getRuntimeContext().getTaskInfo().getIndexOfThisSubtask();
+    int attemptId = getRuntimeContext().getTaskInfo().getAttemptNumber();
     this.manifestOutputFileFactory =
         FlinkManifestUtil.createOutputFileFactory(
             () -> table, table.properties(), flinkJobId, operatorUniqueId, subTaskId, attemptId);

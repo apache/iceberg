@@ -1,0 +1,430 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+package org.apache.iceberg.parquet;
+
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.ByteBuffer;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.function.UnaryOperator;
+import org.apache.iceberg.FileContent;
+import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.MetricsConfig;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.data.parquet.GenericParquetWriter;
+import org.apache.iceberg.deletes.PositionDelete;
+import org.apache.iceberg.encryption.EncryptedOutputFile;
+import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.formats.BaseFormatModel;
+import org.apache.iceberg.formats.ModelWriteBuilder;
+import org.apache.iceberg.formats.ReadBuilder;
+import org.apache.iceberg.io.BufferedFileAppender;
+import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.DeleteSchemaUtil;
+import org.apache.iceberg.io.FileAppender;
+import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.mapping.NameMapping;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.parquet.schema.MessageType;
+import org.apache.parquet.schema.Type;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+public class ParquetFormatModel<D, S, R>
+    extends BaseFormatModel<D, S, ParquetValueWriter<?>, R, MessageType> {
+  private static final Logger LOG = LoggerFactory.getLogger(ParquetFormatModel.class);
+
+  private final boolean isBatchReader;
+  private final VariantShreddingAnalyzer<D, S> variantAnalyzer;
+  private final Function<S, UnaryOperator<D>> copyFuncFactory;
+
+  public static <D> ParquetFormatModel<PositionDelete<D>, Void, Object> forPositionDeletes() {
+    return new ParquetFormatModel<>(
+        PositionDelete.deleteClass(), Void.class, null, null, false, null, null);
+  }
+
+  public static <D, S> ParquetFormatModel<D, S, ParquetValueReader<?>> create(
+      Class<D> type,
+      Class<S> schemaType,
+      WriterFunction<ParquetValueWriter<?>, S, MessageType> writerFunction,
+      ReaderFunction<ParquetValueReader<?>, S, MessageType> readerFunction) {
+    return new ParquetFormatModel<>(
+        type, schemaType, writerFunction, readerFunction, false, null, null);
+  }
+
+  /**
+   * @deprecated Will be removed in 1.13.0; use {@link #create(Class, Class, WriterFunction,
+   *     ReaderFunction, VariantShreddingAnalyzer, Function)} instead.
+   */
+  @Deprecated
+  public static <D, S> ParquetFormatModel<D, S, ParquetValueReader<?>> create(
+      Class<D> type,
+      Class<S> schemaType,
+      WriterFunction<ParquetValueWriter<?>, S, MessageType> writerFunction,
+      ReaderFunction<ParquetValueReader<?>, S, MessageType> readerFunction,
+      VariantShreddingAnalyzer<D, S> variantAnalyzer,
+      UnaryOperator<D> copyFunc) {
+    return create(
+        type,
+        schemaType,
+        writerFunction,
+        readerFunction,
+        variantAnalyzer,
+        (Function<S, UnaryOperator<D>>) unused -> copyFunc);
+  }
+
+  public static <D, S> ParquetFormatModel<D, S, ParquetValueReader<?>> create(
+      Class<D> type,
+      Class<S> schemaType,
+      WriterFunction<ParquetValueWriter<?>, S, MessageType> writerFunction,
+      ReaderFunction<ParquetValueReader<?>, S, MessageType> readerFunction,
+      VariantShreddingAnalyzer<D, S> variantAnalyzer,
+      Function<S, UnaryOperator<D>> copyFuncFactory) {
+    return new ParquetFormatModel<>(
+        type, schemaType, writerFunction, readerFunction, false, variantAnalyzer, copyFuncFactory);
+  }
+
+  public static <D, S> ParquetFormatModel<D, S, VectorizedReader<?>> create(
+      Class<? extends D> type,
+      Class<S> schemaType,
+      ReaderFunction<VectorizedReader<?>, S, MessageType> batchReaderFunction) {
+    return new ParquetFormatModel<>(type, schemaType, null, batchReaderFunction, true, null, null);
+  }
+
+  private ParquetFormatModel(
+      Class<? extends D> type,
+      Class<S> schemaType,
+      WriterFunction<ParquetValueWriter<?>, S, MessageType> writerFunction,
+      ReaderFunction<R, S, MessageType> readerFunction,
+      boolean isBatchReader,
+      VariantShreddingAnalyzer<D, S> variantAnalyzer,
+      Function<S, UnaryOperator<D>> copyFuncFactory) {
+    super(type, schemaType, writerFunction, readerFunction);
+    this.isBatchReader = isBatchReader;
+    this.variantAnalyzer = variantAnalyzer;
+    this.copyFuncFactory = copyFuncFactory;
+  }
+
+  @Override
+  public FileFormat format() {
+    return FileFormat.PARQUET;
+  }
+
+  @Override
+  public ModelWriteBuilder<D, S> writeBuilder(EncryptedOutputFile outputFile) {
+    return new WriteBuilderWrapper<>(
+        outputFile, writerFunction(), variantAnalyzer, copyFuncFactory);
+  }
+
+  @Override
+  public ReadBuilder<D, S> readBuilder(InputFile inputFile) {
+    return new ReadBuilderWrapper<>(inputFile, readerFunction(), isBatchReader);
+  }
+
+  private static class WriteBuilderWrapper<D, S> implements ModelWriteBuilder<D, S> {
+    private final Parquet.WriteBuilder internal;
+    private final WriterFunction<ParquetValueWriter<?>, S, MessageType> writerFunction;
+    private final VariantShreddingAnalyzer<D, S> variantAnalyzer;
+    private final Function<S, UnaryOperator<D>> copyFuncFactory;
+    private Schema schema;
+    private S engineSchema;
+    private FileContent content;
+    private boolean shreddingEnabled = false;
+    private int bufferSize = TableProperties.PARQUET_VARIANT_BUFFER_SIZE_DEFAULT;
+
+    private WriteBuilderWrapper(
+        EncryptedOutputFile outputFile,
+        WriterFunction<ParquetValueWriter<?>, S, MessageType> writerFunction,
+        VariantShreddingAnalyzer<D, S> variantAnalyzer,
+        Function<S, UnaryOperator<D>> copyFuncFactory) {
+      this.internal = Parquet.write(outputFile);
+      this.writerFunction = writerFunction;
+      this.variantAnalyzer = variantAnalyzer;
+      this.copyFuncFactory = copyFuncFactory;
+    }
+
+    @Override
+    public ModelWriteBuilder<D, S> schema(Schema newSchema) {
+      this.schema = newSchema;
+      internal.schema(newSchema);
+      return this;
+    }
+
+    @Override
+    public ModelWriteBuilder<D, S> engineSchema(S newSchema) {
+      this.engineSchema = newSchema;
+      return this;
+    }
+
+    @Override
+    public ModelWriteBuilder<D, S> set(String property, String value) {
+      if (TableProperties.PARQUET_SHRED_VARIANTS.equals(property)) {
+        shreddingEnabled = Boolean.parseBoolean(value);
+      }
+
+      if (TableProperties.PARQUET_VARIANT_BUFFER_SIZE.equals(property)) {
+        bufferSize = Integer.parseInt(value);
+      }
+
+      internal.set(property, value);
+      return this;
+    }
+
+    @Override
+    public ModelWriteBuilder<D, S> setAll(Map<String, String> properties) {
+      properties.forEach(this::set);
+      return this;
+    }
+
+    @Override
+    public ModelWriteBuilder<D, S> meta(String property, String value) {
+      internal.meta(property, value);
+      return this;
+    }
+
+    @Override
+    public ModelWriteBuilder<D, S> meta(Map<String, String> properties) {
+      internal.meta(properties);
+      return this;
+    }
+
+    @Override
+    public ModelWriteBuilder<D, S> content(FileContent newContent) {
+      this.content = newContent;
+      return this;
+    }
+
+    @Override
+    public ModelWriteBuilder<D, S> metricsConfig(MetricsConfig metricsConfig) {
+      internal.metricsConfig(metricsConfig);
+      return this;
+    }
+
+    @Override
+    public ModelWriteBuilder<D, S> overwrite() {
+      internal.overwrite();
+      return this;
+    }
+
+    @Override
+    public ModelWriteBuilder<D, S> withFileEncryptionKey(ByteBuffer encryptionKey) {
+      internal.withFileEncryptionKey(encryptionKey);
+      return this;
+    }
+
+    @Override
+    public ModelWriteBuilder<D, S> withAADPrefix(ByteBuffer aadPrefix) {
+      internal.withAADPrefix(aadPrefix);
+      return this;
+    }
+
+    @Override
+    public FileAppender<D> build() throws IOException {
+      boolean shredVariants = false;
+      switch (content) {
+        case DATA:
+          internal.createContextFunc(Parquet.WriteBuilder.Context::dataContext);
+          internal.createWriterFunc(
+              (icebergSchema, messageType) ->
+                  writerFunction.write(icebergSchema, messageType, engineSchema));
+          shredVariants = shreddingEnabled && variantAnalyzer != null && hasVariantColumns(schema);
+          break;
+        case EQUALITY_DELETES:
+          internal.createContextFunc(Parquet.WriteBuilder.Context::deleteContext);
+          internal.createWriterFunc(
+              (icebergSchema, messageType) ->
+                  writerFunction.write(icebergSchema, messageType, engineSchema));
+          break;
+        case POSITION_DELETES:
+          Preconditions.checkState(
+              schema == null,
+              "Invalid schema: %s. Position deletes with schema are not supported by the API.",
+              schema);
+          Preconditions.checkState(
+              engineSchema == null,
+              "Invalid engineSchema: %s. Position deletes with schema are not supported by the API.",
+              engineSchema);
+
+          internal.createContextFunc(Parquet.WriteBuilder.Context::deleteContext);
+          internal.createWriterFunc(
+              (icebergSchema, messageType) ->
+                  new ParquetValueWriters.PositionDeleteStructWriter<D>(
+                      (ParquetValueWriters.StructWriter<?>)
+                          GenericParquetWriter.create(icebergSchema, messageType),
+                      Function.identity()));
+          internal.schema(DeleteSchemaUtil.pathPosSchema());
+          break;
+        default:
+          throw new IllegalArgumentException("Unknown file content: " + content);
+      }
+
+      if (shredVariants) {
+        return buildShreddedAppender();
+      }
+
+      return internal.build();
+    }
+
+    /**
+     * Creates a {@link BufferedFileAppender} that buffers the first N rows, runs variant shredding
+     * analysis on them, then creates the real Parquet appender with a shredded schema.
+     *
+     * <p>Only top-level variant columns are shredded. Nested variants (inside structs/lists/maps)
+     * fall through to unshredded 2-field layout because column index resolution only applies to
+     * top-level fields.
+     */
+    private FileAppender<D> buildShreddedAppender() {
+      Preconditions.checkState(copyFuncFactory != null, "copyFuncFactory must not be null");
+      UnaryOperator<D> copyFunc = copyFuncFactory.apply(engineSchema);
+      Preconditions.checkState(copyFunc != null, "copyFunc must not return null");
+      LOG.debug("Building shredded variant appender with bufferSize={}", bufferSize);
+
+      return new BufferedFileAppender<>(
+          bufferSize,
+          bufferedRows -> {
+            Map<Integer, Type> shreddedTypes =
+                variantAnalyzer.analyzeVariantColumns(bufferedRows, schema, engineSchema);
+            LOG.debug(
+                "Variant inference: rows={}, shredded fields={}",
+                bufferedRows.size(),
+                shreddedTypes.size());
+
+            if (!shreddedTypes.isEmpty()) {
+              internal.variantShreddingFunc((fieldId, name) -> shreddedTypes.get(fieldId));
+            }
+
+            try {
+              return internal.build();
+            } catch (IOException e) {
+              throw new UncheckedIOException("Failed to create shredded variant writer", e);
+            }
+          },
+          copyFunc);
+    }
+
+    private static boolean hasVariantColumns(Schema schema) {
+      return schema != null
+          && schema.columns().stream().anyMatch(field -> field.type().isVariantType());
+    }
+  }
+
+  private static class ReadBuilderWrapper<R, D, S> implements ReadBuilder<D, S> {
+    private final Parquet.ReadBuilder internal;
+    private final ReaderFunction<R, S, MessageType> readerFunction;
+    private final boolean isBatchReader;
+    private S engineSchema;
+    private Map<Integer, ?> idToConstant = ImmutableMap.of();
+
+    private ReadBuilderWrapper(
+        InputFile inputFile,
+        ReaderFunction<R, S, MessageType> readerFunction,
+        boolean isBatchReader) {
+      this.internal = Parquet.read(inputFile);
+      this.readerFunction = readerFunction;
+      this.isBatchReader = isBatchReader;
+    }
+
+    @Override
+    public ReadBuilder<D, S> split(long newStart, long newLength) {
+      internal.split(newStart, newLength);
+      return this;
+    }
+
+    @Override
+    public ReadBuilder<D, S> project(Schema schema) {
+      internal.project(schema);
+      return this;
+    }
+
+    @Override
+    public ReadBuilder<D, S> engineProjection(S schema) {
+      this.engineSchema = schema;
+      return this;
+    }
+
+    @Override
+    public ReadBuilder<D, S> caseSensitive(boolean caseSensitive) {
+      internal.caseSensitive(caseSensitive);
+      return this;
+    }
+
+    @Override
+    public ReadBuilder<D, S> filter(Expression filter) {
+      internal.filter(filter);
+      return this;
+    }
+
+    @Override
+    public ReadBuilder<D, S> set(String key, String value) {
+      internal.set(key, value);
+      return this;
+    }
+
+    @Override
+    public ReadBuilder<D, S> reuseContainers() {
+      internal.reuseContainers();
+      return this;
+    }
+
+    @Override
+    public ReadBuilder<D, S> recordsPerBatch(int numRowsPerBatch) {
+      if (!isBatchReader) {
+        throw new UnsupportedOperationException(
+            "Batch reading is not supported in non-vectorized reader");
+      }
+
+      internal.recordsPerBatch(numRowsPerBatch);
+      return this;
+    }
+
+    @Override
+    public ReadBuilder<D, S> idToConstant(Map<Integer, ?> newIdToConstant) {
+      this.idToConstant = newIdToConstant;
+      return this;
+    }
+
+    @Override
+    public ReadBuilder<D, S> withNameMapping(NameMapping nameMapping) {
+      internal.withNameMapping(nameMapping);
+      return this;
+    }
+
+    @Override
+    public CloseableIterable<D> build() {
+      if (isBatchReader) {
+        return internal
+            .createBatchedReaderFunc(
+                (icebergSchema, messageType) ->
+                    (VectorizedReader<?>)
+                        readerFunction.read(icebergSchema, messageType, engineSchema, idToConstant))
+            .build();
+      } else {
+        return internal
+            .createReaderFunc(
+                (icebergSchema, messageType) ->
+                    (ParquetValueReader<?>)
+                        readerFunction.read(icebergSchema, messageType, engineSchema, idToConstant))
+            .build();
+      }
+    }
+  }
+}

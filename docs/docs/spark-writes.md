@@ -100,6 +100,24 @@ Spark 3.5 added support for `WHEN NOT MATCHED BY SOURCE ... THEN ...` to update 
 WHEN NOT MATCHED BY SOURCE THEN UPDATE SET status = 'invalid'
 ```
 
+#### Snapshot summary
+
+After a `MERGE INTO` commit, the [snapshot summary](../../spec.md#optional-snapshot-summary-fields) may include the following fields. Each value is the string form of a non-negative count. A field is omitted when the value is unknown (e.g., not reported by Spark).
+
+!!! info
+    Only available in Spark 4.1 and higher.
+
+| Field                                                                 | Description                                                                 |
+|-----------------------------------------------------------------------|-----------------------------------------------------------------------------|
+| **`spark.merge-into.num-target-rows-copied`**                         | Number of target rows copied unmodified because they did not match any action |
+| **`spark.merge-into.num-target-rows-deleted`**                        | Number of target rows deleted                                               |
+| **`spark.merge-into.num-target-rows-updated`**                        | Number of target rows updated                                               |
+| **`spark.merge-into.num-target-rows-inserted`**                       | Number of target rows inserted                                              |
+| **`spark.merge-into.num-target-rows-matched-updated`**                | Number of target rows updated by a MATCHED clause                           |
+| **`spark.merge-into.num-target-rows-matched-deleted`**                | Number of target rows deleted by a MATCHED clause                           |
+| **`spark.merge-into.num-target-rows-not-matched-by-source-updated`**  | Number of target rows updated by a NOT MATCHED BY SOURCE clause             |
+| **`spark.merge-into.num-target-rows-not-matched-by-source-deleted`**  | Number of target rows deleted by a NOT MATCHED BY SOURCE clause             |
+
 ### `INSERT OVERWRITE`
 
 `INSERT OVERWRITE` can replace data in the table with the result of a query. Overwrites are atomic operations for Iceberg tables.
@@ -440,8 +458,9 @@ or manually repartition the data.
 To adjust Spark's task size it is important to become familiar with Spark's various Adaptive Query Execution (AQE)
 parameters. When the `write.distribution-mode` is not `none`, AQE will control the coalescing and splitting of Spark
 tasks during the exchange to try to create tasks of `spark.sql.adaptive.advisoryPartitionSizeInBytes` size. These
-settings will also affect any user performed re-partitions or sorts.
-It is important again to note that this is the in-memory Spark row size and not the on disk
-columnar-compressed size, so a larger value than the target file size will need to be specified. The ratio of
-in-memory size to on disk size is data dependent. Future work in Spark should allow Iceberg to automatically adjust this
-parameter at write time to match the `write.target-file-size-bytes`.
+settings will also affect other non-writing stages.
+It is important again to note that this is the estimated Spark input shuffle data size (typically, is row-based and
+compressed with a lower ratio) and not the write file size (typically, is columnar and compressed with a higher
+ratio), so a larger value than the target file size will need to be specified. The ratio of these two kinds of
+size is data dependent. Future work in Spark should allow Iceberg to automatically adjust this parameter at
+write time to match the `write.target-file-size-bytes`.

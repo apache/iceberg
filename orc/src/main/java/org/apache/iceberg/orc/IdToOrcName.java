@@ -33,7 +33,7 @@ import org.apache.iceberg.types.Types;
 /**
  * Generates mapping from field IDs to ORC qualified names.
  *
- * <p>This visitor also enclose column names in backticks i.e. ` so that ORC can correctly parse
+ * <p>This visitor also encloses column names in backticks i.e. ` so that ORC can correctly parse
  * column names with special characters. A comparison of ORC convention with Iceberg convention is
  * provided below
  *

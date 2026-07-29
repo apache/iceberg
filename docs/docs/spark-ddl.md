@@ -84,6 +84,9 @@ Supported transformations are:
 
 Note: Old syntax of `years(ts)`, `months(ts)`, `days(ts)` and `hours(ts)` are also supported for compatibility.
 
+The same transforms are also available as Spark SQL functions under the `system` namespace. See
+[Spark SQL functions](spark-queries.md#spark-sql-functions).
+
 ## `CREATE TABLE ... AS SELECT`
 
 Iceberg supports CTAS as an atomic operation when using a [`SparkCatalog`](spark-configuration.md#catalog-configuration). CTAS is supported, but is not atomic when using [`SparkSessionCatalog`](spark-configuration.md#replacing-the-session-catalog).
@@ -169,6 +172,27 @@ Iceberg has full `ALTER TABLE` support in Spark 3, including:
 * Making required columns optional
 
 In addition, [SQL extensions](spark-configuration.md#sql-extensions) can be used to add support for partition evolution and setting a table's write order
+
+!!! warning "Hive Catalog Limitation"
+    The Hive Metastore (HMS) validates schema changes by comparing column types **positionally**
+    (`hive.metastore.disallow.incompatible.col.type.changes`, default `true`). Any schema evolution
+    operation that shifts column positions will fail when using a Hive catalog. Affected operations
+    include:
+
+    - `ADD COLUMN` with `FIRST` or `AFTER` clauses
+    - `ALTER COLUMN` with `FIRST` or `AFTER` clauses (reordering)
+    - `DROP COLUMN` on a non-last column
+
+    To work around this, disable the HMS schema compatibility check by setting
+    `hive.metastore.disallow.incompatible.col.type.changes=false`:
+
+    - **Remote HMS:** Set this property in the HMS server's `hive-site.xml`.
+    - **Embedded HMS:** Pass `--conf spark.hadoop.hive.metastore.disallow.incompatible.col.type.changes=false` when starting Spark.
+
+    **Trade-off:** After disabling this check, the Hive engine may no longer be able to read the table
+    correctly due to the schema mismatch in the Hive Metastore. Iceberg-aware engines (Spark, Flink,
+    Trino, etc.) will continue to work correctly, as they read schema from Iceberg metadata rather
+    than HMS.
 
 ### `ALTER TABLE ... RENAME TO`
 
@@ -259,6 +283,11 @@ ALTER TABLE prod.db.sample
 ADD COLUMN nested.new_column bigint FIRST;
 ```
 
+!!! warning "Hive Catalog Limitation"
+    When using a Hive catalog, adding a column with `FIRST` or `AFTER` may fail due to HMS positional
+    schema validation. See the warning above for details
+    and workaround.
+
 ### `ALTER TABLE ... RENAME COLUMN`
 
 Iceberg allows any field to be renamed. To rename a field, use `RENAME COLUMN`:
@@ -302,6 +331,10 @@ ALTER TABLE prod.db.sample ALTER COLUMN col FIRST;
 ALTER TABLE prod.db.sample ALTER COLUMN nested.col AFTER other_col;
 ```
 
+!!! warning "Hive Catalog Limitation"
+    When using a Hive catalog, reordering columns may fail due to HMS positional schema validation.
+    See the Hive Catalog Limitation note above for details and workaround.
+
 Nullability for a non-nullable column can be changed using `DROP NOT NULL`:
 
 ```sql
@@ -322,6 +355,11 @@ To drop columns, use `ALTER TABLE ... DROP COLUMN`:
 ALTER TABLE prod.db.sample DROP COLUMN id;
 ALTER TABLE prod.db.sample DROP COLUMN point.z;
 ```
+
+!!! warning "Hive Catalog Limitation"
+    When using a Hive catalog, dropping a non-last column may fail due to HMS positional schema
+    validation. See the earlier Hive Catalog Limitation warning above for details and
+    workaround.
 
 ## `ALTER TABLE` SQL extensions
 

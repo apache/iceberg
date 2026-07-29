@@ -34,4 +34,4 @@ echo ""
 
 ./dev/lint.sh
 
-"${VENV_DIR}/bin/python3" -m mkdocs serve --livereload --watch .
+"${VENV_DIR}/bin/python3" -m mkdocs serve --livereload

@@ -203,9 +203,9 @@
 
 --------------------------------------------------------------------------------
 
-This binary artifact contains Google Guava.
+This product bundles Google Guava.
 
 Copyright: 2006-2019 The Guava Authors
-Home page: https://github.com/google/guava
-License: http://www.apache.org/licenses/LICENSE-2.0
+Project URL: https://github.com/google/guava
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 

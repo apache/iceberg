@@ -28,6 +28,7 @@ import static org.mockito.Mockito.times;
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.net.URI;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
@@ -413,7 +414,7 @@ public class TestRemoveSnapshots extends TestBase {
 
     long t3 = waitUntilAfter(table.currentSnapshot().timestampMillis());
 
-    assertThat(listManifestFiles(new File(table.location()))).hasSize(3);
+    assertThat(listManifestFiles(new File(URI.create(table.location())))).hasSize(3);
 
     // Retain last 2 snapshots, which means 1 is deleted.
     Transaction tx = table.newTransaction();
@@ -422,7 +423,7 @@ public class TestRemoveSnapshots extends TestBase {
 
     assertThat(table.snapshots()).hasSize(2);
     assertThat(table.snapshot(firstSnapshotId)).isNull();
-    assertThat(listManifestLists(new File(table.location()))).hasSize(2);
+    assertThat(listManifestLists(new File(URI.create(table.location())))).hasSize(2);
   }
 
   @TestTemplate
@@ -793,8 +794,10 @@ public class TestRemoveSnapshots extends TestBase {
     expectedDeletes.add(snapshotA.manifestListLocation());
 
     // Files should be deleted of dangling staged snapshot
-    snapshotB
-        .addedDataFiles(table.io())
+    SnapshotChanges.builderFor(table)
+        .snapshot(snapshotB)
+        .build()
+        .addedDataFiles()
         .forEach(
             i -> {
               expectedDeletes.add(i.location());
@@ -883,7 +886,10 @@ public class TestRemoveSnapshots extends TestBase {
     Lists.newArrayList(snapshotB, snapshotC, snapshotD)
         .forEach(
             i -> {
-              i.addedDataFiles(table.io())
+              SnapshotChanges.builderFor(table)
+                  .snapshot(i)
+                  .build()
+                  .addedDataFiles()
                   .forEach(
                       item -> {
                         assertThat(deletedFiles).doesNotContain(item.location());
@@ -929,7 +935,10 @@ public class TestRemoveSnapshots extends TestBase {
     Lists.newArrayList(snapshotB)
         .forEach(
             i -> {
-              i.addedDataFiles(table.io())
+              SnapshotChanges.builderFor(table)
+                  .snapshot(i)
+                  .build()
+                  .addedDataFiles()
                   .forEach(
                       item -> {
                         assertThat(deletedFiles).doesNotContain(item.location());
@@ -946,7 +955,10 @@ public class TestRemoveSnapshots extends TestBase {
     Lists.newArrayList(snapshotB, snapshotD)
         .forEach(
             i -> {
-              i.addedDataFiles(table.io())
+              SnapshotChanges.builderFor(table)
+                  .snapshot(i)
+                  .build()
+                  .addedDataFiles()
                   .forEach(
                       item -> {
                         assertThat(deletedFiles).doesNotContain(item.location());
@@ -1210,8 +1222,8 @@ public class TestRemoveSnapshots extends TestBase {
         .as("Should contain only the statistics file of snapshot2")
         .isEqualTo(Lists.newArrayList(statisticsFile2.snapshotId()));
 
-    assertThat(new File(statsFileLocation1)).doesNotExist();
-    assertThat(new File(statsFileLocation2)).exists();
+    assertThat(new File(URI.create(statsFileLocation1))).doesNotExist();
+    assertThat(new File(URI.create(statsFileLocation2))).exists();
   }
 
   @TestTemplate
@@ -1248,7 +1260,7 @@ public class TestRemoveSnapshots extends TestBase {
         .as("Should contain only the statistics file of snapshot2")
         .isEqualTo(Lists.newArrayList(statisticsFile2.snapshotId()));
     // the reused stats file should exist.
-    assertThat(new File(statsFileLocation1)).exists();
+    assertThat(new File(URI.create(statsFileLocation1))).exists();
   }
 
   @TestTemplate
@@ -1279,8 +1291,8 @@ public class TestRemoveSnapshots extends TestBase {
         .as("Should contain only the statistics file of snapshot2")
         .isEqualTo(Lists.newArrayList(statisticsFile2.snapshotId()));
 
-    assertThat(new File(statsFileLocation1)).doesNotExist();
-    assertThat(new File(statsFileLocation2)).exists();
+    assertThat(new File(URI.create(statsFileLocation1))).doesNotExist();
+    assertThat(new File(URI.create(statsFileLocation2))).exists();
   }
 
   @TestTemplate
@@ -1314,7 +1326,7 @@ public class TestRemoveSnapshots extends TestBase {
         .as("Should contain only the statistics file of snapshot2")
         .isEqualTo(Lists.newArrayList(statisticsFile2.snapshotId()));
     // the reused stats file should exist.
-    assertThat(new File(statsFileLocation1)).exists();
+    assertThat(new File(URI.create(statsFileLocation1))).exists();
   }
 
   @TestTemplate
@@ -2195,5 +2207,48 @@ public class TestRemoveSnapshots extends TestBase {
 
   private static void commitPartitionStats(Table table, PartitionStatisticsFile statisticsFile) {
     table.updatePartitionStatistics().setPartitionStatistics(statisticsFile).commit();
+  }
+
+  @TestTemplate
+  public void testAppendOnlyManifestsNotScannedDuringCleanup() {
+    assumeThat(incrementalCleanup).isTrue();
+
+    TestTables.LocalFileIO spyFileIO = Mockito.spy(new TestTables.LocalFileIO());
+    String tableName = "testAppendOnlyManifests";
+    Table testTable =
+        TestTables.create(
+            tableDir,
+            tableName,
+            SCHEMA,
+            SPEC,
+            SortOrder.unsorted(),
+            formatVersion,
+            new TestTables.TestTableOperations(tableName, tableDir, spyFileIO));
+
+    testTable.newAppend().appendFile(FILE_A).commit();
+    Snapshot firstSnapshot = testTable.currentSnapshot();
+
+    Set<String> appendOnlyManifestPaths =
+        firstSnapshot.allManifests(testTable.io()).stream()
+            .map(ManifestFile::path)
+            .collect(Collectors.toSet());
+
+    waitUntilAfter(firstSnapshot.timestampMillis());
+
+    testTable.newAppend().appendFile(FILE_B).commit();
+    long tAfterCommits = waitUntilAfter(testTable.currentSnapshot().timestampMillis());
+
+    Mockito.clearInvocations(spyFileIO);
+
+    Set<String> deletedFiles = Sets.newHashSet();
+    removeSnapshots(testTable)
+        .expireOlderThan(tAfterCommits)
+        .deleteWith(deletedFiles::add)
+        .commit();
+
+    assertThat(deletedFiles).containsExactly(firstSnapshot.manifestListLocation());
+
+    appendOnlyManifestPaths.forEach(
+        path -> Mockito.verify(spyFileIO, Mockito.never()).newInputFile(path));
   }
 }

@@ -98,49 +98,36 @@ public class TestSparkCatalogCacheExpiration extends TestBaseWithCatalog {
 
   @TestTemplate
   public void testSparkSessionCatalogWithExpirationEnabled() {
-    SparkSessionCatalog<?> sparkCatalog = sparkSessionCatalog();
-    assertThat(sparkCatalog)
-        .extracting("icebergCatalog")
-        .extracting("cacheEnabled")
-        .isEqualTo(true);
+    SparkSessionCatalog<?> sparkSessionCatalog = sparkSessionCatalog();
+    Catalog icebergCatalog = sparkSessionCatalog.icebergCatalog();
 
-    assertThat(sparkCatalog)
-        .extracting("icebergCatalog")
-        .extracting("icebergCatalog")
+    assertThat(icebergCatalog)
         .isInstanceOfSatisfying(
-            Catalog.class,
-            icebergCatalog -> {
-              assertThat(icebergCatalog)
-                  .isExactlyInstanceOf(CachingCatalog.class)
-                  .extracting("expirationIntervalMillis")
-                  .isEqualTo(3000L);
+            CachingCatalog.class,
+            cachingCatalog -> {
+              assertThat(cachingCatalog).extracting("expirationIntervalMillis").isEqualTo(3000L);
             });
   }
 
   @TestTemplate
   public void testCacheEnabledAndExpirationDisabled() {
     SparkCatalog sparkCatalog = getSparkCatalog("expiration_disabled");
-    assertThat(sparkCatalog).extracting("cacheEnabled").isEqualTo(true);
+    Catalog icebergCatalog = sparkCatalog.icebergCatalog();
 
-    assertThat(sparkCatalog)
-        .extracting("icebergCatalog")
+    assertThat(icebergCatalog)
         .isInstanceOfSatisfying(
             CachingCatalog.class,
-            icebergCatalog -> {
-              assertThat(icebergCatalog).extracting("expirationIntervalMillis").isEqualTo(-1L);
+            cachingCatalog -> {
+              assertThat(cachingCatalog).extracting("expirationIntervalMillis").isEqualTo(-1L);
             });
   }
 
   @TestTemplate
   public void testCacheDisabledImplicitly() {
     SparkCatalog sparkCatalog = getSparkCatalog("cache_disabled_implicitly");
-    assertThat(sparkCatalog).extracting("cacheEnabled").isEqualTo(false);
+    Catalog icebergCatalog = sparkCatalog.icebergCatalog();
 
-    assertThat(sparkCatalog)
-        .extracting("icebergCatalog")
-        .isInstanceOfSatisfying(
-            Catalog.class,
-            icebergCatalog -> assertThat(icebergCatalog).isNotInstanceOf(CachingCatalog.class));
+    assertThat(icebergCatalog).isNotInstanceOf(CachingCatalog.class);
   }
 
   private SparkSessionCatalog<?> sparkSessionCatalog() {

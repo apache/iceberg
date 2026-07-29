@@ -55,6 +55,11 @@ public abstract class SupportsIndexProjection implements StructLike, Serializabl
     }
   }
 
+  /** Constructor with a precomputed position mapping */
+  protected SupportsIndexProjection(int[] fromProjectionPos) {
+    this.fromProjectionPos = fromProjectionPos;
+  }
+
   /** Copy constructor */
   protected SupportsIndexProjection(SupportsIndexProjection toCopy) {
     this.fromProjectionPos = toCopy.fromProjectionPos;

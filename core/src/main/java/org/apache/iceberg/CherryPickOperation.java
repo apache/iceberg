@@ -22,14 +22,19 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import org.apache.iceberg.exceptions.CherrypickAncestorCommitException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.util.ParallelIterable;
 import org.apache.iceberg.util.PartitionSet;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SnapshotUtil;
+import org.apache.iceberg.util.ThreadPools;
 import org.apache.iceberg.util.WapUtil;
 
 /**
@@ -40,16 +45,12 @@ import org.apache.iceberg.util.WapUtil;
  */
 class CherryPickOperation extends MergingSnapshotProducer<CherryPickOperation> {
 
-  private final FileIO io;
-  private final Map<Integer, PartitionSpec> specsById;
   private Snapshot cherrypickSnapshot = null;
   private boolean requireFastForward = false;
   private PartitionSet replacedPartitions = null;
 
   CherryPickOperation(String tableName, TableOperations ops) {
     super(tableName, ops);
-    this.io = ops.io();
-    this.specsById = ops.current().specsById();
   }
 
   @Override
@@ -71,6 +72,9 @@ class CherryPickOperation extends MergingSnapshotProducer<CherryPickOperation> {
     ValidationException.check(
         cherrypickSnapshot != null, "Cannot cherry-pick unknown snapshot ID: %s", snapshotId);
 
+    SnapshotChanges changes =
+        SnapshotChanges.builderFor(cherrypickSnapshot, ops().io(), current.specsById()).build();
+
     if (cherrypickSnapshot.operation().equals(DataOperations.APPEND)) {
       // this property is set on target snapshot that will get published
       String wapId = WapUtil.validateWapPublish(current, snapshotId);
@@ -82,7 +86,7 @@ class CherryPickOperation extends MergingSnapshotProducer<CherryPickOperation> {
       set(SnapshotSummary.SOURCE_SNAPSHOT_ID_PROP, String.valueOf(snapshotId));
 
       // Pick modifications from the snapshot
-      for (DataFile addedFile : cherrypickSnapshot.addedDataFiles(io)) {
+      for (DataFile addedFile : changes.addedDataFiles()) {
         add(addedFile);
       }
 
@@ -113,14 +117,14 @@ class CherryPickOperation extends MergingSnapshotProducer<CherryPickOperation> {
       failMissingDeletePaths();
 
       // copy adds from the picked snapshot
-      this.replacedPartitions = PartitionSet.create(specsById);
-      for (DataFile addedFile : cherrypickSnapshot.addedDataFiles(io)) {
+      this.replacedPartitions = PartitionSet.create(current.specsById());
+      for (DataFile addedFile : changes.addedDataFiles()) {
         add(addedFile);
         replacedPartitions.add(addedFile.specId(), addedFile.partition());
       }
 
       // copy deletes from the picked snapshot
-      for (DataFile deletedFile : cherrypickSnapshot.removedDataFiles(io)) {
+      for (DataFile deletedFile : changes.removedDataFiles()) {
         delete(deletedFile);
       }
 
@@ -160,7 +164,8 @@ class CherryPickOperation extends MergingSnapshotProducer<CherryPickOperation> {
     // case
     if (!isFastForward(base)) {
       validateNonAncestor(base, cherrypickSnapshot.snapshotId());
-      validateReplacedPartitions(base, cherrypickSnapshot.parentId(), replacedPartitions, io);
+      validateReplacedPartitions(
+          base, cherrypickSnapshot.parentId(), replacedPartitions, ops().io());
       WapUtil.validateWapPublish(base, cherrypickSnapshot.snapshotId());
     }
   }
@@ -217,19 +222,47 @@ class CherryPickOperation extends MergingSnapshotProducer<CherryPickOperation> {
           parentId == null || isCurrentAncestor(meta, parentId),
           "Cannot cherry-pick overwrite, based on non-ancestor of the current state: %s",
           parentId);
-      try (CloseableIterable<DataFile> newFiles =
-          SnapshotUtil.newFilesBetween(
-              parentId, meta.currentSnapshot().snapshotId(), meta::snapshot, io)) {
-        for (DataFile newFile : newFiles) {
-          ValidationException.check(
-              !replacedPartitions.contains(newFile.specId(), newFile.partition()),
-              "Cannot cherry-pick replace partitions with changed partition: %s",
-              newFile.partition());
+      List<Snapshot> snapshots =
+          Lists.newArrayList(
+              SnapshotUtil.ancestorsBetween(
+                  meta.currentSnapshot().snapshotId(), parentId, meta::snapshot));
+      if (!snapshots.isEmpty()) {
+        Iterable<CloseableIterable<DataFile>> addedFileTasks =
+            Iterables.concat(
+                Iterables.transform(
+                    snapshots,
+                    snap ->
+                        Iterables.transform(
+                            manifestsCreatedBy(snap, io),
+                            manifest -> addedDataFiles(manifest, io, meta.specsById()))));
+
+        try (CloseableIterable<DataFile> newFiles =
+            new ParallelIterable<>(addedFileTasks, ThreadPools.getWorkerPool())) {
+          for (DataFile newFile : newFiles) {
+            ValidationException.check(
+                !replacedPartitions.contains(newFile.specId(), newFile.partition()),
+                "Cannot cherry-pick replace partitions with changed partition: %s",
+                newFile.partition());
+          }
+        } catch (IOException e) {
+          throw new UncheckedIOException("Failed to validate replaced partitions", e);
         }
-      } catch (IOException ioe) {
-        throw new UncheckedIOException("Failed to validate replaced partitions", ioe);
       }
     }
+  }
+
+  private static Iterable<ManifestFile> manifestsCreatedBy(Snapshot snapshot, FileIO io) {
+    return Iterables.filter(
+        snapshot.dataManifests(io), m -> Objects.equals(m.snapshotId(), snapshot.snapshotId()));
+  }
+
+  private static CloseableIterable<DataFile> addedDataFiles(
+      ManifestFile manifest, FileIO io, Map<Integer, PartitionSpec> specsById) {
+    CloseableIterable<ManifestEntry<DataFile>> entries =
+        ManifestFiles.read(manifest, io, specsById).entries();
+    CloseableIterable<ManifestEntry<DataFile>> added =
+        CloseableIterable.filter(entries, e -> e.status() == ManifestEntry.Status.ADDED);
+    return CloseableIterable.transform(added, e -> e.file().copy());
   }
 
   private static Long lookupAncestorBySourceSnapshot(TableMetadata meta, long snapshotId) {

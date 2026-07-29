@@ -29,7 +29,6 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
-import org.apache.arrow.vector.NullCheckingForGet;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.arrow.vector.types.Types.MinorType;
 import org.apache.iceberg.CombinedScanTask;
@@ -40,13 +39,14 @@ import org.apache.iceberg.TableScan;
 import org.apache.iceberg.encryption.EncryptedFiles;
 import org.apache.iceberg.encryption.EncryptedInputFile;
 import org.apache.iceberg.encryption.EncryptionManager;
+import org.apache.iceberg.formats.FormatModelRegistry;
+import org.apache.iceberg.formats.ReadBuilder;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.mapping.NameMappingParser;
-import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.parquet.TypeWithSchemaVisitor;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -189,8 +189,7 @@ public class ArrowReader extends CloseableGroup {
    * Reads the data file and returns an iterator of {@link VectorSchemaRoot}. Only Parquet data file
    * format is supported.
    */
-  private static final class VectorizedCombinedScanIterator
-      implements CloseableIterator<ColumnarBatch> {
+  static final class VectorizedCombinedScanIterator implements CloseableIterator<ColumnarBatch> {
 
     private final Iterator<FileScanTask> fileItr;
     private final Map<String, InputFile> inputFiles;
@@ -324,19 +323,8 @@ public class ArrowReader extends CloseableGroup {
       InputFile location = getInputFile(task);
       Preconditions.checkNotNull(location, "Could not find InputFile associated with FileScanTask");
       if (task.file().format() == FileFormat.PARQUET) {
-        Parquet.ReadBuilder builder =
-            Parquet.read(location)
-                .project(expectedSchema)
-                .split(task.start(), task.length())
-                .createBatchedReaderFunc(
-                    fileSchema ->
-                        buildReader(
-                            expectedSchema,
-                            fileSchema, /* setArrowValidityVector */
-                            NullCheckingForGet.NULL_CHECKING_ENABLED))
-                .recordsPerBatch(batchSize)
-                .filter(task.residual())
-                .caseSensitive(caseSensitive);
+        ReadBuilder<ColumnarBatch, ?> builder =
+            FormatModelRegistry.readBuilder(FileFormat.PARQUET, ColumnarBatch.class, location);
 
         if (reuseContainers) {
           builder.reuseContainers();
@@ -345,7 +333,14 @@ public class ArrowReader extends CloseableGroup {
           builder.withNameMapping(NameMappingParser.fromJson(nameMapping));
         }
 
-        iter = builder.build();
+        iter =
+            builder
+                .project(expectedSchema)
+                .split(task.start(), task.length())
+                .recordsPerBatch(batchSize)
+                .caseSensitive(caseSensitive)
+                .filter(task.residual())
+                .build();
       } else {
         throw new UnsupportedOperationException(
             "Format: " + task.file().format() + " not supported for batched reads");
@@ -376,7 +371,7 @@ public class ArrowReader extends CloseableGroup {
      * @param fileSchema Schema of the data file.
      * @param setArrowValidityVector Indicates whether to set the validity vector in Arrow vectors.
      */
-    private static ArrowBatchReader buildReader(
+    static ArrowBatchReader buildReader(
         Schema expectedSchema, MessageType fileSchema, boolean setArrowValidityVector) {
       return (ArrowBatchReader)
           TypeWithSchemaVisitor.visit(

@@ -45,6 +45,10 @@ public class TestSparkCatalog<
     TABLE_MAP.put(ident, table);
   }
 
+  public static void unsetTable(Identifier ident) {
+    TABLE_MAP.remove(ident);
+  }
+
   @Override
   public Table loadTable(Identifier ident) throws NoSuchTableException {
     if (TABLE_MAP.containsKey(ident)) {
@@ -59,7 +63,7 @@ public class TestSparkCatalog<
       table = TestTables.load(tableIdentifier.name());
     }
 
-    return new SparkTable(table, false);
+    return new SparkTable(table);
   }
 
   public static void clearTables() {

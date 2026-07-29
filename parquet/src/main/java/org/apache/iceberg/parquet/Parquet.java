@@ -23,9 +23,12 @@ import static org.apache.iceberg.TableProperties.DELETE_PARQUET_COMPRESSION_LEVE
 import static org.apache.iceberg.TableProperties.DELETE_PARQUET_DICT_SIZE_BYTES;
 import static org.apache.iceberg.TableProperties.DELETE_PARQUET_PAGE_ROW_LIMIT;
 import static org.apache.iceberg.TableProperties.DELETE_PARQUET_PAGE_SIZE_BYTES;
+import static org.apache.iceberg.TableProperties.DELETE_PARQUET_PAGE_VERSION;
 import static org.apache.iceberg.TableProperties.DELETE_PARQUET_ROW_GROUP_CHECK_MAX_RECORD_COUNT;
 import static org.apache.iceberg.TableProperties.DELETE_PARQUET_ROW_GROUP_CHECK_MIN_RECORD_COUNT;
 import static org.apache.iceberg.TableProperties.DELETE_PARQUET_ROW_GROUP_SIZE_BYTES;
+import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_ADAPTIVE_ENABLED;
+import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_ADAPTIVE_ENABLED_DEFAULT;
 import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX;
 import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_COLUMN_FPP_PREFIX;
 import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_COLUMN_NDV_PREFIX;
@@ -36,18 +39,23 @@ import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION;
 import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION_DEFAULT;
 import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION_LEVEL;
 import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION_LEVEL_DEFAULT;
+import static org.apache.iceberg.TableProperties.PARQUET_DICT_ENCODING_ENABLED_COLUMN_PREFIX;
 import static org.apache.iceberg.TableProperties.PARQUET_DICT_SIZE_BYTES;
 import static org.apache.iceberg.TableProperties.PARQUET_DICT_SIZE_BYTES_DEFAULT;
 import static org.apache.iceberg.TableProperties.PARQUET_PAGE_ROW_LIMIT;
 import static org.apache.iceberg.TableProperties.PARQUET_PAGE_ROW_LIMIT_DEFAULT;
 import static org.apache.iceberg.TableProperties.PARQUET_PAGE_SIZE_BYTES;
 import static org.apache.iceberg.TableProperties.PARQUET_PAGE_SIZE_BYTES_DEFAULT;
+import static org.apache.iceberg.TableProperties.PARQUET_PAGE_VERSION;
+import static org.apache.iceberg.TableProperties.PARQUET_PAGE_VERSION_DEFAULT;
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_CHECK_MAX_RECORD_COUNT;
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_CHECK_MAX_RECORD_COUNT_DEFAULT;
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_CHECK_MIN_RECORD_COUNT;
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_CHECK_MIN_RECORD_COUNT_DEFAULT;
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES;
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES_DEFAULT;
+import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_TRACK_UNCOMPRESSED;
+import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_TRACK_UNCOMPRESSED_DEFAULT;
 
 import java.io.File;
 import java.io.IOException;
@@ -95,7 +103,6 @@ import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.parquet.ParquetValueWriters.PositionDeleteStructWriter;
 import org.apache.iceberg.parquet.ParquetValueWriters.StructWriter;
-import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -168,7 +175,6 @@ public class Parquet {
     private BiFunction<Schema, MessageType, ParquetValueWriter<?>> createWriterFunc = null;
     private MetricsConfig metricsConfig = MetricsConfig.getDefault();
     private ParquetFileWriter.Mode writeMode = ParquetFileWriter.Mode.CREATE;
-    private WriterVersion writerVersion = WriterVersion.PARQUET_1_0;
     private Function<Map<String, String>, Context> createContextFunc = Context::dataContext;
     private ByteBuffer fileEncryptionKey = null;
     private ByteBuffer fileAADPrefix = null;
@@ -230,6 +236,17 @@ public class Parquet {
       return this;
     }
 
+    /**
+     * Enables or disables Parquet dictionary encoding for a single column, overriding the global
+     * {@code parquet.enable.dictionary} default for that column only. {@code columnName} is the
+     * Iceberg field name, dot-separated for nested fields (e.g. {@code "tags.element.id"} for a
+     * field inside a list element).
+     */
+    public WriteBuilder withDictionaryEncoding(String columnName, boolean enabled) {
+      config.put(PARQUET_DICT_ENCODING_ENABLED_COLUMN_PREFIX + columnName, String.valueOf(enabled));
+      return this;
+    }
+
     @Override
     public WriteBuilder meta(String property, String value) {
       metadata.put(property, value);
@@ -266,7 +283,12 @@ public class Parquet {
     }
 
     public WriteBuilder writerVersion(WriterVersion version) {
-      this.writerVersion = version;
+      Preconditions.checkNotNull(version, "Writer version cannot be null");
+      Preconditions.checkArgument(
+          version == WriterVersion.PARQUET_1_0 || version == WriterVersion.PARQUET_2_0,
+          "Unsupported writer version: %s",
+          version);
+      config.put(PARQUET_PAGE_VERSION, version.name());
       return this;
     }
 
@@ -292,18 +314,8 @@ public class Parquet {
       }
     }
 
-    /*
-     * Sets the writer version. Default value is PARQUET_1_0 (v1).
-     */
-    @VisibleForTesting
-    WriteBuilder withWriterVersion(WriterVersion version) {
-      this.writerVersion = version;
-      return this;
-    }
-
     // supposed to always be a private method used strictly by data and delete write builders
-    private WriteBuilder createContextFunc(
-        Function<Map<String, String>, Context> newCreateContextFunc) {
+    WriteBuilder createContextFunc(Function<Map<String, String>, Context> newCreateContextFunc) {
       this.createContextFunc = newCreateContextFunc;
       return this;
     }
@@ -355,6 +367,24 @@ public class Parquet {
               });
     }
 
+    private void setDictionaryEncodingConfig(
+        Context context,
+        Map<String, String> colNameToParquetPathMap,
+        BiConsumer<String, Boolean> withDictionaryEncoding) {
+
+      context
+          .columnDictionaryEncodingEnabled()
+          .forEach(
+              (colPath, isEnabled) -> {
+                String parquetColumnPath = colNameToParquetPathMap.get(colPath);
+                if (parquetColumnPath == null) {
+                  LOG.warn("Skipping dictionary encoding config for missing field: {}", colPath);
+                  return;
+                }
+                withDictionaryEncoding.accept(parquetColumnPath, Boolean.valueOf(isEnabled));
+              });
+    }
+
     @Override
     public <D> FileAppender<D> build() throws IOException {
       Preconditions.checkNotNull(schema, "Schema is required");
@@ -376,6 +406,7 @@ public class Parquet {
       int rowGroupCheckMaxRecordCount = context.rowGroupCheckMaxRecordCount();
       int bloomFilterMaxBytes = context.bloomFilterMaxBytes();
       boolean dictionaryEnabled = context.dictionaryEnabled();
+      boolean trackUncompressedRowGroupSize = context.trackUncompressedRowGroupSize();
 
       if (compressionLevel != null) {
         switch (codec) {
@@ -434,14 +465,15 @@ public class Parquet {
 
         ParquetProperties.Builder propsBuilder =
             ParquetProperties.builder()
-                .withWriterVersion(writerVersion)
+                .withWriterVersion(context.writerVersion())
                 .withPageSize(pageSize)
                 .withPageRowCountLimit(pageRowLimit)
                 .withDictionaryEncoding(dictionaryEnabled)
                 .withDictionaryPageSize(dictionaryPageSize)
                 .withMinRowCountForPageSizeCheck(rowGroupCheckMinRecordCount)
                 .withMaxRowCountForPageSizeCheck(rowGroupCheckMaxRecordCount)
-                .withMaxBloomFilterBytes(bloomFilterMaxBytes);
+                .withMaxBloomFilterBytes(bloomFilterMaxBytes)
+                .withAdaptiveBloomFilterEnabled(context.adaptiveBloomFilterEnabled());
 
         setBloomFilterConfig(
             context,
@@ -451,6 +483,9 @@ public class Parquet {
             propsBuilder::withBloomFilterNDV);
 
         setColumnStatsConfig(context, colNameToParquetPathMap, propsBuilder::withStatisticsEnabled);
+
+        setDictionaryEncodingConfig(
+            context, colNameToParquetPathMap, propsBuilder::withDictionaryEncoding);
 
         ParquetProperties parquetProperties = propsBuilder.build();
 
@@ -466,18 +501,19 @@ public class Parquet {
             parquetProperties,
             metricsConfig,
             writeMode,
-            fileEncryptionProperties);
+            fileEncryptionProperties,
+            trackUncompressedRowGroupSize);
       } else {
         ParquetWriteBuilder<D> parquetWriteBuilder =
             new ParquetWriteBuilder<D>(ParquetIO.file(file))
-                .withWriterVersion(writerVersion)
+                .withWriterVersion(context.writerVersion())
                 .setType(type)
                 .setConfig(config)
                 .setKeyValueMetadata(metadata)
                 .setWriteSupport(getWriteSupport(type))
                 .withCompressionCodec(codec)
                 .withWriteMode(writeMode)
-                .withRowGroupSize(rowGroupSize)
+                .withRowGroupSize((long) rowGroupSize)
                 .withPageSize(pageSize)
                 .withPageRowCountLimit(pageRowLimit)
                 .withDictionaryEncoding(dictionaryEnabled)
@@ -494,55 +530,70 @@ public class Parquet {
         setColumnStatsConfig(
             context, colNameToParquetPathMap, parquetWriteBuilder::withStatisticsEnabled);
 
+        setDictionaryEncodingConfig(
+            context, colNameToParquetPathMap, parquetWriteBuilder::withDictionaryEncoding);
+
         return new ParquetWriteAdapter<>(parquetWriteBuilder.build(), metricsConfig);
       }
     }
 
-    private static class Context {
+    static class Context {
       private final int rowGroupSize;
       private final int pageSize;
       private final int pageRowLimit;
       private final int dictionaryPageSize;
+      private final WriterVersion writerVersion;
       private final CompressionCodecName codec;
       private final String compressionLevel;
       private final int rowGroupCheckMinRecordCount;
       private final int rowGroupCheckMaxRecordCount;
       private final int bloomFilterMaxBytes;
+      private final boolean adaptiveBloomFilterEnabled;
       private final Map<String, String> columnBloomFilterFpp;
       private final Map<String, String> columnBloomFilterNdv;
       private final Map<String, String> columnBloomFilterEnabled;
       private final Map<String, String> columnStatsEnabled;
       private final boolean dictionaryEnabled;
+      private final Map<String, String> columnDictionaryEncodingEnabled;
+      private final boolean trackUncompressedRowGroupSize;
 
       private Context(
           int rowGroupSize,
           int pageSize,
           int pageRowLimit,
           int dictionaryPageSize,
+          WriterVersion writerVersion,
           CompressionCodecName codec,
           String compressionLevel,
           int rowGroupCheckMinRecordCount,
           int rowGroupCheckMaxRecordCount,
           int bloomFilterMaxBytes,
+          boolean adaptiveBloomFilterEnabled,
           Map<String, String> columnBloomFilterFpp,
           Map<String, String> columnBloomFilterNdv,
           Map<String, String> columnBloomFilterEnabled,
           Map<String, String> columnStatsEnabled,
-          boolean dictionaryEnabled) {
+          boolean dictionaryEnabled,
+          Map<String, String> columnDictionaryEncodingEnabled,
+          boolean trackUncompressedRowGroupSize) {
         this.rowGroupSize = rowGroupSize;
         this.pageSize = pageSize;
         this.pageRowLimit = pageRowLimit;
         this.dictionaryPageSize = dictionaryPageSize;
+        this.writerVersion = writerVersion;
         this.codec = codec;
         this.compressionLevel = compressionLevel;
         this.rowGroupCheckMinRecordCount = rowGroupCheckMinRecordCount;
         this.rowGroupCheckMaxRecordCount = rowGroupCheckMaxRecordCount;
         this.bloomFilterMaxBytes = bloomFilterMaxBytes;
+        this.adaptiveBloomFilterEnabled = adaptiveBloomFilterEnabled;
         this.columnBloomFilterFpp = columnBloomFilterFpp;
         this.columnBloomFilterNdv = columnBloomFilterNdv;
         this.columnBloomFilterEnabled = columnBloomFilterEnabled;
         this.columnStatsEnabled = columnStatsEnabled;
         this.dictionaryEnabled = dictionaryEnabled;
+        this.columnDictionaryEncodingEnabled = columnDictionaryEncodingEnabled;
+        this.trackUncompressedRowGroupSize = trackUncompressedRowGroupSize;
       }
 
       static Context dataContext(Map<String, String> config) {
@@ -565,6 +616,10 @@ public class Parquet {
             PropertyUtil.propertyAsInt(
                 config, PARQUET_DICT_SIZE_BYTES, PARQUET_DICT_SIZE_BYTES_DEFAULT);
         Preconditions.checkArgument(dictionaryPageSize > 0, "Dictionary page size must be > 0");
+
+        WriterVersion writerVersion =
+            toWriterVersion(
+                config.getOrDefault(PARQUET_PAGE_VERSION, PARQUET_PAGE_VERSION_DEFAULT));
 
         String codecAsString =
             config.getOrDefault(PARQUET_COMPRESSION, PARQUET_COMPRESSION_DEFAULT);
@@ -597,6 +652,12 @@ public class Parquet {
                 config, PARQUET_BLOOM_FILTER_MAX_BYTES, PARQUET_BLOOM_FILTER_MAX_BYTES_DEFAULT);
         Preconditions.checkArgument(bloomFilterMaxBytes > 0, "bloom Filter Max Bytes must be > 0");
 
+        boolean adaptiveBloomFilterEnabled =
+            PropertyUtil.propertyAsBoolean(
+                config,
+                PARQUET_BLOOM_FILTER_ADAPTIVE_ENABLED,
+                PARQUET_BLOOM_FILTER_ADAPTIVE_ENABLED_DEFAULT);
+
         Map<String, String> columnBloomFilterFpp =
             PropertyUtil.propertiesWithPrefix(config, PARQUET_BLOOM_FILTER_COLUMN_FPP_PREFIX);
 
@@ -612,21 +673,34 @@ public class Parquet {
         boolean dictionaryEnabled =
             PropertyUtil.propertyAsBoolean(config, ParquetOutputFormat.ENABLE_DICTIONARY, true);
 
+        Map<String, String> columnDictionaryEncodingEnabled =
+            PropertyUtil.propertiesWithPrefix(config, PARQUET_DICT_ENCODING_ENABLED_COLUMN_PREFIX);
+
+        boolean trackUncompressedRowGroupSize =
+            PropertyUtil.propertyAsBoolean(
+                config,
+                PARQUET_ROW_GROUP_SIZE_TRACK_UNCOMPRESSED,
+                PARQUET_ROW_GROUP_SIZE_TRACK_UNCOMPRESSED_DEFAULT);
+
         return new Context(
             rowGroupSize,
             pageSize,
             pageRowLimit,
             dictionaryPageSize,
+            writerVersion,
             codec,
             compressionLevel,
             rowGroupCheckMinRecordCount,
             rowGroupCheckMaxRecordCount,
             bloomFilterMaxBytes,
+            adaptiveBloomFilterEnabled,
             columnBloomFilterFpp,
             columnBloomFilterNdv,
             columnBloomFilterEnabled,
             columnStatsEnabled,
-            dictionaryEnabled);
+            dictionaryEnabled,
+            columnDictionaryEncodingEnabled,
+            trackUncompressedRowGroupSize);
       }
 
       static Context deleteContext(Map<String, String> config) {
@@ -652,6 +726,12 @@ public class Parquet {
             PropertyUtil.propertyAsInt(
                 config, DELETE_PARQUET_DICT_SIZE_BYTES, dataContext.dictionaryPageSize());
         Preconditions.checkArgument(dictionaryPageSize > 0, "Dictionary page size must be > 0");
+
+        String deletePageVersion = config.get(DELETE_PARQUET_PAGE_VERSION);
+        WriterVersion writerVersion =
+            deletePageVersion != null
+                ? toWriterVersion(deletePageVersion)
+                : dataContext.writerVersion();
 
         String codecAsString = config.get(DELETE_PARQUET_COMPRESSION);
         CompressionCodecName codec =
@@ -687,16 +767,20 @@ public class Parquet {
             pageSize,
             pageRowLimit,
             dictionaryPageSize,
+            writerVersion,
             codec,
             compressionLevel,
             rowGroupCheckMinRecordCount,
             rowGroupCheckMaxRecordCount,
             PARQUET_BLOOM_FILTER_MAX_BYTES_DEFAULT,
+            PARQUET_BLOOM_FILTER_ADAPTIVE_ENABLED_DEFAULT,
             ImmutableMap.of(),
             ImmutableMap.of(),
             ImmutableMap.of(),
             ImmutableMap.of(),
-            dictionaryEnabled);
+            dictionaryEnabled,
+            ImmutableMap.of(),
+            dataContext.trackUncompressedRowGroupSize());
       }
 
       private static CompressionCodecName toCodec(String codecAsString) {
@@ -704,6 +788,15 @@ public class Parquet {
           return CompressionCodecName.valueOf(codecAsString.toUpperCase(Locale.ENGLISH));
         } catch (IllegalArgumentException e) {
           throw new IllegalArgumentException("Unsupported compression codec: " + codecAsString);
+        }
+      }
+
+      private static WriterVersion toWriterVersion(String pageVersion) {
+        try {
+          return WriterVersion.fromString(pageVersion);
+        } catch (IllegalArgumentException e) {
+          throw new IllegalArgumentException(
+              "Unsupported Parquet page version: " + pageVersion + " (must be v1 or v2)");
         }
       }
 
@@ -721,6 +814,10 @@ public class Parquet {
 
       int dictionaryPageSize() {
         return dictionaryPageSize;
+      }
+
+      WriterVersion writerVersion() {
+        return writerVersion;
       }
 
       CompressionCodecName codec() {
@@ -743,6 +840,10 @@ public class Parquet {
         return bloomFilterMaxBytes;
       }
 
+      boolean adaptiveBloomFilterEnabled() {
+        return adaptiveBloomFilterEnabled;
+      }
+
       Map<String, String> columnBloomFilterFpp() {
         return columnBloomFilterFpp;
       }
@@ -761,6 +862,14 @@ public class Parquet {
 
       boolean dictionaryEnabled() {
         return dictionaryEnabled;
+      }
+
+      Map<String, String> columnDictionaryEncodingEnabled() {
+        return columnDictionaryEncodingEnabled;
+      }
+
+      boolean trackUncompressedRowGroupSize() {
+        return trackUncompressedRowGroupSize;
       }
     }
   }
@@ -1176,6 +1285,7 @@ public class Parquet {
     private Expression filter = null;
     private ReadSupport<?> readSupport = null;
     private Function<MessageType, VectorizedReader<?>> batchedReaderFunc = null;
+    private BiFunction<Schema, MessageType, VectorizedReader<?>> batchedReaderFuncWithSchema = null;
     private ReaderFunction readerFunction = null;
     private boolean filterRecords = true;
     private boolean caseSensitive = true;
@@ -1299,6 +1409,9 @@ public class Parquet {
           this.batchedReaderFunc == null,
           "Cannot set reader function: batched reader function already set");
       Preconditions.checkArgument(
+          this.batchedReaderFuncWithSchema == null,
+          "Cannot set reader function: batched reader function with schema already set");
+      Preconditions.checkArgument(
           this.readerFunction == null, "Cannot set reader function: reader function already set");
       this.readerFunction = new UnaryReaderFunction(newReaderFunction);
       return this;
@@ -1310,6 +1423,9 @@ public class Parquet {
           this.batchedReaderFunc == null,
           "Cannot set reader function: batched reader function already set");
       Preconditions.checkArgument(
+          this.batchedReaderFuncWithSchema == null,
+          "Cannot set reader function: batched reader function with schema already set");
+      Preconditions.checkArgument(
           this.readerFunction == null, "Cannot set reader function: reader function already set");
       this.readerFunction = new BinaryReaderFunction(newReaderFunction);
       return this;
@@ -1320,9 +1436,27 @@ public class Parquet {
           this.batchedReaderFunc == null,
           "Cannot set batched reader function: batched reader function already set");
       Preconditions.checkArgument(
+          this.batchedReaderFuncWithSchema == null,
+          "Cannot set reader function: batched reader function with schema already set");
+      Preconditions.checkArgument(
           this.readerFunction == null,
           "Cannot set batched reader function: ReaderFunction already set");
       this.batchedReaderFunc = func;
+      return this;
+    }
+
+    public ReadBuilder createBatchedReaderFunc(
+        BiFunction<Schema, MessageType, VectorizedReader<?>> func) {
+      Preconditions.checkArgument(
+          this.batchedReaderFunc == null,
+          "Cannot set batched reader function: batched reader function already set");
+      Preconditions.checkArgument(
+          this.batchedReaderFuncWithSchema == null,
+          "Cannot set reader function: batched reader function with schema already set");
+      Preconditions.checkArgument(
+          this.readerFunction == null,
+          "Cannot set batched reader function: ReaderFunction already set");
+      this.batchedReaderFuncWithSchema = func;
       return this;
     }
 
@@ -1330,6 +1464,9 @@ public class Parquet {
       Preconditions.checkArgument(
           this.batchedReaderFunc == null,
           "Cannot set reader function: batched reader function already set");
+      Preconditions.checkArgument(
+          this.batchedReaderFuncWithSchema == null,
+          "Cannot set reader function: batched reader function with schema already set");
       Preconditions.checkArgument(
           this.readerFunction == null, "Cannot set reader function: reader function already set");
       this.readerFunction = reader;
@@ -1389,7 +1526,7 @@ public class Parquet {
     }
 
     @Override
-    @SuppressWarnings({"unchecked", "checkstyle:CyclomaticComplexity"})
+    @SuppressWarnings({"unchecked", "checkstyle:CyclomaticComplexity", "checkstyle:MethodLength"})
     public <D> CloseableIterable<D> build() {
       FileDecryptionProperties fileDecryptionProperties = null;
       if (fileEncryptionKey != null) {
@@ -1404,7 +1541,9 @@ public class Parquet {
         Preconditions.checkState(fileAADPrefix == null, "AAD prefix set with null encryption key");
       }
 
-      if (batchedReaderFunc != null || readerFunction != null) {
+      if (batchedReaderFunc != null
+          || batchedReaderFuncWithSchema != null
+          || readerFunction != null) {
         ParquetReadOptions.Builder optionsBuilder;
         if (file instanceof HadoopInputFile) {
           // remove read properties already set that may conflict with this read
@@ -1441,12 +1580,16 @@ public class Parquet {
           mapping = NameMapping.empty();
         }
 
-        if (batchedReaderFunc != null) {
+        Function<MessageType, VectorizedReader<?>> batchedFunc =
+            batchedReaderFuncWithSchema != null
+                ? messageType -> batchedReaderFuncWithSchema.apply(schema, messageType)
+                : batchedReaderFunc;
+        if (batchedFunc != null) {
           return new VectorizedParquetReader<>(
               file,
               schema,
               options,
-              batchedReaderFunc,
+              batchedFunc,
               mapping,
               filter,
               reuseContainers,

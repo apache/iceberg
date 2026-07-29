@@ -212,6 +212,52 @@ public class TestPartitioning {
   }
 
   @Test
+  public void testPartitionTypeWithDroppedSourceColumn() {
+    TestTables.TestTable table =
+        TestTables.create(
+            tableDir, "test", SCHEMA, BY_DATA_CATEGORY_BUCKET_SPEC, V2_FORMAT_VERSION);
+
+    table.updateSpec().removeField("category_bucket").commit();
+    table.updateSchema().deleteColumn("category").commit();
+
+    // bucket has a fixed result type that does not depend on the dropped source column
+    assertThat(table.specs().get(0).partitionType())
+        .isEqualTo(
+            StructType.of(
+                NestedField.optional(1000, "data", Types.StringType.get()),
+                NestedField.optional(1001, "category_bucket", Types.IntegerType.get())));
+
+    table.updateSpec().removeField("data").commit();
+    table.updateSchema().deleteColumn("data").commit();
+
+    // the identity result type cannot be determined without the source column
+    assertThat(table.specs().get(0).partitionType())
+        .isEqualTo(
+            StructType.of(
+                NestedField.optional(1000, "data", Types.UnknownType.get()),
+                NestedField.optional(1001, "category_bucket", Types.IntegerType.get())));
+  }
+
+  @Test
+  public void testPartitionTypeWithUnknownTransformAndDroppedSourceColumn() {
+    // a spec written by an engine with a transform this library does not implement parses as an
+    // UnknownTransform; if the source column is also dropped, the result type stays string
+    // (UnknownTransform's fixed result type) rather than falling back to unknown
+    Schema schemaWithoutCategory =
+        new Schema(
+            required(1, "id", Types.IntegerType.get()),
+            required(2, "data", Types.StringType.get()));
+    String specJson =
+        "{\"spec-id\": 1, \"fields\": [{\"name\": \"category_custom\", "
+            + "\"transform\": \"custom\", \"source-id\": 3, \"field-id\": 1000}]}";
+    PartitionSpec spec = PartitionSpecParser.fromJson(schemaWithoutCategory, specJson);
+
+    assertThat(spec.partitionType())
+        .isEqualTo(
+            StructType.of(NestedField.optional(1000, "category_custom", Types.StringType.get())));
+  }
+
+  @Test
   public void testGroupingKeyTypeWithSpecEvolutionInV1Tables() {
     TestTables.TestTable table =
         TestTables.create(tableDir, "test", SCHEMA, BY_DATA_SPEC, V1_FORMAT_VERSION);

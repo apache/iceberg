@@ -42,6 +42,7 @@ import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalog.Column;
 import org.apache.spark.sql.types.DataType;
+import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 
 /** Helper methods for working with Spark/Hive metadata. */
@@ -368,5 +369,9 @@ public class SparkSchemaUtil {
   public static Map<Integer, String> indexQuotedNameById(Schema schema) {
     Function<String, String> quotingFunc = name -> String.format("`%s`", name.replace("`", "``"));
     return TypeUtil.indexQuotedNameById(schema.asStruct(), quotingFunc);
+  }
+
+  public static StructType toStructType(List<StructField> fields) {
+    return new StructType(fields.toArray(new StructField[0]));
   }
 }

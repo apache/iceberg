@@ -110,7 +110,7 @@ public interface ManageSnapshots extends PendingUpdate<Snapshot> {
    * Create a new tag pointing to the given snapshot id
    *
    * @param name tag name
-   * @param snapshotId snapshotId for the head of the new branch.
+   * @param snapshotId snapshotId for the head of the new tag.
    * @return this for method chaining
    * @throws IllegalArgumentException if a tag with the given name already exists
    */
@@ -140,7 +140,7 @@ public interface ManageSnapshots extends PendingUpdate<Snapshot> {
    *
    * @param name tag name
    * @return this for method chaining
-   * @throws IllegalArgumentException if the branch does not exist
+   * @throws IllegalArgumentException if the tag does not exist
    */
   ManageSnapshots removeTag(String name);
 
@@ -207,10 +207,10 @@ public interface ManageSnapshots extends PendingUpdate<Snapshot> {
   ManageSnapshots setMaxSnapshotAgeMs(String branchName, long maxSnapshotAgeMs);
 
   /**
-   * Updates the retention policy for a reference.
+   * Updates the retention policy for a reference. The reference can be a branch or a tag.
    *
-   * @param name branch name
-   * @param maxRefAgeMs retention age in milliseconds of the tag reference itself
+   * @param name branch or tag name
+   * @param maxRefAgeMs retention age in milliseconds of the reference itself
    * @return this for method chaining
    * @throws IllegalArgumentException if the reference does not exist
    */

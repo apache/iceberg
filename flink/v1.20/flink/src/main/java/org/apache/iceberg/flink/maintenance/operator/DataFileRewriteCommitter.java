@@ -29,12 +29,14 @@ import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.actions.RewriteDataFiles;
 import org.apache.iceberg.actions.RewriteDataFilesCommitManager;
 import org.apache.iceberg.actions.RewriteDataFilesCommitManager.CommitService;
 import org.apache.iceberg.actions.RewriteFileGroup;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.maintenance.api.Trigger;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -52,6 +54,7 @@ public class DataFileRewriteCommitter extends AbstractStreamOperator<Trigger>
   private final String taskName;
   private final int taskIndex;
   private final TableLoader tableLoader;
+  private final String branch;
 
   private transient Table table;
   private transient CommitService commitService;
@@ -62,15 +65,17 @@ public class DataFileRewriteCommitter extends AbstractStreamOperator<Trigger>
   private transient Counter removedDataFileSizeCounter;
 
   public DataFileRewriteCommitter(
-      String tableName, String taskName, int taskIndex, TableLoader tableLoader) {
+      String tableName, String taskName, int taskIndex, TableLoader tableLoader, String branch) {
     Preconditions.checkNotNull(tableName, "Table name should no be null");
     Preconditions.checkNotNull(taskName, "Task name should no be null");
     Preconditions.checkNotNull(tableLoader, "Table loader should no be null");
+    Preconditions.checkNotNull(branch, "Branch should not be null");
 
     this.tableName = tableName;
     this.taskName = taskName;
     this.taskIndex = taskIndex;
     this.tableLoader = tableLoader;
+    this.branch = branch;
   }
 
   @Override
@@ -103,7 +108,7 @@ public class DataFileRewriteCommitter extends AbstractStreamOperator<Trigger>
 
         FlinkRewriteDataFilesCommitManager commitManager =
             new FlinkRewriteDataFilesCommitManager(
-                table, executedGroup.snapshotId(), streamRecord.getTimestamp());
+                table, executedGroup.snapshotId(), streamRecord.getTimestamp(), branch);
         this.commitService = commitManager.service(executedGroup.groupsPerCommit());
         commitService.start();
       }
@@ -164,8 +169,14 @@ public class DataFileRewriteCommitter extends AbstractStreamOperator<Trigger>
   private class FlinkRewriteDataFilesCommitManager extends RewriteDataFilesCommitManager {
     private final long timestamp;
 
-    FlinkRewriteDataFilesCommitManager(Table table, long startingSnapshotId, long timestamp) {
-      super(table, startingSnapshotId);
+    FlinkRewriteDataFilesCommitManager(
+        Table table, long startingSnapshotId, long timestamp, String branch) {
+      super(
+          table,
+          startingSnapshotId,
+          RewriteDataFiles.USE_STARTING_SEQUENCE_NUMBER_DEFAULT,
+          ImmutableMap.of(),
+          branch);
       this.timestamp = timestamp;
     }
 

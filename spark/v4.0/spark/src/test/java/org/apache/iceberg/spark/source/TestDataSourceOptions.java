@@ -35,6 +35,7 @@ import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotChanges;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
@@ -206,7 +207,7 @@ public class TestDataSourceOptions extends TestBaseWithCatalog {
         .save(tableLocation);
 
     List<DataFile> files =
-        Lists.newArrayList(icebergTable.currentSnapshot().addedDataFiles(icebergTable.io()));
+        Lists.newArrayList(SnapshotChanges.builderFor(icebergTable).build().addedDataFiles());
     assertThat(files).as("Should have written 1 file").hasSize(1);
 
     long fileSize = files.get(0).fileSizeInBytes();

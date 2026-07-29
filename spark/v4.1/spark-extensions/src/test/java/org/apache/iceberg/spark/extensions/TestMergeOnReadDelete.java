@@ -36,6 +36,7 @@ import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.RowDelta;
 import org.apache.iceberg.RowLevelOperationMode;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotChanges;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.deletes.DeleteGranularity;
@@ -140,7 +141,8 @@ public class TestMergeOnReadDelete extends TestDelete {
 
     Table table = validationCatalog.loadTable(tableIdent);
     Snapshot latest = SnapshotUtil.latestSnapshot(table, branch);
-    assertThat(latest.removedDeleteFiles(table.io())).hasSize(1);
+    assertThat(SnapshotChanges.builderFor(table).snapshot(latest).build().removedDeleteFiles())
+        .hasSize(1);
     assertEquals(
         "Should have expected rows",
         ImmutableList.of(row(1, "b"), row(2, "e")),
@@ -181,7 +183,8 @@ public class TestMergeOnReadDelete extends TestDelete {
 
     Table table = validationCatalog.loadTable(tableIdent);
     Snapshot latest = SnapshotUtil.latestSnapshot(table, branch);
-    assertThat(latest.removedDeleteFiles(table.io())).hasSize(1);
+    assertThat(SnapshotChanges.builderFor(table).snapshot(latest).build().removedDeleteFiles())
+        .hasSize(1);
     assertEquals(
         "Should have expected rows",
         ImmutableList.of(row(1, "b"), row(2, "e")),
@@ -294,7 +297,7 @@ public class TestMergeOnReadDelete extends TestDelete {
     Table spyTable = spy(table);
     when(spyTable.newRowDelta()).thenReturn(spyNewRowDelta);
     SparkTable sparkTable =
-        branch == null ? new SparkTable(spyTable, false) : new SparkTable(spyTable, branch, false);
+        branch == null ? new SparkTable(spyTable) : SparkTable.create(spyTable, branch);
 
     ImmutableMap<String, String> config =
         ImmutableMap.of(
@@ -312,6 +315,11 @@ public class TestMergeOnReadDelete extends TestDelete {
     assertThatThrownBy(() -> sql("DELETE FROM %s WHERE id = 2", "dummy_catalog.default.table"))
         .isInstanceOf(CommitStateUnknownException.class)
         .hasMessageStartingWith("Datacenter on Fire");
+
+    // Manually refresh Spark table because it always pins snapshot
+    sparkTable = branch == null ? new SparkTable(spyTable) : SparkTable.create(spyTable, branch);
+    TestSparkCatalog.unsetTable(ident);
+    TestSparkCatalog.setTable(ident, sparkTable);
 
     // Since write and commit succeeded, the rows should be readable
     assertEquals(

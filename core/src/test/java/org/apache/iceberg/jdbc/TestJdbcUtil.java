@@ -23,6 +23,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.nio.file.Files;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.SQLIntegrityConstraintViolationException;
 import java.util.Map;
 import java.util.Properties;
 import org.apache.iceberg.catalog.Namespace;
@@ -142,6 +144,28 @@ public class TestJdbcUtil {
               "testLocation");
       assertThat(updated).isEqualTo(1);
     }
+  }
+
+  @Test
+  public void testIsConstraintViolationWithSQLIntegrityConstraintViolationException() {
+    assertThat(JdbcUtil.isConstraintViolation(new SQLIntegrityConstraintViolationException()))
+        .isTrue();
+  }
+
+  @Test
+  public void testIsConstraintViolationWithPostgresSQLState() {
+    assertThat(JdbcUtil.isConstraintViolation(new SQLException("unique violation", "23505")))
+        .isTrue();
+  }
+
+  @Test
+  public void testIsConstraintViolationWithConstraintFailedMessage() {
+    assertThat(JdbcUtil.isConstraintViolation(new SQLException("constraint failed"))).isTrue();
+  }
+
+  @Test
+  public void testIsConstraintViolationWithPlainSQLException() {
+    assertThat(JdbcUtil.isConstraintViolation(new SQLException("some other error"))).isFalse();
   }
 
   @Test

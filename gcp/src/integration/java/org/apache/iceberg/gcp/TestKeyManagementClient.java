@@ -35,9 +35,12 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Map;
 import java.util.UUID;
+import org.apache.iceberg.TestHelpers;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 public abstract class TestKeyManagementClient {
 
@@ -106,10 +109,30 @@ public abstract class TestKeyManagementClient {
     try (GcpKeyManagementClient keyManagementClient = new GcpKeyManagementClient(); ) {
       keyManagementClient.initialize(properties());
 
-      ByteBuffer key = ByteBuffer.wrap(new String("super-secret-table-master-key").getBytes());
+      ByteBuffer key = ByteBuffer.wrap("super-secret-table-master-key".getBytes());
       ByteBuffer encryptedKey = keyManagementClient.wrapKey(key, keyname);
 
       assertThat(keyManagementClient.unwrapKey(encryptedKey, keyname)).isEqualTo(key);
+    }
+  }
+
+  @ParameterizedTest
+  @MethodSource("org.apache.iceberg.TestHelpers#serializers")
+  public void testSerialization(
+      TestHelpers.RoundTripSerializer<GcpKeyManagementClient> roundTripSerializer)
+      throws Exception {
+    String keyname = CryptoKeyName.of(projectId, LOCATION, KEY_RING_ID, keyId).toString();
+
+    try (GcpKeyManagementClient keyManagementClient = new GcpKeyManagementClient(); ) {
+      keyManagementClient.initialize(properties());
+
+      GcpKeyManagementClient result = roundTripSerializer.apply(keyManagementClient);
+
+      ByteBuffer key = ByteBuffer.wrap("super-secret-table-master-key".getBytes());
+      ByteBuffer encryptedKey = result.wrapKey(key, keyname);
+
+      assertThat(keyManagementClient.unwrapKey(encryptedKey, keyname)).isEqualTo(key);
+      assertThat(result.unwrapKey(encryptedKey, keyname)).isEqualTo(key);
     }
   }
 }

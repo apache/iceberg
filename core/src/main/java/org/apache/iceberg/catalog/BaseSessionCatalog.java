@@ -90,6 +90,12 @@ public abstract class BaseSessionCatalog implements SessionCatalog {
     }
 
     @Override
+    public Table registerTable(
+        TableIdentifier ident, String metadataFileLocation, boolean overwrite) {
+      return BaseSessionCatalog.this.registerTable(context, ident, metadataFileLocation, overwrite);
+    }
+
+    @Override
     public boolean tableExists(TableIdentifier ident) {
       return BaseSessionCatalog.this.tableExists(context, ident);
     }

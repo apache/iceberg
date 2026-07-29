@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -60,15 +61,18 @@ import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.FileIOTracker;
 import org.apache.iceberg.io.StorageCredential;
+import org.apache.iceberg.io.SupportsStorageCredentials;
 import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.metrics.MetricsReporters;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.rest.RESTCatalogProperties.ScanPlanningMode;
 import org.apache.iceberg.rest.RESTCatalogProperties.SnapshotMode;
 import org.apache.iceberg.rest.RESTTableCache.TableWithETag;
 import org.apache.iceberg.rest.auth.AuthManager;
@@ -81,7 +85,9 @@ import org.apache.iceberg.rest.requests.CreateTableRequest;
 import org.apache.iceberg.rest.requests.CreateViewRequest;
 import org.apache.iceberg.rest.requests.ImmutableCreateViewRequest;
 import org.apache.iceberg.rest.requests.ImmutableRegisterTableRequest;
+import org.apache.iceberg.rest.requests.ImmutableRegisterViewRequest;
 import org.apache.iceberg.rest.requests.RegisterTableRequest;
+import org.apache.iceberg.rest.requests.RegisterViewRequest;
 import org.apache.iceberg.rest.requests.RenameTableRequest;
 import org.apache.iceberg.rest.requests.UpdateNamespacePropertiesRequest;
 import org.apache.iceberg.rest.requests.UpdateTableRequest;
@@ -95,6 +101,7 @@ import org.apache.iceberg.rest.responses.LoadViewResponse;
 import org.apache.iceberg.rest.responses.UpdateNamespacePropertiesResponse;
 import org.apache.iceberg.util.EnvironmentUtil;
 import org.apache.iceberg.util.PropertyUtil;
+import org.apache.iceberg.util.ThreadPools;
 import org.apache.iceberg.view.BaseView;
 import org.apache.iceberg.view.ImmutableSQLViewRepresentation;
 import org.apache.iceberg.view.ImmutableViewVersion;
@@ -161,13 +168,14 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   private Object conf = null;
   private FileIO io = null;
   private MetricsReporter reporter = null;
+  private ExecutorService metricsExecutor = null;
   private boolean reportingViaRestEnabled;
   private Integer pageSize = null;
-  private boolean restScanPlanningEnabled;
   private CloseableGroup closeables = null;
   private Set<Endpoint> endpoints;
   private Supplier<Map<String, String>> mutationHeaders = Map::of;
   private String namespaceSeparator = null;
+  private ScanPlanningMode clientScanPlanningMode = null;
 
   private RESTTableCache tableCache;
 
@@ -262,27 +270,32 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
             PropertyUtil.propertyAsString(
                     mergedProps,
                     RESTCatalogProperties.SNAPSHOT_LOADING_MODE,
-                    RESTCatalogProperties.SNAPSHOT_LOADING_MODE_DEFAULT)
+                    RESTCatalogProperties.SNAPSHOT_LOADING_MODE_DEFAULT.name())
                 .toUpperCase(Locale.US));
 
     this.reporter = CatalogUtil.loadMetricsReporter(mergedProps);
+    this.closeables.addCloseable(reporter);
 
     this.reportingViaRestEnabled =
         PropertyUtil.propertyAsBoolean(
             mergedProps,
             RESTCatalogProperties.METRICS_REPORTING_ENABLED,
             RESTCatalogProperties.METRICS_REPORTING_ENABLED_DEFAULT);
+
+    if (reportingViaRestEnabled) {
+      this.metricsExecutor = ThreadPools.newFixedThreadPool("rest-metrics-reporter", 1);
+      this.closeables.addCloseable(metricsExecutor::shutdown);
+    }
+
     this.namespaceSeparator =
         PropertyUtil.propertyAsString(
             mergedProps,
             RESTCatalogProperties.NAMESPACE_SEPARATOR,
-            RESTUtil.NAMESPACE_SEPARATOR_URLENCODED_UTF_8);
+            RESTCatalogProperties.NAMESPACE_SEPARATOR_DEFAULT);
 
-    this.restScanPlanningEnabled =
-        PropertyUtil.propertyAsBoolean(
-            mergedProps,
-            RESTCatalogProperties.REST_SCAN_PLANNING_ENABLED,
-            RESTCatalogProperties.REST_SCAN_PLANNING_ENABLED_DEFAULT);
+    String scanPlanningModeConfig = mergedProps.get(RESTCatalogProperties.SCAN_PLANNING_MODE);
+    this.clientScanPlanningMode =
+        scanPlanningModeConfig == null ? null : ScanPlanningMode.fromString(scanPlanningModeConfig);
 
     this.tableCache = createTableCache(mergedProps);
     this.closeables.addCloseable(this.tableCache);
@@ -423,7 +436,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   }
 
   private static Map<String, String> snapshotModeToParam(SnapshotMode mode) {
-    return ImmutableMap.of("snapshots", mode.name().toLowerCase(Locale.US));
+    return ImmutableMap.of(
+        RESTCatalogProperties.SNAPSHOTS_QUERY_PARAMETER, mode.name().toLowerCase(Locale.US));
   }
 
   private LoadTableResponse loadInternal(
@@ -580,7 +594,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
       trackFileIO(ops);
 
-      RESTTable table = restTableForScanPlanning(ops, identifier, tableClient);
+      RESTTable table = restTableForScanPlanning(ops, identifier, tableClient, tableConf);
       if (table != null) {
         return table;
       }
@@ -591,9 +605,44 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   }
 
   private RESTTable restTableForScanPlanning(
-      TableOperations ops, TableIdentifier finalIdentifier, RESTClient restClient) {
-    // server supports remote planning endpoint and server / client wants to do server side planning
-    if (endpoints.contains(Endpoint.V1_SUBMIT_TABLE_SCAN_PLAN) && restScanPlanningEnabled) {
+      TableOperations ops,
+      TableIdentifier finalIdentifier,
+      RESTClient restClient,
+      Map<String, String> tableConf) {
+    String planningModeServerConfig = tableConf.get(RESTCatalogProperties.SCAN_PLANNING_MODE);
+    ScanPlanningMode serverScanPlanningMode =
+        planningModeServerConfig == null
+            ? null
+            : ScanPlanningMode.fromString(planningModeServerConfig);
+
+    // Warn if client and server configs conflict
+    if (clientScanPlanningMode != null
+        && serverScanPlanningMode != null
+        && clientScanPlanningMode != serverScanPlanningMode) {
+      LOG.warn(
+          "Scan planning mode mismatch for table {}: client config={}, server config={}. "
+              + "Server config will take precedence.",
+          finalIdentifier,
+          clientScanPlanningMode.modeName(),
+          planningModeServerConfig);
+    }
+
+    // Determine effective mode: prefer server config if present, otherwise use client config,
+    // fall back to default if both are null
+    ScanPlanningMode effectiveMode = RESTCatalogProperties.SCAN_PLANNING_MODE_DEFAULT;
+    if (serverScanPlanningMode != null) {
+      effectiveMode = serverScanPlanningMode;
+    } else if (clientScanPlanningMode != null) {
+      effectiveMode = clientScanPlanningMode;
+    }
+
+    if (effectiveMode == ScanPlanningMode.SERVER) {
+      Preconditions.checkState(
+          endpoints.contains(Endpoint.V1_SUBMIT_TABLE_SCAN_PLAN),
+          "Server requires server-side scan planning for table %s but does not support endpoint %s",
+          finalIdentifier,
+          Endpoint.V1_SUBMIT_TABLE_SCAN_PLAN);
+
       return new RESTTable(
           ops,
           fullTableName(finalIdentifier),
@@ -606,6 +655,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
           properties(),
           conf);
     }
+
+    // Default to client-side planning
     return null;
   }
 
@@ -618,7 +669,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   private MetricsReporter metricsReporter(String metricsEndpoint, RESTClient restClient) {
     if (reportingViaRestEnabled && endpoints.contains(Endpoint.V1_REPORT_METRICS)) {
       RESTMetricsReporter restMetricsReporter =
-          new RESTMetricsReporter(restClient, metricsEndpoint, Map::of);
+          new RESTMetricsReporter(restClient, metricsEndpoint, Map::of, metricsExecutor);
       return MetricsReporters.combine(reporter, restMetricsReporter);
     } else {
       return this.reporter;
@@ -639,6 +690,15 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   @Override
   public Table registerTable(
       SessionContext context, TableIdentifier ident, String metadataFileLocation) {
+    return registerTable(context, ident, metadataFileLocation, false);
+  }
+
+  @Override
+  public Table registerTable(
+      SessionContext context,
+      TableIdentifier ident,
+      String metadataFileLocation,
+      boolean overwrite) {
     Endpoint.check(endpoints, Endpoint.V1_REGISTER_TABLE);
     checkIdentifierIsValid(ident);
 
@@ -651,6 +711,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
         ImmutableRegisterTableRequest.builder()
             .name(ident.name())
             .metadataLocation(metadataFileLocation)
+            .overwrite(overwrite)
             .build();
 
     AuthSession contextualSession = authManager.contextualSession(context, catalogAuth);
@@ -679,7 +740,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
     trackFileIO(ops);
 
-    RESTTable restTable = restTableForScanPlanning(ops, ident, tableClient);
+    RESTTable restTable = restTableForScanPlanning(ops, ident, tableClient, tableConf);
     if (restTable != null) {
       return restTable;
     }
@@ -948,7 +1009,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
       trackFileIO(ops);
 
-      RESTTable restTable = restTableForScanPlanning(ops, ident, tableClient);
+      RESTTable restTable = restTableForScanPlanning(ops, ident, tableClient, tableConf);
       if (restTable != null) {
         return restTable;
       }
@@ -1144,7 +1205,15 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   private FileIO newFileIO(
       SessionContext context, Map<String, String> properties, List<Credential> storageCredentials) {
     if (null != ioBuilder) {
-      return ioBuilder.apply(context, properties);
+      FileIO fileIO = ioBuilder.apply(context, properties);
+      if (!storageCredentials.isEmpty()
+          && fileIO instanceof SupportsStorageCredentials ioWithCredentials) {
+        ioWithCredentials.setCredentials(
+            storageCredentials.stream()
+                .map(c -> StorageCredential.create(c.prefix(), c.config()))
+                .collect(Collectors.toList()));
+      }
+      return fileIO;
     } else {
       String ioImpl = properties.getOrDefault(CatalogProperties.FILE_IO_IMPL, DEFAULT_FILE_IO_IMPL);
       return CatalogUtil.loadFileIO(
@@ -1288,7 +1357,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
                 queryParams.build(),
                 ConfigResponse.class,
                 RESTUtil.configHeaders(properties),
-                ErrorHandlers.defaultErrorHandler());
+                ErrorHandlers.configErrorHandler());
     configResponse.validate();
     return configResponse;
   }
@@ -1455,6 +1524,48 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     client
         .withAuthSession(contextualSession)
         .post(paths.renameView(), request, null, mutationHeaders, ErrorHandlers.viewErrorHandler());
+  }
+
+  @Override
+  public View registerView(
+      SessionContext context, TableIdentifier ident, String metadataFileLocation) {
+    Endpoint.check(endpoints, Endpoint.V1_REGISTER_VIEW);
+    checkViewIdentifierIsValid(ident);
+
+    Preconditions.checkArgument(
+        !Strings.isNullOrEmpty(metadataFileLocation),
+        "Invalid metadata file location: %s",
+        metadataFileLocation);
+
+    RegisterViewRequest request =
+        ImmutableRegisterViewRequest.builder()
+            .name(ident.name())
+            .metadataLocation(metadataFileLocation)
+            .build();
+
+    AuthSession contextualSession = authManager.contextualSession(context, catalogAuth);
+    LoadViewResponse response =
+        client
+            .withAuthSession(contextualSession)
+            .post(
+                paths.registerView(ident.namespace()),
+                request,
+                LoadViewResponse.class,
+                mutationHeaders,
+                ErrorHandlers.viewErrorHandler());
+
+    AuthSession tableSession =
+        authManager.tableSession(ident, response.config(), contextualSession);
+    RESTViewOperations ops =
+        newViewOps(
+            client.withAuthSession(tableSession),
+            paths.view(ident),
+            Map::of,
+            mutationHeaders,
+            response.metadata(),
+            endpoints);
+
+    return new BaseView(ops, ViewUtil.fullViewName(name(), ident));
   }
 
   private static Map<String, String> headersForLoadTable(TableWithETag tableWithETag) {

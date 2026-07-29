@@ -207,7 +207,8 @@ public class TestCompressionSettings extends CatalogTestBase {
         .append();
     Table table = catalog.loadTable(TableIdentifier.of("default", TABLE_NAME));
     List<ManifestFile> manifestFiles = table.currentSnapshot().dataManifests(table.io());
-    try (ManifestReader<DataFile> reader = ManifestFiles.read(manifestFiles.get(0), table.io())) {
+    try (ManifestReader<DataFile> reader =
+        ManifestFiles.read(manifestFiles.get(0), table.io(), table.specs())) {
       DataFile file = reader.iterator().next();
       InputFile inputFile = table.io().newInputFile(file.location());
       assertThat(getCompressionType(inputFile))

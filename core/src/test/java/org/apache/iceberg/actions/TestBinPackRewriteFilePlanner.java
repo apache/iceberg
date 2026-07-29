@@ -523,6 +523,41 @@ class TestBinPackRewriteFilePlanner {
   }
 
   @Test
+  public void testMaxFilesToRewriteUsesCorrectInputSizeForExpectedOutputFiles() {
+    // Create files with known sizes where truncation matters for expectedOutputFiles
+    DataFile largeFile1 = newDataFile("data_bucket=0", 200);
+    DataFile largeFile2 = newDataFile("data_bucket=0", 200);
+    DataFile largeFile3 = newDataFile("data_bucket=0", 200);
+    table.newAppend().appendFile(largeFile1).appendFile(largeFile2).appendFile(largeFile3).commit();
+
+    BinPackRewriteFilePlanner planner = new BinPackRewriteFilePlanner(table);
+    // target=250 means:
+    //   Full group (600 bytes): expectedOutputFiles = ceil(600/250) = 3
+    //   Truncated to 1 file (200 bytes): expectedOutputFiles = ceil(200/250) = 1
+    Map<String, String> options =
+        ImmutableMap.of(
+            BinPackRewriteFilePlanner.MAX_FILES_TO_REWRITE, "1",
+            BinPackRewriteFilePlanner.REWRITE_ALL, "true",
+            BinPackRewriteFilePlanner.TARGET_FILE_SIZE_BYTES, "250");
+    planner.init(options);
+
+    FileRewritePlan<FileGroupInfo, FileScanTask, DataFile, RewriteFileGroup> plan = planner.plan();
+    List<RewriteFileGroup> groups = Lists.newArrayList(plan.groups().iterator());
+
+    assertThat(groups).hasSize(1);
+    RewriteFileGroup group = groups.get(0);
+    // Only 1 file should be in the group due to max-files-to-rewrite=1
+    assertThat(group.inputFileNum()).isEqualTo(1);
+    // expectedOutputFiles should be based on the truncated input (200 bytes), not full group (600)
+    // ceil(200/250) = 1, NOT ceil(600/250) = 3
+    assertThat(group.expectedOutputFiles())
+        .as(
+            "expectedOutputFiles should be computed from actual files being rewritten (200 bytes),"
+                + " not the full group (600 bytes)")
+        .isEqualTo(1);
+  }
+
+  @Test
   public void testRewriteMaxFilesRewriteGreaterThanTotalFiles() {
     addFiles();
     BinPackRewriteFilePlanner planner = new BinPackRewriteFilePlanner(table);

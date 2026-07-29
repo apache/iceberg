@@ -31,7 +31,6 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkFunctionCatalog;
-import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SortOrderUtil;
@@ -47,9 +46,13 @@ import org.apache.spark.sql.connector.distributions.OrderedDistribution;
 import org.apache.spark.sql.connector.expressions.SortOrder;
 import org.apache.spark.sql.connector.write.RequiresDistributionAndOrdering;
 import org.apache.spark.sql.execution.datasources.v2.DistributionAndOrderingUtils$;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import scala.Option;
 
 abstract class SparkShufflingFileRewriteRunner extends SparkDataFileRewriteRunner {
+
+  private static final Logger LOG = LoggerFactory.getLogger(SparkShufflingFileRewriteRunner.class);
 
   /**
    * The number of shuffle partitions to use for each output file. By default, this file rewriter
@@ -104,12 +107,7 @@ abstract class SparkShufflingFileRewriteRunner extends SparkDataFileRewriteRunne
 
   @Override
   public void doRewrite(String groupId, RewriteFileGroup fileGroup) {
-    Dataset<Row> scanDF =
-        spark()
-            .read()
-            .format("iceberg")
-            .option(SparkReadOptions.SCAN_TASK_SET_ID, groupId)
-            .load(groupId);
+    Dataset<Row> scanDF = spark().read().format("iceberg").load(groupId);
 
     Dataset<Row> sortedDF =
         sortedDF(
@@ -119,13 +117,24 @@ abstract class SparkShufflingFileRewriteRunner extends SparkDataFileRewriteRunne
                 spec(fileGroup.outputSpecId()),
                 fileGroup.expectedOutputFiles()));
 
+    org.apache.iceberg.SortOrder sortOrderInJobSpec = sortOrder();
+
+    org.apache.iceberg.SortOrder maybeMatchingTableSortOrder =
+        SortOrderUtil.findTableSortOrder(table(), sortOrder());
+
+    if (sortOrderInJobSpec.isSorted() && maybeMatchingTableSortOrder.isUnsorted()) {
+      LOG.warn(
+          "Sort order specified for job {} doesn't match any table sort orders, rewritten files will not be marked as sorted in the manifest files",
+          Spark3Util.describe(sortOrderInJobSpec));
+    }
+
     sortedDF
         .write()
         .format("iceberg")
-        .option(SparkWriteOptions.REWRITTEN_FILE_SCAN_TASK_SET_ID, groupId)
         .option(SparkWriteOptions.TARGET_FILE_SIZE_BYTES, fileGroup.maxOutputFileSize())
         .option(SparkWriteOptions.USE_TABLE_DISTRIBUTION_AND_ORDERING, "false")
         .option(SparkWriteOptions.OUTPUT_SPEC_ID, fileGroup.outputSpecId())
+        .option(SparkWriteOptions.OUTPUT_SORT_ORDER_ID, maybeMatchingTableSortOrder.orderId())
         .mode("append")
         .save(groupId);
   }

@@ -28,6 +28,7 @@ import static org.assertj.core.api.Assumptions.assumeThat;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.math.BigDecimal;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.file.Path;
@@ -45,6 +46,7 @@ import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.parquet.GenericParquetReaders;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
+import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.parquet.Parquet;
@@ -65,6 +67,7 @@ import org.apache.iceberg.types.Type.PrimitiveType;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.parquet.column.ParquetProperties;
+import org.apache.parquet.hadoop.ParquetOutputFormat;
 import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.Type;
@@ -81,15 +84,24 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
 
   private static final String PLAIN = "PLAIN";
   private static final List<String> GOLDEN_FILE_ENCODINGS =
-      ImmutableList.of("PLAIN_DICTIONARY", "RLE_DICTIONARY", "DELTA_BINARY_PACKED");
+      ImmutableList.of(
+          "PLAIN_DICTIONARY",
+          "RLE_DICTIONARY",
+          "DELTA_BINARY_PACKED",
+          "DELTA_LENGTH_BYTE_ARRAY",
+          "DELTA_BYTE_ARRAY",
+          "BYTE_STREAM_SPLIT");
   private static final Map<String, PrimitiveType> GOLDEN_FILE_TYPES =
-      ImmutableMap.of(
-          "string", Types.StringType.get(),
-          "float", Types.FloatType.get(),
-          "int32", Types.IntegerType.get(),
-          "int64", Types.LongType.get(),
-          "binary", Types.BinaryType.get(),
-          "boolean", Types.BooleanType.get());
+      ImmutableMap.<String, PrimitiveType>builder()
+          .put("string", Types.StringType.get())
+          .put("float", Types.FloatType.get())
+          .put("double", Types.DoubleType.get())
+          .put("int32", Types.IntegerType.get())
+          .put("int64", Types.LongType.get())
+          .put("binary", Types.BinaryType.get())
+          .put("boolean", Types.BooleanType.get())
+          .put("uuid", Types.UUIDType.get())
+          .buildOrThrow();
 
   static final Function<Record, Record> IDENTITY = record -> record;
 
@@ -204,8 +216,7 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
       Map<Integer, Object> idToConstant)
       throws IOException {
     // write a test parquet file using iceberg writer
-    File testFile = File.createTempFile("junit", null, temp.toFile());
-    assertThat(testFile.delete()).as("Delete should succeed").isTrue();
+    File testFile = temp.resolve("data.parquet").toFile();
 
     try (FileAppender<Record> writer = getParquetWriter(writeSchema, testFile)) {
       writer.addAll(expected);
@@ -243,6 +254,16 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
         .createWriterFunc(GenericParquetWriter::create)
         .named("test")
         .writerVersion(ParquetProperties.WriterVersion.PARQUET_2_0)
+        .build();
+  }
+
+  FileAppender<Record> parquetWriterWithoutDictionary(Schema schema, File testFile)
+      throws IOException {
+    return Parquet.write(Files.localOutput(testFile))
+        .schema(schema)
+        .createWriterFunc(GenericParquetWriter::create)
+        .named("test")
+        .set(ParquetOutputFormat.ENABLE_DICTIONARY, "false")
         .build();
   }
 
@@ -381,8 +402,7 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
             optional(102, "float_data", Types.FloatType.get()),
             optional(103, "decimal_data", Types.DecimalType.of(10, 5)));
 
-    File dataFile = File.createTempFile("junit", null, temp.toFile());
-    assertThat(dataFile.delete()).as("Delete should succeed").isTrue();
+    File dataFile = temp.resolve("data.parquet").toFile();
     Iterable<Record> data =
         generateData(writeSchema, 30000, 0L, RandomData.DEFAULT_NULL_PERCENTAGE, IDENTITY);
     try (FileAppender<Record> writer = getParquetWriter(writeSchema, dataFile)) {
@@ -401,19 +421,20 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
 
   @Test
   public void testSupportedReadsForParquetV2() throws Exception {
-    // Float and double column types are written using plain encoding with Parquet V2,
-    // also Parquet V2 will dictionary encode decimals that use fixed length binary
-    // (i.e. decimals > 8 bytes). Int and long types use DELTA_BINARY_PACKED.
+    // Parquet V2 uses PLAIN for float/double, DELTA_BINARY_PACKED for int/long,
+    // DELTA_LENGTH_BYTE_ARRAY for string/binary, and dictionary encoding for decimals
+    // that use fixed length binary (i.e. decimals > 8 bytes).
     Schema schema =
         new Schema(
             optional(102, "float_data", Types.FloatType.get()),
             optional(103, "double_data", Types.DoubleType.get()),
             optional(104, "decimal_data", Types.DecimalType.of(25, 5)),
             optional(105, "int_data", Types.IntegerType.get()),
-            optional(106, "long_data", Types.LongType.get()));
+            optional(106, "long_data", Types.LongType.get()),
+            optional(107, "string_data", Types.StringType.get()),
+            optional(108, "binary_data", Types.BinaryType.get()));
 
-    File dataFile = File.createTempFile("junit", null, temp.toFile());
-    assertThat(dataFile.delete()).as("Delete should succeed").isTrue();
+    File dataFile = temp.resolve("data.parquet").toFile();
     Iterable<Record> data =
         generateData(schema, 30000, 0L, RandomData.DEFAULT_NULL_PERCENTAGE, IDENTITY);
     try (FileAppender<Record> writer = getParquetV2Writer(schema, dataFile)) {
@@ -426,8 +447,7 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
   public void testUnsupportedReadsForParquetV2() throws Exception {
     // Some types use delta encoding and which are not supported for vectorized reads
     Schema schema = new Schema(SUPPORTED_PRIMITIVES.fields());
-    File dataFile = File.createTempFile("junit", null, temp.toFile());
-    assertThat(dataFile.delete()).as("Delete should succeed").isTrue();
+    File dataFile = temp.resolve("data.parquet").toFile();
     Iterable<Record> data =
         generateData(schema, 30000, 0L, RandomData.DEFAULT_NULL_PERCENTAGE, IDENTITY);
     try (FileAppender<Record> writer = getParquetV2Writer(schema, dataFile)) {
@@ -445,13 +465,45 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
     int numRows = 1;
     Schema schema = new Schema(optional(100, "uuid", Types.UUIDType.get()));
 
-    File dataFile = File.createTempFile("junit", null, temp.toFile());
-    assertThat(dataFile.delete()).as("Delete should succeed").isTrue();
+    File dataFile = temp.resolve("data.parquet").toFile();
     Iterable<Record> data = generateData(schema, numRows, 0L, 0, IDENTITY);
     try (FileAppender<Record> writer = getParquetV2Writer(schema, dataFile)) {
       writer.addAll(data);
     }
     assertRecordsMatch(schema, numRows, data, dataFile, false, BATCH_SIZE);
+  }
+
+  @Test
+  public void testDecimalWithDefaultValueNotDictionaryEncoded() throws Exception {
+    Schema schema =
+        new Schema(
+            required(100, "id", Types.LongType.get()),
+            Types.NestedField.optional("int_backed")
+                .withId(101)
+                .ofType(Types.DecimalType.of(5, 2))
+                .withInitialDefault(Literal.of(new BigDecimal("0.00")))
+                .withWriteDefault(Literal.of(new BigDecimal("0.00")))
+                .build(),
+            Types.NestedField.optional("long_backed")
+                .withId(102)
+                .ofType(Types.DecimalType.of(15, 2))
+                .withInitialDefault(Literal.of(new BigDecimal("0.00")))
+                .withWriteDefault(Literal.of(new BigDecimal("0.00")))
+                .build(),
+            Types.NestedField.optional("fixed_backed")
+                .withId(103)
+                .ofType(Types.DecimalType.of(25, 2))
+                .withInitialDefault(Literal.of(new BigDecimal("0.00")))
+                .withWriteDefault(Literal.of(new BigDecimal("0.00")))
+                .build());
+
+    File dataFile = temp.resolve("decimal-no-dict.parquet").toFile();
+    Iterable<Record> data = generateData(schema, 1000, 0L, 0.0f, IDENTITY);
+    try (FileAppender<Record> writer = parquetWriterWithoutDictionary(schema, dataFile)) {
+      writer.addAll(data);
+    }
+
+    assertRecordsMatch(schema, 1000, data, dataFile, false, BATCH_SIZE);
   }
 
   private void assertIdenticalFileContents(
@@ -490,10 +542,16 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
                     .flatMap(
                         e ->
                             Stream.of(true, false)
-                                .map(
+                                .flatMap(
                                     vectorized ->
-                                        Arguments.of(
-                                            encoding, e.getKey(), e.getValue(), vectorized))));
+                                        Stream.of(
+                                            Arguments.of(
+                                                encoding, e.getKey(), e.getValue(), vectorized),
+                                            Arguments.of(
+                                                encoding,
+                                                e.getKey() + "_with_nulls",
+                                                e.getValue(),
+                                                vectorized)))));
   }
 
   private File resourceUrlToLocalFile(URL url) throws IOException, URISyntaxException {

@@ -29,16 +29,14 @@ import org.apache.iceberg.spark.TestBase;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ByteBuffers;
-import org.apache.iceberg.variants.ShreddedObject;
-import org.apache.iceberg.variants.ValueArray;
 import org.apache.iceberg.variants.Variant;
 import org.apache.iceberg.variants.VariantArray;
 import org.apache.iceberg.variants.VariantMetadata;
 import org.apache.iceberg.variants.VariantObject;
 import org.apache.iceberg.variants.VariantPrimitive;
+import org.apache.iceberg.variants.VariantTestHelper;
 import org.apache.iceberg.variants.VariantTestUtil;
 import org.apache.iceberg.variants.VariantValue;
-import org.apache.iceberg.variants.Variants;
 import org.apache.spark.SparkRuntimeException;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.VariantType;
@@ -50,46 +48,6 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.FieldSource;
 
 public class TestSparkVariants extends TestBase {
-  private static final VariantPrimitive<?>[] PRIMITIVES =
-      new VariantPrimitive[] {
-        Variants.ofNull(),
-        Variants.of(true),
-        Variants.of(false),
-        Variants.of((byte) 34),
-        Variants.of((byte) -34),
-        Variants.of((short) 1234),
-        Variants.of((short) -1234),
-        Variants.of(12345),
-        Variants.of(-12345),
-        Variants.of(9876543210L),
-        Variants.of(-9876543210L),
-        Variants.of(10.11F),
-        Variants.of(-10.11F),
-        Variants.of(14.3D),
-        Variants.of(-14.3D),
-        Variants.ofIsoDate("2024-11-07"),
-        Variants.ofIsoDate("1957-11-07"),
-        Variants.ofIsoTimestamptz("2024-11-07T12:33:54.123456+00:00"),
-        Variants.ofIsoTimestamptz("1957-11-07T12:33:54.123456+00:00"),
-        Variants.ofIsoTimestampntz("2024-11-07T12:33:54.123456"),
-        Variants.ofIsoTimestampntz("1957-11-07T12:33:54.123456"),
-        Variants.of(new BigDecimal("12345.6789")), // decimal4
-        Variants.of(new BigDecimal("-12345.6789")), // decimal4
-        Variants.of(new BigDecimal("123456789.987654321")), // decimal8
-        Variants.of(new BigDecimal("-123456789.987654321")), // decimal8
-        Variants.of(new BigDecimal("9876543210.123456789")), // decimal16
-        Variants.of(new BigDecimal("-9876543210.123456789")), // decimal16
-        Variants.of(ByteBuffer.wrap(new byte[] {0x0a, 0x0b, 0x0c, 0x0d})),
-        Variants.of("iceberg"),
-        Variants.ofUUID("f24f9b64-81fa-49d1-b74e-8c09a6e31c56"),
-      };
-
-  private static final VariantPrimitive<?>[] UNSUPPORTED_PRIMITIVES =
-      new VariantPrimitive[] {
-        Variants.ofIsoTime("12:33:54.123456"),
-        Variants.ofIsoTimestamptzNanos("2024-11-07T12:33:54.123456789+00:00"),
-        Variants.ofIsoTimestampntzNanos("2024-11-07T12:33:54.123456789"),
-      };
 
   @Test
   public void testIcebergVariantTypeToSparkVariantType() {
@@ -110,59 +68,28 @@ public class TestSparkVariants extends TestBase {
   }
 
   @ParameterizedTest
-  @FieldSource("PRIMITIVES")
+  @FieldSource("org.apache.iceberg.variants.VariantTestHelper#PRIMITIVES")
   public void testVariantPrimitiveRoundTrip(VariantPrimitive<?> primitive) {
-    testVariantRoundTrip(Variants.emptyMetadata(), primitive);
+    VariantTestHelper.testVariantPrimitiveRoundTrip(this::testVariantRoundTrip, primitive);
   }
 
   @Test
   public void testVariantArrayRoundTrip() {
-    VariantMetadata metadata = Variants.emptyMetadata();
-    ValueArray array = Variants.array();
-    array.add(Variants.of("hello"));
-    array.add(Variants.of((byte) 42));
-    array.add(Variants.ofNull());
-
-    testVariantRoundTrip(metadata, array);
+    VariantTestHelper.testVariantArrayRoundTrip(this::testVariantRoundTrip);
   }
 
   @Test
   public void testVariantObjectRoundTrip() {
-    VariantMetadata metadata = Variants.metadata("name", "age", "active");
-    ShreddedObject object = Variants.object(metadata);
-    object.put("name", Variants.of("John Doe"));
-    object.put("age", Variants.of((byte) 30));
-    object.put("active", Variants.of(true));
-
-    testVariantRoundTrip(metadata, object);
+    VariantTestHelper.testVariantObjectRoundTrip(this::testVariantRoundTrip);
   }
 
   @Test
   public void testVariantNestedStructures() {
-    VariantMetadata metadata = Variants.metadata("user", "scores", "address", "city", "state");
-
-    // Create nested object: address
-    ShreddedObject address = Variants.object(metadata);
-    address.put("city", Variants.of("Anytown"));
-    address.put("state", Variants.of("CA"));
-
-    // Create array of scores
-    ValueArray scores = Variants.array();
-    scores.add(Variants.of((byte) 95));
-    scores.add(Variants.of((byte) 87));
-    scores.add(Variants.of((byte) 92));
-
-    // Create main object
-    ShreddedObject mainObject = Variants.object(metadata);
-    mainObject.put("user", Variants.of("Jane"));
-    mainObject.put("scores", scores);
-    mainObject.put("address", address);
-
-    testVariantRoundTrip(metadata, mainObject);
+    VariantTestHelper.testVariantNestedStructures(this::testVariantRoundTrip);
   }
 
   @ParameterizedTest
-  @FieldSource("UNSUPPORTED_PRIMITIVES")
+  @FieldSource("org.apache.iceberg.variants.VariantTestHelper#UNSUPPORTED_PRIMITIVES")
   public void testUnsupportedOperations(VariantPrimitive<?> primitive) {
     // This tests the current state where Spark integration is not fully implemented
     // TIME, nano timestamps are not supported in Spark

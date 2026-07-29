@@ -56,6 +56,7 @@ import org.slf4j.LoggerFactory;
  * <p>The splits to be read are forwarded to the downstream {@link StreamingReaderOperator} which
  * can have parallelism greater than one.
  */
+@SuppressWarnings("deprecation")
 public class StreamingMonitorFunction extends RichSourceFunction<FlinkInputSplit>
     implements CheckpointedFunction {
 

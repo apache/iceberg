@@ -54,6 +54,7 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.RowLevelOperationMode;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotChanges;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
@@ -1306,7 +1307,9 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
     assertThat(dataFilesCount).as("Must have 2 files before UPDATE").isEqualTo("2");
 
     // remove the data file from the 'hr' partition to ensure it is not scanned
-    DataFile dataFile = Iterables.getOnlyElement(snapshot.addedDataFiles(table.io()));
+    DataFile dataFile =
+        Iterables.getOnlyElement(
+            SnapshotChanges.builderFor(table).snapshot(snapshot).build().addedDataFiles());
     table.io().deleteFile(dataFile.location());
 
     // disable dynamic pruning and rely only on static predicate pushdown
@@ -1500,15 +1503,17 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
         "ALTER TABLE %s SET TBLPROPERTIES ('%s' = 'true')",
         tableName, TableProperties.WRITE_AUDIT_PUBLISH_ENABLED);
 
+    // writing to explicit branch should succeed even with WAP branch set
     withSQLConf(
         ImmutableMap.of(SparkSQLProperties.WAP_BRANCH, "wap"),
-        () ->
-            assertThatThrownBy(() -> sql("UPDATE %s SET dep='hr' WHERE dep='a'", commitTarget()))
-                .isInstanceOf(ValidationException.class)
-                .hasMessage(
-                    String.format(
-                        "Cannot write to both branch and WAP branch, but got branch [%s] and WAP branch [wap]",
-                        branch)));
+        () -> {
+          sql("UPDATE %s SET dep='software' WHERE dep='hr'", commitTarget());
+
+          assertEquals(
+              "Should have updated row in explicit branch",
+              ImmutableList.of(row(1, "software")),
+              sql("SELECT * FROM %s ORDER BY id", commitTarget()));
+        });
   }
 
   private RowLevelOperationMode mode(Table table) {

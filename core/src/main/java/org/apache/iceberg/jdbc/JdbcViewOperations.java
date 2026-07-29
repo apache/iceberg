@@ -20,7 +20,6 @@ package org.apache.iceberg.jdbc;
 
 import java.sql.DataTruncation;
 import java.sql.SQLException;
-import java.sql.SQLIntegrityConstraintViolationException;
 import java.sql.SQLNonTransientConnectionException;
 import java.sql.SQLTimeoutException;
 import java.sql.SQLTransientConnectionException;
@@ -112,13 +111,6 @@ public class JdbcViewOperations extends BaseViewOperations {
         createView(newMetadataLocation);
       }
 
-    } catch (SQLIntegrityConstraintViolationException e) {
-      if (currentMetadataLocation() == null) {
-        throw new AlreadyExistsException(e, "View already exists: %s", viewIdentifier);
-      } else {
-        throw new UncheckedSQLException(e, "View already exists: %s", viewIdentifier);
-      }
-
     } catch (SQLTimeoutException e) {
       throw new UncheckedSQLException(e, "Database Connection timeout");
     } catch (SQLTransientConnectionException | SQLNonTransientConnectionException e) {
@@ -128,9 +120,12 @@ public class JdbcViewOperations extends BaseViewOperations {
     } catch (SQLWarning e) {
       throw new UncheckedSQLException(e, "Database warning");
     } catch (SQLException e) {
-      // SQLite doesn't set SQLState or throw SQLIntegrityConstraintViolationException
-      if (e.getMessage() != null && e.getMessage().contains("constraint failed")) {
-        throw new AlreadyExistsException("View already exists: %s", viewIdentifier);
+      if (JdbcUtil.isConstraintViolation(e)) {
+        if (currentMetadataLocation() == null) {
+          throw new AlreadyExistsException(e, "View already exists: %s", viewIdentifier);
+        } else {
+          throw new UncheckedSQLException(e, "View already exists: %s", viewIdentifier);
+        }
       }
 
       throw new UncheckedSQLException(e, "Unknown failure");

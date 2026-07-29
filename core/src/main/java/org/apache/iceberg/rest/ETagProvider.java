@@ -19,6 +19,9 @@
 package org.apache.iceberg.rest;
 
 import java.nio.charset.StandardCharsets;
+import java.util.Map;
+import java.util.TreeMap;
+import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.hash.HashFunction;
 import org.apache.iceberg.relocated.com.google.common.hash.Hashing;
@@ -26,12 +29,22 @@ import org.apache.iceberg.relocated.com.google.common.hash.Hashing;
 class ETagProvider {
   private static final HashFunction MURMUR3 = Hashing.murmur3_32_fixed();
 
+  private static final Joiner.MapJoiner PARAMS_JOINER = Joiner.on(",").withKeyValueSeparator("=");
+  private static final Joiner COMMA = Joiner.on(',');
+
   private ETagProvider() {}
 
-  public static String of(String metadataLocation) {
+  public static String of(String metadataLocation, Map<String, String> params) {
     Preconditions.checkArgument(null != metadataLocation, "Invalid metadata location: null");
     Preconditions.checkArgument(!metadataLocation.isEmpty(), "Invalid metadata location: empty");
 
-    return MURMUR3.hashString(metadataLocation, StandardCharsets.UTF_8).toString();
+    String stringToHash = metadataLocation;
+    if (params != null && !params.isEmpty()) {
+      Map<String, String> orderedParams = new TreeMap<>(params);
+
+      stringToHash = COMMA.join(metadataLocation, PARAMS_JOINER.join(orderedParams));
+    }
+
+    return MURMUR3.hashString(stringToHash, StandardCharsets.UTF_8).toString();
   }
 }

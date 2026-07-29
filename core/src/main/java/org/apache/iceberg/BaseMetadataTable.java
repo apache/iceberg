@@ -21,6 +21,7 @@ package org.apache.iceberg;
 import java.io.Serializable;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import org.apache.iceberg.encryption.EncryptionManager;
@@ -29,6 +30,7 @@ import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.transforms.Transforms;
 
 /**
@@ -39,6 +41,16 @@ import org.apache.iceberg.transforms.Transforms;
  * needed when reading the table data after deserialization.
  */
 public abstract class BaseMetadataTable extends BaseReadOnlyTable implements Serializable {
+  private static final Set<MetadataTableType> TIME_TRAVEL_TABLE_TYPES =
+      ImmutableSet.of(
+          MetadataTableType.ENTRIES,
+          MetadataTableType.FILES,
+          MetadataTableType.DATA_FILES,
+          MetadataTableType.DELETE_FILES,
+          MetadataTableType.MANIFESTS,
+          MetadataTableType.PARTITIONS,
+          MetadataTableType.POSITION_DELETES);
+
   private final PartitionSpec spec = PartitionSpec.unpartitioned();
   private final SortOrder sortOrder = SortOrder.unsorted();
   private final BaseTable table;
@@ -105,6 +117,10 @@ public abstract class BaseMetadataTable extends BaseReadOnlyTable implements Ser
   }
 
   abstract MetadataTableType metadataTableType();
+
+  public boolean supportsTimeTravel() {
+    return TIME_TRAVEL_TABLE_TYPES.contains(metadataTableType());
+  }
 
   public BaseTable table() {
     return table;

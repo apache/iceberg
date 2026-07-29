@@ -241,13 +241,16 @@ public class BinPackRewriteFilePlanner
                         } else if (fileCountRunner.get() < maxFilesToRewrite) {
                           int remainingSize = maxFilesToRewrite - fileCountRunner.get();
                           int scanTasksToRewrite = Math.min(fileScanTasks.size(), remainingSize);
+                          List<FileScanTask> tasksToRewrite =
+                              fileScanTasks.subList(0, scanTasksToRewrite);
+                          long rewriteInputSize = inputSize(tasksToRewrite);
                           selectedFileGroups.add(
                               newRewriteGroup(
                                   ctx,
                                   partition,
-                                  fileScanTasks.subList(0, scanTasksToRewrite),
-                                  inputSplitSize(inputSize),
-                                  expectedOutputFiles(inputSize)));
+                                  tasksToRewrite,
+                                  inputSplitSize(rewriteInputSize),
+                                  expectedOutputFiles(rewriteInputSize)));
                           fileCountRunner.getAndAdd(scanTasksToRewrite);
                         }
                       });

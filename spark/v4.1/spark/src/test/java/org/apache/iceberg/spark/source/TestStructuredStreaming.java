@@ -29,11 +29,18 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.hadoop.HadoopTables;
+import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.spark.SparkWriteOptions;
+import org.apache.iceberg.spark.TestBase;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoder;
@@ -68,6 +75,7 @@ public class TestStructuredStreaming {
             .master("local[2]")
             .config("spark.driver.host", InetAddress.getLoopbackAddress().getHostAddress())
             .config("spark.sql.shuffle.partitions", 4)
+            .config(TestBase.DISABLE_UI)
             .getOrCreate();
   }
 
@@ -133,6 +141,70 @@ public class TestStructuredStreaming {
 
       assertThat(actual).hasSameSizeAs(expected).isEqualTo(expected);
       assertThat(table.snapshots()).as("Number of snapshots should match").hasSize(2);
+    } finally {
+      for (StreamingQuery query : spark.streams().active()) {
+        query.stop();
+      }
+    }
+  }
+
+  @Test
+  public void testStreamingWriteAppendModeWithMergeAppend() throws Exception {
+    File parent = temp.resolve("parquet").toFile();
+    File location = new File(parent, "test-table");
+    File checkpoint = new File(parent, "checkpoint");
+
+    HadoopTables tables = new HadoopTables(CONF);
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("data").build();
+    // set a low min-count-to-merge so the merge append visibly consolidates manifests
+    Table table =
+        tables.create(
+            SCHEMA,
+            spec,
+            ImmutableMap.of(TableProperties.MANIFEST_MIN_MERGE_COUNT, "2"),
+            location.toString());
+
+    List<SimpleRecord> expected =
+        Lists.newArrayList(
+            new SimpleRecord(1, "1"),
+            new SimpleRecord(2, "2"),
+            new SimpleRecord(3, "3"),
+            new SimpleRecord(4, "4"));
+
+    MemoryStream<Integer> inputStream = newMemoryStream(1, spark, Encoders.INT());
+    DataStreamWriter<Row> streamWriter =
+        inputStream
+            .toDF()
+            .selectExpr("value AS id", "CAST (value AS STRING) AS data")
+            .writeStream()
+            .outputMode("append")
+            .format("iceberg")
+            .option("checkpointLocation", checkpoint.toString())
+            .option("path", location.toString())
+            .option(SparkWriteOptions.STREAMING_MERGE_APPEND_ENABLED, "true");
+
+    try {
+      StreamingQuery query = streamWriter.start();
+      List<Integer> batch1 = Lists.newArrayList(1, 2);
+      send(batch1, inputStream);
+      query.processAllAvailable();
+      List<Integer> batch2 = Lists.newArrayList(3, 4);
+      send(batch2, inputStream);
+      query.processAllAvailable();
+      query.stop();
+
+      Dataset<Row> result = spark.read().format("iceberg").load(location.toString());
+      List<SimpleRecord> actual =
+          result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
+
+      assertThat(actual).hasSameSizeAs(expected).isEqualTo(expected);
+      assertThat(table.snapshots()).as("Number of snapshots should match").hasSize(2);
+
+      // the second streaming append uses the regular append, which merges the two data manifests
+      // into a single manifest; a fast append would have left two separate manifests
+      assertThat(table.currentSnapshot().dataManifests(table.io()))
+          .as("Merge append should consolidate data manifests")
+          .hasSize(1);
     } finally {
       for (StreamingQuery query : spark.streams().active()) {
         query.stop();
@@ -255,6 +327,50 @@ public class TestStructuredStreaming {
 
       assertThat(actual).hasSameSizeAs(expected).isEqualTo(expected);
       assertThat(table.snapshots()).as("Number of snapshots should match").hasSize(2);
+    } finally {
+      for (StreamingQuery query : spark.streams().active()) {
+        query.stop();
+      }
+    }
+  }
+
+  @Test
+  public void testStreamingWriteDataFilesInTableSortOrder() throws Exception {
+    File parent = temp.resolve("parquet").toFile();
+    File location = new File(parent, "test-table");
+    File checkpoint = new File(parent, "checkpoint");
+
+    HadoopTables tables = new HadoopTables(CONF);
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("data").build();
+    SortOrder sortOrder = SortOrder.builderFor(SCHEMA).asc("id").build();
+    Table table = tables.create(SCHEMA, spec, sortOrder, ImmutableMap.of(), location.toString());
+
+    MemoryStream<Integer> inputStream = newMemoryStream(1, spark, Encoders.INT());
+    DataStreamWriter<Row> streamWriter =
+        inputStream
+            .toDF()
+            .selectExpr("value AS id", "CAST (value AS STRING) AS data")
+            .writeStream()
+            .outputMode("append")
+            .format("iceberg")
+            .option("checkpointLocation", checkpoint.toString())
+            .option("path", location.toString());
+
+    try {
+      StreamingQuery query = streamWriter.start();
+      List<Integer> batch1 = Lists.newArrayList(1, 2);
+      send(batch1, inputStream);
+      query.processAllAvailable();
+      query.stop();
+
+      table.refresh();
+
+      try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
+        assertThat(tasks)
+            .extracting(task -> task.file().sortOrderId())
+            .as("All DataFiles are written with the table sort order id")
+            .containsOnly(table.sortOrder().orderId());
+      }
     } finally {
       for (StreamingQuery query : spark.streams().active()) {
         query.stop();

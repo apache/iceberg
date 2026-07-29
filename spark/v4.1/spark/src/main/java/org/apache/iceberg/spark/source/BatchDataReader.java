@@ -26,13 +26,13 @@ import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.io.CloseableIterator;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.spark.OrcBatchReadConf;
 import org.apache.iceberg.spark.ParquetBatchReadConf;
 import org.apache.iceberg.spark.source.metrics.TaskNumDeletes;
 import org.apache.iceberg.spark.source.metrics.TaskNumSplits;
-import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.rdd.InputFileBlockHolder;
 import org.apache.spark.sql.connector.metric.CustomTaskMetric;
 import org.apache.spark.sql.connector.read.PartitionReader;
@@ -53,9 +53,9 @@ class BatchDataReader extends BaseBatchReader<FileScanTask>
       OrcBatchReadConf orcBatchReadConf) {
     this(
         partition.table(),
+        partition.io(),
         partition.taskGroup(),
-        SnapshotUtil.schemaFor(partition.table(), partition.branch()),
-        partition.expectedSchema(),
+        partition.projection(),
         partition.isCaseSensitive(),
         parquetBatchReadConf,
         orcBatchReadConf,
@@ -64,8 +64,8 @@ class BatchDataReader extends BaseBatchReader<FileScanTask>
 
   BatchDataReader(
       Table table,
+      FileIO fileIO,
       ScanTaskGroup<FileScanTask> taskGroup,
-      Schema tableSchema,
       Schema expectedSchema,
       boolean caseSensitive,
       ParquetBatchReadConf parquetConf,
@@ -73,8 +73,8 @@ class BatchDataReader extends BaseBatchReader<FileScanTask>
       boolean cacheDeleteFilesOnExecutors) {
     super(
         table,
+        fileIO,
         taskGroup,
-        tableSchema,
         expectedSchema,
         caseSensitive,
         parquetConf,

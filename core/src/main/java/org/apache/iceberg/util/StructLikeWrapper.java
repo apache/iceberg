@@ -88,7 +88,13 @@ public class StructLikeWrapper {
       return false;
     }
 
-    return comparator.compare(this.struct, that.struct) == 0;
+    try {
+      return comparator.compare(this.struct, that.struct) == 0;
+    } catch (RuntimeException e) {
+      // An exception may occur, for example, when struct is PartitionData and its type does not
+      // match its data.
+      return false;
+    }
   }
 
   @Override

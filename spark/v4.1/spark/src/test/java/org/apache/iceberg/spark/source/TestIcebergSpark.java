@@ -28,6 +28,7 @@ import java.sql.Date;
 import java.sql.Timestamp;
 import java.util.List;
 import org.apache.iceberg.spark.IcebergSpark;
+import org.apache.iceberg.spark.TestBase;
 import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Row;
@@ -51,6 +52,7 @@ public class TestIcebergSpark {
         SparkSession.builder()
             .master("local[2]")
             .config("spark.driver.host", InetAddress.getLoopbackAddress().getHostAddress())
+            .config(TestBase.DISABLE_UI)
             .getOrCreate();
   }
 

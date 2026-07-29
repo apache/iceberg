@@ -30,6 +30,7 @@ import java.util.UUID;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.apache.iceberg.FieldMetrics;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.parquet.ParquetValueReaders.ReusableEntry;
 import org.apache.iceberg.parquet.ParquetValueWriter;
 import org.apache.iceberg.parquet.ParquetValueWriters;
@@ -41,6 +42,7 @@ import org.apache.iceberg.parquet.TripleWriter;
 import org.apache.iceberg.parquet.VariantWriterBuilder;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.DecimalUtil;
 import org.apache.iceberg.util.UUIDUtil;
@@ -59,6 +61,7 @@ import org.apache.parquet.schema.Type;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.util.ArrayData;
 import org.apache.spark.sql.catalyst.util.MapData;
+import org.apache.spark.sql.catalyst.util.STUtils;
 import org.apache.spark.sql.types.ArrayType;
 import org.apache.spark.sql.types.ByteType;
 import org.apache.spark.sql.types.DataType;
@@ -69,16 +72,26 @@ import org.apache.spark.sql.types.ShortType;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.types.VariantType;
+import org.apache.spark.unsafe.types.GeographyVal;
+import org.apache.spark.unsafe.types.GeometryVal;
 import org.apache.spark.unsafe.types.UTF8String;
 import org.apache.spark.unsafe.types.VariantVal;
 
 public class SparkParquetWriters {
   private SparkParquetWriters() {}
 
-  @SuppressWarnings("unchecked")
   public static <T> ParquetValueWriter<T> buildWriter(StructType dfSchema, MessageType type) {
+    return buildWriter(null, type, dfSchema);
+  }
+
+  @SuppressWarnings("unchecked")
+  public static <T> ParquetValueWriter<T> buildWriter(
+      Schema icebergSchema, MessageType type, StructType dfSchema) {
     return (ParquetValueWriter<T>)
-        ParquetWithSparkSchemaVisitor.visit(dfSchema, type, new WriteBuilder(type));
+        ParquetWithSparkSchemaVisitor.visit(
+            dfSchema != null ? dfSchema : SparkSchemaUtil.convert(icebergSchema),
+            type,
+            new WriteBuilder(type));
   }
 
   private static class WriteBuilder extends ParquetWithSparkSchemaVisitor<ParquetValueWriter<?>> {
@@ -267,6 +280,18 @@ public class SparkParquetWriters {
       public Optional<ParquetValueWriter<?>> visit(
           LogicalTypeAnnotation.BsonLogicalTypeAnnotation bsonLogicalType) {
         return Optional.of(byteArrays(desc));
+      }
+
+      @Override
+      public Optional<ParquetValueWriter<?>> visit(
+          LogicalTypeAnnotation.GeometryLogicalTypeAnnotation geometryLogicalType) {
+        return Optional.of(new GeometryWriter(desc));
+      }
+
+      @Override
+      public Optional<ParquetValueWriter<?>> visit(
+          LogicalTypeAnnotation.GeographyLogicalTypeAnnotation geographyLogicalType) {
+        return Optional.of(new GeographyWriter(desc));
       }
     }
 
@@ -460,6 +485,32 @@ public class SparkParquetWriters {
     @Override
     public void write(int repetitionLevel, byte[] bytes) {
       column.writeBinary(repetitionLevel, Binary.fromReusedByteArray(bytes));
+    }
+  }
+
+  /** Writes a Spark {@link GeometryVal} as its WKB bytes into a BINARY column. */
+  private static class GeometryWriter extends PrimitiveWriter<GeometryVal> {
+    private GeometryWriter(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public void write(int repetitionLevel, GeometryVal value) {
+      // Spark stores geometry as [SRID | WKB]; Iceberg stores pure WKB, so strip the SRID header.
+      column.writeBinary(repetitionLevel, Binary.fromReusedByteArray(STUtils.stAsBinary(value)));
+    }
+  }
+
+  /** Writes a Spark {@link GeographyVal} as its WKB bytes into a BINARY column. */
+  private static class GeographyWriter extends PrimitiveWriter<GeographyVal> {
+    private GeographyWriter(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public void write(int repetitionLevel, GeographyVal value) {
+      // Spark stores geography as [SRID | WKB]; Iceberg stores pure WKB, so strip the SRID header.
+      column.writeBinary(repetitionLevel, Binary.fromReusedByteArray(STUtils.stAsBinary(value)));
     }
   }
 

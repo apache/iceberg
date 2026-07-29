@@ -34,7 +34,6 @@ import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.MetricsModes;
 import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.RequiresRemoteScanPlanning;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SparkDistributedDataScan;
@@ -308,16 +307,16 @@ public class SparkScanBuilder
                 colName);
             return false;
           }
-        } else if (mode instanceof MetricsModes.Truncate) {
-          // lower_bounds and upper_bounds may be truncated, so disable push down
-          if (aggregate.type().typeId() == Type.TypeID.STRING) {
-            if (aggregate.op() == Expression.Operation.MAX
-                || aggregate.op() == Expression.Operation.MIN) {
-              LOG.info(
-                  "Skipping aggregate pushdown: Cannot produce min or max from truncated values for column {}",
-                  colName);
-              return false;
-            }
+        } else if (aggregate.type().typeId() == Type.TypeID.STRING
+            || aggregate.type().typeId() == Type.TypeID.BINARY) {
+          // lower_bounds and upper_bounds may have been truncated before, so disable push down
+          // regardless of the current mode
+          if (aggregate.op() == Expression.Operation.MAX
+              || aggregate.op() == Expression.Operation.MIN) {
+            LOG.info(
+                "Skipping aggregate pushdown: Cannot produce min or max from truncated values for column {}",
+                colName);
+            return false;
           }
         }
       }
@@ -480,9 +479,7 @@ public class SparkScanBuilder
             .project(expectedSchema)
             .metricsReporter(metricsReporter);
 
-    if (withStats) {
-      scan = scan.includeColumnStats();
-    }
+    scan = includeStats(scan, expectedSchema, withStats);
 
     if (snapshotId != null) {
       scan = scan.useSnapshot(snapshotId);
@@ -514,15 +511,29 @@ public class SparkScanBuilder
             .project(expectedSchema)
             .metricsReporter(metricsReporter);
 
-    if (withStats) {
-      scan = scan.includeColumnStats();
-    }
+    scan = includeStats(scan, expectedSchema, withStats);
 
     if (endSnapshotId != null) {
       scan = scan.toSnapshot(endSnapshotId);
     }
 
     return configureSplitPlanning(scan);
+  }
+
+  private <S extends org.apache.iceberg.Scan<S, ?, ?>> S includeStats(
+      S scan, Schema projection, boolean withStats) {
+    if (withStats) {
+      return scan.includeColumnStats();
+    }
+    List<String> variantColumns = variantColumnNames(projection);
+    return variantColumns.isEmpty() ? scan : scan.includeColumnStats(variantColumns);
+  }
+
+  private List<String> variantColumnNames(Schema projection) {
+    return projection.columns().stream()
+        .filter(field -> field.type().isVariantType())
+        .map(Types.NestedField::name)
+        .collect(Collectors.toList());
   }
 
   @SuppressWarnings("CyclomaticComplexity")
@@ -761,9 +772,7 @@ public class SparkScanBuilder
   }
 
   private BatchScan newBatchScan() {
-    if (table instanceof RequiresRemoteScanPlanning) {
-      return table.newBatchScan();
-    } else if (table instanceof BaseTable && readConf.distributedPlanningEnabled()) {
+    if (readConf.distributedPlanningEnabled()) {
       return new SparkDistributedDataScan(spark, table, readConf);
     } else {
       return table.newBatchScan();
