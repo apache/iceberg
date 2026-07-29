@@ -1022,7 +1022,7 @@ public class TestInclusiveMetricsEvaluator {
             10,
             ImmutableMap.of(3, 10L),
             ImmutableMap.of(3, 0L),
-            ImmutableMap.of(3, 0L),
+            null,
             ImmutableMap.of(3, toByteBuffer(StringType.get(), "aaa")),
             ImmutableMap.of(3, toByteBuffer(StringType.get(), "zzz")));
 
@@ -1111,7 +1111,7 @@ public class TestInclusiveMetricsEvaluator {
             10,
             ImmutableMap.of(3, 10L),
             ImmutableMap.of(3, 0L),
-            ImmutableMap.of(3, 0L),
+            null,
             ImmutableMap.of(3, toByteBuffer(StringType.get(), "aaa")),
             ImmutableMap.of(3, toByteBuffer(StringType.get(), "zzz")));
 
@@ -1128,7 +1128,7 @@ public class TestInclusiveMetricsEvaluator {
             10,
             ImmutableMap.of(3, 10L),
             ImmutableMap.of(3, 0L),
-            ImmutableMap.of(3, 0L),
+            null,
             ImmutableMap.of(3, toByteBuffer(StringType.get(), "abc")),
             ImmutableMap.of(3, toByteBuffer(StringType.get(), "abc")));
 
