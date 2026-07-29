@@ -21,8 +21,6 @@ package org.apache.iceberg.inmemory;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import java.io.IOException;
-import java.nio.file.Path;
 import java.util.Map;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.HasTableOperations;
@@ -32,7 +30,6 @@ import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 
 public class TestInMemoryCatalog extends CatalogTests<InMemoryCatalog> {
   private InMemoryCatalog catalog;
@@ -89,7 +86,7 @@ public class TestInMemoryCatalog extends CatalogTests<InMemoryCatalog> {
 
   @Test
   @Override
-  public void testLoadTableWithMissingMetadataFile(@TempDir Path tempDir) throws IOException {
+  public void testLoadTableWithMissingMetadataFile() {
 
     if (requiresNamespaceCreate()) {
       catalog.createNamespace(TBL.namespace());

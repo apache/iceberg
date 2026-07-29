@@ -203,8 +203,25 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     return false;
   }
 
+  @TempDir private Path tempDir;
+
   protected String baseTableLocation(TableIdentifier identifier) {
     return BASE_TABLE_LOCATION + "/" + identifier.namespace() + "/" + identifier.name();
+  }
+
+  protected URI resolveStorageLocation(String location) {
+    return URI.create(location);
+  }
+
+  protected URI createStorageFile(String filename, String content) throws IOException {
+    Path path = tempDir.resolve(filename);
+    path.toFile().deleteOnExit();
+    Files.writeString(path, content);
+    return path.toUri();
+  }
+
+  protected void moveStorageFile(URI source, URI target) throws IOException {
+    Files.move(Paths.get(source), Paths.get(target), StandardCopyOption.REPLACE_EXISTING);
   }
 
   @Test
@@ -1009,7 +1026,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   }
 
   @Test
-  public void testLoadTableWithMissingMetadataFile(@TempDir Path tempDir) throws IOException {
+  public void testLoadTableWithMissingMetadataFile() throws IOException {
     C catalog = catalog();
 
     if (requiresNamespaceCreate()) {
@@ -1020,22 +1037,17 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     assertThat(catalog.tableExists(TBL)).as("Table should exist").isTrue();
 
     Table table = catalog.loadTable(TBL);
-    String metadataFileLocation =
-        ((HasTableOperations) table).operations().current().metadataFileLocation();
-    Path renamedMetadataFile = tempDir.resolve("tmp.json");
-    renamedMetadataFile.toFile().deleteOnExit();
-    Files.writeString(renamedMetadataFile, "metadata");
-    Path metadataFilePath =
-        metadataFileLocation.startsWith("file:")
-            ? Paths.get(URI.create(metadataFileLocation))
-            : Paths.get(metadataFileLocation);
+    URI metadataFileLocation =
+        resolveStorageLocation(
+            ((HasTableOperations) table).operations().current().metadataFileLocation());
+    URI renamedMetadataFileLocation = createStorageFile("tmp.json", "metadata");
     try {
-      Files.move(metadataFilePath, renamedMetadataFile, StandardCopyOption.REPLACE_EXISTING);
+      moveStorageFile(metadataFileLocation, renamedMetadataFileLocation);
       assertThatThrownBy(() -> catalog.loadTable(TBL))
           .isInstanceOf(NotFoundException.class)
           .hasMessageContaining("Failed to open input stream for file: " + metadataFileLocation);
     } finally {
-      Files.move(renamedMetadataFile, metadataFilePath, StandardCopyOption.REPLACE_EXISTING);
+      moveStorageFile(renamedMetadataFileLocation, metadataFileLocation);
     }
   }
 
