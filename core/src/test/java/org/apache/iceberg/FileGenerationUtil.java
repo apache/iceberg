@@ -193,7 +193,7 @@ public class FileGenerationUtil {
         upperBounds.put(fieldId, knownUpperBounds.get(fieldId));
       } else {
         PrimitiveType type = field.type().asPrimitiveType();
-        MetricsMode metricsMode = metricsConfig.columnMode(schema.findColumnName(fieldId));
+        MetricsMode metricsMode = metricsConfig.columnMode(fieldId);
         Pair<ByteBuffer, ByteBuffer> bounds = generateBounds(type, metricsMode);
         lowerBounds.put(fieldId, bounds.first());
         upperBounds.put(fieldId, bounds.second());
@@ -211,41 +211,14 @@ public class FileGenerationUtil {
         originalTypes);
   }
 
-  // collects leaf primitive fields, recursing through struct/list/map
+  // collects all primitive (leaf) fields, including those nested within structs, lists, and maps
   static List<Types.NestedField> leafFields(Schema schema) {
     List<Types.NestedField> leaves = Lists.newArrayList();
-    TypeUtil.visit(
-        schema,
-        new TypeUtil.SchemaVisitor<Void>() {
-          @Override
-          public Void struct(Types.StructType struct, List<Void> fieldResults) {
-            for (Types.NestedField field : struct.fields()) {
-              if (field.type().isPrimitiveType()) {
-                leaves.add(field);
-              }
-            }
-            return null;
-          }
-
-          @Override
-          public Void list(Types.ListType list, Void elementResult) {
-            if (list.elementType().isPrimitiveType()) {
-              leaves.add(list.field(list.elementId()));
-            }
-            return null;
-          }
-
-          @Override
-          public Void map(Types.MapType map, Void keyResult, Void valueResult) {
-            if (map.keyType().isPrimitiveType()) {
-              leaves.add(map.field(map.keyId()));
-            }
-            if (map.valueType().isPrimitiveType()) {
-              leaves.add(map.field(map.valueId()));
-            }
-            return null;
-          }
-        });
+    for (Types.NestedField field : TypeUtil.indexById(schema.asStruct()).values()) {
+      if (field.type().isPrimitiveType()) {
+        leaves.add(field);
+      }
+    }
     return leaves;
   }
 

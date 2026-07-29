@@ -143,7 +143,7 @@ public class TestFileGenerationUtil {
 
   private void checkBounds(Schema schema, Metrics metrics, MetricsConfig metricsConfig) {
     for (NestedField field : FileGenerationUtil.leafFields(schema)) {
-      MetricsMode mode = metricsConfig.columnMode(schema.findColumnName(field.fieldId()));
+      MetricsMode mode = metricsConfig.columnMode(field.fieldId());
       ByteBuffer lowerBuffer = metrics.lowerBounds().get(field.fieldId());
       ByteBuffer upperBuffer = metrics.upperBounds().get(field.fieldId());
       if (mode.equals(MetricsModes.None.get()) || mode.equals(MetricsModes.Counts.get())) {
