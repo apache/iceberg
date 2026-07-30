@@ -24,7 +24,13 @@ import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.apache.iceberg.types.Types.StringType;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.withSettings;
 
+import java.io.Closeable;
 import java.util.function.Supplier;
 import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.table.runtime.typeutils.RowDataSerializer;
@@ -120,5 +126,26 @@ class TestTableSerializerCache {
   void testCacheSize() {
     cache = new TableSerializerCache(CATALOG_EXTENSION.catalogLoader(), 1000);
     assertThat(cache.maximumSize()).isEqualTo(1000);
+  }
+
+  @Test
+  void testClosesCatalogAfterSchemaLookup() throws Exception {
+    Table table =
+        CATALOG_EXTENSION
+            .catalogLoader()
+            .loadCatalog()
+            .createTable(TableIdentifier.of("table"), schema1);
+
+    Catalog catalog = mock(Catalog.class, withSettings().extraInterfaces(Closeable.class));
+    when(catalog.loadTable(any(TableIdentifier.class))).thenReturn(table);
+    CatalogLoader catalogLoader = mock(CatalogLoader.class);
+    when(catalogLoader.loadCatalog()).thenReturn(catalog);
+    cache = new TableSerializerCache(catalogLoader, 10);
+
+    // schema/spec ids are unknown, so this misses the cache and loads a catalog to resolve them
+    cache.serializerWithSchemaAndSpec(
+        "table", table.schema().schemaId(), PartitionSpec.unpartitioned().specId());
+
+    verify((Closeable) catalog).close();
   }
 }

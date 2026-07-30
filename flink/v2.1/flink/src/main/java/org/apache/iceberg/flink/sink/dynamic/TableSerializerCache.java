@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.flink.sink.dynamic;
 
+import java.io.Closeable;
+import java.io.IOException;
 import java.io.Serializable;
 import java.util.Map;
 import javax.annotation.Nullable;
@@ -28,11 +30,14 @@ import org.apache.flink.table.runtime.typeutils.RowDataSerializer;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.flink.CatalogLoader;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * A Cache which holds Flink's {@link RowDataSerializer} for a given table name and schema. This
@@ -47,6 +52,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
  */
 @Internal
 class TableSerializerCache implements Serializable {
+
+  private static final Logger LOG = LoggerFactory.getLogger(TableSerializerCache.class);
 
   private final CatalogLoader catalogLoader;
   private final int maximumSize;
@@ -120,9 +127,22 @@ class TableSerializerCache implements Serializable {
     }
 
     private void update() {
-      Table table = catalogLoader.loadCatalog().loadTable(TableIdentifier.parse(tableName));
-      schemas = table.schemas();
-      specs = table.specs();
+      // The serializer has no teardown hook, so the freshly loaded catalog is closed here, after
+      // reading the table metadata, to avoid leaking one per cache miss.
+      Catalog catalog = catalogLoader.loadCatalog();
+      try {
+        Table table = catalog.loadTable(TableIdentifier.parse(tableName));
+        schemas = table.schemas();
+        specs = table.specs();
+      } finally {
+        if (catalog instanceof Closeable) {
+          try {
+            ((Closeable) catalog).close();
+          } catch (IOException e) {
+            LOG.warn("Failed to close catalog {}", catalog.name(), e);
+          }
+        }
+      }
     }
   }
 
