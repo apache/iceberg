@@ -123,7 +123,9 @@ public class TestFileGenerationUtil {
   public void testBoundsForNestedTypes(String metricsMode) {
     MetricsConfig metricsConfig =
         MetricsConfig.from(
-            ImmutableMap.of(TableProperties.DEFAULT_WRITE_METRICS_MODE, metricsMode), SCHEMA, null);
+            ImmutableMap.of(TableProperties.DEFAULT_WRITE_METRICS_MODE, metricsMode),
+            NESTED_SCHEMA,
+            null);
     Metrics metrics =
         FileGenerationUtil.generateRandomMetrics(
             NESTED_SCHEMA,
