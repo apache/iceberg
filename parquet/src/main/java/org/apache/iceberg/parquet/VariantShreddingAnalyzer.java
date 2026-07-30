@@ -472,10 +472,7 @@ public abstract class VariantShreddingAnalyzer<T, S> {
     }
 
     /**
-     * Merges {@code candidate} into the currently admitted type. Returns the wider type when both
-     * are in the same integer or decimal family, {@code candidate} when nothing is admitted yet,
-     * {@code current} when the types are identical, and null when the types are from incompatible
-     * families (including FLOAT vs DOUBLE, TIMESTAMPTZ vs TIMESTAMPTZ_NANOS, etc.).
+     * Widens {@code current} with {@code candidate}, or null if they belong to different families.
      */
     private static PhysicalType mergeFamily(PhysicalType current, PhysicalType candidate) {
       if (current == null) {
@@ -484,11 +481,22 @@ public abstract class VariantShreddingAnalyzer<T, S> {
       if (current == candidate) {
         return current;
       }
-      PhysicalType widened = wider(current, candidate, INTEGER_TYPES);
-      if (widened != null) {
-        return widened;
+      List<PhysicalType> family = familyOf(current);
+      if (family == null) {
+        return null;
       }
-      return wider(current, candidate, DECIMAL_TYPES);
+      return wider(current, candidate, family);
+    }
+
+    /** Returns the widening family for {@code type}, or null if none applies. */
+    private static List<PhysicalType> familyOf(PhysicalType type) {
+      if (INTEGER_TYPES.contains(type)) {
+        return INTEGER_TYPES;
+      }
+      if (DECIMAL_TYPES.contains(type)) {
+        return DECIMAL_TYPES;
+      }
+      return null;
     }
 
     /**
