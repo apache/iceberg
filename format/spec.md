@@ -822,7 +822,7 @@ Each stats struct holds statistics for one table field. It may contain the follo
 | _optional_  | 4      | `value_count`             | `long`                    | all                                           | Number of values in the column (including null and NaN values) |
 | _optional_  | 5      | `null_value_count`        | `long`                    | optional fields                               | Number of null values in the column |
 | _optional_  | 6      | `nan_value_count`         | `long`                    | `float`, `double`                             | Number of NaN values in the column |
-| _optional_  | 7      | `avg_value_size_in_bytes` | `int`                     | `string`, `binary`, `variant`                 | Avg value size in memory (uncompressed) in bytes over non-null values to estimate memory consumption |
+| _optional_  | 7      | `avg_value_size_in_bytes` | `int`                     | `string`, `binary`, `variant`, `geometry`, `geography` | Avg value size in memory (uncompressed) in bytes over non-null values to estimate memory consumption |
 
 For example, stats for a `required` `int` field named `id` with field-id `2` are stored using:
 
@@ -879,7 +879,8 @@ For example, stats for an optional `geometry` field named `location` with field-
   }
   10_804: optional long value_count;
   10_805: optional long null_value_count;
-  // tight_bounds, nan_value_count, avg_value_size_in_bytes are omitted for geo types
+  10_807: optional int avg_value_size_in_bytes;
+  // tight_bounds and nan_value_count are omitted for geo types
 }
 ```
 
