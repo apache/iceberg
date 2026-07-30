@@ -19,15 +19,20 @@
 package org.apache.iceberg.connect.data;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.Map;
+import java.util.UUID;
+import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.connect.IcebergSinkConfig;
+import org.apache.iceberg.connect.events.TableReference;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.SchemaBuilder;
 import org.apache.kafka.connect.data.Struct;
 import org.junit.jupiter.api.Test;
 
-public class TestRecordUtils {
+public class TestRecordUtils extends WriterTestBase {
 
   @Test
   public void testExtractFromRecordValueStruct() {
@@ -89,5 +94,24 @@ public class TestRecordUtils {
 
     result = RecordUtils.extractFromRecordValue(val, "xkey");
     assertThat(result).isNull();
+  }
+
+  @Test
+  public void createTableWriterReadsIdColumnsForNamespacedTable() {
+    Map<String, String> props =
+        ImmutableMap.of(
+            "iceberg.catalog.type", "rest",
+            "topics", "source-topic",
+            "iceberg.tables", "default.events",
+            "iceberg.table.default.events.id-columns", "missing_col");
+    IcebergSinkConfig config = new IcebergSinkConfig(props);
+    TableReference tableReference =
+        TableReference.of(
+            "test_catalog", TableIdentifier.of("default", "events"), UUID.randomUUID());
+
+    // the per-table id-columns config is only found when looked up by the full table identifier
+    assertThatThrownBy(() -> RecordUtils.createTableWriter(table, tableReference, config))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("ID column not found: missing_col");
   }
 }
