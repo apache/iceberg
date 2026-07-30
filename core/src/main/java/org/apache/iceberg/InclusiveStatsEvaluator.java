@@ -16,16 +16,18 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.expressions;
+package org.apache.iceberg;
 
 import static org.apache.iceberg.expressions.Expressions.rewriteNot;
 
 import java.util.Collections;
 import java.util.Set;
-import org.apache.iceberg.ContentStats;
-import org.apache.iceberg.FieldStats;
-import org.apache.iceberg.Schema;
-import org.apache.iceberg.TrackedFile;
+import org.apache.iceberg.expressions.Binder;
+import org.apache.iceberg.expressions.BoundExtract;
+import org.apache.iceberg.expressions.BoundReference;
+import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.ExpressionVisitors;
+import org.apache.iceberg.expressions.InclusiveEvalVisitor;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
@@ -48,15 +50,15 @@ import org.apache.iceberg.variants.VariantObject;
  * bound despite that the column could contain non-NaN data. Thus, in some scenarios explicitly
  * checks for NaN is necessary in order to not skip files that may contain matching data.
  */
-public class InclusiveStatsEvaluator {
+class InclusiveStatsEvaluator {
   private final Expression expr;
   private final Set<Integer> neverNullIds;
 
-  public InclusiveStatsEvaluator(Schema schema, Expression unbound) {
+  InclusiveStatsEvaluator(Schema schema, Expression unbound) {
     this(schema, unbound, true);
   }
 
-  public InclusiveStatsEvaluator(Schema schema, Expression unbound, boolean caseSensitive) {
+  InclusiveStatsEvaluator(Schema schema, Expression unbound, boolean caseSensitive) {
     Types.StructType struct = schema.asStruct();
     this.expr = Binder.bind(struct, rewriteNot(unbound), caseSensitive);
     this.neverNullIds =
@@ -89,7 +91,7 @@ public class InclusiveStatsEvaluator {
    * @param file a tracked file
    * @return false if the file cannot contain rows that match the expression, true otherwise.
    */
-  public boolean eval(TrackedFile file) {
+  boolean eval(TrackedFile file) {
     return new StatsEvalVisitor().eval(file);
   }
 
@@ -170,7 +172,7 @@ public class InclusiveStatsEvaluator {
       FieldStats<Variant> fieldStats = stats.statsFor(bound.ref().fieldId());
       if (fieldStats != null && fieldStats.lowerBound() != null) {
         VariantObject fieldLowerBounds = fieldStats.lowerBound().value().asObject();
-        return VariantExpressionUtil.castTo(fieldLowerBounds.get(bound.path()), bound.type());
+        return castTo(fieldLowerBounds.get(bound.path()), bound.type());
       }
 
       return null;
@@ -181,7 +183,7 @@ public class InclusiveStatsEvaluator {
       FieldStats<Variant> fieldStats = stats.statsFor(bound.ref().fieldId());
       if (fieldStats != null && fieldStats.upperBound() != null) {
         VariantObject fieldUpperBounds = fieldStats.upperBound().value().asObject();
-        return VariantExpressionUtil.castTo(fieldUpperBounds.get(bound.path()), bound.type());
+        return castTo(fieldUpperBounds.get(bound.path()), bound.type());
       }
 
       return null;
