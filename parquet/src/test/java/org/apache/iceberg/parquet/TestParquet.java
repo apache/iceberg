@@ -46,6 +46,7 @@ import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Stream;
 import org.apache.avro.generic.GenericData;
@@ -88,6 +89,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 public class TestParquet {
+
+  private static final int STATS_RECORD_COUNT = 5;
 
   @TempDir private Path temp;
 
@@ -251,41 +254,13 @@ public class TestParquet {
             optional(1, "int_field", IntegerType.get()),
             optional(2, "string_field", Types.StringType.get()));
 
-    File file = createTempFile(temp);
-
-    List<GenericData.Record> records = Lists.newArrayListWithCapacity(5);
-    org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(schema.asStruct());
-    for (int i = 1; i <= 5; i++) {
-      GenericData.Record record = new GenericData.Record(avroSchema);
-      record.put("int_field", i);
-      record.put("string_field", "test");
-      records.add(record);
-    }
-
-    write(
-        file,
+    writeAndAssertColumnStatistics(
         schema,
         ImmutableMap.<String, String>builder()
             .put(PARQUET_COLUMN_STATS_ENABLED_PREFIX + "int_field", "true")
             .put(PARQUET_COLUMN_STATS_ENABLED_PREFIX + "string_field", "false")
             .buildOrThrow(),
-        ParquetAvroWriter::buildWriter,
-        records.toArray(new GenericData.Record[] {}));
-
-    InputFile inputFile = Files.localInput(file);
-
-    try (ParquetFileReader reader = ParquetFileReader.open(ParquetIO.file(inputFile))) {
-      for (BlockMetaData block : reader.getFooter().getBlocks()) {
-        for (ColumnChunkMetaData column : block.getColumns()) {
-          boolean emptyStats = column.getStatistics().isEmpty();
-          if (column.getPath().toDotString().equals("int_field")) {
-            assertThat(emptyStats).as("int_field has statistics").isEqualTo(false);
-          } else if (column.getPath().toDotString().equals("string_field")) {
-            assertThat(emptyStats).as("string_field has statistics").isEqualTo(true);
-          }
-        }
-      }
-    }
+        ImmutableMap.of("int_field", true, "string_field", false));
   }
 
   @Test
@@ -296,44 +271,13 @@ public class TestParquet {
             optional(2, "string_field", Types.StringType.get()),
             optional(3, "long_field", Types.LongType.get()));
 
-    File file = createTempFile(temp);
-
-    List<GenericData.Record> records = Lists.newArrayListWithCapacity(5);
-    org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(schema.asStruct());
-    for (int i = 1; i <= 5; i++) {
-      GenericData.Record record = new GenericData.Record(avroSchema);
-      record.put("int_field", i);
-      record.put("string_field", "test");
-      record.put("long_field", (long) i);
-      records.add(record);
-    }
-
-    write(
-        file,
+    writeAndAssertColumnStatistics(
         schema,
         ImmutableMap.<String, String>builder()
             .put(PARQUET_COLUMN_STATS_ENABLED_PREFIX + "int_field", "false")
             .put(PARQUET_COLUMN_STATS_ENABLED_PREFIX + "string_field", "false")
             .buildOrThrow(),
-        ParquetAvroWriter::buildWriter,
-        records.toArray(new GenericData.Record[] {}));
-
-    InputFile inputFile = Files.localInput(file);
-
-    try (ParquetFileReader reader = ParquetFileReader.open(ParquetIO.file(inputFile))) {
-      for (BlockMetaData block : reader.getFooter().getBlocks()) {
-        for (ColumnChunkMetaData column : block.getColumns()) {
-          boolean emptyStats = column.getStatistics().isEmpty();
-          if (column.getPath().toDotString().equals("int_field")) {
-            assertThat(emptyStats).as("int_field statistics are disabled").isTrue();
-          } else if (column.getPath().toDotString().equals("string_field")) {
-            assertThat(emptyStats).as("string_field statistics are disabled").isTrue();
-          } else if (column.getPath().toDotString().equals("long_field")) {
-            assertThat(emptyStats).as("long_field has statistics").isFalse();
-          }
-        }
-      }
-    }
+        ImmutableMap.of("int_field", false, "string_field", false, "long_field", true));
   }
 
   @Test
@@ -344,26 +288,44 @@ public class TestParquet {
             optional(2, "string_field", Types.StringType.get()),
             optional(3, "long_field", Types.LongType.get()));
 
-    File file = createTempFile(temp);
-
-    List<GenericData.Record> records = Lists.newArrayListWithCapacity(5);
-    org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(schema.asStruct());
-    for (int i = 1; i <= 5; i++) {
-      GenericData.Record record = new GenericData.Record(avroSchema);
-      record.put("int_field", i);
-      record.put("string_field", "test");
-      record.put("long_field", (long) i);
-      records.add(record);
-    }
-
-    write(
-        file,
+    writeAndAssertColumnStatistics(
         schema,
         ImmutableMap.<String, String>builder()
             .put(PARQUET_COLUMN_STATS_ENABLED_PREFIX + "int_field", "false")
             .put(PARQUET_COLUMN_STATS_ENABLED_PREFIX + "string_field", "false")
             .put(PARQUET_COLUMN_STATS_ENABLED_PREFIX + "long_field", "false")
             .buildOrThrow(),
+        ImmutableMap.of("int_field", false, "string_field", false, "long_field", false));
+  }
+
+  /**
+   * Writes records with the given table properties and checks which columns ended up with
+   * statistics in the Parquet footer.
+   *
+   * @param schema schema of the records to write
+   * @param properties table properties used for writing
+   * @param expectedStatistics whether statistics are expected, keyed by column name
+   */
+  private void writeAndAssertColumnStatistics(
+      Schema schema, Map<String, String> properties, Map<String, Boolean> expectedStatistics)
+      throws IOException {
+    File file = createTempFile(temp);
+
+    org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(schema.asStruct());
+    List<GenericData.Record> records = Lists.newArrayListWithCapacity(STATS_RECORD_COUNT);
+    for (int i = 1; i <= STATS_RECORD_COUNT; i++) {
+      GenericData.Record record = new GenericData.Record(avroSchema);
+      for (Types.NestedField field : schema.columns()) {
+        record.put(field.name(), fieldValue(field, i));
+      }
+
+      records.add(record);
+    }
+
+    write(
+        file,
+        schema,
+        properties,
         ParquetAvroWriter::buildWriter,
         records.toArray(new GenericData.Record[] {}));
 
@@ -372,11 +334,28 @@ public class TestParquet {
     try (ParquetFileReader reader = ParquetFileReader.open(ParquetIO.file(inputFile))) {
       for (BlockMetaData block : reader.getFooter().getBlocks()) {
         for (ColumnChunkMetaData column : block.getColumns()) {
-          assertThat(column.getStatistics().isEmpty())
-              .as("%s statistics are disabled", column.getPath().toDotString())
-              .isTrue();
+          String columnName = column.getPath().toDotString();
+          assertThat(expectedStatistics)
+              .as("Missing expected statistics for column %s", columnName)
+              .containsKey(columnName);
+          assertThat(!column.getStatistics().isEmpty())
+              .as("Statistics for column %s", columnName)
+              .isEqualTo(expectedStatistics.get(columnName));
         }
       }
+    }
+  }
+
+  private static Object fieldValue(Types.NestedField field, int index) {
+    switch (field.type().typeId()) {
+      case INTEGER:
+        return index;
+      case LONG:
+        return (long) index;
+      case STRING:
+        return "test";
+      default:
+        throw new UnsupportedOperationException("Unsupported type: " + field.type());
     }
   }
 
