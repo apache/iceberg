@@ -33,13 +33,9 @@ import org.mockito.Mockito;
 
 class TestTrackedFileStruct {
   private static final int FORMAT_VERSION_V4 = 4;
-  private static final Types.StructType PARTITION_TYPE =
-      Types.StructType.of(
-          Types.NestedField.optional(1000, "id_bucket", Types.IntegerType.get()),
-          Types.NestedField.optional(1001, "category", Types.StringType.get()));
 
-  private static final List<Types.NestedField> FIELDS =
-      TrackedFile.schemaWithContentStats(PARTITION_TYPE, Types.StructType.of()).fields();
+  private static final List<Types.NestedField> DEFAULT_FIELDS =
+      TrackedFile.schema(Types.StructType.of(), Types.StructType.of()).asStruct().fields();
 
   private static final Tracking TRACKING = Mockito.mock(Tracking.class);
   private static final Tracking TRACKING_COPY = Mockito.mock(Tracking.class);
@@ -73,10 +69,10 @@ class TestTrackedFileStruct {
             FORMAT_VERSION_V4,
             "s3://bucket/data/00000-0-file.parquet",
             FileFormat.PARQUET,
-            PARTITION,
             50L,
             512L,
             1,
+            PARTITION,
             CONTENT_STATS,
             5,
             DELETION_VECTOR,
@@ -150,10 +146,10 @@ class TestTrackedFileStruct {
             FORMAT_VERSION_V4,
             "s3://bucket/data/00000-0-file.parquet",
             FileFormat.PARQUET,
-            PARTITION,
             50L,
             512L,
             1,
+            PARTITION,
             CONTENT_STATS,
             5,
             DELETION_VECTOR,
@@ -191,10 +187,10 @@ class TestTrackedFileStruct {
             FORMAT_VERSION_V4,
             "s3://bucket/data/00000-0-file.parquet",
             FileFormat.PARQUET,
-            PARTITION,
             50L,
             512L,
             1,
+            PARTITION,
             CONTENT_STATS,
             5,
             DELETION_VECTOR,
@@ -240,10 +236,10 @@ class TestTrackedFileStruct {
             FORMAT_VERSION_V4,
             "s3://bucket/data/00000-0-file.parquet",
             FileFormat.PARQUET,
-            PARTITION,
             50L,
             512L,
             1,
+            PARTITION,
             stats,
             5,
             DELETION_VECTOR,
@@ -287,10 +283,10 @@ class TestTrackedFileStruct {
             FORMAT_VERSION_V4,
             "s3://bucket/data/00000-0-file.parquet",
             FileFormat.PARQUET,
-            PARTITION,
             50L,
             512L,
             1,
+            PARTITION,
             stats,
             5,
             DELETION_VECTOR,
@@ -347,7 +343,7 @@ class TestTrackedFileStruct {
   @Test
   void structLikeSize() {
     TrackedFileStruct file = new TrackedFileStruct();
-    assertThat(file.size()).isEqualTo(FIELDS.size());
+    assertThat(file.size()).isEqualTo(DEFAULT_FIELDS.size());
   }
 
   @ParameterizedTest
@@ -360,10 +356,10 @@ class TestTrackedFileStruct {
             FORMAT_VERSION_V4,
             "s3://bucket/data/file.parquet",
             FileFormat.PARQUET,
-            null, // PartitionData has its own serialization tests
             100L,
             1024L,
             7,
+            null, // PartitionData has its own serialization tests
             null,
             1,
             null, // DeletionVector has its own serialization tests
@@ -392,8 +388,8 @@ class TestTrackedFileStruct {
   }
 
   private static int pos(String fieldName) {
-    for (int i = 0; i < FIELDS.size(); i += 1) {
-      if (FIELDS.get(i).name().equals(fieldName)) {
+    for (int i = 0; i < DEFAULT_FIELDS.size(); i += 1) {
+      if (DEFAULT_FIELDS.get(i).name().equals(fieldName)) {
         return i;
       }
     }
