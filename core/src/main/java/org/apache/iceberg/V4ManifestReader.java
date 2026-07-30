@@ -72,8 +72,12 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
   }
 
   static Builder builder(
-      InputFile file, Map<Integer, PartitionSpec> specsById, String tableLocation) {
-    return new Builder(file, specsById, tableLocation);
+      InputFile file,
+      Schema tableSchema,
+      Map<Integer, PartitionSpec> specsById,
+      String tableLocation) {
+    Preconditions.checkArgument(tableSchema != null, "Invalid table schema: null");
+    return new Builder(file, tableSchema, specsById, tableLocation);
   }
 
   /** Returns copies of the tracked files that match this reader's configured filters. */
@@ -189,6 +193,7 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
 
   static class Builder {
     private final InputFile file;
+    private final Schema tableSchema;
     private final Types.StructType unionPartitionType;
     private final Map<Integer, PartitionSpec> specsById;
     private final String tableLocation;
@@ -198,13 +203,17 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
     private boolean scanPlanning = false;
     private Collection<String> columns = null;
     private Schema requestedProjection = null;
-    private Schema tableSchema = null;
     private Collection<Integer> statsFieldIds = null;
     private ScanMetrics scanMetrics = ScanMetrics.noop();
 
-    private Builder(InputFile file, Map<Integer, PartitionSpec> specsById, String tableLocation) {
+    private Builder(
+        InputFile file,
+        Schema tableSchema,
+        Map<Integer, PartitionSpec> specsById,
+        String tableLocation) {
       Preconditions.checkArgument(tableLocation != null, "Invalid table location: null");
       this.file = file;
+      this.tableSchema = tableSchema;
       this.specsById = specsById;
       this.tableLocation = LocationUtil.stripTrailingSlash(tableLocation);
       this.unionPartitionType = Partitioning.unionPartitionTypes(specsById.values());
@@ -228,7 +237,10 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
       return this;
     }
 
-    /** Configures the reader to select the minimal fields needed for scan planning. */
+    /**
+     * Configures the reader to select the minimal fields needed for scan planning. Stats are
+     * narrowed to the fields that the {@link #filter(Expression) filter} needs.
+     */
     Builder forScanPlanning() {
       Preconditions.checkState(
           columns == null && requestedProjection == null,
@@ -263,36 +275,18 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
       return this;
     }
 
-    /**
-     * Reads content stats for every field in the given table schema.
-     *
-     * <p>Stats field IDs and types are derived from the table's fields, so no stats are read unless
-     * a schema is set. {@link #forScanPlanning()} narrows this to the stats that the {@link
-     * #filter(Expression) filter} needs.
-     */
-    Builder projectStats(Schema schema) {
-      Preconditions.checkArgument(schema != null, "Invalid table schema: null");
-      this.tableSchema = schema;
-      return this;
-    }
-
     /** Reads content stats for the given table field IDs instead of for every field. */
-    Builder projectStats(Schema schema, int... fieldIds) {
+    Builder projectStats(int... fieldIds) {
       Preconditions.checkArgument(fieldIds != null, "Invalid stats field IDs: null");
-      return projectStats(schema, ArrayUtil.toIntList(fieldIds));
+      return projectStats(ArrayUtil.toIntList(fieldIds));
     }
 
     /**
-     * Reads content stats for the given table field IDs instead of for every field.
-     *
-     * <p>Stats for fields referenced by the {@link #filter(Expression) filter} are always read.
+     * Reads content stats for the given table field IDs instead of for every field. Stats for
+     * fields referenced by the {@link #filter(Expression) filter} are always read.
      */
-    Builder projectStats(Schema schema, Collection<Integer> fieldIds) {
-      Preconditions.checkArgument(schema != null, "Invalid table schema: null");
+    Builder projectStats(Collection<Integer> fieldIds) {
       Preconditions.checkArgument(fieldIds != null, "Invalid stats field IDs: null");
-      Preconditions.checkArgument(
-          !fieldIds.isEmpty(), "Invalid stats field IDs: empty, use projectStats(Schema) instead");
-      this.tableSchema = schema;
       this.statsFieldIds = fieldIds;
       return this;
     }
@@ -365,14 +359,10 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
 
     /** Returns the stats type to read, which is empty when no stats are needed. */
     private Types.StructType contentStatsType() {
-      if (tableSchema == null) {
-        return Types.StructType.of();
-      }
-
       Set<Integer> fieldIds = requiredStatsFieldIds();
       if (!scanPlanning && statsFieldIds == null) {
-        // the default read carries stats for every column so entries can be copied to a new
-        // manifest; scan planning and projectStats both narrow the set of stats that are read
+        // projecting all stats carries every column so entries can be copied to a new manifest;
+        // scan planning and projectStats(fieldIds) both narrow the set of stats that are read
         fieldIds.addAll(TypeUtil.indexById(tableSchema.asStruct()).keySet());
       }
 
@@ -382,10 +372,6 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
     /** Returns the IDs of table fields whose stats are read regardless of the projection. */
     private Set<Integer> requiredStatsFieldIds() {
       Set<Integer> fieldIds = Sets.newHashSet();
-      if (tableSchema == null) {
-        return fieldIds;
-      }
-
       if (statsFieldIds != null) {
         fieldIds.addAll(statsFieldIds);
       }
@@ -423,13 +409,11 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
 
       // stats needed by the filter or requested by projectStats are read even when the caller's
       // projection omits them
-      if (tableSchema != null) {
-        Types.StructType requiredStatsType =
-            StatsUtil.statsReadSchema(tableSchema, requiredStatsFieldIds());
-        if (!requiredStatsType.fields().isEmpty()) {
-          projectedIds.add(TrackedFile.CONTENT_STATS_ID);
-          projectedIds.addAll(TypeUtil.getProjectedIds(requiredStatsType));
-        }
+      Types.StructType requiredStatsType =
+          StatsUtil.statsReadSchema(tableSchema, requiredStatsFieldIds());
+      if (!requiredStatsType.fields().isEmpty()) {
+        projectedIds.add(TrackedFile.CONTENT_STATS_ID);
+        projectedIds.addAll(TypeUtil.getProjectedIds(requiredStatsType));
       }
 
       // project instead of select to preserve narrow struct projections from the caller
