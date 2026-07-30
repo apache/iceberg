@@ -2537,15 +2537,16 @@ components:
               items:
                 type: integer
 
-    Expression:
+    Predicate:
       oneOf:
+        - type: boolean
         - $ref: '#/components/schemas/TrueExpression'
         - $ref: '#/components/schemas/FalseExpression'
-        - $ref: '#/components/schemas/AndOrExpression'
-        - $ref: '#/components/schemas/NotExpression'
-        - $ref: '#/components/schemas/SetExpression'
-        - $ref: '#/components/schemas/LiteralExpression'
-        - $ref: '#/components/schemas/UnaryExpression'
+        - $ref: '#/components/schemas/AndOrPredicate'
+        - $ref: '#/components/schemas/NotPredicate'
+        - $ref: '#/components/schemas/UnaryPredicate'
+        - $ref: '#/components/schemas/ComparisonPredicate'
+        - $ref: '#/components/schemas/SetPredicate'
 
     ExpressionType:
       type: string
@@ -2570,7 +2571,18 @@ components:
         - "is-nan"
         - "not-nan"
 
+    ValueExpression:
+      description: >
+        A value expression: a literal, a field reference, or a function application.
+      oneOf:
+        - $ref: '#/components/schemas/Literal'
+        - $ref: '#/components/schemas/Reference'
+        - $ref: '#/components/schemas/Apply'
+
     TrueExpression:
+      deprecated: true
+      description: >
+        Deprecated. Use the bare boolean literal `true` as a predicate instead.
       type: object
       required:
         - type
@@ -2580,6 +2592,9 @@ components:
           const: "true"
 
     FalseExpression:
+      deprecated: true
+      description: >
+        Deprecated. Use the bare boolean literal `false` as a predicate instead.
       type: object
       required:
         - type
@@ -2588,7 +2603,7 @@ components:
           $ref: '#/components/schemas/ExpressionType'
           const: "false"
 
-    AndOrExpression:
+    AndOrPredicate:
       type: object
       required:
         - type
@@ -2599,11 +2614,11 @@ components:
           $ref: '#/components/schemas/ExpressionType'
           enum: ["and", "or"]
         left:
-          $ref: '#/components/schemas/Expression'
+          $ref: '#/components/schemas/Predicate'
         right:
-          $ref: '#/components/schemas/Expression'
+          $ref: '#/components/schemas/Predicate'
 
-    NotExpression:
+    NotPredicate:
       type: object
       required:
         - type
@@ -2613,63 +2628,216 @@ components:
           $ref: '#/components/schemas/ExpressionType'
           const: "not"
         child:
-          $ref: '#/components/schemas/Expression'
+          $ref: '#/components/schemas/Predicate'
 
-    UnaryExpression:
+    UnaryPredicate:
+      description: >
+        A predicate that tests a single value expression. Accepts either
+        'child' (preferred) or 'term' (deprecated) to identify the operand.
       type: object
+      additionalProperties: false
       required:
         - type
-        - term
       properties:
         type:
           $ref: '#/components/schemas/ExpressionType'
           enum: ["is-null", "not-null", "is-nan", "not-nan"]
+        child:
+          $ref: '#/components/schemas/ValueExpression'
         term:
+          deprecated: true
+          description: "Deprecated. Use 'child' instead."
           $ref: '#/components/schemas/Term'
 
-    LiteralExpression:
+    ComparisonPredicate:
+      description: >
+        A predicate that compares two value expressions. Accepts either
+        'left'/'right' (preferred) or 'term'/'value' (deprecated).
       type: object
+      additionalProperties: false
       required:
         - type
-        - term
-        - value
       properties:
         type:
           $ref: '#/components/schemas/ExpressionType'
           enum: ["lt", "lt-eq", "gt", "gt-eq", "eq", "not-eq", "starts-with", "not-starts-with"]
+        left:
+          $ref: '#/components/schemas/ValueExpression'
+        right:
+          $ref: '#/components/schemas/ValueExpression'
         term:
+          deprecated: true
+          description: "Deprecated. Use 'left' instead."
           $ref: '#/components/schemas/Term'
         value:
-          $ref: '#/components/schemas/PrimitiveTypeValue'
+          deprecated: true
+          description: "Deprecated. Use 'right' instead."
+          $ref: '#/components/schemas/Literal'
 
-    SetExpression:
+    SetPredicate:
+      description: >
+        A predicate that tests whether a value is in a set of literals. Accepts
+        either 'child' (preferred) or 'term' (deprecated) to identify the operand.
       type: object
+      additionalProperties: false
       required:
         - type
-        - term
         - values
       properties:
         type:
           $ref: '#/components/schemas/ExpressionType'
           enum: ["in", "not-in"]
+        child:
+          $ref: '#/components/schemas/ValueExpression'
         term:
+          deprecated: true
+          description: "Deprecated. Use 'child' instead."
           $ref: '#/components/schemas/Term'
         values:
-          type: array
-          items:
-            $ref: '#/components/schemas/PrimitiveTypeValue'
+          $ref: '#/components/schemas/Literals'
 
-    Term:
+    Literal:
+      description: >
+        A literal is either a bare value, an untyped literal object, or a
+        typed literal object.
       oneOf:
-        - $ref: '#/components/schemas/Reference'
-        - $ref: '#/components/schemas/TransformTerm'
+        - $ref: '#/components/schemas/PrimitiveTypeValue'
+        - type: object
+          additionalProperties: false
+          required:
+            - type
+            - value
+          properties:
+            type:
+              type: string
+              const: "literal"
+            value:
+              $ref: '#/components/schemas/PrimitiveTypeValue'
+            data-type:
+              $ref: '#/components/schemas/PrimitiveType'
+
+    Literals:
+      description: >
+        Literals is either a bare array of literals or a typed object with
+        an explicit data-type applied to all values.
+      oneOf:
+        - type: array
+          items:
+            $ref: '#/components/schemas/Literal'
+        - type: object
+          additionalProperties: false
+          required:
+            - type
+            - values
+            - data-type
+          properties:
+            type:
+              type: string
+              const: "literals"
+            values:
+              type: array
+              items:
+                $ref: '#/components/schemas/PrimitiveTypeValue'
+            data-type:
+              $ref: '#/components/schemas/PrimitiveType'
 
     Reference:
+      description: >
+        A reference to a field. Either a bound reference (by field ID) or
+        an unbound reference (by name). The context in which an expression
+        is used determines which form is valid.
+      oneOf:
+        - $ref: '#/components/schemas/IdReference'
+        - $ref: '#/components/schemas/NamedReference'
+
+    IdReference:
+      description: A bound reference to a field by field ID.
+      type: object
+      additionalProperties: false
+      required:
+        - type
+        - id
+      properties:
+        type:
+          type: string
+          const: "reference"
+        id:
+          type: integer
+
+    NamedReference:
+      description: An unbound reference to a field by name.
+      type: object
+      additionalProperties: false
+      required:
+        - type
+        - name
+      properties:
+        type:
+          type: string
+          const: "reference"
+        name:
+          type: string
+
+    Apply:
+      description: >
+        A function application on zero or more value expressions or predicates.
+      type: object
+      additionalProperties: false
+      required:
+        - type
+        - function
+        - arguments
+      properties:
+        type:
+          type: string
+          const: "apply"
+        function:
+          oneOf:
+            - type: string
+              minLength: 1
+            - $ref: '#/components/schemas/CatalogObjectIdentifier'
+            - type: object
+              additionalProperties: false
+              required:
+                - identifier
+              properties:
+                catalog:
+                  type: string
+                identifier:
+                  $ref: '#/components/schemas/CatalogObjectIdentifier'
+        arguments:
+          type: array
+          items:
+            $ref: '#/components/schemas/FunctionArgument'
+
+    FunctionArgument:
+      anyOf:
+        - $ref: '#/components/schemas/ValueExpression'
+        - $ref: '#/components/schemas/Predicate'
+
+    Term:
+      deprecated: true
+      description: >
+        Deprecated. Legacy term form used by older REST predicates.
+        Use Reference or Apply instead.
+      oneOf:
+        - $ref: '#/components/schemas/TermReference'
+        - $ref: '#/components/schemas/TransformTerm'
+
+    TermReference:
+      deprecated: true
+      description: >
+        Deprecated string-form field reference used in older REST predicates.
+        Use Reference (IdReference or NamedReference) instead.
       type: string
       example:
         - "column-name"
 
     TransformTerm:
+      deprecated: true
+      description: >
+        Deprecated. Legacy transform-applied-to-a-term form.
+        Use Apply with a Reference argument instead.
       type: object
       required:
         - type
@@ -2682,7 +2850,7 @@ components:
         transform:
           $ref: '#/components/schemas/Transform'
         term:
-          $ref: '#/components/schemas/Reference'
+          $ref: '#/components/schemas/TermReference'
 
     Transform:
       type: string
@@ -3722,9 +3890,16 @@ components:
 
         ## Remote Signing
 
-        If remote signing for a specific storage provider is enabled, clients must respect the following configurations when creating a remote signer client:
-         - `signer.endpoint`: the remote signer endpoint. Required. Can either be a relative path (to be resolved against `signer.uri`) or an absolute URI.
-         - `signer.uri`: the base URI to resolve `signer.endpoint` against. Optional. Only meaningful if `signer.endpoint` is a relative path. Defaults to the catalog's base URI if not set.
+        If remote signing for a specific storage provider is enabled, the server SHOULD use the `remote-signing-config`
+        field to communicate all signer client settings. When the `remote-signing-config` field is present, clients
+        SHOULD respect the provided configuration.
+
+        For backward compatibility, the following `config` properties are still supported but **DEPRECATED** and SHOULD NOT be used by clients able to consume the remote signing configuration:
+         - `signer.endpoint` **DEPRECATED**.: the remote signer endpoint. Can either be a relative path (to be resolved against `signer.uri`) or an absolute URI.
+         - `signer.uri` **DEPRECATED**.: the base URI to resolve `signer.endpoint` against. Only meaningful if `signer.endpoint` is a relative path. Defaults to the catalog's base URI if not set.
+        If any of these properties is present, clients SHOULD use them to compute the actual remote signing endpoint URI to contact.
+        If none of these properties is present, clients SHOULD contact the default remote signing endpoint using the catalog's base URI.
+
       type: object
       required:
         - metadata
@@ -3743,6 +3918,8 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/StorageCredential'
+        remote-signing-config:
+          $ref: '#/components/schemas/RemoteSigningConfig'
 
     ScanTasks:
       type: object
@@ -4260,7 +4437,7 @@ components:
           type: integer
           format: int64
         filter:
-          $ref: '#/components/schemas/Expression'
+          $ref: '#/components/schemas/Predicate'
         schema-id:
           type: integer
         projected-field-ids:
@@ -4529,6 +4706,9 @@ components:
         definition-id:
           type: string
           description: A canonical string derived from the parameter types, formatted as a comma-separated list with no spaces.
+        specific-name:
+          type: string
+          description: A user-assignable name for this definition that must be unique among all definitions within the UDF metadata.
         parameters:
           type: array
           description: Ordered list of function parameters. Invocation order must match this list.
@@ -5143,8 +5323,8 @@ components:
             $ref: '#/components/schemas/FieldName'
         filter:
           description:
-            Expression used to filter the table data
-          $ref: '#/components/schemas/Expression'
+            Predicate used to filter the table data
+          $ref: '#/components/schemas/Predicate'
         min-rows-requested:
           description:
             The minimum number of rows requested for the scan. This is used as a hint
@@ -5234,7 +5414,7 @@ components:
             If the residual is not present, the client must produce the
             residual or use the original filter.
           allOf:
-            - $ref: '#/components/schemas/Expression'
+            - $ref: '#/components/schemas/Predicate'
 
     MultiValuedMap:
       description: A map of string keys where each key can map to multiple string values.
@@ -5288,6 +5468,24 @@ components:
           type: string
         headers:
           $ref: '#/components/schemas/MultiValuedMap'
+
+    RemoteSigningConfig:
+      description: Configuration for the remote signer client.
+      type: object
+      properties:
+        properties:
+          type: object
+          additionalProperties:
+            type: string
+          description: >
+            Static key-value pairs the signer client MUST pass through unchanged in the `properties`
+            field of every `RemoteSignRequest` sent to the signing endpoint.
+        headers:
+          allOf:
+            - $ref: '#/components/schemas/MultiValuedMap'
+          description: >
+            Static headers the signer client MUST include unchanged in every request to the signing
+            endpoint.
 
   #############################
   # Reusable Response Objects #

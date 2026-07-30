@@ -390,9 +390,12 @@ public class SnapshotUtil {
 
   public static Long nullableSnapshotIdAsOfTime(Table table, long timestampMillis) {
     Long snapshotId = null;
+    long bestTimestamp = Long.MIN_VALUE;
     for (HistoryEntry logEntry : table.history()) {
-      if (logEntry.timestampMillis() <= timestampMillis) {
+      if (logEntry.timestampMillis() <= timestampMillis
+          && logEntry.timestampMillis() > bestTimestamp) {
         snapshotId = logEntry.snapshotId();
+        bestTimestamp = logEntry.timestampMillis();
       }
     }
 

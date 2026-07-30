@@ -30,7 +30,8 @@ import org.apache.iceberg.util.ByteBuffers;
 
 /** Mutable {@link StructLike} implementation of {@link Tracking}. */
 class TrackingStruct extends SupportsIndexProjection implements Tracking, Serializable {
-  private static final Types.StructType BASE_TYPE =
+  // Package-private only for read projection.
+  static final Types.StructType BASE_TYPE =
       Types.StructType.of(
           Tracking.STATUS,
           Tracking.SNAPSHOT_ID,
@@ -40,6 +41,17 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking, Serial
           Tracking.FIRST_ROW_ID,
           Tracking.DELETED_POSITIONS,
           Tracking.REPLACED_POSITIONS,
+          MetadataColumns.ROW_POSITION);
+
+  // tracking fields read on the scan path; row_position backs manifestPos.
+  // Package-private only for read projection.
+  static final Types.StructType SCAN_TYPE =
+      Types.StructType.of(
+          Tracking.STATUS,
+          Tracking.SNAPSHOT_ID,
+          Tracking.SEQUENCE_NUMBER,
+          Tracking.FILE_SEQUENCE_NUMBER,
+          Tracking.FIRST_ROW_ID,
           MetadataColumns.ROW_POSITION);
 
   private EntryStatus status = null;

@@ -82,7 +82,7 @@ class TestTrackedFileAdapters {
   }
 
   @Test
-  void testDataFileAdapterDelegation() {
+  void dataFileAdapterDelegation() {
     TrackingStruct tracking =
         new TrackingStruct(
             EntryStatus.ADDED,
@@ -103,10 +103,10 @@ class TestTrackedFileAdapters {
             FORMAT_VERSION_V4,
             DATA_FILE_LOCATION,
             FileFormat.PARQUET,
-            PARTITION,
             100L,
             1024L,
             PARTITIONED_SPEC_ID,
+            PARTITION,
             CONTENT_STATS,
             3,
             null,
@@ -149,7 +149,7 @@ class TestTrackedFileAdapters {
 
   @ParameterizedTest
   @EnumSource(value = FileContent.class, mode = EnumSource.Mode.EXCLUDE, names = "DATA")
-  void testDataFileAdapterRejectsNonDataContent(FileContent contentType) {
+  void dataFileAdapterRejectsNonDataContent(FileContent contentType) {
     TrackedFileStruct file = dummyTrackedFile(contentType);
 
     assertThatThrownBy(() -> TrackedFileAdapters.asDataFile(file, UNPARTITIONED))
@@ -158,7 +158,7 @@ class TestTrackedFileAdapters {
   }
 
   @Test
-  void testEqualityDeleteFileAdapterDelegation() {
+  void equalityDeleteFileAdapterDelegation() {
     TrackingStruct tracking =
         new TrackingStruct(
             EntryStatus.ADDED,
@@ -179,10 +179,10 @@ class TestTrackedFileAdapters {
             FORMAT_VERSION_V4,
             "s3://bucket/eq-delete.avro",
             FileFormat.AVRO,
-            PARTITION,
             50L,
             512L,
             PARTITIONED_SPEC_ID,
+            PARTITION,
             CONTENT_STATS,
             5,
             null,
@@ -226,7 +226,7 @@ class TestTrackedFileAdapters {
 
   @ParameterizedTest
   @EnumSource(value = FileContent.class, mode = EnumSource.Mode.EXCLUDE, names = "EQUALITY_DELETES")
-  void testEqualityDeleteFileAdapterRejectsNonEqualityContent(FileContent contentType) {
+  void equalityDeleteFileAdapterRejectsNonEqualityContent(FileContent contentType) {
     TrackedFileStruct file = dummyTrackedFile(contentType);
 
     assertThatThrownBy(() -> TrackedFileAdapters.asEqualityDeleteFile(file, UNPARTITIONED))
@@ -235,7 +235,7 @@ class TestTrackedFileAdapters {
   }
 
   @Test
-  void testDVDeleteFileAdapterDelegation() {
+  void dvDeleteFileAdapterDelegation() {
     DeletionVector dv =
         DeletionVectorStruct.builder()
             .location(DV_LOCATION)
@@ -264,10 +264,10 @@ class TestTrackedFileAdapters {
             FORMAT_VERSION_V4,
             DATA_FILE_LOCATION,
             FileFormat.PARQUET,
-            PARTITION,
             100L,
             1024L,
             PARTITIONED_SPEC_ID,
+            PARTITION,
             null,
             null,
             dv,
@@ -314,7 +314,7 @@ class TestTrackedFileAdapters {
 
   @ParameterizedTest
   @EnumSource(value = FileContent.class, mode = EnumSource.Mode.EXCLUDE, names = "DATA")
-  void testDVDeleteFileAdapterRejectsNonDataContent(FileContent contentType) {
+  void dvDeleteFileAdapterRejectsNonDataContent(FileContent contentType) {
     TrackedFileStruct file = dummyTrackedFile(contentType);
 
     assertThatThrownBy(() -> TrackedFileAdapters.asDVDeleteFile(file, UNPARTITIONED))
@@ -323,7 +323,7 @@ class TestTrackedFileAdapters {
   }
 
   @Test
-  void testDVDeleteFileAdapterRejectsNullDeletionVector() {
+  void dvDeleteFileAdapterRejectsNullDeletionVector() {
     TrackedFileStruct file = dummyTrackedFile(FileContent.DATA);
 
     assertThatThrownBy(() -> TrackedFileAdapters.asDVDeleteFile(file, UNPARTITIONED))
@@ -332,7 +332,7 @@ class TestTrackedFileAdapters {
   }
 
   @Test
-  void testNullContentStatsReturnsNullStats() {
+  void nullContentStatsReturnsNullStats() {
     TrackedFileStruct file = dummyTrackedFile(FileContent.DATA);
 
     DataFile dataFile = TrackedFileAdapters.asDataFile(file, UNPARTITIONED);
@@ -345,7 +345,7 @@ class TestTrackedFileAdapters {
   }
 
   @Test
-  void testNullTrackingReturnsNullTrackingFields() {
+  void nullTrackingReturnsNullTrackingFields() {
     // Files read before manifest inheritance have no tracking; tracking-derived fields must be
     // null rather than throwing.
     assertNullTrackingFields(
@@ -361,9 +361,9 @@ class TestTrackedFileAdapters {
             0,
             null,
             null,
+            0L,
+            0L,
             null,
-            0L,
-            0L,
             null,
             null,
             null,
@@ -376,7 +376,7 @@ class TestTrackedFileAdapters {
   }
 
   @Test
-  void testUnpartitionedFilePartitionIsEmpty() {
+  void unpartitionedFilePartitionIsEmpty() {
     TrackedFileStruct file = dummyTrackedFile(FileContent.DATA);
 
     DataFile dataFile = TrackedFileAdapters.asDataFile(file, UNPARTITIONED);
@@ -386,7 +386,7 @@ class TestTrackedFileAdapters {
   }
 
   @Test
-  void testNullSpecIdResolvesToUnpartitionedSpec() {
+  void nullSpecIdResolvesToUnpartitionedSpec() {
     PartitionSpec unpartitioned = PartitionSpec.builderFor(new Schema()).withSpecId(5).build();
     TrackedFileStruct file = dummyTrackedFile(FileContent.DATA);
 
@@ -396,7 +396,7 @@ class TestTrackedFileAdapters {
   }
 
   @Test
-  void testNullSpecIdThrowsWhenNoUnpartitionedSpec() {
+  void nullSpecIdThrowsWhenNoUnpartitionedSpec() {
     Schema schema = new Schema(Types.NestedField.required(1, "id", Types.IntegerType.get()));
     PartitionSpec partitioned = PartitionSpec.builderFor(schema).identity("id").build();
     TrackedFileStruct file = dummyTrackedFile(FileContent.DATA);
@@ -407,7 +407,7 @@ class TestTrackedFileAdapters {
   }
 
   @Test
-  void testUnknownSpecIdThrows() {
+  void unknownSpecIdThrows() {
     TrackedFileStruct file =
         new TrackedFileStruct(
             null,
@@ -415,10 +415,10 @@ class TestTrackedFileAdapters {
             0,
             null,
             null,
-            null,
             0L,
             0L,
             99,
+            null,
             null,
             null,
             null,
@@ -433,7 +433,7 @@ class TestTrackedFileAdapters {
   }
 
   @Test
-  void testSpecIdMismatchThrows() {
+  void specIdMismatchThrows() {
     TrackedFileStruct file =
         new TrackedFileStruct(
             null,
@@ -441,10 +441,10 @@ class TestTrackedFileAdapters {
             0,
             null,
             null,
-            null,
             0L,
             0L,
             PARTITIONED_SPEC_ID,
+            null,
             null,
             null,
             null,
@@ -496,9 +496,9 @@ class TestTrackedFileAdapters {
         FORMAT_VERSION_V4,
         DATA_FILE_LOCATION,
         FileFormat.PARQUET,
+        1L,
+        1L,
         null,
-        1L,
-        1L,
         null,
         null,
         null,

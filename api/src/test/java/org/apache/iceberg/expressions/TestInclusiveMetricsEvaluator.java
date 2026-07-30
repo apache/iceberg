@@ -1022,7 +1022,7 @@ public class TestInclusiveMetricsEvaluator {
             10,
             ImmutableMap.of(3, 10L),
             ImmutableMap.of(3, 0L),
-            ImmutableMap.of(3, 0L),
+            null,
             ImmutableMap.of(3, toByteBuffer(StringType.get(), "aaa")),
             ImmutableMap.of(3, toByteBuffer(StringType.get(), "zzz")));
 
@@ -1060,14 +1060,14 @@ public class TestInclusiveMetricsEvaluator {
             "single_value_nulls.avro",
             Row.of(),
             10,
-            ImmutableMap.of(3, 10L),
-            ImmutableMap.of(3, 2L),
+            ImmutableMap.of(14, 10L),
+            ImmutableMap.of(14, 2L),
             null,
-            ImmutableMap.of(3, toByteBuffer(StringType.get(), "abc")),
-            ImmutableMap.of(3, toByteBuffer(StringType.get(), "abc")));
+            ImmutableMap.of(14, toByteBuffer(StringType.get(), "abc")),
+            ImmutableMap.of(14, toByteBuffer(StringType.get(), "abc")));
 
     shouldRead =
-        new InclusiveMetricsEvaluator(SCHEMA, notEqual("required", "abc"))
+        new InclusiveMetricsEvaluator(SCHEMA, notEqual("some_empty", "abc"))
             .eval(singleValueWithNulls);
     assertThat(shouldRead).as("Should read: file has nulls which match != predicate").isTrue();
 
@@ -1111,7 +1111,7 @@ public class TestInclusiveMetricsEvaluator {
             10,
             ImmutableMap.of(3, 10L),
             ImmutableMap.of(3, 0L),
-            ImmutableMap.of(3, 0L),
+            null,
             ImmutableMap.of(3, toByteBuffer(StringType.get(), "aaa")),
             ImmutableMap.of(3, toByteBuffer(StringType.get(), "zzz")));
 
@@ -1128,7 +1128,7 @@ public class TestInclusiveMetricsEvaluator {
             10,
             ImmutableMap.of(3, 10L),
             ImmutableMap.of(3, 0L),
-            ImmutableMap.of(3, 0L),
+            null,
             ImmutableMap.of(3, toByteBuffer(StringType.get(), "abc")),
             ImmutableMap.of(3, toByteBuffer(StringType.get(), "abc")));
 
@@ -1151,14 +1151,14 @@ public class TestInclusiveMetricsEvaluator {
             "single_value_nulls.avro",
             Row.of(),
             10,
-            ImmutableMap.of(3, 10L),
-            ImmutableMap.of(3, 2L),
-            ImmutableMap.of(3, 0L),
-            ImmutableMap.of(3, toByteBuffer(StringType.get(), "abc")),
-            ImmutableMap.of(3, toByteBuffer(StringType.get(), "abc")));
+            ImmutableMap.of(14, 10L),
+            ImmutableMap.of(14, 2L),
+            null,
+            ImmutableMap.of(14, toByteBuffer(StringType.get(), "abc")),
+            ImmutableMap.of(14, toByteBuffer(StringType.get(), "abc")));
 
     shouldRead =
-        new InclusiveMetricsEvaluator(SCHEMA, notIn("required", "abc", "def"))
+        new InclusiveMetricsEvaluator(SCHEMA, notIn("some_empty", "abc", "def"))
             .eval(singleValueWithNulls);
     assertThat(shouldRead).as("Should read: file has nulls which match NOT IN predicate").isTrue();
 

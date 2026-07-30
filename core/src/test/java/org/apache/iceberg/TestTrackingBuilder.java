@@ -32,7 +32,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 class TestTrackingBuilder {
 
   @Test
-  void testAddedWithSameCommitDvStaysAdded() {
+  void addedWithSameCommitDvStaysAdded() {
     Tracking tracking = TrackingBuilder.added(42L).dvUpdated().build();
 
     assertThat(tracking.status()).isEqualTo(EntryStatus.ADDED);
@@ -47,7 +47,7 @@ class TestTrackingBuilder {
   }
 
   @Test
-  void testExistingBuilderPreservesSourceFields() {
+  void existingBuilderPreservesSourceFields() {
     Tracking source = sourceTracking();
 
     Tracking existing = TrackingBuilder.from(source, 1L).build();
@@ -61,7 +61,7 @@ class TestTrackingBuilder {
   }
 
   @Test
-  void testDeleteUpdatesSnapshotIdAndPreservesRest() {
+  void deleteUpdatesSnapshotIdAndPreservesRest() {
     Tracking source = sourceTracking();
 
     Tracking deleted = TrackingBuilder.deleted(source, 999L);
@@ -75,7 +75,7 @@ class TestTrackingBuilder {
   }
 
   @Test
-  void testReplaceUpdatesSnapshotIdAndPreservesRest() {
+  void replaceUpdatesSnapshotIdAndPreservesRest() {
     Tracking source = sourceTracking();
 
     Tracking replaced = TrackingBuilder.replaced(source, 999L);
@@ -89,7 +89,7 @@ class TestTrackingBuilder {
   }
 
   @Test
-  void testSourceDvPositionsAreNotCarriedForward() {
+  void sourceDvPositionsAreNotCarriedForward() {
     Tracking source =
         new TrackingStruct(
             EntryStatus.ADDED, 42L, 10L, 10L, 43L, 1000L, new byte[] {1, 2}, new byte[] {3, 4});
@@ -108,7 +108,7 @@ class TestTrackingBuilder {
   }
 
   @Test
-  void testDvUpdatedProducesModifiedAndAdvancesDvSnapshotId() {
+  void dvUpdatedProducesModifiedAndAdvancesDvSnapshotId() {
     Tracking source = sourceTracking();
     Tracking modified = TrackingBuilder.from(source, 999L).dvUpdated().build();
 
@@ -120,7 +120,7 @@ class TestTrackingBuilder {
   }
 
   @Test
-  void testManifestDVMutatorsRejectedOnAdded() {
+  void manifestDVMutatorsRejectedOnAdded() {
     assertThatThrownBy(
             () -> TrackingBuilder.added(42L).deletedPositions(ByteBuffer.wrap(new byte[] {1})))
         .isInstanceOf(IllegalStateException.class)
@@ -133,7 +133,7 @@ class TestTrackingBuilder {
   }
 
   @Test
-  void testDvUpdatedRejectedWhenManifestPositionsSet() {
+  void dvUpdatedRejectedWhenManifestPositionsSet() {
     assertThatThrownBy(
             () ->
                 TrackingBuilder.from(manifestSourceTracking(), 999L)
@@ -154,14 +154,14 @@ class TestTrackingBuilder {
   }
 
   @Test
-  void testBuilderRejectsNullSource() {
+  void builderRejectsNullSource() {
     assertThatThrownBy(() -> TrackingBuilder.from(null, 1L))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid source tracking: null");
   }
 
   @Test
-  void testSourceBuildersRejectSourceWithoutSequenceNumbers() {
+  void sourceBuildersRejectSourceWithoutSequenceNumbers() {
     Tracking missingBoth = TrackingBuilder.added(42L).build();
 
     assertThatThrownBy(() -> TrackingBuilder.from(missingBoth, 1L))
@@ -207,7 +207,7 @@ class TestTrackingBuilder {
 
   @ParameterizedTest
   @MethodSource("terminalTransitionCases")
-  void testRejectsTransitionsFromTerminalStatus(
+  void rejectsTransitionsFromTerminalStatus(
       EntryStatus sourceStatus, Consumer<Tracking> factoryCall) {
     Tracking source = sourceTrackingWithStatus(sourceStatus);
     assertThatThrownBy(() -> factoryCall.accept(source))
@@ -216,7 +216,7 @@ class TestTrackingBuilder {
   }
 
   @Test
-  void testExistingToExistingIsAllowed() {
+  void existingToExistingIsAllowed() {
     Tracking existingSource = sourceTrackingWithStatus(EntryStatus.EXISTING);
 
     Tracking existing = TrackingBuilder.from(existingSource, 1L).build();
@@ -226,7 +226,7 @@ class TestTrackingBuilder {
   }
 
   @Test
-  void testExistingToTerminalTransitions() {
+  void existingToTerminalTransitions() {
     Tracking existingSource = sourceTrackingWithStatus(EntryStatus.EXISTING);
 
     Tracking deleted = TrackingBuilder.deleted(existingSource, 999L);
@@ -239,7 +239,7 @@ class TestTrackingBuilder {
   }
 
   @Test
-  void testExistingPreservesSourceSnapshotId() {
+  void existingPreservesSourceSnapshotId() {
     Tracking source = sourceTracking();
     Tracking existing = TrackingBuilder.from(source, 999L).build();
     assertThat(existing.status()).isEqualTo(EntryStatus.EXISTING);
@@ -247,7 +247,7 @@ class TestTrackingBuilder {
   }
 
   @Test
-  void testCarryForwardFromModifiedSourceChangesToExisting() {
+  void carryForwardFromModifiedSourceChangesToExisting() {
     Tracking modifiedSource = sourceTrackingWithStatus(EntryStatus.MODIFIED);
     Tracking carried = TrackingBuilder.from(modifiedSource, 999L).build();
     assertThat(carried.status()).isEqualTo(EntryStatus.EXISTING);
@@ -259,7 +259,7 @@ class TestTrackingBuilder {
   }
 
   @Test
-  void testManifestDVPositionsProduceModified() {
+  void manifestDVPositionsProduceModified() {
     ByteBuffer deletedBytes = ByteBuffer.wrap(new byte[] {1, 2});
 
     Tracking addedSource = manifestSourceTracking();
