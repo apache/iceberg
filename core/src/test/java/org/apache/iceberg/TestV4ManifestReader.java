@@ -48,6 +48,7 @@ import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.LocationUtil;
 import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -108,17 +109,16 @@ class TestV4ManifestReader {
           null,
           null);
 
-  // shared data files: FILE_A is in partition id=1, FILE_B in partition id=2
-  private static final TrackedFile FILE_A = dataFile("s3://bucket/data-a.parquet", partition(1));
-  private static final TrackedFile FILE_B = dataFile("s3://bucket/data-b.parquet", partition(2));
-  private static final TrackedFile EQ_DELETES_A =
-      deleteFile("s3://bucket/eq-deletes-a.parquet", partition(1));
-  private static final TrackedFile EQ_DELETES_B =
-      deleteFile("s3://bucket/eq-deletes-b.parquet", partition(2));
+  // shared data files: FILE_A is in partition id=1, FILE_B in partition id=2. Locations are stored
+  // relative to the table location (the default), so the reader resolves them against the table
+  private static final TrackedFile FILE_A = dataFile("data-a.parquet", partition(1));
+  private static final TrackedFile FILE_B = dataFile("data-b.parquet", partition(2));
+  private static final TrackedFile EQ_DELETES_A = deleteFile("eq-deletes-a.parquet", partition(1));
+  private static final TrackedFile EQ_DELETES_B = deleteFile("eq-deletes-b.parquet", partition(2));
   private static final TrackedFile DATA_MANIFEST_REF =
-      manifestRef(FileContent.DATA_MANIFEST, "s3://bucket/data-leaf.parquet");
+      manifestRef(FileContent.DATA_MANIFEST, "data-leaf.parquet");
   private static final TrackedFile DELETE_MANIFEST_REF =
-      manifestRef(FileContent.DELETE_MANIFEST, "s3://bucket/delete-leaf.parquet");
+      manifestRef(FileContent.DELETE_MANIFEST, "delete-leaf.parquet");
 
   @TempDir private Path tempDir;
 
@@ -480,7 +480,7 @@ class TestV4ManifestReader {
             .filter(Expressions.equal("id", 1))
             .build()) {
       TrackedFile actual = Iterables.getOnlyElement(reader);
-      assertThat(actual.location()).isEqualTo(FILE_A.location());
+      assertThat(actual.location()).isEqualTo(resolved(FILE_A));
       assertThat(actual.specId()).isEqualTo(ID_PARTITIONING.specId());
       assertThat(actual.partition().get(0, Integer.class)).isEqualTo(1);
     }
@@ -499,7 +499,7 @@ class TestV4ManifestReader {
             .filter(Expressions.equal("id", 1))
             .build()) {
       TrackedFile actual = Iterables.getOnlyElement(reader);
-      assertThat(actual.location()).isEqualTo(FILE_A.location());
+      assertThat(actual.location()).isEqualTo(resolved(FILE_A));
       assertThat(actual.specId()).isEqualTo(ID_PARTITIONING.specId());
       assertThat(actual.partition().get(0, Integer.class)).isEqualTo(1);
     }
@@ -543,10 +543,10 @@ class TestV4ManifestReader {
       assertThat(reader)
           .extracting(TrackedFile::location)
           .containsExactlyInAnyOrder(
-              FILE_A.location(),
-              EQ_DELETES_A.location(),
-              DATA_MANIFEST_REF.location(),
-              DELETE_MANIFEST_REF.location());
+              resolved(FILE_A),
+              resolved(EQ_DELETES_A),
+              resolved(DATA_MANIFEST_REF),
+              resolved(DELETE_MANIFEST_REF));
     }
 
     assertThat(metrics.skippedDataFiles().value())
@@ -598,7 +598,7 @@ class TestV4ManifestReader {
             .filter(Expressions.equal("ID", 1))
             .caseSensitive(false)
             .build()) {
-      assertThat(reader).extracting(TrackedFile::location).containsExactly(FILE_A.location());
+      assertThat(reader).extracting(TrackedFile::location).containsExactly(resolved(FILE_A));
     }
 
     // the same filter is case-sensitive by default, so "ID" fails to bind to the "id" field
@@ -629,14 +629,11 @@ class TestV4ManifestReader {
     Types.StructType unionType = Partitioning.unionPartitionTypes(specsById.values());
 
     TrackedFile keepById =
-        dataFile(
-            "s3://bucket/spec0-id1.parquet", spec0.specId(), unionPartition(unionType, 1, null));
+        dataFile("spec0-id1.parquet", spec0.specId(), unionPartition(unionType, 1, null));
     TrackedFile prunedById =
-        dataFile(
-            "s3://bucket/spec0-id2.parquet", spec0.specId(), unionPartition(unionType, 2, null));
+        dataFile("spec0-id2.parquet", spec0.specId(), unionPartition(unionType, 2, null));
     TrackedFile keptOtherSpec =
-        dataFile(
-            "s3://bucket/spec1-data.parquet", spec1.specId(), unionPartition(unionType, null, "x"));
+        dataFile("spec1-data.parquet", spec1.specId(), unionPartition(unionType, null, "x"));
 
     InputFile manifest =
         writeManifest(format, unionType, ImmutableList.of(keepById, prunedById, keptOtherSpec));
@@ -648,7 +645,7 @@ class TestV4ManifestReader {
       // spec0 entries are pruned by id; the spec1 entry is not partitioned by id so it survives
       assertThat(reader)
           .extracting(TrackedFile::location)
-          .containsExactlyInAnyOrder(keepById.location(), keptOtherSpec.location());
+          .containsExactlyInAnyOrder(resolved(keepById), resolved(keptOtherSpec));
     }
   }
 
@@ -657,8 +654,8 @@ class TestV4ManifestReader {
   public void partialFilterStillPrunesOnCompatibleField(FileFormat format) throws IOException {
     // the spec partitions on id only; a filter of id = 1 AND data = 'z' should still prune by id
     // even though data is not a partition source
-    TrackedFile keep = dataFile("s3://bucket/id1.parquet", partition(1));
-    TrackedFile prune = dataFile("s3://bucket/id2.parquet", partition(2));
+    TrackedFile keep = dataFile("id1.parquet", partition(1));
+    TrackedFile prune = dataFile("id2.parquet", partition(2));
 
     InputFile manifest = writeManifest(format, ID_PARTITION_TYPE, ImmutableList.of(keep, prune));
 
@@ -669,7 +666,7 @@ class TestV4ManifestReader {
       assertThat(reader)
           .extracting(TrackedFile::location)
           .as("the id predicate prunes even though data is not a partition field")
-          .containsExactly(keep.location());
+          .containsExactly(resolved(keep));
     }
   }
 
@@ -677,7 +674,7 @@ class TestV4ManifestReader {
   @FieldSource("MANIFEST_FORMATS")
   public void partitionFilterKeepsFileWithUnknownSpec(FileFormat format) throws IOException {
     // spec ID 5 is not in ID_PARTITIONING_SPECS, so no partition filter applies to this file
-    TrackedFile file = dataFile("s3://bucket/orphan.parquet", 5, partition(1));
+    TrackedFile file = dataFile("orphan.parquet", 5, partition(1));
 
     InputFile manifest = writeManifest(format, ID_PARTITION_TYPE, ImmutableList.of(file));
 
@@ -686,14 +683,14 @@ class TestV4ManifestReader {
         V4ManifestReader.builder(manifest, ID_PARTITIONING_SPECS, TABLE_LOCATION)
             .filter(Expressions.equal("id", 2))
             .build()) {
-      assertThat(reader).extracting(TrackedFile::location).containsExactly(file.location());
+      assertThat(reader).extracting(TrackedFile::location).containsExactly(resolved(file));
     }
   }
 
   @ParameterizedTest
   @FieldSource("MANIFEST_FORMATS")
   public void partitionFilterKeepsFileWithNullSpecId(FileFormat format) throws IOException {
-    TrackedFile file = dataFile("s3://bucket/no-spec.parquet", (Integer) null, null);
+    TrackedFile file = dataFile("no-spec.parquet", (Integer) null, null);
 
     InputFile manifest = writeManifest(format, ID_PARTITION_TYPE, ImmutableList.of(file));
 
@@ -701,7 +698,7 @@ class TestV4ManifestReader {
         V4ManifestReader.builder(manifest, ID_PARTITIONING_SPECS, TABLE_LOCATION)
             .filter(Expressions.equal("id", 2))
             .build()) {
-      assertThat(reader).extracting(TrackedFile::location).containsExactly(file.location());
+      assertThat(reader).extracting(TrackedFile::location).containsExactly(resolved(file));
     }
   }
 
@@ -746,28 +743,29 @@ class TestV4ManifestReader {
   @FieldSource("MANIFEST_FORMATS")
   public void resolvesRelativeDataFileLocation(FileFormat format) throws IOException {
     TrackedFile file = dataFile("data/00000-0.parquet", EMPTY_PARTITION_DATA);
-
-    InputFile manifest = writeManifest(format, EMPTY_PARTITION, ImmutableList.of(file));
-
-    try (V4ManifestReader reader =
-        V4ManifestReader.builder(manifest, UNPARTITIONED_SPECS, TABLE_LOCATION).build()) {
-      TrackedFile actual = Iterables.getOnlyElement(reader);
-      assertThat(actual.location()).isEqualTo(TABLE_LOCATION + "/data/00000-0.parquet");
-    }
+    verifyLocation(format, file, TABLE_LOCATION + "/data/00000-0.parquet");
   }
 
   @ParameterizedTest
   @FieldSource("MANIFEST_FORMATS")
   public void absoluteDataFileLocationIsUnchanged(FileFormat format) throws IOException {
     TrackedFile file = dataFile("hdfs://wh/db/table/data/00000-0.parquet", EMPTY_PARTITION_DATA);
+    verifyLocation(format, file, "hdfs://wh/db/table/data/00000-0.parquet");
+  }
 
-    InputFile manifest = writeManifest(format, EMPTY_PARTITION, ImmutableList.of(file));
-
-    try (V4ManifestReader reader =
-        V4ManifestReader.builder(manifest, UNPARTITIONED_SPECS, TABLE_LOCATION).build()) {
-      TrackedFile actual = Iterables.getOnlyElement(reader);
-      assertThat(actual.location()).isEqualTo("hdfs://wh/db/table/data/00000-0.parquet");
-    }
+  @ParameterizedTest
+  @FieldSource("MANIFEST_FORMATS")
+  public void preservesNonStandardDataFileLocation(FileFormat format) throws IOException {
+    // a leading / or // has no URI scheme, so it is treated as relative and joined to the table
+    // location; the reader does not special-case authority-style or root-absolute paths
+    verifyLocation(
+        format,
+        dataFile("/data/00000-0.parquet", EMPTY_PARTITION_DATA),
+        TABLE_LOCATION + "//data/00000-0.parquet");
+    verifyLocation(
+        format,
+        dataFile("//data/00000-0.parquet", EMPTY_PARTITION_DATA),
+        TABLE_LOCATION + "///data/00000-0.parquet");
   }
 
   @ParameterizedTest
@@ -789,14 +787,7 @@ class TestV4ManifestReader {
   @FieldSource("MANIFEST_FORMATS")
   public void resolvesLeafManifestLocation(FileFormat format) throws IOException {
     TrackedFile leaf = manifestRef(FileContent.DATA_MANIFEST, "metadata/leaf.avro");
-
-    InputFile manifest = writeManifest(format, EMPTY_PARTITION, ImmutableList.of(leaf));
-
-    try (V4ManifestReader reader =
-        V4ManifestReader.builder(manifest, UNPARTITIONED_SPECS, TABLE_LOCATION).build()) {
-      TrackedFile actual = Iterables.getOnlyElement(reader);
-      assertThat(actual.location()).isEqualTo(TABLE_LOCATION + "/metadata/leaf.avro");
-    }
+    verifyLocation(format, leaf, TABLE_LOCATION + "/metadata/leaf.avro");
   }
 
   @ParameterizedTest
@@ -885,6 +876,23 @@ class TestV4ManifestReader {
     assertThatThrownBy(() -> V4ManifestReader.builder(manifest, UNPARTITIONED_SPECS, null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid table location: null");
+  }
+
+  // the location a relative fixture resolves to once read against TABLE_LOCATION
+  private static String resolved(TrackedFile file) {
+    return LocationUtil.resolveLocation(TABLE_LOCATION, file.location());
+  }
+
+  // writes a single tracked file, reads it back against TABLE_LOCATION, and checks its location
+  private void verifyLocation(FileFormat format, TrackedFile file, String expectedLocation)
+      throws IOException {
+    InputFile manifest = writeManifest(format, EMPTY_PARTITION, ImmutableList.of(file));
+
+    try (V4ManifestReader reader =
+        V4ManifestReader.builder(manifest, UNPARTITIONED_SPECS, TABLE_LOCATION).build()) {
+      TrackedFile actual = Iterables.getOnlyElement(reader);
+      assertThat(actual.location()).isEqualTo(expectedLocation);
+    }
   }
 
   private static DeletionVector dv(String location) {
