@@ -508,6 +508,25 @@ public class TestVariantShreddingAnalyzer {
   }
 
   @Test
+  public void testDecimalWideningAdmitsField() {
+    VariantMetadata meta = Variants.metadata("n");
+    ShreddedObject row1 = Variants.object(meta);
+    row1.put("n", Variants.of(new BigDecimal("1.5")));
+    ShreddedObject row2 = Variants.object(meta);
+    row2.put("n", Variants.of(new BigDecimal("9876543210.123")));
+
+    DirectAnalyzer analyzer = new DirectAnalyzer();
+    Type schema = analyzer.analyzeAndCreateSchema(List.of(row1, row2), 0);
+
+    assertThat(schema).isNotNull().isInstanceOf(GroupType.class);
+    GroupType typedValue = (GroupType) schema;
+    assertThat(typedValue.containsField("n")).isTrue();
+    GroupType nGroup = typedValue.getType("n").asGroupType();
+    assertThat(nGroup.getType("typed_value").asPrimitiveType().getPrimitiveTypeName())
+        .isEqualTo(PrimitiveType.PrimitiveTypeName.INT64);
+  }
+
+  @Test
   public void testIntAndDecimalAtSameFieldNotShredded() {
     VariantMetadata meta = Variants.metadata("mixed", "keep");
     ShreddedObject row1 = Variants.object(meta);
@@ -573,6 +592,52 @@ public class TestVariantShreddingAnalyzer {
     GroupType typedValue = (GroupType) schema;
     assertThat(typedValue.containsField("arr")).isFalse();
     assertThat(typedValue.containsField("keep")).isTrue();
+  }
+
+  @Test
+  public void testMixedFloatAndDoubleNotShredded() {
+    VariantMetadata meta = Variants.metadata("mixed", "keep");
+    ShreddedObject row1 = Variants.object(meta);
+    row1.put("mixed", Variants.of(1.5F));
+    row1.put("keep", Variants.of(1));
+    ShreddedObject row2 = Variants.object(meta);
+    row2.put("mixed", Variants.of(2.5D));
+    row2.put("keep", Variants.of(2));
+
+    DirectAnalyzer analyzer = new DirectAnalyzer();
+    Type schema = analyzer.analyzeAndCreateSchema(List.of(row1, row2), 0);
+
+    assertThat(schema).isNotNull().isInstanceOf(GroupType.class);
+    GroupType typedValue = (GroupType) schema;
+    assertThat(typedValue.containsField("mixed")).isFalse();
+    assertThat(typedValue.containsField("keep")).isTrue();
+  }
+
+  @Test
+  public void testMixedTimestampTzAndNanosNotShredded() {
+    VariantMetadata meta = Variants.metadata("mixed", "keep");
+    ShreddedObject row1 = Variants.object(meta);
+    row1.put("mixed", Variants.ofIsoTimestamptz("2024-11-07T12:33:54.123456+00:00"));
+    row1.put("keep", Variants.of(1));
+    ShreddedObject row2 = Variants.object(meta);
+    row2.put("mixed", Variants.ofIsoTimestamptzNanos("2024-11-07T12:33:54.123456789+00:00"));
+    row2.put("keep", Variants.of(2));
+
+    DirectAnalyzer analyzer = new DirectAnalyzer();
+    Type schema = analyzer.analyzeAndCreateSchema(List.of(row1, row2), 0);
+
+    assertThat(schema).isNotNull().isInstanceOf(GroupType.class);
+    GroupType typedValue = (GroupType) schema;
+    assertThat(typedValue.containsField("mixed")).isFalse();
+    assertThat(typedValue.containsField("keep")).isTrue();
+  }
+
+  @Test
+  public void testRootLevelMixedTypesReturnsNull() {
+    DirectAnalyzer analyzer = new DirectAnalyzer();
+    Type schema = analyzer.analyzeAndCreateSchema(List.of(Variants.of(42), Variants.of("text")), 0);
+
+    assertThat(schema).isNull();
   }
 
   /**

@@ -25,7 +25,6 @@ import java.util.Map;
 import java.util.PriorityQueue;
 import java.util.Set;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -51,10 +50,14 @@ import org.apache.parquet.schema.Types;
  *
  * <ul>
  *   <li>Object fields are emitted in alphabetical order in the shredded schema.
- *   <li>A field is admitted only if all observations fall into a single type family after numeric
- *       widening; mixed-type fields remain in the residual {@code value}.
- *   <li>Integer types (INT8/16/32/64) and decimal types (DECIMAL4/8/16) are each promoted to the
- *       widest observed within their family.
+ *   <li>A field is admitted only if all its observations fall into a single type family after
+ *       numeric widening. Integer types (INT8/16/32/64) widen within their family; decimal types
+ *       (DECIMAL4/8/16) widen within theirs. All other physical types - including {@code FLOAT} vs
+ *       {@code DOUBLE} and {@code TIMESTAMPTZ} vs {@code TIMESTAMPTZ_NANOS} - are treated as
+ *       separate families.
+ *   <li>When the top-level variant's own observations span multiple families, the whole variant is
+ *       written without any typed_value. When a nested field's observations are mixed, only that
+ *       field stays in the residual value; sibling fields still shred.
  *   <li>Fields below {@code MIN_FIELD_FREQUENCY} are pruned. Above {@code MAX_SHREDDED_FIELDS}, the
  *       most frequent are kept with alphabetical tie-breaking.
  *   <li>Recursion into nested objects/arrays stops at {@code MAX_SHREDDING_DEPTH} (default 50).
@@ -421,28 +424,18 @@ public abstract class VariantShreddingAnalyzer<T, S> {
   private static class FieldInfo {
     private static final PhysicalType[] PHYSICAL_TYPES = PhysicalType.values();
 
+    private static final List<PhysicalType> INTEGER_TYPES =
+        List.of(PhysicalType.INT8, PhysicalType.INT16, PhysicalType.INT32, PhysicalType.INT64);
+
+    private static final List<PhysicalType> DECIMAL_TYPES =
+        List.of(PhysicalType.DECIMAL4, PhysicalType.DECIMAL8, PhysicalType.DECIMAL16);
+
     private final int[] typeCounts = new int[PHYSICAL_TYPES.length];
     private int maxDecimalScale = 0;
     private int maxDecimalIntegerDigits = 0;
     private int observationCount = 0;
-    private boolean admittedTypeComputed = false;
-    private PhysicalType admittedTypeCached = null;
-
-    private static final Map<PhysicalType, Integer> INTEGER_PRIORITY =
-        ImmutableMap.of(
-            PhysicalType.INT8, 0,
-            PhysicalType.INT16, 1,
-            PhysicalType.INT32, 2,
-            PhysicalType.INT64, 3);
-
-    private static final Map<PhysicalType, Integer> DECIMAL_PRIORITY =
-        ImmutableMap.of(
-            PhysicalType.DECIMAL4, 0,
-            PhysicalType.DECIMAL8, 1,
-            PhysicalType.DECIMAL16, 2);
 
     void observe(VariantValue value) {
-      admittedTypeComputed = false;
       observationCount++;
       // Use BOOLEAN_TRUE for both TRUE/FALSE values
       PhysicalType type =
@@ -451,7 +444,7 @@ public abstract class VariantShreddingAnalyzer<T, S> {
       typeCounts[type.ordinal()]++;
 
       // Track max precision and scale for decimal types
-      if (isDecimalType(type)) {
+      if (DECIMAL_TYPES.contains(type)) {
         if (value.asPrimitive().get() instanceof BigDecimal bd) {
           maxDecimalIntegerDigits = Math.max(maxDecimalIntegerDigits, bd.precision() - bd.scale());
           maxDecimalScale = Math.max(maxDecimalScale, bd.scale());
@@ -459,69 +452,57 @@ public abstract class VariantShreddingAnalyzer<T, S> {
       }
     }
 
+    /**
+     * Returns the single type family that all observations fall into after numeric widening, or
+     * null if observations span multiple families.
+     */
     PhysicalType admittedType() {
-      if (admittedTypeComputed) {
-        return admittedTypeCached;
-      }
-
-      Set<PhysicalType> families = Sets.newHashSet();
-      PhysicalType widestInteger = null;
-      PhysicalType widestDecimal = null;
-
+      PhysicalType admitted = null;
       for (int i = 0; i < typeCounts.length; i++) {
         if (typeCounts[i] == 0) {
           continue;
         }
-        PhysicalType type = PHYSICAL_TYPES[i];
-
-        if (isIntegerType(type)) {
-          widestInteger = widerType(widestInteger, type, INTEGER_PRIORITY);
-        } else if (isDecimalType(type)) {
-          widestDecimal = widerType(widestDecimal, type, DECIMAL_PRIORITY);
-        } else {
-          families.add(type);
+        PhysicalType merged = mergeFamily(admitted, PHYSICAL_TYPES[i]);
+        if (merged == null) {
+          return null;
         }
+        admitted = merged;
       }
-
-      if (widestInteger != null) {
-        families.add(widestInteger);
-      }
-
-      if (widestDecimal != null) {
-        families.add(widestDecimal);
-      }
-
-      // Type-uniformity: admit only if exactly one family remains after widening.
-      if (families.size() != 1) {
-        admittedTypeCached = null;
-        admittedTypeComputed = true;
-        return null;
-      }
-
-      admittedTypeCached = families.iterator().next();
-      admittedTypeComputed = true;
-      return admittedTypeCached;
+      return admitted;
     }
 
-    private static PhysicalType widerType(
-        PhysicalType current, PhysicalType candidate, Map<PhysicalType, Integer> priority) {
+    /**
+     * Merges {@code candidate} into the currently admitted type. Returns the wider type when both
+     * are in the same integer or decimal family, {@code candidate} when nothing is admitted yet,
+     * {@code current} when the types are identical, and null when the types are from incompatible
+     * families (including FLOAT vs DOUBLE, TIMESTAMPTZ vs TIMESTAMPTZ_NANOS, etc.).
+     */
+    private static PhysicalType mergeFamily(PhysicalType current, PhysicalType candidate) {
       if (current == null) {
         return candidate;
       }
-      return priority.get(candidate) > priority.get(current) ? candidate : current;
+      if (current == candidate) {
+        return current;
+      }
+      PhysicalType widened = wider(current, candidate, INTEGER_TYPES);
+      if (widened != null) {
+        return widened;
+      }
+      return wider(current, candidate, DECIMAL_TYPES);
     }
 
-    private static boolean isIntegerType(PhysicalType type) {
-      return type == PhysicalType.INT8
-          || type == PhysicalType.INT16
-          || type == PhysicalType.INT32
-          || type == PhysicalType.INT64;
-    }
-
-    private static boolean isDecimalType(PhysicalType type) {
-      return type == PhysicalType.DECIMAL4
-          || type == PhysicalType.DECIMAL8
-          || type == PhysicalType.DECIMAL16;
+    /**
+     * Returns the wider of {@code first} and {@code second} when both are in the given family
+     * (positions later in {@code family} are wider), or null when either is not in the family.
+     */
+    private static PhysicalType wider(
+        PhysicalType first, PhysicalType second, List<PhysicalType> family) {
+      int firstIdx = family.indexOf(first);
+      int secondIdx = family.indexOf(second);
+      if (firstIdx < 0 || secondIdx < 0) {
+        return null;
+      }
+      return firstIdx >= secondIdx ? first : second;
     }
   }
 }
