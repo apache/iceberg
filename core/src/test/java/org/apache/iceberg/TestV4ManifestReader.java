@@ -48,6 +48,7 @@ import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.LocationUtil;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -228,14 +229,15 @@ class TestV4ManifestReader {
     ManifestFile manifest = writeManifest(format, EMPTY_PARTITION, files);
 
     try (V4ManifestReader reader =
-        V4ManifestReader.builder(manifest, io, UNPARTITIONED_SPECS, TABLE_LOCATION).build()) {
+        V4ManifestReader.builder(manifest, io, TABLE_SCHEMA, UNPARTITIONED_SPECS, TABLE_LOCATION)
+            .build()) {
       assertThat(reader)
           .extracting(file -> file.tracking().status())
           .containsExactly(EntryStatus.ADDED, EntryStatus.EXISTING, EntryStatus.MODIFIED);
     }
 
     try (V4ManifestReader reader =
-        V4ManifestReader.builder(manifest, io, UNPARTITIONED_SPECS, TABLE_LOCATION)
+        V4ManifestReader.builder(manifest, io, TABLE_SCHEMA, UNPARTITIONED_SPECS, TABLE_LOCATION)
             .includeAll()
             .build()) {
       assertThat(reader)
@@ -280,7 +282,7 @@ class TestV4ManifestReader {
     ManifestFile manifest = writeManifest(format, EMPTY_PARTITION, files);
 
     V4ManifestReader.Builder builder =
-        V4ManifestReader.builder(manifest, io, UNPARTITIONED_SPECS, TABLE_LOCATION);
+        V4ManifestReader.builder(manifest, io, TABLE_SCHEMA, UNPARTITIONED_SPECS, TABLE_LOCATION);
     configureRead.accept(builder);
     try (V4ManifestReader reader = builder.build()) {
       TrackedFile actual = Iterables.getOnlyElement(reader);
@@ -338,7 +340,7 @@ class TestV4ManifestReader {
     // even though the caller selected only location
     Schema projection = new Schema(TrackedFile.LOCATION);
     try (V4ManifestReader reader =
-        V4ManifestReader.builder(manifest, io, UNPARTITIONED_SPECS, TABLE_LOCATION)
+        V4ManifestReader.builder(manifest, io, TABLE_SCHEMA, UNPARTITIONED_SPECS, TABLE_LOCATION)
             .project(projection)
             .filter(Expressions.equal("id", 1))
             .build()) {
@@ -354,7 +356,8 @@ class TestV4ManifestReader {
 
     assertThatThrownBy(
             () ->
-                V4ManifestReader.builder(manifest, io, UNPARTITIONED_SPECS, TABLE_LOCATION)
+                V4ManifestReader.builder(
+                        manifest, io, TABLE_SCHEMA, UNPARTITIONED_SPECS, TABLE_LOCATION)
                     .select("location")
                     .project(new Schema(TrackedFile.LOCATION)))
         .isInstanceOf(IllegalStateException.class)
@@ -362,7 +365,8 @@ class TestV4ManifestReader {
 
     assertThatThrownBy(
             () ->
-                V4ManifestReader.builder(manifest, io, UNPARTITIONED_SPECS, TABLE_LOCATION)
+                V4ManifestReader.builder(
+                        manifest, io, TABLE_SCHEMA, UNPARTITIONED_SPECS, TABLE_LOCATION)
                     .project(new Schema(TrackedFile.LOCATION))
                     .select("location"))
         .isInstanceOf(IllegalStateException.class)
@@ -370,7 +374,8 @@ class TestV4ManifestReader {
 
     assertThatThrownBy(
             () ->
-                V4ManifestReader.builder(manifest, io, UNPARTITIONED_SPECS, TABLE_LOCATION)
+                V4ManifestReader.builder(
+                        manifest, io, TABLE_SCHEMA, UNPARTITIONED_SPECS, TABLE_LOCATION)
                     .forScanPlanning()
                     .select("location"))
         .isInstanceOf(IllegalStateException.class)
@@ -378,7 +383,8 @@ class TestV4ManifestReader {
 
     assertThatThrownBy(
             () ->
-                V4ManifestReader.builder(manifest, io, UNPARTITIONED_SPECS, TABLE_LOCATION)
+                V4ManifestReader.builder(
+                        manifest, io, TABLE_SCHEMA, UNPARTITIONED_SPECS, TABLE_LOCATION)
                     .select("location")
                     .forScanPlanning())
         .isInstanceOf(IllegalStateException.class)
@@ -387,7 +393,8 @@ class TestV4ManifestReader {
 
     assertThatThrownBy(
             () ->
-                V4ManifestReader.builder(manifest, io, UNPARTITIONED_SPECS, TABLE_LOCATION)
+                V4ManifestReader.builder(
+                        manifest, io, TABLE_SCHEMA, UNPARTITIONED_SPECS, TABLE_LOCATION)
                     .forScanPlanning()
                     .project(new Schema(TrackedFile.LOCATION)))
         .isInstanceOf(IllegalStateException.class)
@@ -395,7 +402,8 @@ class TestV4ManifestReader {
 
     assertThatThrownBy(
             () ->
-                V4ManifestReader.builder(manifest, io, UNPARTITIONED_SPECS, TABLE_LOCATION)
+                V4ManifestReader.builder(
+                        manifest, io, TABLE_SCHEMA, UNPARTITIONED_SPECS, TABLE_LOCATION)
                     .project(new Schema(TrackedFile.LOCATION))
                     .forScanPlanning())
         .isInstanceOf(IllegalStateException.class)
@@ -410,7 +418,7 @@ class TestV4ManifestReader {
         writeManifest(format, EMPTY_PARTITION, ImmutableList.of(FILE_WITH_FULL_TRACKING));
 
     try (V4ManifestReader reader =
-        V4ManifestReader.builder(manifest, io, UNPARTITIONED_SPECS, TABLE_LOCATION)
+        V4ManifestReader.builder(manifest, io, TABLE_SCHEMA, UNPARTITIONED_SPECS, TABLE_LOCATION)
             .select("tracking.status")
             .build()) {
       Tracking actual = Iterables.getOnlyElement(reader).tracking();
@@ -430,7 +438,7 @@ class TestV4ManifestReader {
         writeManifest(format, EMPTY_PARTITION, ImmutableList.of(FILE_WITH_FULL_TRACKING));
 
     try (V4ManifestReader reader =
-        V4ManifestReader.builder(manifest, io, UNPARTITIONED_SPECS, TABLE_LOCATION)
+        V4ManifestReader.builder(manifest, io, TABLE_SCHEMA, UNPARTITIONED_SPECS, TABLE_LOCATION)
             .forScanPlanning()
             .build()) {
       Tracking actual = Iterables.getOnlyElement(reader).tracking();
@@ -456,7 +464,8 @@ class TestV4ManifestReader {
     // without scanPlanning, select, or project, the reader returns the full schema for copying to
     // other manifests, including the change-tracking fields
     try (V4ManifestReader reader =
-        V4ManifestReader.builder(manifest, io, UNPARTITIONED_SPECS, TABLE_LOCATION).build()) {
+        V4ManifestReader.builder(manifest, io, TABLE_SCHEMA, UNPARTITIONED_SPECS, TABLE_LOCATION)
+            .build()) {
       Tracking actual = Iterables.getOnlyElement(reader).tracking();
       assertThat(actual.status()).isEqualTo(EntryStatus.ADDED);
       assertThat(actual.snapshotId()).isEqualTo(SNAPSHOT_ID);
@@ -477,7 +486,7 @@ class TestV4ManifestReader {
 
     // project(null) clears the projection and reads the full schema, like no projection at all
     try (V4ManifestReader reader =
-        V4ManifestReader.builder(manifest, io, UNPARTITIONED_SPECS, TABLE_LOCATION)
+        V4ManifestReader.builder(manifest, io, TABLE_SCHEMA, UNPARTITIONED_SPECS, TABLE_LOCATION)
             .project(null)
             .build()) {
       TrackedFile actual = Iterables.getOnlyElement(reader);
@@ -498,7 +507,7 @@ class TestV4ManifestReader {
     // filter reads (spec_id, partition) or every row would be pruned
     Schema projection = new Schema(TrackedFile.LOCATION);
     try (V4ManifestReader reader =
-        V4ManifestReader.builder(manifest, io, ID_PARTITIONING_SPECS, TABLE_LOCATION)
+        V4ManifestReader.builder(manifest, io, TABLE_SCHEMA, ID_PARTITIONING_SPECS, TABLE_LOCATION)
             .project(projection)
             .filter(Expressions.equal("id", 1))
             .build()) {
@@ -518,7 +527,7 @@ class TestV4ManifestReader {
     // the caller selects only location; the reader must still project spec_id and partition
     // for the partition filter or every row would be pruned
     try (V4ManifestReader reader =
-        V4ManifestReader.builder(manifest, io, ID_PARTITIONING_SPECS, TABLE_LOCATION)
+        V4ManifestReader.builder(manifest, io, TABLE_SCHEMA, ID_PARTITIONING_SPECS, TABLE_LOCATION)
             .select("location")
             .filter(Expressions.equal("id", 1))
             .build()) {
@@ -560,7 +569,7 @@ class TestV4ManifestReader {
 
     ScanMetrics metrics = ScanMetrics.of(new DefaultMetricsContext());
     try (V4ManifestReader reader =
-        V4ManifestReader.builder(manifest, io, ID_PARTITIONING_SPECS, TABLE_LOCATION)
+        V4ManifestReader.builder(manifest, io, TABLE_SCHEMA, ID_PARTITIONING_SPECS, TABLE_LOCATION)
             .filter(Expressions.equal("id", 1))
             .scanMetrics(metrics)
             .build()) {
@@ -594,7 +603,9 @@ class TestV4ManifestReader {
     when(manifest.formatVersion()).thenReturn(3);
 
     assertThatThrownBy(
-            () -> V4ManifestReader.builder(manifest, io, UNPARTITIONED_SPECS, TABLE_LOCATION))
+            () ->
+                V4ManifestReader.builder(
+                    manifest, io, TABLE_SCHEMA, UNPARTITIONED_SPECS, TABLE_LOCATION))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot read manifest with format version 3: only 4 is supported");
   }
@@ -605,7 +616,9 @@ class TestV4ManifestReader {
     when(manifest.manifestDeletionVector()).thenReturn(mock(ManifestBitmap.class));
 
     assertThatThrownBy(
-            () -> V4ManifestReader.builder(manifest, io, UNPARTITIONED_SPECS, TABLE_LOCATION))
+            () ->
+                V4ManifestReader.builder(
+                    manifest, io, TABLE_SCHEMA, UNPARTITIONED_SPECS, TABLE_LOCATION))
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessage("Cannot read manifest with a deletion vector: s3://bucket/manifest.parquet");
   }
@@ -616,7 +629,9 @@ class TestV4ManifestReader {
     when(manifest.content()).thenReturn(ManifestContent.DELETES);
 
     assertThatThrownBy(
-            () -> V4ManifestReader.builder(manifest, io, UNPARTITIONED_SPECS, TABLE_LOCATION))
+            () ->
+                V4ManifestReader.builder(
+                    manifest, io, TABLE_SCHEMA, UNPARTITIONED_SPECS, TABLE_LOCATION))
         .isInstanceOf(IllegalStateException.class)
         .hasMessage(
             "Cannot read manifest with content DELETES: only data manifests are supported: "
@@ -634,7 +649,7 @@ class TestV4ManifestReader {
 
     ScanMetrics metrics = ScanMetrics.of(new DefaultMetricsContext());
     try (V4ManifestReader reader =
-        V4ManifestReader.builder(manifest, io, UNPARTITIONED_SPECS, TABLE_LOCATION)
+        V4ManifestReader.builder(manifest, io, TABLE_SCHEMA, UNPARTITIONED_SPECS, TABLE_LOCATION)
             .filter(Expressions.equal("id", 1))
             .scanMetrics(metrics)
             .build()) {
@@ -655,7 +670,7 @@ class TestV4ManifestReader {
 
     // a case-insensitive filter binds the mismatched-case "ID" reference and prunes FILE_B
     try (V4ManifestReader reader =
-        V4ManifestReader.builder(manifest, io, ID_PARTITIONING_SPECS, TABLE_LOCATION)
+        V4ManifestReader.builder(manifest, io, TABLE_SCHEMA, ID_PARTITIONING_SPECS, TABLE_LOCATION)
             .filter(Expressions.equal("ID", 1))
             .caseSensitive(false)
             .build()) {
@@ -665,7 +680,8 @@ class TestV4ManifestReader {
     // the same filter is case-sensitive by default, so "ID" fails to bind to the "id" field
     assertThatThrownBy(
             () ->
-                V4ManifestReader.builder(manifest, io, ID_PARTITIONING_SPECS, TABLE_LOCATION)
+                V4ManifestReader.builder(
+                        manifest, io, TABLE_SCHEMA, ID_PARTITIONING_SPECS, TABLE_LOCATION)
                     .filter(Expressions.equal("ID", 1))
                     .build())
         .isInstanceOf(ValidationException.class)
@@ -700,7 +716,7 @@ class TestV4ManifestReader {
         writeManifest(format, unionType, ImmutableList.of(keepById, prunedById, keptOtherSpec));
 
     try (V4ManifestReader reader =
-        V4ManifestReader.builder(manifest, io, specsById, TABLE_LOCATION)
+        V4ManifestReader.builder(manifest, io, TABLE_SCHEMA, specsById, TABLE_LOCATION)
             .filter(Expressions.equal("id", 1))
             .build()) {
       // spec0 entries are pruned by id; the spec1 entry is not partitioned by id so it survives
@@ -721,7 +737,7 @@ class TestV4ManifestReader {
     ManifestFile manifest = writeManifest(format, ID_PARTITION_TYPE, ImmutableList.of(keep, prune));
 
     try (V4ManifestReader reader =
-        V4ManifestReader.builder(manifest, io, ID_PARTITIONING_SPECS, TABLE_LOCATION)
+        V4ManifestReader.builder(manifest, io, TABLE_SCHEMA, ID_PARTITIONING_SPECS, TABLE_LOCATION)
             .filter(Expressions.and(Expressions.equal("id", 1), Expressions.equal("data", "z")))
             .build()) {
       assertThat(reader)
@@ -741,7 +757,7 @@ class TestV4ManifestReader {
 
     // the filter would prune partition id=1 under spec 0, but cannot be applied to spec 5
     try (V4ManifestReader reader =
-        V4ManifestReader.builder(manifest, io, ID_PARTITIONING_SPECS, TABLE_LOCATION)
+        V4ManifestReader.builder(manifest, io, TABLE_SCHEMA, ID_PARTITIONING_SPECS, TABLE_LOCATION)
             .filter(Expressions.equal("id", 2))
             .build()) {
       assertThat(reader).extracting(TrackedFile::location).containsExactly(resolved(file));
@@ -756,7 +772,7 @@ class TestV4ManifestReader {
     ManifestFile manifest = writeManifest(format, ID_PARTITION_TYPE, ImmutableList.of(file));
 
     try (V4ManifestReader reader =
-        V4ManifestReader.builder(manifest, io, ID_PARTITIONING_SPECS, TABLE_LOCATION)
+        V4ManifestReader.builder(manifest, io, TABLE_SCHEMA, ID_PARTITIONING_SPECS, TABLE_LOCATION)
             .filter(Expressions.equal("id", 2))
             .build()) {
       assertThat(reader).extracting(TrackedFile::location).containsExactly(resolved(file));
@@ -775,7 +791,8 @@ class TestV4ManifestReader {
     ManifestFile manifest = writeManifest(format, EMPTY_PARTITION, files);
 
     try (V4ManifestReader reader =
-        V4ManifestReader.builder(manifest, io, UNPARTITIONED_SPECS, TABLE_LOCATION).build()) {
+        V4ManifestReader.builder(manifest, io, TABLE_SCHEMA, UNPARTITIONED_SPECS, TABLE_LOCATION)
+            .build()) {
       List<TrackedFile> read = Lists.newArrayList(reader);
       assertThat(read)
           .hasSize(2)
@@ -794,7 +811,8 @@ class TestV4ManifestReader {
     ManifestFile badFile = v4Manifest(badLocation);
 
     try (V4ManifestReader reader =
-        V4ManifestReader.builder(badFile, io, UNPARTITIONED_SPECS, TABLE_LOCATION).build()) {
+        V4ManifestReader.builder(badFile, io, TABLE_SCHEMA, UNPARTITIONED_SPECS, TABLE_LOCATION)
+            .build()) {
       assertThatThrownBy(reader::iterator)
           .isInstanceOf(IllegalArgumentException.class)
           .hasMessageContaining("Cannot determine format of manifest");
@@ -816,7 +834,8 @@ class TestV4ManifestReader {
     ManifestFile manifest = writeManifest(format, EMPTY_PARTITION, ImmutableList.of(file));
 
     try (V4ManifestReader reader =
-        V4ManifestReader.builder(manifest, io, UNPARTITIONED_SPECS, "s3://bucket/db/table/")
+        V4ManifestReader.builder(
+                manifest, io, TABLE_SCHEMA, UNPARTITIONED_SPECS, "s3://bucket/db/table/")
             .build()) {
       TrackedFile actual = Iterables.getOnlyElement(reader);
       assertThat(actual.location()).isEqualTo("s3://bucket/db/table//data/00000-0.parquet");
@@ -832,7 +851,8 @@ class TestV4ManifestReader {
     ManifestFile manifest = writeManifest(format, EMPTY_PARTITION, ImmutableList.of(file));
 
     try (V4ManifestReader reader =
-        V4ManifestReader.builder(manifest, io, UNPARTITIONED_SPECS, TABLE_LOCATION).build()) {
+        V4ManifestReader.builder(manifest, io, TABLE_SCHEMA, UNPARTITIONED_SPECS, TABLE_LOCATION)
+            .build()) {
       TrackedFile actual = Iterables.getOnlyElement(reader);
       assertThat(actual.location()).isEqualTo(resolved(file));
       assertThat(actual.deletionVector().location())
@@ -864,7 +884,8 @@ class TestV4ManifestReader {
             ImmutableList.of(absoluteFileRelativeDv, relativeFileAbsoluteDv));
 
     try (V4ManifestReader reader =
-        V4ManifestReader.builder(manifest, io, UNPARTITIONED_SPECS, TABLE_LOCATION).build()) {
+        V4ManifestReader.builder(manifest, io, TABLE_SCHEMA, UNPARTITIONED_SPECS, TABLE_LOCATION)
+            .build()) {
       List<TrackedFile> actual = Lists.newArrayList(reader);
       // absolute locations pass through unchanged; relative ones resolve against the table location
       assertThat(actual.get(0).location()).isEqualTo("s3://other/abs.parquet");
@@ -885,7 +906,7 @@ class TestV4ManifestReader {
 
     // location is not projected, so there is nothing to resolve even though it is relative
     try (V4ManifestReader reader =
-        V4ManifestReader.builder(manifest, io, UNPARTITIONED_SPECS, TABLE_LOCATION)
+        V4ManifestReader.builder(manifest, io, TABLE_SCHEMA, UNPARTITIONED_SPECS, TABLE_LOCATION)
             .select("tracking.status")
             .build()) {
       TrackedFile actual = Iterables.getOnlyElement(reader);
@@ -899,50 +920,45 @@ class TestV4ManifestReader {
 
     assertThatThrownBy(
             () ->
-                V4ManifestReader.builder(manifest, io, UNPARTITIONED_SPECS, TABLE_LOCATION)
+                V4ManifestReader.builder(
+                        manifest, io, TABLE_SCHEMA, UNPARTITIONED_SPECS, TABLE_LOCATION)
                     .filter(null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid filter: null");
 
     assertThatThrownBy(
             () ->
-                V4ManifestReader.builder(manifest, io, UNPARTITIONED_SPECS, TABLE_LOCATION)
+                V4ManifestReader.builder(
+                        manifest, io, TABLE_SCHEMA, UNPARTITIONED_SPECS, TABLE_LOCATION)
                     .scanMetrics(null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid scan metrics: null");
 
     assertThatThrownBy(
             () ->
-                V4ManifestReader.builder(manifest, io, UNPARTITIONED_SPECS, TABLE_LOCATION)
+                V4ManifestReader.builder(
+                        manifest, io, TABLE_SCHEMA, UNPARTITIONED_SPECS, TABLE_LOCATION)
                     .select((Collection<String>) null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid columns: null");
 
-    assertThatThrownBy(() -> V4ManifestReader.builder(manifest, io, UNPARTITIONED_SPECS, null))
+    assertThatThrownBy(
+            () -> V4ManifestReader.builder(manifest, io, TABLE_SCHEMA, UNPARTITIONED_SPECS, null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid table location: null");
 
     assertThatThrownBy(
             () ->
-                V4ManifestReader.builder(manifest, UNPARTITIONED_SPECS, TABLE_LOCATION)
-                    .projectStats(TABLE_SCHEMA, (Collection<Integer>) null))
+                V4ManifestReader.builder(
+                        manifest, io, TABLE_SCHEMA, UNPARTITIONED_SPECS, TABLE_LOCATION)
+                    .projectStats((Collection<Integer>) null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid stats field IDs: null");
 
     assertThatThrownBy(
-            () ->
-                V4ManifestReader.builder(manifest, UNPARTITIONED_SPECS, TABLE_LOCATION)
-                    .projectStats(null))
+            () -> V4ManifestReader.builder(manifest, io, null, UNPARTITIONED_SPECS, TABLE_LOCATION))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid table schema: null");
-
-    // empty field IDs would silently read no stats; projectStats(Schema) is the way to read all
-    assertThatThrownBy(
-            () ->
-                V4ManifestReader.builder(manifest, UNPARTITIONED_SPECS, TABLE_LOCATION)
-                    .projectStats(TABLE_SCHEMA, new int[0]))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid stats field IDs: empty, use projectStats(Schema) instead");
   }
 
   // the location a relative fixture resolves to once read against TABLE_LOCATION
@@ -956,7 +972,8 @@ class TestV4ManifestReader {
     ManifestFile manifest = writeManifest(format, EMPTY_PARTITION, ImmutableList.of(file));
 
     try (V4ManifestReader reader =
-        V4ManifestReader.builder(manifest, io, UNPARTITIONED_SPECS, TABLE_LOCATION).build()) {
+        V4ManifestReader.builder(manifest, io, TABLE_SCHEMA, UNPARTITIONED_SPECS, TABLE_LOCATION)
+            .build()) {
       TrackedFile actual = Iterables.getOnlyElement(reader);
       assertThat(actual.location()).isEqualTo(expectedLocation);
     }
@@ -976,14 +993,13 @@ class TestV4ManifestReader {
   public void contentStatsRoundTrip(FileFormat format) throws IOException {
     TrackedFile file = fileWithStats("s3://bucket/file.parquet", contentStats());
 
-    InputFile manifest =
+    ManifestFile manifest =
         writeManifest(format, EMPTY_PARTITION, CONTENT_STATS_TYPE, ImmutableList.of(file));
 
-    // given a table schema, the default read carries stats for every field so that entries can be
-    // copied to a new manifest
+    // the default read carries stats for every field so that entries can be copied to a new
+    // manifest
     try (V4ManifestReader reader =
-        V4ManifestReader.builder(manifest, UNPARTITIONED_SPECS, TABLE_LOCATION)
-            .projectStats(TABLE_SCHEMA)
+        V4ManifestReader.builder(manifest, io, TABLE_SCHEMA, UNPARTITIONED_SPECS, TABLE_LOCATION)
             .build()) {
       ContentStats stats = Iterables.getOnlyElement(reader).contentStats();
       assertThat(stats).isNotNull();
@@ -995,30 +1011,15 @@ class TestV4ManifestReader {
 
   @ParameterizedTest
   @FieldSource("MANIFEST_FORMATS")
-  public void statsAreOmittedWithoutProjectStats(FileFormat format) throws IOException {
-    TrackedFile file = fileWithStats("s3://bucket/file.parquet", contentStats());
-
-    InputFile manifest =
-        writeManifest(format, EMPTY_PARTITION, CONTENT_STATS_TYPE, ImmutableList.of(file));
-
-    // stats field IDs and types are derived from the table schema, so none are read without it
-    try (V4ManifestReader reader =
-        V4ManifestReader.builder(manifest, UNPARTITIONED_SPECS, TABLE_LOCATION).build()) {
-      assertThat(Iterables.getOnlyElement(reader).contentStats()).isNull();
-    }
-  }
-
-  @ParameterizedTest
-  @FieldSource("MANIFEST_FORMATS")
   public void projectStatsReadsOnlyRequestedColumns(FileFormat format) throws IOException {
     TrackedFile file = fileWithStats("s3://bucket/file.parquet", contentStats());
 
-    InputFile manifest =
+    ManifestFile manifest =
         writeManifest(format, EMPTY_PARTITION, CONTENT_STATS_TYPE, ImmutableList.of(file));
 
     try (V4ManifestReader reader =
-        V4ManifestReader.builder(manifest, UNPARTITIONED_SPECS, TABLE_LOCATION)
-            .projectStats(TABLE_SCHEMA, ID_FIELD_ID)
+        V4ManifestReader.builder(manifest, io, TABLE_SCHEMA, UNPARTITIONED_SPECS, TABLE_LOCATION)
+            .projectStats(ID_FIELD_ID)
             .build()) {
       ContentStats stats = Iterables.getOnlyElement(reader).contentStats();
       assertFieldStats(stats.statsFor(ID_FIELD_ID), ID_STATS);
@@ -1029,16 +1030,32 @@ class TestV4ManifestReader {
 
   @ParameterizedTest
   @FieldSource("MANIFEST_FORMATS")
+  public void projectStatsWithoutFieldIdsOmitsStats(FileFormat format) throws IOException {
+    TrackedFile file = fileWithStats("s3://bucket/file.parquet", contentStats());
+
+    ManifestFile manifest =
+        writeManifest(format, EMPTY_PARTITION, CONTENT_STATS_TYPE, ImmutableList.of(file));
+
+    // requesting no field IDs opts out of the default projection of every field
+    try (V4ManifestReader reader =
+        V4ManifestReader.builder(manifest, io, TABLE_SCHEMA, UNPARTITIONED_SPECS, TABLE_LOCATION)
+            .projectStats(ImmutableList.of())
+            .build()) {
+      assertThat(Iterables.getOnlyElement(reader).contentStats()).isNull();
+    }
+  }
+
+  @ParameterizedTest
+  @FieldSource("MANIFEST_FORMATS")
   public void filterStatsAreProjectedWhenOmittedByCaller(FileFormat format) throws IOException {
     TrackedFile file = fileWithStats("s3://bucket/file.parquet", contentStats());
 
-    InputFile manifest =
+    ManifestFile manifest =
         writeManifest(format, EMPTY_PARTITION, CONTENT_STATS_TYPE, ImmutableList.of(file));
 
     // the filter references data, so its stats are read even though the projection omits them
     try (V4ManifestReader reader =
-        V4ManifestReader.builder(manifest, UNPARTITIONED_SPECS, TABLE_LOCATION)
-            .projectStats(TABLE_SCHEMA)
+        V4ManifestReader.builder(manifest, io, TABLE_SCHEMA, UNPARTITIONED_SPECS, TABLE_LOCATION)
             .project(new Schema(TrackedFile.LOCATION))
             .filter(Expressions.equal("data", "m"))
             .build()) {
@@ -1052,7 +1069,7 @@ class TestV4ManifestReader {
   @ParameterizedTest
   @FieldSource("MANIFEST_FORMATS")
   public void filterOnMissingColumnFails(FileFormat format) throws IOException {
-    InputFile manifest =
+    ManifestFile manifest =
         writeManifest(
             format,
             EMPTY_PARTITION,
@@ -1061,8 +1078,8 @@ class TestV4ManifestReader {
     // stats for the filter's columns are resolved against the table schema when the reader is built
     assertThatThrownBy(
             () ->
-                V4ManifestReader.builder(manifest, UNPARTITIONED_SPECS, TABLE_LOCATION)
-                    .projectStats(TABLE_SCHEMA)
+                V4ManifestReader.builder(
+                        manifest, io, TABLE_SCHEMA, UNPARTITIONED_SPECS, TABLE_LOCATION)
                     .filter(Expressions.equal("missing", 34))
                     .build())
         .isInstanceOf(ValidationException.class)
@@ -1074,12 +1091,11 @@ class TestV4ManifestReader {
   public void forScanPlanningReadsOnlyFilterStats(FileFormat format) throws IOException {
     TrackedFile file = fileWithStats("s3://bucket/file.parquet", contentStats());
 
-    InputFile manifest =
+    ManifestFile manifest =
         writeManifest(format, EMPTY_PARTITION, CONTENT_STATS_TYPE, ImmutableList.of(file));
 
     try (V4ManifestReader reader =
-        V4ManifestReader.builder(manifest, UNPARTITIONED_SPECS, TABLE_LOCATION)
-            .projectStats(TABLE_SCHEMA)
+        V4ManifestReader.builder(manifest, io, TABLE_SCHEMA, UNPARTITIONED_SPECS, TABLE_LOCATION)
             .forScanPlanning()
             .filter(Expressions.equal("id", 1))
             .build()) {
@@ -1095,13 +1111,12 @@ class TestV4ManifestReader {
   public void forScanPlanningOmitsStatsWithoutFilter(FileFormat format) throws IOException {
     TrackedFile file = fileWithStats("s3://bucket/file.parquet", contentStats());
 
-    InputFile manifest =
+    ManifestFile manifest =
         writeManifest(format, EMPTY_PARTITION, CONTENT_STATS_TYPE, ImmutableList.of(file));
 
     // scan planning without a filter has no stats to evaluate, so none are read
     try (V4ManifestReader reader =
-        V4ManifestReader.builder(manifest, UNPARTITIONED_SPECS, TABLE_LOCATION)
-            .projectStats(TABLE_SCHEMA)
+        V4ManifestReader.builder(manifest, io, TABLE_SCHEMA, UNPARTITIONED_SPECS, TABLE_LOCATION)
             .forScanPlanning()
             .build()) {
       assertThat(Iterables.getOnlyElement(reader).contentStats()).isNull();
@@ -1113,12 +1128,11 @@ class TestV4ManifestReader {
   public void selectWithoutStatsOmitsStats(FileFormat format) throws IOException {
     TrackedFile file = fileWithStats("s3://bucket/file.parquet", contentStats());
 
-    InputFile manifest =
+    ManifestFile manifest =
         writeManifest(format, EMPTY_PARTITION, CONTENT_STATS_TYPE, ImmutableList.of(file));
 
     try (V4ManifestReader reader =
-        V4ManifestReader.builder(manifest, UNPARTITIONED_SPECS, TABLE_LOCATION)
-            .projectStats(TABLE_SCHEMA)
+        V4ManifestReader.builder(manifest, io, TABLE_SCHEMA, UNPARTITIONED_SPECS, TABLE_LOCATION)
             .select("location")
             .build()) {
       assertThat(Iterables.getOnlyElement(reader).contentStats()).isNull();
@@ -1315,14 +1329,14 @@ class TestV4ManifestReader {
     return writeManifest(format, partitionType, Types.StructType.of(), files);
   }
 
-  private InputFile writeManifest(
+  private ManifestFile writeManifest(
       FileFormat format,
       Types.StructType partitionType,
       Types.StructType contentStatsType,
       Iterable<TrackedFile> files)
       throws IOException {
     Schema writeSchema = TrackedFile.schema(partitionType, contentStatsType);
-    OutputFile out = new InMemoryOutputFile("manifest." + format.name().toLowerCase(Locale.ROOT));
+    OutputFile out = io.newOutputFile("manifest." + System.nanoTime() + "." + format.name().toLowerCase(Locale.ROOT));
     try (FileAppender<StructLike> appender =
         InternalData.write(format, out).schema(writeSchema).named("tracked_file").build()) {
       for (TrackedFile file : files) {
@@ -1344,9 +1358,7 @@ class TestV4ManifestReader {
   private List<TrackedFile> read(ManifestFile manifest, Map<Integer, PartitionSpec> specsById)
       throws IOException {
     try (V4ManifestReader reader =
-        V4ManifestReader.builder(manifest, io, specsById, TABLE_LOCATION)
-            .projectStats(TABLE_SCHEMA)
-            .build()) {
+        V4ManifestReader.builder(manifest, io, TABLE_SCHEMA, specsById, TABLE_LOCATION).build()) {
       return Lists.newArrayList(reader);
     }
   }
