@@ -3857,7 +3857,7 @@ components:
         Catalogs that return `key-management-credentials` for an operation must include credentials for all
         KMS key IDs required by table encryption metadata. Clients should select the credential config by
         matching KMS key identifiers referenced by table encryption metadata, such as
-        `EncryptedKey.encrypted-by-id`, against `kms-key-ids`.
+        `encrypted-by-id` fields in table encryption metadata, against `kms-key-ids`.
 
         Credential configs should use provider-specific expiration mechanisms where available and should
         be scoped to the minimum required KMS operations and listed KMS key IDs where the provider
@@ -3872,7 +3872,7 @@ components:
             KMS key identifiers for which the credential config is relevant.
 
             Clients should match these values against KMS key identifiers referenced by table encryption
-            metadata, such as `EncryptedKey.encrypted-by-id`.
+            metadata, such as `encrypted-by-id` fields in table encryption metadata.
           items:
             type: string
         config:
@@ -3934,9 +3934,9 @@ components:
         ## Key Management Credentials
 
         Credentials for KMS / key-management systems are provided through the `key-management-credentials` field.
-        Clients must first check whether the respective credentials exist in the `key-management-credentials`
-        field before checking the `config` for credentials.
-        Clients must use `key-management-credentials` consistently with the REST access-delegation credential sourcing rules.
+        Clients must first check whether KMS credentials exist in the `key-management-credentials`
+        field before checking the `config` map for KMS credential configuration.
+        Clients must use `key-management-credentials`, if present, consistently with the REST access-delegation credential sourcing rules.
 
         ## Remote Signing
 
