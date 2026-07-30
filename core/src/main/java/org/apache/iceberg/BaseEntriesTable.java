@@ -71,7 +71,6 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
     Expression rowFilter = context.rowFilter();
     boolean caseSensitive = context.caseSensitive();
     boolean ignoreResiduals = context.ignoreResiduals();
-    Expression filter = ignoreResiduals ? Expressions.alwaysTrue() : rowFilter;
 
     LoadingCache<Integer, ManifestEvaluator> evalCache =
         Caffeine.newBuilder()
@@ -82,7 +81,7 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
                   return ManifestEvaluator.forRowFilter(rowFilter, transformedSpec, caseSensitive);
                 });
     ManifestContentEvaluator manifestContentEvaluator =
-        new ManifestContentEvaluator(filter, tableSchema.asStruct(), caseSensitive);
+        new ManifestContentEvaluator(rowFilter, tableSchema.asStruct(), caseSensitive);
 
     CloseableIterable<ManifestFile> filteredManifests =
         CloseableIterable.filter(
@@ -91,9 +90,11 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
                 evalCache.get(manifest.partitionSpecId()).eval(manifest)
                     && manifestContentEvaluator.eval(manifest));
 
+    Expression residual = ignoreResiduals ? Expressions.alwaysTrue() : rowFilter;
+
     return CloseableIterable.transform(
         filteredManifests,
-        manifest -> new ManifestReadTask(table, manifest, projectedSchema, filter));
+        manifest -> new ManifestReadTask(table, manifest, projectedSchema, residual));
   }
 
   /**
