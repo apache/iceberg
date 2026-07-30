@@ -67,7 +67,9 @@ public class InclusiveStatsEvaluator {
   /**
    * Returns the IDs of the referenced fields that cannot contain null values.
    *
-   * <p>Stats omit the null count for such fields, which must not be confused with an unknown count.
+   * <p>Stats omit the null count for every required field. The count is zero for a field that
+   * cannot be null, but it is unknown for a required field that an optional struct contains because
+   * that field is null whenever the struct is null.
    */
   private static Set<Integer> neverNullIds(Schema schema, Set<Integer> referencedIds) {
     ImmutableSet.Builder<Integer> neverNull = ImmutableSet.builder();

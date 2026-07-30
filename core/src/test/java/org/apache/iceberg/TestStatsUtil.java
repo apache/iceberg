@@ -395,14 +395,12 @@ public class TestStatsUtil {
                     Types.NestedField.required(3, "lat", Types.DoubleType.get()),
                     Types.NestedField.optional(4, "lon", Types.DoubleType.get()))));
 
-    // lat is required, but tracks a null count because it is null when location is null
     Types.StructType latStats =
         Types.StructType.of(
             Types.NestedField.optional(10_601, "lower_bound", Types.DoubleType.get()),
             Types.NestedField.optional(10_602, "upper_bound", Types.DoubleType.get()),
             Types.NestedField.optional(10_603, "tight_bounds", Types.BooleanType.get()),
             Types.NestedField.optional(10_604, "value_count", Types.LongType.get()),
-            Types.NestedField.optional(10_605, "null_value_count", Types.LongType.get()),
             Types.NestedField.optional(10_606, "nan_value_count", Types.LongType.get()));
     Types.StructType lonStats =
         Types.StructType.of(
@@ -520,14 +518,12 @@ public class TestStatsUtil {
                     Types.NestedField.required(3, "lat", Types.DoubleType.get()),
                     Types.NestedField.optional(4, "lon", Types.DoubleType.get()))));
 
-    // lat is required, but tracks a null count because it is null when location is null
     Types.StructType latStats =
         Types.StructType.of(
             Types.NestedField.optional(10_601, "lower_bound", Types.DoubleType.get()),
             Types.NestedField.optional(10_602, "upper_bound", Types.DoubleType.get()),
             Types.NestedField.optional(10_603, "tight_bounds", Types.BooleanType.get()),
             Types.NestedField.optional(10_604, "value_count", Types.LongType.get()),
-            Types.NestedField.optional(10_605, "null_value_count", Types.LongType.get()),
             Types.NestedField.optional(10_606, "nan_value_count", Types.LongType.get()));
     Types.StructType lonStats =
         Types.StructType.of(

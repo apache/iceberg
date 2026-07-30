@@ -22,6 +22,7 @@ import static org.apache.iceberg.StatsTestUtil.contentStats;
 import static org.apache.iceberg.StatsTestUtil.fieldStats;
 import static org.apache.iceberg.StatsTestUtil.trackedFile;
 import static org.apache.iceberg.expressions.Expressions.lessThan;
+import static org.apache.iceberg.expressions.Expressions.notNull;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import org.apache.iceberg.expressions.Expression;
@@ -103,7 +104,8 @@ class TestInclusiveStatsEvaluator extends TestInclusiveMetricsEvaluator<TrackedF
             NESTED_STATS_TYPE,
             stats(NESTED_STATS_TYPE, 102, null, null, 5L, null, null),
             stats(NESTED_STATS_TYPE, 103, null, null, 5L, 5L, null),
-            stats(NESTED_STATS_TYPE, 104, null, null, 5L, 5L, null),
+            // required_street2 is required, so its stats do not track a null count
+            stats(NESTED_STATS_TYPE, 104, null, null, 5L, null, null),
             stats(NESTED_STATS_TYPE, 105, null, null, 5L, 5L, null)));
   }
 
@@ -167,6 +169,18 @@ class TestInclusiveStatsEvaluator extends TestInclusiveMetricsEvaluator<TrackedF
         "single_value_file.avro",
         10,
         contentStats(FLOAT_STATS_TYPE, stats(FLOAT_STATS_TYPE, 1, 1.0f, 1.0f, 10L, null, 1L)));
+  }
+
+  /**
+   * Content stats omit the null count for a required field, even when an optional struct contains
+   * it, so a file where every value is null cannot be pruned.
+   */
+  @Override
+  @Test
+  public void notNullForRequiredFieldInOptionalStruct() {
+    boolean shouldRead =
+        shouldRead(NESTED_SCHEMA, notNull("optional_address.required_street2"), file6());
+    assertThat(shouldRead).as("Should read: the null count is not tracked").isTrue();
   }
 
   @Test
