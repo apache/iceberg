@@ -757,17 +757,19 @@ public class TestRewriteManifestsAction extends TestBase {
   }
 
   @TestTemplate
-  public void testRewriteManifestsPartitionedTableWithCustomSortingOnFieldNameContainingDot()
-      throws IOException {
-    // Regression test: partitioning on a nested source column (struct "a" with child field "b")
-    // used to make sortBy() fail at execution time, since the resulting partition field is named
-    // "a.b" but the partition struct is flat - col() misparsed the dot as a further nesting level
-    // instead of treating "a.b" as a single field name.
+  public void
+      testRewriteManifestsPartitionedTableWithCustomSortingOnFieldNameContainingDotAndBacktick()
+          throws IOException {
+    // Regression test: partitioning on a nested source column (struct "a" with child field
+    // "b`c") used to make sortBy() fail at execution time, since the resulting partition field is
+    // named "a.b`c" but the partition struct is flat - col() misparsed the dot as a further
+    // nesting level instead of treating "a.b`c" as a single field name, and even once quoted, the
+    // embedded backtick must itself be escaped or the quoting is malformed.
     Schema schema =
         new Schema(
-            optional(1, "a", Types.StructType.of(optional(2, "b", Types.StringType.get()))),
+            optional(1, "a", Types.StructType.of(optional(2, "b`c", Types.StringType.get()))),
             optional(3, "ds", Types.StringType.get()));
-    PartitionSpec spec = PartitionSpec.builderFor(schema).identity("a.b").build();
+    PartitionSpec spec = PartitionSpec.builderFor(schema).identity("a.b`c").build();
     Map<String, String> options = Maps.newHashMap();
     options.put(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion));
     options.put(TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED, snapshotIdInheritanceEnabled);
@@ -787,7 +789,7 @@ public class TestRewriteManifestsAction extends TestBase {
         SparkActions.get()
             .rewriteManifests(table)
             .rewriteIf(manifest -> true)
-            .sortBy(ImmutableList.of("a.b"))
+            .sortBy(ImmutableList.of("a.b`c"))
             .option(RewriteManifestsSparkAction.USE_CACHING, useCaching)
             .execute();
 
