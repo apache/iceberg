@@ -2515,8 +2515,7 @@ components:
           type: boolean
 
     Type:
-      # VariantType must stay before PrimitiveType - codegen drops the `not:`, so
-      # order decides resolution. Do not alphabetize.
+      # Keep VariantType first, or the generated client resolves `variant` as PrimitiveType.
       oneOf:
         - $ref: '#/components/schemas/VariantType'
         - $ref: '#/components/schemas/PrimitiveType'
