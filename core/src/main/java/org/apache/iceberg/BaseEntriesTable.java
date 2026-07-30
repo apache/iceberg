@@ -154,7 +154,7 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
       @Override
       public <T> Boolean isNull(BoundReference<T> ref) {
         if (fileContent(ref)) {
-          return ROWS_CANNOT_MATCH; // date_file.content should not be null
+          return ROWS_CANNOT_MATCH; // data_file.content should not be null
         } else {
           return ROWS_MIGHT_MATCH;
         }
@@ -168,7 +168,7 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
       @Override
       public <T> Boolean isNaN(BoundReference<T> ref) {
         if (fileContent(ref)) {
-          return ROWS_CANNOT_MATCH; // date_file.content should not be nan
+          return ROWS_CANNOT_MATCH; // data_file.content should not be NaN
         } else {
           return ROWS_MIGHT_MATCH;
         }
