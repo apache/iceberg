@@ -19,11 +19,14 @@
 package org.apache.iceberg;
 
 import java.io.Serializable;
+import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.Objects;
 import org.apache.iceberg.avro.SupportsIndexProjection;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.ByteBuffers;
 
 /** Mutable {@link StructLike} implementation of {@link DeletionVector}. */
 class DeletionVectorStruct extends SupportsIndexProjection implements DeletionVector, Serializable {
@@ -32,12 +35,14 @@ class DeletionVectorStruct extends SupportsIndexProjection implements DeletionVe
           DeletionVector.LOCATION,
           DeletionVector.OFFSET,
           DeletionVector.SIZE_IN_BYTES,
-          DeletionVector.CARDINALITY);
+          DeletionVector.CARDINALITY,
+          DeletionVector.KEY_METADATA);
 
   private String location = null;
   private long offset = -1L;
   private long sizeInBytes = -1L;
   private long cardinality = -1L;
+  private byte[] keyMetadata = null;
 
   DeletionVectorStruct(Types.StructType type) {
     super(BASE_TYPE, type);
@@ -49,14 +54,20 @@ class DeletionVectorStruct extends SupportsIndexProjection implements DeletionVe
     this.offset = toCopy.offset;
     this.sizeInBytes = toCopy.sizeInBytes;
     this.cardinality = toCopy.cardinality;
+    this.keyMetadata =
+        toCopy.keyMetadata != null
+            ? Arrays.copyOf(toCopy.keyMetadata, toCopy.keyMetadata.length)
+            : null;
   }
 
-  private DeletionVectorStruct(String location, long offset, long sizeInBytes, long cardinality) {
+  private DeletionVectorStruct(
+      String location, long offset, long sizeInBytes, long cardinality, ByteBuffer keyMetadata) {
     super(BASE_TYPE.fields().size());
     this.location = location;
     this.offset = offset;
     this.sizeInBytes = sizeInBytes;
     this.cardinality = cardinality;
+    this.keyMetadata = ByteBuffers.toByteArray(keyMetadata);
   }
 
   @Override
@@ -80,6 +91,11 @@ class DeletionVectorStruct extends SupportsIndexProjection implements DeletionVe
   }
 
   @Override
+  public ByteBuffer keyMetadata() {
+    return keyMetadata != null ? ByteBuffer.wrap(keyMetadata) : null;
+  }
+
+  @Override
   public DeletionVectorStruct copy() {
     return new DeletionVectorStruct(this);
   }
@@ -90,38 +106,28 @@ class DeletionVectorStruct extends SupportsIndexProjection implements DeletionVe
   }
 
   private Object getByPos(int pos) {
-    switch (pos) {
-      case 0:
-        return location;
-      case 1:
-        return offset;
-      case 2:
-        return sizeInBytes;
-      case 3:
-        return cardinality;
-      default:
-        throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
-    }
+    return switch (pos) {
+      case 0 -> location;
+      case 1 -> offset;
+      case 2 -> sizeInBytes;
+      case 3 -> cardinality;
+      case 4 -> keyMetadata();
+      default -> throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
+    };
   }
 
   @Override
   protected <T> void internalSet(int pos, T value) {
     switch (pos) {
-      case 0:
         // always coerce to String for Serializable
-        this.location = value.toString();
-        break;
-      case 1:
-        this.offset = (Long) value;
-        break;
-      case 2:
-        this.sizeInBytes = (Long) value;
-        break;
-      case 3:
-        this.cardinality = (Long) value;
-        break;
-      default:
+      case 0 -> this.location = value.toString();
+      case 1 -> this.offset = (Long) value;
+      case 2 -> this.sizeInBytes = (Long) value;
+      case 3 -> this.cardinality = (Long) value;
+      case 4 -> this.keyMetadata = ByteBuffers.toByteArray((ByteBuffer) value);
+      default -> {
         // ignore the object, it must be from a newer version of the format
+      }
     }
   }
 
@@ -156,6 +162,7 @@ class DeletionVectorStruct extends SupportsIndexProjection implements DeletionVe
         .add("offset", offset)
         .add("size_in_bytes", sizeInBytes)
         .add("cardinality", cardinality)
+        .add("key_metadata", keyMetadata == null ? "null" : "(redacted)")
         .toString();
   }
 
@@ -164,6 +171,7 @@ class DeletionVectorStruct extends SupportsIndexProjection implements DeletionVe
     private Long offset = null;
     private Long sizeInBytes = null;
     private Long cardinality = null;
+    private ByteBuffer keyMetadata = null;
 
     Builder location(String dvLocation) {
       Preconditions.checkArgument(dvLocation != null, "Invalid location: null");
@@ -191,12 +199,17 @@ class DeletionVectorStruct extends SupportsIndexProjection implements DeletionVe
       return this;
     }
 
+    Builder keyMetadata(ByteBuffer dvKeyMetadata) {
+      this.keyMetadata = dvKeyMetadata;
+      return this;
+    }
+
     DeletionVectorStruct build() {
       Preconditions.checkArgument(location != null, "Missing required value: location");
       Preconditions.checkArgument(offset != null, "Missing required value: offset");
       Preconditions.checkArgument(sizeInBytes != null, "Missing required value: size in bytes");
       Preconditions.checkArgument(cardinality != null, "Missing required value: cardinality");
-      return new DeletionVectorStruct(location, offset, sizeInBytes, cardinality);
+      return new DeletionVectorStruct(location, offset, sizeInBytes, cardinality, keyMetadata);
     }
   }
 }

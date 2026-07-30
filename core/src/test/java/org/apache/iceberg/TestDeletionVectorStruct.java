@@ -22,10 +22,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 
 class TestDeletionVectorStruct {
+
+  private static final ByteBuffer KEY_METADATA = ByteBuffer.wrap(new byte[] {1, 2, 3});
 
   @Test
   void testFieldAccess() {
@@ -35,12 +38,14 @@ class TestDeletionVectorStruct {
             .offset(256L)
             .sizeInBytes(128L)
             .cardinality(42L)
+            .keyMetadata(KEY_METADATA)
             .build();
 
     assertThat(dv.location()).isEqualTo("s3://bucket/data/dv.puffin");
     assertThat(dv.offset()).isEqualTo(256L);
     assertThat(dv.sizeInBytes()).isEqualTo(128L);
     assertThat(dv.cardinality()).isEqualTo(42L);
+    assertThat(dv.keyMetadata()).isEqualTo(KEY_METADATA);
   }
 
   @Test
@@ -51,6 +56,7 @@ class TestDeletionVectorStruct {
             .offset(256L)
             .sizeInBytes(128L)
             .cardinality(42L)
+            .keyMetadata(KEY_METADATA)
             .build();
 
     DeletionVectorStruct copy = dv.copy();
@@ -59,12 +65,13 @@ class TestDeletionVectorStruct {
     assertThat(copy.offset()).isEqualTo(256L);
     assertThat(copy.sizeInBytes()).isEqualTo(128L);
     assertThat(copy.cardinality()).isEqualTo(42L);
+    assertThat(copy.keyMetadata()).isEqualTo(KEY_METADATA);
   }
 
   @Test
   void testSize() {
     DeletionVectorStruct dv = new DeletionVectorStruct(DeletionVector.schema());
-    assertThat(dv.size()).isEqualTo(4);
+    assertThat(dv.size()).isEqualTo(5);
   }
 
   @Test
@@ -95,6 +102,7 @@ class TestDeletionVectorStruct {
             .offset(100L)
             .sizeInBytes(512L)
             .cardinality(42L)
+            .keyMetadata(KEY_METADATA)
             .build();
 
     // unknown ordinals from a newer format version are silently ignored
@@ -105,6 +113,7 @@ class TestDeletionVectorStruct {
     assertThat(dv.offset()).isEqualTo(100L);
     assertThat(dv.sizeInBytes()).isEqualTo(512L);
     assertThat(dv.cardinality()).isEqualTo(42L);
+    assertThat(dv.keyMetadata()).isEqualTo(KEY_METADATA);
   }
 
   @Test
@@ -115,6 +124,7 @@ class TestDeletionVectorStruct {
             .offset(256L)
             .sizeInBytes(128L)
             .cardinality(42L)
+            .keyMetadata(KEY_METADATA)
             .build();
 
     DeletionVectorStruct deserialized = TestHelpers.roundTripSerialize(dv);
@@ -123,6 +133,7 @@ class TestDeletionVectorStruct {
     assertThat(deserialized.offset()).isEqualTo(256L);
     assertThat(deserialized.sizeInBytes()).isEqualTo(128L);
     assertThat(deserialized.cardinality()).isEqualTo(42L);
+    assertThat(deserialized.keyMetadata()).isEqualTo(KEY_METADATA);
   }
 
   @Test
@@ -248,6 +259,7 @@ class TestDeletionVectorStruct {
             .offset(256L)
             .sizeInBytes(128L)
             .cardinality(42L)
+            .keyMetadata(KEY_METADATA)
             .build();
 
     DeletionVectorStruct deserialized = TestHelpers.KryoHelpers.roundTripSerialize(dv);
@@ -256,5 +268,6 @@ class TestDeletionVectorStruct {
     assertThat(deserialized.offset()).isEqualTo(256L);
     assertThat(deserialized.sizeInBytes()).isEqualTo(128L);
     assertThat(deserialized.cardinality()).isEqualTo(42L);
+    assertThat(deserialized.keyMetadata()).isEqualTo(KEY_METADATA);
   }
 }
