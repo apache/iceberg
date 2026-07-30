@@ -928,10 +928,19 @@ public class CatalogHandlers {
     Table table = catalog.loadTable(ident);
     String planTask = request.planTask();
     List<FileScanTask> fileScanTasks = IN_MEMORY_PLANNING_STATE.fileScanTasksForPlanTask(planTask);
+    List<String> nextPlanTasks = IN_MEMORY_PLANNING_STATE.nextPlanTask(planTask);
+
+    // Release the fetched plan task's state to prevent unbounded memory growth. The FileScanTask
+    // list is the dominant memory consumer and need not be retained once served (#17427). When
+    // this was the last plan task in the chain, also release the async planning state.
+    IN_MEMORY_PLANNING_STATE.releasePlanTask(planTask);
+    if (nextPlanTasks.isEmpty()) {
+      IN_MEMORY_PLANNING_STATE.releaseAsyncPlanForTask(planTask);
+    }
 
     return FetchScanTasksResponse.builder()
         .withFileScanTasks(fileScanTasks)
-        .withPlanTasks(IN_MEMORY_PLANNING_STATE.nextPlanTask(planTask))
+        .withPlanTasks(nextPlanTasks)
         .withSpecsById(table.specs())
         .build();
   }
