@@ -950,6 +950,50 @@ class TestV4ManifestReader {
 
   @ParameterizedTest
   @FieldSource("MANIFEST_FORMATS")
+  public void rowFilterKeepsStatsForAllFieldIds(FileFormat format) throws IOException {
+    TrackedFile file = fileWithStats("s3://bucket/file.parquet", contentStats());
+
+    InputFile manifest =
+        writeManifest(format, EMPTY_PARTITION, CONTENT_STATS_TYPE, ImmutableList.of(file));
+
+    // a filter narrows the stats only for scan planning, so a default read still carries the
+    // stats of every field even though the filter needs one of them
+    try (V4ManifestReader reader =
+        V4ManifestReader.builder(manifest, TABLE_SCHEMA, UNPARTITIONED_SPECS, TABLE_LOCATION)
+            .filter(Expressions.equal("id", 1))
+            .build()) {
+      ContentStats stats = Iterables.getOnlyElement(reader).contentStats();
+      assertFieldStats(stats.statsFor(ID_FIELD_ID), ID_STATS);
+      assertFieldStats(stats.statsFor(DATA_FIELD_ID), DATA_STATS);
+      assertFieldStats(stats.statsFor(MEASURE_FIELD_ID), MEASURE_STATS);
+    }
+  }
+
+  @ParameterizedTest
+  @FieldSource("MANIFEST_FORMATS")
+  public void selectStatsByName(FileFormat format) throws IOException {
+    TrackedFile file = fileWithStats("s3://bucket/file.parquet", contentStats());
+
+    InputFile manifest =
+        writeManifest(format, EMPTY_PARTITION, CONTENT_STATS_TYPE, ImmutableList.of(file));
+
+    // stats are named after the column they describe, so a caller can select one column's stats
+    try (V4ManifestReader reader =
+        V4ManifestReader.builder(manifest, TABLE_SCHEMA, UNPARTITIONED_SPECS, TABLE_LOCATION)
+            .select("location", "content_stats.data")
+            .build()) {
+      TrackedFile actual = Iterables.getOnlyElement(reader);
+      assertThat(actual.location()).isEqualTo("s3://bucket/file.parquet");
+
+      ContentStats stats = actual.contentStats();
+      assertFieldStats(stats.statsFor(DATA_FIELD_ID), DATA_STATS);
+      assertThat(stats.statsFor(ID_FIELD_ID)).isNull();
+      assertThat(stats.statsFor(MEASURE_FIELD_ID)).isNull();
+    }
+  }
+
+  @ParameterizedTest
+  @FieldSource("MANIFEST_FORMATS")
   public void projectStatsReadsOnlyRequestedColumns(FileFormat format) throws IOException {
     TrackedFile file = fileWithStats("s3://bucket/file.parquet", contentStats());
 
@@ -1022,6 +1066,28 @@ class TestV4ManifestReader {
       ContentStats stats = Iterables.getOnlyElement(reader).contentStats();
       assertFieldStats(stats.statsFor(DATA_FIELD_ID), DATA_STATS);
       assertThat(stats.statsFor(ID_FIELD_ID)).isNull();
+      assertThat(stats.statsFor(MEASURE_FIELD_ID)).isNull();
+    }
+  }
+
+  @ParameterizedTest
+  @FieldSource("MANIFEST_FORMATS")
+  public void projectStatsAndFilterStatsAreCombined(FileFormat format) throws IOException {
+    TrackedFile file = fileWithStats("s3://bucket/file.parquet", contentStats());
+
+    InputFile manifest =
+        writeManifest(format, EMPTY_PARTITION, CONTENT_STATS_TYPE, ImmutableList.of(file));
+
+    // scan planning narrows stats to the requested fields and the fields the filter needs
+    try (V4ManifestReader reader =
+        V4ManifestReader.builder(manifest, TABLE_SCHEMA, UNPARTITIONED_SPECS, TABLE_LOCATION)
+            .forScanPlanning()
+            .projectStats(ID_FIELD_ID)
+            .filter(Expressions.equal("data", "m"))
+            .build()) {
+      ContentStats stats = Iterables.getOnlyElement(reader).contentStats();
+      assertFieldStats(stats.statsFor(ID_FIELD_ID), ID_STATS);
+      assertFieldStats(stats.statsFor(DATA_FIELD_ID), DATA_STATS);
       assertThat(stats.statsFor(MEASURE_FIELD_ID)).isNull();
     }
   }
