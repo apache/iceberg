@@ -434,7 +434,7 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
 
       if (response.getStatusCode() == HttpStatusCodes.STATUS_CODE_NOT_FOUND) {
         String responseString = response.parseAsString();
-        if (responseString.toLowerCase(Locale.ENGLISH).contains("not found: connection")) {
+        if (responseString.toLowerCase(Locale.ROOT).contains("not found: connection")) {
           throw new BadRequestException("%s", responseString);
         }
 

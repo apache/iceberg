@@ -230,7 +230,7 @@ public class ExpressionParser {
     }
 
     private String operationType(Expression.Operation op) {
-      return op.toString().replaceAll("_", "-").toLowerCase(Locale.ENGLISH);
+      return op.toString().replaceAll("_", "-").toLowerCase(Locale.ROOT);
     }
 
     private void term(Term term) throws IOException {

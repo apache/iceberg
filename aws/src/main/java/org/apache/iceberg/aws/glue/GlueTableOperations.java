@@ -291,7 +291,7 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
   private Map<String, String> prepareProperties(Table glueTable, String newMetadataLocation) {
     Map<String, String> properties =
         glueTable != null ? Maps.newHashMap(glueTable.parameters()) : Maps.newHashMap();
-    properties.put(TABLE_TYPE_PROP, ICEBERG_TABLE_TYPE_VALUE.toUpperCase(Locale.ENGLISH));
+    properties.put(TABLE_TYPE_PROP, ICEBERG_TABLE_TYPE_VALUE.toUpperCase(Locale.ROOT));
     properties.put(METADATA_LOCATION_PROP, newMetadataLocation);
     if (currentMetadataLocation() != null && !currentMetadataLocation().isEmpty()) {
       properties.put(PREVIOUS_METADATA_LOCATION_PROP, currentMetadataLocation());
