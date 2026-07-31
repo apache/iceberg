@@ -112,6 +112,27 @@ public class TestSchemaConversions {
     assertThat(AvroSchemaUtil.convert(avroType)).isEqualTo(expectedIcebergType);
   }
 
+  @Test
+  public void testAvroLocalTimestampMillisToIceberg() {
+    Schema avroType =
+        LogicalTypes.localTimestampMillis().addToSchema(Schema.create(Schema.Type.LONG));
+    assertThat(AvroSchemaUtil.convert(avroType)).isEqualTo(Types.TimestampType.withoutZone());
+  }
+
+  @Test
+  public void testAvroLocalTimestampMicrosToIceberg() {
+    Schema avroType =
+        LogicalTypes.localTimestampMicros().addToSchema(Schema.create(Schema.Type.LONG));
+    assertThat(AvroSchemaUtil.convert(avroType)).isEqualTo(Types.TimestampType.withoutZone());
+  }
+
+  @Test
+  public void testAvroLocalTimestampNanosToIceberg() {
+    Schema avroType =
+        LogicalTypes.localTimestampNanos().addToSchema(Schema.create(Schema.Type.LONG));
+    assertThat(AvroSchemaUtil.convert(avroType)).isEqualTo(Types.TimestampNanoType.withoutZone());
+  }
+
   private Schema addAdjustToUtc(Schema schema, boolean adjustToUTC) {
     schema.addProp(AvroSchemaUtil.ADJUST_TO_UTC_PROP, adjustToUTC);
     return schema;

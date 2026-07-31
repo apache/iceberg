@@ -131,6 +131,9 @@ public class DataReader<T> implements DatumReader<T>, SupportsRowPosition {
           case "date":
             return GenericReaders.dates();
 
+          case "time-millis":
+            return GenericReaders.timesFromMillis();
+
           case "time-micros":
             return GenericReaders.times();
 
@@ -151,6 +154,15 @@ public class DataReader<T> implements DatumReader<T>, SupportsRowPosition {
               return GenericReaders.timestamptzMillis();
             }
             return GenericReaders.timestampMillis();
+
+          case "local-timestamp-millis":
+            return GenericReaders.timestampMillis();
+
+          case "local-timestamp-micros":
+            return GenericReaders.timestamps();
+
+          case "local-timestamp-nanos":
+            return GenericReaders.timestampNanos();
 
           case "decimal":
             return ValueReaders.decimal(

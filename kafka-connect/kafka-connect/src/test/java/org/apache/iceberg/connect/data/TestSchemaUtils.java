@@ -62,6 +62,7 @@ import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.types.Types.StringType;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.types.Types.TimeType;
+import org.apache.iceberg.types.Types.TimestampNanoType;
 import org.apache.iceberg.types.Types.TimestampType;
 import org.apache.iceberg.types.Types.UUIDType;
 import org.apache.kafka.connect.data.Date;
@@ -269,6 +270,45 @@ public class TestSchemaUtils {
     assertThat(structType).isInstanceOf(StructType.class);
     assertThat(structType.asStructType().fieldType("i")).isInstanceOf(IntegerType.class);
     assertThat(structType.asStructType().field("i").isOptional()).isEqualTo(forceOptional);
+  }
+
+  @Test
+  public void testToIcebergTypeAvroTemporalLogicalTypes() {
+    IcebergSinkConfig config = mock(IcebergSinkConfig.class);
+
+    // timestamp-micros / timestamp-nanos are UTC instants -> with zone
+    Type tsMicros = SchemaUtils.toIcebergType(namedInt64("timestamp-micros"), config);
+    assertThat(tsMicros).isInstanceOf(TimestampType.class);
+    assertThat(((TimestampType) tsMicros).shouldAdjustToUTC()).isTrue();
+
+    Type tsNanos = SchemaUtils.toIcebergType(namedInt64("timestamp-nanos"), config);
+    assertThat(tsNanos).isInstanceOf(TimestampNanoType.class);
+    assertThat(((TimestampNanoType) tsNanos).shouldAdjustToUTC()).isTrue();
+
+    // local-timestamp-* are zone-less -> without zone
+    Type localMillis = SchemaUtils.toIcebergType(namedInt64("local-timestamp-millis"), config);
+    assertThat(localMillis).isInstanceOf(TimestampType.class);
+    assertThat(((TimestampType) localMillis).shouldAdjustToUTC()).isFalse();
+
+    Type localMicros = SchemaUtils.toIcebergType(namedInt64("local-timestamp-micros"), config);
+    assertThat(localMicros).isInstanceOf(TimestampType.class);
+    assertThat(((TimestampType) localMicros).shouldAdjustToUTC()).isFalse();
+
+    Type localNanos = SchemaUtils.toIcebergType(namedInt64("local-timestamp-nanos"), config);
+    assertThat(localNanos).isInstanceOf(TimestampNanoType.class);
+    assertThat(((TimestampNanoType) localNanos).shouldAdjustToUTC()).isFalse();
+
+    // time-micros (int64) -> time
+    assertThat(SchemaUtils.toIcebergType(namedInt64("time-micros"), config))
+        .isInstanceOf(TimeType.class);
+
+    // an unrecognized named int64 still falls through to long
+    assertThat(SchemaUtils.toIcebergType(namedInt64("something-else"), config))
+        .isInstanceOf(LongType.class);
+  }
+
+  private static Schema namedInt64(String name) {
+    return SchemaBuilder.int64().name(name).build();
   }
 
   @Test
