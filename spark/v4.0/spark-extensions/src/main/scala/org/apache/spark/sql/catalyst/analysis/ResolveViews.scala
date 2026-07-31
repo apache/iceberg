@@ -124,8 +124,6 @@ case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with Look
     // the stored name and metadata; only the coercion differs.
     val mode = viewSchemaMode
     val aliases = view.schema.fields.zipWithIndex.map { case (expected, pos) =>
-      // The declared type here is discarded when the ordinal is resolved to the child attribute,
-      // so under TYPE_EVOLUTION the column keeps the type the view's SQL produces.
       val attr = GetColumnByOrdinal(pos, expected.dataType)
       val coerced =
         if (mode == SparkSQLProperties.VIEW_SCHEMA_MODE_COMPENSATION) {

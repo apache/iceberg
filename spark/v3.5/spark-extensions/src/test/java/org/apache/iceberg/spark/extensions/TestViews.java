@@ -2194,7 +2194,6 @@ public class TestViews extends ExtensionsTestBase {
     assertViewSchemaCompensates(
         viewName, ImmutableMap.of(SPARK_BINDING_MODE, "false", SPARK_COMPENSATION, "true"));
 
-    // the value is matched without regard to case
     assertViewSchemaCompensates(viewName, ImmutableMap.of(SPARK_BINDING_MODE, "FALSE"));
   }
 
