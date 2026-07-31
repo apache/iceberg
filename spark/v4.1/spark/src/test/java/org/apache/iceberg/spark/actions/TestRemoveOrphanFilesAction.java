@@ -1020,6 +1020,49 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
     assertThat(result4.orphanFilesCount()).as("Action should find nothing").isEqualTo(0L);
   }
 
+  @TestTemplate
+  public void testCompareToFileListWithSiblingTableLocation() throws IOException {
+    Table table = TABLES.create(SCHEMA, PartitionSpec.unpartitioned(), properties, tableLocation);
+
+    List<ThreeColumnRecord> records =
+        Lists.newArrayList(new ThreeColumnRecord(1, "AAAAAAAAAA", "AAAA"));
+    Dataset<Row> df = spark.createDataFrame(records, ThreeColumnRecord.class).coalesce(1);
+    df.select("c1", "c2", "c3").write().format("iceberg").mode("append").save(tableLocation);
+
+    // strip the trailing slash to reproduce a location as it would be passed via
+    // DeleteOrphanFiles#location(String), e.g. "/tmp/table" instead of "/tmp/table/"
+    String locationWithoutTrailingSlash = tableLocation.substring(0, tableLocation.length() - 1);
+
+    // sibling table whose location has this table's location as a string prefix,
+    // e.g. "/tmp/table" is a prefix of "/tmp/table_2"
+    String siblingTableLocation = locationWithoutTrailingSlash + "_2";
+    String siblingFilePath = siblingTableLocation + "/data/sibling-file.parquet";
+
+    waitUntilAfter(System.currentTimeMillis());
+
+    List<FilePathLastModifiedRecord> compareToFiles =
+        Lists.newArrayList(new FilePathLastModifiedRecord(siblingFilePath, new Timestamp(0L)));
+
+    Dataset<Row> compareToFileList =
+        spark
+            .createDataFrame(compareToFiles, FilePathLastModifiedRecord.class)
+            .withColumnRenamed("filePath", "file_path")
+            .withColumnRenamed("lastModified", "last_modified");
+
+    DeleteOrphanFiles.Result result =
+        SparkActions.get()
+            .deleteOrphanFiles(table)
+            .location(locationWithoutTrailingSlash)
+            .compareToFileList(compareToFileList)
+            .olderThan(System.currentTimeMillis())
+            .deleteWith(s -> {})
+            .execute();
+
+    assertThat(result.orphanFileLocations())
+        .as("Files belonging to a sibling table must not be reported as orphan")
+        .isEmpty();
+  }
+
   protected long waitUntilAfter(long timestampMillis) {
     long current = System.currentTimeMillis();
     while (current <= timestampMillis) {
