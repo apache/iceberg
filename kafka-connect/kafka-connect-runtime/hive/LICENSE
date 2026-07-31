@@ -791,24 +791,17 @@ License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2
 
 --------------------------------------------------------------------------------
 
-This product bundles Jakarta Activation API.
+This product bundles Jakarta Annotations API.
 
-Project URL: https://www.eclipse.org
+Project URL: https://projects.eclipse.org/projects/ee4j.ca
 License: Eclipse Public License v. 2.0 - https://www.eclipse.org/org/documents/epl-2.0/EPL-2.0.txt
 
 --------------------------------------------------------------------------------
 
-This product bundles Javax Annotation API.
+This product bundles Jakarta Servlet.
 
-Project URL: https://javaee.github.io/glassfish
-License: CDDL 1.1 - https://github.com/javaee/javax.annotation/blob/master/LICENSE
-
---------------------------------------------------------------------------------
-
-This product bundles Javax Servlet API.
-
-Project URL: http://servlet-spec.java.net
-License: CDDL 1.1 - https://glassfish.dev.java.net/nonav/public/CDDL+GPL.html
+Project URL: https://projects.eclipse.org/projects/ee4j.servlet
+License: Eclipse Public License v. 2.0 - https://www.eclipse.org/org/documents/epl-2.0/EPL-2.0.txt
 
 --------------------------------------------------------------------------------
 
@@ -819,17 +812,17 @@ License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2
 
 --------------------------------------------------------------------------------
 
-This product bundles Javax Servlet API.
+This product bundles Jakarta Server Pages API.
 
-Project URL: http://servlet-spec.java.net
-License: CDDL 1.1 - https://glassfish.dev.java.net/nonav/public/CDDL+GPL.html
+Project URL: https://projects.eclipse.org/projects/ee4j.jsp
+License: Eclipse Public License v. 2.0 - https://www.eclipse.org/org/documents/epl-2.0/EPL-2.0.txt
 
 --------------------------------------------------------------------------------
 
-This product bundles Javax Servlet JSP.
+This product bundles Jakarta RESTful Web Services API.
 
-Project URL: https://github.com/javaee/javaee-jsp-api
-License: CDDL 1.1 - https://github.com/javaee/javaee-jsp-api/blob/master/LICENSE
+Project URL: https://github.com/eclipse-ee4j/jaxrs-api
+License: Eclipse Public License v. 2.0 - https://www.eclipse.org/org/documents/epl-2.0/EPL-2.0.txt
 
 --------------------------------------------------------------------------------
 
@@ -837,13 +830,6 @@ This product bundles JTA.
 
 Project URL: http://java.sun.com/products/jta
 License: CDDL 1.1 - https://glassfish.dev.java.net/nonav/public/CDDL+GPL.html
-
---------------------------------------------------------------------------------
-
-This product bundles JAXB.
-
-Project URL: http://jaxb.java.net/
-License: CDDL 1.1 - https://glassfish.java.net/public/CDDL+GPL_1_1.html
 
 --------------------------------------------------------------------------------
 
@@ -1156,13 +1142,6 @@ License: MIT
 | LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 | OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 | THE SOFTWARE.
-
---------------------------------------------------------------------------------
-
-This product bundles Jettison.
-
-Project URL: https://github.com/jettison-json/jettison
-License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 

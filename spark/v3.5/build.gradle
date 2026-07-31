@@ -138,6 +138,13 @@ project(":iceberg-spark:iceberg-spark-extensions-${sparkMajorVersion}_${scalaVer
     implementation {
       extendsFrom = extendsFrom.findAll { it != configurations.antlr }
     }
+    testRuntimeClasspath {
+      resolutionStrategy {
+        force "org.apache.hadoop:hadoop-common:${libs.versions.hadoop3.spark35.get()}"
+        force "org.apache.hadoop:hadoop-auth:${libs.versions.hadoop3.spark35.get()}"
+        force "org.apache.hadoop:hadoop-annotations:${libs.versions.hadoop3.spark35.get()}"
+      }
+    }
   }
 
   dependencies {
@@ -220,6 +227,13 @@ project(":iceberg-spark:iceberg-spark-runtime-${sparkMajorVersion}_${scalaVersio
       exclude group: 'org.antlr'
       exclude group: 'org.scala-lang'
       exclude group: 'org.scala-lang.modules'
+    }
+    integrationRuntimeClasspath {
+      resolutionStrategy {
+        force "org.apache.hadoop:hadoop-common:${libs.versions.hadoop3.spark35.get()}"
+        force "org.apache.hadoop:hadoop-auth:${libs.versions.hadoop3.spark35.get()}"
+        force "org.apache.hadoop:hadoop-annotations:${libs.versions.hadoop3.spark35.get()}"
+      }
     }
   }
 
@@ -324,4 +338,3 @@ project(":iceberg-spark:iceberg-spark-runtime-${sparkMajorVersion}_${scalaVersio
 
   apply from: "${rootDir}/runtime-deps.gradle"
 }
-
