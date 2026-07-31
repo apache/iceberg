@@ -2423,8 +2423,6 @@ components:
 
     PrimitiveType:
       type: string
-      not:
-        const: "variant"
       example:
         - "long"
         - "string"
