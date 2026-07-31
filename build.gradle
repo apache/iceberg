@@ -51,6 +51,11 @@ try {
   project.logger.error(e.getMessage())
 }
 
+// Gradle 8.14.x lists JVM 8-24 as supported and JVM 25 as "not yet supported"; JVM 25 support
+// arrived in Gradle 9.1. The 8.x line is closed, so there is no supported 8.x that runs on JDK 25
+// and the wrapper cannot move to 9.x until several build plugins are replaced (gradle-revapi is
+// still at 1.8.0 and gradle-processors calls the removed Project.convention API). Building and
+// testing on JDK 25 with Gradle 8.14.5 works today but is outside Gradle's tested matrix.
 if (JavaVersion.current() == JavaVersion.VERSION_17 || JavaVersion.current() == JavaVersion.VERSION_21 || JavaVersion.current() == JavaVersion.VERSION_25) {
   project.ext.jdkVersion = JavaVersion.current().getMajorVersion().toString()
   project.ext.extraJvmArgs = ["--add-opens", "java.base/java.io=ALL-UNNAMED",
@@ -222,7 +227,7 @@ subprojects {
           substitute module("org.lz4:lz4-java") using module(libs.lz4Java.get().toString()) because("Enforce lz4-java that contains CVE-2025-12183 and CVE-2025-66566 fixes")
           substitute module("io.airlift:aircompressor") using module(libs.aircompressor.get().toString()) because("Enforce aircompressor that contains CVE-2025-67721 fix")
           substitute module("org.bouncycastle:bcprov-jdk18on") using module(libs.bouncycastle.bcprov.get().toString()) because("Enforce BouncyCastle that contains CVE-2026-5598 fix")
-          substitute module("org.apache.datasketches:datasketches-memory") using module(libs.datasketchesMemory.get().toString()) because("datasketches-memory rejects any JDK outside 1.8/8/11/17/21; the java17_25 artifact targets Java 17 bytecode without a version gate, so it runs on 17, 21 and 25")
+          substitute module("org.apache.datasketches:datasketches-memory") using module(libs.datasketchesMemory.get().toString()) because("datasketches-memory 3.x rejects any JDK outside 1.8/8/11/17/21 at runtime; the java17_25 artifact is Java 17 bytecode and accepts 17, 21 and 25+")
         }
         eachDependency { details ->
           if (details.requested.group == 'io.netty'
