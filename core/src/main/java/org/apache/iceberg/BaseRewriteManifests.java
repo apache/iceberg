@@ -24,7 +24,6 @@ import static org.apache.iceberg.TableProperties.MANIFEST_TARGET_SIZE_BYTES_DEFA
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -50,8 +49,6 @@ import org.apache.iceberg.util.Tasks;
 
 public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
     implements RewriteManifests {
-  private static final Object ROW_ID_ASSIGNMENT_CLUSTER_KEY = new Object();
-
   private final String tableName;
   private final Map<Integer, PartitionSpec> specsById;
   private final long manifestTargetSizeBytes;
@@ -66,10 +63,8 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
   private final Map<Object, WriterWrapper> writers = Maps.newConcurrentMap();
 
   private final AtomicLong entryCount = new AtomicLong(0);
-  private final Collection<RowIdRange> assignedRowIdRanges = new ConcurrentLinkedQueue<>();
 
   private Function<DataFile, Object> clusterByFunc;
-  private Function<DataFile, Long> firstRowIdForFile;
   private Predicate<ManifestFile> predicate;
   private Long expectedFirstRowId;
   private Long nextRowIdExclusive;
@@ -122,20 +117,15 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
 
   @Override
   public RewriteManifests clusterBy(Function<DataFile, Object> func) {
+    Preconditions.checkState(
+        !hasAssignedRowIdRange(),
+        "Manifest clustering cannot be combined with an assigned row ID range");
     this.clusterByFunc = func;
     return this;
   }
 
   @Override
-  public RewriteManifests assignFirstRowIds(
-      Function<DataFile, Long> firstRowIdForFile,
-      long expectedFirstRowId,
-      long nextRowIdExclusive) {
-    Preconditions.checkArgument(firstRowIdForFile != null, "First row ID function cannot be null");
-    Preconditions.checkArgument(
-        ops().current().formatVersion() >= 3,
-        "Cannot assign first row IDs to a table with format version %s",
-        ops().current().formatVersion());
+  public RewriteManifests setAssignedRowIdRange(long expectedFirstRowId, long nextRowIdExclusive) {
     Preconditions.checkArgument(
         expectedFirstRowId >= 0,
         "Expected first row ID must be non-negative: %s",
@@ -146,23 +136,15 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
         nextRowIdExclusive,
         expectedFirstRowId);
     Preconditions.checkState(
-        !hasRowIdAssignment(), "First row ID assignment is already configured");
+        !hasAssignedRowIdRange(), "Assigned row ID range is already configured");
     Preconditions.checkState(
-        predicate == null
-            && deletedManifests.isEmpty()
-            && addedManifests.isEmpty()
-            && rewrittenAddedManifests.isEmpty(),
-        "First row ID assignment cannot be combined with manifest selection or replacement");
+        predicate == null && clusterByFunc == null,
+        "Assigned row ID ranges can only be used with direct manifest replacement");
 
-    this.firstRowIdForFile = firstRowIdForFile;
     this.expectedFirstRowId = expectedFirstRowId;
     this.nextRowIdExclusive = nextRowIdExclusive;
     Snapshot currentSnapshot = ops().current().currentSnapshot();
     this.expectedSnapshotId = currentSnapshot != null ? currentSnapshot.snapshotId() : null;
-
-    if (clusterByFunc == null) {
-      this.clusterByFunc = ignored -> ROW_ID_ASSIGNMENT_CLUSTER_KEY;
-    }
 
     return this;
   }
@@ -170,26 +152,20 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
   @Override
   public RewriteManifests rewriteIf(Predicate<ManifestFile> pred) {
     Preconditions.checkState(
-        !hasRowIdAssignment(),
-        "Manifest selection cannot be combined with first row ID assignment");
+        !hasAssignedRowIdRange(),
+        "Manifest selection cannot be combined with an assigned row ID range");
     this.predicate = pred;
     return this;
   }
 
   @Override
   public RewriteManifests deleteManifest(ManifestFile manifest) {
-    Preconditions.checkState(
-        !hasRowIdAssignment(),
-        "Manifest replacement cannot be combined with first row ID assignment");
     deletedManifests.add(manifest);
     return this;
   }
 
   @Override
   public RewriteManifests addManifest(ManifestFile manifest) {
-    Preconditions.checkState(
-        !hasRowIdAssignment(),
-        "Manifest replacement cannot be combined with first row ID assignment");
     Preconditions.checkArgument(!manifest.hasAddedFiles(), "Cannot add manifest with added files");
     Preconditions.checkArgument(
         !manifest.hasDeletedFiles(), "Cannot add manifest with deleted files");
@@ -239,7 +215,7 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
     }
 
     validateFilesCounts();
-    validateAssignedRowIds();
+    validateAssignedRowIdRange();
 
     Iterable<ManifestFile> newManifestsWithMetadata =
         Iterables.transform(
@@ -291,7 +267,6 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
   private void reset() {
     deleteUncommitted(newManifests, ImmutableSet.of(), true /* clear new manifests */);
     entryCount.set(0);
-    assignedRowIdRanges.clear();
     keptManifests.clear();
     rewrittenManifests.clear();
     writers.clear();
@@ -394,78 +369,50 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
     Preconditions.checkNotNull(key, "Key cannot be null");
 
     WriterWrapper writer = getWriter(key, partitionSpecId);
-    if (hasRowIdAssignment()) {
-      writer.addEntryWithAssignedRowId(
-          entry, copyDataFileWithAssignedFirstRowId(entry.file(), partitionSpecId));
-    } else {
-      writer.addEntry(entry);
-    }
-
+    writer.addEntry(entry);
     entryCount.incrementAndGet();
   }
 
-  private DataFile copyDataFileWithAssignedFirstRowId(DataFile file, int partitionSpecId) {
-    Long assignedFirstRowId = firstRowIdForFile.apply(file);
-    ValidationException.check(
-        assignedFirstRowId != null, "No first row ID for data file: %s", file.location());
-
-    long firstRowId = assignedFirstRowId;
-    long lastRowIdExclusive;
-    try {
-      lastRowIdExclusive = Math.addExact(firstRowId, file.recordCount());
-    } catch (ArithmeticException e) {
-      throw new ValidationException(e, "Row ID range overflows for data file: %s", file.location());
-    }
-
-    ValidationException.check(
-        firstRowId >= expectedFirstRowId && lastRowIdExclusive <= nextRowIdExclusive,
-        "Row ID range [%s, %s) for data file %s is outside reserved range [%s, %s)",
-        firstRowId,
-        lastRowIdExclusive,
-        file.location(),
-        expectedFirstRowId,
-        nextRowIdExclusive);
-
-    assignedRowIdRanges.add(new RowIdRange(firstRowId, lastRowIdExclusive, file.location()));
-    PartitionSpec spec =
-        Preconditions.checkNotNull(
-            specsById.get(partitionSpecId), "Cannot find partition spec: %s", partitionSpecId);
-    return DataFiles.builder(spec).copy(file).withFirstRowId(firstRowId).build();
-  }
-
-  private void validateAssignedRowIds() {
-    if (!hasRowIdAssignment()) {
+  private void validateAssignedRowIdRange() {
+    if (!hasAssignedRowIdRange()) {
       return;
     }
 
-    List<RowIdRange> ranges = Lists.newArrayList(assignedRowIdRanges);
-    ranges.sort(Comparator.comparingLong(range -> range.firstRowId));
+    ValidationException.check(
+        !deletedManifests.isEmpty()
+            && (!addedManifests.isEmpty() || !rewrittenAddedManifests.isEmpty()),
+        "Assigned row ID ranges require direct manifest replacement");
 
-    RowIdRange previous = null;
-    for (RowIdRange current : ranges) {
-      if (previous != null && current.firstRowId < previous.lastRowIdExclusive) {
-        throw new ValidationException(
-            "Overlapping row ID ranges for data files %s [%s, %s) and %s [%s, %s)",
-            previous.filePath,
-            previous.firstRowId,
-            previous.lastRowIdExclusive,
-            current.filePath,
-            current.firstRowId,
-            current.lastRowIdExclusive);
-      }
-
-      if (previous == null || current.lastRowIdExclusive > previous.lastRowIdExclusive) {
-        previous = current;
-      }
-    }
+    deletedManifests.forEach(
+        manifest ->
+            ValidationException.check(
+                manifest.content() == ManifestContent.DATA,
+                "Cannot assign row IDs by replacing a delete manifest: %s",
+                manifest.path()));
+    Iterables.concat(addedManifests, rewrittenAddedManifests)
+        .forEach(
+            manifest -> {
+              ValidationException.check(
+                  manifest.content() == ManifestContent.DATA,
+                  "Cannot assign row IDs with a replacement delete manifest: %s",
+                  manifest.path());
+              ValidationException.check(
+                  manifest.firstRowId() != null,
+                  "Replacement data manifest must have first row ID: %s",
+                  manifest.path());
+            });
   }
 
   @Override
   protected void validate(TableMetadata currentMetadata, Snapshot snapshot) {
-    if (!hasRowIdAssignment()) {
+    if (!hasAssignedRowIdRange()) {
       return;
     }
 
+    ValidationException.check(
+        currentMetadata.formatVersion() >= 3,
+        "Cannot assign row IDs to a table with format version %s",
+        currentMetadata.formatVersion());
     Long currentSnapshotId = snapshot != null ? snapshot.snapshotId() : null;
     ValidationException.check(
         Objects.equals(expectedSnapshotId, currentSnapshotId),
@@ -481,15 +428,15 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
 
   @Override
   protected long assignedRows(TableMetadata base, long manifestListNextRowId) {
-    if (!hasRowIdAssignment()) {
+    if (!hasAssignedRowIdRange()) {
       return super.assignedRows(base, manifestListNextRowId);
     }
 
     return Math.subtractExact(nextRowIdExclusive, expectedFirstRowId);
   }
 
-  private boolean hasRowIdAssignment() {
-    return firstRowIdForFile != null;
+  private boolean hasAssignedRowIdRange() {
+    return expectedFirstRowId != null;
   }
 
   private WriterWrapper getWriter(Object key, int partitionSpecId) {
@@ -522,19 +469,6 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
       writer.existing(entry);
     }
 
-    synchronized void addEntryWithAssignedRowId(ManifestEntry<DataFile> entry, DataFile file) {
-      prepareWriter();
-      writer.existing(
-          file,
-          Preconditions.checkNotNull(
-              entry.snapshotId(), "Missing snapshot ID for data file: %s", file.location()),
-          Preconditions.checkNotNull(
-              entry.dataSequenceNumber(),
-              "Missing data sequence number for data file: %s",
-              file.location()),
-          entry.fileSequenceNumber());
-    }
-
     private void prepareWriter() {
       if (writer == null) {
         writer = newManifestWriter(spec);
@@ -553,18 +487,6 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
           throw new RuntimeIOException(x);
         }
       }
-    }
-  }
-
-  private static class RowIdRange {
-    private final long firstRowId;
-    private final long lastRowIdExclusive;
-    private final String filePath;
-
-    private RowIdRange(long firstRowId, long lastRowIdExclusive, String filePath) {
-      this.firstRowId = firstRowId;
-      this.lastRowIdExclusive = lastRowIdExclusive;
-      this.filePath = filePath;
     }
   }
 }

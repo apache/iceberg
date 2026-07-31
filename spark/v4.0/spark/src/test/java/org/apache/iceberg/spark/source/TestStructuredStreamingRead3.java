@@ -29,6 +29,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
@@ -41,10 +42,13 @@ import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Files;
+import org.apache.iceberg.ManifestFile;
+import org.apache.iceberg.ManifestFiles;
 import org.apache.iceberg.Parameter;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
 import org.apache.iceberg.RewriteFiles;
+import org.apache.iceberg.RewriteManifests;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotChanges;
@@ -67,6 +71,7 @@ import org.apache.iceberg.spark.CatalogTestBase;
 import org.apache.iceberg.spark.SparkCatalogConfig;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkReadOptions;
+import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.api.java.function.VoidFunction2;
 import org.apache.spark.sql.Dataset;
@@ -767,10 +772,12 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
   public void testResumeCheckpointAfterV2ToV3RowIdAssignment() throws Exception {
     File writerCheckpoint = temp.resolve("upgrade-checkpoint").toFile();
     File output = temp.resolve("upgrade-output").toFile();
-    List<SimpleRecord> beforeUpgrade = Lists.newArrayList(new SimpleRecord(1, "before"));
-    List<SimpleRecord> afterUpgrade = Lists.newArrayList(new SimpleRecord(2, "after"));
+    List<SimpleRecord> checkpointed = Lists.newArrayList(new SimpleRecord(1, "checkpointed"));
+    List<SimpleRecord> pendingBeforeUpgrade =
+        Lists.newArrayList(new SimpleRecord(2, "pending-before-upgrade"));
+    List<SimpleRecord> afterUpgrade = Lists.newArrayList(new SimpleRecord(3, "after-upgrade"));
 
-    appendData(beforeUpgrade);
+    appendData(checkpointed);
     table.refresh();
     long checkpointSnapshotId = table.currentSnapshot().snapshotId();
 
@@ -789,6 +796,10 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
     initialQuery.processAllAvailable();
     initialQuery.stop();
 
+    // This append is deliberately newer than the checkpoint. A resumed stream must still process
+    // it after walking through the v3 manifest-rewrite snapshot.
+    appendData(pendingBeforeUpgrade);
+
     List<DataFile> activeFiles = Lists.newArrayList();
     try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
       tasks.forEach(task -> activeFiles.add(task.file()));
@@ -803,17 +814,26 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
     }
     long nextRowIdExclusive = nextRowId;
 
+    List<ManifestFile> oldDataManifests = table.currentSnapshot().dataManifests(table.io());
+    List<ManifestFile> replacementManifests =
+        oldDataManifests.stream()
+            .map(
+                manifest ->
+                    rewriteManifestWithFirstRowIds(manifest, firstRowIds, 0L, nextRowIdExclusive))
+            .collect(java.util.stream.Collectors.toList());
+
     Transaction upgrade = table.newTransaction();
     upgrade.updateProperties().set(TableProperties.FORMAT_VERSION, "3").commit();
-    upgrade
-        .rewriteManifests()
-        .assignFirstRowIds(file -> firstRowIds.get(file.location()), 0L, nextRowIdExclusive)
-        .commit();
+    RewriteManifests rewrite =
+        upgrade.rewriteManifests().setAssignedRowIdRange(0L, nextRowIdExclusive);
+    oldDataManifests.forEach(rewrite::deleteManifest);
+    replacementManifests.forEach(rewrite::addManifest);
+    rewrite.commit();
     upgrade.commitTransaction();
     table.refresh();
 
     assertThat(table.snapshot(checkpointSnapshotId)).isNotNull();
-    assertThat(table.currentSnapshot().parentId()).isEqualTo(checkpointSnapshotId);
+    assertThat(SnapshotUtil.isAncestorOf(table, checkpointSnapshotId)).isTrue();
     assertThat(table.currentSnapshot().operation()).isEqualTo(DataOperations.REPLACE);
 
     appendData(afterUpgrade);
@@ -829,7 +849,22 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
     List<SimpleRecord> actual =
         spark.read().load(output.getPath()).as(Encoders.bean(SimpleRecord.class)).collectAsList();
     assertThat(actual)
-        .containsExactlyInAnyOrderElementsOf(Iterables.concat(beforeUpgrade, afterUpgrade));
+        .containsExactlyInAnyOrderElementsOf(
+            Iterables.concat(checkpointed, pendingBeforeUpgrade, afterUpgrade));
+  }
+
+  private ManifestFile rewriteManifestWithFirstRowIds(
+      ManifestFile manifest, Map<String, Long> firstRowIds, long rangeStart, long rangeEnd) {
+    String outputPath = table.location() + "/metadata/row-id-" + UUID.randomUUID() + ".avro";
+    return ManifestFiles.rewriteDataManifestWithFirstRowIds(
+        manifest,
+        table.io(),
+        table.specs(),
+        table.io().newOutputFile(outputPath),
+        rangeStart,
+        file -> firstRowIds.get(file.location()),
+        rangeStart,
+        rangeEnd);
   }
 
   @TestTemplate

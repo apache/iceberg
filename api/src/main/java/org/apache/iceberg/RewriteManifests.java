@@ -49,26 +49,23 @@ public interface RewriteManifests extends SnapshotUpdate<RewriteManifests> {
   RewriteManifests clusterBy(Function<DataFile, Object> func);
 
   /**
-   * Rewrites live data-file entries with explicit first row IDs.
+   * Declares the row ID range assigned by replacement manifests.
    *
-   * <p>This operation is intended for assigning row IDs to files that existed before a table was
-   * upgraded to format version 3. It preserves each entry's original snapshot ID, data sequence
-   * number, and file sequence number. The active file set is not changed.
+   * <p>This is intended for distributed manifest rewrites during an upgrade to format version 3.
+   * The manifests added through {@link #addManifest(ManifestFile)} must contain the same live data
+   * files as the deleted manifests, with valid first row IDs in the declared range. Existing
+   * snapshot IDs, data sequence numbers, and file sequence numbers must be preserved.
    *
-   * <p>The reserved range starts at the table's current {@code next-row-id} and ends at {@code
-   * nextRowIdExclusive}. The range may contain gaps, but every assigned file range must be fully
-   * contained within it.
+   * <p>The declared range starts at the table's current {@code next-row-id} and ends at {@code
+   * nextRowIdExclusive}. This update reserves the range without loading all manifest entries into
+   * the committing process.
    *
-   * @param firstRowIdForFile function that returns the first row ID for each live data file
    * @param expectedFirstRowId expected table {@code next-row-id} before this operation
    * @param nextRowIdExclusive first row ID available after this operation
    * @return this for method chaining
    */
-  default RewriteManifests assignFirstRowIds(
-      Function<DataFile, Long> firstRowIdForFile,
-      long expectedFirstRowId,
-      long nextRowIdExclusive) {
-    throw new UnsupportedOperationException("Explicit first row ID assignment is not supported");
+  default RewriteManifests setAssignedRowIdRange(long expectedFirstRowId, long nextRowIdExclusive) {
+    throw new UnsupportedOperationException("Explicit row ID ranges are not supported");
   }
 
   /**

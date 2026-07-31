@@ -35,6 +35,7 @@ import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.encryption.EncryptedFiles;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.ContentCache;
 import org.apache.iceberg.io.FileIO;
@@ -293,6 +294,137 @@ public class ManifestFiles {
         snapshotId,
         null,
         writerProperties);
+  }
+
+  /**
+   * Rewrites the live entries in a data manifest with explicit first row IDs.
+   *
+   * <p>The replacement contains only {@link ManifestEntry.Status#EXISTING EXISTING} entries and
+   * preserves each entry's snapshot ID, data sequence number, and file sequence number. The caller
+   * can therefore build replacement manifests in parallel and commit them with {@link
+   * RewriteManifests#addManifest(ManifestFile)}.
+   *
+   * @param manifest data manifest to rewrite
+   * @param io file IO used to read the manifest
+   * @param specsById table partition specs by ID
+   * @param outputFile output file for the replacement manifest
+   * @param manifestFirstRowId non-null manifest-level first row ID
+   * @param firstRowIdForFile function that returns the first row ID for each live data file
+   * @param rangeStart inclusive start of the reserved row ID range
+   * @param rangeEnd exclusive end of the reserved row ID range
+   * @return the replacement manifest
+   */
+  public static ManifestFile rewriteDataManifestWithFirstRowIds(
+      ManifestFile manifest,
+      FileIO io,
+      Map<Integer, PartitionSpec> specsById,
+      OutputFile outputFile,
+      long manifestFirstRowId,
+      Function<DataFile, Long> firstRowIdForFile,
+      long rangeStart,
+      long rangeEnd) {
+    return rewriteDataManifestWithFirstRowIds(
+        manifest,
+        io,
+        specsById,
+        EncryptedFiles.plainAsEncryptedOutput(outputFile),
+        manifestFirstRowId,
+        firstRowIdForFile,
+        rangeStart,
+        rangeEnd);
+  }
+
+  /**
+   * Rewrites the live entries in a data manifest with explicit first row IDs.
+   *
+   * @see #rewriteDataManifestWithFirstRowIds(ManifestFile, FileIO, Map, OutputFile, long, Function,
+   *     long, long)
+   */
+  public static ManifestFile rewriteDataManifestWithFirstRowIds(
+      ManifestFile manifest,
+      FileIO io,
+      Map<Integer, PartitionSpec> specsById,
+      EncryptedOutputFile outputFile,
+      long manifestFirstRowId,
+      Function<DataFile, Long> firstRowIdForFile,
+      long rangeStart,
+      long rangeEnd) {
+    Preconditions.checkArgument(
+        manifest.content() == ManifestContent.DATA,
+        "Cannot assign row IDs in a delete manifest: %s",
+        manifest.path());
+    Preconditions.checkArgument(firstRowIdForFile != null, "First row ID function cannot be null");
+    Preconditions.checkArgument(
+        manifestFirstRowId >= 0,
+        "Manifest first row ID must be non-negative: %s",
+        manifestFirstRowId);
+    Preconditions.checkArgument(
+        rangeStart >= 0, "Row ID range start must be non-negative: %s", rangeStart);
+    Preconditions.checkArgument(
+        rangeEnd >= rangeStart,
+        "Row ID range end %s must not be less than range start %s",
+        rangeEnd,
+        rangeStart);
+
+    PartitionSpec spec =
+        Preconditions.checkNotNull(
+            specsById.get(manifest.partitionSpecId()),
+            "Cannot find partition spec: %s",
+            manifest.partitionSpecId());
+    ManifestWriter<DataFile> writer = newWriter(3, spec, outputFile, null, manifestFirstRowId);
+    boolean threw = true;
+    try (ManifestReader<DataFile> reader = read(manifest, io, specsById)) {
+      for (ManifestEntry<DataFile> entry : reader.liveEntries()) {
+        DataFile file = entry.file();
+        ValidationException.check(
+            file.firstRowId() == null, "Data file already has a first row ID: %s", file.location());
+        Long assignedFirstRowId = firstRowIdForFile.apply(file);
+        ValidationException.check(
+            assignedFirstRowId != null, "No first row ID for data file: %s", file.location());
+
+        long lastRowIdExclusive;
+        try {
+          lastRowIdExclusive = Math.addExact(assignedFirstRowId, file.recordCount());
+        } catch (ArithmeticException e) {
+          throw new ValidationException(
+              e, "Row ID range overflows for data file: %s", file.location());
+        }
+        ValidationException.check(
+            assignedFirstRowId >= rangeStart && lastRowIdExclusive <= rangeEnd,
+            "Row ID range [%s, %s) for data file %s is outside reserved range [%s, %s)",
+            assignedFirstRowId,
+            lastRowIdExclusive,
+            file.location(),
+            rangeStart,
+            rangeEnd);
+
+        DataFile withFirstRowId =
+            DataFiles.builder(spec).copy(file).withFirstRowId(assignedFirstRowId).build();
+        writer.existing(
+            withFirstRowId,
+            Preconditions.checkNotNull(
+                entry.snapshotId(), "Missing snapshot ID for data file: %s", file.location()),
+            Preconditions.checkNotNull(
+                entry.dataSequenceNumber(),
+                "Missing data sequence number for data file: %s",
+                file.location()),
+            entry.fileSequenceNumber());
+      }
+
+      threw = false;
+    } catch (IOException e) {
+      throw new RuntimeIOException(e, "Failed to close manifest: %s", manifest.path());
+    } finally {
+      try {
+        writer.close();
+      } catch (IOException e) {
+        if (!threw) {
+          throw new RuntimeIOException(e, "Failed to close manifest: %s", outputFile);
+        }
+      }
+    }
+
+    return writer.toManifestFile();
   }
 
   @VisibleForTesting
