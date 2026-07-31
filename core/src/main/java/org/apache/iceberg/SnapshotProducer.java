@@ -374,8 +374,8 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
    * <p>Snapshot producers that assign explicit row IDs may override this method when the reserved
    * range cannot be inferred from manifest-level row ID inheritance.
    */
-  protected long assignedRows(TableMetadata base, long manifestListNextRowId) {
-    return Math.subtractExact(manifestListNextRowId, base.nextRowId());
+  protected long assignedRows(TableMetadata tableMetadata, long manifestListNextRowId) {
+    return Math.subtractExact(manifestListNextRowId, tableMetadata.nextRowId());
   }
 
   private void runValidations(Snapshot parentSnapshot) {

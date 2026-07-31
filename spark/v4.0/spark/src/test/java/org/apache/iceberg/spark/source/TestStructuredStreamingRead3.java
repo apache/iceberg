@@ -769,7 +769,7 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
   }
 
   @TestTemplate
-  public void testResumeCheckpointAfterV2ToV3RowIdAssignment() throws Exception {
+  public void resumeCheckpointAfterV2ToV3RowIdAssignment() throws Exception {
     File writerCheckpoint = temp.resolve("upgrade-checkpoint").toFile();
     File output = temp.resolve("upgrade-output").toFile();
     List<SimpleRecord> checkpointed = Lists.newArrayList(new SimpleRecord(1, "checkpointed"));
@@ -799,6 +799,7 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
     // This append is deliberately newer than the checkpoint. A resumed stream must still process
     // it after walking through the v3 manifest-rewrite snapshot.
     appendData(pendingBeforeUpgrade);
+    table.refresh();
 
     List<DataFile> activeFiles = Lists.newArrayList();
     try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
@@ -824,8 +825,7 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
 
     Transaction upgrade = table.newTransaction();
     upgrade.updateProperties().set(TableProperties.FORMAT_VERSION, "3").commit();
-    RewriteManifests rewrite =
-        upgrade.rewriteManifests().setAssignedRowIdRange(0L, nextRowIdExclusive);
+    RewriteManifests rewrite = upgrade.rewriteManifests().reserveRowIdRange(0L, nextRowIdExclusive);
     oldDataManifests.forEach(rewrite::deleteManifest);
     replacementManifests.forEach(rewrite::addManifest);
     rewrite.commit();
@@ -861,7 +861,6 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
         table.io(),
         table.specs(),
         table.io().newOutputFile(outputPath),
-        rangeStart,
         file -> firstRowIds.get(file.location()),
         rangeStart,
         rangeEnd);

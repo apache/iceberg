@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.math.RoundingMode;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
@@ -304,11 +305,17 @@ public class ManifestFiles {
    * can therefore build replacement manifests in parallel and commit them with {@link
    * RewriteManifests#addManifest(ManifestFile)}.
    *
+   * <p>This method validates that assigned row ID ranges do not overlap within the replacement
+   * manifest. The caller must validate that ranges are globally disjoint across all replacement
+   * manifests.
+   *
+   * <p>The caller owns the output file until it is successfully committed. The output file may
+   * exist when this method throws and must be cleaned up by the caller.
+   *
    * @param manifest data manifest to rewrite
    * @param io file IO used to read the manifest
    * @param specsById table partition specs by ID
    * @param outputFile output file for the replacement manifest
-   * @param manifestFirstRowId non-null manifest-level first row ID
    * @param firstRowIdForFile function that returns the first row ID for each live data file
    * @param rangeStart inclusive start of the reserved row ID range
    * @param rangeEnd exclusive end of the reserved row ID range
@@ -319,7 +326,6 @@ public class ManifestFiles {
       FileIO io,
       Map<Integer, PartitionSpec> specsById,
       OutputFile outputFile,
-      long manifestFirstRowId,
       Function<DataFile, Long> firstRowIdForFile,
       long rangeStart,
       long rangeEnd) {
@@ -328,7 +334,6 @@ public class ManifestFiles {
         io,
         specsById,
         EncryptedFiles.plainAsEncryptedOutput(outputFile),
-        manifestFirstRowId,
         firstRowIdForFile,
         rangeStart,
         rangeEnd);
@@ -337,15 +342,14 @@ public class ManifestFiles {
   /**
    * Rewrites the live entries in a data manifest with explicit first row IDs.
    *
-   * @see #rewriteDataManifestWithFirstRowIds(ManifestFile, FileIO, Map, OutputFile, long, Function,
-   *     long, long)
+   * @see #rewriteDataManifestWithFirstRowIds(ManifestFile, FileIO, Map, OutputFile, Function, long,
+   *     long)
    */
   public static ManifestFile rewriteDataManifestWithFirstRowIds(
       ManifestFile manifest,
       FileIO io,
       Map<Integer, PartitionSpec> specsById,
       EncryptedOutputFile outputFile,
-      long manifestFirstRowId,
       Function<DataFile, Long> firstRowIdForFile,
       long rangeStart,
       long rangeEnd) {
@@ -354,10 +358,6 @@ public class ManifestFiles {
         "Cannot assign row IDs in a delete manifest: %s",
         manifest.path());
     Preconditions.checkArgument(firstRowIdForFile != null, "First row ID function cannot be null");
-    Preconditions.checkArgument(
-        manifestFirstRowId >= 0,
-        "Manifest first row ID must be non-negative: %s",
-        manifestFirstRowId);
     Preconditions.checkArgument(
         rangeStart >= 0, "Row ID range start must be non-negative: %s", rangeStart);
     Preconditions.checkArgument(
@@ -371,7 +371,8 @@ public class ManifestFiles {
             specsById.get(manifest.partitionSpecId()),
             "Cannot find partition spec: %s",
             manifest.partitionSpecId());
-    ManifestWriter<DataFile> writer = newWriter(3, spec, outputFile, null, manifestFirstRowId);
+    ManifestWriter<DataFile> writer = newWriter(3, spec, outputFile, null, rangeStart);
+    List<RowIdRange> assignedRanges = Lists.newArrayList();
     boolean threw = true;
     try (ManifestReader<DataFile> reader = read(manifest, io, specsById)) {
       for (ManifestEntry<DataFile> entry : reader.liveEntries()) {
@@ -397,6 +398,7 @@ public class ManifestFiles {
             file.location(),
             rangeStart,
             rangeEnd);
+        assignedRanges.add(new RowIdRange(assignedFirstRowId, lastRowIdExclusive, file.location()));
 
         DataFile withFirstRowId =
             DataFiles.builder(spec).copy(file).withFirstRowId(assignedFirstRowId).build();
@@ -411,6 +413,7 @@ public class ManifestFiles {
             entry.fileSequenceNumber());
       }
 
+      validateNonOverlappingRowIdRanges(assignedRanges);
       threw = false;
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to close manifest: %s", manifest.path());
@@ -425,6 +428,40 @@ public class ManifestFiles {
     }
 
     return writer.toManifestFile();
+  }
+
+  private static void validateNonOverlappingRowIdRanges(List<RowIdRange> ranges) {
+    ranges.sort(Comparator.comparingLong(range -> range.firstRowId));
+
+    RowIdRange previous = null;
+    for (RowIdRange current : ranges) {
+      if (previous != null && current.firstRowId < previous.lastRowIdExclusive) {
+        throw new ValidationException(
+            "Overlapping row ID ranges for data files %s [%s, %s) and %s [%s, %s)",
+            previous.filePath,
+            previous.firstRowId,
+            previous.lastRowIdExclusive,
+            current.filePath,
+            current.firstRowId,
+            current.lastRowIdExclusive);
+      }
+
+      if (previous == null || current.lastRowIdExclusive > previous.lastRowIdExclusive) {
+        previous = current;
+      }
+    }
+  }
+
+  private static class RowIdRange {
+    private final long firstRowId;
+    private final long lastRowIdExclusive;
+    private final String filePath;
+
+    private RowIdRange(long firstRowId, long lastRowIdExclusive, String filePath) {
+      this.firstRowId = firstRowId;
+      this.lastRowIdExclusive = lastRowIdExclusive;
+      this.filePath = filePath;
+    }
   }
 
   @VisibleForTesting

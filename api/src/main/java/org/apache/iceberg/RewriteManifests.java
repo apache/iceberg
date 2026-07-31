@@ -49,22 +49,24 @@ public interface RewriteManifests extends SnapshotUpdate<RewriteManifests> {
   RewriteManifests clusterBy(Function<DataFile, Object> func);
 
   /**
-   * Declares the row ID range assigned by replacement manifests.
+   * Reserves the row ID range assigned by replacement manifests.
    *
-   * <p>This is intended for distributed manifest rewrites during an upgrade to format version 3.
-   * The manifests added through {@link #addManifest(ManifestFile)} must contain the same live data
-   * files as the deleted manifests, with valid first row IDs in the declared range. Existing
-   * snapshot IDs, data sequence numbers, and file sequence numbers must be preserved.
+   * <p>This is a low-level operation for distributed manifest rewrites during an upgrade to format
+   * version 3. All current data manifests without assigned row IDs must be replaced. Added
+   * manifests must contain the same live data files as the deleted manifests and preserve each
+   * manifest entry's snapshot ID, data sequence number, and file sequence number.
    *
-   * <p>The declared range starts at the table's current {@code next-row-id} and ends at {@code
-   * nextRowIdExclusive}. This update reserves the range without loading all manifest entries into
-   * the committing process.
+   * <p>As with direct manifest replacement through {@link #addManifest(ManifestFile)}, the caller
+   * is responsible for the contents of the supplied manifests. In particular, the committing
+   * process does not load all manifest entries and does not validate that row ID ranges are
+   * globally disjoint. Every data file's row ID range must be contained in {@code
+   * [expectedFirstRowId, nextRowIdExclusive)} and must not overlap another data file's range.
    *
    * @param expectedFirstRowId expected table {@code next-row-id} before this operation
    * @param nextRowIdExclusive first row ID available after this operation
    * @return this for method chaining
    */
-  default RewriteManifests setAssignedRowIdRange(long expectedFirstRowId, long nextRowIdExclusive) {
+  default RewriteManifests reserveRowIdRange(long expectedFirstRowId, long nextRowIdExclusive) {
     throw new UnsupportedOperationException("Explicit row ID ranges are not supported");
   }
 

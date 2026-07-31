@@ -25,8 +25,6 @@ import static org.assertj.core.api.Assertions.fail;
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -37,6 +35,8 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.util.PartitionUtil;
@@ -538,7 +538,7 @@ public class TestRowLineageAssignment {
   }
 
   @Test
-  public void testCommitDistributedRowIdManifestRewrite(@TempDir File altLocation) {
+  public void commitDistributedRowIdManifestRewrite(@TempDir File altLocation) {
     BaseTable upgradeTable =
         TestTables.create(
             altLocation,
@@ -558,7 +558,7 @@ public class TestRowLineageAssignment {
             .map(ManifestFile::path)
             .collect(Collectors.toList());
     long currentSnapshotIdBefore = upgradeTable.currentSnapshot().snapshotId();
-    Set<Long> snapshotIdsBefore = new HashSet<>();
+    Set<Long> snapshotIdsBefore = Sets.newHashSet();
     upgradeTable.snapshots().forEach(snapshot -> snapshotIdsBefore.add(snapshot.snapshotId()));
 
     Map<String, Long> firstRowIds = Map.of(FILE_A.location(), 0L, FILE_B.location(), 1_000L);
@@ -579,7 +579,7 @@ public class TestRowLineageAssignment {
     assertThat(stagedMetadata.formatVersion()).isEqualTo(3);
     assertThat(stagedMetadata.nextRowId()).isEqualTo(0L);
     RewriteManifests rewrite =
-        upgradeTransaction.rewriteManifests().setAssignedRowIdRange(0L, nextRowIdExclusive);
+        upgradeTransaction.rewriteManifests().reserveRowIdRange(0L, nextRowIdExclusive);
     oldDataManifests.forEach(rewrite::deleteManifest);
     replacementManifests.forEach(rewrite::addManifest);
     rewrite.commit();
@@ -620,37 +620,90 @@ public class TestRowLineageAssignment {
   }
 
   @Test
-  public void testRejectInvalidDistributedRowIdManifestRewrite(@TempDir File altLocation) {
+  public void rejectInvalidDistributedRowIdManifestRewrite(@TempDir File altLocation) {
     BaseTable upgradeTable = upgradedTableWithTwoFiles(altLocation);
+    ManifestFile oldManifest =
+        Iterables.getOnlyElement(upgradeTable.currentSnapshot().dataManifests(upgradeTable.io()));
 
     assertThatThrownBy(
             () ->
                 ManifestFiles.rewriteDataManifestWithFirstRowIds(
-                    upgradeTable.currentSnapshot().dataManifests(upgradeTable.io()).get(0),
+                    oldManifest,
                     upgradeTable.io(),
                     upgradeTable.specs(),
                     upgradeTable
                         .io()
                         .newOutputFile(new File(altLocation, "overlapping-range.avro").toString()),
-                    0L,
                     file -> file.location().equals(FILE_A.location()) ? 0L : 100L,
                     125L,
                     225L))
         .isInstanceOf(ValidationException.class)
         .hasMessageContaining("outside reserved range");
 
-    assertThatThrownBy(() -> upgradeTable.rewriteManifests().setAssignedRowIdRange(10L, 9L))
+    assertThatThrownBy(
+            () ->
+                ManifestFiles.rewriteDataManifestWithFirstRowIds(
+                    oldManifest,
+                    upgradeTable.io(),
+                    upgradeTable.specs(),
+                    upgradeTable
+                        .io()
+                        .newOutputFile(new File(altLocation, "overlapping-ids.avro").toString()),
+                    ignored -> 0L,
+                    0L,
+                    FILE_A.recordCount()))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("Overlapping row ID ranges");
+
+    assertThatThrownBy(() -> upgradeTable.rewriteManifests().reserveRowIdRange(10L, 9L))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("must not be less than");
 
     RewriteManifests selectedRewrite = upgradeTable.rewriteManifests().rewriteIf(ignored -> true);
-    assertThatThrownBy(() -> selectedRewrite.setAssignedRowIdRange(0L, 225L))
+    assertThatThrownBy(() -> selectedRewrite.reserveRowIdRange(0L, 225L))
         .isInstanceOf(IllegalStateException.class)
         .hasMessageContaining("direct manifest replacement");
   }
 
   @Test
-  public void testRejectConcurrentSnapshotDuringDistributedRowIdRewrite(@TempDir File altLocation) {
+  public void rejectPartialLegacyManifestReplacement(@TempDir File altLocation) {
+    BaseTable upgradeTable =
+        TestTables.create(
+            altLocation,
+            "test_upgrade",
+            SCHEMA,
+            PartitionSpec.unpartitioned(),
+            2,
+            Map.of("random-snapshot-ids", "true"));
+    upgradeTable.newFastAppend().appendFile(FILE_A).commit();
+    upgradeTable.newFastAppend().appendFile(FILE_B).commit();
+    TestTables.upgrade(altLocation, "test_upgrade", 3);
+    upgradeTable.refresh();
+
+    List<ManifestFile> oldManifests =
+        upgradeTable.currentSnapshot().dataManifests(upgradeTable.io());
+    assertThat(oldManifests).hasSize(2);
+    ManifestFile replacedManifest = oldManifests.get(0);
+    ManifestFile replacement =
+        rewriteManifestWithFirstRowIds(
+            upgradeTable,
+            replacedManifest,
+            Map.of(FILE_A.location(), 0L, FILE_B.location(), 0L),
+            0L,
+            FILE_A.recordCount());
+
+    RewriteManifests rewrite = upgradeTable.rewriteManifests();
+    rewrite.deleteManifest(replacedManifest);
+    rewrite.addManifest(replacement);
+    rewrite.reserveRowIdRange(0L, FILE_A.recordCount());
+
+    assertThatThrownBy(rewrite::commit)
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("All data manifests without assigned row IDs must be replaced");
+  }
+
+  @Test
+  public void rejectConcurrentSnapshotDuringDistributedRowIdRewrite(@TempDir File altLocation) {
     BaseTable upgradeTable =
         TestTables.create(
             altLocation,
@@ -671,12 +724,72 @@ public class TestRowLineageAssignment {
     RewriteManifests assignment = upgradeTable.rewriteManifests();
     assignment.deleteManifest(oldManifest);
     assignment.addManifest(replacement);
-    assignment.setAssignedRowIdRange(0L, FILE_A.recordCount());
+    assignment.reserveRowIdRange(0L, FILE_A.recordCount());
     upgradeTable.newAppend().appendFile(FILE_B).commit();
 
     assertThatThrownBy(assignment::commit)
         .isInstanceOf(ValidationException.class)
         .hasMessageContaining("table snapshot changed");
+  }
+
+  @Test
+  public void rejectConcurrentNextRowIdChange(@TempDir File altLocation) {
+    BaseTable upgradeTable =
+        TestTables.create(
+            altLocation,
+            "test_upgrade",
+            SCHEMA,
+            PartitionSpec.unpartitioned(),
+            2,
+            Map.of("random-snapshot-ids", "true"));
+    upgradeTable.newAppend().appendFile(FILE_A).commit();
+    TestTables.upgrade(altLocation, "test_upgrade", 3);
+    upgradeTable.refresh();
+
+    long mainSnapshotId = upgradeTable.currentSnapshot().snapshotId();
+    ManifestFile oldManifest =
+        Iterables.getOnlyElement(upgradeTable.currentSnapshot().dataManifests(upgradeTable.io()));
+    ManifestFile replacement =
+        rewriteManifestWithFirstRowIds(
+            upgradeTable, oldManifest, Map.of(FILE_A.location(), 0L), 0L, FILE_A.recordCount());
+    RewriteManifests assignment = upgradeTable.rewriteManifests();
+    assignment.deleteManifest(oldManifest);
+    assignment.addManifest(replacement);
+    assignment.reserveRowIdRange(0L, FILE_A.recordCount());
+
+    upgradeTable.manageSnapshots().createBranch("audit", mainSnapshotId).commit();
+    upgradeTable.newAppend().appendFile(FILE_B).toBranch("audit").commit();
+    assertThat(upgradeTable.currentSnapshot().snapshotId()).isEqualTo(mainSnapshotId);
+
+    assertThatThrownBy(assignment::commit)
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("table next-row-id changed");
+  }
+
+  @Test
+  public void rejectRowIdReservationForFormatV4(@TempDir File altLocation) {
+    BaseTable upgradeTable = upgradedTableWithTwoFiles(altLocation);
+    TestTables.upgrade(altLocation, "test_upgrade", 4);
+    upgradeTable.refresh();
+
+    ManifestFile oldManifest =
+        Iterables.getOnlyElement(upgradeTable.currentSnapshot().dataManifests(upgradeTable.io()));
+    long rangeEnd = Math.addExact(FILE_A.recordCount(), FILE_B.recordCount());
+    ManifestFile replacement =
+        rewriteManifestWithFirstRowIds(
+            upgradeTable,
+            oldManifest,
+            Map.of(FILE_A.location(), 0L, FILE_B.location(), FILE_A.recordCount()),
+            0L,
+            rangeEnd);
+    RewriteManifests assignment = upgradeTable.rewriteManifests();
+    assignment.deleteManifest(oldManifest);
+    assignment.addManifest(replacement);
+    assignment.reserveRowIdRange(0L, rangeEnd);
+
+    assertThatThrownBy(assignment::commit)
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("format version 3, found 4");
   }
 
   private BaseTable upgradedTableWithTwoFiles(File altLocation) {
@@ -706,14 +819,13 @@ public class TestRowLineageAssignment {
         table.io(),
         table.specs(),
         table.io().newOutputFile(outputPath),
-        rangeStart,
         file -> firstRowIds.get(file.location()),
         rangeStart,
         rangeEnd);
   }
 
   private static Map<String, EntryMetadata> liveDataEntriesByPath(Table table) {
-    Map<String, EntryMetadata> entriesByPath = new HashMap<>();
+    Map<String, EntryMetadata> entriesByPath = Maps.newHashMap();
     for (ManifestFile manifest : table.currentSnapshot().dataManifests(table.io())) {
       try (ManifestReader<DataFile> reader =
           ManifestFiles.read(manifest, table.io(), table.specs())) {

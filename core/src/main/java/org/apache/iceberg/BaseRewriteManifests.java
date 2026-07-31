@@ -66,8 +66,8 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
 
   private Function<DataFile, Object> clusterByFunc;
   private Predicate<ManifestFile> predicate;
-  private Long expectedFirstRowId;
-  private Long nextRowIdExclusive;
+  private Long reservedRangeStart;
+  private Long reservedRangeEndExclusive;
   private Long expectedSnapshotId;
 
   private final SnapshotSummary.Builder summaryBuilder = SnapshotSummary.builder();
@@ -125,7 +125,7 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
   }
 
   @Override
-  public RewriteManifests setAssignedRowIdRange(long expectedFirstRowId, long nextRowIdExclusive) {
+  public RewriteManifests reserveRowIdRange(long expectedFirstRowId, long nextRowIdExclusive) {
     Preconditions.checkArgument(
         expectedFirstRowId >= 0,
         "Expected first row ID must be non-negative: %s",
@@ -141,8 +141,8 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
         predicate == null && clusterByFunc == null,
         "Assigned row ID ranges can only be used with direct manifest replacement");
 
-    this.expectedFirstRowId = expectedFirstRowId;
-    this.nextRowIdExclusive = nextRowIdExclusive;
+    this.reservedRangeStart = expectedFirstRowId;
+    this.reservedRangeEndExclusive = nextRowIdExclusive;
     Snapshot currentSnapshot = ops().current().currentSnapshot();
     this.expectedSnapshotId = currentSnapshot != null ? currentSnapshot.snapshotId() : null;
 
@@ -400,7 +400,22 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
                   manifest.firstRowId() != null,
                   "Replacement data manifest must have first row ID: %s",
                   manifest.path());
+              ValidationException.check(
+                  manifest.firstRowId() >= reservedRangeStart
+                      && manifest.firstRowId() < reservedRangeEndExclusive,
+                  "Replacement data manifest first row ID %s is outside reserved range [%s, %s]: %s",
+                  manifest.firstRowId(),
+                  reservedRangeStart,
+                  reservedRangeEndExclusive,
+                  manifest.path());
             });
+
+    keptManifests.forEach(
+        manifest ->
+            ValidationException.check(
+                manifest.content() != ManifestContent.DATA || manifest.firstRowId() != null,
+                "All data manifests without assigned row IDs must be replaced: %s",
+                manifest.path()));
   }
 
   @Override
@@ -410,8 +425,8 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
     }
 
     ValidationException.check(
-        currentMetadata.formatVersion() >= 3,
-        "Cannot assign row IDs to a table with format version %s",
+        currentMetadata.formatVersion() == 3,
+        "Can only assign row IDs to a table with format version 3, found %s",
         currentMetadata.formatVersion());
     Long currentSnapshotId = snapshot != null ? snapshot.snapshotId() : null;
     ValidationException.check(
@@ -420,9 +435,9 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
         expectedSnapshotId,
         currentSnapshotId);
     ValidationException.check(
-        currentMetadata.nextRowId() == expectedFirstRowId,
+        currentMetadata.nextRowId() == reservedRangeStart,
         "Cannot assign first row IDs after table next-row-id changed: expected %s, found %s",
-        expectedFirstRowId,
+        reservedRangeStart,
         currentMetadata.nextRowId());
   }
 
@@ -432,11 +447,11 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
       return super.assignedRows(base, manifestListNextRowId);
     }
 
-    return Math.subtractExact(nextRowIdExclusive, expectedFirstRowId);
+    return Math.subtractExact(reservedRangeEndExclusive, reservedRangeStart);
   }
 
   private boolean hasAssignedRowIdRange() {
-    return expectedFirstRowId != null;
+    return reservedRangeStart != null;
   }
 
   private WriterWrapper getWriter(Object key, int partitionSpecId) {
@@ -465,17 +480,13 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
     }
 
     synchronized void addEntry(ManifestEntry<DataFile> entry) {
-      prepareWriter();
-      writer.existing(entry);
-    }
-
-    private void prepareWriter() {
       if (writer == null) {
         writer = newManifestWriter(spec);
       } else if (writer.length() >= getManifestTargetSizeBytes()) {
         close();
         writer = newManifestWriter(spec);
       }
+      writer.existing(entry);
     }
 
     synchronized void close() {
