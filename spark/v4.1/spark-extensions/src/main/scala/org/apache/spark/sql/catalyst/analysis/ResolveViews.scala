@@ -18,10 +18,12 @@
  */
 package org.apache.spark.sql.catalyst.analysis
 
+import org.apache.iceberg.spark.SparkSQLProperties
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.FunctionIdentifier
 import org.apache.spark.sql.catalyst.analysis.ViewUtil.IcebergViewHelper
 import org.apache.spark.sql.catalyst.expressions.Alias
+import org.apache.spark.sql.catalyst.expressions.Cast
 import org.apache.spark.sql.catalyst.expressions.SubqueryExpression
 import org.apache.spark.sql.catalyst.expressions.UpCast
 import org.apache.spark.sql.catalyst.parser.ParseException
@@ -44,6 +46,12 @@ case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with Look
   import org.apache.spark.sql.connector.catalog.CatalogV2Implicits._
 
   protected lazy val catalogManager: CatalogManager = spark.sessionState.catalogManager
+
+  // Spark's own view schema binding confs, SQLConf.VIEW_SCHEMA_BINDING_ENABLED and
+  // VIEW_SCHEMA_COMPENSATION. Referenced by name because they were added in Spark 4.0 and this
+  // rule is also compiled against Spark 3.5. Both default to true.
+  private val sparkViewSchemaBindingMode = "spark.sql.legacy.viewSchemaBindingMode"
+  private val sparkViewSchemaCompensation = "spark.sql.legacy.viewSchemaCompensation"
 
   override def apply(plan: LogicalPlan): LogicalPlan = plan resolveOperators {
     case u @ UnresolvedRelation(nameParts, _, _)
@@ -111,15 +119,73 @@ case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with Look
 
     // Apply the field aliases and column comments
     // This logic differs from how Spark handles views in SessionCatalog.fromCatalogTable.
-    // This is more strict because it doesn't allow resolution by field name.
+    // BINDING is more strict because it doesn't allow resolution by field name. COMPENSATION and
+    // TYPE_EVOLUTION coerce as SessionCatalog.castColToType does for those modes. Every mode keeps
+    // the stored name and metadata; only the coercion differs.
+    val mode = viewSchemaMode
     val aliases = view.schema.fields.zipWithIndex.map { case (expected, pos) =>
+      // The declared type here is discarded when the ordinal is resolved to the child attribute,
+      // so under TYPE_EVOLUTION the column keeps the type the view's SQL produces.
       val attr = GetColumnByOrdinal(pos, expected.dataType)
-      Alias(UpCast(attr, expected.dataType), expected.name)(explicitMetadata =
-        Some(expected.metadata))
+      val coerced =
+        if (mode == SparkSQLProperties.VIEW_SCHEMA_MODE_COMPENSATION) {
+          Cast(attr, expected.dataType, ansiEnabled = true)
+        } else if (mode == SparkSQLProperties.VIEW_SCHEMA_MODE_TYPE_EVOLUTION) {
+          attr
+        } else {
+          UpCast(attr, expected.dataType)
+        }
+      Alias(coerced, expected.name)(explicitMetadata = Some(expected.metadata))
     }.toIndexedSeq
 
     SubqueryAlias(nameParts, Project(aliases, rewritten))
   }
+
+  /**
+   * How a view's stored schema is applied to the columns its SQL produces.
+   *
+   * Read on every resolution rather than cached, so that SET takes effect within a session.
+   */
+  private def viewSchemaMode: String = {
+    spark.conf.getOption(SparkSQLProperties.VIEW_SCHEMA_BINDING_MODE) match {
+      case Some(mode) =>
+        parseSchemaBindingMode(mode)
+      case None =>
+        // Mirror SessionCatalog.castColToType: turning binding mode off selects SchemaUnsupported,
+        // which compensates with an ANSI cast unless compensation is turned off as well. Neither conf
+        // can select TYPE_EVOLUTION: in Spark that mode is requested per view, with
+        // CREATE or ALTER VIEW ... WITH SCHEMA TYPE EVOLUTION, and stored on the view itself.
+        if (isExplicitlyFalse(sparkViewSchemaBindingMode) &&
+          !isExplicitlyFalse(sparkViewSchemaCompensation)) {
+          SparkSQLProperties.VIEW_SCHEMA_MODE_COMPENSATION
+        } else {
+          SparkSQLProperties.VIEW_SCHEMA_MODE_BINDING
+        }
+    }
+  }
+
+  // Spark spells this mode "TYPE EVOLUTION" in its WITH SCHEMA clause, so accept a space as well as
+  // an underscore. Preconditions.checkArgument is avoided: with this many message arguments the call
+  // is an ambiguous overload under Scala 2.12, which spark/v3.5 is cross-built against.
+  private def parseSchemaBindingMode(mode: String): String = {
+    val normalized = mode.trim.replace(' ', '_')
+    if (normalized.equalsIgnoreCase(SparkSQLProperties.VIEW_SCHEMA_MODE_BINDING)) {
+      SparkSQLProperties.VIEW_SCHEMA_MODE_BINDING
+    } else if (normalized.equalsIgnoreCase(SparkSQLProperties.VIEW_SCHEMA_MODE_COMPENSATION)) {
+      SparkSQLProperties.VIEW_SCHEMA_MODE_COMPENSATION
+    } else if (normalized.equalsIgnoreCase(SparkSQLProperties.VIEW_SCHEMA_MODE_TYPE_EVOLUTION)) {
+      SparkSQLProperties.VIEW_SCHEMA_MODE_TYPE_EVOLUTION
+    } else {
+      throw new IllegalArgumentException(
+        s"Invalid value for ${SparkSQLProperties.VIEW_SCHEMA_BINDING_MODE}: $mode, expected " +
+          s"${SparkSQLProperties.VIEW_SCHEMA_MODE_BINDING}, " +
+          s"${SparkSQLProperties.VIEW_SCHEMA_MODE_COMPENSATION} or " +
+          s"${SparkSQLProperties.VIEW_SCHEMA_MODE_TYPE_EVOLUTION}")
+    }
+  }
+
+  private def isExplicitlyFalse(key: String): Boolean =
+    spark.conf.getOption(key).exists(_.trim.equalsIgnoreCase("false"))
 
   private def parseViewText(name: String, viewText: String): LogicalPlan = {
     val origin = Origin(objectType = Some("VIEW"), objectName = Some(name))

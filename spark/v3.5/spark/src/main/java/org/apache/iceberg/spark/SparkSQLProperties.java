@@ -120,4 +120,17 @@ public class SparkSQLProperties {
   // defaults to max(spark.default.parallelism, spark.sql.shuffle.partitions).
   public static final String READ_ADAPTIVE_SPLIT_SIZE_PARALLELISM =
       "spark.sql.iceberg.read.adaptive-split-size.parallelism";
+
+  // Controls how a view's stored schema is applied to the columns its SQL produces. The modes and
+  // their coercions match Spark's ViewSchemaMode, which only applies to Spark's own views.
+  // BINDING permits only widening casts, so stored-vs-query type drift fails resolution.
+  // COMPENSATION permits any ANSI cast, which can truncate values or fail at runtime.
+  // TYPE_EVOLUTION applies no cast, so the view reports the types its SQL produces.
+  // When unset, Spark's spark.sql.legacy.viewSchemaBindingMode and
+  // spark.sql.legacy.viewSchemaCompensation are honored instead; neither can select TYPE_EVOLUTION.
+  public static final String VIEW_SCHEMA_BINDING_MODE =
+      "spark.sql.iceberg.view.schema-binding-mode";
+  public static final String VIEW_SCHEMA_MODE_BINDING = "BINDING";
+  public static final String VIEW_SCHEMA_MODE_COMPENSATION = "COMPENSATION";
+  public static final String VIEW_SCHEMA_MODE_TYPE_EVOLUTION = "TYPE_EVOLUTION";
 }
