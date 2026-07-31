@@ -188,6 +188,11 @@ class TrackedFileAdapters {
     }
 
     @Override
+    public Map<Integer, Integer> avgValueSizes() {
+      return ContentStatsBackedMap.avgValueSizes(file().contentStats());
+    }
+
+    @Override
     public Map<Integer, ByteBuffer> lowerBounds() {
       return ContentStatsBackedMap.lowerBounds(file().contentStats());
     }

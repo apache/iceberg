@@ -26,6 +26,7 @@ import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.nio.ByteBuffer;
+import java.util.Base64;
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -34,6 +35,14 @@ import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 
 public class TestMetricsSerialization {
+
+  private static final String OLD_SERIALIZED_METRICS =
+      "rO0ABXNyABpvcmcuYXBhY2hlLmljZWJlcmcuTWV0cmljc0oRBzHjCEpWAwAITAALY29sdW1uU2l6"
+          + "ZXN0AA9MamF2YS91dGlsL01hcDtMAAtsb3dlckJvdW5kc3EAfgABTAAObmFuVmFsdWVDb3VudHNx"
+          + "AH4AAUwAD251bGxWYWx1ZUNvdW50c3EAfgABTAANb3JpZ2luYWxUeXBlc3EAfgABTAAIcm93Q291"
+          + "bnR0ABBMamF2YS9sYW5nL0xvbmc7TAALdXBwZXJCb3VuZHNxAH4AAUwAC3ZhbHVlQ291bnRzcQB+"
+          + "AAF4cHNyAA5qYXZhLmxhbmcuTG9uZzuL5JDMjyPfAgABSgAFdmFsdWV4cgAQamF2YS5sYW5nLk51"
+          + "bWJlcoaslR0LlOCLAgAAeHAAAAAAAAAAB3BwcHB3CP//////////eA==";
 
   @Test
   public void testSerialization() throws IOException, ClassNotFoundException {
@@ -53,6 +62,14 @@ public class TestMetricsSerialization {
     Metrics result = deserialize(serialized);
 
     assertEquals(original, result);
+  }
+
+  @Test
+  void oldSerializationCompatibility() throws IOException, ClassNotFoundException {
+    Metrics metrics = deserialize(Base64.getDecoder().decode(OLD_SERIALIZED_METRICS));
+
+    assertThat(metrics.recordCount()).isEqualTo(7L);
+    assertThat(metrics.avgValueSizes()).isNull();
   }
 
   private static byte[] serialize(Metrics metrics) throws IOException {
@@ -93,7 +110,9 @@ public class TestMetricsSerialization {
 
     Map<Integer, Type> originalTypes =
         ImmutableMap.of(1, Types.IntegerType.get(), 2, Types.IntegerType.get());
-    return new Metrics(0L, longMap1, longMap2, longMap3, null, byteMap1, byteMap2, originalTypes);
+    Map<Integer, Integer> avgValueSizes = ImmutableMap.of(9, 10);
+    return new Metrics(
+        0L, longMap1, longMap2, longMap3, null, byteMap1, byteMap2, originalTypes, avgValueSizes);
   }
 
   private static Metrics generateMetricsWithNulls() {
@@ -106,7 +125,11 @@ public class TestMetricsSerialization {
     byteMap.put(4, null);
 
     Map<Integer, Type> originalTypes = ImmutableMap.of(4, Types.IntegerType.get());
-    return new Metrics(null, null, longMap, longMap, null, null, byteMap, originalTypes);
+    Map<Integer, Integer> avgValueSizes = Maps.newHashMap();
+    avgValueSizes.put(null, 1);
+    avgValueSizes.put(2, null);
+    return new Metrics(
+        null, null, longMap, longMap, null, null, byteMap, originalTypes, avgValueSizes);
   }
 
   private static void assertEquals(Metrics expected, Metrics actual) {
@@ -114,6 +137,7 @@ public class TestMetricsSerialization {
     assertThat(actual.columnSizes()).isEqualTo(expected.columnSizes());
     assertThat(actual.valueCounts()).isEqualTo(expected.valueCounts());
     assertThat(actual.nullValueCounts()).isEqualTo(expected.nullValueCounts());
+    assertThat(actual.avgValueSizes()).isEqualTo(expected.avgValueSizes());
 
     assertEquals(expected.lowerBounds(), actual.lowerBounds());
     assertEquals(expected.upperBounds(), actual.upperBounds());

@@ -150,6 +150,7 @@ public class DataFiles {
     private Map<Integer, Long> valueCounts = null;
     private Map<Integer, Long> nullValueCounts = null;
     private Map<Integer, Long> nanValueCounts = null;
+    private Map<Integer, Integer> avgValueSizes = null;
     private Map<Integer, ByteBuffer> lowerBounds = null;
     private Map<Integer, ByteBuffer> upperBounds = null;
     private Map<Integer, Type> originalTypes = null;
@@ -177,6 +178,7 @@ public class DataFiles {
       this.valueCounts = null;
       this.nullValueCounts = null;
       this.nanValueCounts = null;
+      this.avgValueSizes = null;
       this.lowerBounds = null;
       this.upperBounds = null;
       this.splitOffsets = null;
@@ -198,6 +200,7 @@ public class DataFiles {
       this.valueCounts = toCopy.valueCounts();
       this.nullValueCounts = toCopy.nullValueCounts();
       this.nanValueCounts = toCopy.nanValueCounts();
+      this.avgValueSizes = toCopy.avgValueSizes();
       this.lowerBounds = toCopy.lowerBounds();
       this.upperBounds = toCopy.upperBounds();
       this.keyMetadata =
@@ -290,6 +293,7 @@ public class DataFiles {
       this.valueCounts = metrics.valueCounts();
       this.nullValueCounts = metrics.nullValueCounts();
       this.nanValueCounts = metrics.nanValueCounts();
+      this.avgValueSizes = metrics.avgValueSizes();
       this.lowerBounds = metrics.lowerBounds();
       this.upperBounds = metrics.upperBounds();
       this.originalTypes = metrics.originalTypes();
@@ -354,7 +358,8 @@ public class DataFiles {
               nanValueCounts,
               lowerBounds,
               upperBounds,
-              originalTypes),
+              originalTypes,
+              avgValueSizes),
           keyMetadata,
           splitOffsets,
           sortOrderId,

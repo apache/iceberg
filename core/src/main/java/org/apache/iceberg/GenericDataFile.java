@@ -60,6 +60,7 @@ class GenericDataFile extends BaseFile<DataFile> implements DataFile {
         metrics.valueCounts(),
         metrics.nullValueCounts(),
         metrics.nanValueCounts(),
+        metrics.avgValueSizes(),
         metrics.lowerBounds(),
         metrics.upperBounds(),
         splitOffsets,

@@ -129,6 +129,7 @@ class ParquetMetrics {
     Map<Integer, Long> valueCounts = Maps.newHashMap();
     Map<Integer, Long> nullValueCounts = Maps.newHashMap();
     Map<Integer, Long> nanValueCounts = Maps.newHashMap();
+    Map<Integer, Integer> avgValueSizes = Maps.newHashMap();
     Map<Integer, ByteBuffer> lowerBounds = Maps.newHashMap();
     Map<Integer, ByteBuffer> upperBounds = Maps.newHashMap();
     Map<Integer, org.apache.iceberg.types.Type> originalTypes = Maps.newHashMap();
@@ -149,6 +150,10 @@ class ParquetMetrics {
 
       if (metrics.nanValueCount() >= 0) {
         nanValueCounts.put(id, metrics.nanValueCount());
+      }
+
+      if (metrics.avgValueSizeInBytes() != null) {
+        avgValueSizes.put(id, metrics.avgValueSizeInBytes());
       }
 
       if (metrics.lowerBound() != null) {
@@ -172,7 +177,8 @@ class ParquetMetrics {
         nanValueCounts,
         lowerBounds,
         upperBounds,
-        originalTypes);
+        originalTypes,
+        avgValueSizes);
   }
 
   private static class MetricsVisitor extends TypeWithSchemaVisitor<Iterable<FieldMetrics<?>>> {
