@@ -48,6 +48,12 @@ class BaseRESTTable extends BaseTable implements SupportsReadRestrictions {
         readRestrictions != null && !readRestrictions.isEmpty()
             ? Optional.of(readRestrictions)
             : Optional.empty();
+    // Validate here, where server-provided restrictions first meet a table, so every reader
+    // inherits the check rather than re-deriving it per scan. Reads on the loaded table still fail
+    // closed on anything else they cannot apply. Uses ops directly rather than the overridable
+    // schemas() to avoid calling an overridable method from a constructor.
+    this.readRestrictions.ifPresent(
+        restrictions -> restrictions.validate(ops.current().schemasById()));
   }
 
   @Override
