@@ -44,6 +44,7 @@ public class RawDecoder<D> extends MessageDecoder.BaseDecoder<D> {
    * @param readSchema an Iceberg schema to produce when reading
    * @param readerFunction a function that produces a DatumReader from the read schema
    * @param writeSchema an Avro schema that describes serialized data to be read
+   * @return a new decoder that produces datum instances described by the read schema
    */
   public static <D> RawDecoder<D> create(
       org.apache.iceberg.Schema readSchema,
