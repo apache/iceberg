@@ -19,6 +19,7 @@
 package org.apache.iceberg.deletes;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
 import java.net.URL;
@@ -174,6 +175,24 @@ public class TestBitmapPositionDeleteIndex {
         position(1 /* bitmap */, 2 /* container */, CONTAINER_OFFSET - 1));
 
     validate(index, "all-container-types-position-index.bin");
+  }
+
+  @Test
+  public void testDeserializeInvalidCrc() {
+    PositionDeleteIndex index = new BitmapPositionDeleteIndex();
+    index.delete(1L);
+    index.delete(2L);
+    byte[] bytes = index.serialize().array();
+
+    // corrupt the last CRC byte so the computed checksum no longer matches
+    bytes[bytes.length - 1] ^= 0x01;
+
+    DeleteFile dv = mockDV(bytes.length, index.cardinality());
+    Mockito.when(dv.location()).thenReturn("s3://bucket/dv.puffin");
+
+    assertThatThrownBy(() -> PositionDeleteIndex.deserialize(bytes, dv))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Invalid CRC for deletion vector s3://bucket/dv.puffin");
   }
 
   private static void validate(PositionDeleteIndex index, String goldenFile) throws Exception {

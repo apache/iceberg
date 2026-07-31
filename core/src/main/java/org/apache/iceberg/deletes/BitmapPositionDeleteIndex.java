@@ -151,7 +151,11 @@ class BitmapPositionDeleteIndex implements PositionDeleteIndex {
     int crcOffset = LENGTH_SIZE_BYTES + bitmapDataLength;
     int expectedCrc = buffer.getInt(crcOffset);
     Preconditions.checkArgument(
-        crc == expectedCrc, "Invalid CRC: %s, expected %s", crc, expectedCrc);
+        crc == expectedCrc,
+        "Invalid CRC for deletion vector %s: 0x%s, expected 0x%s",
+        deleteFile.location(),
+        Integer.toHexString(crc),
+        Integer.toHexString(expectedCrc));
     return new BitmapPositionDeleteIndex(bitmap, deleteFile);
   }
 
