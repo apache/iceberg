@@ -4697,6 +4697,9 @@ components:
         definition-id:
           type: string
           description: A canonical string derived from the parameter types, formatted as a comma-separated list with no spaces.
+        specific-name:
+          type: string
+          description: A user-assignable name for this definition that must be unique among all definitions within the UDF metadata.
         parameters:
           type: array
           description: Ordered list of function parameters. Invocation order must match this list.
