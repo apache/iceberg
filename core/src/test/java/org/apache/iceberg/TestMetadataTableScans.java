@@ -25,8 +25,10 @@ import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executors;
@@ -38,6 +40,7 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -1831,6 +1834,30 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     assertThat(rowCount(deleteFilesTable.newScan()))
         .as("DeleteFilesTable on main should have 2 delete files")
         .isEqualTo(2);
+  }
+
+  @TestTemplate
+  public void testMetadataTablesTableScan() throws IOException {
+    Table metadataTablesTable = new MetadataTablesTable(table);
+
+    List<String> actualTables = Lists.newArrayList();
+    try (CloseableIterable<FileScanTask> tasks = metadataTablesTable.newScan().planFiles()) {
+      for (FileScanTask task : tasks) {
+        try (CloseableIterable<StructLike> rows = task.asDataTask().rows()) {
+          for (StructLike row : rows) {
+            actualTables.add(row.get(0, String.class));
+          }
+        }
+      }
+    }
+
+    List<String> expectedTables =
+        Arrays.stream(MetadataTableType.values())
+            .map(metadataTableType -> metadataTableType.name().toLowerCase(Locale.ROOT))
+            .sorted()
+            .collect(ImmutableList.toImmutableList());
+
+    assertThat(actualTables).containsExactlyElementsOf(expectedTables);
   }
 
   private int rowCount(TableScan scan) throws IOException {
