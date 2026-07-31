@@ -19,15 +19,20 @@
 package org.apache.iceberg;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.fail;
 
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -529,6 +534,245 @@ public class TestRowLineageAssignment {
     // manifests without first_row_id will not assign first_row_id
     checkDataFileAssignment(upgradeTable, manifests.get(0), (Long) null);
     checkDataFileAssignment(upgradeTable, manifests.get(1), (Long) null);
+  }
+
+  @Test
+  public void testAssignExplicitFirstRowIdsAfterUpgrade(@TempDir File altLocation) {
+    BaseTable upgradeTable =
+        TestTables.create(
+            altLocation,
+            "test_upgrade",
+            SCHEMA,
+            PartitionSpec.unpartitioned(),
+            2,
+            Map.of("random-snapshot-ids", "true"));
+
+    upgradeTable.newAppend().appendFile(FILE_A).commit();
+    upgradeTable.newAppend().appendFile(FILE_B).commit();
+    upgradeTable.newRowDelta().addDeletes(FILE_A_DELETES).commit();
+
+    Map<String, EntryMetadata> entriesBefore = liveDataEntriesByPath(upgradeTable);
+    List<String> deleteManifestsBefore =
+        upgradeTable.currentSnapshot().deleteManifests(upgradeTable.io()).stream()
+            .map(ManifestFile::path)
+            .collect(Collectors.toList());
+    long currentSnapshotIdBefore = upgradeTable.currentSnapshot().snapshotId();
+    Set<Long> snapshotIdsBefore = new HashSet<>();
+    upgradeTable.snapshots().forEach(snapshot -> snapshotIdsBefore.add(snapshot.snapshotId()));
+
+    Map<String, Long> firstRowIds = Map.of(FILE_A.location(), 0L, FILE_B.location(), 1_000L);
+    long nextRowIdExclusive = 2_000L;
+    Transaction upgradeTransaction = upgradeTable.newTransaction();
+    upgradeTransaction.updateProperties().set(TableProperties.FORMAT_VERSION, "3").commit();
+    upgradeTransaction
+        .rewriteManifests()
+        .assignFirstRowIds(file -> firstRowIds.get(file.location()), 0L, nextRowIdExclusive)
+        .commit();
+    upgradeTransaction.commitTransaction();
+    upgradeTable.refresh();
+
+    Snapshot assignmentSnapshot = upgradeTable.currentSnapshot();
+    assertThat(assignmentSnapshot.parentId()).isEqualTo(currentSnapshotIdBefore);
+    assertThat(assignmentSnapshot.operation()).isEqualTo(DataOperations.REPLACE);
+    assertThat(assignmentSnapshot.firstRowId()).isEqualTo(0L);
+    assertThat(assignmentSnapshot.addedRows()).isEqualTo(nextRowIdExclusive);
+    assertThat(upgradeTable.operations().current().nextRowId()).isEqualTo(nextRowIdExclusive);
+
+    assertThat(snapshotIdsBefore)
+        .allSatisfy(snapshotId -> assertThat(upgradeTable.snapshot(snapshotId)).isNotNull());
+    assertThat(
+            assignmentSnapshot.deleteManifests(upgradeTable.io()).stream()
+                .map(ManifestFile::path)
+                .collect(Collectors.toList()))
+        .containsExactlyElementsOf(deleteManifestsBefore);
+
+    Map<String, EntryMetadata> entriesAfter = liveDataEntriesByPath(upgradeTable);
+    assertThat(entriesAfter.keySet()).containsExactlyInAnyOrderElementsOf(entriesBefore.keySet());
+    entriesBefore.forEach(
+        (path, before) -> {
+          EntryMetadata after = entriesAfter.get(path);
+          assertThat(after.status).isEqualTo(ManifestEntry.Status.EXISTING);
+          assertThat(after.snapshotId).isEqualTo(before.snapshotId);
+          assertThat(after.dataSequenceNumber).isEqualTo(before.dataSequenceNumber);
+          assertThat(after.fileSequenceNumber).isEqualTo(before.fileSequenceNumber);
+          assertThat(after.recordCount).isEqualTo(before.recordCount);
+          assertThat(after.firstRowId).isEqualTo(firstRowIds.get(path));
+        });
+
+    upgradeTable.newAppend().appendFile(FILE_C).commit();
+    assertThat(liveDataEntriesByPath(upgradeTable).get(FILE_C.location()).firstRowId)
+        .isEqualTo(nextRowIdExclusive);
+  }
+
+  @Test
+  public void testRejectInvalidExplicitFirstRowIds(@TempDir File altLocation) {
+    BaseTable upgradeTable = upgradedTableWithTwoFiles(altLocation);
+    long snapshotIdBefore = upgradeTable.currentSnapshot().snapshotId();
+
+    assertThatThrownBy(
+            () ->
+                upgradeTable
+                    .rewriteManifests()
+                    .assignFirstRowIds(
+                        file -> file.location().equals(FILE_A.location()) ? 0L : 100L, 0L, 225L)
+                    .commit())
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("Overlapping row ID ranges");
+
+    assertThatThrownBy(
+            () ->
+                upgradeTable
+                    .rewriteManifests()
+                    .assignFirstRowIds(
+                        file -> file.location().equals(FILE_A.location()) ? 0L : 1_000L, 0L, 1_050L)
+                    .commit())
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("outside reserved range");
+
+    assertThatThrownBy(
+            () ->
+                upgradeTable
+                    .rewriteManifests()
+                    .assignFirstRowIds(
+                        file -> file.location().equals(FILE_A.location()) ? 0L : null, 0L, 225L)
+                    .commit())
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("No first row ID");
+
+    assertThatThrownBy(
+            () ->
+                upgradeTable
+                    .rewriteManifests()
+                    .assignFirstRowIds(
+                        file -> file.location().equals(FILE_A.location()) ? -1L : 125L, 0L, 225L)
+                    .commit())
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("outside reserved range");
+
+    assertThatThrownBy(
+            () ->
+                upgradeTable
+                    .rewriteManifests()
+                    .assignFirstRowIds(
+                        file ->
+                            file.location().equals(FILE_A.location()) ? Long.MAX_VALUE - 100L : 0L,
+                        0L,
+                        Long.MAX_VALUE)
+                    .commit())
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("Row ID range overflows");
+
+    assertThat(upgradeTable.currentSnapshot().snapshotId()).isEqualTo(snapshotIdBefore);
+    assertThat(upgradeTable.operations().current().nextRowId()).isEqualTo(0L);
+  }
+
+  @Test
+  public void testRejectCombiningExplicitAssignmentWithOtherRewriteModes(
+      @TempDir File altLocation) {
+    BaseTable upgradeTable = upgradedTableWithTwoFiles(altLocation);
+
+    RewriteManifests selectedRewrite = upgradeTable.rewriteManifests().rewriteIf(ignored -> true);
+    assertThatThrownBy(
+            () -> selectedRewrite.assignFirstRowIds(file -> 0L, 0L, FILE_A.recordCount()))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("cannot be combined");
+
+    RewriteManifests rowIdAssignment =
+        upgradeTable
+            .rewriteManifests()
+            .assignFirstRowIds(file -> 0L, 0L, FILE_A.recordCount() + FILE_B.recordCount());
+    assertThatThrownBy(() -> rowIdAssignment.rewriteIf(ignored -> true))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("cannot be combined");
+  }
+
+  @Test
+  public void testRejectConcurrentSnapshotDuringExplicitAssignment(@TempDir File altLocation) {
+    BaseTable upgradeTable =
+        TestTables.create(
+            altLocation,
+            "test_upgrade",
+            SCHEMA,
+            PartitionSpec.unpartitioned(),
+            2,
+            Map.of("random-snapshot-ids", "true"));
+    upgradeTable.newAppend().appendFile(FILE_A).commit();
+    TestTables.upgrade(altLocation, "test_upgrade", 3);
+    upgradeTable.refresh();
+
+    RewriteManifests assignment =
+        upgradeTable.rewriteManifests().assignFirstRowIds(file -> 0L, 0L, FILE_A.recordCount());
+    upgradeTable.newAppend().appendFile(FILE_B).commit();
+
+    assertThatThrownBy(assignment::commit)
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("table snapshot changed");
+  }
+
+  @Test
+  public void testRejectExplicitAssignmentBeforeFormatV3(@TempDir File altLocation) {
+    BaseTable v2Table =
+        TestTables.create(altLocation, "test_v2", SCHEMA, PartitionSpec.unpartitioned(), 2);
+    v2Table.newAppend().appendFile(FILE_A).commit();
+
+    assertThatThrownBy(
+            () ->
+                v2Table.rewriteManifests().assignFirstRowIds(file -> 0L, 0L, FILE_A.recordCount()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("format version 2");
+  }
+
+  private BaseTable upgradedTableWithTwoFiles(File altLocation) {
+    BaseTable upgradeTable =
+        TestTables.create(
+            altLocation,
+            "test_upgrade",
+            SCHEMA,
+            PartitionSpec.unpartitioned(),
+            2,
+            Map.of("random-snapshot-ids", "true"));
+    upgradeTable.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
+    TestTables.upgrade(altLocation, "test_upgrade", 3);
+    upgradeTable.refresh();
+    return upgradeTable;
+  }
+
+  private static Map<String, EntryMetadata> liveDataEntriesByPath(Table table) {
+    Map<String, EntryMetadata> entriesByPath = new HashMap<>();
+    for (ManifestFile manifest : table.currentSnapshot().dataManifests(table.io())) {
+      try (ManifestReader<DataFile> reader =
+          ManifestFiles.read(manifest, table.io(), table.specs())) {
+        for (ManifestEntry<DataFile> entry : reader.liveEntries()) {
+          EntryMetadata previous =
+              entriesByPath.put(entry.file().location(), new EntryMetadata(entry));
+          assertThat(previous)
+              .as("Active data file path must be unique: %s", entry.file().location())
+              .isNull();
+        }
+      } catch (IOException e) {
+        throw new UncheckedIOException(e);
+      }
+    }
+
+    return entriesByPath;
+  }
+
+  private static class EntryMetadata {
+    private final ManifestEntry.Status status;
+    private final Long snapshotId;
+    private final Long dataSequenceNumber;
+    private final Long fileSequenceNumber;
+    private final long recordCount;
+    private final Long firstRowId;
+
+    private EntryMetadata(ManifestEntry<DataFile> entry) {
+      this.status = entry.status();
+      this.snapshotId = entry.snapshotId();
+      this.dataSequenceNumber = entry.dataSequenceNumber();
+      this.fileSequenceNumber = entry.fileSequenceNumber();
+      this.recordCount = entry.file().recordCount();
+      this.firstRowId = entry.file().firstRowId();
+    }
   }
 
   @Test

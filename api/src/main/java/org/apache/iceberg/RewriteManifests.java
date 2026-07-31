@@ -49,6 +49,29 @@ public interface RewriteManifests extends SnapshotUpdate<RewriteManifests> {
   RewriteManifests clusterBy(Function<DataFile, Object> func);
 
   /**
+   * Rewrites live data-file entries with explicit first row IDs.
+   *
+   * <p>This operation is intended for assigning row IDs to files that existed before a table was
+   * upgraded to format version 3. It preserves each entry's original snapshot ID, data sequence
+   * number, and file sequence number. The active file set is not changed.
+   *
+   * <p>The reserved range starts at the table's current {@code next-row-id} and ends at {@code
+   * nextRowIdExclusive}. The range may contain gaps, but every assigned file range must be fully
+   * contained within it.
+   *
+   * @param firstRowIdForFile function that returns the first row ID for each live data file
+   * @param expectedFirstRowId expected table {@code next-row-id} before this operation
+   * @param nextRowIdExclusive first row ID available after this operation
+   * @return this for method chaining
+   */
+  default RewriteManifests assignFirstRowIds(
+      Function<DataFile, Long> firstRowIdForFile,
+      long expectedFirstRowId,
+      long nextRowIdExclusive) {
+    throw new UnsupportedOperationException("Explicit first row ID assignment is not supported");
+  }
+
+  /**
    * Determines which existing {@link ManifestFile} for the table should be rewritten. Manifests
    * that do not match the predicate are kept as-is. If this is not called and no predicate is set,
    * then all manifests will be rewritten.

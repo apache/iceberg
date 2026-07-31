@@ -334,7 +334,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
     Long assignedRows = null;
     if (base.formatVersion() >= 3) {
       nextRowId = base.nextRowId();
-      assignedRows = writer.nextRowId() - base.nextRowId();
+      assignedRows = assignedRows(base, writer.nextRowId());
     }
 
     Map<String, String> summary = summary();
@@ -366,6 +366,16 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
         nextRowId,
         assignedRows,
         writer.toManifestListFile().encryptionKeyID());
+  }
+
+  /**
+   * Returns the number of row IDs reserved by this snapshot.
+   *
+   * <p>Snapshot producers that assign explicit row IDs may override this method when the reserved
+   * range cannot be inferred from manifest-level row ID inheritance.
+   */
+  protected long assignedRows(TableMetadata base, long manifestListNextRowId) {
+    return Math.subtractExact(manifestListNextRowId, base.nextRowId());
   }
 
   private void runValidations(Snapshot parentSnapshot) {

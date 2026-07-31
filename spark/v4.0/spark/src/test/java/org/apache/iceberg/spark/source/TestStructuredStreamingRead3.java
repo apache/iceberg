@@ -26,6 +26,7 @@ import java.io.File;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeoutException;
@@ -50,7 +51,9 @@ import org.apache.iceberg.SnapshotChanges;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TestHelpers;
+import org.apache.iceberg.Transaction;
 import org.apache.iceberg.data.FileHelpers;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
@@ -758,6 +761,75 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
           spark.read().load(output.getPath()).as(Encoders.bean(SimpleRecord.class)).collectAsList();
       assertThat(actual).containsExactlyInAnyOrderElementsOf(Iterables.concat(expected));
     }
+  }
+
+  @TestTemplate
+  public void testResumeCheckpointAfterV2ToV3RowIdAssignment() throws Exception {
+    File writerCheckpoint = temp.resolve("upgrade-checkpoint").toFile();
+    File output = temp.resolve("upgrade-output").toFile();
+    List<SimpleRecord> beforeUpgrade = Lists.newArrayList(new SimpleRecord(1, "before"));
+    List<SimpleRecord> afterUpgrade = Lists.newArrayList(new SimpleRecord(2, "after"));
+
+    appendData(beforeUpgrade);
+    table.refresh();
+    long checkpointSnapshotId = table.currentSnapshot().snapshotId();
+
+    DataStreamWriter querySource =
+        spark
+            .readStream()
+            .format("iceberg")
+            .load(tableName)
+            .writeStream()
+            .option("checkpointLocation", writerCheckpoint.toString())
+            .format("parquet")
+            .queryName("v2_v3_upgrade_checkpoint_test")
+            .option("path", output.getPath());
+
+    StreamingQuery initialQuery = querySource.start();
+    initialQuery.processAllAvailable();
+    initialQuery.stop();
+
+    List<DataFile> activeFiles = Lists.newArrayList();
+    try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
+      tasks.forEach(task -> activeFiles.add(task.file()));
+    }
+    activeFiles.sort(Comparator.comparing(DataFile::location));
+
+    Map<String, Long> firstRowIds = Maps.newHashMap();
+    long nextRowId = 0L;
+    for (DataFile file : activeFiles) {
+      firstRowIds.put(file.location(), nextRowId);
+      nextRowId = Math.addExact(nextRowId, file.recordCount());
+    }
+    long nextRowIdExclusive = nextRowId;
+
+    Transaction upgrade = table.newTransaction();
+    upgrade.updateProperties().set(TableProperties.FORMAT_VERSION, "3").commit();
+    upgrade
+        .rewriteManifests()
+        .assignFirstRowIds(file -> firstRowIds.get(file.location()), 0L, nextRowIdExclusive)
+        .commit();
+    upgrade.commitTransaction();
+    table.refresh();
+
+    assertThat(table.snapshot(checkpointSnapshotId)).isNotNull();
+    assertThat(table.currentSnapshot().parentId()).isEqualTo(checkpointSnapshotId);
+    assertThat(table.currentSnapshot().operation()).isEqualTo(DataOperations.REPLACE);
+
+    appendData(afterUpgrade);
+
+    StreamingQuery resumedQuery = querySource.start();
+    resumedQuery.processAllAvailable();
+    resumedQuery.stop();
+
+    StreamingQuery restartedQuery = querySource.start();
+    restartedQuery.processAllAvailable();
+    restartedQuery.stop();
+
+    List<SimpleRecord> actual =
+        spark.read().load(output.getPath()).as(Encoders.bean(SimpleRecord.class)).collectAsList();
+    assertThat(actual)
+        .containsExactlyInAnyOrderElementsOf(Iterables.concat(beforeUpgrade, afterUpgrade));
   }
 
   @TestTemplate
