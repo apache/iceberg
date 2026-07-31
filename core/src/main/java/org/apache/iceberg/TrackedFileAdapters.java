@@ -33,9 +33,7 @@ import org.apache.iceberg.util.StructProjection;
 class TrackedFileAdapters {
 
   private static final int TRACKED_FILE_FIELD_COUNT =
-      TrackedFile.schemaWithContentStats(Types.StructType.of(), Types.StructType.of())
-          .fields()
-          .size();
+      TrackedFile.schema(Types.StructType.of(), Types.StructType.of()).asStruct().fields().size();
 
   private static final int MANIFEST_INFO_FIELD_COUNT = ManifestInfo.schema().fields().size();
 
