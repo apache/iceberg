@@ -945,7 +945,7 @@ class TestV4ManifestReader {
                         manifest, io, TABLE_SCHEMA, UNPARTITIONED_SPECS, TABLE_LOCATION)
                     .projectStats((Collection<Integer>) null))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid stats field IDs: null");
+        .hasMessage("Invalid stats projection for field IDs: null");
 
     assertThatThrownBy(
             () -> V4ManifestReader.builder(manifest, io, null, UNPARTITIONED_SPECS, TABLE_LOCATION))
@@ -982,14 +982,12 @@ class TestV4ManifestReader {
 
   @ParameterizedTest
   @FieldSource("MANIFEST_FORMATS")
-  public void contentStatsRoundTrip(FileFormat format) throws IOException {
+  public void readContentStatsForAllFieldIds(FileFormat format) throws IOException {
     TrackedFile file = fileWithStats("s3://bucket/file.parquet", contentStats());
 
     ManifestFile manifest =
         writeManifest(format, EMPTY_PARTITION, CONTENT_STATS_TYPE, ImmutableList.of(file));
 
-    // the default read carries stats for every field so that entries can be copied to a new
-    // manifest
     try (V4ManifestReader reader =
         V4ManifestReader.builder(manifest, io, TABLE_SCHEMA, UNPARTITIONED_SPECS, TABLE_LOCATION)
             .build()) {
@@ -1034,6 +1032,27 @@ class TestV4ManifestReader {
             .projectStats(ImmutableList.of())
             .build()) {
       assertThat(Iterables.getOnlyElement(reader).contentStats()).isNull();
+    }
+  }
+
+  @ParameterizedTest
+  @FieldSource("MANIFEST_FORMATS")
+  public void requestedStatsAreProjectedWhenOmittedByCaller(FileFormat format) throws IOException {
+    TrackedFile file = fileWithStats("s3://bucket/file.parquet", contentStats());
+
+    InputFile manifest =
+        writeManifest(format, EMPTY_PARTITION, CONTENT_STATS_TYPE, ImmutableList.of(file));
+
+    // stats requested by field ID are read even though the projection omits them
+    try (V4ManifestReader reader =
+        V4ManifestReader.builder(manifest, TABLE_SCHEMA, UNPARTITIONED_SPECS, TABLE_LOCATION)
+            .project(new Schema(TrackedFile.LOCATION))
+            .projectStats(MEASURE_FIELD_ID)
+            .build()) {
+      ContentStats stats = Iterables.getOnlyElement(reader).contentStats();
+      assertFieldStats(stats.statsFor(MEASURE_FIELD_ID), MEASURE_STATS);
+      assertThat(stats.statsFor(ID_FIELD_ID)).isNull();
+      assertThat(stats.statsFor(DATA_FIELD_ID)).isNull();
     }
   }
 
