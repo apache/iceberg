@@ -235,10 +235,10 @@ class FieldStatsStruct<T> implements FieldStats<T>, StructLike, Serializable {
    * readers may reuse them across rows, so both are copied. All other bounds are immutable.
    */
   private static Object copyBound(Object bound) {
-    if (bound instanceof byte[]) {
-      return copyOf((byte[]) bound);
-    } else if (bound instanceof StructLike) {
-      return StructLikeUtil.copy((StructLike) bound);
+    if (bound instanceof byte[] bytes) {
+      return copyOf(bytes);
+    } else if (bound instanceof StructLike struct) {
+      return StructLikeUtil.copy(struct);
     }
 
     return bound;
