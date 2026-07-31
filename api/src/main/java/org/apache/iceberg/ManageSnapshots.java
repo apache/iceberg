@@ -66,6 +66,7 @@ public interface ManageSnapshots extends PendingUpdate<Snapshot> {
    *
    * @param snapshotId long id of snapshot id to roll back table to. Must be an ancestor of the
    *     current snapshot
+   * @return this for method chaining
    * @throws IllegalArgumentException If the table has no snapshot with the given id
    * @throws ValidationException If given snapshot id is not an ancestor of the current state
    */
@@ -130,6 +131,7 @@ public interface ManageSnapshots extends PendingUpdate<Snapshot> {
    *
    * @param name name of branch to rename
    * @param newName the desired new name of the branch
+   * @return this for method chaining
    * @throws IllegalArgumentException if the branch to rename does not exist or if there is already
    *     a branch with the same name as the desired new name.
    */

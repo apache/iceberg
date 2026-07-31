@@ -116,6 +116,7 @@ extra:
   flinkVersion: '2.1.0'
   flinkVersionMajor: '2.1'
   sparkVersionMajor: '4.1_2.13'
+  slackInviteUrl: &slackInviteUrl 'https://s.apache.org/iceberg-slack'
   social:
     - icon: fontawesome/regular/comments
       link: 'https://iceberg.apache.org/community/'
@@ -127,7 +128,7 @@ extra:
       link: 'https://www.youtube.com/@ApacheIceberg'
       title: youtube
     - icon: fontawesome/brands/slack
-      link: 'https://join.slack.com/t/apache-iceberg/shared_invite/zt-4583kdp6p-ALpQGSa3O2tCYMtYwAMYNA'
+      link: *slackInviteUrl
       title: slack
 
 exclude_docs: |
