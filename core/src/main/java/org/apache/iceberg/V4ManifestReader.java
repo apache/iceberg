@@ -76,7 +76,6 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
       Schema tableSchema,
       Map<Integer, PartitionSpec> specsById,
       String tableLocation) {
-    Preconditions.checkArgument(tableSchema != null, "Invalid table schema: null");
     return new Builder(file, tableSchema, specsById, tableLocation);
   }
 
@@ -145,9 +144,9 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
             .setCustomType(TrackedFile.PARTITION_ID, PartitionData.class)
             .reuseContainers();
 
-    // content_stats is missing when it is not projected and unknown when no stats are read
+    // content_stats is missing from the read schema when no stats are read
     Types.NestedField statsField = readSchema.findField(TrackedFile.CONTENT_STATS_ID);
-    if (statsField != null && statsField.type().isStructType()) {
+    if (statsField != null) {
       readBuilder.setCustomType(TrackedFile.CONTENT_STATS_ID, ContentStatsStruct.class);
       // content_stats holds one stats struct per projected column
       for (Types.NestedField fieldStats : statsField.type().asStructType().fields()) {
@@ -211,6 +210,7 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
         Schema tableSchema,
         Map<Integer, PartitionSpec> specsById,
         String tableLocation) {
+      Preconditions.checkArgument(tableSchema != null, "Invalid table schema: null");
       Preconditions.checkArgument(tableLocation != null, "Invalid table location: null");
       this.file = file;
       this.tableSchema = tableSchema;
@@ -237,10 +237,7 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
       return this;
     }
 
-    /**
-     * Configures the reader to select the minimal fields needed for scan planning. Stats are
-     * narrowed to the fields that the {@link #filter(Expression) filter} needs.
-     */
+    /** Configures the reader to select the minimal fields needed for scan planning. */
     Builder forScanPlanning() {
       Preconditions.checkState(
           columns == null && requestedProjection == null,
@@ -288,7 +285,7 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
      * Reads content stats for the given table field IDs instead of for every field. Stats for
      * fields referenced by the {@link #filter(Expression) filter} are always read.
      */
-    Builder projectStats(Collection<Integer> fieldIds) {
+    Builder projectStats(Iterable<Integer> fieldIds) {
       Preconditions.checkArgument(fieldIds != null, "Invalid stats projection for field IDs: null");
       this.statsProjectionForFieldIds = ImmutableSet.copyOf(fieldIds);
       return this;
@@ -369,7 +366,6 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
         return StatsUtil.statsReadSchema(tableSchema, requiredStatsProjectionForFieldIds);
       }
 
-      // projecting all stats carries every column so entries can be copied to a new manifest
       return StatsUtil.statsReadSchema(
           tableSchema, TypeUtil.indexById(tableSchema.asStruct()).keySet());
     }
