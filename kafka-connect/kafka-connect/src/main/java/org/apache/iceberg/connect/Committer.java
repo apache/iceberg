@@ -54,4 +54,6 @@ public interface Committer {
   }
 
   void save(Collection<SinkRecord> sinkRecords);
+
+  default void configure(Catalog catalog, IcebergSinkConfig config, SinkTaskContext context) {}
 }
