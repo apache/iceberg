@@ -65,35 +65,9 @@ class TestV4ManifestReader {
   private static final String TABLE_LOCATION = "s3://bucket/db/table";
   private static final DeletionVector DV = dv("s3://bucket/dv.puffin");
 
-  private static final int ID_FIELD_ID = 1;
-  private static final int DATA_FIELD_ID = 2;
-  private static final int MEASURE_FIELD_ID = 3;
-  // the field types cover the stats that are tracked conditionally: null counts for optional
-  // fields, NaN counts for floating point fields, and avg value size for variable-length fields
   private static final Schema TABLE_SCHEMA =
       new Schema(
-          optional(ID_FIELD_ID, "id", Types.IntegerType.get()),
-          optional(DATA_FIELD_ID, "data", Types.StringType.get()),
-          optional(MEASURE_FIELD_ID, "measure", Types.DoubleType.get()));
-  private static final Types.StructType CONTENT_STATS_TYPE =
-      StatsUtil.statsReadSchema(
-          TABLE_SCHEMA, ImmutableList.of(ID_FIELD_ID, DATA_FIELD_ID, MEASURE_FIELD_ID));
-  private static final FieldStats<Integer> ID_STATS =
-      new FieldStatsStruct<>(
-          CONTENT_STATS_TYPE.fieldType("id").asStructType(), 1, 100, true, 26L, 2L, 0L, null);
-  private static final FieldStats<String> DATA_STATS =
-      new FieldStatsStruct<>(
-          CONTENT_STATS_TYPE.fieldType("data").asStructType(), "a", "z", true, 26L, 0L, 0L, 4);
-  private static final FieldStats<Double> MEASURE_STATS =
-      new FieldStatsStruct<>(
-          CONTENT_STATS_TYPE.fieldType("measure").asStructType(),
-          1.5,
-          9.5,
-          false,
-          26L,
-          1L,
-          3L,
-          null);
+          optional(1, "id", Types.IntegerType.get()), optional(2, "data", Types.StringType.get()));
   private static final PartitionSpec ID_PARTITIONING =
       PartitionSpec.builderFor(TABLE_SCHEMA).identity("id").build();
   private static final Types.StructType ID_PARTITION_TYPE = ID_PARTITIONING.partitionType();
@@ -889,14 +863,6 @@ class TestV4ManifestReader {
         .hasMessage("Invalid table location: null");
 
     assertThatThrownBy(
-            () ->
-                V4ManifestReader.builder(
-                        manifest, TABLE_SCHEMA, UNPARTITIONED_SPECS, TABLE_LOCATION)
-                    .projectStats((Collection<Integer>) null))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid stats projection for field IDs: null");
-
-    assertThatThrownBy(
             () -> V4ManifestReader.builder(manifest, null, UNPARTITIONED_SPECS, TABLE_LOCATION))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid table schema: null");
@@ -931,169 +897,6 @@ class TestV4ManifestReader {
 
   @ParameterizedTest
   @FieldSource("MANIFEST_FORMATS")
-  public void readContentStatsForAllFieldIds(FileFormat format) throws IOException {
-    TrackedFile file = fileWithStats("s3://bucket/file.parquet", contentStats());
-
-    InputFile manifest =
-        writeManifest(format, EMPTY_PARTITION, CONTENT_STATS_TYPE, ImmutableList.of(file));
-
-    try (V4ManifestReader reader =
-        V4ManifestReader.builder(manifest, TABLE_SCHEMA, UNPARTITIONED_SPECS, TABLE_LOCATION)
-            .build()) {
-      ContentStats stats = Iterables.getOnlyElement(reader).contentStats();
-      assertThat(stats).isNotNull();
-      assertFieldStats(stats.statsFor(ID_FIELD_ID), ID_STATS);
-      assertFieldStats(stats.statsFor(DATA_FIELD_ID), DATA_STATS);
-      assertFieldStats(stats.statsFor(MEASURE_FIELD_ID), MEASURE_STATS);
-    }
-  }
-
-  @ParameterizedTest
-  @FieldSource("MANIFEST_FORMATS")
-  public void rowFilterKeepsStatsForAllFieldIds(FileFormat format) throws IOException {
-    TrackedFile file = fileWithStats("s3://bucket/file.parquet", contentStats());
-
-    InputFile manifest =
-        writeManifest(format, EMPTY_PARTITION, CONTENT_STATS_TYPE, ImmutableList.of(file));
-
-    // a filter narrows the stats only for scan planning, so a default read still carries the
-    // stats of every field even though the filter needs one of them
-    try (V4ManifestReader reader =
-        V4ManifestReader.builder(manifest, TABLE_SCHEMA, UNPARTITIONED_SPECS, TABLE_LOCATION)
-            .filter(Expressions.equal("id", 1))
-            .build()) {
-      ContentStats stats = Iterables.getOnlyElement(reader).contentStats();
-      assertFieldStats(stats.statsFor(ID_FIELD_ID), ID_STATS);
-      assertFieldStats(stats.statsFor(DATA_FIELD_ID), DATA_STATS);
-      assertFieldStats(stats.statsFor(MEASURE_FIELD_ID), MEASURE_STATS);
-    }
-  }
-
-  @ParameterizedTest
-  @FieldSource("MANIFEST_FORMATS")
-  public void selectStatsByName(FileFormat format) throws IOException {
-    TrackedFile file = fileWithStats("s3://bucket/file.parquet", contentStats());
-
-    InputFile manifest =
-        writeManifest(format, EMPTY_PARTITION, CONTENT_STATS_TYPE, ImmutableList.of(file));
-
-    // stats are named after the column they describe, so a caller can select one column's stats
-    try (V4ManifestReader reader =
-        V4ManifestReader.builder(manifest, TABLE_SCHEMA, UNPARTITIONED_SPECS, TABLE_LOCATION)
-            .select("location", "content_stats.data")
-            .build()) {
-      TrackedFile actual = Iterables.getOnlyElement(reader);
-      assertThat(actual.location()).isEqualTo("s3://bucket/file.parquet");
-
-      ContentStats stats = actual.contentStats();
-      assertFieldStats(stats.statsFor(DATA_FIELD_ID), DATA_STATS);
-      assertThat(stats.statsFor(ID_FIELD_ID)).isNull();
-      assertThat(stats.statsFor(MEASURE_FIELD_ID)).isNull();
-    }
-  }
-
-  @ParameterizedTest
-  @FieldSource("MANIFEST_FORMATS")
-  public void projectStatsReadsOnlyRequestedColumns(FileFormat format) throws IOException {
-    TrackedFile file = fileWithStats("s3://bucket/file.parquet", contentStats());
-
-    InputFile manifest =
-        writeManifest(format, EMPTY_PARTITION, CONTENT_STATS_TYPE, ImmutableList.of(file));
-
-    try (V4ManifestReader reader =
-        V4ManifestReader.builder(manifest, TABLE_SCHEMA, UNPARTITIONED_SPECS, TABLE_LOCATION)
-            .projectStats(ID_FIELD_ID)
-            .build()) {
-      ContentStats stats = Iterables.getOnlyElement(reader).contentStats();
-      assertFieldStats(stats.statsFor(ID_FIELD_ID), ID_STATS);
-      assertThat(stats.statsFor(DATA_FIELD_ID)).isNull();
-      assertThat(stats.statsFor(MEASURE_FIELD_ID)).isNull();
-    }
-  }
-
-  @ParameterizedTest
-  @FieldSource("MANIFEST_FORMATS")
-  public void projectStatsWithoutFieldIdsOmitsStats(FileFormat format) throws IOException {
-    TrackedFile file = fileWithStats("s3://bucket/file.parquet", contentStats());
-
-    InputFile manifest =
-        writeManifest(format, EMPTY_PARTITION, CONTENT_STATS_TYPE, ImmutableList.of(file));
-
-    // requesting no field IDs opts out of the default projection of every field
-    try (V4ManifestReader reader =
-        V4ManifestReader.builder(manifest, TABLE_SCHEMA, UNPARTITIONED_SPECS, TABLE_LOCATION)
-            .projectStats(ImmutableList.of())
-            .build()) {
-      assertThat(Iterables.getOnlyElement(reader).contentStats()).isNull();
-    }
-  }
-
-  @ParameterizedTest
-  @FieldSource("MANIFEST_FORMATS")
-  public void requestedStatsAreProjectedWhenOmittedByCaller(FileFormat format) throws IOException {
-    TrackedFile file = fileWithStats("s3://bucket/file.parquet", contentStats());
-
-    InputFile manifest =
-        writeManifest(format, EMPTY_PARTITION, CONTENT_STATS_TYPE, ImmutableList.of(file));
-
-    // stats requested by field ID are read even though the projection omits them
-    try (V4ManifestReader reader =
-        V4ManifestReader.builder(manifest, TABLE_SCHEMA, UNPARTITIONED_SPECS, TABLE_LOCATION)
-            .project(new Schema(TrackedFile.LOCATION))
-            .projectStats(MEASURE_FIELD_ID)
-            .build()) {
-      ContentStats stats = Iterables.getOnlyElement(reader).contentStats();
-      assertFieldStats(stats.statsFor(MEASURE_FIELD_ID), MEASURE_STATS);
-      assertThat(stats.statsFor(ID_FIELD_ID)).isNull();
-      assertThat(stats.statsFor(DATA_FIELD_ID)).isNull();
-    }
-  }
-
-  @ParameterizedTest
-  @FieldSource("MANIFEST_FORMATS")
-  public void filterStatsAreProjectedWhenOmittedByCaller(FileFormat format) throws IOException {
-    TrackedFile file = fileWithStats("s3://bucket/file.parquet", contentStats());
-
-    InputFile manifest =
-        writeManifest(format, EMPTY_PARTITION, CONTENT_STATS_TYPE, ImmutableList.of(file));
-
-    // the filter references data, so its stats are read even though the projection omits them
-    try (V4ManifestReader reader =
-        V4ManifestReader.builder(manifest, TABLE_SCHEMA, UNPARTITIONED_SPECS, TABLE_LOCATION)
-            .project(new Schema(TrackedFile.LOCATION))
-            .filter(Expressions.equal("data", "m"))
-            .build()) {
-      ContentStats stats = Iterables.getOnlyElement(reader).contentStats();
-      assertFieldStats(stats.statsFor(DATA_FIELD_ID), DATA_STATS);
-      assertThat(stats.statsFor(ID_FIELD_ID)).isNull();
-      assertThat(stats.statsFor(MEASURE_FIELD_ID)).isNull();
-    }
-  }
-
-  @ParameterizedTest
-  @FieldSource("MANIFEST_FORMATS")
-  public void projectStatsAndFilterStatsAreCombined(FileFormat format) throws IOException {
-    TrackedFile file = fileWithStats("s3://bucket/file.parquet", contentStats());
-
-    InputFile manifest =
-        writeManifest(format, EMPTY_PARTITION, CONTENT_STATS_TYPE, ImmutableList.of(file));
-
-    // scan planning narrows stats to the requested fields and the fields the filter needs
-    try (V4ManifestReader reader =
-        V4ManifestReader.builder(manifest, TABLE_SCHEMA, UNPARTITIONED_SPECS, TABLE_LOCATION)
-            .forScanPlanning()
-            .projectStats(ID_FIELD_ID)
-            .filter(Expressions.equal("data", "m"))
-            .build()) {
-      ContentStats stats = Iterables.getOnlyElement(reader).contentStats();
-      assertFieldStats(stats.statsFor(ID_FIELD_ID), ID_STATS);
-      assertFieldStats(stats.statsFor(DATA_FIELD_ID), DATA_STATS);
-      assertThat(stats.statsFor(MEASURE_FIELD_ID)).isNull();
-    }
-  }
-
-  @ParameterizedTest
-  @FieldSource("MANIFEST_FORMATS")
   public void filterOnMissingColumnFails(FileFormat format) throws IOException {
     InputFile manifest =
         writeManifest(
@@ -1110,136 +913,6 @@ class TestV4ManifestReader {
                     .build())
         .isInstanceOf(ValidationException.class)
         .hasMessageContaining("Cannot find field 'missing' in struct: %s", TABLE_SCHEMA.asStruct());
-  }
-
-  @ParameterizedTest
-  @FieldSource("MANIFEST_FORMATS")
-  public void forScanPlanningReadsOnlyFilterStats(FileFormat format) throws IOException {
-    TrackedFile file = fileWithStats("s3://bucket/file.parquet", contentStats());
-
-    InputFile manifest =
-        writeManifest(format, EMPTY_PARTITION, CONTENT_STATS_TYPE, ImmutableList.of(file));
-
-    try (V4ManifestReader reader =
-        V4ManifestReader.builder(manifest, TABLE_SCHEMA, UNPARTITIONED_SPECS, TABLE_LOCATION)
-            .forScanPlanning()
-            .filter(Expressions.equal("id", 1))
-            .build()) {
-      ContentStats stats = Iterables.getOnlyElement(reader).contentStats();
-      assertFieldStats(stats.statsFor(ID_FIELD_ID), ID_STATS);
-      assertThat(stats.statsFor(DATA_FIELD_ID)).isNull();
-      assertThat(stats.statsFor(MEASURE_FIELD_ID)).isNull();
-    }
-  }
-
-  @ParameterizedTest
-  @FieldSource("MANIFEST_FORMATS")
-  public void forScanPlanningOmitsStatsWithoutFilter(FileFormat format) throws IOException {
-    TrackedFile file = fileWithStats("s3://bucket/file.parquet", contentStats());
-
-    InputFile manifest =
-        writeManifest(format, EMPTY_PARTITION, CONTENT_STATS_TYPE, ImmutableList.of(file));
-
-    // scan planning without a filter has no stats to evaluate, so none are read
-    try (V4ManifestReader reader =
-        V4ManifestReader.builder(manifest, TABLE_SCHEMA, UNPARTITIONED_SPECS, TABLE_LOCATION)
-            .forScanPlanning()
-            .build()) {
-      assertThat(Iterables.getOnlyElement(reader).contentStats()).isNull();
-    }
-  }
-
-  @ParameterizedTest
-  @FieldSource("MANIFEST_FORMATS")
-  public void selectWithoutStatsOmitsStats(FileFormat format) throws IOException {
-    TrackedFile file = fileWithStats("s3://bucket/file.parquet", contentStats());
-
-    InputFile manifest =
-        writeManifest(format, EMPTY_PARTITION, CONTENT_STATS_TYPE, ImmutableList.of(file));
-
-    try (V4ManifestReader reader =
-        V4ManifestReader.builder(manifest, TABLE_SCHEMA, UNPARTITIONED_SPECS, TABLE_LOCATION)
-            .select("location")
-            .build()) {
-      assertThat(Iterables.getOnlyElement(reader).contentStats()).isNull();
-    }
-  }
-
-  @ParameterizedTest
-  @FieldSource("MANIFEST_FORMATS")
-  public void statsAreCorrectWithContainerReuse(FileFormat format) throws IOException {
-    // every entry stores stats for a different column, so a reused container must not carry the
-    // previous entry's stats into the next one
-    ContentStatsStruct idStats = new ContentStatsStruct(CONTENT_STATS_TYPE);
-    idStats.setStats(ID_FIELD_ID, ID_STATS);
-
-    ContentStatsStruct dataStats = new ContentStatsStruct(CONTENT_STATS_TYPE);
-    dataStats.setStats(DATA_FIELD_ID, DATA_STATS);
-
-    ContentStatsStruct measureStats = new ContentStatsStruct(CONTENT_STATS_TYPE);
-    measureStats.setStats(MEASURE_FIELD_ID, MEASURE_STATS);
-
-    List<TrackedFile> files =
-        ImmutableList.of(
-            fileWithStats("s3://bucket/with-id-stats.parquet", idStats),
-            fileWithStats(
-                "s3://bucket/without-stats.parquet", new ContentStatsStruct(CONTENT_STATS_TYPE)),
-            fileWithStats("s3://bucket/with-data-stats.parquet", dataStats),
-            fileWithStats("s3://bucket/with-measure-stats.parquet", measureStats));
-
-    InputFile manifest = writeManifest(format, EMPTY_PARTITION, CONTENT_STATS_TYPE, files);
-
-    try (V4ManifestReader reader =
-        V4ManifestReader.builder(manifest, TABLE_SCHEMA, UNPARTITIONED_SPECS, TABLE_LOCATION)
-            .build()) {
-      List<TrackedFile> read = Lists.newArrayList(reader);
-
-      ContentStats withIdStats = read.get(0).contentStats();
-      assertFieldStats(withIdStats.statsFor(ID_FIELD_ID), ID_STATS);
-      assertThat(withIdStats.statsFor(DATA_FIELD_ID)).isNull();
-      assertThat(withIdStats.statsFor(MEASURE_FIELD_ID)).isNull();
-      assertThat(withIdStats.fieldStats()).doesNotContainNull();
-
-      // containers are reused, so the second entry must not carry over the first entry's stats
-      ContentStats withoutStats = read.get(1).contentStats();
-      assertThat(withoutStats.statsFor(ID_FIELD_ID)).isNull();
-      assertThat(withoutStats.fieldStats()).isEmpty();
-
-      ContentStats withDataStats = read.get(2).contentStats();
-      assertFieldStats(withDataStats.statsFor(DATA_FIELD_ID), DATA_STATS);
-      assertThat(withDataStats.statsFor(ID_FIELD_ID)).isNull();
-      assertThat(withDataStats.statsFor(MEASURE_FIELD_ID)).isNull();
-      assertThat(withDataStats.fieldStats()).doesNotContainNull();
-
-      ContentStats withMeasureStats = read.get(3).contentStats();
-      assertFieldStats(withMeasureStats.statsFor(MEASURE_FIELD_ID), MEASURE_STATS);
-      assertThat(withMeasureStats.statsFor(ID_FIELD_ID)).isNull();
-      assertThat(withMeasureStats.statsFor(DATA_FIELD_ID)).isNull();
-      assertThat(withMeasureStats.fieldStats()).doesNotContainNull();
-    }
-  }
-
-  private static void assertFieldStats(FieldStats<?> actual, FieldStats<?> expected) {
-    assertThat(actual).isNotNull();
-    assertThat(actual.fieldId()).isEqualTo(expected.fieldId());
-    assertThat(actual.type()).isEqualTo(expected.type());
-    assertThat(actual.lowerBound()).isEqualTo(expected.lowerBound());
-    assertThat(actual.upperBound()).isEqualTo(expected.upperBound());
-    assertThat(actual.tightBounds()).isEqualTo(expected.tightBounds());
-    assertThat(actual.avgValueSizeInBytes()).isEqualTo(expected.avgValueSizeInBytes());
-
-    // the count accessors unbox a nullable Long, so they throw for stats the field does not track
-    Types.StructType statsType = expected.type();
-    assertThat(statsType.field("value_count")).isNotNull();
-    assertThat(actual.valueCount()).isEqualTo(expected.valueCount());
-
-    if (statsType.field("null_value_count") != null) {
-      assertThat(actual.nullValueCount()).isEqualTo(expected.nullValueCount());
-    }
-
-    if (statsType.field("nan_value_count") != null) {
-      assertThat(actual.nanValueCount()).isEqualTo(expected.nanValueCount());
-    }
   }
 
   private static TrackedFile dataFile(String location, PartitionData partition) {
@@ -1374,48 +1047,10 @@ class TestV4ManifestReader {
     return partition;
   }
 
-  /** Returns stats for both table columns, backed by the full content stats type. */
-  private static ContentStats contentStats() {
-    ContentStatsStruct stats = new ContentStatsStruct(CONTENT_STATS_TYPE);
-    stats.setStats(ID_FIELD_ID, ID_STATS);
-    stats.setStats(DATA_FIELD_ID, DATA_STATS);
-    stats.setStats(MEASURE_FIELD_ID, MEASURE_STATS);
-    return stats;
-  }
-
-  private static TrackedFile fileWithStats(String location, ContentStats stats) {
-    return new TrackedFileStruct(
-        addedTracking(),
-        FileContent.DATA,
-        FORMAT_VERSION_V4,
-        location,
-        FileFormat.PARQUET,
-        RECORD_COUNT,
-        FILE_SIZE_IN_BYTES,
-        0,
-        EMPTY_PARTITION_DATA,
-        stats,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null);
-  }
-
   private InputFile writeManifest(
       FileFormat format, Types.StructType partitionType, Iterable<TrackedFile> files)
       throws IOException {
-    return writeManifest(format, partitionType, Types.StructType.of(), files);
-  }
-
-  private InputFile writeManifest(
-      FileFormat format,
-      Types.StructType partitionType,
-      Types.StructType contentStatsType,
-      Iterable<TrackedFile> files)
-      throws IOException {
-    Schema writeSchema = TrackedFile.schema(partitionType, contentStatsType);
+    Schema writeSchema = TrackedFile.schema(partitionType, Types.StructType.of());
     OutputFile out = new InMemoryOutputFile("manifest." + format.name().toLowerCase(Locale.ROOT));
     try (FileAppender<StructLike> appender =
         InternalData.write(format, out).schema(writeSchema).named("tracked_file").build()) {
