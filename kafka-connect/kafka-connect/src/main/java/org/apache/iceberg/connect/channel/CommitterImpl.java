@@ -56,20 +56,8 @@ public class CommitterImpl implements Committer {
   private String taskId;
   private Consumer<byte[], byte[]> sourceConsumer;
 
-  // Set by a rebalance (open/close) and cleared once save() has reconciled leadership. The
-  // coordinator is started/stopped on the task thread in save() rather than in the rebalance
-  // callback: this keeps blocking work (initTransactions, partitionsFor) off the callback and
-  // avoids an eager rebalance (which revokes then re-adds all partitions) needlessly restarting a
-  // still-leading coordinator.
   private boolean reconcileNeeded = false;
 
-  /**
-   * The leader partition is partition 0 of the lexicographically-smallest subscribed topic. The
-   * subscription is connector-wide (identical across tasks, for both a {@code topics} list and a
-   * {@code topics.regex}) and partition 0 of any topic is always owned by exactly one task, so the
-   * task that owns this partition is the single, stable coordinator leader. Returns {@code null}
-   * when the subscription is empty (not yet known), in which case no task leads.
-   */
   @VisibleForTesting
   static TopicPartition leaderPartition(Collection<String> subscribedTopics) {
     return subscribedTopics.stream()
@@ -106,7 +94,6 @@ public class CommitterImpl implements Committer {
       IcebergSinkConfig icebergSinkConfig,
       SinkTaskContext sinkTaskContext,
       Collection<TopicPartition> addedPartitions) {
-    // Leadership is reconciled on the task thread in save(); flag it and keep the callback fast.
     reconcileNeeded = true;
   }
 
@@ -130,9 +117,6 @@ public class CommitterImpl implements Committer {
       return;
     }
 
-    // Partition revocation: leadership may have moved, so reconcile on the next save(). We
-    // intentionally do NOT stop the coordinator here — an eager rebalance revokes and re-adds all
-    // partitions, and stopping here would churn a coordinator that this task still leads.
     reconcileNeeded = true;
 
     // Reset offsets to last committed to avoid data loss.
@@ -153,12 +137,6 @@ public class CommitterImpl implements Committer {
     processControlEvents();
   }
 
-  /**
-   * Reconciles the coordinator lifecycle against current leadership. Runs on the single task thread
-   * (via save()) so it reads a fully-settled {@link SinkTaskContext#assignment()} with no locks or
-   * extra threads: starts the coordinator when this task owns the leader partition, stops it when
-   * it does not. Both start and stop are idempotent.
-   */
   private void reconcileLeadership() {
     Set<String> subscribedTopics = Sets.newTreeSet(sourceConsumer().subscription());
     TopicPartition leader = leaderPartition(subscribedTopics);
@@ -172,8 +150,6 @@ public class CommitterImpl implements Committer {
   private void processControlEvents() {
     if (coordinatorThread != null && coordinatorThread.isTerminated()) {
       if (isProducerFenced(coordinatorThread.exception())) {
-        // Lost the coordinator race (fenced by a newer coordinator). Clear it so the commit thread
-        // pool is released; a surviving coordinator on another task keeps committing.
         LOG.warn("Committer {} coordinator was fenced by a newer coordinator; clearing it", taskId);
         stopCoordinator();
       } else {
