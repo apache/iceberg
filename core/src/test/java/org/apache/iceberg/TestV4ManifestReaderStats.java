@@ -50,6 +50,9 @@ class TestV4ManifestReaderStats {
   private static final List<FileFormat> MANIFEST_FORMATS =
       ImmutableList.of(FileFormat.AVRO, FileFormat.PARQUET);
   private static final String TABLE_LOCATION = "s3://bucket/db/table";
+
+  private static final int GEOMETRY_FIELD_ID = 10;
+  private static final int GEOGRAPHY_FIELD_ID = 11;
   private static final int ID_FIELD_ID = 1;
   private static final int DATA_FIELD_ID = 2;
   private static final int MEASURE_FIELD_ID = 3;
@@ -109,6 +112,106 @@ class TestV4ManifestReaderStats {
       assertFieldStats(stats.statsFor(ID_FIELD_ID), ID_STATS);
       assertFieldStats(stats.statsFor(DATA_FIELD_ID), DATA_STATS);
       assertFieldStats(stats.statsFor(MEASURE_FIELD_ID), MEASURE_STATS);
+    }
+  }
+
+  @ParameterizedTest
+  @FieldSource("MANIFEST_FORMATS")
+  void readGeoStats(FileFormat format) throws IOException {
+    Schema geoSchema =
+        new Schema(
+            optional(GEOMETRY_FIELD_ID, "geom", Types.GeometryType.crs84()),
+            optional(GEOGRAPHY_FIELD_ID, "geog", Types.GeographyType.crs84()));
+    Types.StructType statsType =
+        StatsUtil.statsReadSchema(
+            geoSchema, ImmutableList.of(GEOMETRY_FIELD_ID, GEOGRAPHY_FIELD_ID));
+    Types.StructType geomStatsType = statsType.fieldType("geom").asStructType();
+    Types.StructType geogStatsType = statsType.fieldType("geog").asStructType();
+
+    // geometry and geography bound a bounding box (x, y, z, m) rather than a scalar value, and
+    // track neither tight bounds nor NaN counts
+    ContentStatsStruct stats = new ContentStatsStruct(statsType);
+    stats.setStats(
+        GEOMETRY_FIELD_ID,
+        geoStats(
+            geomStatsType,
+            boundingBox(geomStatsType, StatsUtil.LOWER_BOUND_NAME, 1.0d, 2.0d, 3.0d, 4.0d),
+            boundingBox(geomStatsType, StatsUtil.UPPER_BOUND_NAME, 5.0d, 6.0d, 7.0d, 8.0d)));
+    stats.setStats(
+        GEOGRAPHY_FIELD_ID,
+        geoStats(
+            geogStatsType,
+            boundingBox(geogStatsType, StatsUtil.LOWER_BOUND_NAME, -20.0d, -10.0d, 0.0d, 1.0d),
+            boundingBox(geogStatsType, StatsUtil.UPPER_BOUND_NAME, 20.0d, 10.0d, 30.0d, 2.0d)));
+
+    TrackedFile file = fileWithStats("s3://bucket/file.parquet", stats);
+    InputFile manifest = writeManifest(format, statsType, ImmutableList.of(file));
+
+    try (V4ManifestReader reader =
+        V4ManifestReader.builder(manifest, geoSchema, UNPARTITIONED_SPECS, TABLE_LOCATION)
+            .build()) {
+      ContentStats actual = Iterables.getOnlyElement(reader).contentStats();
+
+      FieldStats<?> geom = actual.statsFor(GEOMETRY_FIELD_ID);
+      assertThat(geom.type()).isEqualTo(geomStatsType);
+      assertThat(geom.valueCount()).isEqualTo(26L);
+      assertThat(geom.nullValueCount()).isEqualTo(2L);
+      assertThat(geom.avgValueSizeInBytes()).isEqualTo(32);
+      assertBoundingBox(geom.lowerBound(), 1.0d, 2.0d, 3.0d, 4.0d);
+      assertBoundingBox(geom.upperBound(), 5.0d, 6.0d, 7.0d, 8.0d);
+
+      FieldStats<?> geog = actual.statsFor(GEOGRAPHY_FIELD_ID);
+      assertThat(geog.type()).isEqualTo(geogStatsType);
+      assertBoundingBox(geog.lowerBound(), -20.0d, -10.0d, 0.0d, 1.0d);
+      assertBoundingBox(geog.upperBound(), 20.0d, 10.0d, 30.0d, 2.0d);
+    }
+  }
+
+  @ParameterizedTest
+  @FieldSource("MANIFEST_FORMATS")
+  void geoStatsAreCorrectWithContainerReuse(FileFormat format) throws IOException {
+    Schema geoSchema = new Schema(optional(GEOMETRY_FIELD_ID, "geom", Types.GeometryType.crs84()));
+    Types.StructType statsType =
+        StatsUtil.statsReadSchema(geoSchema, ImmutableList.of(GEOMETRY_FIELD_ID));
+    Types.StructType geomStatsType = statsType.fieldType("geom").asStructType();
+
+    // each entry bounds a different box, so a reused container must not carry one entry's box
+    // into the next
+    ContentStatsStruct first = new ContentStatsStruct(statsType);
+    first.setStats(
+        GEOMETRY_FIELD_ID,
+        geoStats(
+            geomStatsType,
+            boundingBox(geomStatsType, StatsUtil.LOWER_BOUND_NAME, 1.0d, 2.0d, 3.0d, 4.0d),
+            boundingBox(geomStatsType, StatsUtil.UPPER_BOUND_NAME, 5.0d, 6.0d, 7.0d, 8.0d)));
+
+    ContentStatsStruct second = new ContentStatsStruct(statsType);
+    second.setStats(
+        GEOMETRY_FIELD_ID,
+        geoStats(
+            geomStatsType,
+            boundingBox(geomStatsType, StatsUtil.LOWER_BOUND_NAME, 11.0d, 12.0d, 13.0d, 14.0d),
+            boundingBox(geomStatsType, StatsUtil.UPPER_BOUND_NAME, 15.0d, 16.0d, 17.0d, 18.0d)));
+
+    List<TrackedFile> files =
+        ImmutableList.of(
+            fileWithStats("s3://bucket/first.parquet", first),
+            fileWithStats("s3://bucket/second.parquet", second));
+
+    InputFile manifest = writeManifest(format, statsType, files);
+
+    try (V4ManifestReader reader =
+        V4ManifestReader.builder(manifest, geoSchema, UNPARTITIONED_SPECS, TABLE_LOCATION)
+            .build()) {
+      List<TrackedFile> read = Lists.newArrayList(reader);
+
+      FieldStats<?> firstStats = read.get(0).contentStats().statsFor(GEOMETRY_FIELD_ID);
+      assertBoundingBox(firstStats.lowerBound(), 1.0d, 2.0d, 3.0d, 4.0d);
+      assertBoundingBox(firstStats.upperBound(), 5.0d, 6.0d, 7.0d, 8.0d);
+
+      FieldStats<?> secondStats = read.get(1).contentStats().statsFor(GEOMETRY_FIELD_ID);
+      assertBoundingBox(secondStats.lowerBound(), 11.0d, 12.0d, 13.0d, 14.0d);
+      assertBoundingBox(secondStats.upperBound(), 15.0d, 16.0d, 17.0d, 18.0d);
     }
   }
 
@@ -374,6 +477,32 @@ class TestV4ManifestReaderStats {
     if (statsType.field("nan_value_count") != null) {
       assertThat(actual.nanValueCount()).isEqualTo(expected.nanValueCount());
     }
+  }
+
+  private static void assertBoundingBox(Object bound, double... ordinates) {
+    assertThat(bound).isInstanceOf(StructLike.class);
+    StructLike box = (StructLike) bound;
+    assertThat(box.size()).isEqualTo(ordinates.length);
+    for (int pos = 0; pos < ordinates.length; pos += 1) {
+      assertThat(box.get(pos, Double.class))
+          .as("Bounding box ordinate at position %s", pos)
+          .isEqualTo(ordinates[pos]);
+    }
+  }
+
+  private static FieldStats<StructLike> geoStats(
+      Types.StructType statsType, StructLike lowerBound, StructLike upperBound) {
+    return new FieldStatsStruct<>(statsType, lowerBound, upperBound, false, 26L, 2L, 0L, 32);
+  }
+
+  private static StructLike boundingBox(
+      Types.StructType statsType, String boundName, double... ordinates) {
+    PartitionData box = new PartitionData(statsType.fieldType(boundName).asStructType());
+    for (int pos = 0; pos < ordinates.length; pos += 1) {
+      box.set(pos, ordinates[pos]);
+    }
+
+    return box;
   }
 
   /** Returns stats for every table column, backed by the full content stats type. */
