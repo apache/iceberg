@@ -21,12 +21,17 @@ package org.apache.iceberg.spark.source;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.when;
 
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Stream;
 import org.apache.iceberg.BaseScanTaskGroup;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
@@ -34,16 +39,21 @@ import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableUtil;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.data.FileHelpers;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.TestBase;
+import org.apache.iceberg.transforms.Transform;
+import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Pair;
 import org.apache.spark.rdd.InputFileBlockHolder;
@@ -52,6 +62,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.mockito.Mockito;
 
 class TestMergingSortedRowDataReader extends TestBase {
 
@@ -191,6 +202,132 @@ class TestMergingSortedRowDataReader extends TestBase {
   }
 
   @Test
+  void mergeWithStructColumnNotInSortOrder() throws IOException {
+    catalog.dropTable(TableIdentifier.of("default", "test_merging_reader"));
+
+    Schema schemaWithStruct =
+        new Schema(
+            required(1, "id", Types.IntegerType.get()),
+            required(2, "data", Types.StringType.get()),
+            required(
+                4, "location", Types.StructType.of(required(5, "city", Types.StringType.get()))));
+
+    table =
+        catalog.createTable(
+            TableIdentifier.of("default", "test_merging_reader"), schemaWithStruct, SPEC);
+    table.replaceSortOrder().asc("id").commit();
+
+    DataFile file1 = writeDataFile(structRecord(1, "a", "NYC"), structRecord(3, "c", "SFO"));
+    DataFile file2 = writeDataFile(structRecord(2, "b", "LAX"), structRecord(4, "d", "SEA"));
+
+    table.newAppend().appendFile(file1).appendFile(file2).commit();
+
+    // Project the struct but not the sort key, so the merge schema is widened around a struct.
+    Schema projection = table.schema().select("location");
+    List<InternalRow> rows = readMerged(table, projection);
+
+    assertThat(rows.get(0).numFields()).isEqualTo(1);
+    assertThat(rows.stream().map(row -> row.getStruct(0, 1).getUTF8String(0).toString()).toList())
+        .containsExactly("NYC", "LAX", "SFO", "SEA");
+  }
+
+  @Test
+  void mergeRejectsStaleSortOrderId() throws IOException {
+    SortOrder oldSortOrder = table.sortOrder();
+
+    // file1 keeps the old order id, file2 is written with the evolved one
+    DataFile file1 =
+        DataFiles.builder(table.spec())
+            .copy(writeRecords(record(1, "a"), record(3, "c")))
+            .withSortOrder(oldSortOrder)
+            .build();
+
+    table.replaceSortOrder().asc("data").commit();
+    DataFile file2 = writeDataFile(record(2, "b"), record(4, "d"));
+
+    table.newAppend().appendFile(file1).appendFile(file2).commit();
+
+    assertThatThrownBy(() -> readMerged(table))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Not all files in task group have the expected sort order");
+  }
+
+  @Test
+  void mergeRejectsMissingSortOrderId() {
+    // sort_order_id is optional in the manifest schema, so a file may report null
+    ScanTaskGroup<FileScanTask> taskGroup =
+        taskGroupWithSortOrderIds(table.sortOrder().orderId(), null);
+
+    assertThatThrownBy(
+            () ->
+                new MergingSortedRowDataReader(
+                    table, table.io(), taskGroup, table.schema(), true, false))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Not all files in task group have the expected sort order");
+  }
+
+  @Test
+  void mergeRejectsSingleFile() throws IOException {
+    DataFile file1 = writeDataFile(record(1, "a"), record(3, "c"));
+
+    table.newAppend().appendFile(file1).commit();
+    table.refresh();
+
+    BaseScanTaskGroup<FileScanTask> taskGroup = new BaseScanTaskGroup<>(planFiles(table));
+
+    assertThatThrownBy(
+            () ->
+                new MergingSortedRowDataReader(
+                    table, table.io(), taskGroup, table.schema(), true, false))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Merging reader requires multiple files, got 1");
+  }
+
+  @Test
+  void mergeRejectsUnsortedTable() throws IOException {
+    catalog.dropTable(TableIdentifier.of("default", "test_merging_reader"));
+    table = catalog.createTable(TableIdentifier.of("default", "test_merging_reader"), SCHEMA, SPEC);
+
+    DataFile file1 = writeDataFile(record(1, "a"), record(3, "c"));
+    DataFile file2 = writeDataFile(record(2, "b"), record(4, "d"));
+
+    table.newAppend().appendFile(file1).appendFile(file2).commit();
+    table.refresh();
+
+    BaseScanTaskGroup<FileScanTask> taskGroup = new BaseScanTaskGroup<>(planFiles(table));
+
+    assertThatThrownBy(
+            () ->
+                new MergingSortedRowDataReader(
+                    table, table.io(), taskGroup, table.schema(), true, false))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot create merging reader for unsorted table");
+  }
+
+  @Test
+  void mergeWithFileFullyRemovedByDeletes() throws IOException {
+    // SortedMerge drops iterators that are empty on the first hasNext() without closing them, so a
+    // file whose rows are all deleted exercises the reader ownership documented in close().
+    DataFile file1 = writeDataFile(record(1, "a"), record(3, "c"));
+    DataFile file2 = writeDataFile(record(2, "b"), record(4, "d"));
+
+    table.newAppend().appendFile(file1).appendFile(file2).commit();
+
+    DeleteFile deleteFile =
+        FileHelpers.writeDeleteFile(
+                table,
+                Files.localOutput(File.createTempFile("junit", null, temp.toFile())),
+                Lists.newArrayList(Pair.of(file1.location(), 0L), Pair.of(file1.location(), 1L)),
+                TableUtil.formatVersion(table))
+            .first();
+    table.newRowDelta().addDeletes(deleteFile).commit();
+
+    List<InternalRow> rows = readMerged(table);
+
+    assertThat(extractIds(rows)).containsExactly(2, 4);
+  }
+
+  @Test
   void mergeWithPositionDeletes() throws IOException {
     // File1: [1, 3, 5], File2: [2, 4, 6]
     DataFile file1 = writeDataFile(record(1, "a"), record(3, "c"), record(5, "e"));
@@ -215,14 +352,17 @@ class TestMergingSortedRowDataReader extends TestBase {
 
   @Test
   void mergeWithSortOrderReferencingSameColumnMultipleTimes() throws IOException {
-    table
-        .replaceSortOrder()
-        .asc(org.apache.iceberg.expressions.Expressions.bucket("id", 16))
-        .asc("id")
-        .commit();
+    table.replaceSortOrder().asc(Expressions.bucket("id", 16)).asc("id").commit();
 
-    DataFile file1 = writeDataFile(record(1, "a"), record(3, "c"), record(5, "e"));
-    DataFile file2 = writeDataFile(record(2, "b"), record(4, "d"), record(6, "f"));
+    List<Record> sorted = recordsInBucketThenIdOrder();
+    List<Record> left = Lists.newArrayList();
+    List<Record> right = Lists.newArrayList();
+    for (int i = 0; i < sorted.size(); i++) {
+      (i % 2 == 0 ? left : right).add(sorted.get(i));
+    }
+
+    DataFile file1 = writeDataFile(left.toArray(new Record[0]));
+    DataFile file2 = writeDataFile(right.toArray(new Record[0]));
 
     table.newAppend().appendFile(file1).appendFile(file2).commit();
 
@@ -230,9 +370,26 @@ class TestMergingSortedRowDataReader extends TestBase {
     Schema dataOnly = table.schema().select("data");
     List<InternalRow> rows = readMerged(table, dataOnly);
 
-    assertThat(rows).hasSize(6);
     assertThat(rows.get(0).numFields()).isEqualTo(1);
-    assertThat(extractData(rows, 0)).containsExactlyInAnyOrder("a", "b", "c", "d", "e", "f");
+    assertThat(extractData(rows, 0))
+        .containsExactlyElementsOf(sorted.stream().map(rec -> (String) rec.get(1)).toList());
+  }
+
+  private List<Record> recordsInBucketThenIdOrder() {
+    Transform<Integer, Integer> bucket = Transforms.bucket(16);
+    Function<Integer, Integer> toBucket = bucket.bind(Types.IntegerType.get())::apply;
+
+    return Stream.of(
+            record(1, "a"),
+            record(2, "b"),
+            record(3, "c"),
+            record(4, "d"),
+            record(5, "e"),
+            record(6, "f"))
+        .sorted(
+            Comparator.<Record, Integer>comparing(rec -> toBucket.apply((Integer) rec.get(0)))
+                .thenComparing(rec -> (Integer) rec.get(0)))
+        .toList();
   }
 
   @Test
@@ -241,14 +398,8 @@ class TestMergingSortedRowDataReader extends TestBase {
     DataFile file2 = writeDataFile(record(2, "b"), record(4, "d"));
 
     table.newAppend().appendFile(file1).appendFile(file2).commit();
-    table.refresh();
 
-    List<FileScanTask> fileTasks = Lists.newArrayList();
-    try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
-      tasks.forEach(fileTasks::add);
-    }
-
-    BaseScanTaskGroup<FileScanTask> taskGroup = new BaseScanTaskGroup<>(fileTasks);
+    BaseScanTaskGroup<FileScanTask> taskGroup = new BaseScanTaskGroup<>(planFiles(table));
 
     // Track which file each row reports via InputFileBlockHolder
     List<String> reportedFiles = Lists.newArrayList();
@@ -331,20 +482,14 @@ class TestMergingSortedRowDataReader extends TestBase {
             .build();
 
     table.newAppend().appendFile(file1).appendFile(file2).commit();
-    table.refresh();
 
-    List<FileScanTask> fileTasks = Lists.newArrayList();
-    try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
-      tasks.forEach(fileTasks::add);
-    }
-
-    BaseScanTaskGroup<FileScanTask> taskGroup = new BaseScanTaskGroup<>(fileTasks);
+    BaseScanTaskGroup<FileScanTask> taskGroup = new BaseScanTaskGroup<>(planFiles(table));
 
     assertThatThrownBy(
             () ->
                 new MergingSortedRowDataReader(
                     table, table.io(), taskGroup, table.schema(), true, false))
-        .isInstanceOf(IllegalStateException.class)
+        .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("does not support sort keys on nested fields");
   }
 
@@ -353,13 +498,7 @@ class TestMergingSortedRowDataReader extends TestBase {
   }
 
   private List<InternalRow> readMerged(Table tbl, Schema projection) throws IOException {
-    tbl.refresh();
-
-    List<FileScanTask> fileTasks = Lists.newArrayList();
-    try (CloseableIterable<FileScanTask> tasks = tbl.newScan().planFiles()) {
-      tasks.forEach(fileTasks::add);
-    }
-
+    List<FileScanTask> fileTasks = planFiles(tbl);
     assertThat(fileTasks).hasSizeGreaterThan(1);
 
     BaseScanTaskGroup<FileScanTask> taskGroup = new BaseScanTaskGroup<>(fileTasks);
@@ -373,6 +512,34 @@ class TestMergingSortedRowDataReader extends TestBase {
     }
 
     return rows;
+  }
+
+  private List<FileScanTask> planFiles(Table tbl) throws IOException {
+    tbl.refresh();
+
+    List<FileScanTask> fileTasks = Lists.newArrayList();
+    try (CloseableIterable<FileScanTask> tasks = tbl.newScan().planFiles()) {
+      tasks.forEach(fileTasks::add);
+    }
+
+    return fileTasks;
+  }
+
+  @SuppressWarnings("unchecked")
+  private ScanTaskGroup<FileScanTask> taskGroupWithSortOrderIds(Integer... sortOrderIds) {
+    List<FileScanTask> tasks = Lists.newArrayList();
+    for (Integer sortOrderId : sortOrderIds) {
+      DataFile file = Mockito.mock(DataFile.class);
+      when(file.sortOrderId()).thenReturn(sortOrderId);
+
+      FileScanTask task = Mockito.mock(FileScanTask.class);
+      when(task.file()).thenReturn(file);
+      tasks.add(task);
+    }
+
+    ScanTaskGroup<FileScanTask> taskGroup = Mockito.mock(ScanTaskGroup.class);
+    doReturn(tasks).when(taskGroup).tasks();
+    return taskGroup;
   }
 
   private List<Integer> extractIds(List<InternalRow> rows) {
@@ -390,6 +557,18 @@ class TestMergingSortedRowDataReader extends TestBase {
     return record;
   }
 
+  private Record structRecord(int id, String data, String city) {
+    Types.StructType locationType = table.schema().findField("location").type().asStructType();
+    GenericRecord location = GenericRecord.create(locationType);
+    location.set(0, city);
+
+    GenericRecord record = GenericRecord.create(table.schema());
+    record.set(0, id);
+    record.set(1, data);
+    record.set(2, location);
+    return record;
+  }
+
   private Record nullRecord(String data) {
     Schema nullableSchema =
         new Schema(
@@ -402,11 +581,16 @@ class TestMergingSortedRowDataReader extends TestBase {
   }
 
   private DataFile writeDataFile(Record... records) throws IOException {
-    DataFile file =
-        FileHelpers.writeDataFile(
-            table,
-            Files.localOutput(File.createTempFile("junit", null, temp.toFile())),
-            Lists.newArrayList(records));
-    return DataFiles.builder(table.spec()).copy(file).withSortOrder(table.sortOrder()).build();
+    return DataFiles.builder(table.spec())
+        .copy(writeRecords(records))
+        .withSortOrder(table.sortOrder())
+        .build();
+  }
+
+  private DataFile writeRecords(Record... records) throws IOException {
+    return FileHelpers.writeDataFile(
+        table,
+        Files.localOutput(File.createTempFile("junit", null, temp.toFile())),
+        Lists.newArrayList(records));
   }
 }
