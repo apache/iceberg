@@ -51,10 +51,10 @@ import software.amazon.awssdk.services.s3.presigner.model.PresignedGetObjectRequ
 
 /**
  * Integration test verifying that {@link S3FileIO} reads objects from MinIO via a catalog-vended
- * pre-signed URL used directly as the file's location, with no S3 client ever invoked: objects are
- * written with a credentialed S3 client and presigned via {@link S3Presigner}, then read back
- * through an {@link S3FileIO} whose S3 client would fail if used, proving reads go through the
- * HTTP(S) short-circuit instead of the native, credentialed path.
+ * pre-signed URL used directly as the file's location: objects are written and presigned via {@link
+ * S3Presigner}, then read back through an {@link S3FileIO} whose S3 client would fail if used,
+ * proving reads take the HTTP(S) short-circuit. A complementary test confirms ordinary {@code s3://}
+ * locations still read through the native S3 client.
  */
 @Testcontainers
 public class TestS3FileIOPresignedUrls {
@@ -161,8 +161,7 @@ public class TestS3FileIOPresignedUrls {
     putObject(BUCKET, key, data);
     String url = presignGetUrl(BUCKET, key);
 
-    // No length hint: HTTPInputFile probes with a Range: bytes=0-0 GET and reads the total size
-    // from the Content-Range header.
+    // No length hint: size is probed via a Range: bytes=0-0 GET.
     InputFile inputFile = s3FileIO.newInputFile(url);
 
     assertThat(inputFile.getLength()).isEqualTo(data.length);

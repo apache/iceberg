@@ -25,14 +25,12 @@ import org.apache.hc.core5.io.CloseMode;
 import org.apache.iceberg.io.InputFile;
 
 /**
- * A composable helper that a {@link org.apache.iceberg.io.FileIO} implementation can delegate to
- * for reading a file directly over HTTP(S) in place of that FileIO's normal, credentialed read
- * path.
+ * A helper that a {@link org.apache.iceberg.io.FileIO} can delegate to for reading a file directly
+ * over HTTP(S) instead of its normal, credentialed read path.
  *
- * <p>This is for catalogs that vend a pre-signed object-store URL directly as a file's location
- * (e.g. the {@code file-path} of a scan task), rather than through a separate signing lookup. The
- * location is used unchanged as the URL to fetch, so {@link InputFile#location()} on the returned
- * file is exactly the location passed to {@link #newInputFile(String)}.
+ * <p>Intended for catalogs that vend a pre-signed object-store URL directly as a file's location
+ * (e.g. a scan task's {@code file-path}). The location is used unchanged as the fetch URL, so {@link
+ * InputFile#location()} equals the location passed to {@link #newInputFile(String)}.
  */
 public class HttpUrlSupport implements Serializable {
 

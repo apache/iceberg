@@ -33,13 +33,11 @@ import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
- * An {@link InputFile} whose immutable, logical {@link #location()} is resolved to a target HTTP
- * URL to read from, typically a pre-signed object-store URL that encodes all required auth in its
- * query parameters.
+ * An {@link InputFile} backed by an HTTP URL, typically a pre-signed object-store URL that encodes
+ * auth in its query parameters.
  *
- * <p>When the content length is known at construction time it is returned directly from {@link
- * #getLength()} without a network round-trip. Otherwise it is fetched on the first call via a
- * {@code GET Range: bytes=0-0} request, which (unlike HEAD) is compatible with pre-signed GET URLs.
+ * <p>A known content length is returned directly; otherwise it is fetched lazily via a {@code GET
+ * Range: bytes=0-0} request, which (unlike HEAD) works with pre-signed GET URLs.
  */
 class HTTPInputFile implements InputFile {
   private static final long UNKNOWN_LENGTH = -1L;
@@ -96,9 +94,8 @@ class HTTPInputFile implements InputFile {
   }
 
   /**
-   * Fetches the content length by issuing {@code GET Range: bytes=0-0} and parsing the {@code
-   * Content-Range} response header. This approach works with pre-signed GET URLs, unlike a {@code
-   * HEAD} request whose signature would be rejected by S3/MinIO.
+   * Fetches the content length via {@code GET Range: bytes=0-0}, reading the total from the {@code
+   * Content-Range} header. Works with pre-signed GET URLs, unlike a {@code HEAD} request.
    */
   private long fetchContentLength() {
     try {

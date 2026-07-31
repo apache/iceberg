@@ -50,9 +50,9 @@ import software.amazon.awssdk.services.s3.presigner.model.PresignedGetObjectRequ
 
 /**
  * Live-AWS verification that pre-signed URL reads work end-to-end against real S3: put an object,
- * mint a GET pre-signed URL with {@link S3Presigner}, and read it directly through {@link
- * S3FileIO#newInputFile(String)} — the pre-signed URL is used unchanged as the file's location, so
- * bytes are fetched over HTTPS without using the native S3 client.
+ * mint a GET pre-signed URL with {@link S3Presigner}, and read it through {@link
+ * S3FileIO#newInputFile(String)} using the URL unchanged as the location, so bytes are fetched over
+ * HTTPS without the native S3 client.
  *
  * <p>Requires:
  *

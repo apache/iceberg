@@ -40,17 +40,15 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * A {@link SeekableInputStream} that reads from an HTTP URL using range GET requests. Designed for
- * reading pre-signed object-store URLs without requiring object-store credentials on the reader.
+ * A {@link SeekableInputStream} that reads an HTTP URL via range GETs, for pre-signed object-store
+ * URLs that need no object-store credentials on the reader.
  *
- * <p>Sequential reads are served from a fixed-size in-memory chunk buffer; each chunk is fetched
- * with a single range GET that is fully consumed within the response handler so that connections
- * are promptly returned to the pool. One-shot positional reads ({@link #readFully} and {@link
- * #readTail}) each open and close their own connection, which is the common path for Parquet reads.
+ * <p>Sequential reads are served from a fixed-size in-memory chunk buffer, each chunk fetched with
+ * a single range GET fully consumed within the response handler so connections return to the pool.
+ * Positional reads ({@link #readFully}, {@link #readTail}) each issue their own range GET.
  *
- * <p>Transient socket / TLS errors and 5xx responses during a chunk or range fetch are retried up
- * to {@value #MAX_RETRIES} times; any other unexpected status (including an expired or invalid
- * pre-signed URL) fails the read immediately.
+ * <p>Transient socket/TLS errors and 5xx responses are retried up to {@value #MAX_RETRIES} times;
+ * any other unexpected status (e.g. an expired pre-signed URL) fails immediately.
  */
 class HTTPInputStream extends SeekableInputStream implements RangeReadable {
   private static final Logger LOG = LoggerFactory.getLogger(HTTPInputStream.class);
@@ -212,9 +210,7 @@ class HTTPInputStream extends SeekableInputStream implements RangeReadable {
           if (statusCode == HttpStatus.SC_NOT_FOUND) {
             throw new NotFoundException("Location does not exist: %s", requestUrl);
           } else if (statusCode == HttpStatus.SC_REQUESTED_RANGE_NOT_SATISFIABLE) {
-            // The requested range starts at or past the end of the file. This happens when a
-            // caller probes for more data right at EOF (e.g. Avro's reader checking for
-            // additional blocks), so treat it the same as any other empty range read.
+            // Range starts at or past EOF (e.g. a reader probing for more blocks); treat as empty.
             EntityUtils.consumeQuietly(response.getEntity());
             return new byte[0];
           } else if (statusCode >= 500) {

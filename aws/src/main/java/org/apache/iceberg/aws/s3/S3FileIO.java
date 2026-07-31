@@ -92,9 +92,8 @@ import software.amazon.awssdk.services.s3.paginators.ListObjectVersionsIterable;
  * schemes s3a, s3n are also treated as s3 file paths. Using this FileIO with other schemes will
  * result in {@link org.apache.iceberg.exceptions.ValidationException}.
  *
- * <p>Locations that are themselves HTTP(S) URLs (e.g. a catalog-vended pre-signed URL used directly
- * as a file's location) are read directly over HTTP(S) instead of through this FileIO's native,
- * credentialed S3 client; see {@link #newInputFile(String)}.
+ * <p>HTTP(S) URL locations (e.g. a catalog-vended pre-signed URL) are read directly over HTTP(S)
+ * instead of through the native, credentialed S3 client; see {@link #newInputFile(String)}.
  */
 public class S3FileIO
     implements CredentialSupplier,

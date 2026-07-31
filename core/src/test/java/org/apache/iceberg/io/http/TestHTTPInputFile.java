@@ -42,9 +42,8 @@ import org.junit.jupiter.api.Test;
 
 /**
  * Exercises {@link HTTPInputFile}/{@link HTTPInputStream} against a real {@link HttpServer} that
- * slices its responses from the request {@code Range} header, giving deterministic, cloud-free
- * coverage of the actual HTTP reading path — in particular multi-chunk sequential reads that cross
- * the {@link HTTPInputStream#CHUNK_SIZE} boundary.
+ * serves ranges from the request {@code Range} header, giving cloud-free coverage of the HTTP read
+ * path, including multi-chunk reads that cross the {@link HTTPInputStream#CHUNK_SIZE} boundary.
  */
 class TestHTTPInputFile {
 
