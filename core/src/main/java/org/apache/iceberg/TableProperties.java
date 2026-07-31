@@ -118,6 +118,10 @@ public class TableProperties {
   public static final String MANIFEST_MIN_MERGE_COUNT = "commit.manifest.min-count-to-merge";
   public static final int MANIFEST_MIN_MERGE_COUNT_DEFAULT = 100;
 
+  public static final String MANIFEST_MIN_DATA_FILES_TO_FLUSH =
+      "commit.manifest.min-data-files-to-flush";
+  public static final long MANIFEST_MIN_DATA_FILES_TO_FLUSH_DEFAULT = 0;
+
   public static final String MANIFEST_MERGE_ENABLED = "commit.manifest-merge.enabled";
   public static final boolean MANIFEST_MERGE_ENABLED_DEFAULT = true;
 
