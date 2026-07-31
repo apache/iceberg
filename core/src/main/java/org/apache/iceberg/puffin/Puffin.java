@@ -41,6 +41,7 @@ public final class Puffin {
     private final OutputFile outputFile;
     private final Map<String, String> properties = Maps.newLinkedHashMap();
     private boolean compressFooter = false;
+    private boolean overwrite = false;
     private PuffinCompressionCodec defaultBlobCompression = PuffinCompressionCodec.NONE;
 
     private WriteBuilder(OutputFile outputFile) {
@@ -71,6 +72,12 @@ public final class Puffin {
       return this;
     }
 
+    /** Configures the writer to overwrite the output file if it already exists. */
+    public WriteBuilder overwrite() {
+      this.overwrite = true;
+      return this;
+    }
+
     /**
      * Configures the writer to compress the blobs. Can be overwritten by {@link Blob} attribute.
      */
@@ -80,7 +87,8 @@ public final class Puffin {
     }
 
     public PuffinWriter build() {
-      return new PuffinWriter(outputFile, properties, compressFooter, defaultBlobCompression);
+      return new PuffinWriter(
+          outputFile, properties, compressFooter, defaultBlobCompression, overwrite);
     }
   }
 
