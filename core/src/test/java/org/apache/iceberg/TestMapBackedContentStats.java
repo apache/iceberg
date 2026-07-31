@@ -74,7 +74,7 @@ class TestMapBackedContentStats {
               4, buf(Types.StringType.get(), "zzz")));
 
   @Test
-  void testBoundDecodingPerType() {
+  void boundDecodingPerType() {
     MapBackedContentStats stats =
         new MapBackedContentStats(SCHEMA, METRICS_CONFIG).wrap(FILE_WITH_STATS);
 
@@ -98,7 +98,7 @@ class TestMapBackedContentStats {
   }
 
   @Test
-  void testMissingBoundsDecodeToNull() {
+  void missingBoundsDecodeToNull() {
     // value counts present but no lower/upper bound entries for the field
     DataFile file =
         dataFile(
@@ -116,7 +116,7 @@ class TestMapBackedContentStats {
   }
 
   @Test
-  void testCountsAndDefaults() {
+  void countsAndDefaults() {
     MapBackedContentStats stats =
         new MapBackedContentStats(SCHEMA, METRICS_CONFIG).wrap(FILE_WITH_STATS);
 
@@ -155,7 +155,7 @@ class TestMapBackedContentStats {
   }
 
   @Test
-  void testCountsOnlyColumnOmitsBounds() {
+  void countsOnlyColumnOmitsBounds() {
     // configure the float column (score) as counts-only; its stats sub-struct must drop bounds
     MetricsConfig countsConfig =
         MetricsConfig.from(
@@ -178,7 +178,7 @@ class TestMapBackedContentStats {
   }
 
   @Test
-  void testCountsOnlyStructLike() {
+  void countsOnlyStructLike() {
     // the pruned counts-only struct must expose its counts in the right positions via StructLike
     MetricsConfig countsConfig =
         MetricsConfig.from(
@@ -196,7 +196,7 @@ class TestMapBackedContentStats {
   }
 
   @Test
-  void testAbsentFieldHasNoStats() {
+  void absentFieldHasNoStats() {
     MapBackedContentStats stats =
         new MapBackedContentStats(SCHEMA, METRICS_CONFIG).wrap(FILE_WITH_STATS);
 
@@ -208,14 +208,14 @@ class TestMapBackedContentStats {
   }
 
   @Test
-  void testType() {
+  void typeMatchesStatsReadSchema() {
     MapBackedContentStats stats = new MapBackedContentStats(SCHEMA, METRICS_CONFIG);
     assertThat(stats.type())
         .isEqualTo(StatsUtil.statsReadSchema(SCHEMA, ImmutableList.of(1, 2, 3, 4, 5)));
   }
 
   @Test
-  void testDefaultStructLike() {
+  void defaultStructLike() {
     // the default (bound-bearing) struct for an optional float exposes all six fields via
     // StructLike
     MapBackedContentStats stats =
@@ -230,7 +230,7 @@ class TestMapBackedContentStats {
   }
 
   @Test
-  void testContentStructLikeGetReturnsChildrenOrNull() {
+  void contentStructLikeGetReturnsChildrenOrNull() {
     MapBackedContentStats stats =
         new MapBackedContentStats(SCHEMA, METRICS_CONFIG).wrap(FILE_WITH_STATS);
 
@@ -251,7 +251,7 @@ class TestMapBackedContentStats {
   }
 
   @Test
-  void testCopyNotSupported() {
+  void copyNotSupported() {
     MapBackedContentStats stats =
         new MapBackedContentStats(SCHEMA, METRICS_CONFIG).wrap(FILE_WITH_STATS);
 
@@ -266,7 +266,7 @@ class TestMapBackedContentStats {
   }
 
   @Test
-  void testSetNotSupported() {
+  void setNotSupported() {
     MapBackedContentStats stats =
         new MapBackedContentStats(SCHEMA, METRICS_CONFIG).wrap(FILE_WITH_STATS);
 
@@ -276,7 +276,7 @@ class TestMapBackedContentStats {
   }
 
   @Test
-  void testFieldStatsCopyNotSupported() {
+  void fieldStatsCopyNotSupported() {
     // the reusable field wrapper is serialized directly; snapshots must be materialized via a
     // writer
     MapBackedContentStats stats =
@@ -288,7 +288,7 @@ class TestMapBackedContentStats {
   }
 
   @Test
-  void testFieldStatsSetNotSupported() {
+  void fieldStatsSetNotSupported() {
     MapBackedContentStats stats =
         new MapBackedContentStats(SCHEMA, METRICS_CONFIG).wrap(FILE_WITH_STATS);
 
@@ -298,7 +298,7 @@ class TestMapBackedContentStats {
   }
 
   @Test
-  void testReuseRebindsBounds() {
+  void reuseRebindsBounds() {
     MapBackedContentStats stats = new MapBackedContentStats(SCHEMA, METRICS_CONFIG);
 
     stats.wrap(FILE_WITH_STATS);
