@@ -1022,6 +1022,9 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
 
   @TestTemplate
   public void testCompareToFileListWithSiblingTableLocation() throws IOException {
+    assumeThat(usePrefixListing)
+        .as("Should not test both prefix listing and Hadoop file listing (redundant)")
+        .isEqualTo(false);
     Table table = TABLES.create(SCHEMA, PartitionSpec.unpartitioned(), properties, tableLocation);
 
     List<ThreeColumnRecord> records =
