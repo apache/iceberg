@@ -244,7 +244,7 @@ A **`map`** is a collection of key-value pairs with a key type and a value type.
 
 A **`variant`** is a value that stores semi-structured data. The structure and data types in a variant are not necessarily consistent across rows in a table or data file. The variant type and binary encoding are defined in the [Parquet project](https://github.com/apache/parquet-format/blob/master/VariantEncoding.md), with support currently available for V1. Support for Variant is added in Iceberg v3.
 
-The `variant` type is a semi-structured type. It is neither a primitive type nor a nested type.
+As a semi-structured type, `variant` is neither a primitive type nor a nested type.
 
 Variants are similar to JSON with a wider set of primitive values including date, timestamp, timestamptz, binary, and decimals.
 
