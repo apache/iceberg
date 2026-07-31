@@ -91,7 +91,7 @@ public class SystemConfigs {
           true,
           s -> {
             LOG.warn(
-                "Fallback ID assignment in Parquet is UNSAFE and will be removed in 1.12.0. Use name mapping instead.");
+                "Fallback ID assignment in Parquet is UNSAFE and will be removed in 2.0.0. Use name mapping instead.");
             return Boolean.parseBoolean(s);
           });
 
