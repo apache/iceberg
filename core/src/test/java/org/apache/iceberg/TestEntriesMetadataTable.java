@@ -22,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.util.List;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.types.TypeUtil;
@@ -151,5 +152,39 @@ public class TestEntriesMetadataTable extends TestBase {
     assertThat(files.get(1).file().recordCount())
         .as("Should contain 1 delete file record")
         .isEqualTo(1);
+  }
+
+  @TestTemplate
+  public void testIgnoreResidualsPreservesManifestContentPruning() {
+    assumeThat(formatVersion).as("Only V2 Tables Support Deletes").isGreaterThanOrEqualTo(2);
+
+    table.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
+    table.newRowDelta().addDeletes(fileADeletes()).commit();
+
+    String dataManifestPath = table.currentSnapshot().dataManifests(table.io()).get(0).path();
+    String deleteManifestPath = table.currentSnapshot().deleteManifests(table.io()).get(0).path();
+
+    List<Table> entriesTables =
+        ImmutableList.of(new ManifestEntriesTable(table), new AllEntriesTable(table));
+
+    for (Table entriesTable : entriesTables) {
+      TableScan scan =
+          entriesTable
+              .newScan()
+              .filter(Expressions.equal("data_file.content", FileContent.POSITION_DELETES.id()))
+              .ignoreResiduals();
+
+      List<FileScanTask> tasks = ImmutableList.copyOf(scan.planFiles());
+
+      assertThat(tasks)
+          .as("Should retain manifest content pruning for %s", entriesTable.name())
+          .extracting(task -> task.file().location())
+          .contains(deleteManifestPath)
+          .doesNotContain(dataManifestPath);
+
+      assertThat(tasks)
+          .as("Should ignore residuals for %s", entriesTable.name())
+          .allSatisfy(task -> assertThat(task.residual()).isEqualTo(Expressions.alwaysTrue()));
+    }
   }
 }
