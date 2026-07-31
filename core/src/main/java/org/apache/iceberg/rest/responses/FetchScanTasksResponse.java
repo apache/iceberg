@@ -62,17 +62,6 @@ public class FetchScanTasksResponse extends BaseScanTaskResponse {
     return new Builder().withSpecsById(specsById);
   }
 
-  /**
-   * Returns a builder pre-populated with this response's fields, suitable for producing a copy with
-   * one or more fields modified.
-   */
-  public Builder toBuilder() {
-    return new Builder()
-        .withPlanTasks(planTasks())
-        .withFileScanTasks(fileScanTasks())
-        .withSpecsById(specsById());
-  }
-
   public static class Builder
       extends BaseScanTaskResponse.Builder<Builder, FetchScanTasksResponse> {
     private Builder() {}
