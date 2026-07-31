@@ -23,6 +23,9 @@ import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
+import org.apache.iceberg.Accessor;
+import org.apache.iceberg.Accessors;
 import org.apache.iceberg.BaseScanTaskGroup;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.ScanTaskGroup;
@@ -35,6 +38,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -59,17 +63,11 @@ import scala.collection.JavaConverters;
  * A {@link PartitionReader} that reads multiple sorted files and merges them into a single sorted
  * stream using a k-way heap merge ({@link SortedMerge}).
  *
- * <p>This reader is used when {@code preserve-data-ordering} is enabled and the task group contains
- * multiple files that all have the same sort order.
- *
- * <p>Sort key columns absent from the requested projection are temporarily added to the read schema
- * so that {@link SortOrderComparators} can access them during the merge. The extra columns are
- * stripped from each row before it is returned to Spark.
+ * <p>Every file in the task group must be written with the table's current sort order. Sort keys on
+ * nested fields are not supported.
  */
 class MergingSortedRowDataReader implements PartitionReader<InternalRow> {
   private static final Logger LOG = LoggerFactory.getLogger(MergingSortedRowDataReader.class);
-
-  private record TaggedRow(InternalRow row, String filePath, long start, long length) {}
 
   private final CloseableGroup resources;
   private final CloseableIterator<TaggedRow> mergedIterator;
@@ -77,6 +75,7 @@ class MergingSortedRowDataReader implements PartitionReader<InternalRow> {
   // non-null only when sort key columns were added to the read schema beyond what Spark projected
   private final ProjectingInternalRow projectingRow;
   private InternalRow current;
+  private FileBlock currentBlock;
 
   MergingSortedRowDataReader(SparkInputPartition partition) {
     this(
@@ -90,27 +89,27 @@ class MergingSortedRowDataReader implements PartitionReader<InternalRow> {
 
   MergingSortedRowDataReader(
       Table table,
-      org.apache.iceberg.io.FileIO io,
+      FileIO io,
       ScanTaskGroup<FileScanTask> taskGroup,
       Schema projection,
       boolean caseSensitive,
       boolean cacheDeleteFilesOnExecutors) {
     SortOrder sortOrder = table.sortOrder();
-
     int numFiles = taskGroup.tasks().size();
 
-    Preconditions.checkState(
+    Preconditions.checkArgument(
         sortOrder.isSorted(), "Cannot create merging reader for unsorted table %s", table.name());
-    Preconditions.checkState(
+    Preconditions.checkArgument(
         numFiles > 1, "Merging reader requires multiple files, got %s", numFiles);
 
     int expectedOrderId = sortOrder.orderId();
-    Preconditions.checkState(
-        taskGroup.tasks().stream().allMatch(task -> task.file().sortOrderId() == expectedOrderId),
+    Preconditions.checkArgument(
+        taskGroup.tasks().stream()
+            .allMatch(task -> Objects.equals(task.file().sortOrderId(), expectedOrderId)),
         "Not all files in task group have the expected sort order %s",
         expectedOrderId);
 
-    LOG.info(
+    LOG.debug(
         "Creating merging reader for {} files with sort order {} in table {}",
         numFiles,
         sortOrder.orderId(),
@@ -158,13 +157,14 @@ class MergingSortedRowDataReader implements PartitionReader<InternalRow> {
 
   /**
    * Adapts a {@link RowDataReader} to a {@link CloseableIterable} for use with {@link SortedMerge}.
-   * Each row is copied and tagged with its source file metadata before it enters the priority queue
-   * because Spark's Parquet/ORC readers reuse {@link InternalRow} instances for performance.
+   *
+   * <p>Rows are copied on the way into the heap. {@link SortedMerge} advances an iterator before
+   * returning the value it just polled, so an uncopied row would be overwritten by the next read
+   * from the same file since Spark's Parquet and ORC readers reuse {@link InternalRow} containers.
+   * At most one row per file is held at a time, so the copy is bounded by the number of files.
    */
   private CloseableIterable<TaggedRow> readerToIterable(RowDataReader reader, FileScanTask task) {
-    String filePath = task.file().location();
-    long start = task.start();
-    long length = task.length();
+    FileBlock block = new FileBlock(task.file().location(), task.start(), task.length());
     return CloseableIterable.withNoopClose(
         () ->
             new CloseableIterator<>() {
@@ -190,17 +190,15 @@ class MergingSortedRowDataReader implements PartitionReader<InternalRow> {
                   hasNext();
                 }
                 advanced = false;
-                return new TaggedRow(reader.get().copy(), filePath, start, length);
+                return new TaggedRow(reader.get().copy(), block);
               }
 
               @Override
               public void close() {
-                // No-op. The RowDataReaders are owned by the enclosing CloseableGroup
-                // (resources) and closed exactly once from close(). SortedMerge cannot be the
-                // sole owner because it filters out empty iterators (for example a file whose
-                // rows are all removed by deletes), so those readers would never be closed
-                // through the merge. Closing here as well would double-close the readers that
-                // SortedMerge does drain.
+                // Readers are owned by the enclosing CloseableGroup, not by the merge. SortedMerge
+                // drops iterators that are empty on the first hasNext() without closing them, so a
+                // file whose rows are all deleted would otherwise leak. Closing here too would
+                // double-close every reader the merge does drain.
               }
             });
   }
@@ -212,7 +210,13 @@ class MergingSortedRowDataReader implements PartitionReader<InternalRow> {
     }
 
     TaggedRow tagged = mergedIterator.next();
-    InputFileBlockHolder.set(tagged.filePath(), tagged.start(), tagged.length());
+    // all rows from one task share a FileBlock instance, so identity is enough to detect a switch
+    // and avoid re-allocating the block holder entry on every row
+    if (tagged.block() != currentBlock) {
+      FileBlock block = tagged.block();
+      InputFileBlockHolder.set(block.filePath(), block.start(), block.length());
+      this.currentBlock = block;
+    }
 
     InternalRow merged = tagged.row();
     if (projectingRow == null) {
@@ -249,10 +253,8 @@ class MergingSortedRowDataReader implements PartitionReader<InternalRow> {
   }
 
   /**
-   * Builds a comparator for merging {@link InternalRow}s by the given sort order. Uses {@link
-   * SortOrderComparators} which handles all transform types (identity, bucket, truncate), ASC/DESC
-   * directions, and null ordering. The two {@link InternalRowWrapper} instances are allocated once
-   * and reused — {@code wrap()} just updates an internal reference.
+   * Builds a comparator for merging {@link InternalRow}s by the given sort order. Each side wraps
+   * its row in its own reusable {@link InternalRowWrapper} so the two arguments stay distinct.
    */
   private static Comparator<InternalRow> buildComparator(
       Schema mergeReadSchema, SortOrder sortOrder) {
@@ -273,21 +275,14 @@ class MergingSortedRowDataReader implements PartitionReader<InternalRow> {
       return null;
     }
 
-    List<Types.NestedField> mergeColumns = mergeSchema.columns();
     List<Object> positions = Lists.newArrayListWithCapacity(projection.columns().size());
-
-    for (int i = 0; i < projection.columns().size(); i++) {
-      int fieldId = projection.columns().get(i).fieldId();
-      boolean found = false;
-      for (int j = 0; j < mergeColumns.size(); j++) {
-        if (mergeColumns.get(j).fieldId() == fieldId) {
-          positions.add(j);
-          found = true;
-          break;
-        }
-      }
-      Preconditions.checkState(
-          found, "Projection field id=%s not found in merge read schema — this is a bug", fieldId);
+    for (Types.NestedField column : projection.columns()) {
+      Accessor<StructLike> accessor = mergeSchema.accessorForField(column.fieldId());
+      Preconditions.checkArgument(
+          accessor != null,
+          "Cannot find projected field id %s in merge read schema",
+          column.fieldId());
+      positions.add(Accessors.toPosition(accessor));
     }
 
     StructType sparkSchema = SparkSchemaUtil.convert(projection);
@@ -305,19 +300,20 @@ class MergingSortedRowDataReader implements PartitionReader<InternalRow> {
 
     for (SortField sortField : sortOrder.fields()) {
       int fieldId = sortField.sourceId();
-      Preconditions.checkState(
-          tableSchema.columns().stream().anyMatch(col -> col.fieldId() == fieldId),
+      Types.NestedField tableField = tableSchema.findField(fieldId);
+      Preconditions.checkArgument(
+          tableField != null,
+          "Cannot find sort field id %s in schema of table %s",
+          fieldId,
+          table.name());
+      Preconditions.checkArgument(
+          TypeUtil.ancestorFields(tableSchema, fieldId).isEmpty(),
           "Merging reader does not support sort keys on nested fields (field id %s in table %s)",
           fieldId,
           table.name());
+
       if (projection.findField(fieldId) == null
           && missingFields.stream().noneMatch(f -> f.fieldId() == fieldId)) {
-        Types.NestedField tableField = tableSchema.findField(fieldId);
-        Preconditions.checkState(
-            tableField != null,
-            "Cannot find sort field id %s in schema of table %s",
-            fieldId,
-            table.name());
         missingFields.add(tableField);
       }
     }
@@ -328,4 +324,8 @@ class MergingSortedRowDataReader implements PartitionReader<InternalRow> {
 
     return TypeUtil.join(projection, new Schema(missingFields));
   }
+
+  private record FileBlock(String filePath, long start, long length) {}
+
+  private record TaggedRow(InternalRow row, FileBlock block) {}
 }
