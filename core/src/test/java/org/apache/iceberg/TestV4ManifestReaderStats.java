@@ -38,6 +38,11 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.variants.ShreddedObject;
+import org.apache.iceberg.variants.Variant;
+import org.apache.iceberg.variants.VariantMetadata;
+import org.apache.iceberg.variants.VariantTestUtil;
+import org.apache.iceberg.variants.Variants;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.FieldSource;
@@ -53,6 +58,7 @@ class TestV4ManifestReaderStats {
 
   private static final int GEOMETRY_FIELD_ID = 10;
   private static final int GEOGRAPHY_FIELD_ID = 11;
+  private static final int VARIANT_FIELD_ID = 12;
   private static final int ID_FIELD_ID = 1;
   private static final int DATA_FIELD_ID = 2;
   private static final int MEASURE_FIELD_ID = 3;
@@ -164,6 +170,105 @@ class TestV4ManifestReaderStats {
       assertThat(geog.type()).isEqualTo(geogStatsType);
       assertBoundingBox(geog.lowerBound(), -20.0d, -10.0d, 0.0d, 1.0d);
       assertBoundingBox(geog.upperBound(), 20.0d, 10.0d, 30.0d, 2.0d);
+    }
+  }
+
+  @ParameterizedTest
+  @FieldSource("MANIFEST_FORMATS")
+  void readVariantStats(FileFormat format) throws IOException {
+    Schema variantSchema = new Schema(optional(VARIANT_FIELD_ID, "var", Types.VariantType.get()));
+    Types.StructType statsType =
+        StatsUtil.statsReadSchema(variantSchema, ImmutableList.of(VARIANT_FIELD_ID));
+    Types.StructType varStatsType = statsType.fieldType("var").asStructType();
+
+    // variant bounds are variants keyed by JSON path expression that hold the bounds of fields
+    // within the variant; here the field "$['x']" ranges from 1 to 10
+    VariantMetadata metadata = Variants.metadata("$['x']");
+    Variant lowerBound = variantBound(metadata, 1);
+    Variant upperBound = variantBound(metadata, 10);
+
+    ContentStatsStruct stats = new ContentStatsStruct(statsType);
+    stats.setStats(
+        VARIANT_FIELD_ID,
+        new FieldStatsStruct<>(varStatsType, lowerBound, upperBound, false, 26L, 2L, 0L, 32));
+
+    TrackedFile file = fileWithStats("s3://bucket/file.parquet", stats);
+    InputFile manifest = writeManifest(format, statsType, ImmutableList.of(file));
+
+    try (V4ManifestReader reader =
+        V4ManifestReader.builder(manifest, variantSchema, UNPARTITIONED_SPECS, TABLE_LOCATION)
+            .build()) {
+      FieldStats<?> actual =
+          Iterables.getOnlyElement(reader).contentStats().statsFor(VARIANT_FIELD_ID);
+
+      assertThat(actual.type()).isEqualTo(varStatsType);
+      assertThat(actual.valueCount()).isEqualTo(26L);
+      assertThat(actual.nullValueCount()).isEqualTo(2L);
+      assertThat(actual.avgValueSizeInBytes()).isEqualTo(32);
+      assertThat(actual.tightBounds()).isFalse();
+      assertThat(actual.hasNanValueCount()).isFalse();
+      assertVariant(actual.lowerBound(), lowerBound);
+      assertVariant(actual.upperBound(), upperBound);
+    }
+  }
+
+  @ParameterizedTest
+  @FieldSource("MANIFEST_FORMATS")
+  void variantStatsAreCorrectWithContainerReuse(FileFormat format) throws IOException {
+    Schema variantSchema = new Schema(optional(VARIANT_FIELD_ID, "var", Types.VariantType.get()));
+    Types.StructType statsType =
+        StatsUtil.statsReadSchema(variantSchema, ImmutableList.of(VARIANT_FIELD_ID));
+    Types.StructType varStatsType = statsType.fieldType("var").asStructType();
+
+    VariantMetadata metadata = Variants.metadata("$['x']");
+
+    // each entry bounds a different range, so a reused container must not carry one entry's
+    // bounds into the next
+    Variant firstLower = variantBound(metadata, 1);
+    Variant firstUpper = variantBound(metadata, 10);
+    ContentStatsStruct first = new ContentStatsStruct(statsType);
+    first.setStats(
+        VARIANT_FIELD_ID,
+        new FieldStatsStruct<>(varStatsType, firstLower, firstUpper, false, 26L, 2L, 0L, 32));
+
+    Variant secondLower = variantBound(metadata, 100);
+    Variant secondUpper = variantBound(metadata, 1000);
+    ContentStatsStruct second = new ContentStatsStruct(statsType);
+    second.setStats(
+        VARIANT_FIELD_ID,
+        new FieldStatsStruct<>(varStatsType, secondLower, secondUpper, false, 45L, 1L, 0L, 64));
+
+    List<TrackedFile> files =
+        ImmutableList.of(
+            fileWithStats("s3://bucket/first.parquet", first),
+            fileWithStats("s3://bucket/second.parquet", second));
+
+    InputFile manifest = writeManifest(format, statsType, files);
+
+    try (V4ManifestReader reader =
+        V4ManifestReader.builder(manifest, variantSchema, UNPARTITIONED_SPECS, TABLE_LOCATION)
+            .build()) {
+      List<TrackedFile> read = Lists.newArrayList(reader);
+
+      FieldStats<?> firstStats = read.get(0).contentStats().statsFor(VARIANT_FIELD_ID);
+      assertThat(firstStats.type()).isEqualTo(varStatsType);
+      assertThat(firstStats.valueCount()).isEqualTo(26L);
+      assertThat(firstStats.nullValueCount()).isEqualTo(2L);
+      assertThat(firstStats.avgValueSizeInBytes()).isEqualTo(32);
+      assertThat(firstStats.tightBounds()).isFalse();
+      assertThat(firstStats.hasNanValueCount()).isFalse();
+      assertVariant(firstStats.lowerBound(), firstLower);
+      assertVariant(firstStats.upperBound(), firstUpper);
+
+      FieldStats<?> secondStats = read.get(1).contentStats().statsFor(VARIANT_FIELD_ID);
+      assertThat(secondStats.type()).isEqualTo(varStatsType);
+      assertThat(secondStats.valueCount()).isEqualTo(45L);
+      assertThat(secondStats.nullValueCount()).isEqualTo(1L);
+      assertThat(secondStats.avgValueSizeInBytes()).isEqualTo(64);
+      assertThat(secondStats.tightBounds()).isFalse();
+      assertThat(secondStats.hasNanValueCount()).isFalse();
+      assertVariant(secondStats.lowerBound(), secondLower);
+      assertVariant(secondStats.upperBound(), secondUpper);
     }
   }
 
@@ -488,6 +593,20 @@ class TestV4ManifestReaderStats {
           .as("Bounding box ordinate at position %s", pos)
           .isEqualTo(ordinates[pos]);
     }
+  }
+
+  /** Returns a variant bound holding the given value for the "$['x']" path. */
+  private static Variant variantBound(VariantMetadata metadata, int value) {
+    ShreddedObject object = Variants.object(metadata);
+    object.put("$['x']", Variants.of(value));
+    return Variant.of(metadata, object);
+  }
+
+  private static void assertVariant(Object actual, Variant expected) {
+    assertThat(actual).isInstanceOf(Variant.class);
+    Variant variant = (Variant) actual;
+    VariantTestUtil.assertEqual(expected.metadata(), variant.metadata());
+    VariantTestUtil.assertEqual(expected.value(), variant.value());
   }
 
   private static FieldStats<StructLike> geoStats(
