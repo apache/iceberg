@@ -37,7 +37,6 @@ import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
-import org.apache.iceberg.mapping.MappingUtil;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.base.Function;
 import org.apache.iceberg.relocated.com.google.common.collect.FluentIterable;
@@ -179,7 +178,6 @@ public class TestParquetDictionaryEncodedVectorizedReads extends TestParquetVect
           Parquet.ReadBuilder readBuilder =
               Parquet.read(Files.localInput(path.toFile()))
                   .project(schema)
-                  .withNameMapping(MappingUtil.create(schema))
                   .createBatchedReaderFunc(
                       type ->
                           VectorizedSparkParquetReaders.buildReader(
