@@ -81,11 +81,11 @@ public abstract class BaseScanTaskResponse implements RESTResponse {
 
     public B withFileScanTasks(List<FileScanTask> tasks) {
       this.fileScanTasks = tasks;
-      if (fileScanTasks != null) {
-        this.deleteFiles =
-            DeleteFileSet.of(
-                () -> tasks.stream().flatMap(task -> task.deletes().stream()).iterator());
-      }
+      this.deleteFiles =
+          tasks == null
+              ? null
+              : DeleteFileSet.of(
+                  () -> tasks.stream().flatMap(task -> task.deletes().stream()).iterator());
       return self();
     }
 

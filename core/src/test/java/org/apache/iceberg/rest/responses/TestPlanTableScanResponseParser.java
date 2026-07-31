@@ -375,6 +375,35 @@ public class TestPlanTableScanResponseParser {
   }
 
   @Test
+  public void toBuilderClearsDeleteFilesWhenClearingFileScanTasks() {
+    ResidualEvaluator residualEvaluator =
+        ResidualEvaluator.of(SPEC, Expressions.alwaysTrue(), true);
+    FileScanTask task =
+        new BaseFileScanTask(
+            FILE_A,
+            new DeleteFile[] {FILE_A_DELETES},
+            SchemaParser.toJson(SCHEMA),
+            PartitionSpecParser.toJson(SPEC),
+            residualEvaluator);
+
+    PlanTableScanResponse completed =
+        PlanTableScanResponse.builder()
+            .withPlanStatus(PlanStatus.COMPLETED)
+            .withFileScanTasks(List.of(task))
+            .withSpecsById(PARTITION_SPECS_BY_ID)
+            .build();
+    assertThat(completed.deleteFiles()).containsExactly(FILE_A_DELETES);
+
+    // clearing the tasks must clear the delete files derived from them, otherwise validate()
+    // rejects the copy because the retained delete files reference tasks that are no longer present
+    PlanTableScanResponse failed =
+        completed.toBuilder().withPlanStatus(PlanStatus.FAILED).withFileScanTasks(null).build();
+
+    assertThat(failed.fileScanTasks()).isNull();
+    assertThat(failed.deleteFiles()).isNull();
+  }
+
+  @Test
   public void roundTripSerdeWithoutDeleteFiles() {
     ResidualEvaluator residualEvaluator =
         ResidualEvaluator.of(SPEC, Expressions.equal("id", 1), true);
