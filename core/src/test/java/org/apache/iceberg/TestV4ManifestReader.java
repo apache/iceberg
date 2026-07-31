@@ -1099,6 +1099,60 @@ class TestV4ManifestReader {
     }
   }
 
+  @ParameterizedTest
+  @FieldSource("MANIFEST_FORMATS")
+  public void statsAreCorrectWithContainerReuse(FileFormat format) throws IOException {
+    // every entry stores stats for a different column, so a reused container must not carry the
+    // previous entry's stats into the next one
+    ContentStatsStruct idStats = new ContentStatsStruct(CONTENT_STATS_TYPE);
+    idStats.setStats(ID_FIELD_ID, ID_STATS);
+
+    ContentStatsStruct dataStats = new ContentStatsStruct(CONTENT_STATS_TYPE);
+    dataStats.setStats(DATA_FIELD_ID, DATA_STATS);
+
+    ContentStatsStruct measureStats = new ContentStatsStruct(CONTENT_STATS_TYPE);
+    measureStats.setStats(MEASURE_FIELD_ID, MEASURE_STATS);
+
+    List<TrackedFile> files =
+        ImmutableList.of(
+            fileWithStats("s3://bucket/with-id-stats.parquet", idStats),
+            fileWithStats(
+                "s3://bucket/without-stats.parquet", new ContentStatsStruct(CONTENT_STATS_TYPE)),
+            fileWithStats("s3://bucket/with-data-stats.parquet", dataStats),
+            fileWithStats("s3://bucket/with-measure-stats.parquet", measureStats));
+
+    InputFile manifest = writeManifest(format, EMPTY_PARTITION, CONTENT_STATS_TYPE, files);
+
+    try (V4ManifestReader reader =
+        V4ManifestReader.builder(manifest, TABLE_SCHEMA, UNPARTITIONED_SPECS, TABLE_LOCATION)
+            .build()) {
+      List<TrackedFile> read = Lists.newArrayList(reader);
+
+      ContentStats withIdStats = read.get(0).contentStats();
+      assertFieldStats(withIdStats.statsFor(ID_FIELD_ID), ID_STATS);
+      assertThat(withIdStats.statsFor(DATA_FIELD_ID)).isNull();
+      assertThat(withIdStats.statsFor(MEASURE_FIELD_ID)).isNull();
+      assertThat(withIdStats.fieldStats()).doesNotContainNull();
+
+      // containers are reused, so the second entry must not carry over the first entry's stats
+      ContentStats withoutStats = read.get(1).contentStats();
+      assertThat(withoutStats.statsFor(ID_FIELD_ID)).isNull();
+      assertThat(withoutStats.fieldStats()).isEmpty();
+
+      ContentStats withDataStats = read.get(2).contentStats();
+      assertFieldStats(withDataStats.statsFor(DATA_FIELD_ID), DATA_STATS);
+      assertThat(withDataStats.statsFor(ID_FIELD_ID)).isNull();
+      assertThat(withDataStats.statsFor(MEASURE_FIELD_ID)).isNull();
+      assertThat(withDataStats.fieldStats()).doesNotContainNull();
+
+      ContentStats withMeasureStats = read.get(3).contentStats();
+      assertFieldStats(withMeasureStats.statsFor(MEASURE_FIELD_ID), MEASURE_STATS);
+      assertThat(withMeasureStats.statsFor(ID_FIELD_ID)).isNull();
+      assertThat(withMeasureStats.statsFor(DATA_FIELD_ID)).isNull();
+      assertThat(withMeasureStats.fieldStats()).doesNotContainNull();
+    }
+  }
+
   private static void assertFieldStats(FieldStats<?> actual, FieldStats<?> expected) {
     assertThat(actual).isNotNull();
     assertThat(actual.fieldId()).isEqualTo(expected.fieldId());
