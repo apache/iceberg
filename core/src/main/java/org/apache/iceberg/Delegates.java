@@ -233,6 +233,11 @@ class Delegates {
     }
 
     @Override
+    public Map<Integer, Integer> avgValueSizes() {
+      return wrapped.avgValueSizes();
+    }
+
+    @Override
     public Map<Integer, ByteBuffer> lowerBounds() {
       return wrapped.lowerBounds();
     }
