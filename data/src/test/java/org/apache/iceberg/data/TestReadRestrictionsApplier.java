@@ -27,6 +27,7 @@ import java.util.List;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.functions.MaskAlphanum;
+import org.apache.iceberg.functions.ReplaceWithNull;
 import org.apache.iceberg.functions.ShowLast4;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -113,19 +114,6 @@ public class TestReadRestrictionsApplier {
   }
 
   @Test
-  public void testUnknownFieldIdFailsClosed() {
-    CloseableIterable<Record> input =
-        CloseableIterable.withNoopClose(ImmutableList.of(TEMPLATE.copy()));
-
-    ReadRestrictions restrictions =
-        ReadRestrictions.of(null, ImmutableList.of(new MaskAlphanum(999)));
-
-    assertThatThrownBy(() -> ReadRestrictionsApplier.apply(input, restrictions, SCHEMA))
-        .isInstanceOf(IllegalStateException.class)
-        .hasMessageContaining("unknown field id: 999");
-  }
-
-  @Test
   public void testNestedFieldIdFailsClosed() {
     Schema nested =
         new Schema(
@@ -143,6 +131,39 @@ public class TestReadRestrictionsApplier {
         .isInstanceOf(IllegalStateException.class)
         .hasMessageContaining("nested fields are not yet supported")
         .hasMessageContaining("fieldId=3");
+  }
+
+  @Test
+  public void testProjectionForUnreadColumnIsSkipped() {
+    Schema projection = SCHEMA.select("id");
+    Record template = GenericRecord.create(projection);
+    CloseableIterable<Record> input =
+        CloseableIterable.withNoopClose(
+            ImmutableList.of(
+                template.copy(ImmutableMap.of("id", 1L)),
+                template.copy(ImmutableMap.of("id", 2L))));
+
+    ReadRestrictions restrictions =
+        ReadRestrictions.of(null, ImmutableList.of(new MaskAlphanum(2)));
+
+    CloseableIterable<Record> out = ReadRestrictionsApplier.apply(input, restrictions, projection);
+
+    // email is not being read, so the projection does not apply and no masking wrapper is added
+    assertThat(out).isSameAs(input);
+  }
+
+  @Test
+  public void testReplaceWithNullOnRequiredFieldFailsClosed() {
+    CloseableIterable<Record> input =
+        CloseableIterable.withNoopClose(ImmutableList.of(TEMPLATE.copy()));
+
+    ReadRestrictions restrictions =
+        ReadRestrictions.of(null, ImmutableList.of(new ReplaceWithNull(1)));
+
+    assertThatThrownBy(() -> ReadRestrictionsApplier.apply(input, restrictions, SCHEMA))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("replace-with-null")
+        .hasMessageContaining("required field: id");
   }
 
   @Test

@@ -23,6 +23,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
 import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.ExpressionParser;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.functions.IcebergFunction;
 import org.apache.iceberg.functions.MaskAlphanum;
@@ -63,7 +64,8 @@ public class TestReadRestrictionsParser {
     assertThat(json).doesNotContain("required-column-projections");
 
     ReadRestrictions parsed = ReadRestrictionsParser.fromJson(json);
-    assertThat(parsed.rowFilter()).isNotNull();
+    assertThat(ExpressionParser.toJson(parsed.rowFilter()))
+        .isEqualTo(ExpressionParser.toJson(filter));
     assertThat(parsed.columnProjections()).isEmpty();
   }
 
@@ -105,6 +107,19 @@ public class TestReadRestrictionsParser {
     assertThat(action).isInstanceOf(UnknownFunction.class);
     assertThat(action.name()).isEqualTo("xxx-not-real");
     assertThat(action.fieldId()).isEqualTo(1);
+  }
+
+  @Test
+  public void duplicateFieldIdRejected() {
+    // The spec requires the reader to fail when a field id carries more than one projection.
+    String json =
+        "{\"required-column-projections\":["
+            + "{\"action\":\"mask-alphanum\",\"field-id\":2},"
+            + "{\"action\":\"show-last-4\",\"field-id\":2}]}";
+    assertThatThrownBy(() -> ReadRestrictionsParser.fromJson(json))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("duplicate column projections")
+        .hasMessageContaining("2");
   }
 
   @Test

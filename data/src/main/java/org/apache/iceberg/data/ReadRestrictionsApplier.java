@@ -24,10 +24,11 @@ import java.util.Map;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.Evaluator;
 import org.apache.iceberg.expressions.Expression;
-import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.functions.IcebergFunction;
+import org.apache.iceberg.functions.ReplaceWithNull;
 import org.apache.iceberg.functions.SaltedFunction;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.rest.restrictions.ReadRestrictions;
 import org.apache.iceberg.types.Types;
@@ -53,6 +54,15 @@ import org.apache.iceberg.util.SerializableFunction;
  *
  * <p>Currently supports top-level fields only. Masks on nested fieldIds fail closed at bind time so
  * unmasked nested data cannot leak.
+ *
+ * <p>Projections for columns that are not being read are skipped, as required by the spec:
+ *
+ * <blockquote>
+ *
+ * A reader must enforce projections on the columns it is actually reading. Projections referencing
+ * columns that are not being read do not apply.
+ *
+ * </blockquote>
  */
 class ReadRestrictionsApplier {
 
@@ -69,7 +79,7 @@ class ReadRestrictionsApplier {
 
   private static CloseableIterable<Record> filterRows(
       CloseableIterable<Record> records, Expression rowFilter, Schema projection) {
-    if (rowFilter == null || rowFilter == Expressions.alwaysTrue()) {
+    if (rowFilter == null || rowFilter.op() == Expression.Operation.TRUE) {
       return records;
     }
 
@@ -86,6 +96,10 @@ class ReadRestrictionsApplier {
     }
 
     Map<String, SerializableFunction<Object, Object>> masksByName = bindMasks(actions, projection);
+    if (masksByName.isEmpty()) {
+      return records;
+    }
+
     return CloseableIterable.transform(records, record -> mask(record, masksByName));
   }
 
@@ -95,27 +109,35 @@ class ReadRestrictionsApplier {
     ImmutableMap.Builder<String, SerializableFunction<Object, Object>> builder =
         ImmutableMap.builder();
     byte[] querySalt = null;
-    List<Types.NestedField> topLevelFields = projection.asStruct().fields();
 
     for (IcebergFunction<?, ?> action : actions) {
       int fieldId = action.fieldId();
-      Types.NestedField field = findTopLevel(topLevelFields, fieldId);
+      Types.NestedField field = projection.asStruct().field(fieldId);
       if (field == null) {
-        // Fail closed: nested masks, unknown fieldIds, or fields projected away all reach here.
-        // Skipping them silently would either leak unmasked values (nested case) or surprise the
-        // caller (typo case). The latter is acceptable noise since this surfaces at bind time.
-        String path = projection.findColumnName(fieldId);
-        if (path == null) {
-          throw new IllegalStateException(
-              "ReadRestrictions references unknown field id: " + fieldId);
-        }
-        throw new IllegalStateException(
-            "ReadRestrictions on nested fields are not yet supported "
-                + "(fieldId="
-                + fieldId
-                + ", path='"
-                + path
-                + "')");
+        // A fieldId that resolves inside the projection but is not top-level is nested. Fail
+        // closed so unmasked nested values cannot leak.
+        String nestedPath = projection.findColumnName(fieldId);
+        Preconditions.checkState(
+            nestedPath == null,
+            "ReadRestrictions on nested fields are not yet supported (fieldId=%s, path='%s')",
+            fieldId,
+            nestedPath);
+
+        // The column is not being read. Per spec, projections referencing columns that are not
+        // being read do not apply. Field ids are validated against the table's schemas when the
+        // restrictions are attached to it (ReadRestrictions#validate), so reaching here means the
+        // column exists and was projected away rather than being unknown.
+        continue;
+      }
+
+      // ReplaceWithNull cannot check nullability itself because Type does not carry the field's
+      // required/optional flag, so the caller must reject required fields.
+      if (action instanceof ReplaceWithNull) {
+        Preconditions.checkState(
+            field.isOptional(),
+            "Cannot apply replace-with-null to required field: %s (fieldId=%s)",
+            field.name(),
+            fieldId);
       }
 
       SerializableFunction<Object, Object> bound;
@@ -134,15 +156,6 @@ class ReadRestrictionsApplier {
     }
 
     return builder.build();
-  }
-
-  private static Types.NestedField findTopLevel(List<Types.NestedField> fields, int fieldId) {
-    for (Types.NestedField field : fields) {
-      if (field.fieldId() == fieldId) {
-        return field;
-      }
-    }
-    return null;
   }
 
   private static Record mask(

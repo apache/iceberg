@@ -20,11 +20,17 @@ package org.apache.iceberg.rest.restrictions;
 
 import java.io.Serializable;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.functions.IcebergFunction;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 
 /**
  * Server-provided read restrictions for the authenticated principal.
@@ -44,12 +50,23 @@ public class ReadRestrictions implements Serializable {
   private ReadRestrictions(Expression rowFilter, List<IcebergFunction<?, ?>> columnProjections) {
     this.rowFilter = rowFilter;
     this.columnProjections = ImmutableList.copyOf(columnProjections);
-    this.maskedFieldIds =
-        this.columnProjections.isEmpty()
-            ? ImmutableSet.of()
-            : this.columnProjections.stream()
-                .map(IcebergFunction::fieldId)
-                .collect(ImmutableSet.toImmutableSet());
+
+    Set<Integer> fieldIds = Sets.newLinkedHashSet();
+    List<Integer> duplicates = Lists.newArrayList();
+    for (IcebergFunction<?, ?> projection : this.columnProjections) {
+      if (!fieldIds.add(projection.fieldId())) {
+        duplicates.add(projection.fieldId());
+      }
+    }
+
+    // The spec requires a reader to fail when a field id carries more than one projection: the
+    // actions do not compose and applying either one silently would be a policy decision.
+    Preconditions.checkArgument(
+        duplicates.isEmpty(),
+        "Invalid read restrictions: duplicate column projections for field ids %s",
+        duplicates);
+
+    this.maskedFieldIds = ImmutableSet.copyOf(fieldIds);
   }
 
   public static ReadRestrictions empty() {
@@ -81,5 +98,31 @@ public class ReadRestrictions implements Serializable {
   /** Field ids covered by a column projection action. */
   public Set<Integer> maskedFieldIds() {
     return maskedFieldIds;
+  }
+
+  /**
+   * Validates that every column projection targets a field id the table knows.
+   *
+   * <p>Checked against every schema the table has ever had rather than only the current one: field
+   * ids are never reused, so membership in any schema identifies the column unambiguously, and a
+   * time-travel read may legitimately be restricted on a column that has since been dropped.
+   *
+   * <p>Validating once here, where server-provided restrictions first meet a table, means every
+   * reader inherits the check instead of re-deriving it per scan.
+   *
+   * @param schemas the table's schemas, keyed by schema id
+   * @throws IllegalArgumentException if any projection targets a field id in none of the schemas
+   */
+  public void validate(Map<Integer, Schema> schemas) {
+    List<Integer> unknownFieldIds =
+        maskedFieldIds.stream()
+            .filter(
+                fieldId -> schemas.values().stream().noneMatch(s -> s.findField(fieldId) != null))
+            .collect(Collectors.toList());
+
+    Preconditions.checkArgument(
+        unknownFieldIds.isEmpty(),
+        "Invalid read restrictions: column projections reference unknown field ids %s",
+        unknownFieldIds);
   }
 }
