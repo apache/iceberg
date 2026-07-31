@@ -317,6 +317,10 @@ public class TestFieldStatsStruct {
     assertThat(copy.fieldId()).isEqualTo(stats.fieldId());
     assertThat(copy.type()).isEqualTo(stats.type());
     assertThat(comparator.compare(copy, stats)).isEqualTo(0);
+
+    // readers hold copies, so a copied bounding box must survive the same round trip
+    FieldStatsStruct<?> roundTrippedCopy = serializer.apply(stats.copy());
+    assertThat(comparator.compare(roundTrippedCopy, stats)).isEqualTo(0);
   }
 
   // Variant is not Serializable so this does not test Java serialization
