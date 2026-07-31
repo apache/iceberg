@@ -46,13 +46,13 @@ public interface RepairManifests extends SnapshotUpdate<RepairManifests, RepairM
 
   /** The action result that contains a summary of the execution. */
   interface Result {
-    /** Returns rewritten manifests. */
-    Iterable<ManifestFile> rewrittenManifests();
+    /** Returns the repaired manifests. */
+    Iterable<ManifestFile> repairedManifests();
 
     /** Returns the number of manifest entries for which stats were incorrect. */
-    long entryStatsIncorrectCount();
+    long incorrectEntryCount();
 
     /** Returns the number of manifest entries for which stats were corrected. */
-    long entryStatsRepairedCount();
+    long repairedEntryCount();
   }
 }
