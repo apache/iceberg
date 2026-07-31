@@ -42,7 +42,6 @@ import org.apache.iceberg.connect.TableSinkConfig;
 import org.apache.iceberg.inmemory.InMemoryCatalog;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.record.TimestampType;
@@ -245,16 +244,37 @@ public class TestSinkWriter {
     when(config.evolveSchemaEnabled()).thenReturn(true);
 
     // a new column whose value is a fractional decimal < 1: BigDecimal("0.001") has precision 1
-    // and scale 3, so before the fix the column evolves to a malformed decimal(1, 3) and the
-    // write below fails; after the fix it evolves to decimal(3, 3) and the record is written.
+    // and scale 3. DecimalType.of validates only precision <= 38, so before the fix the column
+    // evolved to a malformed decimal(1, 3) without error and the write below failed in the
+    // Parquet writer; after the fix it evolves to decimal(3, 3) and the record is written.
     Map<String, Object> value = ImmutableMap.of("amount", new BigDecimal("0.001"));
 
     List<IcebergWriterResult> writerResults = sinkWriterTest(value, config);
     assertThat(writerResults).isNotEmpty();
 
     // the column evolved to a valid decimal that can hold 0.001 (scale <= precision)
-    Type added = catalog.loadTable(TABLE_IDENTIFIER).schema().findType("amount");
-    assertThat(added).isEqualTo(Types.DecimalType.of(3, 3));
+    Types.NestedField added = catalog.loadTable(TABLE_IDENTIFIER).schema().findField("amount");
+    assertThat(added).isNotNull();
+    assertThat(added.type()).isEqualTo(Types.DecimalType.of(3, 3));
+  }
+
+  @Test
+  public void testEvolveAddsExponentialDecimalColumn() {
+    IcebergSinkConfig config = mock(IcebergSinkConfig.class);
+    when(config.tableConfig(any())).thenReturn(mock(TableSinkConfig.class));
+    when(config.tables()).thenReturn(ImmutableList.of(TABLE_IDENTIFIER.toString()));
+    when(config.evolveSchemaEnabled()).thenReturn(true);
+
+    // BigDecimal("1E+2") has a negative scale (-2), which is normalized to decimal(3, 0), the
+    // same type inferred for new BigDecimal("100"); the value is rescaled when it is written
+    Map<String, Object> value = ImmutableMap.of("amount", new BigDecimal("1E+2"));
+
+    List<IcebergWriterResult> writerResults = sinkWriterTest(value, config);
+    assertThat(writerResults).isNotEmpty();
+
+    Types.NestedField added = catalog.loadTable(TABLE_IDENTIFIER).schema().findField("amount");
+    assertThat(added).isNotNull();
+    assertThat(added.type()).isEqualTo(Types.DecimalType.of(3, 0));
   }
 
   private List<IcebergWriterResult> sinkWriterTest(
