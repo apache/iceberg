@@ -36,7 +36,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 public class TestEntriesMetadataTable extends TestBase {
 
   @TestTemplate
-  public void testEntriesTable() {
+  public void entriesTable() {
     table.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
     Table entriesTable = new ManifestEntriesTable(table);
@@ -51,7 +51,7 @@ public class TestEntriesMetadataTable extends TestBase {
   }
 
   @TestTemplate
-  public void testEntriesTableScan() {
+  public void entriesTableScan() {
     table.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
     Table entriesTable = new ManifestEntriesTable(table);
@@ -74,7 +74,7 @@ public class TestEntriesMetadataTable extends TestBase {
   }
 
   @TestTemplate
-  public void testSplitPlanningWithMetadataSplitSizeProperty() {
+  public void splitPlanningWithMetadataSplitSizeProperty() {
     table.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
     table.newAppend().appendFile(FILE_C).appendFile(FILE_D).commit();
@@ -104,7 +104,7 @@ public class TestEntriesMetadataTable extends TestBase {
   }
 
   @TestTemplate
-  public void testSplitPlanningWithDefaultMetadataSplitSize() {
+  public void splitPlanningWithDefaultMetadataSplitSize() {
     table.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
     int splitSize =
@@ -125,7 +125,7 @@ public class TestEntriesMetadataTable extends TestBase {
   }
 
   @TestTemplate
-  public void testEntriesTableWithDeleteManifests() {
+  public void entriesTableWithDeleteManifests() {
     assumeThat(formatVersion).as("Only V2 Tables Support Deletes").isGreaterThanOrEqualTo(2);
     table.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
@@ -158,7 +158,7 @@ public class TestEntriesMetadataTable extends TestBase {
   }
 
   @TestTemplate
-  public void testIgnoreResidualsPreservesManifestContentPruning() {
+  public void ignoreResidualsPreservesManifestContentPruning() {
     assumeThat(formatVersion).as("Only V2 Tables Support Deletes").isGreaterThanOrEqualTo(2);
 
     table.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
@@ -192,7 +192,7 @@ public class TestEntriesMetadataTable extends TestBase {
   }
 
   @TestTemplate
-  public void testInvalidContentPredicatesPruneAllManifests() throws IOException {
+  public void invalidContentPredicatesPruneAllManifests() throws IOException {
     assumeThat(formatVersion).as("Only V2+ tables support delete files").isGreaterThanOrEqualTo(2);
 
     table.newAppend().appendFile(FILE_A).commit();
