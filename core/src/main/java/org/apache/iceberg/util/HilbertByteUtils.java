@@ -88,7 +88,8 @@ public class HilbertByteUtils {
     return ZOrderByteUtils.interleaveBits(transposedBytes, numColumns * bytesPerColumn, reuse);
   }
 
-  // please refer to the paper
+  // Ref: J. Skilling, "Programming the Hilbert curve"
+  // (AIP Conf. Proc. 707, 381, 2004; https://doi.org/10.1063/1.1751381)
   private static void axesToTranspose(long[] axes, int bits) {
     int numColumns = axes.length;
 
