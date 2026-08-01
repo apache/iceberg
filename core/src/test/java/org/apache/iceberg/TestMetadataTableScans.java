@@ -33,6 +33,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
+import org.apache.iceberg.expressions.Evaluator;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.Literal;
@@ -251,23 +252,23 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
   }
 
   @TestTemplate
-  public void testEntriesTableDateFileContentNotEq() {
-    preparePartitionedTable();
+  public void testEntriesTableDataFileContentNotEq() {
+    // Write position and equality deletes into the same delete manifest.
+    preparePartitionedTable(true);
 
     Table entriesTable = new ManifestEntriesTable(table);
 
     Expression notData = Expressions.notEqual("data_file.content", 0);
-    TableScan entriesTableScan = entriesTable.newScan().filter(notData);
-    Set<String> expected =
+    Set<String> expectedDeleteManifestPaths =
         table.currentSnapshot().deleteManifests(table.io()).stream()
             .map(ManifestFile::path)
             .collect(Collectors.toSet());
 
-    assertThat(scannedPaths(entriesTableScan))
+    assertThat(scannedPaths(entriesTable.newScan().filter(notData)))
         .as("Expected manifest filter by data file content does not match")
-        .isEqualTo(expected);
+        .isEqualTo(expectedDeleteManifestPaths);
 
-    Set<String> allManifests =
+    Set<String> allManifestPaths =
         table.currentSnapshot().allManifests(table.io()).stream()
             .map(ManifestFile::path)
             .collect(Collectors.toSet());
@@ -275,7 +276,17 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
             scannedPaths(
                 entriesTable.newScan().filter(Expressions.notEqual("data_file.content", 3))))
         .as("Expected manifest filter by data file content does not match")
-        .isEqualTo(allManifests);
+        .isEqualTo(allManifestPaths);
+
+    Expression notPositionDeletes = Expressions.notEqual("data_file.content", 1);
+    assertThat(scannedPaths(entriesTable.newScan().filter(notPositionDeletes)))
+        .as("Expected mixed delete manifest to be retained for content != POSITION_DELETES")
+        .isEqualTo(allManifestPaths);
+
+    Expression notEqualityDeletes = Expressions.notEqual("data_file.content", 2);
+    assertThat(scannedPaths(entriesTable.newScan().filter(notEqualityDeletes)))
+        .as("Expected mixed delete manifest to be retained for content != EQUALITY_DELETES")
+        .isEqualTo(allManifestPaths);
   }
 
   @TestTemplate
@@ -317,39 +328,51 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
 
   @TestTemplate
   public void testEntriesTableDataFileContentNotIn() {
-    preparePartitionedTable();
+    // Write position and equality deletes into the same delete manifest.
+    preparePartitionedTable(true);
     Table entriesTable = new ManifestEntriesTable(table);
 
     Expression notIn0 = Expressions.notIn("data_file.content", 0);
     TableScan scan1 = entriesTable.newScan().filter(notIn0);
-    Set<String> expectedDeleteManifestPath =
+    Set<String> expectedDeleteManifestPaths =
         table.currentSnapshot().deleteManifests(table.io()).stream()
             .map(ManifestFile::path)
             .collect(Collectors.toSet());
     assertThat(scannedPaths(scan1))
         .as("Expected manifest filter by data file content does not match")
-        .isEqualTo(expectedDeleteManifestPath);
+        .isEqualTo(expectedDeleteManifestPaths);
 
     Expression notIn12 = Expressions.notIn("data_file.content", 1, 2);
     TableScan scan2 = entriesTable.newScan().filter(notIn12);
-    Set<String> expectedDataManifestPath =
+    Set<String> expectedDataManifestPaths =
         table.currentSnapshot().dataManifests(table.io()).stream()
             .map(ManifestFile::path)
             .collect(Collectors.toSet());
     assertThat(scannedPaths(scan2))
         .as("Expected manifest filter by data file content does not match")
-        .isEqualTo(expectedDataManifestPath);
+        .isEqualTo(expectedDataManifestPaths);
 
     Expression notInNeither = Expressions.notIn("data_file.content", 3);
-    Set<String> allManifests = Sets.union(expectedDataManifestPath, expectedDeleteManifestPath);
+    Set<String> allManifestPaths =
+        Sets.union(expectedDataManifestPaths, expectedDeleteManifestPaths);
     assertThat(scannedPaths(entriesTable.newScan().filter(notInNeither)))
         .as("Expected manifest filter by data file content does not match")
-        .isEqualTo(allManifests);
+        .isEqualTo(allManifestPaths);
 
     Expression notInAll = Expressions.notIn("data_file.content", 0, 1, 2);
     assertThat(scannedPaths(entriesTable.newScan().filter(notInAll)))
         .as("Expected manifest filter by data file content does not match")
         .isEmpty();
+
+    Expression notInPositionDeleteAndInvalid = Expressions.notIn("data_file.content", 1, 3);
+    assertThat(scannedPaths(entriesTable.newScan().filter(notInPositionDeleteAndInvalid)))
+        .as("Expected mixed delete manifest to be retained")
+        .isEqualTo(allManifestPaths);
+
+    Expression notInEqualityDeleteAndInvalid = Expressions.notIn("data_file.content", 2, 3);
+    assertThat(scannedPaths(entriesTable.newScan().filter(notInEqualityDeleteAndInvalid)))
+        .as("Expected mixed delete manifest to be retained")
+        .isEqualTo(allManifestPaths);
   }
 
   @TestTemplate
@@ -1831,6 +1854,43 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     assertThat(rowCount(deleteFilesTable.newScan()))
         .as("DeleteFilesTable on main should have 2 delete files")
         .isEqualTo(2);
+  }
+
+  @TestTemplate
+  public void testNotEqualReturnsEqualityDeletesFromMixedDeleteManifest() throws IOException {
+    assumeThat(formatVersion).as("Only V2+ tables support deletes").isGreaterThanOrEqualTo(2);
+
+    // Creates one delete manifest containing both position and equality deletes.
+    preparePartitionedTable(true);
+
+    assertThat(table.currentSnapshot().deleteManifests(table.io())).hasSize(1);
+
+    Table entriesTable = new ManifestEntriesTable(table);
+    TableScan scan =
+        entriesTable
+            .newScan()
+            .select("data_file.content")
+            .filter(Expressions.notEqual("data_file.content", 1));
+
+    Accessor<StructLike> contentAccessor =
+        scan.schema().accessorForField(DataFile.CONTENT.fieldId());
+
+    List<Integer> actualContents = Lists.newArrayList();
+
+    try (CloseableIterable<FileScanTask> tasks = scan.planFiles()) {
+      for (FileScanTask task : tasks) {
+        Evaluator residualEvaluator = new Evaluator(scan.schema().asStruct(), task.residual());
+        try (CloseableIterable<StructLike> rows = task.asDataTask().rows()) {
+          for (StructLike row : rows) {
+            if (residualEvaluator.eval(row)) {
+              actualContents.add((Integer) contentAccessor.get(row));
+            }
+          }
+        }
+      }
+    }
+
+    assertThat(actualContents).containsExactlyInAnyOrder(0, 0, 0, 0, 2, 2);
   }
 
   private int rowCount(TableScan scan) throws IOException {
