@@ -363,7 +363,9 @@ public class Parquet {
                   LOG.warn("Skipping column statistics config for missing field: {}", colPath);
                   return;
                 }
-                withColumnStatsEnabled.accept(parquetColumnPath, Boolean.valueOf(isEnabled));
+                boolean enabled = Boolean.parseBoolean(isEnabled);
+                withColumnStatsEnabled.accept(parquetColumnPath, enabled);
+                conf.set("parquet.column.statistics.enabled#" + parquetColumnPath, String.valueOf(enabled));
               });
     }
 
