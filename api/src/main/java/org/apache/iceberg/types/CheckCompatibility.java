@@ -270,7 +270,7 @@ public class CheckCompatibility extends TypeUtil.CustomOrderSchemaVisitor<List<S
       return ImmutableList.of(
           String.format(
               ": %s cannot be read as a %s",
-              currentType.typeId().toString().toLowerCase(Locale.ENGLISH), readPrimitive));
+              currentType.typeId().toString().toLowerCase(Locale.ROOT), readPrimitive));
     }
 
     if (!TypeUtil.isPromotionAllowed(currentType.asPrimitiveType(), readPrimitive)) {
