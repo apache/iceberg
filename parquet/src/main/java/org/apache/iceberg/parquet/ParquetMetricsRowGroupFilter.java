@@ -588,14 +588,14 @@ public class ParquetMetricsRowGroupFilter {
       return (T) conversions.get(id).apply(statistics.genericGetMax());
     }
 
-    private boolean isNestedOrVariantType(int id) {
-      Type type = schema.findType(id);
-      return type instanceof Type.NestedType || type.isVariantType();
-    }
-
     @Override
     public <T> Boolean handleNonReference(Bound<T> term) {
       return ROWS_MIGHT_MATCH;
+    }
+
+    private boolean isNestedOrVariantType(int id) {
+      Type type = schema.findType(id);
+      return type instanceof Type.NestedType || type.isVariantType();
     }
   }
 
