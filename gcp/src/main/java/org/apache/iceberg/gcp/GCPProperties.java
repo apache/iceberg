@@ -67,6 +67,22 @@ public class GCPProperties implements Serializable {
   public static final String GCS_OAUTH2_REFRESH_CREDENTIALS_ENABLED =
       "gcs.oauth2.refresh-credentials-enabled";
 
+  /**
+   * Class name of a custom {@link org.apache.iceberg.gcp.gcs.GcsTokenCredentialProvider}
+   * implementation. When set, {@code PrefixedStorage} uses this provider to obtain {@link
+   * com.google.auth.oauth2.GoogleCredentials} instead of reading a static {@link #GCS_OAUTH2_TOKEN}
+   * property. The provider class must have a no-arg constructor.
+   */
+  public static final String GCS_TOKEN_CREDENTIAL_PROVIDER = "gcs.token-credential-provider";
+
+  /**
+   * Property prefix for initializing a custom {@link
+   * org.apache.iceberg.gcp.gcs.GcsTokenCredentialProvider}. All properties under this prefix are
+   * extracted (without the prefix) and passed to {@link
+   * org.apache.iceberg.gcp.gcs.GcsTokenCredentialProvider#initialize(Map)}.
+   */
+  public static final String GCS_TOKEN_PROVIDER_PREFIX = "gcs.token-credential-provider.";
+
   /** Configure the batch size used when deleting multiple files from a given GCS bucket */
   public static final String GCS_DELETE_BATCH_SIZE = "gcs.delete.batch-size";
 
@@ -98,6 +114,7 @@ public class GCPProperties implements Serializable {
   private String gcsOauth2RefreshCredentialsEndpoint;
   private boolean gcsOauth2RefreshCredentialsEnabled;
   private boolean gcsAnalyticsCoreEnabled;
+  private String gcsTokenCredentialProvider;
 
   private String gcsImpersonateServiceAccount;
   private int gcsImpersonateLifetimeSeconds;
@@ -167,6 +184,8 @@ public class GCPProperties implements Serializable {
           new Date(Long.parseLong(properties.get(GCS_OAUTH2_TOKEN_EXPIRES_AT)));
     }
 
+    gcsTokenCredentialProvider = properties.get(GCS_TOKEN_CREDENTIAL_PROVIDER);
+
     gcsOauth2RefreshCredentialsEndpoint =
         RESTUtil.resolveEndpoint(
             properties.get(CatalogProperties.URI),
@@ -179,6 +198,11 @@ public class GCPProperties implements Serializable {
         "Invalid auth settings: must not configure %s and %s",
         GCS_NO_AUTH,
         GCS_OAUTH2_TOKEN);
+    Preconditions.checkState(
+        !(gcsTokenCredentialProvider != null && gcsNoAuth),
+        "Invalid auth settings: must not configure %s and %s",
+        GCS_NO_AUTH,
+        GCS_TOKEN_CREDENTIAL_PROVIDER);
 
     gcsDeleteBatchSize =
         PropertyUtil.propertyAsInt(
@@ -233,6 +257,10 @@ public class GCPProperties implements Serializable {
 
   public Optional<String> oauth2Token() {
     return Optional.ofNullable(gcsOAuth2Token);
+  }
+
+  public Optional<String> tokenCredentialProvider() {
+    return Optional.ofNullable(gcsTokenCredentialProvider);
   }
 
   public boolean noAuth() {
