@@ -158,6 +158,10 @@ class PrefixedStorage implements AutoCloseable {
       return NoCredentials.getInstance();
     } else if (properties.impersonateServiceAccount().isPresent()) {
       return buildImpersonatedCredentials(properties);
+    } else if (properties.tokenCredentialProvider().isPresent()) {
+      // A custom provider yields a self-refreshing GoogleCredentials (e.g. built from a
+      // caller-supplied source credential), addressing static-token expiry for non-vended setups.
+      return GcsTokenCredentialProviders.from(properties.properties()).credential();
     } else {
       return null;
     }
