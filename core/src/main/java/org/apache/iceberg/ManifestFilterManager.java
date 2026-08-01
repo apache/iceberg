@@ -251,6 +251,7 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
    * Creates a snapshot summary builder with the files deleted from the set of filtered manifests.
    *
    * @param manifests a set of filtered manifests
+   * @return a snapshot summary builder describing the files deleted from the filtered manifests
    */
   SnapshotSummary.Builder buildSummary(Iterable<ManifestFile> manifests) {
     SnapshotSummary.Builder summaryBuilder = SnapshotSummary.builder();

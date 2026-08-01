@@ -50,8 +50,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.testcontainers.containers.MinIOContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -73,7 +71,6 @@ import software.amazon.awssdk.utils.BinaryUtils;
 
 @Testcontainers
 public class TestS3OutputStream {
-  private static final Logger LOG = LoggerFactory.getLogger(TestS3OutputStream.class);
   private static final String BUCKET = "test-bucket";
   private static final int FIVE_MBS = 5 * 1024 * 1024;
 

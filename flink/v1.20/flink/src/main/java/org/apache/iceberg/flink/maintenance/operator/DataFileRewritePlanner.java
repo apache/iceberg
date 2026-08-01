@@ -63,6 +63,7 @@ public class DataFileRewritePlanner
   private final long maxRewriteBytes;
   private final Map<String, String> rewriterOptions;
   private transient Counter errorCounter;
+  private transient Counter plannedGroupsCounter;
   private final String branch;
   private final SerializableSupplier<Expression> filterSupplier;
 
@@ -100,6 +101,9 @@ public class DataFileRewritePlanner
     this.errorCounter =
         TableMaintenanceMetrics.groupFor(getRuntimeContext(), tableName, taskName, taskIndex)
             .counter(TableMaintenanceMetrics.ERROR_COUNTER);
+    this.plannedGroupsCounter =
+        TableMaintenanceMetrics.groupFor(getRuntimeContext(), tableName, taskName, taskIndex)
+            .counter(TableMaintenanceMetrics.PLANNED_GROUPS_COUNTER);
   }
 
   @Override
@@ -157,12 +161,14 @@ public class DataFileRewritePlanner
           IntMath.divide(groups.size(), partialProgressMaxCommits, RoundingMode.CEILING);
 
       LOG.info(
-          DataFileRewritePlanner.MESSAGE_PREFIX + "Rewrite plan created {}",
+          DataFileRewritePlanner.MESSAGE_PREFIX + "Rewrite plan created, {} groups: {}",
           tableName,
           taskName,
           taskIndex,
           ctx.timestamp(),
+          groups.size(),
           groups);
+      plannedGroupsCounter.inc(groups.size());
 
       for (RewriteFileGroup group : groups) {
         LOG.info(

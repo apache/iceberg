@@ -83,10 +83,11 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
   /** Used by internal readers to instantiate this class with a projection schema. */
   TrackedFileStruct(Types.StructType projection) {
     super(BASE_TYPE, projection);
-    // partition type may be null if the field was not projected
+    // partition type may be null if the field was not projected, or unknown for unpartitioned
+    // manifests
     Type partType = projection.fieldType("partition");
-    if (partType != null) {
-      this.partitionData = new PartitionData(partType.asNestedType().asStructType());
+    if (partType != null && partType.isStructType()) {
+      this.partitionData = new PartitionData(partType.asStructType());
     }
   }
 
@@ -101,10 +102,10 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
       int formatVersion,
       String location,
       FileFormat fileFormat,
-      PartitionData partition,
       long recordCount,
       long fileSizeInBytes,
       Integer specId,
+      PartitionData partition,
       ContentStats contentStats,
       Integer sortOrderId,
       DeletionVector deletionVector,
@@ -120,9 +121,8 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
     this.fileFormat = fileFormat;
     this.recordCount = recordCount;
     this.fileSizeInBytes = fileSizeInBytes;
-    this.partitionData = partition;
-
     this.specId = specId;
+    this.partitionData = partition;
     this.contentStats = contentStats;
     this.sortOrderId = sortOrderId;
     this.deletionVector = deletionVector;
@@ -133,7 +133,7 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
   }
 
   /** Copy constructor. */
-  private TrackedFileStruct(TrackedFileStruct toCopy, boolean withStats, Set<Integer> statsIds) {
+  private TrackedFileStruct(TrackedFileStruct toCopy, Set<Integer> statsIds) {
     super(toCopy);
     this.contentType = toCopy.contentType;
     this.formatVersion = toCopy.formatVersion;
@@ -147,9 +147,9 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
     this.sortOrderId = toCopy.sortOrderId;
     this.deletionVector = toCopy.deletionVector != null ? toCopy.deletionVector.copy() : null;
 
-    if (withStats && toCopy.contentStats != null) {
-      ContentStats filtered = BaseContentStats.buildFrom(toCopy.contentStats, statsIds).build();
-      this.contentStats = filtered.fieldStats().isEmpty() ? null : filtered;
+    if (toCopy.contentStats != null && (statsIds == null || !statsIds.isEmpty())) {
+      this.contentStats =
+          statsIds != null ? toCopy.contentStats.copy(statsIds) : toCopy.contentStats.copy();
     } else {
       this.contentStats = null;
     }
@@ -251,12 +251,12 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
 
   @Override
   public TrackedFile copy() {
-    return new TrackedFileStruct(this, true, null);
+    return new TrackedFileStruct(this, null);
   }
 
   @Override
   public TrackedFile copyWithStats(Set<Integer> requestedColumnIds) {
-    return new TrackedFileStruct(this, true, requestedColumnIds);
+    return new TrackedFileStruct(this, requestedColumnIds);
   }
 
   @Override

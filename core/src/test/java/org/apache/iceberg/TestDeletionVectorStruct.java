@@ -28,7 +28,7 @@ import org.junit.jupiter.api.Test;
 class TestDeletionVectorStruct {
 
   @Test
-  void testFieldAccess() {
+  void fieldAccess() {
     DeletionVectorStruct dv =
         DeletionVectorStruct.builder()
             .location("s3://bucket/data/dv.puffin")
@@ -44,7 +44,7 @@ class TestDeletionVectorStruct {
   }
 
   @Test
-  void testCopy() {
+  void copy() {
     DeletionVectorStruct dv =
         DeletionVectorStruct.builder()
             .location("s3://bucket/data/dv.puffin")
@@ -62,13 +62,13 @@ class TestDeletionVectorStruct {
   }
 
   @Test
-  void testSize() {
+  void size() {
     DeletionVectorStruct dv = new DeletionVectorStruct(DeletionVector.schema());
     assertThat(dv.size()).isEqualTo(4);
   }
 
   @Test
-  void testProjectedStructLike() {
+  void projectedStructLike() {
     // project only location (field ID 155) and cardinality (field ID 156)
     Types.StructType projection =
         Types.StructType.of(DeletionVector.LOCATION, DeletionVector.CARDINALITY);
@@ -88,7 +88,7 @@ class TestDeletionVectorStruct {
   }
 
   @Test
-  void testInternalSetIgnoresUnknownOrdinal() {
+  void internalSetIgnoresUnknownOrdinal() {
     DeletionVectorStruct dv =
         DeletionVectorStruct.builder()
             .location("s3://bucket/data/dv.puffin")
@@ -108,7 +108,7 @@ class TestDeletionVectorStruct {
   }
 
   @Test
-  void testJavaSerializationRoundTrip() throws IOException, ClassNotFoundException {
+  void javaSerializationRoundTrip() throws IOException, ClassNotFoundException {
     DeletionVectorStruct dv =
         DeletionVectorStruct.builder()
             .location("s3://bucket/data/dv.puffin")
@@ -126,7 +126,7 @@ class TestDeletionVectorStruct {
   }
 
   @Test
-  void testBuilderMissingRequiredFields() {
+  void builderMissingRequiredFields() {
     assertThatThrownBy(
             () -> DeletionVectorStruct.builder().offset(0).sizeInBytes(1).cardinality(1).build())
         .isInstanceOf(IllegalArgumentException.class)
@@ -164,7 +164,7 @@ class TestDeletionVectorStruct {
   }
 
   @Test
-  void testDvEquality() {
+  void dvEquality() {
     DeletionVectorStruct dv =
         DeletionVectorStruct.builder()
             .location("s3://bucket/data/dv.puffin")
@@ -222,7 +222,7 @@ class TestDeletionVectorStruct {
   }
 
   @Test
-  void testBuilderRejectsInvalidValuesAtSetter() {
+  void builderRejectsInvalidValuesAtSetter() {
     assertThatThrownBy(() -> DeletionVectorStruct.builder().location(null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid location: null");
@@ -241,7 +241,7 @@ class TestDeletionVectorStruct {
   }
 
   @Test
-  void testKryoSerializationRoundTrip() throws IOException {
+  void kryoSerializationRoundTrip() throws IOException {
     DeletionVectorStruct dv =
         DeletionVectorStruct.builder()
             .location("s3://bucket/data/dv.puffin")
