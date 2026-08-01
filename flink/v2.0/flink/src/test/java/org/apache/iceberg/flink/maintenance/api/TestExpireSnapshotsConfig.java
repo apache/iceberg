@@ -19,6 +19,7 @@
 package org.apache.iceberg.flink.maintenance.api;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatNoException;
 
 import java.util.Map;
 import org.apache.flink.configuration.Configuration;
@@ -80,5 +81,13 @@ public class TestExpireSnapshotsConfig extends OperatorTestBase {
         .isEqualTo(ExpireSnapshotsConfig.DELETE_BATCH_SIZE_OPTION.defaultValue());
     assertThat(config.cleanExpiredMetadata()).isTrue();
     assertThat(config.planningWorkerPoolSize()).isEqualTo(ThreadPools.WORKER_THREAD_POOL_SIZE);
+  }
+
+  @Test
+  void configureBuilderWithoutRetainLast() {
+    ExpireSnapshotsConfig config =
+        new ExpireSnapshotsConfig(table, Maps.newHashMap(), new Configuration());
+
+    assertThatNoException().isThrownBy(() -> ExpireSnapshots.builder().config(config));
   }
 }
