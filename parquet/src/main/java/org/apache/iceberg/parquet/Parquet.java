@@ -365,7 +365,9 @@ public class Parquet {
                 }
                 boolean enabled = Boolean.parseBoolean(isEnabled);
                 withColumnStatsEnabled.accept(parquetColumnPath, enabled);
-                conf.set("parquet.column.statistics.enabled#" + parquetColumnPath, String.valueOf(enabled));
+                conf.set(
+                    "parquet.column.statistics.enabled#" + parquetColumnPath,
+                    String.valueOf(enabled));
               });
     }
 
