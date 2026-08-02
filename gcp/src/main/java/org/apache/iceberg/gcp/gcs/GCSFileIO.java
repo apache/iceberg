@@ -27,6 +27,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -327,16 +328,27 @@ public class GCSFileIO implements DelegateFileIO, SupportsStorageCredentials {
 
   @SuppressWarnings("resource")
   private void internalDeleteFiles(Stream<BlobId> blobIdsToDelete) {
-    Streams.stream(
-            Iterators.partition(
-                blobIdsToDelete.iterator(),
-                clientForStoragePath(ROOT_STORAGE_PREFIX).gcpProperties().deleteBatchSize()))
-        .forEach(
-            batch -> {
-              if (!batch.isEmpty()) {
-                clientForStoragePath(batch.get(0).toGsUtilUri()).storage().delete(batch);
-              }
-            });
+    // Group blobs by their per-prefix client first so each GCS API call uses the credentials
+    // configured for the prefix that owns the blob, instead of reusing the first object's
+    // client for the whole batch.
+    Map<PrefixedStorage, List<BlobId>> blobsByClient = new LinkedHashMap<>();
+    blobIdsToDelete.forEach(
+        blobId ->
+            blobsByClient
+                .computeIfAbsent(
+                    clientForStoragePath(blobId.toGsUtilUri()), key -> Lists.newArrayList())
+                .add(blobId));
+
+    blobsByClient.forEach(
+        (client, blobs) ->
+            Streams.stream(
+                    Iterators.partition(blobs.iterator(), client.gcpProperties().deleteBatchSize()))
+                .forEach(
+                    batch -> {
+                      if (!batch.isEmpty()) {
+                        client.storage().delete(batch);
+                      }
+                    }));
   }
 
   @Override
