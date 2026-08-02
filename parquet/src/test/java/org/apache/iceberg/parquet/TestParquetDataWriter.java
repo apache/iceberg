@@ -59,10 +59,10 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.RandomUtil;
 import org.apache.iceberg.variants.Variant;
-import org.apache.iceberg.variants.VariantMetadata;
 import org.apache.iceberg.variants.VariantTestUtil;
 import org.apache.iceberg.variants.VariantValue;
 import org.apache.iceberg.variants.Variants;
+import org.apache.parquet.ParquetReadOptions;
 import org.apache.parquet.crypto.FileDecryptionProperties;
 import org.apache.parquet.crypto.ParquetCryptoRuntimeException;
 import org.apache.parquet.example.data.Group;
@@ -389,17 +389,9 @@ public class TestParquetDataWriter {
                 .add(Types.NestedField.optional(4, "variant", Types.VariantType.get()))
                 .build());
 
-    ByteBuffer metadataBuffer = VariantTestUtil.createMetadata(ImmutableList.of("a", "b"), true);
-    VariantMetadata metadata = Variants.metadata(metadataBuffer);
-
-    ByteBuffer objectBuffer =
-        VariantTestUtil.createObject(
-            metadataBuffer,
-            ImmutableMap.of(
-                "a", Variants.of(123456789),
-                "b", Variants.of("string")));
-
-    Variant variant = Variant.of(metadata, Variants.value(metadata, objectBuffer));
+    Variant variant =
+        VariantTestUtil.variant(
+            ImmutableMap.of("a", Variants.of(123456789), "b", Variants.of("string")));
 
     // Create records with variant data
     GenericRecord record = GenericRecord.create(variantSchema);
@@ -415,11 +407,6 @@ public class TestParquetDataWriter {
 
   @Test
   public void testShreddingWriteReturnsBufferedAppender() throws IOException {
-    Schema variantSchema =
-        new Schema(
-            Types.NestedField.required(1, "id", Types.LongType.get()),
-            Types.NestedField.optional(2, "v", Types.VariantType.get()));
-
     VariantShreddingAnalyzer<Record, Void> testAnalyzer =
         new VariantShreddingAnalyzer<Record, Void>() {
           @Override
@@ -436,20 +423,12 @@ public class TestParquetDataWriter {
     OutputFile outputFile = Files.localOutput(createTempFile(temp));
 
     ParquetFormatModel<Record, Void, ParquetValueReader<?>> model =
-        ParquetFormatModel.create(
-            Record.class,
-            Void.class,
-            (icebergSchema, messageType, engineSchema) ->
-                GenericParquetWriter.create(icebergSchema, messageType),
-            (icebergSchema, fileSchema, engineSchema, idToConstant) ->
-                GenericParquetReaders.buildReader(icebergSchema, fileSchema),
-            testAnalyzer,
-            (Function<Void, UnaryOperator<Record>>) unused -> record -> record);
+        variantModel(testAnalyzer, unused -> record -> record);
 
     try (FileAppender<Record> appender =
         model
             .writeBuilder(EncryptedFiles.plainAsEncryptedOutput(outputFile))
-            .schema(variantSchema)
+            .schema(VARIANT_SHREDDING_SCHEMA)
             .setAll(ImmutableMap.of(TableProperties.PARQUET_SHRED_VARIANTS, "true"))
             .content(FileContent.DATA)
             .build()) {
@@ -459,28 +438,14 @@ public class TestParquetDataWriter {
 
   @Test
   public void testWriteBuilderReturnsDirectAppenderWithNullAnalyzer() throws IOException {
-    Schema variantSchema =
-        new Schema(
-            Types.NestedField.required(1, "id", Types.LongType.get()),
-            Types.NestedField.optional(2, "v", Types.VariantType.get()));
-
     OutputFile outputFile = Files.localOutput(createTempFile(temp));
 
-    ParquetFormatModel<Record, Void, ParquetValueReader<?>> model =
-        ParquetFormatModel.create(
-            Record.class,
-            Void.class,
-            (icebergSchema, messageType, engineSchema) ->
-                GenericParquetWriter.create(icebergSchema, messageType),
-            (icebergSchema, fileSchema, engineSchema, idToConstant) ->
-                GenericParquetReaders.buildReader(icebergSchema, fileSchema),
-            null,
-            (Function<Void, UnaryOperator<Record>>) null);
+    ParquetFormatModel<Record, Void, ParquetValueReader<?>> model = variantModel(null, null);
 
     try (FileAppender<Record> appender =
         model
             .writeBuilder(EncryptedFiles.plainAsEncryptedOutput(outputFile))
-            .schema(variantSchema)
+            .schema(VARIANT_SHREDDING_SCHEMA)
             .setAll(ImmutableMap.of(TableProperties.PARQUET_SHRED_VARIANTS, "true"))
             .content(FileContent.DATA)
             .build()) {
@@ -489,66 +454,16 @@ public class TestParquetDataWriter {
     }
   }
 
-  private static ParquetFormatModel<Record, Void, ParquetValueReader<?>> variantShreddingModel(
-      Schema schema) {
-    VariantShreddingAnalyzer<Record, Void> analyzer =
-        new VariantShreddingAnalyzer<Record, Void>() {
-          @Override
-          protected List<VariantValue> extractVariantValues(List<Record> rows, int idx) {
-            List<VariantValue> values = Lists.newArrayList();
-            for (Record row : rows) {
-              Object obj = row.get(idx);
-              if (obj instanceof Variant) {
-                values.add(((Variant) obj).value());
-              }
-            }
-            return values;
-          }
-
-          @Override
-          protected int resolveColumnIndex(Void engineSchema, String columnName) {
-            return schema.columns().indexOf(schema.findField(columnName));
-          }
-        };
-
-    return ParquetFormatModel.create(
-        Record.class,
-        Void.class,
-        (icebergSchema, messageType, engineSchema) ->
-            GenericParquetWriter.create(icebergSchema, messageType),
-        (icebergSchema, fileSchema, engineSchema, idToConstant) ->
-            GenericParquetReaders.buildReader(icebergSchema, fileSchema),
-        analyzer,
-        (Function<Void, UnaryOperator<Record>>) unused -> input -> input);
-  }
-
-  private static List<Record> variantShreddingRecords(Schema schema, int aValue, String bValue) {
-    ByteBuffer metadataBuffer = VariantTestUtil.createMetadata(ImmutableList.of("a", "b"), true);
-    VariantMetadata metadata = Variants.metadata(metadataBuffer);
-    ByteBuffer objectBuffer =
-        VariantTestUtil.createObject(
-            metadataBuffer, ImmutableMap.of("a", Variants.of(aValue), "b", Variants.of(bValue)));
-    Variant variant = Variant.of(metadata, Variants.value(metadata, objectBuffer));
-
-    GenericRecord record = GenericRecord.create(schema);
-    return ImmutableList.of(
-        record.copy(ImmutableMap.of("id", 1L, "v", variant)),
-        record.copy(ImmutableMap.of("id", 2L, "v", variant)),
-        record.copy(ImmutableMap.of("id", 3L, "v", variant)));
-  }
-
   @Test
   public void testFormatModelVariantShreddingRoundTrip() throws IOException {
-    Schema variantSchema = VARIANT_SHREDDING_SCHEMA;
-    List<Record> variantRecords = variantShreddingRecords(variantSchema, 42, "hello");
+    List<Record> variantRecords = variantShreddingRecords(42, "hello");
     OutputFile outputFile = Files.localOutput(createTempFile(temp));
-    ParquetFormatModel<Record, Void, ParquetValueReader<?>> model =
-        variantShreddingModel(variantSchema);
+    ParquetFormatModel<Record, Void, ParquetValueReader<?>> model = variantShreddingModel();
 
     try (FileAppender<Record> appender =
         model
             .writeBuilder(EncryptedFiles.plainAsEncryptedOutput(outputFile))
-            .schema(variantSchema)
+            .schema(VARIANT_SHREDDING_SCHEMA)
             .setAll(
                 ImmutableMap.of(
                     TableProperties.PARQUET_SHRED_VARIANTS, "true",
@@ -561,65 +476,15 @@ public class TestParquetDataWriter {
       }
     }
 
-    // Verify shredded Parquet schema
-    try (ParquetFileReader reader =
-        ParquetFileReader.open(ParquetIO.file(outputFile.toInputFile()))) {
-      MessageType parquetSchema = reader.getFooter().getFileMetaData().getSchema();
-      GroupType variantGroup = parquetSchema.getType("v").asGroupType();
-      assertThat(variantGroup.containsField("metadata")).isTrue();
-      assertThat(variantGroup.containsField("value")).isTrue();
-      assertThat(variantGroup.containsField("typed_value")).isTrue();
+    assertShreddedVariant(outputFile, null, 42, "hello");
 
-      GroupType typedValue = variantGroup.getType("typed_value").asGroupType();
-      assertThat(typedValue.containsField("a")).isTrue();
-      assertThat(typedValue.containsField("b")).isTrue();
-    }
-
-    // Verify data is in typed columns by reading raw Parquet groups
-    try (ParquetReader<Group> rawReader =
-        ParquetReader.builder(
-                new GroupReadSupport(), new org.apache.hadoop.fs.Path(outputFile.location()))
-            .build()) {
-      Group row = rawReader.read();
-      Group variantData = row.getGroup("v", 0);
-
-      assertThat(variantData.getFieldRepetitionCount("value"))
-          .as("value should be absent when fully shredded")
-          .isEqualTo(0);
-
-      Group typedValue = variantData.getGroup("typed_value", 0);
-      assertThat(typedValue.getGroup("a", 0).getInteger("typed_value", 0))
-          .as("typed_value.a should contain 42")
-          .isEqualTo(42);
-      assertThat(typedValue.getGroup("b", 0).getString("typed_value", 0))
-          .as("typed_value.b should contain hello")
-          .isEqualTo("hello");
-    }
-
-    // Verify data round-trips
-    List<Record> writtenRecords;
-    try (CloseableIterable<Record> reader =
-        Parquet.read(outputFile.toInputFile())
-            .project(variantSchema)
-            .createReaderFunc(
-                fileSchema -> GenericParquetReaders.buildReader(variantSchema, fileSchema))
-            .build()) {
-      writtenRecords = Lists.newArrayList(reader);
-    }
-
-    assertThat(writtenRecords).hasSameSizeAs(variantRecords);
-    for (int i = 0; i < variantRecords.size(); i++) {
-      InternalTestHelpers.assertEquals(
-          variantSchema.asStruct(), variantRecords.get(i), writtenRecords.get(i));
-    }
+    assertRoundTrip(outputFile, null, null, variantRecords);
   }
 
   @Test
   public void testFormatModelVariantShreddingWithEncryption() throws IOException {
-    Schema variantSchema = VARIANT_SHREDDING_SCHEMA;
-    List<Record> variantRecords = variantShreddingRecords(variantSchema, 123456789, "string");
-    ParquetFormatModel<Record, Void, ParquetValueReader<?>> model =
-        variantShreddingModel(variantSchema);
+    List<Record> variantRecords = variantShreddingRecords(123456789, "string");
+    ParquetFormatModel<Record, Void, ParquetValueReader<?>> model = variantShreddingModel();
 
     OutputFile encryptedFile = Files.localOutput(createTempFile(temp));
     ByteBuffer fileDek = ByteBuffer.allocate(16);
@@ -631,7 +496,7 @@ public class TestParquetDataWriter {
     try (FileAppender<Record> appender =
         model
             .writeBuilder(EncryptedFiles.plainAsEncryptedOutput(encryptedFile))
-            .schema(variantSchema)
+            .schema(VARIANT_SHREDDING_SCHEMA)
             .withFileEncryptionKey(fileDek)
             .withAADPrefix(aadPrefix)
             .setAll(
@@ -647,56 +512,25 @@ public class TestParquetDataWriter {
     assertThatThrownBy(
             () ->
                 Parquet.read(encryptedFile.toInputFile())
-                    .project(variantSchema)
+                    .project(VARIANT_SHREDDING_SCHEMA)
                     .createReaderFunc(
-                        fileSchema -> GenericParquetReaders.buildReader(variantSchema, fileSchema))
+                        fileSchema ->
+                            GenericParquetReaders.buildReader(VARIANT_SHREDDING_SCHEMA, fileSchema))
                     .build()
                     .iterator())
         .isInstanceOf(ParquetCryptoRuntimeException.class)
         .hasMessage("Trying to read file with encrypted footer. No keys available");
 
-    List<Record> writtenRecords;
-    try (CloseableIterable<Record> reader =
-        Parquet.read(encryptedFile.toInputFile())
-            .project(variantSchema)
-            .withFileEncryptionKey(fileDek)
-            .withAADPrefix(aadPrefix)
-            .createReaderFunc(
-                fileSchema -> GenericParquetReaders.buildReader(variantSchema, fileSchema))
-            .build()) {
-      writtenRecords = Lists.newArrayList(reader);
-    }
+    assertShreddedVariant(
+        encryptedFile,
+        FileDecryptionProperties.builder()
+            .withFooterKey(fileDek.array())
+            .withAADPrefix(aadPrefix.array())
+            .build(),
+        123456789,
+        "string");
 
-    assertThat(writtenRecords).hasSameSizeAs(variantRecords);
-    for (int i = 0; i < variantRecords.size(); i++) {
-      InternalTestHelpers.assertEquals(
-          variantSchema.asStruct(), variantRecords.get(i), writtenRecords.get(i));
-    }
-
-    try (ParquetReader<Group> rawReader =
-        ParquetReader.builder(
-                new GroupReadSupport(), new org.apache.hadoop.fs.Path(encryptedFile.location()))
-            .withDecryption(
-                FileDecryptionProperties.builder()
-                    .withFooterKey(fileDek.array())
-                    .withAADPrefix(aadPrefix.array())
-                    .build())
-            .build()) {
-      Group row = rawReader.read();
-      Group variantData = row.getGroup("v", 0);
-
-      assertThat(variantData.getFieldRepetitionCount("value"))
-          .as("value should be absent when fully shredded")
-          .isEqualTo(0);
-
-      Group typedValue = variantData.getGroup("typed_value", 0);
-      assertThat(typedValue.getGroup("a", 0).getInteger("typed_value", 0))
-          .as("typed_value.a should contain 123456789")
-          .isEqualTo(123456789);
-      assertThat(typedValue.getGroup("b", 0).getString("typed_value", 0))
-          .as("typed_value.b should contain string")
-          .isEqualTo("string");
-    }
+    assertRoundTrip(encryptedFile, fileDek, aadPrefix, variantRecords);
   }
 
   @ParameterizedTest
@@ -720,6 +554,128 @@ public class TestParquetDataWriter {
     assertThat(dataFile.splitOffsets().size())
         .as("Default path should produce fewer row groups than the tracking path")
         .isLessThan(trackedFile.splitOffsets().size());
+  }
+
+  private static ParquetFormatModel<Record, Void, ParquetValueReader<?>> variantModel(
+      VariantShreddingAnalyzer<Record, Void> analyzer,
+      Function<Void, UnaryOperator<Record>> transform) {
+    return ParquetFormatModel.create(
+        Record.class,
+        Void.class,
+        (icebergSchema, messageType, engineSchema) ->
+            GenericParquetWriter.create(icebergSchema, messageType),
+        (icebergSchema, fileSchema, engineSchema, idToConstant) ->
+            GenericParquetReaders.buildReader(icebergSchema, fileSchema),
+        analyzer,
+        transform);
+  }
+
+  private static ParquetFormatModel<Record, Void, ParquetValueReader<?>> variantShreddingModel() {
+    VariantShreddingAnalyzer<Record, Void> analyzer =
+        new VariantShreddingAnalyzer<Record, Void>() {
+          @Override
+          protected List<VariantValue> extractVariantValues(List<Record> rows, int idx) {
+            List<VariantValue> values = Lists.newArrayList();
+            for (Record row : rows) {
+              Object obj = row.get(idx);
+              if (obj instanceof Variant) {
+                values.add(((Variant) obj).value());
+              }
+            }
+            return values;
+          }
+
+          @Override
+          protected int resolveColumnIndex(Void engineSchema, String columnName) {
+            return VARIANT_SHREDDING_SCHEMA
+                .columns()
+                .indexOf(VARIANT_SHREDDING_SCHEMA.findField(columnName));
+          }
+        };
+
+    return variantModel(analyzer, unused -> input -> input);
+  }
+
+  private static List<Record> variantShreddingRecords(int aValue, String bValue) {
+    Variant variant =
+        VariantTestUtil.variant(
+            ImmutableMap.of("a", Variants.of(aValue), "b", Variants.of(bValue)));
+    GenericRecord record = GenericRecord.create(VARIANT_SHREDDING_SCHEMA);
+    return ImmutableList.of(
+        record.copy(ImmutableMap.of("id", 1L, "v", variant)),
+        record.copy(ImmutableMap.of("id", 2L, "v", variant)),
+        record.copy(ImmutableMap.of("id", 3L, "v", variant)));
+  }
+
+  private static void assertShreddedVariant(
+      OutputFile file, FileDecryptionProperties decryption, int aValue, String bValue)
+      throws IOException {
+    ParquetReadOptions.Builder options = ParquetReadOptions.builder();
+    if (decryption != null) {
+      options = options.withDecryption(decryption);
+    }
+    try (ParquetFileReader reader =
+        ParquetFileReader.open(ParquetIO.file(file.toInputFile()), options.build())) {
+      GroupType variantGroup =
+          reader.getFooter().getFileMetaData().getSchema().getType("v").asGroupType();
+      assertThat(variantGroup.containsField("metadata")).isTrue();
+      assertThat(variantGroup.containsField("value")).isTrue();
+      assertThat(variantGroup.containsField("typed_value")).isTrue();
+
+      GroupType typedValueType = variantGroup.getType("typed_value").asGroupType();
+      assertThat(typedValueType.containsField("a")).isTrue();
+      assertThat(typedValueType.containsField("b")).isTrue();
+    }
+
+    ParquetReader.Builder<Group> builder =
+        ParquetReader.builder(
+            new GroupReadSupport(), new org.apache.hadoop.fs.Path(file.location()));
+    if (decryption != null) {
+      builder = builder.withDecryption(decryption);
+    }
+    try (ParquetReader<Group> rawReader = builder.build()) {
+      Group row;
+      while ((row = rawReader.read()) != null) {
+        Group variantData = row.getGroup("v", 0);
+
+        assertThat(variantData.getFieldRepetitionCount("value"))
+            .as("value should be absent when fully shredded")
+            .isEqualTo(0);
+
+        Group typedValue = variantData.getGroup("typed_value", 0);
+        assertThat(typedValue.getGroup("a", 0).getInteger("typed_value", 0))
+            .as("typed_value.a should contain " + aValue)
+            .isEqualTo(aValue);
+        assertThat(typedValue.getGroup("b", 0).getString("typed_value", 0))
+            .as("typed_value.b should contain " + bValue)
+            .isEqualTo(bValue);
+      }
+    }
+  }
+
+  private static void assertRoundTrip(
+      OutputFile file, ByteBuffer fileDek, ByteBuffer aadPrefix, List<Record> expected)
+      throws IOException {
+    Parquet.ReadBuilder builder =
+        Parquet.read(file.toInputFile())
+            .project(VARIANT_SHREDDING_SCHEMA)
+            .createReaderFunc(
+                fileSchema ->
+                    GenericParquetReaders.buildReader(VARIANT_SHREDDING_SCHEMA, fileSchema));
+    if (fileDek != null) {
+      builder = builder.withFileEncryptionKey(fileDek).withAADPrefix(aadPrefix);
+    }
+
+    List<Record> writtenRecords;
+    try (CloseableIterable<Record> reader = builder.build()) {
+      writtenRecords = Lists.newArrayList(reader);
+    }
+
+    assertThat(writtenRecords).hasSameSizeAs(expected);
+    for (int i = 0; i < expected.size(); i++) {
+      InternalTestHelpers.assertEquals(
+          VARIANT_SHREDDING_SCHEMA.asStruct(), expected.get(i), writtenRecords.get(i));
+    }
   }
 
   // Writes 30 records of 256 KB compressible JSON (~8 MB uncompressed) with a 2 MB target.
