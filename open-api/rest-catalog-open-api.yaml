@@ -2429,6 +2429,10 @@ components:
         - "fixed[16]"
         - "decimal(10,2)"
 
+    VariantType:
+      type: string
+      const: "variant"
+
     StructField:
       type: object
       required:
@@ -2509,7 +2513,9 @@ components:
           type: boolean
 
     Type:
+      # Keep VariantType first, or the generated client resolves `variant` as PrimitiveType.
       oneOf:
+        - $ref: '#/components/schemas/VariantType'
         - $ref: '#/components/schemas/PrimitiveType'
         - $ref: '#/components/schemas/StructType'
         - $ref: '#/components/schemas/ListType'
