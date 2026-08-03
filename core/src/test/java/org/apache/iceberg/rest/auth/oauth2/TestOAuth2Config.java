@@ -34,7 +34,7 @@ import org.junit.jupiter.api.Test;
 class TestOAuth2Config {
 
   @Test
-  void testFrom() {
+  void configFromProperties() {
     Map<String, String> properties =
         ImmutableMap.<String, String>builder()
             .put(BasicConfig.TOKEN_ENDPOINT, "https://example.com/token")
@@ -65,7 +65,7 @@ class TestOAuth2Config {
   }
 
   @Test
-  void testValidate() {
+  void invalidConfigFromProperties() {
     Map<String, String> properties =
         Map.of(
             BasicConfig.GRANT_TYPE,

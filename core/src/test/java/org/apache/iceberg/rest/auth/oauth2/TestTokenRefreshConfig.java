@@ -37,40 +37,12 @@ class TestTokenRefreshConfig {
 
   @ParameterizedTest
   @MethodSource
-  @SuppressWarnings("ResultOfMethodCallIgnored")
-  void testValidate(Map<String, String> properties, String expected) {
-    assertThatIllegalArgumentException()
-        .isThrownBy(() -> TokenRefreshConfig.from(properties).build())
-        .withMessage(expected);
-  }
-
-  static Stream<Arguments> testValidate() {
-    return Stream.of(
-        Arguments.of(
-            Map.of(ACCESS_TOKEN_LIFESPAN, "PT2S"),
-            "access token lifespan must be greater than or equal to PT15S (rest.auth.oauth2.token-refresh.access-token-lifespan)"),
-        Arguments.of(
-            Map.of(PREFETCH, "PT0.1S"),
-            "refresh prefetch must be greater than or equal to PT10S (rest.auth.oauth2.token-refresh.prefetch)"),
-        Arguments.of(
-            Map.of(PREFETCH, "PT10M", ACCESS_TOKEN_LIFESPAN, "PT5M"),
-            "refresh prefetch must be less than the access token lifespan (rest.auth.oauth2.token-refresh.prefetch / rest.auth.oauth2.token-refresh.access-token-lifespan)"),
-        Arguments.of(
-            Map.of(JITTER, "PT-1S"),
-            "jitter must not be negative (rest.auth.oauth2.token-refresh.jitter)"),
-        Arguments.of(
-            Map.of(JITTER, "PT1H"),
-            "jitter plus prefetch must be less than the access token lifespan (rest.auth.oauth2.token-refresh.jitter / rest.auth.oauth2.token-refresh.prefetch / rest.auth.oauth2.token-refresh.access-token-lifespan)"));
-  }
-
-  @ParameterizedTest
-  @MethodSource
-  void testFrom(Map<String, String> properties, TokenRefreshConfig expected) {
+  void configFromProperties(Map<String, String> properties, TokenRefreshConfig expected) {
     TokenRefreshConfig actual = TokenRefreshConfig.from(properties).build();
     assertThat(actual).isEqualTo(expected);
   }
 
-  static Stream<Arguments> testFrom() {
+  static Stream<Arguments> configFromProperties() {
     return Stream.of(
         Arguments.of(Map.of(), ImmutableTokenRefreshConfig.builder().build()),
         Arguments.of(
@@ -89,5 +61,33 @@ class TestTokenRefreshConfig {
         Arguments.of(
             Map.of(JITTER, "PT5S"),
             ImmutableTokenRefreshConfig.builder().jitter(Duration.ofSeconds(5)).build()));
+  }
+
+  @ParameterizedTest
+  @MethodSource
+  @SuppressWarnings("ResultOfMethodCallIgnored")
+  void invalidConfigFromProperties(Map<String, String> properties, String expected) {
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> TokenRefreshConfig.from(properties).build())
+        .withMessage(expected);
+  }
+
+  static Stream<Arguments> invalidConfigFromProperties() {
+    return Stream.of(
+        Arguments.of(
+            Map.of(ACCESS_TOKEN_LIFESPAN, "PT2S"),
+            "access token lifespan must be greater than or equal to PT15S (rest.auth.oauth2.token-refresh.access-token-lifespan)"),
+        Arguments.of(
+            Map.of(PREFETCH, "PT0.1S"),
+            "refresh prefetch must be greater than or equal to PT10S (rest.auth.oauth2.token-refresh.prefetch)"),
+        Arguments.of(
+            Map.of(PREFETCH, "PT10M", ACCESS_TOKEN_LIFESPAN, "PT5M"),
+            "refresh prefetch must be less than the access token lifespan (rest.auth.oauth2.token-refresh.prefetch / rest.auth.oauth2.token-refresh.access-token-lifespan)"),
+        Arguments.of(
+            Map.of(JITTER, "PT-1S"),
+            "jitter must not be negative (rest.auth.oauth2.token-refresh.jitter)"),
+        Arguments.of(
+            Map.of(JITTER, "PT1H"),
+            "jitter plus prefetch must be less than the access token lifespan (rest.auth.oauth2.token-refresh.jitter / rest.auth.oauth2.token-refresh.prefetch / rest.auth.oauth2.token-refresh.access-token-lifespan)"));
   }
 }

@@ -41,12 +41,12 @@ class TestTokenExchangeConfig {
 
   @ParameterizedTest
   @MethodSource
-  void testFrom(Map<String, String> properties, TokenExchangeConfig expected) {
+  void configFromProperties(Map<String, String> properties, TokenExchangeConfig expected) {
     TokenExchangeConfig actual = TokenExchangeConfig.from(properties).build();
     assertThat(actual).isEqualTo(expected);
   }
 
-  static Stream<Arguments> testFrom() throws ParseException {
+  static Stream<Arguments> configFromProperties() throws ParseException {
     return Stream.of(
         Arguments.of(Map.of(), ImmutableTokenExchangeConfig.builder().build()),
         Arguments.of(

@@ -39,15 +39,66 @@ class TestBasicConfig {
 
   @ParameterizedTest
   @MethodSource
+  void configFromProperties(Map<String, String> properties, BasicConfig expected) {
+    BasicConfig actual = BasicConfig.from(properties).build();
+    assertThat(actual).isEqualTo(expected);
+  }
+
+  static Stream<Arguments> configFromProperties() {
+    return Stream.of(
+        Arguments.of(
+            Map.of(BasicConfig.ISSUER_URL, "https://example.com", BasicConfig.TOKEN, "my-token"),
+            ImmutableBasicConfig.builder()
+                .issuerUrl(URI.create("https://example.com"))
+                .token(new BearerAccessToken("my-token"))
+                .build()),
+        Arguments.of(
+            Map.of(
+                BasicConfig.TOKEN_ENDPOINT,
+                "https://example.com/token",
+                BasicConfig.GRANT_TYPE,
+                GrantType.TOKEN_EXCHANGE.getValue(),
+                BasicConfig.CLIENT_AUTH,
+                "client_secret_post",
+                BasicConfig.CLIENT_ID,
+                "my-client",
+                BasicConfig.CLIENT_SECRET,
+                "my-secret",
+                BasicConfig.SCOPE,
+                "read write",
+                BasicConfig.TIMEOUT,
+                "PT10M",
+                BasicConfig.SESSION_CACHE_TIMEOUT,
+                "PT30M",
+                BasicConfig.EXTRA_PARAMS + ".param1",
+                "value1",
+                BasicConfig.EXTRA_PARAMS + ".param2",
+                "value2"),
+            ImmutableBasicConfig.builder()
+                .tokenEndpoint(URI.create("https://example.com/token"))
+                .grantType(GrantType.TOKEN_EXCHANGE)
+                .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_POST)
+                .clientId(new ClientID("my-client"))
+                .clientSecret(new Secret("my-secret"))
+                .scope(new Scope("read", "write"))
+                .tokenAcquisitionTimeout(Duration.ofMinutes(10))
+                .sessionCacheTimeout(Duration.ofMinutes(30))
+                .putExtraRequestParameters("param1", "value1")
+                .putExtraRequestParameters("param2", "value2")
+                .build()));
+  }
+
+  @ParameterizedTest
+  @MethodSource
   @SuppressWarnings("ResultOfMethodCallIgnored")
-  void testValidate(Map<String, String> properties, String expected) {
+  void invalidConfigFromProperties(Map<String, String> properties, String expected) {
     assertThatIllegalArgumentException()
         .isThrownBy(() -> BasicConfig.from(properties).build())
         .withMessage(expected);
   }
 
   @SuppressWarnings("MethodLength")
-  static Stream<Arguments> testValidate() {
+  static Stream<Arguments> invalidConfigFromProperties() {
     return Stream.of(
         Arguments.of(
             Map.of(BasicConfig.CLIENT_ID, "Client1", BasicConfig.CLIENT_SECRET, "s3cr3t"),
@@ -206,56 +257,5 @@ class TestBasicConfig {
                 BasicConfig.ISSUER_URL,
                 "https://example.com"),
             "timeout must be greater than or equal to PT30S (rest.auth.oauth2.timeout)"));
-  }
-
-  @ParameterizedTest
-  @MethodSource
-  void testFrom(Map<String, String> properties, BasicConfig expected) {
-    BasicConfig actual = BasicConfig.from(properties).build();
-    assertThat(actual).isEqualTo(expected);
-  }
-
-  static Stream<Arguments> testFrom() {
-    return Stream.of(
-        Arguments.of(
-            Map.of(BasicConfig.ISSUER_URL, "https://example.com", BasicConfig.TOKEN, "my-token"),
-            ImmutableBasicConfig.builder()
-                .issuerUrl(URI.create("https://example.com"))
-                .token(new BearerAccessToken("my-token"))
-                .build()),
-        Arguments.of(
-            Map.of(
-                BasicConfig.TOKEN_ENDPOINT,
-                "https://example.com/token",
-                BasicConfig.GRANT_TYPE,
-                GrantType.TOKEN_EXCHANGE.getValue(),
-                BasicConfig.CLIENT_AUTH,
-                "client_secret_post",
-                BasicConfig.CLIENT_ID,
-                "my-client",
-                BasicConfig.CLIENT_SECRET,
-                "my-secret",
-                BasicConfig.SCOPE,
-                "read write",
-                BasicConfig.TIMEOUT,
-                "PT10M",
-                BasicConfig.SESSION_CACHE_TIMEOUT,
-                "PT30M",
-                BasicConfig.EXTRA_PARAMS + ".param1",
-                "value1",
-                BasicConfig.EXTRA_PARAMS + ".param2",
-                "value2"),
-            ImmutableBasicConfig.builder()
-                .tokenEndpoint(URI.create("https://example.com/token"))
-                .grantType(GrantType.TOKEN_EXCHANGE)
-                .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_POST)
-                .clientId(new ClientID("my-client"))
-                .clientSecret(new Secret("my-secret"))
-                .scope(new Scope("read", "write"))
-                .tokenAcquisitionTimeout(Duration.ofMinutes(10))
-                .sessionCacheTimeout(Duration.ofMinutes(30))
-                .putExtraRequestParameters("param1", "value1")
-                .putExtraRequestParameters("param2", "value2")
-                .build()));
   }
 }
