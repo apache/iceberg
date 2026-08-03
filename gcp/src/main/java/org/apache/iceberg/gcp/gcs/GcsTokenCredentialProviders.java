@@ -65,7 +65,8 @@ public class GcsTokenCredentialProviders {
     } catch (NoSuchMethodException e) {
       throw new IllegalArgumentException(
           String.format(
-              "Cannot initialize GcsTokenCredentialProvider, missing no-arg constructor: %s", impl),
+              "Cannot initialize GcsTokenCredentialProvider, cannot load class or missing no-arg constructor: %s",
+              impl),
           e);
     }
 

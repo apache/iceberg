@@ -85,7 +85,7 @@ public class TestGcsTokenCredentialProviders {
     assertThatIllegalArgumentException()
         .isThrownBy(() -> GcsTokenCredentialProviders.from(properties))
         .withMessageContaining(
-            "Cannot initialize GcsTokenCredentialProvider, missing no-arg constructor");
+            "Cannot initialize GcsTokenCredentialProvider, cannot load class or missing no-arg constructor");
   }
 
   @Test

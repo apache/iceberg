@@ -25,6 +25,7 @@ import com.google.cloud.gcs.analyticscore.client.GcsClientOptions;
 import com.google.cloud.gcs.analyticscore.client.GcsFileSystem;
 import com.google.cloud.gcs.analyticscore.client.GcsFileSystemOptions;
 import com.google.cloud.gcs.analyticscore.client.GcsReadOptions;
+import java.io.UncheckedIOException;
 import java.util.Map;
 import org.apache.iceberg.EnvironmentContext;
 import org.apache.iceberg.gcp.GCPProperties;
@@ -159,5 +160,57 @@ public class TestPrefixedStorage {
     assertThat(fileSystem).isNotNull();
     assertThat(fileSystem.getGcsClient()).isNotNull();
     assertThat(fileSystem.getFileSystemOptions()).isEqualTo(expectedOptions);
+  }
+
+  @Test
+  public void tokenCredentialProviderSet() {
+    // Verify that GCPProperties correctly parses gcs.token-credential-provider.
+    Map<String, String> properties =
+        ImmutableMap.of(
+            GCPProperties.GCS_PROJECT_ID,
+            "myProject",
+            GCPProperties.GCS_TOKEN_CREDENTIAL_PROVIDER,
+            TestGcsTokenCredentialProviders.DummyGcsTokenCredentialProvider.class.getName());
+    PrefixedStorage storage = new PrefixedStorage("gs://bucket", properties, null);
+
+    assertThat(storage.storagePrefix()).isEqualTo("gs://bucket");
+    assertThat(storage.gcpProperties().tokenCredentialProvider()).isPresent();
+  }
+
+  @Test
+  public void oauth2TokenTakesPrecedenceOverProvider() {
+    // Vended path: both token and provider are set. Token branch wins, provider ignored.
+    Map<String, String> properties =
+        ImmutableMap.of(
+            GCPProperties.GCS_PROJECT_ID,
+            "myProject",
+            GCPProperties.GCS_OAUTH2_TOKEN,
+            "token",
+            GCPProperties.GCS_TOKEN_CREDENTIAL_PROVIDER,
+            TestGcsTokenCredentialProviders.DummyGcsTokenCredentialProvider.class.getName());
+    PrefixedStorage storage = new PrefixedStorage("gs://bucket", properties, null);
+
+    assertThat(storage.storage()).isNotNull();
+    assertThat(storage.storage().getOptions().getCredentials())
+        .isInstanceOf(com.google.auth.oauth2.OAuth2Credentials.class);
+  }
+
+  @Test
+  public void impersonateTakesPrecedenceOverProvider() {
+    // Impersonation + provider: impersonation branch reached first (verified by exception).
+    Map<String, String> properties =
+        ImmutableMap.of(
+            GCPProperties.GCS_PROJECT_ID,
+            "myProject",
+            GCPProperties.GCS_IMPERSONATE_SERVICE_ACCOUNT,
+            "sa@project.iam.gserviceaccount.com",
+            GCPProperties.GCS_TOKEN_CREDENTIAL_PROVIDER,
+            TestGcsTokenCredentialProviders.DummyGcsTokenCredentialProvider.class.getName());
+    PrefixedStorage storage = new PrefixedStorage("gs://bucket", properties, null);
+
+    // Local placeholder throws to prevent production use; verifies impersonation branch executed.
+    assertThatThrownBy(storage::storage)
+        .isInstanceOf(UncheckedIOException.class)
+        .hasMessageContaining("Failed to create impersonated credentials for GCS");
   }
 }
