@@ -28,13 +28,20 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.util.Arrays;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.HttpClients;
+import org.apache.iceberg.io.FileIOMetricsContext;
 import org.apache.iceberg.io.IOUtil;
 import org.apache.iceberg.io.RangeReadable;
 import org.apache.iceberg.io.SeekableInputStream;
+import org.apache.iceberg.metrics.Counter;
+import org.apache.iceberg.metrics.DefaultMetricsContext;
+import org.apache.iceberg.metrics.MetricsContext;
+import org.apache.iceberg.metrics.MetricsContext.Unit;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -77,7 +84,8 @@ class TestHTTPInputFile {
 
   @Test
   void getLengthFetchesTotalFromContentRange() {
-    HTTPInputFile inputFile = new HTTPInputFile(client, "s3://bucket/object", url);
+    HTTPInputFile inputFile =
+        new HTTPInputFile(client, "s3://bucket/object", url, MetricsContext.nullMetrics());
 
     assertThat(inputFile.getLength()).isEqualTo(DATA.length);
     assertThat(REQUEST_COUNT.get()).isEqualTo(1);
@@ -85,7 +93,8 @@ class TestHTTPInputFile {
 
   @Test
   void getLengthUsesKnownLengthWithoutRequest() {
-    HTTPInputFile inputFile = new HTTPInputFile(client, "s3://bucket/object", url, 123L);
+    HTTPInputFile inputFile =
+        new HTTPInputFile(client, "s3://bucket/object", url, 123L, MetricsContext.nullMetrics());
 
     assertThat(inputFile.getLength()).isEqualTo(123L);
     assertThat(REQUEST_COUNT.get()).isZero();
@@ -93,7 +102,8 @@ class TestHTTPInputFile {
 
   @Test
   void readFullyReadsExactRange() throws IOException {
-    HTTPInputFile inputFile = new HTTPInputFile(client, "s3://bucket/object", url);
+    HTTPInputFile inputFile =
+        new HTTPInputFile(client, "s3://bucket/object", url, MetricsContext.nullMetrics());
 
     byte[] buffer = new byte[2_048];
     try (SeekableInputStream stream = inputFile.newStream()) {
@@ -105,7 +115,8 @@ class TestHTTPInputFile {
 
   @Test
   void readTailReadsSuffix() throws IOException {
-    HTTPInputFile inputFile = new HTTPInputFile(client, "s3://bucket/object", url);
+    HTTPInputFile inputFile =
+        new HTTPInputFile(client, "s3://bucket/object", url, MetricsContext.nullMetrics());
 
     byte[] buffer = new byte[512];
     int read;
@@ -120,7 +131,8 @@ class TestHTTPInputFile {
 
   @Test
   void sequentialReadCrossesChunkBoundary() throws IOException {
-    HTTPInputFile inputFile = new HTTPInputFile(client, "s3://bucket/object", url);
+    HTTPInputFile inputFile =
+        new HTTPInputFile(client, "s3://bucket/object", url, MetricsContext.nullMetrics());
 
     byte[] actual = new byte[DATA.length];
     try (SeekableInputStream stream = inputFile.newStream()) {
@@ -130,6 +142,34 @@ class TestHTTPInputFile {
     assertThat(actual).isEqualTo(DATA);
     // reading past a single 4 MB chunk requires at least two range fetches
     assertThat(REQUEST_COUNT.get()).isGreaterThanOrEqualTo(2);
+  }
+
+  @Test
+  void sequentialReadTracksReadMetrics() throws IOException {
+    CachingMetricsContext metrics = new CachingMetricsContext();
+    HTTPInputFile inputFile = new HTTPInputFile(client, "s3://bucket/object", url, metrics);
+
+    byte[] actual = new byte[DATA.length];
+    try (SeekableInputStream stream = inputFile.newStream()) {
+      IOUtil.readFully(stream, actual, 0, actual.length);
+    }
+
+    Counter readBytes = metrics.counter(FileIOMetricsContext.READ_BYTES, Unit.BYTES);
+    Counter readOperations = metrics.counter(FileIOMetricsContext.READ_OPERATIONS);
+    assertThat(readBytes.value()).isEqualTo(DATA.length);
+    assertThat(readOperations.value()).isGreaterThan(0);
+  }
+
+  /** A {@link MetricsContext} that returns the same counter instance for a given name. */
+  private static class CachingMetricsContext implements MetricsContext {
+    private final Map<String, org.apache.iceberg.metrics.Counter> counters =
+        Maps.newConcurrentMap();
+
+    @Override
+    public org.apache.iceberg.metrics.Counter counter(String name, Unit unit) {
+      return counters.computeIfAbsent(
+          name, ignored -> new DefaultMetricsContext().counter(name, unit));
+    }
   }
 
   private static void handle(HttpExchange exchange) throws IOException {

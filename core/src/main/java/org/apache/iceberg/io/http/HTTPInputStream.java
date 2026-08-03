@@ -31,8 +31,12 @@ import org.apache.hc.core5.http.HttpHeaders;
 import org.apache.hc.core5.http.HttpStatus;
 import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.apache.iceberg.exceptions.NotFoundException;
+import org.apache.iceberg.io.FileIOMetricsContext;
 import org.apache.iceberg.io.RangeReadable;
 import org.apache.iceberg.io.SeekableInputStream;
+import org.apache.iceberg.metrics.Counter;
+import org.apache.iceberg.metrics.MetricsContext;
+import org.apache.iceberg.metrics.MetricsContext.Unit;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -61,6 +65,9 @@ class HTTPInputStream extends SeekableInputStream implements RangeReadable {
   private final String location;
   private final String url;
 
+  private final Counter readBytes;
+  private final Counter readOperations;
+
   /** Cached chunk buffer. {@code bufferFileStart} is the file offset of {@code buffer[0]}. */
   private byte[] buffer;
 
@@ -70,10 +77,12 @@ class HTTPInputStream extends SeekableInputStream implements RangeReadable {
   private long next = 0;
   private boolean closed = false;
 
-  HTTPInputStream(CloseableHttpClient client, String location, String url) {
+  HTTPInputStream(CloseableHttpClient client, String location, String url, MetricsContext metrics) {
     this.client = client;
     this.location = location;
     this.url = url;
+    this.readBytes = metrics.counter(FileIOMetricsContext.READ_BYTES, Unit.BYTES);
+    this.readOperations = metrics.counter(FileIOMetricsContext.READ_OPERATIONS);
     this.createStack = Thread.currentThread().getStackTrace();
   }
 
@@ -100,6 +109,8 @@ class HTTPInputStream extends SeekableInputStream implements RangeReadable {
 
     int bufPos = (int) (next - bufferFileStart);
     next += 1;
+    readBytes.increment();
+    readOperations.increment();
     return buffer[bufPos] & 0xFF;
   }
 
@@ -121,6 +132,8 @@ class HTTPInputStream extends SeekableInputStream implements RangeReadable {
     int toCopy = Math.min(len, available);
     System.arraycopy(buffer, bufPos, b, off, toCopy);
     next += toCopy;
+    readBytes.increment(toCopy);
+    readOperations.increment();
     return toCopy;
   }
 
