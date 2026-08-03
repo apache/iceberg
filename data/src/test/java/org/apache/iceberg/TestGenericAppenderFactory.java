@@ -136,4 +136,33 @@ public class TestGenericAppenderFactory extends TestAppenderFactory<Record> {
         .hasMessageContaining(
             "Cannot set metrics properties when the table is provided, use table properties instead");
   }
+
+  @TestTemplate
+  void equalityFieldIdsAreValidatedAgainstEqualityDeleteRowSchema() {
+    int equalityFieldId = table.schema().findField("id").fieldId();
+
+    assertThatNoException()
+        .isThrownBy(
+            () ->
+                new GenericAppenderFactory(
+                    null,
+                    PartitionSpec.unpartitioned(),
+                    new int[] {equalityFieldId},
+                    table.schema().select("id")));
+  }
+
+  @TestTemplate
+  void equalityFieldIdsAreRejectedWhenMissingFromEqualityDeleteRowSchema() {
+    int equalityFieldId = table.schema().findField("id").fieldId();
+
+    assertThatThrownBy(
+            () ->
+                new GenericAppenderFactory(
+                    table.schema().select("id"),
+                    PartitionSpec.unpartitioned(),
+                    new int[] {equalityFieldId},
+                    table.schema().select("data")))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid equality delete field ID: %s", equalityFieldId);
+  }
 }
