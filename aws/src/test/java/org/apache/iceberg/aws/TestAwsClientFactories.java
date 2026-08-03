@@ -22,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
+import java.net.URI;
 import java.util.Map;
 import java.util.Optional;
 import org.apache.iceberg.TestHelpers;
@@ -271,6 +272,40 @@ public class TestAwsClientFactories {
         getAwsClientFactoryByCredentialsProvider(DummyValidProvider.class.getName());
     DynamoDbClient dynamoClient = factory.dynamo();
     assertAwsClientSetsAdaptiveRetryPolicy(dynamoClient);
+  }
+
+  @Test
+  public void testAssumeRoleGlueClientAppliesEndpointOverride() {
+    Map<String, String> properties = getAssumeRoleClientFactoryProperties();
+    properties.put(AwsProperties.GLUE_CATALOG_ENDPOINT, "https://glue.custom.endpoint");
+    AwsClientFactory factory = AwsClientFactories.from(properties);
+    assertThat(factory.glue().serviceClientConfiguration().endpointOverride())
+        .hasValue(URI.create("https://glue.custom.endpoint"));
+  }
+
+  @Test
+  public void testAssumeRoleKmsClientAppliesEndpointOverride() {
+    Map<String, String> properties = getAssumeRoleClientFactoryProperties();
+    properties.put(AwsProperties.KMS_ENDPOINT, "https://kms.custom.endpoint");
+    AwsClientFactory factory = AwsClientFactories.from(properties);
+    assertThat(factory.kms().serviceClientConfiguration().endpointOverride())
+        .hasValue(URI.create("https://kms.custom.endpoint"));
+  }
+
+  @Test
+  public void testAssumeRoleGlueKmsClientEndpointOverrideIsNoopByDefault() {
+    Map<String, String> properties = getAssumeRoleClientFactoryProperties();
+    AwsClientFactory factory = AwsClientFactories.from(properties);
+    assertThat(factory.glue().serviceClientConfiguration().endpointOverride()).isEmpty();
+    assertThat(factory.kms().serviceClientConfiguration().endpointOverride()).isEmpty();
+  }
+
+  private Map<String, String> getAssumeRoleClientFactoryProperties() {
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(AwsProperties.CLIENT_FACTORY, AssumeRoleAwsClientFactory.class.getName());
+    properties.put(AwsProperties.CLIENT_ASSUME_ROLE_ARN, "arn::test");
+    properties.put(AwsProperties.CLIENT_ASSUME_ROLE_REGION, "us-east-1");
+    return properties;
   }
 
   /**
