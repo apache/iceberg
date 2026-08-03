@@ -306,19 +306,20 @@ Used to remove files which are not referenced in any metadata files of an Iceber
 
 #### Usage
 
-| Argument Name | Required? | Type | Description |
-|---------------|-----------|------|-------------|
-| `table`       | ✔️  | string | Name of the table to clean |
-| `older_than`  | ️   | timestamp | Remove orphan files created before this timestamp (Defaults to 3 days ago) |
-| `location`    |    | string    | Directory to look for files in (defaults to the table's location) |
-| `dry_run`     |    | boolean   | When true, don't actually remove files (defaults to false) |
-| `max_concurrent_deletes` |    | int       | Size of the thread pool used for delete file actions (by default, no thread pool is used) |
-| `stream_results` |    | boolean       | When true, orphan files will be sent to Spark driver by RDD partition (by default, all the files will be sent to Spark driver). This option is recommended to set to `true` to prevent Spark driver OOM from large file size. When enabled, the output will contain a sample of up to 20,000 file paths |
-| `file_list_view` |    | string | Dataset to look for files in (skipping the directory listing) |
-| `equal_schemes` |    | map<string, string> | Mapping of file system schemes to be considered equal. Key is a comma-separated list of schemes and value is a scheme (defaults to `map('s3a,s3n','s3')`). |
-| `equal_authorities` |    | map<string, string> | Mapping of file system authorities to be considered equal. Key is a comma-separated list of authorities and value is an authority. |
-| `prefix_mismatch_mode` |    | string | Action behavior when location prefixes (schemes/authorities) mismatch: <ul><li>ERROR - throw an exception. (default) </li><li>IGNORE - no action.</li><li>DELETE - delete files.</li></ul> |  
-| `prefix_listing` |    | boolean   | When true, use prefix-based file listing via the `SupportsPrefixOperations` interface. The Table FileIO implementation must support `SupportsPrefixOperations` when this flag is enabled (defaults to false) |
+| Argument Name | Required? | Type | Description                                                                                                                                                                                                                                                                                                |
+|---------------|-----------|------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `table`       | ✔️  | string | Name of the table to clean                                                                                                                                                                                                                                                                                 |
+| `older_than`  | ️   | timestamp | Remove orphan files created before this timestamp (Defaults to 3 days ago)                                                                                                                                                                                                                                 |
+| `location`    |    | string    | Directory to look for files in (defaults to the table's location)                                                                                                                                                                                                                                          |
+| `dry_run`     |    | boolean   | When true, don't actually remove files (defaults to false)                                                                                                                                                                                                                                                 |
+| `max_concurrent_deletes` |    | int       | Size of the thread pool used for delete file actions (by default, no thread pool is used)                                                                                                                                                                                                                  |
+| `stream_results` |    | boolean       | When true, orphan files will be sent to Spark driver by RDD partition (by default, all the files will be sent to Spark driver). This option is recommended to set to `true` to prevent Spark driver OOM from large file size. When enabled, the output will contain a sample of up to 20,000 file paths    |
+| `file_list_view` |    | string | Dataset to look for files in (skipping the directory listing)                                                                                                                                                                                                                                              |
+| `equal_schemes` |    | map<string, string> | Mapping of file system schemes to be considered equal. Key is a comma-separated list of schemes and value is a scheme (defaults to `map('s3a,s3n','s3')`).                                                                                                                                                 |
+| `equal_authorities` |    | map<string, string> | Mapping of file system authorities to be considered equal. Key is a comma-separated list of authorities and value is an authority.                                                                                                                                                                         |
+| `prefix_mismatch_mode` |    | string | Action behavior when location prefixes (schemes/authorities) mismatch: <ul><li>ERROR - throw an exception. (default) </li><li>IGNORE - no action.</li><li>DELETE - delete files.</li></ul>                                                                                                                 |  
+| `location_conflict_mode` |    | string | Action behavior when another Iceberg table appears to share this table's metadata location (detected by comparing the immutable `table-uuid` stored in each `metadata.json`) : <ul><li>ERROR - throw an exception. (default) </li><li>IGNORE - no action.</li><li>DELETE - delete files; the shared-location check is skipped entirely (legacy behavior), so it never throws on a conflict.</li></ul> |  
+| `prefix_listing` |    | boolean   | When true, use prefix-based file listing via the `SupportsPrefixOperations` interface. The Table FileIO implementation must support `SupportsPrefixOperations` when this flag is enabled (defaults to false)                                                                                               |
 
 #### Output
 
@@ -361,6 +362,17 @@ CALL catalog_name.system.remove_orphan_files(table => 'db.sample', prefix_mismat
 The file can still be deleted by setting `prefix_mismatch_mode` to `DELETE`.
 ```sql
 CALL catalog_name.system.remove_orphan_files(table => 'db.sample', prefix_mismatch_mode => 'DELETE');
+```
+
+When another table (for example a test table created by copying `SHOW CREATE TABLE` but forgetting to change the `LOCATION`) shares this table's metadata location, the action aborts by default to avoid corrupting that other table.
+The cleanup can be skipped entirely &mdash; preserving the other table's files &mdash; by setting `location_conflict_mode` to `IGNORE`.
+```sql
+CALL catalog_name.system.remove_orphan_files(table => 'db.sample', location_conflict_mode => 'IGNORE');
+```
+
+The files can still be deleted (legacy behavior) by setting `location_conflict_mode` to `DELETE`. Note this mode skips the shared-location check entirely, so it never aborts on a conflict and is also safe for `FileIO` implementations that do not support prefix operations.
+```sql
+CALL catalog_name.system.remove_orphan_files(table => 'db.sample', location_conflict_mode => 'DELETE');
 ```
 
 The file can also be deleted by considering the mismatched prefixes equal.

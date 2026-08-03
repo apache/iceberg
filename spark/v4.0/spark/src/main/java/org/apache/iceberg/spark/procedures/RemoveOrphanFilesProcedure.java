@@ -23,6 +23,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.DeleteOrphanFiles;
+import org.apache.iceberg.actions.DeleteOrphanFiles.LocationConflictMode;
 import org.apache.iceberg.actions.DeleteOrphanFiles.PrefixMismatchMode;
 import org.apache.iceberg.io.SupportsBulkOperations;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -74,6 +75,8 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
       optionalInParameter("equal_authorities", STRING_MAP);
   private static final ProcedureParameter PREFIX_MISMATCH_MODE_PARAM =
       optionalInParameter("prefix_mismatch_mode", DataTypes.StringType);
+  private static final ProcedureParameter LOCATION_CONFLICT_MODE_PARAM =
+      optionalInParameter("location_conflict_mode", DataTypes.StringType);
   // List files with prefix operations. Default is false.
   private static final ProcedureParameter PREFIX_LISTING_PARAM =
       optionalInParameter("prefix_listing", DataTypes.BooleanType);
@@ -92,6 +95,7 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
         EQUAL_SCHEMES_PARAM,
         EQUAL_AUTHORITIES_PARAM,
         PREFIX_MISMATCH_MODE_PARAM,
+        LOCATION_CONFLICT_MODE_PARAM,
         PREFIX_LISTING_PARAM,
         STREAM_RESULTS_PARAM
       };
@@ -146,6 +150,8 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
         input.asStringMap(EQUAL_AUTHORITIES_PARAM, ImmutableMap.of());
 
     PrefixMismatchMode prefixMismatchMode = asPrefixMismatchMode(input, PREFIX_MISMATCH_MODE_PARAM);
+    LocationConflictMode locationConflictMode =
+        asLocationConflictMode(input, LOCATION_CONFLICT_MODE_PARAM);
 
     boolean prefixListing = input.asBoolean(PREFIX_LISTING_PARAM, false);
     boolean streamResults = input.asBoolean(STREAM_RESULTS_PARAM, false);
@@ -194,6 +200,10 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
 
           if (prefixMismatchMode != null) {
             action.prefixMismatchMode(prefixMismatchMode);
+          }
+
+          if (locationConflictMode != null) {
+            action.locationConflictMode(locationConflictMode);
           }
 
           action.usePrefixListing(prefixListing);
@@ -248,5 +258,11 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
   private PrefixMismatchMode asPrefixMismatchMode(ProcedureInput input, ProcedureParameter param) {
     String modeAsString = input.asString(param, null);
     return (modeAsString == null) ? null : PrefixMismatchMode.fromString(modeAsString);
+  }
+
+  private LocationConflictMode asLocationConflictMode(
+      ProcedureInput input, ProcedureParameter param) {
+    String modeAsString = input.asString(param, null);
+    return (modeAsString == null) ? null : LocationConflictMode.fromString(modeAsString);
   }
 }
