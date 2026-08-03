@@ -797,6 +797,18 @@ In V1-V3, manifest entries are described by the `manifest_entry` struct. In V4, 
     | 522 | **`dv`** | `binary` | *optional* | *optional* | Roaring bitmap of entry positions in the manifest that are not live in the current snapshot. |
     | 523 | **`dv_cardinality`** | `long` | *optional* | *optional* | Cardinality of the manifest deletion vector. Must be set when `dv` is non-null; must be null otherwise. |
 
+    **`column_file` struct (element of `column_files`, field 158)**
+
+    | Field id | Name | Type | Write | Read | Description |
+    |----------|------|------|-------|------|-------------|
+    | 161 | **`format_version`** | `int` | *required* | *required* | Format version of this column file. |
+    | 162 | **`field_ids`** | `list<163: int>` | *required* | *required* | Live field IDs stored in this column file. |
+    | 164 | **`location`** | `string` | *required* | *required* | Location of the column file. |
+    | 165 | **`file_format`** | `string` | *required* | *required* | String file format name: `avro`, `orc`, or `parquet`. |
+    | 166 | **`file_size_in_bytes`** | `long` | *required* | *required* | Total column file size in bytes. |
+    | 167 | **`key_metadata`** | `binary` | *optional* | *optional* | Implementation-specific key metadata for encryption. |
+    | 168 | **`split_offsets`** | `list<169: long>` | *optional* | *optional* | Split offsets for the column file. Must be sorted ascending. |
+
     When a file is added to the dataset, its content entry must set status to ADDED (1) and store the snapshot ID in which the file was added.
 
     When a data file's deletion vector or column files are updated, the writer must record two content entries for the file in the snapshot: a REPLACED (3) entry for the prior version and a MODIFIED (4) entry for the new, live version. Both entries store the snapshot ID of the update. A MODIFIED data file entry must always have a corresponding REPLACED entry.
