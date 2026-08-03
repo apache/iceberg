@@ -729,7 +729,7 @@ In V1-V3, manifest entries are described by the `manifest_entry` struct. In V4, 
     | Field id | Name | Type | Write | Read | Description |
     |----------|------|------|-------|------|-------------|
     | 134 | **`content_type`** | `int` (0: DATA, 2: EQUALITY DELETES, 3: DATA_MANIFEST, 4: DELETE_MANIFEST) | *required* | *required* | Type of content stored in the entry. Content types 3 and 4 are only valid in root manifests. |
-    | 157 | **`writer_format_version`** | `int` (0: PRE-V4, 4: V4) | *required* | *required* | Writer format version. V4 writers must produce `writer_format_version` 4. |
+    | 157 | **`format_version`** | `int` (0: PRE-V4, 4: V4) | *required* | *required* | Writer format version. V4 writers must produce `format_version` 4. |
     | 100 | **`location`** | `string` | *required* | *required* | Location of the file or manifest. |
     | 101 | **`file_format`** | `string` | *required* | *required* | String file format name: `avro`, `orc`, `parquet`, or `puffin` |
     | 147 | **`tracking`** | `tracking` struct | *required* | *required* | Groups status, snapshot, and sequence number. See tracking struct below. |
@@ -747,7 +747,7 @@ In V1-V3, manifest entries are described by the `manifest_entry` struct. In V4, 
 
     Value 1 (POSITION_DELETES) is not used in v4. Writers must not produce `content_type` 1.
 
-    V4 leaf data manifests must only contain entries with `content_type` 0 (DATA); V4 leaf delete manifests must only contain entries with `content_type` 2 (EQUALITY DELETES). A root manifest may reference V1-V3 manifests; V1-V3 leaf manifest references must have `writer_format_version` set to 0.
+    V4 leaf data manifests must only contain entries with `content_type` 0 (DATA); V4 leaf delete manifests must only contain entries with `content_type` 2 (EQUALITY DELETES). A root manifest may reference V1-V3 manifests; V1-V3 leaf manifest references must have `format_version` set to 0.
 
     The following constraints apply based on `content_type`:
 
