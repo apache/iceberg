@@ -72,6 +72,12 @@ public class GCPProperties implements Serializable {
    * implementation. When set, {@code PrefixedStorage} uses this provider to obtain {@link
    * com.google.auth.oauth2.GoogleCredentials} instead of reading a static {@link #GCS_OAUTH2_TOKEN}
    * property. The provider class must have a no-arg constructor.
+   *
+   * <p><b>Precedence:</b> This property is ignored if {@link #GCS_OAUTH2_TOKEN} or {@link
+   * #GCS_IMPERSONATE_SERVICE_ACCOUNT} is also set. The vended credential path sets both {@link
+   * #GCS_OAUTH2_TOKEN} (per-prefix token) and this provider (refresh source), so the token takes
+   * precedence. Impersonation similarly takes precedence to maintain deterministic credential
+   * selection.
    */
   public static final String GCS_TOKEN_CREDENTIAL_PROVIDER = "gcs.token-credential-provider";
 

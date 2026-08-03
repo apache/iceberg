@@ -23,6 +23,11 @@ import java.util.Map;
 
 public interface GcsTokenCredentialProvider {
 
+  /**
+   * Returns a GoogleCredentials instance for authenticating GCS requests.
+   *
+   * @return a GoogleCredentials instance, must not be null
+   */
   GoogleCredentials credential();
 
   /**
