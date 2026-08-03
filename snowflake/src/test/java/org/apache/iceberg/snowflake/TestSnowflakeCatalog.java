@@ -22,7 +22,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
@@ -33,8 +35,10 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.inmemory.InMemoryFileIO;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
+import org.awaitility.Awaitility;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -270,9 +274,57 @@ public class TestSnowflakeCatalog {
     assertThat(fakeClient.isClosed())
         .overridingErrorMessage("expected close() to propagate to snowflakeClient")
         .isTrue();
-    assertThat(fakeFileIO.isClosed())
-        .overridingErrorMessage("expected close() to propagate to fileIO")
-        .isTrue();
+    // FileIOTracker closes tracked FileIO instances via an async removal listener, so the
+    // close may not have happened the instant catalog.close() returns.
+    awaitClosed(fakeFileIO);
+  }
+
+  @Test
+  public void testNewTableOpsTracksFileIOPerCall() throws IOException {
+    List<InMemoryFileIO> createdFileIOs = Lists.newArrayList();
+    SnowflakeCatalog.FileIOFactory trackingFileIOFactory =
+        new SnowflakeCatalog.FileIOFactory() {
+          @Override
+          public FileIO newFileIO(String impl, Map<String, String> prop, Object hadoopConf) {
+            InMemoryFileIO newFileIO = new InMemoryFileIO();
+            createdFileIOs.add(newFileIO);
+            return newFileIO;
+          }
+        };
+
+    SnowflakeCatalog trackingCatalog = new SnowflakeCatalog();
+    trackingCatalog.initialize(TEST_CATALOG_NAME, fakeClient, trackingFileIOFactory, properties);
+
+    trackingCatalog.newTableOps(TableIdentifier.of("DB_1", "SCHEMA_1", "TAB_1"));
+    trackingCatalog.newTableOps(TableIdentifier.of("DB_1", "SCHEMA_1", "TAB_2"));
+    // Reloading the same table must still create and track a fresh FileIO instance rather than
+    // reusing or silently dropping the previous one.
+    trackingCatalog.newTableOps(TableIdentifier.of("DB_1", "SCHEMA_1", "TAB_1"));
+
+    assertThat(createdFileIOs)
+        .overridingErrorMessage("expected a fresh FileIO for every newTableOps() call")
+        .hasSize(3);
+    assertThat(createdFileIOs).noneMatch(InMemoryFileIO::isClosed);
+
+    // Closing the catalog must close every FileIO that was ever tracked, not just the last one.
+    trackingCatalog.close();
+    for (InMemoryFileIO createdFileIO : createdFileIOs) {
+      awaitClosed(createdFileIO);
+    }
+  }
+
+  /**
+   * FileIOTracker closes tracked FileIO instances through a Caffeine removal listener, which runs
+   * asynchronously, so polling is required instead of an immediate assertion.
+   */
+  private static void awaitClosed(InMemoryFileIO fileIO) {
+    Awaitility.await("FileIO gets closed")
+        .atMost(5, TimeUnit.SECONDS)
+        .untilAsserted(
+            () ->
+                assertThat(fileIO.isClosed())
+                    .overridingErrorMessage("expected close() to propagate to fileIO")
+                    .isTrue());
   }
 
   @Test

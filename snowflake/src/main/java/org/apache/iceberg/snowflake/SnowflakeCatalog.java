@@ -36,6 +36,7 @@ import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.hadoop.Configurable;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.FileIOTracker;
 import org.apache.iceberg.jdbc.JdbcCatalog;
 import org.apache.iceberg.jdbc.JdbcClientPool;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -70,6 +71,7 @@ public class SnowflakeCatalog extends BaseMetastoreCatalog
   private String catalogName;
   private Map<String, String> catalogProperties;
   private FileIOFactory fileIOFactory;
+  private FileIOTracker fileIOTracker;
   private SnowflakeClient snowflakeClient;
 
   public SnowflakeCatalog() {}
@@ -156,8 +158,10 @@ public class SnowflakeCatalog extends BaseMetastoreCatalog
     this.fileIOFactory = fileIOFactory;
     this.catalogProperties = properties;
     this.closeableGroup = new CloseableGroup();
+    this.fileIOTracker = new FileIOTracker();
     closeableGroup.addCloseable(snowflakeClient);
     closeableGroup.addCloseable(metricsReporter());
+    closeableGroup.addCloseable(fileIOTracker);
     closeableGroup.setSuppressCloseFailure(true);
   }
 
@@ -253,8 +257,10 @@ public class SnowflakeCatalog extends BaseMetastoreCatalog
     // of schemes registered for S3FileIO and HadoopFileIO). Individual catalogs may need to
     // support tables across different cloud/storage providers with disjoint FileIO implementations.
     FileIO fileIO = fileIOFactory.newFileIO(fileIOImpl, catalogProperties, conf);
-    closeableGroup.addCloseable(fileIO);
-    return new SnowflakeTableOperations(snowflakeClient, fileIO, catalogName, tableIdentifier);
+    SnowflakeTableOperations tableOperations =
+        new SnowflakeTableOperations(snowflakeClient, fileIO, catalogName, tableIdentifier);
+    fileIOTracker.track(tableOperations);
+    return tableOperations;
   }
 
   @Override
