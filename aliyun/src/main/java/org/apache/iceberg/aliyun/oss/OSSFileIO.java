@@ -37,8 +37,8 @@ import org.slf4j.LoggerFactory;
  * FileIO implementation backed by OSS.
  *
  * <p>Locations used must follow the conventions for OSS URIs (e.g. oss://bucket/path...). URIs with
- * scheme https are also treated as oss file paths. Using this FileIO with other schemes with result
- * in {@link org.apache.iceberg.exceptions.ValidationException}
+ * scheme https are also treated as oss file paths. Using this FileIO with other schemes will result
+ * in {@link org.apache.iceberg.exceptions.ValidationException}.
  */
 public class OSSFileIO implements FileIO {
   private static final Logger LOG = LoggerFactory.getLogger(OSSFileIO.class);
