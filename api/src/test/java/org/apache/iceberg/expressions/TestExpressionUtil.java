@@ -19,6 +19,7 @@
 package org.apache.iceberg.expressions;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -1450,6 +1451,13 @@ public class TestExpressionUtil {
                 + "(hash-event_timestamp_tz_nanos): (timestamp), "
                 + "(hash-event_uuid): (hash-54e07fa7)}"),
         ExpressionUtil.sanitize(bound));
+  }
+
+  @Test
+  public void testPredicateWithValueForUnaryOperation() {
+    assertThatThrownBy(() -> Expressions.predicate(Expression.Operation.IS_NULL, "x", 5))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot create IS_NULL predicate with a value");
   }
 
   private static VariantPrimitive<?> createTimestampNanos(int primitiveHeader) {
