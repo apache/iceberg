@@ -21,8 +21,11 @@ package org.apache.iceberg;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
+import java.io.IOException;
 import java.util.List;
+import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.types.TypeUtil;
@@ -33,7 +36,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 public class TestEntriesMetadataTable extends TestBase {
 
   @TestTemplate
-  public void testEntriesTable() {
+  public void entriesTable() {
     table.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
     Table entriesTable = new ManifestEntriesTable(table);
@@ -48,7 +51,7 @@ public class TestEntriesMetadataTable extends TestBase {
   }
 
   @TestTemplate
-  public void testEntriesTableScan() {
+  public void entriesTableScan() {
     table.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
     Table entriesTable = new ManifestEntriesTable(table);
@@ -71,7 +74,7 @@ public class TestEntriesMetadataTable extends TestBase {
   }
 
   @TestTemplate
-  public void testSplitPlanningWithMetadataSplitSizeProperty() {
+  public void splitPlanningWithMetadataSplitSizeProperty() {
     table.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
     table.newAppend().appendFile(FILE_C).appendFile(FILE_D).commit();
@@ -101,7 +104,7 @@ public class TestEntriesMetadataTable extends TestBase {
   }
 
   @TestTemplate
-  public void testSplitPlanningWithDefaultMetadataSplitSize() {
+  public void splitPlanningWithDefaultMetadataSplitSize() {
     table.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
     int splitSize =
@@ -122,7 +125,7 @@ public class TestEntriesMetadataTable extends TestBase {
   }
 
   @TestTemplate
-  public void testEntriesTableWithDeleteManifests() {
+  public void entriesTableWithDeleteManifests() {
     assumeThat(formatVersion).as("Only V2 Tables Support Deletes").isGreaterThanOrEqualTo(2);
     table.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
@@ -155,7 +158,7 @@ public class TestEntriesMetadataTable extends TestBase {
   }
 
   @TestTemplate
-  public void testIgnoreResidualsPreservesManifestContentPruning() {
+  public void ignoreResidualsPreservesManifestContentPruning() {
     assumeThat(formatVersion).as("Only V2 Tables Support Deletes").isGreaterThanOrEqualTo(2);
 
     table.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
@@ -185,6 +188,32 @@ public class TestEntriesMetadataTable extends TestBase {
       assertThat(tasks)
           .as("Should ignore residuals for %s", entriesTable.name())
           .allSatisfy(task -> assertThat(task.residual()).isEqualTo(Expressions.alwaysTrue()));
+    }
+  }
+
+  @TestTemplate
+  public void invalidContentPredicatesPruneAllManifests() throws IOException {
+    assumeThat(formatVersion).as("Only V2+ tables support delete files").isGreaterThanOrEqualTo(2);
+
+    table.newAppend().appendFile(FILE_A).commit();
+    table.newRowDelta().addDeletes(fileADeletes()).commit();
+
+    List<Table> metadataTables =
+        ImmutableList.of(new ManifestEntriesTable(table), new AllEntriesTable(table));
+
+    List<Expression> filters =
+        ImmutableList.of(
+            Expressions.equal("data_file.content", 3), Expressions.in("data_file.content", 3, 4));
+
+    for (Table metadataTable : metadataTables) {
+      for (Expression filter : filters) {
+        try (CloseableIterable<FileScanTask> tasks =
+            metadataTable.newScan().filter(filter).planFiles()) {
+          assertThat(tasks)
+              .as("Should not plan manifests for %s with filter %s", metadataTable.name(), filter)
+              .isEmpty();
+        }
+      }
     }
   }
 }

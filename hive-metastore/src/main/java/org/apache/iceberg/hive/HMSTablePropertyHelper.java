@@ -105,7 +105,7 @@ public class HMSTablePropertyHelper {
         obsoleteProps,
         currentLocation,
         parameters,
-        BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE.toUpperCase(Locale.ENGLISH),
+        BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE.toUpperCase(Locale.ROOT),
         metadata.schema(),
         maxHiveTablePropertySize);
     setStorageHandler(parameters, hiveEngineEnabled);
@@ -151,7 +151,7 @@ public class HMSTablePropertyHelper {
         obsoleteProps,
         currentLocation,
         parameters,
-        HiveOperationsBase.ICEBERG_VIEW_TYPE_VALUE.toUpperCase(Locale.ENGLISH),
+        HiveOperationsBase.ICEBERG_VIEW_TYPE_VALUE.toUpperCase(Locale.ROOT),
         metadata.schema(),
         maxHiveTablePropertySize);
     tbl.setParameters(parameters);

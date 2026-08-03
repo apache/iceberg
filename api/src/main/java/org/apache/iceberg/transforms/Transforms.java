@@ -83,7 +83,7 @@ public class Transforms {
       }
     }
 
-    String lowerTransform = transform.toLowerCase(Locale.ENGLISH);
+    String lowerTransform = transform.toLowerCase(Locale.ROOT);
     switch (lowerTransform) {
       case "identity":
         return Identity.get(type);
