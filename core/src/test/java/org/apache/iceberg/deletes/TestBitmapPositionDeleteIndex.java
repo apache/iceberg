@@ -192,7 +192,8 @@ public class TestBitmapPositionDeleteIndex {
 
     assertThatThrownBy(() -> PositionDeleteIndex.deserialize(bytes, dv))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Invalid CRC for deletion vector s3://bucket/dv.puffin");
+        .hasMessage(
+            "Invalid CRC for deletion vector s3://bucket/dv.puffin: 0x712fa6e8, expected 0x712fa6e9");
   }
 
   private static void validate(PositionDeleteIndex index, String goldenFile) throws Exception {
