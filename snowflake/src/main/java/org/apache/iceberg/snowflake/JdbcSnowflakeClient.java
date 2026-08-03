@@ -384,6 +384,7 @@ class JdbcSnowflakeClient implements SnowflakeClient {
           ex.getMessage());
     }
     // Unchecked SQL Exception in all other cases as fall back
-    return new UncheckedSQLException(ex, "Exception Message: %s", defaultExceptionMessage);
+    return new UncheckedSQLException(
+        ex, "%s. Underlying exception: '%s'", defaultExceptionMessage, ex.getMessage());
   }
 }
