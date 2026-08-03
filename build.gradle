@@ -404,7 +404,6 @@ project(':iceberg-core') {
     }
 
     // OAuth2
-    // TODO switch from compileOnly to implementation when oauth2 v2 is complete
     compileOnly(libs.nimbus.oauth2.oidc.sdk) {
       exclude group: 'net.minidev', module: 'accessors-smart'
       exclude group: 'com.github.stephenc.jcip', module: 'jcip-annotations'
