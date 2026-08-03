@@ -106,7 +106,7 @@ Required and optional properties to include while using `sigv4` authentication
 | `rest.session-token`                      | null           | Configure the static session token used for SigV4. |
 | `client.credentials-provider`             | null           | When configured, REST catalog requests will use this provider to get AWS credentials to sign the request instead of reading the default credential chain. |
 | `client.assume-role.arn`            | null, requires user input                | ARN of the role to assume, e.g. arn:aws:iam::123456789:role/myRoleToAssume  |
-| `client.assume-role.region`         | null, requires user input                | All AWS clients except the STS client will use the given region instead of the default region chain  |
+| `client.assume-role.region`         | null, requires user input                | All AWS clients will use the given region instead of the default region chain  |
 | `client.assume-role.external-id`    | null                                     | An optional [external ID](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_create_for-user_externalid.html)  |
 | `client.assume-role.timeout-sec`    | 1 hour                                   | Timeout of each assume role session. At the end of the timeout, a new set of role session credentials will be fetched through an STS client.  |
 

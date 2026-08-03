@@ -69,8 +69,8 @@ public class AwsClientProperties implements Serializable {
 
   /**
    * Used by {@link org.apache.iceberg.aws.AwsClientFactories.DefaultAwsClientFactory} and also
-   * other client factory classes. If set, all AWS clients except STS client will use the given
-   * region instead of the default region chain.
+   * other client factory classes. If set, all AWS clients will use the given region instead of the
+   * default region chain.
    */
   public static final String CLIENT_REGION = "client.region";
 
