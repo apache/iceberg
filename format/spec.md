@@ -780,6 +780,7 @@ In V1-V3, manifest entries are described by the `manifest_entry` struct. In V4, 
     | 144 | **`offset`** | `long` | *required* | *required* | Offset in the file where the content starts. |
     | 145 | **`size_in_bytes`** | `long` | *required* | *required* | Length of the referenced content stored in the file. |
     | 156 | **`cardinality`** | `long` | *required* | *required* | Cardinality of the deletion vector. |
+    | 149 | **`key_metadata`** | `binary` | *optional* | *optional* | Implementation-specific key metadata for encryption. |
 
     **`manifest_info` struct (field 150)**
 
