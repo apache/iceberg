@@ -26,6 +26,7 @@ import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -242,6 +243,29 @@ public class TestBigQueryTableOperations {
     assertThat(loadedTable).isNotNull();
     assertThat(loadedTable.name()).isEqualTo(catalog.name() + "." + IDENTIFIER);
     assertThat(loadedTable.schema().asStruct()).isEqualTo(SCHEMA.asStruct());
+  }
+
+  @Test
+  public void dropTableWithoutPurgeDoesNotLoadMetadata() {
+    catalog.dropTable(IDENTIFIER, false);
+
+    // A plain drop must not trigger a tables.get on BigQuery, since the metadata is only needed for
+    // purge.
+    verify(client, never()).load(TABLE_REFERENCE);
+    verify(client, times(1)).delete(TABLE_REFERENCE);
+  }
+
+  @Test
+  public void dropTableWithPurgeLoadsMetadata() throws Exception {
+    Table createdTable = createTestTable();
+    reset(client);
+    when(client.load(TABLE_REFERENCE)).thenReturn(createdTable);
+
+    catalog.dropTable(IDENTIFIER, true);
+
+    // Purge needs the current metadata to delete the table's data files, so it must load it.
+    verify(client, times(1)).load(TABLE_REFERENCE);
+    verify(client, times(1)).delete(TABLE_REFERENCE);
   }
 
   /** Creates a test table to have Iceberg metadata files in place. */
