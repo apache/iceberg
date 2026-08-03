@@ -36,6 +36,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.io.Resources;
 import org.apache.iceberg.util.Pair;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -543,6 +544,29 @@ public class TestRoaringPositionBitmap {
 
     assertEqual(bitmap, positions);
     assertRandomPositions(bitmap, positions);
+  }
+
+  @Test
+  public void testDeserializeBitmapCountLargerThanInput() {
+    ByteBuffer buffer = ByteBuffer.allocate(8);
+    buffer.order(ByteOrder.LITTLE_ENDIAN);
+    buffer.putLong(1_000_000L); /* one million bitmaps in an 8 byte buffer. */
+    buffer.flip();
+    assertThatThrownBy(() -> RoaringPositionBitmap.deserialize(buffer))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Invalid bitmap count");
+  }
+
+  @Test
+  public void testDeserializeRejectsKeyLargerThanInput() {
+    ByteBuffer buffer = ByteBuffer.allocate(12);
+    buffer.order(ByteOrder.LITTLE_ENDIAN);
+    buffer.putLong(1L);
+    buffer.putInt(1_000_000); /* key far beyond the 12 available bytes */
+    buffer.flip();
+    assertThatThrownBy(() -> RoaringPositionBitmap.deserialize(buffer))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("out of range");
   }
 
   private Pair<RoaringPositionBitmap, Set<Long>> generateSparseBitmap(
