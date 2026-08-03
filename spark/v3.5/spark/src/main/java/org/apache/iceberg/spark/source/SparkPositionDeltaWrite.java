@@ -29,11 +29,14 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Function;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.FileMetadata;
 import org.apache.iceberg.IsolationLevel;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.PartitionKey;
@@ -66,6 +69,7 @@ import org.apache.iceberg.io.PartitioningDVWriter;
 import org.apache.iceberg.io.PartitioningWriter;
 import org.apache.iceberg.io.PositionDeltaWriter;
 import org.apache.iceberg.io.WriteResult;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.CommitMetadata;
@@ -73,8 +77,11 @@ import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkWriteConf;
 import org.apache.iceberg.spark.SparkWriteRequirements;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.ByteBuffers;
 import org.apache.iceberg.util.CharSequenceSet;
+import org.apache.iceberg.util.ContentFileUtil;
 import org.apache.iceberg.util.DeleteFileSet;
+import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.StructProjection;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.broadcast.Broadcast;
@@ -174,6 +181,11 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
 
   private class PositionDeltaBatchWrite implements DeltaBatchWrite {
 
+    // full rewritable delete metadata is kept on the driver so that only slim copies must be
+    // broadcast to executors; reported rewritten files are resolved back to these at commit time
+    private Map<String, DeleteFileSet> rewritableDeletes = null;
+    private Map<Pair<String, Long>, DeleteFile> rewritableDeletesByKey = null;
+
     @Override
     public DeltaWriterFactory createBatchWriterFactory(PhysicalWriteInfo info) {
       // broadcast large objects since the writer factory will be sent to executors
@@ -188,12 +200,53 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
 
     private Broadcast<Map<String, DeleteFileSet>> broadcastRewritableDeletes() {
       if (scan != null && shouldRewriteDeletes()) {
-        Map<String, DeleteFileSet> rewritableDeletes = scan.rewritableDeletes(context.useDVs());
-        if (rewritableDeletes != null && !rewritableDeletes.isEmpty()) {
-          return sparkContext.broadcast(rewritableDeletes);
+        Map<String, DeleteFileSet> planned = scan.rewritableDeletes(context.useDVs());
+        if (planned != null && !planned.isEmpty()) {
+          this.rewritableDeletes = planned;
+          return sparkContext.broadcast(slimCopyOf(planned));
         }
       }
       return null;
+    }
+
+    private DeleteFile resolveRewritten(DeleteFile reported) {
+      // reported files are slim copies (no partition data, spec ID or stats) and must never
+      // reach the RowDelta directly: manifest filtering relies on the removed file's spec ID
+      // and partition, so passing a slim copy through could silently corrupt the pruning
+      Preconditions.checkState(
+          rewritableDeletes != null,
+          "Task reported rewritten delete file %s (offset=%s) but no rewritable deletes were planned",
+          reported.location(),
+          reported.contentOffset());
+      DeleteFile resolved = rewritableDeletesByKey().get(rewrittenKey(reported));
+      Preconditions.checkState(
+          resolved != null,
+          "Cannot resolve rewritten delete file against planned rewritable deletes: %s (offset=%s)",
+          reported.location(),
+          reported.contentOffset());
+      return resolved;
+    }
+
+    private Map<Pair<String, Long>, DeleteFile> rewritableDeletesByKey() {
+      if (rewritableDeletesByKey == null) {
+        this.rewritableDeletesByKey = Maps.newHashMap();
+        for (DeleteFileSet files : rewritableDeletes.values()) {
+          for (DeleteFile file : files) {
+            DeleteFile previous = rewritableDeletesByKey.put(rewrittenKey(file), file);
+            // the same delete file may legitimately back multiple data files (partition-scoped
+            // deletes rewritten into DVs); a same-key entry with a different content size means
+            // the planned metadata is corrupt and resolution would be ambiguous
+            Preconditions.checkState(
+                previous == null
+                    || Objects.equals(previous.contentSizeInBytes(), file.contentSizeInBytes()),
+                "Conflicting rewritable delete files at %s (offset=%s)",
+                file.location(),
+                file.contentOffset());
+          }
+        }
+      }
+
+      return rewritableDeletesByKey;
     }
 
     private boolean shouldRewriteDeletes() {
@@ -230,7 +283,7 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
         }
 
         for (DeleteFile deleteFile : taskCommit.rewrittenDeleteFiles()) {
-          rowDelta.removeDeletes(deleteFile);
+          rowDelta.removeDeletes(resolveRewritten(deleteFile));
           removedDeleteFilesCount += 1;
         }
 
@@ -385,6 +438,69 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
     CharSequence[] referencedDataFiles() {
       return referencedDataFiles;
     }
+  }
+
+  /**
+   * Creates a lightweight copy of the rewritable deletes map suitable for broadcasting.
+   *
+   * <p>Executors only need enough metadata to locate and read the content of previous delete files
+   * (location, format, file size, encryption key metadata and, for DVs, content offset and size)
+   * and to report them back as rewritten. Partition data, column stats and bounds can dominate the
+   * serialized size of the map on tables with many delete files, so they are dropped here. The
+   * driver keeps the original files and resolves reported rewritten files back to their full
+   * metadata at commit time.
+   */
+  private static Map<String, DeleteFileSet> slimCopyOf(
+      Map<String, DeleteFileSet> rewritableDeletes) {
+    Map<String, DeleteFileSet> slimDeletes =
+        Maps.newHashMapWithExpectedSize(rewritableDeletes.size());
+
+    for (Map.Entry<String, DeleteFileSet> entry : rewritableDeletes.entrySet()) {
+      DeleteFileSet slimSet = DeleteFileSet.create();
+      for (DeleteFile file : entry.getValue()) {
+        slimSet.add(slimCopy(file));
+      }
+      slimDeletes.put(entry.getKey(), slimSet);
+    }
+
+    return slimDeletes;
+  }
+
+  private static DeleteFile slimCopy(DeleteFile file) {
+    Preconditions.checkArgument(
+        file.content() == FileContent.POSITION_DELETES,
+        "Cannot create slim copy of non-position delete file: %s",
+        file.location());
+
+    FileMetadata.Builder builder =
+        FileMetadata.deleteFileBuilder(PartitionSpec.unpartitioned())
+            .ofPositionDeletes()
+            .withPath(file.location())
+            .withFormat(file.format())
+            .withFileSizeInBytes(file.fileSizeInBytes())
+            .withRecordCount(file.recordCount())
+            // normalize the referenced data file so that file-scoped checks on executors keep
+            // working without the file_path column bounds that are dropped from this copy
+            .withReferencedDataFile(ContentFileUtil.referencedDataFileLocation(file));
+
+    if (file.keyMetadata() != null) {
+      builder.withEncryptionKeyMetadata(ByteBuffers.copy(file.keyMetadata()));
+    }
+
+    if (file.contentOffset() != null) {
+      builder.withContentOffset(file.contentOffset());
+    }
+
+    if (file.contentSizeInBytes() != null) {
+      builder.withContentSizeInBytes(file.contentSizeInBytes());
+    }
+
+    return builder.build();
+  }
+
+  // multiple DVs share one Puffin file location, so the location alone is not a unique key
+  private static Pair<String, Long> rewrittenKey(DeleteFile file) {
+    return Pair.of(file.location(), file.contentOffset());
   }
 
   private static class PositionDeltaWriteFactory implements DeltaWriterFactory {
