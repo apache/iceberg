@@ -259,6 +259,22 @@ public class TestCatalogs {
   }
 
   @Test
+  public void testLoadCatalogDefaultWithCustomImpl() {
+    conf.set(
+        InputFormatConfig.catalogPropertyConfigKey(
+            Catalogs.ICEBERG_DEFAULT_CATALOG_NAME, CatalogProperties.CATALOG_IMPL),
+        CustomHadoopCatalog.class.getName());
+    conf.set(
+        InputFormatConfig.catalogPropertyConfigKey(
+            Catalogs.ICEBERG_DEFAULT_CATALOG_NAME, CatalogProperties.WAREHOUSE_LOCATION),
+        "/tmp/mylocation");
+    Optional<Catalog> customHadoopCatalog = Catalogs.loadCatalog(conf, null);
+    assertThat(customHadoopCatalog).isPresent();
+    assertThat(customHadoopCatalog.get()).isInstanceOf(CustomHadoopCatalog.class);
+    assertThat(Catalogs.hiveCatalog(conf, new Properties())).isFalse();
+  }
+
+  @Test
   public void testLoadCatalogLocation() {
     assertThat(Catalogs.loadCatalog(conf, Catalogs.ICEBERG_HADOOP_TABLE_NAME)).isNotPresent();
   }
