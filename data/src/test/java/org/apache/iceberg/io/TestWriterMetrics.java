@@ -341,13 +341,17 @@ public abstract class TestWriterMetrics<T> {
     dataWriter.close();
     DataFile dataFile = dataWriter.toDataFile();
 
-    // Field should have metrics because the user set the default explicitly
+    // All fields should have metrics because the user set the default explicitly
     Map<Integer, ByteBuffer> upperBounds = dataFile.upperBounds();
-    Map<Integer, ByteBuffer> lowerBounds = dataFile.upperBounds();
-    for (int i = 0; i < numColumns; i++) {
-      assertThat((int) Conversions.fromByteBuffer(Types.IntegerType.get(), upperBounds.get(1)))
+    Map<Integer, ByteBuffer> lowerBounds = dataFile.lowerBounds();
+    assertThat(upperBounds).hasSize(numColumns);
+    assertThat(lowerBounds).hasSize(numColumns);
+
+    // start at 1 because IDs were reassigned in the table
+    for (int id = 1; id <= numColumns; id += 1) {
+      assertThat((int) Conversions.fromByteBuffer(Types.IntegerType.get(), upperBounds.get(id)))
           .isEqualTo(1);
-      assertThat((int) Conversions.fromByteBuffer(Types.IntegerType.get(), lowerBounds.get(1)))
+      assertThat((int) Conversions.fromByteBuffer(Types.IntegerType.get(), lowerBounds.get(id)))
           .isEqualTo(1);
     }
   }
