@@ -743,7 +743,7 @@ In V1-V3, manifest entries are described by the `manifest_entry` struct. In V4, 
     | 132 | **`split_offsets`** | `list<133: long>` | *optional* | *optional* | Split offsets for the data or equality delete file. Must be sorted ascending. |
     | 135 | **`equality_ids`** | `list<136: int>` | *optional* | *optional* | Field ids for row equality in equality delete files. |
     | 148 | **`deletion_vector`** | `deletion_vector` struct | *optional* | *optional* | Row-level deletion vector for a data file. |
-    | 158 | **`column_files`** | `list<column_file>` | *optional* | *optional* | Column update files associated with this entry. |
+    | 158 | **`column_files`** | `list<159: column_file>` | *optional* | *optional* | Column update files associated with this entry. |
 
     Value 1 (POSITION_DELETES) is not used in v4. Writers must not produce `content_type` 1.
 
@@ -798,7 +798,7 @@ In V1-V3, manifest entries are described by the `manifest_entry` struct. In V4, 
     | 522 | **`dv`** | `binary` | *optional* | *optional* | Roaring bitmap of entry positions in the manifest that are not live in the current snapshot. |
     | 523 | **`dv_cardinality`** | `long` | *optional* | *optional* | Cardinality of the manifest deletion vector. Must be set when `dv` is non-null; must be null otherwise. |
 
-    **`column_file` struct (element of `column_files`, field 158)**
+    **`column_file` struct (element 159 of `column_files`, field 158)**
 
     | Field id | Name | Type | Write | Read | Description |
     |----------|------|------|-------|------|-------------|
