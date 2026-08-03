@@ -99,7 +99,7 @@ public class TestGlueCatalogTable extends GlueTestBase {
     assertThat(response.table().parameters())
         .containsEntry(
             BaseMetastoreTableOperations.TABLE_TYPE_PROP,
-            BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE.toUpperCase(Locale.ENGLISH))
+            BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE.toUpperCase(Locale.ROOT))
         .containsKey(BaseMetastoreTableOperations.METADATA_LOCATION_PROP);
     assertThat(response.table().storageDescriptor().columns()).hasSameSizeAs(schema.columns());
     assertThat(response.table().partitionKeys()).hasSameSizeAs(partitionSpec.fields());
