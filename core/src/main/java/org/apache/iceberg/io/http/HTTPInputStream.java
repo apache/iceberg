@@ -167,8 +167,6 @@ class HTTPInputStream extends SeekableInputStream implements RangeReadable {
     buffer = null;
   }
 
-  // ---- private helpers ----
-
   private boolean inBuffer(long filePos) {
     return filePos >= bufferFileStart && filePos < bufferFileStart + bufferLimit;
   }
