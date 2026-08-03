@@ -79,16 +79,25 @@ class EcsSeekableInputStream extends SeekableInputStream {
   @Override
   public int read() throws IOException {
     checkAndUseNewPos();
+    int bytesRead = internalStream.read();
+    if (bytesRead == -1) {
+      return -1;
+    }
+
     pos += 1;
     readBytes.increment();
     readOperations.increment();
-    return internalStream.read();
+    return bytesRead;
   }
 
   @Override
   public int read(byte[] b, int off, int len) throws IOException {
     checkAndUseNewPos();
     int delta = internalStream.read(b, off, len);
+    if (delta == -1) {
+      return -1;
+    }
+
     pos += delta;
     readBytes.increment(delta);
     readOperations.increment();

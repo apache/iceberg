@@ -30,6 +30,8 @@ import org.junit.jupiter.api.extension.RegisterExtension;
 
 public class TestEcsSeekableInputStream {
 
+  private static final int EOF = -1;
+
   @RegisterExtension public static EcsS3MockRule rule = EcsS3MockRule.create();
 
   @Test
@@ -88,6 +90,41 @@ public class TestEcsSeekableInputStream {
       assertThat(new String(buffer, StandardCharsets.UTF_8))
           .as("The first 3 bytes should be 012")
           .isEqualTo("012");
+    }
+  }
+
+  @Test
+  public void readAtEndOfStreamReturnsEofWithoutAdvancingPos() throws IOException {
+    String objectName = rule.randomObjectName();
+    rule.client().putObject(new PutObjectRequest(rule.bucket(), objectName, "01".getBytes()));
+
+    try (EcsSeekableInputStream input =
+        new EcsSeekableInputStream(
+            rule.client(), new EcsURI(rule.bucket(), objectName), MetricsContext.nullMetrics())) {
+      assertThat(input.read()).isEqualTo('0');
+      assertThat(input.read()).isEqualTo('1');
+      assertThat(input.read()).as("Read past end of stream should return EOF").isEqualTo(EOF);
+      assertThat(input.getPos()).as("getPos() should not advance on EOF").isEqualTo(2);
+    }
+  }
+
+  @Test
+  public void readBytesAtEndOfStreamReturnsEofWithoutAdvancingPos() throws IOException {
+    String objectName = rule.randomObjectName();
+    byte[] data = "0123456789".getBytes();
+    rule.client().putObject(new PutObjectRequest(rule.bucket(), objectName, data));
+
+    try (EcsSeekableInputStream input =
+        new EcsSeekableInputStream(
+            rule.client(), new EcsURI(rule.bucket(), objectName), MetricsContext.nullMetrics())) {
+      byte[] buffer = new byte[data.length];
+      assertThat(input.read(buffer, 0, buffer.length))
+          .as("First read should consume the whole object")
+          .isEqualTo(data.length);
+      assertThat(input.read(buffer, 0, buffer.length))
+          .as("Read past end of stream should return EOF")
+          .isEqualTo(EOF);
+      assertThat(input.getPos()).as("getPos() should not advance on EOF").isEqualTo(data.length);
     }
   }
 }
