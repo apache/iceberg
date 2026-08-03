@@ -20,6 +20,7 @@ package org.apache.iceberg.spark.actions;
 
 import static org.apache.spark.sql.functions.col;
 import static org.apache.spark.sql.functions.min;
+import static org.apache.spark.sql.functions.when;
 
 import java.util.Collections;
 import java.util.List;
@@ -27,6 +28,7 @@ import java.util.stream.Collectors;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.Partitioning;
 import org.apache.iceberg.RewriteFiles;
@@ -93,7 +95,7 @@ class RemoveDanglingDeletesSparkAction
     RewriteFiles rewriteFiles = table.newRewrite();
     DeleteFileSet danglingDeletes = DeleteFileSet.create();
     danglingDeletes.addAll(findDanglingDeletes());
-    danglingDeletes.addAll(findDanglingDvs());
+    danglingDeletes.addAll(findDanglingFileScopedDeletes());
 
     for (DeleteFile deleteFile : danglingDeletes) {
       LOG.debug("Removing dangling delete file {}", deleteFile.location());
@@ -175,24 +177,49 @@ class RemoveDanglingDeletesSparkAction
         .collect(Collectors.toList());
   }
 
-  private List<DeleteFile> findDanglingDvs() {
-    Dataset<Row> dvs =
-        loadMetadataTable(table, MetadataTableType.DELETE_FILES)
-            .where(col("file_format").equalTo(FileFormat.PUFFIN.name()));
+  private List<DeleteFile> findDanglingFileScopedDeletes() {
+    Dataset<Row> deleteFiles = loadMetadataTable(table, MetadataTableType.DELETE_FILES);
     Dataset<Row> dataFiles = loadMetadataTable(table, MetadataTableType.DATA_FILES);
 
-    // a DV not pointing to a valid data file path is implicitly a dangling delete
-    List<Row> danglingDvs =
-        dvs.join(
+    int pathFieldId = MetadataColumns.DELETE_FILE_PATH.fieldId();
+
+    // Derive the effective referenced data file path:
+    // - For DVs (PUFFIN format): use the referenced_data_file column directly
+    // - For file-scoped position deletes: derive from lower/upper bounds of the file_path field
+    //   (field ID 2147483546) when they are equal, indicating a single referenced data file
+    Column lowerPathBound = col("lower_bounds").getItem(pathFieldId);
+    Column upperPathBound = col("upper_bounds").getItem(pathFieldId);
+    Column effectiveRef =
+        when(col("file_format").equalTo(FileFormat.PUFFIN.name()), col("referenced_data_file"))
+            .otherwise(
+                when(
+                    col("content")
+                        .equalTo(1) // POSITION_DELETES
+                        .and(lowerPathBound.isNotNull())
+                        .and(upperPathBound.isNotNull())
+                        .and(lowerPathBound.equalTo(upperPathBound)),
+                    lowerPathBound.cast("string")));
+
+    // Filter to only file-scoped deletes (those with a derivable referenced data file)
+    Dataset<Row> fileScopedDeletes =
+        deleteFiles
+            .withColumn("effective_ref", effectiveRef)
+            .where(col("effective_ref").isNotNull());
+
+    // A file-scoped delete not pointing to a valid data file path is dangling
+    List<Row> danglingRows =
+        fileScopedDeletes
+            .join(
                 dataFiles,
-                dvs.col("referenced_data_file").equalTo(dataFiles.col("file_path")),
+                fileScopedDeletes.col("effective_ref").equalTo(dataFiles.col("file_path")),
                 "leftouter")
             .filter(dataFiles.col("file_path").isNull())
-            .select(dvs.col("*"))
+            .select(fileScopedDeletes.col("*"))
+            .drop("effective_ref")
             .collectAsList();
-    return danglingDvs.stream()
+    return danglingRows.stream()
         // map on driver because SparkDeleteFile is not serializable
-        .map(row -> deleteFileWrapper(dvs.schema(), row))
+        .map(row -> deleteFileWrapper(deleteFiles.schema(), row))
         .collect(Collectors.toList());
   }
 
