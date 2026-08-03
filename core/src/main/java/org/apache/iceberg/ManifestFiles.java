@@ -632,7 +632,7 @@ public class ManifestFiles {
     List<List<F>> groups = divide(files, parallelism);
 
     // Pair each group with its index so results can be reassembled in input order.
-    List<Pair<Integer, List<F>>> groupsWithIndex = Lists.newArrayList();
+    List<Pair<Integer, List<F>>> groupsWithIndex = Lists.newArrayListWithCapacity(groups.size());
     for (int i = 0; i < groups.size(); i++) {
       groupsWithIndex.add(Pair.of(i, groups.get(i)));
     }
