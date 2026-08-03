@@ -34,18 +34,17 @@ Indexes are optional. Engines may choose to create, maintain, consume, or ignore
 - Provide a common storage architecture for index data
 - Allow indexes to be operated independently of source table metadata
 - Enable index sharing across engines
-- Provide a framework for defining new index types and layouts
+- Provide a framework for defining new index types
 
 ## Overview
 
 An index is recorded in an Index `metadata.json` file which contains the index definition and a set of index snapshots.
 Each index snapshot maps to the complete state of an Iceberg table at a given Iceberg table snapshot and references the
-index data for that state. The physical organization of the index data is defined by the index layout and varies based
-on the type of index. See [Scalar Indexes](#scalar-indexes) for the per-type data organization.
+index data for that state.
 
 Iceberg standardizes the index lifecycle, discovery model, snapshot relationship, and the minimum metadata needed for
 safe cross-engine use. Engines remain free to ignore unsupported indexes, use exact snapshot matches only, or implement
-more advanced stale-index and incremental-query logic where the index type permits it.
+more advanced stale-index and incremental-query logic.
 
 Like Iceberg tables, views, and functions:
 
@@ -53,34 +52,32 @@ Like Iceberg tables, views, and functions:
 - Updates create new metadata files
 - Catalogs perform atomic metadata swaps
 
-Each index snapshot references the layout-specific index data belonging to the snapshot.
+The index data of a snapshot is organized as a [tracking file](#tracking-file) (similar to a root manifest file) that
+lists a set of [leaf files](#leaf-files) (similar to data files):
 
 ```text
 Index Metadata
     |
     +-- Index Snapshot(s)
             |
-            +-- Layout-specific index data
+            +-- Tracking File
+                    |
+                    +-- Leaf Data Files
 ```
-
-This structure enables a common lifecycle and discovery model while keeping the physical data layout flexible for
-different index implementations.
 
 ## Definitions
 
 ### Index Type
 
-The index type defines the logical category of an index and the class of queries it is designed to accelerate.
-
-The metadata, snapshot, and lifecycle structures defined in this specification form a generic framework shared by all
-index types. Each index type builds on this framework by defining its type-specific details: the query patterns it
-supports, the applicable layouts, and the physical organization of the index data.
+The index type defines the logical category of an index and the class of queries it is designed to accelerate. It
+communicates the capabilities of an index to query engines and helps determine whether an index is applicable to a
+particular query.
 
 The following index type is defined in this specification:
 
-| Type   | Description                                                                  |
-|--------|------------------------------------------------------------------------------|
-| SCALAR | Accelerates point lookups and possibly range filters over scalar key columns |
+| Type   | Description                                                           |
+|--------|-----------------------------------------------------------------------|
+| SCALAR | Accelerates point lookups and possibly range filters over key columns |
 
 The following index type is reserved for future specifications.
 
@@ -88,42 +85,34 @@ The following index type is reserved for future specifications.
 |--------|--------------------------------------------------------------------|
 | VECTOR | Reserved for accelerating similarity search over vector embeddings |
 
-The index type communicates the capabilities of an index to query engines and helps determine whether an index is
-applicable to a particular query.
+### Key Columns
 
-### Index Layout
+The source-table columns the index is built on and optimized for retrieval.
 
-The index layout defines the required index data, the meaning of the index properties, and the physical layout or
-references needed to read the index data. The available layouts are defined by each index type; the same index type can
-be realized with different layouts, and an index instance fixes exactly one layout.
+### Transform
 
-The following layouts are defined in this specification:
+The transform is a function applied to the key columns that produces the values used to order the index entries.
 
-| Layout   | Index Type | Description                                                                     |
-|----------|------------|---------------------------------------------------------------------------------|
-| IDENTITY | SCALAR     | Stores the original key value and sorts entries in ascending, nulls-first order |
-| HASH     | SCALAR     | Hashes the key columns into hash buckets                                        |
-| HILBERT  | SCALAR     | Clusters multi-column keys by their Hilbert curve position                      |
+The following transforms are defined in this specification:
 
-The layout definitions for each index type are described in [Scalar Indexes](#scalar-indexes).
+| Transform | Description                                            |
+|-----------|--------------------------------------------------------|
+| IDENTITY  | Uses the original key values                           |
+| HASH      | Hashes the key columns into hash buckets               |
+| HILBERT   | Maps multi-column keys to their Hilbert curve position |
 
-### Key columns
-The source-table columns the layout is applied to and optimized for retrieval.
-
-### Included columns
-Optional source-table columns copied into the index for read convenience. They do not affect how the index is organized.
+The ordering each transform defines is described in [Ordering](#ordering).
 
 ### Index Instance
 
-An index instance is a concrete realization of an index type and layout applied to a specific table.
+An index instance is a concrete realization of an index type applied to a specific table.
 
 Users create index instances by specifying:
 
 - Source table
 - Index type
-- Layout
+- Transform
 - Key columns
-- Included columns (optional)
 - Index properties (optional)
 
 Multiple instances of the same index type may exist for a table.
@@ -132,7 +121,7 @@ Multiple instances of the same index type may exist for a table.
 
 An index snapshot is an immutable version of the index data generated from a specific table snapshot.
 
-Each index snapshot references a complete set of layout-specific index files and contains all data from the referenced
+Each index snapshot references a complete set of index files and contains all data from the referenced
 table snapshot.
 
 ## Index Metadata
@@ -141,23 +130,21 @@ The index metadata file stores the index definition and snapshot history.
 
 ### Index Metadata File
 
-| Requirement | Field               | Type                     | Description                                                                           |
-|-------------|---------------------|--------------------------|---------------------------------------------------------------------------------------|
-| required    | format-version      | int                      | Index specification version                                                           |
-| required    | uuid                | string                   | Stable UUID assigned at creation                                                      |
-| required    | table-uuid          | string                   | UUID of the indexed table                                                             |
-| required    | location            | string                   | Index root location                                                                   |
-| required    | type                | string                   | Logical index type                                                                    |
-| required    | layout              | string                   | Physical organization layout                                                          |
-| required    | key-column-ids      | list<int>                | Source-table column IDs the layout is applied to (key columns)                        |
-| optional    | included-column-ids | list<int>                | Source-table column IDs copied into the index for read convenience (included columns) |
-| optional    | properties          | map<string,string>       | Index properties applicable for every snapshot                                        |
-| required    | snapshots           | list<index-snapshot>     | Index snapshots                                                                       |
+| Requirement | Field          | Type                 | Description                                        |
+|-------------|----------------|----------------------|----------------------------------------------------|
+| required    | format-version | int                  | Index specification version                        |
+| required    | uuid           | string               | Stable UUID assigned at creation                   |
+| required    | table-uuid     | string               | UUID of the indexed table                          |
+| required    | location       | string               | Index root location                                |
+| required    | type           | string               | Logical index type                                 |
+| required    | transform      | string               | Transform applied to the key columns               |
+| required    | key-column-ids | list<int>            | Ordered source-table column IDs of the key columns |
+| optional    | properties     | map<string,string>   | Index properties applicable for every snapshot     |
+| required    | snapshots      | list<index-snapshot> | Index snapshots                                    |
 
 ## Index Snapshot
 
-Every snapshot shares the common fields below and references its layout-specific index data through a single file
-location. The interpretation of that file is defined by the layout: scalar layouts reference a
+Every snapshot shares the common fields below and references its index data through the location of a single
 [tracking file](#tracking-file).
 
 | Requirement | Field                    | Type               | Description                                                          |
@@ -165,7 +152,7 @@ location. The interpretation of that file is defined by the layout: scalar layou
 | required    | snapshot-id              | long               | Index snapshot identifier                                            |
 | required    | source-table-snapshot-id | long               | Source table snapshot                                                |
 | required    | timestamp-ms             | long               | Snapshot creation timestamp                                          |
-| required    | index-data               | string             | Location of the layout-specific root index file                      |
+| required    | index-data               | string             | Location of the tracking file                                        |
 | optional    | properties               | map<string,string> | Snapshot properties specific to this snapshot                        |
 | optional    | key-metadata             | binary             | Implementation-specific key metadata, used to encrypt the index data |
 
@@ -194,48 +181,32 @@ corresponding index snapshot. For other tables or indexes the catalog may allow 
 in which case the index can temporarily lag behind the table and engines must reconcile the index snapshot against the
 source-table snapshot they intend to read.
 
-## Scalar Indexes
+## Index Data
 
-A `SCALAR` index accelerates point lookups and, depending on the layout, range filters over one or more scalar key
-columns. Its index data is organized as a [tracking file](#tracking-file) (similar to a root manifest file) that lists a
-set of [leaf files](#leaf-files) (similar to data files). Leaf files store an ordered set of rows, each containing at
-least a key, the path of the Iceberg table data file, and the position within that file where the row for that key is
-stored. Each index snapshot references exactly one tracking file through the `index-data` field.
+Each index snapshot references exactly one tracking file through the `index-data` field. The tracking file lists the
+leaf files that hold the index entries. Leaf files store an ordered set of rows, each containing at least a key, the
+path of the Iceberg table data file, and the position within that file where the row for that key is stored.
 
-```text
-Index Metadata
-    |
-    +-- Index Snapshot(s)
-            |
-            +-- Tracking File
-                    |
-                    +-- Leaf Data Files
-```
+### Ordering
 
-### Scalar Layouts
+The transform defines a total **ordering** over the index entries. Entries are organized into non-overlapping ranges
+according to that ordering, and each range is stored in a separate leaf file.
 
-Each scalar layout defines a total **ordering** over the key-column values and organizes the entries into
-non-overlapping ranges according to that ordering, storing each range in a separate leaf file.
-
-The following layouts are defined for the `SCALAR` index type:
-
-| Layout   | Ordering                                                                                                  |
-|----------|-----------------------------------------------------------------------------------------------------------|
-| IDENTITY | By the original key values, ascending, nulls-first                                                        |
-| HASH     | By the hash bucket of the key columns, then by the original key values, ascending, nulls-first            |
-| HILBERT  | By the Hilbert curve position of the key columns, then by the original key values, ascending, nulls-first |
+| Transform | Ordering                                                                                                  |
+|-----------|-----------------------------------------------------------------------------------------------------------|
+| IDENTITY  | By the original key values, ascending, nulls-first                                                        |
+| HASH      | By the hash bucket of the key columns, then by the original key values, ascending, nulls-first            |
+| HILBERT   | By the Hilbert curve position of the key columns, then by the original key values, ascending, nulls-first |
 
 **HASH** follows the 32-bit hash requirements defined in the table specification (see
 [Appendix B: 32-bit Hash Requirements](spec.md#appendix-b-32-bit-hash-requirements)). ***TBD***: Specify the hash
-function for structs.
+function for multiple columns.
 
 **HILBERT** ***TBD***: Specify the Hilbert function exactly.
 
 ### Tracking File
 
-Each scalar index snapshot references exactly one tracking file.
-
-It contains metadata of all leaf files belonging to the index snapshot and enables efficient planning
+The tracking file contains metadata of all leaf files belonging to the index snapshot and enables efficient planning
 without scanning every leaf file.
 
 The tracking file may be stored using any supported metadata file format.
@@ -262,11 +233,11 @@ without opening every leaf file.
 The content statistics structure stored for each leaf file contains two complementary kinds of statistics:
 
 - **Column statistics** for the key columns: the minimum and maximum original key values in the leaf file, using each
-column's natural ordering. These are always present and let engines that do not implement the layout's ordering prune
+column's natural ordering. These are always present and let engines that do not implement the index ordering prune
 leaf files using predicates on the original key values.
 - **Ordering bounds** for the key columns: the original key values of the first and last entries in the leaf file
-according to the layout's ordering. Because leaf files partition the ordered data into non-overlapping ranges, engines
-that implement the layout's ordering can use these bounds to prune leaf files (see [Scalar Layouts](#scalar-layouts)).
+according to the index ordering. Because leaf files partition the ordered data into non-overlapping ranges, engines
+that implement the index ordering can use these bounds to prune leaf files (see [Ordering](#ordering)).
 
 ### Leaf Files
 
@@ -279,13 +250,12 @@ Leaf files must be standard Iceberg data files and may be stored using any Icebe
 
 The schema of a leaf file is determined by the index definition and contains:
 - All key columns defined by the index
-- Any included columns defined by the index
 - The source file path
 - The source row position
 
 Entries within a leaf file are organized by an ascending, nulls-first sort of the key columns, source file path and
 source row position. This lets a reader binary-search for a key within the leaf after selecting it from the tracking
-file even if the layout's ordering is not known.
+file even if the index ordering is not known.
 
 #### Leaf Schema
 
@@ -311,11 +281,11 @@ CREATE INDEX hash_index
     USING HASH;
 ```
 
-This creates a `SCALAR` index that applies the `HASH` layout to the `user_id` key column. When the index is created,
+This creates a `SCALAR` index that applies the `HASH` transform to the `user_id` key column. When the index is created,
 the engine (or a later index maintenance job) reads the current table snapshot, writes the leaf files and a tracking
 file, and produces the first index metadata file containing a single index snapshot. Leaf file boundaries are created
-based on the hash value of the `user_id`, and data inside the leaf files are sorted by `user_id` itself. The tracking file
-stores summary information and pruning statistics.
+based on the hash value of the `user_id`, and data inside the leaf files are sorted by `user_id` itself. The tracking
+file stores summary information and pruning statistics.
 
 Each leaf file row contains the key column and the location of the source row:
 
@@ -337,7 +307,7 @@ s3://bucket/warehouse/default.db/events/index/hash_index/metadata/00001-(uuid).m
   "table-uuid" : "fb072c92-a02b-11e9-ae9c-1bb7bc9eca94",
   "location" : "s3://bucket/warehouse/default.db/events/index/hash_index",
   "type" : "SCALAR",
-  "layout" : "HASH",
+  "transform" : "HASH",
   "key-column-ids" : [ 1 ],
   "snapshots" : [ {
     "snapshot-id" : 1,
@@ -365,7 +335,7 @@ s3://bucket/warehouse/default.db/events/index/hash_index/metadata/00002-(uuid).m
   "table-uuid" : "fb072c92-a02b-11e9-ae9c-1bb7bc9eca94",
   "location" : "s3://bucket/warehouse/default.db/events/index/hash_index",
   "type" : "SCALAR",
-  "layout" : "HASH",
+  "transform" : "HASH",
   "key-column-ids" : [ 1 ],
   "snapshots" : [ {
     "snapshot-id" : 1,
@@ -397,7 +367,7 @@ s3://bucket/warehouse/default.db/events/index/hash_index/metadata/00003-(uuid).m
   "table-uuid" : "fb072c92-a02b-11e9-ae9c-1bb7bc9eca94",
   "location" : "s3://bucket/warehouse/default.db/events/index/hash_index",
   "type" : "SCALAR",
-  "layout" : "HASH",
+  "transform" : "HASH",
   "key-column-ids" : [ 1 ],
   "snapshots" : [ {
     "snapshot-id" : 2,
@@ -410,5 +380,5 @@ s3://bucket/warehouse/default.db/events/index/hash_index/metadata/00003-(uuid).m
 
 ## Future Extensions
 
-Future specifications may define additional index types and layouts, for example VECTOR indexes for similarity search or
-text/term indexes.
+Future specifications may define additional index types and transforms, for example VECTOR indexes for similarity
+search or text/term indexes.
