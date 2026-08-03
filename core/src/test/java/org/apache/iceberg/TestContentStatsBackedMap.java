@@ -182,6 +182,14 @@ public class TestContentStatsBackedMap {
 
     Map<Integer, ByteBuffer> upper = ContentStatsBackedMap.upperBounds(stats);
     assertThat(upper.get(10)).isEqualTo(GeospatialBound.createXYM(5.0, 6.0, 7.0).toByteBuffer());
+
+    // the encoding must round-trip through the geo conversion used by legacy readers
+    GeospatialBound geomLower =
+        Conversions.fromByteBuffer(Types.GeometryType.crs84(), lower.get(10));
+    assertThat(geomLower).isEqualTo(GeospatialBound.createXYZ(1.0, 2.0, 3.0));
+    GeospatialBound geomUpper =
+        Conversions.fromByteBuffer(Types.GeometryType.crs84(), upper.get(10));
+    assertThat(geomUpper).isEqualTo(GeospatialBound.createXYM(5.0, 6.0, 7.0));
   }
 
   @Test
