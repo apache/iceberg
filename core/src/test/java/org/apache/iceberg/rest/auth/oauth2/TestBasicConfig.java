@@ -29,7 +29,6 @@ import com.nimbusds.oauth2.sdk.id.ClientID;
 import com.nimbusds.oauth2.sdk.token.BearerAccessToken;
 import java.net.URI;
 import java.time.Duration;
-import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -41,10 +40,10 @@ class TestBasicConfig {
   @ParameterizedTest
   @MethodSource
   @SuppressWarnings("ResultOfMethodCallIgnored")
-  void testValidate(Map<String, String> properties, List<String> expected) {
+  void testValidate(Map<String, String> properties, String expected) {
     assertThatIllegalArgumentException()
         .isThrownBy(() -> BasicConfig.from(properties).build())
-        .withMessage(ConfigValidator.buildDescription(expected.stream()));
+        .withMessage(expected);
   }
 
   @SuppressWarnings("MethodLength")
@@ -52,8 +51,7 @@ class TestBasicConfig {
     return Stream.of(
         Arguments.of(
             Map.of(BasicConfig.CLIENT_ID, "Client1", BasicConfig.CLIENT_SECRET, "s3cr3t"),
-            List.of(
-                "either issuer URL or token endpoint must be set (rest.auth.oauth2.issuer-url / rest.auth.oauth2.token-endpoint)")),
+            "either issuer URL or token endpoint must be set (rest.auth.oauth2.issuer-url / rest.auth.oauth2.token-endpoint)"),
         Arguments.of(
             Map.of(
                 BasicConfig.CLIENT_ID,
@@ -62,7 +60,7 @@ class TestBasicConfig {
                 "s3cr3t",
                 BasicConfig.ISSUER_URL,
                 "realms/master"),
-            List.of("Issuer URL must not be relative (rest.auth.oauth2.issuer-url)")),
+            "Issuer URL must not be relative (rest.auth.oauth2.issuer-url)"),
         Arguments.of(
             Map.of(
                 BasicConfig.CLIENT_ID,
@@ -71,7 +69,7 @@ class TestBasicConfig {
                 "s3cr3t",
                 BasicConfig.ISSUER_URL,
                 "https://example.com?query"),
-            List.of("Issuer URL must not have a query part (rest.auth.oauth2.issuer-url)")),
+            "Issuer URL must not have a query part (rest.auth.oauth2.issuer-url)"),
         Arguments.of(
             Map.of(
                 BasicConfig.CLIENT_ID,
@@ -80,7 +78,7 @@ class TestBasicConfig {
                 "s3cr3t",
                 BasicConfig.ISSUER_URL,
                 "https://example.com#fragment"),
-            List.of("Issuer URL must not have a fragment part (rest.auth.oauth2.issuer-url)")),
+            "Issuer URL must not have a fragment part (rest.auth.oauth2.issuer-url)"),
         Arguments.of(
             Map.of(
                 BasicConfig.CLIENT_ID,
@@ -89,8 +87,7 @@ class TestBasicConfig {
                 "s3cr3t",
                 BasicConfig.TOKEN_ENDPOINT,
                 "https://user:pass@example.com"),
-            List.of(
-                "Token endpoint must not have a user info part (rest.auth.oauth2.token-endpoint)")),
+            "Token endpoint must not have a user info part (rest.auth.oauth2.token-endpoint)"),
         Arguments.of(
             Map.of(
                 BasicConfig.CLIENT_ID,
@@ -99,7 +96,7 @@ class TestBasicConfig {
                 "s3cr3t",
                 BasicConfig.TOKEN_ENDPOINT,
                 "https://example.com?query"),
-            List.of("Token endpoint must not have a query part (rest.auth.oauth2.token-endpoint)")),
+            "Token endpoint must not have a query part (rest.auth.oauth2.token-endpoint)"),
         Arguments.of(
             Map.of(
                 BasicConfig.CLIENT_ID,
@@ -108,8 +105,7 @@ class TestBasicConfig {
                 "s3cr3t",
                 BasicConfig.TOKEN_ENDPOINT,
                 "https://example.com#fragment"),
-            List.of(
-                "Token endpoint must not have a fragment part (rest.auth.oauth2.token-endpoint)")),
+            "Token endpoint must not have a fragment part (rest.auth.oauth2.token-endpoint)"),
         Arguments.of(
             Map.of(
                 BasicConfig.CLIENT_ID,
@@ -118,7 +114,7 @@ class TestBasicConfig {
                 "s3cr3t",
                 BasicConfig.TOKEN_ENDPOINT,
                 "/token"),
-            List.of("Token endpoint must not be relative (rest.auth.oauth2.token-endpoint)")),
+            "Token endpoint must not be relative (rest.auth.oauth2.token-endpoint)"),
         Arguments.of(
             Map.of(
                 BasicConfig.CLIENT_ID,
@@ -127,14 +123,14 @@ class TestBasicConfig {
                 "s3cr3t",
                 BasicConfig.TOKEN_ENDPOINT,
                 "token"),
-            List.of("Token endpoint must not be relative (rest.auth.oauth2.token-endpoint)")),
+            "Token endpoint must not be relative (rest.auth.oauth2.token-endpoint)"),
         Arguments.of(
             Map.of(
                 BasicConfig.CLIENT_SECRET,
                 "s3cr3t",
                 BasicConfig.TOKEN_ENDPOINT,
                 "https://example.com/token"),
-            List.of("client ID must not be empty (rest.auth.oauth2.client-id)")),
+            "client ID must not be empty (rest.auth.oauth2.client-id)"),
         Arguments.of(
             Map.of(
                 BasicConfig.CLIENT_ID,
@@ -143,8 +139,7 @@ class TestBasicConfig {
                 ClientAuthenticationMethod.CLIENT_SECRET_BASIC.getValue(),
                 BasicConfig.TOKEN_ENDPOINT,
                 "https://example.com/token"),
-            List.of(
-                "client secret must not be empty when client authentication is 'client_secret_basic' (rest.auth.oauth2.client-auth / rest.auth.oauth2.client-secret)")),
+            "client secret must not be empty when client authentication is 'client_secret_basic' (rest.auth.oauth2.client-auth / rest.auth.oauth2.client-secret)"),
         Arguments.of(
             Map.of(
                 BasicConfig.CLIENT_ID,
@@ -153,8 +148,7 @@ class TestBasicConfig {
                 ClientAuthenticationMethod.CLIENT_SECRET_POST.getValue(),
                 BasicConfig.TOKEN_ENDPOINT,
                 "https://example.com/token"),
-            List.of(
-                "client secret must not be empty when client authentication is 'client_secret_post' (rest.auth.oauth2.client-auth / rest.auth.oauth2.client-secret)")),
+            "client secret must not be empty when client authentication is 'client_secret_post' (rest.auth.oauth2.client-auth / rest.auth.oauth2.client-secret)"),
         Arguments.of(
             Map.of(
                 BasicConfig.CLIENT_ID,
@@ -167,8 +161,7 @@ class TestBasicConfig {
                 ClientAuthenticationMethod.NONE.getValue(),
                 BasicConfig.TOKEN_ENDPOINT,
                 "https://example.com/token"),
-            List.of(
-                "client secret must not be set when client authentication is 'none' (rest.auth.oauth2.client-auth / rest.auth.oauth2.client-secret)")),
+            "client secret must not be set when client authentication is 'none' (rest.auth.oauth2.client-auth / rest.auth.oauth2.client-secret)"),
         Arguments.of(
             Map.of(
                 BasicConfig.CLIENT_ID,
@@ -179,8 +172,7 @@ class TestBasicConfig {
                 ClientAuthenticationMethod.NONE.getValue(),
                 BasicConfig.TOKEN_ENDPOINT,
                 "https://example.com/token"),
-            List.of(
-                "grant type must not be 'client_credentials' when client authentication is 'none' (rest.auth.oauth2.client-auth / rest.auth.oauth2.grant-type)")),
+            "grant type must not be 'client_credentials' when client authentication is 'none' (rest.auth.oauth2.client-auth / rest.auth.oauth2.grant-type)"),
         Arguments.of(
             Map.of(
                 BasicConfig.CLIENT_ID,
@@ -191,8 +183,7 @@ class TestBasicConfig {
                 GrantType.REFRESH_TOKEN.getValue(),
                 BasicConfig.TOKEN_ENDPOINT,
                 "https://example.com/token"),
-            List.of(
-                "grant type must be one of: 'client_credentials', 'urn:ietf:params:oauth:grant-type:token-exchange' (rest.auth.oauth2.grant-type)")),
+            "grant type must be one of: 'client_credentials', 'urn:ietf:params:oauth:grant-type:token-exchange' (rest.auth.oauth2.grant-type)"),
         Arguments.of(
             Map.of(
                 BasicConfig.CLIENT_AUTH,
@@ -203,8 +194,7 @@ class TestBasicConfig {
                 "s3cr3t",
                 BasicConfig.TOKEN_ENDPOINT,
                 "https://example.com/token"),
-            List.of(
-                "client authentication method must be one of: 'none', 'client_secret_basic', 'client_secret_post' (rest.auth.oauth2.client-auth)")),
+            "client authentication method must be one of: 'none', 'client_secret_basic', 'client_secret_post' (rest.auth.oauth2.client-auth)"),
         Arguments.of(
             Map.of(
                 BasicConfig.TIMEOUT,
@@ -215,7 +205,7 @@ class TestBasicConfig {
                 "s3cr3t",
                 BasicConfig.ISSUER_URL,
                 "https://example.com"),
-            List.of("timeout must be greater than or equal to PT30S (rest.auth.oauth2.timeout)")));
+            "timeout must be greater than or equal to PT30S (rest.auth.oauth2.timeout)"));
   }
 
   @ParameterizedTest

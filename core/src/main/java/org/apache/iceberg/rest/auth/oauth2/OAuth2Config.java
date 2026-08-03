@@ -20,6 +20,7 @@ package org.apache.iceberg.rest.auth.oauth2;
 
 import com.nimbusds.oauth2.sdk.GrantType;
 import java.util.Map;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.immutables.value.Value;
 
 /** The configuration for the OAuth2 AuthManager. */
@@ -48,17 +49,13 @@ interface OAuth2Config {
     // At this level, we only need to validate constraints that span multiple
     // configuration classes; individual configuration classes are validated
     // internally in their respective validate() methods.
-    ConfigValidator validator = new ConfigValidator();
-
     if (basicConfig().grantType().equals(GrantType.TOKEN_EXCHANGE)) {
-      validator.check(
+      Preconditions.checkArgument(
           tokenExchangeConfig().subjectTokenString().isPresent(),
-          TokenExchangeConfig.SUBJECT_TOKEN,
-          "subject token must be set if grant type is '%s'",
-          GrantType.TOKEN_EXCHANGE.getValue());
+          "subject token must be set if grant type is '%s' (%s)",
+          GrantType.TOKEN_EXCHANGE.getValue(),
+          TokenExchangeConfig.SUBJECT_TOKEN);
     }
-
-    validator.validate();
   }
 
   /** Creates an {@link OAuth2Config} from the given properties map. */

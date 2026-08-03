@@ -20,9 +20,9 @@ package org.apache.iceberg.rest.auth.oauth2;
 
 import com.nimbusds.oauth2.sdk.GrantType;
 import java.time.Duration;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.immutables.value.Value;
 
 /** Configuration properties for the token refresh feature. */
@@ -106,27 +106,29 @@ interface TokenRefreshConfig {
   @Value.Check
   default void validate() {
     if (enabled()) {
-      ConfigValidator validator = new ConfigValidator();
-      validator.check(
+      Preconditions.checkArgument(
           accessTokenLifespan().compareTo(MIN_ACCESS_TOKEN_LIFESPAN) >= 0,
-          ACCESS_TOKEN_LIFESPAN,
-          "access token lifespan must be greater than or equal to %s",
-          MIN_ACCESS_TOKEN_LIFESPAN);
-      validator.check(
+          "access token lifespan must be greater than or equal to %s (%s)",
+          MIN_ACCESS_TOKEN_LIFESPAN,
+          ACCESS_TOKEN_LIFESPAN);
+      Preconditions.checkArgument(
           prefetch().compareTo(MIN_PREFETCH) >= 0,
-          PREFETCH,
-          "refresh prefetch must be greater than or equal to %s",
-          MIN_PREFETCH);
-      validator.check(
+          "refresh prefetch must be greater than or equal to %s (%s)",
+          MIN_PREFETCH,
+          PREFETCH);
+      Preconditions.checkArgument(
           prefetch().compareTo(accessTokenLifespan()) < 0,
-          List.of(PREFETCH, ACCESS_TOKEN_LIFESPAN),
-          "refresh prefetch must be less than the access token lifespan");
-      validator.check(!jitter().isNegative(), JITTER, "jitter must not be negative");
-      validator.check(
+          "refresh prefetch must be less than the access token lifespan (%s / %s)",
+          PREFETCH,
+          ACCESS_TOKEN_LIFESPAN);
+      Preconditions.checkArgument(
+          !jitter().isNegative(), "jitter must not be negative (%s)", JITTER);
+      Preconditions.checkArgument(
           jitter().plus(prefetch()).compareTo(accessTokenLifespan()) < 0,
-          List.of(JITTER, PREFETCH, ACCESS_TOKEN_LIFESPAN),
-          "jitter plus prefetch must be less than the access token lifespan");
-      validator.validate();
+          "jitter plus prefetch must be less than the access token lifespan (%s / %s / %s)",
+          JITTER,
+          PREFETCH,
+          ACCESS_TOKEN_LIFESPAN);
     }
   }
 

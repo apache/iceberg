@@ -31,6 +31,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.rest.RESTUtil;
 import org.immutables.value.Value;
 
@@ -225,69 +226,79 @@ interface BasicConfig {
 
   @Value.Check
   default void validate() {
-    ConfigValidator validator = new ConfigValidator();
-
     if (token().isEmpty()) {
-
-      validator.check(
+      Preconditions.checkArgument(
           ConfigUtil.SUPPORTED_INITIAL_GRANT_TYPES.contains(grantType()),
-          GRANT_TYPE,
-          "grant type must be one of: %s",
+          "grant type must be one of: %s (%s)",
           ConfigUtil.SUPPORTED_INITIAL_GRANT_TYPES.stream()
               .map(GrantType::getValue)
-              .collect(Collectors.joining("', '", "'", "'")));
+              .collect(Collectors.joining("', '", "'", "'")),
+          GRANT_TYPE);
 
-      validator.check(
+      Preconditions.checkArgument(
           ConfigUtil.SUPPORTED_CLIENT_AUTH_METHODS.contains(clientAuthenticationMethod()),
-          CLIENT_AUTH,
-          "client authentication method must be one of: %s",
+          "client authentication method must be one of: %s (%s)",
           ConfigUtil.SUPPORTED_CLIENT_AUTH_METHODS.stream()
               .map(ClientAuthenticationMethod::getValue)
-              .collect(Collectors.joining("', '", "'", "'")));
+              .collect(Collectors.joining("', '", "'", "'")),
+          CLIENT_AUTH);
 
-      validator.check(
+      Preconditions.checkArgument(
           issuerUrl().isPresent() || tokenEndpoint().isPresent(),
-          List.of(ISSUER_URL, TOKEN_ENDPOINT),
-          "either issuer URL or token endpoint must be set");
+          "either issuer URL or token endpoint must be set (%s / %s)",
+          ISSUER_URL,
+          TOKEN_ENDPOINT);
 
-      validator.check(clientId().isPresent(), CLIENT_ID, "client ID must not be empty");
+      Preconditions.checkArgument(
+          clientId().isPresent(), "client ID must not be empty (%s)", CLIENT_ID);
 
       if (ConfigUtil.requiresClientSecret(clientAuthenticationMethod())) {
-        validator.check(
+        Preconditions.checkArgument(
             clientSecret().isPresent(),
-            List.of(CLIENT_AUTH, CLIENT_SECRET),
-            "client secret must not be empty when client authentication is '%s'",
-            clientAuthenticationMethod().getValue());
+            "client secret must not be empty when client authentication is '%s' (%s / %s)",
+            clientAuthenticationMethod().getValue(),
+            CLIENT_AUTH,
+            CLIENT_SECRET);
       } else if (clientAuthenticationMethod().equals(ClientAuthenticationMethod.NONE)) {
-        validator.check(
+        Preconditions.checkArgument(
             clientSecret().isEmpty(),
-            List.of(CLIENT_AUTH, CLIENT_SECRET),
-            "client secret must not be set when client authentication is '%s'",
-            ClientAuthenticationMethod.NONE.getValue());
-        validator.check(
+            "client secret must not be set when client authentication is '%s' (%s / %s)",
+            ClientAuthenticationMethod.NONE.getValue(),
+            CLIENT_AUTH,
+            CLIENT_SECRET);
+        Preconditions.checkArgument(
             !grantType().equals(DEFAULT_GRANT_TYPE),
-            List.of(CLIENT_AUTH, GRANT_TYPE),
-            "grant type must not be '%s' when client authentication is '%s'",
+            "grant type must not be '%s' when client authentication is '%s' (%s / %s)",
             DEFAULT_GRANT_TYPE.getValue(),
-            ClientAuthenticationMethod.NONE.getValue());
+            ClientAuthenticationMethod.NONE.getValue(),
+            CLIENT_AUTH,
+            GRANT_TYPE);
       }
     }
 
     if (issuerUrl().isPresent()) {
-      validator.checkEndpoint(issuerUrl().get(), ISSUER_URL, "Issuer URL");
+      checkEndpoint(issuerUrl().get(), ISSUER_URL, "Issuer URL");
     }
 
     if (tokenEndpoint().isPresent()) {
-      validator.checkEndpoint(tokenEndpoint().get(), TOKEN_ENDPOINT, "Token endpoint");
+      checkEndpoint(tokenEndpoint().get(), TOKEN_ENDPOINT, "Token endpoint");
     }
 
-    validator.check(
+    Preconditions.checkArgument(
         tokenAcquisitionTimeout().compareTo(minTokenAcquisitionTimeout()) >= 0,
-        TIMEOUT,
-        "timeout must be greater than or equal to %s",
-        minTokenAcquisitionTimeout());
+        "timeout must be greater than or equal to %s (%s)",
+        minTokenAcquisitionTimeout(),
+        TIMEOUT);
+  }
 
-    validator.validate();
+  private static void checkEndpoint(URI endpoint, String key, String name) {
+    Preconditions.checkArgument(endpoint.isAbsolute(), "%s must not be relative (%s)", name, key);
+    Preconditions.checkArgument(
+        endpoint.getUserInfo() == null, "%s must not have a user info part (%s)", name, key);
+    Preconditions.checkArgument(
+        endpoint.getQuery() == null, "%s must not have a query part (%s)", name, key);
+    Preconditions.checkArgument(
+        endpoint.getFragment() == null, "%s must not have a fragment part (%s)", name, key);
   }
 
   static ImmutableBasicConfig.Builder from(Map<String, String> properties) {

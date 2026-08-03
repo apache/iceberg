@@ -27,7 +27,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
 
 import java.time.Duration;
-import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -39,36 +38,29 @@ class TestTokenRefreshConfig {
   @ParameterizedTest
   @MethodSource
   @SuppressWarnings("ResultOfMethodCallIgnored")
-  void testValidate(Map<String, String> properties, List<String> expected) {
+  void testValidate(Map<String, String> properties, String expected) {
     assertThatIllegalArgumentException()
         .isThrownBy(() -> TokenRefreshConfig.from(properties).build())
-        .withMessage(ConfigValidator.buildDescription(expected.stream()));
+        .withMessage(expected);
   }
 
   static Stream<Arguments> testValidate() {
     return Stream.of(
         Arguments.of(
             Map.of(ACCESS_TOKEN_LIFESPAN, "PT2S"),
-            List.of(
-                "access token lifespan must be greater than or equal to PT15S (rest.auth.oauth2.token-refresh.access-token-lifespan)",
-                "refresh prefetch must be less than the access token lifespan (rest.auth.oauth2.token-refresh.prefetch / rest.auth.oauth2.token-refresh.access-token-lifespan)",
-                "jitter plus prefetch must be less than the access token lifespan (rest.auth.oauth2.token-refresh.jitter / rest.auth.oauth2.token-refresh.prefetch / rest.auth.oauth2.token-refresh.access-token-lifespan)")),
+            "access token lifespan must be greater than or equal to PT15S (rest.auth.oauth2.token-refresh.access-token-lifespan)"),
         Arguments.of(
             Map.of(PREFETCH, "PT0.1S"),
-            List.of(
-                "refresh prefetch must be greater than or equal to PT10S (rest.auth.oauth2.token-refresh.prefetch)")),
+            "refresh prefetch must be greater than or equal to PT10S (rest.auth.oauth2.token-refresh.prefetch)"),
         Arguments.of(
             Map.of(PREFETCH, "PT10M", ACCESS_TOKEN_LIFESPAN, "PT5M"),
-            List.of(
-                "refresh prefetch must be less than the access token lifespan (rest.auth.oauth2.token-refresh.prefetch / rest.auth.oauth2.token-refresh.access-token-lifespan)",
-                "jitter plus prefetch must be less than the access token lifespan (rest.auth.oauth2.token-refresh.jitter / rest.auth.oauth2.token-refresh.prefetch / rest.auth.oauth2.token-refresh.access-token-lifespan)")),
+            "refresh prefetch must be less than the access token lifespan (rest.auth.oauth2.token-refresh.prefetch / rest.auth.oauth2.token-refresh.access-token-lifespan)"),
         Arguments.of(
             Map.of(JITTER, "PT-1S"),
-            List.of("jitter must not be negative (rest.auth.oauth2.token-refresh.jitter)")),
+            "jitter must not be negative (rest.auth.oauth2.token-refresh.jitter)"),
         Arguments.of(
             Map.of(JITTER, "PT1H"),
-            List.of(
-                "jitter plus prefetch must be less than the access token lifespan (rest.auth.oauth2.token-refresh.jitter / rest.auth.oauth2.token-refresh.prefetch / rest.auth.oauth2.token-refresh.access-token-lifespan)")));
+            "jitter plus prefetch must be less than the access token lifespan (rest.auth.oauth2.token-refresh.jitter / rest.auth.oauth2.token-refresh.prefetch / rest.auth.oauth2.token-refresh.access-token-lifespan)"));
   }
 
   @ParameterizedTest
