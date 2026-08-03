@@ -76,7 +76,7 @@ public class LoadViewResponseParser {
     ImmutableLoadViewResponse.Builder builder =
         ImmutableLoadViewResponse.builder().metadataLocation(metadataLocation).metadata(metadata);
 
-    if (json.has(CONFIG)) {
+    if (json.hasNonNull(CONFIG)) {
       builder.config(JsonUtil.getStringMap(CONFIG, json));
     }
 
