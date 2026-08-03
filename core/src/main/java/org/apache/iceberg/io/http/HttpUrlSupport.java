@@ -33,8 +33,9 @@ import org.apache.hc.core5.io.CloseMode;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.metrics.MetricsContext;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.PropertyUtil;
+import org.apache.iceberg.util.SerializableMap;
 
 /**
  * A helper that a {@link org.apache.iceberg.io.FileIO} can delegate to for reading a file directly
@@ -42,7 +43,8 @@ import org.apache.iceberg.util.PropertyUtil;
  *
  * <p>Intended for catalogs that vend a pre-signed object-store URL directly as a file's location
  * (e.g. a scan task's {@code file-path}). The location is used unchanged as the fetch URL, so
- * {@link InputFile#location()} equals the location passed to {@link #newInputFile(String)}.
+ * {@link InputFile#location()} equals the location passed to {@link #newInputFile(String,
+ * MetricsContext)}.
  *
  * <p>The underlying HTTP client's timeouts and connection pool are configurable through the
  * properties passed to {@link #HttpUrlSupport(Map)}. When a setting is not provided, the client
@@ -57,16 +59,16 @@ public class HttpUrlSupport implements Serializable {
   static final String MAX_CONNECTIONS = "io.http.max-connections";
   static final String MAX_CONNECTIONS_PER_ROUTE = "io.http.connections-per-route";
 
-  private final Map<String, String> properties;
+  private final SerializableMap<String, String> properties;
 
   private transient volatile CloseableHttpClient httpClient;
 
   public HttpUrlSupport() {
-    this(ImmutableMap.of());
+    this(Maps.newHashMap());
   }
 
   public HttpUrlSupport(Map<String, String> properties) {
-    this.properties = properties == null ? ImmutableMap.of() : ImmutableMap.copyOf(properties);
+    this.properties = SerializableMap.copyOf(properties == null ? Maps.newHashMap() : properties);
   }
 
   /** Returns {@code true} if {@code location} is an HTTP(S) URL. */
