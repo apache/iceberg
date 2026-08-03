@@ -101,6 +101,23 @@ interface VectorizedValuesReader {
   }
 
   /**
+   * Whether this reader can bulk-copy a run of contiguous fixed-length values via {@link
+   * #readFixedLengthBytes(int, FieldVector, int, int)}. Readers that decode each value individually
+   * (for example byte-stream-split) return false so callers keep the per-value path.
+   */
+  default boolean supportsBulkFixedLengthRead() {
+    return false;
+  }
+
+  /**
+   * Read `total` fixed-length (`typeWidth`-byte) values into `vec` starting at `vec[rowId]`. Only
+   * valid when {@link #supportsBulkFixedLengthRead()} returns true.
+   */
+  default void readFixedLengthBytes(int total, FieldVector vec, int rowId, int typeWidth) {
+    throw new UnsupportedOperationException("readFixedLengthBytes is not supported");
+  }
+
+  /**
    * Initialize the reader from a page. See {@link ValuesReader#initFromPage(int,
    * ByteBufferInputStream)}.
    */
