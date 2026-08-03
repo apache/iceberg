@@ -30,6 +30,7 @@ import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.SeekableInputStream;
+import org.apache.iceberg.metrics.MetricsContext;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
@@ -45,21 +46,29 @@ class HTTPInputFile implements InputFile {
   private final CloseableHttpClient client;
   private final String location;
   private final String url;
+  private final MetricsContext metrics;
 
   private long length;
 
-  HTTPInputFile(CloseableHttpClient client, String location, String url) {
-    this(client, location, url, UNKNOWN_LENGTH);
+  HTTPInputFile(CloseableHttpClient client, String location, String url, MetricsContext metrics) {
+    this(client, location, url, UNKNOWN_LENGTH, metrics);
   }
 
-  HTTPInputFile(CloseableHttpClient client, String location, String url, long length) {
+  HTTPInputFile(
+      CloseableHttpClient client,
+      String location,
+      String url,
+      long length,
+      MetricsContext metrics) {
     Preconditions.checkNotNull(client, "Invalid HTTP client: null");
     Preconditions.checkNotNull(location, "Invalid location: null");
     Preconditions.checkNotNull(url, "Invalid url: null");
+    Preconditions.checkNotNull(metrics, "Invalid metrics context: null");
     this.client = client;
     this.location = location;
     this.url = url;
     this.length = length;
+    this.metrics = metrics;
   }
 
   @Override
@@ -73,7 +82,7 @@ class HTTPInputFile implements InputFile {
 
   @Override
   public SeekableInputStream newStream() {
-    return new HTTPInputStream(client, location, url);
+    return new HTTPInputStream(client, location, url, metrics);
   }
 
   @Override

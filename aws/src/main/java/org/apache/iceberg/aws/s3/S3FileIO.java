@@ -112,7 +112,7 @@ public class S3FileIO
   private SerializableMap<String, String> properties = null;
   private MetricsContext metrics = MetricsContext.nullMetrics();
   private final AtomicBoolean isResourceClosed = new AtomicBoolean(false);
-  private final HttpUrlSupport httpUrlSupport = new HttpUrlSupport();
+  private volatile HttpUrlSupport httpUrlSupport = new HttpUrlSupport();
   private transient StackTraceElement[] createStack;
   // use modifiable collection for Kryo serde
   private volatile List<StorageCredential> storageCredentials = Lists.newArrayList();
@@ -155,14 +155,14 @@ public class S3FileIO
   @Override
   public InputFile newInputFile(String path) {
     return HttpUrlSupport.isHttpUrl(path)
-        ? httpUrlSupport.newInputFile(path)
+        ? httpUrlSupport.newInputFile(path, metrics)
         : S3InputFile.fromLocation(path, clientForStoragePath(path), metrics);
   }
 
   @Override
   public InputFile newInputFile(String path, long length) {
     return HttpUrlSupport.isHttpUrl(path)
-        ? httpUrlSupport.newInputFile(path, length)
+        ? httpUrlSupport.newInputFile(path, length, metrics)
         : S3InputFile.fromLocation(path, length, clientForStoragePath(path), metrics);
   }
 
@@ -510,6 +510,7 @@ public class S3FileIO
   @Override
   public void initialize(Map<String, String> props) {
     this.properties = SerializableMap.copyOf(props);
+    this.httpUrlSupport = new HttpUrlSupport(properties);
 
     this.createStack =
         PropertyUtil.propertyAsBoolean(properties, "init-creation-stacktrace", true)
