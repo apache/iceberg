@@ -62,11 +62,17 @@ configure(jmhProjects) {
 
   jmh {
     jmhVersion = '1.37'
-    failOnError = true
+    // Was hard-coded true; one failing param combination aborted the whole suite and discarded
+    // already-completed results. Make it configurable, default preserved.
+    failOnError = project.hasProperty('jmhFailOnError') ? project.property('jmhFailOnError').toBoolean() : true
     forceGC = true
     includeTests = true
     humanOutputFile = file(jmhOutputPath)
-    jvmArgs = ['-Xmx32g']
+    // Reuse the shared module-opens list (single source of truth with the test tasks in build.gradle)
+    // and make the heap configurable (default preserved at 32g). The JMH task previously set jvmArgs
+    // directly, so unlike the test tasks it never inherited extraJvmArgs, which is why Spark 4.x reads
+    // failed on JDK 17 (sun.util.calendar). Full-scale PlanningBenchmark ...WithStats also OOMs at 32g.
+    jvmArgs = ['-Xmx' + (project.findProperty('jmhHeap') ?: '32g')] + project.property('extraJvmArgs')
     resultsFile = file(jmhJsonOutputPath)
     resultFormat = 'JSON'
     includes = [jmhIncludeRegex]
