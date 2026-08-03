@@ -795,6 +795,7 @@ In V1-V3, manifest entries are described by the `manifest_entry` struct. In V4, 
     | 513 | **`existing_rows_count`** | `long` | *required* | *required* | Total number of rows in EXISTING entries. |
     | 514 | **`deleted_rows_count`** | `long` | *required* | *required* | Total number of rows in DELETED entries. |
     | 521 | **`replaced_rows_count`** | `long` | *required* | *required* | Total number of rows in REPLACED entries. |
+    | 525 | **`modified_rows_count`** | `long` | *required* | *required* | Total number of rows in MODIFIED entries. |
     | 516 | **`min_sequence_number`** | `long` | *required* | *required* | Minimum data sequence number of all live entries in the manifest. |
     | 522 | **`dv`** | `binary` | *optional* | *optional* | Roaring bitmap of entry positions in the manifest that are not live in the current snapshot. |
     | 523 | **`dv_cardinality`** | `long` | *optional* | *optional* | Cardinality of the manifest deletion vector. Must be set when `dv` is non-null; must be null otherwise. |
