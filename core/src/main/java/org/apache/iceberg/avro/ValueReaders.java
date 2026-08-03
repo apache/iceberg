@@ -128,6 +128,10 @@ public class ValueReaders {
     return ByteBufferReader.INSTANCE;
   }
 
+  public static ValueReader<ByteBuffer> fixedBuffers(int length) {
+    return new FixedByteBufferReader(length);
+  }
+
   public static ValueReader<BigDecimal> decimal(ValueReader<byte[]> unscaledReader, int scale) {
     return new DecimalReader(unscaledReader, scale);
   }
@@ -703,6 +707,26 @@ public class ValueReaders {
     @Override
     public void skip(Decoder decoder) throws IOException {
       decoder.skipBytes();
+    }
+  }
+
+  private static class FixedByteBufferReader implements ValueReader<ByteBuffer> {
+    private final int length;
+
+    private FixedByteBufferReader(int length) {
+      this.length = length;
+    }
+
+    @Override
+    public ByteBuffer read(Decoder decoder, Object reuse) throws IOException {
+      byte[] bytes = new byte[length];
+      decoder.readFixed(bytes, 0, length);
+      return ByteBuffer.wrap(bytes);
+    }
+
+    @Override
+    public void skip(Decoder decoder) throws IOException {
+      decoder.skipFixed(length);
     }
   }
 
