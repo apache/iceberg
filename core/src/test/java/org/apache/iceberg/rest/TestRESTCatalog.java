@@ -433,6 +433,11 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     return false;
   }
 
+  @Override
+  protected boolean supportsVariant() {
+    return true;
+  }
+
   /* RESTCatalog specific tests */
 
   @Test

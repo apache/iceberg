@@ -86,6 +86,7 @@ are strictly defined by the REST Specification.  The following are currently con
 |-------------------------------|---------|
 | rck.requires-namespace-create | true    |
 | rck.supports-serverside-retry | true    |
+| rck.supports-variant          | false   |
 
 
 ## Running Compatibility Tests

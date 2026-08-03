@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.catalog;
 
+import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -200,6 +201,10 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   }
 
   protected boolean supportsEmptyNamespace() {
+    return false;
+  }
+
+  protected boolean supportsVariant() {
     return false;
   }
 
@@ -964,6 +969,71 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     assertThat(table.properties().entrySet())
         .as("Table properties should be a superset of the requested properties")
         .containsAll(properties.entrySet());
+  }
+
+  @Test
+  public void testCreateTableWithVariantColumn() {
+    assumeThat(supportsVariant()).as("Catalog supports the variant type").isTrue();
+
+    C catalog = catalog();
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(TBL.namespace());
+    }
+
+    assertThat(catalog.tableExists(TBL)).as("Table should not exist").isFalse();
+
+    Schema variantSchema =
+        new Schema(
+            required(1, "id", Types.LongType.get()),
+            optional(2, "data", Types.VariantType.get()),
+            optional(3, "list_data", Types.ListType.ofOptional(5, Types.VariantType.get())),
+            optional(
+                4,
+                "map_data",
+                Types.MapType.ofOptional(6, 7, Types.StringType.get(), Types.VariantType.get())));
+
+    catalog
+        .buildTable(TBL, variantSchema)
+        .withLocation(baseTableLocation(TBL))
+        .withProperty(TableProperties.FORMAT_VERSION, "3")
+        .create();
+
+    assertThat(catalog.tableExists(TBL)).as("Table should exist").isTrue();
+
+    Table loaded = catalog.loadTable(TBL);
+    assertThat(loaded.schema().asStruct())
+        .as("Variant columns should round-trip through the catalog")
+        .isEqualTo(variantSchema.asStruct());
+    assertThat(TableUtil.formatVersion(loaded))
+        .as("Table with a variant column must be format version 3")
+        .isEqualTo(3);
+  }
+
+  @Test
+  public void testCreateV2TableWithVariantColumnFails() {
+    assumeThat(supportsVariant()).as("Catalog supports the variant type").isTrue();
+
+    C catalog = catalog();
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(TBL.namespace());
+    }
+
+    Schema variantSchema =
+        new Schema(
+            required(1, "id", Types.LongType.get()), optional(2, "data", Types.VariantType.get()));
+
+    assertThatThrownBy(
+            () ->
+                catalog
+                    .buildTable(TBL, variantSchema)
+                    .withLocation(baseTableLocation(TBL))
+                    .withProperty(TableProperties.FORMAT_VERSION, "2")
+                    .create())
+        .hasMessageContaining("is not supported until v3");
+
+    assertThat(catalog.tableExists(TBL)).as("Table should not have been created").isFalse();
   }
 
   @Test
