@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import org.apache.commons.lang3.Strings;
 import org.apache.iceberg.Accessor;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.MetadataColumns;
@@ -147,11 +148,15 @@ public class Deletes {
     CharSequenceMap<PositionDeleteIndex> indexes = CharSequenceMap.create();
 
     try (CloseableIterable<T> deletes = posDeletes) {
+      CharSequence lastFilePath = null;
+      PositionDeleteIndex index = null;
       for (T delete : deletes) {
         CharSequence filePath = (CharSequence) FILENAME_ACCESSOR.get(delete);
         long position = (long) POSITION_ACCESSOR.get(delete);
-        PositionDeleteIndex index =
-            indexes.computeIfAbsent(filePath, key -> new BitmapPositionDeleteIndex(file));
+        if (!Strings.CS.equals(lastFilePath, filePath)) {
+          lastFilePath = filePath;
+          index = indexes.computeIfAbsent(filePath, key -> new BitmapPositionDeleteIndex(file));
+        }
         index.delete(position);
       }
     } catch (IOException e) {
