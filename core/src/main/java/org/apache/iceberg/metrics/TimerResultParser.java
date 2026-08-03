@@ -52,7 +52,7 @@ class TimerResultParser {
 
     gen.writeStartObject();
     gen.writeNumberField(COUNT, timer.count());
-    gen.writeStringField(TIME_UNIT, timer.timeUnit().name().toLowerCase(Locale.ENGLISH));
+    gen.writeStringField(TIME_UNIT, timer.timeUnit().name().toLowerCase(Locale.ROOT));
     gen.writeNumberField(TOTAL_DURATION, fromDuration(timer.totalDuration(), timer.timeUnit()));
     gen.writeEndObject();
   }
@@ -112,7 +112,7 @@ class TimerResultParser {
 
   private static TimeUnit toTimeUnit(String timeUnit) {
     try {
-      return TimeUnit.valueOf(timeUnit.toUpperCase(Locale.ENGLISH));
+      return TimeUnit.valueOf(timeUnit.toUpperCase(Locale.ROOT));
     } catch (IllegalArgumentException e) {
       throw new IllegalArgumentException(String.format("Invalid time unit: %s", timeUnit), e);
     }
