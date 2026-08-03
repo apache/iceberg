@@ -46,6 +46,7 @@ public class TestSnapshotChanges {
   private static final Map<Integer, Long> COLUMN_SIZES = ImmutableMap.of(3, 20L);
   private static final Map<Integer, Long> VALUE_COUNTS = ImmutableMap.of(3, 1L);
   private static final Map<Integer, Long> NULL_VALUE_COUNTS = ImmutableMap.of(3, 0L);
+  private static final Map<Integer, Long> NAN_VALUE_COUNTS = ImmutableMap.of(3, 1L);
   private static final Map<Integer, ByteBuffer> LOWER_BOUNDS =
       ImmutableMap.of(3, Conversions.toByteBuffer(Types.IntegerType.get(), 1));
   private static final Map<Integer, ByteBuffer> UPPER_BOUNDS =
@@ -62,7 +63,7 @@ public class TestSnapshotChanges {
                   COLUMN_SIZES,
                   VALUE_COUNTS,
                   NULL_VALUE_COUNTS,
-                  null,
+                  NAN_VALUE_COUNTS,
                   LOWER_BOUNDS,
                   UPPER_BOUNDS))
           .build();
@@ -190,6 +191,7 @@ public class TestSnapshotChanges {
     assertThat(file.columnSizes()).isEqualTo(COLUMN_SIZES);
     assertThat(file.valueCounts()).isEqualTo(VALUE_COUNTS);
     assertThat(file.nullValueCounts()).isEqualTo(NULL_VALUE_COUNTS);
+    assertThat(file.nanValueCounts()).isEqualTo(NAN_VALUE_COUNTS);
     assertThat(file.lowerBounds()).isEqualTo(LOWER_BOUNDS);
     assertThat(file.upperBounds()).isEqualTo(UPPER_BOUNDS);
   }
@@ -210,10 +212,13 @@ public class TestSnapshotChanges {
     assertThat(file.columnSizes()).isNull();
     assertThat(file.valueCounts()).isNull();
     assertThat(file.nullValueCounts()).isNull();
+    assertThat(file.nanValueCounts()).isNull();
     assertThat(file.lowerBounds()).isNull();
     assertThat(file.upperBounds()).isNull();
 
     assertThat(file.location()).isEqualTo(FILE_WITH_STATS.location());
+    assertThat(file.format()).isEqualTo(FileFormat.PARQUET);
+    assertThat(file.content()).isEqualTo(FileContent.DATA);
     assertThat(file.fileSizeInBytes()).isEqualTo(10);
     assertThat(file.recordCount()).isEqualTo(1);
     assertThat(file.specId()).isEqualTo(table.spec().specId());
