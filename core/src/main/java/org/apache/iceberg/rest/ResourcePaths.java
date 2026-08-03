@@ -38,6 +38,8 @@ public class ResourcePaths {
   public static final String V1_TABLE_REMOTE_SIGN =
       "/v1/{prefix}/namespaces/{namespace}/tables/{table}/sign";
   public static final String V1_TABLE_REGISTER = "/v1/{prefix}/namespaces/{namespace}/register";
+  public static final String V1_TABLE_UNREGISTER =
+      "/v1/{prefix}/namespaces/{namespace}/tables/{table}/unregister";
   public static final String V1_TABLE_METRICS =
       "/v1/{prefix}/namespaces/{namespace}/tables/{table}/metrics";
   public static final String V1_TABLE_RENAME = "/v1/{prefix}/tables/rename";
@@ -115,6 +117,17 @@ public class ResourcePaths {
 
   public String register(Namespace ns) {
     return SLASH.join("v1", prefix, "namespaces", pathEncode(ns), "register");
+  }
+
+  public String unregister(TableIdentifier ident) {
+    return SLASH.join(
+        "v1",
+        prefix,
+        "namespaces",
+        pathEncode(ident.namespace()),
+        "tables",
+        RESTUtil.encodeString(ident.name()),
+        "unregister");
   }
 
   public String rename() {
