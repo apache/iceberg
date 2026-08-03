@@ -362,6 +362,9 @@ public class EcsCatalog extends BaseMetastoreCatalog
 
   public boolean updateProperties(Namespace namespace, Consumer<Map<String, String>> propertiesFn)
       throws NoSuchNamespaceException {
+    if (!namespaceExists(namespace)) {
+      throw new NoSuchNamespaceException("Namespace %s does not exist", namespace);
+    }
 
     // Load old properties
     Properties oldProperties = loadProperties(namespaceURI(namespace));
