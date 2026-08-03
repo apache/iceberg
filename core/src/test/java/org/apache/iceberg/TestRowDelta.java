@@ -48,6 +48,7 @@ import org.apache.iceberg.deletes.PositionDeleteIndex;
 import org.apache.iceberg.encryption.EncryptingFileIO;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.encryption.EncryptionTestHelpers;
+import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
@@ -2235,6 +2236,78 @@ public class TestRowDelta extends TestBase {
   }
 
   @TestTemplate
+  public void testMergedDVPuffinFileCleanedUpOnCacheInvalidation() throws IOException {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
+
+    DataFile dataFile = newDataFile("data_bucket=0");
+    commit(table, table.newRowDelta().addRows(dataFile), branch);
+
+    OutputFileFactory fileFactory =
+        OutputFileFactory.builderFor(table, 1, 1).format(FileFormat.PUFFIN).build();
+
+    DeleteFile dv1 = dvWithPositions(dataFile, fileFactory, 0, 2);
+    DeleteFile dv2 = dvWithPositions(dataFile, fileFactory, 2, 4);
+
+    RowDelta rowDelta = table.newRowDelta().addDeletes(dv1).addDeletes(dv2);
+    Snapshot applied = apply(rowDelta, branch);
+
+    Set<String> mergedDVPuffinLocations = mergedDVPuffinLocations(applied);
+    assertThat(mergedDVPuffinLocations).hasSize(1);
+    String firstPuffinLocation = Iterables.getOnlyElement(mergedDVPuffinLocations);
+    assertThat(table.io().newInputFile(firstPuffinLocation).exists()).isTrue();
+
+    DeleteFile dv3 = dvWithPositions(dataFile, fileFactory, 4, 6);
+    rowDelta.addDeletes(dv3);
+
+    commit(table, rowDelta, branch);
+
+    assertThat(table.io().newInputFile(firstPuffinLocation).exists())
+        .as("Merged DV Puffin file should be deleted on cache invalidation")
+        .isFalse();
+
+    Iterable<DeleteFile> committedDeleteFiles =
+        SnapshotChanges.builderFor(table)
+            .snapshot(latestSnapshot(table, branch))
+            .build()
+            .addedDeleteFiles();
+    assertThat(committedDeleteFiles).hasSize(1);
+    DeleteFile committedDV = Iterables.getOnlyElement(committedDeleteFiles);
+    assertDVHasDeletedPositions(committedDV, LongStream.range(0, 6).boxed()::iterator);
+  }
+
+  @TestTemplate
+  public void testMergedDVPuffinFileCleanedUpOnCommitFailure() throws IOException {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
+
+    DataFile dataFile = newDataFile("data_bucket=0");
+    commit(table, table.newRowDelta().addRows(dataFile), branch);
+
+    OutputFileFactory fileFactory =
+        OutputFileFactory.builderFor(table, 1, 1).format(FileFormat.PUFFIN).build();
+
+    DeleteFile dv1 = dvWithPositions(dataFile, fileFactory, 0, 2);
+    DeleteFile dv2 = dvWithPositions(dataFile, fileFactory, 2, 4);
+
+    RowDelta rowDelta = table.newRowDelta().addDeletes(dv1).addDeletes(dv2);
+    Snapshot applied = apply(rowDelta, branch);
+
+    Set<String> mergedDVPuffinLocations = mergedDVPuffinLocations(applied);
+    assertThat(mergedDVPuffinLocations).hasSize(1);
+    String puffinLocation = Iterables.getOnlyElement(mergedDVPuffinLocations);
+    assertThat(table.io().newInputFile(puffinLocation).exists()).isTrue();
+
+    table.ops().failCommits(5);
+
+    assertThatThrownBy(() -> commit(table, rowDelta, branch))
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessage("Injected failure");
+
+    assertThat(table.io().newInputFile(puffinLocation).exists())
+        .as("Merged DV Puffin file should be deleted on commit failure")
+        .isFalse();
+  }
+
+  @TestTemplate
   public void testConcurrentDVsInDifferentPartitionsWithFilter() {
     assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
 
@@ -2600,6 +2673,22 @@ public class TestRowDelta extends TestBase {
       DataFile dataFile, OutputFileFactory fileFactory, int fromInclusive, int toExclusive)
       throws IOException {
     return dvWithPositions(table, dataFile, fileFactory, fromInclusive, toExclusive);
+  }
+
+  private Set<String> mergedDVPuffinLocations(Snapshot snapshot) throws IOException {
+    Set<String> locations = Sets.newHashSet();
+    for (ManifestFile manifest : snapshot.deleteManifests(table.io())) {
+      try (CloseableIterable<ManifestEntry<DeleteFile>> entries =
+          ManifestFiles.readDeleteManifest(manifest, table.io(), table.specs()).liveEntries()) {
+        for (ManifestEntry<DeleteFile> entry : entries) {
+          DeleteFile deleteFile = entry.file();
+          if (ContentFileUtil.isDV(deleteFile) && deleteFile.location().contains("merged-dvs-")) {
+            locations.add(deleteFile.location());
+          }
+        }
+      }
+    }
+    return locations;
   }
 
   private DeleteFile dvWithPositions(
