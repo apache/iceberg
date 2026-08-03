@@ -316,6 +316,44 @@ public class TestReplaceTransaction extends TestBase {
   }
 
   @TestTemplate
+  public void testReplaceTransactionConcurrentCommitRetainsHistory() {
+    // use random snapshot ids (like real catalogs) so the replace's snapshot and the concurrent
+    // writer's snapshot do not collide on the sequential ids that TestTables assigns by default
+    table.updateProperties().set("random-snapshot-ids", "true").commit();
+
+    table.newAppend().appendFile(FILE_A).commit();
+
+    validateSnapshot(null, table.currentSnapshot(), FILE_A);
+    long firstSnapshotId = table.currentSnapshot().snapshotId();
+
+    // start a replace that will make FILE_B the new current data
+    Transaction replace = TestTables.beginReplace(tableDir, "test", table.schema(), table.spec());
+    replace.newAppend().appendFile(FILE_B).commit();
+
+    // a concurrent writer commits FILE_C out-of-band, forcing the replace commit to retry
+    table.newAppend().appendFile(FILE_C).commit();
+    long concurrentSnapshotId = table.currentSnapshot().snapshotId();
+
+    replace.commitTransaction();
+
+    table.refresh();
+
+    // the replace wins for the current state
+    assertThat(table.currentSnapshot()).isNotNull();
+    validateSnapshot(null, table.currentSnapshot(), FILE_B);
+
+    // regression for #16942: a concurrent writer's snapshot committed during the replace must
+    // remain in the table history rather than being silently dropped on commit retry
+    assertThat(table.snapshot(concurrentSnapshotId))
+        .as("Concurrent writer's snapshot should be preserved in history")
+        .isNotNull();
+    assertThat(table.snapshot(firstSnapshotId))
+        .as("Original snapshot should be preserved in history")
+        .isNotNull();
+    assertThat(table.snapshots()).hasSize(3);
+  }
+
+  @TestTemplate
   public void testReplaceToCreateAndAppend() throws IOException {
     // this table doesn't exist.
     Transaction replace = TestTables.beginReplace(tableDir, "test_append", SCHEMA, unpartitioned());
