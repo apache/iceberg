@@ -75,6 +75,19 @@ public class Metrics implements Serializable {
         null);
   }
 
+  /**
+   * Creates a new metrics instance.
+   *
+   * @param rowCount the number of rows (records) in the file, or null if unknown
+   * @param columnSizes a map of field id to the size in bytes of the column, or null if unknown
+   * @param valueCounts a map of field id to the number of all values (including nulls, NaN, and
+   *     repeated), or null if unknown
+   * @param nullValueCounts a map of field id to the number of null values, or null if unknown
+   * @param nanValueCounts a map of field id to the number of NaN values, or null if unknown
+   * @param lowerBounds a map of field id to the lower bound of the column, or null if unknown
+   * @param upperBounds a map of field id to the upper bound of the column, or null if unknown
+   * @param originalTypes a map of field id to the original type of the column, or null if unknown
+   */
   public Metrics(
       Long rowCount,
       Map<Integer, Long> columnSizes,
