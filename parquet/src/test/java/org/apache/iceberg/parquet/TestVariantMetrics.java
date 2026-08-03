@@ -23,6 +23,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -572,6 +573,50 @@ public class TestVariantMetrics {
 
     Metrics metrics = writer.metrics();
     assertThat(metrics.recordCount()).isEqualTo(1L);
+    assertThat(metrics.lowerBounds()).doesNotContainKey(2);
+    assertThat(metrics.upperBounds()).doesNotContainKey(2);
+  }
+
+  @Test
+  public void testUniformShreddedFieldRetainsBounds() throws IOException {
+    List<VariantValue> rows = List.of(Variants.of(10), Variants.of(20), Variants.of(30));
+    org.apache.parquet.schema.Type shredded =
+        new VariantValueShreddingAnalyzer().analyzeAndCreateSchema(rows, 0);
+    assertThat(shredded).isNotNull();
+
+    Metrics metrics =
+        writeParquet(
+            (id, name) -> shredded,
+            Variant.of(EMPTY, Variants.of(10)),
+            Variant.of(EMPTY, Variants.of(20)),
+            Variant.of(EMPTY, Variants.of(30)));
+
+    assertThat(metrics.lowerBounds()).containsKey(2);
+    assertThat(metrics.upperBounds()).containsKey(2);
+    assertThat(metrics.lowerBounds().get(2))
+        .extracting(bytes -> Variant.from(bytes).value().asObject().get(ROOT_FIELD))
+        .isEqualTo(Variants.of(10));
+    assertThat(metrics.upperBounds().get(2))
+        .extracting(bytes -> Variant.from(bytes).value().asObject().get(ROOT_FIELD))
+        .isEqualTo(Variants.of(30));
+  }
+
+  @Test
+  public void testMixedFieldNotShreddedOmitsBounds() throws IOException {
+    List<VariantValue> rows =
+        List.of(Variants.of(10), Variants.of(20), Variants.of(30), Variants.of("iceberg"));
+    org.apache.parquet.schema.Type shredded =
+        new VariantValueShreddingAnalyzer().analyzeAndCreateSchema(rows, 0);
+    assertThat(shredded).isNull();
+
+    Metrics metrics =
+        writeParquet(
+            (id, name) -> shredded,
+            Variant.of(EMPTY, Variants.of(10)),
+            Variant.of(EMPTY, Variants.of(20)),
+            Variant.of(EMPTY, Variants.of(30)),
+            Variant.of(EMPTY, Variants.of("iceberg")));
+
     assertThat(metrics.lowerBounds()).doesNotContainKey(2);
     assertThat(metrics.upperBounds()).doesNotContainKey(2);
   }

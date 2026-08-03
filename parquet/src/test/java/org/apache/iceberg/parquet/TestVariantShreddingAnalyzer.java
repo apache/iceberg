@@ -43,21 +43,9 @@ import org.junit.jupiter.params.provider.CsvSource;
 
 public class TestVariantShreddingAnalyzer {
 
-  private static class DirectAnalyzer extends VariantShreddingAnalyzer<VariantValue, Void> {
-    @Override
-    protected List<VariantValue> extractVariantValues(List<VariantValue> rows, int idx) {
-      return rows;
-    }
-
-    @Override
-    protected int resolveColumnIndex(Void engineSchema, String columnName) {
-      throw new UnsupportedOperationException("Not used in direct tests");
-    }
-  }
-
   @Test
   public void testDepthLimitStopsObjectRecursion() {
-    DirectAnalyzer analyzer = new DirectAnalyzer();
+    VariantValueShreddingAnalyzer analyzer = new VariantValueShreddingAnalyzer();
 
     // Each level has {"a": <nested>, "x": 1} so objects always have a shreddable primitive
     VariantMetadata meta = Variants.metadata("a", "x");
@@ -82,7 +70,7 @@ public class TestVariantShreddingAnalyzer {
 
   @Test
   public void testDepthLimitStopsArrayRecursion() {
-    DirectAnalyzer analyzer = new DirectAnalyzer();
+    VariantValueShreddingAnalyzer analyzer = new VariantValueShreddingAnalyzer();
 
     // 55-level nested arrays with a primitive only at the very bottom.
     // Depth limit (50) prevents reaching the leaf, so schema is null (graceful degradation).
@@ -99,7 +87,7 @@ public class TestVariantShreddingAnalyzer {
 
   @Test
   public void testArrayWithinDepthLimit() {
-    DirectAnalyzer analyzer = new DirectAnalyzer();
+    VariantValueShreddingAnalyzer analyzer = new VariantValueShreddingAnalyzer();
 
     // 5-level nested arrays
     VariantValue innermost = Variants.of(42);
@@ -131,7 +119,7 @@ public class TestVariantShreddingAnalyzer {
       obj.put(name, Variants.of(42));
     }
 
-    DirectAnalyzer analyzer = new DirectAnalyzer();
+    VariantValueShreddingAnalyzer analyzer = new VariantValueShreddingAnalyzer();
     Type schema = analyzer.analyzeAndCreateSchema(List.of(obj), 0);
 
     assertThat(schema).isNotNull();
@@ -168,7 +156,7 @@ public class TestVariantShreddingAnalyzer {
       row3.put(fieldNames[i], Variants.of(99));
     }
 
-    DirectAnalyzer analyzer = new DirectAnalyzer();
+    VariantValueShreddingAnalyzer analyzer = new VariantValueShreddingAnalyzer();
     Type schema = analyzer.analyzeAndCreateSchema(List.of(row1, row2, row3), 0);
 
     assertThat(schema).isNotNull();
@@ -191,7 +179,7 @@ public class TestVariantShreddingAnalyzer {
     ShreddedObject root = Variants.object(rootMeta);
     root.put("user", addr);
 
-    DirectAnalyzer analyzer = new DirectAnalyzer();
+    VariantValueShreddingAnalyzer analyzer = new VariantValueShreddingAnalyzer();
     Type schema = analyzer.analyzeAndCreateSchema(List.of(root), 0);
 
     assertThat(schema).isNotNull();
@@ -220,7 +208,7 @@ public class TestVariantShreddingAnalyzer {
 
   @Test
   public void testDecimalForExceedingPrecision() {
-    DirectAnalyzer analyzer = new DirectAnalyzer();
+    VariantValueShreddingAnalyzer analyzer = new VariantValueShreddingAnalyzer();
     // Value 1: 30 integer digits, 0 fractional -> precision=30, scale=0, intDigits=30
     // Value 2: 1 integer digit, 20 fractional  -> precision=21, scale=20, intDigits=1
     // Combined: maxIntDigits=30, maxScale=20, raw sum=50 -> capped to precision=38,
@@ -257,7 +245,7 @@ public class TestVariantShreddingAnalyzer {
   @CsvSource({"20, 9", "28, 12", "33, 14"})
   public void testDecimalExceedingPrecisionUsesMinimumFixedLength(
       int precision, int expectedLength) {
-    DirectAnalyzer analyzer = new DirectAnalyzer();
+    VariantValueShreddingAnalyzer analyzer = new VariantValueShreddingAnalyzer();
 
     // Precision > 18 shreds to FIXED_LEN_BYTE_ARRAY; the declared length must equal what the
     // writer emits (decimalRequiredBytes).
@@ -284,7 +272,7 @@ public class TestVariantShreddingAnalyzer {
 
   @Test
   public void testDecimalForExactPrecision() {
-    DirectAnalyzer analyzer = new DirectAnalyzer();
+    VariantValueShreddingAnalyzer analyzer = new VariantValueShreddingAnalyzer();
 
     // Value with exactly precision=38: 20 integer digits + 18 scale = 38
     VariantMetadata meta = Variants.metadata("val");
@@ -311,7 +299,7 @@ public class TestVariantShreddingAnalyzer {
 
   @Test
   public void testInfrequentFieldsArePruned() {
-    DirectAnalyzer analyzer = new DirectAnalyzer();
+    VariantValueShreddingAnalyzer analyzer = new VariantValueShreddingAnalyzer();
 
     // 100 rows: "common" in all, "rare" in only 5 (below MIN_FIELD_FREQUENCY = 0.10)
     List<VariantValue> rows = buildPruningTestRows(5, obj -> obj);
@@ -326,7 +314,7 @@ public class TestVariantShreddingAnalyzer {
 
   @Test
   public void testEmptyArrayReturnsNull() {
-    DirectAnalyzer analyzer = new DirectAnalyzer();
+    VariantValueShreddingAnalyzer analyzer = new VariantValueShreddingAnalyzer();
 
     // All rows are empty arrays, no element type to infer
     List<VariantValue> rows = List.of(Variants.array(), Variants.array(), Variants.array());
@@ -337,7 +325,7 @@ public class TestVariantShreddingAnalyzer {
 
   @Test
   public void testRootPrimitiveProducesTypedValue() {
-    DirectAnalyzer analyzer = new DirectAnalyzer();
+    VariantValueShreddingAnalyzer analyzer = new VariantValueShreddingAnalyzer();
 
     // root type is primitive
     List<VariantValue> rows = List.of(Variants.of("hello"), Variants.of("world"), Variants.of("x"));
@@ -352,7 +340,7 @@ public class TestVariantShreddingAnalyzer {
 
   @Test
   public void testRootArrayOfObjectsPrunesInfrequentFields() {
-    DirectAnalyzer analyzer = new DirectAnalyzer();
+    VariantValueShreddingAnalyzer analyzer = new VariantValueShreddingAnalyzer();
 
     // 100 arrays: "common" in all, "rare" in only 3 (below MIN_FIELD_FREQUENCY = 0.10)
     List<VariantValue> rows =
@@ -380,7 +368,7 @@ public class TestVariantShreddingAnalyzer {
 
   @Test
   public void testObjectWithArrayChildPrunesNestedFields() {
-    DirectAnalyzer analyzer = new DirectAnalyzer();
+    VariantValueShreddingAnalyzer analyzer = new VariantValueShreddingAnalyzer();
 
     VariantMetadata itemMeta = Variants.metadata("name", "rare");
     VariantMetadata rootMeta = Variants.metadata("items");
@@ -417,7 +405,7 @@ public class TestVariantShreddingAnalyzer {
 
   @Test
   public void testLongArrayInFewRowsSurvivesPruning() {
-    DirectAnalyzer analyzer = new DirectAnalyzer();
+    VariantValueShreddingAnalyzer analyzer = new VariantValueShreddingAnalyzer();
 
     VariantMetadata itemMeta = Variants.metadata("key");
 
@@ -457,7 +445,7 @@ public class TestVariantShreddingAnalyzer {
       rows.add(obj);
     }
 
-    DirectAnalyzer analyzer = new DirectAnalyzer();
+    VariantValueShreddingAnalyzer analyzer = new VariantValueShreddingAnalyzer();
     Type schema = analyzer.analyzeAndCreateSchema(rows, 0);
 
     assertThat(schema).isNotNull();
@@ -479,7 +467,7 @@ public class TestVariantShreddingAnalyzer {
     row2.put("mixed", Variants.of("text"));
     row2.put("keep", Variants.of(2));
 
-    DirectAnalyzer analyzer = new DirectAnalyzer();
+    VariantValueShreddingAnalyzer analyzer = new VariantValueShreddingAnalyzer();
     Type schema = analyzer.analyzeAndCreateSchema(List.of(row1, row2), 0);
 
     assertThat(schema).isNotNull().isInstanceOf(GroupType.class);
@@ -496,7 +484,7 @@ public class TestVariantShreddingAnalyzer {
     ShreddedObject row2 = Variants.object(meta);
     row2.put("n", Variants.of(5_000_000_000L));
 
-    DirectAnalyzer analyzer = new DirectAnalyzer();
+    VariantValueShreddingAnalyzer analyzer = new VariantValueShreddingAnalyzer();
     Type schema = analyzer.analyzeAndCreateSchema(List.of(row1, row2), 0);
 
     assertThat(schema).isNotNull().isInstanceOf(GroupType.class);
@@ -515,7 +503,7 @@ public class TestVariantShreddingAnalyzer {
     ShreddedObject row2 = Variants.object(meta);
     row2.put("n", Variants.of(new BigDecimal("9876543210.123")));
 
-    DirectAnalyzer analyzer = new DirectAnalyzer();
+    VariantValueShreddingAnalyzer analyzer = new VariantValueShreddingAnalyzer();
     Type schema = analyzer.analyzeAndCreateSchema(List.of(row1, row2), 0);
 
     assertThat(schema).isNotNull().isInstanceOf(GroupType.class);
@@ -536,7 +524,7 @@ public class TestVariantShreddingAnalyzer {
     row2.put("mixed", Variants.of(new BigDecimal("3.14")));
     row2.put("keep", Variants.of(2));
 
-    DirectAnalyzer analyzer = new DirectAnalyzer();
+    VariantValueShreddingAnalyzer analyzer = new VariantValueShreddingAnalyzer();
     Type schema = analyzer.analyzeAndCreateSchema(List.of(row1, row2), 0);
 
     assertThat(schema).isNotNull().isInstanceOf(GroupType.class);
@@ -559,7 +547,7 @@ public class TestVariantShreddingAnalyzer {
     row2.put("mixed", Variants.of("hello"));
     row2.put("keep", Variants.of(2));
 
-    DirectAnalyzer analyzer = new DirectAnalyzer();
+    VariantValueShreddingAnalyzer analyzer = new VariantValueShreddingAnalyzer();
     Type schema = analyzer.analyzeAndCreateSchema(List.of(row1, row2), 0);
 
     assertThat(schema).isNotNull().isInstanceOf(GroupType.class);
@@ -585,7 +573,7 @@ public class TestVariantShreddingAnalyzer {
     row2.put("arr", arr2);
     row2.put("keep", Variants.of(2));
 
-    DirectAnalyzer analyzer = new DirectAnalyzer();
+    VariantValueShreddingAnalyzer analyzer = new VariantValueShreddingAnalyzer();
     Type schema = analyzer.analyzeAndCreateSchema(List.of(row1, row2), 0);
 
     assertThat(schema).isNotNull().isInstanceOf(GroupType.class);
@@ -604,7 +592,7 @@ public class TestVariantShreddingAnalyzer {
     row2.put("mixed", Variants.of(2.5D));
     row2.put("keep", Variants.of(2));
 
-    DirectAnalyzer analyzer = new DirectAnalyzer();
+    VariantValueShreddingAnalyzer analyzer = new VariantValueShreddingAnalyzer();
     Type schema = analyzer.analyzeAndCreateSchema(List.of(row1, row2), 0);
 
     assertThat(schema).isNotNull().isInstanceOf(GroupType.class);
@@ -623,7 +611,7 @@ public class TestVariantShreddingAnalyzer {
     row2.put("mixed", Variants.ofIsoTimestamptzNanos("2024-11-07T12:33:54.123456789+00:00"));
     row2.put("keep", Variants.of(2));
 
-    DirectAnalyzer analyzer = new DirectAnalyzer();
+    VariantValueShreddingAnalyzer analyzer = new VariantValueShreddingAnalyzer();
     Type schema = analyzer.analyzeAndCreateSchema(List.of(row1, row2), 0);
 
     assertThat(schema).isNotNull().isInstanceOf(GroupType.class);
@@ -634,7 +622,7 @@ public class TestVariantShreddingAnalyzer {
 
   @Test
   public void testRootLevelMixedTypesReturnsNull() {
-    DirectAnalyzer analyzer = new DirectAnalyzer();
+    VariantValueShreddingAnalyzer analyzer = new VariantValueShreddingAnalyzer();
     Type schema = analyzer.analyzeAndCreateSchema(List.of(Variants.of(42), Variants.of("text")), 0);
 
     assertThat(schema).isNull();
