@@ -22,6 +22,10 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
+import java.nio.ByteBuffer;
+import java.util.Map;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -38,6 +42,30 @@ public class TestSnapshotChanges {
 
   // Partition spec used to create tables
   protected static final PartitionSpec SPEC = PartitionSpec.builderFor(SCHEMA).build();
+
+  private static final Map<Integer, Long> COLUMN_SIZES = ImmutableMap.of(3, 20L);
+  private static final Map<Integer, Long> VALUE_COUNTS = ImmutableMap.of(3, 1L);
+  private static final Map<Integer, Long> NULL_VALUE_COUNTS = ImmutableMap.of(3, 0L);
+  private static final Map<Integer, ByteBuffer> LOWER_BOUNDS =
+      ImmutableMap.of(3, Conversions.toByteBuffer(Types.IntegerType.get(), 1));
+  private static final Map<Integer, ByteBuffer> UPPER_BOUNDS =
+      ImmutableMap.of(3, Conversions.toByteBuffer(Types.IntegerType.get(), 2));
+
+  private static final DataFile FILE_WITH_STATS =
+      DataFiles.builder(SPEC)
+          .withPath("/path/to/file-with-stats.parquet")
+          .withFileSizeInBytes(10)
+          .withRecordCount(1)
+          .withMetrics(
+              new Metrics(
+                  1L,
+                  COLUMN_SIZES,
+                  VALUE_COUNTS,
+                  NULL_VALUE_COUNTS,
+                  null,
+                  LOWER_BOUNDS,
+                  UPPER_BOUNDS))
+          .build();
 
   public TestTables.TestTable table = null;
 
@@ -145,5 +173,114 @@ public class TestSnapshotChanges {
 
     // Both calls should return the same reference (cached)
     assertThat(firstCallResult).isSameAs(secondCallResult);
+  }
+
+  @Test
+  public void testColumnStatsRetainedByDefault() {
+    table.newFastAppend().appendFile(FILE_WITH_STATS).commit();
+
+    DataFile file =
+        SnapshotChanges.builderFor(table)
+            .snapshot(table.currentSnapshot())
+            .build()
+            .addedDataFiles()
+            .iterator()
+            .next();
+
+    assertThat(file.columnSizes()).isEqualTo(COLUMN_SIZES);
+    assertThat(file.valueCounts()).isEqualTo(VALUE_COUNTS);
+    assertThat(file.nullValueCounts()).isEqualTo(NULL_VALUE_COUNTS);
+    assertThat(file.lowerBounds()).isEqualTo(LOWER_BOUNDS);
+    assertThat(file.upperBounds()).isEqualTo(UPPER_BOUNDS);
+  }
+
+  @Test
+  public void testIncludeColumnStatsFalseDropsStats() {
+    table.newFastAppend().appendFile(FILE_WITH_STATS).commit();
+
+    DataFile file =
+        SnapshotChanges.builderFor(table)
+            .snapshot(table.currentSnapshot())
+            .includeColumnStats(false)
+            .build()
+            .addedDataFiles()
+            .iterator()
+            .next();
+
+    assertThat(file.columnSizes()).isNull();
+    assertThat(file.valueCounts()).isNull();
+    assertThat(file.nullValueCounts()).isNull();
+    assertThat(file.lowerBounds()).isNull();
+    assertThat(file.upperBounds()).isNull();
+
+    assertThat(file.location()).isEqualTo(FILE_WITH_STATS.location());
+    assertThat(file.fileSizeInBytes()).isEqualTo(10);
+    assertThat(file.recordCount()).isEqualTo(1);
+    assertThat(file.specId()).isEqualTo(table.spec().specId());
+  }
+
+  @Test
+  public void testIncludeColumnStatsFalseRetainsPartition() {
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("data").build();
+    TestTables.TestTable partitioned =
+        TestTables.create(new File(tableDir, "partitioned"), "partitioned", SCHEMA, spec, 2);
+    partitioned
+        .newFastAppend()
+        .appendFile(
+            DataFiles.builder(spec)
+                .withPath("/path/to/partitioned.parquet")
+                .withFileSizeInBytes(10)
+                .withRecordCount(1)
+                .withPartitionPath("data=a")
+                .build())
+        .commit();
+
+    DataFile file =
+        SnapshotChanges.builderFor(partitioned)
+            .snapshot(partitioned.currentSnapshot())
+            .includeColumnStats(false)
+            .build()
+            .addedDataFiles()
+            .iterator()
+            .next();
+
+    assertThat(file.partition().get(0, String.class)).isEqualTo("a");
+  }
+
+  @Test
+  public void testIncludeColumnStatsFalseRetainsDeleteFileFields() {
+    DeleteFile positionDeletes =
+        FileMetadata.deleteFileBuilder(SPEC)
+            .ofPositionDeletes()
+            .withPath("/path/to/position-deletes.parquet")
+            .withFileSizeInBytes(10)
+            .withRecordCount(1)
+            .build();
+
+    DeleteFile equalityDeletes =
+        FileMetadata.deleteFileBuilder(SPEC)
+            .ofEqualityDeletes(3)
+            .withPath("/path/to/equality-deletes.parquet")
+            .withFileSizeInBytes(10)
+            .withRecordCount(1)
+            .build();
+
+    table.newRowDelta().addDeletes(positionDeletes).addDeletes(equalityDeletes).commit();
+
+    Iterable<DeleteFile> files =
+        SnapshotChanges.builderFor(table)
+            .snapshot(table.currentSnapshot())
+            .includeColumnStats(false)
+            .build()
+            .addedDeleteFiles();
+
+    // content is read from the manifest rather than inherited, so it must stay in the projection
+    assertThat(files)
+        .extracting(DeleteFile::content)
+        .containsExactlyInAnyOrder(FileContent.POSITION_DELETES, FileContent.EQUALITY_DELETES);
+    assertThat(files)
+        .filteredOn(file -> file.content() == FileContent.EQUALITY_DELETES)
+        .singleElement()
+        .satisfies(file -> assertThat(file.equalityFieldIds()).containsExactly(3));
   }
 }
