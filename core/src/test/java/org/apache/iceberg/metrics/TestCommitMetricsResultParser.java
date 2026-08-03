@@ -129,6 +129,7 @@ public class TestCommitMetricsResultParser {
     assertThat(result.manifestsReplaced().value()).isEqualTo(4L);
     assertThat(result.manifestsKept().value()).isEqualTo(6L);
     assertThat(result.manifestEntriesProcessed().value()).isEqualTo(20L);
+    assertThat(result.metadataFileSizeInBytes()).isNull();
 
     String expectedJson =
         "{\n"
@@ -270,5 +271,21 @@ public class TestCommitMetricsResultParser {
     assertThat(json).isEqualTo(expectedJson);
     assertThat(CommitMetricsResultParser.fromJson(json))
         .isEqualTo(ImmutableCommitMetricsResult.builder().build());
+  }
+
+  @Test
+  public void roundTripSerdeWithMetadataFileSizeInBytes() {
+    CommitMetricsResult result =
+        ImmutableCommitMetricsResult.builder()
+            .metadataFileSizeInBytes(CounterResult.of(MetricsContext.Unit.BYTES, 123L))
+            .build();
+
+    String json = CommitMetricsResultParser.toJson(result, true);
+
+    assertThat(json)
+        .contains("\"metadata-file-size-bytes\"")
+        .contains("\"unit\" : \"bytes\"")
+        .contains("\"value\" : 123");
+    assertThat(CommitMetricsResultParser.fromJson(json)).isEqualTo(result);
   }
 }
