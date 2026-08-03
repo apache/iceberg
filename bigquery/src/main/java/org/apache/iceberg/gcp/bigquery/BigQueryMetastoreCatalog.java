@@ -232,6 +232,9 @@ public class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
   @Override
   public List<Namespace> listNamespaces(Namespace namespace) {
     if (!namespace.isEmpty()) {
+      if (namespaceExists(namespace)) {
+        return ImmutableList.of();
+      }
       throw new NoSuchNamespaceException("Namespace does not exist: %s", namespace);
     }
 
