@@ -213,17 +213,6 @@ interface BasicConfig {
     return DEFAULT_SESSION_CACHE_TIMEOUT;
   }
 
-  /**
-   * The minimum timeout for token acquisition.
-   *
-   * <p>This option is not exposed as a public configuration property, and is intended for testing
-   * purposes only.
-   */
-  @Value.Default
-  default Duration minTokenAcquisitionTimeout() {
-    return MIN_TIMEOUT;
-  }
-
   @Value.Check
   default void validate() {
     if (token().isEmpty()) {
@@ -285,9 +274,9 @@ interface BasicConfig {
     }
 
     Preconditions.checkArgument(
-        tokenAcquisitionTimeout().compareTo(minTokenAcquisitionTimeout()) >= 0,
+        tokenAcquisitionTimeout().compareTo(MIN_TIMEOUT) >= 0,
         "timeout must be greater than or equal to %s (%s)",
-        minTokenAcquisitionTimeout(),
+        MIN_TIMEOUT,
         TIMEOUT);
   }
 
