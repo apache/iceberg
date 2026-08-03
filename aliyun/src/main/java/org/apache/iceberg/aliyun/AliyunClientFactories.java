@@ -119,8 +119,15 @@ public class AliyunClientFactories {
 
       String endpoint = aliyunProperties.ossEndpoint();
 
-      // Check if RRSA environment is available
-      if (isRrsaEnvironmentAvailable()) {
+      // Check if RRSA environment is available, but only fall back to it when the user has not
+      // explicitly configured a complete static credential pair (both access key id and secret).
+      // A fully configured static credential pair should take precedence over environment-based
+      // auto-detection, matching the sibling aws module (see
+      // AwsClientProperties#credentialsProvider, which only uses the static pair when both
+      // accessKeyId and secretAccessKey are set, falling back to auto-detection otherwise).
+      if ((Strings.isNullOrEmpty(aliyunProperties.accessKeyId())
+              || Strings.isNullOrEmpty(aliyunProperties.accessKeySecret()))
+          && isRrsaEnvironmentAvailable()) {
         try {
           LOG.info(
               "Detected RRSA environment variables, creating OSS client with RRSA credentials for endpoint: {}",
