@@ -48,12 +48,6 @@ final class ConfigUtil {
           ClientAuthenticationMethod.CLIENT_SECRET_BASIC,
           ClientAuthenticationMethod.CLIENT_SECRET_POST);
 
-  /**
-   * A sentinel value used to indicate that the parent session's token should be used. This is
-   * useful for the token exchange flow.
-   */
-  public static final String PARENT_TOKEN = "::parent::";
-
   public static boolean requiresClientSecret(@Nullable ClientAuthenticationMethod method) {
     return Objects.equals(method, ClientAuthenticationMethod.CLIENT_SECRET_BASIC)
         || Objects.equals(method, ClientAuthenticationMethod.CLIENT_SECRET_POST);

@@ -354,27 +354,18 @@ final class LegacyConfigAdaptor {
           warnOnLegacyOption(entry.getKey(), TokenExchangeConfig.RESOURCES);
           migrated.put(TokenExchangeConfig.RESOURCES, entry.getValue());
           break;
+        case OAuth2Properties.TOKEN_EXCHANGE_ENABLED:
+          warnOnLegacyOption(entry.getKey(), TokenRefreshConfig.TOKEN_EXCHANGE_ENABLED);
+          migrated.put(TokenRefreshConfig.TOKEN_EXCHANGE_ENABLED, entry.getValue());
+          break;
         case OAuth2Properties.ACCESS_TOKEN_TYPE:
         case OAuth2Properties.ID_TOKEN_TYPE:
         case OAuth2Properties.SAML1_TOKEN_TYPE:
         case OAuth2Properties.SAML2_TOKEN_TYPE:
         case OAuth2Properties.JWT_TOKEN_TYPE:
         case OAuth2Properties.REFRESH_TOKEN_TYPE:
-          warnOnLegacyOption(
-              entry.getKey(),
-              true,
-              TokenExchangeConfig.SUBJECT_TOKEN,
-              TokenExchangeConfig.SUBJECT_TOKEN_TYPE,
-              TokenExchangeConfig.ACTOR_TOKEN);
-          migrated.put(BasicConfig.GRANT_TYPE, GrantType.TOKEN_EXCHANGE.getValue());
-          migrated.put(TokenExchangeConfig.SUBJECT_TOKEN, entry.getValue());
-          migrated.put(TokenExchangeConfig.SUBJECT_TOKEN_TYPE, entry.getKey());
-          migrated.put(TokenExchangeConfig.ACTOR_TOKEN, ConfigUtil.PARENT_TOKEN);
-          break;
-        case OAuth2Properties.TOKEN_EXCHANGE_ENABLED:
-          warnOnLegacyOption(entry.getKey(), TokenRefreshConfig.TOKEN_EXCHANGE_ENABLED);
-          migrated.put(TokenRefreshConfig.TOKEN_EXCHANGE_ENABLED, entry.getValue());
-          break;
+          // Support for this edge case would require access to the parent session's token
+          throw new IllegalArgumentException("Vended token exchange is not supported anymore");
       }
     }
 

@@ -27,15 +27,13 @@ import static org.apache.iceberg.rest.auth.oauth2.LegacyConfigAdaptor.MESSAGE_TE
 import static org.apache.iceberg.rest.auth.oauth2.LegacyConfigAdaptor.MESSAGE_TEMPLATE_TABLE_CONFIG_NOT_ALLOWED;
 import static org.apache.iceberg.rest.auth.oauth2.LegacyConfigAdaptor.MESSAGE_TEMPLATE_VENDED_TOKEN;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.InstanceOfAssertFactories.list;
 
-import com.nimbusds.oauth2.sdk.GrantType;
-import com.nimbusds.oauth2.sdk.ParseException;
 import com.nimbusds.oauth2.sdk.Scope;
 import com.nimbusds.oauth2.sdk.auth.Secret;
 import com.nimbusds.oauth2.sdk.id.Audience;
 import com.nimbusds.oauth2.sdk.id.ClientID;
-import com.nimbusds.oauth2.sdk.token.TokenTypeURI;
 import com.nimbusds.oauth2.sdk.token.TypelessAccessToken;
 import java.net.URI;
 import java.time.Duration;
@@ -58,7 +56,6 @@ import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
-@SuppressWarnings("deprecation")
 class TestLegacyConfigAdaptor {
 
   private List<Pair<String, List<String>>> messages;
@@ -221,28 +218,9 @@ class TestLegacyConfigAdaptor {
   @MethodSource
   void vendedTokenExchange(String tokenTypeProperty) {
     Map<String, String> input = Map.of(tokenTypeProperty, "some-value");
-    Map<String, String> actual = new LegacyConfigAdaptor(consumer).fromProperties(input);
-    assertThat(actual)
-        .isEqualTo(
-            Map.of(
-                BasicConfig.GRANT_TYPE,
-                GrantType.TOKEN_EXCHANGE.getValue(),
-                TokenExchangeConfig.SUBJECT_TOKEN,
-                "some-value",
-                TokenExchangeConfig.SUBJECT_TOKEN_TYPE,
-                tokenTypeProperty,
-                TokenExchangeConfig.ACTOR_TOKEN,
-                ConfigUtil.PARENT_TOKEN));
-    assertThat(messages).hasSize(1);
-    assertThatMessage(messages.get(0), MESSAGE_TEMPLATE_LEGACY_OPTION)
-        .containsExactly(
-            tokenTypeProperty,
-            "s",
-            TokenExchangeConfig.SUBJECT_TOKEN
-                + ", "
-                + TokenExchangeConfig.SUBJECT_TOKEN_TYPE
-                + " and "
-                + TokenExchangeConfig.ACTOR_TOKEN);
+    assertThatThrownBy(() -> new LegacyConfigAdaptor(consumer).fromProperties(input))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Vended token exchange is not supported anymore");
   }
 
   static Stream<String> vendedTokenExchange() {
@@ -751,7 +729,7 @@ class TestLegacyConfigAdaptor {
   }
 
   @Test
-  void migrateTableConfigFromNonEmptyInputWithVendedStaticToken() {
+  void migrateTableConfigFromNonEmptyInput() {
     OAuth2Config parent =
         ImmutableOAuth2Config.builder()
             .basicConfig(
@@ -783,59 +761,6 @@ class TestLegacyConfigAdaptor {
     assertThat(messages).hasSize(1);
     assertThatMessage(messages.get(0), MESSAGE_TEMPLATE_VENDED_TOKEN)
         .containsExactly(BasicConfig.TOKEN);
-  }
-
-  @Test
-  void migrateTableConfigFromNonEmptyInputWithVendedTokenExchange() throws ParseException {
-    OAuth2Config parent =
-        ImmutableOAuth2Config.builder()
-            .basicConfig(
-                ImmutableBasicConfig.builder()
-                    .tokenEndpoint(URI.create("https://example.com/token/parent"))
-                    .clientId(new ClientID("parent-client-id"))
-                    .clientSecret(new Secret("parent-client-secret"))
-                    .scope(Scope.parse("parent-scope"))
-                    .build())
-            .build();
-    Map<String, String> input =
-        ImmutableMap.<String, String>builder()
-            .put(TokenExchangeConfig.SUBJECT_TOKEN, "id-token-123")
-            .put(TokenExchangeConfig.SUBJECT_TOKEN_TYPE, OAuth2Properties.ID_TOKEN_TYPE)
-            .put(TokenExchangeConfig.ACTOR_TOKEN, ConfigUtil.PARENT_TOKEN)
-            .put(TokenExchangeConfig.ACTOR_TOKEN_TYPE, OAuth2Properties.ACCESS_TOKEN_TYPE)
-            .build();
-    LegacyConfigAdaptor migrator = new LegacyConfigAdaptor(consumer);
-    OAuth2Config actual = migrator.fromTableConfig(parent, input);
-    assertThat(actual)
-        .isEqualTo(
-            ImmutableOAuth2Config.builder()
-                // from parent config
-                .basicConfig(
-                    ImmutableBasicConfig.builder()
-                        .grantType(GrantType.TOKEN_EXCHANGE)
-                        .tokenEndpoint(URI.create("https://example.com/token/parent"))
-                        .clientId(new ClientID("parent-client-id"))
-                        .clientSecret(new Secret("parent-client-secret"))
-                        .scope(Scope.parse("parent-scope"))
-                        .build())
-                // from table config
-                .tokenExchangeConfig(
-                    ImmutableTokenExchangeConfig.builder()
-                        .subjectTokenString("id-token-123")
-                        .subjectTokenType(TokenTypeURI.parse(OAuth2Properties.ID_TOKEN_TYPE))
-                        .actorTokenString(ConfigUtil.PARENT_TOKEN)
-                        .actorTokenType(TokenTypeURI.parse(OAuth2Properties.ACCESS_TOKEN_TYPE))
-                        .build())
-                .build());
-    assertThat(messages).hasSize(4);
-    assertThatMessage(messages.get(0), MESSAGE_TEMPLATE_VENDED_TOKEN)
-        .containsExactly(TokenExchangeConfig.SUBJECT_TOKEN);
-    assertThatMessage(messages.get(1), MESSAGE_TEMPLATE_VENDED_TOKEN)
-        .containsExactly(TokenExchangeConfig.SUBJECT_TOKEN_TYPE);
-    assertThatMessage(messages.get(2), MESSAGE_TEMPLATE_VENDED_TOKEN)
-        .containsExactly(TokenExchangeConfig.ACTOR_TOKEN);
-    assertThatMessage(messages.get(3), MESSAGE_TEMPLATE_VENDED_TOKEN)
-        .containsExactly(TokenExchangeConfig.ACTOR_TOKEN_TYPE);
   }
 
   private static ListAssert<String> assertThatMessage(
