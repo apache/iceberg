@@ -25,4 +25,16 @@ public class ConfigProperties {
   public static final String ENGINE_HIVE_ENABLED = "iceberg.engine.hive.enabled";
   public static final String LOCK_HIVE_ENABLED = "iceberg.engine.hive.lock-enabled";
   public static final String KEEP_HIVE_STATS = "iceberg.hive.keep.stats";
+
+  public static final String VERSION_HINT_NUM_RETRIES = "iceberg.version-hint.retry.num-retries";
+  public static final int VERSION_HINT_NUM_RETRIES_DEFAULT = 2;
+  public static final String VERSION_HINT_RETRY_MIN_WAIT_MS =
+      "iceberg.version-hint.retry.min-wait-ms";
+  public static final long VERSION_HINT_RETRY_MIN_WAIT_MS_DEFAULT = 100L;
+  public static final String VERSION_HINT_RETRY_MAX_WAIT_MS =
+      "iceberg.version-hint.retry.max-wait-ms";
+  public static final long VERSION_HINT_RETRY_MAX_WAIT_MS_DEFAULT = 800L;
+  public static final String VERSION_HINT_RETRY_TOTAL_TIMEOUT_MS =
+      "iceberg.version-hint.retry.total-timeout-ms";
+  public static final long VERSION_HINT_RETRY_TOTAL_TIMEOUT_MS_DEFAULT = 2_000L;
 }
