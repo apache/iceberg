@@ -100,6 +100,7 @@ public class TableScanResponseParser {
       Map<Integer, PartitionSpec> specsById,
       JsonGenerator gen)
       throws IOException {
+    // DeleteFileWrapper is required for uniqueness by location and content range
     Map<DeleteFileWrapper, Integer> deleteFileToIndex = Maps.newHashMap();
     if (deleteFiles != null && !deleteFiles.isEmpty()) {
       Preconditions.checkArgument(

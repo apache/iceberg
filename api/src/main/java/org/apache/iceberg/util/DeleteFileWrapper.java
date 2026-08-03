@@ -25,7 +25,7 @@ import org.apache.iceberg.DeleteFile;
  * Wrapper class to adapt DeleteFile for use in maps and sets.
  *
  * <p>Delete files are identified by location and content range rather than location alone, as a
- * single Puffin file can hold a deletion vector for each of several data files.
+ * single Puffin file can hold multiple deletion vectors.
  */
 public class DeleteFileWrapper implements WrapperSet.Wrapper<DeleteFile> {
   public static DeleteFileWrapper wrap(DeleteFile deleteFile) {
