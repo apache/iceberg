@@ -688,6 +688,92 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
   @ParameterizedTest
   @ValueSource(strings = {"v1/oauth/tokens", "https://auth-server.com/token"})
+  public void testCatalogCredentialSkipsInheritedAuthHeader(String oauth2ServerUri) {
+    Map<String, String> emptyHeaders = ImmutableMap.of();
+    Map<String, String> contextHeaders =
+        ImmutableMap.of("Authorization", "Bearer client-credentials-token:sub=user");
+    Map<String, String> catalogHeaders =
+        ImmutableMap.of("Authorization", "Bearer client-credentials-token:sub=catalog");
+    Map<String, String> catalogCredentialBody =
+        ImmutableMap.of(
+            "grant_type", "client_credentials",
+            "client_id", "catalog",
+            "client_secret", "secret",
+            "scope", "catalog");
+    Map<String, String> contextCredentialBody =
+        ImmutableMap.of(
+            "grant_type", "client_credentials",
+            "client_id", "user",
+            "client_secret", "secret",
+            "scope", "catalog");
+
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+
+    SessionCatalog.SessionContext context =
+        new SessionCatalog.SessionContext(
+            UUID.randomUUID().toString(),
+            "user",
+            ImmutableMap.of("credential", "user:secret"),
+            ImmutableMap.of());
+
+    RESTCatalog catalog = new RESTCatalog(context, (config) -> adapter);
+    catalog.initialize(
+        "prod",
+        ImmutableMap.of(
+            CatalogProperties.URI,
+            "ignored",
+            "credential",
+            "catalog:secret",
+            OAuth2Properties.OAUTH2_SERVER_URI,
+            oauth2ServerUri,
+            OAuth2Properties.SKIP_INHERITED_AUTH_HEADER_IN_TOKEN_REQUEST,
+            "true"));
+
+    assertThat(catalog.tableExists(TBL)).isFalse();
+
+    // call for initial token (client credentials from initialize provided)
+    Mockito.verify(adapter)
+        .execute(
+            matches(
+                HTTPMethod.POST,
+                oauth2ServerUri,
+                emptyHeaders,
+                ImmutableMap.of(),
+                catalogCredentialBody),
+            eq(OAuthTokenResponse.class),
+            any(),
+            any());
+    // use the catalog token for config
+    Mockito.verify(adapter)
+        .execute(
+            matches(HTTPMethod.GET, ResourcePaths.config(), catalogHeaders),
+            eq(ConfigResponse.class),
+            any(),
+            any());
+    // call for context token (only client credentials from context provided + no inherited
+    // Authorization header)
+    Mockito.verify(adapter)
+        .execute(
+            matches(
+                HTTPMethod.POST,
+                oauth2ServerUri,
+                emptyHeaders,
+                ImmutableMap.of(),
+                contextCredentialBody),
+            eq(OAuthTokenResponse.class),
+            any(),
+            any());
+    // use the context token for table existence check
+    Mockito.verify(adapter)
+        .execute(
+            matches(HTTPMethod.HEAD, RESOURCE_PATHS.table(TBL), contextHeaders),
+            any(),
+            any(),
+            any());
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"v1/oauth/tokens", "https://auth-server.com/token"})
   public void testCatalogCredentialWithClientCredential(String oauth2ServerUri) {
     Map<String, String> emptyHeaders = ImmutableMap.of();
     Map<String, String> contextHeaders =
@@ -798,6 +884,95 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     Mockito.verify(adapter)
         .execute(
             matches(HTTPMethod.POST, oauth2ServerUri, catalogHeaders),
+            eq(OAuthTokenResponse.class),
+            any(),
+            any());
+    // use the context token for table existence check
+    Mockito.verify(adapter)
+        .execute(
+            matches(HTTPMethod.HEAD, RESOURCE_PATHS.table(TBL), contextHeaders),
+            any(),
+            any(),
+            any());
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"v1/oauth/tokens", "https://auth-server.com/token"})
+  public void testCatalogBearerTokenAndCredentialSkipsInheritedAuthHeader(String oauth2ServerUri) {
+    Map<String, String> emptyHeaders = ImmutableMap.of();
+    Map<String, String> initHeaders = ImmutableMap.of("Authorization", "Bearer bearer-token");
+    Map<String, String> contextHeaders =
+        ImmutableMap.of("Authorization", "Bearer client-credentials-token:sub=user");
+    Map<String, String> catalogHeaders =
+        ImmutableMap.of("Authorization", "Bearer client-credentials-token:sub=catalog");
+    Map<String, String> catalogCredentialBody =
+        ImmutableMap.of(
+            "grant_type", "client_credentials",
+            "client_id", "catalog",
+            "client_secret", "secret",
+            "scope", "catalog");
+    Map<String, String> contextCredentialBody =
+        ImmutableMap.of(
+            "grant_type", "client_credentials",
+            "client_id", "user",
+            "client_secret", "secret",
+            "scope", "catalog");
+
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+
+    SessionCatalog.SessionContext context =
+        new SessionCatalog.SessionContext(
+            UUID.randomUUID().toString(),
+            "user",
+            ImmutableMap.of("credential", "user:secret"),
+            ImmutableMap.of());
+
+    RESTCatalog catalog = new RESTCatalog(context, (config) -> adapter);
+    catalog.initialize(
+        "prod",
+        ImmutableMap.of(
+            CatalogProperties.URI,
+            "ignored",
+            "credential",
+            "catalog:secret",
+            "token",
+            "bearer-token",
+            OAuth2Properties.OAUTH2_SERVER_URI,
+            oauth2ServerUri,
+            OAuth2Properties.SKIP_INHERITED_AUTH_HEADER_IN_TOKEN_REQUEST,
+            "true"));
+
+    assertThat(catalog.tableExists(TBL)).isFalse();
+
+    // use the provided bearer token + client_id/client_secret keypair for initial token
+    Mockito.verify(adapter)
+        .execute(
+            matches(
+                HTTPMethod.POST,
+                oauth2ServerUri,
+                initHeaders,
+                ImmutableMap.of(),
+                catalogCredentialBody),
+            eq(OAuthTokenResponse.class),
+            any(),
+            any());
+    // use the catalog credential token for config
+    Mockito.verify(adapter)
+        .execute(
+            matches(HTTPMethod.GET, ResourcePaths.config(), catalogHeaders),
+            eq(ConfigResponse.class),
+            any(),
+            any());
+    // call for context token (only client credentials from context provided + no inherited
+    // Authorization header)
+    Mockito.verify(adapter)
+        .execute(
+            matches(
+                HTTPMethod.POST,
+                oauth2ServerUri,
+                emptyHeaders,
+                ImmutableMap.of(),
+                contextCredentialBody),
             eq(OAuthTokenResponse.class),
             any(),
             any());
