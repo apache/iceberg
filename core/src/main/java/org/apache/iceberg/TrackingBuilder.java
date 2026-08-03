@@ -37,6 +37,7 @@ class TrackingBuilder {
    * Creates a builder for a newly added file.
    *
    * @param newSnapshotId the snapshot ID in which the new tracking instance will be committed
+   * @return a builder for a newly added file
    */
   static TrackingBuilder added(long newSnapshotId) {
     return new TrackingBuilder(newSnapshotId);
@@ -47,6 +48,7 @@ class TrackingBuilder {
    *
    * @param source source tracking from a manifest entry
    * @param newSnapshotId the snapshot ID in which the new tracking instance will be committed
+   * @return a builder for a tracking row derived from the source
    */
   static TrackingBuilder from(Tracking source, long newSnapshotId) {
     return new TrackingBuilder(source, newSnapshotId);
@@ -57,6 +59,7 @@ class TrackingBuilder {
    *
    * @param source source tracking from a manifest entry
    * @param newSnapshotId the snapshot ID in which the new tracking instance will be committed
+   * @return a DELETED tracking row derived from the source
    */
   static Tracking deleted(Tracking source, long newSnapshotId) {
     return terminal(EntryStatus.DELETED, source, newSnapshotId);
@@ -67,6 +70,7 @@ class TrackingBuilder {
    *
    * @param source source tracking from a manifest entry
    * @param newSnapshotId the snapshot ID in which the new tracking instance will be committed
+   * @return a REPLACED tracking row derived from the source
    */
   static Tracking replaced(Tracking source, long newSnapshotId) {
     return terminal(EntryStatus.REPLACED, source, newSnapshotId);

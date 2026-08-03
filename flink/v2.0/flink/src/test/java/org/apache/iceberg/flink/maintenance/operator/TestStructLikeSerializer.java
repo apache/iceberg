@@ -35,8 +35,6 @@ class TestStructLikeSerializer {
           Types.NestedField.required(1, "id", Types.IntegerType.get()),
           Types.NestedField.optional(2, "data", Types.StringType.get()));
 
-  private static final int SPEC_0 = PartitionSpec.unpartitioned().specId();
-
   private final StructLikeSerializer serializer = new StructLikeSerializer();
 
   @Test
@@ -45,8 +43,8 @@ class TestStructLikeSerializer {
     key.set(0, 42);
     key.set(1, "hello");
 
-    SerializedEqualityValues key1 = serializer.serializeKey(key, KEY_TYPE, SPEC_0);
-    SerializedEqualityValues key2 = serializer.serializeKey(key, KEY_TYPE, SPEC_0);
+    SerializedEqualityValues key1 = serializer.serializeKey(key, KEY_TYPE);
+    SerializedEqualityValues key2 = serializer.serializeKey(key, KEY_TYPE);
     assertThat(key1).isEqualTo(key2);
   }
 
@@ -60,8 +58,8 @@ class TestStructLikeSerializer {
     record2.set(0, 2);
     record2.set(1, "b");
 
-    SerializedEqualityValues key1 = serializer.serializeKey(record1, KEY_TYPE, SPEC_0);
-    SerializedEqualityValues key2 = serializer.serializeKey(record2, KEY_TYPE, SPEC_0);
+    SerializedEqualityValues key1 = serializer.serializeKey(record1, KEY_TYPE);
+    SerializedEqualityValues key2 = serializer.serializeKey(record2, KEY_TYPE);
     assertThat(key1).isNotEqualTo(key2);
   }
 
@@ -78,8 +76,8 @@ class TestStructLikeSerializer {
     GenericRecord record3 = GenericRecord.create(typeWithField3);
     record3.set(0, 42);
 
-    SerializedEqualityValues key1 = serializer.serializeKey(record1, typeWithField1, SPEC_0);
-    SerializedEqualityValues key2 = serializer.serializeKey(record3, typeWithField3, SPEC_0);
+    SerializedEqualityValues key1 = serializer.serializeKey(record1, typeWithField1);
+    SerializedEqualityValues key2 = serializer.serializeKey(record3, typeWithField3);
     assertThat(key1).isNotEqualTo(key2);
   }
 
@@ -94,8 +92,8 @@ class TestStructLikeSerializer {
     record.set(0, new BigDecimal("123.45"));
     record.set(1, "test");
 
-    SerializedEqualityValues key1 = serializer.serializeKey(record, decimalKeyType, SPEC_0);
-    SerializedEqualityValues key2 = serializer.serializeKey(record, decimalKeyType, SPEC_0);
+    SerializedEqualityValues key1 = serializer.serializeKey(record, decimalKeyType);
+    SerializedEqualityValues key2 = serializer.serializeKey(record, decimalKeyType);
     assertThat(key1).isEqualTo(key2);
   }
 
@@ -105,8 +103,8 @@ class TestStructLikeSerializer {
     record.set(0, 1);
     record.set(1, null);
 
-    SerializedEqualityValues key1 = serializer.serializeKey(record, KEY_TYPE, SPEC_0);
-    SerializedEqualityValues key2 = serializer.serializeKey(record, KEY_TYPE, SPEC_0);
+    SerializedEqualityValues key1 = serializer.serializeKey(record, KEY_TYPE);
+    SerializedEqualityValues key2 = serializer.serializeKey(record, KEY_TYPE);
     assertThat(key1).isEqualTo(key2);
   }
 
@@ -120,18 +118,8 @@ class TestStructLikeSerializer {
     withValue.set(0, 1);
     withValue.set(1, "");
 
-    assertThat(serializer.serializeKey(withNull, KEY_TYPE, SPEC_0))
-        .isNotEqualTo(serializer.serializeKey(withValue, KEY_TYPE, SPEC_0));
-  }
-
-  @Test
-  void samePkDifferentSpecsAreNotEqual() {
-    GenericRecord pk = GenericRecord.create(KEY_TYPE);
-    pk.set(0, 42);
-    pk.set(1, "x");
-
-    assertThat(serializer.serializeKey(pk, KEY_TYPE, 0))
-        .isNotEqualTo(serializer.serializeKey(pk, KEY_TYPE, 1));
+    assertThat(serializer.serializeKey(withNull, KEY_TYPE))
+        .isNotEqualTo(serializer.serializeKey(withValue, KEY_TYPE));
   }
 
   @Test

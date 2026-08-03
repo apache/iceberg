@@ -37,6 +37,7 @@ import org.apache.iceberg.DoubleFieldMetrics;
 import org.apache.iceberg.FieldMetrics;
 import org.apache.iceberg.FloatFieldMetrics;
 import org.apache.iceberg.StructLike;
+import org.apache.iceberg.ValueSizeFieldMetrics;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -118,6 +119,10 @@ public class ParquetValueWriters {
 
   public static PrimitiveWriter<ByteBuffer> byteBuffers(ColumnDescriptor desc) {
     return new BytesWriter(desc);
+  }
+
+  public static PrimitiveWriter<ByteBuffer> geospatial(ColumnDescriptor desc) {
+    return new GeospatialWriter(desc);
   }
 
   public static PrimitiveWriter<ByteBuffer> fixedBuffers(ColumnDescriptor desc) {
@@ -336,6 +341,27 @@ public class ParquetValueWriters {
     }
   }
 
+  private static class GeospatialWriter extends PrimitiveWriter<ByteBuffer> {
+    private final ValueSizeFieldMetrics.Builder metricsBuilder;
+
+    private GeospatialWriter(ColumnDescriptor desc) {
+      super(desc);
+      this.metricsBuilder =
+          new ValueSizeFieldMetrics.Builder(desc.getPrimitiveType().getId().intValue());
+    }
+
+    @Override
+    public void write(int repetitionLevel, ByteBuffer buffer) {
+      metricsBuilder.addValueSize(buffer.remaining());
+      column.writeBinary(repetitionLevel, Binary.fromReusedByteBuffer(buffer));
+    }
+
+    @Override
+    public Stream<FieldMetrics<?>> metrics() {
+      return Stream.of(metricsBuilder.build());
+    }
+  }
+
   private static class FixedBufferWriter extends PrimitiveWriter<ByteBuffer> {
     private final int length;
 
@@ -457,7 +483,8 @@ public class ParquetValueWriters {
                   metrics.nanValueCount(),
                   metrics.lowerBound(),
                   metrics.upperBound(),
-                  metrics.originalType()));
+                  metrics.originalType(),
+                  metrics.avgValueSizeInBytes()));
         } else {
           throw new IllegalStateException(
               String.format(

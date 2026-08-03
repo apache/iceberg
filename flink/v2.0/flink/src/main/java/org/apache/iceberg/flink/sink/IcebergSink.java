@@ -73,6 +73,8 @@ import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.FlinkWriteConf;
 import org.apache.iceberg.flink.FlinkWriteOptions;
 import org.apache.iceberg.flink.TableLoader;
+import org.apache.iceberg.flink.maintenance.api.ConvertEqualityDeletes;
+import org.apache.iceberg.flink.maintenance.api.ConvertEqualityDeletesConfig;
 import org.apache.iceberg.flink.maintenance.api.DeleteOrphanFiles;
 import org.apache.iceberg.flink.maintenance.api.DeleteOrphanFilesConfig;
 import org.apache.iceberg.flink.maintenance.api.ExpireSnapshots;
@@ -247,7 +249,8 @@ public class IcebergSink
         workerPoolSize,
         sinkId,
         metrics,
-        maintenanceEnabled);
+        maintenanceEnabled,
+        context.getTaskInfo().getIndexOfThisSubtask());
   }
 
   @Override
@@ -529,7 +532,7 @@ public class IcebergSink
     /**
      * If sort order contains partition columns, each sort key would map to one partition and data
      * file. This relative weight can avoid placing too many small files for sort keys with low
-     * traffic. It is a double value that defines the minimal weight for each sort key. `0.02` means
+     * traffic. It is a double value that defines the minimal weight for each sort key. `2.0` means
      * each key has a base weight of `2%` of the targeted traffic weight per writer task.
      *
      * <p>E.g. the sink Iceberg table is partitioned daily by event time. Assume the data stream
@@ -541,7 +544,7 @@ public class IcebergSink
      * the range partitioner would put all the oldest 150 days in one writer task. That writer task
      * would write to 150 small files (one per day). Keeping 150 open files can potentially consume
      * large amount of memory. Flushing and uploading 150 files (however small) at checkpoint time
-     * can also be potentially slow. If this config is set to `0.02`. It means every sort key has a
+     * can also be potentially slow. If this config is set to `2.0`. It means every sort key has a
      * base weight of `2%` of targeted weight of `1,000` for every write task. It would essentially
      * avoid placing more than `50` data files (one per day) on one writer task no matter how small
      * they are.
@@ -715,6 +718,31 @@ public class IcebergSink
       return this;
     }
 
+    /**
+     * Enables converting equality deletes to deletion vectors as a post-commit maintenance task.
+     * The sink's write branch is read for equality delete files, which are converted to deletion
+     * vectors and committed back to the same branch (or the target branch, if configured). Requires
+     * equality field columns (upsert or CDC) and a table with format version >= 3.
+     *
+     * @see ConvertEqualityDeletesConfig for the default config.
+     */
+    public Builder convertEqualityDeletes() {
+      writeOptions.put(FlinkWriteOptions.CONVERT_EQUALITY_DELETES_ENABLE.key(), "true");
+      return this;
+    }
+
+    /**
+     * Enables converting equality deletes to deletion vectors as a post-commit maintenance task.
+     *
+     * @param config task-specific configuration, see {@link ConvertEqualityDeletesConfig} for
+     *     available keys.
+     */
+    public Builder convertEqualityDeletes(Map<String, String> config) {
+      convertEqualityDeletes();
+      writeOptions.putAll(config);
+      return this;
+    }
+
     @Override
     public Builder toBranch(String branch) {
       writeOptions.put(FlinkWriteOptions.BRANCH.key(), branch);
@@ -792,6 +820,10 @@ public class IcebergSink
         maintenanceTasks.add(DeleteOrphanFiles.builder().config(deleteOrphanFilesConfig));
       }
 
+      if (flinkWriteConf.convertEqualityDeletesMode()) {
+        addConvertEqualityDeletesTask(flinkWriteConf, flinkMaintenanceConfig, equalityFieldIds);
+      }
+
       Set<String> equalityFieldColumnsSet =
           equalityFieldColumns != null ? Sets.newHashSet(equalityFieldColumns) : null;
 
@@ -812,6 +844,32 @@ public class IcebergSink
           maintenanceTasks,
           flinkMaintenanceConfig,
           equalityFieldColumnsSet);
+    }
+
+    private void addConvertEqualityDeletesTask(
+        FlinkWriteConf flinkWriteConf,
+        FlinkMaintenanceConfig flinkMaintenanceConfig,
+        Set<Integer> equalityFieldIds) {
+      Preconditions.checkState(
+          !equalityFieldIds.isEmpty(),
+          "Equality field columns must be set to convert equality deletes to deletion vectors.");
+      ConvertEqualityDeletesConfig convertEqualityDeletesConfig =
+          flinkMaintenanceConfig.createConvertEqualityDeletesConfig();
+      // The sink writes equality deletes to its write branch, so that becomes the staging branch.
+      // The target defaults to the same branch, i.e. an in-place conversion.
+      String targetBranch = convertEqualityDeletesConfig.targetBranch();
+      String convertTargetBranch = targetBranch != null ? targetBranch : flinkWriteConf.branch();
+      List<String> convertEqualityFieldColumns = Lists.newArrayList();
+      for (int fieldId : equalityFieldIds) {
+        convertEqualityFieldColumns.add(table.schema().findColumnName(fieldId));
+      }
+
+      maintenanceTasks.add(
+          ConvertEqualityDeletes.builder()
+              .stagingBranch(flinkWriteConf.branch())
+              .targetBranch(convertTargetBranch)
+              .equalityFieldColumns(convertEqualityFieldColumns)
+              .config(convertEqualityDeletesConfig));
     }
 
     /**

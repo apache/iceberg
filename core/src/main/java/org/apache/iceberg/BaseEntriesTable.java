@@ -71,7 +71,6 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
     Expression rowFilter = context.rowFilter();
     boolean caseSensitive = context.caseSensitive();
     boolean ignoreResiduals = context.ignoreResiduals();
-    Expression filter = ignoreResiduals ? Expressions.alwaysTrue() : rowFilter;
 
     LoadingCache<Integer, ManifestEvaluator> evalCache =
         Caffeine.newBuilder()
@@ -82,7 +81,7 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
                   return ManifestEvaluator.forRowFilter(rowFilter, transformedSpec, caseSensitive);
                 });
     ManifestContentEvaluator manifestContentEvaluator =
-        new ManifestContentEvaluator(filter, tableSchema.asStruct(), caseSensitive);
+        new ManifestContentEvaluator(rowFilter, tableSchema.asStruct(), caseSensitive);
 
     CloseableIterable<ManifestFile> filteredManifests =
         CloseableIterable.filter(
@@ -91,9 +90,11 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
                 evalCache.get(manifest.partitionSpecId()).eval(manifest)
                     && manifestContentEvaluator.eval(manifest));
 
+    Expression residual = ignoreResiduals ? Expressions.alwaysTrue() : rowFilter;
+
     return CloseableIterable.transform(
         filteredManifests,
-        manifest -> new ManifestReadTask(table, manifest, projectedSchema, filter));
+        manifest -> new ManifestReadTask(table, manifest, projectedSchema, residual));
   }
 
   /**
@@ -116,13 +117,13 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
 
     private class ManifestEvalVisitor extends ExpressionVisitors.BoundExpressionVisitor<Boolean> {
 
-      private int manifestContentId;
+      private ManifestContent manifestContent;
 
       private static final boolean ROWS_MIGHT_MATCH = true;
       private static final boolean ROWS_CANNOT_MATCH = false;
 
       private boolean eval(ManifestFile manifestFile) {
-        this.manifestContentId = manifestFile.content().id();
+        this.manifestContent = manifestFile.content();
         return ExpressionVisitors.visitEvaluator(boundExpr, this);
       }
 
@@ -154,7 +155,7 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
       @Override
       public <T> Boolean isNull(BoundReference<T> ref) {
         if (fileContent(ref)) {
-          return ROWS_CANNOT_MATCH; // date_file.content should not be null
+          return ROWS_CANNOT_MATCH; // data_file.content should not be null
         } else {
           return ROWS_MIGHT_MATCH;
         }
@@ -168,7 +169,7 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
       @Override
       public <T> Boolean isNaN(BoundReference<T> ref) {
         if (fileContent(ref)) {
-          return ROWS_CANNOT_MATCH; // date_file.content should not be nan
+          return ROWS_CANNOT_MATCH; // data_file.content should not be NaN
         } else {
           return ROWS_MIGHT_MATCH;
         }
@@ -203,7 +204,7 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
       public <T> Boolean eq(BoundReference<T> ref, Literal<T> lit) {
         if (fileContent(ref)) {
           Literal<Integer> intLit = lit.to(Types.IntegerType.get());
-          if (!contentMatch(intLit.value())) {
+          if (!mayContainFileContent(intLit.value())) {
             return ROWS_CANNOT_MATCH;
           }
         }
@@ -214,7 +215,7 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
       public <T> Boolean notEq(BoundReference<T> ref, Literal<T> lit) {
         if (fileContent(ref)) {
           Literal<Integer> intLit = lit.to(Types.IntegerType.get());
-          if (contentMatch(intLit.value())) {
+          if (containsOnlyFileContent(intLit.value())) {
             return ROWS_CANNOT_MATCH;
           }
         }
@@ -224,7 +225,7 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
       @Override
       public <T> Boolean in(BoundReference<T> ref, Set<T> literalSet) {
         if (fileContent(ref)) {
-          if (literalSet.stream().noneMatch(lit -> contentMatch((Integer) lit))) {
+          if (literalSet.stream().noneMatch(lit -> mayContainFileContent((Integer) lit))) {
             return ROWS_CANNOT_MATCH;
           }
         }
@@ -233,11 +234,10 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
 
       @Override
       public <T> Boolean notIn(BoundReference<T> ref, Set<T> literalSet) {
-        if (fileContent(ref)) {
-          if (literalSet.stream().anyMatch(lit -> contentMatch((Integer) lit))) {
-            return ROWS_CANNOT_MATCH;
-          }
+        if (fileContent(ref) && containsAllPossibleFileContents(literalSet)) {
+          return ROWS_CANNOT_MATCH;
         }
+
         return ROWS_MIGHT_MATCH;
       }
 
@@ -255,15 +255,31 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
         return ref.fieldId() == DataFile.CONTENT.fieldId();
       }
 
-      private boolean contentMatch(Integer fileContentId) {
-        if (FileContent.DATA.id() == fileContentId) {
-          return ManifestContent.DATA.id() == manifestContentId;
-        } else if (FileContent.EQUALITY_DELETES.id() == fileContentId
-            || FileContent.POSITION_DELETES.id() == fileContentId) {
-          return ManifestContent.DELETES.id() == manifestContentId;
-        } else {
-          return false;
-        }
+      private boolean mayContainFileContent(int fileContentId) {
+        return switch (manifestContent) {
+          case DATA -> FileContent.DATA.id() == fileContentId;
+          case DELETES ->
+              FileContent.POSITION_DELETES.id() == fileContentId
+                  || FileContent.EQUALITY_DELETES.id() == fileContentId;
+        };
+      }
+
+      private boolean containsOnlyFileContent(int fileContentId) {
+        // A data manifest contains only data files(content=0), while a delete manifest may contain
+        // both position(content=1) and equality(content=2) deletes.
+        return switch (manifestContent) {
+          case DATA -> FileContent.DATA.id() == fileContentId;
+          case DELETES -> false;
+        };
+      }
+
+      private <T> boolean containsAllPossibleFileContents(Set<T> fileContentIds) {
+        return switch (manifestContent) {
+          case DATA -> fileContentIds.contains(FileContent.DATA.id());
+          case DELETES ->
+              fileContentIds.contains(FileContent.POSITION_DELETES.id())
+                  && fileContentIds.contains(FileContent.EQUALITY_DELETES.id());
+        };
       }
     }
   }
