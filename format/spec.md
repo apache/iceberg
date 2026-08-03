@@ -790,6 +790,7 @@ In V1-V3, manifest entries are described by the `manifest_entry` struct. In V4, 
     | 505 | **`existing_files_count`** | `long` | *required* | *required* | Count of entries with status EXISTING in the manifest. |
     | 506 | **`deleted_files_count`** | `long` | *required* | *required* | Count of entries with status DELETED in the manifest. |
     | 520 | **`replaced_files_count`** | `long` | *required* | *required* | Count of entries with status REPLACED in the manifest. |
+    | 524 | **`modified_files_count`** | `long` | *required* | *required* | Count of entries with status MODIFIED in the manifest. |
     | 512 | **`added_rows_count`** | `long` | *required* | *required* | Total number of rows in ADDED entries. |
     | 513 | **`existing_rows_count`** | `long` | *required* | *required* | Total number of rows in EXISTING entries. |
     | 514 | **`deleted_rows_count`** | `long` | *required* | *required* | Total number of rows in DELETED entries. |
