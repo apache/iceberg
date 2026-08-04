@@ -369,11 +369,11 @@ public class OAuth2Util {
             .withTokenType(JsonUtil.getString(TOKEN_TYPE, json))
             .withIssuedTokenType(JsonUtil.getStringOrNull(ISSUED_TOKEN_TYPE, json));
 
-    if (json.has(EXPIRES_IN)) {
+    if (json.hasNonNull(EXPIRES_IN)) {
       builder.setExpirationInSeconds(JsonUtil.getInt(EXPIRES_IN, json));
     }
 
-    if (json.has(SCOPE)) {
+    if (json.hasNonNull(SCOPE)) {
       builder.addScopes(parseScope(JsonUtil.getString(SCOPE, json)));
     }
 
