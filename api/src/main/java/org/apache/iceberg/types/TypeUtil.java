@@ -292,6 +292,28 @@ public class TypeUtil {
   }
 
   /**
+   * Returns whether a field can evaluate to null within the given schema.
+   *
+   * <p>A field can be null if it is declared optional, or if it is nested inside an optional field.
+   * For example, a required field inside an optional struct is effectively null whenever that
+   * struct is null.
+   *
+   * <p>If the field is not present in the schema, this method returns true because its nullability
+   * cannot be determined.
+   *
+   * @param schema The schema that contains the field ID
+   * @param fieldId The field ID to check
+   * @return true if the field may be null, false if it cannot be null
+   */
+  public static boolean isNullable(Schema schema, int fieldId) {
+    Types.NestedField field = schema.findField(fieldId);
+
+    return field == null
+        || field.isOptional()
+        || ancestorFields(schema, fieldId).stream().anyMatch(Types.NestedField::isOptional);
+  }
+
+  /**
    * Assigns fresh ids from the {@link NextID nextId function} for all fields in a type.
    *
    * @param type a type
