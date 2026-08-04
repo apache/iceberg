@@ -79,6 +79,7 @@ class IcebergCommitter implements Committer<IcebergCommittable> {
   private ExecutorService workerPool;
   private int continuousEmptyCheckpoints = 0;
   private final boolean tableMaintenanceEnabled;
+  private final int subtaskId;
 
   IcebergCommitter(
       TableLoader tableLoader,
@@ -88,31 +89,45 @@ class IcebergCommitter implements Committer<IcebergCommittable> {
       int workerPoolSize,
       String sinkId,
       IcebergFilesCommitterMetrics committerMetrics,
-      boolean tableMaintenanceEnabled) {
+      boolean tableMaintenanceEnabled,
+      int subtaskId) {
     this.branch = branch;
     this.snapshotProperties = snapshotProperties;
     this.replacePartitions = replacePartitions;
     this.committerMetrics = committerMetrics;
     this.tableLoader = tableLoader;
-    if (!tableLoader.isOpen()) {
-      tableLoader.open();
+    this.tableMaintenanceEnabled = tableMaintenanceEnabled;
+    this.subtaskId = subtaskId;
+
+    // IcebergSink#addPreCommitTopology routes all committables to subtask 0 via a .global()
+    // shuffle, so only subtask 0 needs to load the table and create the worker pool.
+    if (subtaskId == 0) {
+      if (!tableLoader.isOpen()) {
+        tableLoader.open();
+      }
+
+      this.table = tableLoader.loadTable();
+      this.maxContinuousEmptyCommits =
+          PropertyUtil.propertyAsInt(table.properties(), MAX_CONTINUOUS_EMPTY_COMMITS, 10);
+      Preconditions.checkArgument(
+          maxContinuousEmptyCommits > 0, MAX_CONTINUOUS_EMPTY_COMMITS + " must be positive");
+      this.workerPool =
+          ThreadPools.newFixedThreadPool(
+              "iceberg-committer-pool-" + table.name() + "-" + sinkId, workerPoolSize);
     }
 
-    this.table = tableLoader.loadTable();
-    this.maxContinuousEmptyCommits =
-        PropertyUtil.propertyAsInt(table.properties(), MAX_CONTINUOUS_EMPTY_COMMITS, 10);
-    Preconditions.checkArgument(
-        maxContinuousEmptyCommits > 0, MAX_CONTINUOUS_EMPTY_COMMITS + " must be positive");
-    this.workerPool =
-        ThreadPools.newFixedThreadPool(
-            "iceberg-committer-pool-" + table.name() + "-" + sinkId, workerPoolSize);
     this.continuousEmptyCheckpoints = 0;
-    this.tableMaintenanceEnabled = tableMaintenanceEnabled;
   }
 
   @Override
   public void commit(Collection<CommitRequest<IcebergCommittable>> commitRequests)
       throws IOException, InterruptedException {
+    Preconditions.checkState(
+        subtaskId == 0,
+        "IcebergCommitter received %s commit request(s) on subtask %s, but only subtask 0 is expected to commit.",
+        commitRequests.size(),
+        subtaskId);
+
     if (commitRequests.isEmpty()) {
       return;
     }
@@ -311,7 +326,12 @@ class IcebergCommitter implements Committer<IcebergCommittable> {
 
   @Override
   public void close() throws IOException {
-    tableLoader.close();
-    workerPool.shutdown();
+    if (tableLoader.isOpen()) {
+      tableLoader.close();
+    }
+
+    if (workerPool != null) {
+      workerPool.shutdown();
+    }
   }
 }

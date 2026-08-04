@@ -785,7 +785,7 @@ public class Parquet {
 
       private static CompressionCodecName toCodec(String codecAsString) {
         try {
-          return CompressionCodecName.valueOf(codecAsString.toUpperCase(Locale.ENGLISH));
+          return CompressionCodecName.valueOf(codecAsString.toUpperCase(Locale.ROOT));
         } catch (IllegalArgumentException e) {
           throw new IllegalArgumentException("Unsupported compression codec: " + codecAsString);
         }

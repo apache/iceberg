@@ -46,7 +46,7 @@ public class SnapshotRefParser {
   public static void toJson(SnapshotRef ref, JsonGenerator generator) throws IOException {
     generator.writeStartObject();
     generator.writeNumberField(SNAPSHOT_ID, ref.snapshotId());
-    generator.writeStringField(TYPE, ref.type().name().toLowerCase(Locale.ENGLISH));
+    generator.writeStringField(TYPE, ref.type().name().toLowerCase(Locale.ROOT));
     JsonUtil.writeIntegerFieldIf(
         ref.minSnapshotsToKeep() != null,
         MIN_SNAPSHOTS_TO_KEEP,

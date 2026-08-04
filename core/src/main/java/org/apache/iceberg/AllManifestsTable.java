@@ -307,7 +307,7 @@ public class AllManifestsTable extends BaseMetadataTable {
     private final Expression boundExpr;
 
     private SnapshotEvaluator(Expression expr, Types.StructType structType, boolean caseSensitive) {
-      this.boundExpr = Binder.bind(structType, expr, caseSensitive);
+      this.boundExpr = Binder.bind(structType, Expressions.rewriteNot(expr), caseSensitive);
     }
 
     private boolean eval(Snapshot snapshot) {
@@ -333,11 +333,6 @@ public class AllManifestsTable extends BaseMetadataTable {
       @Override
       public Boolean alwaysFalse() {
         return ROWS_CANNOT_MATCH;
-      }
-
-      @Override
-      public Boolean not(Boolean result) {
-        return !result;
       }
 
       @Override

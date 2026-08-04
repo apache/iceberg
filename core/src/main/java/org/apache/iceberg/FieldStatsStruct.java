@@ -98,7 +98,7 @@ class FieldStatsStruct<T> implements FieldStats<T>, StructLike, Serializable {
     this.valueCount = fieldMetrics.valueCount();
     this.nullValueCount = fieldMetrics.nullValueCount() < 0 ? null : fieldMetrics.nullValueCount();
     this.nanValueCount = fieldMetrics.nanValueCount() < 0 ? null : fieldMetrics.nanValueCount();
-    this.avgValueSize = null;
+    this.avgValueSize = fieldMetrics.avgValueSizeInBytes();
   }
 
   private boolean isBinary() {
@@ -144,13 +144,28 @@ class FieldStatsStruct<T> implements FieldStats<T>, StructLike, Serializable {
   }
 
   @Override
+  public boolean hasValueCount() {
+    return valueCount != null;
+  }
+
+  @Override
   public long valueCount() {
     return valueCount;
   }
 
   @Override
+  public boolean hasNullValueCount() {
+    return nullValueCount != null;
+  }
+
+  @Override
   public long nullValueCount() {
     return nullValueCount;
+  }
+
+  @Override
+  public boolean hasNanValueCount() {
+    return nanValueCount != null;
   }
 
   @Override

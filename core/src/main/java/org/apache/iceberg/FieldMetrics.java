@@ -29,6 +29,7 @@ public class FieldMetrics<T> {
   private final T lowerBound;
   private final T upperBound;
   private final Type originalType;
+  private final Integer avgValueSizeInBytes;
 
   public FieldMetrics(int id, long valueCount, long nullValueCount) {
     this(id, valueCount, nullValueCount, -1L, null, null, null);
@@ -65,6 +66,18 @@ public class FieldMetrics<T> {
       T lowerBound,
       T upperBound,
       Type originalType) {
+    this(id, valueCount, nullValueCount, nanValueCount, lowerBound, upperBound, originalType, null);
+  }
+
+  public FieldMetrics(
+      int id,
+      long valueCount,
+      long nullValueCount,
+      long nanValueCount,
+      T lowerBound,
+      T upperBound,
+      Type originalType,
+      Integer avgValueSizeInBytes) {
     this.id = id;
     this.valueCount = valueCount;
     this.nullValueCount = nullValueCount;
@@ -72,6 +85,7 @@ public class FieldMetrics<T> {
     this.lowerBound = lowerBound;
     this.upperBound = upperBound;
     this.originalType = originalType;
+    this.avgValueSizeInBytes = avgValueSizeInBytes;
   }
 
   /** Returns the id of the field that the metrics within this class are associated with. */
@@ -110,6 +124,11 @@ public class FieldMetrics<T> {
   /** Returns the original type of the upper/lower bound value of this field. */
   public Type originalType() {
     return originalType;
+  }
+
+  /** Returns the average size in bytes over non-null values, or null if it is not known. */
+  public Integer avgValueSizeInBytes() {
+    return avgValueSizeInBytes;
   }
 
   /** Returns if the metrics has bounds (i.e. there is at least non-null value for this field) */

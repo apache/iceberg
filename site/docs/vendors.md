@@ -126,7 +126,7 @@ Firebolt is also available as [Firebolt Core](https://docs.firebolt.io/firebolt-
 Learn more about querying Iceberg with Firebolt [here](https://www.firebolt.io/blog/querying-apache-iceberg-with-sub-second-performance).
 
 ### [Fivetran](https://www.fivetran.com)
-[Fivetran](https://www.fivetran.com), the global leader in data movement, is trusted by Enterprises to centralize data from SaaS applications and databases into cloud destinations, including [Managed Data Lakes](https://fivetran.com/docs/destinations/managed-data-lake-service). Fivetran Managed Data Lakes provides a fully managed Iceberg Data Lake for users. Users can connect any of the 700+ connections that Fivetran supports and write them directly into a Storage Location of their choice. Fivetran Managed Data Lake Service handles the ingestion and maintenance of their Iceberg tables and hosts a Iceberg Rest Complaint catalog endpoint for downstream consumption.
+[Fivetran](https://www.fivetran.com), the global leader in data movement, is trusted by Enterprises to centralize data from SaaS applications and databases into cloud destinations, including [Managed Data Lakes](https://fivetran.com/docs/managed-data-lake-service). Fivetran Managed Data Lakes provides a fully managed Iceberg Data Lake for users. Users can connect any of the 700+ connections that Fivetran supports and write them directly into a Storage Location of their choice. Fivetran Managed Data Lake Service handles the ingestion and maintenance of their Iceberg tables and hosts a Iceberg Rest Complaint catalog endpoint for downstream consumption.
 
 ### [Google Cloud](https://cloud.google.com)
 Google Cloud offers first class support for Apache Iceberg through BigLake to
@@ -210,6 +210,12 @@ This makes it practical and cost-effective to support [SLA-driven analytics on t
 ### [StreamNative](https://streamnative.io)
 
 StreamNative provides a data streaming platform powered by [Ursa](https://streamnative.io/products/ursa), a Kafka‑compatible, leaderless, lakehouse‑native streaming engine. Ursa writes directly to Apache Iceberg tables on cloud object storage—removing the need for bespoke connectors—and automatically compacts and commits data, so it’s immediately queryable by engines such as Spark, Trino, and Flink. Learn more in the [Ursa VLDB paper](https://www.vldb.org/pvldb/vol18/p5184-guo.pdf).
+
+### [Teradata](https://www.teradata.com/)
+
+Teradata delivers enterprise-grade Open Table Format support for Apache Iceberg and Delta Lake with full freedom to choose storage, catalogs, and query engines, and no proprietary lock-in.
+
+Full OTF compatibility spans all major clouds, on-premises, and hybrid environments, backed by centralized security and governance. Teradata's AMPs, Cost-Based Optimizer, and Intelligent Workload Management deliver cross-lake-format, cross-catalog, and cross-deployment query performance at scale.
 
 ### [Tinybird](https://tinybird.co)
 

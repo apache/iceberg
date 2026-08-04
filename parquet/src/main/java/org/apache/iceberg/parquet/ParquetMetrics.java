@@ -264,7 +264,11 @@ class ParquetMetrics {
             fieldMetrics.id(),
             fieldMetrics.valueCount(),
             fieldMetrics.nullValueCount(),
-            fieldMetrics.nanValueCount());
+            fieldMetrics.nanValueCount(),
+            null,
+            null,
+            null,
+            fieldMetrics.avgValueSizeInBytes());
       } else {
         T lowerBound = truncateLowerBound(icebergType, fieldMetrics.lowerBound(), truncateLength);
         T upperBound = truncateUpperBound(icebergType, fieldMetrics.upperBound(), truncateLength);
@@ -275,7 +279,8 @@ class ParquetMetrics {
             fieldMetrics.nanValueCount(),
             lowerBound,
             upperBound,
-            icebergType);
+            icebergType,
+            fieldMetrics.avgValueSizeInBytes());
       }
     }
 
@@ -385,7 +390,8 @@ class ParquetMetrics {
 
       List<ParquetVariantUtil.VariantMetrics> results =
           Lists.newArrayList(
-              ParquetVariantVisitor.visit(variant, new MetricsVariantVisitor(currentPath())));
+              ParquetVariantVisitor.visit(
+                  variant, new MetricsVariantVisitor(currentPath(), truncateLength(mode))));
 
       if (results.isEmpty()) {
         return ImmutableList.of();
@@ -437,9 +443,11 @@ class ParquetMetrics {
         extends ParquetVariantVisitor<Iterable<ParquetVariantUtil.VariantMetrics>> {
       private final Deque<String> fieldNames = Lists.newLinkedList();
       private final String[] basePath;
+      private final int truncateLength;
 
-      private MetricsVariantVisitor(String[] basePath) {
+      private MetricsVariantVisitor(String[] basePath, int truncateLength) {
         this.basePath = basePath;
+        this.truncateLength = truncateLength;
       }
 
       @Override
@@ -619,10 +627,11 @@ class ParquetMetrics {
           return null;
         }
 
-        if (lowerBound != null && upperBound != null) {
+        if (lowerBound != null && upperBound != null && truncateLength > 0) {
           VariantValue lower = Variants.of(variantType, lowerBound);
           VariantValue upper = Variants.of(variantType, upperBound);
-          return new ParquetVariantUtil.VariantMetrics(valueCount, nullCount, lower, upper);
+          return new ParquetVariantUtil.VariantMetrics(
+              valueCount, nullCount, lower, upper, truncateLength);
         } else {
           return new ParquetVariantUtil.VariantMetrics(valueCount, nullCount);
         }

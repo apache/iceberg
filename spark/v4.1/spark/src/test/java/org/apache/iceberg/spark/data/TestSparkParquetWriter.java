@@ -24,6 +24,9 @@ import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_COLUMN_NDV
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import java.io.File;
 import java.io.IOException;
@@ -31,17 +34,24 @@ import java.lang.reflect.Field;
 import java.nio.file.Path;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.OptionalLong;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import org.apache.iceberg.FieldMetrics;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.parquet.ParquetSchemaUtil;
+import org.apache.iceberg.parquet.ParquetValueWriter;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.parquet.column.ColumnDescriptor;
+import org.apache.parquet.column.ColumnWriteStore;
+import org.apache.parquet.column.ColumnWriter;
 import org.apache.parquet.column.ParquetProperties;
 import org.apache.parquet.schema.MessageType;
 import org.apache.spark.sql.catalyst.InternalRow;
@@ -180,6 +190,67 @@ public class TestSparkParquetWriter {
       assertThat(rows.get(1).isNullAt(1)).isTrue();
       assertThat(rows.get(1).isNullAt(2)).isTrue();
     }
+  }
+
+  @Test
+  public void testGeospatialAvgValueSizeMetrics() throws IOException {
+    Schema geoSchema =
+        new Schema(
+            required(1, "id", Types.LongType.get()),
+            optional(2, "geom", Types.GeometryType.crs84()),
+            optional(3, "geog", Types.GeographyType.crs84()));
+
+    // WKB payloads of 3 and 5 bytes for geometry (avg 4), 7 bytes for geography.
+    byte[] geomWkbSmall = new byte[] {0x01, 0x02, 0x03};
+    byte[] geomWkbLarge = new byte[] {0x01, 0x02, 0x03, 0x04, 0x05};
+    byte[] geogWkb = new byte[] {0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a};
+
+    InternalRow first = new GenericInternalRow(3);
+    first.update(0, 1L);
+    // Spark's GeometryVal/GeographyVal wrap [SRID | WKB]; build them from the pure WKB.
+    first.update(1, STUtils.stGeomFromWKB(geomWkbSmall));
+    first.update(2, STUtils.stGeogFromWKB(geogWkb));
+    InternalRow second = new GenericInternalRow(3);
+    second.update(0, 2L);
+    second.update(1, STUtils.stGeomFromWKB(geomWkbLarge));
+    // geography left null on the second row, so it must not affect the average.
+
+    File testFile = File.createTempFile("junit", null, temp.toFile());
+    assertThat(testFile.delete()).as("Delete should succeed").isTrue();
+
+    MessageType parquetSchema = ParquetSchemaUtil.convert(geoSchema, "table");
+    ParquetValueWriter<InternalRow> writer =
+        SparkParquetWriters.buildWriter(SparkSchemaUtil.convert(geoSchema), parquetSchema);
+
+    ColumnWriteStore columnStore = mock(ColumnWriteStore.class);
+    when(columnStore.getColumnWriter(any())).thenReturn(mock(ColumnWriter.class));
+    writer.setColumnStore(columnStore);
+    writer.write(0, first);
+    writer.write(0, second);
+
+    Map<Integer, FieldMetrics<?>> metricsById =
+        writer.metrics().collect(Collectors.toMap(FieldMetrics::id, Function.identity()));
+
+    int geomId = fieldId(parquetSchema, "geom");
+    int geogId = fieldId(parquetSchema, "geog");
+
+    FieldMetrics<?> geomMetrics = metricsById.get(geomId);
+    assertThat(geomMetrics.valueCount()).isEqualTo(2);
+    assertThat(geomMetrics.nullValueCount()).isZero();
+    assertThat(geomMetrics.avgValueSizeInBytes()).isEqualTo(4);
+
+    FieldMetrics<?> geogMetrics = metricsById.get(geogId);
+    assertThat(geogMetrics.valueCount()).isEqualTo(2);
+    assertThat(geogMetrics.nullValueCount()).isEqualTo(1);
+    assertThat(geogMetrics.avgValueSizeInBytes()).isEqualTo(7);
+  }
+
+  private static int fieldId(MessageType parquetSchema, String column) {
+    return parquetSchema
+        .getColumnDescription(new String[] {column})
+        .getPrimitiveType()
+        .getId()
+        .intValue();
   }
 
   @Test

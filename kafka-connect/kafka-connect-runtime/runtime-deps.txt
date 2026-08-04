@@ -2,10 +2,10 @@ com.azure:azure-core-http-netty:1.16
 com.azure:azure-core:1.58
 com.azure:azure-identity:1.18
 com.azure:azure-json:1.5
-com.azure:azure-storage-blob:12.34
-com.azure:azure-storage-common:12.33
-com.azure:azure-storage-file-datalake:12.27
-com.azure:azure-storage-internal-avro:12.19
+com.azure:azure-storage-blob:12.35
+com.azure:azure-storage-common:12.34
+com.azure:azure-storage-file-datalake:12.28
+com.azure:azure-storage-internal-avro:12.20
 com.azure:azure-xml:1.2
 com.fasterxml.jackson.core:jackson-annotations:2.22
 com.fasterxml.jackson.core:jackson-core:2.22
@@ -90,7 +90,7 @@ io.grpc:grpc-core:1.81
 io.grpc:grpc-googleapis:1.81
 io.grpc:grpc-grpclb:1.81
 io.grpc:grpc-inprocess:1.81
-io.grpc:grpc-netty-shaded:1.82
+io.grpc:grpc-netty-shaded:1.83
 io.grpc:grpc-opentelemetry:1.81
 io.grpc:grpc-protobuf-lite:1.81
 io.grpc:grpc-protobuf:1.81
@@ -179,7 +179,7 @@ org.apache.parquet:parquet-format-structures:1.17
 org.apache.parquet:parquet-hadoop:1.17
 org.apache.parquet:parquet-jackson:1.17
 org.apache.parquet:parquet-variant:1.17
-org.bouncycastle:bcprov-jdk18on:1.84
+org.bouncycastle:bcprov-jdk18on:1.85
 org.checkerframework:checker-compat-qual:2.5
 org.checkerframework:checker-qual:3.49
 org.codehaus.jettison:jettison:1.5
