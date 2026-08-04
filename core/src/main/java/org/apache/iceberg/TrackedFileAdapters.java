@@ -331,7 +331,7 @@ class TrackedFileAdapters {
 
     @Override
     public ByteBuffer keyMetadata() {
-      return null;
+      return dv.keyMetadata();
     }
 
     @Override
