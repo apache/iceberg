@@ -20,6 +20,7 @@ package org.apache.iceberg.rest.auth.oauth2;
 
 import com.nimbusds.oauth2.sdk.GrantType;
 import com.nimbusds.oauth2.sdk.auth.ClientAuthenticationMethod;
+import java.net.URI;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -28,6 +29,7 @@ import java.util.OptionalInt;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 
 /**
@@ -78,6 +80,16 @@ final class ConfigUtil {
         .orElseGet(Stream::empty)
         .map(parser::parseUnchecked)
         .collect(Collectors.toList());
+  }
+
+  static void checkEndpoint(URI endpoint, String name, String key) {
+    Preconditions.checkArgument(endpoint.isAbsolute(), "%s must not be relative (%s)", name, key);
+    Preconditions.checkArgument(
+        endpoint.getUserInfo() == null, "%s must not have a user info part (%s)", name, key);
+    Preconditions.checkArgument(
+        endpoint.getQuery() == null, "%s must not have a query part (%s)", name, key);
+    Preconditions.checkArgument(
+        endpoint.getFragment() == null, "%s must not have a fragment part (%s)", name, key);
   }
 
   @FunctionalInterface

@@ -266,11 +266,11 @@ interface BasicConfig {
     }
 
     if (issuerUrl().isPresent()) {
-      checkEndpoint(issuerUrl().get(), ISSUER_URL, "Issuer URL");
+      ConfigUtil.checkEndpoint(issuerUrl().get(), "Issuer URL", ISSUER_URL);
     }
 
     if (tokenEndpoint().isPresent()) {
-      checkEndpoint(tokenEndpoint().get(), TOKEN_ENDPOINT, "Token endpoint");
+      ConfigUtil.checkEndpoint(tokenEndpoint().get(), "Token endpoint", TOKEN_ENDPOINT);
     }
 
     Preconditions.checkArgument(
@@ -278,16 +278,6 @@ interface BasicConfig {
         "timeout must be greater than or equal to %s (%s)",
         MIN_TIMEOUT,
         TIMEOUT);
-  }
-
-  private static void checkEndpoint(URI endpoint, String key, String name) {
-    Preconditions.checkArgument(endpoint.isAbsolute(), "%s must not be relative (%s)", name, key);
-    Preconditions.checkArgument(
-        endpoint.getUserInfo() == null, "%s must not have a user info part (%s)", name, key);
-    Preconditions.checkArgument(
-        endpoint.getQuery() == null, "%s must not have a query part (%s)", name, key);
-    Preconditions.checkArgument(
-        endpoint.getFragment() == null, "%s must not have a fragment part (%s)", name, key);
   }
 
   static BasicConfig from(Map<String, String> properties) {
