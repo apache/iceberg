@@ -22,7 +22,7 @@ task aggregateJavadoc(type: Javadoc) {
   def javadocTasks = subprojects.findAll { it.name != 'iceberg-bom' }.javadoc
   dependsOn javadocTasks
   source javadocTasks.source
-  destinationDir project.rootProject.file("site/docs/javadoc/${getJavadocVersion()}")
+  destinationDir = project.rootProject.file("site/docs/javadoc/${getJavadocVersion()}")
   classpath = project.rootProject.files(javadocTasks.classpath)
 
   final JAVADOC_FIX_SEARCH_STR = '\n\n' +
