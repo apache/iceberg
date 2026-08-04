@@ -1032,6 +1032,46 @@ Collect partition statistics of the snapshot with id `snap1` of table `my_table`
 CALL catalog_name.system.compute_partition_stats(table => 'my_table', snapshot_id => 'snap1');
 ```
 
+## Sort Order Statistics
+
+### `compute_sort_order_stats`
+
+This procedure computes per-partition file overlap statistics on the table's sort order. For each
+partition it reports the *overlap depth*: the number of data files whose ranges on the first sort
+field cover a single point. A maximum overlap depth of 1 means the partition is perfectly
+clustered; values close to the file count mean the declared sort order has not materialized in the
+file layout (for example, when sort compaction never selects the files because they are all within
+the healthy size range).
+
+The computation reads only data file metadata (column bounds) — no data files are opened and
+nothing is committed to the table. Because column bounds may be truncated, the reported depth is an
+upper-bound estimate.
+
+The table must declare a sort order whose first field uses an order-preserving transform.
+
+| Argument Name | Required? | Type   | Description                                                              |
+|---------------|-----------|--------|--------------------------------------------------------------------------|
+| `table`       | ✔️        | string | Name of the table                                                        |
+| `snapshot_id` |           | long   | Id of the snapshot to analyze. Defaults to the current snapshot id       |
+
+#### Output
+
+| Output Name             | Type   | Description                                                               |
+|-------------------------|--------|---------------------------------------------------------------------------|
+| `partition`             | string | Partition path, or null for unpartitioned tables                          |
+| `spec_id`               | int    | Partition spec id                                                         |
+| `file_count`            | int    | Number of data files in the partition                                     |
+| `files_missing_bounds`  | int    | Files without bounds for the sort field, excluded from depth computation  |
+| `max_overlap_depth`     | int    | Maximum overlap depth, or null if no file has usable bounds               |
+| `avg_overlap_depth`     | double | Mean overlap depth over files with bounds                                 |
+
+#### Examples
+
+Report sort order overlap statistics for the current snapshot of table `my_table`
+```sql
+CALL catalog_name.system.compute_sort_order_stats('my_table');
+```
+
 ## Table Replication
 
 The `rewrite_table_path` procedure prepares an Iceberg table for copying to another location.

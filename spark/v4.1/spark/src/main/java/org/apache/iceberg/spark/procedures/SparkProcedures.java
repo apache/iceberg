@@ -64,6 +64,7 @@ public class SparkProcedures {
     mapBuilder.put(FastForwardBranchProcedure.NAME, FastForwardBranchProcedure::builder);
     mapBuilder.put(ComputeTableStatsProcedure.NAME, ComputeTableStatsProcedure::builder);
     mapBuilder.put(ComputePartitionStatsProcedure.NAME, ComputePartitionStatsProcedure::builder);
+    mapBuilder.put(ComputeSortOrderStatsProcedure.NAME, ComputeSortOrderStatsProcedure::builder);
     mapBuilder.put(RewriteTablePathProcedure.NAME, RewriteTablePathProcedure::builder);
     return mapBuilder.build();
   }
