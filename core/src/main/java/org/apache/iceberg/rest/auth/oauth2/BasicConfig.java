@@ -145,7 +145,7 @@ interface BasicConfig {
   }
 
   /**
-   * Client secret to use when authenticating against the OAuth2 server. Optional. Rquired when the
+   * Client secret to use when authenticating against the OAuth2 server. Optional. Required when the
    * client is private and is authenticated using the standard "client-secret" methods.
    */
   @Value.Redacted

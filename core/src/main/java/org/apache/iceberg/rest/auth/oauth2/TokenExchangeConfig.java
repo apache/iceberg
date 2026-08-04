@@ -48,12 +48,7 @@ interface TokenExchangeConfig {
   String RESOURCES = PREFIX + "resources";
   String AUDIENCES = PREFIX + "audiences";
 
-  /**
-   * The subject token to exchange. Required.
-   *
-   * <p>The special value {@code ::parent::} can be used to indicate that the subject token should
-   * be obtained from the parent OAuth2 session.
-   */
+  /** The subject token to exchange. Required. */
   @Value.Redacted
   Optional<String> subjectTokenString();
 
@@ -66,12 +61,7 @@ interface TokenExchangeConfig {
    */
   Optional<TokenTypeURI> subjectTokenType();
 
-  /**
-   * The actor token to exchange. Optional.
-   *
-   * <p>The special value {@code ::parent::} can be used to indicate that the actor token should be
-   * obtained from the parent OAuth2 session.
-   */
+  /** The actor token to exchange. Optional. */
   @Value.Redacted
   Optional<String> actorTokenString();
 
