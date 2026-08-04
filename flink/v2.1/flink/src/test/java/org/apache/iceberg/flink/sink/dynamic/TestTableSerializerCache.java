@@ -24,13 +24,9 @@ import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.apache.iceberg.types.Types.StringType;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
-import static org.mockito.Mockito.withSettings;
 
-import java.io.Closeable;
+import java.io.IOException;
+import java.util.Map;
 import java.util.function.Supplier;
 import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.table.runtime.typeutils.RowDataSerializer;
@@ -38,9 +34,11 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Catalog;
+import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.flink.CatalogLoader;
 import org.apache.iceberg.flink.HadoopCatalogExtension;
+import org.apache.iceberg.inmemory.InMemoryCatalog;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 
@@ -129,23 +127,46 @@ class TestTableSerializerCache {
   }
 
   @Test
-  void testClosesCatalogAfterSchemaLookup() throws Exception {
-    Table table =
-        CATALOG_EXTENSION
-            .catalogLoader()
-            .loadCatalog()
-            .createTable(TableIdentifier.of("table"), schema1);
-
-    Catalog catalog = mock(Catalog.class, withSettings().extraInterfaces(Closeable.class));
-    when(catalog.loadTable(any(TableIdentifier.class))).thenReturn(table);
-    CatalogLoader catalogLoader = mock(CatalogLoader.class);
-    when(catalogLoader.loadCatalog()).thenReturn(catalog);
-    cache = new TableSerializerCache(catalogLoader, 10);
+  void testClosesCatalogAfterSchemaLookup() {
+    CloseCountingInMemoryCatalog catalog = new CloseCountingInMemoryCatalog();
+    catalog.initialize("tracking", Map.of());
+    catalog.createNamespace(Namespace.of("db"));
+    Table table = catalog.createTable(TableIdentifier.of("db", "table"), schema1);
+    cache = new TableSerializerCache(new SingleCatalogLoader(catalog), 10);
 
     // schema/spec ids are unknown, so this misses the cache and loads a catalog to resolve them
     cache.serializerWithSchemaAndSpec(
-        "table", table.schema().schemaId(), PartitionSpec.unpartitioned().specId());
+        "db.table", table.schema().schemaId(), PartitionSpec.unpartitioned().specId());
 
-    verify((Closeable) catalog).close();
+    assertThat(catalog.closeCount).isEqualTo(1);
+  }
+
+  private static class CloseCountingInMemoryCatalog extends InMemoryCatalog {
+    private int closeCount = 0;
+
+    @Override
+    public void close() throws IOException {
+      super.close();
+      closeCount += 1;
+    }
+  }
+
+  private static class SingleCatalogLoader implements CatalogLoader {
+    private final Catalog catalog;
+
+    private SingleCatalogLoader(Catalog catalog) {
+      this.catalog = catalog;
+    }
+
+    @Override
+    public Catalog loadCatalog() {
+      return catalog;
+    }
+
+    @Override
+    @SuppressWarnings({"checkstyle:NoClone", "checkstyle:SuperClone"})
+    public CatalogLoader clone() {
+      return this;
+    }
   }
 }
