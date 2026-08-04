@@ -227,6 +227,20 @@ public class TestSparkParquetWriter {
         .array();
   }
 
+  private static byte[] wkbLineString(double... coordinates) {
+    ByteBuffer buffer =
+        ByteBuffer.allocate(9 + (coordinates.length * Double.BYTES))
+            .order(ByteOrder.LITTLE_ENDIAN)
+            .put((byte) 1)
+            .putInt(2)
+            .putInt(coordinates.length / 2);
+    for (double coordinate : coordinates) {
+      buffer.putDouble(coordinate);
+    }
+
+    return buffer.array();
+  }
+
   @Test
   public void testGeospatialAvgValueSizeMetrics() throws IOException {
     Schema geoSchema =
@@ -235,9 +249,9 @@ public class TestSparkParquetWriter {
             optional(2, "geom", Types.GeometryType.crs84()),
             optional(3, "geog", Types.GeographyType.crs84()));
 
-    // WKB payloads of 3 and 5 bytes for geometry (avg 4), 7 bytes for geography.
-    byte[] geomWkbSmall = new byte[] {0x01, 0x02, 0x03};
-    byte[] geomWkbLarge = new byte[] {0x01, 0x02, 0x03, 0x04, 0x05};
+    // WKB payloads of 21 and 41 bytes for geometry (avg 31), 7 bytes for geography.
+    byte[] geomWkbSmall = wkbPoint(30, 10);
+    byte[] geomWkbLarge = wkbLineString(-5, 40, 12, 34);
     byte[] geogWkb = new byte[] {0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a};
 
     InternalRow first = new GenericInternalRow(3);
@@ -272,7 +286,7 @@ public class TestSparkParquetWriter {
     FieldMetrics<?> geomMetrics = metricsById.get(geomId);
     assertThat(geomMetrics.valueCount()).isEqualTo(2);
     assertThat(geomMetrics.nullValueCount()).isZero();
-    assertThat(geomMetrics.avgValueSizeInBytes()).isEqualTo(4);
+    assertThat(geomMetrics.avgValueSizeInBytes()).isEqualTo(31);
 
     FieldMetrics<?> geogMetrics = metricsById.get(geogId);
     assertThat(geogMetrics.valueCount()).isEqualTo(2);

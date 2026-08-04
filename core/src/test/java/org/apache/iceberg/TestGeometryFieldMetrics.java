@@ -45,6 +45,7 @@ public class TestGeometryFieldMetrics {
     // geometry has no NaN metric; -1 suppresses the entry downstream
     assertThat(metrics.nanValueCount()).isEqualTo(-1L);
     assertThat(metrics.originalType()).isEqualTo(GEOMETRY);
+    assertThat(metrics.avgValueSizeInBytes()).isEqualTo(21);
     assertThat(metrics.lowerBound()).isEqualTo(GeospatialBound.createXY(-5, 10));
     assertThat(metrics.upperBound()).isEqualTo(GeospatialBound.createXY(30, 40));
   }
@@ -70,6 +71,7 @@ public class TestGeometryFieldMetrics {
     FieldMetrics<GeospatialBound> metrics = builder.build();
 
     assertThat(metrics.valueCount()).isEqualTo(1L);
+    assertThat(metrics.avgValueSizeInBytes()).isEqualTo(21);
     assertThat(metrics.lowerBound()).isNull();
     assertThat(metrics.upperBound()).isNull();
   }
@@ -79,6 +81,7 @@ public class TestGeometryFieldMetrics {
     FieldMetrics<GeospatialBound> metrics = new GeometryFieldMetrics.Builder(2, GEOMETRY).build();
 
     assertThat(metrics.valueCount()).isEqualTo(0L);
+    assertThat(metrics.avgValueSizeInBytes()).isNull();
     assertThat(metrics.lowerBound()).isNull();
     assertThat(metrics.upperBound()).isNull();
   }
