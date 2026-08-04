@@ -405,20 +405,16 @@ public class AllManifestsTable extends BaseMetadataTable {
 
       @Override
       public <T> Boolean in(BoundReference<T> ref, Set<T> literalSet) {
-        if (isSnapshotRef(ref)) {
-          if (!literalSet.contains(snapshotId)) {
-            return ROWS_CANNOT_MATCH;
-          }
+        if (isSnapshotRef(ref) && !literalSet.contains(snapshotId)) {
+          return ROWS_CANNOT_MATCH;
         }
         return ROWS_MIGHT_MATCH;
       }
 
       @Override
       public <T> Boolean notIn(BoundReference<T> ref, Set<T> literalSet) {
-        if (isSnapshotRef(ref)) {
-          if (literalSet.contains(snapshotId)) {
-            return ROWS_CANNOT_MATCH;
-          }
+        if (isSnapshotRef(ref) && literalSet.contains(snapshotId)) {
+          return ROWS_CANNOT_MATCH;
         }
         return ROWS_MIGHT_MATCH;
       }
