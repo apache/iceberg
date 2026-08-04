@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.variants;
 
+import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.List;
@@ -25,8 +26,8 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.ByteBuffers;
 
-public class ValueArray implements VariantArray {
-  private SerializationState serializationState = null;
+public class ValueArray implements VariantArray, Serializable {
+  private transient SerializationState serializationState = null;
   private List<VariantValue> elements = Lists.newArrayList();
 
   ValueArray() {}

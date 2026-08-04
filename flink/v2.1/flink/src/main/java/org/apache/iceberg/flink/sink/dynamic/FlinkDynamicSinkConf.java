@@ -19,6 +19,7 @@
 package org.apache.iceberg.flink.sink.dynamic;
 
 import java.util.Map;
+import org.apache.flink.annotation.Internal;
 import org.apache.flink.configuration.ReadableConfig;
 import org.apache.iceberg.flink.FlinkConfParser;
 
@@ -38,7 +39,8 @@ import org.apache.iceberg.flink.FlinkConfParser;
  * no write option is provided, this class checks the flink configuration for any overrides. If no
  * applicable value is found in the write options, this class uses the default values.
  */
-class FlinkDynamicSinkConf {
+@Internal
+public class FlinkDynamicSinkConf {
 
   private final FlinkConfParser confParser;
 

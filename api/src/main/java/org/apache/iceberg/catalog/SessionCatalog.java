@@ -363,6 +363,7 @@ public interface SessionCatalog {
    * @param namespace a {@link Namespace namespace}
    * @param updates properties to set for the namespace
    * @param removals properties to remove from the namespace
+   * @return true if the namespace metadata was successfully updated, false otherwise
    * @throws NoSuchNamespaceException If the namespace does not exist (optional)
    * @throws UnsupportedOperationException If namespace properties are not supported
    */

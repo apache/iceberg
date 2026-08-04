@@ -23,6 +23,7 @@ import static org.apache.iceberg.flink.sink.SinkTestUtil.extractAndAssertCommitt
 import static org.apache.iceberg.flink.sink.SinkTestUtil.extractAndAssertCommittableWithLineage;
 import static org.apache.iceberg.flink.sink.SinkTestUtil.transformsToStreamElement;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
@@ -1166,6 +1167,48 @@ class TestIcebergCommitter extends TestBase {
     }
   }
 
+  @TestTemplate
+  public void testCommitterSubtaskZeroCommits() throws Exception {
+    try (OneInputStreamOperatorTestHarness<
+            CommittableMessage<IcebergCommittable>, CommittableMessage<IcebergCommittable>>
+        testHarness = getTestHarness(2, 0)) {
+      testHarness.open();
+
+      long checkpointId = 1L;
+      RowData row = SimpleDataUtil.createRowData(1, "subtask-zero");
+      DataFile dataFile = writeDataFile("data-subtask-zero", ImmutableList.of(row));
+      processElement(jobId, checkpointId, testHarness, 1, OPERATOR_ID, dataFile);
+
+      testHarness.notifyOfCompletedCheckpoint(checkpointId);
+
+      // subtask 0 loaded the table and performed the commit end-to-end.
+      SimpleDataUtil.assertTableRows(table, ImmutableList.of(row), branch);
+      assertSnapshotSize(1);
+      assertMaxCommittedCheckpointId(jobId, checkpointId);
+    }
+  }
+
+  @TestTemplate
+  public void testCommitOnNonZeroSubtaskFailsFast() throws Exception {
+    try (OneInputStreamOperatorTestHarness<
+            CommittableMessage<IcebergCommittable>, CommittableMessage<IcebergCommittable>>
+        testHarness = getTestHarness(2, 1)) {
+      testHarness.open();
+
+      long checkpointId = 1L;
+      RowData row = SimpleDataUtil.createRowData(1, "should-not-commit");
+      DataFile dataFile = writeDataFile("data-non-zero-subtask", ImmutableList.of(row));
+      processElement(jobId, checkpointId, testHarness, 1, OPERATOR_ID, dataFile);
+
+      assertThatThrownBy(() -> testHarness.notifyOfCompletedCheckpoint(checkpointId))
+          .isInstanceOf(IllegalStateException.class)
+          .hasMessageContaining("only subtask 0 is expected to commit");
+
+      // No snapshot should have been produced because the commit failed fast.
+      assertSnapshotSize(0);
+    }
+  }
+
   private ManifestFile createTestingManifestFile(Path manifestPath, DataFile dataFile)
       throws IOException {
     ManifestWriter<DataFile> writer =
@@ -1293,6 +1336,12 @@ class TestIcebergCommitter extends TestBase {
   private OneInputStreamOperatorTestHarness<
           CommittableMessage<IcebergCommittable>, CommittableMessage<IcebergCommittable>>
       getTestHarness() throws Exception {
+    return getTestHarness(1, 0);
+  }
+
+  private OneInputStreamOperatorTestHarness<
+          CommittableMessage<IcebergCommittable>, CommittableMessage<IcebergCommittable>>
+      getTestHarness(int parallelism, int subtaskIndex) throws Exception {
     IcebergSink sink =
         IcebergSink.forRowData(null).table(table).toBranch(branch).tableLoader(tableLoader).build();
 
@@ -1300,7 +1349,10 @@ class TestIcebergCommitter extends TestBase {
             CommittableMessage<IcebergCommittable>, CommittableMessage<IcebergCommittable>>
         testHarness =
             new OneInputStreamOperatorTestHarness<>(
-                new CommitterOperatorFactory<>(sink, !isStreamingMode, true));
+                new CommitterOperatorFactory<>(sink, !isStreamingMode, true),
+                parallelism,
+                parallelism,
+                subtaskIndex);
     testHarness.setup(committableMessageTypeSerializer);
     return testHarness;
   }
@@ -1317,7 +1369,8 @@ class TestIcebergCommitter extends TestBase {
         10,
         "sinkId",
         metric,
-        false);
+        false,
+        0);
   }
 
   private Committer.CommitRequest<IcebergCommittable> buildCommitRequestFor(
