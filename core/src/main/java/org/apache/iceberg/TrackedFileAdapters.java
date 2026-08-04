@@ -600,7 +600,7 @@ class TrackedFileAdapters {
 
     @Override
     public <T> T get(int pos, Class<T> javaClass) {
-      return javaClass.cast(getByPos(this, pos));
+      return javaClass.cast(TrackedFileStruct.getByPos(this, pos));
     }
 
     @Override
@@ -838,7 +838,7 @@ class TrackedFileAdapters {
 
     @Override
     public <T> T get(int pos, Class<T> javaClass) {
-      return javaClass.cast(getByPos(this, pos));
+      return javaClass.cast(TrackedFileStruct.getByPos(this, pos));
     }
 
     @Override
@@ -979,30 +979,6 @@ class TrackedFileAdapters {
 
     throw new IllegalArgumentException(
         "Cannot find unpartitioned spec in specs: " + specsById.keySet());
-  }
-
-  // Presents a TrackedFile as its persisted StructLike, shared by the reusable write-direction
-  // wrappers.
-  private static Object getByPos(TrackedFile file, int pos) {
-    return switch (pos) {
-      case 0 -> file.tracking();
-      case 1 -> file.contentType() != null ? file.contentType().id() : null;
-      case 2 -> file.formatVersion();
-      case 3 -> file.location();
-      case 4 -> file.fileFormat() != null ? file.fileFormat().toString() : null;
-      case 5 -> file.recordCount();
-      case 6 -> file.fileSizeInBytes();
-      case 7 -> file.specId();
-      case 8 -> file.partition();
-      case 9 -> file.contentStats();
-      case 10 -> file.sortOrderId();
-      case 11 -> file.deletionVector();
-      case 12 -> file.manifestInfo();
-      case 13 -> file.keyMetadata();
-      case 14 -> file.splitOffsets();
-      case 15 -> file.equalityIds();
-      default -> throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
-    };
   }
 
   /**
