@@ -72,7 +72,7 @@ public class ListMetadataFiles extends ProcessFunction<Trigger, String> {
           .forEach(
               snapshot -> {
                 // Manifest lists
-                collector.collect(snapshot.manifestListLocation());
+                collector.collect(snapshot.snapshotFileLocation());
                 // Snapshot JSONs
                 ReachableFileUtil.metadataFileLocations(table, false).forEach(collector::collect);
                 // Statistics files

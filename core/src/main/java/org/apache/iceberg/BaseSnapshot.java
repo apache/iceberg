@@ -38,7 +38,7 @@ class BaseSnapshot implements Snapshot {
   private final Long parentId;
   private final long sequenceNumber;
   private final long timestampMillis;
-  private final String manifestListLocation;
+  private final String snapshotFileLocation;
   private final String operation;
   private final Map<String, String> summary;
   private final Integer schemaId;
@@ -64,7 +64,7 @@ class BaseSnapshot implements Snapshot {
       String operation,
       Map<String, String> summary,
       Integer schemaId,
-      String manifestList,
+      String snapshotFileLocation,
       Long firstRowId,
       Long addedRows,
       String keyId) {
@@ -86,7 +86,7 @@ class BaseSnapshot implements Snapshot {
     this.operation = operation;
     this.summary = summary;
     this.schemaId = schemaId;
-    this.manifestListLocation = manifestList;
+    this.snapshotFileLocation = snapshotFileLocation;
     this.v1ManifestLocations = null;
     this.firstRowId = firstRowId;
     this.addedRows = firstRowId != null ? addedRows : null;
@@ -109,7 +109,7 @@ class BaseSnapshot implements Snapshot {
     this.operation = operation;
     this.summary = summary;
     this.schemaId = schemaId;
-    this.manifestListLocation = null;
+    this.snapshotFileLocation = null;
     this.v1ManifestLocations = v1ManifestLocations;
     this.firstRowId = null;
     this.addedRows = null;
@@ -185,7 +185,7 @@ class BaseSnapshot implements Snapshot {
       this.allManifests =
           ManifestLists.read(
               ManifestLists.newInputFile(
-                  fileIO, new BaseManifestListFile(manifestListLocation, keyId)));
+                  fileIO, new BaseManifestListFile(snapshotFileLocation, keyId)));
     }
 
     if (dataManifests == null || deleteManifests == null) {
@@ -257,8 +257,13 @@ class BaseSnapshot implements Snapshot {
   }
 
   @Override
+  public String snapshotFileLocation() {
+    return snapshotFileLocation;
+  }
+
+  @Override
   public String manifestListLocation() {
-    return manifestListLocation;
+    return snapshotFileLocation;
   }
 
   private void cacheDeleteFileChanges(FileIO fileIO) {
@@ -369,7 +374,7 @@ class BaseSnapshot implements Snapshot {
         .add("timestamp_ms", timestampMillis)
         .add("operation", operation)
         .add("summary", summary)
-        .add("manifest-list", manifestListLocation)
+        .add("snapshot-file", snapshotFileLocation)
         .add("schema-id", schemaId)
         .add("first-row-id", firstRowId)
         .add("added-rows", addedRows)

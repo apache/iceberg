@@ -25,6 +25,7 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.ManifestListFile;
+import org.apache.iceberg.SnapshotFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
@@ -71,13 +72,21 @@ public interface FileIO extends Serializable, Closeable {
     return newInputFile(manifest.path(), manifest.length());
   }
 
-  default InputFile newInputFile(ManifestListFile manifestList) {
+  default InputFile newInputFile(SnapshotFile snapshotFile) {
     Preconditions.checkArgument(
-        manifestList.encryptionKeyID() == null,
-        "Cannot decrypt manifest list: %s (use EncryptingFileIO)",
-        manifestList.location());
+        snapshotFile.encryptionKeyID() == null,
+        "Cannot decrypt snapshot file: %s (use EncryptingFileIO)",
+        snapshotFile.location());
     // cannot pass length because it is not tracked outside of key metadata
-    return newInputFile(manifestList.location());
+    return newInputFile(snapshotFile.location());
+  }
+
+  /**
+   * @deprecated since 1.13.0; use {@link #newInputFile(SnapshotFile)}.
+   */
+  @Deprecated
+  default InputFile newInputFile(ManifestListFile manifestList) {
+    return newInputFile((SnapshotFile) manifestList);
   }
 
   /** Get a {@link OutputFile} instance to write bytes to the file at the given path. */

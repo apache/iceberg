@@ -102,14 +102,14 @@ public class CatalogUtil {
     // Reads and deletes are done using Tasks.foreach(...).suppressFailureWhenFinished to complete
     // as much of the delete work as possible and avoid orphaned data or manifest files.
 
-    Set<String> manifestListsToDelete = Sets.newHashSet();
+    Set<String> snapshotFilesToDelete = Sets.newHashSet();
     Set<ManifestFile> manifestsToDelete = Sets.newHashSet();
     for (Snapshot snapshot : metadata.snapshots()) {
       // add all manifests to the delete set because both data and delete files should be removed
       Iterables.addAll(manifestsToDelete, snapshot.allManifests(io));
-      // add the manifest list to the delete set, if present
-      if (snapshot.manifestListLocation() != null) {
-        manifestListsToDelete.add(snapshot.manifestListLocation());
+      // add the top-level snapshot file (manifest list for v3, root manifest for v4+) if present
+      if (snapshot.snapshotFileLocation() != null) {
+        snapshotFilesToDelete.add(snapshot.snapshotFileLocation());
       }
     }
 
@@ -131,7 +131,7 @@ public class CatalogUtil {
     }
 
     deleteFiles(io, Iterables.transform(manifestsToDelete, ManifestFile::path), "manifest");
-    deleteFiles(io, manifestListsToDelete, "manifest list");
+    deleteFiles(io, snapshotFilesToDelete, "snapshot file");
     deleteFiles(
         io,
         Iterables.transform(metadata.previousFiles(), TableMetadata.MetadataLogEntry::file),

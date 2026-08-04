@@ -18,10 +18,22 @@
  */
 package org.apache.iceberg;
 
+import java.nio.ByteBuffer;
+import org.apache.iceberg.encryption.EncryptionManager;
+
 /**
- * A v3-and-earlier manifest list file.
- *
- * @deprecated since 1.13.0; prefer {@link SnapshotFile}, which also covers v4+ root manifests.
+ * The top-level file that a {@link Snapshot} points at. For v3 and earlier this is a manifest list
+ * (see {@link ManifestListFile}); for v4+ it is a root manifest carrying a mix of data-file entries
+ * and leaf-manifest entries.
  */
-@Deprecated
-public interface ManifestListFile extends SnapshotFile {}
+public interface SnapshotFile {
+
+  /** Location of the snapshot file. */
+  String location();
+
+  /** The snapshot file key metadata can be encrypted. Returns ID of encryption key. */
+  String encryptionKeyID();
+
+  /** Decrypt and return the snapshot file key metadata. */
+  ByteBuffer decryptKeyMetadata(EncryptionManager em);
+}

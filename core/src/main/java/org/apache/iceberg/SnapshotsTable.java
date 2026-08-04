@@ -37,7 +37,8 @@ public class SnapshotsTable extends BaseMetadataTable {
           Types.NestedField.optional(
               6,
               "summary",
-              Types.MapType.ofRequired(7, 8, Types.StringType.get(), Types.StringType.get())));
+              Types.MapType.ofRequired(7, 8, Types.StringType.get(), Types.StringType.get())),
+          Types.NestedField.optional(9, "snapshot_file", Types.StringType.get()));
 
   SnapshotsTable(Table table) {
     this(table, table.name() + ".snapshots");
@@ -94,13 +95,16 @@ public class SnapshotsTable extends BaseMetadataTable {
     }
   }
 
-  private static StaticDataTask.Row snapshotToRow(Snapshot snap) {
+  static StaticDataTask.Row snapshotToRow(Snapshot snap) {
+    boolean adaptive = snap.formatVersion() != ManifestFile.LEGACY_FORMAT_VERSION;
+    String location = snap.snapshotFileLocation();
     return StaticDataTask.Row.of(
         snap.timestampMillis() * 1000,
         snap.snapshotId(),
         snap.parentId(),
         snap.operation(),
-        snap.manifestListLocation(),
-        snap.summary());
+        adaptive ? null : location,
+        snap.summary(),
+        location);
   }
 }

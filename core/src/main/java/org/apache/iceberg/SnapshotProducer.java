@@ -107,7 +107,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   private final String commitUUID = UUID.randomUUID().toString();
   private final AtomicInteger manifestCount = new AtomicInteger(0);
   private final AtomicInteger attempt = new AtomicInteger(0);
-  private final List<String> manifestLists = Lists.newArrayList();
+  private final List<String> snapshotFiles = Lists.newArrayList();
   private final long targetManifestSizeBytes;
   private final FileFormat manifestFormat;
   private final Map<String, String> manifestWriterProps;
@@ -314,8 +314,8 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
             base.nextRowId());
 
     try (writer) {
-      // keep track of the manifest lists created
-      manifestLists.add(manifestList.location());
+      // keep track of the snapshot files created
+      snapshotFiles.add(manifestList.location());
 
       ManifestFile[] manifestFiles = new ManifestFile[manifests.size()];
 
@@ -545,10 +545,12 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
             cleanUncommitted(Sets.newHashSet(saved.allManifests(ops.io())));
           }
 
-          // also clean up unused manifest lists created by multiple attempts
-          for (String manifestList : manifestLists) {
-            if (!saved.manifestListLocation().equals(manifestList)) {
-              deleteFile(manifestList);
+          // also clean up unused snapshot files (manifest lists for v3, root manifests for v4)
+          // created by multiple attempts.
+          String committedLocation = saved.snapshotFileLocation();
+          for (String snapshotFile : snapshotFiles) {
+            if (!snapshotFile.equals(committedLocation)) {
+              deleteFile(snapshotFile);
             }
           }
         } else {
@@ -597,10 +599,10 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   }
 
   protected void cleanAll() {
-    for (String manifestList : manifestLists) {
-      deleteFile(manifestList);
+    for (String snapshotFile : snapshotFiles) {
+      deleteFile(snapshotFile);
     }
-    manifestLists.clear();
+    snapshotFiles.clear();
     cleanUncommitted(EMPTY_SET);
   }
 

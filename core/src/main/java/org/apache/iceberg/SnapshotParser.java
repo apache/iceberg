@@ -82,10 +82,10 @@ public class SnapshotParser {
       generator.writeEndObject();
     }
 
-    String manifestList = snapshot.manifestListLocation();
-    if (manifestList != null) {
+    String snapshotFile = snapshot.snapshotFileLocation();
+    if (snapshotFile != null) {
       // write just the location. manifests should not be embedded in JSON along with a list
-      generator.writeStringField(MANIFEST_LIST, manifestList);
+      generator.writeStringField(MANIFEST_LIST, snapshotFile);
     } else {
       // embed the manifest list in the JSON, v1 only
       JsonUtil.writeStringArray(
