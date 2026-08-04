@@ -61,9 +61,9 @@ interface OAuth2Config {
   /** Creates an {@link OAuth2Config} from the given properties map. */
   static OAuth2Config from(Map<String, String> properties) {
     return ImmutableOAuth2Config.builder()
-        .basicConfig(BasicConfig.from(properties).build())
-        .tokenRefreshConfig(TokenRefreshConfig.from(properties).build())
-        .tokenExchangeConfig(TokenExchangeConfig.from(properties).build())
+        .basicConfig(BasicConfig.from(properties))
+        .tokenRefreshConfig(TokenRefreshConfig.from(properties))
+        .tokenExchangeConfig(TokenExchangeConfig.from(properties))
         .build();
   }
 }

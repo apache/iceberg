@@ -132,7 +132,7 @@ interface TokenRefreshConfig {
     }
   }
 
-  static ImmutableTokenRefreshConfig.Builder from(Map<String, String> properties) {
+  static TokenRefreshConfig from(Map<String, String> properties) {
     return ImmutableTokenRefreshConfig.builder()
         .enabled(ConfigUtil.parseOptional(properties, ENABLED, Boolean::parseBoolean).orElse(true))
         .tokenExchangeEnabled(
@@ -144,6 +144,7 @@ interface TokenRefreshConfig {
             ConfigUtil.parseOptional(properties, PREFETCH, Duration::parse)
                 .orElse(DEFAULT_PREFETCH))
         .jitter(
-            ConfigUtil.parseOptional(properties, JITTER, Duration::parse).orElse(DEFAULT_JITTER));
+            ConfigUtil.parseOptional(properties, JITTER, Duration::parse).orElse(DEFAULT_JITTER))
+        .build();
   }
 }

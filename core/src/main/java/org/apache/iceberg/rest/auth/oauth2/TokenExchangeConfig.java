@@ -105,7 +105,7 @@ interface TokenExchangeConfig {
    */
   List<Audience> audiences();
 
-  static ImmutableTokenExchangeConfig.Builder from(Map<String, String> properties) {
+  static TokenExchangeConfig from(Map<String, String> properties) {
     return ImmutableTokenExchangeConfig.builder()
         .subjectTokenString(ConfigUtil.parseOptional(properties, SUBJECT_TOKEN))
         .subjectTokenType(
@@ -115,6 +115,7 @@ interface TokenExchangeConfig {
         .requestedTokenType(
             ConfigUtil.parseOptional(properties, REQUESTED_TOKEN_TYPE, TokenTypeURI::parse))
         .resources(ConfigUtil.parseList(properties, RESOURCES, ",", URI::create))
-        .audiences(ConfigUtil.parseList(properties, AUDIENCES, ",", Audience::new));
+        .audiences(ConfigUtil.parseList(properties, AUDIENCES, ",", Audience::new))
+        .build();
   }
 }

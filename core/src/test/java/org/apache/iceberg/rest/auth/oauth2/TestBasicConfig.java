@@ -40,7 +40,7 @@ class TestBasicConfig {
   @ParameterizedTest
   @MethodSource
   void configFromProperties(Map<String, String> properties, BasicConfig expected) {
-    BasicConfig actual = BasicConfig.from(properties).build();
+    BasicConfig actual = BasicConfig.from(properties);
     assertThat(actual).isEqualTo(expected);
   }
 
@@ -90,10 +90,9 @@ class TestBasicConfig {
 
   @ParameterizedTest
   @MethodSource
-  @SuppressWarnings("ResultOfMethodCallIgnored")
   void invalidConfigFromProperties(Map<String, String> properties, String expected) {
     assertThatIllegalArgumentException()
-        .isThrownBy(() -> BasicConfig.from(properties).build())
+        .isThrownBy(() -> BasicConfig.from(properties))
         .withMessage(expected);
   }
 

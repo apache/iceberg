@@ -38,7 +38,7 @@ class TestTokenRefreshConfig {
   @ParameterizedTest
   @MethodSource
   void configFromProperties(Map<String, String> properties, TokenRefreshConfig expected) {
-    TokenRefreshConfig actual = TokenRefreshConfig.from(properties).build();
+    TokenRefreshConfig actual = TokenRefreshConfig.from(properties);
     assertThat(actual).isEqualTo(expected);
   }
 
@@ -65,10 +65,9 @@ class TestTokenRefreshConfig {
 
   @ParameterizedTest
   @MethodSource
-  @SuppressWarnings("ResultOfMethodCallIgnored")
   void invalidConfigFromProperties(Map<String, String> properties, String expected) {
     assertThatIllegalArgumentException()
-        .isThrownBy(() -> TokenRefreshConfig.from(properties).build())
+        .isThrownBy(() -> TokenRefreshConfig.from(properties))
         .withMessage(expected);
   }
 

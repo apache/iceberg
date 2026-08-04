@@ -42,7 +42,7 @@ class TestTokenExchangeConfig {
   @ParameterizedTest
   @MethodSource
   void configFromProperties(Map<String, String> properties, TokenExchangeConfig expected) {
-    TokenExchangeConfig actual = TokenExchangeConfig.from(properties).build();
+    TokenExchangeConfig actual = TokenExchangeConfig.from(properties);
     assertThat(actual).isEqualTo(expected);
   }
 

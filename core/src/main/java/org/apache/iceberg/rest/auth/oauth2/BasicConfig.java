@@ -290,7 +290,7 @@ interface BasicConfig {
         endpoint.getFragment() == null, "%s must not have a fragment part (%s)", name, key);
   }
 
-  static ImmutableBasicConfig.Builder from(Map<String, String> properties) {
+  static BasicConfig from(Map<String, String> properties) {
     List<String> scopes = ConfigUtil.parseList(properties, SCOPE, " ");
     return ImmutableBasicConfig.builder()
         .token(ConfigUtil.parseOptional(properties, TOKEN, BearerAccessToken::new))
@@ -313,6 +313,7 @@ interface BasicConfig {
             ConfigUtil.parseOptional(properties, TIMEOUT, Duration::parse).orElse(DEFAULT_TIMEOUT))
         .sessionCacheTimeout(
             ConfigUtil.parseOptional(properties, SESSION_CACHE_TIMEOUT, Duration::parse)
-                .orElse(DEFAULT_SESSION_CACHE_TIMEOUT));
+                .orElse(DEFAULT_SESSION_CACHE_TIMEOUT))
+        .build();
   }
 }
