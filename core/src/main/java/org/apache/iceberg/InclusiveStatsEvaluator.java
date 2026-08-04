@@ -108,11 +108,12 @@ class InclusiveStatsEvaluator {
         return ROWS_MIGHT_MATCH;
       }
 
-      if (null == file.contentStats()) {
+      ContentStats contentStats = file.contentStats();
+      if (null == contentStats) {
         return ROWS_MIGHT_MATCH;
       }
 
-      this.stats = file.contentStats();
+      this.stats = contentStats;
 
       return ExpressionVisitors.visitEvaluator(expr, this);
     }
@@ -135,7 +136,7 @@ class InclusiveStatsEvaluator {
       return fieldStats != null
           && fieldStats.hasValueCount()
           && fieldStats.hasNullValueCount()
-          && fieldStats.valueCount() - fieldStats.nullValueCount() == 0;
+          && fieldStats.valueCount() == fieldStats.nullValueCount();
     }
 
     @Override
@@ -152,7 +153,7 @@ class InclusiveStatsEvaluator {
       return fieldStats != null
           && fieldStats.hasValueCount()
           && fieldStats.hasNanValueCount()
-          && fieldStats.valueCount() - fieldStats.nanValueCount() == 0;
+          && fieldStats.valueCount() == fieldStats.nanValueCount();
     }
 
     @Override
