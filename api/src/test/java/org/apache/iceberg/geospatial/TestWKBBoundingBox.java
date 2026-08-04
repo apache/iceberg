@@ -45,143 +45,27 @@ public class TestWKBBoundingBox {
   private static final int MULTI_POLYGON = 6;
   private static final int GEOMETRY_COLLECTION = 7;
 
-  @Test
-  public void testPoint() {
-    XYAccumulator acc = accumulate(point(ByteOrder.LITTLE_ENDIAN, 30, 10));
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("geometryCases")
+  void computesBounds(
+      String description, byte[] wkb, GeospatialBound expectedMin, GeospatialBound expectedMax) {
+    XYAccumulator acc = accumulate(wkb);
+
     assertThat(acc.hasBounds()).isTrue();
+    assertThat(acc.minBound()).isEqualTo(expectedMin);
+    assertThat(acc.maxBound()).isEqualTo(expectedMax);
+  }
+
+  @ParameterizedTest
+  @ValueSource(ints = {1000, 2000, 3000})
+  void dimensionedPointsSkipExtraCoordinates(int dimensionOffset) {
+    byte[] wkb =
+        pointWithDims(
+            ByteOrder.LITTLE_ENDIAN, dimensionOffset, 30, 10, extraDimensions(dimensionOffset));
+    XYAccumulator acc = accumulate(wkb);
+
     assertThat(acc.minBound()).isEqualTo(GeospatialBound.createXY(30, 10));
     assertThat(acc.maxBound()).isEqualTo(GeospatialBound.createXY(30, 10));
-  }
-
-  @Test
-  public void testPointBigEndian() {
-    XYAccumulator acc = accumulate(point(ByteOrder.BIG_ENDIAN, -71, 42));
-    assertThat(acc.minBound()).isEqualTo(GeospatialBound.createXY(-71, 42));
-    assertThat(acc.maxBound()).isEqualTo(GeospatialBound.createXY(-71, 42));
-  }
-
-  @Test
-  public void testLineString() {
-    XYAccumulator acc =
-        accumulate(lineString(ByteOrder.LITTLE_ENDIAN, new double[][] {{0, 0}, {5, 3}, {2, -4}}));
-    assertThat(acc.minBound()).isEqualTo(GeospatialBound.createXY(0, -4));
-    assertThat(acc.maxBound()).isEqualTo(GeospatialBound.createXY(5, 3));
-  }
-
-  @Test
-  public void testPolygon() {
-    // A single ring; the box spans all ring vertices.
-    double[][] ring = {{1, 1}, {1, 9}, {8, 9}, {8, 1}, {1, 1}};
-    XYAccumulator acc = accumulate(polygon(ByteOrder.LITTLE_ENDIAN, ring));
-    assertThat(acc.minBound()).isEqualTo(GeospatialBound.createXY(1, 1));
-    assertThat(acc.maxBound()).isEqualTo(GeospatialBound.createXY(8, 9));
-  }
-
-  @Test
-  public void testMultiPoint() {
-    byte[] wkb =
-        collection(
-            ByteOrder.LITTLE_ENDIAN,
-            MULTI_POINT,
-            point(ByteOrder.LITTLE_ENDIAN, 30, 10),
-            point(ByteOrder.LITTLE_ENDIAN, -5, 40));
-    XYAccumulator acc = accumulate(wkb);
-    assertThat(acc.minBound()).isEqualTo(GeospatialBound.createXY(-5, 10));
-    assertThat(acc.maxBound()).isEqualTo(GeospatialBound.createXY(30, 40));
-  }
-
-  @Test
-  public void testMultiLineString() {
-    byte[] wkb =
-        collection(
-            ByteOrder.LITTLE_ENDIAN,
-            MULTI_LINE_STRING,
-            lineString(ByteOrder.LITTLE_ENDIAN, new double[][] {{0, 0}, {1, 1}}),
-            lineString(ByteOrder.LITTLE_ENDIAN, new double[][] {{-3, 7}, {2, 2}}));
-    XYAccumulator acc = accumulate(wkb);
-    assertThat(acc.minBound()).isEqualTo(GeospatialBound.createXY(-3, 0));
-    assertThat(acc.maxBound()).isEqualTo(GeospatialBound.createXY(2, 7));
-  }
-
-  @Test
-  public void testMultiPolygon() {
-    byte[] wkb =
-        collection(
-            ByteOrder.LITTLE_ENDIAN,
-            MULTI_POLYGON,
-            polygon(ByteOrder.LITTLE_ENDIAN, new double[][] {{0, 0}, {0, 2}, {2, 2}, {0, 0}}),
-            polygon(ByteOrder.LITTLE_ENDIAN, new double[][] {{5, 5}, {5, 9}, {9, 9}, {5, 5}}));
-    XYAccumulator acc = accumulate(wkb);
-    assertThat(acc.minBound()).isEqualTo(GeospatialBound.createXY(0, 0));
-    assertThat(acc.maxBound()).isEqualTo(GeospatialBound.createXY(9, 9));
-  }
-
-  @Test
-  public void testGeometryCollection() {
-    byte[] wkb =
-        collection(
-            ByteOrder.LITTLE_ENDIAN,
-            GEOMETRY_COLLECTION,
-            point(ByteOrder.LITTLE_ENDIAN, 30, 10),
-            lineString(ByteOrder.LITTLE_ENDIAN, new double[][] {{-8, 3}, {12, 25}}));
-    XYAccumulator acc = accumulate(wkb);
-    assertThat(acc.minBound()).isEqualTo(GeospatialBound.createXY(-8, 3));
-    assertThat(acc.maxBound()).isEqualTo(GeospatialBound.createXY(30, 25));
-  }
-
-  @Test
-  public void testMixedEndianChildren() {
-    // A collection whose children use different byte orders; each child re-reads its own order.
-    byte[] wkb =
-        collection(
-            ByteOrder.BIG_ENDIAN,
-            MULTI_POINT,
-            point(ByteOrder.LITTLE_ENDIAN, 30, 10),
-            point(ByteOrder.BIG_ENDIAN, -5, 40));
-    XYAccumulator acc = accumulate(wkb);
-    assertThat(acc.minBound()).isEqualTo(GeospatialBound.createXY(-5, 10));
-    assertThat(acc.maxBound()).isEqualTo(GeospatialBound.createXY(30, 40));
-  }
-
-  @Test
-  public void testNestedGeometryCollection() {
-    byte[] inner =
-        collection(
-            ByteOrder.LITTLE_ENDIAN, GEOMETRY_COLLECTION, point(ByteOrder.LITTLE_ENDIAN, 100, 50));
-    byte[] wkb =
-        collection(
-            ByteOrder.LITTLE_ENDIAN,
-            GEOMETRY_COLLECTION,
-            point(ByteOrder.LITTLE_ENDIAN, 1, 2),
-            inner);
-    XYAccumulator acc = accumulate(wkb);
-    assertThat(acc.minBound()).isEqualTo(GeospatialBound.createXY(1, 2));
-    assertThat(acc.maxBound()).isEqualTo(GeospatialBound.createXY(100, 50));
-  }
-
-  @Test
-  public void testXYZSkipsZ() {
-    // A 3D point (type code 1001). Only X and Y should contribute; Z is read past.
-    byte[] wkb = pointWithDims(ByteOrder.LITTLE_ENDIAN, 1000, 30, 10, 999.0);
-    XYAccumulator acc = accumulate(wkb);
-    assertThat(acc.minBound()).isEqualTo(GeospatialBound.createXY(30, 10));
-    assertThat(acc.maxBound()).isEqualTo(GeospatialBound.createXY(30, 10));
-  }
-
-  @Test
-  public void testXYMSkipsM() {
-    // A measured point (type code 2001).
-    byte[] wkb = pointWithDims(ByteOrder.LITTLE_ENDIAN, 2000, -5, 40, 7.5);
-    XYAccumulator acc = accumulate(wkb);
-    assertThat(acc.minBound()).isEqualTo(GeospatialBound.createXY(-5, 40));
-  }
-
-  @Test
-  public void testXYZMSkipsZAndM() {
-    // A 4D point (type code 3001).
-    byte[] wkb = pointWithDims(ByteOrder.LITTLE_ENDIAN, 3000, 12, 34, 5.0, 6.0);
-    XYAccumulator acc = accumulate(wkb);
-    assertThat(acc.minBound()).isEqualTo(GeospatialBound.createXY(12, 34));
   }
 
   @ParameterizedTest
@@ -258,41 +142,11 @@ public class TestWKBBoundingBox {
     assertThat(acc.maxBound()).isEqualTo(GeospatialBound.createXY(10, 12));
   }
 
-  @Test
-  public void testEmptyPointContributesNothing() {
-    // POINT EMPTY is encoded as a point with NaN coordinates.
-    XYAccumulator acc = accumulate(point(ByteOrder.LITTLE_ENDIAN, Double.NaN, Double.NaN));
-    assertThat(acc.hasBounds()).isFalse();
-    assertThat(acc.minBound()).isNull();
-    assertThat(acc.maxBound()).isNull();
-  }
-
-  @Test
-  public void testEmptyLineStringContributesNothing() {
-    XYAccumulator acc = accumulate(lineString(ByteOrder.LITTLE_ENDIAN, new double[0][]));
-    assertThat(acc.hasBounds()).isFalse();
-  }
-
-  @Test
-  void emptyPolygonContributesNothing() {
-    XYAccumulator acc = accumulate(polygon(ByteOrder.LITTLE_ENDIAN));
-    assertThat(acc.hasBounds()).isFalse();
-    assertThat(acc.minBound()).isNull();
-    assertThat(acc.maxBound()).isNull();
-  }
-
-  @Test
-  void emptyCollectionsContributeNothing() {
-    byte[] wkb =
-        collection(
-            ByteOrder.LITTLE_ENDIAN,
-            GEOMETRY_COLLECTION,
-            collection(ByteOrder.LITTLE_ENDIAN, MULTI_POINT),
-            collection(ByteOrder.LITTLE_ENDIAN, MULTI_LINE_STRING),
-            collection(ByteOrder.LITTLE_ENDIAN, MULTI_POLYGON),
-            collection(ByteOrder.LITTLE_ENDIAN, GEOMETRY_COLLECTION));
-
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("emptyGeometryCases")
+  void emptyGeometriesContributeNothing(String description, byte[] wkb) {
     XYAccumulator acc = accumulate(wkb);
+
     assertThat(acc.hasBounds()).isFalse();
     assertThat(acc.minBound()).isNull();
     assertThat(acc.maxBound()).isNull();
@@ -348,19 +202,6 @@ public class TestWKBBoundingBox {
     XYAccumulator acc = accumulate(wkb);
     assertThat(acc.minBound()).isEqualTo(GeospatialBound.createXY(0, -5));
     assertThat(acc.maxBound()).isEqualTo(GeospatialBound.createXY(20, 10));
-  }
-
-  @ParameterizedTest(name = "{0}")
-  @MethodSource("degeneratePolygonCases")
-  void degeneratePolygonBounds(
-      String description,
-      double[][] ring,
-      GeospatialBound expectedMin,
-      GeospatialBound expectedMax) {
-    XYAccumulator acc = accumulate(polygon(ByteOrder.LITTLE_ENDIAN, ring));
-
-    assertThat(acc.minBound()).isEqualTo(expectedMin);
-    assertThat(acc.maxBound()).isEqualTo(expectedMax);
   }
 
   @Test
@@ -428,97 +269,12 @@ public class TestWKBBoundingBox {
     assertThat(acc.maxBound()).isEqualTo(GeospatialBound.createXY(30, 40));
   }
 
-  @Test
-  public void testRejectsBadByteOrder() {
-    byte[] wkb = point(ByteOrder.LITTLE_ENDIAN, 30, 10);
-    wkb[0] = 2; // neither 0 (BE) nor 1 (LE)
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("invalidWkbCases")
+  void rejectsInvalidWkb(String description, byte[] wkb, String expectedMessage) {
     assertThatThrownBy(() -> accumulate(wkb))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("byte order");
-  }
-
-  @Test
-  public void testRejectsUnknownGeometryType() {
-    byte[] wkb =
-        ByteBuffer.allocate(21)
-            .order(ByteOrder.LITTLE_ENDIAN)
-            .put((byte) 1)
-            .putInt(99) // not a valid geometry type
-            .putDouble(0)
-            .putDouble(0)
-            .array();
-    assertThatThrownBy(() -> accumulate(wkb))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("geometry type");
-  }
-
-  @Test
-  public void testRejectsUnknownDimension() {
-    // Dimension group 4 (type code 4001) is not a valid OGC dimension offset.
-    byte[] wkb =
-        ByteBuffer.allocate(21)
-            .order(ByteOrder.LITTLE_ENDIAN)
-            .put((byte) 1)
-            .putInt(4001)
-            .putDouble(0)
-            .putDouble(0)
-            .array();
-    assertThatThrownBy(() -> accumulate(wkb))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("geometry type");
-  }
-
-  @Test
-  public void testRejectsTruncatedHeader() {
-    byte[] wkb = Arrays.copyOf(point(ByteOrder.LITTLE_ENDIAN, 30, 10), 3);
-    assertThatThrownBy(() -> accumulate(wkb))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("end of buffer");
-  }
-
-  @Test
-  public void testRejectsTruncatedCoordinates() {
-    // A point header that promises two doubles but only supplies one.
-    byte[] wkb =
-        ByteBuffer.allocate(13)
-            .order(ByteOrder.LITTLE_ENDIAN)
-            .put((byte) 1)
-            .putInt(POINT)
-            .putDouble(30)
-            .array();
-    assertThatThrownBy(() -> accumulate(wkb))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("end of buffer");
-  }
-
-  @Test
-  public void testRejectsHugeElementCount() {
-    // A multipoint that claims 0xFFFFFFFF elements but supplies none.
-    byte[] wkb =
-        ByteBuffer.allocate(9)
-            .order(ByteOrder.LITTLE_ENDIAN)
-            .put((byte) 1)
-            .putInt(MULTI_POINT)
-            .putInt(0xFFFFFFFF) // -1 as signed, ~4 billion unsigned
-            .array();
-    assertThatThrownBy(() -> accumulate(wkb))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("WKB");
-  }
-
-  @Test
-  public void testRejectsHugePointCount() {
-    // A linestring that claims a massive point count but supplies no coordinates.
-    byte[] wkb =
-        ByteBuffer.allocate(9)
-            .order(ByteOrder.LITTLE_ENDIAN)
-            .put((byte) 1)
-            .putInt(LINE_STRING)
-            .putInt(Integer.MAX_VALUE)
-            .array();
-    assertThatThrownBy(() -> accumulate(wkb))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("end of buffer");
+        .hasMessageContaining(expectedMessage);
   }
 
   @Test
@@ -534,38 +290,178 @@ public class TestWKBBoundingBox {
         .hasMessageContaining("nesting too deep");
   }
 
-  private static Stream<Arguments> degeneratePolygonCases() {
+  private static Stream<Arguments> geometryCases() {
+    byte[] mixedEndianChildren =
+        collection(
+            ByteOrder.BIG_ENDIAN,
+            MULTI_POINT,
+            point(ByteOrder.LITTLE_ENDIAN, 30, 10),
+            point(ByteOrder.BIG_ENDIAN, -5, 40));
+    byte[] innerCollection =
+        collection(
+            ByteOrder.LITTLE_ENDIAN, GEOMETRY_COLLECTION, point(ByteOrder.LITTLE_ENDIAN, 100, 50));
+    byte[] nestedCollection =
+        collection(
+            ByteOrder.LITTLE_ENDIAN,
+            GEOMETRY_COLLECTION,
+            point(ByteOrder.LITTLE_ENDIAN, 1, 2),
+            innerCollection);
+
     return Stream.of(
         Arguments.of(
+            "little-endian point",
+            point(ByteOrder.LITTLE_ENDIAN, 30, 10),
+            GeospatialBound.createXY(30, 10),
+            GeospatialBound.createXY(30, 10)),
+        Arguments.of(
+            "big-endian point",
+            point(ByteOrder.BIG_ENDIAN, -71, 42),
+            GeospatialBound.createXY(-71, 42),
+            GeospatialBound.createXY(-71, 42)),
+        Arguments.of(
+            "line string",
+            lineString(ByteOrder.LITTLE_ENDIAN, new double[][] {{0, 0}, {5, 3}, {2, -4}}),
+            GeospatialBound.createXY(0, -4),
+            GeospatialBound.createXY(5, 3)),
+        Arguments.of(
+            "polygon",
+            polygon(
+                ByteOrder.LITTLE_ENDIAN, new double[][] {{1, 1}, {1, 9}, {8, 9}, {8, 1}, {1, 1}}),
+            GeospatialBound.createXY(1, 1),
+            GeospatialBound.createXY(8, 9)),
+        Arguments.of(
+            "multi point",
+            collection(
+                ByteOrder.LITTLE_ENDIAN,
+                MULTI_POINT,
+                point(ByteOrder.LITTLE_ENDIAN, 30, 10),
+                point(ByteOrder.LITTLE_ENDIAN, -5, 40)),
+            GeospatialBound.createXY(-5, 10),
+            GeospatialBound.createXY(30, 40)),
+        Arguments.of(
+            "multi line string",
+            collection(
+                ByteOrder.LITTLE_ENDIAN,
+                MULTI_LINE_STRING,
+                lineString(ByteOrder.LITTLE_ENDIAN, new double[][] {{0, 0}, {1, 1}}),
+                lineString(ByteOrder.LITTLE_ENDIAN, new double[][] {{-3, 7}, {2, 2}})),
+            GeospatialBound.createXY(-3, 0),
+            GeospatialBound.createXY(2, 7)),
+        Arguments.of(
+            "multi polygon",
+            collection(
+                ByteOrder.LITTLE_ENDIAN,
+                MULTI_POLYGON,
+                polygon(ByteOrder.LITTLE_ENDIAN, new double[][] {{0, 0}, {0, 2}, {2, 2}, {0, 0}}),
+                polygon(ByteOrder.LITTLE_ENDIAN, new double[][] {{5, 5}, {5, 9}, {9, 9}, {5, 5}})),
+            GeospatialBound.createXY(0, 0),
+            GeospatialBound.createXY(9, 9)),
+        Arguments.of(
+            "geometry collection",
+            collection(
+                ByteOrder.LITTLE_ENDIAN,
+                GEOMETRY_COLLECTION,
+                point(ByteOrder.LITTLE_ENDIAN, 30, 10),
+                lineString(ByteOrder.LITTLE_ENDIAN, new double[][] {{-8, 3}, {12, 25}})),
+            GeospatialBound.createXY(-8, 3),
+            GeospatialBound.createXY(30, 25)),
+        Arguments.of(
+            "mixed-endian children",
+            mixedEndianChildren,
+            GeospatialBound.createXY(-5, 10),
+            GeospatialBound.createXY(30, 40)),
+        Arguments.of(
+            "nested geometry collection",
+            nestedCollection,
+            GeospatialBound.createXY(1, 2),
+            GeospatialBound.createXY(100, 50)),
+        Arguments.of(
             "point-degenerate ring",
-            new double[][] {{4, -2}, {4, -2}, {4, -2}, {4, -2}},
+            polygon(ByteOrder.LITTLE_ENDIAN, new double[][] {{4, -2}, {4, -2}, {4, -2}, {4, -2}}),
             GeospatialBound.createXY(4, -2),
             GeospatialBound.createXY(4, -2)),
         Arguments.of(
             "vertical ring",
-            new double[][] {{3, -2}, {3, 7}, {3, 1}, {3, -2}},
+            polygon(ByteOrder.LITTLE_ENDIAN, new double[][] {{3, -2}, {3, 7}, {3, 1}, {3, -2}}),
             GeospatialBound.createXY(3, -2),
             GeospatialBound.createXY(3, 7)),
         Arguments.of(
             "horizontal ring",
-            new double[][] {{-9, -4}, {8, -4}, {2, -4}, {-9, -4}},
+            polygon(ByteOrder.LITTLE_ENDIAN, new double[][] {{-9, -4}, {8, -4}, {2, -4}, {-9, -4}}),
             GeospatialBound.createXY(-9, -4),
             GeospatialBound.createXY(8, -4)),
         Arguments.of(
             "clockwise ring",
-            new double[][] {{0, 0}, {0, 11}, {13, 0}, {0, 0}},
+            polygon(ByteOrder.LITTLE_ENDIAN, new double[][] {{0, 0}, {0, 11}, {13, 0}, {0, 0}}),
             GeospatialBound.createXY(0, 0),
             GeospatialBound.createXY(13, 11)),
         Arguments.of(
             "counterclockwise ring",
-            new double[][] {{0, 0}, {13, 0}, {0, 11}, {0, 0}},
+            polygon(ByteOrder.LITTLE_ENDIAN, new double[][] {{0, 0}, {13, 0}, {0, 11}, {0, 0}}),
             GeospatialBound.createXY(0, 0),
             GeospatialBound.createXY(13, 11)),
         Arguments.of(
             "repeated vertices",
-            new double[][] {{0, 0}, {0, 0}, {6, 0}, {4, 5}, {0, 0}, {0, 0}},
+            polygon(
+                ByteOrder.LITTLE_ENDIAN,
+                new double[][] {{0, 0}, {0, 0}, {6, 0}, {4, 5}, {0, 0}, {0, 0}}),
             GeospatialBound.createXY(0, 0),
             GeospatialBound.createXY(6, 5)));
+  }
+
+  private static Stream<Arguments> emptyGeometryCases() {
+    byte[] emptyCollections =
+        collection(
+            ByteOrder.LITTLE_ENDIAN,
+            GEOMETRY_COLLECTION,
+            collection(ByteOrder.LITTLE_ENDIAN, MULTI_POINT),
+            collection(ByteOrder.LITTLE_ENDIAN, MULTI_LINE_STRING),
+            collection(ByteOrder.LITTLE_ENDIAN, MULTI_POLYGON),
+            collection(ByteOrder.LITTLE_ENDIAN, GEOMETRY_COLLECTION));
+
+    return Stream.of(
+        Arguments.of("empty point", point(ByteOrder.LITTLE_ENDIAN, Double.NaN, Double.NaN)),
+        Arguments.of("empty line string", lineString(ByteOrder.LITTLE_ENDIAN, new double[0][])),
+        Arguments.of("empty polygon", polygon(ByteOrder.LITTLE_ENDIAN)),
+        Arguments.of("empty collections", emptyCollections));
+  }
+
+  private static Stream<Arguments> invalidWkbCases() {
+    byte[] badByteOrder = point(ByteOrder.LITTLE_ENDIAN, 30, 10);
+    badByteOrder[0] = 2;
+    byte[] truncatedCoordinates =
+        ByteBuffer.allocate(13)
+            .order(ByteOrder.LITTLE_ENDIAN)
+            .put((byte) 1)
+            .putInt(POINT)
+            .putDouble(30)
+            .array();
+    byte[] hugeElementCount =
+        ByteBuffer.allocate(9)
+            .order(ByteOrder.LITTLE_ENDIAN)
+            .put((byte) 1)
+            .putInt(MULTI_POINT)
+            .putInt(0xFFFFFFFF)
+            .array();
+    byte[] hugePointCount =
+        ByteBuffer.allocate(9)
+            .order(ByteOrder.LITTLE_ENDIAN)
+            .put((byte) 1)
+            .putInt(LINE_STRING)
+            .putInt(Integer.MAX_VALUE)
+            .array();
+
+    return Stream.of(
+        Arguments.of("bad byte order", badByteOrder, "byte order"),
+        Arguments.of("unknown geometry type", pointWithType(99), "geometry type"),
+        Arguments.of("unknown dimension", pointWithType(4001), "geometry type"),
+        Arguments.of(
+            "truncated header",
+            Arrays.copyOf(point(ByteOrder.LITTLE_ENDIAN, 30, 10), 3),
+            "end of buffer"),
+        Arguments.of("truncated coordinates", truncatedCoordinates, "end of buffer"),
+        Arguments.of("huge element count", hugeElementCount, "WKB"),
+        Arguments.of("huge point count", hugePointCount, "end of buffer"));
   }
 
   private static XYAccumulator accumulate(byte[] wkb) {
@@ -581,6 +477,16 @@ public class TestWKBBoundingBox {
         .putInt(POINT)
         .putDouble(xCoord)
         .putDouble(yCoord)
+        .array();
+  }
+
+  private static byte[] pointWithType(int type) {
+    return ByteBuffer.allocate(21)
+        .order(ByteOrder.LITTLE_ENDIAN)
+        .put((byte) 1)
+        .putInt(type)
+        .putDouble(0)
+        .putDouble(0)
         .array();
   }
 
