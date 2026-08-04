@@ -45,6 +45,10 @@ class TestFlinkReadConf {
     conf = new FlinkReadConf(table, ImmutableMap.of(), flinkConf);
     assertThat(conf.splitSize()).isEqualTo(222L);
 
+    // read options take precedence over the flink config and the table property
+    conf = new FlinkReadConf(table, ImmutableMap.of(FlinkReadOptions.SPLIT_SIZE, "999"), flinkConf);
+    assertThat(conf.splitSize()).isEqualTo(999L);
+
     // default is used when neither is set
     when(table.properties()).thenReturn(ImmutableMap.of());
     conf = new FlinkReadConf(table, ImmutableMap.of(), new Configuration());
@@ -64,6 +68,10 @@ class TestFlinkReadConf {
     conf = new FlinkReadConf(table, ImmutableMap.of(), flinkConf);
     assertThat(conf.splitLookback()).isEqualTo(7);
 
+    conf =
+        new FlinkReadConf(table, ImmutableMap.of(FlinkReadOptions.SPLIT_LOOKBACK, "9"), flinkConf);
+    assertThat(conf.splitLookback()).isEqualTo(9);
+
     when(table.properties()).thenReturn(ImmutableMap.of());
     conf = new FlinkReadConf(table, ImmutableMap.of(), new Configuration());
     assertThat(conf.splitLookback()).isEqualTo(TableProperties.SPLIT_LOOKBACK_DEFAULT);
@@ -82,6 +90,11 @@ class TestFlinkReadConf {
     flinkConf.set(FlinkReadOptions.SPLIT_FILE_OPEN_COST_OPTION, 444L);
     conf = new FlinkReadConf(table, ImmutableMap.of(), flinkConf);
     assertThat(conf.splitFileOpenCost()).isEqualTo(444L);
+
+    conf =
+        new FlinkReadConf(
+            table, ImmutableMap.of(FlinkReadOptions.SPLIT_FILE_OPEN_COST, "999"), flinkConf);
+    assertThat(conf.splitFileOpenCost()).isEqualTo(999L);
 
     when(table.properties()).thenReturn(ImmutableMap.of());
     conf = new FlinkReadConf(table, ImmutableMap.of(), new Configuration());
