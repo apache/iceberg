@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.util;
 
+import static org.apache.iceberg.TestBase.FILE_A_DELETES;
+import static org.apache.iceberg.TestBase.FILE_B_DELETES;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import org.apache.iceberg.DeleteFile;
@@ -32,21 +34,8 @@ import org.junit.jupiter.api.Test;
  */
 public class TestDeleteFileWrapper {
 
-  private static final DeleteFile FILE_A_DELETES =
-      FileMetadata.deleteFileBuilder(PartitionSpec.unpartitioned())
-          .ofPositionDeletes()
-          .withPath("/path/to/data-a-deletes.parquet")
-          .withFileSizeInBytes(1)
-          .withRecordCount(1)
-          .build();
-  private static final DeleteFile FILE_B_DELETES =
-      FileMetadata.deleteFileBuilder(PartitionSpec.unpartitioned())
-          .ofPositionDeletes()
-          .withPath("/path/to/data-b-deletes.parquet")
-          .withFileSizeInBytes(2)
-          .withRecordCount(2)
-          .build();
-
+  // TestBase does not provide two deletion vectors at the same location which is required to
+  // exercise the content offset/size identity, so build them locally.
   private static DeleteFile dv(String path, long contentOffset, long contentSizeInBytes) {
     return FileMetadata.deleteFileBuilder(PartitionSpec.unpartitioned())
         .ofPositionDeletes()
@@ -123,9 +112,12 @@ public class TestDeleteFileWrapper {
   }
 
   @Test
-  public void notEqualsWithNonWrapperAndNull() {
-    DeleteFileWrapper wrapper = DeleteFileWrapper.wrap(FILE_A_DELETES);
-    assertThat(wrapper).isNotEqualTo(FILE_A_DELETES);
-    assertThat(wrapper).isNotEqualTo(null);
+  public void notEqualsWithNonWrapper() {
+    assertThat(DeleteFileWrapper.wrap(FILE_A_DELETES)).isNotEqualTo(FILE_A_DELETES);
+  }
+
+  @Test
+  public void notEqualsWithNull() {
+    assertThat(DeleteFileWrapper.wrap(FILE_A_DELETES)).isNotEqualTo(null);
   }
 }
