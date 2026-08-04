@@ -167,6 +167,12 @@ class SchemaUpdate implements UpdateSchema {
 
     // update tracking for moves
     addedNameToId.put(caseSensitivityAwareName(fullName), newId);
+    if (parent != null) {
+      // Also index the short name (e.g. locations.alt, not the canonical locations.value.alt)
+      // so later operations can reference the column, unless it already maps a column.
+      String shortName = caseSensitivityAwareName(parent + "." + name);
+      addedNameToId.putIfAbsent(shortName, newId);
+    }
     if (parentId != TABLE_ROOT_ID) {
       idToParent.put(newId, parentId);
     }
