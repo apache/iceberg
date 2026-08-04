@@ -163,9 +163,25 @@ public class BaseDeleteLoader implements DeleteLoader {
       DeleteFile dv = Iterables.getOnlyElement(deleteFiles);
       validateDV(dv, filePath);
       return readDV(dv);
+    } else if (ContentFileUtil.containsOnlyDVs(deleteFiles)) {
+      // Multiple DVs for the same data file - spec violation recovery (issue #17206).
+      // Read each DV and merge (union) the position bitmaps to preserve all deletes.
+      return readAndMergeDVs(deleteFiles, filePath);
     } else {
       return getOrReadPosDeletes(deleteFiles, filePath);
     }
+  }
+
+  private PositionDeleteIndex readAndMergeDVs(
+      Iterable<DeleteFile> deleteFiles, CharSequence filePath) {
+    Iterable<PositionDeleteIndex> indexes =
+        execute(
+            deleteFiles,
+            dv -> {
+              validateDV(dv, filePath);
+              return readDV(dv);
+            });
+    return PositionDeleteIndexUtil.merge(indexes);
   }
 
   private PositionDeleteIndex readDV(DeleteFile dv) {

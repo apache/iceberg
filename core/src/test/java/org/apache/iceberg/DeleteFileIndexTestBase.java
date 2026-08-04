@@ -774,16 +774,60 @@ public abstract class DeleteFileIndexTestBase<
   }
 
   @TestTemplate
-  public void testMultipleDVs() {
+  public void testDuplicateDVsDifferentContent() {
+    // Regression test for GitHub issue #17206: duplicate DVs must not brick scans.
+    // Two different DVs for the same data file should be indexed without throwing,
+    // and forDataFile() must return both so they can be merged (unioned) at read time.
     assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
 
-    DeleteFile dv1 = withDataSequenceNumber(1, newDV(FILE_A));
+    DeleteFile dv1 = withDataSequenceNumber(2, newDV(FILE_A));
     DeleteFile dv2 = withDataSequenceNumber(2, newDV(FILE_A));
+    // newDV generates random paths/offsets, so dv1 and dv2 are genuinely different DVs
     List<DeleteFile> dvs = Arrays.asList(dv1, dv2);
 
-    assertThatThrownBy(() -> DeleteFileIndex.builderFor(dvs).specsById(table.specs()).build())
-        .isInstanceOf(ValidationException.class)
-        .hasMessageContaining("Can't index multiple DVs for %s", FILE_A.location());
+    DeleteFileIndex index = DeleteFileIndex.builderFor(dvs).specsById(table.specs()).build();
+
+    DeleteFile[] fileADeletes = index.forDataFile(0, FILE_A);
+    assertThat(fileADeletes).as("Both DVs must be returned for union at read time").hasSize(2);
+    assertThat(ContentFileUtil.isDV(fileADeletes[0])).isTrue();
+    assertThat(ContentFileUtil.isDV(fileADeletes[1])).isTrue();
+  }
+
+  @TestTemplate
+  public void testDuplicateDVsByteIdentical() {
+    // Byte-identical DVs (same location, offset, and size) should be silently deduplicated.
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
+
+    DeleteFile dv =
+        FileMetadata.deleteFileBuilder(SPEC)
+            .ofPositionDeletes()
+            .withPath("/path/to/dv.puffin")
+            .withFileSizeInBytes(100)
+            .withPartition(FILE_A.partition())
+            .withRecordCount(5)
+            .withReferencedDataFile(FILE_A.location())
+            .withContentOffset(0L)
+            .withContentSizeInBytes(64L)
+            .build();
+    DeleteFile dvCopy =
+        FileMetadata.deleteFileBuilder(SPEC)
+            .ofPositionDeletes()
+            .withPath("/path/to/dv.puffin")
+            .withFileSizeInBytes(100)
+            .withPartition(FILE_A.partition())
+            .withRecordCount(5)
+            .withReferencedDataFile(FILE_A.location())
+            .withContentOffset(0L)
+            .withContentSizeInBytes(64L)
+            .build();
+
+    List<DeleteFile> dvs =
+        Arrays.asList(withDataSequenceNumber(2, dv), withDataSequenceNumber(2, dvCopy));
+    DeleteFileIndex index = DeleteFileIndex.builderFor(dvs).specsById(table.specs()).build();
+
+    DeleteFile[] fileADeletes = index.forDataFile(0, FILE_A);
+    assertThat(fileADeletes).as("Byte-identical DVs must be deduplicated to one").hasSize(1);
+    assertThat(ContentFileUtil.isDV(fileADeletes[0])).isTrue();
   }
 
   @TestTemplate
@@ -795,5 +839,27 @@ public abstract class DeleteFileIndexTestBase<
     assertThatThrownBy(() -> index.forDataFile(2, FILE_A))
         .isInstanceOf(ValidationException.class)
         .hasMessageContaining("must be greater than or equal to data file sequence number");
+  }
+
+  @TestTemplate
+  public void testThreeDifferentDVsAllRetained() {
+    // Regression test for issue #17206: a 3rd different DV must not be silently lost.
+    // After the 2nd DV migrates the path into duplicateDvsByPath, a 3rd DV must also
+    // be appended there rather than re-inserted into dvByPath (which would be ignored).
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
+
+    DeleteFile dv1 = withDataSequenceNumber(2, newDV(FILE_A));
+    DeleteFile dv2 = withDataSequenceNumber(2, newDV(FILE_A));
+    DeleteFile dv3 = withDataSequenceNumber(2, newDV(FILE_A));
+    // newDV generates random paths/offsets, so all three are genuinely different
+    List<DeleteFile> dvs = Arrays.asList(dv1, dv2, dv3);
+
+    DeleteFileIndex index = DeleteFileIndex.builderFor(dvs).specsById(table.specs()).build();
+
+    DeleteFile[] fileADeletes = index.forDataFile(0, FILE_A);
+    assertThat(fileADeletes)
+        .as("All 3 different DVs must be retained for union at read time")
+        .hasSize(3);
+    assertThat(fileADeletes).allMatch(ContentFileUtil::isDV);
   }
 }
