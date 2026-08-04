@@ -36,19 +36,16 @@ import org.apache.iceberg.relocated.com.google.common.base.Splitter;
  */
 final class ConfigUtil {
 
-  public static final List<GrantType> SUPPORTED_GRANT_TYPES =
-      List.of(GrantType.CLIENT_CREDENTIALS, GrantType.TOKEN_EXCHANGE, GrantType.REFRESH_TOKEN);
-
-  public static final List<GrantType> SUPPORTED_INITIAL_GRANT_TYPES =
+  static final List<GrantType> SUPPORTED_INITIAL_GRANT_TYPES =
       List.of(GrantType.CLIENT_CREDENTIALS, GrantType.TOKEN_EXCHANGE);
 
-  public static final List<ClientAuthenticationMethod> SUPPORTED_CLIENT_AUTH_METHODS =
+  static final List<ClientAuthenticationMethod> SUPPORTED_CLIENT_AUTH_METHODS =
       List.of(
           ClientAuthenticationMethod.NONE,
           ClientAuthenticationMethod.CLIENT_SECRET_BASIC,
           ClientAuthenticationMethod.CLIENT_SECRET_POST);
 
-  public static boolean requiresClientSecret(@Nullable ClientAuthenticationMethod method) {
+  static boolean requiresClientSecret(@Nullable ClientAuthenticationMethod method) {
     return Objects.equals(method, ClientAuthenticationMethod.CLIENT_SECRET_BASIC)
         || Objects.equals(method, ClientAuthenticationMethod.CLIENT_SECRET_POST);
   }
