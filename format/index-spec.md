@@ -141,6 +141,28 @@ The index metadata file stores the index definition and snapshot history.
 | required    | key-column-ids | list<int>            | Ordered source-table column IDs of the key columns |
 | optional    | properties     | map<string,string>   | Index properties applicable for every snapshot     |
 | required    | snapshots      | list<index-snapshot> | Index snapshots                                    |
+| optional    | encryption-keys| list<encryption-key> | Encryption keys used by the index, see [Encryption Keys](#encryption-keys) |
+
+### Encryption Keys
+
+Index metadata is not encrypted, so keys are never stored in plain form. Keys used for index encryption are tracked in
+index metadata as a list named `encryption-keys`, using the same structure as the table specification (see
+[Encryption Keys](spec.md#encryption-keys)). The schema of each key is a struct with the following fields:
+
+| Requirement | Field                   | Type                | Description                                                       |
+|-------------|-------------------------|---------------------|-------------------------------------------------------------------|
+| required    | key-id                  | string              | ID of the encryption key                                          |
+| required    | encrypted-key-metadata  | string              | Encrypted key and metadata, base64 encoded [1]                    |
+| optional    | encrypted-by-id         | string              | Optional ID of the key used to encrypt or wrap `key-metadata`     |
+| optional    | properties              | map<string,string>  | Additional metadata used by the index's encryption scheme         |
+
+Notes:
+
+1. The format of encrypted key metadata is determined by the index's encryption scheme and can be a wrapped format
+specific to the KMS provider.
+
+The `key-id` of an index snapshot must reference a `key-id` in the index metadata `encryption-keys` list. The referenced
+key encrypts the key metadata of the tracking file, which in turn holds the key metadata of the leaf files.
 
 ## Index Snapshot
 
@@ -154,7 +176,7 @@ Every snapshot shares the common fields below and references its index data thro
 | required    | timestamp-ms             | long               | Snapshot creation timestamp                                          |
 | required    | index-data               | string             | Location of the tracking file                                        |
 | optional    | properties               | map<string,string> | Snapshot properties specific to this snapshot                        |
-| optional    | key-metadata             | binary             | Implementation-specific key metadata, used to encrypt the index data |
+| optional    | key-id                   | string             | ID of the encryption key that encrypts the tracking file key metadata |
 
 ## Commits and Concurrency
 
