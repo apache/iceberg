@@ -764,6 +764,143 @@ public class TestRewriteTablePathsAction extends TestBase {
   }
 
   @TestTemplate
+  void rewriteAfterExpiringDeletedPositionDeleteFile() throws Exception {
+    assumeThat(formatVersion)
+        .as("Compaction only removes the delete file from storage once it is a deletion vector")
+        .isGreaterThanOrEqualTo(3);
+    Table tableWithPosDeletes =
+        createTableWithSnapshots(
+            tableDir.toFile().toURI().toString().concat("expiredPosDeletes"), 2);
+
+    List<Pair<CharSequence, Long>> deletes =
+        Lists.newArrayList(
+            Pair.of(
+                SnapshotChanges.builderFor(tableWithPosDeletes)
+                    .build()
+                    .addedDataFiles()
+                    .iterator()
+                    .next()
+                    .location(),
+                0L));
+
+    // the output file argument is ignored for format version >= 3: the deletion vector is
+    // written as a Puffin file into the table's data location
+    DeleteFile positionDeletes =
+        FileHelpers.writeDeleteFile(
+                tableWithPosDeletes,
+                tableWithPosDeletes
+                    .io()
+                    .newOutputFile(tableWithPosDeletes.location() + "/data/deletes.puffin"),
+                deletes,
+                formatVersion)
+            .first();
+    tableWithPosDeletes.newRowDelta().addDeletes(positionDeletes).commit();
+
+    // compaction drops the position delete file, leaving a DELETED entry in the delete manifest
+    actions().rewriteDataFiles(tableWithPosDeletes).execute();
+    tableWithPosDeletes.refresh();
+
+    // expiring the older snapshots physically removes the dropped position delete file, while the
+    // DELETED entry referencing it survives in the current snapshot's delete manifest
+    actions()
+        .expireSnapshots(tableWithPosDeletes)
+        .expireOlderThan(tableWithPosDeletes.currentSnapshot().timestampMillis())
+        .execute();
+    tableWithPosDeletes.refresh();
+    assertThat(tableWithPosDeletes.io().newInputFile(positionDeletes.location()).exists())
+        .as("Expired position delete file should have been removed from storage")
+        .isFalse();
+
+    // a full rewrite must not attempt to physically rewrite an entry it does not copy
+    RewriteTablePath.Result result =
+        actions()
+            .rewriteTablePath(tableWithPosDeletes)
+            .stagingLocation(stagingLocation())
+            .rewriteLocationPrefix(tableWithPosDeletes.location(), targetTableLocation())
+            .execute();
+
+    assertThat(result.rewrittenDeleteFilePathsCount())
+        .as("The expired DELETED entry must not be queued for physical rewriting")
+        .isEqualTo(0);
+
+    copyTableFiles(result);
+    assertThat(spark.read().format("iceberg").load(targetTableLocation()).collectAsList())
+        .containsExactlyInAnyOrderElementsOf(
+            spark.read().format("iceberg").load(tableWithPosDeletes.location()).collectAsList());
+  }
+
+  @TestTemplate
+  void incrementalRewriteAfterExpiringDeletedPositionDeleteFile() throws Exception {
+    assumeThat(formatVersion)
+        .as("Compaction only removes the delete file from storage once it is a deletion vector")
+        .isGreaterThanOrEqualTo(3);
+    Table sourceTable =
+        createTableWithSnapshots(
+            tableDir.toFile().toURI().toString().concat("expiredPosDeletesIncremental"), 2);
+
+    List<Pair<CharSequence, Long>> deletes =
+        Lists.newArrayList(
+            Pair.of(
+                SnapshotChanges.builderFor(sourceTable)
+                    .build()
+                    .addedDataFiles()
+                    .iterator()
+                    .next()
+                    .location(),
+                0L));
+    DeleteFile positionDeletes =
+        FileHelpers.writeDeleteFile(
+                sourceTable,
+                sourceTable.io().newOutputFile(sourceTable.location() + "/data/deletes.puffin"),
+                deletes,
+                formatVersion)
+            .first();
+    sourceTable.newRowDelta().addDeletes(positionDeletes).commit();
+
+    // replicate the table, including the live position delete file
+    RewriteTablePath.Result initialResult =
+        actions()
+            .rewriteTablePath(sourceTable)
+            .stagingLocation(stagingLocation())
+            .rewriteLocationPrefix(sourceTable.location(), targetTableLocation())
+            .execute();
+    assertThat(initialResult.rewrittenDeleteFilePathsCount()).isEqualTo(1);
+    copyTableFiles(initialResult);
+    String startVersion = fileName(currentMetadata(sourceTable).metadataFileLocation());
+
+    // on the source: compaction drops the position delete file, then expiry removes it from
+    // storage, while the DELETED entry survives in the current snapshot's delete manifest
+    actions().rewriteDataFiles(sourceTable).execute();
+    sourceTable.refresh();
+    actions()
+        .expireSnapshots(sourceTable)
+        .expireOlderThan(sourceTable.currentSnapshot().timestampMillis())
+        .execute();
+    sourceTable.refresh();
+    assertThat(sourceTable.io().newInputFile(positionDeletes.location()).exists())
+        .as("Expired position delete file should have been removed from storage")
+        .isFalse();
+
+    // an incremental rewrite spanning the expiry must not attempt to physically rewrite the
+    // dropped position delete file
+    RewriteTablePath.Result incrementalResult =
+        actions()
+            .rewriteTablePath(sourceTable)
+            .stagingLocation(stagingLocation())
+            .rewriteLocationPrefix(sourceTable.location(), targetTableLocation())
+            .startVersion(startVersion)
+            .execute();
+    assertThat(incrementalResult.rewrittenDeleteFilePathsCount())
+        .as("The expired DELETED entry must not be queued for physical rewriting")
+        .isEqualTo(0);
+
+    copyTableFiles(incrementalResult);
+    assertThat(spark.read().format("iceberg").load(targetTableLocation()).collectAsList())
+        .containsExactlyInAnyOrderElementsOf(
+            spark.read().format("iceberg").load(sourceTable.location()).collectAsList());
+  }
+
+  @TestTemplate
   public void testExpireSnapshotBeforeRewrite() throws Exception {
     // expire one snapshot
     actions().expireSnapshots(table).expireSnapshotId(table.currentSnapshot().parentId()).execute();
