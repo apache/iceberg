@@ -235,7 +235,13 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
           numValsToRead);
     }
     return new VectorHolder(
-        columnDescriptor, vec, dictEncoded, dictionary, nullabilityHolder, icebergField, repetitionLevels);
+        columnDescriptor,
+        vec,
+        dictEncoded,
+        dictionary,
+        nullabilityHolder,
+        icebergField,
+        repetitionLevels);
   }
 
   private void allocateFieldVector(boolean dictionaryEncodedVector) {

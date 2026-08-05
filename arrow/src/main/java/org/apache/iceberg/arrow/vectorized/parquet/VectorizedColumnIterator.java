@@ -23,7 +23,6 @@ import org.apache.arrow.vector.IntVector;
 import org.apache.iceberg.arrow.vectorized.NullabilityHolder;
 import org.apache.iceberg.parquet.BaseColumnIterator;
 import org.apache.iceberg.parquet.BasePageIterator;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.Dictionary;
 import org.apache.parquet.column.page.PageReader;
@@ -67,12 +66,21 @@ public class VectorizedColumnIterator extends BaseColumnIterator {
 
   public abstract class BatchReader {
     public void nextBatch(
-        FieldVector fieldVector, int typeWidth, NullabilityHolder holder, IntVector repetitionLevels) {
+        FieldVector fieldVector,
+        int typeWidth,
+        NullabilityHolder holder,
+        IntVector repetitionLevels) {
       int triplesReadSoFar = 0;
       while (triplesReadSoFar < batchSize && hasNext()) {
         advance();
         int triplesInThisBatch =
-            nextBatchOf(fieldVector, batchSize - triplesReadSoFar, triplesReadSoFar, typeWidth, holder, repetitionLevels);
+            nextBatchOf(
+                fieldVector,
+                batchSize - triplesReadSoFar,
+                triplesReadSoFar,
+                typeWidth,
+                holder,
+                repetitionLevels);
         triplesReadSoFar += triplesInThisBatch;
         triplesRead += triplesInThisBatch;
         fieldVector.setValueCount(triplesReadSoFar);
@@ -99,7 +107,8 @@ public class VectorizedColumnIterator extends BaseColumnIterator {
         IntVector repetitionLevels) {
       return vectorizedPageIterator
           .intPageReader()
-          .nextBatch(vector, expectedBatchSize, numValsInVector, typeWidth, holder, repetitionLevels);
+          .nextBatch(
+              vector, expectedBatchSize, numValsInVector, typeWidth, holder, repetitionLevels);
     }
   }
 
@@ -128,7 +137,8 @@ public class VectorizedColumnIterator extends BaseColumnIterator {
         IntVector repetitionLevels) {
       return vectorizedPageIterator
           .longPageReader()
-          .nextBatch(vector, expectedBatchSize, numValsInVector, typeWidth, holder, repetitionLevels);
+          .nextBatch(
+              vector, expectedBatchSize, numValsInVector, typeWidth, holder, repetitionLevels);
     }
   }
 
@@ -143,7 +153,8 @@ public class VectorizedColumnIterator extends BaseColumnIterator {
         IntVector repetitionLevels) {
       return vectorizedPageIterator
           .timestampMillisPageReader()
-          .nextBatch(vector, expectedBatchSize, numValsInVector, typeWidth, holder, repetitionLevels);
+          .nextBatch(
+              vector, expectedBatchSize, numValsInVector, typeWidth, holder, repetitionLevels);
     }
   }
 
@@ -158,7 +169,8 @@ public class VectorizedColumnIterator extends BaseColumnIterator {
         IntVector repetitionLevels) {
       return vectorizedPageIterator
           .timestampInt96PageReader()
-          .nextBatch(vector, expectedBatchSize, numValsInVector, typeWidth, holder, repetitionLevels);
+          .nextBatch(
+              vector, expectedBatchSize, numValsInVector, typeWidth, holder, repetitionLevels);
     }
   }
 
@@ -173,7 +185,8 @@ public class VectorizedColumnIterator extends BaseColumnIterator {
         IntVector repetitionLevels) {
       return vectorizedPageIterator
           .floatPageReader()
-          .nextBatch(vector, expectedBatchSize, numValsInVector, typeWidth, holder, repetitionLevels);
+          .nextBatch(
+              vector, expectedBatchSize, numValsInVector, typeWidth, holder, repetitionLevels);
     }
   }
 
@@ -188,7 +201,8 @@ public class VectorizedColumnIterator extends BaseColumnIterator {
         IntVector repetitionLevels) {
       return vectorizedPageIterator
           .doublePageReader()
-          .nextBatch(vector, expectedBatchSize, numValsInVector, typeWidth, holder, repetitionLevels);
+          .nextBatch(
+              vector, expectedBatchSize, numValsInVector, typeWidth, holder, repetitionLevels);
     }
   }
 
@@ -203,7 +217,8 @@ public class VectorizedColumnIterator extends BaseColumnIterator {
         IntVector repetitionLevels) {
       return vectorizedPageIterator
           .fixedSizeBinaryPageReader()
-          .nextBatch(vector, expectedBatchSize, numValsInVector, typeWidth, holder, repetitionLevels);
+          .nextBatch(
+              vector, expectedBatchSize, numValsInVector, typeWidth, holder, repetitionLevels);
     }
   }
 
@@ -218,7 +233,8 @@ public class VectorizedColumnIterator extends BaseColumnIterator {
         IntVector repetitionLevels) {
       return vectorizedPageIterator
           .varWidthTypePageReader()
-          .nextBatch(vector, expectedBatchSize, numValsInVector, typeWidth, holder, repetitionLevels);
+          .nextBatch(
+              vector, expectedBatchSize, numValsInVector, typeWidth, holder, repetitionLevels);
     }
   }
 
@@ -233,7 +249,8 @@ public class VectorizedColumnIterator extends BaseColumnIterator {
         IntVector repetitionLevels) {
       return vectorizedPageIterator
           .booleanPageReader()
-          .nextBatch(vector, expectedBatchSize, numValsInVector, typeWidth, holder, repetitionLevels);
+          .nextBatch(
+              vector, expectedBatchSize, numValsInVector, typeWidth, holder, repetitionLevels);
     }
   }
 

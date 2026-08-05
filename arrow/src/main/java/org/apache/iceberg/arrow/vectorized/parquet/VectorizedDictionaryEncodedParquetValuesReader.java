@@ -62,7 +62,7 @@ public class VectorizedDictionaryEncodedParquetValuesReader
             nextVal(vector, dict, idx, currentValue, typeWidth);
             nullabilityHolder.setNotNull(idx, maxDefLevel);
           } else if (Mode.PACKED.equals(mode)) {
-              nextVal(vector, dict, idx, packedValuesBuffer[packedValuesBufferIdx++], typeWidth);
+            nextVal(vector, dict, idx, packedValuesBuffer[packedValuesBufferIdx++], typeWidth);
             nullabilityHolder.setNotNull(idx, maxDefLevel);
           }
           if (setArrowValidityVector) {

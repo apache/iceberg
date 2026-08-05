@@ -23,8 +23,8 @@ import java.util.Arrays;
 /**
  * Instances of this class simply track whether a value at an index is null. For simplicity and
  * performance, it is expected that various setter methods {@link #setNull(int)}, {@link
- * #setNulls(int, int, int)}, {@link #setNotNull(int, int)} and {@link #setNotNulls(int, int, int)} are invoked
- * with monotonically increasing values for the index parameter.
+ * #setNulls(int, int, int)}, {@link #setNotNull(int, int)} and {@link #setNotNulls(int, int, int)}
+ * are invoked with monotonically increasing values for the index parameter.
  */
 public class NullabilityHolder {
   private final int[] definitionLevels;
