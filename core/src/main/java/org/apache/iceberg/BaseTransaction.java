@@ -47,6 +47,7 @@ import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTest
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
@@ -73,6 +74,7 @@ public class BaseTransaction implements Transaction {
   private final Consumer<String> enqueueDelete = deletedFiles::add;
   private final TransactionType type;
   private TableMetadata base;
+  private final TableMetadata stagedReplacement;
   private TableMetadata current;
   private boolean hasLastOpCommitted;
   private final MetricsReporter reporter;
@@ -91,6 +93,7 @@ public class BaseTransaction implements Transaction {
     this.tableName = tableName;
     this.ops = ops;
     this.transactionTable = new TransactionTable();
+    this.stagedReplacement = start;
     this.current = start;
     this.transactionOps = new TransactionTableOperations();
     this.updates = Lists.newArrayList();
@@ -312,19 +315,7 @@ public class BaseTransaction implements Transaction {
           .onlyRetryOn(CommitFailedException.class)
           .run(
               underlyingOps -> {
-                try {
-                  underlyingOps.refresh();
-                } catch (NoSuchTableException e) {
-                  if (!orCreate) {
-                    throw e;
-                  }
-                }
-
-                // because this is a replace table, it will always completely replace the table
-                // metadata. even if it was just updated.
-                if (base != underlyingOps.current()) {
-                  this.base = underlyingOps.current(); // just refreshed
-                }
+                refreshAndRebaseReplace(underlyingOps, orCreate);
 
                 underlyingOps.commit(base, current);
               });
@@ -333,19 +324,100 @@ public class BaseTransaction implements Transaction {
       throw e;
 
     } catch (RuntimeException e) {
-      // the commit failed and no files were committed. clean up each update.
+      // the commit failed. clean up each update and the files they staged.
       if (!ops.requireStrictCleanup() || e instanceof CleanableFailure) {
-        cleanAllUpdates();
+        cleanUp();
       }
 
       throw e;
-
-    } finally {
-      // replace table never needs to retry because the table state is completely replaced. because
-      // retries are not
-      // a concern, it is safe to delete all the deleted files from individual operations
-      deleteUncommittedFiles(deletedFiles);
     }
+
+    // the commit succeeded
+
+    // A rebase that retries replays the staged updates, and a manifest from one attempt can be
+    // reused by the attempt that commits. So keep any file the committed snapshots reference;
+    // deleting deletedFiles unconditionally could remove a committed manifest. The simple commit
+    // path filters the same way.
+    try {
+      Set<Long> committedSnapshots =
+          current.snapshots().stream().map(Snapshot::snapshotId).collect(Collectors.toSet());
+      Set<String> committedFiles = committedFiles(ops, committedSnapshots);
+      if (committedFiles != null) {
+        Set<String> uncommittedFiles =
+            deletedFiles.stream()
+                .filter(f -> !committedFiles.contains(f))
+                .collect(Collectors.toSet());
+        deleteUncommittedFiles(uncommittedFiles);
+      } else {
+        LOG.warn("Failed to load metadata for a committed snapshot, skipping clean-up");
+      }
+    } catch (RuntimeException e) {
+      LOG.warn("Failed to load committed metadata, skipping clean-up", e);
+    }
+  }
+
+  private void refreshAndRebaseReplace(TableOperations underlyingOps, boolean orCreate) {
+    TableMetadata refreshed;
+    try {
+      refreshed = underlyingOps.refresh();
+    } catch (NoSuchTableException e) {
+      if (!orCreate) {
+        throw e;
+      }
+      refreshed = null;
+    }
+
+    if (refreshed == null && !orCreate) {
+      throw new NoSuchTableException("Table does not exist: %s", tableName);
+    }
+
+    // If the table changed while this transaction was open (usually a concurrent commit), rebuild
+    // the replacement on the latest metadata so that commit's history is not silently dropped. If
+    // the latest metadata is null, only create-or-replace can commit the staged replacement as a
+    // new table.
+    if (base != refreshed) {
+      this.base = refreshed; // just refreshed
+      if (base != null) {
+        rebaseReplaceOnto(base);
+      }
+    }
+  }
+
+  /**
+   * Re-applies this replace transaction on top of the latest table metadata.
+   *
+   * <p>A replace replaces the current schema, spec, and data, but it keeps the table's history
+   * rather than dropping and recreating the table. If it simply committed the metadata staged when
+   * the transaction opened, any commit that landed in the meantime would be lost. Instead, the
+   * staged replacement (schema, spec, sort order, location, and properties) is rebuilt on the
+   * refreshed metadata, which retains the other commit's snapshots, and the staged updates are
+   * replayed so their new snapshots get sequence numbers that follow the refreshed metadata.
+   */
+  private void rebaseReplaceOnto(TableMetadata refreshed) {
+    this.current =
+        refreshed.buildReplacementPreservingIds(
+            stagedReplacement.schema(),
+            stagedReplacement.spec(),
+            stagedReplacement.sortOrder(),
+            stagedReplacement.location(),
+            explicitReplacementProperties(),
+            stagedReplacement.formatVersion());
+    // Updates are replayed against the transaction's own ops, which return the rebuilt metadata, so
+    // they re-apply cleanly without seeing a stale base.
+    for (PendingUpdate update : updates) {
+      update.commit();
+    }
+  }
+
+  private Map<String, String> explicitReplacementProperties() {
+    Map<String, String> explicitProperties = Maps.newHashMap();
+    for (MetadataUpdate update : stagedReplacement.changes()) {
+      if (update instanceof MetadataUpdate.SetProperties) {
+        explicitProperties.putAll(((MetadataUpdate.SetProperties) update).updated());
+      }
+    }
+
+    return explicitProperties;
   }
 
   private void commitSimpleTransaction() {
