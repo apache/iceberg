@@ -27,8 +27,8 @@ import org.apache.arrow.memory.BufferAllocator;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.arrow.ArrowAllocation;
 import org.apache.iceberg.arrow.vectorized.VectorizedArrowReader.ConstantVectorReader;
-import org.apache.iceberg.parquet.ParquetVariantVisitor;
 import org.apache.iceberg.parquet.ParquetSchemaUtil;
+import org.apache.iceberg.parquet.ParquetVariantVisitor;
 import org.apache.iceberg.parquet.TypeWithSchemaVisitor;
 import org.apache.iceberg.parquet.VectorizedReader;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -168,21 +168,37 @@ public class VectorizedReaderBuilder extends TypeWithSchemaVisitor<VectorizedRea
     return result;
   }
 
-    @Override
-    public VectorizedReader<?> list(Types.ListType iList, GroupType array, VectorizedReader<?> element) {
-        Type elementType = ParquetSchemaUtil.determineListElementType(array);// parquet Type
-        boolean isElementRequired = elementType.isRepetition(Type.Repetition.REQUIRED);
-        boolean isListRequired = array.isRepetition(Type.Repetition.REQUIRED);
-        Types.NestedField icebergField = icebergSchema.findField(array.getId().intValue());
-        if (elementType.isPrimitive()) {
-            ColumnDescriptor desc = parquetSchema.getColumnDescription(path(elementType.getName()));
-            return new VectorizedListReader(desc, icebergField, isListRequired, isElementRequired, rootAllocator, setArrowValidityVector, (VectorizedReader<VectorHolder>) element);
-        } else {
-            int maxDefinitionLevel = parquetSchema.getMaxDefinitionLevel(path(elementType.getName()));
-            int maxRepetitionLevel = parquetSchema.getMaxRepetitionLevel(path(elementType.getName()));
-            return new VectorizedListReader(maxRepetitionLevel, maxDefinitionLevel, isListRequired, isElementRequired, icebergField,  rootAllocator, setArrowValidityVector, (VectorizedReader<VectorHolder>) element);
-        }
+  @Override
+  public VectorizedReader<?> list(
+      Types.ListType iList, GroupType array, VectorizedReader<?> element) {
+    Type elementType = ParquetSchemaUtil.determineListElementType(array); // parquet Type
+    boolean isElementRequired = elementType.isRepetition(Type.Repetition.REQUIRED);
+    boolean isListRequired = array.isRepetition(Type.Repetition.REQUIRED);
+    Types.NestedField icebergField = icebergSchema.findField(array.getId().intValue());
+    if (elementType.isPrimitive()) {
+      ColumnDescriptor desc = parquetSchema.getColumnDescription(path(elementType.getName()));
+      return new VectorizedListReader(
+          desc,
+          icebergField,
+          isListRequired,
+          isElementRequired,
+          rootAllocator,
+          setArrowValidityVector,
+          (VectorizedReader<VectorHolder>) element);
+    } else {
+      int maxDefinitionLevel = parquetSchema.getMaxDefinitionLevel(path(elementType.getName()));
+      int maxRepetitionLevel = parquetSchema.getMaxRepetitionLevel(path(elementType.getName()));
+      return new VectorizedListReader(
+          maxRepetitionLevel,
+          maxDefinitionLevel,
+          isListRequired,
+          isElementRequired,
+          icebergField,
+          rootAllocator,
+          setArrowValidityVector,
+          (VectorizedReader<VectorHolder>) element);
     }
+  }
 
   @Override
   public VectorizedReader<VectorHolder> primitive(

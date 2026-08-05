@@ -58,7 +58,8 @@ public class VectorHolder {
       NullabilityHolder holder,
       Types.NestedField icebergField,
       IntVector repetitionLevels) {
-    // All the fields except dictionary and repetitionLevels are not nullable unless it is a dummy holder
+    // All the fields except dictionary and repetitionLevels are not nullable unless it is a dummy
+    // holder
     Preconditions.checkNotNull(columnDescriptor, "ColumnDescriptor cannot be null");
     Preconditions.checkNotNull(vector, "Vector cannot be null");
     Preconditions.checkNotNull(holder, "NullabilityHolder cannot be null");
@@ -93,7 +94,10 @@ public class VectorHolder {
   }
 
   private VectorHolder(
-      FieldVector vec, Types.NestedField field, NullabilityHolder nulls, IntVector repetitionLevels) {
+      FieldVector vec,
+      Types.NestedField field,
+      NullabilityHolder nulls,
+      IntVector repetitionLevels) {
     columnDescriptor = null;
     vector = vec;
     isDictionaryEncoded = false;

@@ -72,7 +72,6 @@ import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.Type;
 import org.apache.spark.sql.catalyst.InternalRow;
-import org.apache.spark.sql.sources.In;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -367,11 +366,7 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
                 "list_of_list",
                 Types.ListType.ofOptional(
                     10, Types.ListType.ofOptional(11, Types.IntegerType.get()))),
-            optional(
-                12,
-                "string_list",
-                Types.ListType.ofOptional(13, Types.StringType.get()))
-        );
+            optional(12, "string_list", Types.ListType.ofOptional(13, Types.StringType.get())));
 
     File dataFile = temp.resolve("data.parquet").toFile();
     Iterable<Record> data =

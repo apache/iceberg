@@ -224,7 +224,7 @@ public abstract class AvroDataTestBase {
 
   @Test
   public void testArray() throws IOException {
-//    assumeThat(supportsNestedTypes()).isTrue();
+    assumeThat(supportsNestedTypes()).isTrue();
 
     Schema schema =
         new Schema(
