@@ -64,16 +64,17 @@ class ADLSLocation {
     ValidationException.check(matcher.matches(), "Invalid ADLS URI: %s", location);
 
     String authority = matcher.group(2);
-    String[] parts = authority.split("@", -1);
-    if (parts.length > 1) {
-      this.container = parts[0];
-      this.host = parts[1];
-      this.storageAccount = host.split("\\.", -1)[0];
+    int containerSplit = authority.indexOf('@');
+    if (containerSplit >= 0) {
+      this.container = authority.substring(0, containerSplit);
+      this.host = authority.substring(containerSplit + 1);
     } else {
       this.container = null;
       this.host = authority;
-      this.storageAccount = authority.split("\\.", -1)[0];
     }
+
+    int accountSplit = host.indexOf('.');
+    this.storageAccount = accountSplit < 0 ? host : host.substring(0, accountSplit);
 
     String uriPath = matcher.group(3);
     this.path = uriPath == null ? "" : uriPath.startsWith("/") ? uriPath.substring(1) : uriPath;
