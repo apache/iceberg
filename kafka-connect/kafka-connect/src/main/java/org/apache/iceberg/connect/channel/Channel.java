@@ -70,7 +70,7 @@ abstract class Channel {
     String transactionalId =
         "worker".equalsIgnoreCase(name)
             ? config.transactionalPrefix() + name + config.transactionalSuffix()
-            : connectGroupId + "-" + config.connectorName() + "-coord";
+            : connectGroupId + config.transactionalSuffix();
 
     this.producer = clientFactory.createProducer(transactionalId);
     this.consumer =

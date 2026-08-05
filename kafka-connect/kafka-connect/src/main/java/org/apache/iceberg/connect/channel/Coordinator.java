@@ -197,8 +197,7 @@ class Coordinator extends Channel {
   static boolean isRetryable(RuntimeException exception) {
     return exception instanceof CommitFailedException
         || exception instanceof org.apache.kafka.clients.consumer.CommitFailedException
-        || exception instanceof org.apache.kafka.common.errors.RebalanceInProgressException
-        || exception instanceof org.apache.kafka.common.errors.RetriableException;
+        || exception instanceof org.apache.kafka.common.errors.RebalanceInProgressException;
   }
 
   private void doCommit(boolean partialCommit) {
