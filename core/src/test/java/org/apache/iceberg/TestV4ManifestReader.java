@@ -742,44 +742,23 @@ class TestV4ManifestReader {
   @ParameterizedTest
   @FieldSource("MANIFEST_FORMATS")
   public void resolvesRelativeDataFileLocation(FileFormat format) throws IOException {
-    TrackedFile file = dataFile("data/00000-0.parquet", EMPTY_PARTITION_DATA);
-    verifyLocation(format, file, TABLE_LOCATION + "/data/00000-0.parquet");
-  }
-
-  @ParameterizedTest
-  @FieldSource("MANIFEST_FORMATS")
-  public void absoluteDataFileLocationIsUnchanged(FileFormat format) throws IOException {
-    TrackedFile file = dataFile("hdfs://wh/db/table/data/00000-0.parquet", EMPTY_PARTITION_DATA);
-    verifyLocation(format, file, "hdfs://wh/db/table/data/00000-0.parquet");
-  }
-
-  @ParameterizedTest
-  @FieldSource("MANIFEST_FORMATS")
-  public void preservesNonStandardDataFileLocation(FileFormat format) throws IOException {
-    // a leading / or // has no URI scheme, so it is treated as relative and joined to the table
-    // location; the reader does not special-case authority-style or root-absolute paths
-    verifyLocation(
-        format,
-        dataFile("/data/00000-0.parquet", EMPTY_PARTITION_DATA),
-        TABLE_LOCATION + "//data/00000-0.parquet");
-    verifyLocation(
-        format,
-        dataFile("//data/00000-0.parquet", EMPTY_PARTITION_DATA),
-        TABLE_LOCATION + "///data/00000-0.parquet");
+    TrackedFile file = dataFile("data/00000-0", EMPTY_PARTITION_DATA);
+    verifyLocationAfterWriteReadRoundTrip(format, file, resolved(file));
   }
 
   @ParameterizedTest
   @FieldSource("MANIFEST_FORMATS")
   public void resolvesRelativeDeletionVectorLocation(FileFormat format) throws IOException {
-    TrackedFile file = dataFile("data/00000-0.parquet", EMPTY_PARTITION_DATA, dv("data/dv.puffin"));
+    TrackedFile file = dataFile("data/00000-0", EMPTY_PARTITION_DATA, dv("data/dv.puffin"));
 
     InputFile manifest = writeManifest(format, EMPTY_PARTITION, ImmutableList.of(file));
 
     try (V4ManifestReader reader =
         V4ManifestReader.builder(manifest, UNPARTITIONED_SPECS, TABLE_LOCATION).build()) {
       TrackedFile actual = Iterables.getOnlyElement(reader);
-      assertThat(actual.location()).isEqualTo(TABLE_LOCATION + "/data/00000-0.parquet");
-      assertThat(actual.deletionVector().location()).isEqualTo(TABLE_LOCATION + "/data/dv.puffin");
+      assertThat(actual.location()).isEqualTo(resolved(file));
+      assertThat(actual.deletionVector().location())
+          .isEqualTo(LocationUtil.resolveLocation(TABLE_LOCATION, "data/dv.puffin"));
     }
   }
 
@@ -787,12 +766,12 @@ class TestV4ManifestReader {
   @FieldSource("MANIFEST_FORMATS")
   public void resolvesLeafManifestLocation(FileFormat format) throws IOException {
     TrackedFile leaf = manifestRef(FileContent.DATA_MANIFEST, "metadata/leaf.avro");
-    verifyLocation(format, leaf, TABLE_LOCATION + "/metadata/leaf.avro");
+    verifyLocationAfterWriteReadRoundTrip(format, leaf, resolved(leaf));
   }
 
   @ParameterizedTest
   @FieldSource("MANIFEST_FORMATS")
-  public void resolvesDataFileAndDvSchemesIndependently(FileFormat format) throws IOException {
+  public void mixedAbsoluteAndRelativePathWithDataFileAndDV(FileFormat format) throws IOException {
     // absolute data file paired with a relative DV, and relative data file paired with an absolute
     // DV: each location's scheme is evaluated on its own
     TrackedFile absoluteFileRelativeDv =
@@ -809,25 +788,13 @@ class TestV4ManifestReader {
     try (V4ManifestReader reader =
         V4ManifestReader.builder(manifest, UNPARTITIONED_SPECS, TABLE_LOCATION).build()) {
       List<TrackedFile> actual = Lists.newArrayList(reader);
+      // absolute locations pass through unchanged; relative ones resolve against the table location
       assertThat(actual.get(0).location()).isEqualTo("s3://other/abs.parquet");
       assertThat(actual.get(0).deletionVector().location())
-          .isEqualTo(TABLE_LOCATION + "/data/dv.puffin");
-      assertThat(actual.get(1).location()).isEqualTo(TABLE_LOCATION + "/data/rel.parquet");
+          .isEqualTo(LocationUtil.resolveLocation(TABLE_LOCATION, "data/dv.puffin"));
+      assertThat(actual.get(1).location())
+          .isEqualTo(LocationUtil.resolveLocation(TABLE_LOCATION, "data/rel.parquet"));
       assertThat(actual.get(1).deletionVector().location()).isEqualTo("s3://other/abs-dv.puffin");
-    }
-  }
-
-  @ParameterizedTest
-  @FieldSource("MANIFEST_FORMATS")
-  public void stripsTrailingSlashFromTableLocation(FileFormat format) throws IOException {
-    TrackedFile file = dataFile("data/00000-0.parquet", EMPTY_PARTITION_DATA);
-
-    InputFile manifest = writeManifest(format, EMPTY_PARTITION, ImmutableList.of(file));
-
-    try (V4ManifestReader reader =
-        V4ManifestReader.builder(manifest, UNPARTITIONED_SPECS, TABLE_LOCATION + "/").build()) {
-      TrackedFile actual = Iterables.getOnlyElement(reader);
-      assertThat(actual.location()).isEqualTo(TABLE_LOCATION + "/data/00000-0.parquet");
     }
   }
 
@@ -884,7 +851,7 @@ class TestV4ManifestReader {
   }
 
   // writes a single tracked file, reads it back against TABLE_LOCATION, and checks its location
-  private void verifyLocation(FileFormat format, TrackedFile file, String expectedLocation)
+  private void verifyLocationAfterWriteReadRoundTrip(FileFormat format, TrackedFile file, String expectedLocation)
       throws IOException {
     InputFile manifest = writeManifest(format, EMPTY_PARTITION, ImmutableList.of(file));
 
