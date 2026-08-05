@@ -35,6 +35,7 @@ import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.GenericStatisticsFile;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.MetadataTableUtils;
@@ -42,6 +43,7 @@ import org.apache.iceberg.PositionDeletesScanTask;
 import org.apache.iceberg.PositionDeletesTable;
 import org.apache.iceberg.ScanTask;
 import org.apache.iceberg.SerializableTable;
+import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.StaticTableOperations;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
@@ -49,6 +51,7 @@ import org.apache.iceberg.TableUtil;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
@@ -182,6 +185,18 @@ public class TestTableSerialization extends HadoopTableTestBase {
 
     table.newAppend().appendFile(FILE_B).commit();
     table.newRowDelta().addDeletes(FILE_B_DELETES).commit();
+
+    Snapshot currentSnapshot = table.currentSnapshot();
+    table
+        .updateStatistics()
+        .setStatistics(
+            new GenericStatisticsFile(
+                currentSnapshot.snapshotId(),
+                "/path/to/new-statistics.puffin",
+                100L,
+                10L,
+                ImmutableList.of()))
+        .commit();
 
     for (MetadataTableType type : MetadataTableType.values()) {
       // Collect the deserialized data
