@@ -250,6 +250,20 @@ class StatsUtil {
         optional(baseId + GEO_UPPER_M_OFFSET, "m", Types.DoubleType.get(), "Bounding box mmax"));
   }
 
+  /** Returns whether a bound type is the geo bounding-box struct (x, y, z, m). */
+  static boolean isGeoBoundType(Type boundType) {
+    if (!boundType.isStructType()) {
+      return false;
+    }
+
+    Types.StructType struct = boundType.asStructType();
+    return struct.fields().size() == 4
+        && struct.field("x") != null
+        && struct.field("y") != null
+        && struct.field("z") != null
+        && struct.field("m") != null;
+  }
+
   private static Types.NestedField lowerBoundField(Type type, int baseId) {
     Type boundType = isGeoType(type) ? geoLowerBound(baseId) : type;
     return optional(baseId + LOWER_BOUND_OFFSET, LOWER_BOUND_NAME, boundType);

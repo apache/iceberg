@@ -21,6 +21,7 @@ package org.apache.iceberg;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.nio.ByteBuffer;
 import java.util.List;
@@ -29,6 +30,7 @@ import org.apache.iceberg.geospatial.GeospatialBound;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 
 public class TestContentStatsBackedMap {
   private static final Schema SCHEMA =
@@ -224,6 +226,28 @@ public class TestContentStatsBackedMap {
 
     Map<Integer, ByteBuffer> upper = ContentStatsBackedMap.upperBounds(stats);
     assertThat(upper.get(10)).isEqualTo(GeospatialBound.createXY(5.0, 6.0).toByteBuffer());
+  }
+
+  @Test
+  public void testNonGeoStructBoundIsRejected() {
+    Types.StructType fakeStatsType =
+        Types.StructType.of(
+            optional(
+                1,
+                StatsUtil.LOWER_BOUND_NAME,
+                Types.StructType.of(required(2, "a", Types.DoubleType.get()))));
+    FieldStats<Object> fieldStats =
+        StatsTestUtil.mockFieldStats(
+            fakeStatsType, 7, TestHelpers.Row.of(1.0), null, 10L, null, null);
+    ContentStats stats = Mockito.mock(ContentStats.class);
+    Mockito.when(stats.fieldStats()).thenReturn(List.of(fieldStats));
+    Mockito.when(stats.statsFor(7)).thenReturn(fieldStats);
+
+    // a struct bound that is not the geo bounding box must fail loudly, not encode as geo
+    Map<Integer, ByteBuffer> lower = ContentStatsBackedMap.lowerBounds(stats);
+    assertThatThrownBy(() -> lower.get(7))
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessageContaining("Cannot serialize type");
   }
 
   @Test
