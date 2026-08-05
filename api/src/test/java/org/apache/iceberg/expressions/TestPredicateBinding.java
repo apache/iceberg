@@ -123,6 +123,78 @@ public class TestPredicateBinding {
   }
 
   @Test
+  public void testStringTruncateBindingRewrite() {
+    StructType struct =
+        StructType.of(
+            required(20, "s", Types.StringType.get()), required(21, "i", Types.IntegerType.get()));
+
+    // len(value) < width: equivalent to s == value
+    BoundPredicate<?> exact =
+        assertAndUnwrap(Expressions.equal(Expressions.truncate("s", 4), "abc").bind(struct));
+    assertThat(exact.op()).isEqualTo(EQ);
+    assertThat(exact.term()).isInstanceOf(BoundReference.class);
+    assertThat(exact.ref().fieldId()).isEqualTo(20);
+    assertThat(String.valueOf(exact.asLiteralPredicate().literal().value())).isEqualTo("abc");
+
+    // len(value) == width: equivalent to s startsWith value
+    BoundPredicate<?> prefix =
+        assertAndUnwrap(Expressions.equal(Expressions.truncate("s", 4), "abcd").bind(struct));
+    assertThat(prefix.op()).isEqualTo(STARTS_WITH);
+    assertThat(prefix.term()).isInstanceOf(BoundReference.class);
+    assertThat(String.valueOf(prefix.asLiteralPredicate().literal().value())).isEqualTo("abcd");
+
+    // len(value) > width: truncate(s) == value is unsatisfiable
+    assertThat(Expressions.equal(Expressions.truncate("s", 4), "abcde").bind(struct))
+        .as("equal beyond truncate width should be alwaysFalse")
+        .isEqualTo(Expressions.alwaysFalse());
+
+    // NOT_EQ is the exact negation
+    BoundPredicate<?> notExact =
+        assertAndUnwrap(Expressions.notEqual(Expressions.truncate("s", 4), "abc").bind(struct));
+    assertThat(notExact.op()).isEqualTo(NOT_EQ);
+    assertThat(notExact.term()).isInstanceOf(BoundReference.class);
+
+    BoundPredicate<?> notPrefix =
+        assertAndUnwrap(Expressions.notEqual(Expressions.truncate("s", 4), "abcd").bind(struct));
+    assertThat(notPrefix.op()).isEqualTo(NOT_STARTS_WITH);
+    assertThat(notPrefix.term()).isInstanceOf(BoundReference.class);
+
+    assertThat(Expressions.notEqual(Expressions.truncate("s", 4), "abcde").bind(struct))
+        .as("notEqual beyond truncate width should be alwaysTrue")
+        .isEqualTo(Expressions.alwaysTrue());
+
+    // empty string is shorter than any (positive) width: equivalent to s == ""
+    BoundPredicate<?> empty =
+        assertAndUnwrap(Expressions.equal(Expressions.truncate("s", 4), "").bind(struct));
+    assertThat(empty.op()).isEqualTo(EQ);
+    assertThat(empty.term()).isInstanceOf(BoundReference.class);
+    assertThat(String.valueOf(empty.asLiteralPredicate().literal().value())).isEmpty();
+
+    // non-string truncate is left unchanged (no startsWith analogue)
+    BoundPredicate<?> intTruncate =
+        assertAndUnwrap(Expressions.equal(Expressions.truncate("i", 10), 5).bind(struct));
+    assertThat(intTruncate.op()).isEqualTo(EQ);
+    assertThat(intTruncate.term()).isInstanceOf(BoundTransform.class);
+
+    // non-truncate transform is left unchanged
+    BoundPredicate<?> bucket =
+        assertAndUnwrap(Expressions.equal(Expressions.bucket("s", 16), 3).bind(struct));
+    assertThat(bucket.op()).isEqualTo(EQ);
+    assertThat(bucket.term()).isInstanceOf(BoundTransform.class);
+
+    // other operators are left unchanged
+    BoundPredicate<?> lt =
+        assertAndUnwrap(Expressions.lessThan(Expressions.truncate("s", 4), "abcd").bind(struct));
+    assertThat(lt.op()).isEqualTo(LT);
+    assertThat(lt.term()).isInstanceOf(BoundTransform.class);
+
+    BoundPredicate<?> sw =
+        assertAndUnwrap(Expressions.startsWith(Expressions.truncate("s", 4), "abcd").bind(struct));
+    assertThat(sw.op()).isEqualTo(STARTS_WITH);
+    assertThat(sw.term()).isInstanceOf(BoundTransform.class);
+  }
+
+  @Test
   public void testLiteralConversion() {
     StructType struct = StructType.of(required(15, "d", Types.DecimalType.of(9, 2)));
 
