@@ -25,8 +25,9 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.apache.iceberg.types.Types.StringType;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.io.Closeable;
 import java.io.IOException;
-import java.util.Map;
+import java.util.List;
 import java.util.function.Supplier;
 import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.table.runtime.typeutils.RowDataSerializer;
@@ -38,7 +39,6 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.flink.CatalogLoader;
 import org.apache.iceberg.flink.HadoopCatalogExtension;
-import org.apache.iceberg.inmemory.InMemoryCatalog;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 
@@ -128,45 +128,81 @@ class TestTableSerializerCache {
 
   @Test
   void testClosesCatalogAfterSchemaLookup() {
-    CloseCountingInMemoryCatalog catalog = new CloseCountingInMemoryCatalog();
-    catalog.initialize("tracking", Map.of());
-    catalog.createNamespace(Namespace.of("db"));
-    Table table = catalog.createTable(TableIdentifier.of("db", "table"), schema1);
-    cache = new TableSerializerCache(new SingleCatalogLoader(catalog), 10);
+    Table table =
+        CATALOG_EXTENSION
+            .catalogLoader()
+            .loadCatalog()
+            .createTable(TableIdentifier.of("table"), schema1);
+
+    CloseCountingCatalogLoader catalogLoader =
+        new CloseCountingCatalogLoader(CATALOG_EXTENSION.catalogLoader());
+    cache = new TableSerializerCache(catalogLoader, 10);
 
     // schema/spec ids are unknown, so this misses the cache and loads a catalog to resolve them
     cache.serializerWithSchemaAndSpec(
-        "db.table", table.schema().schemaId(), PartitionSpec.unpartitioned().specId());
+        "table", table.schema().schemaId(), PartitionSpec.unpartitioned().specId());
 
-    assertThat(catalog.closeCount).isEqualTo(1);
+    assertThat(catalogLoader.closeCount()).isEqualTo(1);
   }
 
-  private static class CloseCountingInMemoryCatalog extends InMemoryCatalog {
+  private static class CloseCountingCatalogLoader implements CatalogLoader {
+    private final CatalogLoader delegate;
     private int closeCount = 0;
 
-    @Override
-    public void close() throws IOException {
-      super.close();
-      closeCount += 1;
+    private CloseCountingCatalogLoader(CatalogLoader delegate) {
+      this.delegate = delegate;
     }
-  }
 
-  private static class SingleCatalogLoader implements CatalogLoader {
-    private final Catalog catalog;
-
-    private SingleCatalogLoader(Catalog catalog) {
-      this.catalog = catalog;
+    private int closeCount() {
+      return closeCount;
     }
 
     @Override
     public Catalog loadCatalog() {
-      return catalog;
+      return new CloseCountingCatalog(delegate.loadCatalog());
     }
 
     @Override
     @SuppressWarnings({"checkstyle:NoClone", "checkstyle:SuperClone"})
     public CatalogLoader clone() {
       return this;
+    }
+
+    private class CloseCountingCatalog implements Catalog, Closeable {
+      private final Catalog delegate;
+
+      private CloseCountingCatalog(Catalog delegate) {
+        this.delegate = delegate;
+      }
+
+      @Override
+      public List<TableIdentifier> listTables(Namespace namespace) {
+        return delegate.listTables(namespace);
+      }
+
+      @Override
+      public boolean dropTable(TableIdentifier identifier, boolean purge) {
+        return delegate.dropTable(identifier, purge);
+      }
+
+      @Override
+      public void renameTable(TableIdentifier from, TableIdentifier to) {
+        delegate.renameTable(from, to);
+      }
+
+      @Override
+      public Table loadTable(TableIdentifier identifier) {
+        return delegate.loadTable(identifier);
+      }
+
+      @Override
+      public void close() throws IOException {
+        if (delegate instanceof Closeable) {
+          ((Closeable) delegate).close();
+        }
+
+        closeCount += 1;
+      }
     }
   }
 }
