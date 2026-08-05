@@ -21,9 +21,11 @@ package org.apache.iceberg.jdbc;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.nio.file.Files;
+import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.SQLFeatureNotSupportedException;
 import java.sql.SQLIntegrityConstraintViolationException;
 import java.util.Map;
 import java.util.Properties;
@@ -31,6 +33,7 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 import org.sqlite.SQLiteDataSource;
 
 public class TestJdbcUtil {
@@ -172,5 +175,55 @@ public class TestJdbcUtil {
   public void emptyNamespaceInIdentifier() {
     assertThat(JdbcUtil.stringToTableIdentifier("", "tblName"))
         .isEqualTo(TableIdentifier.of(Namespace.empty(), "tblName"));
+  }
+
+  @Test
+  void metadataCatalogUsesConnectionCatalog() throws SQLException {
+    Connection conn = Mockito.mock(Connection.class);
+    Mockito.when(conn.getCatalog()).thenReturn("iceberg_db");
+
+    assertThat(JdbcUtil.metadataCatalog(conn)).isEqualTo("iceberg_db");
+  }
+
+  @Test
+  void metadataCatalogIsUnrestrictedWhenCatalogIsAbsent() throws SQLException {
+    Connection conn = Mockito.mock(Connection.class);
+
+    Mockito.when(conn.getCatalog()).thenReturn(null);
+    assertThat(JdbcUtil.metadataCatalog(conn)).isNull();
+
+    Mockito.when(conn.getCatalog()).thenReturn("");
+    assertThat(JdbcUtil.metadataCatalog(conn)).isNull();
+  }
+
+  @Test
+  void metadataCatalogIsUnrestrictedWhenCatalogLookupFails() throws SQLException {
+    Connection conn = Mockito.mock(Connection.class);
+    Mockito.when(conn.getCatalog()).thenThrow(new SQLFeatureNotSupportedException("no catalogs"));
+
+    assertThat(JdbcUtil.metadataCatalog(conn)).isNull();
+  }
+
+  @Test
+  void escapeMetadataPatternEscapesWildcards() {
+    assertThat(JdbcUtil.escapeMetadataPattern(JdbcUtil.CATALOG_TABLE_VIEW_NAME, "\\"))
+        .isEqualTo("iceberg\\_tables");
+    assertThat(JdbcUtil.escapeMetadataPattern(JdbcUtil.RECORD_TYPE, "\\"))
+        .isEqualTo("iceberg\\_type");
+    assertThat(JdbcUtil.escapeMetadataPattern("tbl%name", "\\")).isEqualTo("tbl\\%name");
+    assertThat(JdbcUtil.escapeMetadataPattern("tbl\\name", "\\")).isEqualTo("tbl\\\\name");
+  }
+
+  @Test
+  void escapeMetadataPatternKeepsNamesWithoutWildcards() {
+    assertThat(JdbcUtil.escapeMetadataPattern("tables", "\\")).isEqualTo("tables");
+  }
+
+  @Test
+  void escapeMetadataPatternWithoutDriverSupport() {
+    assertThat(JdbcUtil.escapeMetadataPattern(JdbcUtil.CATALOG_TABLE_VIEW_NAME, null))
+        .isEqualTo(JdbcUtil.CATALOG_TABLE_VIEW_NAME);
+    assertThat(JdbcUtil.escapeMetadataPattern(JdbcUtil.CATALOG_TABLE_VIEW_NAME, ""))
+        .isEqualTo(JdbcUtil.CATALOG_TABLE_VIEW_NAME);
   }
 }
