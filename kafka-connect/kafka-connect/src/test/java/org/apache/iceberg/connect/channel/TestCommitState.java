@@ -26,6 +26,7 @@ import java.time.OffsetDateTime;
 import java.util.UUID;
 import org.apache.iceberg.connect.IcebergSinkConfig;
 import org.apache.iceberg.connect.events.DataComplete;
+import org.apache.iceberg.connect.events.DataWritten;
 import org.apache.iceberg.connect.events.Event;
 import org.apache.iceberg.connect.events.Payload;
 import org.apache.iceberg.connect.events.TopicPartitionOffset;
@@ -148,6 +149,35 @@ public class TestCommitState {
 
     assertThat(commitState.validThroughTs(false)).isNull();
     assertThat(commitState.validThroughTs(true)).isNull();
+  }
+
+  @Test
+  public void testBufferSizes() {
+    IcebergSinkConfig config = mock(IcebergSinkConfig.class);
+    CommitState commitState = new CommitState(config);
+
+    assertThat(commitState.commitBufferSize()).isEqualTo(0);
+    assertThat(commitState.readyBufferSize()).isEqualTo(0);
+
+    commitState.startNewCommit();
+
+    commitState.addResponse(wrapInEnvelope(mock(DataWritten.class)));
+
+    DataComplete dataComplete = mock(DataComplete.class);
+    when(dataComplete.commitId()).thenReturn(commitState.currentCommitId());
+    when(dataComplete.assignments()).thenReturn(ImmutableList.of());
+    Event readyEvent = mock(Event.class);
+    when(readyEvent.payload()).thenReturn(dataComplete);
+    commitState.addReady(new Envelope(readyEvent, 0, 0L));
+
+    assertThat(commitState.commitBufferSize()).isEqualTo(1);
+    assertThat(commitState.readyBufferSize()).isEqualTo(1);
+
+    commitState.clearResponses();
+    commitState.endCurrentCommit();
+
+    assertThat(commitState.commitBufferSize()).isEqualTo(0);
+    assertThat(commitState.readyBufferSize()).isEqualTo(0);
   }
 
   private Envelope wrapInEnvelope(Payload payload) {
