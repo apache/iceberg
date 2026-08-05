@@ -235,8 +235,8 @@ public class DynFields {
       try {
         Class<?> targetClass = Class.forName(className, true, loader);
         impl(targetClass, fieldName);
-      } catch (ClassNotFoundException e) {
-        // not the right implementation
+      } catch (ClassNotFoundException | NoClassDefFoundError e) {
+        // cannot load this implementation
         candidates.add(className + "." + fieldName);
       }
       return this;
@@ -284,8 +284,8 @@ public class DynFields {
       try {
         Class<?> targetClass = Class.forName(className, true, loader);
         hiddenImpl(targetClass, fieldName);
-      } catch (ClassNotFoundException e) {
-        // not the right implementation
+      } catch (ClassNotFoundException | NoClassDefFoundError e) {
+        // cannot load this implementation
         candidates.add(className + "." + fieldName);
       }
       return this;
