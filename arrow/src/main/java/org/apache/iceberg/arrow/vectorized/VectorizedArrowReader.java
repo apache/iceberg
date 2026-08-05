@@ -384,6 +384,62 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
         vectorizedColumnIterator.setRowGroupInfo(
             source.getPageReader(columnDescriptor),
             !ParquetUtil.hasNonDictionaryPages(chunkMetaData));
+
+    boolean isTimestampMillis = false;
+    if (columnDescriptor != null && columnDescriptor.getPrimitiveType() != null) {
+      org.apache.parquet.schema.LogicalTypeAnnotation annotation =
+          columnDescriptor.getPrimitiveType().getLogicalTypeAnnotation();
+
+      if (annotation
+          instanceof
+          org.apache.parquet.schema.LogicalTypeAnnotation.TimestampLogicalTypeAnnotation) {
+        org.apache.parquet.schema.LogicalTypeAnnotation.TimestampLogicalTypeAnnotation
+            timestampAnnotation =
+                (org.apache.parquet.schema.LogicalTypeAnnotation.TimestampLogicalTypeAnnotation)
+                    annotation;
+
+        isTimestampMillis =
+            timestampAnnotation.getUnit()
+                == org.apache.parquet.schema.LogicalTypeAnnotation.TimeUnit.MILLIS;
+      }
+    }
+
+    if (this.dictionary != null && isTimestampMillis) {
+      final Dictionary backingDictionary = this.dictionary;
+
+      this.dictionary =
+          new Dictionary(backingDictionary.getEncoding()) {
+            @Override
+            public long decodeToLong(int id) {
+              return backingDictionary.decodeToLong(id) * 1000L;
+            }
+
+            @Override
+            public int decodeToInt(int id) {
+              return backingDictionary.decodeToInt(id);
+            }
+
+            @Override
+            public float decodeToFloat(int id) {
+              return backingDictionary.decodeToFloat(id);
+            }
+
+            @Override
+            public double decodeToDouble(int id) {
+              return backingDictionary.decodeToDouble(id);
+            }
+
+            @Override
+            public org.apache.parquet.io.api.Binary decodeToBinary(int id) {
+              return backingDictionary.decodeToBinary(id);
+            }
+
+            @Override
+            public int getMaxId() {
+              return backingDictionary.getMaxId();
+            }
+          };
+    }
   }
 
   @Override
