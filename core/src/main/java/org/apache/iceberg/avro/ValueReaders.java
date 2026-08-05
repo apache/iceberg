@@ -329,16 +329,16 @@ public class ValueReaders {
     if (baseRowId != null) {
       return new RowIdReader(baseRowId, (ValueReader<Long>) idReader);
     } else {
-      return ValueReaders.constant(null);
+      return idReader != null ? (ValueReader<Long>) idReader : ValueReaders.constant(null);
     }
   }
 
   public static ValueReader<Long> lastUpdated(
       Long baseRowId, Long fileSeqNumber, ValueReader<?> seqReader) {
-    if (fileSeqNumber != null && baseRowId != null) {
+    if (fileSeqNumber != null) {
       return new LastUpdatedSeqReader(fileSeqNumber, (ValueReader<Long>) seqReader);
     } else {
-      return ValueReaders.constant(null);
+      return seqReader != null ? (ValueReader<Long>) seqReader : ValueReaders.constant(null);
     }
   }
 
@@ -1345,7 +1345,7 @@ public class ValueReaders {
 
     LastUpdatedSeqReader(long fileSeqNumber, ValueReader<Long> seqReader) {
       this.fileSeqNumber = fileSeqNumber;
-      this.seqReader = seqReader;
+      this.seqReader = seqReader != null ? seqReader : ValueReaders.constant(null);
     }
 
     @Override
