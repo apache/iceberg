@@ -742,14 +742,15 @@ class TestV4ManifestReader {
   @ParameterizedTest
   @FieldSource("MANIFEST_FORMATS")
   public void resolvesRelativeDataFileLocation(FileFormat format) throws IOException {
-    TrackedFile file = dataFile("data/00000-0", EMPTY_PARTITION_DATA);
+    TrackedFile file = dataFile(format.addExtension("data/00000-0"), EMPTY_PARTITION_DATA);
     verifyLocationAfterWriteReadRoundTrip(format, file, resolved(file));
   }
 
   @ParameterizedTest
   @FieldSource("MANIFEST_FORMATS")
   public void resolvesRelativeDeletionVectorLocation(FileFormat format) throws IOException {
-    TrackedFile file = dataFile("data/00000-0", EMPTY_PARTITION_DATA, dv("data/dv.puffin"));
+    TrackedFile file =
+        dataFile(format.addExtension("data/00000-0"), EMPTY_PARTITION_DATA, dv("data/dv.puffin"));
 
     InputFile manifest = writeManifest(format, EMPTY_PARTITION, ImmutableList.of(file));
 
@@ -801,7 +802,7 @@ class TestV4ManifestReader {
   @ParameterizedTest
   @FieldSource("MANIFEST_FORMATS")
   public void resolutionSkippedWhenLocationNotProjected(FileFormat format) throws IOException {
-    TrackedFile file = dataFile("data/00000-0.parquet", EMPTY_PARTITION_DATA);
+    TrackedFile file = dataFile(format.addExtension("data/00000-0"), EMPTY_PARTITION_DATA);
 
     InputFile manifest = writeManifest(format, EMPTY_PARTITION, ImmutableList.of(file));
 
