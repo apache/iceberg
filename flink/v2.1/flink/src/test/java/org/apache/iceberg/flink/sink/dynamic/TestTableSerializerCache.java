@@ -128,11 +128,7 @@ class TestTableSerializerCache {
 
   @Test
   void testClosesCatalogAfterSchemaLookup() {
-    Table table =
-        CATALOG_EXTENSION
-            .catalogLoader()
-            .loadCatalog()
-            .createTable(TableIdentifier.of("table"), schema1);
+    Table table = CATALOG_EXTENSION.catalog().createTable(TableIdentifier.of("table"), schema1);
 
     CloseCountingCatalogLoader catalogLoader =
         new CloseCountingCatalogLoader(CATALOG_EXTENSION.catalogLoader());
