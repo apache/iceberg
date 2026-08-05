@@ -23,9 +23,13 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.spy;
 
 import java.nio.file.Path;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
@@ -202,6 +206,46 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
 
     assertThat(catalog().dropView(identifier)).isTrue();
     assertThat(catalog().viewExists(identifier)).as("View should not exist").isFalse();
+  }
+
+  @Test
+  public void loadViewReusesTheValidatedViewOperations() {
+    C catalog = catalog();
+    assumeThat(catalog)
+        .as("Only valid for BaseMetastoreViewCatalog implementations")
+        .isInstanceOf(BaseMetastoreViewCatalog.class);
+
+    TableIdentifier identifier = TableIdentifier.of("ns", "view");
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(identifier.namespace());
+    }
+
+    catalog
+        .buildView(identifier)
+        .withSchema(SCHEMA)
+        .withDefaultNamespace(identifier.namespace())
+        .withQuery("spark", "select * from ns.tbl")
+        .create();
+
+    BaseMetastoreViewCatalog spyCatalog = spy((BaseMetastoreViewCatalog) catalog);
+    AtomicInteger newViewOpsCalls = new AtomicInteger(0);
+    AtomicReference<ViewOperations> validatedOps = new AtomicReference<>();
+    doAnswer(
+            invocation -> {
+              ViewOperations ops = (ViewOperations) invocation.callRealMethod();
+              validatedOps.set(ops);
+              newViewOpsCalls.incrementAndGet();
+              return ops;
+            })
+        .when(spyCatalog)
+        .newViewOps(identifier);
+
+    View view = spyCatalog.loadView(identifier);
+
+    assertThat(newViewOpsCalls.get()).as("newViewOps() call count").isEqualTo(1);
+    assertThat(((BaseView) view).operations()).isSameAs(validatedOps.get());
+    assertThat(catalog.dropView(identifier)).isTrue();
   }
 
   @Test
