@@ -851,8 +851,8 @@ class TestV4ManifestReader {
   }
 
   // writes a single tracked file, reads it back against TABLE_LOCATION, and checks its location
-  private void verifyLocationAfterWriteReadRoundTrip(FileFormat format, TrackedFile file, String expectedLocation)
-      throws IOException {
+  private void verifyLocationAfterWriteReadRoundTrip(
+      FileFormat format, TrackedFile file, String expectedLocation) throws IOException {
     InputFile manifest = writeManifest(format, EMPTY_PARTITION, ImmutableList.of(file));
 
     try (V4ManifestReader reader =
