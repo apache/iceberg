@@ -394,4 +394,34 @@ public class TestProjection {
             Projections.inclusive(partitionSpec).project(equal(truncate("string", 10), "abc"));
     assertThat(predicate.ref().name()).isEqualTo("string_trunc");
   }
+
+  @Test
+  public void testIdentityProjectionWithTransformPredicate() {
+    // Regression test for https://github.com/apache/iceberg/issues/15502
+    // When an identity-partitioned timestamptz field is filtered with hours(), the
+    // projection must return alwaysTrue (inclusive) or alwaysFalse (strict) because
+    // the identity transform cannot project a transform-based predicate.
+    //
+    // Without the fix, projectStrict() returns an invalid UnboundPredicate with an
+    // integer literal (490674) for a timestamptz field. This test fails because the
+    // result is neither alwaysTrue nor alwaysFalse -- it is the invalid predicate
+    // "ts == 490674" which causes a downstream ValidationException when evaluated.
+    Schema schema =
+        new Schema(
+            required(1, "id", Types.LongType.get()),
+            required(2, "ts", Types.TimestampType.withZone()));
+
+    PartitionSpec spec = PartitionSpec.builderFor(schema).identity("ts").build();
+
+    // hours(ts) = 490674 produces an integer literal that cannot bind to timestamptz.
+    Expression hourFilter = equal(hour("ts"), 490674);
+
+    // Inclusive projection: cannot project, falls back to alwaysTrue
+    Expression projected = Projections.inclusive(spec).project(hourFilter);
+    assertThat(projected).isEqualTo(Expressions.alwaysTrue());
+
+    // Strict projection: cannot project, falls back to alwaysFalse
+    Expression strictProjected = Projections.strict(spec).project(hourFilter);
+    assertThat(strictProjected).isEqualTo(Expressions.alwaysFalse());
+  }
 }
