@@ -49,10 +49,7 @@ public interface RepairManifests extends SnapshotUpdate<RepairManifests, RepairM
     /** Returns the repaired manifests. */
     Iterable<ManifestFile> repairedManifests();
 
-    /** Returns the number of manifest entries for which stats were incorrect. */
-    long incorrectEntryCount();
-
-    /** Returns the number of manifest entries for which stats were corrected. */
+    /** Returns the number of manifest entries whose stats were repaired. */
     long repairedEntryCount();
   }
 }
