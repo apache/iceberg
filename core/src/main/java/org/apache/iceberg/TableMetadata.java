@@ -66,6 +66,16 @@ public class TableMetadata implements Serializable {
 
   private static final long ONE_MINUTE = TimeUnit.MINUTES.toMillis(1);
 
+  /**
+   * System property that controls the allowed clock-skew tolerance (in milliseconds) used when
+   * validating that snapshot-log and metadata-log entries are monotonically increasing in time.
+   * Defaults to 1 minute if unset or invalid.
+   */
+  static final String CLOCK_SKEW_TOLERANCE_MS_PROPERTY =
+      "iceberg.table-metadata.clock-skew-tolerance-ms";
+
+  private static final long DEFAULT_CLOCK_SKEW_TOLERANCE_MS = ONE_MINUTE;
+
   public static TableMetadata newTableMetadata(
       Schema schema,
       PartitionSpec spec,
@@ -368,12 +378,13 @@ public class TableMetadata implements Serializable {
 
     // row lineage
     this.nextRowId = nextRowId;
+    long clockSkewToleranceMillis = getClockSkewToleranceMillis();
 
     HistoryEntry last = null;
     for (HistoryEntry logEntry : snapshotLog) {
       if (last != null) {
         Preconditions.checkArgument(
-            (logEntry.timestampMillis() - last.timestampMillis()) >= -ONE_MINUTE,
+            (logEntry.timestampMillis() - last.timestampMillis()) >= -clockSkewToleranceMillis,
             "[BUG] Expected sorted snapshot log entries.");
       }
       last = logEntry;
@@ -382,7 +393,7 @@ public class TableMetadata implements Serializable {
       Preconditions.checkArgument(
           // commits can happen concurrently from different machines.
           // A tolerance helps us avoid failure for small clock skew
-          lastUpdatedMillis - last.timestampMillis() >= -ONE_MINUTE,
+          lastUpdatedMillis - last.timestampMillis() >= -clockSkewToleranceMillis,
           "Invalid update timestamp %s: before last snapshot log entry at %s",
           lastUpdatedMillis,
           last.timestampMillis());
@@ -394,7 +405,8 @@ public class TableMetadata implements Serializable {
         Preconditions.checkArgument(
             // commits can happen concurrently from different machines.
             // A tolerance helps us avoid failure for small clock skew
-            (metadataEntry.timestampMillis() - previous.timestampMillis()) >= -ONE_MINUTE,
+            (metadataEntry.timestampMillis() - previous.timestampMillis())
+                >= -clockSkewToleranceMillis,
             "[BUG] Expected sorted previous metadata log entries.");
       }
       previous = metadataEntry;
@@ -404,7 +416,7 @@ public class TableMetadata implements Serializable {
       Preconditions.checkArgument(
           // commits can happen concurrently from different machines.
           // A tolerance helps us avoid failure for small clock skew
-          lastUpdatedMillis - previous.timestampMillis >= -ONE_MINUTE,
+          lastUpdatedMillis - previous.timestampMillis >= -clockSkewToleranceMillis,
           "Invalid update timestamp %s: before the latest metadata log entry timestamp %s",
           lastUpdatedMillis,
           previous.timestampMillis);
@@ -1918,6 +1930,23 @@ public class TableMetadata implements Serializable {
 
     private <U extends MetadataUpdate> Stream<U> changes(Class<U> updateClass) {
       return changes.stream().filter(updateClass::isInstance).map(updateClass::cast);
+    }
+  }
+
+  private static long getClockSkewToleranceMillis() {
+    String configured = System.getProperty(CLOCK_SKEW_TOLERANCE_MS_PROPERTY);
+    if (configured == null) {
+      return DEFAULT_CLOCK_SKEW_TOLERANCE_MS;
+    }
+
+    try {
+      long value = Long.parseLong(configured.trim());
+      if (value > 0) {
+        return value;
+      }
+      return DEFAULT_CLOCK_SKEW_TOLERANCE_MS;
+    } catch (NumberFormatException e) {
+      return DEFAULT_CLOCK_SKEW_TOLERANCE_MS;
     }
   }
 }
