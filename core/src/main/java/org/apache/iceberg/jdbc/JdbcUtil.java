@@ -22,6 +22,7 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.SQLFeatureNotSupportedException;
 import java.sql.SQLIntegrityConstraintViolationException;
 import java.util.Collections;
 import java.util.Map;
@@ -540,18 +541,15 @@ final class JdbcUtil {
    * null to leave them unrestricted.
    *
    * <p>A null catalog does not restrict a lookup to the database the connection points at, so
-   * catalog tables in an unrelated database can be mistaken for this catalog's own. An empty
-   * catalog name is not used because it selects only objects that belong to no catalog.
+   * catalog tables in an unrelated database can be mistaken for this catalog's own.
    *
    * @param conn a connection to resolve the catalog of
    */
-  static String metadataCatalog(Connection conn) {
+  static String metadataCatalog(Connection conn) throws SQLException {
     try {
-      String catalog = conn.getCatalog();
-      return catalog == null || catalog.isEmpty() ? null : catalog;
-    } catch (SQLException e) {
-      // databases without catalog support may fail instead of reporting no catalog
-      LOG.debug("Cannot determine the connection catalog, searching all catalogs", e);
+      return conn.getCatalog();
+    } catch (SQLFeatureNotSupportedException e) {
+      LOG.debug("Driver does not support catalogs, searching all catalogs", e);
       return null;
     }
   }

@@ -19,6 +19,7 @@
 package org.apache.iceberg.jdbc;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.nio.file.Files;
 import java.sql.Connection;
@@ -186,22 +187,29 @@ public class TestJdbcUtil {
   }
 
   @Test
-  void metadataCatalogIsUnrestrictedWhenCatalogIsAbsent() throws SQLException {
+  void metadataCatalogIsUnrestrictedWhenConnectionHasNoCatalog() throws SQLException {
     Connection conn = Mockito.mock(Connection.class);
-
     Mockito.when(conn.getCatalog()).thenReturn(null);
-    assertThat(JdbcUtil.metadataCatalog(conn)).isNull();
 
-    Mockito.when(conn.getCatalog()).thenReturn("");
     assertThat(JdbcUtil.metadataCatalog(conn)).isNull();
   }
 
   @Test
-  void metadataCatalogIsUnrestrictedWhenCatalogLookupFails() throws SQLException {
+  void metadataCatalogIsUnrestrictedWhenCatalogsAreNotSupported() throws SQLException {
     Connection conn = Mockito.mock(Connection.class);
     Mockito.when(conn.getCatalog()).thenThrow(new SQLFeatureNotSupportedException("no catalogs"));
 
     assertThat(JdbcUtil.metadataCatalog(conn)).isNull();
+  }
+
+  @Test
+  void metadataCatalogPropagatesConnectionFailures() throws SQLException {
+    Connection conn = Mockito.mock(Connection.class);
+    Mockito.when(conn.getCatalog()).thenThrow(new SQLException("connection failed"));
+
+    assertThatThrownBy(() -> JdbcUtil.metadataCatalog(conn))
+        .isInstanceOf(SQLException.class)
+        .hasMessage("connection failed");
   }
 
   @Test
