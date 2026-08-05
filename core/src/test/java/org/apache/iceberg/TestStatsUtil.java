@@ -592,4 +592,23 @@ public class TestStatsUtil {
       }
     }
   }
+
+  @Test
+  public void testIsGeoBoundType() {
+    Schema geoSchema =
+        new Schema(Types.NestedField.optional(1, "geom", Types.GeometryType.crs84()));
+    Types.StructType statsType = StatsUtil.statsReadSchema(geoSchema, List.of(1));
+    Types.StructType geomStats = statsType.field("geom").type().asStructType();
+
+    assertThat(StatsUtil.isGeoBoundType(geomStats.field(StatsUtil.LOWER_BOUND_NAME).type()))
+        .isTrue();
+    assertThat(StatsUtil.isGeoBoundType(geomStats.field(StatsUtil.UPPER_BOUND_NAME).type()))
+        .isTrue();
+
+    assertThat(StatsUtil.isGeoBoundType(Types.DoubleType.get())).isFalse();
+    assertThat(
+            StatsUtil.isGeoBoundType(
+                Types.StructType.of(Types.NestedField.required(2, "a", Types.DoubleType.get()))))
+        .isFalse();
+  }
 }
