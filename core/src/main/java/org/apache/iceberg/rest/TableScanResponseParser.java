@@ -44,7 +44,7 @@ public class TableScanResponseParser {
 
   public static List<DeleteFile> parseDeleteFiles(
       JsonNode node, Map<Integer, PartitionSpec> specsById) {
-    if (node.has(DELETE_FILES)) {
+    if (node.hasNonNull(DELETE_FILES)) {
       JsonNode deleteFiles = JsonUtil.get(DELETE_FILES, node);
       Preconditions.checkArgument(
           deleteFiles.isArray(), "Cannot parse delete files from non-array: %s", deleteFiles);
@@ -65,7 +65,7 @@ public class TableScanResponseParser {
       List<DeleteFile> deleteFiles,
       Map<Integer, PartitionSpec> specsById,
       boolean caseSensitive) {
-    if (node.has(FILE_SCAN_TASKS)) {
+    if (node.hasNonNull(FILE_SCAN_TASKS)) {
       JsonNode scanTasks = JsonUtil.get(FILE_SCAN_TASKS, node);
       Preconditions.checkArgument(
           scanTasks.isArray(), "Cannot parse file scan tasks from non-array: %s", scanTasks);

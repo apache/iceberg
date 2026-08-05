@@ -245,7 +245,7 @@ public class TestProjection {
     // this tests a case that results in a full table scan in Spark with Hive tables. because the
     // hour field is not a partition, mixing it with partition columns in the filter expression
     // prevents the day/hour boundaries from being pushed to the metastore. this is an easy mistake
-    // when tables are normally partitioned by both hour and dateint. the the filter is:
+    // when tables are normally partitioned by both hour and dateint. the filter is:
     //
     // WHERE dateint = 20180416
     //   OR (dateint = 20180415 and hour >= 20)
