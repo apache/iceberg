@@ -31,7 +31,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
+import org.apache.iceberg.exceptions.CommitStateUnknownException;
+import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.slf4j.Logger;
@@ -144,13 +148,13 @@ public class CachingCatalog implements Catalog {
       return cached;
     }
 
-    Table table = tableCache.get(canonicalized, catalog::loadTable);
+    Table table = tableCache.get(canonicalized, this::loadTableAndWrap);
 
     if (table instanceof BaseMetadataTable) {
       // Cache underlying table
       TableIdentifier originTableIdentifier =
           TableIdentifier.of(canonicalized.namespace().levels());
-      Table originTable = tableCache.get(originTableIdentifier, catalog::loadTable);
+      Table originTable = tableCache.get(originTableIdentifier, this::loadTableAndWrap);
 
       // Share TableOperations instance of origin table for all metadata tables, so that metadata
       // table instances are refreshed as well when origin table instance is refreshed.
@@ -169,6 +173,119 @@ public class CachingCatalog implements Catalog {
     return table;
   }
 
+  private Table loadTableAndWrap(TableIdentifier canonicalized) {
+    return wrapTable(canonicalized, catalog.loadTable(canonicalized));
+  }
+
+  /**
+   * Installs commit-invalidating operations on a table handed out by this cache, so that a commit
+   * performed through the table invalidates its cache entry (and its metadata tables). Otherwise a
+   * commit does not update the cache, and a table that was (re)loaded during an in-flight write
+   * keeps serving the pre-commit snapshot until the entry expires. See
+   * https://github.com/apache/iceberg/issues/10493.
+   *
+   * <p>The concrete table type is preserved. A plain {@link BaseTable} is re-created directly. A
+   * subclass opts in by implementing {@link SupportsOperationsReplacement} (for example {@code
+   * RESTTable}, which keeps its server-side scan planning). Any other {@link BaseTable} subclass is
+   * returned unchanged rather than downgraded to a plain {@link BaseTable}, so it keeps its
+   * behavior but does not get commit-based invalidation. Non-{@link BaseTable} tables such as
+   * metadata tables are also returned unchanged; metadata tables share the origin table's
+   * operations and are invalidated together with it.
+   */
+  private Table wrapTable(TableIdentifier canonicalized, Table table) {
+    if (!(table instanceof BaseTable)) {
+      return table;
+    }
+
+    BaseTable baseTable = (BaseTable) table;
+    TableOperations notifyingOps =
+        new CacheInvalidatingTableOperations(baseTable.operations(), canonicalized);
+
+    if (table instanceof SupportsOperationsReplacement) {
+      return ((SupportsOperationsReplacement) table).withOperations(notifyingOps);
+    } else if (table.getClass() == BaseTable.class) {
+      return new BaseTable(notifyingOps, baseTable.name(), baseTable.reporter());
+    }
+
+    return table;
+  }
+
+  /**
+   * A {@link TableOperations} wrapper that invalidates the cached table entry after a commit, so
+   * that a subsequent {@link #loadTable(TableIdentifier)} observes the committed metadata. This
+   * closes a race where another thread reloads and re-caches a table during an in-flight write and
+   * the commit would otherwise leave the stale entry in the cache until it expires (see <a
+   * href="https://github.com/apache/iceberg/issues/10493">#10493</a>).
+   */
+  private class CacheInvalidatingTableOperations implements TableOperations {
+    private final TableOperations delegate;
+    private final TableIdentifier identifier;
+
+    private CacheInvalidatingTableOperations(TableOperations delegate, TableIdentifier identifier) {
+      this.delegate = delegate;
+      this.identifier = identifier;
+    }
+
+    @Override
+    public TableMetadata current() {
+      return delegate.current();
+    }
+
+    @Override
+    public TableMetadata refresh() {
+      return delegate.refresh();
+    }
+
+    @Override
+    public void commit(TableMetadata base, TableMetadata metadata) {
+      try {
+        delegate.commit(base, metadata);
+      } catch (CommitStateUnknownException e) {
+        // The commit may have succeeded, so the cached table may be stale. Invalidate before
+        // rethrowing so that a subsequent load re-reads the table metadata.
+        invalidateLocalCache(identifier);
+        throw e;
+      }
+
+      invalidateLocalCache(identifier);
+    }
+
+    @Override
+    public FileIO io() {
+      return delegate.io();
+    }
+
+    @Override
+    public EncryptionManager encryption() {
+      return delegate.encryption();
+    }
+
+    @Override
+    public String metadataFileLocation(String fileName) {
+      return delegate.metadataFileLocation(fileName);
+    }
+
+    @Override
+    public LocationProvider locationProvider() {
+      return delegate.locationProvider();
+    }
+
+    @Override
+    public TableOperations temp(TableMetadata uncommittedMetadata) {
+      return delegate.temp(uncommittedMetadata);
+    }
+
+    @Override
+    public long newSnapshotId() {
+      return delegate.newSnapshotId();
+    }
+
+    @Override
+    public boolean requireStrictCleanup() {
+      return delegate.requireStrictCleanup();
+    }
+  }
+
   @Override
   public boolean dropTable(TableIdentifier ident, boolean purge) {
     boolean dropped = catalog.dropTable(ident, purge);
@@ -185,14 +302,20 @@ public class CachingCatalog implements Catalog {
   @Override
   public void invalidateTable(TableIdentifier ident) {
     catalog.invalidateTable(ident);
-    TableIdentifier canonicalized = canonicalizeIdentifier(ident);
+    invalidateLocalCache(canonicalizeIdentifier(ident));
+  }
+
+  private void invalidateLocalCache(TableIdentifier canonicalized) {
     tableCache.invalidate(canonicalized);
     tableCache.invalidateAll(metadataTableIdentifiers(canonicalized));
   }
 
   @Override
   public Table registerTable(TableIdentifier identifier, String metadataFileLocation) {
-    Table table = catalog.registerTable(identifier, metadataFileLocation);
+    Table table =
+        wrapTable(
+            canonicalizeIdentifier(identifier),
+            catalog.registerTable(identifier, metadataFileLocation));
     invalidateTable(identifier);
     return table;
   }
@@ -200,7 +323,10 @@ public class CachingCatalog implements Catalog {
   @Override
   public Table registerTable(
       TableIdentifier identifier, String metadataFileLocation, boolean overwrite) {
-    Table table = catalog.registerTable(identifier, metadataFileLocation, overwrite);
+    Table table =
+        wrapTable(
+            canonicalizeIdentifier(identifier),
+            catalog.registerTable(identifier, metadataFileLocation, overwrite));
     invalidateTable(identifier);
     return table;
   }
@@ -269,7 +395,7 @@ public class CachingCatalog implements Catalog {
               canonicalizeIdentifier(ident),
               identifier -> {
                 created.set(true);
-                return innerBuilder.create();
+                return wrapTable(identifier, innerBuilder.create());
               });
 
       if (!created.get()) {
