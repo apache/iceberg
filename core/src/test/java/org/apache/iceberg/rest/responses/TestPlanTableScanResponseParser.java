@@ -33,6 +33,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.util.List;
 import org.apache.iceberg.BaseFileScanTask;
 import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.FileMetadata;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.PartitionSpecParser;
 import org.apache.iceberg.SchemaParser;
@@ -270,6 +271,76 @@ public class TestPlanTableScanResponseParser {
             .build();
 
     assertThat(PlanTableScanResponseParser.toJson(copyResponse)).isEqualTo(expectedToJson);
+  }
+
+  @Test
+  void roundTripSerdeWithMultipleDVsInSamePuffinFile() {
+    DeleteFile firstDV =
+        FileMetadata.deleteFileBuilder(SPEC)
+            .ofPositionDeletes()
+            .withPath("/path/to/deletes.puffin")
+            .withFileSizeInBytes(100)
+            .withPartitionPath("data_bucket=0")
+            .withRecordCount(1)
+            .withReferencedDataFile(FILE_A.location())
+            .withContentOffset(4)
+            .withContentSizeInBytes(20)
+            .build();
+    DeleteFile secondDV =
+        FileMetadata.deleteFileBuilder(SPEC)
+            .ofPositionDeletes()
+            .withPath("/path/to/deletes.puffin")
+            .withFileSizeInBytes(100)
+            .withPartitionPath("data_bucket=1")
+            .withRecordCount(1)
+            .withReferencedDataFile(FILE_B.location())
+            .withContentOffset(24)
+            .withContentSizeInBytes(30)
+            .build();
+    ResidualEvaluator residualEvaluator =
+        ResidualEvaluator.of(SPEC, Expressions.alwaysTrue(), true);
+    FileScanTask firstTask =
+        new BaseFileScanTask(
+            FILE_A,
+            new DeleteFile[] {firstDV},
+            SchemaParser.toJson(SCHEMA),
+            PartitionSpecParser.toJson(SPEC),
+            residualEvaluator);
+    FileScanTask secondTask =
+        new BaseFileScanTask(
+            FILE_B,
+            new DeleteFile[] {secondDV},
+            SchemaParser.toJson(SCHEMA),
+            PartitionSpecParser.toJson(SPEC),
+            residualEvaluator);
+    PlanTableScanResponse response =
+        PlanTableScanResponse.builder()
+            .withPlanStatus(PlanStatus.COMPLETED)
+            .withFileScanTasks(List.of(firstTask, secondTask))
+            .withSpecsById(PARTITION_SPECS_BY_ID)
+            .build();
+
+    PlanTableScanResponse roundTripped =
+        PlanTableScanResponseParser.fromJson(
+            PlanTableScanResponseParser.toJson(response), PARTITION_SPECS_BY_ID, false);
+
+    assertThat(roundTripped.deleteFiles()).hasSize(2);
+    assertThat(roundTripped.fileScanTasks().get(0).deletes())
+        .singleElement()
+        .satisfies(
+            deleteFile -> {
+              assertThat(deleteFile.referencedDataFile()).isEqualTo(FILE_A.location());
+              assertThat(deleteFile.contentOffset()).isEqualTo(4L);
+              assertThat(deleteFile.contentSizeInBytes()).isEqualTo(20L);
+            });
+    assertThat(roundTripped.fileScanTasks().get(1).deletes())
+        .singleElement()
+        .satisfies(
+            deleteFile -> {
+              assertThat(deleteFile.referencedDataFile()).isEqualTo(FILE_B.location());
+              assertThat(deleteFile.contentOffset()).isEqualTo(24L);
+              assertThat(deleteFile.contentSizeInBytes()).isEqualTo(30L);
+            });
   }
 
   @Test

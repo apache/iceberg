@@ -34,6 +34,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.JsonUtil;
+import org.apache.iceberg.util.Pair;
 
 public class TableScanResponseParser {
 
@@ -41,6 +42,12 @@ public class TableScanResponseParser {
 
   static final String FILE_SCAN_TASKS = "file-scan-tasks";
   static final String DELETE_FILES = "delete-files";
+
+  private static Pair<String, Pair<Long, Long>> deleteFileKey(DeleteFile deleteFile) {
+    return Pair.of(
+        deleteFile.location().toString(),
+        Pair.of(deleteFile.contentOffset(), deleteFile.contentSizeInBytes()));
+  }
 
   public static List<DeleteFile> parseDeleteFiles(
       JsonNode node, Map<Integer, PartitionSpec> specsById) {
@@ -99,14 +106,14 @@ public class TableScanResponseParser {
       Map<Integer, PartitionSpec> specsById,
       JsonGenerator gen)
       throws IOException {
-    Map<String, Integer> deleteFilePathToIndex = Maps.newHashMap();
+    Map<Pair<String, Pair<Long, Long>>, Integer> deleteFileToIndex = Maps.newHashMap();
     if (deleteFiles != null && !deleteFiles.isEmpty()) {
       Preconditions.checkArgument(
           specsById != null, "Cannot serialize response without specs by ID defined");
       gen.writeArrayFieldStart(DELETE_FILES);
       for (int i = 0; i < deleteFiles.size(); i++) {
         DeleteFile deleteFile = deleteFiles.get(i);
-        deleteFilePathToIndex.put(deleteFile.location(), i);
+        deleteFileToIndex.put(deleteFileKey(deleteFile), i);
         ContentFileParser.toJson(deleteFiles.get(i), specsById.get(deleteFile.specId()), gen);
       }
 
@@ -119,7 +126,7 @@ public class TableScanResponseParser {
         Set<Integer> deleteFileReferences = Sets.newHashSet();
         if (deleteFiles != null) {
           for (DeleteFile taskDelete : fileScanTask.deletes()) {
-            deleteFileReferences.add(deleteFilePathToIndex.get(taskDelete.location()));
+            deleteFileReferences.add(deleteFileToIndex.get(deleteFileKey(taskDelete)));
           }
         }
 
