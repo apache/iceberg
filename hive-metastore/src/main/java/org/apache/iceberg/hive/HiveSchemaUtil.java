@@ -141,55 +141,41 @@ public final class HiveSchemaUtil {
   }
 
   private static String convertToTypeString(Type type) {
-    switch (type.typeId()) {
-      case BOOLEAN:
-        return "boolean";
-      case INTEGER:
-        return "int";
-      case LONG:
-        return "bigint";
-      case FLOAT:
-        return "float";
-      case DOUBLE:
-        return "double";
-      case DATE:
-        return "date";
-      case TIME:
-      case STRING:
-      case UUID:
-        return "string";
-      case TIMESTAMP:
+    return switch (type.typeId()) {
+      case BOOLEAN -> "boolean";
+      case INTEGER -> "int";
+      case LONG -> "bigint";
+      case FLOAT -> "float";
+      case DOUBLE -> "double";
+      case DATE -> "date";
+      case TIME, STRING, UUID -> "string";
+      case TIMESTAMP -> {
         Types.TimestampType timestampType = (Types.TimestampType) type;
         if (HiveVersion.min(HiveVersion.HIVE_3) && timestampType.shouldAdjustToUTC()) {
-          return "timestamp with local time zone";
+          yield "timestamp with local time zone";
         }
-        return "timestamp";
-      case FIXED:
-      case BINARY:
-      case GEOMETRY:
-      case GEOGRAPHY:
-        return "binary";
-      case VARIANT:
-        return "unknown";
-      case DECIMAL:
-        final Types.DecimalType decimalType = (Types.DecimalType) type;
-        return String.format("decimal(%s,%s)", decimalType.precision(), decimalType.scale());
-      case STRUCT:
-        final Types.StructType structType = type.asStructType();
-        final String nameToType =
+        yield "timestamp";
+      }
+      case FIXED, BINARY, GEOMETRY, GEOGRAPHY -> "binary";
+      case VARIANT -> "unknown";
+      case DECIMAL -> {
+        Types.DecimalType decimalType = (Types.DecimalType) type;
+        yield String.format("decimal(%s,%s)", decimalType.precision(), decimalType.scale());
+      }
+      case STRUCT -> {
+        Types.StructType structType = type.asStructType();
+        String nameToType =
             structType.fields().stream()
                 .map(f -> String.format("%s:%s", f.name(), convert(f.type())))
                 .collect(Collectors.joining(","));
-        return String.format("struct<%s>", nameToType);
-      case LIST:
-        final Types.ListType listType = type.asListType();
-        return String.format("array<%s>", convert(listType.elementType()));
-      case MAP:
-        final Types.MapType mapType = type.asMapType();
-        return String.format(
-            "map<%s,%s>", convert(mapType.keyType()), convert(mapType.valueType()));
-      default:
-        throw new UnsupportedOperationException(type + " is not supported");
-    }
+        yield String.format("struct<%s>", nameToType);
+      }
+      case LIST -> String.format("array<%s>", convert(type.asListType().elementType()));
+      case MAP -> {
+        Types.MapType mapType = type.asMapType();
+        yield String.format("map<%s,%s>", convert(mapType.keyType()), convert(mapType.valueType()));
+      }
+      default -> throw new UnsupportedOperationException(type + " is not supported");
+    };
   }
 }
