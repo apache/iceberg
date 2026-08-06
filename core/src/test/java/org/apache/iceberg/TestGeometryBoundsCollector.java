@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.geospatial;
+package org.apache.iceberg;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -24,6 +24,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.stream.Stream;
+import org.apache.iceberg.geospatial.BoundingBox;
+import org.apache.iceberg.geospatial.GeospatialBound;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -33,7 +35,7 @@ public class TestGeometryBoundsCollector {
 
   @ParameterizedTest(name = "{0}")
   @MethodSource("boundingBoxCases")
-  public void testBoundingBox(String wkt, String hexWkb, BoundingBox expected) {
+  public void boundingBox(String wkt, String hexWkb, BoundingBox expected) {
     GeometryBoundsCollector bounds = new GeometryBoundsCollector();
     ByteBuffer wkb = decode(hexWkb);
     int position = wkb.position();
@@ -47,7 +49,21 @@ public class TestGeometryBoundsCollector {
   }
 
   @Test
-  public void testNoBoundsWhenOneDimensionIsMissing() {
+  public void boundsFromBufferWithOffset() {
+    byte[] padded = new byte[64];
+    byte[] wkb = bytes("0101000000000000000000f03f0000000000000040");
+    System.arraycopy(wkb, 0, padded, 11, wkb.length);
+    ByteBuffer slice = ByteBuffer.wrap(padded, 11, wkb.length).slice();
+
+    GeometryBoundsCollector bounds = new GeometryBoundsCollector();
+    bounds.add(slice);
+
+    assertThat(slice.position()).isEqualTo(0);
+    assertThat(bounds.boundingBox()).isEqualTo(box(1, 2, 1, 2));
+  }
+
+  @Test
+  public void noBoundsWhenOneDimensionIsMissing() {
     GeometryBoundsCollector bounds = new GeometryBoundsCollector();
     bounds.add(decode("0101000000000000000000f03f000000000000f87f"));
 
@@ -55,7 +71,7 @@ public class TestGeometryBoundsCollector {
   }
 
   @Test
-  public void testBoundsAcrossValuesWithMissingCoordinates() {
+  public void boundsAcrossValuesWithMissingCoordinates() {
     GeometryBoundsCollector bounds = new GeometryBoundsCollector();
     bounds.add(decode("0101000000000000000000f03f000000000000f87f"));
     bounds.add(decode("0101000000000000000000f87f0000000000000040"));
@@ -64,19 +80,51 @@ public class TestGeometryBoundsCollector {
   }
 
   @ParameterizedTest(name = "{0}")
-  @MethodSource("invalidWkbCases")
-  public void testInvalidWkb(String description, String hexWkb, String expectedMessage) {
+  @MethodSource("unsupportedDimensionCases")
+  public void unsupportedDimensionsDiscardBounds(String description, String hexWkb) {
     GeometryBoundsCollector bounds = new GeometryBoundsCollector();
     bounds.add(decode("0101000000000000000000f03f0000000000000040"));
 
-    assertThatThrownBy(() -> bounds.add(decode(hexWkb)))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining(expectedMessage);
-    assertThat(bounds.boundingBox()).isEqualTo(box(1, 2, 1, 2));
+    bounds.add(decode(hexWkb));
+
+    assertThat(bounds.boundingBox()).as(description).isNull();
   }
 
   @Test
-  public void testDeeplyNestedWkbIsRejected() {
+  public void unsupportedDimensionsDiscardLaterBounds() {
+    GeometryBoundsCollector bounds = new GeometryBoundsCollector();
+    bounds.add(decode("01e9030000000000000000f03f00000000000000400000000000000840"));
+    bounds.add(decode("0101000000000000000000f03f0000000000000040"));
+
+    assertThat(bounds.boundingBox()).isNull();
+  }
+
+  @Test
+  public void unsupportedDimensionsNestedInCollectionDiscardBounds() {
+    GeometryBoundsCollector bounds = new GeometryBoundsCollector();
+
+    // GEOMETRYCOLLECTION(POINT(1 2), POINT Z(3 4 5))
+    bounds.add(
+        decode(
+            "0107000000020000000101000000000000000000f03f00000000000000400"
+                + "1e9030000000000000000084000000000000010400000000000001440"));
+
+    assertThat(bounds.boundingBox()).isNull();
+  }
+
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("invalidWkbCases")
+  public void invalidWkb(String description, String hexWkb, String expectedMessage) {
+    GeometryBoundsCollector bounds = new GeometryBoundsCollector();
+
+    assertThatThrownBy(() -> bounds.add(decode(hexWkb)))
+        .as(description)
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining(expectedMessage);
+  }
+
+  @Test
+  public void deeplyNestedWkbIsRejected() {
     GeometryBoundsCollector bounds = new GeometryBoundsCollector();
 
     assertThatThrownBy(() -> bounds.add(nestedCollections(200)))
@@ -153,6 +201,17 @@ public class TestGeometryBoundsCollector {
             box(1, 2, 1, 2)));
   }
 
+  private static Stream<Arguments> unsupportedDimensionCases() {
+    return Stream.of(
+        Arguments.of(
+            "POINT Z(1 2 3)", "01e9030000000000000000f03f00000000000000400000000000000840"),
+        Arguments.of(
+            "POINT M(1 2 3)", "01d1070000000000000000f03f00000000000000400000000000000840"),
+        Arguments.of(
+            "POINT ZM(1 2 3 4)",
+            "01b90b0000000000000000f03f000000000000004000000000000008400000000000001040"));
+  }
+
   private static Stream<Arguments> invalidWkbCases() {
     return Stream.of(
         Arguments.of(
@@ -162,17 +221,15 @@ public class TestGeometryBoundsCollector {
             "010400000001000000010200000000000000",
             "expected geometry type"),
         Arguments.of(
-            "unsupported Z geometry",
-            "01e9030000000000000000f03f00000000000000400000000000000840",
-            "only 2D geometries are supported"),
+            "unknown geometry type",
+            "010800000000000000000000000000000000000000",
+            "unsupported WKB"),
         Arguments.of(
-            "unsupported M geometry",
-            "01d1070000000000000000f03f00000000000000400000000000000840",
-            "only 2D geometries are supported"),
+            "type code with SRID flag",
+            "01ffffffff0000000000000000000000000000000000",
+            "unsupported WKB"),
         Arguments.of(
-            "unsupported ZM geometry",
-            "01b90b0000000000000000f03f000000000000004000000000000008400000000000001040",
-            "only 2D geometries are supported"),
+            "invalid byte order", "0201000000000000000000000000000000000000", "byte order"),
         Arguments.of("truncated point", "0101000000", "unexpected end of buffer"));
   }
 
@@ -185,12 +242,16 @@ public class TestGeometryBoundsCollector {
   }
 
   private static ByteBuffer decode(String hex) {
+    return ByteBuffer.wrap(bytes(hex));
+  }
+
+  private static byte[] bytes(String hex) {
     byte[] bytes = new byte[hex.length() / 2];
     for (int i = 0; i < bytes.length; i += 1) {
       int offset = i * 2;
       bytes[i] = (byte) Integer.parseInt(hex.substring(offset, offset + 2), 16);
     }
 
-    return ByteBuffer.wrap(bytes);
+    return bytes;
   }
 }

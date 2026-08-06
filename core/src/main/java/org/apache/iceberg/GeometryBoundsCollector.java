@@ -16,23 +16,33 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.geospatial;
+package org.apache.iceberg;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import org.apache.iceberg.geospatial.BoundingBox;
+import org.apache.iceberg.geospatial.GeospatialBound;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
  * Accumulates geometry bounds from values encoded as Well-Known Binary (WKB).
  *
  * <p>The seven OGC geometry types are supported: point, line string, polygon, multi point, multi
- * line string, multi polygon, and geometry collection. WKB values carrying Z or M dimensions are
- * rejected.
+ * line string, multi polygon, and geometry collection.
  *
  * <p>Coordinates are tracked independently for the X and Y dimensions. {@code NaN} values do not
  * contribute to a dimension, and no bounds are produced unless both dimensions are present.
+ *
+ * <p>This collector only computes two-dimensional bounds. Adding a value that carries Z or M
+ * ordinates discards the bounds for every value in the collector, because bounds that omit an
+ * object no longer contain all objects written to the file and would incorrectly prune it.
+ *
+ * <p>The bounds of a polygon are derived from its exterior ring alone, which assumes OGC-valid
+ * polygons whose interior rings lie within the shell. This matches the envelope computed for a
+ * polygon by geometry libraries such as JTS. Iceberg does not validate geometries, so a polygon
+ * with a hole extending past its shell produces bounds that do not contain the geometry.
  */
-public final class GeometryBoundsCollector {
+class GeometryBoundsCollector {
 
   private static final int TYPE_POINT = 1;
   private static final int TYPE_LINE_STRING = 2;
@@ -43,41 +53,47 @@ public final class GeometryBoundsCollector {
   private static final int TYPE_GEOMETRY_COLLECTION = 7;
   private static final int ANY_GEOMETRY = 0;
 
+  // ISO WKB encodes the dimensions of a geometry in the thousands digit of its type code
+  private static final int XY_GROUP = 0;
+  private static final int XYZM_GROUP = 3;
+
   private static final int MAX_DEPTH = 100;
 
   private final DimensionBounds xBounds = new DimensionBounds();
   private final DimensionBounds yBounds = new DimensionBounds();
-
-  // reusable copies of the accumulated bounds, used to undo a partially parsed value
-  private final DimensionBounds xSaved = new DimensionBounds();
-  private final DimensionBounds ySaved = new DimensionBounds();
+  private boolean aborted = false;
 
   /**
    * Adds the coordinates from one WKB geometry to these bounds.
    *
    * <p>The input is read through a duplicate, so its position and limit are left unchanged.
    *
+   * <p>A value carrying Z or M ordinates aborts the collector rather than failing, since those
+   * geometries are valid Iceberg data that this collector cannot bound.
+   *
    * @param wkb a buffer containing exactly one WKB geometry
-   * @throws IllegalArgumentException if the WKB is invalid or unsupported
+   * @throws IllegalArgumentException if the WKB is malformed
    */
   public void add(ByteBuffer wkb) {
     Preconditions.checkArgument(wkb != null, "Invalid WKB buffer: null");
-    xSaved.copyFrom(xBounds);
-    ySaved.copyFrom(yBounds);
-    ByteBuffer buffer = wkb.duplicate();
-    try {
-      parseGeometry(buffer, 0, ANY_GEOMETRY);
-      Preconditions.checkArgument(!buffer.hasRemaining(), "Invalid WKB: trailing data");
-    } catch (RuntimeException e) {
-      xBounds.copyFrom(xSaved);
-      yBounds.copyFrom(ySaved);
-      throw e;
+    if (aborted) {
+      return;
     }
+
+    ByteBuffer buffer = wkb.duplicate();
+    parseGeometry(buffer, 0, ANY_GEOMETRY);
+    // an aborted value stops parsing mid-geometry, so unread bytes are expected
+    Preconditions.checkArgument(aborted || !buffer.hasRemaining(), "Invalid WKB: trailing data");
   }
 
-  /** Returns the accumulated bounding box, or {@code null} if either X or Y has no value. */
+  /**
+   * Returns the accumulated bounding box, or {@code null} if no bounds are available.
+   *
+   * <p>Bounds are unavailable when the collector was aborted, or when either the X or Y dimension
+   * has no value.
+   */
   public BoundingBox boundingBox() {
-    if (!xBounds.hasValue() || !yBounds.hasValue()) {
+    if (aborted || !xBounds.hasValue() || !yBounds.hasValue()) {
       return null;
     }
 
@@ -100,14 +116,26 @@ public final class GeometryBoundsCollector {
     }
 
     long typeCode = buffer.getInt() & 0xFFFFFFFFL;
+    long dimensionGroup = typeCode / 1000;
     int geometryType = (int) (typeCode % 1000);
     Preconditions.checkArgument(
-        typeCode / 1000 == 0, "Unsupported WKB: only 2D geometries are supported");
+        geometryType >= TYPE_POINT
+            && geometryType <= TYPE_GEOMETRY_COLLECTION
+            && dimensionGroup <= XYZM_GROUP,
+        "Invalid or unsupported WKB geometry type: %s",
+        typeCode);
     Preconditions.checkArgument(
         expectedType == ANY_GEOMETRY || geometryType == expectedType,
         "Invalid WKB: expected geometry type %s but found %s",
         expectedType,
         geometryType);
+
+    // Z and M ordinates are valid Iceberg data but cannot be bounded here, and bounds that omit an
+    // object would incorrectly prune the file, so the whole collector is invalidated instead
+    if (dimensionGroup != XY_GROUP) {
+      this.aborted = true;
+      return;
+    }
 
     switch (geometryType) {
       case TYPE_POINT:
@@ -142,7 +170,6 @@ public final class GeometryBoundsCollector {
       readCoordinateSequence(buffer, true);
     }
 
-    // interior rings are contained by the exterior ring and cannot widen the bounds
     for (int i = 1; i < numRings; i += 1) {
       readCoordinateSequence(buffer, false);
     }
@@ -152,6 +179,10 @@ public final class GeometryBoundsCollector {
     int numElements = readCount(buffer);
     for (int i = 0; i < numElements; i += 1) {
       parseGeometry(buffer, depth + 1, expectedChildType);
+      // an aborted child leaves the buffer mid-geometry, so stop rather than misread the remainder
+      if (aborted) {
+        return;
+      }
     }
   }
 
@@ -219,12 +250,6 @@ public final class GeometryBoundsCollector {
 
     private double upper() {
       return upper;
-    }
-
-    private void copyFrom(DimensionBounds other) {
-      this.lower = other.lower;
-      this.upper = other.upper;
-      this.hasValue = other.hasValue;
     }
   }
 }
