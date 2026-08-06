@@ -29,10 +29,7 @@ import org.apache.iceberg.types.Types;
 public interface ManifestFile {
   int PARTITION_SUMMARIES_ELEMENT_ID = 508;
 
-  /**
-   * Sentinel returned by {@link Snapshot#formatVersion()} for snapshots that do not report a format
-   * version — e.g. v3-and-earlier snapshots whose top-level file is a manifest list.
-   */
+  /** Format version for pre-v4 manifest files. */
   int LEGACY_FORMAT_VERSION = 0;
 
   Types.NestedField PATH =
