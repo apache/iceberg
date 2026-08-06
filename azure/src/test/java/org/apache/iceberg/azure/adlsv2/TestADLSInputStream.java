@@ -123,4 +123,27 @@ class TestADLSInputStream {
 
     verify(inputStream).close();
   }
+
+  @Test
+  void testReadTailLengthLargerThanFileSize() throws IOException {
+    byte[] data = new byte[] {1, 2, 3};
+    InputStream byteStream = new ByteArrayInputStream(data);
+    InternalDataLakeFileOpenInputStreamResult openInputStreamResult =
+        new InternalDataLakeFileOpenInputStreamResult(byteStream, mock());
+    when(fileClient.openInputStream(any())).thenReturn(openInputStreamResult);
+
+    try (ADLSInputStream in =
+        new ADLSInputStream(
+            "abfs://container@account.dfs.core.windows.net/path/to/file",
+            fileClient,
+            3L,
+            mock(),
+            MetricsContext.nullMetrics())) {
+
+      byte[] actual = new byte[10];
+      int bytesRead = in.readTail(actual, 0, 10);
+      assertThat(bytesRead).isEqualTo(3);
+      assertThat(Arrays.copyOfRange(actual, 0, bytesRead)).isEqualTo(data);
+    }
+  }
 }
