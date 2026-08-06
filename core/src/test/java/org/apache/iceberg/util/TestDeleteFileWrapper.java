@@ -118,6 +118,6 @@ public class TestDeleteFileWrapper {
 
   @Test
   public void notEqualsWithNull() {
-    assertThat(DeleteFileWrapper.wrap(FILE_A_DELETES)).isNotEqualTo(null);
+    assertThat(DeleteFileWrapper.wrap(FILE_A_DELETES)).isNotNull();
   }
 }

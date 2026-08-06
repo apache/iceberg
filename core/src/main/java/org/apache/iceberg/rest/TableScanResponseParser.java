@@ -109,7 +109,7 @@ public class TableScanResponseParser {
       for (int i = 0; i < deleteFiles.size(); i++) {
         DeleteFile deleteFile = deleteFiles.get(i);
         deleteFileToIndex.put(DeleteFileWrapper.wrap(deleteFile), i);
-        ContentFileParser.toJson(deleteFiles.get(i), specsById.get(deleteFile.specId()), gen);
+        ContentFileParser.toJson(deleteFile, specsById.get(deleteFile.specId()), gen);
       }
 
       gen.writeEndArray();
