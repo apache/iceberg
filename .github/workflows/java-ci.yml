@@ -74,10 +74,11 @@ jobs:
     strategy:
       max-parallel: 15
       matrix:
-        jvm: [17, 21]
+        jvm: [17, 21, 25]
         event_name: ['${{ github.event_name }}']
         exclude:
-          # Pull requests run the baseline JDK only.
+          # Pull requests run the baseline JDK and the newest supported JDK. The newest JDK is
+          # included so that a PR cannot silently break it; intermediate JDKs run on push only.
           - event_name: pull_request
             jvm: 21
     env:
@@ -108,10 +109,11 @@ jobs:
     strategy:
       max-parallel: 15
       matrix:
-        jvm: [17, 21]
+        jvm: [17, 21, 25]
         event_name: ['${{ github.event_name }}']
         exclude:
-          # Pull requests run the baseline JDK only.
+          # Pull requests run the baseline JDK and the newest supported JDK. The newest JDK is
+          # included so that a PR cannot silently break it; intermediate JDKs run on push only.
           - event_name: pull_request
             jvm: 21
     steps:
@@ -133,10 +135,11 @@ jobs:
     strategy:
       max-parallel: 15
       matrix:
-        jvm: [17, 21]
+        jvm: [17, 21, 25]
         event_name: ['${{ github.event_name }}']
         exclude:
-          # Pull requests run the baseline JDK only.
+          # Pull requests run the baseline JDK and the newest supported JDK. The newest JDK is
+          # included so that a PR cannot silently break it; intermediate JDKs run on push only.
           - event_name: pull_request
             jvm: 21
     steps:

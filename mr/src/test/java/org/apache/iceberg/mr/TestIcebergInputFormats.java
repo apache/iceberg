@@ -73,6 +73,7 @@ import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ThreadPools;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.condition.DisabledForJreRange;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -358,6 +359,13 @@ public class TestIcebergInputFormats {
   }
 
   @TestTemplate
+  @DisabledForJreRange(
+      minVersion = 24,
+      disabledReason =
+          "Hadoop's UserGroupInformation carries the current user in a Subject bound by "
+              + "Subject.doAs. Java 24 permanently disabled the Security Manager (JEP 486), so a "
+              + "Subject is no longer inherited by threads created inside the doAs scope and the "
+              + "worker pool threads run as the login user instead.")
   public void testWorkerPool() throws Exception {
     Table table = helper.createUnpartitionedTable();
     UserGroupInformation user1 =
