@@ -25,9 +25,6 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.apache.iceberg.types.Types.StringType;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.io.Closeable;
-import java.io.IOException;
-import java.util.List;
 import java.util.function.Supplier;
 import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.table.runtime.typeutils.RowDataSerializer;
@@ -35,7 +32,6 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Catalog;
-import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.flink.CatalogLoader;
 import org.apache.iceberg.flink.HadoopCatalogExtension;
@@ -127,78 +123,45 @@ class TestTableSerializerCache {
   }
 
   @Test
-  void testClosesCatalogAfterSchemaLookup() {
+  void testReusesCatalogAcrossLookups() {
     Table table = CATALOG_EXTENSION.catalog().createTable(TableIdentifier.of("table"), schema1);
+    Table table2 = CATALOG_EXTENSION.catalog().createTable(TableIdentifier.of("table2"), schema2);
 
-    CloseCountingCatalogLoader catalogLoader =
-        new CloseCountingCatalogLoader(CATALOG_EXTENSION.catalogLoader());
+    LoadCountingCatalogLoader catalogLoader =
+        new LoadCountingCatalogLoader(CATALOG_EXTENSION.catalogLoader());
     cache = new TableSerializerCache(catalogLoader, 10);
 
-    // schema/spec ids are unknown, so this misses the cache and loads a catalog to resolve them
+    // schema/spec ids are unknown, so both lookups miss the cache and need the catalog
     cache.serializerWithSchemaAndSpec(
         "table", table.schema().schemaId(), PartitionSpec.unpartitioned().specId());
+    cache.serializerWithSchemaAndSpec(
+        "table2", table2.schema().schemaId(), PartitionSpec.unpartitioned().specId());
 
-    assertThat(catalogLoader.closeCount()).isEqualTo(1);
+    assertThat(catalogLoader.loadCount()).isEqualTo(1);
   }
 
-  private static class CloseCountingCatalogLoader implements CatalogLoader {
+  private static class LoadCountingCatalogLoader implements CatalogLoader {
     private final CatalogLoader delegate;
-    private int closeCount = 0;
+    private int loadCount = 0;
 
-    private CloseCountingCatalogLoader(CatalogLoader delegate) {
+    private LoadCountingCatalogLoader(CatalogLoader delegate) {
       this.delegate = delegate;
     }
 
-    private int closeCount() {
-      return closeCount;
+    private int loadCount() {
+      return loadCount;
     }
 
     @Override
     public Catalog loadCatalog() {
-      return new CloseCountingCatalog(delegate.loadCatalog());
+      loadCount += 1;
+      return delegate.loadCatalog();
     }
 
     @Override
     @SuppressWarnings({"checkstyle:NoClone", "checkstyle:SuperClone"})
     public CatalogLoader clone() {
       return this;
-    }
-
-    private class CloseCountingCatalog implements Catalog, Closeable {
-      private final Catalog delegate;
-
-      private CloseCountingCatalog(Catalog delegate) {
-        this.delegate = delegate;
-      }
-
-      @Override
-      public List<TableIdentifier> listTables(Namespace namespace) {
-        return delegate.listTables(namespace);
-      }
-
-      @Override
-      public boolean dropTable(TableIdentifier identifier, boolean purge) {
-        return delegate.dropTable(identifier, purge);
-      }
-
-      @Override
-      public void renameTable(TableIdentifier from, TableIdentifier to) {
-        delegate.renameTable(from, to);
-      }
-
-      @Override
-      public Table loadTable(TableIdentifier identifier) {
-        return delegate.loadTable(identifier);
-      }
-
-      @Override
-      public void close() throws IOException {
-        if (delegate instanceof Closeable) {
-          ((Closeable) delegate).close();
-        }
-
-        closeCount += 1;
-      }
     }
   }
 }

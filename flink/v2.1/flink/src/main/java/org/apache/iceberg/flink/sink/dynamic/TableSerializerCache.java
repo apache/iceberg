@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.flink.sink.dynamic;
 
-import java.io.IOException;
 import java.io.Serializable;
 import java.util.Map;
 import javax.annotation.Nullable;
@@ -29,14 +28,12 @@ import org.apache.flink.table.runtime.typeutils.RowDataSerializer;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.flink.CatalogLoader;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
-import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * A Cache which holds Flink's {@link RowDataSerializer} for a given table name and schema. This
@@ -52,9 +49,11 @@ import org.slf4j.LoggerFactory;
 @Internal
 class TableSerializerCache implements Serializable {
 
-  private static final Logger LOG = LoggerFactory.getLogger(TableSerializerCache.class);
-
   private final CatalogLoader catalogLoader;
+
+  // Loaded once and reused for all lookups; not closed here, cleanup is deferred to the
+  // planned TaskManager-level catalog cache. Transient: loaded on first use per instance.
+  private transient Catalog catalog;
   private final int maximumSize;
   private transient Map<String, SerializerInfo> serializers;
 
@@ -126,18 +125,13 @@ class TableSerializerCache implements Serializable {
     }
 
     private void update() {
-      // The serializer has no teardown hook, so a catalog cannot be held for reuse; load and
-      // close one per cache miss.
-      try (TableLoader tableLoader =
-          TableLoader.fromCatalog(catalogLoader, TableIdentifier.parse(tableName))) {
-        tableLoader.open();
-        Table table = tableLoader.loadTable();
-        schemas = table.schemas();
-        specs = table.specs();
-      } catch (IOException e) {
-        // only close() throws IOException here; a failed close should not fail the lookup
-        LOG.warn("Failed to close catalog for table {}", tableName, e);
+      if (catalog == null) {
+        catalog = catalogLoader.loadCatalog();
       }
+
+      Table table = catalog.loadTable(TableIdentifier.parse(tableName));
+      schemas = table.schemas();
+      specs = table.specs();
     }
   }
 
