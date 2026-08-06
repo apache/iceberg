@@ -723,9 +723,10 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
       }
     }
 
-    summaryBuilder.set(SnapshotSummary.CREATED_MANIFESTS_COUNT, String.valueOf(manifestsCreated));
-    summaryBuilder.set(SnapshotSummary.KEPT_MANIFESTS_COUNT, String.valueOf(manifestsKept));
-    summaryBuilder.set(
+    summaryBuilder.setInternal(
+        SnapshotSummary.CREATED_MANIFESTS_COUNT, String.valueOf(manifestsCreated));
+    summaryBuilder.setInternal(SnapshotSummary.KEPT_MANIFESTS_COUNT, String.valueOf(manifestsKept));
+    summaryBuilder.setInternal(
         SnapshotSummary.REPLACED_MANIFESTS_COUNT, String.valueOf(replacedManifestsCount));
     return summaryBuilder;
   }

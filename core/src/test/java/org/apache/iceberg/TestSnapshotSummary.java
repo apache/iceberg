@@ -19,6 +19,7 @@
 package org.apache.iceberg;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
@@ -527,5 +528,37 @@ public class TestSnapshotSummary extends TestBase {
         .containsEntry(SnapshotSummary.CREATED_MANIFESTS_COUNT, "1")
         .containsEntry(SnapshotSummary.KEPT_MANIFESTS_COUNT, "0")
         .containsEntry(SnapshotSummary.REPLACED_MANIFESTS_COUNT, "3");
+  }
+
+  @TestTemplate
+  public void testCannotSetReservedProperty() {
+    assertThatThrownBy(
+            () -> table.newAppend().appendFile(FILE_A).set(SnapshotSummary.ADDED_FILES_PROP, "5"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot set reserved snapshot summary property");
+  }
+
+  @TestTemplate
+  public void testCannotSetPartitionPrefix() {
+    assertThatThrownBy(() -> table.newAppend().appendFile(FILE_A).set("partitions.key=value", "1"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot set reserved snapshot summary property");
+  }
+
+  @TestTemplate
+  public void testCanSetNonReservedProperty() {
+    table.newAppend().appendFile(FILE_A).set("my-custom-prop", "my-value").commit();
+    assertThat(table.currentSnapshot().summary()).containsEntry("my-custom-prop", "my-value");
+  }
+
+  @TestTemplate
+  public void testCanSetOperationProperties() {
+    table
+        .newAppend()
+        .appendFile(FILE_A)
+        .set(SnapshotSummary.STAGED_WAP_ID_PROP, "wap-123")
+        .commit();
+    assertThat(table.currentSnapshot().summary())
+        .containsEntry(SnapshotSummary.STAGED_WAP_ID_PROP, "wap-123");
   }
 }

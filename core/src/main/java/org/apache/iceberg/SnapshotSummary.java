@@ -22,8 +22,10 @@ import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner.MapJoiner;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.ContentFileUtil;
 import org.apache.iceberg.util.ScanTaskUtil;
@@ -66,6 +68,40 @@ public class SnapshotSummary {
   public static final String REPLACED_MANIFESTS_COUNT = "manifests-replaced";
   public static final String KEPT_MANIFESTS_COUNT = "manifests-kept";
   public static final String PROCESSED_MANIFEST_ENTRY_COUNT = "entries-processed";
+
+  static final Set<String> RESERVED_PROPERTIES =
+      ImmutableSet.of(
+          ADDED_FILES_PROP,
+          DELETED_FILES_PROP,
+          TOTAL_DATA_FILES_PROP,
+          ADDED_DELETE_FILES_PROP,
+          ADD_EQ_DELETE_FILES_PROP,
+          REMOVED_EQ_DELETE_FILES_PROP,
+          ADD_POS_DELETE_FILES_PROP,
+          REMOVED_POS_DELETE_FILES_PROP,
+          ADDED_DVS_PROP,
+          REMOVED_DVS_PROP,
+          REMOVED_DELETE_FILES_PROP,
+          TOTAL_DELETE_FILES_PROP,
+          ADDED_RECORDS_PROP,
+          DELETED_RECORDS_PROP,
+          TOTAL_RECORDS_PROP,
+          ADDED_FILE_SIZE_PROP,
+          REMOVED_FILE_SIZE_PROP,
+          TOTAL_FILE_SIZE_PROP,
+          ADDED_POS_DELETES_PROP,
+          REMOVED_POS_DELETES_PROP,
+          TOTAL_POS_DELETES_PROP,
+          ADDED_EQ_DELETES_PROP,
+          REMOVED_EQ_DELETES_PROP,
+          TOTAL_EQ_DELETES_PROP,
+          DELETED_DUPLICATE_FILES,
+          CHANGED_PARTITION_COUNT_PROP,
+          PARTITION_SUMMARY_PROP,
+          CREATED_MANIFESTS_COUNT,
+          REPLACED_MANIFESTS_COUNT,
+          KEPT_MANIFESTS_COUNT,
+          PROCESSED_MANIFEST_ENTRY_COUNT);
 
   public static final MapJoiner MAP_JOINER = Joiner.on(",").withKeyValueSeparator("=");
 
@@ -153,6 +189,14 @@ public class SnapshotSummary {
     }
 
     public void set(String property, String value) {
+      Preconditions.checkArgument(
+          !RESERVED_PROPERTIES.contains(property) && !property.startsWith(CHANGED_PARTITION_PREFIX),
+          "Cannot set reserved snapshot summary property: %s",
+          property);
+      properties.put(property, value);
+    }
+
+    void setInternal(String property, String value) {
       properties.put(property, value);
     }
 
