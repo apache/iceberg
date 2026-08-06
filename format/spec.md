@@ -731,7 +731,7 @@ The `data_file` struct consists of the following fields:
     | _optional_ | _optional_ |            | ~~**`111  distinct_counts`**~~    | `map<123: int, 124: long>`                                                  | **Deprecated. Do not write.** |
     | _optional_ | _optional_ | _optional_ | **`125  lower_bounds`**           | `map<126: int, 127: binary>`                                                | Map from column id to lower bound in the column serialized as binary [1]. Each value must be less than or equal to all non-null, non-NaN values in the column for the file [2] |
     | _optional_ | _optional_ | _optional_ | **`128  upper_bounds`**           | `map<129: int, 130: binary>`                                                | Map from column id to upper bound in the column serialized as binary [1]. Each value must be greater than or equal to all non-null, non-Nan values in the column for the file [2] |
-    | _optional_ | _optional_ | _optional_ | **`131  key_metadata`**           | `binary`                                                                    | Implementation-specific key metadata for encryption |
+    | _optional_ | _optional_ | _optional_ | **`131  key_metadata`**           | `binary`                                                                    | Per-file encryption key metadata. See [Standard Key Metadata](encryption-spec.md#standard-key-metadata) for the interoperable format used by the standard encryption scheme. |
     | _optional_ | _optional_ | _optional_ | **`132  split_offsets`**          | `list<133: long>`                                                           | Split offsets for the data file. For example, all row group offsets in a Parquet file. Must be sorted ascending |
     |            | _optional_ | _optional_ | **`135  equality_ids`**           | `list<136: int>`                                                            | Field ids used to determine row equality in equality delete files. Required when `content=2` and should be null otherwise. Fields with ids listed in this column must be present in the delete file |
     | _optional_ | _optional_ | _optional_ | **`140  sort_order_id`**          | `int`                                                                       | ID representing sort order for this file [3]. |
@@ -1022,7 +1022,7 @@ Manifest list files store `manifest_file`, a struct with the following fields:
     | _optional_ | _required_ | _required_ | **`513 existing_rows_count`**       | `long`                                      | Number of rows in all of files in the manifest that have status `EXISTING`, when `null` this is assumed to be non-zero |
     | _optional_ | _required_ | _required_ | **`514 deleted_rows_count`**        | `long`                                      | Number of rows in all of files in the manifest that have status `DELETED`, when `null` this is assumed to be non-zero |
     | _optional_ | _optional_ | _optional_ | **`507 partitions`**                | `list<508: field_summary>` **(see below)**  | A list of field summaries for each partition field in the spec. Each field in the list corresponds to a field in the manifest file’s partition spec. |
-    | _optional_ | _optional_ | _optional_ | **`519 key_metadata`**              | `binary`                                    | Implementation-specific key metadata for encryption |
+    | _optional_ | _optional_ | _optional_ | **`519 key_metadata`**              | `binary`                                    | Per-manifest encryption key metadata. See [Standard Key Metadata](encryption-spec.md#standard-key-metadata) for the interoperable format used by the standard encryption scheme. |
     |            |            | _optional_ | **`520 first_row_id`**              | `long`                                      | The starting `_row_id` to assign to rows added by `ADDED` data files [First Row ID Assignment](#first-row-id-assignment) |
 
 `field_summary` is a struct with the following fields:
@@ -1216,7 +1216,7 @@ Statistics files metadata within `statistics` table metadata field is a struct w
     | _required_ | _required_ | **`statistics-path`**           | `string`              | Path of the statistics file. See [Puffin file format](puffin-spec.md). |
     | _required_ | _required_ | **`file-size-in-bytes`**        | `long`                | Size of the statistics file. |
     | _required_ | _required_ | **`file-footer-size-in-bytes`** | `long`                | Total size of the statistics file's footer (not the footer payload size). See [Puffin file format](puffin-spec.md) for footer definition. |
-    | _optional_ | _optional_ | **`key-metadata`**              |                       | Base64-encoded implementation-specific key metadata for encryption. |
+    | _optional_ | _optional_ | **`key-metadata`**              |                       | Base64-encoded per-file encryption key metadata. See [Standard Key Metadata](encryption-spec.md#standard-key-metadata) for the interoperable format used by the standard encryption scheme. |
     | _required_ | _required_ | **`blob-metadata`**             | `list<blob metadata>` (see below) | A list of the blob metadata for statistics contained in the file with structure described below. |
 
 Blob metadata is a struct with the following fields:
@@ -1304,7 +1304,7 @@ Keys used for table encryption can be tracked in table metadata as a list named 
 
 Notes:
 
-1. The format of encrypted key metadata is determined by the table's encryption scheme and can be a wrapped format specific to the table's KMS provider.
+1. The format of encrypted key metadata is determined by the table's encryption scheme and can be a wrapped format specific to the table's KMS provider. The standard encryption scheme defines an interoperable format for this field; see the [Encryption Spec](encryption-spec.md).
 
 ### Commit Conflict Resolution and Retry
 
