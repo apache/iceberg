@@ -33,6 +33,11 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
  * <p>Coordinates are tracked independently for the X and Y dimensions. {@code NaN} values do not
  * contribute to a dimension, and no bounds are produced unless both dimensions are present.
  *
+ * <p>These bounds apply to {@code geometry} columns, whose edges are always interpolated linearly,
+ * so a box that contains every vertex contains the whole geometry. They are not valid for {@code
+ * geography} columns: geodesic edges can reach beyond their endpoints, longitude is periodic, and a
+ * geography box may cross the antimeridian.
+ *
  * <p>Only the X and Y dimensions contribute to the box. Z and M ordinates are valid in the ISO WKB
  * serializations that Iceberg accepts, so they are read past and ignored rather than rejected.
  *
