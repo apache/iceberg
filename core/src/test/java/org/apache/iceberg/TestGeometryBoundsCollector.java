@@ -31,11 +31,11 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
-public class TestGeometryBoundsCollector {
+class TestGeometryBoundsCollector {
 
   @ParameterizedTest(name = "{0}")
   @MethodSource("boundingBoxCases")
-  public void boundingBox(String wkt, String hexWkb, BoundingBox expected) {
+  void boundingBox(String wkt, String hexWkb, BoundingBox expected) {
     GeometryBoundsCollector bounds = new GeometryBoundsCollector();
     ByteBuffer wkb = decode(hexWkb);
     int position = wkb.position();
@@ -49,7 +49,7 @@ public class TestGeometryBoundsCollector {
   }
 
   @Test
-  public void boundsFromBufferWithOffset() {
+  void boundsFromBufferWithOffset() {
     byte[] padded = new byte[64];
     byte[] wkb = bytes("0101000000000000000000f03f0000000000000040");
     System.arraycopy(wkb, 0, padded, 11, wkb.length);
@@ -63,7 +63,7 @@ public class TestGeometryBoundsCollector {
   }
 
   @Test
-  public void noBoundsWhenOneDimensionIsMissing() {
+  void noBoundsWhenOneDimensionIsMissing() {
     GeometryBoundsCollector bounds = new GeometryBoundsCollector();
     bounds.add(decode("0101000000000000000000f03f000000000000f87f"));
 
@@ -71,7 +71,7 @@ public class TestGeometryBoundsCollector {
   }
 
   @Test
-  public void boundsAcrossValuesWithMissingCoordinates() {
+  void boundsAcrossValuesWithMissingCoordinates() {
     GeometryBoundsCollector bounds = new GeometryBoundsCollector();
     bounds.add(decode("0101000000000000000000f03f000000000000f87f"));
     bounds.add(decode("0101000000000000000000f87f0000000000000040"));
@@ -80,27 +80,28 @@ public class TestGeometryBoundsCollector {
   }
 
   @ParameterizedTest(name = "{0}")
-  @MethodSource("unsupportedDimensionCases")
-  public void unsupportedDimensionsDiscardBounds(String description, String hexWkb) {
+  @MethodSource("extraDimensionCases")
+  void extraDimensionsAreIgnored(String description, String hexWkb, BoundingBox expected) {
     GeometryBoundsCollector bounds = new GeometryBoundsCollector();
-    bounds.add(decode("0101000000000000000000f03f0000000000000040"));
 
     bounds.add(decode(hexWkb));
 
-    assertThat(bounds.boundingBox()).as(description).isNull();
+    assertThat(bounds.boundingBox()).as(description).isEqualTo(expected);
   }
 
   @Test
-  public void unsupportedDimensionsDiscardLaterBounds() {
+  void boundsAcrossValuesWithDifferentDimensions() {
     GeometryBoundsCollector bounds = new GeometryBoundsCollector();
+    // POINT Z(1 2 3) then POINT ZM(1 2 3 4), which share the same XY
     bounds.add(decode("01e9030000000000000000f03f00000000000000400000000000000840"));
-    bounds.add(decode("0101000000000000000000f03f0000000000000040"));
+    bounds.add(
+        decode("01b90b0000000000000000f03f000000000000004000000000000008400000000000001040"));
 
-    assertThat(bounds.boundingBox()).isNull();
+    assertThat(bounds.boundingBox()).isEqualTo(box(1, 2, 1, 2));
   }
 
   @Test
-  public void unsupportedDimensionsNestedInCollectionDiscardBounds() {
+  void extraDimensionsNestedInCollectionAreIgnored() {
     GeometryBoundsCollector bounds = new GeometryBoundsCollector();
 
     // GEOMETRYCOLLECTION(POINT(1 2), POINT Z(3 4 5))
@@ -109,12 +110,12 @@ public class TestGeometryBoundsCollector {
             "0107000000020000000101000000000000000000f03f00000000000000400"
                 + "1e9030000000000000000084000000000000010400000000000001440"));
 
-    assertThat(bounds.boundingBox()).isNull();
+    assertThat(bounds.boundingBox()).isEqualTo(box(1, 2, 3, 4));
   }
 
   @ParameterizedTest(name = "{0}")
   @MethodSource("invalidWkbCases")
-  public void invalidWkb(String description, String hexWkb, String expectedMessage) {
+  void invalidWkb(String description, String hexWkb, String expectedMessage) {
     GeometryBoundsCollector bounds = new GeometryBoundsCollector();
 
     assertThatThrownBy(() -> bounds.add(decode(hexWkb)))
@@ -124,7 +125,7 @@ public class TestGeometryBoundsCollector {
   }
 
   @Test
-  public void deeplyNestedWkbIsRejected() {
+  void deeplyNestedWkbIsRejected() {
     GeometryBoundsCollector bounds = new GeometryBoundsCollector();
 
     assertThatThrownBy(() -> bounds.add(nestedCollections(200)))
@@ -201,15 +202,25 @@ public class TestGeometryBoundsCollector {
             box(1, 2, 1, 2)));
   }
 
-  private static Stream<Arguments> unsupportedDimensionCases() {
+  private static Stream<Arguments> extraDimensionCases() {
     return Stream.of(
         Arguments.of(
-            "POINT Z(1 2 3)", "01e9030000000000000000f03f00000000000000400000000000000840"),
+            "POINT Z(1 2 3)",
+            "01e9030000000000000000f03f00000000000000400000000000000840",
+            box(1, 2, 1, 2)),
         Arguments.of(
-            "POINT M(1 2 3)", "01d1070000000000000000f03f00000000000000400000000000000840"),
+            "POINT M(1 2 3)",
+            "01d1070000000000000000f03f00000000000000400000000000000840",
+            box(1, 2, 1, 2)),
         Arguments.of(
             "POINT ZM(1 2 3 4)",
-            "01b90b0000000000000000f03f000000000000004000000000000008400000000000001040"));
+            "01b90b0000000000000000f03f000000000000004000000000000008400000000000001040",
+            box(1, 2, 1, 2)),
+        Arguments.of(
+            "LINESTRING Z(0 1 9,2 -1 9)",
+            "01ea030000020000000000000000000000000000000000f03f000000000000224000"
+                + "00000000000040000000000000f0bf0000000000002240",
+            box(0, -1, 2, 1)));
   }
 
   private static Stream<Arguments> invalidWkbCases() {
