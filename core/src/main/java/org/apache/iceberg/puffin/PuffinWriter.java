@@ -60,12 +60,13 @@ public class PuffinWriter implements FileAppender<Blob> {
       OutputFile outputFile,
       Map<String, String> properties,
       boolean compressFooter,
-      PuffinCompressionCodec defaultBlobCompression) {
+      PuffinCompressionCodec defaultBlobCompression,
+      boolean overwrite) {
     Preconditions.checkNotNull(outputFile, "outputFile is null");
     Preconditions.checkNotNull(properties, "properties is null");
     Preconditions.checkNotNull(defaultBlobCompression, "defaultBlobCompression is null");
     this.outputFile = outputFile;
-    this.outputStream = outputFile.create();
+    this.outputStream = overwrite ? outputFile.createOrOverwrite() : outputFile.create();
     this.properties = ImmutableMap.copyOf(properties);
     this.footerCompression =
         compressFooter ? PuffinFormat.FOOTER_COMPRESSION_CODEC : PuffinCompressionCodec.NONE;
