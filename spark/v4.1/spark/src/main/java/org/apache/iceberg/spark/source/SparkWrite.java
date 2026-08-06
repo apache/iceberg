@@ -347,13 +347,6 @@ abstract class SparkWrite extends BaseSparkWrite implements Write, RequiresDistr
   private class DynamicOverwrite extends BaseBatchWrite {
     @Override
     public void commit(WriterCommitMessage[] messages) {
-      DataFileSet files = files(messages);
-
-      if (files.isEmpty()) {
-        LOG.info("Dynamic overwrite is empty, skipping commit");
-        return;
-      }
-
       ReplacePartitions dynamicOverwrite = table.newReplacePartitions();
       IsolationLevel isolationLevel = writeConf.isolationLevel();
       Long validateFromSnapshotId = writeConf.validateFromSnapshotId();
@@ -370,7 +363,7 @@ abstract class SparkWrite extends BaseSparkWrite implements Write, RequiresDistr
       }
 
       int numFiles = 0;
-      for (DataFile file : files) {
+      for (DataFile file : files(messages)) {
         numFiles += 1;
         dynamicOverwrite.addFile(file);
       }
