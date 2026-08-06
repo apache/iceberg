@@ -25,17 +25,24 @@ import org.apache.iceberg.spark.SparkCatalog
 import org.apache.iceberg.view.RefreshState
 import org.apache.iceberg.view.RefreshStateParser
 import org.apache.iceberg.view.SourceTableState
+import org.apache.iceberg.view.SourceViewState
 import org.apache.iceberg.view.SQLViewRepresentation
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException
 import org.apache.spark.sql.catalyst.expressions.Attribute
+import org.apache.spark.sql.catalyst.plans.logical.SubqueryAlias
+import org.apache.spark.sql.connector.catalog.CatalogManager
 import org.apache.spark.sql.connector.catalog.Identifier
+import org.apache.spark.sql.connector.catalog.LookupCatalog
 import org.apache.spark.sql.connector.catalog.ViewCatalog
 import org.apache.spark.sql.functions
 import scala.jdk.CollectionConverters._
 
 case class RefreshMaterializedViewExec(catalog: ViewCatalog, ident: Identifier)
-    extends LeafV2CommandExec {
+    extends LeafV2CommandExec
+    with LookupCatalog {
+
+  protected lazy val catalogManager: CatalogManager = session.sessionState.catalogManager
 
   override def output: Seq[Attribute] = Nil
 
@@ -68,8 +75,9 @@ case class RefreshMaterializedViewExec(catalog: ViewCatalog, ident: Identifier)
     // Execute the view's query to get the current result set
     val queryResult = session.sql(sparkSql)
 
-    // Discover source tables from the query's logical plan and capture their current state
-    val sourceStates = collectSourceTableStates(queryResult.queryExecution.analyzed)
+    // Discover source tables and views from the query's logical plan and capture their
+    // current state
+    val sourceStates = collectSourceStates(queryResult.queryExecution.analyzed)
 
     // Build refresh state
     val refreshState = new RefreshState(
@@ -99,22 +107,22 @@ case class RefreshMaterializedViewExec(catalog: ViewCatalog, ident: Identifier)
     Nil
   }
 
-  private def collectSourceTableStates(
-      plan: org.apache.spark.sql.catalyst.plans.logical.LogicalPlan)
+  private def collectSourceStates(plan: org.apache.spark.sql.catalyst.plans.logical.LogicalPlan)
       : List[org.apache.iceberg.view.SourceState] = {
     val sparkCatalog = catalog.asInstanceOf[SparkCatalog]
     val icebergCatalog =
       sparkCatalog.icebergCatalog().asInstanceOf[org.apache.iceberg.catalog.Catalog]
-    val tables = scala.collection.mutable.LinkedHashSet.empty[String]
+    val icebergViewCatalog =
+      sparkCatalog.icebergCatalog().asInstanceOf[org.apache.iceberg.catalog.ViewCatalog]
+    val seen = scala.collection.mutable.LinkedHashSet.empty[String]
     val states = scala.collection.mutable.ListBuffer.empty[org.apache.iceberg.view.SourceState]
 
     plan.collectLeaves().foreach {
       case r: org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation
           if r.catalog.exists(_.name() == sparkCatalog.name()) =>
         val tableIdent = r.identifier.get
-        val key = tableIdent.toString
-        if (!tables.contains(key)) {
-          tables.add(key)
+        val key = "table:" + tableIdent.toString
+        if (seen.add(key)) {
           val icebergId =
             TableIdentifier.of(Namespace.of(tableIdent.namespace(): _*), tableIdent.name())
           try {
@@ -138,6 +146,36 @@ case class RefreshMaterializedViewExec(catalog: ViewCatalog, ident: Identifier)
         }
       case _ => // skip non-iceberg leaves
     }
+
+    // Spark's analyzer resolves every view reference into a SubqueryAlias wrapping the
+    // view's expanded query, including transitively for view-of-view chains, so a single
+    // pass over the whole plan (not just its leaves) discovers every source view at every
+    // nesting depth.
+    plan
+      .collect { case sub: SubqueryAlias =>
+        sub.identifier.qualifier :+ sub.identifier.name
+      }
+      .collect {
+        case CatalogAndIdentifier(cat, viewIdent) if cat.name() == sparkCatalog.name() => viewIdent
+      }
+      .foreach { viewIdent =>
+        val key = "view:" + viewIdent.toString
+        if (seen.add(key)) {
+          val icebergId =
+            TableIdentifier.of(Namespace.of(viewIdent.namespace(): _*), viewIdent.name())
+          try {
+            val view = icebergViewCatalog.loadView(icebergId)
+            states += new SourceViewState(
+              icebergId.name(),
+              icebergId.namespace().levels().toList.asJava,
+              null,
+              view.uuid().toString,
+              view.currentVersion().versionId())
+          } catch {
+            case _: Exception => // not a view, or the view can't be loaded
+          }
+        }
+      }
 
     states.toList
   }

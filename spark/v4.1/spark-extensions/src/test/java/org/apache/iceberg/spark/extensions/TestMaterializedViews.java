@@ -47,6 +47,7 @@ import org.apache.iceberg.spark.source.SparkView;
 import org.apache.iceberg.view.RefreshState;
 import org.apache.iceberg.view.RefreshStateParser;
 import org.apache.iceberg.view.SourceTableState;
+import org.apache.iceberg.view.SourceViewState;
 import org.apache.iceberg.view.View;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.catalyst.analysis.NoSuchViewException;
@@ -282,6 +283,96 @@ public class TestMaterializedViews extends ExtensionsTestBase {
     assertThat(sql("SELECT * FROM %s", storageTableRef)).hasSize(3);
   }
 
+  @TestTemplate
+  public void testRefreshRecordsNestedViewState() {
+    String sourceViewName = "source_view";
+    sql("INSERT INTO %s VALUES (1, 'a'), (2, 'b')", tableName);
+    sql("CREATE VIEW %s AS SELECT id, data FROM %s", sourceViewName, tableName);
+    sql(
+        "CREATE MATERIALIZED VIEW %s AS SELECT id, data FROM %s",
+        materializedViewName, sourceViewName);
+
+    sql("REFRESH MATERIALIZED VIEW %s", materializedViewName);
+
+    View sourceView = loadIcebergView(sourceViewName);
+    RefreshState refreshState = loadRefreshState();
+
+    // The refresh state should record both the nested source view and the base table it
+    // resolves to, since the analyzed query plan fully expands the view chain.
+    assertThat(refreshState.sourceStates()).hasSize(2);
+
+    SourceViewState viewState =
+        refreshState.sourceStates().stream()
+            .filter(SourceViewState.class::isInstance)
+            .map(SourceViewState.class::cast)
+            .findFirst()
+            .orElseGet(() -> fail("Refresh state should record the nested source view"));
+    assertThat(viewState.name()).isEqualTo(sourceViewName);
+    assertThat(viewState.namespace()).isEqualTo(Arrays.asList(NAMESPACE.levels()));
+    assertThat(viewState.uuid()).isEqualTo(sourceView.uuid().toString());
+    assertThat(viewState.versionId()).isEqualTo(sourceView.currentVersion().versionId());
+
+    SourceTableState tableState =
+        refreshState.sourceStates().stream()
+            .filter(SourceTableState.class::isInstance)
+            .map(SourceTableState.class::cast)
+            .findFirst()
+            .orElseGet(() -> fail("Refresh state should record the underlying base table"));
+    assertThat(tableState.name()).isEqualTo(tableName);
+
+    sql("DROP VIEW IF EXISTS %s", sourceViewName);
+  }
+
+  @TestTemplate
+  public void testStaleWhenNestedViewChanges() {
+    String sourceViewName = "source_view";
+    sql("INSERT INTO %s VALUES (1, 'a'), (2, 'b'), (3, 'c')", tableName);
+    sql("CREATE VIEW %s AS SELECT id, data FROM %s WHERE id <= 2", sourceViewName, tableName);
+    sql(
+        "CREATE MATERIALIZED VIEW %s AS SELECT id, data FROM %s",
+        materializedViewName, sourceViewName);
+
+    sql("REFRESH MATERIALIZED VIEW %s", materializedViewName);
+
+    // Freshly refreshed: loadable as a table
+    try {
+      assertThat(sparkTableCatalog().loadTable(viewIdentifier()))
+          .isInstanceOf(SparkMaterializedView.class);
+    } catch (NoSuchTableException e) {
+      fail("Refreshed materialized view should be loadable as a table");
+    }
+
+    // Replace the nested view's definition without touching the base table. This bumps the
+    // source view's version but leaves the underlying base table's snapshot unchanged.
+    sql(
+        "CREATE OR REPLACE VIEW %s AS SELECT id, data FROM %s WHERE id <= 1",
+        sourceViewName, tableName);
+
+    // The MV should now be stale because its nested source view changed versions, even
+    // though the underlying base table's snapshot did not change.
+    try {
+      assertThat(sparkViewCatalog().loadView(viewIdentifier())).isInstanceOf(SparkView.class);
+    } catch (NoSuchViewException e) {
+      fail("Materialized view with a stale nested view should be loadable as a view");
+    }
+    assertThatThrownBy(() -> sparkTableCatalog().loadTable(viewIdentifier()))
+        .isInstanceOf(NoSuchTableException.class)
+        .hasMessageContaining(materializedViewName);
+
+    sql("DROP VIEW IF EXISTS %s", sourceViewName);
+  }
+
+  private RefreshState loadRefreshState() {
+    View view = loadIcebergView();
+    org.apache.iceberg.catalog.TableIdentifier storageTableId =
+        view.currentVersion().storageTable();
+    org.apache.iceberg.Table storageTable =
+        sparkCatalog().icebergCatalog().loadTable(storageTableId);
+    String refreshStateJson =
+        storageTable.currentSnapshot().summary().get(RefreshState.REFRESH_STATE_SUMMARY_KEY);
+    return RefreshStateParser.fromJson(refreshStateJson);
+  }
+
   private void simulateRefresh() {
     View view = loadIcebergView();
     org.apache.iceberg.catalog.TableIdentifier storageTableId =
@@ -343,9 +434,13 @@ public class TestMaterializedViews extends ExtensionsTestBase {
   }
 
   private View loadIcebergView() {
+    return loadIcebergView(materializedViewName);
+  }
+
+  private View loadIcebergView(String viewName) {
     org.apache.iceberg.catalog.ViewCatalog icebergViewCatalog =
         (org.apache.iceberg.catalog.ViewCatalog) sparkCatalog().icebergCatalog();
-    return icebergViewCatalog.loadView(TableIdentifier.of(NAMESPACE, materializedViewName));
+    return icebergViewCatalog.loadView(TableIdentifier.of(NAMESPACE, viewName));
   }
 
   // Required to be public since it is loaded by org.apache.iceberg.CatalogUtil.loadCatalog

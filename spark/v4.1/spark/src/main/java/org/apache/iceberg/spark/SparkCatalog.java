@@ -597,6 +597,22 @@ public class SparkCatalog extends BaseCatalog {
         } catch (Exception e) {
           return false;
         }
+      } else if (sourceState instanceof org.apache.iceberg.view.SourceViewState) {
+        org.apache.iceberg.view.SourceViewState viewState =
+            (org.apache.iceberg.view.SourceViewState) sourceState;
+        org.apache.iceberg.catalog.TableIdentifier sourceId =
+            org.apache.iceberg.catalog.TableIdentifier.of(
+                org.apache.iceberg.catalog.Namespace.of(
+                    viewState.namespace().toArray(new String[0])),
+                viewState.name());
+        try {
+          org.apache.iceberg.view.View sourceView = asViewCatalog.loadView(sourceId);
+          if (sourceView.currentVersion().versionId() != viewState.versionId()) {
+            return false;
+          }
+        } catch (Exception e) {
+          return false;
+        }
       }
     }
 
