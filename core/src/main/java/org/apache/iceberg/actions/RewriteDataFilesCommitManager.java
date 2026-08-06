@@ -21,6 +21,7 @@ package org.apache.iceberg.actions;
 import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.RewriteFiles;
+import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.exceptions.CleanableFailure;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
@@ -95,7 +96,15 @@ public class RewriteDataFilesCommitManager {
 
     RewriteFiles rewrite = table.newRewrite().validateFromSnapshot(startingSnapshotId);
     if (useStartingSequenceNumber) {
-      long sequenceNumber = table.snapshot(startingSnapshotId).sequenceNumber();
+      Snapshot startingSnapshot = table.snapshot(startingSnapshotId);
+      Preconditions.checkState(
+          startingSnapshot != null,
+          "Cannot commit rewrite: starting snapshot %s has been expired. "
+              + "This is likely due to a concurrent expire_snapshots operation. "
+              + "Ensure expire_snapshots does not run concurrently with rewrite_data_files, "
+              + "or increase the snapshot retention period.",
+          startingSnapshotId);
+      long sequenceNumber = startingSnapshot.sequenceNumber();
       rewrite.dataSequenceNumber(sequenceNumber);
     }
 

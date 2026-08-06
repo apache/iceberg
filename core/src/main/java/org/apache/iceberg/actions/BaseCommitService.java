@@ -27,6 +27,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -59,6 +60,7 @@ abstract class BaseCommitService<T> implements Closeable {
   private final ConcurrentLinkedQueue<T> committedRewrites;
   private final int rewritesPerCommit;
   private final AtomicBoolean running = new AtomicBoolean(false);
+  private final AtomicReference<RuntimeException> fatalError = new AtomicReference<>(null);
   private final long timeoutInMS;
   private int succeededCommits = 0;
 
@@ -207,6 +209,12 @@ abstract class BaseCommitService<T> implements Closeable {
     Preconditions.checkState(
         completedRewrites.isEmpty(),
         "File groups offered after service was closed, " + "they were not successfully committed.");
+
+    // Propagate non-retriable errors that occurred in the committer thread
+    RuntimeException error = fatalError.get();
+    if (error != null) {
+      throw error;
+    }
   }
 
   private void commitReadyCommitGroups() {
@@ -229,6 +237,12 @@ abstract class BaseCommitService<T> implements Closeable {
         commitOrClean(batch);
         committedRewrites.addAll(batch);
         succeededCommits++;
+      } catch (IllegalStateException e) {
+        // Non-retriable state errors (e.g., expired starting snapshot) should fail the action
+        // immediately rather than being silently swallowed as a tolerable partial-progress failure
+        LOG.error("Non-retriable failure during rewrite commit, aborting action", e);
+        fatalError.compareAndSet(null, e);
+        throw e;
       } catch (Exception e) {
         LOG.error("Failure during rewrite commit process, partial progress enabled. Ignoring", e);
       }
