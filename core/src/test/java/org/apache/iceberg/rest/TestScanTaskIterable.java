@@ -36,22 +36,27 @@ import java.util.NoSuchElementException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MockFileScanTask;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.rest.requests.FetchScanTasksRequest;
 import org.apache.iceberg.rest.responses.FetchScanTasksResponse;
+import org.awaitility.Awaitility;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 
 public class TestScanTaskIterable {
 
@@ -601,5 +606,51 @@ public class TestScanTaskIterable {
     assertThat(terminated)
         .as("Executor should terminate - workers should have exited gracefully")
         .isTrue();
+  }
+
+  @Test
+  public void testBackgroundWorkerLeakOnEarlyClose() throws Exception {
+    /* * Generate tasks exceeding the default queue capacity (1000) to ensure
+     * that background PlanTaskWorker threads fill the buffer and block.
+     */
+    int totalTasks = 1050;
+    List<FileScanTask> mockTasks =
+        IntStream.range(0, totalTasks)
+            .mapToObj(i -> Mockito.mock(FileScanTask.class))
+            .collect(Collectors.toList());
+
+    ThreadPoolExecutor planningExecutor = (ThreadPoolExecutor) Executors.newFixedThreadPool(4);
+
+    ScanTaskIterable scanTaskIterable =
+        new ScanTaskIterable(
+            Collections.emptyList(),
+            mockTasks,
+            Mockito.mock(RESTClient.class),
+            null,
+            null,
+            Collections.emptyMap(),
+            planningExecutor,
+            null);
+
+    CloseableIterable<FileScanTask> wrappedIterable =
+        CloseableIterable.whenComplete(scanTaskIterable, () -> {});
+
+    CloseableIterator<FileScanTask> iterator = wrappedIterable.iterator();
+    if (iterator.hasNext()) {
+      iterator.next();
+    }
+
+    wrappedIterable.close();
+
+    Awaitility.await()
+        .atMost(java.time.Duration.ofSeconds(5))
+        .untilAsserted(() -> assertThat(planningExecutor.getActiveCount()).isEqualTo(0));
+
+    int activeCount = planningExecutor.getActiveCount();
+    planningExecutor.shutdownNow();
+
+    assertThat(activeCount)
+        .as("PlanTaskWorker background threads should have terminated when the iterable closed")
+        .isEqualTo(0);
   }
 }
