@@ -117,6 +117,7 @@ class HTTPInputStream extends SeekableInputStream implements RangeReadable {
   @Override
   public int read(byte[] b, int off, int len) throws IOException {
     Preconditions.checkState(!closed, "Cannot read: already closed");
+    Preconditions.checkPositionIndexes(off, off + len, b.length);
     if (len == 0) {
       return 0;
     }
@@ -139,6 +140,7 @@ class HTTPInputStream extends SeekableInputStream implements RangeReadable {
 
   @Override
   public void readFully(long position, byte[] out, int offset, int length) throws IOException {
+    Preconditions.checkState(!closed, "Cannot read: already closed");
     Preconditions.checkPositionIndexes(offset, offset + length, out.length);
     String range = String.format(Locale.ROOT, "bytes=%s-%s", position, position + length - 1);
     byte[] data = fetchRange(range);
@@ -152,6 +154,7 @@ class HTTPInputStream extends SeekableInputStream implements RangeReadable {
 
   @Override
   public int readTail(byte[] out, int offset, int length) throws IOException {
+    Preconditions.checkState(!closed, "Cannot read: already closed");
     Preconditions.checkPositionIndexes(offset, offset + length, out.length);
     String range = String.format(Locale.ROOT, "bytes=-%s", length);
     byte[] data = fetchRange(range);
