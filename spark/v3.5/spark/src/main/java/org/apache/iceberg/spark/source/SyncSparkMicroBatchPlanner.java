@@ -42,6 +42,7 @@ class SyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner {
 
   private final boolean caseSensitive;
   private final long fromTimestamp;
+  private final String fromSnapshot;
   private final StreamingOffset lastOffsetForTriggerAvailableNow;
 
   SyncSparkMicroBatchPlanner(
@@ -49,6 +50,7 @@ class SyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner {
     super(table, readConf);
     this.caseSensitive = readConf().caseSensitive();
     this.fromTimestamp = readConf().streamFromTimestamp();
+    this.fromSnapshot = readConf().streamFromSnapshot();
     this.lastOffsetForTriggerAvailableNow = lastOffsetForTriggerAvailableNow;
   }
 
@@ -57,14 +59,13 @@ class SyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner {
     List<FileScanTask> fileScanTasks = Lists.newArrayList();
     StreamingOffset batchStartOffset =
         StreamingOffset.START_OFFSET.equals(startOffset)
-            ? MicroBatchUtils.determineStartingOffset(table(), fromTimestamp)
+            ? MicroBatchUtils.determineStartingOffset(table(), fromTimestamp, fromSnapshot)
             : startOffset;
 
     StreamingOffset currentOffset = null;
 
     // [(startOffset : startFileIndex), (endOffset : endFileIndex) )
     do {
-      long endFileIndex;
       if (currentOffset == null) {
         currentOffset = batchStartOffset;
       } else {
@@ -82,29 +83,32 @@ class SyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner {
 
       validateCurrentSnapshotExists(snapshot, currentOffset);
 
-      if (!shouldProcess(snapshot)) {
+      // skip non-append snapshots unless scanning all files in initial snapshot
+      if (!currentOffset.shouldScanAllFiles() && !shouldProcess(snapshot)) {
         LOG.debug("Skipping snapshot: {} of table {}", currentOffset.snapshotId(), table().name());
         continue;
       }
 
       Snapshot currentSnapshot = table().snapshot(currentOffset.snapshotId());
-      if (currentOffset.snapshotId() == endOffset.snapshotId()) {
-        endFileIndex = endOffset.position();
+      boolean isTerminalSnapshot = currentOffset.snapshotId() == endOffset.snapshotId();
+
+      if (currentOffset.shouldScanAllFiles()) {
+        // BatchScan path so each FileScanTask carries DeleteFile[] / DV refs for the reader
+        MicroBatches.MicroBatchBuilder plan = fullScanBuilder(currentSnapshot);
+        long end = isTerminalSnapshot ? endOffset.position() : Long.MAX_VALUE;
+        fileScanTasks.addAll(plan.planFullScan(currentOffset.position(), end));
       } else {
-        endFileIndex = MicroBatchUtils.addedFilesCount(table(), currentSnapshot);
+        long endFileIndex =
+            isTerminalSnapshot
+                ? endOffset.position()
+                : MicroBatchUtils.addedFilesCount(table(), currentSnapshot);
+        MicroBatch latestMicroBatch =
+            MicroBatches.from(currentSnapshot, table().io())
+                .caseSensitive(caseSensitive)
+                .specsById(table().specs())
+                .generate(currentOffset.position(), endFileIndex, Long.MAX_VALUE, false);
+        fileScanTasks.addAll(latestMicroBatch.tasks());
       }
-
-      MicroBatch latestMicroBatch =
-          MicroBatches.from(currentSnapshot, table().io())
-              .caseSensitive(caseSensitive)
-              .specsById(table().specs())
-              .generate(
-                  currentOffset.position(),
-                  endFileIndex,
-                  Long.MAX_VALUE,
-                  currentOffset.shouldScanAllFiles());
-
-      fileScanTasks.addAll(latestMicroBatch.tasks());
     } while (currentOffset.snapshotId() != endOffset.snapshotId());
 
     return fileScanTasks;
@@ -126,7 +130,11 @@ class SyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner {
     StreamingOffset startingOffset = startOffset;
 
     if (startOffset.equals(StreamingOffset.START_OFFSET)) {
-      startingOffset = MicroBatchUtils.determineStartingOffset(table(), fromTimestamp);
+      startingOffset =
+          MicroBatchUtils.determineStartingOffset(table(), fromTimestamp, fromSnapshot);
+      if (StreamingOffset.START_OFFSET.equals(startingOffset)) {
+        return StreamingOffset.START_OFFSET;
+      }
     }
 
     Snapshot curSnapshot = table().snapshot(startingOffset.snapshotId());
