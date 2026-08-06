@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.flink.sink.dynamic;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.io.Serializable;
 import java.util.Map;
@@ -30,10 +29,10 @@ import org.apache.flink.table.runtime.typeutils.RowDataSerializer;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.flink.CatalogLoader;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
+import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.slf4j.Logger;
@@ -127,21 +126,17 @@ class TableSerializerCache implements Serializable {
     }
 
     private void update() {
-      // The serializer has no teardown hook, so the freshly loaded catalog is closed here, after
-      // reading the table metadata, to avoid leaking one per cache miss.
-      Catalog catalog = catalogLoader.loadCatalog();
-      try {
-        Table table = catalog.loadTable(TableIdentifier.parse(tableName));
+      // The serializer has no teardown hook, so a catalog cannot be held for reuse; load and
+      // close one per cache miss.
+      try (TableLoader tableLoader =
+          TableLoader.fromCatalog(catalogLoader, TableIdentifier.parse(tableName))) {
+        tableLoader.open();
+        Table table = tableLoader.loadTable();
         schemas = table.schemas();
         specs = table.specs();
-      } finally {
-        if (catalog instanceof Closeable) {
-          try {
-            ((Closeable) catalog).close();
-          } catch (IOException e) {
-            LOG.warn("Failed to close catalog {}", catalog.name(), e);
-          }
-        }
+      } catch (IOException e) {
+        // only close() throws IOException here; a failed close should not fail the lookup
+        LOG.warn("Failed to close catalog for table {}", tableName, e);
       }
     }
   }
