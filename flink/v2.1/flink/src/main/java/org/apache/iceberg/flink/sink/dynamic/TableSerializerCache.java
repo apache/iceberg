@@ -51,8 +51,7 @@ class TableSerializerCache implements Serializable {
 
   private final CatalogLoader catalogLoader;
 
-  // Loaded once and reused for all lookups; not closed here, cleanup is deferred to the
-  // planned TaskManager-level catalog cache. Transient: loaded on first use per instance.
+  // Intentionally not closed; the catalog is reused for the serializer's lifetime.
   private transient Catalog catalog;
   private final int maximumSize;
   private transient Map<String, SerializerInfo> serializers;
