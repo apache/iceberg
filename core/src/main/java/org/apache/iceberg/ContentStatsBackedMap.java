@@ -170,7 +170,7 @@ class ContentStatsBackedMap<V> extends AbstractMap<Integer, V> {
       return null;
     }
 
-    if (StatsUtil.isGeoBoundType(boundType)) {
+    if (boundType.isStructType()) {
       // geo bounds are bounding-box structs; convert to the spec's single-point encoding
       return geoBound((StructLike) bound);
     }
