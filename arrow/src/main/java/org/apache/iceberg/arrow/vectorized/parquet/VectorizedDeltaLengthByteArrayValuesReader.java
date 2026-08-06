@@ -21,6 +21,7 @@ package org.apache.iceberg.arrow.vectorized.parquet;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.parquet.bytes.ByteBufferInputStream;
 import org.apache.parquet.column.values.ValuesReader;
 import org.apache.parquet.io.api.Binary;
@@ -55,6 +56,12 @@ public class VectorizedDeltaLengthByteArrayValuesReader extends ValuesReader
 
   @Override
   public Binary readBinary(int len) {
+    Preconditions.checkArgument(len >= 0, "Length must be >= 0, but is %s", len);
+    Preconditions.checkArgument(
+        len <= dataStream.available(),
+        "Length %s exceeds %s bytes available in the data stream",
+        len,
+        dataStream.available());
     try {
       ByteBuffer buffer = dataStream.slice(len);
       this.currentRow++;
