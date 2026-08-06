@@ -22,7 +22,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
 import org.apache.hadoop.fs.Path;
@@ -50,7 +49,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.variants.Variant;
-import org.apache.iceberg.variants.VariantMetadata;
 import org.apache.iceberg.variants.VariantTestUtil;
 import org.apache.iceberg.variants.Variants;
 import org.apache.parquet.example.data.Group;
@@ -103,15 +101,11 @@ public class TestRecordVariantShreddingAnalyzer {
 
   @BeforeEach
   public void before() {
-    ByteBuffer metadataBuffer = VariantTestUtil.createMetadata(ImmutableList.of("a", "b"), true);
-    VariantMetadata metadata = Variants.metadata(metadataBuffer);
-    ByteBuffer objectBuffer =
-        VariantTestUtil.createObject(
-            metadataBuffer,
+    variant =
+        VariantTestUtil.variant(
             ImmutableMap.of(
                 "a", Variants.of(42),
                 "b", Variants.of("hello")));
-    variant = Variant.of(metadata, Variants.value(metadata, objectBuffer));
 
     GenericRecord record = GenericRecord.create(VARIANT_AFTER_ID_SCHEMA);
     records =
@@ -238,10 +232,22 @@ public class TestRecordVariantShreddingAnalyzer {
   }
 
   @Test
-  public void testAnalyzeVariantColumnsRejectsNullEngineSchema() {
+  public void testAnalyzeVariantColumnsFallsBackToIcebergSchemaWhenEngineSchemaNull() {
     RecordVariantShreddingAnalyzer analyzer = new RecordVariantShreddingAnalyzer();
 
-    assertThatThrownBy(() -> analyzer.analyzeVariantColumns(records, VARIANT_AFTER_ID_SCHEMA, null))
+    Map<Integer, Type> shreddedTypes =
+        analyzer.analyzeVariantColumns(records, VARIANT_AFTER_ID_SCHEMA, null);
+
+    assertThat(shreddedTypes).containsOnlyKeys(VARIANT_FIELD_ID);
+    assertThat(shreddedTypes.get(VARIANT_FIELD_ID).asGroupType().containsField("a")).isTrue();
+    assertThat(shreddedTypes.get(VARIANT_FIELD_ID).asGroupType().containsField("b")).isTrue();
+  }
+
+  @Test
+  public void testResolveColumnIndexRejectsNullEngineSchema() {
+    RecordVariantShreddingAnalyzer analyzer = new RecordVariantShreddingAnalyzer();
+
+    assertThatThrownBy(() -> analyzer.resolveColumnIndex(null, "v"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Invalid engine schema: null");
   }
@@ -292,8 +298,8 @@ public class TestRecordVariantShreddingAnalyzer {
           OutputFileFactory.builderFor(table, 1, 1).format(FileFormat.PARQUET).build();
       EncryptedOutputFile encryptedOutputFile = fileFactory.newOutputFile();
 
-      // GenericFileWriterFactory does not forward an inputSchema, so RegistryBasedFileWriterFactory
-      // leaves engineSchema unset and the write builder derives it from the Iceberg schema.
+      // GenericFileWriterFactory does not forward an inputSchema, so engineSchema is null and the
+      // analyzer falls back to the Iceberg schema to resolve variant columns.
       try (DataWriter<Record> writer =
           writerFactory.newDataWriter(encryptedOutputFile, table.spec(), null)) {
         for (Record rec : records) {
@@ -308,7 +314,7 @@ public class TestRecordVariantShreddingAnalyzer {
       }
 
       assertAllRawParquetRowsShredded(outputFile);
-      assertRecordsRoundTrip(outputFile);
+      assertRecordsRoundTrip(outputFile, records);
     } finally {
       TestTables.clearTables();
     }
@@ -344,7 +350,7 @@ public class TestRecordVariantShreddingAnalyzer {
     }
 
     assertAllRawParquetRowsShredded(outputFile);
-    assertRecordsRoundTrip(outputFile);
+    assertRecordsRoundTrip(outputFile, records);
   }
 
   @Test
@@ -356,7 +362,8 @@ public class TestRecordVariantShreddingAnalyzer {
     FileWriterBuilder<DataWriter<Record>, Schema> writeBuilder =
         FormatModelRegistry.dataWriteBuilder(FileFormat.PARQUET, Record.class, encryptedOutputFile);
 
-    // Passing null explicitly behaves like not calling engineSchema at all: the builder derives it.
+    // Passing null explicitly behaves like not calling engineSchema at all: the analyzer falls
+    // back.
     try (DataWriter<Record> writer =
         writeBuilder
             .engineSchema(null)
@@ -382,16 +389,12 @@ public class TestRecordVariantShreddingAnalyzer {
 
   @Test
   public void testPostBufferRowWithUnsampledFieldPreservedInResidual() throws IOException {
-    ByteBuffer metadataAbc = VariantTestUtil.createMetadata(ImmutableList.of("a", "b", "c"), true);
-    VariantMetadata metadataForAbc = Variants.metadata(metadataAbc);
-    ByteBuffer objectAbc =
-        VariantTestUtil.createObject(
-            metadataAbc,
+    Variant variantAbc =
+        VariantTestUtil.variant(
             ImmutableMap.of(
                 "a", Variants.of(7),
                 "b", Variants.of("x"),
                 "c", Variants.of(99)));
-    Variant variantAbc = Variant.of(metadataForAbc, Variants.value(metadataForAbc, objectAbc));
 
     GenericRecord recordBuilder = GenericRecord.create(VARIANT_AFTER_ID_SCHEMA);
     // Buffer size is 2, so the layout is inferred from rows 1-2 (fields a, b). Row 3 adds field c,
@@ -432,20 +435,7 @@ public class TestRecordVariantShreddingAnalyzer {
       assertThat(typedValue.containsField("c")).isFalse();
     }
 
-    try (CloseableIterable<Record> reader =
-        Parquet.read(outputFile.toInputFile())
-            .project(VARIANT_AFTER_ID_SCHEMA)
-            .createReaderFunc(
-                fileSchema ->
-                    GenericParquetReaders.buildReader(VARIANT_AFTER_ID_SCHEMA, fileSchema))
-            .build()) {
-      List<Record> actual = Lists.newArrayList(reader);
-      assertThat(actual).hasSameSizeAs(mixedRecords);
-      for (int index = 0; index < mixedRecords.size(); index++) {
-        InternalTestHelpers.assertEquals(
-            VARIANT_AFTER_ID_SCHEMA.asStruct(), mixedRecords.get(index), actual.get(index));
-      }
-    }
+    assertRecordsRoundTrip(outputFile, mixedRecords);
   }
 
   @Test
@@ -549,7 +539,8 @@ public class TestRecordVariantShreddingAnalyzer {
     assertThat(rowCount).isEqualTo(records.size());
   }
 
-  private void assertRecordsRoundTrip(OutputFile outputFile) throws IOException {
+  private void assertRecordsRoundTrip(OutputFile outputFile, List<Record> expected)
+      throws IOException {
     try (CloseableIterable<Record> reader =
         Parquet.read(outputFile.toInputFile())
             .project(VARIANT_AFTER_ID_SCHEMA)
@@ -558,10 +549,10 @@ public class TestRecordVariantShreddingAnalyzer {
                     GenericParquetReaders.buildReader(VARIANT_AFTER_ID_SCHEMA, fileSchema))
             .build()) {
       List<Record> actual = Lists.newArrayList(reader);
-      assertThat(actual).hasSameSizeAs(records);
-      for (int index = 0; index < records.size(); index++) {
+      assertThat(actual).hasSameSizeAs(expected);
+      for (int index = 0; index < expected.size(); index++) {
         InternalTestHelpers.assertEquals(
-            VARIANT_AFTER_ID_SCHEMA.asStruct(), records.get(index), actual.get(index));
+            VARIANT_AFTER_ID_SCHEMA.asStruct(), expected.get(index), actual.get(index));
       }
     }
   }

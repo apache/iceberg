@@ -56,11 +56,10 @@ public class ParquetFormatModel<D, S, R>
   private final boolean isBatchReader;
   private final VariantShreddingAnalyzer<D, S> variantAnalyzer;
   private final Function<S, UnaryOperator<D>> copyFuncFactory;
-  private final boolean deriveEngineSchema;
 
   public static <D> ParquetFormatModel<PositionDelete<D>, Void, Object> forPositionDeletes() {
     return new ParquetFormatModel<>(
-        PositionDelete.deleteClass(), Void.class, null, null, false, null, null, false);
+        PositionDelete.deleteClass(), Void.class, null, null, false, null, null);
   }
 
   public static <D, S> ParquetFormatModel<D, S, ParquetValueReader<?>> create(
@@ -69,7 +68,7 @@ public class ParquetFormatModel<D, S, R>
       WriterFunction<ParquetValueWriter<?>, S, MessageType> writerFunction,
       ReaderFunction<ParquetValueReader<?>, S, MessageType> readerFunction) {
     return new ParquetFormatModel<>(
-        type, schemaType, writerFunction, readerFunction, false, null, null, false);
+        type, schemaType, writerFunction, readerFunction, false, null, null);
   }
 
   /**
@@ -101,41 +100,14 @@ public class ParquetFormatModel<D, S, R>
       VariantShreddingAnalyzer<D, S> variantAnalyzer,
       Function<S, UnaryOperator<D>> copyFuncFactory) {
     return new ParquetFormatModel<>(
-        type,
-        schemaType,
-        writerFunction,
-        readerFunction,
-        false,
-        variantAnalyzer,
-        copyFuncFactory,
-        false);
-  }
-
-  public static <D, S> ParquetFormatModel<D, S, ParquetValueReader<?>> create(
-      Class<D> type,
-      Class<S> schemaType,
-      WriterFunction<ParquetValueWriter<?>, S, MessageType> writerFunction,
-      ReaderFunction<ParquetValueReader<?>, S, MessageType> readerFunction,
-      VariantShreddingAnalyzer<D, S> variantAnalyzer,
-      Function<S, UnaryOperator<D>> copyFuncFactory,
-      boolean deriveEngineSchema) {
-    return new ParquetFormatModel<>(
-        type,
-        schemaType,
-        writerFunction,
-        readerFunction,
-        false,
-        variantAnalyzer,
-        copyFuncFactory,
-        deriveEngineSchema);
+        type, schemaType, writerFunction, readerFunction, false, variantAnalyzer, copyFuncFactory);
   }
 
   public static <D, S> ParquetFormatModel<D, S, VectorizedReader<?>> create(
       Class<? extends D> type,
       Class<S> schemaType,
       ReaderFunction<VectorizedReader<?>, S, MessageType> batchReaderFunction) {
-    return new ParquetFormatModel<>(
-        type, schemaType, null, batchReaderFunction, true, null, null, false);
+    return new ParquetFormatModel<>(type, schemaType, null, batchReaderFunction, true, null, null);
   }
 
   private ParquetFormatModel(
@@ -145,17 +117,11 @@ public class ParquetFormatModel<D, S, R>
       ReaderFunction<R, S, MessageType> readerFunction,
       boolean isBatchReader,
       VariantShreddingAnalyzer<D, S> variantAnalyzer,
-      Function<S, UnaryOperator<D>> copyFuncFactory,
-      boolean deriveEngineSchema) {
+      Function<S, UnaryOperator<D>> copyFuncFactory) {
     super(type, schemaType, writerFunction, readerFunction);
-    Preconditions.checkArgument(
-        !deriveEngineSchema || Schema.class.equals(schemaType),
-        "Cannot derive engine schema for non-Schema engine type: %s",
-        schemaType);
     this.isBatchReader = isBatchReader;
     this.variantAnalyzer = variantAnalyzer;
     this.copyFuncFactory = copyFuncFactory;
-    this.deriveEngineSchema = deriveEngineSchema;
   }
 
   @Override
@@ -163,15 +129,10 @@ public class ParquetFormatModel<D, S, R>
     return FileFormat.PARQUET;
   }
 
-  /** Whether the Iceberg schema is used as the engine schema when none is provided. */
-  protected boolean shouldDeriveEngineSchema() {
-    return deriveEngineSchema;
-  }
-
   @Override
   public ModelWriteBuilder<D, S> writeBuilder(EncryptedOutputFile outputFile) {
     return new WriteBuilderWrapper<>(
-        outputFile, writerFunction(), variantAnalyzer, copyFuncFactory, shouldDeriveEngineSchema());
+        outputFile, writerFunction(), variantAnalyzer, copyFuncFactory);
   }
 
   @Override
@@ -184,7 +145,6 @@ public class ParquetFormatModel<D, S, R>
     private final WriterFunction<ParquetValueWriter<?>, S, MessageType> writerFunction;
     private final VariantShreddingAnalyzer<D, S> variantAnalyzer;
     private final Function<S, UnaryOperator<D>> copyFuncFactory;
-    private final boolean deriveEngineSchema;
     private Schema schema;
     private S engineSchema;
     private FileContent content;
@@ -195,13 +155,11 @@ public class ParquetFormatModel<D, S, R>
         EncryptedOutputFile outputFile,
         WriterFunction<ParquetValueWriter<?>, S, MessageType> writerFunction,
         VariantShreddingAnalyzer<D, S> variantAnalyzer,
-        Function<S, UnaryOperator<D>> copyFuncFactory,
-        boolean deriveEngineSchema) {
+        Function<S, UnaryOperator<D>> copyFuncFactory) {
       this.internal = Parquet.write(outputFile);
       this.writerFunction = writerFunction;
       this.variantAnalyzer = variantAnalyzer;
       this.copyFuncFactory = copyFuncFactory;
-      this.deriveEngineSchema = deriveEngineSchema;
     }
 
     @Override
@@ -281,10 +239,6 @@ public class ParquetFormatModel<D, S, R>
 
     @Override
     public FileAppender<D> build() throws IOException {
-      if (deriveEngineSchema && engineSchema == null) {
-        this.engineSchema = castSchema(schema);
-      }
-
       boolean shredVariants = false;
       switch (content) {
         case DATA:
@@ -356,10 +310,6 @@ public class ParquetFormatModel<D, S, R>
 
             if (!shreddedTypes.isEmpty()) {
               internal.variantShreddingFunc((fieldId, name) -> shreddedTypes.get(fieldId));
-            } else {
-              LOG.warn(
-                  "Variant shredding was requested but inference produced no shredded fields from {} buffered rows",
-                  bufferedRows.size());
             }
 
             try {
@@ -374,11 +324,6 @@ public class ParquetFormatModel<D, S, R>
     private static boolean hasVariantColumns(Schema schema) {
       return schema != null
           && schema.columns().stream().anyMatch(field -> field.type().isVariantType());
-    }
-
-    @SuppressWarnings("unchecked")
-    private S castSchema(Schema newSchema) {
-      return (S) newSchema;
     }
   }
 

@@ -19,6 +19,7 @@
 package org.apache.iceberg.data;
 
 import java.util.List;
+import java.util.Map;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.parquet.VariantShreddingAnalyzer;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -26,6 +27,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.variants.Variant;
 import org.apache.iceberg.variants.VariantValue;
+import org.apache.parquet.schema.Type;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -38,6 +40,14 @@ class RecordVariantShreddingAnalyzer extends VariantShreddingAnalyzer<Record, Sc
   private static final Logger LOG = LoggerFactory.getLogger(RecordVariantShreddingAnalyzer.class);
 
   RecordVariantShreddingAnalyzer() {}
+
+  @Override
+  public Map<Integer, Type> analyzeVariantColumns(
+      List<Record> bufferedRows, Schema icebergSchema, Schema engineSchema) {
+    // Record rows are built against the Iceberg schema; use it when no engine schema is supplied.
+    return super.analyzeVariantColumns(
+        bufferedRows, icebergSchema, engineSchema != null ? engineSchema : icebergSchema);
+  }
 
   @Override
   protected int resolveColumnIndex(Schema engineSchema, String columnName) {
