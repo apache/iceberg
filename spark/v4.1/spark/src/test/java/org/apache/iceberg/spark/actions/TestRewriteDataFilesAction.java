@@ -1487,6 +1487,26 @@ public class TestRewriteDataFilesAction extends TestBase {
   }
 
   @TestTemplate
+  public void testMaxFileGroupInputFilesOption() {
+    Table table = createTable(4);
+    shouldHaveFiles(table, 4);
+
+    List<Object[]> originalData = currentData();
+    long dataSizeBefore = testDataSize(table);
+
+    RewriteDataFiles.Result result =
+        basicRewrite(table)
+            .option(SizeBasedFileRewritePlanner.MAX_FILE_GROUP_INPUT_FILES, "2")
+            .execute();
+
+    assertThat(result.rewriteResults()).as("Action should rewrite file groups").isNotEmpty();
+    assertThat(result.rewrittenBytesCount()).isEqualTo(dataSizeBefore);
+
+    table.refresh();
+    assertEquals("Rows must match", originalData, currentData());
+  }
+
+  @TestTemplate
   public void testSortMultipleGroups() {
     Table table = createTable(20);
     shouldHaveFiles(table, 20);
