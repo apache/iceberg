@@ -45,6 +45,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.source.metrics.TaskNumDeletes;
 import org.apache.iceberg.spark.source.metrics.TaskNumSplits;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Exceptions;
@@ -121,6 +122,9 @@ class MergingSortedRowDataReader implements PartitionReader<InternalRow> {
     this.projectingRow = buildProjectingRow(projection, mergeReadSchema);
 
     this.resources = new CloseableGroup();
+    // The group holds one reader per file plus the merge. Avoid leaking resources when close()
+    // failure on one resource is called.
+    resources.setSuppressCloseFailure(true);
     List<FileScanTask> tasks = Lists.newArrayList(taskGroup.tasks());
     this.fileReaders =
         tasks.stream()
@@ -271,7 +275,7 @@ class MergingSortedRowDataReader implements PartitionReader<InternalRow> {
    * the requested projection, or {@code null} if no extra columns were added.
    */
   private static ProjectingInternalRow buildProjectingRow(Schema projection, Schema mergeSchema) {
-    if (projection.columns().size() == mergeSchema.columns().size()) {
+    if (projection.sameSchema(mergeSchema)) {
       return null;
     }
 
@@ -306,16 +310,30 @@ class MergingSortedRowDataReader implements PartitionReader<InternalRow> {
           "Cannot find sort field id %s in schema of table %s",
           fieldId,
           table.name());
+
+      // Iceberg's UUID ordering differs from Spark's UUID ordering. We cannot use merging sorted
+      // reader.
+      // Transforms other than identity are unaffected.
+      Type transformResultType = sortField.transform().getResultType(tableField.type());
       Preconditions.checkArgument(
-          TypeUtil.ancestorFields(tableSchema, fieldId).isEmpty(),
-          "Merging reader does not support sort keys on nested fields (field id %s in table %s)",
+          transformResultType.typeId() != Type.TypeID.UUID,
+          "Merging reader does not support UUID-typed sort keys (field id %s in table %s)",
           fieldId,
           table.name());
 
-      if (projection.findField(fieldId) == null
-          && missingFields.stream().noneMatch(f -> f.fieldId() == fieldId)) {
-        missingFields.add(tableField);
+      if (projection.findField(fieldId) != null
+          || missingFields.stream().anyMatch(f -> f.fieldId() == fieldId)) {
+        continue;
       }
+
+      // A missing field can only be added to the read schema as a top-level column, so a nested
+      // sort key is only supported when it is already part of the requested projection.
+      Preconditions.checkArgument(
+          tableSchema.asStruct().field(fieldId) != null,
+          "Merging reader does not support sort keys on nested fields (field id %s in table %s)",
+          fieldId,
+          table.name());
+      missingFields.add(tableField);
     }
 
     if (missingFields.isEmpty()) {
