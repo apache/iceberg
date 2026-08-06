@@ -30,6 +30,7 @@ import java.nio.file.Path;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Stream;
 import org.apache.iceberg.BaseScanTaskGroup;
@@ -328,6 +329,30 @@ class TestMergingSortedRowDataReader extends TestBase {
   }
 
   @Test
+  void mergeWithFileFullyRemovedByDeletesAmongMultipleFiles() throws IOException {
+    // With only two files, file1 draining leaves nothing to merge against. With three, file2 and
+    // file3 are still genuinely merged against each other after file1 drops out of the heap.
+    DataFile file1 = writeDataFile(record(1, "a"), record(4, "d"));
+    DataFile file2 = writeDataFile(record(2, "b"), record(5, "e"));
+    DataFile file3 = writeDataFile(record(3, "c"), record(6, "f"));
+
+    table.newAppend().appendFile(file1).appendFile(file2).appendFile(file3).commit();
+
+    DeleteFile deleteFile =
+        FileHelpers.writeDeleteFile(
+                table,
+                Files.localOutput(File.createTempFile("junit", null, temp.toFile())),
+                Lists.newArrayList(Pair.of(file1.location(), 0L), Pair.of(file1.location(), 1L)),
+                TableUtil.formatVersion(table))
+            .first();
+    table.newRowDelta().addDeletes(deleteFile).commit();
+
+    List<InternalRow> rows = readMerged(table);
+
+    assertThat(extractIds(rows)).containsExactly(2, 3, 5, 6);
+  }
+
+  @Test
   void mergeWithPositionDeletes() throws IOException {
     // File1: [1, 3, 5], File2: [2, 4, 6]
     DataFile file1 = writeDataFile(record(1, "a"), record(3, "c"), record(5, "e"));
@@ -436,7 +461,111 @@ class TestMergingSortedRowDataReader extends TestBase {
   }
 
   @Test
-  void mergeRejectsNestedSortKey() throws IOException {
+  void mergeWithNestedSortKeyInProjection() throws IOException {
+    BaseScanTaskGroup<FileScanTask> taskGroup = setUpNestedSortKeyTable();
+
+    List<InternalRow> rows = Lists.newArrayList();
+    try (MergingSortedRowDataReader reader =
+        new MergingSortedRowDataReader(table, table.io(), taskGroup, table.schema(), true, false)) {
+      while (reader.next()) {
+        rows.add(reader.get().copy());
+      }
+    }
+
+    assertThat(rows.stream().map(row -> row.getStruct(1, 1).getUTF8String(0).toString()).toList())
+        .containsExactly("LA", "NYC");
+  }
+
+  @Test
+  void mergeRejectsNestedSortKeyNotInProjection() throws IOException {
+    BaseScanTaskGroup<FileScanTask> taskGroup = setUpNestedSortKeyTable();
+
+    Schema idOnly = table.schema().select("id");
+
+    assertThatThrownBy(
+            () -> new MergingSortedRowDataReader(table, table.io(), taskGroup, idOnly, true, false))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("does not support sort keys on nested fields");
+  }
+
+  @Test
+  void mergeRejectsUuidSortKey() throws IOException {
+    catalog.dropTable(TableIdentifier.of("default", "test_merging_reader"));
+
+    Schema uuidSchema =
+        new Schema(
+            required(1, "id", Types.IntegerType.get()), required(2, "key", Types.UUIDType.get()));
+    table = catalog.createTable(TableIdentifier.of("default", "test_merging_reader"), uuidSchema);
+    table.replaceSortOrder().asc("key").commit();
+
+    // Iceberg's UUID#compareTo ordering and Spark's string-based UUID ordering disagree, so an
+    // identity sort key on a UUID column is rejected regardless of what wrote the files.
+    DataFile file1 = writeUuidRecords(uuidRecord(uuidSchema, 1, UUID.randomUUID()));
+    DataFile file2 = writeUuidRecords(uuidRecord(uuidSchema, 2, UUID.randomUUID()));
+    table.newAppend().appendFile(file1).appendFile(file2).commit();
+
+    BaseScanTaskGroup<FileScanTask> taskGroup = new BaseScanTaskGroup<>(planFiles(table));
+
+    assertThatThrownBy(
+            () ->
+                new MergingSortedRowDataReader(
+                    table, table.io(), taskGroup, table.schema(), true, false))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("does not support UUID-typed sort keys");
+  }
+
+  @Test
+  void mergeWithBucketedUuidSortKey() throws IOException {
+    catalog.dropTable(TableIdentifier.of("default", "test_merging_reader"));
+
+    Schema uuidSchema =
+        new Schema(
+            required(1, "id", Types.IntegerType.get()), required(2, "key", Types.UUIDType.get()));
+    table = catalog.createTable(TableIdentifier.of("default", "test_merging_reader"), uuidSchema);
+    table.replaceSortOrder().asc(Expressions.bucket("key", 8)).commit();
+
+    // bucket(key, 8) is unaffected by the guard: its result type is int, computed identically by
+    // Iceberg and Spark, so the merge does not need to compare raw UUID values.
+    DataFile file1 =
+        writeUuidRecords(
+            uuidRecord(uuidSchema, 1, UUID.randomUUID()),
+            uuidRecord(uuidSchema, 2, UUID.randomUUID()));
+    DataFile file2 =
+        writeUuidRecords(
+            uuidRecord(uuidSchema, 3, UUID.randomUUID()),
+            uuidRecord(uuidSchema, 4, UUID.randomUUID()));
+    table.newAppend().appendFile(file1).appendFile(file2).commit();
+
+    BaseScanTaskGroup<FileScanTask> taskGroup = new BaseScanTaskGroup<>(planFiles(table));
+
+    List<Integer> ids = Lists.newArrayList();
+    try (MergingSortedRowDataReader reader =
+        new MergingSortedRowDataReader(table, table.io(), taskGroup, table.schema(), true, false)) {
+      while (reader.next()) {
+        ids.add(reader.get().getInt(0));
+      }
+    }
+
+    assertThat(ids).containsExactlyInAnyOrder(1, 2, 3, 4);
+  }
+
+  private Record uuidRecord(Schema uuidSchema, int id, UUID key) {
+    GenericRecord record = GenericRecord.create(uuidSchema);
+    record.set(0, id);
+    record.set(1, key);
+    return record;
+  }
+
+  private DataFile writeUuidRecords(Record... records) throws IOException {
+    DataFile file =
+        FileHelpers.writeDataFile(
+            table,
+            Files.localOutput(File.createTempFile("junit", null, temp.toFile())),
+            Lists.newArrayList(records));
+    return DataFiles.builder(table.spec()).copy(file).withSortOrder(table.sortOrder()).build();
+  }
+
+  private BaseScanTaskGroup<FileScanTask> setUpNestedSortKeyTable() throws IOException {
     catalog.dropTable(TableIdentifier.of("default", "test_merging_reader"));
 
     Schema nestedSchema =
@@ -483,14 +612,7 @@ class TestMergingSortedRowDataReader extends TestBase {
 
     table.newAppend().appendFile(file1).appendFile(file2).commit();
 
-    BaseScanTaskGroup<FileScanTask> taskGroup = new BaseScanTaskGroup<>(planFiles(table));
-
-    assertThatThrownBy(
-            () ->
-                new MergingSortedRowDataReader(
-                    table, table.io(), taskGroup, table.schema(), true, false))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("does not support sort keys on nested fields");
+    return new BaseScanTaskGroup<>(planFiles(table));
   }
 
   private List<InternalRow> readMerged(Table tbl) throws IOException {
