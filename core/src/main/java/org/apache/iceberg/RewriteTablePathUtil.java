@@ -781,47 +781,37 @@ public class RewriteTablePathUtil {
       String sourcePrefix,
       String targetPrefix)
       throws IOException {
-    try (PuffinReader reader = Puffin.read(io.newInputFile(deleteFile.location())).build()) {
-      List<BlobMetadata> blobs = reader.fileMetadata().blobs();
-      PuffinWriter writer = Puffin.write(outputFile).createdBy(IcebergBuild.fullVersion()).build();
+    try (PuffinReader reader = Puffin.read(io.newInputFile(deleteFile.location())).build();
+        PuffinWriter writer =
+            Puffin.write(outputFile)
+                .createdBy(IcebergBuild.fullVersion())
+                .overwrite()
+                .build()) {
+      for (Pair<BlobMetadata, ByteBuffer> blobPair :
+          reader.readAll(reader.fileMetadata().blobs())) {
+        BlobMetadata blobMetadata = blobPair.first();
+        ByteBuffer blobData = blobPair.second();
 
-      try (writer) {
-        for (Pair<BlobMetadata, ByteBuffer> blobPair : reader.readAll(blobs)) {
-          BlobMetadata blobMetadata = blobPair.first();
-          ByteBuffer blobData = blobPair.second();
-
-          Map<String, String> properties = Maps.newHashMap(blobMetadata.properties());
-          String referencedDataFile = properties.get("referenced-data-file");
-          if (referencedDataFile != null && referencedDataFile.startsWith(sourcePrefix)) {
-            String newReferencedDataFile = newPath(referencedDataFile, sourcePrefix, targetPrefix);
-            properties.put("referenced-data-file", newReferencedDataFile);
-          }
-
-          writer.write(
-              new Blob(
-                  blobMetadata.type(),
-                  blobMetadata.inputFields(),
-                  blobMetadata.snapshotId(),
-                  blobMetadata.sequenceNumber(),
-                  blobData,
-                  PuffinCompressionCodec.forName(blobMetadata.compressionCodec()),
-                  properties));
+        Map<String, String> properties = Maps.newHashMap(blobMetadata.properties());
+        String referencedDataFile = properties.get("referenced-data-file");
+        if (referencedDataFile != null && referencedDataFile.startsWith(sourcePrefix)) {
+          String newReferencedDataFile = newPath(referencedDataFile, sourcePrefix, targetPrefix);
+          properties.put("referenced-data-file", newReferencedDataFile);
         }
 
-        writer.finish();
-        return writer.length();
-      } catch (IOException | RuntimeException e) {
-        cleanUpOutputFile(io, outputFile, e);
-        throw e;
+        writer.write(
+            new Blob(
+                blobMetadata.type(),
+                blobMetadata.inputFields(),
+                blobMetadata.snapshotId(),
+                blobMetadata.sequenceNumber(),
+                blobData,
+                PuffinCompressionCodec.forName(blobMetadata.compressionCodec()),
+                properties));
       }
-    }
-  }
 
-  private static void cleanUpOutputFile(FileIO io, OutputFile outputFile, Exception failure) {
-    try {
-      io.deleteFile(outputFile.location());
-    } catch (RuntimeException deleteFailure) {
-      failure.addSuppressed(deleteFailure);
+      writer.finish();
+      return writer.length();
     }
   }
 
