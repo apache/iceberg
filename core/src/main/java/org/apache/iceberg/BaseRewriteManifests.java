@@ -48,6 +48,8 @@ import org.apache.iceberg.util.Tasks;
 
 public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
     implements RewriteManifests {
+  private static final Object SINGLE_CLUSTER_KEY = new Object();
+
   private final String tableName;
   private final Map<Integer, PartitionSpec> specsById;
   private final long manifestTargetSizeBytes;
@@ -65,6 +67,10 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
 
   private Function<DataFile, Object> clusterByFunc;
   private Predicate<ManifestFile> predicate;
+
+  private boolean pruneColumnStats = false;
+  private Schema tableSchema;
+  private MetricsConfig metricsConfig;
 
   private final SnapshotSummary.Builder summaryBuilder = SnapshotSummary.builder();
 
@@ -120,6 +126,12 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
   @Override
   public RewriteManifests rewriteIf(Predicate<ManifestFile> pred) {
     this.predicate = pred;
+    return this;
+  }
+
+  @Override
+  public RewriteManifests pruneColumnStats() {
+    this.pruneColumnStats = true;
     return this;
   }
 
@@ -204,7 +216,7 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
   }
 
   private boolean requiresRewrite(Set<ManifestFile> currentManifests) {
-    if (clusterByFunc == null) {
+    if (clusterByFunc == null && !pruneColumnStats) {
       // manifests are deleted and added directly so don't perform a rewrite
       return false;
     }
@@ -238,6 +250,9 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
 
   private void performRewrite(List<ManifestFile> currentManifests) {
     reset();
+    initColumnStatsPruning();
+
+    Function<DataFile, Object> clusterBy = effectiveClusterByFunc();
 
     List<ManifestFile> remainingManifests =
         currentManifests.stream()
@@ -262,7 +277,7 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
                             entry ->
                                 appendEntry(
                                     entry,
-                                    clusterByFunc.apply(entry.file()),
+                                    clusterBy.apply(entry.file()),
                                     manifest.partitionSpecId()));
 
                   } catch (IOException x) {
@@ -342,6 +357,38 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
         Pair.of(key, partitionSpecId), k -> new WriterWrapper(specsById.get(partitionSpecId)));
   }
 
+  private Function<DataFile, Object> effectiveClusterByFunc() {
+    return clusterByFunc != null ? clusterByFunc : file -> SINGLE_CLUSTER_KEY;
+  }
+
+  private void initColumnStatsPruning() {
+    if (!pruneColumnStats) {
+      return;
+    }
+
+    TableMetadata current = ops().current();
+    this.tableSchema = current.schema();
+    this.metricsConfig =
+        MetricsConfig.from(current.properties(), current.schema(), current.sortOrder());
+  }
+
+  private DataFile prunedFile(DataFile file) {
+    Metrics fileMetrics =
+        new Metrics(
+            file.recordCount(),
+            file.columnSizes(),
+            file.valueCounts(),
+            file.nullValueCounts(),
+            file.nanValueCounts(),
+            file.lowerBounds(),
+            file.upperBounds());
+    Metrics prunedMetrics = MetricsUtil.pruneColumnStats(tableSchema, metricsConfig, fileMetrics);
+    return DataFiles.builder(specsById.get(file.specId()))
+        .copy(file)
+        .withMetrics(prunedMetrics)
+        .build();
+  }
+
   @Override
   protected void cleanUncommitted(Set<ManifestFile> committed) {
     deleteUncommitted(newManifests, committed, false);
@@ -369,7 +416,16 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
         close();
         writer = newManifestWriter(spec);
       }
-      writer.existing(entry);
+
+      if (pruneColumnStats) {
+        writer.existing(
+            prunedFile(entry.file()),
+            entry.snapshotId(),
+            entry.dataSequenceNumber(),
+            entry.fileSequenceNumber());
+      } else {
+        writer.existing(entry);
+      }
     }
 
     synchronized void close() {
