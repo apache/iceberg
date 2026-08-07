@@ -45,4 +45,18 @@ public class TestCoordinatorThread {
     verify(coordinator, timeout(1000)).stop();
     assertThat(coordinatorThread.isTerminated()).isTrue();
   }
+
+  @Test
+  public void threadNameIncludesConnectorName() {
+    Coordinator coordinator = mock(Coordinator.class);
+    CoordinatorThread coordinatorThread = new CoordinatorThread(coordinator, "inventory-sink");
+
+    assertThat(coordinatorThread.getName()).isEqualTo("iceberg-coord-inventory-sink");
+  }
+
+  @Test
+  public void committerThreadNameFormatIncludesConnectorName() {
+    assertThat(Coordinator.committerThreadNameFormat("inventory-sink"))
+        .isEqualTo("iceberg-committer-inventory-sink-%d");
+  }
 }
