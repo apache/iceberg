@@ -372,6 +372,9 @@ public class RandomData {
           return Decimal.apply((BigDecimal) obj);
         case UUID:
           return UTF8String.fromString(UUID.nameUUIDFromBytes((byte[]) obj).toString());
+        case TIME:
+          // RandomUtil generates time in microseconds, but Spark stores it as nanoseconds
+          return ((Long) obj) * 1000L;
         case GEOMETRY:
           // Spark's GeometryVal is [SRID | WKB]; build it from the generated WKB.
           return STUtils.stGeomFromWKB((byte[]) obj);

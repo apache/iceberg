@@ -107,6 +107,9 @@ public class SparkOrcWriter implements OrcRowWriter<InternalRow> {
         case INT:
           return GenericOrcWriters.ints();
         case LONG:
+          if (Type.TypeID.TIME == iPrimitive.typeId()) {
+            return SparkOrcValueWriters.times();
+          }
           return GenericOrcWriters.longs();
         case FLOAT:
           return GenericOrcWriters.floats(ORCSchemaUtil.fieldId(primitive));
