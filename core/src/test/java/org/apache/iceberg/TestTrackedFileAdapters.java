@@ -49,6 +49,8 @@ class TestTrackedFileAdapters {
   private static final Map<Integer, PartitionSpec> UNPARTITIONED =
       ImmutableMap.of(UNPARTITIONED_SPEC_ID, PartitionSpec.unpartitioned());
 
+  private static final ByteBuffer KEY_METADATA = ByteBuffer.wrap(new byte[] {1, 2, 3});
+
   private static final Schema PARTITION_SCHEMA =
       new Schema(Types.NestedField.required(1, "category", Types.StringType.get()));
   private static final int PARTITIONED_SPEC_ID = 1;
@@ -242,6 +244,7 @@ class TestTrackedFileAdapters {
             .offset(128L)
             .sizeInBytes(256L)
             .cardinality(10L)
+            .keyMetadata(KEY_METADATA)
             .build();
 
     TrackingStruct tracking =
@@ -285,6 +288,7 @@ class TestTrackedFileAdapters {
     assertThat(dvFile.recordCount()).isEqualTo(dv.cardinality());
     assertThat(dvFile.contentOffset()).isEqualTo(dv.offset());
     assertThat(dvFile.contentSizeInBytes()).isEqualTo(dv.sizeInBytes());
+    assertThat(dvFile.keyMetadata()).isEqualTo(KEY_METADATA);
     // fileSizeInBytes reports the DV blob size, not the full Puffin file size.
     assertThat(dvFile.fileSizeInBytes()).isEqualTo(dv.sizeInBytes());
     // referencedDataFile is delegated to the tracked data file's location.
@@ -301,7 +305,6 @@ class TestTrackedFileAdapters {
     // fields that are null for DVs
     assertThat(dvFile.sortOrderId()).isNull();
     assertThat(dvFile.firstRowId()).isNull();
-    assertThat(dvFile.keyMetadata()).isNull();
     assertThat(dvFile.splitOffsets()).isNull();
     assertThat(dvFile.equalityFieldIds()).isNull();
     assertThat(dvFile.columnSizes()).isNull();
