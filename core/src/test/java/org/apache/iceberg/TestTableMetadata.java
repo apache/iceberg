@@ -972,6 +972,101 @@ public class TestTableMetadata {
   }
 
   @Test
+  public void testAddPreviousMetadataRemoveAllWhenZero() throws IOException {
+    long previousSnapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
+
+    String manifestList =
+        createManifestListWithManifestFile(previousSnapshotId, null, "file:/tmp/manifest1.avro");
+    Snapshot previousSnapshot =
+        new BaseSnapshot(
+            0,
+            previousSnapshotId,
+            null,
+            previousSnapshotId,
+            null,
+            null,
+            null,
+            manifestList,
+            null,
+            null,
+            null);
+
+    long currentSnapshotId = System.currentTimeMillis();
+    manifestList =
+        createManifestListWithManifestFile(
+            currentSnapshotId, previousSnapshotId, "file:/tmp/manifest2.avro");
+    Snapshot currentSnapshot =
+        new BaseSnapshot(
+            0,
+            currentSnapshotId,
+            previousSnapshotId,
+            currentSnapshotId,
+            null,
+            null,
+            null,
+            manifestList,
+            null,
+            null,
+            null);
+
+    List<HistoryEntry> reversedSnapshotLog = Lists.newArrayList();
+    reversedSnapshotLog.add(
+        new SnapshotLogEntry(previousSnapshot.timestampMillis(), previousSnapshotId));
+    reversedSnapshotLog.add(
+        new SnapshotLogEntry(currentSnapshot.timestampMillis(), currentSnapshotId));
+    long currentTimestamp = System.currentTimeMillis();
+    List<MetadataLogEntry> previousMetadataLog = Lists.newArrayList();
+    previousMetadataLog.add(
+        new MetadataLogEntry(
+            currentTimestamp - 100, "/tmp/000001-" + UUID.randomUUID() + ".metadata.json"));
+    previousMetadataLog.add(
+        new MetadataLogEntry(
+            currentTimestamp - 90, "/tmp/000002-" + UUID.randomUUID() + ".metadata.json"));
+    previousMetadataLog.add(
+        new MetadataLogEntry(
+            currentTimestamp - 80, "/tmp/000003-" + UUID.randomUUID() + ".metadata.json"));
+
+    MetadataLogEntry latestPreviousMetadata =
+        new MetadataLogEntry(
+            currentTimestamp - 50, "/tmp/000004-" + UUID.randomUUID() + ".metadata.json");
+
+    TableMetadata base =
+        new TableMetadata(
+            latestPreviousMetadata.file(),
+            1,
+            UUID.randomUUID().toString(),
+            TEST_LOCATION,
+            0,
+            currentTimestamp - 50,
+            3,
+            7,
+            ImmutableList.of(TEST_SCHEMA),
+            SPEC_5.specId(),
+            ImmutableList.of(SPEC_5),
+            SPEC_5.lastAssignedFieldId(),
+            SortOrder.unsorted().orderId(),
+            ImmutableList.of(SortOrder.unsorted()),
+            ImmutableMap.of("property", "value"),
+            currentSnapshotId,
+            Arrays.asList(previousSnapshot, currentSnapshot),
+            null,
+            reversedSnapshotLog,
+            ImmutableList.copyOf(previousMetadataLog),
+            ImmutableMap.of(),
+            ImmutableList.of(),
+            ImmutableList.of(),
+            0L,
+            ImmutableList.of(),
+            ImmutableList.of());
+
+    TableMetadata metadata =
+        base.replaceProperties(
+            ImmutableMap.of(TableProperties.METADATA_PREVIOUS_VERSIONS_MAX, "0"));
+
+    assertThat(metadata.previousFiles()).isEmpty();
+  }
+
+  @Test
   public void testV2UUIDValidation() {
     assertThatThrownBy(
             () ->
