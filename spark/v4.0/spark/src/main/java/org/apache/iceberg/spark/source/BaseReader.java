@@ -30,6 +30,7 @@ import java.util.stream.Stream;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.ContentScanTask;
 import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.EncryptedFile;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Partitioning;
 import org.apache.iceberg.ScanTask;
@@ -185,7 +186,10 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
     if (lazyInputFiles == null) {
       this.lazyInputFiles =
           fileIO.bulkDecrypt(
-              () -> taskGroup.tasks().stream().flatMap(this::referencedFiles).iterator());
+              () ->
+                  taskGroup.tasks().stream()
+                      .<EncryptedFile>flatMap(this::referencedFiles)
+                      .iterator());
     }
 
     return lazyInputFiles;

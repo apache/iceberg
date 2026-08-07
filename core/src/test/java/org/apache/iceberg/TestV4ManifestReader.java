@@ -2092,6 +2092,7 @@ class TestV4ManifestReader {
   private static ManifestFile v4Manifest(String path) {
     ManifestFile manifest = mock(ManifestFile.class);
     when(manifest.path()).thenReturn(path);
+    when(manifest.location()).thenReturn(path);
     when(manifest.formatVersion()).thenReturn(FORMAT_VERSION_V4);
     when(manifest.content()).thenReturn(ManifestContent.DATA);
     when(manifest.snapshotId()).thenReturn(SNAPSHOT_ID);

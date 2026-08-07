@@ -18,11 +18,10 @@
  */
 package org.apache.iceberg;
 
-import java.nio.ByteBuffer;
 import java.util.Set;
 import org.apache.iceberg.types.Types;
 
-interface ColumnFile {
+interface ColumnFile extends EncryptedFile {
   Types.NestedField LOCATION =
       Types.NestedField.required(
           160, "location", Types.StringType.get(), "Location of the column file");
@@ -52,20 +51,11 @@ interface ColumnFile {
     return Types.StructType.of(LOCATION, FIELD_IDS, FILE_FORMAT, FILE_SIZE_IN_BYTES, KEY_METADATA);
   }
 
-  /** Returns the location of this column file. */
-  String location();
-
   /** Returns the field IDs contained in this column file. */
   Set<Integer> fieldIds();
 
   /** Returns the format of this column file. */
   FileFormat fileFormat();
-
-  /** Returns the total size of this column file in bytes. */
-  long fileSizeInBytes();
-
-  /** Returns encryption key metadata, or null if this column file is not encrypted. */
-  ByteBuffer keyMetadata();
 
   /** Copies this column file. */
   ColumnFile copy();
