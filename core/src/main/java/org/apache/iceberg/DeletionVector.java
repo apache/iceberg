@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg;
 
+import java.nio.ByteBuffer;
 import org.apache.iceberg.types.Types;
 
 /**
@@ -45,9 +46,15 @@ interface DeletionVector {
           "cardinality",
           Types.LongType.get(),
           "Number of set bits (deleted rows) in the vector");
+  Types.NestedField KEY_METADATA =
+      Types.NestedField.optional(
+          149,
+          "key_metadata",
+          Types.BinaryType.get(),
+          "Implementation-specific key metadata for encryption");
 
   static Types.StructType schema() {
-    return Types.StructType.of(LOCATION, OFFSET, SIZE_IN_BYTES, CARDINALITY);
+    return Types.StructType.of(LOCATION, OFFSET, SIZE_IN_BYTES, CARDINALITY, KEY_METADATA);
   }
 
   /** Returns the location of the file containing the deletion vector. */
@@ -61,6 +68,9 @@ interface DeletionVector {
 
   /** Returns the number of set bits (deleted rows) in the vector. */
   long cardinality();
+
+  /** Returns encryption key metadata, or null if the file is not encrypted. */
+  ByteBuffer keyMetadata();
 
   /** Copies this deletion vector. */
   DeletionVector copy();

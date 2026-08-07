@@ -307,11 +307,15 @@ class ParquetVariantUtil {
     }
 
     VariantMetrics(
-        long valueCount, long nullCount, VariantValue lowerBound, VariantValue upperBound) {
+        long valueCount,
+        long nullCount,
+        VariantValue lowerBound,
+        VariantValue upperBound,
+        int truncateLength) {
       this.valueCount = valueCount;
       this.nullCount = nullCount;
-      this.lowerBound = truncateLowerBound(lowerBound);
-      this.upperBound = truncateUpperBound(upperBound);
+      this.lowerBound = truncateLowerBound(lowerBound, truncateLength);
+      this.upperBound = truncateUpperBound(upperBound, truncateLength);
     }
 
     VariantMetrics prependFieldName(String name) {
@@ -344,30 +348,30 @@ class ParquetVariantUtil {
       return upperBound;
     }
 
-    private static VariantValue truncateLowerBound(VariantValue value) {
+    private static VariantValue truncateLowerBound(VariantValue value, int length) {
       switch (value.type()) {
         case STRING:
           return Variants.of(
               PhysicalType.STRING,
-              UnicodeUtil.truncateStringMin((String) value.asPrimitive().get(), 16));
+              UnicodeUtil.truncateStringMin((String) value.asPrimitive().get(), length));
         case BINARY:
           return Variants.of(
               PhysicalType.BINARY,
-              BinaryUtil.truncateBinaryMin((ByteBuffer) value.asPrimitive().get(), 16));
+              BinaryUtil.truncateBinaryMin((ByteBuffer) value.asPrimitive().get(), length));
         default:
           return value;
       }
     }
 
-    private static VariantValue truncateUpperBound(VariantValue value) {
+    private static VariantValue truncateUpperBound(VariantValue value, int length) {
       switch (value.type()) {
         case STRING:
           String truncatedString =
-              UnicodeUtil.truncateStringMax((String) value.asPrimitive().get(), 16);
+              UnicodeUtil.truncateStringMax((String) value.asPrimitive().get(), length);
           return truncatedString != null ? Variants.of(PhysicalType.STRING, truncatedString) : null;
         case BINARY:
           ByteBuffer truncatedBuffer =
-              BinaryUtil.truncateBinaryMax((ByteBuffer) value.asPrimitive().get(), 16);
+              BinaryUtil.truncateBinaryMax((ByteBuffer) value.asPrimitive().get(), length);
           return truncatedBuffer != null ? Variants.of(PhysicalType.BINARY, truncatedBuffer) : null;
         default:
           return value;

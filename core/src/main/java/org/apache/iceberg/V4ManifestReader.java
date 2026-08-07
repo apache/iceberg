@@ -37,6 +37,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.LocationUtil;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.StructProjection;
 
@@ -46,6 +47,7 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
   private final Schema readSchema;
   private final boolean includeAll;
   private final ScanMetrics scanMetrics;
+  private final String tableLocation;
 
   // partition filters keyed by spec ID; empty when no partition filter applies
   private final Map<Integer, Pair<Evaluator, StructProjection>> partitionFilters;
@@ -55,16 +57,19 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
       Schema readSchema,
       Map<Integer, Pair<Evaluator, StructProjection>> partitionFilters,
       boolean includeAll,
-      ScanMetrics scanMetrics) {
+      ScanMetrics scanMetrics,
+      String tableLocation) {
     this.file = file;
     this.readSchema = readSchema;
     this.partitionFilters = partitionFilters;
     this.includeAll = includeAll;
     this.scanMetrics = scanMetrics;
+    this.tableLocation = tableLocation;
   }
 
-  static Builder builder(InputFile file, Map<Integer, PartitionSpec> specsById) {
-    return new Builder(file, specsById);
+  static Builder builder(
+      InputFile file, Map<Integer, PartitionSpec> specsById, String tableLocation) {
+    return new Builder(file, specsById, tableLocation);
   }
 
   /** Returns copies of the tracked files that match this reader's configured filters. */
@@ -81,7 +86,7 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
       entries = CloseableIterable.filter(entries, entry -> entry.tracking().isLive());
     }
 
-    return CloseableIterable.transform(entries, TrackedFile::copy).iterator();
+    return CloseableIterable.transform(entries, this::copyResolved).iterator();
   }
 
   private boolean matchesPartition(TrackedFile trackedFile) {
@@ -146,6 +151,22 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
     return trackedFile;
   }
 
+  // resolves stored locations against the table location
+  private TrackedFile copyResolved(TrackedFile trackedFile) {
+    TrackedFileStruct copy = (TrackedFileStruct) trackedFile.copy();
+    if (copy.location() != null) {
+      copy.setLocation(LocationUtil.resolveLocation(tableLocation, copy.location()));
+    }
+
+    DeletionVector dv = copy.deletionVector();
+    if (dv != null && dv.location() != null) {
+      ((DeletionVectorStruct) dv)
+          .setLocation(LocationUtil.resolveLocation(tableLocation, dv.location()));
+    }
+
+    return copy;
+  }
+
   private static boolean isManifest(TrackedFile trackedFile) {
     FileContent content = trackedFile.contentType();
     return content == FileContent.DATA_MANIFEST || content == FileContent.DELETE_MANIFEST;
@@ -156,6 +177,7 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
     private final Types.StructType unionPartitionType;
     private final Map<Integer, PartitionSpec> specsById;
     private final Schema fullSchema;
+    private final String tableLocation;
     private Expression rowFilter = Expressions.alwaysTrue();
     private boolean caseSensitive = true;
     private boolean includeAll = false;
@@ -164,9 +186,11 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
     private Schema requestedProjection = null;
     private ScanMetrics scanMetrics = ScanMetrics.noop();
 
-    private Builder(InputFile file, Map<Integer, PartitionSpec> specsById) {
+    private Builder(InputFile file, Map<Integer, PartitionSpec> specsById, String tableLocation) {
+      Preconditions.checkArgument(tableLocation != null, "Invalid table location: null");
       this.file = file;
       this.specsById = specsById;
+      this.tableLocation = LocationUtil.stripTrailingSlash(tableLocation);
       this.unionPartitionType = Partitioning.unionPartitionTypes(specsById.values());
       Schema base = TrackedFile.schema(unionPartitionType, Types.StructType.of());
       // the read schema carries row_position (via BASE_TYPE) so the reader can fill manifestPos
@@ -250,7 +274,12 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
 
       boolean hasPartitionFilter = !partitionFilters.isEmpty();
       return new V4ManifestReader(
-          file, readSchema(hasPartitionFilter), partitionFilters, includeAll, scanMetrics);
+          file,
+          readSchema(hasPartitionFilter),
+          partitionFilters,
+          includeAll,
+          scanMetrics,
+          tableLocation);
     }
 
     private Schema readSchema(boolean hasPartitionFilter) {
