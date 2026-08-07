@@ -40,6 +40,7 @@ import org.apache.kafka.clients.admin.ConsumerGroupDescription;
 import org.apache.kafka.clients.admin.MemberAssignment;
 import org.apache.kafka.clients.admin.MemberDescription;
 import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.connect.errors.ConnectException;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 
@@ -164,5 +165,33 @@ public class TestCommitterImpl {
     assertThatThrownBy(() -> committer.save(Collections.emptyList()))
         .isInstanceOf(NotRunningException.class)
         .hasMessageContaining("Coordinator unexpectedly terminated");
+  }
+
+  @Test
+  public void testFailureIsStickyAndDoesNotSilentlyRecover()
+      throws NoSuchFieldException, IllegalAccessException {
+    Coordinator coordinator = mock(Coordinator.class);
+    doThrow(new RuntimeException("commit failed")).when(coordinator).process();
+
+    CoordinatorThread coordinatorThread = new CoordinatorThread(coordinator);
+    coordinatorThread.start();
+
+    verify(coordinator, timeout(1000)).stop();
+
+    CommitterImpl committer = new CommitterImpl();
+    Field field = CommitterImpl.class.getDeclaredField("coordinatorThread");
+    field.setAccessible(true);
+    field.set(committer, coordinatorThread);
+
+    assertThatThrownBy(() -> committer.save(Collections.emptyList()))
+        .isInstanceOf(NotRunningException.class)
+        .hasMessageContaining("Coordinator unexpectedly terminated");
+
+    // Once the committer has failed it must refuse further records rather than carry on with a
+    // half-dead pipeline; the task has to be restarted so it resumes from the committed offsets.
+    assertThatThrownBy(() -> committer.save(Collections.emptyList()))
+        .isInstanceOf(ConnectException.class)
+        .hasMessageContaining("is in a failed state")
+        .hasRootCauseInstanceOf(NotRunningException.class);
   }
 }

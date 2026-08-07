@@ -24,6 +24,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.kafka.common.config.ConfigException;
 import org.junit.jupiter.api.Test;
 
@@ -109,5 +110,52 @@ public class TestIcebergSinkConfig {
 
     result = IcebergSinkConfig.checkClassName("org.apache.kafka.clients.producer.KafkaProducer");
     assertThat(result).isFalse();
+  }
+
+  @Test
+  public void testControlPollIntervalMsDefault() {
+    assertThat(configWithPollInterval(null).controlPollIntervalMs()).isEqualTo(100);
+  }
+
+  @Test
+  public void testControlPollIntervalMsCustom() {
+    assertThat(configWithPollInterval("500").controlPollIntervalMs()).isEqualTo(500);
+  }
+
+  @Test
+  public void testControlPollIntervalMsBelowMinimumIsRejected() {
+    // the constraint is atLeast(10), so 9 is the interesting boundary
+    assertThatThrownBy(() -> configWithPollInterval("9"))
+        .isInstanceOf(ConfigException.class)
+        .hasMessageContaining("Value must be at least 10");
+    assertThatThrownBy(() -> configWithPollInterval("0"))
+        .isInstanceOf(ConfigException.class)
+        .hasMessageContaining("Value must be at least 10");
+    assertThatThrownBy(() -> configWithPollInterval("-1"))
+        .isInstanceOf(ConfigException.class)
+        .hasMessageContaining("Value must be at least 10");
+  }
+
+  @Test
+  public void testControlPollIntervalMsAtMinimumIsAccepted() {
+    assertThat(configWithPollInterval("10").controlPollIntervalMs()).isEqualTo(10);
+  }
+
+  @Test
+  public void testControlPollIntervalMsLargeValue() {
+    assertThat(configWithPollInterval("5000").controlPollIntervalMs()).isEqualTo(5000);
+  }
+
+  private IcebergSinkConfig configWithPollInterval(String pollIntervalMs) {
+    Map<String, String> props =
+        Maps.newHashMap(
+            ImmutableMap.of(
+                "iceberg.catalog.type", "rest",
+                "topics", "source-topic",
+                "iceberg.tables", "db.landing"));
+    if (pollIntervalMs != null) {
+      props.put("iceberg.control.poll.interval-ms", pollIntervalMs);
+    }
+    return new IcebergSinkConfig(props);
   }
 }
