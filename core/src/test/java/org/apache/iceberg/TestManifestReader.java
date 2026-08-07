@@ -25,15 +25,21 @@ import static org.assertj.core.api.Assumptions.assumeThat;
 import java.io.IOException;
 import java.util.List;
 import java.util.stream.Collectors;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.ManifestEntry.Status;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.hadoop.HadoopFileIO;
+import org.apache.iceberg.io.EagerInputFile;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.types.Types;
 import org.assertj.core.api.recursive.comparison.RecursiveComparisonConfiguration;
 import org.junit.jupiter.api.TestTemplate;
+import org.mockito.Mockito;
 
 public class TestManifestReader extends TestBase {
 
@@ -283,5 +289,59 @@ public class TestManifestReader extends TestBase {
       assertThat(entry.status()).isEqualTo(Status.EXISTING);
       assertThat(entry.file().location()).isEqualTo(FILE_A.location());
     }
+  }
+
+  @TestTemplate
+  public void testNewInputFileRouting() throws IOException {
+    ManifestFile manifest = writeManifest(1000L, FILE_A, FILE_B, FILE_C);
+
+    assertThat(manifest.length())
+        .as("Manifest file must be within the eager-fetch threshold")
+        .isLessThanOrEqualTo(CatalogProperties.IO_MANIFEST_EAGER_FETCH_THRESHOLD_BYTES);
+
+    assertThat(ManifestFiles.newInputFile(eagerFetchFileIO(true), manifest))
+        .as("EagerInputFile should be used when eager fetch is enabled")
+        .isInstanceOf(EagerInputFile.class);
+
+    assertThat(ManifestFiles.newInputFile(eagerFetchFileIO(false), manifest))
+        .as("EagerInputFile should not be used when eager fetch is disabled")
+        .isNotInstanceOf(EagerInputFile.class);
+
+    ManifestFile largeManifest = Mockito.spy(manifest);
+    Mockito.doReturn(CatalogProperties.IO_MANIFEST_EAGER_FETCH_THRESHOLD_BYTES + 1)
+        .when(largeManifest)
+        .length();
+    assertThat(largeManifest.length())
+        .as("Manifest file must exceed the eager-fetch threshold")
+        .isGreaterThan(CatalogProperties.IO_MANIFEST_EAGER_FETCH_THRESHOLD_BYTES);
+    assertThat(ManifestFiles.newInputFile(eagerFetchFileIO(true), largeManifest))
+        .as("EagerInputFile should not be used when manifest exceeds the threshold")
+        .isNotInstanceOf(EagerInputFile.class);
+  }
+
+  @TestTemplate
+  public void testManifestReaderWithEagerFetchPreservesContent() throws IOException {
+    ManifestFile manifest = writeManifest(1000L, FILE_A, FILE_B, FILE_C);
+
+    assertThat(manifest.length())
+        .as("Manifest file must be within the eager-fetch threshold")
+        .isLessThanOrEqualTo(CatalogProperties.IO_MANIFEST_EAGER_FETCH_THRESHOLD_BYTES);
+
+    try (ManifestReader<DataFile> reader =
+        ManifestFiles.read(manifest, eagerFetchFileIO(true), table.specs())) {
+      List<DataFile> files = Streams.stream(reader).collect(Collectors.toList());
+      assertThat(files)
+          .as("manifest entries read via EagerInputFile should match the written files")
+          .usingRecursiveComparison(FILE_COMPARISON_CONFIG)
+          .isEqualTo(Lists.newArrayList(FILE_A, FILE_B, FILE_C));
+    }
+  }
+
+  private static FileIO eagerFetchFileIO(boolean eagerFetchEnabled) {
+    FileIO fileIO = new HadoopFileIO(new Configuration());
+    fileIO.initialize(
+        ImmutableMap.of(
+            CatalogProperties.IO_MANIFEST_EAGER_FETCH_ENABLED, String.valueOf(eagerFetchEnabled)));
+    return fileIO;
   }
 }
