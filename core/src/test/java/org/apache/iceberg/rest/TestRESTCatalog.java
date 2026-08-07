@@ -3990,6 +3990,28 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     }
   }
 
+  @Test
+  public void testLoadTableWithSpecialChars() {
+    Namespace ns1 = Namespace.of("ns 1 ?=-+");
+    Namespace ns2 = Namespace.of("ns 1 ?=-+", "ns 2 ?=-+");
+
+    if (requiresNamespaceCreate()) {
+      restCatalog.createNamespace(ns1);
+      restCatalog.createNamespace(ns2);
+    }
+
+    TableIdentifier t1 = TableIdentifier.of(ns2, "table 1 ?=-+");
+
+    restCatalog.buildTable(t1, SCHEMA).create();
+    assertThat(restCatalog.tableExists(t1)).as("Table should exist").isTrue();
+
+    Table table = restCatalog.loadTable(t1);
+
+    String metadataFileLocation =
+        ((HasTableOperations) table).operations().current().metadataFileLocation();
+    assertThat(metadataFileLocation).contains("ns 1 ?=-+/ns 2 ?=-+/table 1 ?=-+");
+  }
+
   private RESTCatalog catalog(RESTCatalogAdapter adapter) {
     RESTCatalog catalog =
         new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);

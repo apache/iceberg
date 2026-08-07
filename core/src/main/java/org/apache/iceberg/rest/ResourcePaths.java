@@ -110,7 +110,7 @@ public class ResourcePaths {
         "namespaces",
         pathEncode(ident.namespace()),
         "tables",
-        RESTUtil.encodeString(ident.name()));
+        RESTUtil.encodePathSegment(ident.name()));
   }
 
   public String register(Namespace ns) {
@@ -128,7 +128,7 @@ public class ResourcePaths {
         "namespaces",
         pathEncode(identifier.namespace()),
         "tables",
-        RESTUtil.encodeString(identifier.name()),
+        RESTUtil.encodePathSegment(identifier.name()),
         "metrics");
   }
 
@@ -139,7 +139,7 @@ public class ResourcePaths {
         "namespaces",
         pathEncode(identifier.namespace()),
         "tables",
-        RESTUtil.encodeString(identifier.name()),
+        RESTUtil.encodePathSegment(identifier.name()),
         "sign");
   }
 
@@ -158,7 +158,7 @@ public class ResourcePaths {
         "namespaces",
         pathEncode(ident.namespace()),
         "views",
-        RESTUtil.encodeString(ident.name()));
+        RESTUtil.encodePathSegment(ident.name()));
   }
 
   public String renameView() {
@@ -176,7 +176,7 @@ public class ResourcePaths {
         "namespaces",
         pathEncode(ident.namespace()),
         "tables",
-        RESTUtil.encodeString(ident.name()),
+        RESTUtil.encodePathSegment(ident.name()),
         "plan");
   }
 
@@ -187,9 +187,9 @@ public class ResourcePaths {
         "namespaces",
         pathEncode(ident.namespace()),
         "tables",
-        RESTUtil.encodeString(ident.name()),
+        RESTUtil.encodePathSegment(ident.name()),
         "plan",
-        RESTUtil.encodeString(planId));
+        RESTUtil.encodePathSegment(planId));
   }
 
   public String fetchScanTasks(TableIdentifier ident) {
@@ -199,11 +199,11 @@ public class ResourcePaths {
         "namespaces",
         pathEncode(ident.namespace()),
         "tables",
-        RESTUtil.encodeString(ident.name()),
+        RESTUtil.encodePathSegment(ident.name()),
         "tasks");
   }
 
   private String pathEncode(Namespace ns) {
-    return RESTUtil.encodeNamespace(ns, namespaceSeparator);
+    return RESTUtil.encodeNamespaceAsPathSegment(ns, namespaceSeparator);
   }
 }

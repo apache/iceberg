@@ -152,6 +152,23 @@ public class TestResourcePaths {
   }
 
   @Test
+  public void nestedNamespaceAsPathSegmentWithCustomSeparator() {
+    Namespace namespace = Namespace.of("first second", "third");
+    String separator = RESTCatalogAdapter.NAMESPACE_SEPARATOR_URLENCODED_UTF_8;
+
+    ResourcePaths pathsWithCustomSeparator =
+        ResourcePaths.forCatalogProperties(
+            ImmutableMap.of(RESTCatalogProperties.NAMESPACE_SEPARATOR, separator));
+
+    String actual = pathsWithCustomSeparator.namespace(namespace);
+    assertThat(actual)
+        .contains(RESTUtil.encodeNamespaceAsPathSegment(namespace, separator))
+        .contains(separator)
+        .contains("%20")
+        .doesNotContain("+");
+  }
+
+  @Test
   public void testNamespaceProperties() {
     Namespace ns = Namespace.of("ns");
     assertThat(withPrefix.namespaceProperties(ns))
@@ -215,6 +232,62 @@ public class TestResourcePaths {
     TableIdentifier ident = TableIdentifier.of("n", "s", "table");
     assertThat(withPrefix.table(ident)).isEqualTo("v1/ws/catalog/namespaces/n%1Fs/tables/table");
     assertThat(withoutPrefix.table(ident)).isEqualTo("v1/namespaces/n%1Fs/tables/table");
+  }
+
+  @Test
+  public void testNamespaceWithSpace() {
+    Namespace ns = Namespace.of("n s");
+    assertThat(withPrefix.namespace(ns)).isEqualTo("v1/ws/catalog/namespaces/n%20s");
+    assertThat(withoutPrefix.namespace(ns)).isEqualTo("v1/namespaces/n%20s");
+  }
+
+  @Test
+  public void testMultipartNamespaceWithSpace() {
+    Namespace ns = Namespace.of("n s", "a b");
+    assertThat(withPrefix.namespace(ns)).isEqualTo("v1/ws/catalog/namespaces/n%20s%1Fa%20b");
+    assertThat(withoutPrefix.namespace(ns)).isEqualTo("v1/namespaces/n%20s%1Fa%20b");
+  }
+
+  @Test
+  public void testNamespaceWithPlusSign() {
+    Namespace ns = Namespace.of("n+s");
+    assertThat(withPrefix.namespace(ns)).isEqualTo("v1/ws/catalog/namespaces/n%2Bs");
+    assertThat(withoutPrefix.namespace(ns)).isEqualTo("v1/namespaces/n%2Bs");
+  }
+
+  @Test
+  public void testMultipartNamespaceWithPlusSign() {
+    Namespace ns = Namespace.of("n+s", "a+b");
+    assertThat(withPrefix.namespace(ns)).isEqualTo("v1/ws/catalog/namespaces/n%2Bs%1Fa%2Bb");
+    assertThat(withoutPrefix.namespace(ns)).isEqualTo("v1/namespaces/n%2Bs%1Fa%2Bb");
+  }
+
+  @Test
+  public void testTableWithSpace() {
+    TableIdentifier ident = TableIdentifier.of("ns", "my table");
+    assertThat(withPrefix.table(ident)).isEqualTo("v1/ws/catalog/namespaces/ns/tables/my%20table");
+    assertThat(withoutPrefix.table(ident)).isEqualTo("v1/namespaces/ns/tables/my%20table");
+  }
+
+  @Test
+  public void testTableWithPlusSign() {
+    TableIdentifier ident = TableIdentifier.of("ns", "a+b");
+    assertThat(withPrefix.table(ident)).isEqualTo("v1/ws/catalog/namespaces/ns/tables/a%2Bb");
+    assertThat(withoutPrefix.table(ident)).isEqualTo("v1/namespaces/ns/tables/a%2Bb");
+  }
+
+  @Test
+  public void testViewWithSpace() {
+    TableIdentifier ident = TableIdentifier.of("ns", "my view");
+    assertThat(withPrefix.view(ident)).isEqualTo("v1/ws/catalog/namespaces/ns/views/my%20view");
+    assertThat(withoutPrefix.view(ident)).isEqualTo("v1/namespaces/ns/views/my%20view");
+  }
+
+  @Test
+  public void testViewWithPlusSign() {
+    TableIdentifier ident = TableIdentifier.of("ns", "a+b");
+    assertThat(withPrefix.view(ident)).isEqualTo("v1/ws/catalog/namespaces/ns/views/a%2Bb");
+    assertThat(withoutPrefix.view(ident)).isEqualTo("v1/namespaces/ns/views/a%2Bb");
   }
 
   @Test
@@ -320,8 +393,8 @@ public class TestResourcePaths {
 
     // The planId contains a space which needs to be encoded
     String spaceSeparatedPlanId = "plan with spaces";
-    // The expected encoded version of the planId
-    String encodedPlanId = "plan+with+spaces";
+    // The expected encoded version of the planId (RFC 3986: space -> %20)
+    String encodedPlanId = "plan%20with%20spaces";
 
     assertThat(withPrefix.plan(tableId, spaceSeparatedPlanId))
         .isEqualTo(

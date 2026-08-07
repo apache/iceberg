@@ -23,10 +23,13 @@ import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.Map;
+import java.util.stream.Stream;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 public class TestRESTUtil {
@@ -105,6 +108,98 @@ public class TestRESTUtil {
     }
   }
 
+  @ParameterizedTest
+  @ValueSource(strings = {"%1F", "%2D", "%2E", "#", "_"})
+  public void testRoundTripEncodeDecodeNamespaceAsPathSegment(String namespaceSeparator) {
+    Object[][] testCases =
+        new Object[][] {
+          new Object[] {new String[] {"dogs"}, "dogs"},
+          new Object[] {new String[] {"dogs.named.hank"}, "dogs.named.hank"},
+          new Object[] {new String[] {"dogs/named/hank"}, "dogs%2Fnamed%2Fhank"},
+          new Object[] {new String[] {"dogs named hank"}, "dogs%20named%20hank"},
+          new Object[] {new String[] {"dogs+named+hank"}, "dogs%2Bnamed%2Bhank"},
+          new Object[] {
+            new String[] {"dogs", "named", "hank"},
+            String.format("dogs%snamed%shank", namespaceSeparator, namespaceSeparator)
+          },
+          new Object[] {
+            new String[] {"dogs.and.cats", "named", "hank.or.james-westfall"},
+            String.format(
+                "dogs.and.cats%snamed%shank.or.james-westfall",
+                namespaceSeparator, namespaceSeparator),
+          }
+        };
+
+    for (Object[] namespaceWithEncoding : testCases) {
+      String[] levels = (String[]) namespaceWithEncoding[0];
+      String encodedNs = (String) namespaceWithEncoding[1];
+
+      Namespace namespace = Namespace.of(levels);
+
+      assertThat(RESTUtil.encodeNamespaceAsPathSegment(namespace, namespaceSeparator))
+          .isEqualTo(encodedNs);
+
+      assertThat(RESTUtil.decodeNamespaceAsPathSegment(encodedNs, namespaceSeparator))
+          .isEqualTo(namespace);
+    }
+  }
+
+  @Test
+  public void testDecodeNamespacePathSegmentPreservesPlusSign() {
+    String separator = "%1F";
+    Namespace expected = Namespace.of("a+b", "c+d");
+    // Both encoded forms are valid
+    assertThat(RESTUtil.decodeNamespaceAsPathSegment("a+b%1Fc+d", separator)).isEqualTo(expected);
+    assertThat(RESTUtil.decodeNamespaceAsPathSegment("a%2Bb%1Fc%2Bd", separator))
+        .isEqualTo(expected);
+  }
+
+  @Test
+  public void encodePathAsOldAndNewClientDecodeAsOldServer() {
+    String input = " +%20";
+
+    // old Java client would call encodeString
+    String encodedOldJava = RESTUtil.encodeString(input);
+    assertThat(encodedOldJava).isEqualTo("+%2B%2520");
+
+    // new Java client would call encodePathSegment
+    String encodedNewJava = RESTUtil.encodePathSegment(input);
+    assertThat(encodedNewJava).isEqualTo("%20%2B%2520");
+
+    // another client (e.g. Iceberg Go) would encode using strict RFC 3986, "+" is not
+    // percent-encoded
+    String encodedOther = "%20+%2520";
+
+    // old server would decode with decodeString; should work for both old and new Java clients,
+    // but not for clients sending a literal "+"
+    assertThat(RESTUtil.decodeString(encodedOldJava)).isEqualTo(input);
+    assertThat(RESTUtil.decodeString(encodedNewJava)).isEqualTo(input);
+    assertThat(RESTUtil.decodeString(encodedOther)).isNotEqualTo(input).isEqualTo("  %20");
+  }
+
+  @Test
+  public void encodePathAsOldAndNewClientDecodeAsNewServer() {
+    String input = " +%20";
+
+    // old Java client would call encodeString
+    String encodedOldJava = RESTUtil.encodeString(input);
+    assertThat(encodedOldJava).isEqualTo("+%2B%2520");
+
+    // new Java client would call encodePathSegment
+    String encodedNewJava = RESTUtil.encodePathSegment(input);
+    assertThat(encodedNewJava).isEqualTo("%20%2B%2520");
+
+    // another client (e.g. Iceberg Go) would encode using strict RFC 3986, "+" is not
+    // percent-encoded
+    String encodedOther = "%20+%2520";
+
+    // new server would decode with decodePathSegment; should work for both new Java clients and
+    // clients sending a literal "+", but not for old Java clients
+    assertThat(RESTUtil.decodePathSegment(encodedOldJava)).isNotEqualTo(input).isEqualTo("++%20");
+    assertThat(RESTUtil.decodePathSegment(encodedNewJava)).isEqualTo(input);
+    assertThat(RESTUtil.decodePathSegment(encodedOther)).isEqualTo(input);
+  }
+
   @Test
   public void encodeAsOldClientAndDecodeAsNewServer() {
     Namespace namespace = Namespace.of("first", "second", "third");
@@ -142,10 +237,48 @@ public class TestRESTUtil {
   @SuppressWarnings("checkstyle:AvoidEscapedUnicodeCharacters")
   public void testOAuth2URLEncoding() {
     // from OAuth2, RFC 6749 Appendix B.
+    // encodeString uses form encoding: space -> +
     String utf8 = "\u0020\u0025\u0026\u002B\u00A3\u20AC";
     String expected = "+%25%26%2B%C2%A3%E2%82%AC";
 
     assertThat(RESTUtil.encodeString(utf8)).isEqualTo(expected);
+  }
+
+  @SuppressWarnings("checkstyle:AvoidEscapedUnicodeCharacters")
+  static Stream<Arguments> pathSegmentEncodingCases() {
+    return Stream.of(
+        Arguments.of("simple", "simple"),
+        Arguments.of("a b", "a%20b"),
+        Arguments.of("a+b", "a%2Bb"),
+        Arguments.of("a/b", "a%2Fb"),
+        Arguments.of("a+b c/d", "a%2Bb%20c%2Fd"),
+        Arguments.of("caf\u00e9", "caf%C3%A9"),
+        Arguments.of("\u0020\u0025\u0026\u002B\u00A3\u20AC", "%20%25%26%2B%C2%A3%E2%82%AC"));
+  }
+
+  @ParameterizedTest
+  @MethodSource("pathSegmentEncodingCases")
+  public void testRoundTripEncodeDecodePathSegment(String input, String expectedEncoded) {
+    String actual = RESTUtil.encodePathSegment(input);
+    assertThat(actual).isEqualTo(expectedEncoded);
+    assertThat(RESTUtil.decodePathSegment(actual)).isEqualTo(input);
+  }
+
+  @Test
+  public void testDecodePathSegmentPreservesPlusSign() {
+    // Both encoded forms are valid
+    assertThat(RESTUtil.decodePathSegment("a%2Bb%2Bc%2Bd")).isEqualTo("a+b+c+d");
+    assertThat(RESTUtil.decodePathSegment("a+b+c+d")).isEqualTo("a+b+c+d");
+  }
+
+  @Test
+  public void testPathSegmentEncodeDecodeNull() {
+    assertThatThrownBy(() -> RESTUtil.encodePathSegment(null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid string to encode: null");
+    assertThatThrownBy(() -> RESTUtil.decodePathSegment(null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid string to decode: null");
   }
 
   @Test
@@ -258,6 +391,22 @@ public class TestRESTUtil {
         .hasMessage(errorMsg);
 
     assertThatThrownBy(() -> RESTUtil.decodeNamespace("namespace", ""))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(errorMsg);
+
+    assertThatThrownBy(() -> RESTUtil.encodeNamespaceAsPathSegment(Namespace.empty(), null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(errorMsg);
+
+    assertThatThrownBy(() -> RESTUtil.encodeNamespaceAsPathSegment(Namespace.empty(), ""))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(errorMsg);
+
+    assertThatThrownBy(() -> RESTUtil.decodeNamespaceAsPathSegment("namespace", null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(errorMsg);
+
+    assertThatThrownBy(() -> RESTUtil.decodeNamespaceAsPathSegment("namespace", ""))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(errorMsg);
 
