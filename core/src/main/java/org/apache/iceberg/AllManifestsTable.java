@@ -145,8 +145,7 @@ public class AllManifestsTable extends BaseMetadataTable {
                       snap.snapshotId());
                 } else {
                   return StaticDataTask.of(
-                      io.newInputFile(
-                          ((BaseTable) table()).operations().current().metadataFileLocation()),
+                      ((BaseTable) table()).operations().current().metadataFileLocation(),
                       MANIFEST_FILE_SCHEMA,
                       schema(),
                       snap.allManifests(io),
