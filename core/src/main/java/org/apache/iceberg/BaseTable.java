@@ -29,6 +29,7 @@ import org.apache.iceberg.metrics.LoggingMetricsReporter;
 import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.metrics.MetricsReporters;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.rest.labels.Labels;
 
 /**
  * Base {@link Table} implementation.
@@ -40,20 +41,34 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
  * when reading the table data after deserialization.
  */
 public class BaseTable
-    implements Table, HasTableOperations, Serializable, SupportsDistributedScanPlanning {
+    implements Table,
+        HasTableOperations,
+        Serializable,
+        SupportsDistributedScanPlanning,
+        SupportsLabels {
   private final TableOperations ops;
   private final String name;
   private MetricsReporter reporter;
+  // Ephemeral catalog enrichment, not table state. Transient because it is not preserved across
+  // serialization: writeReplace() swaps in a SerializableTable for Java serialization, and any
+  // path that bypasses writeReplace (e.g. Kryo) leaves this null, handled by labels().
+  private final transient Labels labels;
 
   public BaseTable(TableOperations ops, String name) {
     this(ops, name, LoggingMetricsReporter.instance());
   }
 
   public BaseTable(TableOperations ops, String name, MetricsReporter reporter) {
+    this(ops, name, reporter, Labels.empty());
+  }
+
+  public BaseTable(TableOperations ops, String name, MetricsReporter reporter, Labels labels) {
     Preconditions.checkNotNull(reporter, "reporter cannot be null");
+    Preconditions.checkNotNull(labels, "labels cannot be null");
     this.ops = ops;
     this.name = name;
     this.reporter = reporter;
+    this.labels = labels;
   }
 
   public MetricsReporter reporter() {
@@ -72,6 +87,12 @@ public class BaseTable
   @Override
   public String name() {
     return name;
+  }
+
+  @Override
+  public Labels labels() {
+    // labels is null only when this instance was deserialized bypassing writeReplace (e.g. Kryo).
+    return labels != null ? labels : Labels.empty();
   }
 
   @Override

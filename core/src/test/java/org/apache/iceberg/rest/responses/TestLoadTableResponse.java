@@ -37,6 +37,9 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.rest.RequestResponseTestBase;
+import org.apache.iceberg.rest.labels.ImmutableFieldLabels;
+import org.apache.iceberg.rest.labels.ImmutableLabels;
+import org.apache.iceberg.rest.labels.Labels;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 
@@ -163,6 +166,48 @@ public class TestLoadTableResponse extends RequestResponseTestBase<LoadTableResp
   }
 
   @Test
+  public void testRoundTripSerdeWithLabels() throws Exception {
+    String tableMetadataJson = readTableMetadataInputFile("TableMetadataV2Valid.json");
+    TableMetadata metadata =
+        TableMetadataParser.fromJson(TEST_METADATA_LOCATION, tableMetadataJson);
+    Labels labels =
+        ImmutableLabels.builder()
+            .objectLabels(ImmutableMap.of("owner", "team-a"))
+            .addFields(
+                ImmutableFieldLabels.builder()
+                    .fieldId(1)
+                    .labels(ImmutableMap.of("classification", "pii"))
+                    .build())
+            .build();
+    String json =
+        String.format(
+            """
+            {
+              "metadata-location":"%s",
+              "metadata":%s,
+              "config":{"foo":"bar"},
+              "labels":{
+                "objectLabels":{"owner":"team-a"},
+                "fields":[{"field-id":1,"labels":{"classification":"pii"}}]
+              }
+            }""",
+            TEST_METADATA_LOCATION, TableMetadataParser.toJson(metadata));
+
+    // exercise the full RESTObjectMapper (Jackson) path, not just the parser
+    LoadTableResponse actual = deserialize(json);
+    assertThat(actual.labels()).isEqualTo(labels);
+
+    LoadTableResponse resp =
+        LoadTableResponse.builder()
+            .withTableMetadata(metadata)
+            .addAllConfig(CONFIG)
+            .withLabels(labels)
+            .build();
+    // compare as JSON trees so the readable (pretty) input above is whitespace-insensitive
+    assertThat(mapper().readTree(serialize(resp))).isEqualTo(mapper().readTree(json));
+  }
+
+  @Test
   public void testCanDeserializeWithoutDefaultValues() throws Exception {
     String metadataJson = readTableMetadataInputFile("TableMetadataV1Valid.json");
     // `config` is missing in the JSON
@@ -187,6 +232,7 @@ public class TestLoadTableResponse extends RequestResponseTestBase<LoadTableResp
     assertThat(actual.metadataLocation())
         .as("Should have the same metadata location")
         .isEqualTo(expected.metadataLocation());
+    assertThat(actual.labels()).as("Should have the same labels").isEqualTo(expected.labels());
   }
 
   private void assertEqualTableMetadata(TableMetadata actual, TableMetadata expected) {
