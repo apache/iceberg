@@ -136,4 +136,38 @@ public class TestSparkFileRewriteRunners extends TestBase {
         .hasMessageContaining("Cannot use less than 1 byte for variable length types with ZOrder")
         .hasMessageContaining("'var-length-contribution' was set to 0");
   }
+
+  @Test
+  public void testInvalidConstructorUsagesHilbertData() {
+    Table table = catalog.createTable(TABLE_IDENT, SCHEMA, SPEC);
+
+    assertThatThrownBy(() -> new SparkHilbertFileRewriteRunner(spark, table, null))
+        .hasMessageContaining("Cannot HILBERT when no columns are specified");
+
+    assertThatThrownBy(() -> new SparkHilbertFileRewriteRunner(spark, table, ImmutableList.of()))
+        .hasMessageContaining("Cannot HILBERT when no columns are specified");
+
+    assertThatThrownBy(
+            () -> new SparkHilbertFileRewriteRunner(spark, table, ImmutableList.of("dep")))
+        .hasMessageContaining("Cannot HILBERT")
+        .hasMessageContaining("all columns provided were identity partition columns");
+
+    assertThatThrownBy(
+            () -> new SparkHilbertFileRewriteRunner(spark, table, ImmutableList.of("DeP")))
+        .hasMessageContaining("Cannot HILBERT")
+        .hasMessageContaining("all columns provided were identity partition columns");
+  }
+
+  @Test
+  public void testHilbertDataDescriptionAndValidOptions() {
+    Table table = catalog.createTable(TABLE_IDENT, SCHEMA);
+    ImmutableList<String> hilbertCols = ImmutableList.of("id");
+    SparkHilbertFileRewriteRunner rewriter =
+        new SparkHilbertFileRewriteRunner(spark, table, hilbertCols);
+
+    assertThat(rewriter.description()).isEqualTo("HILBERT");
+    assertThat(rewriter.validOptions())
+        .as("Rewriter must report all supported options")
+        .containsExactlyInAnyOrder(SparkHilbertFileRewriteRunner.SHUFFLE_PARTITIONS_PER_FILE);
+  }
 }

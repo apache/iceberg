@@ -40,6 +40,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.expressions.Hilbert;
 import org.apache.iceberg.expressions.NamedReference;
 import org.apache.iceberg.expressions.Zorder;
 import org.apache.iceberg.io.CloseableIterable;
@@ -111,6 +112,62 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
         .as("First field should be a ref")
         .isEqualTo("c1");
     assertThat(order.get(1).term()).as("Second field should be zorder").isInstanceOf(Zorder.class);
+  }
+
+  @TestTemplate
+  public void testHilbertSortExpression() {
+    List<ExtendedParser.RawOrderField> order =
+        ExtendedParser.parseSortOrder(spark, "c1, hilbert(c2, c3)");
+    assertThat(order).as("Should parse 2 order fields").hasSize(2);
+    assertThat(((NamedReference<?>) order.get(0).term()).name())
+        .as("First field should be a ref")
+        .isEqualTo("c1");
+    assertThat(order.get(1).term())
+        .as("Second field should be hilbert")
+        .isInstanceOf(Hilbert.class);
+  }
+
+  @TestTemplate
+  public void testRewriteDataFilesWithHilbert() {
+    createTable();
+    // create 10 files under non-partitioned table
+    insertData(10);
+
+    List<Object[]> expectedData = currentData();
+
+    List<Object[]> output =
+        sql(
+            "CALL %s.system.rewrite_data_files(table => '%s', "
+                + "strategy => 'sort', sort_order => 'hilbert(c1,c2)')",
+            catalogName, tableIdent);
+
+    assertEquals(
+        "Action should rewrite 10 data files and add 1 data files",
+        row(10, 1),
+        Arrays.copyOf(output.get(0), 2));
+    // verify rewritten bytes separately
+    assertThat(output.get(0)).hasSize(5);
+    assertThat(output.get(0)[2])
+        .isInstanceOf(Long.class)
+        .isEqualTo(Long.valueOf(snapshotSummary().get(SnapshotSummary.REMOVED_FILE_SIZE_PROP)));
+
+    List<Object[]> actualData = currentData();
+    assertEquals("Data after compaction should not change", expectedData, actualData);
+  }
+
+  @TestTemplate
+  public void testRewriteDataFilesMixingZOrderAndHilbertFails() {
+    createTable();
+    insertData(10);
+
+    assertThatThrownBy(
+            () ->
+                sql(
+                    "CALL %s.system.rewrite_data_files(table => '%s', "
+                        + "strategy => 'sort', sort_order => 'zorder(c1),hilbert(c2)')",
+                    catalogName, tableIdent))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot mix Zorder and Hilbert");
   }
 
   @TestTemplate
@@ -765,7 +822,8 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
                     catalogName, tableIdent))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
-            "Cannot mix identity sort columns and a Zorder sort expression:" + " c1,zorder(c2,c3)");
+            "Cannot mix identity sort columns and a Zorder or Hilbert sort expression:"
+                + " c1,zorder(c2,c3)");
   }
 
   @TestTemplate

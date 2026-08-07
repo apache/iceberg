@@ -146,6 +146,13 @@ public class RewriteDataFilesSparkAction
     return this;
   }
 
+  @Override
+  public RewriteDataFilesSparkAction hilbert(String... columnNames) {
+    ensureRunnerNotSet();
+    this.runner = new SparkHilbertFileRewriteRunner(spark(), table, Arrays.asList(columnNames));
+    return this;
+  }
+
   private void ensureRunnerNotSet() {
     Preconditions.checkArgument(
         runner == null,
