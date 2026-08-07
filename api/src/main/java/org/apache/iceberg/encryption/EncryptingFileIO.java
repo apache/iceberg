@@ -27,8 +27,8 @@ import java.util.Map;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.EncryptedFile;
 import org.apache.iceberg.ManifestFile;
-import org.apache.iceberg.ManifestListFile;
 import org.apache.iceberg.io.BulkDeletionFailureException;
 import org.apache.iceberg.io.DelegateFileIO;
 import org.apache.iceberg.io.FileIO;
@@ -120,12 +120,12 @@ public class EncryptingFileIO implements FileIO, Serializable {
   }
 
   @Override
-  public InputFile newInputFile(ManifestListFile manifestList) {
-    if (manifestList.encryptionKeyID() != null) {
-      ByteBuffer keyMetadata = manifestList.decryptKeyMetadata(em);
-      return newDecryptingInputFile(manifestList.location(), keyMetadata);
+  public InputFile newInputFile(EncryptedFile file) {
+    if (file.encryptionKeyID() != null) {
+      ByteBuffer keyMetadata = file.decryptKeyMetadata(em);
+      return newDecryptingInputFile(file.location(), keyMetadata);
     } else {
-      return newInputFile(manifestList.location());
+      return newInputFile(file.location());
     }
   }
 
