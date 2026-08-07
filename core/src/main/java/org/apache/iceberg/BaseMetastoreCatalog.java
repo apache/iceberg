@@ -293,7 +293,7 @@ public abstract class BaseMetastoreCatalog implements Catalog, Closeable {
 
   protected MetricsReporter metricsReporter() {
     if (metricsReporter == null) {
-      metricsReporter = CatalogUtil.loadMetricsReporter(properties());
+      metricsReporter = CatalogUtil.loadMetricsReporter(name(), properties());
     }
 
     return metricsReporter;

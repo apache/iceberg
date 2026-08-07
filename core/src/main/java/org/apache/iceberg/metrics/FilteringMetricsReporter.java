@@ -27,18 +27,27 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 
 /**
  * A {@link MetricsReporter} wrapper that drops {@link ScanReport} and {@link CommitReport}
- * instances whose {@code tableName()} does not pass the configured include / exclude filters before
- * forwarding to a delegate reporter.
+ * instances that do not pass the configured namespace and table-name filters before forwarding to a
+ * delegate reporter.
  *
- * <p>The filters come from the catalog properties {@link
- * CatalogProperties#METRICS_REPORTER_TABLE_NAME_INCLUDE} and {@link
- * CatalogProperties#METRICS_REPORTER_TABLE_NAME_EXCLUDE}, each holding a comma-separated list of
- * Java regular expressions. An exclude match wins over an include match. When neither is set,
- * {@link #wrap(MetricsReporter, Map)} returns the delegate unchanged so the default path incurs no
+ * <p>Filtering happens on two levels, either of which may be configured on its own:
+ *
+ * <ul>
+ *   <li>namespace, via {@link CatalogProperties#METRICS_REPORTER_NAMESPACE_INCLUDE} and {@link
+ *       CatalogProperties#METRICS_REPORTER_NAMESPACE_EXCLUDE}
+ *   <li>table name, via {@link CatalogProperties#METRICS_REPORTER_TABLE_NAME_INCLUDE} and {@link
+ *       CatalogProperties#METRICS_REPORTER_TABLE_NAME_EXCLUDE}
+ * </ul>
+ *
+ * <p>Each property holds a comma-separated list of Java regular expressions. A report is forwarded
+ * unless a filter drops it, and the levels are applied independently: an exclude match on either
+ * level drops the report, and when a level has an include list configured the report must match it.
+ * An exclude match always wins over an include match. When no property is set, {@link
+ * #wrap(MetricsReporter, String, Map)} returns the delegate unchanged so the default path incurs no
  * overhead.
  *
- * <p>Patterns are matched against the entire table name rather than any substring of it, so {@code
- * prod\..*} matches {@code prod.db.table} but not {@code production.db.table}.
+ * <p>Patterns are matched against the entire namespace or table name rather than any substring of
+ * it, so {@code prod\..*} matches {@code prod.db.table} but not {@code production.db.table}.
  *
  * <p>{@link MetricsReport} subtypes other than {@link ScanReport} and {@link CommitReport} are
  * forwarded without filtering, since they do not identify a table.
@@ -46,36 +55,72 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 public class FilteringMetricsReporter implements MetricsReporter {
 
   private final MetricsReporter delegate;
+  private final String catalogName;
+  private final List<Pattern> namespaceInclude;
+  private final List<Pattern> namespaceExclude;
   private final List<Pattern> tableNameInclude;
   private final List<Pattern> tableNameExclude;
 
   private FilteringMetricsReporter(
-      MetricsReporter delegate, List<Pattern> tableNameInclude, List<Pattern> tableNameExclude) {
+      MetricsReporter delegate,
+      String catalogName,
+      List<Pattern> namespaceInclude,
+      List<Pattern> namespaceExclude,
+      List<Pattern> tableNameInclude,
+      List<Pattern> tableNameExclude) {
     this.delegate = delegate;
+    this.catalogName = catalogName;
+    this.namespaceInclude = namespaceInclude;
+    this.namespaceExclude = namespaceExclude;
     this.tableNameInclude = tableNameInclude;
     this.tableNameExclude = tableNameExclude;
   }
 
   /**
-   * Wraps the given delegate in a {@code FilteringMetricsReporter} when either include or exclude
-   * is configured in {@code properties}; otherwise returns the delegate unchanged so the default
-   * case incurs no runtime overhead.
+   * Wraps the given delegate in a {@code FilteringMetricsReporter} when any of the namespace or
+   * table-name filters is configured in {@code properties}; otherwise returns the delegate
+   * unchanged so the default case incurs no runtime overhead.
    *
    * @param delegate the underlying reporter that receives forwarded reports
-   * @param properties catalog properties; consulted for the table-name include / exclude filters
+   * @param catalogName name of the catalog the reports originate from, used to derive a table's
+   *     namespace from the reported table name. When null, namespace filters cannot be applied and
+   *     configuring them is rejected.
+   * @param properties catalog properties; consulted for the namespace and table-name filters
    * @return either the delegate unchanged, or a new filtering wrapper around it
    */
-  public static MetricsReporter wrap(MetricsReporter delegate, Map<String, String> properties) {
+  public static MetricsReporter wrap(
+      MetricsReporter delegate, String catalogName, Map<String, String> properties) {
+    List<Pattern> namespaceInclude =
+        compilePatterns(properties, CatalogProperties.METRICS_REPORTER_NAMESPACE_INCLUDE);
+    List<Pattern> namespaceExclude =
+        compilePatterns(properties, CatalogProperties.METRICS_REPORTER_NAMESPACE_EXCLUDE);
     List<Pattern> tableNameInclude =
         compilePatterns(properties, CatalogProperties.METRICS_REPORTER_TABLE_NAME_INCLUDE);
     List<Pattern> tableNameExclude =
         compilePatterns(properties, CatalogProperties.METRICS_REPORTER_TABLE_NAME_EXCLUDE);
 
-    if (tableNameInclude.isEmpty() && tableNameExclude.isEmpty()) {
+    if (namespaceInclude.isEmpty()
+        && namespaceExclude.isEmpty()
+        && tableNameInclude.isEmpty()
+        && tableNameExclude.isEmpty()) {
       return delegate;
     }
 
-    return new FilteringMetricsReporter(delegate, tableNameInclude, tableNameExclude);
+    if (catalogName == null && !(namespaceInclude.isEmpty() && namespaceExclude.isEmpty())) {
+      throw new IllegalArgumentException(
+          String.format(
+              "Cannot filter metrics by namespace without a catalog name: %s, %s",
+              CatalogProperties.METRICS_REPORTER_NAMESPACE_INCLUDE,
+              CatalogProperties.METRICS_REPORTER_NAMESPACE_EXCLUDE));
+    }
+
+    return new FilteringMetricsReporter(
+        delegate,
+        catalogName,
+        namespaceInclude,
+        namespaceExclude,
+        tableNameInclude,
+        tableNameExclude);
   }
 
   private static List<Pattern> compilePatterns(
@@ -115,6 +160,13 @@ public class FilteringMetricsReporter implements MetricsReporter {
       return;
     }
 
+    if (!namespaceInclude.isEmpty() || !namespaceExclude.isEmpty()) {
+      String namespace = namespace(tableName);
+      if (namespace == null || !passes(namespace, namespaceInclude, namespaceExclude)) {
+        return;
+      }
+    }
+
     delegate.report(report);
   }
 
@@ -134,6 +186,30 @@ public class FilteringMetricsReporter implements MetricsReporter {
     }
 
     return false;
+  }
+
+  /**
+   * Derives the namespace of a reported table by removing the catalog name prefix and the table
+   * name, mirroring how {@code CatalogUtil#fullTableName} builds the reported name. Returns an
+   * empty string for a table directly under the catalog, or null when the name does not carry the
+   * expected catalog prefix.
+   */
+  private String namespace(String tableName) {
+    String prefix;
+    if (catalogName.contains("/") || catalogName.contains(":")) {
+      // URI-like catalog names are joined with /, as in thrift://host:port/db.table
+      prefix = catalogName.endsWith("/") ? catalogName : catalogName + "/";
+    } else {
+      prefix = catalogName + ".";
+    }
+
+    if (!tableName.startsWith(prefix)) {
+      return null;
+    }
+
+    String withoutCatalog = tableName.substring(prefix.length());
+    int lastDot = withoutCatalog.lastIndexOf('.');
+    return lastDot < 0 ? "" : withoutCatalog.substring(0, lastDot);
   }
 
   private static String tableName(MetricsReport report) {

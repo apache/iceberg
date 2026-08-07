@@ -169,6 +169,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   private MetricsReporter reporter = null;
   private ExecutorService metricsExecutor = null;
   private Map<String, String> reporterFilterProperties = ImmutableMap.of();
+  private String reporterCatalogName = null;
   private boolean reportingViaRestEnabled;
   private Integer pageSize = null;
   private CloseableGroup closeables = null;
@@ -278,7 +279,9 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
                     RESTCatalogProperties.SNAPSHOT_LOADING_MODE_DEFAULT.name())
                 .toUpperCase(Locale.US));
 
-    this.reporter = CatalogUtil.loadMetricsReporter(mergedProps);
+    // name() is only available after super.initialize below, so use the name argument here
+    this.reporter = CatalogUtil.loadMetricsReporter(name, mergedProps);
+    this.reporterCatalogName = name;
     this.reporterFilterProperties = mergedProps;
     this.closeables.addCloseable(reporter);
 
@@ -727,7 +730,9 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       RESTMetricsReporter restMetricsReporter =
           new RESTMetricsReporter(restClient, metricsEndpoint, Map::of, metricsExecutor);
       return MetricsReporters.combine(
-          reporter, FilteringMetricsReporter.wrap(restMetricsReporter, reporterFilterProperties));
+          reporter,
+          FilteringMetricsReporter.wrap(
+              restMetricsReporter, reporterCatalogName, reporterFilterProperties));
     } else {
       return this.reporter;
     }

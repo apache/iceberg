@@ -41,7 +41,7 @@ public class TestFilteringMetricsReporter {
   @Test
   public void wrapReturnsDelegateWhenNoPropertiesSet() {
     CapturingMetricsReporter delegate = new CapturingMetricsReporter();
-    MetricsReporter wrapped = FilteringMetricsReporter.wrap(delegate, ImmutableMap.of());
+    MetricsReporter wrapped = FilteringMetricsReporter.wrap(delegate, null, ImmutableMap.of());
     assertThat(wrapped).isSameAs(delegate);
   }
 
@@ -51,6 +51,7 @@ public class TestFilteringMetricsReporter {
     MetricsReporter wrapped =
         FilteringMetricsReporter.wrap(
             delegate,
+            null,
             ImmutableMap.of(
                 CatalogProperties.METRICS_REPORTER_TABLE_NAME_INCLUDE, "",
                 CatalogProperties.METRICS_REPORTER_TABLE_NAME_EXCLUDE, ""));
@@ -63,6 +64,7 @@ public class TestFilteringMetricsReporter {
     MetricsReporter wrapped =
         FilteringMetricsReporter.wrap(
             delegate,
+            null,
             ImmutableMap.of(CatalogProperties.METRICS_REPORTER_TABLE_NAME_INCLUDE, "prod_db\\..*"));
 
     wrapped.report(SCAN_PROD);
@@ -78,6 +80,7 @@ public class TestFilteringMetricsReporter {
     MetricsReporter wrapped =
         FilteringMetricsReporter.wrap(
             delegate,
+            null,
             ImmutableMap.of(CatalogProperties.METRICS_REPORTER_TABLE_NAME_EXCLUDE, ".*\\.tmp_.*"));
 
     wrapped.report(SCAN_PROD);
@@ -92,6 +95,7 @@ public class TestFilteringMetricsReporter {
     MetricsReporter wrapped =
         FilteringMetricsReporter.wrap(
             delegate,
+            null,
             ImmutableMap.of(
                 CatalogProperties.METRICS_REPORTER_TABLE_NAME_INCLUDE, "prod_db\\..*",
                 CatalogProperties.METRICS_REPORTER_TABLE_NAME_EXCLUDE, ".*\\.tmp_.*"));
@@ -109,6 +113,7 @@ public class TestFilteringMetricsReporter {
     MetricsReporter wrapped =
         FilteringMetricsReporter.wrap(
             delegate,
+            null,
             ImmutableMap.of(CatalogProperties.METRICS_REPORTER_TABLE_NAME_INCLUDE, "no_such\\..*"));
 
     MetricsReport unknown = new MetricsReport() {};
@@ -123,6 +128,7 @@ public class TestFilteringMetricsReporter {
             () ->
                 FilteringMetricsReporter.wrap(
                     new CapturingMetricsReporter(),
+                    null,
                     ImmutableMap.of(
                         CatalogProperties.METRICS_REPORTER_TABLE_NAME_INCLUDE, "[invalid")))
         .isInstanceOf(IllegalArgumentException.class)
@@ -158,7 +164,9 @@ public class TestFilteringMetricsReporter {
     CapturingMetricsReporter delegate = new CapturingMetricsReporter();
     MetricsReporter wrapped =
         FilteringMetricsReporter.wrap(
-            delegate, ImmutableMap.of(CatalogProperties.METRICS_REPORTER_TABLE_NAME_INCLUDE, ".*"));
+            delegate,
+            null,
+            ImmutableMap.of(CatalogProperties.METRICS_REPORTER_TABLE_NAME_INCLUDE, ".*"));
 
     wrapped.close();
 
@@ -171,6 +179,7 @@ public class TestFilteringMetricsReporter {
     MetricsReporter wrapped =
         FilteringMetricsReporter.wrap(
             delegate,
+            null,
             ImmutableMap.of(
                 CatalogProperties.METRICS_REPORTER_TABLE_NAME_INCLUDE,
                 "prod_db\\..*, analytics_db\\..*"));
@@ -189,6 +198,7 @@ public class TestFilteringMetricsReporter {
     MetricsReporter wrapped =
         FilteringMetricsReporter.wrap(
             delegate,
+            null,
             ImmutableMap.of(
                 CatalogProperties.METRICS_REPORTER_TABLE_NAME_EXCLUDE, ".*\\.tmp_.*,dev_db\\..*"));
 
@@ -205,6 +215,7 @@ public class TestFilteringMetricsReporter {
     MetricsReporter wrapped =
         FilteringMetricsReporter.wrap(
             delegate,
+            null,
             ImmutableMap.of(CatalogProperties.METRICS_REPORTER_TABLE_NAME_INCLUDE, "prod\\..*"));
 
     ScanReport prod = newScanReport("prod.orders");
@@ -215,6 +226,157 @@ public class TestFilteringMetricsReporter {
     wrapped.report(newScanReport("staging.prod.orders"));
 
     assertThat(delegate.reports).containsExactly(prod);
+  }
+
+  @Test
+  public void namespaceIncludeFiltersOnNamespaceOnly() {
+    CapturingMetricsReporter delegate = new CapturingMetricsReporter();
+    MetricsReporter wrapped =
+        FilteringMetricsReporter.wrap(
+            delegate,
+            "cat",
+            ImmutableMap.of(
+                CatalogProperties.METRICS_REPORTER_NAMESPACE_INCLUDE, "prod,analytics"));
+
+    ScanReport prod = newScanReport("cat.prod.orders");
+    ScanReport analytics = newScanReport("cat.analytics.events");
+    wrapped.report(prod);
+    wrapped.report(analytics);
+    wrapped.report(newScanReport("cat.staging.orders"));
+    // a namespace that only shares a prefix must not match
+    wrapped.report(newScanReport("cat.production.orders"));
+
+    assertThat(delegate.reports).containsExactly(prod, analytics);
+  }
+
+  @Test
+  public void namespaceExcludeDropsMatchingNamespaces() {
+    CapturingMetricsReporter delegate = new CapturingMetricsReporter();
+    MetricsReporter wrapped =
+        FilteringMetricsReporter.wrap(
+            delegate,
+            "cat",
+            ImmutableMap.of(
+                CatalogProperties.METRICS_REPORTER_NAMESPACE_EXCLUDE, "staging,sandbox"));
+
+    ScanReport prod = newScanReport("cat.prod.orders");
+    wrapped.report(prod);
+    wrapped.report(newScanReport("cat.staging.orders"));
+    wrapped.report(newScanReport("cat.sandbox.orders"));
+
+    assertThat(delegate.reports).containsExactly(prod);
+  }
+
+  @Test
+  public void namespaceAndTableNameFiltersCombine() {
+    CapturingMetricsReporter delegate = new CapturingMetricsReporter();
+    MetricsReporter wrapped =
+        FilteringMetricsReporter.wrap(
+            delegate,
+            "cat",
+            ImmutableMap.of(
+                CatalogProperties.METRICS_REPORTER_NAMESPACE_INCLUDE, "prod",
+                CatalogProperties.METRICS_REPORTER_TABLE_NAME_EXCLUDE, ".*\\.bench_.*"));
+
+    ScanReport prod = newScanReport("cat.prod.orders");
+    wrapped.report(prod);
+    // in the included namespace, but excluded by table name
+    wrapped.report(newScanReport("cat.prod.bench_scratch"));
+    // outside the included namespace
+    wrapped.report(newScanReport("cat.staging.orders"));
+
+    assertThat(delegate.reports).containsExactly(prod);
+  }
+
+  @Test
+  public void namespaceFilterHandlesMultiLevelAndEmptyNamespaces() {
+    CapturingMetricsReporter delegate = new CapturingMetricsReporter();
+    MetricsReporter wrapped =
+        FilteringMetricsReporter.wrap(
+            delegate,
+            "cat",
+            ImmutableMap.of(CatalogProperties.METRICS_REPORTER_NAMESPACE_INCLUDE, "a\\.b"));
+
+    ScanReport nested = newScanReport("cat.a.b.orders");
+    wrapped.report(nested);
+    wrapped.report(newScanReport("cat.a.orders"));
+    // table directly under the catalog has an empty namespace
+    wrapped.report(newScanReport("cat.orders"));
+
+    assertThat(delegate.reports).containsExactly(nested);
+  }
+
+  @Test
+  public void namespaceFilterHandlesCatalogNameContainingDots() {
+    CapturingMetricsReporter delegate = new CapturingMetricsReporter();
+    MetricsReporter wrapped =
+        FilteringMetricsReporter.wrap(
+            delegate,
+            "my.cat",
+            ImmutableMap.of(CatalogProperties.METRICS_REPORTER_NAMESPACE_INCLUDE, "db"));
+
+    ScanReport report = newScanReport("my.cat.db.orders");
+    wrapped.report(report);
+    wrapped.report(newScanReport("my.cat.other.orders"));
+
+    assertThat(delegate.reports).containsExactly(report);
+  }
+
+  @Test
+  public void namespaceFilterHandlesUriStyleCatalogNames() {
+    CapturingMetricsReporter delegate = new CapturingMetricsReporter();
+    MetricsReporter wrapped =
+        FilteringMetricsReporter.wrap(
+            delegate,
+            "thrift://localhost:9083",
+            ImmutableMap.of(CatalogProperties.METRICS_REPORTER_NAMESPACE_INCLUDE, "db"));
+
+    ScanReport report = newScanReport("thrift://localhost:9083/db.orders");
+    wrapped.report(report);
+    wrapped.report(newScanReport("thrift://localhost:9083/other.orders"));
+
+    assertThat(delegate.reports).containsExactly(report);
+  }
+
+  @Test
+  public void namespaceFilterDropsReportsWithoutExpectedCatalogPrefix() {
+    CapturingMetricsReporter delegate = new CapturingMetricsReporter();
+    MetricsReporter wrapped =
+        FilteringMetricsReporter.wrap(
+            delegate,
+            "cat",
+            ImmutableMap.of(CatalogProperties.METRICS_REPORTER_NAMESPACE_INCLUDE, ".*"));
+
+    // the namespace cannot be derived, so the report cannot be shown to pass the filter
+    wrapped.report(newScanReport("other.db.orders"));
+
+    assertThat(delegate.reports).isEmpty();
+  }
+
+  @Test
+  public void namespaceFilterWithoutCatalogNameIsRejected() {
+    assertThatThrownBy(
+            () ->
+                FilteringMetricsReporter.wrap(
+                    new CapturingMetricsReporter(),
+                    null,
+                    ImmutableMap.of(CatalogProperties.METRICS_REPORTER_NAMESPACE_INCLUDE, "prod")))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining(CatalogProperties.METRICS_REPORTER_NAMESPACE_INCLUDE);
+  }
+
+  @Test
+  public void wrapThrowsClearErrorForInvalidNamespaceRegex() {
+    assertThatThrownBy(
+            () ->
+                FilteringMetricsReporter.wrap(
+                    new CapturingMetricsReporter(),
+                    "cat",
+                    ImmutableMap.of(
+                        CatalogProperties.METRICS_REPORTER_NAMESPACE_EXCLUDE, "[invalid")))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining(CatalogProperties.METRICS_REPORTER_NAMESPACE_EXCLUDE)
+        .hasMessageContaining("[invalid");
   }
 
   private static ScanReport newScanReport(String tableName) {
