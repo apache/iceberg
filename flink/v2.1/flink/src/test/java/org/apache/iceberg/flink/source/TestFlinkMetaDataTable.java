@@ -20,6 +20,7 @@ package org.apache.iceberg.flink.source;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assumptions.assumeThat;
+import static org.assertj.core.api.InstanceOfAssertFactories.MAP;
 
 import java.io.File;
 import java.io.IOException;
@@ -665,6 +666,42 @@ public class TestFlinkMetaDataTable extends CatalogTestBase {
     for (int i = 0; i < metadataFiles.size(); i++) {
       assertThat(metadataLogWithProjection.get(i).getField("file")).isEqualTo(metadataFiles.get(i));
     }
+  }
+
+  @TestTemplate
+  public void testTablePropertiesLog() {
+    Table table = validationCatalog.loadTable(TableIdentifier.of(icebergNamespace, TABLE_NAME));
+
+    Long snapshotId1 = table.currentSnapshot().snapshotId();
+    List<Row> propertiesLog = sql("SELECT * FROM %s$table_properties_log", TABLE_NAME);
+    assertThat(propertiesLog)
+        .hasSize(3)
+        .element(propertiesLog.size() - 1)
+        .extracting(latest -> latest.getField("latest_snapshot_id"))
+        .isEqualTo(snapshotId1);
+    assertThat(propertiesLog)
+        .element(propertiesLog.size() - 1)
+        .extracting(latest -> latest.getField("properties"))
+        .asInstanceOf(MAP)
+        .containsExactlyInAnyOrderEntriesOf(
+            Map.of("write.format.default", "AVRO", "write.parquet.compression-codec", "zstd"));
+
+    table.updateProperties().set("key", "value").commit();
+    sql("INSERT INTO %s VALUES (3, 'c', 30)", TABLE_NAME);
+    table.refresh();
+
+    Long snapshotId2 = table.currentSnapshot().snapshotId();
+    List<Row> snapshotFilters =
+        sql(
+            "SELECT * FROM %s$table_properties_log WHERE latest_snapshot_id = %s",
+            TABLE_NAME, snapshotId2);
+    assertThat(snapshotFilters)
+        .as("Should contain the expected key-value property")
+        .hasSize(1)
+        .element(0)
+        .extracting(row -> row.getField("properties"))
+        .asInstanceOf(MAP)
+        .containsEntry("key", "value");
   }
 
   @TestTemplate
