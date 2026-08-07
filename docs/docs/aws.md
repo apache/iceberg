@@ -438,6 +438,29 @@ If for any reason you have to use S3A, here are the instructions:
 To ensure integrity of uploaded objects, checksum validations for S3 writes can be turned on by setting catalog property `s3.checksum-enabled` to `true`.
 This is turned off by default.
 
+### AWS SDK Checksum Calculation and Validation
+
+Since AWS SDK for Java 2.30.0, the SDK by default calculates a CRC32 checksum for every S3 request that supports one, and validates checksums included in S3 responses.
+See the [AWS SDK data integrity protections documentation](https://docs.aws.amazon.com/sdkref/latest/guide/feature-dataintegrity.html) for more details.
+These SDK-level policies are independent from the `s3.checksum-enabled` property above and can be controlled with the following catalog properties:
+
+| Property                          | Default                     | Description                                                                                       |
+|-----------------------------------|-----------------------------|---------------------------------------------------------------------------------------------------|
+| s3.request-checksum-calculation   | AWS SDK default (`when_supported`) | When the SDK calculates a checksum for S3 requests: `when_supported` or `when_required`   |
+| s3.response-checksum-validation   | AWS SDK default (`when_supported`) | When the SDK validates checksums on S3 responses: `when_supported` or `when_required`     |
+
+Some S3-compatible object storage services do not accept the checksum headers or trailing checksums that the AWS SDK sends by default, and reject uploads with them.
+When using such storage, set `s3.request-checksum-calculation` to `when_required` so that the SDK only calculates checksums for requests where the S3 API requires them:
+
+```
+spark-sql --conf spark.sql.catalog.my_catalog=org.apache.iceberg.spark.SparkCatalog \
+    --conf spark.sql.catalog.my_catalog.warehouse=s3://my-bucket/my/key/prefix \
+    --conf spark.sql.catalog.my_catalog.type=glue \
+    --conf spark.sql.catalog.my_catalog.io-impl=org.apache.iceberg.aws.s3.S3FileIO \
+    --conf spark.sql.catalog.my_catalog.s3.request-checksum-calculation=when_required \
+    --conf spark.sql.catalog.my_catalog.s3.response-checksum-validation=when_required
+```
+
 ### S3 Tags
 
 Custom [tags](https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-tagging.html) can be added to S3 objects while writing and deleting.

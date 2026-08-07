@@ -82,6 +82,7 @@ public class LakeFormationAwsClientFactory extends AssumeRoleAwsClientFactory {
           .applyMutation(httpClientProperties()::applyHttpClientConfigurations)
           .applyMutation(s3FileIOProperties()::applyEndpointConfigurations)
           .applyMutation(s3FileIOProperties()::applyServiceConfigurations)
+          .applyMutation(s3FileIOProperties()::applyChecksumConfigurations)
           .applyMutation(s3FileIOProperties()::applyRetryConfigurations)
           .credentialsProvider(
               new LakeFormationCredentialsProvider(lakeFormation(), buildTableArn()))
