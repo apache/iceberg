@@ -28,7 +28,7 @@ import java.util.Set;
  *
  * @param <F> the concrete Java class of a ContentFile instance.
  */
-public interface ContentFile<F> {
+public interface ContentFile<F> extends EncryptedFile {
   /**
    * Returns the path of the manifest which this file is referenced in or null if it was not read
    * from a manifest.
@@ -60,6 +60,7 @@ public interface ContentFile<F> {
   CharSequence path();
 
   /** Return the fully qualified path to the file. */
+  @Override
   default String location() {
     return path().toString();
   }
@@ -72,9 +73,6 @@ public interface ContentFile<F> {
 
   /** Returns the number of top-level records in the file. */
   long recordCount();
-
-  /** Returns the file size in bytes. */
-  long fileSizeInBytes();
 
   /**
    * Returns if collected, map from column ID to the size of the column in bytes, null otherwise.
@@ -128,11 +126,6 @@ public interface ContentFile<F> {
   default Map<Integer, Integer> avgValueSizes() {
     return Metrics.avgValueSizes(totalBytes(), valueCounts(), nullValueCounts());
   }
-
-  /**
-   * Returns metadata about how this file is encrypted, or null if the file is stored in plain text.
-   */
-  ByteBuffer keyMetadata();
 
   /**
    * Returns list of recommended split locations, if applicable, null otherwise.

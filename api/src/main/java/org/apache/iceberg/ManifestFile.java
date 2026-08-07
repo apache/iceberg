@@ -26,7 +26,7 @@ import java.util.List;
 import org.apache.iceberg.types.Types;
 
 /** Represents a manifest file that can be scanned to find files in a table. */
-public interface ManifestFile {
+public interface ManifestFile extends EncryptedFile {
   int PARTITION_SUMMARIES_ELEMENT_ID = 508;
 
   Types.NestedField PATH =
@@ -123,8 +123,18 @@ public interface ManifestFile {
   /** Returns fully qualified path to the file, suitable for constructing a Hadoop Path. */
   String path();
 
+  @Override
+  default String location() {
+    return path();
+  }
+
   /** Returns length of the manifest file. */
   long length();
+
+  @Override
+  default long fileSizeInBytes() {
+    return length();
+  }
 
   /** Returns ID of the {@link PartitionSpec} used to write the manifest file. */
   int partitionSpecId();
@@ -221,6 +231,7 @@ public interface ManifestFile {
    * Returns metadata about how this manifest file is encrypted, or null if the file is stored in
    * plain text.
    */
+  @Override
   default ByteBuffer keyMetadata() {
     return null;
   }
