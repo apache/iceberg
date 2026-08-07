@@ -149,20 +149,22 @@ The [catalog property](catalog-properties.md) `metrics-reporter-impl` allows reg
 
 ### Table-name filtering
 
-Reports forwarded to the configured `MetricsReporter` can be filtered by table name using two additional catalog properties. Both accept Java regular expressions matched against `ScanReport.tableName()` and `CommitReport.tableName()`:
+Reports forwarded to the configured `MetricsReporter` can be filtered by table name using two additional catalog properties. Both accept a comma-separated list of Java regular expressions matched against `ScanReport.tableName()` and `CommitReport.tableName()`:
 
 | Property | Effect |
 |---|---|
 | `metrics-reporter.table-name.include` | Forward only reports whose table name matches; drop the rest. |
 | `metrics-reporter.table-name.exclude` | Drop reports whose table name matches; forward the rest. |
 
+Patterns are matched against the **entire** table name rather than any substring of it. This matters in practice: `prod\..*` matches `prod.db.table` but not `production.db.table` or `prod_sandbox.db.table`, which a substring match would wrongly accept.
+
 When both are set, `exclude` wins over `include` (an explicit deny overrides an include). When neither is set, behavior is identical to today (every report is forwarded, with no runtime overhead). Empty values are treated as not set to avoid accidentally silencing all metrics on misconfiguration.
 
-For example, to forward metrics only for tables in the `prod_db` namespace while still dropping any temporary tables under it:
+For example, to forward metrics for the `prod_db` and `analytics_db` databases while still dropping any temporary tables under them:
 
 ```
 metrics-reporter-impl=org.apache.iceberg.metrics.LoggingMetricsReporter
-metrics-reporter.table-name.include=prod_db\..*
+metrics-reporter.table-name.include=prod_db\..*,analytics_db\..*
 metrics-reporter.table-name.exclude=.*\.tmp_.*
 ```
 

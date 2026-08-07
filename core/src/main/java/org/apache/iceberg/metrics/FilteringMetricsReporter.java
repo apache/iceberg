@@ -18,35 +18,42 @@
  */
 package org.apache.iceberg.metrics;
 
+import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 
 /**
  * A {@link MetricsReporter} wrapper that drops {@link ScanReport} and {@link CommitReport}
- * instances whose {@code tableName()} does not pass the configured include / exclude patterns
- * before forwarding to a delegate reporter.
+ * instances whose {@code tableName()} does not pass the configured include / exclude filters before
+ * forwarding to a delegate reporter.
  *
- * <p>The patterns are Java regular expressions sourced from the catalog properties {@link
+ * <p>The filters come from the catalog properties {@link
  * CatalogProperties#METRICS_REPORTER_TABLE_NAME_INCLUDE} and {@link
- * CatalogProperties#METRICS_REPORTER_TABLE_NAME_EXCLUDE}. When both are set, {@code exclude} wins
- * over {@code include} (an explicit deny overrides an include). When neither is set, {@link
- * #wrap(MetricsReporter, Map)} returns the delegate unchanged.
+ * CatalogProperties#METRICS_REPORTER_TABLE_NAME_EXCLUDE}, each holding a comma-separated list of
+ * Java regular expressions. An exclude match wins over an include match. When neither is set,
+ * {@link #wrap(MetricsReporter, Map)} returns the delegate unchanged so the default path incurs no
+ * overhead.
+ *
+ * <p>Patterns are matched against the entire table name rather than any substring of it, so {@code
+ * prod\..*} matches {@code prod.db.table} but not {@code production.db.table}.
  *
  * <p>{@link MetricsReport} subtypes other than {@link ScanReport} and {@link CommitReport} are
- * forwarded to the delegate without filtering, since they do not expose a {@code tableName()}.
+ * forwarded without filtering, since they do not identify a table.
  */
 public class FilteringMetricsReporter implements MetricsReporter {
 
   private final MetricsReporter delegate;
-  private final Pattern include;
-  private final Pattern exclude;
+  private final List<Pattern> tableNameInclude;
+  private final List<Pattern> tableNameExclude;
 
-  private FilteringMetricsReporter(MetricsReporter delegate, Pattern include, Pattern exclude) {
+  private FilteringMetricsReporter(
+      MetricsReporter delegate, List<Pattern> tableNameInclude, List<Pattern> tableNameExclude) {
     this.delegate = delegate;
-    this.include = include;
-    this.exclude = exclude;
+    this.tableNameInclude = tableNameInclude;
+    this.tableNameExclude = tableNameExclude;
   }
 
   /**
@@ -55,59 +62,89 @@ public class FilteringMetricsReporter implements MetricsReporter {
    * case incurs no runtime overhead.
    *
    * @param delegate the underlying reporter that receives forwarded reports
-   * @param properties catalog properties; consulted for the table-name include / exclude regex
+   * @param properties catalog properties; consulted for the table-name include / exclude filters
    * @return either the delegate unchanged, or a new filtering wrapper around it
    */
   public static MetricsReporter wrap(MetricsReporter delegate, Map<String, String> properties) {
-    Pattern include =
-        compileIfPresent(
-            properties.get(CatalogProperties.METRICS_REPORTER_TABLE_NAME_INCLUDE),
-            CatalogProperties.METRICS_REPORTER_TABLE_NAME_INCLUDE);
-    Pattern exclude =
-        compileIfPresent(
-            properties.get(CatalogProperties.METRICS_REPORTER_TABLE_NAME_EXCLUDE),
-            CatalogProperties.METRICS_REPORTER_TABLE_NAME_EXCLUDE);
-    if (include == null && exclude == null) {
+    List<Pattern> tableNameInclude =
+        compilePatterns(properties, CatalogProperties.METRICS_REPORTER_TABLE_NAME_INCLUDE);
+    List<Pattern> tableNameExclude =
+        compilePatterns(properties, CatalogProperties.METRICS_REPORTER_TABLE_NAME_EXCLUDE);
+
+    if (tableNameInclude.isEmpty() && tableNameExclude.isEmpty()) {
       return delegate;
     }
-    return new FilteringMetricsReporter(delegate, include, exclude);
+
+    return new FilteringMetricsReporter(delegate, tableNameInclude, tableNameExclude);
   }
 
-  private static Pattern compileIfPresent(String value, String propertyName) {
-    if (value == null || value.isEmpty()) {
-      return null;
+  private static List<Pattern> compilePatterns(
+      Map<String, String> properties, String propertyName) {
+    String value = properties.get(propertyName);
+    if (value == null || value.trim().isEmpty()) {
+      return ImmutableList.of();
     }
-    try {
-      return Pattern.compile(value);
-    } catch (PatternSyntaxException e) {
-      throw new IllegalArgumentException(
-          String.format("Invalid regex for %s: %s", propertyName, value), e);
+
+    ImmutableList.Builder<Pattern> patterns = ImmutableList.builder();
+    for (String pattern : value.split(",", -1)) {
+      String trimmed = pattern.trim();
+      if (trimmed.isEmpty()) {
+        continue;
+      }
+
+      try {
+        patterns.add(Pattern.compile(trimmed));
+      } catch (PatternSyntaxException e) {
+        throw new IllegalArgumentException(
+            String.format("Invalid regex for %s: %s", propertyName, trimmed), e);
+      }
     }
+
+    return patterns.build();
   }
 
   @Override
   public void report(MetricsReport report) {
-    String tableName = extractTableName(report);
+    String tableName = tableName(report);
     if (tableName == null) {
       delegate.report(report);
       return;
     }
-    if (exclude != null && exclude.matcher(tableName).matches()) {
+
+    if (!passes(tableName, tableNameInclude, tableNameExclude)) {
       return;
     }
-    if (include != null && !include.matcher(tableName).matches()) {
-      return;
-    }
+
     delegate.report(report);
   }
 
-  private static String extractTableName(MetricsReport report) {
+  private static boolean passes(String value, List<Pattern> include, List<Pattern> exclude) {
+    if (matchesAny(value, exclude)) {
+      return false;
+    }
+
+    return include.isEmpty() || matchesAny(value, include);
+  }
+
+  private static boolean matchesAny(String value, List<Pattern> patterns) {
+    for (Pattern pattern : patterns) {
+      if (pattern.matcher(value).matches()) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  private static String tableName(MetricsReport report) {
     if (report instanceof ScanReport) {
       return ((ScanReport) report).tableName();
     }
+
     if (report instanceof CommitReport) {
       return ((CommitReport) report).tableName();
     }
+
     return null;
   }
 
