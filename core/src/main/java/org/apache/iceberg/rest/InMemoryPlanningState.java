@@ -128,6 +128,41 @@ class InMemoryPlanningState {
   }
 
   /**
+   * Releases the state for a single fetched plan task. Called after a successful fetch to prevent
+   * unbounded memory growth — the {@code FileScanTask} list is the dominant memory consumer and
+   * need not be retained once the client has received it (#17427).
+   *
+   * @param planTaskKey the plan task key to release
+   */
+  void releasePlanTask(String planTaskKey) {
+    planTaskToFileScanTasks.remove(planTaskKey);
+    planTaskToNext.remove(planTaskKey);
+  }
+
+  /**
+   * Releases the async planning state for the plan that owns the given plan task key. Called when
+   * the last plan task in a chain is fetched, so completed plans don't accumulate indefinitely
+   * (#17427).
+   *
+   * <p>The plan task key format is {@code {planId}-{tableId}-{sequence}}. The planId is extracted by
+   * stripping the last two hyphen-separated components.
+   *
+   * @param planTaskKey a plan task key belonging to the plan whose async state should be released
+   */
+  void releaseAsyncPlanForTask(String planTaskKey) {
+    int lastHyphen = planTaskKey.lastIndexOf('-');
+    if (lastHyphen < 0) {
+      return;
+    }
+    int secondLastHyphen = planTaskKey.lastIndexOf('-', lastHyphen - 1);
+    if (secondLastHyphen < 0) {
+      return;
+    }
+    String planId = planTaskKey.substring(0, secondLastHyphen);
+    asyncPlanningStates.remove(planId);
+  }
+
+  /**
    * Retrieves the initial set of file scan tasks for a plan. PlanIDs are assumed to be separated
    * with hyphens where the last component indicates the sequencing of plan IDs.
    *
