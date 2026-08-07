@@ -59,14 +59,46 @@ class TestUnicodeUtil {
 
   @Test
   void truncateStringMin() {
-    // the minimum is just the truncated prefix
+    // longer than the length: the minimum is the truncated prefix
     assertThat(UnicodeUtil.truncateStringMin("abcde", 3)).isEqualTo("abc");
+
+    // equal to or shorter than the length: the input is already a valid lower bound
+    assertThat(UnicodeUtil.truncateStringMin("abc", 3)).isEqualTo("abc");
+    assertThat(UnicodeUtil.truncateStringMin("abc", 5)).isEqualTo("abc");
+    assertThat(UnicodeUtil.truncateStringMin("", 3)).isEqualTo("");
   }
 
   @Test
   void truncateStringMax() {
-    // the maximum increments the last code point of the truncated prefix
+    // longer than the length: the maximum increments the last retained code point
     assertThat(UnicodeUtil.truncateStringMax("abcde", 3)).isEqualTo("abd");
+
+    // equal to or shorter than the length: the input is already a valid upper bound
+    assertThat(UnicodeUtil.truncateStringMax("abc", 3)).isEqualTo("abc");
+    assertThat(UnicodeUtil.truncateStringMax("abc", 5)).isEqualTo("abc");
+    assertThat(UnicodeUtil.truncateStringMax("", 3)).isEqualTo("");
+  }
+
+  @Test
+  void truncateStringMaxCarriesOnOverflow() {
+    // the last retained code point cannot be incremented, so the carry moves to the previous one
+    String input =
+        new StringBuilder()
+            .append('a')
+            .appendCodePoint(Character.MAX_CODE_POINT)
+            .append('c')
+            .toString();
+    assertThat(UnicodeUtil.truncateStringMax(input, 2)).isEqualTo("b");
+  }
+
+  @Test
+  void truncateStringMaxSkipsSurrogateRange() {
+    // the code point below the surrogate block must increment to the one above it, because
+    // surrogate code points are not valid unicode scalar values
+    String input =
+        new StringBuilder().appendCodePoint(Character.MIN_SURROGATE - 1).append("extra").toString();
+    String expected = new StringBuilder().appendCodePoint(Character.MAX_SURROGATE + 1).toString();
+    assertThat(UnicodeUtil.truncateStringMax(input, 1)).isEqualTo(expected);
   }
 
   @Test
