@@ -16,30 +16,19 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.rest.responses;
+package org.apache.iceberg;
 
-import java.util.Map;
-import org.apache.iceberg.rest.RESTResponse;
 import org.apache.iceberg.rest.labels.Labels;
-import org.apache.iceberg.view.ViewMetadata;
-import org.immutables.value.Value;
 
-@Value.Immutable
-public interface LoadViewResponse extends RESTResponse {
-  String metadataLocation();
-
-  ViewMetadata metadata();
-
-  Map<String, String> config();
-
-  /** Catalog-provided labels, or an empty instance when the response carries no labels. */
-  @Value.Default
-  default Labels labels() {
-    return Labels.empty();
-  }
-
-  @Override
-  default void validate() {
-    // nothing to validate as it's not possible to create an invalid instance
-  }
+/**
+ * Implemented by tables that can expose catalog-provided labels obtained from the load response.
+ *
+ * <p>Labels are optional, catalog-provided metadata enrichment. They are not part of table state
+ * and are not preserved when the table is serialized.
+ */
+public interface SupportsLabels {
+  /**
+   * Returns the catalog-provided labels for this table, or an empty instance when there are none.
+   */
+  Labels labels();
 }
