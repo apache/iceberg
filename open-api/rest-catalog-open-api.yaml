@@ -2967,13 +2967,13 @@ components:
         A snapshot of the table's contents at a point in time.
 
 
-        Exactly one of `manifest-list` and `root-manifest` is present, enforced by the `oneOf`
+        Exactly one of `manifest-list` and `content-root` is present, enforced by the `oneOf`
         below. A snapshot carrying neither is invalid and must be rejected; it must not be
         interpreted as a snapshot with no files. A snapshot carrying both is also invalid.
 
 
         Which of the two is present is determined by the table's `format-version`: format
-        versions 1-3 use `manifest-list`, and format version 4 uses `root-manifest`. That
+        versions 1-3 use `manifest-list`, and format version 4 uses `content-root`. That
         correlation cannot be expressed here because `format-version` lives in the enclosing
         `TableMetadata` object, so it is stated normatively and must be enforced by servers
         and clients.
@@ -2986,7 +2986,7 @@ components:
         - required:
             - manifest-list
         - required:
-            - root-manifest
+            - content-root
       properties:
         snapshot-id:
           type: integer
@@ -3004,11 +3004,11 @@ components:
           type: string
           description:
             Location of the snapshot's manifest list file. Used for format versions 1-3 and
-            must be absent for format version 4, which uses `root-manifest` instead.
-        root-manifest:
+            must be absent for format version 4, which uses `content-root` instead.
+        content-root:
           type: string
           description:
-            Location of the snapshot's root manifest. The root manifest can reference data
+            Location of the snapshot's content root. The content root can reference data
             files, delete files, and other data and delete manifests in a unified structure,
             replacing the manifest list. Required for format version 4 and must be absent for
             format versions 1-3.

@@ -337,13 +337,13 @@ class Snapshot1(BaseModel):
     A snapshot of the table's contents at a point in time.
 
 
-    Exactly one of `manifest-list` and `root-manifest` is present, enforced by the `oneOf`
+    Exactly one of `manifest-list` and `content-root` is present, enforced by the `oneOf`
     below. A snapshot carrying neither is invalid and must be rejected; it must not be
     interpreted as a snapshot with no files. A snapshot carrying both is also invalid.
 
 
     Which of the two is present is determined by the table's `format-version`: format
-    versions 1-3 use `manifest-list`, and format version 4 uses `root-manifest`. That
+    versions 1-3 use `manifest-list`, and format version 4 uses `content-root`. That
     correlation cannot be expressed here because `format-version` lives in the enclosing
     `TableMetadata` object, so it is stated normatively and must be enforced by servers
     and clients.
@@ -357,12 +357,12 @@ class Snapshot1(BaseModel):
     manifest_list: str = Field(
         ...,
         alias='manifest-list',
-        description="Location of the snapshot's manifest list file. Used for format versions 1-3 and must be absent for format version 4, which uses `root-manifest` instead.",
+        description="Location of the snapshot's manifest list file. Used for format versions 1-3 and must be absent for format version 4, which uses `content-root` instead.",
     )
-    root_manifest: str | None = Field(
+    content_root: str | None = Field(
         None,
-        alias='root-manifest',
-        description="Location of the snapshot's root manifest. The root manifest can reference data files, delete files, and other data and delete manifests in a unified structure, replacing the manifest list. Required for format version 4 and must be absent for format versions 1-3.",
+        alias='content-root',
+        description="Location of the snapshot's content root. The content root can reference data files, delete files, and other data and delete manifests in a unified structure, replacing the manifest list. Required for format version 4 and must be absent for format versions 1-3.",
     )
     first_row_id: int | None = Field(
         None,
@@ -383,13 +383,13 @@ class Snapshot2(BaseModel):
     A snapshot of the table's contents at a point in time.
 
 
-    Exactly one of `manifest-list` and `root-manifest` is present, enforced by the `oneOf`
+    Exactly one of `manifest-list` and `content-root` is present, enforced by the `oneOf`
     below. A snapshot carrying neither is invalid and must be rejected; it must not be
     interpreted as a snapshot with no files. A snapshot carrying both is also invalid.
 
 
     Which of the two is present is determined by the table's `format-version`: format
-    versions 1-3 use `manifest-list`, and format version 4 uses `root-manifest`. That
+    versions 1-3 use `manifest-list`, and format version 4 uses `content-root`. That
     correlation cannot be expressed here because `format-version` lives in the enclosing
     `TableMetadata` object, so it is stated normatively and must be enforced by servers
     and clients.
@@ -403,12 +403,12 @@ class Snapshot2(BaseModel):
     manifest_list: str | None = Field(
         None,
         alias='manifest-list',
-        description="Location of the snapshot's manifest list file. Used for format versions 1-3 and must be absent for format version 4, which uses `root-manifest` instead.",
+        description="Location of the snapshot's manifest list file. Used for format versions 1-3 and must be absent for format version 4, which uses `content-root` instead.",
     )
-    root_manifest: str = Field(
+    content_root: str = Field(
         ...,
-        alias='root-manifest',
-        description="Location of the snapshot's root manifest. The root manifest can reference data files, delete files, and other data and delete manifests in a unified structure, replacing the manifest list. Required for format version 4 and must be absent for format versions 1-3.",
+        alias='content-root',
+        description="Location of the snapshot's content root. The content root can reference data files, delete files, and other data and delete manifests in a unified structure, replacing the manifest list. Required for format version 4 and must be absent for format versions 1-3.",
     )
     first_row_id: int | None = Field(
         None,
@@ -427,7 +427,7 @@ class Snapshot2(BaseModel):
 class Snapshot(RootModel[Snapshot1 | Snapshot2]):
     root: Snapshot1 | Snapshot2 = Field(
         ...,
-        description="A snapshot of the table's contents at a point in time.\n\n\nExactly one of `manifest-list` and `root-manifest` is present, enforced by the `oneOf`\nbelow. A snapshot carrying neither is invalid and must be rejected; it must not be\ninterpreted as a snapshot with no files. A snapshot carrying both is also invalid.\n\n\nWhich of the two is present is determined by the table's `format-version`: format\nversions 1-3 use `manifest-list`, and format version 4 uses `root-manifest`. That\ncorrelation cannot be expressed here because `format-version` lives in the enclosing\n`TableMetadata` object, so it is stated normatively and must be enforced by servers\nand clients.\n",
+        description="A snapshot of the table's contents at a point in time.\n\n\nExactly one of `manifest-list` and `content-root` is present, enforced by the `oneOf`\nbelow. A snapshot carrying neither is invalid and must be rejected; it must not be\ninterpreted as a snapshot with no files. A snapshot carrying both is also invalid.\n\n\nWhich of the two is present is determined by the table's `format-version`: format\nversions 1-3 use `manifest-list`, and format version 4 uses `content-root`. That\ncorrelation cannot be expressed here because `format-version` lives in the enclosing\n`TableMetadata` object, so it is stated normatively and must be enforced by servers\nand clients.\n",
     )
 
 
