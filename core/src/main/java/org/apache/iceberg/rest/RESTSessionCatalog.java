@@ -72,6 +72,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.rest.RESTCatalogProperties.ScanPlanningMode;
 import org.apache.iceberg.rest.RESTCatalogProperties.SnapshotMode;
 import org.apache.iceberg.rest.RESTTableCache.TableWithETag;
 import org.apache.iceberg.rest.auth.AuthManager;
@@ -174,6 +175,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   private Set<Endpoint> endpoints;
   private Supplier<Map<String, String>> mutationHeaders = Map::of;
   private String namespaceSeparator = null;
+  private ScanPlanningMode clientScanPlanningMode = null;
 
   private RESTTableCache tableCache;
 
@@ -290,6 +292,10 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
             mergedProps,
             RESTCatalogProperties.NAMESPACE_SEPARATOR,
             RESTCatalogProperties.NAMESPACE_SEPARATOR_DEFAULT);
+
+    String scanPlanningModeConfig = mergedProps.get(RESTCatalogProperties.SCAN_PLANNING_MODE);
+    this.clientScanPlanningMode =
+        scanPlanningModeConfig == null ? null : ScanPlanningMode.fromString(scanPlanningModeConfig);
 
     this.tableCache = createTableCache(mergedProps);
     this.closeables.addCloseable(this.tableCache);
@@ -603,31 +609,34 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       TableIdentifier finalIdentifier,
       RESTClient restClient,
       Map<String, String> tableConf) {
-    // Get client-side and server-side scan planning modes
-    String planningModeClientConfig = properties().get(RESTCatalogProperties.SCAN_PLANNING_MODE);
     String planningModeServerConfig = tableConf.get(RESTCatalogProperties.SCAN_PLANNING_MODE);
+    ScanPlanningMode serverScanPlanningMode =
+        planningModeServerConfig == null
+            ? null
+            : ScanPlanningMode.fromString(planningModeServerConfig);
 
-    // Warn if client and server configs conflict; server config takes precedence
-    if (planningModeClientConfig != null
-        && planningModeServerConfig != null
-        && !planningModeClientConfig.equalsIgnoreCase(planningModeServerConfig)) {
+    // Warn if client and server configs conflict
+    if (clientScanPlanningMode != null
+        && serverScanPlanningMode != null
+        && clientScanPlanningMode != serverScanPlanningMode) {
       LOG.warn(
           "Scan planning mode mismatch for table {}: client config={}, server config={}. "
               + "Server config will take precedence.",
           finalIdentifier,
-          planningModeClientConfig,
+          clientScanPlanningMode.modeName(),
           planningModeServerConfig);
     }
 
-    // Determine effective mode: prefer server config if present, otherwise use client config
-    String effectiveModeConfig =
-        planningModeServerConfig != null ? planningModeServerConfig : planningModeClientConfig;
-    RESTCatalogProperties.ScanPlanningMode effectiveMode =
-        effectiveModeConfig != null
-            ? RESTCatalogProperties.ScanPlanningMode.fromString(effectiveModeConfig)
-            : RESTCatalogProperties.SCAN_PLANNING_MODE_DEFAULT;
+    // Determine effective mode: prefer server config if present, otherwise use client config,
+    // fall back to default if both are null
+    ScanPlanningMode effectiveMode = RESTCatalogProperties.SCAN_PLANNING_MODE_DEFAULT;
+    if (serverScanPlanningMode != null) {
+      effectiveMode = serverScanPlanningMode;
+    } else if (clientScanPlanningMode != null) {
+      effectiveMode = clientScanPlanningMode;
+    }
 
-    if (effectiveMode == RESTCatalogProperties.ScanPlanningMode.SERVER) {
+    if (effectiveMode == ScanPlanningMode.SERVER) {
       Preconditions.checkState(
           endpoints.contains(Endpoint.V1_SUBMIT_TABLE_SCAN_PLAN),
           "Server requires server-side scan planning for table %s but does not support endpoint %s",

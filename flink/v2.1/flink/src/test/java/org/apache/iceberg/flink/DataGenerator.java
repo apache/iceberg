@@ -20,6 +20,7 @@ package org.apache.iceberg.flink;
 
 import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.types.logical.RowType;
+import org.apache.flink.types.variant.Variant;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.GenericRecord;
 
@@ -37,6 +38,8 @@ public interface DataGenerator {
   GenericRecord generateIcebergGenericRecord();
 
   GenericRowData generateFlinkRowData();
+
+  Variant generateFlinkVariantData();
 
   org.apache.avro.generic.GenericRecord generateAvroGenericRecord();
 }

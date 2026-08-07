@@ -32,6 +32,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -53,6 +54,7 @@ import org.apache.iceberg.connect.events.DataWritten;
 import org.apache.iceberg.connect.events.Event;
 import org.apache.iceberg.connect.events.StartCommit;
 import org.apache.iceberg.connect.events.TableReference;
+import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
@@ -80,8 +82,10 @@ class Coordinator extends Channel {
   private final String snapshotOffsetsProp;
   private final ExecutorService exec;
   private final CommitState commitState;
+  private final AtomicLong partialCommitFailures = new AtomicLong();
   private volatile boolean terminated;
   private final String taskId;
+  private int consecutiveCommitFailures;
 
   Coordinator(
       Catalog catalog,
@@ -150,17 +154,42 @@ class Coordinator extends Channel {
   private void commit(boolean partialCommit) {
     try {
       doCommit(partialCommit);
+      if (!partialCommit) {
+        consecutiveCommitFailures = 0;
+      }
     } catch (RuntimeException e) {
       if (partialCommit) {
+        partialCommitFailures.incrementAndGet();
         LOG.warn(
             "Partial commit {} failed for task {}, will retry",
             commitState.currentCommitId(),
             taskId,
             e);
-      } else {
-        LOG.error("Commit {} failed for task {}", commitState.currentCommitId(), taskId, e);
+        return;
+      }
+
+      if (!(e instanceof CommitFailedException)) {
+        // CommitStateUnknownException, ValidationException, ForbiddenException,
+        // NPE, anything else -- not retryable, terminate immediately
         throw e;
       }
+
+      consecutiveCommitFailures++;
+      if (consecutiveCommitFailures >= config.commitMaxConsecutiveFailures()) {
+        LOG.error(
+            "Commit {} failed for task {} ({} consecutive failures, terminating)",
+            commitState.currentCommitId(),
+            taskId,
+            consecutiveCommitFailures,
+            e);
+        throw e;
+      }
+      LOG.warn(
+          "Commit {} failed for task {} ({} consecutive failures, will retry)",
+          commitState.currentCommitId(),
+          taskId,
+          consecutiveCommitFailures,
+          e);
     } finally {
       commitState.endCurrentCommit();
     }
@@ -391,6 +420,10 @@ class Coordinator extends Channel {
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }
+  }
+
+  long partialCommitFailureCount() {
+    return partialCommitFailures.get();
   }
 
   void terminate() {
