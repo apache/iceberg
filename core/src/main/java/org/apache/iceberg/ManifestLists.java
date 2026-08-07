@@ -32,8 +32,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 class ManifestLists {
   private ManifestLists() {}
 
-  static InputFile newInputFile(FileIO io, ManifestListFile manifestList) {
-    InputFile input = io.newInputFile(manifestList);
+  static InputFile newInputFile(FileIO io, String location, String keyId) {
+    InputFile input = io.newInputFile(location, keyId);
     if (ManifestFiles.cachingEnabled(io)) {
       return ManifestFiles.contentCache(io).tryCache(input);
     }

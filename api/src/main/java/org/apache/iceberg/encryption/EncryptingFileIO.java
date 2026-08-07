@@ -130,6 +130,11 @@ public class EncryptingFileIO implements FileIO, Serializable {
     }
   }
 
+  /**
+   * @deprecated since 1.12.0. Will be removed in 2.0.0; use {@link #newInputFile(String, String)}
+   *     instead.
+   */
+  @Deprecated
   @Override
   public InputFile newInputFile(ManifestListFile manifestList) {
     if (manifestList.encryptionKeyID() != null) {
@@ -137,6 +142,16 @@ public class EncryptingFileIO implements FileIO, Serializable {
       return newDecryptingInputFile(manifestList.location(), keyMetadata);
     } else {
       return newInputFile(manifestList.location());
+    }
+  }
+
+  @Override
+  public InputFile newInputFile(String location, String keyId) {
+    if (keyId != null) {
+      ByteBuffer keyMetadata = em.decryptKeyMetadata(keyId);
+      return newDecryptingInputFile(location, keyMetadata);
+    } else {
+      return newInputFile(location);
     }
   }
 
