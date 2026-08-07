@@ -103,7 +103,7 @@ public class IcebergGenerics {
     }
 
     public CloseableIterable<Record> build() {
-      return new TableScanIterable(tableScan, reuseContainers);
+      return new TableScanIterable(tableScan, reuseContainers, false);
     }
   }
 }

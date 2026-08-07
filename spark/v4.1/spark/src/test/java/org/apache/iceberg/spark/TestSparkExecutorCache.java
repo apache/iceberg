@@ -526,12 +526,16 @@ public class TestSparkExecutorCache extends TestBaseWithCatalog {
     sql(
         "CREATE TABLE %s (id INT, dep STRING) "
             + "USING iceberg "
-            + "TBLPROPERTIES ('%s' '%s', '%s' '%s', '%s' '%s')",
+            + "TBLPROPERTIES ('%s' '%s', '%s' '%s', '%s' '%s', '%s' '%s')",
         targetTableName,
         TableProperties.WRITE_METADATA_LOCATION,
         temp.toString().replaceFirst("file:", ""),
         TableProperties.WRITE_DATA_LOCATION,
         temp.toString().replaceFirst("file:", ""),
+        // Prevent deduplication of equality delete reads within a task
+        // by planning each data file into its own task.
+        TableProperties.SPLIT_SIZE,
+        "1",
         operation,
         mode.modeName());
 
