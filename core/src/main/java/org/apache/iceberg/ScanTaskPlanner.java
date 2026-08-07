@@ -22,7 +22,6 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
@@ -38,6 +37,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.ParallelIterable;
 
 /**
@@ -67,7 +67,7 @@ class ScanTaskPlanner {
   private final boolean caseSensitive;
   private final ScanMetrics scanMetrics;
   private final ExecutorService executorService;
-  private final Map<Integer, TaskContext> taskContextsBySpec = new ConcurrentHashMap<>();
+  private final Map<Integer, TaskContext> taskContextsBySpec = Maps.newConcurrentMap();
 
   private ScanTaskPlanner(
       FileIO io,
@@ -286,19 +286,19 @@ class ScanTaskPlanner {
       return this;
     }
 
-    Builder caseSensitive(boolean caseSensitive) {
-      this.caseSensitive = caseSensitive;
+    Builder caseSensitive(boolean newCaseSensitive) {
+      this.caseSensitive = newCaseSensitive;
       return this;
     }
 
-    Builder scanMetrics(ScanMetrics scanMetrics) {
-      Preconditions.checkArgument(scanMetrics != null, "Invalid scan metrics: null");
-      this.scanMetrics = scanMetrics;
+    Builder scanMetrics(ScanMetrics newScanMetrics) {
+      Preconditions.checkArgument(newScanMetrics != null, "Invalid scan metrics: null");
+      this.scanMetrics = newScanMetrics;
       return this;
     }
 
-    Builder planWith(ExecutorService executorService) {
-      this.executorService = executorService;
+    Builder planWith(ExecutorService newExecutorService) {
+      this.executorService = newExecutorService;
       return this;
     }
 
