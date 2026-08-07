@@ -317,7 +317,7 @@ public class RewriteManifestsSparkAction
       // entry dataframe
       Column[] partitionColumns =
           partitionFieldClustering.stream()
-              .map(p -> col(DATA_FILE_PARTITION_COLUMN_NAME + "." + p))
+              .map(p -> col(DATA_FILE_PARTITION_COLUMN_NAME + ".`" + p + "`"))
               .toArray(Column[]::new);
 
       // Form a new temporary column to cluster manifests on, based on the custom clustering columns
