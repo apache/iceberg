@@ -333,6 +333,10 @@ public abstract class BaseMetastoreTableOperations extends BaseMetastoreOperatio
    */
   private boolean checkCurrentMetadataLocation(String newMetadataLocation) {
     TableMetadata metadata = refresh();
+    if (metadata == null) {
+      // the table does not exist in the catalog, so the commit could not have landed
+      return false;
+    }
     String currentMetadataFileLocation = metadata.metadataFileLocation();
     return currentMetadataFileLocation.equals(newMetadataLocation)
         || metadata.previousFiles().stream()
