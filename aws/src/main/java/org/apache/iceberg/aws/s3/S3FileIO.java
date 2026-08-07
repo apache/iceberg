@@ -47,6 +47,7 @@ import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.StorageCredential;
 import org.apache.iceberg.io.SupportsRecoveryOperations;
 import org.apache.iceberg.io.SupportsStorageCredentials;
+import org.apache.iceberg.io.http.HttpUrlSupport;
 import org.apache.iceberg.metrics.MetricsContext;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
@@ -88,8 +89,10 @@ import software.amazon.awssdk.services.s3.paginators.ListObjectVersionsIterable;
  * FileIO implementation backed by S3.
  *
  * <p>Locations used must follow the conventions for S3 URIs (e.g. s3://bucket/path...). URIs with
- * schemes s3a, s3n, https are also treated as s3 file paths. Using this FileIO with other schemes
- * will result in {@link org.apache.iceberg.exceptions.ValidationException}.
+ * schemes s3a, s3n are also treated as s3 file paths. HTTP(S) URL locations (e.g. a catalog-vended
+ * pre-signed URL) are read directly over HTTP(S) instead of through the native, credentialed S3
+ * client; see {@link #newInputFile(String)}. Using this FileIO with other schemes will result in
+ * {@link org.apache.iceberg.exceptions.ValidationException}.
  */
 public class S3FileIO
     implements CredentialSupplier,
@@ -108,6 +111,7 @@ public class S3FileIO
   private SerializableMap<String, String> properties = null;
   private MetricsContext metrics = MetricsContext.nullMetrics();
   private final AtomicBoolean isResourceClosed = new AtomicBoolean(false);
+  private transient volatile HttpUrlSupport httpUrlSupport;
   private transient StackTraceElement[] createStack;
   // use modifiable collection for Kryo serde
   private volatile List<StorageCredential> storageCredentials = Lists.newArrayList();
@@ -149,12 +153,16 @@ public class S3FileIO
 
   @Override
   public InputFile newInputFile(String path) {
-    return S3InputFile.fromLocation(path, clientForStoragePath(path), metrics);
+    return HttpUrlSupport.isHttpUrl(path)
+        ? httpUrlSupport().newInputFile(path, metrics)
+        : S3InputFile.fromLocation(path, clientForStoragePath(path), metrics);
   }
 
   @Override
   public InputFile newInputFile(String path, long length) {
-    return S3InputFile.fromLocation(path, length, clientForStoragePath(path), metrics);
+    return HttpUrlSupport.isHttpUrl(path)
+        ? httpUrlSupport().newInputFile(path, length, metrics)
+        : S3InputFile.fromLocation(path, length, clientForStoragePath(path), metrics);
   }
 
   @Override
@@ -501,6 +509,11 @@ public class S3FileIO
   @Override
   public void initialize(Map<String, String> props) {
     this.properties = SerializableMap.copyOf(props);
+    // reset so the next access rebuilds from the new properties
+    if (httpUrlSupport != null) {
+      httpUrlSupport.close();
+      this.httpUrlSupport = null;
+    }
 
     this.createStack =
         PropertyUtil.propertyAsBoolean(properties, "init-creation-stacktrace", true)
@@ -546,7 +559,23 @@ public class S3FileIO
         refreshFuture.cancel(true);
         refreshFuture = null;
       }
+      if (httpUrlSupport != null) {
+        httpUrlSupport.close();
+        this.httpUrlSupport = null;
+      }
     }
+  }
+
+  private HttpUrlSupport httpUrlSupport() {
+    if (httpUrlSupport == null) {
+      synchronized (this) {
+        if (httpUrlSupport == null) {
+          this.httpUrlSupport = new HttpUrlSupport(properties);
+        }
+      }
+    }
+
+    return httpUrlSupport;
   }
 
   @SuppressWarnings({"checkstyle:NoFinalizer", "Finalize", "deprecation"})
