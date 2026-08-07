@@ -28,8 +28,8 @@ import javax.net.ssl.SSLException;
 import org.apache.hc.client5.http.classic.methods.HttpGet;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.core5.http.HttpHeaders;
-import org.apache.hc.core5.http.HttpStatus;
 import org.apache.hc.core5.http.io.entity.EntityUtils;
+import org.apache.iceberg.exceptions.ForbiddenException;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.io.FileIOMetricsContext;
 import org.apache.iceberg.io.RangeReadable;
@@ -51,13 +51,15 @@ import org.slf4j.LoggerFactory;
  * a single range GET fully consumed within the response handler so connections return to the pool.
  * Positional reads ({@link #readFully}, {@link #readTail}) each issue their own range GET.
  *
- * <p>Transient socket/TLS errors and 5xx responses are retried up to {@value #MAX_RETRIES} times;
- * any other unexpected status (e.g. an expired pre-signed URL) fails immediately.
+ * <p>Transient socket/TLS errors and 5xx responses are retried up to {@value #MAX_RETRIES} times. A
+ * missing location ({@code 404}) surfaces as {@link NotFoundException} and a forbidden response
+ * ({@code 403}, e.g. an expired pre-signed URL) as {@link ForbiddenException}; both are terminal.
+ * Status codes are classified in one place by {@link HttpStatusCategory}.
  */
 class HTTPInputStream extends SeekableInputStream implements RangeReadable {
   private static final Logger LOG = LoggerFactory.getLogger(HTTPInputStream.class);
 
-  @VisibleForTesting static final int CHUNK_SIZE = 4 * 1024 * 1024; // 4 MB
+  @VisibleForTesting static final int CHUNK_SIZE = 8 * 1024 * 1024; // 8 MB
   private static final int MAX_RETRIES = 3;
 
   private final StackTraceElement[] createStack;
@@ -220,25 +222,28 @@ class HTTPInputStream extends SeekableInputStream implements RangeReadable {
         request,
         response -> {
           int statusCode = response.getCode();
-
-          if (statusCode == HttpStatus.SC_NOT_FOUND) {
-            throw new NotFoundException("Location does not exist: %s", requestUrl);
-          } else if (statusCode == HttpStatus.SC_REQUESTED_RANGE_NOT_SATISFIABLE) {
-            // Range starts at or past EOF (e.g. a reader probing for more blocks); treat as empty.
-            EntityUtils.consumeQuietly(response.getEntity());
-            return new byte[0];
-          } else if (statusCode >= 500) {
-            throw new TransientHttpException(
-                String.format(Locale.ROOT, "Transient HTTP %d for %s", statusCode, requestUrl));
-          } else if (statusCode != HttpStatus.SC_PARTIAL_CONTENT
-              && statusCode != HttpStatus.SC_OK) {
-            throw new IOException(
-                String.format(Locale.ROOT, "Unexpected HTTP %d for %s", statusCode, requestUrl));
-          }
-
-          return response.getEntity() != null
-              ? EntityUtils.toByteArray(response.getEntity())
-              : new byte[0];
+          return switch (HttpStatusCategory.classify(statusCode)) {
+            case OK, PARTIAL_CONTENT ->
+                response.getEntity() != null
+                    ? EntityUtils.toByteArray(response.getEntity())
+                    : new byte[0];
+            case RANGE_NOT_SATISFIABLE -> {
+              // Range starts at or past EOF (e.g. a reader probing for more blocks); treat as
+              // empty.
+              EntityUtils.consumeQuietly(response.getEntity());
+              yield new byte[0];
+            }
+            case NOT_FOUND ->
+                throw new NotFoundException("Location does not exist: %s", requestUrl);
+            case FORBIDDEN -> throw new ForbiddenException("Access forbidden for %s", requestUrl);
+            case SERVER_ERROR ->
+                throw new TransientHttpException(
+                    String.format(Locale.ROOT, "Transient HTTP %d for %s", statusCode, requestUrl));
+            case UNEXPECTED ->
+                throw new IOException(
+                    String.format(
+                        Locale.ROOT, "Unexpected HTTP %d for %s", statusCode, requestUrl));
+          };
         });
   }
 

@@ -25,7 +25,7 @@ import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.core5.http.ClassicHttpResponse;
 import org.apache.hc.core5.http.Header;
 import org.apache.hc.core5.http.HttpHeaders;
-import org.apache.hc.core5.http.HttpStatus;
+import org.apache.iceberg.exceptions.ForbiddenException;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.InputFile;
@@ -95,8 +95,9 @@ class HTTPInputFile implements InputFile {
     try {
       HttpGet request = new HttpGet(url);
       request.setHeader(HttpHeaders.RANGE, "bytes=0-0");
-      int statusCode = client.execute(request, ClassicHttpResponse::getCode);
-      return statusCode == HttpStatus.SC_PARTIAL_CONTENT || statusCode == HttpStatus.SC_OK;
+      HttpStatusCategory category =
+          client.execute(request, response -> HttpStatusCategory.classify(response.getCode()));
+      return category == HttpStatusCategory.OK || category == HttpStatusCategory.PARTIAL_CONTENT;
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to check existence of %s", location);
     }
@@ -115,35 +116,35 @@ class HTTPInputFile implements InputFile {
           request,
           response -> {
             int statusCode = response.getCode();
-
-            if (statusCode == HttpStatus.SC_NOT_FOUND) {
-              throw new NotFoundException("Location does not exist: %s", location);
-            }
-
-            // 206 Partial Content: parse total from "Content-Range: bytes 0-0/TOTAL"
-            if (statusCode == HttpStatus.SC_PARTIAL_CONTENT) {
-              Header contentRange = response.getFirstHeader("Content-Range");
-              if (contentRange != null) {
-                long total = parseTotalFromContentRange(contentRange.getValue());
-                if (total >= 0) {
-                  return total;
-                }
-              }
-
-              return UNKNOWN_LENGTH;
-            }
-
-            // 200 OK: server returned full content, use Content-Length
-            if (statusCode == HttpStatus.SC_OK) {
-              return parseLengthFrom200(response);
-            }
-
-            throw new IOException(
-                String.format(Locale.ROOT, "Unexpected HTTP %d for %s", statusCode, url));
+            return switch (HttpStatusCategory.classify(statusCode)) {
+                // 206 Partial Content: total parsed from "Content-Range: bytes 0-0/TOTAL"
+              case PARTIAL_CONTENT -> parseTotalFromPartialContent(response);
+                // 200 OK: server returned full content, use Content-Length
+              case OK -> parseLengthFrom200(response);
+              case NOT_FOUND ->
+                  throw new NotFoundException("Location does not exist: %s", location);
+              case FORBIDDEN -> throw new ForbiddenException("Access forbidden for %s", location);
+              default ->
+                  throw new IOException(
+                      String.format(Locale.ROOT, "Unexpected HTTP %d for %s", statusCode, url));
+            };
           });
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to fetch content length for %s", location);
     }
+  }
+
+  /** Reads the total object size from the {@code Content-Range} header of a 206 response. */
+  private static long parseTotalFromPartialContent(ClassicHttpResponse response) {
+    Header contentRange = response.getFirstHeader("Content-Range");
+    if (contentRange != null) {
+      long total = parseTotalFromContentRange(contentRange.getValue());
+      if (total >= 0) {
+        return total;
+      }
+    }
+
+    return UNKNOWN_LENGTH;
   }
 
   /** Extracts content length from a 200 response via entity or {@code Content-Length} header. */

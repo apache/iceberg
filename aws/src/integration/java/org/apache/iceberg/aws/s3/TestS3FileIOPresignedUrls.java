@@ -169,8 +169,8 @@ public class TestS3FileIOPresignedUrls {
 
   @Test
   void multiChunkReadViaPresignedUrl() throws IOException {
-    // 5 MB exceeds the 4 MB HTTPInputStream chunk size, forcing multiple chunk fetches.
-    int dataSize = 5 * 1024 * 1024;
+    // 10 MB exceeds the 8 MB HTTPInputStream chunk size, forcing multiple chunk fetches.
+    int dataSize = 10 * 1024 * 1024;
     byte[] expected = randomData(dataSize);
     String key = "multi-chunk.bin";
 

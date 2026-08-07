@@ -1,0 +1,54 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+package org.apache.iceberg.io.http;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+import org.junit.jupiter.api.Test;
+
+class TestHttpStatusCategory {
+
+  @Test
+  void classifiesSuccessCodes() {
+    assertThat(HttpStatusCategory.classify(200)).isEqualTo(HttpStatusCategory.OK);
+    assertThat(HttpStatusCategory.classify(206)).isEqualTo(HttpStatusCategory.PARTIAL_CONTENT);
+  }
+
+  @Test
+  void classifiesTerminalClientErrors() {
+    assertThat(HttpStatusCategory.classify(403)).isEqualTo(HttpStatusCategory.FORBIDDEN);
+    assertThat(HttpStatusCategory.classify(404)).isEqualTo(HttpStatusCategory.NOT_FOUND);
+    assertThat(HttpStatusCategory.classify(416))
+        .isEqualTo(HttpStatusCategory.RANGE_NOT_SATISFIABLE);
+  }
+
+  @Test
+  void classifiesServerErrorsAsTransient() {
+    assertThat(HttpStatusCategory.classify(500)).isEqualTo(HttpStatusCategory.SERVER_ERROR);
+    assertThat(HttpStatusCategory.classify(503)).isEqualTo(HttpStatusCategory.SERVER_ERROR);
+    assertThat(HttpStatusCategory.classify(599)).isEqualTo(HttpStatusCategory.SERVER_ERROR);
+  }
+
+  @Test
+  void classifiesOtherCodesAsUnexpected() {
+    assertThat(HttpStatusCategory.classify(301)).isEqualTo(HttpStatusCategory.UNEXPECTED);
+    assertThat(HttpStatusCategory.classify(400)).isEqualTo(HttpStatusCategory.UNEXPECTED);
+    assertThat(HttpStatusCategory.classify(401)).isEqualTo(HttpStatusCategory.UNEXPECTED);
+  }
+}

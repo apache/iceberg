@@ -19,6 +19,7 @@
 package org.apache.iceberg.io.http;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
@@ -33,6 +34,8 @@ import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.HttpClients;
+import org.apache.iceberg.exceptions.ForbiddenException;
+import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.io.FileIOMetricsContext;
 import org.apache.iceberg.io.IOUtil;
 import org.apache.iceberg.io.RangeReadable;
@@ -60,15 +63,25 @@ class TestHTTPInputFile {
   private static HttpServer server;
   private static CloseableHttpClient client;
   private static String url;
+  private static String missingUrl;
+  private static String forbiddenUrl;
+  private static String serverErrorUrl;
   private static final AtomicInteger REQUEST_COUNT = new AtomicInteger();
 
   @BeforeAll
   static void startServer() throws IOException {
     server = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
     server.createContext(PATH, TestHTTPInputFile::handle);
+    server.createContext("/missing", exchange -> respondStatus(exchange, 404));
+    server.createContext("/forbidden", exchange -> respondStatus(exchange, 403));
+    server.createContext("/server-error", exchange -> respondStatus(exchange, 500));
     server.start();
     client = HttpClients.createDefault();
-    url = String.format(Locale.ROOT, "http://127.0.0.1:%d%s", server.getAddress().getPort(), PATH);
+    int port = server.getAddress().getPort();
+    url = String.format(Locale.ROOT, "http://127.0.0.1:%d%s", port, PATH);
+    missingUrl = String.format(Locale.ROOT, "http://127.0.0.1:%d/missing", port);
+    forbiddenUrl = String.format(Locale.ROOT, "http://127.0.0.1:%d/forbidden", port);
+    serverErrorUrl = String.format(Locale.ROOT, "http://127.0.0.1:%d/server-error", port);
   }
 
   @AfterAll
@@ -140,7 +153,7 @@ class TestHTTPInputFile {
     }
 
     assertThat(actual).isEqualTo(DATA);
-    // reading past a single 4 MB chunk requires at least two range fetches
+    // reading past a single 8 MB chunk requires at least two range fetches
     assertThat(REQUEST_COUNT.get()).isGreaterThanOrEqualTo(2);
   }
 
@@ -158,6 +171,77 @@ class TestHTTPInputFile {
     Counter readOperations = metrics.counter(FileIOMetricsContext.READ_OPERATIONS);
     assertThat(readBytes.value()).isEqualTo(DATA.length);
     assertThat(readOperations.value()).isGreaterThan(0);
+  }
+
+  @Test
+  void getLengthThrowsNotFoundWhenMissing() {
+    HTTPInputFile inputFile =
+        new HTTPInputFile(client, "s3://bucket/object", missingUrl, MetricsContext.nullMetrics());
+
+    assertThatThrownBy(inputFile::getLength).isInstanceOf(NotFoundException.class);
+  }
+
+  @Test
+  void getLengthThrowsForbiddenWhenForbidden() {
+    HTTPInputFile inputFile =
+        new HTTPInputFile(client, "s3://bucket/object", forbiddenUrl, MetricsContext.nullMetrics());
+
+    assertThatThrownBy(inputFile::getLength).isInstanceOf(ForbiddenException.class);
+  }
+
+  @Test
+  void readThrowsForbiddenWithoutRetry() {
+    HTTPInputFile inputFile =
+        new HTTPInputFile(client, "s3://bucket/object", forbiddenUrl, MetricsContext.nullMetrics());
+
+    assertThatThrownBy(
+            () -> {
+              try (SeekableInputStream stream = inputFile.newStream()) {
+                ((RangeReadable) stream).readFully(0, new byte[16], 0, 16);
+              }
+            })
+        .isInstanceOf(ForbiddenException.class);
+    assertThat(REQUEST_COUNT.get()).isEqualTo(1);
+  }
+
+  @Test
+  void readRetriesOnServerErrorThenFails() {
+    HTTPInputFile inputFile =
+        new HTTPInputFile(
+            client, "s3://bucket/object", serverErrorUrl, MetricsContext.nullMetrics());
+
+    assertThatThrownBy(
+            () -> {
+              try (SeekableInputStream stream = inputFile.newStream()) {
+                ((RangeReadable) stream).readFully(0, new byte[16], 0, 16);
+              }
+            })
+        .isInstanceOf(IOException.class);
+    assertThat(REQUEST_COUNT.get()).isGreaterThan(1);
+  }
+
+  @Test
+  void existsReturnsTrueWhenPresent() {
+    HTTPInputFile inputFile =
+        new HTTPInputFile(client, "s3://bucket/object", url, MetricsContext.nullMetrics());
+
+    assertThat(inputFile.exists()).isTrue();
+  }
+
+  @Test
+  void existsReturnsFalseWhenMissing() {
+    HTTPInputFile inputFile =
+        new HTTPInputFile(client, "s3://bucket/object", missingUrl, MetricsContext.nullMetrics());
+
+    assertThat(inputFile.exists()).isFalse();
+  }
+
+  @Test
+  void existsReturnsFalseWhenForbidden() {
+    HTTPInputFile inputFile =
+        new HTTPInputFile(client, "s3://bucket/object", forbiddenUrl, MetricsContext.nullMetrics());
+
+    assertThat(inputFile.exists()).isFalse();
   }
 
   /** A {@link MetricsContext} that returns the same counter instance for a given name. */
@@ -214,6 +298,12 @@ class TestHTTPInputFile {
     try (OutputStream out = exchange.getResponseBody()) {
       out.write(DATA, (int) start, length);
     }
+  }
+
+  private static void respondStatus(HttpExchange exchange, int status) throws IOException {
+    REQUEST_COUNT.incrementAndGet();
+    exchange.sendResponseHeaders(status, -1);
+    exchange.close();
   }
 
   private static byte[] randomBytes(int size, long seed) {
