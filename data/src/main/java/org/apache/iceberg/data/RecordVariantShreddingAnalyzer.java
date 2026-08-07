@@ -32,9 +32,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Generic {@link Record} analyzer that resolves variant columns by their position in {@link
- * Schema#columns()}; buffered rows must be built against the same {@link Schema} passed as the
- * engine schema so {@link Record#get(int)} positions match the resolved indices.
+ * {@link Record} analyzer that resolves variant columns by position in {@link Schema#columns()}.
+ * Rows are read positionally, so an engine schema, if supplied, must place each variant column at
+ * its Iceberg-schema position.
  */
 class RecordVariantShreddingAnalyzer extends VariantShreddingAnalyzer<Record, Schema> {
   private static final Logger LOG = LoggerFactory.getLogger(RecordVariantShreddingAnalyzer.class);
@@ -45,21 +45,53 @@ class RecordVariantShreddingAnalyzer extends VariantShreddingAnalyzer<Record, Sc
   public Map<Integer, Type> analyzeVariantColumns(
       List<Record> bufferedRows, Schema icebergSchema, Schema engineSchema) {
     // Record rows are built against the Iceberg schema; use it when no engine schema is supplied.
-    return super.analyzeVariantColumns(
-        bufferedRows, icebergSchema, engineSchema != null ? engineSchema : icebergSchema);
+    if (engineSchema == null) {
+      return super.analyzeVariantColumns(bufferedRows, icebergSchema, icebergSchema);
+    }
+
+    checkVariantColumnPositionsAligned(icebergSchema, engineSchema);
+    return super.analyzeVariantColumns(bufferedRows, icebergSchema, engineSchema);
   }
 
   @Override
   protected int resolveColumnIndex(Schema engineSchema, String columnName) {
     Preconditions.checkArgument(engineSchema != null, "Invalid engine schema: null");
-    List<NestedField> columns = engineSchema.columns();
+    int index = positionOf(engineSchema, columnName);
+    if (index < 0) {
+      LOG.warn("Variant column {} not found in engine schema; skipping shredding", columnName);
+    }
+
+    return index;
+  }
+
+  // Rows are read positionally, so a variant column must sit at the same index in both schemas.
+  private static void checkVariantColumnPositionsAligned(
+      Schema icebergSchema, Schema engineSchema) {
+    List<NestedField> icebergColumns = icebergSchema.columns();
+    for (int icebergIndex = 0; icebergIndex < icebergColumns.size(); icebergIndex++) {
+      NestedField col = icebergColumns.get(icebergIndex);
+      if (!col.type().isVariantType()) {
+        continue;
+      }
+
+      int engineIndex = positionOf(engineSchema, col.name());
+      Preconditions.checkArgument(
+          engineIndex < 0 || engineIndex == icebergIndex,
+          "Variant column %s position mismatch between Iceberg and engine schemas: %s vs %s",
+          col.name(),
+          icebergIndex,
+          engineIndex);
+    }
+  }
+
+  private static int positionOf(Schema schema, String columnName) {
+    List<NestedField> columns = schema.columns();
     for (int index = 0; index < columns.size(); index++) {
       if (columns.get(index).name().equals(columnName)) {
         return index;
       }
     }
 
-    LOG.warn("Variant column {} not found in engine schema; skipping shredding", columnName);
     return -1;
   }
 

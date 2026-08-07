@@ -249,7 +249,7 @@ public class TestRecordVariantShreddingAnalyzer {
 
     assertThatThrownBy(() -> analyzer.resolveColumnIndex(null, "v"))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Invalid engine schema: null");
+        .hasMessage("Invalid engine schema: null");
   }
 
   @Test
@@ -260,6 +260,38 @@ public class TestRecordVariantShreddingAnalyzer {
         analyzer.analyzeVariantColumns(records, VARIANT_AFTER_ID_SCHEMA, MISMATCHED_ENGINE_SCHEMA);
 
     assertThat(shreddedTypes).isEmpty();
+  }
+
+  @Test
+  public void testAnalyzeVariantColumnsRejectsReorderedEngineSchema() {
+    RecordVariantShreddingAnalyzer analyzer = new RecordVariantShreddingAnalyzer();
+
+    assertThatThrownBy(
+            () ->
+                analyzer.analyzeVariantColumns(
+                    records, VARIANT_AFTER_ID_SCHEMA, VARIANT_BEFORE_ID_SCHEMA))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Variant column v position mismatch between Iceberg and engine schemas: 1 vs 0");
+  }
+
+  @Test
+  public void testAnalyzeVariantColumnsRejectsTwoSwappedVariantColumns() {
+    RecordVariantShreddingAnalyzer analyzer = new RecordVariantShreddingAnalyzer();
+    Schema swappedEngineSchema =
+        new Schema(
+            Types.NestedField.required(1, "id", Types.LongType.get()),
+            Types.NestedField.optional(4, "v2", Types.VariantType.get()),
+            Types.NestedField.optional(3, "other", Types.StringType.get()),
+            Types.NestedField.optional(2, "v1", Types.VariantType.get()));
+
+    assertThatThrownBy(
+            () ->
+                analyzer.analyzeVariantColumns(
+                    ImmutableList.<Record>of(), MULTI_VARIANT_SCHEMA, swappedEngineSchema))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Variant column v1 position mismatch between Iceberg and engine schemas: 1 vs 3");
   }
 
   @Test
@@ -354,7 +386,7 @@ public class TestRecordVariantShreddingAnalyzer {
   }
 
   @Test
-  public void testExplicitNullEngineSchemaStillDerivesAndShreds() throws IOException {
+  public void testExplicitNullEngineSchemaFallsBackAndShreds() throws IOException {
     OutputFile outputFile =
         Files.localOutput(temp.resolve("explicit-null-engine.parquet").toFile());
     EncryptedOutputFile encryptedOutputFile = EncryptedFiles.plainAsEncryptedOutput(outputFile);
@@ -385,6 +417,8 @@ public class TestRecordVariantShreddingAnalyzer {
         ParquetFileReader.open(ParquetFileTestUtils.file(outputFile.toInputFile()))) {
       assertShreddedVariantParquetSchema(reader.getFooter().getFileMetaData().getSchema());
     }
+
+    assertRecordsRoundTrip(outputFile, records);
   }
 
   @Test
@@ -435,6 +469,7 @@ public class TestRecordVariantShreddingAnalyzer {
       assertThat(typedValue.containsField("c")).isFalse();
     }
 
+    assertResidualValuePresentOnRow(outputFile, 2);
     assertRecordsRoundTrip(outputFile, mixedRecords);
   }
 
@@ -537,6 +572,23 @@ public class TestRecordVariantShreddingAnalyzer {
     }
 
     assertThat(rowCount).isEqualTo(records.size());
+  }
+
+  private void assertResidualValuePresentOnRow(OutputFile outputFile, int residualRowIndex)
+      throws IOException {
+    int rowIndex = 0;
+    try (ParquetReader<Group> rawReader =
+        ParquetReader.builder(new GroupReadSupport(), new Path(outputFile.location())).build()) {
+      for (Group row = rawReader.read(); row != null; row = rawReader.read()) {
+        Group variantData = row.getGroup("v", 0);
+        if (rowIndex == residualRowIndex) {
+          assertThat(variantData.getFieldRepetitionCount("value")).isGreaterThan(0);
+        } else {
+          assertThat(variantData.getFieldRepetitionCount("value")).isEqualTo(0);
+        }
+        rowIndex++;
+      }
+    }
   }
 
   private void assertRecordsRoundTrip(OutputFile outputFile, List<Record> expected)
