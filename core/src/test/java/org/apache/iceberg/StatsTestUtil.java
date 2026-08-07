@@ -18,11 +18,79 @@
  */
 package org.apache.iceberg;
 
+import java.util.List;
 import org.apache.iceberg.types.Types;
 import org.mockito.Mockito;
 
 class StatsTestUtil {
+  private static final int FORMAT_VERSION_V4 = 4;
+
   private StatsTestUtil() {}
+
+  static TrackedFile trackedFile(String location, long recordCount, ContentStats stats) {
+    return new TrackedFileStruct(
+        null,
+        FileContent.DATA,
+        FORMAT_VERSION_V4,
+        location,
+        FileFormat.fromFileName(location),
+        recordCount,
+        1024L,
+        0,
+        null,
+        stats,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null);
+  }
+
+  static ContentStats contentStats(Types.StructType statsType, FieldStats<?>... fieldStats) {
+    ContentStatsStruct stats = new ContentStatsStruct(statsType);
+    for (FieldStats<?> field : fieldStats) {
+      stats.setStats(field.fieldId(), field);
+    }
+
+    return stats;
+  }
+
+  /** Returns the stats for a field, where a null metric is one that the column does not track. */
+  static FieldStats<Object> fieldStats(
+      Types.StructType statsType,
+      int fieldId,
+      Object lower,
+      Object upper,
+      Long valueCount,
+      Long nullCount,
+      Long nanCount) {
+    Types.StructType type = statsType.field(StatsUtil.toBaseId(fieldId)).type().asStructType();
+    FieldStatsStruct<Object> stats = new FieldStatsStruct<>(type);
+    set(stats, StatsUtil.LOWER_BOUND_NAME, lower);
+    set(stats, StatsUtil.UPPER_BOUND_NAME, upper);
+    set(stats, "value_count", valueCount);
+    set(stats, "null_value_count", nullCount);
+    set(stats, "nan_value_count", nanCount);
+
+    return stats;
+  }
+
+  private static void set(FieldStatsStruct<Object> stats, String metric, Object value) {
+    if (value == null) {
+      return;
+    }
+
+    List<Types.NestedField> fields = stats.type().fields();
+    for (int pos = 0; pos < fields.size(); pos += 1) {
+      if (fields.get(pos).name().equals(metric)) {
+        stats.set(pos, value);
+        return;
+      }
+    }
+
+    throw new IllegalArgumentException("Cannot set " + metric + ": not tracked by " + stats.type());
+  }
 
   /**
    * Mocks a {@link FieldStats} for a stats struct type, stubbing the bounds and only the counts

@@ -24,9 +24,11 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.types.Comparators;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.util.NaNUtil;
+import org.apache.iceberg.variants.VariantValue;
 
-abstract class InclusiveEvalVisitor extends ExpressionVisitors.BoundVisitor<Boolean> {
+public abstract class InclusiveEvalVisitor extends ExpressionVisitors.BoundVisitor<Boolean> {
   private static final int IN_PREDICATE_LIMIT = 200;
 
   protected static final boolean ROWS_MIGHT_MATCH = true;
@@ -62,6 +64,11 @@ abstract class InclusiveEvalVisitor extends ExpressionVisitors.BoundVisitor<Bool
   /** Return a variant field's upper bound if it is known, or null otherwise. */
   protected <T> T extractUpperBound(BoundExtract<T> bound) {
     return null;
+  }
+
+  /** Return a variant value as the given type, or null if it cannot be represented as that type. */
+  protected static <T> T castTo(VariantValue value, Type type) {
+    return VariantExpressionUtil.castTo(value, type);
   }
 
   @Override
