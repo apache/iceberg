@@ -29,6 +29,9 @@ import org.apache.iceberg.types.Types;
 public interface ManifestFile {
   int PARTITION_SUMMARIES_ELEMENT_ID = 508;
 
+  /** Format version for pre-v4 manifest files. */
+  int LEGACY_FORMAT_VERSION = 0;
+
   Types.NestedField PATH =
       required(500, "manifest_path", Types.StringType.get(), "Location URI with FS scheme");
   Types.NestedField LENGTH =

@@ -77,7 +77,7 @@ public class ManifestsTable extends BaseMetadataTable {
 
   protected DataTask task(TableScan scan) {
     FileIO io = table().io();
-    String location = scan.snapshot().manifestListLocation();
+    String location = scan.snapshot().snapshotFileLocation();
     Map<Integer, PartitionSpec> specs = Maps.newHashMap(table().specs());
 
     return StaticDataTask.of(

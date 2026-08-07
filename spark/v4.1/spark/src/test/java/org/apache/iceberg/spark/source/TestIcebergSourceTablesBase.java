@@ -944,6 +944,7 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
                         "changed-partition-count", "1",
                         "total-data-files", "1",
                         "total-records", "1"))
+                .set("snapshot_file", firstManifestList)
                 .build(),
             builder
                 .set("committed_at", secondSnapshotTimestamp * 1000)
@@ -959,6 +960,7 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
                         "changed-partition-count", "1",
                         "total-records", "0",
                         "total-data-files", "0"))
+                .set("snapshot_file", secondManifestList)
                 .build());
 
     assertThat(actual).as("Snapshots table should have a row for each snapshot").hasSize(2);

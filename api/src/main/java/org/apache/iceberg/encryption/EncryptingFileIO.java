@@ -29,6 +29,7 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.ManifestListFile;
+import org.apache.iceberg.SnapshotFile;
 import org.apache.iceberg.io.BulkDeletionFailureException;
 import org.apache.iceberg.io.DelegateFileIO;
 import org.apache.iceberg.io.FileIO;
@@ -120,13 +121,22 @@ public class EncryptingFileIO implements FileIO, Serializable {
   }
 
   @Override
-  public InputFile newInputFile(ManifestListFile manifestList) {
-    if (manifestList.encryptionKeyID() != null) {
-      ByteBuffer keyMetadata = manifestList.decryptKeyMetadata(em);
-      return newDecryptingInputFile(manifestList.location(), keyMetadata);
+  public InputFile newInputFile(SnapshotFile snapshotFile) {
+    if (snapshotFile.encryptionKeyID() != null) {
+      ByteBuffer keyMetadata = snapshotFile.decryptKeyMetadata(em);
+      return newDecryptingInputFile(snapshotFile.location(), keyMetadata);
     } else {
-      return newInputFile(manifestList.location());
+      return newInputFile(snapshotFile.location());
     }
+  }
+
+  /**
+   * @deprecated since 1.13.0; use {@link #newInputFile(SnapshotFile)}.
+   */
+  @Deprecated
+  @Override
+  public InputFile newInputFile(ManifestListFile manifestList) {
+    return newInputFile((SnapshotFile) manifestList);
   }
 
   public InputFile newDecryptingInputFile(String path, ByteBuffer buffer) {

@@ -229,7 +229,7 @@ public class RewriteTablePathUtil {
     List<Snapshot> newSnapshots = Lists.newArrayListWithCapacity(metadata.snapshots().size());
     for (Snapshot snapshot : metadata.snapshots()) {
       String newManifestListLocation =
-          newPath(snapshot.manifestListLocation(), sourcePrefix, targetPrefix);
+          newPath(snapshot.snapshotFileLocation(), sourcePrefix, targetPrefix);
       Snapshot newSnapshot =
           new BaseSnapshot(
               snapshot.sequenceNumber(),
@@ -313,12 +313,12 @@ public class RewriteTablePathUtil {
       return result;
     } catch (IOException e) {
       throw new UncheckedIOException(
-          "Failed to rewrite the manifest list file " + snapshot.manifestListLocation(), e);
+          "Failed to rewrite the manifest list file " + snapshot.snapshotFileLocation(), e);
     }
   }
 
   private static List<ManifestFile> manifestFilesInSnapshot(FileIO io, Snapshot snapshot) {
-    String path = snapshot.manifestListLocation();
+    String path = snapshot.snapshotFileLocation();
     List<ManifestFile> manifestFiles = Lists.newArrayList();
     try {
       manifestFiles = ManifestLists.read(io.newInputFile(path));

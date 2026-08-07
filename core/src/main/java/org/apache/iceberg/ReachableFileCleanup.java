@@ -59,7 +59,7 @@ class ReachableFileCleanup extends FileCleanupStrategy {
       return;
     }
 
-    Set<String> manifestListsToDelete = Sets.newHashSet();
+    Set<String> snapshotFilesToDelete = Sets.newHashSet();
 
     Set<Snapshot> snapshotsBeforeExpiration = Sets.newHashSet(beforeExpiration.snapshots());
     Set<Snapshot> snapshotsAfterExpiration = Sets.newHashSet(afterExpiration.snapshots());
@@ -67,8 +67,8 @@ class ReachableFileCleanup extends FileCleanupStrategy {
     for (Snapshot snapshot : snapshotsBeforeExpiration) {
       if (!snapshotsAfterExpiration.contains(snapshot)) {
         expiredSnapshots.add(snapshot);
-        if (snapshot.manifestListLocation() != null) {
-          manifestListsToDelete.add(snapshot.manifestListLocation());
+        if (snapshot.snapshotFileLocation() != null) {
+          snapshotFilesToDelete.add(snapshot.snapshotFileLocation());
         }
       }
     }
@@ -95,8 +95,8 @@ class ReachableFileCleanup extends FileCleanupStrategy {
       }
     }
 
-    LOG.debug("Deleting {} manifest-list files", manifestListsToDelete.size());
-    deleteFiles(manifestListsToDelete, "manifest list");
+    LOG.debug("Deleting {} manifest-list files", snapshotFilesToDelete.size());
+    deleteFiles(snapshotFilesToDelete, "manifest list");
 
     if (hasAnyStatisticsFiles(beforeExpiration)) {
       Set<String> expiredStatisticsFilesLocations =
@@ -134,7 +134,7 @@ class ReachableFileCleanup extends FileCleanupStrategy {
                 }
               } catch (IOException e) {
                 throw new RuntimeIOException(
-                    e, "Failed to close manifest list: %s", snapshot.manifestListLocation());
+                    e, "Failed to close manifest list: %s", snapshot.snapshotFileLocation());
               }
             });
 
@@ -160,7 +160,7 @@ class ReachableFileCleanup extends FileCleanupStrategy {
                 }
               } catch (IOException e) {
                 throw new RuntimeIOException(
-                    e, "Failed to close manifest list: %s", snapshot.manifestListLocation());
+                    e, "Failed to close manifest list: %s", snapshot.snapshotFileLocation());
               }
             });
 

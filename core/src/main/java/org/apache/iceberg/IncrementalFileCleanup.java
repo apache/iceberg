@@ -124,7 +124,7 @@ class IncrementalFileCleanup extends FileCleanupStrategy {
                 LOG.warn(
                     "Failed on snapshot {} while reading manifest list: {}",
                     snapshot.snapshotId(),
-                    snapshot.manifestListLocation(),
+                    snapshot.snapshotFileLocation(),
                     exc))
         .run(
             snapshot -> {
@@ -155,12 +155,12 @@ class IncrementalFileCleanup extends FileCleanupStrategy {
 
               } catch (IOException e) {
                 throw new RuntimeIOException(
-                    e, "Failed to close manifest list: %s", snapshot.manifestListLocation());
+                    e, "Failed to close manifest list: %s", snapshot.snapshotFileLocation());
               }
             });
 
     // find manifests to clean up that were only referenced by snapshots that have expired
-    Set<String> manifestListsToDelete = ConcurrentHashMap.newKeySet();
+    Set<String> snapshotFilesToDelete = ConcurrentHashMap.newKeySet();
     Set<String> manifestsToDelete = ConcurrentHashMap.newKeySet();
     Set<ManifestFile> manifestsToRevert = ConcurrentHashMap.newKeySet();
     Tasks.foreach(beforeExpiration.snapshots())
@@ -172,7 +172,7 @@ class IncrementalFileCleanup extends FileCleanupStrategy {
                 LOG.warn(
                     "Failed on snapshot {} while reading manifest list: {}",
                     snapshot.snapshotId(),
-                    snapshot.manifestListLocation(),
+                    snapshot.snapshotFileLocation(),
                     exc))
         .run(
             snapshot -> {
@@ -248,12 +248,12 @@ class IncrementalFileCleanup extends FileCleanupStrategy {
                   }
                 } catch (IOException e) {
                   throw new RuntimeIOException(
-                      e, "Failed to close manifest list: %s", snapshot.manifestListLocation());
+                      e, "Failed to close manifest list: %s", snapshot.snapshotFileLocation());
                 }
 
                 // add the manifest list to the delete set, if present
-                if (snapshot.manifestListLocation() != null) {
-                  manifestListsToDelete.add(snapshot.manifestListLocation());
+                if (snapshot.snapshotFileLocation() != null) {
+                  snapshotFilesToDelete.add(snapshot.snapshotFileLocation());
                 }
               }
             });
@@ -268,8 +268,8 @@ class IncrementalFileCleanup extends FileCleanupStrategy {
 
     LOG.debug("Deleting {} manifest files", manifestsToDelete.size());
     deleteFiles(manifestsToDelete, "manifest");
-    LOG.debug("Deleting {} manifest-list files", manifestListsToDelete.size());
-    deleteFiles(manifestListsToDelete, "manifest list");
+    LOG.debug("Deleting {} manifest-list files", snapshotFilesToDelete.size());
+    deleteFiles(snapshotFilesToDelete, "manifest list");
 
     if (hasAnyStatisticsFiles(beforeExpiration)) {
       Set<String> expiredStatisticsFilesLocations =
