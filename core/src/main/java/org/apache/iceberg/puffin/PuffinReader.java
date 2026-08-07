@@ -127,9 +127,11 @@ public class PuffinReader implements Closeable {
 
     // TODO inspect blob offsets and coalesce read regions close to each other
 
+    List<BlobMetadata> sortedBlobs =
+        ImmutableList.sortedCopyOf(Comparator.comparingLong(BlobMetadata::offset), blobs);
+
     return () ->
-        blobs.stream()
-            .sorted(Comparator.comparingLong(BlobMetadata::offset))
+        sortedBlobs.stream()
             .map(
                 (BlobMetadata blobMetadata) -> {
                   try {

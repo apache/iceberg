@@ -23,14 +23,17 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Set;
 import org.apache.iceberg.deletes.Deletes;
 import org.apache.iceberg.deletes.PositionDeleteIndex;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.puffin.Blob;
 import org.apache.iceberg.puffin.BlobMetadata;
 import org.apache.iceberg.puffin.Puffin;
@@ -394,7 +397,7 @@ public class TestRewriteTablePathUtil extends TestBase {
   }
 
   @TestTemplate
-  void rewriteDVFileRewritesReferencedDataFileInBlobMetadata() throws IOException {
+  void rewriteDVFileCanRetryAfterReadFailure() throws IOException {
     assumeThat(formatVersion).as("DVs require format version 3+").isGreaterThanOrEqualTo(3);
 
     String sourcePrefix = temp.resolve("source").toString();
@@ -438,10 +441,47 @@ public class TestRewriteTablePathUtil extends TestBase {
         Files.localOutput(
             temp.resolve("target/metadata/dv-rewritten-" + System.nanoTime() + ".puffin")
                 .toString());
-    try (PuffinWriter ignored = Puffin.write(rewrittenDVFile).createdBy("stale").build()) {}
 
-    RewriteTablePathUtil.rewritePositionDeleteFile(
-        dvDeleteFile, rewrittenDVFile, table.io(), table.spec(), sourcePrefix, targetPrefix, null);
+    long firstBlobOffset = sourceBlobMetadata.get(0).offset();
+    long failingBlobOffset = sourceBlobMetadata.get(1).offset();
+    FileIO failingFileIO =
+        new TestTables.LocalFileIO() {
+          @Override
+          public InputFile newInputFile(String path) {
+            InputFile inputFile = super.newInputFile(path);
+            return path.equals(sourceDVFile.location())
+                ? new FailingInputFile(inputFile, firstBlobOffset, failingBlobOffset)
+                : inputFile;
+          }
+        };
+
+    assertThatThrownBy(
+            () ->
+                RewriteTablePathUtil.rewritePositionDelete(
+                    dvDeleteFile,
+                    rewrittenDVFile,
+                    failingFileIO,
+                    table.spec(),
+                    sourcePrefix,
+                    targetPrefix,
+                    null))
+        .isInstanceOf(UncheckedIOException.class)
+        .hasMessageContaining("Injected read failure");
+
+    try (PuffinReader reader = Puffin.read(rewrittenDVFile.toInputFile()).build()) {
+      assertThat(reader.fileMetadata().blobs()).hasSize(1);
+    }
+
+    long rewrittenLength =
+        RewriteTablePathUtil.rewritePositionDelete(
+            dvDeleteFile,
+            rewrittenDVFile,
+            table.io(),
+            table.spec(),
+            sourcePrefix,
+            targetPrefix,
+            null);
+    assertThat(rewrittenLength).isEqualTo(rewrittenDVFile.toInputFile().getLength());
 
     try (PuffinReader reader = Puffin.read(rewrittenDVFile.toInputFile()).build()) {
       List<BlobMetadata> rewrittenBlobMetadata = reader.fileMetadata().blobs();
@@ -528,4 +568,96 @@ public class TestRewriteTablePathUtil extends TestBase {
     }
   }
 
+  private static class FailingInputFile implements InputFile {
+    private final InputFile delegate;
+    private final long firstBlobPosition;
+    private final long failingPosition;
+
+    private FailingInputFile(InputFile delegate, long firstBlobPosition, long failingPosition) {
+      this.delegate = delegate;
+      this.firstBlobPosition = firstBlobPosition;
+      this.failingPosition = failingPosition;
+    }
+
+    @Override
+    public long getLength() {
+      return delegate.getLength();
+    }
+
+    @Override
+    public SeekableInputStream newStream() {
+      return new FailingSeekableInputStream(
+          delegate.newStream(), firstBlobPosition, failingPosition);
+    }
+
+    @Override
+    public String location() {
+      return delegate.location();
+    }
+
+    @Override
+    public boolean exists() {
+      return delegate.exists();
+    }
+  }
+
+  private static class FailingSeekableInputStream extends SeekableInputStream {
+    private final SeekableInputStream delegate;
+    private final long firstBlobPosition;
+    private final long failingPosition;
+    private boolean readingBlobs;
+    private boolean failReads;
+
+    private FailingSeekableInputStream(
+        SeekableInputStream delegate, long firstBlobPosition, long failingPosition) {
+      this.delegate = delegate;
+      this.firstBlobPosition = firstBlobPosition;
+      this.failingPosition = failingPosition;
+    }
+
+    @Override
+    public long getPos() throws IOException {
+      return delegate.getPos();
+    }
+
+    @Override
+    public void seek(long newPos) throws IOException {
+      delegate.seek(newPos);
+      if (newPos == firstBlobPosition) {
+        this.readingBlobs = true;
+        this.failReads = false;
+      } else {
+        this.failReads = readingBlobs && newPos == failingPosition;
+      }
+    }
+
+    @Override
+    public int read() throws IOException {
+      checkRead();
+      return delegate.read();
+    }
+
+    @Override
+    public int read(byte[] bytes) throws IOException {
+      checkRead();
+      return delegate.read(bytes);
+    }
+
+    @Override
+    public int read(byte[] bytes, int offset, int length) throws IOException {
+      checkRead();
+      return delegate.read(bytes, offset, length);
+    }
+
+    @Override
+    public void close() throws IOException {
+      delegate.close();
+    }
+
+    private void checkRead() throws IOException {
+      if (failReads) {
+        throw new IOException("Injected read failure at position: " + failingPosition);
+      }
+    }
+  }
 }

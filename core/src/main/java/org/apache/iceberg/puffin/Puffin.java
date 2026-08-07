@@ -72,12 +72,12 @@ public final class Puffin {
       return this;
     }
 
-    /** Configures the writer to overwrite existing output files. */
+    /** Configures the writer to replace an existing output file. */
     public WriteBuilder overwrite() {
       return overwrite(true);
     }
 
-    /** Configures whether the writer overwrites existing output files. */
+    /** Configures whether the writer replaces an existing output file. Disabled by default. */
     public WriteBuilder overwrite(boolean enabled) {
       this.overwrite = enabled;
       return this;

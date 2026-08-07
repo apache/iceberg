@@ -783,10 +783,7 @@ public class RewriteTablePathUtil {
       throws IOException {
     try (PuffinReader reader = Puffin.read(io.newInputFile(deleteFile.location())).build();
         PuffinWriter writer =
-            Puffin.write(outputFile)
-                .createdBy(IcebergBuild.fullVersion())
-                .overwrite()
-                .build()) {
+            Puffin.write(outputFile).createdBy(IcebergBuild.fullVersion()).overwrite().build()) {
       for (Pair<BlobMetadata, ByteBuffer> blobPair :
           reader.readAll(reader.fileMetadata().blobs())) {
         BlobMetadata blobMetadata = blobPair.first();
