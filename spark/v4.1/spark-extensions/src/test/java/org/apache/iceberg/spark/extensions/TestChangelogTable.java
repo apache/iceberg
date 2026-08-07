@@ -58,6 +58,12 @@ public class TestChangelogTable extends ExtensionsTestBase {
         SparkCatalogConfig.HIVE.implementation(),
         SparkCatalogConfig.HIVE.properties(),
         2
+      },
+      {
+        SparkCatalogConfig.HIVE.catalogName(),
+        SparkCatalogConfig.HIVE.implementation(),
+        SparkCatalogConfig.HIVE.properties(),
+        3
       }
     };
   }
