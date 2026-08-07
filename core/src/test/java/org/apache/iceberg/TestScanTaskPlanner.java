@@ -49,7 +49,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.FieldSource;
 
-class TestManifestExpander {
+class TestScanTaskPlanner {
   private static final long SNAPSHOT_ID = 42L;
   private static final int WRITER_FORMAT_VERSION = 4;
   private static final long RECORD_COUNT = 100L;
@@ -292,7 +292,7 @@ class TestManifestExpander {
 
   @ParameterizedTest
   @FieldSource("MANIFEST_FORMATS")
-  void buildingAndClosingWithoutIteratingScansNoLeaves(FileFormat format) throws IOException {
+  void buildingAndClosingWithoutIteratingDoesNotScanLeaves(FileFormat format) throws IOException {
     InputFile leaf =
         writeManifest(
             format,
@@ -302,14 +302,15 @@ class TestManifestExpander {
         writeManifest(format, EMPTY_PARTITION, ImmutableList.of(dataManifest(leaf.location())));
 
     ScanMetrics metrics = ScanMetrics.of(new DefaultMetricsContext());
-    ManifestExpander expander =
-        ManifestExpander.builder(fileIO, root, UNPARTITIONED_SPECS, TABLE_LOCATION)
+    ScanTaskPlanner planner =
+        ScanTaskPlanner.builder(fileIO, root, UNPARTITIONED_SPECS, TABLE_LOCATION)
             .scanMetrics(metrics)
             .build();
-    // close the plan without iterating: the leaf reader is opened lazily, so nothing is scanned
-    expander.planFiles().close();
+    // the root is read eagerly to route its entries; leaf readers open lazily, so closing the plan
+    // without iterating scans only the root, not the leaf
+    planner.planFiles().close();
 
-    assertThat(metrics.scannedDataManifests().value()).isZero();
+    assertThat(metrics.scannedDataManifests().value()).isEqualTo(1L);
   }
 
   @ParameterizedTest
@@ -361,7 +362,7 @@ class TestManifestExpander {
             PARTITIONED_SPECS,
             expander -> expander.filterData(Expressions.equal("data", "x")));
 
-    ExecutorService pool = ThreadPools.newFixedThreadPool("test-manifest-expander", 2);
+    ExecutorService pool = ThreadPools.newFixedThreadPool("test-scan-task-planner", 2);
     try {
       List<FileScanTask> parallel =
           plan(
@@ -393,8 +394,8 @@ class TestManifestExpander {
         writeManifest(format, EMPTY_PARTITION, ImmutableList.of(deleteManifest("deletes.avro")));
 
     // delete content is only produced by upgraded trees; that path is not yet implemented
-    ManifestExpander expander =
-        ManifestExpander.builder(fileIO, root, UNPARTITIONED_SPECS, TABLE_LOCATION).build();
+    ScanTaskPlanner expander =
+        ScanTaskPlanner.builder(fileIO, root, UNPARTITIONED_SPECS, TABLE_LOCATION).build();
     assertThatThrownBy(() -> Lists.newArrayList(expander.planFiles()))
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessage("Cannot plan content type in root manifest: DELETE_MANIFEST");
@@ -413,8 +414,8 @@ class TestManifestExpander {
     InputFile root =
         writeManifest(format, EMPTY_PARTITION, ImmutableList.of(dataManifest(leaf.location())));
 
-    ManifestExpander expander =
-        ManifestExpander.builder(fileIO, root, UNPARTITIONED_SPECS, TABLE_LOCATION).build();
+    ScanTaskPlanner expander =
+        ScanTaskPlanner.builder(fileIO, root, UNPARTITIONED_SPECS, TABLE_LOCATION).build();
     assertThatThrownBy(() -> Lists.newArrayList(expander.planFiles()))
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessage("Cannot plan content type in leaf manifest: DELETE_MANIFEST");
@@ -430,8 +431,8 @@ class TestManifestExpander {
         writeManifest(format, EMPTY_PARTITION, ImmutableList.of(dataManifest(leaf.location())));
 
     // a nested manifest is structurally impossible in a two-level tree, not merely unsupported
-    ManifestExpander expander =
-        ManifestExpander.builder(fileIO, root, UNPARTITIONED_SPECS, TABLE_LOCATION).build();
+    ScanTaskPlanner expander =
+        ScanTaskPlanner.builder(fileIO, root, UNPARTITIONED_SPECS, TABLE_LOCATION).build();
     assertThatThrownBy(() -> Lists.newArrayList(expander.planFiles()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
@@ -453,8 +454,8 @@ class TestManifestExpander {
 
     // applying the manifest-level DV is not built yet; expanding the leaf would resurface deleted
     // entries, so the planner rejects rather than silently corrupting
-    ManifestExpander expander =
-        ManifestExpander.builder(fileIO, root, UNPARTITIONED_SPECS, TABLE_LOCATION).build();
+    ScanTaskPlanner expander =
+        ScanTaskPlanner.builder(fileIO, root, UNPARTITIONED_SPECS, TABLE_LOCATION).build();
     assertThatThrownBy(() -> Lists.newArrayList(expander.planFiles()))
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessage("Cannot apply manifest deletion vector for leaf manifest: " + leaf.location());
@@ -472,8 +473,8 @@ class TestManifestExpander {
     InputFile root =
         writeManifest(format, EMPTY_PARTITION, ImmutableList.of(dataManifest(leaf.location(), 3)));
 
-    ManifestExpander expander =
-        ManifestExpander.builder(fileIO, root, UNPARTITIONED_SPECS, TABLE_LOCATION).build();
+    ScanTaskPlanner expander =
+        ScanTaskPlanner.builder(fileIO, root, UNPARTITIONED_SPECS, TABLE_LOCATION).build();
     assertThatThrownBy(() -> Lists.newArrayList(expander.planFiles()))
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessage("Cannot expand leaf manifest with format version 3: " + leaf.location());
@@ -493,8 +494,8 @@ class TestManifestExpander {
 
     // reading the leaf as a plain file would hand ciphertext to the reader; the decrypting path
     // is not built yet, so the planner rejects rather than silently corrupting
-    ManifestExpander expander =
-        ManifestExpander.builder(fileIO, root, UNPARTITIONED_SPECS, TABLE_LOCATION).build();
+    ScanTaskPlanner expander =
+        ScanTaskPlanner.builder(fileIO, root, UNPARTITIONED_SPECS, TABLE_LOCATION).build();
     assertThatThrownBy(() -> Lists.newArrayList(expander.planFiles()))
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessage("Cannot read encrypted leaf manifest: " + leaf.location());
@@ -597,8 +598,8 @@ class TestManifestExpander {
 
     assertThat(tasks).hasSize(2);
     assertThat(metrics.scannedDataManifests().value())
-        .as("the root manifest is the manifest-list analog and is not counted; there are no leaves")
-        .isEqualTo(0L);
+        .as("the root is scanned; there are no leaves")
+        .isEqualTo(1L);
     assertThat(metrics.resultDataFiles().value()).isEqualTo(2L);
     assertThat(metrics.totalFileSizeInBytes().value()).isEqualTo(2 * FILE_SIZE_IN_BYTES);
     assertThat(metrics.resultDeleteFiles().value())
@@ -611,7 +612,7 @@ class TestManifestExpander {
 
   @ParameterizedTest
   @FieldSource("MANIFEST_FORMATS")
-  void scannedManifestsCountsLeavesNotRoot(FileFormat format) throws IOException {
+  void scannedManifestsCountsRootAndLeaves(FileFormat format) throws IOException {
     InputFile leaf1 =
         writeManifest(
             format,
@@ -632,8 +633,8 @@ class TestManifestExpander {
     plan(root, UNPARTITIONED_SPECS, expander -> expander.scanMetrics(metrics));
 
     assertThat(metrics.scannedDataManifests().value())
-        .as("both leaves are counted; the root (manifest-list analog) is not")
-        .isEqualTo(2L);
+        .as("the root and both leaves are each counted as a scanned manifest")
+        .isEqualTo(3L);
   }
 
   private List<FileScanTask> plan(InputFile root, Map<Integer, PartitionSpec> specsById)
@@ -644,10 +645,10 @@ class TestManifestExpander {
   private List<FileScanTask> plan(
       InputFile root,
       Map<Integer, PartitionSpec> specsById,
-      UnaryOperator<ManifestExpander.Builder> configure)
+      UnaryOperator<ScanTaskPlanner.Builder> configure)
       throws IOException {
-    ManifestExpander expander =
-        configure.apply(ManifestExpander.builder(fileIO, root, specsById, TABLE_LOCATION)).build();
+    ScanTaskPlanner expander =
+        configure.apply(ScanTaskPlanner.builder(fileIO, root, specsById, TABLE_LOCATION)).build();
     try (CloseableIterable<FileScanTask> tasks = expander.planFiles()) {
       return Lists.newArrayList(tasks);
     }

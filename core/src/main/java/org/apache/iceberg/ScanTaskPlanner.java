@@ -18,12 +18,11 @@
  */
 package org.apache.iceberg;
 
-import com.github.benmanes.caffeine.cache.Caffeine;
-import com.github.benmanes.caffeine.cache.LoadingCache;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
@@ -36,12 +35,13 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.metrics.ScanMetrics;
 import org.apache.iceberg.metrics.ScanMetricsUtil;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.ParallelIterable;
 
 /**
- * Planner that expands the adaptive metadata tree into {@link FileScanTask}s.
+ * Plans {@link FileScanTask}s from a V4 root manifest.
  *
  * <p>Emits a task for each live {@code DATA} entry and expands {@code DATA_MANIFEST} entries into
  * their leaf manifests. A data entry's colocated deletion vector is attached to its task as a
@@ -54,7 +54,7 @@ import org.apache.iceberg.util.ParallelIterable;
  * must be applied before this planner is wired into a scan or the delete-manifest matching path,
  * since delete scoping compares a data file's sequence number against the delete's.
  */
-class ManifestExpander {
+class ScanTaskPlanner {
   private static final int FORMAT_VERSION = 4;
   private static final DeleteFile[] NO_DELETES = new DeleteFile[0];
 
@@ -67,9 +67,9 @@ class ManifestExpander {
   private final boolean caseSensitive;
   private final ScanMetrics scanMetrics;
   private final ExecutorService executorService;
-  private final LoadingCache<Integer, TaskContext> taskContextCache;
+  private final Map<Integer, TaskContext> taskContextsBySpec = new ConcurrentHashMap<>();
 
-  private ManifestExpander(
+  private ScanTaskPlanner(
       FileIO io,
       InputFile rootManifest,
       Map<Integer, PartitionSpec> specsById,
@@ -88,7 +88,6 @@ class ManifestExpander {
     this.caseSensitive = caseSensitive;
     this.scanMetrics = scanMetrics;
     this.executorService = executorService;
-    this.taskContextCache = Caffeine.newBuilder().build(this::newTaskContext);
   }
 
   static Builder builder(
@@ -100,13 +99,13 @@ class ManifestExpander {
   }
 
   CloseableIterable<FileScanTask> planFiles() {
-    List<CloseableIterable<FileScanTask>> taskGroups = Lists.newArrayList();
     List<TrackedFile> dataFiles = Lists.newArrayList();
     List<TrackedFile> leafManifests = Lists.newArrayList();
 
     // root is drained into these lists. Leaf references must be buffered so they can be fanned
     // out; direct DATA entries are buffered too, bounded by how many data files a tree keeps
     // directly in the root. Leaf tasks stay lazy: createLeafTasks opens no reader until iterated.
+    scanMetrics.scannedDataManifests().increment();
     try (CloseableIterable<TrackedFile> rootEntries = open(rootManifest)) {
       for (TrackedFile entry : rootEntries) {
         switch (entry.contentType()) {
@@ -117,8 +116,7 @@ class ManifestExpander {
             leafManifests.add(entry);
             break;
           default:
-            // delete content is only produced by upgraded trees; the 2-phase path is not built
-            // yet.
+            // delete content appears only on upgraded trees
             throw new UnsupportedOperationException(
                 "Cannot plan content type in root manifest: " + entry.contentType());
         }
@@ -128,26 +126,26 @@ class ManifestExpander {
           "Failed to close root manifest: " + rootManifest.location(), e);
     }
 
-    if (!dataFiles.isEmpty()) {
-      taskGroups.add(
-          CloseableIterable.transform(
-              CloseableIterable.withNoopClose(dataFiles), this::createTask));
-    }
+    // root DATA tasks are already in hand, so emit them directly; only leaf expansion, which reads
+    // each leaf manifest, is worth handing to the parallel backend
+    CloseableIterable<FileScanTask> rootTasks =
+        CloseableIterable.transform(CloseableIterable.withNoopClose(dataFiles), this::createTask);
 
+    List<CloseableIterable<FileScanTask>> leafTasks = Lists.newArrayList();
     for (TrackedFile leaf : leafManifests) {
-      taskGroups.add(createLeafTasks(leaf));
+      leafTasks.add(createLeafTasks(leaf));
     }
 
-    if (executorService != null) {
-      return new ParallelIterable<>(taskGroups, executorService);
-    }
+    CloseableIterable<FileScanTask> expandedLeafTasks =
+        executorService != null
+            ? new ParallelIterable<>(leafTasks, executorService)
+            : CloseableIterable.concat(leafTasks);
 
-    return CloseableIterable.concat(taskGroups);
+    return CloseableIterable.concat(ImmutableList.of(rootTasks, expandedLeafTasks));
   }
 
   private CloseableIterable<FileScanTask> createLeafTasks(TrackedFile leaf) {
-    // an upgraded tree can reference legacy format leaf that must be read with the legacy
-    // manifest reader; per-leaf dispatch is not built yet, so reject a non-v4 leaf.
+    // an upgraded tree can reference a legacy-format leaf
     if (leaf.formatVersion() != FORMAT_VERSION) {
       throw new UnsupportedOperationException(
           "Cannot expand leaf manifest with format version "
@@ -156,21 +154,16 @@ class ManifestExpander {
               + leaf.location());
     }
 
-    // applying manifest DV during expansion is not supported yet, so reject leaf with manifest DVs.
     if (leaf.manifestInfo() != null && leaf.manifestInfo().dv() != null) {
       throw new UnsupportedOperationException(
           "Cannot apply manifest deletion vector for leaf manifest: " + leaf.location());
     }
 
-    // an encrypted leaf must be opened through a decrypting input path; not supported yet.
     if (leaf.keyMetadata() != null) {
       throw new UnsupportedOperationException(
           "Cannot read encrypted leaf manifest: " + leaf.location());
     }
 
-    // the reader is opened and the leaf counted as scanned lazily, only when the result is
-    // iterated: a plan that is built and closed without iterating reads nothing, and each leaf
-    // increments scannedDataManifests exactly once.
     return new LeafTasks(leaf);
   }
 
@@ -187,19 +180,18 @@ class ManifestExpander {
       scanMetrics.scannedDataManifests().increment();
       CloseableIterable<TrackedFile> entries = open(io.newInputFile(leaf.location()));
       CloseableIterable<FileScanTask> tasks =
-          CloseableIterable.transform(entries, ManifestExpander.this::createTaskFromLeafEntry);
+          CloseableIterable.transform(entries, ScanTaskPlanner.this::createTaskFromDataFileEntry);
       addCloseable(tasks);
       return tasks.iterator();
     }
   }
 
-  private FileScanTask createTaskFromLeafEntry(TrackedFile entry) {
+  private FileScanTask createTaskFromDataFileEntry(TrackedFile entry) {
     // the tree is at most two levels, so a leaf holds only DATA entries
     if (entry.contentType() == FileContent.DATA_MANIFEST) {
       throw new IllegalArgumentException(
           "Cannot expand a nested manifest in a leaf manifest: " + entry.location());
     } else if (entry.contentType() != FileContent.DATA) {
-      // delete content is only produced by upgraded trees; the 2-phase path is not built yet
       throw new UnsupportedOperationException(
           "Cannot plan content type in leaf manifest: " + entry.contentType());
     }
@@ -218,7 +210,8 @@ class ManifestExpander {
 
   private FileScanTask createTask(TrackedFile trackedFile) {
     DataFile dataFile = TrackedFileAdapters.asDataFile(trackedFile, specsById);
-    TaskContext context = taskContextCache.get(dataFile.specId());
+    TaskContext context =
+        taskContextsBySpec.computeIfAbsent(dataFile.specId(), this::newTaskContext);
 
     DeleteFile[] deletes;
     if (trackedFile.deletionVector() != null) {
@@ -309,8 +302,8 @@ class ManifestExpander {
       return this;
     }
 
-    ManifestExpander build() {
-      return new ManifestExpander(
+    ScanTaskPlanner build() {
+      return new ScanTaskPlanner(
           io,
           rootManifest,
           specsById,
