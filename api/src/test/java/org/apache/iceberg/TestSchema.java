@@ -21,6 +21,8 @@ package org.apache.iceberg;
 import static org.apache.iceberg.Schema.DEFAULT_VALUES_MIN_FORMAT_VERSION;
 import static org.apache.iceberg.Schema.MIN_FORMAT_VERSIONS;
 import static org.apache.iceberg.TestHelpers.MAX_FORMAT_VERSION;
+import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -311,5 +313,158 @@ public class TestSchema {
     assertThat(fields.get(4).name()).isEqualTo("age");
     assertThat(fields.get(5).name()).isEqualTo("email");
     assertThat(((Types.StructType) fields.get(2).type()).fields()).hasSize(3);
+  }
+
+  @Test
+  void isNullableWithEmptySchemaOrUnknownFields() {
+    assertThat(new Schema().isNullable(1)).isTrue();
+    assertThat(new Schema(required(1, "id", Types.IntegerType.get())).isNullable(2)).isTrue();
+  }
+
+  @Test
+  void isNullableWithTopLevelFields() {
+    Schema schema =
+        new Schema(
+            required(1, "id", Types.IntegerType.get()),
+            optional(2, "data", Types.StringType.get()));
+
+    assertThat(schema.isNullable(1)).isFalse();
+    assertThat(schema.isNullable(2)).isTrue();
+  }
+
+  @Test
+  void isNullableWithNestedStructs() {
+    Schema schema =
+        new Schema(
+            required(
+                1,
+                "required_location",
+                Types.StructType.of(
+                    required(3, "required_lat", Types.DoubleType.get()),
+                    optional(4, "optional_lon", Types.DoubleType.get()),
+                    required(
+                        5,
+                        "required_inner",
+                        Types.StructType.of(
+                            required(6, "required_zip", Types.IntegerType.get()))))),
+            optional(
+                2,
+                "optional_location",
+                Types.StructType.of(
+                    required(7, "required_lat", Types.DoubleType.get()),
+                    required(
+                        8,
+                        "required_inner",
+                        Types.StructType.of(
+                            required(9, "required_zip", Types.IntegerType.get()))))));
+
+    // a required field is not nullable when every field that contains it is required
+    assertThat(schema.isNullable(1)).isFalse();
+    assertThat(schema.isNullable(3)).isFalse();
+    assertThat(schema.isNullable(5)).isFalse();
+    assertThat(schema.isNullable(6)).isFalse();
+
+    // an optional field is nullable regardless of the fields that contain it
+    assertThat(schema.isNullable(4)).isTrue();
+
+    // a required field nested in an optional struct is nullable
+    assertThat(schema.isNullable(2)).isTrue();
+    assertThat(schema.isNullable(7)).isTrue();
+    assertThat(schema.isNullable(8)).isTrue();
+    assertThat(schema.isNullable(9)).isTrue();
+  }
+
+  @Test
+  void isNullableWithLists() {
+    Schema schema =
+        new Schema(
+            required(
+                1,
+                "required_points",
+                Types.ListType.ofRequired(
+                    2, Types.StructType.of(required(3, "required_x", Types.LongType.get())))),
+            optional(
+                4,
+                "optional_points",
+                Types.ListType.ofOptional(
+                    5, Types.StructType.of(required(6, "required_x", Types.LongType.get())))),
+            optional(
+                7,
+                "optional_lines",
+                Types.ListType.ofRequired(
+                    8, Types.StructType.of(required(9, "required_x", Types.LongType.get())))),
+            required(
+                10,
+                "required_shapes",
+                Types.ListType.ofOptional(
+                    11, Types.StructType.of(required(12, "required_x", Types.LongType.get())))));
+
+    // a required element of a required list is not nullable, nor is anything it contains
+    assertThat(schema.isNullable(1)).isFalse();
+    assertThat(schema.isNullable(2)).isFalse();
+    assertThat(schema.isNullable(3)).isFalse();
+
+    // an optional element is nullable, as is anything it contains
+    assertThat(schema.isNullable(4)).isTrue();
+    assertThat(schema.isNullable(5)).isTrue();
+    assertThat(schema.isNullable(6)).isTrue();
+
+    // a required element of an optional list is nullable
+    assertThat(schema.isNullable(7)).isTrue();
+    assertThat(schema.isNullable(8)).isTrue();
+    assertThat(schema.isNullable(9)).isTrue();
+
+    // an optional element of a required list is nullable, as is anything it contains
+    assertThat(schema.isNullable(10)).isFalse();
+    assertThat(schema.isNullable(11)).isTrue();
+    assertThat(schema.isNullable(12)).isTrue();
+  }
+
+  @Test
+  void isNullableWithMaps() {
+    Schema schema =
+        new Schema(
+            required(
+                1,
+                "required_locations",
+                Types.MapType.ofRequired(
+                    2,
+                    3,
+                    Types.StringType.get(),
+                    Types.StructType.of(required(4, "required_lat", Types.DoubleType.get())))),
+            optional(
+                5,
+                "optional_locations",
+                Types.MapType.ofRequired(
+                    6,
+                    7,
+                    Types.StringType.get(),
+                    Types.StructType.of(required(8, "required_lat", Types.DoubleType.get())))),
+            required(
+                9,
+                "locations_with_optional_values",
+                Types.MapType.ofOptional(
+                    10,
+                    11,
+                    Types.StringType.get(),
+                    Types.StructType.of(required(12, "required_lat", Types.DoubleType.get())))));
+
+    // required map keys and values are not nullable
+    assertThat(schema.isNullable(1)).isFalse();
+    assertThat(schema.isNullable(2)).isFalse();
+    assertThat(schema.isNullable(3)).isFalse();
+    assertThat(schema.isNullable(4)).isFalse();
+
+    // required keys and values of an optional map are nullable
+    assertThat(schema.isNullable(5)).isTrue();
+    assertThat(schema.isNullable(6)).isTrue();
+    assertThat(schema.isNullable(7)).isTrue();
+    assertThat(schema.isNullable(8)).isTrue();
+
+    // an optional value of a required map is nullable, as is anything it contains, but keys are not
+    assertThat(schema.isNullable(9)).isFalse();
+    assertThat(schema.isNullable(10)).isFalse();
+    assertThat(schema.isNullable(11)).isTrue();
+    assertThat(schema.isNullable(12)).isTrue();
   }
 }
