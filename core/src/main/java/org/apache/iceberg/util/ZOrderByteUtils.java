@@ -217,3 +217,10 @@ public class ZOrderByteUtils {
     return interleavedBytes;
   }
 }
+
+
+value >> (Integer.SIZE - 1);  ❌ wrong
+  ```
+- To this:
+  ```java
+  value >> (Long.SIZE - 1);  ✅ correct
