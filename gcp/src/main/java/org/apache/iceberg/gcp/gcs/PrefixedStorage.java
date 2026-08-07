@@ -36,8 +36,11 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.util.SerializableSupplier;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 class PrefixedStorage implements AutoCloseable {
+  private static final Logger LOG = LoggerFactory.getLogger(PrefixedStorage.class);
   private static final String GCS_FILE_IO_USER_AGENT = "gcsfileio/" + EnvironmentContext.get();
   private final String storagePrefix;
   private final GCPProperties gcpProperties;
@@ -157,7 +160,24 @@ class PrefixedStorage implements AutoCloseable {
       // Explicitly allow "no credentials" for testing purposes
       return NoCredentials.getInstance();
     } else if (properties.impersonateServiceAccount().isPresent()) {
+      if (gcpProperties.tokenCredentialProvider().isPresent()) {
+        LOG.warn(
+            "Both {} and {} are set; {} takes precedence and the provider is ignored",
+            GCPProperties.GCS_IMPERSONATE_SERVICE_ACCOUNT,
+            GCPProperties.GCS_TOKEN_CREDENTIAL_PROVIDER,
+            GCPProperties.GCS_IMPERSONATE_SERVICE_ACCOUNT);
+      }
       return buildImpersonatedCredentials(properties);
+    } else if (properties.tokenCredentialProvider().isPresent()) {
+      // A custom provider yields a self-refreshing GoogleCredentials (e.g. built from a
+      // caller-supplied source credential), addressing static-token expiry for non-vended setups.
+      GoogleCredentials credentials =
+          GcsTokenCredentialProviders.from(properties.properties()).credential();
+      Preconditions.checkState(
+          credentials != null,
+          "Provider %s returned null credentials",
+          gcpProperties.tokenCredentialProvider().get());
+      return credentials;
     } else {
       return null;
     }
