@@ -178,7 +178,9 @@ class TestHTTPInputFile {
     HTTPInputFile inputFile =
         new HTTPInputFile(client, "s3://bucket/object", missingUrl, MetricsContext.nullMetrics());
 
-    assertThatThrownBy(inputFile::getLength).isInstanceOf(NotFoundException.class);
+    assertThatThrownBy(inputFile::getLength)
+        .isInstanceOf(NotFoundException.class)
+        .hasMessageContaining("Location does not exist");
   }
 
   @Test
@@ -186,7 +188,9 @@ class TestHTTPInputFile {
     HTTPInputFile inputFile =
         new HTTPInputFile(client, "s3://bucket/object", forbiddenUrl, MetricsContext.nullMetrics());
 
-    assertThatThrownBy(inputFile::getLength).isInstanceOf(ForbiddenException.class);
+    assertThatThrownBy(inputFile::getLength)
+        .isInstanceOf(ForbiddenException.class)
+        .hasMessageContaining("Access forbidden");
   }
 
   @Test
@@ -200,7 +204,8 @@ class TestHTTPInputFile {
                 ((RangeReadable) stream).readFully(0, new byte[16], 0, 16);
               }
             })
-        .isInstanceOf(ForbiddenException.class);
+        .isInstanceOf(ForbiddenException.class)
+        .hasMessageContaining("Access forbidden");
     assertThat(REQUEST_COUNT.get()).isEqualTo(1);
   }
 
@@ -216,7 +221,8 @@ class TestHTTPInputFile {
                 ((RangeReadable) stream).readFully(0, new byte[16], 0, 16);
               }
             })
-        .isInstanceOf(IOException.class);
+        .isInstanceOf(IOException.class)
+        .hasMessageContaining("Transient HTTP");
     assertThat(REQUEST_COUNT.get()).isGreaterThan(1);
   }
 
