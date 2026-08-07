@@ -21,20 +21,21 @@ package org.apache.iceberg.actions;
 import org.apache.iceberg.ManifestFile;
 
 /**
- * An action that repairs incorrect statistics in the manifests of a table.
+ * An action that repairs a table.
  *
- * <p>Implementations rewrite the manifests of the table, producing a new set of manifests in which
- * the statistics of the entries are corrected to match the underlying data and delete files.
+ * <p>The repairs to perform are selected through the configuration methods of this action.
+ * Implementations rewrite the affected metadata, producing a new set of manifests in which the
+ * repaired entries replace the corrupt ones.
  */
-public interface RepairManifests extends SnapshotUpdate<RepairManifests, RepairManifests.Result> {
+public interface RepairTable extends SnapshotUpdate<RepairTable, RepairTable.Result> {
 
   /**
-   * Repairs incorrect statistics of manifest entries, such as record counts, file sizes and column
-   * level statistics.
+   * Repairs incorrect metrics of manifest entries, such as record counts, file sizes and column
+   * level statistics, by comparing them against the underlying data and delete files.
    *
    * @return this for method chaining
    */
-  RepairManifests repairEntryStats();
+  RepairTable repairFileMetrics();
 
   /**
    * Determines the repairs that would be performed without actually committing the operation to the
@@ -42,14 +43,14 @@ public interface RepairManifests extends SnapshotUpdate<RepairManifests, RepairM
    *
    * @return this for method chaining
    */
-  RepairManifests dryRun();
+  RepairTable dryRun();
 
   /** The action result that contains a summary of the execution. */
   interface Result {
     /** Returns the repaired manifests. */
     Iterable<ManifestFile> repairedManifests();
 
-    /** Returns the number of manifest entries whose stats were repaired. */
+    /** Returns the number of manifest entries that were repaired. */
     long repairedEntryCount();
   }
 }
