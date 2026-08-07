@@ -21,6 +21,7 @@ package org.apache.iceberg.connect.channel;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.connect.Committer;
 import org.apache.iceberg.connect.IcebergSinkConfig;
@@ -30,6 +31,9 @@ import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.admin.ConsumerGroupDescription;
 import org.apache.kafka.clients.admin.MemberDescription;
 import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.common.errors.InvalidProducerEpochException;
+import org.apache.kafka.common.errors.ProducerFencedException;
+import org.apache.kafka.common.errors.UnknownProducerIdException;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.apache.kafka.connect.sink.SinkTaskContext;
 import org.slf4j.Logger;
@@ -39,6 +43,10 @@ public class CommitterImpl implements Committer {
 
   private static final Logger LOG = LoggerFactory.getLogger(CommitterImpl.class);
 
+  // Bounded wait for a coordinator thread to fully exit (release its producer/consumer/admin) when
+  // stopping it, so a newly elected coordinator does not overlap the old one's clients.
+  private static final long COORDINATOR_STOP_TIMEOUT_MS = 60_000L;
+
   private CoordinatorThread coordinatorThread;
   private Worker worker;
   private Catalog catalog;
@@ -46,6 +54,7 @@ public class CommitterImpl implements Committer {
   private SinkTaskContext context;
   private KafkaClientFactory clientFactory;
   private Collection<MemberDescription> membersWhenWorkerIsCoordinator;
+  private final AtomicReference<TopicPartition> leaderTopicPartition = new AtomicReference<>(null);
   private final AtomicBoolean isInitialized = new AtomicBoolean(false);
   private String taskId;
 
@@ -109,6 +118,7 @@ public class CommitterImpl implements Committer {
           "Committer {} contains the first partition {}, this task is the leader",
           taskId,
           firstTopicPartition);
+      leaderTopicPartition.set(firstTopicPartition);
     } else {
       LOG.debug(
           "Committer {} does not contain the first partition {}, not the leader",
@@ -176,8 +186,11 @@ public class CommitterImpl implements Committer {
     }
 
     // Normal close: if leader partition is lost, stop coordinator.
-    if (hasLeaderPartition(closedPartitions)) {
-      LOG.info("Committer {} lost leader partition. Stopping coordinator.", taskId);
+    if (closedPartitions.contains(leaderTopicPartition.get())) {
+      LOG.info(
+          "Committer {} lost leader partition {}. Stopping coordinator.",
+          taskId,
+          leaderTopicPartition.get());
       stopCoordinator();
     }
 
@@ -197,8 +210,15 @@ public class CommitterImpl implements Committer {
 
   private void processControlEvents() {
     if (coordinatorThread != null && coordinatorThread.isTerminated()) {
-      throw new NotRunningException(
-          String.format("Coordinator unexpectedly terminated on committer %s", taskId));
+      if (isProducerFenced(coordinatorThread.exception())) {
+        // Lost the coordinator race (fenced by a newer coordinator). Clear it so
+        // commit thread pool are released.
+        LOG.warn("Committer {} coordinator was fenced by a newer coordinator; clearing it", taskId);
+        stopCoordinator();
+      } else {
+        throw new NotRunningException(
+            String.format("Coordinator unexpectedly terminated on committer %s", taskId));
+      }
     }
     if (worker != null) {
       worker.process();
@@ -216,7 +236,10 @@ public class CommitterImpl implements Committer {
 
   private void startCoordinator() {
     if (null == this.coordinatorThread) {
-      LOG.info("Task {} elected leader, starting commit coordinator", taskId);
+      LOG.info(
+          "Task {} elected leader (owns {}), starting commit coordinator.",
+          taskId,
+          leaderTopicPartition);
       Coordinator coordinator =
           new Coordinator(catalog, config, membersWhenWorkerIsCoordinator, clientFactory, context);
       coordinatorThread = new CoordinatorThread(coordinator);
@@ -232,9 +255,48 @@ public class CommitterImpl implements Committer {
   }
 
   private void stopCoordinator() {
-    if (coordinatorThread != null) {
-      coordinatorThread.terminate();
-      coordinatorThread = null;
+    CoordinatorThread thread = coordinatorThread;
+    if (thread == null) {
+      return;
     }
+    coordinatorThread = null;
+
+    try {
+      if (!thread.isTerminated()) {
+        thread.terminate();
+      }
+    } catch (RuntimeException e) {
+      LOG.warn(
+          "Committer {}: error signalling coordinator termination, continuing shutdown", taskId, e);
+    }
+
+    try {
+      thread.join(COORDINATOR_STOP_TIMEOUT_MS);
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      LOG.warn(
+          "Committer {}: interrupted while waiting for the coordinator thread to stop", taskId, e);
+      return;
+    }
+
+    if (thread.isAlive()) {
+      LOG.warn(
+          "Committer {}: coordinator thread did not stop within {} ms; it will keep shutting down "
+              + "in the background (a newer coordinator fences its producer)",
+          taskId,
+          COORDINATOR_STOP_TIMEOUT_MS);
+    }
+  }
+
+  private static boolean isProducerFenced(Throwable cause) {
+    Throwable current = cause;
+    for (int depth = 0; current != null && depth < 20; depth++, current = current.getCause()) {
+      if (current instanceof ProducerFencedException
+          || current instanceof InvalidProducerEpochException
+          || current instanceof UnknownProducerIdException) {
+        return true;
+      }
+    }
+    return false;
   }
 }
