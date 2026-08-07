@@ -188,8 +188,7 @@ public class TestCoordinator extends ChannelTestBase {
     when(catalog.loadTable(TABLE_IDENTIFIER)).thenReturn(spiedTable);
 
     SinkTaskContext context = mock(SinkTaskContext.class);
-    Coordinator coordinator =
-        new Coordinator(catalog, config, ImmutableList.of(), clientFactory, context);
+    Coordinator coordinator = new Coordinator(catalog, config, 0, clientFactory, context);
     coordinator.start();
     initConsumer();
 
@@ -234,8 +233,7 @@ public class TestCoordinator extends ChannelTestBase {
     when(catalog.loadTable(TABLE_IDENTIFIER)).thenReturn(spiedTable);
 
     SinkTaskContext context = mock(SinkTaskContext.class);
-    Coordinator coordinator =
-        new Coordinator(catalog, config, ImmutableList.of(), clientFactory, context);
+    Coordinator coordinator = new Coordinator(catalog, config, 0, clientFactory, context);
     coordinator.start();
     initConsumer();
 
@@ -270,8 +268,7 @@ public class TestCoordinator extends ChannelTestBase {
     when(catalog.loadTable(TABLE_IDENTIFIER)).thenReturn(spiedTable);
 
     SinkTaskContext context = mock(SinkTaskContext.class);
-    Coordinator coordinator =
-        new Coordinator(catalog, config, ImmutableList.of(), clientFactory, context);
+    Coordinator coordinator = new Coordinator(catalog, config, 0, clientFactory, context);
     coordinator.start();
     initConsumer();
 
@@ -282,6 +279,61 @@ public class TestCoordinator extends ChannelTestBase {
     assertThatThrownBy(() -> triggerCommitCycle(coordinator))
         .isInstanceOf(CommitFailedException.class)
         .hasMessageContaining("concurrent update");
+  }
+
+  @Test
+  public void testIsRetryableClassifiesCommitAndTransientKafkaErrors() {
+    // Iceberg optimistic-concurrency failure -> retry
+    assertThat(Coordinator.isRetryable(new CommitFailedException("occ"))).isTrue();
+    // Kafka consumer-commit failures from commitConsumerOffsets() -> retry (must NOT be confused
+    // with the Iceberg CommitFailedException, which was the original bug)
+    assertThat(
+            Coordinator.isRetryable(
+                new org.apache.kafka.clients.consumer.CommitFailedException("evicted")))
+        .isTrue();
+    assertThat(
+            Coordinator.isRetryable(
+                new org.apache.kafka.common.errors.RebalanceInProgressException()))
+        .isTrue();
+    assertThat(Coordinator.isRetryable(new org.apache.kafka.common.errors.TimeoutException()))
+        .isTrue();
+    // Fencing and unknown errors -> fatal (terminate)
+    assertThat(
+            Coordinator.isRetryable(
+                new org.apache.kafka.common.errors.ProducerFencedException("fenced")))
+        .isFalse();
+    assertThat(Coordinator.isRetryable(new ValidationException("stale"))).isFalse();
+    assertThat(Coordinator.isRetryable(new RuntimeException("boom"))).isFalse();
+  }
+
+  @Test
+  public void testConsumeAvailableSkipsAlreadyConsumedOffsets() {
+    when(config.commitIntervalMs()).thenReturn(Integer.MAX_VALUE);
+    when(config.commitTimeoutMs()).thenReturn(Integer.MAX_VALUE);
+
+    SinkTaskContext context = mock(SinkTaskContext.class);
+    Coordinator coordinator = new Coordinator(catalog, config, 0, clientFactory, context);
+    coordinator.start();
+    initConsumer();
+    TopicPartition tp = new TopicPartition(CTL_TOPIC_NAME, 0);
+
+    addControlRecord(0);
+    addControlRecord(1);
+    coordinator.process();
+    assertThat(coordinator.controlTopicOffsets().get(0)).isEqualTo(2L);
+
+    // An eager -coord rebalance can rewind the fetch position and re-deliver already-consumed
+    // records; consumeAvailable must skip them (offset < tracked), so the tracked offset never
+    // regresses and the records are not re-processed.
+    consumer.seek(tp, 0L);
+    coordinator.process();
+    assertThat(coordinator.controlTopicOffsets().get(0)).isEqualTo(2L);
+  }
+
+  private void addControlRecord(long offset) {
+    Event event = new Event(config.connectGroupId(), new StartCommit(UUID.randomUUID()));
+    consumer.addRecord(
+        new ConsumerRecord<>(CTL_TOPIC_NAME, 0, offset, "key", AvroUtil.encode(event)));
   }
 
   private long nextOffset = 1;
@@ -342,8 +394,7 @@ public class TestCoordinator extends ChannelTestBase {
     when(config.commitTimeoutMs()).thenReturn(Integer.MAX_VALUE);
 
     SinkTaskContext context = mock(SinkTaskContext.class);
-    Coordinator coordinator =
-        new Coordinator(catalog, config, ImmutableList.of(), clientFactory, context);
+    Coordinator coordinator = new Coordinator(catalog, config, 0, clientFactory, context);
     coordinator.start();
 
     // init consumer after subscribe()
@@ -399,8 +450,7 @@ public class TestCoordinator extends ChannelTestBase {
     when(catalog.loadTable(TABLE_IDENTIFIER)).thenReturn(spiedTable);
 
     SinkTaskContext context = mock(SinkTaskContext.class);
-    Coordinator coordinator =
-        new Coordinator(catalog, config, ImmutableList.of(), clientFactory, context);
+    Coordinator coordinator = new Coordinator(catalog, config, 0, clientFactory, context);
     coordinator.start();
 
     initConsumer();
