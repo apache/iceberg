@@ -41,16 +41,14 @@ public class TestGCPProperties {
 
   @Test
   public void testWriteThresholdOverride() {
-    GCPProperties props =
-        new GCPProperties(ImmutableMap.of(GCS_WRITE_THRESHOLD_BYTES, "1048576"));
+    GCPProperties props = new GCPProperties(ImmutableMap.of(GCS_WRITE_THRESHOLD_BYTES, "1048576"));
     assertThat(props.writeThresholdBytes()).isEqualTo(1_048_576L);
   }
 
   @Test
   public void testWriteThresholdNegativeRejected() {
     assertThatIllegalArgumentException()
-        .isThrownBy(
-            () -> new GCPProperties(ImmutableMap.of(GCS_WRITE_THRESHOLD_BYTES, "-1")))
+        .isThrownBy(() -> new GCPProperties(ImmutableMap.of(GCS_WRITE_THRESHOLD_BYTES, "-1")))
         .withMessageContaining(GCS_WRITE_THRESHOLD_BYTES);
   }
 
