@@ -21,6 +21,7 @@ package org.apache.iceberg;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
+import java.io.OptionalDataException;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.Map;
@@ -31,11 +32,14 @@ import org.apache.iceberg.util.ByteBuffers;
 /** Iceberg file format metrics. */
 public class Metrics implements Serializable {
 
+  private static final long serialVersionUID = 5337054944254511702L;
+
   private Long rowCount = null;
   private Map<Integer, Long> columnSizes = null;
   private Map<Integer, Long> valueCounts = null;
   private Map<Integer, Long> nullValueCounts = null;
   private Map<Integer, Long> nanValueCounts = null;
+  private Map<Integer, Integer> avgValueSizes = null;
   private Map<Integer, ByteBuffer> lowerBounds = null;
   private Map<Integer, ByteBuffer> upperBounds = null;
   // this is not serialized with all the other fields
@@ -53,7 +57,16 @@ public class Metrics implements Serializable {
       Map<Integer, Long> valueCounts,
       Map<Integer, Long> nullValueCounts,
       Map<Integer, Long> nanValueCounts) {
-    this(rowCount, columnSizes, valueCounts, nullValueCounts, nanValueCounts, null, null, null);
+    this(
+        rowCount,
+        columnSizes,
+        valueCounts,
+        nullValueCounts,
+        nanValueCounts,
+        null,
+        null,
+        null,
+        null);
   }
 
   public Metrics(
@@ -72,6 +85,7 @@ public class Metrics implements Serializable {
         nanValueCounts,
         lowerBounds,
         upperBounds,
+        null,
         null);
   }
 
@@ -84,11 +98,34 @@ public class Metrics implements Serializable {
       Map<Integer, ByteBuffer> lowerBounds,
       Map<Integer, ByteBuffer> upperBounds,
       Map<Integer, Type> originalTypes) {
+    this(
+        rowCount,
+        columnSizes,
+        valueCounts,
+        nullValueCounts,
+        nanValueCounts,
+        lowerBounds,
+        upperBounds,
+        originalTypes,
+        null);
+  }
+
+  public Metrics(
+      Long rowCount,
+      Map<Integer, Long> columnSizes,
+      Map<Integer, Long> valueCounts,
+      Map<Integer, Long> nullValueCounts,
+      Map<Integer, Long> nanValueCounts,
+      Map<Integer, ByteBuffer> lowerBounds,
+      Map<Integer, ByteBuffer> upperBounds,
+      Map<Integer, Type> originalTypes,
+      Map<Integer, Integer> avgValueSizes) {
     this.rowCount = rowCount;
     this.columnSizes = columnSizes;
     this.valueCounts = valueCounts;
     this.nullValueCounts = nullValueCounts;
     this.nanValueCounts = nanValueCounts;
+    this.avgValueSizes = avgValueSizes;
     this.lowerBounds = lowerBounds;
     this.upperBounds = upperBounds;
     this.originalTypes = originalTypes;
@@ -140,6 +177,15 @@ public class Metrics implements Serializable {
   }
 
   /**
+   * Get the average non-null value size in bytes for all fields where it was collected.
+   *
+   * @return a Map of fieldId to average value size in bytes
+   */
+  public Map<Integer, Integer> avgValueSizes() {
+    return avgValueSizes;
+  }
+
+  /**
    * Get the non-null lower bound values for all fields in a file.
    *
    * <p>To convert the {@link ByteBuffer} back to a value, use {@link
@@ -186,6 +232,7 @@ public class Metrics implements Serializable {
 
     writeByteBufferMap(out, lowerBounds);
     writeByteBufferMap(out, upperBounds);
+    out.writeObject(avgValueSizes);
   }
 
   private static void writeByteBufferMap(
@@ -222,6 +269,15 @@ public class Metrics implements Serializable {
 
     lowerBounds = readByteBufferMap(in);
     upperBounds = readByteBufferMap(in);
+    try {
+      avgValueSizes = (Map<Integer, Integer>) in.readObject();
+    } catch (OptionalDataException e) {
+      if (!e.eof) {
+        throw e;
+      }
+
+      avgValueSizes = null;
+    }
   }
 
   @SuppressWarnings("DangerousJavaDeserialization")

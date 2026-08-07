@@ -93,6 +93,14 @@ public interface ContentFile<F> {
   /** Returns if collected, map from column ID to its NaN value count, null otherwise. */
   Map<Integer, Long> nanValueCounts();
 
+  /**
+   * Returns if collected, map from column ID to its average non-null value size in bytes, null
+   * otherwise.
+   */
+  default Map<Integer, Integer> avgValueSizes() {
+    return null;
+  }
+
   /** Returns if collected, map from column ID to value lower bounds, null otherwise. */
   Map<Integer, ByteBuffer> lowerBounds();
 
@@ -187,7 +195,7 @@ public interface ContentFile<F> {
    * to copy data without stats when collecting files.
    *
    * @return a copy of this data file, without lower bounds, upper bounds, value counts, null value
-   *     counts, or nan value counts
+   *     counts, nan value counts, or average value sizes
    */
   F copyWithoutStats();
 
@@ -198,7 +206,7 @@ public interface ContentFile<F> {
    *
    * @param requestedColumnIds column IDs for which to keep stats.
    * @return a copy of data file, with lower bounds, upper bounds, value counts, null value counts,
-   *     and nan value counts for only specific columns.
+   *     nan value counts, and average value sizes for only specific columns.
    */
   default F copyWithStats(Set<Integer> requestedColumnIds) {
     throw new UnsupportedOperationException(
@@ -211,8 +219,8 @@ public interface ContentFile<F> {
    *
    * @param withStats Will copy this file without file stats if set to <code>false</code>.
    * @return a copy of this data file. If <code>withStats</code> is set to <code>false</code> the
-   *     file will not contain lower bounds, upper bounds, value counts, null value counts, or nan
-   *     value counts
+   *     file will not contain lower bounds, upper bounds, value counts, null value counts, nan
+   *     value counts, or average value sizes
    */
   default F copy(boolean withStats) {
     return withStats ? copy() : copyWithoutStats();

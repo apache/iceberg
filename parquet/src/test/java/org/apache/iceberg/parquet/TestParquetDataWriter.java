@@ -27,8 +27,10 @@ import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.security.SecureRandom;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Random;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
 import org.apache.iceberg.DataFile;
@@ -121,10 +123,11 @@ public class TestParquetDataWriter {
             Types.NestedField.optional(3, "geog", Types.GeographyType.crs84()));
 
     GenericRecord record = GenericRecord.create(schema);
+    ByteBuffer geom = wkbPoint(30, 10);
+    ByteBuffer geog = wkbPoint(-5, 40);
     List<Record> geoRecords =
         ImmutableList.of(
-            record.copy(
-                ImmutableMap.of("id", 1L, "geom", wkbPoint(30, 10), "geog", wkbPoint(-5, 40))),
+            record.copy(ImmutableMap.of("id", 1L, "geom", geom, "geog", geog)),
             // geog is left null
             record.copy(ImmutableMap.of("id", 2L, "geom", wkbPoint(0, 0))),
             // both geo columns are left null
@@ -144,7 +147,14 @@ public class TestParquetDataWriter {
       }
     }
 
-    assertThat(dataWriter.toDataFile().recordCount()).isEqualTo(geoRecords.size());
+    DataFile dataFile = dataWriter.toDataFile();
+    assertThat(dataFile.recordCount()).isEqualTo(geoRecords.size());
+    assertThat(dataFile.avgValueSizes())
+        .containsOnly(Map.entry(2, geom.remaining()), Map.entry(3, geog.remaining()));
+    assertThat(dataFile.copy().avgValueSizes()).isEqualTo(dataFile.avgValueSizes());
+    assertThat(dataFile.copyWithStats(Set.of(2)).avgValueSizes())
+        .containsOnly(Map.entry(2, geom.remaining()));
+    assertThat(dataFile.copyWithoutStats().avgValueSizes()).isNull();
 
     List<Record> writtenRecords;
     try (CloseableIterable<Record> reader =

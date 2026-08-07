@@ -63,7 +63,7 @@ interface FieldStats<T> {
 
   /**
    * The avg value size in memory (uncompressed) in bytes for variable-length types (string, binary,
-   * variant)
+   * variant, geometry, geography)
    */
   Integer avgValueSizeInBytes();
 

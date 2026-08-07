@@ -68,6 +68,7 @@ abstract class BaseFile<F> extends SupportsIndexProjection
   private Map<Integer, Long> valueCounts = null;
   private Map<Integer, Long> nullValueCounts = null;
   private Map<Integer, Long> nanValueCounts = null;
+  private Map<Integer, Integer> avgValueSizes = null;
   private Map<Integer, ByteBuffer> lowerBounds = null;
   private Map<Integer, ByteBuffer> upperBounds = null;
   private long[] splitOffsets = null;
@@ -146,6 +147,7 @@ abstract class BaseFile<F> extends SupportsIndexProjection
       Map<Integer, Long> valueCounts,
       Map<Integer, Long> nullValueCounts,
       Map<Integer, Long> nanValueCounts,
+      Map<Integer, Integer> avgValueSizes,
       Map<Integer, ByteBuffer> lowerBounds,
       Map<Integer, ByteBuffer> upperBounds,
       List<Long> splitOffsets,
@@ -178,6 +180,7 @@ abstract class BaseFile<F> extends SupportsIndexProjection
     this.valueCounts = valueCounts;
     this.nullValueCounts = nullValueCounts;
     this.nanValueCounts = nanValueCounts;
+    this.avgValueSizes = avgValueSizes;
     this.lowerBounds = SerializableByteBufferMap.wrap(lowerBounds);
     this.upperBounds = SerializableByteBufferMap.wrap(upperBounds);
     this.splitOffsets = ArrayUtil.toLongArray(splitOffsets);
@@ -215,6 +218,7 @@ abstract class BaseFile<F> extends SupportsIndexProjection
       this.valueCounts = copyMap(toCopy.valueCounts, requestedColumnIds);
       this.nullValueCounts = copyMap(toCopy.nullValueCounts, requestedColumnIds);
       this.nanValueCounts = copyMap(toCopy.nanValueCounts, requestedColumnIds);
+      this.avgValueSizes = copyMap(toCopy.avgValueSizes, requestedColumnIds);
       this.lowerBounds = copyByteBufferMap(toCopy.lowerBounds, requestedColumnIds);
       this.upperBounds = copyByteBufferMap(toCopy.upperBounds, requestedColumnIds);
     } else {
@@ -222,6 +226,7 @@ abstract class BaseFile<F> extends SupportsIndexProjection
       this.valueCounts = null;
       this.nullValueCounts = null;
       this.nanValueCounts = null;
+      this.avgValueSizes = null;
       this.lowerBounds = null;
       this.upperBounds = null;
     }
@@ -512,6 +517,11 @@ abstract class BaseFile<F> extends SupportsIndexProjection
   }
 
   @Override
+  public Map<Integer, Integer> avgValueSizes() {
+    return toReadableMap(avgValueSizes);
+  }
+
+  @Override
   public Map<Integer, ByteBuffer> lowerBounds() {
     return toReadableByteBufferMap(lowerBounds);
   }
@@ -648,6 +658,7 @@ abstract class BaseFile<F> extends SupportsIndexProjection
         .add("value_counts", valueCounts)
         .add("null_value_counts", nullValueCounts)
         .add("nan_value_counts", nanValueCounts)
+        .add("avg_value_sizes", avgValueSizes)
         .add("lower_bounds", lowerBounds)
         .add("upper_bounds", upperBounds)
         .add("key_metadata", keyMetadata == null ? "null" : "(redacted)")

@@ -38,6 +38,19 @@ class StatsTestUtil {
       Long valueCount,
       Long nullCount,
       Long nanCount) {
+    return mockFieldStats(type, id, lower, upper, valueCount, nullCount, nanCount, null);
+  }
+
+  @SuppressWarnings("unchecked")
+  static FieldStats<Object> mockFieldStats(
+      Types.StructType type,
+      int id,
+      Object lower,
+      Object upper,
+      Long valueCount,
+      Long nullCount,
+      Long nanCount,
+      Integer avgValueSize) {
     FieldStats<Object> stats = Mockito.mock(FieldStats.class);
     Mockito.when(stats.fieldId()).thenReturn(id);
     Mockito.when(stats.type()).thenReturn(type);
@@ -57,6 +70,8 @@ class StatsTestUtil {
     if (nanCount != null) {
       Mockito.when(stats.nanValueCount()).thenReturn(nanCount);
     }
+
+    Mockito.when(stats.avgValueSizeInBytes()).thenReturn(avgValueSize);
 
     return stats;
   }
