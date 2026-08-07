@@ -56,12 +56,24 @@ public class AvroSchemaUtil {
   private static final Schema.Type RECORD = Schema.Type.RECORD;
 
   public static Schema convert(org.apache.iceberg.Schema schema, String tableName) {
-    return convert(schema, ImmutableMap.of(schema.asStruct(), tableName));
+    return convert(schema, tableName, true);
+  }
+
+  public static Schema convert(
+      org.apache.iceberg.Schema schema, String tableName, boolean legacyTimestampMapping) {
+    return convert(schema, ImmutableMap.of(schema.asStruct(), tableName), legacyTimestampMapping);
   }
 
   public static Schema convert(
       org.apache.iceberg.Schema schema, Map<Types.StructType, String> names) {
-    return TypeUtil.visit(schema, new TypeToSchema.WithTypeToName(names));
+    return convert(schema, names, true);
+  }
+
+  public static Schema convert(
+      org.apache.iceberg.Schema schema,
+      Map<Types.StructType, String> names,
+      boolean legacyTimestampMapping) {
+    return TypeUtil.visit(schema, new TypeToSchema.WithTypeToName(names, legacyTimestampMapping));
   }
 
   public static Schema convert(Type type) {
@@ -69,24 +81,50 @@ public class AvroSchemaUtil {
   }
 
   public static Schema convert(Types.StructType type, String name) {
-    return convert(type, ImmutableMap.of(type, name));
+    return convert(type, name, true);
+  }
+
+  public static Schema convert(Types.StructType type, String name, boolean legacyTimestampMapping) {
+    return convert(type, ImmutableMap.of(type, name), legacyTimestampMapping);
   }
 
   public static Schema convert(Type type, Map<Types.StructType, String> names) {
-    return TypeUtil.visit(type, new TypeToSchema.WithTypeToName(names));
+    return convert(type, names, true);
+  }
+
+  public static Schema convert(
+      Type type, Map<Types.StructType, String> names, boolean legacyTimestampMapping) {
+    return TypeUtil.visit(type, new TypeToSchema.WithTypeToName(names, legacyTimestampMapping));
   }
 
   public static Schema convert(
       Type type, BiFunction<Integer, Types.StructType, String> namesFunction) {
-    return TypeUtil.visit(type, new TypeToSchema.WithNamesFunction(namesFunction));
+    return convert(type, namesFunction, true);
+  }
+
+  public static Schema convert(
+      Type type,
+      BiFunction<Integer, Types.StructType, String> namesFunction,
+      boolean legacyTimestampMapping) {
+    return TypeUtil.visit(
+        type, new TypeToSchema.WithNamesFunction(namesFunction, legacyTimestampMapping));
   }
 
   public static Type convert(Schema schema) {
-    return AvroSchemaVisitor.visit(schema, new SchemaToType(schema));
+    return convert(schema, true);
+  }
+
+  public static Type convert(Schema schema, boolean legacyTimestampMapping) {
+    return AvroSchemaVisitor.visit(schema, new SchemaToType(schema, legacyTimestampMapping));
   }
 
   public static org.apache.iceberg.Schema toIceberg(Schema schema) {
-    final List<Types.NestedField> fields = convert(schema).asNestedType().asStructType().fields();
+    return toIceberg(schema, true);
+  }
+
+  public static org.apache.iceberg.Schema toIceberg(Schema schema, boolean legacyTimestampMapping) {
+    final List<Types.NestedField> fields =
+        convert(schema, legacyTimestampMapping).asNestedType().asStructType().fields();
     return new org.apache.iceberg.Schema(fields);
   }
 
@@ -118,8 +156,13 @@ public class AvroSchemaUtil {
   }
 
   public static Map<Type, Schema> convertTypes(Types.StructType type, String name) {
+    return convertTypes(type, name, true);
+  }
+
+  public static Map<Type, Schema> convertTypes(
+      Types.StructType type, String name, boolean legacyTimestampMapping) {
     TypeToSchema.WithTypeToName converter =
-        new TypeToSchema.WithTypeToName(ImmutableMap.of(type, name));
+        new TypeToSchema.WithTypeToName(ImmutableMap.of(type, name), legacyTimestampMapping);
     TypeUtil.visit(type, converter);
     return ImmutableMap.copyOf(converter.getConversionMap());
   }
