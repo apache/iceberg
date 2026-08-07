@@ -33,8 +33,10 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.data.DataTestBase;
 import org.apache.iceberg.data.DataTestHelpers;
+import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.inmemory.InMemoryOutputFile;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
@@ -180,6 +182,156 @@ public class TestGenericData extends DataTestBase {
       }
 
       assertThat(Lists.newArrayList(reader)).hasSize(1);
+    }
+  }
+
+  @Test
+  public void testNestedInitialDefaultWhenAncestorStructIsNull() throws IOException {
+    // one row has an inner value, the other has a null nested struct
+    Schema writeSchema =
+        new Schema(
+            Types.NestedField.required(1, "id", Types.LongType.get()),
+            Types.NestedField.optional("nested")
+                .withId(2)
+                .ofType(
+                    Types.StructType.of(
+                        Types.NestedField.required(3, "inner", Types.StringType.get())))
+                .build());
+
+    Record present = GenericRecord.create(writeSchema);
+    present.setField("id", 1L);
+    Record presentNested =
+        GenericRecord.create(writeSchema.findField("nested").type().asStructType());
+    presentNested.setField("inner", "a");
+    present.setField("nested", presentNested);
+
+    Record nullNested = GenericRecord.create(writeSchema);
+    nullNested.setField("id", 2L);
+    nullNested.setField("nested", null);
+
+    OutputFile output = new InMemoryOutputFile();
+    try (FileAppender<Record> appender =
+        Parquet.write(output)
+            .schema(writeSchema)
+            .createWriterFunc(GenericParquetWriter::create)
+            .build()) {
+      appender.add(present);
+      appender.add(nullNested);
+    }
+
+    // project only the added field with the default; inner is not read
+    Schema readSchema =
+        new Schema(
+            Types.NestedField.required(1, "id", Types.LongType.get()),
+            Types.NestedField.optional("nested")
+                .withId(2)
+                .ofType(
+                    Types.StructType.of(
+                        Types.NestedField.optional("added")
+                            .withId(4)
+                            .ofType(Types.StringType.get())
+                            .withInitialDefault(Literal.of("US"))
+                            .build()))
+                .build());
+
+    List<Record> rows;
+    try (CloseableIterable<Record> reader =
+        Parquet.read(output.toInputFile())
+            .project(readSchema)
+            .createReaderFunc(
+                fileSchema -> GenericParquetReaders.buildReader(readSchema, fileSchema))
+            .build()) {
+      rows = Lists.newArrayList(reader);
+    }
+
+    assertThat(rows).hasSize(2);
+
+    // present struct reads the default
+    Record row1Nested = (Record) rows.get(0).getField("nested");
+    assertThat(row1Nested).isNotNull();
+    assertThat(row1Nested.getField("added")).isEqualTo("US");
+
+    // null struct reads as null
+    assertThat(rows.get(1).getField("nested")).isNull();
+  }
+
+  @Test
+  public void testNestedInitialDefaultWithInterleavedNullStructs() throws IOException {
+    // alternate present and null nested structs across rows
+    Schema writeSchema =
+        new Schema(
+            Types.NestedField.required(1, "id", Types.LongType.get()),
+            Types.NestedField.optional("nested")
+                .withId(2)
+                .ofType(
+                    Types.StructType.of(
+                        Types.NestedField.required(3, "inner", Types.StringType.get())))
+                .build());
+
+    Types.StructType writeNestedType = writeSchema.findField("nested").type().asStructType();
+
+    // present, null, present, null, present
+    List<Record> records = Lists.newArrayList();
+    boolean[] present = {true, false, true, false, true};
+    for (int i = 0; i < present.length; i += 1) {
+      Record record = GenericRecord.create(writeSchema);
+      record.setField("id", (long) i);
+      if (present[i]) {
+        Record nested = GenericRecord.create(writeNestedType);
+        nested.setField("inner", "inner-" + i);
+        record.setField("nested", nested);
+      } else {
+        record.setField("nested", null);
+      }
+
+      records.add(record);
+    }
+
+    OutputFile output = new InMemoryOutputFile();
+    try (FileAppender<Record> appender =
+        Parquet.write(output)
+            .schema(writeSchema)
+            .createWriterFunc(GenericParquetWriter::create)
+            .build()) {
+      appender.addAll(records);
+    }
+
+    // project only the added field with the default; inner is not read
+    Schema readSchema =
+        new Schema(
+            Types.NestedField.required(1, "id", Types.LongType.get()),
+            Types.NestedField.optional("nested")
+                .withId(2)
+                .ofType(
+                    Types.StructType.of(
+                        Types.NestedField.optional("added")
+                            .withId(4)
+                            .ofType(Types.StringType.get())
+                            .withInitialDefault(Literal.of("US"))
+                            .build()))
+                .build());
+
+    List<Record> rows;
+    try (CloseableIterable<Record> reader =
+        Parquet.read(output.toInputFile())
+            .project(readSchema)
+            .createReaderFunc(
+                fileSchema -> GenericParquetReaders.buildReader(readSchema, fileSchema))
+            .build()) {
+      rows = Lists.newArrayList(reader);
+    }
+
+    assertThat(rows).hasSize(present.length);
+    for (int i = 0; i < present.length; i += 1) {
+      Record nested = (Record) rows.get(i).getField("nested");
+      if (present[i]) {
+        // present struct reads the default
+        assertThat(nested).as("row %s nested struct should be present", i).isNotNull();
+        assertThat(nested.getField("added")).isEqualTo("US");
+      } else {
+        // null struct reads as null
+        assertThat(nested).as("row %s nested struct should be null", i).isNull();
+      }
     }
   }
 }

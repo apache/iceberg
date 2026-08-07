@@ -280,29 +280,91 @@ abstract class BaseParquetReaders<T> {
         }
       }
 
-      int constantDefinitionLevel = type.getMaxDefinitionLevel(currentPath());
+      String[] structPath = currentPath();
+      int constantDefinitionLevel = type.getMaxDefinitionLevel(structPath);
       List<Types.NestedField> expectedFields = expected.fields();
+
+      // When a nullable struct's projected fields are all constants (initial defaults, metadata
+      // columns, or partition values) with no real column read from the file, the struct has no
+      // per-row definition level to indicate whether an ancestor struct is null. In that case,
+      // borrow the definition level from a real leaf column that exists under the struct in the
+      // file so a null ancestor is not incorrectly materialized as a struct of default values.
+      boolean hasRealFieldReader =
+          expectedFields.stream().anyMatch(field -> readersById.containsKey(field.fieldId()));
+      ColumnDescriptor probe = null;
+      Integer probeHostId = null;
+      if (!hasRealFieldReader && constantDefinitionLevel > 0) {
+        probe = firstLeafUnder(structPath);
+        if (probe != null) {
+          probeHostId = probeHostFieldId(expectedFields);
+        }
+      }
+
       List<ParquetValueReader<?>> reorderedFields =
           Lists.newArrayListWithExpectedSize(expectedFields.size());
-
       for (Types.NestedField field : expectedFields) {
         int id = field.fieldId();
         ParquetValueReader<?> reader =
             ParquetValueReaders.replaceWithMetadataReader(
                 id, readersById.get(id), idToConstant, constantDefinitionLevel);
-        reorderedFields.add(defaultReader(field, reader, constantDefinitionLevel));
+        boolean hostsProbe = probeHostId != null && id == probeHostId;
+        reorderedFields.add(
+            defaultReader(field, reader, constantDefinitionLevel, hostsProbe ? probe : null));
       }
 
       return createStructReader(reorderedFields, expected, fieldId(struct));
     }
 
+    /**
+     * Returns the descriptor for the first leaf column in the file that is nested under the given
+     * struct path, or null if the struct has no leaf columns in the file.
+     */
+    private ColumnDescriptor firstLeafUnder(String[] structPath) {
+      for (ColumnDescriptor descriptor : type.getColumns()) {
+        String[] columnPath = descriptor.getPath();
+        if (columnPath.length > structPath.length) {
+          boolean isUnderStruct = true;
+          for (int i = 0; i < structPath.length; i += 1) {
+            if (!structPath[i].equals(columnPath[i])) {
+              isUnderStruct = false;
+              break;
+            }
+          }
+
+          if (isUnderStruct) {
+            return descriptor;
+          }
+        }
+      }
+
+      return null;
+    }
+
+    /** Returns the id of the first field with an initial default that can host the probe column. */
+    private Integer probeHostFieldId(List<Types.NestedField> expectedFields) {
+      for (Types.NestedField field : expectedFields) {
+        if (field.initialDefault() != null) {
+          return field.fieldId();
+        }
+      }
+
+      return null;
+    }
+
     private ParquetValueReader<?> defaultReader(
-        Types.NestedField field, ParquetValueReader<?> reader, int constantDL) {
+        Types.NestedField field,
+        ParquetValueReader<?> reader,
+        int constantDL,
+        ColumnDescriptor probe) {
       if (reader != null) {
         return reader;
       } else if (field.initialDefault() != null) {
-        return ParquetValueReaders.constant(
-            convertConstant(field.type(), field.initialDefault()), constantDL);
+        Object value = convertConstant(field.type(), field.initialDefault());
+        if (probe != null) {
+          return ParquetValueReaders.constant(value, probe);
+        }
+
+        return ParquetValueReaders.constant(value, constantDL);
       } else if (field.isOptional()) {
         return ParquetValueReaders.nulls();
       }
