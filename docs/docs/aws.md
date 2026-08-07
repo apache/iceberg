@@ -57,6 +57,21 @@ spark-sql --packages org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:{{ iceber
 
 As you can see, In the shell command, we use `--packages` to specify the additional `iceberg-aws-bundle` that contains all relevant AWS dependencies.
 
+If you only need S3 access (for example, a REST catalog with S3-backed tables), use the smaller `iceberg-aws-s3-bundle` instead. It contains only the S3-related AWS SDK clients, so it is roughly 25% smaller than `iceberg-aws-bundle`:
+
+```sh
+# start Spark SQL client shell with S3-only AWS dependencies
+spark-sql --packages org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:{{ icebergVersion }},org.apache.iceberg:iceberg-aws-s3-bundle:{{ icebergVersion }} \
+    --conf spark.sql.defaultCatalog=my_catalog \
+    --conf spark.sql.catalog.my_catalog=org.apache.iceberg.spark.SparkCatalog \
+    --conf spark.sql.catalog.my_catalog.warehouse=s3://my-bucket/my/key/prefix \
+    --conf spark.sql.catalog.my_catalog.type=rest \
+    --conf spark.sql.catalog.my_catalog.uri=http://localhost:8080 \
+    --conf spark.sql.catalog.my_catalog.io-impl=org.apache.iceberg.aws.s3.S3FileIO
+```
+
+The `iceberg-aws-s3-bundle` does not include the Glue, DynamoDB, KMS, LakeFormation or SSO clients. Use `iceberg-aws-bundle` when you need a Glue catalog, DynamoDB lock manager or KMS-based key management.
+
 ### Flink
 
 To use AWS module with Flink, you can download the necessary dependencies and specify them when starting the Flink SQL client:
