@@ -49,6 +49,7 @@ import org.apache.iceberg.rest.ImmutableHTTPRequest;
 import org.apache.iceberg.rest.RESTClient;
 import org.apache.iceberg.rest.RESTUtil;
 import org.apache.iceberg.rest.responses.OAuthTokenResponse;
+import org.apache.iceberg.util.BackoffStrategies;
 import org.apache.iceberg.util.JsonUtil;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.Tasks;
@@ -512,11 +513,13 @@ public class OAuth2Util {
                         LOG.warn("Failed to refresh token", err);
                       }
                     })
-                .exponentialBackoff(
-                    COMMIT_MIN_RETRY_WAIT_MS_DEFAULT,
-                    COMMIT_MAX_RETRY_WAIT_MS_DEFAULT,
-                    COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT,
-                    2.0 /* exponential */)
+                .totalTimeoutMs(COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT)
+                .backoffStrategy(
+                    BackoffStrategies.from(
+                        null,
+                        COMMIT_MIN_RETRY_WAIT_MS_DEFAULT,
+                        COMMIT_MAX_RETRY_WAIT_MS_DEFAULT,
+                        2.0))
                 .run(holder -> holder.set(refreshCurrentToken(client)));
 
         if (!isSuccessful || ref.get() == null) {
