@@ -30,6 +30,7 @@ import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -93,6 +94,10 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.StorageCredential;
 import org.apache.iceberg.io.SupportsStorageCredentials;
 import org.apache.iceberg.metrics.CommitReport;
+import org.apache.iceberg.metrics.ImmutableScanMetricsResult;
+import org.apache.iceberg.metrics.ImmutableScanReport;
+import org.apache.iceberg.metrics.MetricsReporter;
+import org.apache.iceberg.metrics.ScanReport;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -3988,6 +3993,49 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
       catalog.close();
       overwriteCatalog.close();
     }
+  }
+
+  @Test
+  public void metricsFilterAppliesToRestMetricsReporter() throws Exception {
+    RESTCatalog catalog =
+        initCatalog(
+            "withFilter",
+            ImmutableMap.of(CatalogProperties.METRICS_REPORTER_TABLE_NAME_INCLUDE, "prod_db\\..*"));
+
+    String metricsEndpoint = "/v1/prefix/namespaces/x/tables/y/metrics";
+    RESTClient mockClient = mock(RESTClient.class);
+    MetricsReporter combined =
+        catalog.sessionCatalog().metricsReporter(metricsEndpoint, mockClient);
+
+    ScanReport excluded = scanReport("dev_db.scratch");
+    ScanReport included = scanReport("prod_db.orders");
+
+    combined.report(excluded);
+    combined.report(included);
+
+    // RESTMetricsReporter dispatches each report to a single-threaded executor asynchronously, so
+    // the resulting client.post() happens off-thread. The excluded report is submitted first and
+    // dropped by the FilteringMetricsReporter before it reaches the REST client; the included one
+    // is submitted next and produces exactly one post. Because the executor is single-threaded and
+    // FIFO, observing the included post (waited for via timeout) guarantees the excluded report has
+    // already been processed, so times(1) confirms the filter suppressed it.
+    verify(mockClient, timeout(5000).times(1))
+        .post(eq(metricsEndpoint), any(RESTRequest.class), any(), any(Supplier.class), any());
+
+    catalog.close();
+  }
+
+  private static ScanReport scanReport(String tableName) {
+    return ImmutableScanReport.builder()
+        .tableName(tableName)
+        .snapshotId(1L)
+        .filter(Expressions.alwaysTrue())
+        .schemaId(1)
+        .projectedFieldIds(ImmutableList.of())
+        .projectedFieldNames(ImmutableList.of())
+        .scanMetrics(ImmutableScanMetricsResult.builder().build())
+        .metadata(ImmutableMap.of())
+        .build();
   }
 
   private RESTCatalog catalog(RESTCatalogAdapter adapter) {
