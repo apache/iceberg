@@ -28,6 +28,7 @@ import static org.mockito.Mockito.when;
 
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.DataFile;
@@ -53,9 +54,11 @@ import org.apache.iceberg.connect.events.TopicPartitionOffset;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.sink.SinkTaskContext;
 import org.junit.jupiter.api.Test;
@@ -314,6 +317,35 @@ public class TestCoordinator extends ChannelTestBase {
     consumer.addRecord(new ConsumerRecord<>(CTL_TOPIC_NAME, 0, nextOffset++, "key", bytes));
 
     coordinator.process();
+  }
+
+  @Test
+  public void commitConsumerOffsetsShouldNotCommitLowerOffset() {
+    when(config.commitIntervalMs()).thenReturn(0);
+    when(config.commitTimeoutMs()).thenReturn(Integer.MAX_VALUE);
+
+    SinkTaskContext context = mock(SinkTaskContext.class);
+    Coordinator coordinator =
+        new Coordinator(catalog, config, ImmutableList.of(), clientFactory, context);
+    coordinator.start();
+    initConsumer();
+
+    TopicPartition ctl = new TopicPartition(CTL_TOPIC_NAME, 0);
+
+    long healthyWatermark = 100L;
+    consumer.commitSync(ImmutableMap.of(ctl, new OffsetAndMetadata(healthyWatermark)));
+
+    coordinator.controlTopicOffsets().put(0, 5L);
+    coordinator.commitConsumerOffsets();
+
+    long committed =
+        consumer.committed(Set.of(ctl)).get(ctl) == null
+            ? 0L
+            : consumer.committed(Set.of(ctl)).get(ctl).offset();
+
+    assertThat(committed)
+        .as("commitConsumerOffsets should not rewind the shared -coord consumer group offsets")
+        .isGreaterThanOrEqualTo(healthyWatermark);
   }
 
   private void assertCommitTable(int idx, UUID commitId, OffsetDateTime ts) {

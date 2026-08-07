@@ -21,6 +21,7 @@ package org.apache.iceberg.connect.channel;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import org.apache.iceberg.connect.IcebergSinkConfig;
@@ -143,12 +144,31 @@ abstract class Channel {
   }
 
   protected void commitConsumerOffsets() {
+    Set<TopicPartition> partitions =
+        controlTopicOffsets().keySet().stream()
+            .map(k -> new TopicPartition(controlTopic, k))
+            .collect(Collectors.toSet());
+    Map<TopicPartition, OffsetAndMetadata> committed = consumer.committed(partitions);
+
     Map<TopicPartition, OffsetAndMetadata> offsetsToCommit = Maps.newHashMap();
     controlTopicOffsets()
         .forEach(
-            (k, v) ->
-                offsetsToCommit.put(new TopicPartition(controlTopic, k), new OffsetAndMetadata(v)));
-    consumer.commitSync(offsetsToCommit);
+            (partition, offsetToCommit) -> {
+              TopicPartition tp = new TopicPartition(controlTopic, partition);
+              OffsetAndMetadata lastCommitted = committed.get(tp);
+              if (lastCommitted == null || offsetToCommit > lastCommitted.offset()) {
+                offsetsToCommit.put(tp, new OffsetAndMetadata(offsetToCommit));
+              }
+            });
+    if (!offsetsToCommit.isEmpty()) {
+      LOG.info("Coordinator committing offsets: {}", offsetsToCommit);
+      consumer.commitSync(offsetsToCommit);
+    } else {
+      LOG.info(
+          "Skipping consumer offset commit; local offsets {} are not ahead of committed offsets {}",
+          controlTopicOffsets(),
+          committed);
+    }
   }
 
   void start() {
