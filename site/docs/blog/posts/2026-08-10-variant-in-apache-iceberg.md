@@ -82,9 +82,9 @@ Both fields are accessed by name and carry no Iceberg field IDs. Variant is stor
 ### Reading and writing across engines
 
 - **Apache Spark 4.0 and 4.1** create tables with `VARIANT` columns and read and write them. Reading landed in Iceberg 1.10.0 on Spark 4.0; Iceberg 1.11.0 added Spark 4.1 and writing shredded Variant on both Spark 4.0 and 4.1.
-- **Apache Flink 2.1** added Variant support in Iceberg 1.11.0.
+- **Apache Flink 2.1** added Variant support in Iceberg 1.11.0. This covers unshredded Variant only; shredded write support is merged and expected in a later release.
 
-Because these engines share the Parquet Variant encoding, a value written by one reads back identically in the other.
+Because these engines share the Parquet Variant encoding, a value written by one reads back identically in the others.
 
 ## Working with Variant
 
