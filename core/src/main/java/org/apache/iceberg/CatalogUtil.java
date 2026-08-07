@@ -514,6 +514,24 @@ public class CatalogUtil {
    *     loaded class cannot be cast to the given interface type
    */
   public static MetricsReporter loadMetricsReporter(Map<String, String> properties) {
+    return loadMetricsReporter(null, properties);
+  }
+
+  /**
+   * Load a custom {@link MetricsReporter} implementation.
+   *
+   * <p>The implementation must have a no-arg constructor.
+   *
+   * @param catalogName name of the catalog the reporter is loaded for, used to derive a table's
+   *     namespace when filtering by namespace is configured
+   * @param properties catalog properties which contains class name of a custom {@link
+   *     MetricsReporter} implementation
+   * @return An initialized {@link MetricsReporter}.
+   * @throws IllegalArgumentException if class path not found or right constructor not found or the
+   *     loaded class cannot be cast to the given interface type
+   */
+  public static MetricsReporter loadMetricsReporter(
+      String catalogName, Map<String, String> properties) {
     String impl = properties.get(CatalogProperties.METRICS_REPORTER_IMPL);
     MetricsReporter reporter;
     if (impl == null) {
@@ -546,7 +564,7 @@ public class CatalogUtil {
       reporter.initialize(properties);
     }
 
-    return FilteringMetricsReporter.wrap(reporter, properties);
+    return FilteringMetricsReporter.wrap(reporter, catalogName, properties);
   }
 
   public static String fullTableName(String catalogName, TableIdentifier identifier) {
