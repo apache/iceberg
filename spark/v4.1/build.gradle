@@ -306,6 +306,40 @@ project(":iceberg-spark:iceberg-spark-runtime-${sparkMajorVersion}_${scalaVersio
     archiveClassifier.set(null)
   }
 
+  tasks.register('shadowSourceJar', Jar) {
+    archiveClassifier.set('sources')
+
+    from(sourceSets.main.allSource)
+
+    from(project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}").file('src/main/java'))
+    from(project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}").file('src/main/scala'))
+    from(project(":iceberg-spark:iceberg-spark-extensions-${sparkMajorVersion}_${scalaVersion}").file('src/main/java'))
+    from(project(":iceberg-spark:iceberg-spark-extensions-${sparkMajorVersion}_${scalaVersion}").file('src/main/scala'))
+    from(project(":iceberg-spark:iceberg-spark-extensions-${sparkMajorVersion}_${scalaVersion}").file('src/main/antlr'))
+
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+  }
+
+  def sparkProject = project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}")
+  def sparkExtensionsProject = project(":iceberg-spark:iceberg-spark-extensions-${sparkMajorVersion}_${scalaVersion}")
+
+  javadoc {
+    dependsOn sparkProject.tasks.named('classes')
+    dependsOn sparkExtensionsProject.tasks.named('classes')
+
+    source = files(
+            sourceSets.main.allJava,
+            sparkProject.fileTree('src/main/java'),
+            sparkExtensionsProject.fileTree('src/main/java')
+    )
+
+    classpath = files(
+            sourceSets.main.compileClasspath,
+            sparkProject.sourceSets.main.compileClasspath,
+            sparkExtensionsProject.sourceSets.main.compileClasspath
+    )
+  }
+
   task integrationTest(type: Test) {
     useJUnitPlatform()
     description = "Test Spark3 Runtime Jar against Spark ${sparkMajorVersion}"
@@ -320,6 +354,11 @@ project(":iceberg-spark:iceberg-spark-runtime-${sparkMajorVersion}_${scalaVersio
 
   jar {
     enabled = false
+  }
+
+  tasks.matching { it.name == 'sourceJar' }.configureEach {
+    enabled = false
+    dependsOn shadowSourceJar
   }
 
   apply from: "${rootDir}/runtime-deps.gradle"
