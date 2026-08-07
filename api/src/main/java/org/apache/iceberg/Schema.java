@@ -80,6 +80,7 @@ public class Schema implements Serializable {
   private transient Map<String, Integer> lowerCaseNameToId = null;
   private transient Map<Integer, Accessor<StructLike>> idToAccessor = null;
   private transient Map<Integer, String> idToName = null;
+  private transient Map<Integer, Integer> idToParent = null;
   private transient Set<Integer> identifierFieldIdSet = null;
   private final transient Map<Integer, Integer> idsToReassigned;
   private final transient Map<Integer, Integer> idsToOriginal;
@@ -150,8 +151,8 @@ public class Schema implements Serializable {
 
     // validate IdentifierField
     if (identifierFieldIds != null) {
-      Map<Integer, Integer> idToParent = TypeUtil.indexParents(struct);
-      identifierFieldIds.forEach(id -> validateIdentifierField(id, lazyIdToField(), idToParent));
+      identifierFieldIds.forEach(
+          id -> validateIdentifierField(id, lazyIdToField(), lazyIdToParent()));
     }
 
     this.identifierFieldIds =
@@ -231,6 +232,13 @@ public class Schema implements Serializable {
       this.idToName = ImmutableMap.copyOf(TypeUtil.indexNameById(struct));
     }
     return idToName;
+  }
+
+  private Map<Integer, Integer> lazyIdToParent() {
+    if (idToParent == null) {
+      this.idToParent = TypeUtil.indexParents(struct);
+    }
+    return idToParent;
   }
 
   private Map<String, Integer> lazyLowerCaseNameToId() {
@@ -447,6 +455,39 @@ public class Schema implements Serializable {
       return aliasToId.inverse().get(fieldId);
     }
     return null;
+  }
+
+  /**
+   * Returns whether the sub-field identified by the field id can be null.
+   *
+   * <p>A field can be null if it is declared optional, or if it is nested inside an optional field.
+   * For example, a required field inside an optional struct is effectively null whenever that
+   * struct is null. Field defaults are not taken into account, so an optional field with a non-null
+   * default is still nullable.
+   *
+   * <p>If the field is not present in this schema, this method returns true because its nullability
+   * cannot be determined.
+   *
+   * @param id a field id
+   * @return true if the field may be null, false if it cannot be null
+   */
+  public boolean isNullable(int id) {
+    NestedField field = findField(id);
+    if (field == null || field.isOptional()) {
+      return true;
+    }
+
+    Map<Integer, Integer> parents = lazyIdToParent();
+    Integer parentId = parents.get(id);
+    while (parentId != null) {
+      if (findField(parentId).isOptional()) {
+        return true;
+      }
+
+      parentId = parents.get(parentId);
+    }
+
+    return false;
   }
 
   /**
