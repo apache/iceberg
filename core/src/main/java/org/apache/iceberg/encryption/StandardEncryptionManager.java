@@ -26,6 +26,7 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import org.apache.iceberg.FileWithEncryptedKey;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
@@ -106,6 +107,21 @@ public class StandardEncryptionManager implements EncryptionManager {
     return Iterables.transform(encrypted, this::decrypt);
   }
 
+  @Override
+  public ByteBuffer decryptKeyMetadata(FileWithEncryptedKey file) {
+    if (file.encryptedKey() == null && file.keyId() == null) {
+      return null;
+    }
+
+    EncryptedKey key = file.encryptedKey();
+    if (key == null) {
+      key = encryptionKeys.get(file.keyId());
+      Preconditions.checkState(key != null, "Cannot find encryption key with id %s", file.keyId());
+    }
+
+    return EncryptionUtil.decryptKeyMetadata(key, this);
+  }
+
   private LoadingCache<String, ByteBuffer> unwrappedKeyCache() {
     if (this.unwrappedKeyCache == null) {
       this.unwrappedKeyCache =
@@ -168,18 +184,16 @@ public class StandardEncryptionManager implements EncryptionManager {
     return System.currentTimeMillis() + testTimeShift;
   }
 
-  ByteBuffer encryptedByKey(String manifestListKeyID) {
-    EncryptedKey encryptedKeyMetadata = encryptionKeys.get(manifestListKeyID);
-
-    Preconditions.checkState(
-        encryptedKeyMetadata != null,
-        "Cannot find manifest list key metadata with id %s",
-        manifestListKeyID);
-
+  ByteBuffer encryptedByKey(EncryptedKey encryptedKeyMetadata) {
     Preconditions.checkArgument(
         !encryptedKeyMetadata.encryptedById().equals(tableKeyId),
         "%s is a key encryption key, not manifest list key metadata",
-        manifestListKeyID);
+        encryptedKeyMetadata.keyId());
+
+    Preconditions.checkState(
+        encryptionKeys.containsKey(encryptedKeyMetadata.encryptedById()),
+        "Cannot find key encryption key with id %s",
+        encryptedKeyMetadata.encryptedById());
 
     return unwrappedKeyCache().get(encryptedKeyMetadata.encryptedById());
   }
@@ -195,7 +209,7 @@ public class StandardEncryptionManager implements EncryptionManager {
     EncryptedKey keyEncryptionKey = encryptionKeys.get(keyEncryptionKeyID);
     String keyEncryptionKeyTimestamp = keyEncryptionKey.properties().get(KEY_TIMESTAMP);
     ByteBuffer encryptedKeyMetadata =
-        EncryptionUtil.encryptManifestListKeyMetadata(
+        EncryptionUtil.encryptKeyMetadata(
             unwrappedKeyCache().get(keyEncryptionKeyID), keyEncryptionKeyTimestamp, keyMetadata);
     BaseEncryptedKey key =
         new BaseEncryptedKey(fileKeyID, encryptedKeyMetadata, keyEncryptionKeyID, null);
