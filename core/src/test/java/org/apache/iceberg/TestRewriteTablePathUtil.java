@@ -23,16 +23,35 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.ByteBuffer;
+import java.util.List;
 import java.util.Set;
+import org.apache.iceberg.deletes.Deletes;
+import org.apache.iceberg.deletes.PositionDeleteIndex;
+import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.io.SeekableInputStream;
+import org.apache.iceberg.puffin.Blob;
+import org.apache.iceberg.puffin.BlobMetadata;
+import org.apache.iceberg.puffin.Puffin;
+import org.apache.iceberg.puffin.PuffinReader;
+import org.apache.iceberg.puffin.PuffinWriter;
+import org.apache.iceberg.puffin.StandardBlobTypes;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.util.ByteBuffers;
+import org.apache.iceberg.util.Pair;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestRewriteTablePathUtil extends TestBase {
+  private static final String REFERENCED_DATA_FILE = "referenced-data-file";
+  private static final String CARDINALITY = "cardinality";
 
   @Test
   public void testStagingPathPreservesDirectoryStructure() {
@@ -375,5 +394,279 @@ public class TestRewriteTablePathUtil extends TestBase {
     }
 
     return writer.toManifestFile();
+  }
+
+  @TestTemplate
+  void rewriteDVFileRewritesReferencedDataFileInBlobMetadata() throws IOException {
+    assumeThat(formatVersion).as("DVs require format version 3+").isGreaterThanOrEqualTo(3);
+
+    String sourcePrefix = temp.resolve("source").toString();
+    String targetPrefix = temp.resolve("target").toString();
+    String sourceDataFile = sourcePrefix + "/data/file-a.parquet";
+    String externalDataFile = temp.resolve("external/data/file-b.parquet").toString();
+
+    PositionDeleteIndex sourceDeletes = positionDeleteIndex(1L, 4L);
+    PositionDeleteIndex externalDeletes = positionDeleteIndex(2L, 5L, 8L);
+    byte[] sourcePayload = serializedDV(sourceDeletes);
+    byte[] externalPayload = serializedDV(externalDeletes);
+
+    OutputFile sourceDVFile =
+        Files.localOutput(
+            temp.resolve("source/metadata/dv-" + System.nanoTime() + ".puffin").toString());
+    try (PuffinWriter writer = Puffin.write(sourceDVFile).createdBy("test").build()) {
+      writer.write(newDVBlob(sourceDeletes, sourcePayload, sourceDataFile));
+      writer.write(newDVBlob(externalDeletes, externalPayload, externalDataFile));
+    }
+
+    List<BlobMetadata> sourceBlobMetadata;
+    try (PuffinReader reader = Puffin.read(sourceDVFile.toInputFile()).build()) {
+      sourceBlobMetadata = reader.fileMetadata().blobs();
+    }
+    assertThat(sourceBlobMetadata).hasSize(2);
+
+    DeleteFile dvDeleteFile =
+        FileMetadata.deleteFileBuilder(table.spec())
+            .ofPositionDeletes()
+            .withFormat(FileFormat.PUFFIN)
+            .withPath(sourceDVFile.location())
+            .withFileSizeInBytes(sourceDVFile.toInputFile().getLength())
+            .withPartition(FILE_A.partition())
+            .withRecordCount(sourceDeletes.cardinality())
+            .withReferencedDataFile(sourceDataFile)
+            .withContentOffset(sourceBlobMetadata.get(0).offset())
+            .withContentSizeInBytes(sourceBlobMetadata.get(0).length())
+            .build();
+
+    OutputFile rewrittenDVFile =
+        Files.localOutput(
+            temp.resolve("target/metadata/dv-rewritten-" + System.nanoTime() + ".puffin")
+                .toString());
+    RewriteTablePathUtil.rewritePositionDeleteFile(
+        dvDeleteFile, rewrittenDVFile, table.io(), table.spec(), sourcePrefix, targetPrefix, null);
+
+    try (PuffinReader reader = Puffin.read(rewrittenDVFile.toInputFile()).build()) {
+      List<BlobMetadata> rewrittenBlobMetadata = reader.fileMetadata().blobs();
+      assertThat(rewrittenBlobMetadata).hasSize(2);
+
+      BlobMetadata rewrittenSourceBlob = rewrittenBlobMetadata.get(0);
+      BlobMetadata rewrittenExternalBlob = rewrittenBlobMetadata.get(1);
+      assertDVBlobMetadata(
+          rewrittenSourceBlob, targetPrefix + "/data/file-a.parquet", sourceDeletes.cardinality());
+      assertDVBlobMetadata(rewrittenExternalBlob, externalDataFile, externalDeletes.cardinality());
+
+      assertThat(rewrittenSourceBlob.offset()).isEqualTo(dvDeleteFile.contentOffset());
+      assertThat(rewrittenSourceBlob.length()).isEqualTo(dvDeleteFile.contentSizeInBytes());
+      assertThat(rewrittenExternalBlob.offset())
+          .isEqualTo(rewrittenSourceBlob.offset() + rewrittenSourceBlob.length());
+
+      List<Pair<BlobMetadata, ByteBuffer>> blobs =
+          ImmutableList.copyOf(reader.readAll(rewrittenBlobMetadata));
+      assertThat(ByteBuffers.toByteArray(blobs.get(0).second())).isEqualTo(sourcePayload);
+      assertThat(ByteBuffers.toByteArray(blobs.get(1).second())).isEqualTo(externalPayload);
+    }
+
+    DeleteFile rewrittenDVDeleteFile =
+        FileMetadata.deleteFileBuilder(table.spec())
+            .copy(dvDeleteFile)
+            .withPath(rewrittenDVFile.location())
+            .withFileSizeInBytes(rewrittenDVFile.toInputFile().getLength())
+            .withReferencedDataFile(targetPrefix + "/data/file-a.parquet")
+            .build();
+    assertDeletedPositions(DVUtil.readDV(rewrittenDVDeleteFile, table.io()), 1L, 4L);
+  }
+
+  @TestTemplate
+  void rewriteDVFileCleansUpOutputOnBlobReadFailure() throws IOException {
+    assumeThat(formatVersion).as("DVs require format version 3+").isGreaterThanOrEqualTo(3);
+
+    String sourcePrefix = temp.resolve("source").toString();
+    String targetPrefix = temp.resolve("target").toString();
+    String sourceDataFile = sourcePrefix + "/data/file-a.parquet";
+
+    PositionDeleteIndex sourceDeletes = positionDeleteIndex(1L, 4L);
+    byte[] sourcePayload = serializedDV(sourceDeletes);
+
+    OutputFile sourceDVFile =
+        Files.localOutput(
+            temp.resolve("source/metadata/dv-" + System.nanoTime() + ".puffin").toString());
+    try (PuffinWriter writer = Puffin.write(sourceDVFile).createdBy("test").build()) {
+      writer.write(newDVBlob(sourceDeletes, sourcePayload, sourceDataFile));
+    }
+
+    List<BlobMetadata> sourceBlobMetadata;
+    try (PuffinReader reader = Puffin.read(sourceDVFile.toInputFile()).build()) {
+      sourceBlobMetadata = reader.fileMetadata().blobs();
+    }
+    assertThat(sourceBlobMetadata).hasSize(1);
+
+    DeleteFile dvDeleteFile =
+        FileMetadata.deleteFileBuilder(table.spec())
+            .ofPositionDeletes()
+            .withFormat(FileFormat.PUFFIN)
+            .withPath(sourceDVFile.location())
+            .withFileSizeInBytes(sourceDVFile.toInputFile().getLength())
+            .withPartition(FILE_A.partition())
+            .withRecordCount(sourceDeletes.cardinality())
+            .withReferencedDataFile(sourceDataFile)
+            .withContentOffset(sourceBlobMetadata.get(0).offset())
+            .withContentSizeInBytes(sourceBlobMetadata.get(0).length())
+            .build();
+
+    OutputFile rewrittenDVFile =
+        Files.localOutput(
+            temp.resolve("target/metadata/dv-rewritten-" + System.nanoTime() + ".puffin")
+                .toString());
+    InputFile sourceInputFile = sourceDVFile.toInputFile();
+    FileIO failingReadIO =
+        new TestTables.LocalFileIO() {
+          @Override
+          public InputFile newInputFile(String path) {
+            if (!path.equals(sourceDVFile.location())) {
+              return super.newInputFile(path);
+            }
+
+            return new InputFile() {
+              @Override
+              public long getLength() {
+                return sourceInputFile.getLength();
+              }
+
+              @Override
+              public SeekableInputStream newStream() {
+                return new FailingReadInputStream(
+                    sourceInputFile.newStream(), sourceBlobMetadata.get(0).offset());
+              }
+
+              @Override
+              public String location() {
+                return sourceInputFile.location();
+              }
+
+              @Override
+              public boolean exists() {
+                return sourceInputFile.exists();
+              }
+            };
+          }
+        };
+
+    assertThatThrownBy(
+            () ->
+                RewriteTablePathUtil.rewritePositionDelete(
+                    dvDeleteFile,
+                    rewrittenDVFile,
+                    failingReadIO,
+                    table.spec(),
+                    sourcePrefix,
+                    targetPrefix,
+                    null))
+        .isInstanceOf(UncheckedIOException.class)
+        .hasCauseInstanceOf(IOException.class)
+        .hasMessageContaining("Injected failure reading blob");
+
+    assertThat(rewrittenDVFile.toInputFile().exists()).isFalse();
+  }
+
+  private static Blob newDVBlob(
+      PositionDeleteIndex deletes, byte[] payload, String referencedDataFile) {
+    return new Blob(
+        StandardBlobTypes.DV_V1,
+        ImmutableList.of(MetadataColumns.ROW_POSITION.fieldId()),
+        -1L,
+        -1L,
+        ByteBuffer.wrap(payload),
+        null,
+        ImmutableMap.of(
+            REFERENCED_DATA_FILE,
+            referencedDataFile,
+            CARDINALITY,
+            String.valueOf(deletes.cardinality())));
+  }
+
+  private static PositionDeleteIndex positionDeleteIndex(long... positions) {
+    ImmutableList.Builder<Long> builder = ImmutableList.builder();
+    for (long position : positions) {
+      builder.add(position);
+    }
+
+    return Deletes.toPositionIndex(CloseableIterable.withNoopClose(builder.build()));
+  }
+
+  private static byte[] serializedDV(PositionDeleteIndex deletes) {
+    return ByteBuffers.toByteArray(deletes.serialize());
+  }
+
+  private static void assertDVBlobMetadata(
+      BlobMetadata blobMetadata, String referencedDataFile, long cardinality) {
+    assertThat(blobMetadata.type()).isEqualTo(StandardBlobTypes.DV_V1);
+    assertThat(blobMetadata.inputFields()).containsExactly(MetadataColumns.ROW_POSITION.fieldId());
+    assertThat(blobMetadata.snapshotId()).isEqualTo(-1L);
+    assertThat(blobMetadata.sequenceNumber()).isEqualTo(-1L);
+    assertThat(blobMetadata.compressionCodec()).isNull();
+    assertThat(blobMetadata.offset()).isPositive();
+    assertThat(blobMetadata.length()).isPositive();
+    assertThat(blobMetadata.properties())
+        .containsExactlyInAnyOrderEntriesOf(
+            ImmutableMap.of(
+                REFERENCED_DATA_FILE,
+                referencedDataFile,
+                CARDINALITY,
+                String.valueOf(cardinality)));
+  }
+
+  private static void assertDeletedPositions(PositionDeleteIndex deletes, long... positions) {
+    assertThat(deletes.cardinality()).isEqualTo(positions.length);
+    for (long position : positions) {
+      assertThat(deletes.isDeleted(position)).isTrue();
+    }
+  }
+
+  private static class FailingReadInputStream extends SeekableInputStream {
+    private final SeekableInputStream delegate;
+    private final long failOffset;
+
+    private FailingReadInputStream(SeekableInputStream delegate, long failOffset) {
+      this.delegate = delegate;
+      this.failOffset = failOffset;
+    }
+
+    @Override
+    public long getPos() throws IOException {
+      return delegate.getPos();
+    }
+
+    @Override
+    public void seek(long newPos) throws IOException {
+      delegate.seek(newPos);
+    }
+
+    @Override
+    public int read() throws IOException {
+      failIfReadingBlob();
+      return delegate.read();
+    }
+
+    @Override
+    public int read(byte[] bytes) throws IOException {
+      failIfReadingBlob();
+      return delegate.read(bytes);
+    }
+
+    @Override
+    public int read(byte[] bytes, int offset, int length) throws IOException {
+      failIfReadingBlob();
+      return delegate.read(bytes, offset, length);
+    }
+
+    @Override
+    public void close() throws IOException {
+      delegate.close();
+    }
+
+    private void failIfReadingBlob() throws IOException {
+      if (delegate.getPos() == failOffset) {
+        throw new IOException("Injected failure reading blob");
+      }
+    }
   }
 }

@@ -42,6 +42,7 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.puffin.Blob;
+import org.apache.iceberg.puffin.BlobMetadata;
 import org.apache.iceberg.puffin.Puffin;
 import org.apache.iceberg.puffin.PuffinCompressionCodec;
 import org.apache.iceberg.puffin.PuffinReader;
@@ -780,40 +781,47 @@ public class RewriteTablePathUtil {
       String sourcePrefix,
       String targetPrefix)
       throws IOException {
-    List<Blob> rewrittenBlobs = Lists.newArrayList();
     try (PuffinReader reader = Puffin.read(io.newInputFile(deleteFile.location())).build()) {
-      // Read all blobs and rewrite them with updated referenced data file paths
-      for (Pair<org.apache.iceberg.puffin.BlobMetadata, ByteBuffer> blobPair :
-          reader.readAll(reader.fileMetadata().blobs())) {
-        org.apache.iceberg.puffin.BlobMetadata blobMetadata = blobPair.first();
-        ByteBuffer blobData = blobPair.second();
+      List<BlobMetadata> blobs = reader.fileMetadata().blobs();
+      PuffinWriter writer = Puffin.write(outputFile).createdBy(IcebergBuild.fullVersion()).build();
 
-        // Get the original properties and update the referenced data file path
-        Map<String, String> properties = Maps.newHashMap(blobMetadata.properties());
-        String referencedDataFile = properties.get("referenced-data-file");
-        if (referencedDataFile != null && referencedDataFile.startsWith(sourcePrefix)) {
-          String newReferencedDataFile = newPath(referencedDataFile, sourcePrefix, targetPrefix);
-          properties.put("referenced-data-file", newReferencedDataFile);
+      try (writer) {
+        for (Pair<BlobMetadata, ByteBuffer> blobPair : reader.readAll(blobs)) {
+          BlobMetadata blobMetadata = blobPair.first();
+          ByteBuffer blobData = blobPair.second();
+
+          Map<String, String> properties = Maps.newHashMap(blobMetadata.properties());
+          String referencedDataFile = properties.get("referenced-data-file");
+          if (referencedDataFile != null && referencedDataFile.startsWith(sourcePrefix)) {
+            String newReferencedDataFile = newPath(referencedDataFile, sourcePrefix, targetPrefix);
+            properties.put("referenced-data-file", newReferencedDataFile);
+          }
+
+          writer.write(
+              new Blob(
+                  blobMetadata.type(),
+                  blobMetadata.inputFields(),
+                  blobMetadata.snapshotId(),
+                  blobMetadata.sequenceNumber(),
+                  blobData,
+                  PuffinCompressionCodec.forName(blobMetadata.compressionCodec()),
+                  properties));
         }
 
-        // Create a new blob with updated properties
-        rewrittenBlobs.add(
-            new Blob(
-                blobMetadata.type(),
-                blobMetadata.inputFields(),
-                blobMetadata.snapshotId(),
-                blobMetadata.sequenceNumber(),
-                blobData,
-                PuffinCompressionCodec.forName(blobMetadata.compressionCodec()),
-                properties));
+        writer.finish();
+        return writer.length();
+      } catch (IOException | RuntimeException e) {
+        cleanUpOutputFile(io, outputFile, e);
+        throw e;
       }
     }
+  }
 
-    try (PuffinWriter writer =
-        Puffin.write(outputFile).createdBy(IcebergBuild.fullVersion()).build()) {
-      rewrittenBlobs.forEach(writer::write);
-      writer.close();
-      return writer.length();
+  private static void cleanUpOutputFile(FileIO io, OutputFile outputFile, Exception failure) {
+    try {
+      io.deleteFile(outputFile.location());
+    } catch (RuntimeException deleteFailure) {
+      failure.addSuppressed(deleteFailure);
     }
   }
 
