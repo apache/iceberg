@@ -30,8 +30,11 @@ import static org.apache.iceberg.TestBase.SPEC;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.util.List;
 import org.apache.iceberg.BaseFileScanTask;
+import org.apache.iceberg.ContentFileParser;
+import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.PartitionSpecParser;
@@ -43,6 +46,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.rest.PlanStatus;
 import org.apache.iceberg.rest.credentials.Credential;
 import org.apache.iceberg.rest.credentials.ImmutableCredential;
+import org.apache.iceberg.util.JsonUtil;
 import org.junit.jupiter.api.Test;
 
 public class TestPlanTableScanResponseParser {
@@ -270,6 +274,39 @@ public class TestPlanTableScanResponseParser {
             .build();
 
     assertThat(PlanTableScanResponseParser.toJson(copyResponse)).isEqualTo(expectedToJson);
+  }
+
+  @Test
+  void roundTripSerdeWithDataSequenceNumber() throws Exception {
+    ObjectNode dataFileJson =
+        (ObjectNode) JsonUtil.mapper().readTree(ContentFileParser.toJson(FILE_A, SPEC));
+    dataFileJson.put("first-row-id", 34L);
+    dataFileJson.put("data-sequence-number", 17L);
+    DataFile dataFile = (DataFile) ContentFileParser.fromJson(dataFileJson, SPEC);
+    FileScanTask fileScanTask =
+        new BaseFileScanTask(
+            dataFile,
+            null,
+            SchemaParser.toJson(SCHEMA),
+            PartitionSpecParser.toJson(SPEC),
+            ResidualEvaluator.of(SPEC, Expressions.alwaysTrue(), true));
+    PlanTableScanResponse response =
+        PlanTableScanResponse.builder()
+            .withPlanStatus(PlanStatus.COMPLETED)
+            .withFileScanTasks(List.of(fileScanTask))
+            .withSpecsById(PARTITION_SPECS_BY_ID)
+            .build();
+
+    String json = PlanTableScanResponseParser.toJson(response);
+    assertThat(json).contains("\"first-row-id\":34");
+    assertThat(json).contains("\"data-sequence-number\":17");
+
+    PlanTableScanResponse deserialized =
+        PlanTableScanResponseParser.fromJson(json, PARTITION_SPECS_BY_ID, false);
+    assertThat(deserialized.fileScanTasks())
+        .singleElement()
+        .satisfies(task -> assertThat(task.file().dataSequenceNumber()).isEqualTo(17L));
+    assertThat(PlanTableScanResponseParser.toJson(deserialized)).isEqualTo(json);
   }
 
   @Test
