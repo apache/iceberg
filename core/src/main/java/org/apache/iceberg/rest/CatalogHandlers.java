@@ -101,6 +101,7 @@ import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.apache.iceberg.rest.responses.LoadViewResponse;
 import org.apache.iceberg.rest.responses.PlanTableScanResponse;
 import org.apache.iceberg.rest.responses.UpdateNamespacePropertiesResponse;
+import org.apache.iceberg.util.CommitFailureMessages;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.view.BaseView;
@@ -644,8 +645,7 @@ public class CatalogHandlers {
                   // Server-side retry won't help since the stale values are in the request itself.
                   // Wrap as CommitFailedException so the client can retry with refreshed metadata.
                   throw new ValidationFailureException(
-                      new CommitFailedException(
-                          e, "Validation failed, please retry: %s", e.getMessage()));
+                      CommitFailureMessages.retryableValidationFailure(e));
                 }
 
                 TableMetadata updated = metadataBuilder.build();

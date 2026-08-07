@@ -19,18 +19,30 @@
 package org.apache.iceberg;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.variants.Variant;
 import org.apache.iceberg.variants.VariantTestUtil;
+import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 
 public class InternalTestHelpers {
 
   private InternalTestHelpers() {}
+
+  public static void assertCommitRetryExhausted(ThrowingCallable callable) {
+    assertThatThrownBy(callable)
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessageContaining(TableProperties.COMMIT_NUM_RETRIES)
+        .cause()
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessage("Injected failure");
+  }
 
   public static void assertEquals(Types.StructType struct, Record expected, Record actual) {
     Types.StructType expectedType = expected.struct();

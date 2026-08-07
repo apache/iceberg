@@ -49,6 +49,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
+import org.apache.iceberg.util.CommitRetryExceptions;
 import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SnapshotUtil;
@@ -366,6 +367,7 @@ class RemoveSnapshots implements ExpireSnapshots {
             base.propertyAsInt(COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT),
             2.0 /* exponential */)
         .onlyRetryOn(CommitFailedException.class)
+        .onRetryExhausted(CommitRetryExceptions::retryExhaustedException)
         .run(
             item -> {
               TableMetadata updated = internalApply();

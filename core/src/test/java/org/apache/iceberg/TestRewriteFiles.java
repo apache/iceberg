@@ -31,7 +31,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -404,9 +403,7 @@ public class TestRewriteFiles extends TestBase {
     validateManifestEntries(manifest1, ids(pending.snapshotId()), files(FILE_B), statuses(ADDED));
     validateManifestEntries(manifest2, ids(pending.snapshotId()), files(FILE_A), statuses(DELETED));
 
-    assertThatThrownBy(() -> commit(table, rewrite, branch))
-        .isInstanceOf(CommitFailedException.class)
-        .hasMessage("Injected failure");
+    InternalTestHelpers.assertCommitRetryExhausted(() -> commit(table, rewrite, branch));
 
     assertThat(new File(manifest1.path())).doesNotExist();
     assertThat(new File(manifest2.path())).doesNotExist();
@@ -471,9 +468,7 @@ public class TestRewriteFiles extends TestBase {
         files(fileADeletes(), fileBDeletes()),
         statuses(DELETED, DELETED));
 
-    assertThatThrownBy(rewrite::commit)
-        .isInstanceOf(CommitFailedException.class)
-        .hasMessage("Injected failure");
+    InternalTestHelpers.assertCommitRetryExhausted(rewrite::commit);
 
     assertThat(new File(manifest1.path())).doesNotExist();
     assertThat(new File(manifest2.path())).doesNotExist();
