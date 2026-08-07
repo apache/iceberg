@@ -81,8 +81,7 @@ public class TestGCSOutputStream {
     when(mockStorage.create(any(BlobInfo.class), any(byte[].class), any(BlobTargetOption[].class)))
         .thenReturn(mock(Blob.class));
 
-    GCPProperties props =
-        new GCPProperties(ImmutableMap.of(GCS_WRITE_THRESHOLD_BYTES, "1024"));
+    GCPProperties props = new GCPProperties(ImmutableMap.of(GCS_WRITE_THRESHOLD_BYTES, "1024"));
     byte[] data = randomData(1023);
 
     try (GCSOutputStream stream =
@@ -90,7 +89,8 @@ public class TestGCSOutputStream {
       stream.write(data);
     }
 
-    verify(mockStorage).create(any(BlobInfo.class), any(byte[].class), any(BlobTargetOption[].class));
+    verify(mockStorage)
+        .create(any(BlobInfo.class), any(byte[].class), any(BlobTargetOption[].class));
     verify(mockStorage, never()).writer(any(BlobInfo.class), any(BlobWriteOption[].class));
   }
 
@@ -110,8 +110,7 @@ public class TestGCSOutputStream {
             });
 
     // S3-style: pos >= threshold switches off single-shot
-    GCPProperties props =
-        new GCPProperties(ImmutableMap.of(GCS_WRITE_THRESHOLD_BYTES, "1024"));
+    GCPProperties props = new GCPProperties(ImmutableMap.of(GCS_WRITE_THRESHOLD_BYTES, "1024"));
     byte[] data = randomData(1024);
 
     try (GCSOutputStream stream =
