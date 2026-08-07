@@ -98,6 +98,7 @@ class SparkBatch implements Batch {
         sparkContext.broadcast(SerializableFileIOWithSize.wrap(fileIO.get()));
     String projectionString = SchemaParser.toJson(projection);
     String[][] locations = computePreferredLocations();
+    Map<String, String> parquetReadProperties = readConf.parquetReadProperties();
 
     InputPartition[] partitions = new InputPartition[taskGroups.size()];
 
@@ -111,7 +112,8 @@ class SparkBatch implements Batch {
               projectionString,
               caseSensitive,
               locations != null ? locations[index] : SparkPlanningUtil.NO_LOCATION_PREFERENCE,
-              cacheDeleteFilesOnExecutors);
+              cacheDeleteFilesOnExecutors,
+              parquetReadProperties);
     }
 
     return partitions;

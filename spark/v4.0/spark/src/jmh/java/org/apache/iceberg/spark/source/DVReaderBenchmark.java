@@ -126,7 +126,7 @@ public class DVReaderBenchmark {
   @Benchmark
   @Threads(1)
   public void dv(Blackhole blackhole) {
-    DeleteLoader loader = new BaseDeleteLoader(file -> table.io().newInputFile(file), null);
+    DeleteLoader loader = new BaseDeleteLoader(file -> table.io().newInputFile(file));
     DeleteFile dv = dvsResult.deleteFiles().get(0);
     CharSequence dataFile = dv.referencedDataFile();
     PositionDeleteIndex index = loader.loadPositionDeletes(ImmutableList.of(dv), dataFile);
@@ -136,7 +136,7 @@ public class DVReaderBenchmark {
   @Benchmark
   @Threads(1)
   public void fileScopedParquetDeletes(Blackhole blackhole) {
-    DeleteLoader loader = new BaseDeleteLoader(file -> table.io().newInputFile(file), null);
+    DeleteLoader loader = new BaseDeleteLoader(file -> table.io().newInputFile(file));
     DeleteFile deleteFile = fileDeletesResult.deleteFiles().get(0);
     CharSequence dataFile = ContentFileUtil.referencedDataFile(deleteFile);
     PositionDeleteIndex index = loader.loadPositionDeletes(ImmutableList.of(deleteFile), dataFile);
@@ -146,7 +146,7 @@ public class DVReaderBenchmark {
   @Benchmark
   @Threads(1)
   public void partitionScopedParquetDeletes(Blackhole blackhole) {
-    DeleteLoader loader = new BaseDeleteLoader(file -> table.io().newInputFile(file), null);
+    DeleteLoader loader = new BaseDeleteLoader(file -> table.io().newInputFile(file));
     DeleteFile deleteFile = Iterables.getOnlyElement(partitionDeletesResult.deleteFiles());
     CharSequence dataFile = Iterables.getLast(partitionDeletesResult.referencedDataFiles());
     PositionDeleteIndex index = loader.loadPositionDeletes(ImmutableList.of(deleteFile), dataFile);

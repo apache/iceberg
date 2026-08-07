@@ -56,8 +56,16 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
       boolean caseSensitive,
       ParquetBatchReadConf parquetConf,
       OrcBatchReadConf orcConf,
-      boolean cacheDeleteFilesOnExecutors) {
-    super(table, fileIO, taskGroup, expectedSchema, caseSensitive, cacheDeleteFilesOnExecutors);
+      boolean cacheDeleteFilesOnExecutors,
+      Map<String, String> parquetReadProperties) {
+    super(
+        table,
+        fileIO,
+        taskGroup,
+        expectedSchema,
+        caseSensitive,
+        cacheDeleteFilesOnExecutors,
+        parquetReadProperties);
     this.parquetConf = parquetConf;
     this.orcConf = orcConf;
   }
@@ -75,6 +83,7 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
 
     if (parquetConf != null) {
       readBuilder = readBuilder.recordsPerBatch(parquetConf.batchSize());
+      readBuilder = readBuilder.setAll(parquetReadProperties());
     } else if (orcConf != null) {
       readBuilder = readBuilder.recordsPerBatch(orcConf.batchSize());
     }

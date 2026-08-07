@@ -121,6 +121,7 @@ import org.apache.parquet.crypto.FileDecryptionProperties;
 import org.apache.parquet.crypto.FileEncryptionProperties;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.ParquetFileWriter;
+import org.apache.parquet.hadoop.ParquetInputFormat;
 import org.apache.parquet.hadoop.ParquetOutputFormat;
 import org.apache.parquet.hadoop.ParquetReader;
 import org.apache.parquet.hadoop.ParquetWriter;
@@ -1568,7 +1569,14 @@ public class Parquet {
           optionsBuilder.withDecryption(fileDecryptionProperties);
         }
 
-        optionsBuilder.withUseHadoopVectoredIo(true);
+        if (properties.containsKey(ParquetInputFormat.HADOOP_VECTORED_IO_ENABLED)) {
+          optionsBuilder.withUseHadoopVectoredIo(
+              PropertyUtil.propertyAsBoolean(
+                  properties,
+                  ParquetInputFormat.HADOOP_VECTORED_IO_ENABLED,
+                  ParquetInputFormat.HADOOP_VECTORED_IO_DEFAULT));
+        }
+
         ParquetReadOptions options = optionsBuilder.build();
 
         NameMapping mapping;
