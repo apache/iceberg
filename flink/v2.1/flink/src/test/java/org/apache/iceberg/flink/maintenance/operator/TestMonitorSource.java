@@ -45,6 +45,7 @@ import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.FileGenerationUtil;
 import org.apache.iceberg.RewriteFiles;
 import org.apache.iceberg.SnapshotChanges;
 import org.apache.iceberg.Table;
@@ -318,10 +319,11 @@ class TestMonitorSource extends OperatorTestBase {
     // Create a DataOperations.REPLACE snapshot
     DataFile dataFile =
         SnapshotChanges.builderFor(table).build().addedDataFiles().iterator().next();
+    // Replace the file with a new file to produce a REPLACE snapshot
+    DataFile replacement = FileGenerationUtil.generateDataFile(table, null);
     RewriteFiles rewrite = tableLoader.loadTable().newRewrite();
-    // Replace the file with itself for testing purposes
     rewrite.deleteFile(dataFile);
-    rewrite.addFile(dataFile);
+    rewrite.addFile(replacement);
     rewrite.commit();
 
     // Check that the rewrite is ignored
