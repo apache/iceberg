@@ -34,20 +34,27 @@ public class CatalogProperties {
   public static final String METRICS_REPORTER_IMPL = "metrics-reporter-impl";
 
   /**
-   * Java regex applied to {@code tableName()} of {@link org.apache.iceberg.metrics.ScanReport} and
-   * {@link org.apache.iceberg.metrics.CommitReport}. When set, only reports whose table name
-   * matches the pattern are forwarded to the configured {@link
-   * org.apache.iceberg.metrics.MetricsReporter}. Empty values are treated as not set.
+   * Comma-separated list of Java regexes applied to {@code tableName()} of {@link
+   * org.apache.iceberg.metrics.ScanReport} and {@link org.apache.iceberg.metrics.CommitReport}.
+   * When set, only reports whose table name matches at least one pattern are forwarded to the
+   * configured {@link org.apache.iceberg.metrics.MetricsReporter}.
+   *
+   * <p>Each pattern is matched against the entire table name rather than any substring of it, so
+   * {@code prod\..*} matches {@code prod.db.table} but not {@code production.db.table}. Empty
+   * values are treated as not set.
    */
   public static final String METRICS_REPORTER_TABLE_NAME_INCLUDE =
       "metrics-reporter.table-name.include";
 
   /**
-   * Java regex applied to {@code tableName()} of {@link org.apache.iceberg.metrics.ScanReport} and
-   * {@link org.apache.iceberg.metrics.CommitReport}. When set, reports whose table name matches the
-   * pattern are dropped before reaching the configured {@link
-   * org.apache.iceberg.metrics.MetricsReporter}. When both include and exclude are set, exclude
-   * wins. Empty values are treated as not set.
+   * Comma-separated list of Java regexes applied to {@code tableName()} of {@link
+   * org.apache.iceberg.metrics.ScanReport} and {@link org.apache.iceberg.metrics.CommitReport}.
+   * When set, reports whose table name matches any pattern are dropped before reaching the
+   * configured {@link org.apache.iceberg.metrics.MetricsReporter}. An exclude match wins over an
+   * include match.
+   *
+   * <p>Each pattern is matched against the entire table name rather than any substring of it. Empty
+   * values are treated as not set.
    */
   public static final String METRICS_REPORTER_TABLE_NAME_EXCLUDE =
       "metrics-reporter.table-name.exclude";

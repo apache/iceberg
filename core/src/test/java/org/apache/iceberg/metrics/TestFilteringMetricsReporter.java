@@ -165,6 +165,58 @@ public class TestFilteringMetricsReporter {
     assertThat(delegate.closed).isTrue();
   }
 
+  @Test
+  public void includeAcceptsCommaSeparatedPatterns() {
+    CapturingMetricsReporter delegate = new CapturingMetricsReporter();
+    MetricsReporter wrapped =
+        FilteringMetricsReporter.wrap(
+            delegate,
+            ImmutableMap.of(
+                CatalogProperties.METRICS_REPORTER_TABLE_NAME_INCLUDE,
+                "prod_db\\..*, analytics_db\\..*"));
+
+    ScanReport analytics = newScanReport("analytics_db.events");
+    wrapped.report(SCAN_PROD);
+    wrapped.report(analytics);
+    wrapped.report(SCAN_DEV);
+
+    assertThat(delegate.reports).containsExactly(SCAN_PROD, analytics);
+  }
+
+  @Test
+  public void excludeAcceptsCommaSeparatedPatterns() {
+    CapturingMetricsReporter delegate = new CapturingMetricsReporter();
+    MetricsReporter wrapped =
+        FilteringMetricsReporter.wrap(
+            delegate,
+            ImmutableMap.of(
+                CatalogProperties.METRICS_REPORTER_TABLE_NAME_EXCLUDE, ".*\\.tmp_.*,dev_db\\..*"));
+
+    wrapped.report(SCAN_PROD);
+    wrapped.report(SCAN_TMP);
+    wrapped.report(SCAN_DEV);
+
+    assertThat(delegate.reports).containsExactly(SCAN_PROD);
+  }
+
+  @Test
+  public void patternsMatchWholeNameNotSubstring() {
+    CapturingMetricsReporter delegate = new CapturingMetricsReporter();
+    MetricsReporter wrapped =
+        FilteringMetricsReporter.wrap(
+            delegate,
+            ImmutableMap.of(CatalogProperties.METRICS_REPORTER_TABLE_NAME_INCLUDE, "prod\\..*"));
+
+    ScanReport prod = newScanReport("prod.orders");
+    // names that a substring match would wrongly accept
+    wrapped.report(prod);
+    wrapped.report(newScanReport("production.orders"));
+    wrapped.report(newScanReport("prod_sandbox.orders"));
+    wrapped.report(newScanReport("staging.prod.orders"));
+
+    assertThat(delegate.reports).containsExactly(prod);
+  }
+
   private static ScanReport newScanReport(String tableName) {
     return ImmutableScanReport.builder()
         .tableName(tableName)
