@@ -68,16 +68,16 @@ The following properties configure the table cache used for freshness-aware tabl
 ### Auth properties
 
 The following catalog properties configure authentication for the REST catalog.
-They support Basic, OAuth2, SigV4, and Google authentication.
+They support Basic, OAuth2, SigV4, Google, and Aliyun authentication.
 
 #### REST auth properties
 
-| Property                             | Default          | Description                                                                                                       |
-|--------------------------------------|------------------|-------------------------------------------------------------------------------------------------------------------|
-| `rest.auth.type`                     | `none`           | Authentication mechanism for REST catalog access. Supported values: `none`, `basic`, `oauth2`, `sigv4`, `google`. |
-| `rest.auth.basic.username`           | null             | Username for Basic authentication. Required if `rest.auth.type` = `basic`.                                        |
-| `rest.auth.basic.password`           | null             | Password for Basic authentication. Required if `rest.auth.type` = `basic`.                                        |
-| `rest.auth.sigv4.delegate-auth-type` | `oauth2`         | Auth type to delegate to after `sigv4` signing.                                                                   |
+| Property                             | Default          | Description                                                                                                                  |
+|--------------------------------------|------------------|------------------------------------------------------------------------------------------------------------------------------|
+| `rest.auth.type`                     | `none`           | Authentication mechanism for REST catalog access. Supported values: `none`, `basic`, `oauth2`, `sigv4`, `google`, `aliyun`. |
+| `rest.auth.basic.username`           | null             | Username for Basic authentication. Required if `rest.auth.type` = `basic`.                                                   |
+| `rest.auth.basic.password`           | null             | Password for Basic authentication. Required if `rest.auth.type` = `basic`.                                                   |
+| `rest.auth.sigv4.delegate-auth-type` | `oauth2`         | Auth type to delegate to after `sigv4` signing.                                                                              |
 
 #### OAuth2 auth properties
 Required and optional properties to include while using `oauth2` authentication
@@ -124,6 +124,24 @@ Required and optional properties to include while using `google` authentication
 | `gcp.auth.credentials-path`| Application Default Credentials (ADC)            | Path to a service account JSON key file.         |
 | `gcp.auth.credentials-json` | Application Default Credentials (ADC)            | JSON string of a service account credential.     |
 | `gcp.auth.scopes`          | `https://www.googleapis.com/auth/cloud-platform` | Comma-separated list of OAuth scopes to request. |
+
+#### Aliyun auth properties
+
+The `iceberg-aliyun` module must be present on the classpath when using `aliyun` authentication.
+The following properties configure Aliyun request signing:
+
+| Property                        | Default  | Description                                                                                                                                                             |
+|---------------------------------|----------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `aliyun.auth.signing-name`      | null     | Signing protocol to use. Set to `odps` for the built-in ODPS signer, or to the fully qualified class name of a custom signer.                                                      |
+| `aliyun.auth.access-key-id`     | null     | AccessKey ID used to sign requests. Falls back to the `ALIBABA_CLOUD_ACCESS_KEY_ID` environment variable.                                                               |
+| `aliyun.auth.access-key-secret` | null     | AccessKey secret used to sign requests. Falls back to the `ALIBABA_CLOUD_ACCESS_KEY_SECRET` environment variable.                                                       |
+| `aliyun.auth.sts-token`         | null     | Optional STS token for temporary credentials. Falls back to the `ALIBABA_CLOUD_SECURITY_TOKEN` environment variable.                                                    |
+| `aliyun.auth.region`            | null     | Signing region. Falls back to the `ALIBABA_CLOUD_REGION_ID` environment variable. For ODPS, setting a region enables V4 signing; otherwise, the signer uses V2 signing. |
+| `odps.auth.corporation`         | `aliyun` | Corporation identifier included in the ODPS V4 credential scope.                                                                                                       |
+
+Non-empty catalog properties take precedence over their corresponding environment variables.
+The AccessKey ID and AccessKey secret are required when using the built-in ODPS signer.
+A custom signer must implement `org.apache.iceberg.aliyun.auth.AliyunRequestSigner` and provide a public constructor that accepts `org.apache.iceberg.aliyun.AliyunProperties` and `Map<String, String>`.
 
 ## Lock catalog properties
 
