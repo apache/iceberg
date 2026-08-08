@@ -44,6 +44,7 @@ import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.kafka.connect.data.Field;
 import org.apache.kafka.connect.data.Struct;
+import org.apache.kafka.connect.errors.DataException;
 
 class RecordUtils {
 
@@ -122,7 +123,14 @@ class RecordUtils {
                   colName -> {
                     NestedField field = table.schema().findField(colName);
                     if (field == null) {
-                      throw new IllegalArgumentException("ID column not found: " + colName);
+                      throw new DataException(
+                          String.format(
+                              "ID column '%s' not found in schema for table %s. Available columns: %s",
+                              colName,
+                              tableReference.identifier().name(),
+                              table.schema().columns().stream()
+                                  .map(NestedField::name)
+                                  .collect(Collectors.toList())));
                     }
                     return field.fieldId();
                   })
