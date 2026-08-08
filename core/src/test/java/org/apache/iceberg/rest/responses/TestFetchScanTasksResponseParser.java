@@ -83,16 +83,6 @@ public class TestFetchScanTasksResponseParser {
 
   @Test
   public void roundTripSerdeWithDeleteFilesNoFileScanTasksPresent() {
-    assertThatThrownBy(
-            () ->
-                FetchScanTasksResponse.builder()
-                    .withPlanTasks(List.of("task1", "task2"))
-                    .withDeleteFiles(List.of(FILE_A_DELETES))
-                    .build())
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage(
-            "Invalid response: deleteFiles should only be returned with fileScanTasks that reference them");
-
     String invalidJson =
         "{\"plan-tasks\":[\"task1\",\"task2\"],"
             + "\"delete-files\":[{\"spec-id\":0,\"content\":\"position-deletes\","

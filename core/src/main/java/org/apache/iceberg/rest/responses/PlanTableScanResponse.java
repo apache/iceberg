@@ -116,6 +116,30 @@ public class PlanTableScanResponse extends BaseScanTaskResponse {
     return new Builder();
   }
 
+  /**
+   * Returns a new builder pre-populated with the given partition specs map. Required for server
+   * responses that serialize {@code fileScanTasks} or {@code deleteFiles}; the specs are used only
+   * to serialize partition data and are never written to the response payload.
+   */
+  public static Builder builder(Map<Integer, PartitionSpec> specsById) {
+    return new Builder().withSpecsById(specsById);
+  }
+
+  /**
+   * Returns a builder pre-populated with this response's fields, suitable for producing a copy with
+   * one or more fields modified.
+   */
+  public Builder toBuilder() {
+    return new Builder()
+        .withPlanStatus(planStatus)
+        .withPlanId(planId)
+        .withErrorResponse(errorResponse)
+        .withPlanTasks(planTasks())
+        .withFileScanTasks(fileScanTasks())
+        .withCredentials(credentials())
+        .withSpecsById(specsById());
+  }
+
   public static class Builder extends BaseScanTaskResponse.Builder<Builder, PlanTableScanResponse> {
     private PlanStatus planStatus;
     private String planId;

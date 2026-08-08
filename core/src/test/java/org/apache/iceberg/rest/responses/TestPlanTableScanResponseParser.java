@@ -196,17 +196,6 @@ public class TestPlanTableScanResponseParser {
 
   @Test
   public void roundTripSerdeWithInvalidPlanStatusSubmittedWithDeleteFilesNoFileScanTasksPresent() {
-    assertThatThrownBy(
-            () ->
-                PlanTableScanResponse.builder()
-                    .withPlanStatus(PlanStatus.SUBMITTED)
-                    .withPlanId("somePlanId")
-                    .withDeleteFiles(List.of(FILE_A_DELETES))
-                    .build())
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage(
-            "Invalid response: deleteFiles should only be returned with fileScanTasks that reference them");
-
     String invalidJson =
         "{\"status\":\"submitted\","
             + "\"plan-id\":\"somePlanId\","
@@ -264,7 +253,6 @@ public class TestPlanTableScanResponseParser {
             .withPlanStatus(fromResponse.planStatus())
             .withPlanId(fromResponse.planId())
             .withPlanTasks(fromResponse.planTasks())
-            .withDeleteFiles(fromResponse.deleteFiles())
             .withFileScanTasks(fromResponse.fileScanTasks())
             .withSpecsById(PARTITION_SPECS_BY_ID)
             .build();
@@ -384,6 +372,35 @@ public class TestPlanTableScanResponseParser {
             + "}";
     String json = PlanTableScanResponseParser.toJson(response, true);
     assertThat(json).isEqualTo(expectedJson);
+  }
+
+  @Test
+  public void toBuilderClearsDeleteFilesWhenClearingFileScanTasks() {
+    ResidualEvaluator residualEvaluator =
+        ResidualEvaluator.of(SPEC, Expressions.alwaysTrue(), true);
+    FileScanTask task =
+        new BaseFileScanTask(
+            FILE_A,
+            new DeleteFile[] {FILE_A_DELETES},
+            SchemaParser.toJson(SCHEMA),
+            PartitionSpecParser.toJson(SPEC),
+            residualEvaluator);
+
+    PlanTableScanResponse completed =
+        PlanTableScanResponse.builder()
+            .withPlanStatus(PlanStatus.COMPLETED)
+            .withFileScanTasks(List.of(task))
+            .withSpecsById(PARTITION_SPECS_BY_ID)
+            .build();
+    assertThat(completed.deleteFiles()).containsExactly(FILE_A_DELETES);
+
+    // clearing the tasks must clear the delete files derived from them, otherwise validate()
+    // rejects the copy because the retained delete files reference tasks that are no longer present
+    PlanTableScanResponse failed =
+        completed.toBuilder().withPlanStatus(PlanStatus.FAILED).withFileScanTasks(null).build();
+
+    assertThat(failed.fileScanTasks()).isNull();
+    assertThat(failed.deleteFiles()).isNull();
   }
 
   @Test

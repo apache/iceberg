@@ -108,8 +108,9 @@ public class TestRESTUtil {
   @Test
   public void encodeAsOldClientAndDecodeAsNewServer() {
     Namespace namespace = Namespace.of("first", "second", "third");
-    // old client would call encodeNamespace without specifying a separator
-    String encodedNamespace = RESTUtil.encodeNamespace(namespace);
+    // old client would call encodeNamespace with the legacy separator
+    String encodedNamespace =
+        RESTUtil.encodeNamespace(namespace, RESTUtil.NAMESPACE_SEPARATOR_URLENCODED_UTF_8);
     assertThat(encodedNamespace).contains(RESTUtil.NAMESPACE_SEPARATOR_URLENCODED_UTF_8);
 
     // old client would also call namespaceToQueryParam without specifying a separator
@@ -117,7 +118,7 @@ public class TestRESTUtil {
     assertThat(namespaceAsUnicode).contains("\u001f");
 
     // newer server would try and decode the namespace with the separator it communicates to clients
-    String separator = "%2E";
+    String separator = RESTCatalogAdapter.NAMESPACE_SEPARATOR_URLENCODED_UTF_8;
     Namespace decodedNamespace = RESTUtil.decodeNamespace(encodedNamespace, separator);
     assertThat(decodedNamespace).isEqualTo(namespace);
 
@@ -130,11 +131,13 @@ public class TestRESTUtil {
   @Test
   public void testNamespaceUrlEncodeDecodeDoesNotAllowNull() {
     assertThatExceptionOfType(IllegalArgumentException.class)
-        .isThrownBy(() -> RESTUtil.encodeNamespace(null))
+        .isThrownBy(
+            () -> RESTUtil.encodeNamespace(null, RESTUtil.NAMESPACE_SEPARATOR_URLENCODED_UTF_8))
         .withMessage("Invalid namespace: null");
 
     assertThatExceptionOfType(IllegalArgumentException.class)
-        .isThrownBy(() -> RESTUtil.decodeNamespace(null))
+        .isThrownBy(
+            () -> RESTUtil.decodeNamespace(null, RESTUtil.NAMESPACE_SEPARATOR_URLENCODED_UTF_8))
         .withMessage("Invalid namespace: null");
   }
 
