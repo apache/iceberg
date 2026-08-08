@@ -42,6 +42,11 @@ public interface StatisticsFile {
   /** Size of the Puffin footer. */
   long fileFooterSizeInBytes();
 
+  /** ID of the encryption key used for this file, or null if the file is stored in plain text. */
+  default String keyId() {
+    return null;
+  }
+
   /** List of statistics contained in the file. Never null. */
   List<BlobMetadata> blobMetadata();
 }

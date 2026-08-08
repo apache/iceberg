@@ -29,13 +29,29 @@ public class GenericStatisticsFile implements StatisticsFile {
   private final String path;
   private final long fileSizeInBytes;
   private final long fileFooterSizeInBytes;
+  private final String keyId;
   private final List<BlobMetadata> blobMetadata;
+
+  /**
+   * @deprecated will be removed in 1.13.0. Use {@link #GenericStatisticsFile(long, String, long,
+   *     long, String, List)} instead.
+   */
+  @Deprecated
+  public GenericStatisticsFile(
+      long snapshotId,
+      String path,
+      long fileSizeInBytes,
+      long fileFooterSizeInBytes,
+      List<BlobMetadata> blobMetadata) {
+    this(snapshotId, path, fileSizeInBytes, fileFooterSizeInBytes, null, blobMetadata);
+  }
 
   public GenericStatisticsFile(
       long snapshotId,
       String path,
       long fileSizeInBytes,
       long fileFooterSizeInBytes,
+      String keyId,
       List<BlobMetadata> blobMetadata) {
     Preconditions.checkNotNull(path, "path is null");
     Preconditions.checkNotNull(blobMetadata, "blobMetadata is null");
@@ -43,6 +59,7 @@ public class GenericStatisticsFile implements StatisticsFile {
     this.path = path;
     this.fileSizeInBytes = fileSizeInBytes;
     this.fileFooterSizeInBytes = fileFooterSizeInBytes;
+    this.keyId = keyId;
     this.blobMetadata = ImmutableList.copyOf(blobMetadata);
   }
 
@@ -67,6 +84,11 @@ public class GenericStatisticsFile implements StatisticsFile {
   }
 
   @Override
+  public String keyId() {
+    return keyId;
+  }
+
+  @Override
   public List<BlobMetadata> blobMetadata() {
     return blobMetadata;
   }
@@ -84,12 +106,14 @@ public class GenericStatisticsFile implements StatisticsFile {
         && fileSizeInBytes == that.fileSizeInBytes
         && fileFooterSizeInBytes == that.fileFooterSizeInBytes
         && Objects.equals(path, that.path)
+        && Objects.equals(keyId, that.keyId)
         && Objects.equals(blobMetadata, that.blobMetadata);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(snapshotId, path, fileSizeInBytes, fileFooterSizeInBytes, blobMetadata);
+    return Objects.hash(
+        snapshotId, path, fileSizeInBytes, fileFooterSizeInBytes, keyId, blobMetadata);
   }
 
   @Override
@@ -99,6 +123,7 @@ public class GenericStatisticsFile implements StatisticsFile {
         .add("path='" + path + "'")
         .add("fileSizeInBytes=" + fileSizeInBytes)
         .add("fileFooterSizeInBytes=" + fileFooterSizeInBytes)
+        .add("keyId=" + keyId)
         .add("blobMetadata=" + blobMetadata)
         .toString();
   }

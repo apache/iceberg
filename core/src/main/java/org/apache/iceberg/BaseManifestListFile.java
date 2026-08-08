@@ -44,6 +44,6 @@ class BaseManifestListFile implements ManifestListFile, Serializable {
 
   @Override
   public ByteBuffer decryptKeyMetadata(EncryptionManager em) {
-    return EncryptionUtil.decryptManifestListKeyMetadata(this, em);
+    return EncryptionUtil.decryptKeyMetadata(encryptionKeyID, em);
   }
 }
