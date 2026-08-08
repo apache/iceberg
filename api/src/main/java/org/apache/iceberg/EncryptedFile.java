@@ -18,10 +18,21 @@
  */
 package org.apache.iceberg;
 
+import java.nio.ByteBuffer;
+import org.apache.iceberg.encryption.EncryptionManager;
+
 /**
- * A manifest list file that may be encrypted.
- *
- * @deprecated since 1.12.0. Will be removed in 2.0.0; use {@link EncryptedFile} instead.
+ * A file that may be encrypted. If it is encrypted, its encrypted key metadata is tracked in the
+ * table metadata encryption keys and is referenced by a key ID.
  */
-@Deprecated
-public interface ManifestListFile extends EncryptedFile {}
+public interface EncryptedFile {
+
+  /** Location of the file. */
+  String location();
+
+  /** Returns the encryption key ID for this file, or null if the file is not encrypted. */
+  String encryptionKeyID();
+
+  /** Decrypt and return the file key metadata */
+  ByteBuffer decryptKeyMetadata(EncryptionManager em);
+}

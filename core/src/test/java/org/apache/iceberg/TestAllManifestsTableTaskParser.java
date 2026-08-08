@@ -91,7 +91,7 @@ public class TestAllManifestsTableTaskParser {
         fileIO,
         AllManifestsTable.MANIFEST_FILE_SCHEMA,
         specsById,
-        new BaseManifestListFile("/path/manifest-list-file.avro", "a"),
+        new BaseEncryptedFile("/path/manifest-list-file.avro", "a"),
         Expressions.equal("id", 1),
         1L);
   }
