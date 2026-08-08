@@ -41,6 +41,7 @@ import org.apache.hadoop.hive.metastore.api.Table;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.CommitFailedException;
@@ -50,6 +51,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.view.BaseView;
 import org.apache.iceberg.view.ImmutableSQLViewRepresentation;
+import org.apache.iceberg.view.ImmutableViewVersion;
 import org.apache.iceberg.view.View;
 import org.apache.iceberg.view.ViewMetadata;
 import org.apache.thrift.TException;
@@ -214,6 +216,78 @@ public class TestHiveViewCommits {
             "New metadata files should still exist, new location not in history but"
                 + " the commit may still succeed")
         .isEqualTo(2);
+  }
+
+  /**
+   * Pretends we throw an unclear error while persisting a create-view commit, for a view that was
+   * never stored in the metastore. The commit status check must resolve cleanly instead of NPE-ing:
+   * the view-specific {@code doRefresh} treats a missing view as non-fatal when no metadata
+   * location is known and refreshes from a null location, so the status-check supplier observes
+   * null current metadata and resolves to false (a new metadata location cannot be current for a
+   * view that does not exist). The relaxed check then maps that to UNKNOWN.
+   */
+  @Test
+  public void testThriftExceptionUnknownStateOnCreateCommitWhenViewNeverPersisted()
+      throws TException, InterruptedException, IOException {
+    TableIdentifier createIdentifier = TableIdentifier.of(NS, "create_commit_failed_view");
+    HiveViewOperations ops = (HiveViewOperations) catalog.newViewOps(createIdentifier);
+    HiveViewOperations spyOps = spy(ops);
+
+    failCommitAndThrowException(spyOps);
+
+    Path createLocation = new Path(viewLocation.getParent(), "create_commit_failed_view");
+    ViewMetadata metadata =
+        ViewMetadata.builder()
+            .setLocation(createLocation.toString())
+            .setProperties(
+                ImmutableMap.of(
+                    TableProperties.COMMIT_NUM_STATUS_CHECKS, "1",
+                    TableProperties.COMMIT_STATUS_CHECKS_MIN_WAIT_MS, "1",
+                    TableProperties.COMMIT_STATUS_CHECKS_MAX_WAIT_MS, "10",
+                    TableProperties.COMMIT_STATUS_CHECKS_TOTAL_WAIT_MS, "100"))
+            .setCurrentVersion(
+                ImmutableViewVersion.builder()
+                    .versionId(1)
+                    .schemaId(SCHEMA.schemaId())
+                    .timestampMillis(System.currentTimeMillis())
+                    .defaultNamespace(NS)
+                    .putSummary("operation", "create")
+                    .addRepresentations(
+                        ImmutableSQLViewRepresentation.builder()
+                            .sql(VIEW_QUERY)
+                            .dialect("hive")
+                            .build())
+                    .build(),
+                SCHEMA)
+            .build();
+
+    try {
+      assertThatThrownBy(() -> spyOps.commit(null, metadata))
+          .isInstanceOf(CommitStateUnknownException.class)
+          .hasMessageStartingWith("Datacenter on fire");
+
+      assertThat(catalog.viewExists(createIdentifier))
+          .as("The view should not have been created")
+          .isFalse();
+
+      // pins the view-specific doRefresh wiring: a missing view is not an error when no metadata
+      // location is known, so refreshing a never-persisted view must yield null metadata
+      assertThat(ops.refresh())
+          .as("Refreshing a never-persisted view should yield null metadata")
+          .isNull();
+
+      // and the commit status check supplier must resolve to false for the null metadata instead
+      // of throwing an NPE
+      assertThat(
+              checkCurrentMetadataLocation(
+                  ops, createLocation + "/metadata/00000-uuid.metadata.json"))
+          .as("A new metadata location cannot be current for a never-persisted view")
+          .isFalse();
+    } finally {
+      createLocation
+          .getFileSystem(HIVE_METASTORE_EXTENSION.hiveConf())
+          .delete(createLocation, true);
+    }
   }
 
   /** Pretends we throw an error while persisting that actually does commit serverside. */
@@ -592,6 +666,20 @@ public class TestHiveViewCommits {
   private void breakFallbackCatalogCommitCheck(HiveViewOperations spyOperations) {
     when(spyOperations.refresh())
         .thenThrow(new RuntimeException("Still on fire")); // Failure on commit check
+  }
+
+  private static boolean checkCurrentMetadataLocation(
+      HiveViewOperations ops, String newMetadataLocation) {
+    try {
+      return (Boolean)
+          ReflectionSupport.invokeMethod(
+              HiveViewOperations.class.getDeclaredMethod(
+                  "checkCurrentMetadataLocation", String.class),
+              ops,
+              newMetadataLocation);
+    } catch (NoSuchMethodException e) {
+      throw new RuntimeException(e);
+    }
   }
 
   private boolean metadataFileExists(ViewMetadata metadata) {
