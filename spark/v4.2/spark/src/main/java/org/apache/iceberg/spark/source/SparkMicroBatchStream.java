@@ -1,0 +1,317 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+package org.apache.iceberg.spark.source;
+
+import java.io.BufferedWriter;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.OutputStreamWriter;
+import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
+import java.util.List;
+import java.util.function.Supplier;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.iceberg.CombinedScanTask;
+import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.SchemaParser;
+import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.Table;
+import org.apache.iceberg.hadoop.HadoopFileIO;
+import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.relocated.com.google.common.base.Joiner;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.spark.SparkReadConf;
+import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.TableScanUtil;
+import org.apache.spark.api.java.JavaSparkContext;
+import org.apache.spark.broadcast.Broadcast;
+import org.apache.spark.sql.connector.read.InputPartition;
+import org.apache.spark.sql.connector.read.PartitionReaderFactory;
+import org.apache.spark.sql.connector.read.streaming.MicroBatchStream;
+import org.apache.spark.sql.connector.read.streaming.Offset;
+import org.apache.spark.sql.connector.read.streaming.ReadLimit;
+import org.apache.spark.sql.connector.read.streaming.SupportsTriggerAvailableNow;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerAvailableNow {
+  private static final Joiner SLASH = Joiner.on("/");
+  private static final Logger LOG = LoggerFactory.getLogger(SparkMicroBatchStream.class);
+  private static final Types.StructType EMPTY_GROUPING_KEY_TYPE = Types.StructType.of();
+
+  private final Table table;
+  private final Supplier<FileIO> fileIO;
+  private final SparkReadConf readConf;
+  private final boolean caseSensitive;
+  private final String projection;
+  private final Broadcast<Table> tableBroadcast;
+  private final Broadcast<FileIO> fileIOBroadcast;
+  private final long splitSize;
+  private final int splitLookback;
+  private final long splitOpenFileCost;
+  private final boolean localityPreferred;
+  private final StreamingOffset initialOffset;
+  private final long fromTimestamp;
+  private final int maxFilesPerMicroBatch;
+  private final int maxRecordsPerMicroBatch;
+  private final boolean cacheDeleteFilesOnExecutors;
+  private SparkMicroBatchPlanner planner;
+  private StreamingOffset lastOffsetForTriggerAvailableNow;
+
+  SparkMicroBatchStream(
+      JavaSparkContext sparkContext,
+      Table table,
+      Supplier<FileIO> fileIO,
+      SparkReadConf readConf,
+      Schema projection,
+      String checkpointLocation) {
+    this.table = table;
+    this.fileIO = fileIO;
+    this.readConf = readConf;
+    this.caseSensitive = readConf.caseSensitive();
+    this.projection = SchemaParser.toJson(projection);
+    this.localityPreferred = readConf.localityEnabled();
+    this.tableBroadcast = sparkContext.broadcast(SerializableTableWithSize.copyOf(table));
+    this.fileIOBroadcast = sparkContext.broadcast(SerializableFileIOWithSize.wrap(fileIO.get()));
+    this.splitSize = readConf.splitSize();
+    this.splitLookback = readConf.splitLookback();
+    this.splitOpenFileCost = readConf.splitOpenFileCost();
+    this.fromTimestamp = readConf.streamFromTimestamp();
+    this.maxFilesPerMicroBatch = readConf.maxFilesPerMicroBatch();
+    this.maxRecordsPerMicroBatch = readConf.maxRecordsPerMicroBatch();
+    this.cacheDeleteFilesOnExecutors = readConf.cacheDeleteFilesOnExecutors();
+
+    InitialOffsetStore initialOffsetStore =
+        new InitialOffsetStore(
+            table, checkpointLocation, fromTimestamp, sparkContext.hadoopConfiguration());
+    this.initialOffset = initialOffsetStore.initialOffset();
+  }
+
+  @Override
+  public Offset latestOffset() {
+    table.refresh();
+    if (table.currentSnapshot() == null) {
+      return StreamingOffset.START_OFFSET;
+    }
+
+    if (table.currentSnapshot().timestampMillis() < fromTimestamp) {
+      return StreamingOffset.START_OFFSET;
+    }
+
+    Snapshot latestSnapshot = table.currentSnapshot();
+
+    return new StreamingOffset(
+        latestSnapshot.snapshotId(), MicroBatchUtils.addedFilesCount(table, latestSnapshot), false);
+  }
+
+  @Override
+  public InputPartition[] planInputPartitions(Offset start, Offset end) {
+    Preconditions.checkArgument(
+        end instanceof StreamingOffset, "Invalid end offset: %s is not a StreamingOffset", end);
+    Preconditions.checkArgument(
+        start instanceof StreamingOffset,
+        "Invalid start offset: %s is not a StreamingOffset",
+        start);
+
+    if (end.equals(StreamingOffset.START_OFFSET)) {
+      return new InputPartition[0];
+    }
+
+    StreamingOffset endOffset = (StreamingOffset) end;
+    StreamingOffset startOffset = (StreamingOffset) start;
+
+    // Initialize planner if not already done (for resume scenarios)
+    if (planner == null) {
+      initializePlanner(startOffset, endOffset);
+    }
+
+    List<FileScanTask> fileScanTasks = planner.planFiles(startOffset, endOffset);
+
+    CloseableIterable<FileScanTask> splitTasks =
+        TableScanUtil.splitFiles(CloseableIterable.withNoopClose(fileScanTasks), splitSize);
+    List<CombinedScanTask> combinedScanTasks =
+        Lists.newArrayList(
+            TableScanUtil.planTasks(splitTasks, splitSize, splitLookback, splitOpenFileCost));
+    String[][] locations = computePreferredLocations(combinedScanTasks);
+
+    InputPartition[] partitions = new InputPartition[combinedScanTasks.size()];
+
+    for (int index = 0; index < combinedScanTasks.size(); index++) {
+      partitions[index] =
+          new SparkInputPartition(
+              EMPTY_GROUPING_KEY_TYPE,
+              combinedScanTasks.get(index),
+              tableBroadcast,
+              fileIOBroadcast,
+              projection,
+              caseSensitive,
+              locations != null ? locations[index] : SparkPlanningUtil.NO_LOCATION_PREFERENCE,
+              cacheDeleteFilesOnExecutors);
+    }
+
+    return partitions;
+  }
+
+  private String[][] computePreferredLocations(List<CombinedScanTask> taskGroups) {
+    return localityPreferred
+        ? SparkPlanningUtil.fetchBlockLocations(fileIO.get(), taskGroups)
+        : null;
+  }
+
+  @Override
+  public PartitionReaderFactory createReaderFactory() {
+    return new SparkRowReaderFactory();
+  }
+
+  @Override
+  public Offset initialOffset() {
+    return initialOffset;
+  }
+
+  @Override
+  public Offset deserializeOffset(String json) {
+    return StreamingOffset.fromJson(json);
+  }
+
+  @Override
+  public void commit(Offset end) {}
+
+  @Override
+  public void stop() {
+    if (planner != null) {
+      planner.stop();
+    }
+  }
+
+  private void initializePlanner(StreamingOffset startOffset, StreamingOffset endOffset) {
+    if (readConf.asyncMicroBatchPlanningEnabled()) {
+      this.planner =
+          new AsyncSparkMicroBatchPlanner(
+              table, readConf, startOffset, endOffset, lastOffsetForTriggerAvailableNow);
+    } else {
+      this.planner =
+          new SyncSparkMicroBatchPlanner(table, readConf, lastOffsetForTriggerAvailableNow);
+    }
+  }
+
+  @Override
+  public Offset latestOffset(Offset startOffset, ReadLimit limit) {
+    Preconditions.checkArgument(
+        startOffset instanceof StreamingOffset,
+        "Invalid start offset: %s is not a StreamingOffset",
+        startOffset);
+
+    // Initialize planner if not already done
+    if (planner == null) {
+      initializePlanner((StreamingOffset) startOffset, null);
+    }
+
+    return planner.latestOffset((StreamingOffset) startOffset, limit);
+  }
+
+  @Override
+  public ReadLimit getDefaultReadLimit() {
+    if (maxFilesPerMicroBatch != Integer.MAX_VALUE
+        && maxRecordsPerMicroBatch != Integer.MAX_VALUE) {
+      ReadLimit[] readLimits = new ReadLimit[2];
+      readLimits[0] = ReadLimit.maxFiles(maxFilesPerMicroBatch);
+      readLimits[1] = ReadLimit.maxRows(maxRecordsPerMicroBatch);
+      return ReadLimit.compositeLimit(readLimits);
+    } else if (maxFilesPerMicroBatch != Integer.MAX_VALUE) {
+      return ReadLimit.maxFiles(maxFilesPerMicroBatch);
+    } else if (maxRecordsPerMicroBatch != Integer.MAX_VALUE) {
+      return ReadLimit.maxRows(maxRecordsPerMicroBatch);
+    } else {
+      return ReadLimit.allAvailable();
+    }
+  }
+
+  @Override
+  public void prepareForTriggerAvailableNow() {
+    LOG.info("The streaming query reports to use Trigger.AvailableNow");
+
+    lastOffsetForTriggerAvailableNow =
+        (StreamingOffset) latestOffset(initialOffset, ReadLimit.allAvailable());
+
+    LOG.info("lastOffset for Trigger.AvailableNow is {}", lastOffsetForTriggerAvailableNow.json());
+
+    // Reset planner so it gets recreated with the cap on next call
+    if (planner != null) {
+      planner.stop();
+      planner = null;
+    }
+  }
+
+  private static class InitialOffsetStore {
+    private final Table table;
+    private final FileIO io;
+    private final String initialOffsetLocation;
+    private final long fromTimestamp;
+
+    InitialOffsetStore(
+        Table table, String checkpointLocation, long fromTimestamp, Configuration conf) {
+      this.table = table;
+      this.io = new HadoopFileIO(conf);
+      this.initialOffsetLocation = SLASH.join(checkpointLocation, "offsets/0");
+      this.fromTimestamp = fromTimestamp;
+    }
+
+    public StreamingOffset initialOffset() {
+      InputFile inputFile = io.newInputFile(initialOffsetLocation);
+      if (inputFile.exists()) {
+        return readOffset(inputFile);
+      }
+
+      table.refresh();
+      StreamingOffset offset = MicroBatchUtils.determineStartingOffset(table, fromTimestamp);
+
+      OutputFile outputFile = io.newOutputFile(initialOffsetLocation);
+      writeOffset(offset, outputFile);
+
+      return offset;
+    }
+
+    private void writeOffset(StreamingOffset offset, OutputFile file) {
+      try (OutputStream outputStream = file.create()) {
+        BufferedWriter writer =
+            new BufferedWriter(new OutputStreamWriter(outputStream, StandardCharsets.UTF_8));
+        writer.write(offset.json());
+        writer.flush();
+      } catch (IOException ioException) {
+        throw new UncheckedIOException(
+            String.format("Failed writing offset to: %s", initialOffsetLocation), ioException);
+      }
+    }
+
+    private StreamingOffset readOffset(InputFile file) {
+      try (InputStream in = file.newStream()) {
+        return StreamingOffset.fromJson(in);
+      } catch (IOException ioException) {
+        throw new UncheckedIOException(
+            String.format("Failed reading offset from: %s", initialOffsetLocation), ioException);
+      }
+    }
+  }
+}
