@@ -78,6 +78,17 @@ public class PlanUtils {
         .collect(Collectors.toList());
   }
 
+  public static List<Expression> collectPushedSparkExpressions(
+      LogicalPlan logicalPlan, Predicate<Expression> predicate) {
+    return JavaConverters.asJavaCollection(logicalPlan.collectLeaves()).stream()
+        .filter(DataSourceV2ScanRelation.class::isInstance)
+        .map(DataSourceV2ScanRelation.class::cast)
+        .flatMap(
+            scanRelation -> JavaConverters.asJavaCollection(scanRelation.pushedFilters()).stream())
+        .flatMap(expression -> collectSparkExpressions(expression, predicate).stream())
+        .collect(Collectors.toList());
+  }
+
   private static List<Expression> collectSparkExpressions(
       Expression expression, Predicate<Expression> predicate) {
     Seq<Expression> list =

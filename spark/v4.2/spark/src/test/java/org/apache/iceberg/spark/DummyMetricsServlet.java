@@ -22,7 +22,7 @@ import com.codahale.metrics.MetricRegistry;
 import java.util.Properties;
 import org.apache.spark.SparkConf;
 import org.apache.spark.metrics.sink.MetricsServlet;
-import org.sparkproject.jetty.servlet.ServletContextHandler;
+import org.sparkproject.jetty.ee10.servlet.ServletContextHandler;
 
 /**
  * A dummy implementation of {@link MetricsServlet} that does not start a server or report metrics.

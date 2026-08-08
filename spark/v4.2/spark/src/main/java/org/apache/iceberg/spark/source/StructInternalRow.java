@@ -34,6 +34,7 @@ import java.util.function.Function;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ByteBuffers;
@@ -43,6 +44,7 @@ import org.apache.spark.sql.catalyst.util.ArrayBasedMapData;
 import org.apache.spark.sql.catalyst.util.ArrayData;
 import org.apache.spark.sql.catalyst.util.GenericArrayData;
 import org.apache.spark.sql.catalyst.util.MapData;
+import org.apache.spark.sql.catalyst.util.STUtils;
 import org.apache.spark.sql.types.ArrayType;
 import org.apache.spark.sql.types.BinaryType;
 import org.apache.spark.sql.types.BooleanType;
@@ -53,6 +55,8 @@ import org.apache.spark.sql.types.Decimal;
 import org.apache.spark.sql.types.DecimalType;
 import org.apache.spark.sql.types.DoubleType;
 import org.apache.spark.sql.types.FloatType;
+import org.apache.spark.sql.types.GeographyType;
+import org.apache.spark.sql.types.GeometryType;
 import org.apache.spark.sql.types.IntegerType;
 import org.apache.spark.sql.types.LongType;
 import org.apache.spark.sql.types.MapType;
@@ -61,9 +65,8 @@ import org.apache.spark.sql.types.StringType;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.types.TimestampType;
 import org.apache.spark.sql.types.VariantType;
+import org.apache.spark.unsafe.types.BinaryView;
 import org.apache.spark.unsafe.types.CalendarInterval;
-import org.apache.spark.unsafe.types.GeographyVal;
-import org.apache.spark.unsafe.types.GeometryVal;
 import org.apache.spark.unsafe.types.UTF8String;
 import org.apache.spark.unsafe.types.VariantVal;
 
@@ -190,9 +193,10 @@ class StructInternalRow extends InternalRow {
   }
 
   private byte[] getBinaryInternal(int ordinal) {
-    Object bytes = struct.get(ordinal, Object.class);
+    return toByteArray(struct.get(ordinal, Object.class));
+  }
 
-    // should only be either ByteBuffer or byte[]
+  private static byte[] toByteArray(Object bytes) {
     if (bytes instanceof ByteBuffer) {
       return ByteBuffers.toByteArray((ByteBuffer) bytes);
     } else if (bytes instanceof byte[]) {
@@ -201,6 +205,13 @@ class StructInternalRow extends InternalRow {
       throw new IllegalStateException(
           "Unknown type for binary field. Type name: " + bytes.getClass().getName());
     }
+  }
+
+  @Override
+  public BinaryView getBinaryView(int ordinal) {
+    return isNullAt(ordinal)
+        ? null
+        : toBinaryView(type.fields().get(ordinal).type(), getBinaryInternal(ordinal));
   }
 
   @Override
@@ -250,16 +261,6 @@ class StructInternalRow extends InternalRow {
   }
 
   @Override
-  public GeographyVal getGeography(int ordinal) {
-    return isNullAt(ordinal) ? null : GeographyVal.fromBytes(getBinaryInternal(ordinal));
-  }
-
-  @Override
-  public GeometryVal getGeometry(int ordinal) {
-    return isNullAt(ordinal) ? null : GeometryVal.fromBytes(getBinaryInternal(ordinal));
-  }
-
-  @Override
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
   public Object get(int ordinal, DataType dataType) {
     if (isNullAt(ordinal)) {
@@ -298,6 +299,8 @@ class StructInternalRow extends InternalRow {
       return getLong(ordinal);
     } else if (dataType instanceof VariantType) {
       return getVariantInternal(ordinal);
+    } else if (dataType instanceof GeographyType || dataType instanceof GeometryType) {
+      return toBinaryView(dataType, getBinaryInternal(ordinal));
     }
     return null;
   }
@@ -339,6 +342,14 @@ class StructInternalRow extends InternalRow {
             values,
             array ->
                 (BiConsumer<Integer, BigDecimal>) (pos, dec) -> array[pos] = Decimal.apply(dec));
+      case GEOMETRY:
+      case GEOGRAPHY:
+        DataType sparkType = SparkSchemaUtil.convert(elementType);
+        return fillArray(
+            values,
+            array ->
+                (BiConsumer<Integer, Object>)
+                    (pos, value) -> array[pos] = toBinaryView(sparkType, toByteArray(value)));
       case STRUCT:
         return fillArray(
             values,
@@ -367,6 +378,20 @@ class StructInternalRow extends InternalRow {
       default:
         throw new UnsupportedOperationException("Unsupported array element type: " + elementType);
     }
+  }
+
+  private static BinaryView toBinaryView(Type type, byte[] wkb) {
+    return toBinaryView(SparkSchemaUtil.convert(type), wkb);
+  }
+
+  private static BinaryView toBinaryView(DataType type, byte[] wkb) {
+    if (type instanceof GeometryType) {
+      return STUtils.stGeomFromWKB(wkb, ((GeometryType) type).srid());
+    } else if (type instanceof GeographyType) {
+      return STUtils.stGeogFromWKB(wkb, ((GeographyType) type).srid());
+    }
+
+    throw new UnsupportedOperationException("Unsupported BinaryView type: " + type);
   }
 
   private static VariantVal toVariantVal(Object value) {

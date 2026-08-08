@@ -62,7 +62,6 @@ import org.apache.parquet.schema.Type;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.util.ArrayData;
 import org.apache.spark.sql.catalyst.util.MapData;
-import org.apache.spark.sql.catalyst.util.STUtils;
 import org.apache.spark.sql.types.ArrayType;
 import org.apache.spark.sql.types.ByteType;
 import org.apache.spark.sql.types.DataType;
@@ -73,8 +72,7 @@ import org.apache.spark.sql.types.ShortType;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.types.VariantType;
-import org.apache.spark.unsafe.types.GeographyVal;
-import org.apache.spark.unsafe.types.GeometryVal;
+import org.apache.spark.unsafe.types.BinaryView;
 import org.apache.spark.unsafe.types.UTF8String;
 import org.apache.spark.unsafe.types.VariantVal;
 
@@ -513,29 +511,27 @@ public class SparkParquetWriters {
     protected abstract byte[] toWkb(T value);
   }
 
-  /** Writes a Spark {@link GeometryVal} as its WKB bytes into a BINARY column. */
-  private static class GeometryWriter extends GeospatialWriter<GeometryVal> {
+  private static class GeometryWriter extends GeospatialWriter<BinaryView> {
     private GeometryWriter(ColumnDescriptor desc) {
       super(desc);
     }
 
     @Override
-    protected byte[] toWkb(GeometryVal value) {
-      // Spark stores geometry as [SRID | WKB]; Iceberg stores pure WKB, so strip the SRID header.
-      return STUtils.stAsBinary(value);
+    protected byte[] toWkb(BinaryView value) {
+      // Strip Spark's physical SRID representation before writing WKB to Parquet.
+      return value.slice(Integer.BYTES, value.numBytes() - Integer.BYTES).getBytes();
     }
   }
 
-  /** Writes a Spark {@link GeographyVal} as its WKB bytes into a BINARY column. */
-  private static class GeographyWriter extends GeospatialWriter<GeographyVal> {
+  private static class GeographyWriter extends GeospatialWriter<BinaryView> {
     private GeographyWriter(ColumnDescriptor desc) {
       super(desc);
     }
 
     @Override
-    protected byte[] toWkb(GeographyVal value) {
-      // Spark stores geography as [SRID | WKB]; Iceberg stores pure WKB, so strip the SRID header.
-      return STUtils.stAsBinary(value);
+    protected byte[] toWkb(BinaryView value) {
+      // Strip Spark's physical SRID representation before writing WKB to Parquet.
+      return value.slice(Integer.BYTES, value.numBytes() - Integer.BYTES).getBytes();
     }
   }
 

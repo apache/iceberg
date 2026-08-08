@@ -18,36 +18,43 @@
  */
 package org.apache.spark.sql.execution.datasources.v2
 
+import org.apache.iceberg.spark.Spark3Util
+import org.apache.iceberg.spark.source.SparkView
 import org.apache.spark.sql.catalyst.InternalRow
-import org.apache.spark.sql.catalyst.analysis.IcebergAnalysisException
+import org.apache.spark.sql.catalyst.analysis.ResolvedIdentifier
+import org.apache.spark.sql.catalyst.analysis.ViewSchemaMode
+import org.apache.spark.sql.catalyst.analysis.ViewUtil
 import org.apache.spark.sql.catalyst.expressions.Attribute
 import org.apache.spark.sql.connector.catalog.Identifier
 import org.apache.spark.sql.connector.catalog.ViewCatalog
-import org.apache.spark.sql.connector.catalog.ViewChange
+import org.apache.spark.sql.execution.command.CommandUtils
 
-case class AlterV2ViewUnsetPropertiesExec(
+/** Executes ALTER VIEW ... WITH SCHEMA for Iceberg views. */
+case class IcebergAlterV2ViewSchemaBindingExec(
     catalog: ViewCatalog,
     ident: Identifier,
-    propertyKeys: Seq[String],
-    ifExists: Boolean)
+    schemaMode: ViewSchemaMode)
     extends LeafV2CommandExec {
 
   override lazy val output: Seq[Attribute] = Nil
 
   override protected def run(): Seq[InternalRow] = {
-    if (!ifExists) {
-      propertyKeys.filterNot(catalog.loadView(ident).properties.containsKey).foreach { property =>
-        throw new IcebergAnalysisException(s"Cannot remove property that is not set: '$property'")
-      }
-    }
+    val icebergViewCatalog =
+      ViewUtil
+        .icebergViewCatalog(catalog, ident)
+        .getOrElse(
+          throw new IllegalStateException(
+            s"Cannot load underlying Iceberg view catalog for view: $ident"))
+    val view = icebergViewCatalog.loadView(Spark3Util.identifierToTableIdentifier(ident))
+    val update = view.updateProperties().set(SparkView.VIEW_SCHEMA_MODE, schemaMode.toString)
 
-    val changes = propertyKeys.map(ViewChange.removeProperty)
-    catalog.alterView(ident, changes: _*)
+    CommandUtils.uncacheTableOrView(session, ResolvedIdentifier(catalog, ident))
+    update.commit()
 
     Nil
   }
 
   override def simpleString(maxFields: Int): String = {
-    s"AlterV2ViewUnsetProperties: ${ident}"
+    s"IcebergAlterV2ViewSchemaBinding: ${ident}"
   }
 }
