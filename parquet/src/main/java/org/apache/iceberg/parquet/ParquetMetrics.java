@@ -315,7 +315,7 @@ class ParquetMetrics {
           return null;
         }
 
-        nullCount += stats.getNumNulls();
+        nullCount += Math.max(stats.getNumNulls(), 0);
         valueCount += column.getValueCount();
       }
 
@@ -344,7 +344,7 @@ class ParquetMetrics {
           return null;
         }
 
-        nullCount += stats.getNumNulls();
+        nullCount += Math.max(stats.getNumNulls(), 0);
         valueCount += column.getValueCount();
 
         if (stats.hasNonNullValue()) {
@@ -579,7 +579,7 @@ class ParquetMetrics {
           }
 
           valueCount += column.getValueCount();
-          nullCount += hasOnlyNullVariants ? column.getValueCount() : stats.getNumNulls();
+          nullCount += hasOnlyNullVariants ? column.getValueCount() : Math.max(stats.getNumNulls(), 0);
         }
 
         return new ParquetVariantUtil.VariantMetrics(valueCount, nullCount);
@@ -607,7 +607,7 @@ class ParquetMetrics {
             return null;
           }
 
-          nullCount += stats.getNumNulls();
+          nullCount += Math.max(stats.getNumNulls(), 0);
           valueCount += column.getValueCount();
 
           if (stats.hasNonNullValue()) {
