@@ -505,6 +505,34 @@ public class SparkTableUtil {
   }
 
   /**
+   * Import files from an existing Spark table to an Iceberg table, committing to the specified
+   * branch.
+   *
+   * @param branch target branch to commit into; {@code null} means commit to the current default
+   *     branch (typically {@code main})
+   */
+  public static void importSparkTable(
+      SparkSession spark,
+      TableIdentifier sourceTableIdent,
+      Table targetTable,
+      String stagingDir,
+      Map<String, String> partitionFilter,
+      boolean checkDuplicateFiles,
+      int parallelism,
+      String branch) {
+    importSparkTable(
+        spark,
+        sourceTableIdent,
+        targetTable,
+        stagingDir,
+        partitionFilter,
+        checkDuplicateFiles,
+        false,
+        migrationService(parallelism),
+        branch);
+  }
+
+  /**
    * Import files from an existing Spark table to an Iceberg table.
    *
    * <p>The import uses the Spark session to get table metadata. It assumes no operation is going on
@@ -568,6 +596,35 @@ public class SparkTableUtil {
       boolean checkDuplicateFiles,
       boolean ignoreMissingFiles,
       ExecutorService service) {
+    importSparkTable(
+        spark,
+        sourceTableIdent,
+        targetTable,
+        stagingDir,
+        partitionFilter,
+        checkDuplicateFiles,
+        ignoreMissingFiles,
+        service,
+        null);
+  }
+
+  /**
+   * Import files from an existing Spark table to an Iceberg table, committing to the specified
+   * branch.
+   *
+   * @param branch target branch to commit into; {@code null} means commit to the current default
+   *     branch (typically {@code main})
+   */
+  public static void importSparkTable(
+      SparkSession spark,
+      TableIdentifier sourceTableIdent,
+      Table targetTable,
+      String stagingDir,
+      Map<String, String> partitionFilter,
+      boolean checkDuplicateFiles,
+      boolean ignoreMissingFiles,
+      ExecutorService service,
+      String branch) {
     SessionCatalog catalog = spark.sessionState().catalog();
 
     String db =
@@ -590,12 +647,12 @@ public class SparkTableUtil {
 
       if (Objects.equal(spec, PartitionSpec.unpartitioned())) {
         importUnpartitionedSparkTable(
-            spark, sourceTableIdentWithDB, targetTable, checkDuplicateFiles, service);
+            spark, sourceTableIdentWithDB, targetTable, checkDuplicateFiles, service, branch);
       } else {
         List<SparkPartition> sourceTablePartitions =
             getPartitions(spark, sourceTableIdent, partitionFilter);
         if (sourceTablePartitions.isEmpty()) {
-          targetTable.newAppend().commit();
+          applyBranch(targetTable.newAppend(), branch).commit();
         } else {
           importSparkPartitions(
               spark,
@@ -605,13 +662,38 @@ public class SparkTableUtil {
               stagingDir,
               checkDuplicateFiles,
               ignoreMissingFiles,
-              service);
+              service,
+              branch);
         }
       }
     } catch (AnalysisException e) {
       throw SparkExceptionUtil.toUncheckedException(
           e, "Unable to get partition spec for table: %s", sourceTableIdentWithDB);
     }
+  }
+
+  private static AppendFiles applyBranch(AppendFiles append, String branch) {
+    return branch == null ? append : append.toBranch(branch);
+  }
+
+  /**
+   * Load the metadata "entries" table for the duplicate-file check, scoped to the target branch.
+   *
+   * <p>When a branch is provided the check only sees files reachable from that branch's head
+   * snapshot — files that live on other branches (e.g. main advancing independently) do not block
+   * imports into this branch. Returns {@code null} when the branch does not exist yet (i.e. this
+   * add_files call will create it) — in that case there is nothing to check.
+   */
+  private static Dataset<Row> loadEntriesForDuplicateCheck(
+      SparkSession spark, Table targetTable, String branch) {
+    if (branch != null && targetTable.snapshot(branch) == null) {
+      // Branch will be created by this commit — there are no existing entries scoped to it.
+      return null;
+    }
+    Map<String, String> readOptions =
+        branch == null ? ImmutableMap.of() : ImmutableMap.of(SparkReadOptions.BRANCH, branch);
+    return loadMetadataTable(spark, targetTable, MetadataTableType.ENTRIES, readOptions)
+        .filter("status != 2");
   }
 
   /**
@@ -664,7 +746,8 @@ public class SparkTableUtil {
       TableIdentifier sourceTableIdent,
       Table targetTable,
       boolean checkDuplicateFiles,
-      ExecutorService service) {
+      ExecutorService service,
+      String branch) {
     try {
       CatalogTable sourceTable = spark.sessionState().catalog().getTableMetadata(sourceTableIdent);
       Option<String> format =
@@ -697,19 +780,20 @@ public class SparkTableUtil {
             spark
                 .createDataset(Lists.transform(files, ContentFile::location), Encoders.STRING())
                 .toDF("file_path");
-        Dataset<Row> existingFiles =
-            loadMetadataTable(spark, targetTable, MetadataTableType.ENTRIES).filter("status != 2");
-        Column joinCond =
-            existingFiles.col("data_file.file_path").equalTo(importedFiles.col("file_path"));
-        Dataset<String> duplicates =
-            importedFiles.join(existingFiles, joinCond).select("file_path").as(Encoders.STRING());
-        Preconditions.checkState(
-            duplicates.isEmpty(),
-            String.format(
-                DUPLICATE_FILE_MESSAGE, Joiner.on(",").join((String[]) duplicates.take(10))));
+        Dataset<Row> existingFiles = loadEntriesForDuplicateCheck(spark, targetTable, branch);
+        if (existingFiles != null) {
+          Column joinCond =
+              existingFiles.col("data_file.file_path").equalTo(importedFiles.col("file_path"));
+          Dataset<String> duplicates =
+              importedFiles.join(existingFiles, joinCond).select("file_path").as(Encoders.STRING());
+          Preconditions.checkState(
+              duplicates.isEmpty(),
+              String.format(
+                  DUPLICATE_FILE_MESSAGE, Joiner.on(",").join((String[]) duplicates.take(10))));
+        }
       }
 
-      AppendFiles append = targetTable.newAppend();
+      AppendFiles append = applyBranch(targetTable.newAppend(), branch);
       files.forEach(append::appendFile);
       append.commit();
     } catch (NoSuchDatabaseException e) {
@@ -771,6 +855,33 @@ public class SparkTableUtil {
   }
 
   /**
+   * Import files from given partitions to an Iceberg table, committing to the specified branch.
+   *
+   * @param branch target branch to commit into; {@code null} means commit to the current default
+   *     branch (typically {@code main})
+   */
+  public static void importSparkPartitions(
+      SparkSession spark,
+      List<SparkPartition> partitions,
+      Table targetTable,
+      PartitionSpec spec,
+      String stagingDir,
+      boolean checkDuplicateFiles,
+      int parallelism,
+      String branch) {
+    importSparkPartitions(
+        spark,
+        partitions,
+        targetTable,
+        spec,
+        stagingDir,
+        checkDuplicateFiles,
+        false,
+        migrationService(parallelism),
+        branch);
+  }
+
+  /**
    * Import files from given partitions to an Iceberg table.
    *
    * @param spark a Spark session
@@ -819,6 +930,34 @@ public class SparkTableUtil {
       boolean checkDuplicateFiles,
       boolean ignoreMissingFiles,
       ExecutorService service) {
+    importSparkPartitions(
+        spark,
+        partitions,
+        targetTable,
+        spec,
+        stagingDir,
+        checkDuplicateFiles,
+        ignoreMissingFiles,
+        service,
+        null);
+  }
+
+  /**
+   * Import files from given partitions to an Iceberg table, committing to the specified branch.
+   *
+   * @param branch target branch to commit into; {@code null} means commit to the current default
+   *     branch (typically {@code main})
+   */
+  public static void importSparkPartitions(
+      SparkSession spark,
+      List<SparkPartition> partitions,
+      Table targetTable,
+      PartitionSpec spec,
+      String stagingDir,
+      boolean checkDuplicateFiles,
+      boolean ignoreMissingFiles,
+      ExecutorService service,
+      String branch) {
     Configuration conf = spark.sessionState().newHadoopConf();
     SerializableConfiguration serializableConf = new SerializableConfiguration(conf);
     int listingParallelism =
@@ -856,16 +995,17 @@ public class SparkTableUtil {
           filesToImport
               .map((MapFunction<DataFile, String>) ContentFile::location, Encoders.STRING())
               .toDF("file_path");
-      Dataset<Row> existingFiles =
-          loadMetadataTable(spark, targetTable, MetadataTableType.ENTRIES).filter("status != 2");
-      Column joinCond =
-          existingFiles.col("data_file.file_path").equalTo(importedFiles.col("file_path"));
-      Dataset<String> duplicates =
-          importedFiles.join(existingFiles, joinCond).select("file_path").as(Encoders.STRING());
-      Preconditions.checkState(
-          duplicates.isEmpty(),
-          String.format(
-              DUPLICATE_FILE_MESSAGE, Joiner.on(",").join((String[]) duplicates.take(10))));
+      Dataset<Row> existingFiles = loadEntriesForDuplicateCheck(spark, targetTable, branch);
+      if (existingFiles != null) {
+        Column joinCond =
+            existingFiles.col("data_file.file_path").equalTo(importedFiles.col("file_path"));
+        Dataset<String> duplicates =
+            importedFiles.join(existingFiles, joinCond).select("file_path").as(Encoders.STRING());
+        Preconditions.checkState(
+            duplicates.isEmpty(),
+            String.format(
+                DUPLICATE_FILE_MESSAGE, Joiner.on(",").join((String[]) duplicates.take(10))));
+      }
     }
 
     TableOperations ops = ((HasTableOperations) targetTable).operations();
@@ -905,7 +1045,7 @@ public class SparkTableUtil {
             .collectAsList();
 
     try {
-      AppendFiles append = targetTable.newAppend();
+      AppendFiles append = applyBranch(targetTable.newAppend(), branch);
       manifests.forEach(append::appendManifest);
       append.commit();
 

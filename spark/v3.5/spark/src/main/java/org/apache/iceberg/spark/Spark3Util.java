@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.spark;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.List;
@@ -27,6 +28,9 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FileStatus;
+import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.BaseMetadataTable;
 import org.apache.iceberg.HasTableOperations;
@@ -93,8 +97,11 @@ import org.apache.spark.sql.types.LongType;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 import scala.Option;
+import scala.Tuple2;
 import scala.collection.JavaConverters;
+import scala.collection.immutable.Map$;
 import scala.collection.immutable.Seq;
+import scala.collection.mutable.Builder;
 
 public class Spark3Util {
 
@@ -873,14 +880,22 @@ public class Spark3Util {
 
   public static org.apache.spark.sql.execution.datasources.PartitionSpec getInferredSpec(
       SparkSession spark, Path rootPath) {
+    return getInferredSpec(spark, rootPath, ImmutableList.of(rootPath));
+  }
+
+  /**
+   * Infer the partition spec of a file table by listing files under {@code scanRoots}. Passing a
+   * narrowed {@code scanRoots} while keeping {@code basePath} at the original table root lets Spark
+   * still recognize partition columns whose values are baked into the pruned roots.
+   */
+  public static org.apache.spark.sql.execution.datasources.PartitionSpec getInferredSpec(
+      SparkSession spark, Path basePath, List<Path> scanRoots) {
     FileStatusCache fileStatusCache = FileStatusCache.getOrCreate(spark);
     InMemoryFileIndex fileIndex =
         new InMemoryFileIndex(
             spark,
-            JavaConverters.collectionAsScalaIterableConverter(ImmutableList.of(rootPath))
-                .asScala()
-                .toSeq(),
-            scala.collection.immutable.Map$.MODULE$.empty(),
+            JavaConverters.collectionAsScalaIterableConverter(scanRoots).asScala().toSeq(),
+            basePathParameters(basePath, scanRoots),
             Option.empty(), // Pass empty so that automatic schema inference is used
             fileStatusCache,
             Option.empty(),
@@ -904,6 +919,30 @@ public class Spark3Util {
       String format,
       Map<String, String> partitionFilter,
       PartitionSpec partitionSpec) {
+    return getPartitions(
+        spark, rootPath, ImmutableList.of(rootPath), format, partitionFilter, partitionSpec);
+  }
+
+  /**
+   * Use Spark to list partitions under a set of already-narrowed scan roots. Callers can pre-prune
+   * high-cardinality prefix partition columns to avoid recursively listing all sibling folders.
+   *
+   * @param spark a Spark session
+   * @param basePath the original table root (used by Spark to infer partition columns)
+   * @param scanRoots the (possibly pruned) subdirectories to actually list
+   * @param format format of the file
+   * @param partitionFilter partitionFilter of the file (applied on top of any pruning already baked
+   *     into scanRoots)
+   * @param partitionSpec partitionSpec of the table
+   * @return matching partitions
+   */
+  public static List<SparkPartition> getPartitions(
+      SparkSession spark,
+      Path basePath,
+      List<Path> scanRoots,
+      String format,
+      Map<String, String> partitionFilter,
+      PartitionSpec partitionSpec) {
     FileStatusCache fileStatusCache = FileStatusCache.getOrCreate(spark);
 
     Option<StructType> userSpecifiedSchema =
@@ -915,10 +954,8 @@ public class Spark3Util {
     InMemoryFileIndex fileIndex =
         new InMemoryFileIndex(
             spark,
-            JavaConverters.collectionAsScalaIterableConverter(ImmutableList.of(rootPath))
-                .asScala()
-                .toSeq(),
-            scala.collection.immutable.Map$.MODULE$.empty(),
+            JavaConverters.collectionAsScalaIterableConverter(scanRoots).asScala().toSeq(),
+            basePathParameters(basePath, scanRoots),
             userSpecifiedSchema,
             fileStatusCache,
             Option.empty(),
@@ -964,6 +1001,101 @@ public class Spark3Util {
                   values, fileStatus.getPath().getParent().toString(), format);
             })
         .collect(Collectors.toList());
+  }
+
+  /**
+   * Walk the directory tree under {@code rootPath} one level at a time, pruning to only those
+   * subdirectories whose partition column value matches {@code partitionFilter}. Stops descending
+   * as soon as it hits a level whose partition column is not in the filter (or the directory is not
+   * Hive-style). The returned paths can be passed as scan roots to {@link #getPartitions} to skip
+   * listing sibling partition folders that would be discarded anyway.
+   *
+   * <p>Only equality on a strict prefix of the on-disk partition column order is pushed down.
+   * Filter keys that name non-prefix columns are left in the returned map for downstream filtering.
+   *
+   * @return pair of (narrowed scan roots, remaining filter keys not consumed by pushdown)
+   */
+  public static Pair<List<Path>, Map<String, String>> narrowScanRoots(
+      SparkSession spark, Path rootPath, Map<String, String> partitionFilter) {
+    if (partitionFilter == null || partitionFilter.isEmpty()) {
+      return Pair.of(ImmutableList.of(rootPath), ImmutableMap.of());
+    }
+
+    Configuration hadoopConf = spark.sessionState().newHadoopConf();
+    Map<String, String> remaining = Maps.newHashMap(partitionFilter);
+    List<Path> current = ImmutableList.of(rootPath);
+    try {
+      FileSystem fs = rootPath.getFileSystem(hadoopConf);
+      while (!remaining.isEmpty()) {
+        String columnName = detectPartitionColumn(fs, current.get(0));
+        if (columnName == null || !remaining.containsKey(columnName)) {
+          break;
+        }
+        String value = remaining.remove(columnName);
+        List<Path> next = collectMatchingChildren(fs, current, columnName + "=" + value);
+        if (next.isEmpty()) {
+          // filter did not match any directory at this level; let downstream fail with the usual
+          // "no matching partitions" error against the original root
+          return Pair.of(ImmutableList.of(rootPath), partitionFilter);
+        }
+        current = next;
+      }
+    } catch (IOException e) {
+      // fall back to the original root; downstream will do the full recursive listing
+      return Pair.of(ImmutableList.of(rootPath), partitionFilter);
+    }
+    return Pair.of(current, remaining);
+  }
+
+  private static List<Path> collectMatchingChildren(
+      FileSystem fs, List<Path> parents, String expectedName) {
+    List<Path> matched = Lists.newArrayList();
+    for (Path parent : parents) {
+      FileStatus[] siblings;
+      try {
+        siblings = fs.listStatus(parent);
+      } catch (IOException e) {
+        continue;
+      }
+      for (FileStatus status : siblings) {
+        if (status.isDirectory() && status.getPath().getName().equals(expectedName)) {
+          matched.add(status.getPath());
+        }
+      }
+    }
+    return matched;
+  }
+
+  private static String detectPartitionColumn(FileSystem fs, Path parent) {
+    try {
+      FileStatus[] children = fs.listStatus(parent);
+      for (FileStatus child : children) {
+        if (child.isDirectory()) {
+          String name = child.getPath().getName();
+          int eq = name.indexOf('=');
+          if (eq > 0) {
+            return name.substring(0, eq);
+          }
+        }
+      }
+    } catch (IOException e) {
+      // fall through
+    }
+    return null;
+  }
+
+  private static scala.collection.immutable.Map<String, String> basePathParameters(
+      Path basePath, List<Path> scanRoots) {
+    // Only pin basePath when we actually pruned scan roots below it. When the single scan root
+    // equals basePath, letting Spark auto-detect keeps the old behavior — importantly, it does
+    // not require basePath to be a directory (e.g. add_files can point at a single Avro file).
+    if (basePath == null || (scanRoots.size() == 1 && scanRoots.get(0).equals(basePath))) {
+      return Map$.MODULE$.empty();
+    }
+    Builder<Tuple2<String, String>, scala.collection.immutable.Map<String, String>> builder =
+        Map$.MODULE$.newBuilder();
+    builder.$plus$eq(Tuple2.apply("basePath", basePath.toString()));
+    return builder.result();
   }
 
   public static org.apache.spark.sql.catalyst.TableIdentifier toV1TableIdentifier(
