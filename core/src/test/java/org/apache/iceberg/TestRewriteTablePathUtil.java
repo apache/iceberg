@@ -198,6 +198,47 @@ public class TestRewriteTablePathUtil extends TestBase {
   }
 
   @Test
+  public void testReplacePathsTreatsPrefixAsLiteral() {
+    // Prefixes are literal paths, not regular expressions. A prefix containing regex
+    // metacharacters must match only itself.
+    String sourcePrefix = "s3://bucket/warehouse.db/table";
+    String targetPrefix = "s3://bucket/restored.db/table";
+    TableMetadata metadata =
+        TableMetadata.newTableMetadata(
+            SCHEMA, PartitionSpec.unpartitioned(), sourcePrefix, ImmutableMap.of());
+
+    TableMetadata replaced =
+        RewriteTablePathUtil.replacePaths(metadata, sourcePrefix, targetPrefix);
+    assertThat(replaced.location()).isEqualTo(targetPrefix);
+
+    // The '.' in the source prefix must not match an arbitrary character, so a location that
+    // only matches when the prefix is read as a regex is rejected.
+    TableMetadata unrelated =
+        TableMetadata.newTableMetadata(
+            SCHEMA,
+            PartitionSpec.unpartitioned(),
+            "s3://bucket/warehouseXdb/table",
+            ImmutableMap.of());
+    assertThatThrownBy(
+            () -> RewriteTablePathUtil.replacePaths(unrelated, sourcePrefix, targetPrefix))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("does not start with");
+  }
+
+  @Test
+  public void testReplacePathsWithTrailingSeparatorInPrefix() {
+    // A source prefix with a trailing separator still matches the table location.
+    String location = "s3://bucket/warehouse/table";
+    TableMetadata metadata =
+        TableMetadata.newTableMetadata(
+            SCHEMA, PartitionSpec.unpartitioned(), location, ImmutableMap.of());
+
+    TableMetadata replaced =
+        RewriteTablePathUtil.replacePaths(metadata, location + "/", "s3://bucket/restored/table");
+    assertThat(replaced.location()).isEqualTo("s3://bucket/restored/table");
+  }
+
+  @Test
   public void testNewPathTableRename() {
     // Rename /tableX to /table (target is substring of source name)
     assertThat(RewriteTablePathUtil.newPath("/tableX/data/file.parquet", "/tableX", "/table"))
