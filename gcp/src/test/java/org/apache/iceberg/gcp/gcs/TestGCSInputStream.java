@@ -28,12 +28,17 @@ import com.google.cloud.storage.contrib.nio.testing.LocalStorageHelper;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Map;
 import java.util.Random;
 import org.apache.iceberg.gcp.GCPProperties;
+import org.apache.iceberg.io.FileIOMetricsContext;
 import org.apache.iceberg.io.IOUtil;
 import org.apache.iceberg.io.RangeReadable;
 import org.apache.iceberg.io.SeekableInputStream;
+import org.apache.iceberg.metrics.Counter;
+import org.apache.iceberg.metrics.DefaultMetricsContext;
 import org.apache.iceberg.metrics.MetricsContext;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.jupiter.api.Test;
 
 public class TestGCSInputStream {
@@ -179,6 +184,64 @@ public class TestGCSInputStream {
 
     assertThat(Arrays.copyOfRange(buffer, offset, offset + length))
         .isEqualTo(Arrays.copyOfRange(original, offset, offset + length));
+  }
+
+  @Test
+  public void testRangeReadMetrics() throws Exception {
+    BlobId uri = BlobId.fromGsUtilUri("gs://bucket/path/to/read-metrics.dat");
+    int dataSize = 1024 * 1024;
+    byte[] data = randomData(dataSize);
+    writeGCSData(uri, data);
+
+    CachingMetricsContext metrics = new CachingMetricsContext();
+    Counter readBytes = metrics.counter(FileIOMetricsContext.READ_BYTES, MetricsContext.Unit.BYTES);
+    Counter readOperations = metrics.counter(FileIOMetricsContext.READ_OPERATIONS);
+
+    try (RangeReadable in = new GCSInputStream(storage, uri, null, gcpProperties, metrics)) {
+      int length = 1024;
+      in.readFully(0, new byte[length], 0, length);
+      assertThat(readBytes.value()).isEqualTo(length);
+      assertThat(readOperations.value()).isEqualTo(1);
+
+      int tailLength = 512;
+      in.readTail(new byte[tailLength], 0, tailLength);
+      assertThat(readBytes.value()).isEqualTo(length + tailLength);
+      assertThat(readOperations.value()).isEqualTo(2);
+    }
+  }
+
+  @Test
+  public void testReadTailEmptyObjectDoesNotDecrementMetrics() throws Exception {
+    BlobId uri = BlobId.fromGsUtilUri("gs://bucket/path/to/empty.dat");
+    writeGCSData(uri, new byte[0]);
+
+    CachingMetricsContext metrics = new CachingMetricsContext();
+    Counter readBytes = metrics.counter(FileIOMetricsContext.READ_BYTES, MetricsContext.Unit.BYTES);
+    Counter readOperations = metrics.counter(FileIOMetricsContext.READ_OPERATIONS);
+
+    try (RangeReadable in = new GCSInputStream(storage, uri, 0L, gcpProperties, metrics)) {
+      int bytesRead = in.readTail(new byte[8], 0, 8);
+
+      // an empty object yields no bytes; a no-data read counts neither bytes nor an operation
+      assertThat(bytesRead).isLessThanOrEqualTo(0);
+      assertThat(readBytes.value()).isEqualTo(0);
+      assertThat(readOperations.value()).isEqualTo(0);
+    }
+  }
+
+  /**
+   * A {@link MetricsContext} that returns the same {@link Counter} instance for a given name, so
+   * that tests can observe the counters the stream under test increments. {@link
+   * DefaultMetricsContext} allocates a fresh counter on every {@code counter(...)} call.
+   */
+  private static class CachingMetricsContext extends DefaultMetricsContext {
+    private final Map<String, org.apache.iceberg.metrics.Counter> counters =
+        Maps.newConcurrentMap();
+
+    @Override
+    public org.apache.iceberg.metrics.Counter counter(String name, Unit unit) {
+      return counters.computeIfAbsent(name, ignored -> super.counter(name, unit));
+    }
   }
 
   @Test

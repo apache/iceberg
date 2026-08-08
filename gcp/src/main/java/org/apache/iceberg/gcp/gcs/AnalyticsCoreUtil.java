@@ -141,8 +141,10 @@ class AnalyticsCoreUtil {
         GCSExceptionUtil.throwNotFoundIfNotPresent(e, blobId);
         throw e;
       }
-      readBytes.increment();
-      readOperations.increment();
+      if (readByte != -1) {
+        readBytes.increment();
+        readOperations.increment();
+      }
       return readByte;
     }
 
@@ -162,8 +164,8 @@ class AnalyticsCoreUtil {
       }
       if (bytesRead > 0) {
         readBytes.increment(bytesRead);
+        readOperations.increment();
       }
-      readOperations.increment();
       return bytesRead;
     }
 
@@ -175,16 +177,26 @@ class AnalyticsCoreUtil {
         GCSExceptionUtil.throwNotFoundIfNotPresent(e, blobId);
         throw e;
       }
+      if (length > 0) {
+        readBytes.increment(length);
+        readOperations.increment();
+      }
     }
 
     @Override
     public int readTail(byte[] buffer, int offset, int length) throws IOException {
+      int bytesRead;
       try {
-        return stream.readTail(buffer, offset, length);
+        bytesRead = stream.readTail(buffer, offset, length);
       } catch (IOException e) {
         GCSExceptionUtil.throwNotFoundIfNotPresent(e, blobId);
         throw e;
       }
+      if (bytesRead > 0) {
+        readBytes.increment(bytesRead);
+      }
+      readOperations.increment();
+      return bytesRead;
     }
 
     @Override
@@ -200,6 +212,20 @@ class AnalyticsCoreUtil {
                           .setByteBufferFuture(fileRange.byteBuffer())
                           .build())
               .collect(Collectors.toList());
+      // Count synchronously on the caller (task) thread, before delegating. The range futures
+      // complete on analytics-core background threads, so counting in their completion callbacks
+      // would attribute the bytes to the wrong thread: under HadoopMetricsContext, READ_BYTES maps
+      // to FileSystem.Statistics.incrementBytesRead, which accumulates per-thread, and Spark reads
+      // task input bytes from the task thread's statistics. Bytes recorded on a background thread
+      // would never reach Spark's task metrics. Correct-thread attribution matters more than
+      // precision here, so we count the requested range.length() up front. This over-counts by a
+      // bounded amount on a short read near EOF, and counts ranges whose read later fails (the
+      // delegate throws below, but the bytes were already recorded); both are acceptable for a
+      // metric where the magnitude is right and it lands where Spark can see it.
+      for (FileRange range : ranges) {
+        readBytes.increment(range.length());
+        readOperations.increment();
+      }
       try {
         stream.readVectored(objectRanges, allocate);
       } catch (IOException e) {
