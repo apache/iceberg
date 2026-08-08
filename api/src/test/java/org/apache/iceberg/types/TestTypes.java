@@ -23,6 +23,7 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 
+import org.apache.iceberg.expressions.Literal;
 import org.junit.jupiter.api.Test;
 
 public class TestTypes {
@@ -213,6 +214,82 @@ public class TestTypes {
     assertThat(Types.GeographyType.of("ogc:crs84"))
         .isEqualTo(Types.GeographyType.crs84())
         .hasSameHashCodeAs(Types.GeographyType.crs84());
+  }
+
+  @Test
+  public void defaultValuesMustBeFiniteForFloatingPointTypes() {
+    assertThatExceptionOfType(IllegalArgumentException.class)
+        .isThrownBy(
+            () ->
+                optional("f")
+                    .withId(1)
+                    .ofType(Types.FloatType.get())
+                    .withInitialDefault(Literal.of(Float.NaN))
+                    .build())
+        .withMessage("Invalid default value for float: NaN (must be finite)");
+
+    assertThatExceptionOfType(IllegalArgumentException.class)
+        .isThrownBy(
+            () ->
+                optional("f")
+                    .withId(1)
+                    .ofType(Types.FloatType.get())
+                    .withWriteDefault(Literal.of(Float.POSITIVE_INFINITY))
+                    .build())
+        .withMessage("Invalid default value for float: Infinity (must be finite)");
+
+    assertThatExceptionOfType(IllegalArgumentException.class)
+        .isThrownBy(
+            () ->
+                optional("d")
+                    .withId(1)
+                    .ofType(Types.DoubleType.get())
+                    .withInitialDefault(Literal.of(Double.NEGATIVE_INFINITY))
+                    .build())
+        .withMessage("Invalid default value for double: -Infinity (must be finite)");
+
+    assertThatExceptionOfType(IllegalArgumentException.class)
+        .isThrownBy(
+            () ->
+                optional("f")
+                    .withId(1)
+                    .ofType(Types.FloatType.get())
+                    .withInitialDefault(Literal.of(Double.NaN))
+                    .build())
+        .withMessage("Invalid default value for float: NaN (must be finite)");
+  }
+
+  @Test
+  public void finiteOutOfRangeFloatingPointDefaultsAreNotRejectedAsNonFinite() {
+    Types.NestedField field =
+        optional("f")
+            .withId(1)
+            .ofType(Types.FloatType.get())
+            .withInitialDefault(Literal.of(1e40D))
+            .build();
+
+    assertThat(field.initialDefaultLiteral()).hasToString("aboveMax");
+  }
+
+  @Test
+  public void finiteFloatingPointDefaultValuesAreValid() {
+    assertThat(
+            optional("f")
+                .withId(1)
+                .ofType(Types.FloatType.get())
+                .withInitialDefault(Literal.of(1.5F))
+                .build()
+                .initialDefault())
+        .isEqualTo(1.5F);
+
+    assertThat(
+            optional("d")
+                .withId(2)
+                .ofType(Types.DoubleType.get())
+                .withWriteDefault(Literal.of(-2.5D))
+                .build()
+                .writeDefault())
+        .isEqualTo(-2.5D);
   }
 
   @Test
