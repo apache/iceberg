@@ -19,12 +19,15 @@
 package org.apache.iceberg.encryption;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.withSettings;
 
 import java.io.Closeable;
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.io.DelegateFileIO;
@@ -149,6 +152,39 @@ public class TestEncryptingFileIO {
 
     verify(delegate).close();
     verify((Closeable) em).close();
+  }
+
+  @Test
+  public void closeClosesEncryptionManagerWhenFileIOCloseFails() throws Exception {
+    RuntimeException fileIOFailure = new RuntimeException("FileIO close failure");
+    EncryptionManager em =
+        mock(EncryptionManager.class, withSettings().extraInterfaces(Closeable.class));
+    DelegateFileIO delegate = mock(DelegateFileIO.class);
+    doThrow(fileIOFailure).when(delegate).close();
+
+    EncryptingFileIO fileIO = EncryptingFileIO.combine(delegate, em);
+
+    assertThatThrownBy(fileIO::close).isSameAs(fileIOFailure);
+    verify((Closeable) em).close();
+  }
+
+  @Test
+  public void closeSuppressesEncryptionManagerFailureWhenFileIOCloseFails() throws Exception {
+    RuntimeException fileIOFailure = new RuntimeException("FileIO close failure");
+    IOException managerFailure = new IOException("Encryption manager close failure");
+    EncryptionManager em =
+        mock(EncryptionManager.class, withSettings().extraInterfaces(Closeable.class));
+    Closeable closeableManager = (Closeable) em;
+    DelegateFileIO delegate = mock(DelegateFileIO.class);
+    doThrow(fileIOFailure).when(delegate).close();
+    doThrow(managerFailure).when(closeableManager).close();
+
+    EncryptingFileIO fileIO = EncryptingFileIO.combine(delegate, em);
+
+    assertThatThrownBy(fileIO::close)
+        .isSameAs(fileIOFailure)
+        .satisfies(failure -> assertThat(failure.getSuppressed()).containsExactly(managerFailure));
+    verify(closeableManager).close();
   }
 
   @Test
