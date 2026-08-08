@@ -50,10 +50,10 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 class TableSerializerCache implements Serializable {
 
   private final CatalogLoader catalogLoader;
+  private final int maximumSize;
 
   // Intentionally not closed; the catalog is reused for the serializer's lifetime.
   private transient Catalog catalog;
-  private final int maximumSize;
   private transient Map<String, SerializerInfo> serializers;
 
   TableSerializerCache(CatalogLoader catalogLoader, int maximumSize) {
