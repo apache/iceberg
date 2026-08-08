@@ -291,12 +291,17 @@ public class TestSystemFunctionPushDownDQL extends ExtensionsTestBase {
         PlanUtils.collectSparkExpressions(
             optimizedPlan, expression -> expression instanceof ApplyFunctionExpression);
 
+    assertThat(applyExpressions).hasSize(1);
+    ApplyFunctionExpression expression = (ApplyFunctionExpression) applyExpressions.get(0);
+    assertThat(expression.name()).isEqualTo(expectedFunctionName);
+
+    List<Expression> pushedApplyExpressions =
+        PlanUtils.collectPushedSparkExpressions(
+            optimizedPlan, candidate -> candidate instanceof ApplyFunctionExpression);
     if (partitioned) {
-      assertThat(applyExpressions).isEmpty();
+      assertThat(pushedApplyExpressions).containsExactly(expression);
     } else {
-      assertThat(applyExpressions).hasSize(1);
-      ApplyFunctionExpression expression = (ApplyFunctionExpression) applyExpressions.get(0);
-      assertThat(expression.name()).isEqualTo(expectedFunctionName);
+      assertThat(pushedApplyExpressions).isEmpty();
     }
   }
 

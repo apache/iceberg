@@ -21,9 +21,10 @@ package org.apache.spark.sql.catalyst.plans.logical.views
 import org.apache.spark.sql.catalyst.analysis.LeafNodeWithoutStats
 import org.apache.spark.sql.catalyst.expressions.Attribute
 import org.apache.spark.sql.connector.catalog.Identifier
+import org.apache.spark.sql.connector.catalog.View
 import org.apache.spark.sql.connector.catalog.ViewCatalog
 
-case class ResolvedV2View(catalog: ViewCatalog, identifier: Identifier)
+case class ResolvedV2View(catalog: ViewCatalog, identifier: Identifier, view: View)
     extends LeafNodeWithoutStats {
   override def output: Seq[Attribute] = Nil
 }

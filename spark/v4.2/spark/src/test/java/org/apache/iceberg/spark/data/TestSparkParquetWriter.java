@@ -31,6 +31,8 @@ import static org.mockito.Mockito.when;
 import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.Field;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.file.Path;
 import java.util.Iterator;
 import java.util.List;
@@ -41,6 +43,8 @@ import java.util.stream.Collectors;
 import org.apache.iceberg.FieldMetrics;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.data.Record;
+import org.apache.iceberg.data.parquet.GenericParquetReaders;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.parquet.Parquet;
@@ -146,20 +150,19 @@ public class TestSparkParquetWriter {
   }
 
   @Test
-  public void testGeospatialWkbRoundTrip() throws IOException {
+  public void geospatialWriterStoresPureWkb() throws IOException {
     Schema geoSchema =
         new Schema(
             required(1, "id", Types.LongType.get()),
             optional(2, "geom", Types.GeometryType.crs84()),
             optional(3, "geog", Types.GeographyType.crs84()));
 
-    byte[] geomWkb = new byte[] {0x01, 0x02, 0x03};
-    byte[] geogWkb = new byte[] {0x04, 0x05, 0x06};
+    byte[] geomWkb = geometryCollectionWkb();
+    byte[] geogWkb = pointWkb(ByteOrder.BIG_ENDIAN, -71.0, 42.0);
     InternalRow row = new GenericInternalRow(3);
     row.update(0, 1L);
-    // Spark's GeometryVal/GeographyVal wrap [SRID | WKB]; build them from the pure WKB.
-    row.update(1, STUtils.stGeomFromWKB(geomWkb));
-    row.update(2, STUtils.stGeogFromWKB(geogWkb));
+    row.update(1, STUtils.stGeomFromWKB(geomWkb, 4326));
+    row.update(2, STUtils.stGeogFromWKB(geogWkb, 4326));
     // second row leaves the geo columns null
     InternalRow nulls = new GenericInternalRow(3);
     nulls.update(0, 2L);
@@ -178,18 +181,64 @@ public class TestSparkParquetWriter {
       writer.add(nulls);
     }
 
-    try (CloseableIterable<InternalRow> reader =
+    try (CloseableIterable<Record> reader =
         Parquet.read(Files.localInput(testFile))
             .project(geoSchema)
-            .createReaderFunc(type -> SparkParquetReaders.buildReader(geoSchema, type))
+            .createReaderFunc(type -> GenericParquetReaders.buildReader(geoSchema, type))
             .build()) {
-      List<InternalRow> rows = Lists.newArrayList(reader);
+      List<Record> rows = Lists.newArrayList(reader);
       assertThat(rows).hasSize(2);
-      assertThat(STUtils.stAsBinary(rows.get(0).getGeometry(1))).isEqualTo(geomWkb);
-      assertThat(STUtils.stAsBinary(rows.get(0).getGeography(2))).isEqualTo(geogWkb);
-      assertThat(rows.get(1).isNullAt(1)).isTrue();
-      assertThat(rows.get(1).isNullAt(2)).isTrue();
+      assertThat(bufferBytes(rows.get(0).get(1, ByteBuffer.class))).isEqualTo(geomWkb);
+      assertThat(bufferBytes(rows.get(0).get(2, ByteBuffer.class))).isEqualTo(geogWkb);
+      assertThat(rows.get(1).get(1)).isNull();
+      assertThat(rows.get(1).get(2)).isNull();
     }
+  }
+
+  private static byte[] pointWkb(double xCoordinate, double yCoordinate) {
+    return pointWkb(ByteOrder.LITTLE_ENDIAN, xCoordinate, yCoordinate);
+  }
+
+  private static byte[] pointWkb(ByteOrder byteOrder, double xCoordinate, double yCoordinate) {
+    return ByteBuffer.allocate(21)
+        .order(byteOrder)
+        .put(byteOrder == ByteOrder.LITTLE_ENDIAN ? (byte) 1 : (byte) 0)
+        .putInt(1)
+        .putDouble(xCoordinate)
+        .putDouble(yCoordinate)
+        .array();
+  }
+
+  private static byte[] geometryCollectionWkb() {
+    return ByteBuffer.allocate(51)
+        .order(ByteOrder.BIG_ENDIAN)
+        .put((byte) 0)
+        .putInt(7)
+        .putInt(2)
+        .put(pointWkb(ByteOrder.BIG_ENDIAN, 30.0, 10.0))
+        .put(pointWkb(ByteOrder.LITTLE_ENDIAN, 40.0, 20.0))
+        .array();
+  }
+
+  private static byte[] lineStringWkb(
+      double firstX, double firstY, double secondX, double secondY) {
+    return ByteBuffer.allocate(41)
+        .order(ByteOrder.LITTLE_ENDIAN)
+        .put((byte) 1)
+        .putInt(2)
+        .putInt(2)
+        .putDouble(firstX)
+        .putDouble(firstY)
+        .putDouble(secondX)
+        .putDouble(secondY)
+        .array();
+  }
+
+  private static byte[] bufferBytes(ByteBuffer buffer) {
+    ByteBuffer copy = buffer.duplicate();
+    byte[] bytes = new byte[copy.remaining()];
+    copy.get(bytes);
+    return bytes;
   }
 
   @Test
@@ -200,10 +249,10 @@ public class TestSparkParquetWriter {
             optional(2, "geom", Types.GeometryType.crs84()),
             optional(3, "geog", Types.GeographyType.crs84()));
 
-    // WKB payloads of 3 and 5 bytes for geometry (avg 4), 7 bytes for geography.
-    byte[] geomWkbSmall = new byte[] {0x01, 0x02, 0x03};
-    byte[] geomWkbLarge = new byte[] {0x01, 0x02, 0x03, 0x04, 0x05};
-    byte[] geogWkb = new byte[] {0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a};
+    // WKB payloads of 21 and 41 bytes for geometry (avg 31), 21 bytes for geography.
+    byte[] geomWkbSmall = pointWkb(30.0, 10.0);
+    byte[] geomWkbLarge = lineStringWkb(30.0, 10.0, 40.0, 20.0);
+    byte[] geogWkb = pointWkb(-71.0, 42.0);
 
     InternalRow first = new GenericInternalRow(3);
     first.update(0, 1L);
@@ -237,12 +286,12 @@ public class TestSparkParquetWriter {
     FieldMetrics<?> geomMetrics = metricsById.get(geomId);
     assertThat(geomMetrics.valueCount()).isEqualTo(2);
     assertThat(geomMetrics.nullValueCount()).isZero();
-    assertThat(geomMetrics.avgValueSizeInBytes()).isEqualTo(4);
+    assertThat(geomMetrics.avgValueSizeInBytes()).isEqualTo(31);
 
     FieldMetrics<?> geogMetrics = metricsById.get(geogId);
     assertThat(geogMetrics.valueCount()).isEqualTo(2);
     assertThat(geogMetrics.nullValueCount()).isEqualTo(1);
-    assertThat(geogMetrics.avgValueSizeInBytes()).isEqualTo(7);
+    assertThat(geogMetrics.avgValueSizeInBytes()).isEqualTo(21);
   }
 
   private static int fieldId(MessageType parquetSchema, String column) {

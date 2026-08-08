@@ -144,18 +144,12 @@ public class TestSparkSchemaUtil {
   }
 
   @Test
-  public void testGeospatialCrsUnsupportedBySparkIsRejected() {
-    // Iceberg permits any non-empty CRS, but Spark only recognizes a fixed set; a CRS Spark cannot
-    // resolve is rejected by Spark's SparkIllegalArgumentException (an IllegalArgumentException).
+  public void testGeospatialCrsSupportedBySparkRoundTrips() {
     Types.GeometryType geometry = Types.GeometryType.of("EPSG:4269");
-    assertThatThrownBy(() -> SparkSchemaUtil.convert(geometry))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("EPSG:4269");
+    assertThat(SparkSchemaUtil.convert(SparkSchemaUtil.convert(geometry))).isEqualTo(geometry);
 
     Types.GeographyType geography = Types.GeographyType.of("EPSG:4269");
-    assertThatThrownBy(() -> SparkSchemaUtil.convert(geography))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("EPSG:4269");
+    assertThat(SparkSchemaUtil.convert(SparkSchemaUtil.convert(geography))).isEqualTo(geography);
   }
 
   @Test
