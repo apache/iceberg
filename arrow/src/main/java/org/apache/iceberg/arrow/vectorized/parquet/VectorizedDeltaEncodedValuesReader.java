@@ -149,7 +149,7 @@ public class VectorizedDeltaEncodedValuesReader extends ValuesReader
     int remaining = total;
     int currentRowId = rowId;
     // First value
-    if (valuesRead == 0) {
+    if (valuesRead == 0 && total > 0) {
       outputWriter.write(vec, ((long) (currentRowId + valuesRead) * typeWidth), firstValue);
       lastValueRead = firstValue;
       currentRowId++;
