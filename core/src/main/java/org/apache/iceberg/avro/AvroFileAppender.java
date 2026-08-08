@@ -50,11 +50,15 @@ class AvroFileAppender<D> implements FileAppender<D> {
       CodecFactory codec,
       Map<String, String> metadata,
       MetricsConfig metricsConfig,
-      boolean overwrite)
+      boolean overwrite,
+      boolean adjustToUtcDefault)
       throws IOException {
     this.icebergSchema = icebergSchema;
     this.stream = overwrite ? file.createOrOverwrite() : file.create();
     this.datumWriter = createWriterFunc.apply(schema);
+    if (datumWriter instanceof SupportsLocalTimestamp) {
+      ((SupportsLocalTimestamp) datumWriter).setAdjustToUtcDefault(adjustToUtcDefault);
+    }
     this.writer = newAvroWriter(schema, stream, datumWriter, codec, metadata);
     this.metricsConfig = metricsConfig;
   }

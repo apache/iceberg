@@ -21,22 +21,26 @@ package org.apache.iceberg.data.avro;
 import static org.apache.iceberg.avro.AvroSchemaUtil.ADJUST_TO_UTC_PROP;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
+import java.io.File;
 import java.io.IOException;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.Map;
 import org.apache.avro.LogicalTypes;
 import org.apache.avro.Schema;
 import org.apache.avro.SchemaBuilder;
+import org.apache.avro.file.DataFileWriter;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericDatumWriter;
 import org.apache.avro.generic.GenericRecord;
-import org.apache.avro.io.BinaryEncoder;
-import org.apache.avro.io.DecoderFactory;
-import org.apache.avro.io.EncoderFactory;
+import org.apache.iceberg.Files;
+import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.avro.Avro;
+import org.apache.iceberg.avro.AvroIterable;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.DateTimeUtil;
 import org.junit.jupiter.api.Test;
@@ -45,6 +49,25 @@ class TestDataReader {
 
   @Test
   public void timestampDataReader() throws IOException {
+    timestampDataReader(
+        LogicalTypes.timestampNanos().addToSchema(Schema.create(Schema.Type.LONG)),
+        LogicalTypes.timestampMicros().addToSchema(Schema.create(Schema.Type.LONG)),
+        LogicalTypes.timestampMillis().addToSchema(Schema.create(Schema.Type.LONG)),
+        ImmutableMap.of(TableProperties.AVRO_ADJUST_TO_UTC_DEFAULT, "false"));
+  }
+
+  @Test
+  public void localTimestampDataReader() throws IOException {
+    timestampDataReader(
+        LogicalTypes.localTimestampNanos().addToSchema(Schema.create(Schema.Type.LONG)),
+        LogicalTypes.localTimestampMicros().addToSchema(Schema.create(Schema.Type.LONG)),
+        LogicalTypes.localTimestampMillis().addToSchema(Schema.create(Schema.Type.LONG)),
+        ImmutableMap.of(TableProperties.AVRO_ADJUST_TO_UTC_DEFAULT, "true"));
+  }
+
+  private void timestampDataReader(
+      Schema nanos, Schema micros, Schema millis, Map<String, String> properties)
+      throws IOException {
     org.apache.iceberg.Schema icebergSchema =
         new org.apache.iceberg.Schema(
             Types.NestedField.required(1, "timestamp_nanos", Types.TimestampType.withoutZone()),
@@ -55,22 +78,19 @@ class TestDataReader {
         SchemaBuilder.record("test_programmatic")
             .fields()
             .name("timestamp_nanos")
-            .type(LogicalTypes.timestampNanos().addToSchema(Schema.create(Schema.Type.LONG)))
+            .type(nanos)
             .noDefault()
             .name("timestamp_micros")
-            .type(LogicalTypes.timestampMicros().addToSchema(Schema.create(Schema.Type.LONG)))
+            .type(micros)
             .noDefault()
             .name("timestamp_millis")
-            .type(LogicalTypes.timestampMillis().addToSchema(Schema.create(Schema.Type.LONG)))
+            .type(millis)
             .noDefault()
             .endRecord();
 
     avroSchema.getField("timestamp_nanos").addProp("field-id", 1);
     avroSchema.getField("timestamp_micros").addProp("field-id", 2);
     avroSchema.getField("timestamp_millis").addProp("field-id", 3);
-
-    DataReader<Record> reader = DataReader.create(icebergSchema, avroSchema);
-    reader.setSchema(avroSchema);
 
     // post-epoch timestamps
     GenericRecord avroRecord = new GenericData.Record(avroSchema);
@@ -82,7 +102,7 @@ class TestDataReader {
     avroRecord.put("timestamp_micros", DateTimeUtil.microsFromTimestamp(timestampMicros));
     avroRecord.put("timestamp_millis", DateTimeUtil.millisFromTimestamp(timestampMillis));
 
-    Record result = readRecord(reader, avroSchema, avroRecord);
+    Record result = readRecord(icebergSchema, properties, avroSchema, avroRecord);
 
     assertThat(result.getField("timestamp_nanos")).isEqualTo(timestampNanos);
     assertThat(result.getField("timestamp_micros")).isEqualTo(timestampMicros);
@@ -98,7 +118,7 @@ class TestDataReader {
     preEpochRecord.put("timestamp_micros", DateTimeUtil.microsFromTimestamp(preEpochMicros));
     preEpochRecord.put("timestamp_millis", DateTimeUtil.millisFromTimestamp(preEpochMillis));
 
-    Record preEpochResult = readRecord(reader, avroSchema, preEpochRecord);
+    Record preEpochResult = readRecord(icebergSchema, properties, avroSchema, preEpochRecord);
 
     assertThat(preEpochResult.getField("timestamp_nanos")).isEqualTo(preEpochNanos);
     assertThat(preEpochResult.getField("timestamp_micros")).isEqualTo(preEpochMicros);
@@ -107,6 +127,25 @@ class TestDataReader {
 
   @Test
   public void timestampTzDataReader() throws IOException {
+    timestampTzDataReader(
+        LogicalTypes.timestampNanos().addToSchema(utcAdjustedLongSchema()),
+        LogicalTypes.timestampMicros().addToSchema(utcAdjustedLongSchema()),
+        LogicalTypes.timestampMillis().addToSchema(utcAdjustedLongSchema()),
+        ImmutableMap.of(TableProperties.AVRO_ADJUST_TO_UTC_DEFAULT, "false"));
+  }
+
+  @Test
+  public void timestampTzDataReaderWithoutAdjustToUtc() throws IOException {
+    timestampTzDataReader(
+        LogicalTypes.timestampNanos().addToSchema(Schema.create(Schema.Type.LONG)),
+        LogicalTypes.timestampMicros().addToSchema(Schema.create(Schema.Type.LONG)),
+        LogicalTypes.timestampMillis().addToSchema(Schema.create(Schema.Type.LONG)),
+        ImmutableMap.of(TableProperties.AVRO_ADJUST_TO_UTC_DEFAULT, "true"));
+  }
+
+  private void timestampTzDataReader(
+      Schema nanos, Schema micros, Schema millis, Map<String, String> properties)
+      throws IOException {
     org.apache.iceberg.Schema icebergSchema =
         new org.apache.iceberg.Schema(
             Types.NestedField.required(1, "timestamp_nanos_tz", Types.TimestampType.withZone()),
@@ -117,22 +156,19 @@ class TestDataReader {
         SchemaBuilder.record("test_tz")
             .fields()
             .name("timestamp_nanos_tz")
-            .type(LogicalTypes.timestampNanos().addToSchema(utcAdjustedLongSchema()))
+            .type(nanos)
             .noDefault()
             .name("timestamp_micros_tz")
-            .type(LogicalTypes.timestampMicros().addToSchema(utcAdjustedLongSchema()))
+            .type(micros)
             .noDefault()
             .name("timestamp_millis_tz")
-            .type(LogicalTypes.timestampMillis().addToSchema(utcAdjustedLongSchema()))
+            .type(millis)
             .noDefault()
             .endRecord();
 
     avroSchema.getField("timestamp_nanos_tz").addProp("field-id", 1);
     avroSchema.getField("timestamp_micros_tz").addProp("field-id", 2);
     avroSchema.getField("timestamp_millis_tz").addProp("field-id", 3);
-
-    DataReader<Record> reader = DataReader.create(icebergSchema, avroSchema);
-    reader.setSchema(avroSchema);
 
     // post-epoch timestamps
     GenericRecord avroRecord = new GenericData.Record(avroSchema);
@@ -150,7 +186,7 @@ class TestDataReader {
     avroRecord.put(
         "timestamp_millis_tz", DateTimeUtil.millisFromTimestamptz(offsetTimestampMillis));
 
-    Record result = readRecord(reader, avroSchema, avroRecord);
+    Record result = readRecord(icebergSchema, properties, avroSchema, avroRecord);
 
     assertThat(result.getField("timestamp_nanos_tz"))
         .isEqualTo(offsetTimestampNanos.withOffsetSameInstant(ZoneOffset.UTC));
@@ -176,7 +212,7 @@ class TestDataReader {
     preEpochRecord.put(
         "timestamp_millis_tz", DateTimeUtil.millisFromTimestamptz(preEpochTimestampMillis));
 
-    Record preEpochResult = readRecord(reader, avroSchema, preEpochRecord);
+    Record preEpochResult = readRecord(icebergSchema, properties, avroSchema, preEpochRecord);
 
     assertThat(preEpochResult.getField("timestamp_nanos_tz"))
         .isEqualTo(preEpochTimestampNanos.withOffsetSameInstant(ZoneOffset.UTC));
@@ -186,17 +222,27 @@ class TestDataReader {
         .isEqualTo(preEpochTimestampMillis.withOffsetSameInstant(ZoneOffset.UTC));
   }
 
-  private Record readRecord(DataReader<Record> reader, Schema avroSchema, GenericRecord avroRecord)
+  private Record readRecord(
+      org.apache.iceberg.Schema icebergSchema,
+      Map<String, String> properties,
+      Schema avroSchema,
+      GenericRecord avroRecord)
       throws IOException {
-    try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
-      BinaryEncoder encoder = EncoderFactory.get().binaryEncoder(out, null);
-      GenericDatumWriter<GenericRecord> writer = new GenericDatumWriter<>(avroSchema);
-      writer.write(avroRecord, encoder);
-      encoder.flush();
+    File file = File.createTempFile("test", ".avro");
 
-      try (ByteArrayInputStream in = new ByteArrayInputStream(out.toByteArray())) {
-        return reader.read(null, DecoderFactory.get().binaryDecoder(in, null));
-      }
+    try (DataFileWriter<GenericRecord> writer =
+        new DataFileWriter<>(new GenericDatumWriter<>(avroSchema))) {
+      writer.create(avroSchema, file);
+      writer.append(avroRecord);
+    }
+
+    try (AvroIterable<Record> reader =
+        Avro.read(Files.localInput(file))
+            .project(icebergSchema)
+            .createReaderFunc(DataReader::create)
+            .setAll(properties)
+            .build()) {
+      return Iterables.getOnlyElement(reader);
     }
   }
 

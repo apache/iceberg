@@ -47,7 +47,7 @@ public class PartitionData
       };
 
   static Schema partitionDataSchema(Types.StructType partitionType) {
-    return AvroSchemaUtil.convert(partitionType, PartitionData.class.getName());
+    return AvroSchemaUtil.convert(partitionType, PartitionData.class.getName(), false);
   }
 
   private final Types.StructType partitionType;
@@ -58,7 +58,7 @@ public class PartitionData
 
   /** Used by Avro reflection to instantiate this class when reading manifest files. */
   PartitionData(Schema schema) {
-    this.partitionType = AvroSchemaUtil.convert(schema).asNestedType().asStructType();
+    this.partitionType = AvroSchemaUtil.convert(schema, false).asNestedType().asStructType();
     this.size = partitionType.fields().size();
     this.data = new Object[size];
     this.stringSchema = schema.toString();

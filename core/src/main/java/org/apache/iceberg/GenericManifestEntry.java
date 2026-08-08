@@ -39,7 +39,7 @@ class GenericManifestEntry<F extends ContentFile<F>>
 
   /** Used by internal readers to instantiate this class with a projection schema. */
   GenericManifestEntry(Types.StructType schema) {
-    this.schema = AvroSchemaUtil.convert(schema, "manifest_entry");
+    this.schema = AvroSchemaUtil.convert(schema, "manifest_entry", false);
   }
 
   private GenericManifestEntry(GenericManifestEntry<F> toCopy, boolean fullCopy) {

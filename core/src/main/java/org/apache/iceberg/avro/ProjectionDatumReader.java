@@ -30,12 +30,14 @@ import org.apache.iceberg.mapping.MappingUtil;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.types.TypeUtil;
 
-public class ProjectionDatumReader<D> implements DatumReader<D>, SupportsRowPosition {
+public class ProjectionDatumReader<D>
+    implements DatumReader<D>, SupportsRowPosition, SupportsLocalTimestamp {
   private final Function<Schema, DatumReader<?>> getReader;
   private final org.apache.iceberg.Schema expectedSchema;
   private final Map<String, String> renames;
   private NameMapping nameMapping;
   private Schema readSchema = null;
+  private boolean adjustToUtcDefault = true;
   private Schema fileSchema = null;
   private DatumReader<D> wrapped = null;
 
@@ -55,6 +57,11 @@ public class ProjectionDatumReader<D> implements DatumReader<D>, SupportsRowPosi
     if (wrapped instanceof SupportsRowPosition) {
       ((SupportsRowPosition) wrapped).setRowPositionSupplier(posSupplier);
     }
+  }
+
+  @Override
+  public void setAdjustToUtcDefault(boolean adjustToUtcDefault) {
+    this.adjustToUtcDefault = adjustToUtcDefault;
   }
 
   @Override
@@ -78,6 +85,9 @@ public class ProjectionDatumReader<D> implements DatumReader<D>, SupportsRowPosi
   @SuppressWarnings("unchecked")
   private DatumReader<D> newDatumReader() {
     DatumReader<D> reader = (DatumReader<D>) getReader.apply(readSchema);
+    if (reader instanceof SupportsLocalTimestamp) {
+      ((SupportsLocalTimestamp) reader).setAdjustToUtcDefault(adjustToUtcDefault);
+    }
     reader.setSchema(fileSchema);
     return reader;
   }
