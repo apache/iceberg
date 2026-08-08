@@ -253,7 +253,8 @@ class RecordConverter {
                     hasSchemaUpdates = true;
                   }
                   // make optional if needed and schema evolution is on
-                  if (tableField.isRequired() && recordField.schema().isOptional()) {
+                  if (tableField.isRequired()
+                      && (config.schemaForceOptional() || recordField.schema().isOptional())) {
                     String fieldName = tableSchema.findColumnName(tableField.fieldId());
                     schemaUpdateConsumer.makeOptional(fieldName);
                     hasSchemaUpdates = true;
@@ -315,7 +316,8 @@ class RecordConverter {
                 String fieldName = tableSchema.findColumnName(nestedField.fieldId());
                 schemaUpdateConsumer.updateType(fieldName, evolveDataType);
               }
-              if (nestedField.isRequired() && field.schema().isOptional()) {
+              if (nestedField.isRequired()
+                  && (config.schemaForceOptional() || field.schema().isOptional())) {
                 String fieldName = tableSchema.findColumnName(nestedField.fieldId());
                 schemaUpdateConsumer.makeOptional(fieldName);
               }
