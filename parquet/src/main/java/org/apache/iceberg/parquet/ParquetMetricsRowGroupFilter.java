@@ -236,6 +236,13 @@ public class ParquetMetricsRowGroupFilter {
     public <T> Boolean lt(BoundReference<T> ref, Literal<T> lit) {
       int id = ref.fieldId();
 
+      // Leave all nested column type and variant type filters to be
+      // evaluated post scan.
+      Type type = schema.findType(id);
+      if (type instanceof Type.NestedType || type.isVariantType()) {
+        return ROWS_MIGHT_MATCH;
+      }
+
       Long valueCount = valueCounts.get(id);
       if (valueCount == null) {
         // the column is not present and is all nulls
@@ -265,6 +272,13 @@ public class ParquetMetricsRowGroupFilter {
     @Override
     public <T> Boolean ltEq(BoundReference<T> ref, Literal<T> lit) {
       int id = ref.fieldId();
+
+      // Leave all nested column type and variant type filters to be
+      // evaluated post scan.
+      Type type = schema.findType(id);
+      if (type instanceof Type.NestedType || type.isVariantType()) {
+        return ROWS_MIGHT_MATCH;
+      }
 
       Long valueCount = valueCounts.get(id);
       if (valueCount == null) {
@@ -296,6 +310,13 @@ public class ParquetMetricsRowGroupFilter {
     public <T> Boolean gt(BoundReference<T> ref, Literal<T> lit) {
       int id = ref.fieldId();
 
+      // Leave all nested column type and variant type filters to be
+      // evaluated post scan.
+      Type type = schema.findType(id);
+      if (type instanceof Type.NestedType || type.isVariantType()) {
+        return ROWS_MIGHT_MATCH;
+      }
+
       Long valueCount = valueCounts.get(id);
       if (valueCount == null) {
         // the column is not present and is all nulls
@@ -325,6 +346,13 @@ public class ParquetMetricsRowGroupFilter {
     @Override
     public <T> Boolean gtEq(BoundReference<T> ref, Literal<T> lit) {
       int id = ref.fieldId();
+
+      // Leave all nested column type and variant type filters to be
+      // evaluated post scan.
+      Type type = schema.findType(id);
+      if (type instanceof Type.NestedType || type.isVariantType()) {
+        return ROWS_MIGHT_MATCH;
+      }
 
       Long valueCount = valueCounts.get(id);
       if (valueCount == null) {

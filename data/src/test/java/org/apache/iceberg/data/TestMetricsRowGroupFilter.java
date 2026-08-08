@@ -1260,6 +1260,62 @@ public class TestMetricsRowGroupFilter {
   }
 
   @TestTemplate
+  public void testVariantFieldLt() throws IOException {
+    assumeThat(format).isEqualTo(FileFormat.PARQUET);
+
+    VariantMetadata md = Variants.metadata("k");
+    Variant v0 = createVariantWithKey(md, "v0");
+    List<GenericRecord> records = createVariantRecords(v0);
+
+    boolean shouldRead = shouldReadVariant(lessThan("variant_field", v0), records);
+    assertThat(shouldRead)
+        .as("Should read: variant lt filters must be evaluated post scan")
+        .isTrue();
+  }
+
+  @TestTemplate
+  public void testVariantFieldLtEq() throws IOException {
+    assumeThat(format).isEqualTo(FileFormat.PARQUET);
+
+    VariantMetadata md = Variants.metadata("k");
+    Variant v0 = createVariantWithKey(md, "v0");
+    List<GenericRecord> records = createVariantRecords(v0);
+
+    boolean shouldRead = shouldReadVariant(lessThanOrEqual("variant_field", v0), records);
+    assertThat(shouldRead)
+        .as("Should read: variant ltEq filters must be evaluated post scan")
+        .isTrue();
+  }
+
+  @TestTemplate
+  public void testVariantFieldGt() throws IOException {
+    assumeThat(format).isEqualTo(FileFormat.PARQUET);
+
+    VariantMetadata md = Variants.metadata("k");
+    Variant v0 = createVariantWithKey(md, "v0");
+    List<GenericRecord> records = createVariantRecords(v0);
+
+    boolean shouldRead = shouldReadVariant(greaterThan("variant_field", v0), records);
+    assertThat(shouldRead)
+        .as("Should read: variant gt filters must be evaluated post scan")
+        .isTrue();
+  }
+
+  @TestTemplate
+  public void testVariantFieldGtEq() throws IOException {
+    assumeThat(format).isEqualTo(FileFormat.PARQUET);
+
+    VariantMetadata md = Variants.metadata("k");
+    Variant v0 = createVariantWithKey(md, "v0");
+    List<GenericRecord> records = createVariantRecords(v0);
+
+    boolean shouldRead = shouldReadVariant(greaterThanOrEqual("variant_field", v0), records);
+    assertThat(shouldRead)
+        .as("Should read: variant gtEq filters must be evaluated post scan")
+        .isTrue();
+  }
+
+  @TestTemplate
   public void testUUID() {
     assumeThat(format).as("Only valid for Parquet").isEqualTo(FileFormat.PARQUET);
 
