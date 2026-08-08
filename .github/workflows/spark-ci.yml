@@ -73,7 +73,23 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  plan:
+    runs-on: ubuntu-24.04
+    outputs:
+      spark_versions: ${{ steps.plan.outputs.spark_versions }}
+      scala_versions: ${{ steps.plan.outputs.scala_versions }}
+      matrix_excludes: ${{ steps.plan.outputs.matrix_excludes }}
+    steps:
+    - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      with:
+        persist-credentials: false
+    - id: plan
+      env:
+        BASE_SHA: ${{ github.event.pull_request.base.sha }}
+      run: bash .github/scripts/plan-spark-ci.sh
+
   spark-tests:
+    needs: plan
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     strategy:
@@ -83,21 +99,12 @@ jobs:
       matrix:
         jvm: [17, 21]
         event_name: ['${{ github.event_name }}']
-        spark: ['3.5', '4.0', '4.1']
-        scala: ['2.12', '2.13']
+        spark: ${{ fromJson(needs.plan.outputs.spark_versions) }}
+        scala: ${{ fromJson(needs.plan.outputs.scala_versions) }}
         # Split iceberg-spark (core) from iceberg-spark-extensions/-runtime
         # so they run as concurrent jobs rather than serially in one job.
         tests: [core, extensions]
-        exclude:
-          # Spark 3.5 is the first version not failing on Java 21 (https://issues.apache.org/jira/browse/SPARK-42369)
-          # Full Java 21 support is coming in Spark 4 (https://issues.apache.org/jira/browse/SPARK-43831)
-          - spark: '4.0'
-            scala: '2.12'
-          - spark: '4.1'
-            scala: '2.12'
-          # Pull requests run the baseline JDK only.
-          - event_name: pull_request
-            jvm: 21
+        exclude: ${{ fromJson(needs.plan.outputs.matrix_excludes) }}
     env:
       SPARK_LOCAL_IP: localhost
     steps:
@@ -114,13 +121,17 @@ jobs:
           cache-read-only: true
       - run: echo -e "$(ip addr show eth0 | grep "inet\b" | awk '{print $2}' | cut -d/ -f1)\t$(hostname -f) $(hostname -s)" | sudo tee -a /etc/hosts
       - name: Run tests
+        env:
+          SPARK_VERSION: ${{ matrix.spark }}
+          SCALA_VERSION: ${{ matrix.scala }}
+          TEST_GROUP: ${{ matrix.tests }}
         run: |
-          if [[ "${{ matrix.tests }}" == "core" ]]; then
-            projects=":iceberg-spark:iceberg-spark-${{ matrix.spark }}_${{ matrix.scala }}:check"
+          if [[ "${TEST_GROUP}" == "core" ]]; then
+            projects=":iceberg-spark:iceberg-spark-${SPARK_VERSION}_${SCALA_VERSION}:check"
           else
-            projects=":iceberg-spark:iceberg-spark-extensions-${{ matrix.spark }}_${{ matrix.scala }}:check :iceberg-spark:iceberg-spark-runtime-${{ matrix.spark }}_${{ matrix.scala }}:check"
+            projects=":iceberg-spark:iceberg-spark-extensions-${SPARK_VERSION}_${SCALA_VERSION}:check :iceberg-spark:iceberg-spark-runtime-${SPARK_VERSION}_${SCALA_VERSION}:check"
           fi
-          ./gradlew -DsparkVersions=${{ matrix.spark }} -DscalaVersion=${{ matrix.scala }} -DflinkVersions= -DkafkaVersions= \
+          ./gradlew -DsparkVersions="${SPARK_VERSION}" -DscalaVersion="${SCALA_VERSION}" -DflinkVersions= -DkafkaVersions= \
             $projects -Pquick=true -x javadoc -DtestParallelism=auto
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: failure()
