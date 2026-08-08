@@ -46,6 +46,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 class ADLSLocation {
   private static final Pattern URI_PATTERN = Pattern.compile("^(abfss?|wasbs?)://([^/?#]+)(.*)?$");
 
+  private final String scheme;
   private final String storageAccount;
   private final String container;
   private final String path;
@@ -63,6 +64,8 @@ class ADLSLocation {
 
     ValidationException.check(matcher.matches(), "Invalid ADLS URI: %s", location);
 
+    this.scheme = matcher.group(1);
+
     String authority = matcher.group(2);
     String[] parts = authority.split("@", -1);
     if (parts.length > 1) {
@@ -77,6 +80,11 @@ class ADLSLocation {
 
     String uriPath = matcher.group(3);
     this.path = uriPath == null ? "" : uriPath.startsWith("/") ? uriPath.substring(1) : uriPath;
+  }
+
+  /** Returns the URI scheme, e.g. abfs, abfss, wasb, or wasbs. */
+  public String scheme() {
+    return scheme;
   }
 
   /** Returns Azure storage account. */
