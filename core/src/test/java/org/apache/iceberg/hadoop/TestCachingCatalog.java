@@ -20,6 +20,9 @@ package org.apache.iceberg.hadoop;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.spy;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import java.io.IOException;
@@ -27,21 +30,32 @@ import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.BaseMetadataTable;
+import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.CachingCatalog;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TestableCachingCatalog;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -68,7 +82,7 @@ public class TestCachingCatalog extends HadoopTableTestBase {
   }
 
   @Test
-  public void testInvalidateMetadataTablesIfBaseTableIsModified() throws Exception {
+  public void metadataTablesShareOperationsWithModifiedBaseTable() throws Exception {
     Catalog catalog = CachingCatalog.wrap(hadoopCatalog());
     TableIdentifier tableIdent = TableIdentifier.of("db", "ns1", "ns2", "tbl");
     Table table = catalog.createTable(tableIdent, SCHEMA, SPEC, ImmutableMap.of("key2", "value2"));
@@ -89,14 +103,14 @@ public class TestCachingCatalog extends HadoopTableTestBase {
     Table filesMetaTable2 = catalog.loadTable(filesMetaTableIdent);
     Table manifestsMetaTable2 = catalog.loadTable(manifestsMetaTableIdent);
 
-    // metadata tables are cached
-    assertThat(filesMetaTable2).isEqualTo(filesMetaTable);
-    assertThat(manifestsMetaTable2).isEqualTo(manifestsMetaTable);
+    // metadata tables remain cached when their origin table is preserved
+    assertThat(filesMetaTable2).isSameAs(filesMetaTable);
+    assertThat(manifestsMetaTable2).isSameAs(manifestsMetaTable);
 
     // the current snapshot of origin table is updated after committing
     assertThat(table.currentSnapshot()).isNotEqualTo(oldSnapshot);
 
-    // underlying table operation in metadata tables are shared with the origin table
+    // shared operations let the cached metadata tables observe the origin table's new snapshot
     assertThat(filesMetaTable2.currentSnapshot()).isEqualTo(table.currentSnapshot());
     assertThat(manifestsMetaTable2.currentSnapshot()).isEqualTo(table.currentSnapshot());
   }
@@ -269,10 +283,338 @@ public class TestCachingCatalog extends HadoopTableTestBase {
     table.refresh();
     assertThat(catalog.ageOf(tableIdent)).get().isEqualTo(HALF_OF_EXPIRATION);
     assertThat(catalog.remainingAgeFor(tableIdent)).get().isEqualTo(HALF_OF_EXPIRATION);
+  }
+
+  @Test
+  public void testCommitPreservesCachedTableIdentity() throws IOException {
+    TestableCachingCatalog catalog =
+        TestableCachingCatalog.wrap(hadoopCatalog(), EXPIRATION_TTL, ticker);
+    TableIdentifier tableIdent = TableIdentifier.of("db", "tbl");
+    Table table = catalog.createTable(tableIdent, SCHEMA, SPEC, ImmutableMap.of());
 
     table.newAppend().appendFile(FILE_A).commit();
-    assertThat(catalog.ageOf(tableIdent)).get().isEqualTo(HALF_OF_EXPIRATION);
-    assertThat(catalog.remainingAgeFor(tableIdent)).get().isEqualTo(HALF_OF_EXPIRATION);
+
+    assertThat(catalog.cache().asMap()).containsEntry(tableIdent, table);
+    assertThat(catalog.loadTable(tableIdent).currentSnapshot()).isEqualTo(table.currentSnapshot());
+  }
+
+  @Test
+  public void testLoadTableObservesCommitAfterConcurrentReloadDuringWrite() throws IOException {
+    TestableCachingCatalog catalog =
+        TestableCachingCatalog.wrap(hadoopCatalog(), EXPIRATION_TTL, ticker);
+    Namespace namespace = Namespace.of("db", "ns1", "ns2");
+    TableIdentifier tableIdent = TableIdentifier.of(namespace, "tbl");
+    catalog.createTable(tableIdent, SCHEMA, SPEC, ImmutableMap.of("key", "value"));
+
+    // Start from a clean cache so the writer is loaded fresh from the underlying catalog.
+    catalog.cache().invalidateAll();
+
+    // A writer loads the table and establishes an initial snapshot.
+    Table writer = catalog.loadTable(tableIdent);
+    writer.newAppend().appendFile(FILE_A).commit();
+    Snapshot committedBeforeWrite = writer.currentSnapshot();
+    assertThat(committedBeforeWrite).isNotNull();
+
+    // The writer begins a long-running write that will outlive the cache TTL.
+    AppendFiles pendingWrite = writer.newAppend().appendFile(FILE_B);
+
+    // The cache entry expires while the write is still in progress.
+    ticker.advance(EXPIRATION_TTL.plus(Duration.ofSeconds(1)));
+    assertThat(catalog.cache().asMap()).doesNotContainKey(tableIdent);
+
+    // A concurrent loader (e.g. an OpenLineage listener thread) reloads the table before the
+    // write commits, re-caching the pre-commit table with a fresh TTL.
+    Table concurrentlyReloaded = catalog.loadTable(tableIdent);
+    assertThat(catalog.cache().asMap()).containsKey(tableIdent);
+    assertThat(concurrentlyReloaded.currentSnapshot()).isEqualTo(committedBeforeWrite);
+    TableIdentifier snapshotsIdent = TableIdentifier.of("db", "ns1", "ns2", "tbl", "snapshots");
+    Table staleMetadataTable = catalog.loadTable(snapshotsIdent);
+    assertThat(staleMetadataTable.currentSnapshot()).isEqualTo(committedBeforeWrite);
+
+    // The writer commits the in-flight write through its own table reference.
+    pendingWrite.commit();
+    Snapshot committedAfterWrite = writer.currentSnapshot();
+    assertThat(committedAfterWrite).isNotEqualTo(committedBeforeWrite);
+
+    // A subsequent load must observe the committed snapshot, not the stale table that was
+    // re-cached during the write (https://github.com/apache/iceberg/issues/17338).
+    assertThat(catalog.loadTable(tableIdent).currentSnapshot())
+        .as("loadTable after commit must not return a snapshot re-cached during the write")
+        .isEqualTo(committedAfterWrite);
+    Table reloadedMetadataTable = catalog.loadTable(snapshotsIdent);
+    assertThat(reloadedMetadataTable).isNotSameAs(staleMetadataTable);
+    assertThat(reloadedMetadataTable.currentSnapshot())
+        .as("metadata tables backed by the stale replacement must also be evicted")
+        .isEqualTo(committedAfterWrite);
+  }
+
+  @Test
+  public void testCreatedTableObservesCommitAfterConcurrentReloadDuringWrite() throws IOException {
+    TestableCachingCatalog catalog =
+        TestableCachingCatalog.wrap(hadoopCatalog(), EXPIRATION_TTL, ticker);
+    Namespace namespace = Namespace.of("db", "ns1", "ns2");
+    TableIdentifier tableIdent = TableIdentifier.of(namespace, "tbl");
+
+    // The writer keeps the table reference returned by createTable.
+    Table writer = catalog.createTable(tableIdent, SCHEMA, SPEC, ImmutableMap.of("key", "value"));
+    writer.newAppend().appendFile(FILE_A).commit();
+    Snapshot committedBeforeWrite = writer.currentSnapshot();
+    assertThat(committedBeforeWrite).isNotNull();
+
+    // The writer begins a long-running write that will outlive the cache TTL.
+    AppendFiles pendingWrite = writer.newAppend().appendFile(FILE_B);
+
+    // The cache entry is not present while the write is in progress.
+    ticker.advance(EXPIRATION_TTL.plus(Duration.ofSeconds(1)));
+    assertThat(catalog.cache().asMap()).doesNotContainKey(tableIdent);
+
+    // A concurrent loader reloads the table before the write commits, re-caching the pre-commit
+    // table with a fresh TTL.
+    Table concurrentlyReloaded = catalog.loadTable(tableIdent);
+    assertThat(catalog.cache().asMap()).containsKey(tableIdent);
+    assertThat(concurrentlyReloaded.currentSnapshot()).isEqualTo(committedBeforeWrite);
+
+    // The writer commits the in-flight write through the created-table reference.
+    pendingWrite.commit();
+    Snapshot committedAfterWrite = writer.currentSnapshot();
+    assertThat(committedAfterWrite).isNotEqualTo(committedBeforeWrite);
+
+    // A subsequent load must observe the committed snapshot, not the stale re-cached table.
+    assertThat(catalog.loadTable(tableIdent).currentSnapshot())
+        .as("loadTable after a commit through a created table must not return a stale snapshot")
+        .isEqualTo(committedAfterWrite);
+  }
+
+  @Test
+  public void testCommitReconciliationWaitsForInFlightLoadBeforeRemovingIt() throws Exception {
+    TableIdentifier tableIdent = TableIdentifier.of("db", "tbl");
+    CountDownLatch staleTableLoaded = new CountDownLatch(1);
+    CountDownLatch releaseStaleLoad = new CountDownLatch(1);
+    CountDownLatch commitApplied = new CountDownLatch(1);
+    AtomicBoolean instrumentWriter = new AtomicBoolean(true);
+    AtomicBoolean signalNextCommit = new AtomicBoolean(false);
+    AtomicBoolean blockNextLoad = new AtomicBoolean(false);
+
+    HadoopCatalog underlyingCatalog =
+        new HadoopCatalog() {
+          @Override
+          public Table loadTable(TableIdentifier ident) {
+            Table loaded = super.loadTable(ident);
+            if (instrumentWriter.compareAndSet(true, false)) {
+              TableOperations operations = spy(((HasTableOperations) loaded).operations());
+              doAnswer(
+                      invocation -> {
+                        invocation.callRealMethod();
+                        if (signalNextCommit.compareAndSet(true, false)) {
+                          commitApplied.countDown();
+                        }
+
+                        return null;
+                      })
+                  .when(operations)
+                  .commit(any(TableMetadata.class), any(TableMetadata.class));
+              return new BaseTable(operations, loaded.name());
+            }
+
+            if (blockNextLoad.compareAndSet(true, false)) {
+              staleTableLoaded.countDown();
+              try {
+                if (!releaseStaleLoad.await(10, TimeUnit.SECONDS)) {
+                  throw new IllegalStateException("Timed out waiting to release stale table load");
+                }
+              } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new RuntimeException(e);
+              }
+            }
+
+            return loaded;
+          }
+        };
+    underlyingCatalog.setConf(new Configuration());
+    underlyingCatalog.initialize(
+        "hadoop", ImmutableMap.of(CatalogProperties.WAREHOUSE_LOCATION, tempDir.getAbsolutePath()));
+    underlyingCatalog.createTable(tableIdent, SCHEMA, SPEC, ImmutableMap.of());
+
+    TestableCachingCatalog catalog =
+        TestableCachingCatalog.wrap(underlyingCatalog, EXPIRATION_TTL, ticker);
+    Table writer = catalog.loadTable(tableIdent);
+    writer.newAppend().appendFile(FILE_A).commit();
+    Snapshot staleSnapshot = writer.currentSnapshot();
+    AppendFiles pendingWrite = writer.newAppend().appendFile(FILE_B);
+
+    ticker.advance(EXPIRATION_TTL.plus(Duration.ofSeconds(1)));
+    assertThat(catalog.cache().asMap()).doesNotContainKey(tableIdent);
+
+    blockNextLoad.set(true);
+    signalNextCommit.set(true);
+    ExecutorService executor = Executors.newFixedThreadPool(2);
+    try {
+      Future<Table> staleLoad = executor.submit(() -> catalog.loadTable(tableIdent));
+      assertThat(staleTableLoaded.await(10, TimeUnit.SECONDS)).isTrue();
+
+      Future<?> commit = executor.submit(pendingWrite::commit);
+      assertThat(commitApplied.await(10, TimeUnit.SECONDS)).isTrue();
+
+      // Caffeine orders loads and remapping of the same key through atomic map operations. The
+      // commit is durable, but reconciliation waits until this in-flight load publishes.
+      assertThatThrownBy(() -> commit.get(100, TimeUnit.MILLISECONDS))
+          .isInstanceOf(TimeoutException.class)
+          .hasMessage((String) null);
+
+      releaseStaleLoad.countDown();
+      assertThat(staleLoad.get(10, TimeUnit.SECONDS).currentSnapshot()).isEqualTo(staleSnapshot);
+      commit.get(10, TimeUnit.SECONDS);
+
+      assertThat(catalog.cache().asMap()).doesNotContainKey(tableIdent);
+      assertThat(catalog.loadTable(tableIdent).currentSnapshot())
+          .isEqualTo(writer.currentSnapshot());
+    } finally {
+      releaseStaleLoad.countDown();
+      executor.shutdownNow();
+      assertThat(executor.awaitTermination(10, TimeUnit.SECONDS)).isTrue();
+    }
+  }
+
+  @Test
+  public void testCommitDuringMetadataLoadCannotPublishStaleTable() throws Exception {
+    TableIdentifier tableIdent = TableIdentifier.of("db", "ns1", "ns2", "tbl");
+    TableIdentifier snapshotsIdent = TableIdentifier.of("db", "ns1", "ns2", "tbl", "snapshots");
+    CountDownLatch metadataReadyToPublish = new CountDownLatch(1);
+    CountDownLatch releaseMetadataPublish = new CountDownLatch(1);
+    AtomicBoolean armMetadataPublish = new AtomicBoolean(false);
+    AtomicBoolean blockNextName = new AtomicBoolean(false);
+    HadoopCatalog underlyingCatalog =
+        new HadoopCatalog() {
+          @Override
+          public Table loadTable(TableIdentifier ident) {
+            Table loaded = super.loadTable(ident);
+            if (ident.equals(tableIdent) && armMetadataPublish.compareAndSet(true, false)) {
+              // CachingCatalog asks for the catalog name immediately before constructing and
+              // publishing the metadata table.
+              blockNextName.set(true);
+            }
+
+            return loaded;
+          }
+
+          @Override
+          public String name() {
+            if (blockNextName.compareAndSet(true, false)) {
+              metadataReadyToPublish.countDown();
+              try {
+                if (!releaseMetadataPublish.await(10, TimeUnit.SECONDS)) {
+                  throw new IllegalStateException(
+                      "Timed out waiting to release metadata publication");
+                }
+              } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new RuntimeException(e);
+              }
+            }
+
+            return super.name();
+          }
+        };
+    underlyingCatalog.setConf(new Configuration());
+    underlyingCatalog.initialize(
+        "hadoop", ImmutableMap.of(CatalogProperties.WAREHOUSE_LOCATION, tempDir.getAbsolutePath()));
+
+    Table writer = underlyingCatalog.createTable(tableIdent, SCHEMA, SPEC, ImmutableMap.of());
+    writer.newAppend().appendFile(FILE_A).commit();
+    Snapshot staleSnapshot = writer.currentSnapshot();
+
+    TestableCachingCatalog catalog =
+        TestableCachingCatalog.wrap(underlyingCatalog, EXPIRATION_TTL, ticker);
+    armMetadataPublish.set(true);
+
+    ExecutorService executor = Executors.newSingleThreadExecutor();
+    try {
+      Future<Table> staleLoad = executor.submit(() -> catalog.loadTable(snapshotsIdent));
+      assertThat(metadataReadyToPublish.await(10, TimeUnit.SECONDS)).isTrue();
+
+      writer.newAppend().appendFile(FILE_B).commit();
+      Snapshot committedSnapshot = writer.currentSnapshot();
+      catalog.invalidateTable(tableIdent);
+      assertThat(catalog.cache().asMap()).doesNotContainKeys(tableIdent, snapshotsIdent);
+
+      releaseMetadataPublish.countDown();
+      assertThat(staleLoad.get(10, TimeUnit.SECONDS).currentSnapshot()).isEqualTo(staleSnapshot);
+      assertThat(catalog.cache().asMap())
+          .as("The late metadata result must not be published after invalidation")
+          .doesNotContainKey(snapshotsIdent);
+      assertThat(catalog.loadTable(snapshotsIdent).currentSnapshot())
+          .as("A metadata load overlapping invalidation must not remain cached")
+          .isEqualTo(committedSnapshot);
+    } finally {
+      releaseMetadataPublish.countDown();
+      executor.shutdownNow();
+      assertThat(executor.awaitTermination(10, TimeUnit.SECONDS)).isTrue();
+    }
+  }
+
+  @Test
+  public void testCommitStateUnknownInvalidatesCachedTable() {
+    AtomicReference<Table> nextLoad = new AtomicReference<>();
+    AtomicInteger invalidationCount = new AtomicInteger();
+    AtomicBoolean failInvalidation = new AtomicBoolean(true);
+    HadoopCatalog underlyingCatalog =
+        new HadoopCatalog() {
+          @Override
+          public Table loadTable(TableIdentifier ident) {
+            Table replacement = nextLoad.getAndSet(null);
+            return replacement != null ? replacement : super.loadTable(ident);
+          }
+
+          @Override
+          public void invalidateTable(TableIdentifier ident) {
+            invalidationCount.incrementAndGet();
+            if (failInvalidation.get()) {
+              throw new IllegalStateException("Wrapped catalog invalidation failed");
+            }
+
+            super.invalidateTable(ident);
+          }
+        };
+    underlyingCatalog.setConf(new Configuration());
+    underlyingCatalog.initialize(
+        "hadoop", ImmutableMap.of(CatalogProperties.WAREHOUSE_LOCATION, tempDir.getAbsolutePath()));
+
+    TableIdentifier tableIdent = TableIdentifier.of("db", "tbl");
+    underlyingCatalog.createTable(tableIdent, SCHEMA, SPEC, ImmutableMap.of());
+    Table loaded = underlyingCatalog.loadTable(tableIdent);
+    TableOperations operations = spy(((HasTableOperations) loaded).operations());
+    doAnswer(
+            invocation -> {
+              invocation.callRealMethod();
+              throw new CommitStateUnknownException(new RuntimeException("Unknown commit state"));
+            })
+        .when(operations)
+        .commit(any(TableMetadata.class), any(TableMetadata.class));
+    nextLoad.set(new BaseTable(operations, loaded.name()));
+
+    TestableCachingCatalog catalog =
+        TestableCachingCatalog.wrap(underlyingCatalog, EXPIRATION_TTL, ticker);
+    Table writer = catalog.loadTable(tableIdent);
+    assertThat(catalog.cache().asMap()).containsKey(tableIdent);
+
+    assertThatThrownBy(() -> writer.newAppend().appendFile(FILE_A).commit())
+        .isInstanceOf(CommitStateUnknownException.class)
+        .hasMessageContaining("Unknown commit state")
+        .satisfies(
+            failure ->
+                assertThat(failure.getSuppressed())
+                    .singleElement()
+                    .satisfies(
+                        suppressed -> {
+                          assertThat(suppressed).isInstanceOf(IllegalStateException.class);
+                          assertThat(suppressed.getMessage())
+                              .isEqualTo("Wrapped catalog invalidation failed");
+                        }));
+    assertThat(catalog.cache().asMap()).doesNotContainKey(tableIdent);
+    assertThat(invalidationCount).hasValue(1);
+    failInvalidation.set(false);
+    assertThat(catalog.loadTable(tableIdent).currentSnapshot()).isNotNull();
   }
 
   @Test
@@ -285,6 +627,8 @@ public class TestCachingCatalog extends HadoopTableTestBase {
     assertThat(catalog.cache().asMap()).containsKey(tableIdent);
 
     table.newAppend().appendFile(FILE_A).commit();
+
+    // The commit preserves the cached table and resets its cache age.
     assertThat(catalog.cache().asMap()).containsKey(tableIdent);
     assertThat(catalog.ageOf(tableIdent)).get().isEqualTo(Duration.ZERO);
 
