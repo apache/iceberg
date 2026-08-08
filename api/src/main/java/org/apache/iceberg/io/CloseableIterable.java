@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import org.apache.iceberg.exceptions.RuntimeIOException;
@@ -146,18 +147,42 @@ public interface CloseableIterable<T> extends Iterable<T>, Closeable {
   static <E> CloseableIterable<E> filter(
       Counter skipCounter, CloseableIterable<E> iterable, Predicate<E> pred) {
     Preconditions.checkArgument(null != skipCounter, "Invalid counter: null");
+    return filter(iterable, pred, item -> {}, item -> skipCounter.increment());
+  }
+
+  /**
+   * Filters the given {@link CloseableIterable} with the given predicate, invoking {@code onKeep}
+   * on each accepted element and {@code onSkip} on each rejected element exactly once.
+   *
+   * @param iterable The underlying {@link CloseableIterable} to filter.
+   * @param <E> The underlying type to be iterated.
+   * @param pred The {@link Predicate} that selects elements to keep.
+   * @param onKeep The {@link Consumer} invoked once per element that satisfies {@code pred}.
+   * @param onSkip The {@link Consumer} invoked once per element that does not satisfy {@code pred}.
+   * @return A filtered {@link CloseableIterable} that fires the observers as elements are consumed.
+   */
+  static <E> CloseableIterable<E> filter(
+      CloseableIterable<E> iterable, Predicate<E> pred, Consumer<E> onKeep, Consumer<E> onSkip) {
     Preconditions.checkArgument(null != iterable, "Invalid iterable: null");
     Preconditions.checkArgument(null != pred, "Invalid predicate: null");
+    Preconditions.checkArgument(null != onKeep, "Invalid onKeep consumer: null");
+    Preconditions.checkArgument(null != onSkip, "Invalid onSkip consumer: null");
     return combine(
         () ->
             new FilterIterator<E>(iterable.iterator()) {
               @Override
               protected boolean shouldKeep(E item) {
-                boolean matches = pred.test(item);
-                if (!matches) {
-                  skipCounter.increment();
-                }
-                return matches;
+                return pred.test(item);
+              }
+
+              @Override
+              protected void onKeep(E item) {
+                onKeep.accept(item);
+              }
+
+              @Override
+              protected void onSkip(E item) {
+                onSkip.accept(item);
               }
             },
         iterable);
@@ -175,18 +200,7 @@ public interface CloseableIterable<T> extends Iterable<T>, Closeable {
    */
   static <T> CloseableIterable<T> count(Counter counter, CloseableIterable<T> iterable) {
     Preconditions.checkArgument(null != counter, "Invalid counter: null");
-    Preconditions.checkArgument(null != iterable, "Invalid iterable: null");
-    return new CloseableIterable<T>() {
-      @Override
-      public CloseableIterator<T> iterator() {
-        return CloseableIterator.count(counter, iterable.iterator());
-      }
-
-      @Override
-      public void close() throws IOException {
-        iterable.close();
-      }
-    };
+    return filter(iterable, item -> true, item -> counter.increment(), item -> {});
   }
 
   static <I, O> CloseableIterable<O> transform(

@@ -33,6 +33,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import org.apache.iceberg.exceptions.RuntimeIOException;
@@ -601,19 +602,19 @@ class DeleteFileIndex {
 
       CloseableIterable<ManifestFile> closeableDeleteManifests =
           CloseableIterable.withNoopClose(deleteManifests);
-      CloseableIterable<ManifestFile> matchingManifests =
+      Predicate<ManifestFile> manifestPredicate =
           evalCache == null
-              ? closeableDeleteManifests
-              : CloseableIterable.filter(
-                  scanMetrics.skippedDeleteManifests(),
-                  closeableDeleteManifests,
-                  manifest ->
-                      manifest.content() == ManifestContent.DELETES
-                          && (manifest.hasAddedFiles() || manifest.hasExistingFiles())
-                          && evalCache.get(manifest.partitionSpecId()).eval(manifest));
-
-      matchingManifests =
-          CloseableIterable.count(scanMetrics.scannedDeleteManifests(), matchingManifests);
+              ? manifest -> true
+              : manifest ->
+                  manifest.content() == ManifestContent.DELETES
+                      && (manifest.hasAddedFiles() || manifest.hasExistingFiles())
+                      && evalCache.get(manifest.partitionSpecId()).eval(manifest);
+      CloseableIterable<ManifestFile> matchingManifests =
+          CloseableIterable.filter(
+              closeableDeleteManifests,
+              manifestPredicate,
+              manifest -> scanMetrics.scannedDeleteManifests().increment(),
+              manifest -> scanMetrics.skippedDeleteManifests().increment());
       return Iterables.transform(
           matchingManifests,
           manifest ->

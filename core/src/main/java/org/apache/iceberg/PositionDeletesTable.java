@@ -290,13 +290,12 @@ public class PositionDeletesTable extends BaseMetadataTable {
 
       CloseableIterable<ManifestFile> matchingManifests =
           CloseableIterable.filter(
-              scanMetrics().skippedDeleteManifests(),
               CloseableIterable.withNoopClose(manifests),
               manifest ->
                   baseTableEvalCache.get(manifest.partitionSpecId()).eval(manifest)
-                      && deletesTableEvalCache.get(manifest.partitionSpecId()).eval(manifest));
-      matchingManifests =
-          CloseableIterable.count(scanMetrics().scannedDeleteManifests(), matchingManifests);
+                      && deletesTableEvalCache.get(manifest.partitionSpecId()).eval(manifest),
+              manifest -> scanMetrics().scannedDeleteManifests().increment(),
+              manifest -> scanMetrics().skippedDeleteManifests().increment());
 
       Iterable<CloseableIterable<ScanTask>> tasks =
           CloseableIterable.transform(
