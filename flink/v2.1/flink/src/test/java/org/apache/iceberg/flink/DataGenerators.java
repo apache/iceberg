@@ -53,9 +53,6 @@ import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
-import org.joda.time.Days;
 
 /**
  * Util class to generate test data with extensive coverage different field types: from primitives
@@ -64,12 +61,11 @@ import org.joda.time.Days;
 public class DataGenerators {
 
   public static class Primitives implements DataGenerator {
-    private static final DateTime JODA_DATETIME_EPOC =
-        new DateTime(1970, 1, 1, 0, 0, 0, 0, DateTimeZone.UTC);
-    private static final DateTime JODA_DATETIME_20220110 =
-        new DateTime(2022, 1, 10, 0, 0, 0, 0, DateTimeZone.UTC);
+    private static final OffsetDateTime DATETIME_20220110 =
+        OffsetDateTime.of(2022, 1, 10, 0, 0, 0, 0, ZoneOffset.UTC);
+    private static final long MILLIS_20220110 = DATETIME_20220110.toInstant().toEpochMilli();
     private static final int DAYS_BTW_EPOC_AND_20220110 =
-        Days.daysBetween(JODA_DATETIME_EPOC, JODA_DATETIME_20220110).getDays();
+        (int) DATETIME_20220110.toLocalDate().toEpochDay();
     private static final int HOUR_8_IN_MILLI = (int) TimeUnit.HOURS.toMillis(8);
     private static final int MICROS_OF_MILLI_20220110 = 456;
 
@@ -232,10 +228,8 @@ public class DataGenerators {
           HOUR_8_IN_MILLI,
           // Although Avro logical type for timestamp fields are in micro seconds,
           // AvroToRowDataConverters only looks for long value in milliseconds.
-          TimestampData.fromEpochMillis(
-              JODA_DATETIME_20220110.getMillis(), MICROS_OF_MILLI_20220110 * 1000),
-          TimestampData.fromEpochMillis(
-              JODA_DATETIME_20220110.getMillis(), MICROS_OF_MILLI_20220110 * 1000),
+          TimestampData.fromEpochMillis(MILLIS_20220110, MICROS_OF_MILLI_20220110 * 1000),
+          TimestampData.fromEpochMillis(MILLIS_20220110, MICROS_OF_MILLI_20220110 * 1000),
           uuidBytes,
           binaryBytes,
           DecimalData.fromBigDecimal(BIG_DECIMAL_NEGATIVE, 9, 2),
@@ -305,12 +299,9 @@ public class DataGenerators {
       genericRecord.put("time_field", HOUR_8_IN_MILLI);
       // Now that AvroToRowDataConverters correctly supports microseconds,
       // we must inject correct microsecond scale values into the Avro data.
+      genericRecord.put("ts_with_zone_field", MILLIS_20220110 * 1000L + MICROS_OF_MILLI_20220110);
       genericRecord.put(
-          "ts_with_zone_field",
-          JODA_DATETIME_20220110.getMillis() * 1000L + MICROS_OF_MILLI_20220110);
-      genericRecord.put(
-          "ts_without_zone_field",
-          JODA_DATETIME_20220110.getMillis() * 1000L + MICROS_OF_MILLI_20220110);
+          "ts_without_zone_field", MILLIS_20220110 * 1000L + MICROS_OF_MILLI_20220110);
       genericRecord.put("ts_ns_with_zone_field", ICEBERG_MAX_NANOS_EPOCH);
       genericRecord.put("ts_ns_without_zone_field", ICEBERG_MAX_NANOS_EPOCH);
 
