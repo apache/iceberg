@@ -19,10 +19,14 @@
 package org.apache.iceberg.parquet;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.types.EdgeAlgorithm;
 import org.apache.iceberg.types.Types.DoubleType;
+import org.apache.iceberg.types.Types.GeographyType;
+import org.apache.iceberg.types.Types.GeometryType;
 import org.apache.iceberg.types.Types.IntegerType;
 import org.apache.iceberg.types.Types.ListType;
 import org.apache.iceberg.types.Types.MapType;
@@ -31,6 +35,7 @@ import org.apache.iceberg.types.Types.StringType;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.types.Types.VariantType;
 import org.apache.iceberg.variants.Variant;
+import org.apache.parquet.column.schema.EdgeInterpolationAlgorithm;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName;
@@ -303,6 +308,94 @@ public class TestPruneColumns {
 
     MessageType actual = ParquetSchemaUtil.pruneColumns(fileSchema, projection);
     assertThat(actual).as("Pruned schema should be matched").isEqualTo(expected);
+  }
+
+  @Test
+  public void acceptsMatchingGeospatialParameters() {
+    MessageType fileSchema =
+        Types.buildMessage()
+            .optional(PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.geometryType(null))
+            .id(1)
+            .named("geom_default")
+            .optional(PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.geometryType("EPSG:3857"))
+            .id(2)
+            .named("geom_projected")
+            .optional(PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.geographyType(null, null))
+            .id(3)
+            .named("geog_default")
+            .optional(PrimitiveTypeName.BINARY)
+            .as(
+                LogicalTypeAnnotation.geographyType(
+                    "EPSG:4326", EdgeInterpolationAlgorithm.ANDOYER))
+            .id(4)
+            .named("geog_custom")
+            .named("table");
+
+    Schema projection =
+        new Schema(
+            NestedField.optional(1, "geom_default", GeometryType.crs84()),
+            NestedField.optional(2, "geom_projected", GeometryType.of("epsg:3857")),
+            NestedField.optional(3, "geog_default", GeographyType.crs84()),
+            NestedField.optional(
+                4, "geog_custom", GeographyType.of("epsg:4326", EdgeAlgorithm.ANDOYER)));
+
+    assertThat(ParquetSchemaUtil.pruneColumns(fileSchema, projection)).isEqualTo(fileSchema);
+  }
+
+  @Test
+  public void rejectsGeometryCrsMismatch() {
+    MessageType fileSchema =
+        Types.buildMessage()
+            .optional(PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.geometryType("EPSG:3857"))
+            .id(1)
+            .named("geom")
+            .named("table");
+    Schema projection = new Schema(NestedField.optional(1, "geom", GeometryType.crs84()));
+
+    assertThatThrownBy(() -> ParquetSchemaUtil.pruneColumns(fileSchema, projection))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot read Parquet type")
+        .hasMessageContaining("geometry(OGC:CRS84)");
+  }
+
+  @Test
+  public void rejectsGeographyCrsMismatch() {
+    MessageType fileSchema =
+        Types.buildMessage()
+            .optional(PrimitiveTypeName.BINARY)
+            .as(
+                LogicalTypeAnnotation.geographyType(
+                    "EPSG:4326", EdgeInterpolationAlgorithm.SPHERICAL))
+            .id(1)
+            .named("geog")
+            .named("table");
+    Schema projection = new Schema(NestedField.optional(1, "geog", GeographyType.crs84()));
+
+    assertThatThrownBy(() -> ParquetSchemaUtil.pruneColumns(fileSchema, projection))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot read Parquet type")
+        .hasMessageContaining("geography(OGC:CRS84, spherical)");
+  }
+
+  @Test
+  public void rejectsGeographyAlgorithmMismatch() {
+    MessageType fileSchema =
+        Types.buildMessage()
+            .optional(PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.geographyType("OGC:CRS84", EdgeInterpolationAlgorithm.KARNEY))
+            .id(1)
+            .named("geog")
+            .named("table");
+    Schema projection = new Schema(NestedField.optional(1, "geog", GeographyType.crs84()));
+
+    assertThatThrownBy(() -> ParquetSchemaUtil.pruneColumns(fileSchema, projection))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot read Parquet type")
+        .hasMessageContaining("geography(OGC:CRS84, spherical)");
   }
 
   private static Type buildVariantType(int id, String name) {

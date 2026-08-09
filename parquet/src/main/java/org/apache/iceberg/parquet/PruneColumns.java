@@ -18,12 +18,16 @@
  */
 package org.apache.iceberg.parquet;
 
+import static org.apache.iceberg.types.Type.TypeID.GEOGRAPHY;
+import static org.apache.iceberg.types.Type.TypeID.GEOMETRY;
+
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import org.apache.iceberg.relocated.com.google.common.base.Objects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types.ListType;
 import org.apache.iceberg.types.Types.MapType;
 import org.apache.iceberg.types.Types.NestedField;
@@ -162,6 +166,14 @@ class PruneColumns extends TypeWithSchemaVisitor<Type> {
   @Override
   public Type primitive(
       org.apache.iceberg.types.Type.PrimitiveType expected, PrimitiveType primitive) {
+    if (expected != null && (expected.typeId() == GEOMETRY || expected.typeId() == GEOGRAPHY)) {
+      Preconditions.checkArgument(
+          TypeUtil.isPromotionAllowed(MessageTypeToType.convertPrimitive(primitive), expected),
+          "Cannot read Parquet type %s as Iceberg type %s",
+          primitive,
+          expected);
+    }
+
     return null;
   }
 
