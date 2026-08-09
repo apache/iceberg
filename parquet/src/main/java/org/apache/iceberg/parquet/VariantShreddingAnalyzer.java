@@ -466,6 +466,7 @@ public abstract class VariantShreddingAnalyzer<T, S> {
         if (merged == null) {
           return null;
         }
+
         admitted = merged;
       }
       return admitted;
@@ -478,13 +479,16 @@ public abstract class VariantShreddingAnalyzer<T, S> {
       if (current == null) {
         return candidate;
       }
+
       if (current == candidate) {
         return current;
       }
+
       List<PhysicalType> family = familyOf(current);
       if (family == null) {
         return null;
       }
+
       return wider(current, candidate, family);
     }
 
@@ -493,9 +497,11 @@ public abstract class VariantShreddingAnalyzer<T, S> {
       if (INTEGER_TYPES.contains(type)) {
         return INTEGER_TYPES;
       }
+
       if (DECIMAL_TYPES.contains(type)) {
         return DECIMAL_TYPES;
       }
+
       return null;
     }
 
@@ -510,6 +516,7 @@ public abstract class VariantShreddingAnalyzer<T, S> {
       if (firstIdx < 0 || secondIdx < 0) {
         return null;
       }
+
       return firstIdx >= secondIdx ? first : second;
     }
   }
