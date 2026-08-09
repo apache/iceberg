@@ -22,6 +22,11 @@ import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.sql.Date;
 import java.sql.Timestamp;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeFormatterBuilder;
+import java.time.temporal.ChronoField;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
@@ -59,7 +64,6 @@ import org.apache.spark.storage.BlockManager;
 import org.apache.spark.storage.BlockManagerId;
 import org.apache.spark.storage.BlockManagerMaster;
 import org.apache.spark.unsafe.types.UTF8String;
-import org.joda.time.DateTime;
 import scala.collection.JavaConverters;
 import scala.collection.Seq;
 
@@ -227,15 +231,14 @@ public class SparkUtil {
                 new EqualTo(
                     ref,
                     Literal.create(
-                        new Date(DateTime.parse(entry.getValue()).getMillis()),
-                        DataTypes.DateType)));
+                        new Date(parseToEpochMillis(entry.getValue())), DataTypes.DateType)));
             break;
           case "timestamp":
             filterExpressions.add(
                 new EqualTo(
                     ref,
                     Literal.create(
-                        new Timestamp(DateTime.parse(entry.getValue()).getMillis()),
+                        new Timestamp(parseToEpochMillis(entry.getValue())),
                         DataTypes.TimestampType)));
             break;
           default:
@@ -248,6 +251,25 @@ public class SparkUtil {
     }
 
     return filterExpressions;
+  }
+
+  // Lenient ISO parser accepting either a date (e.g. "2021-01-01") or a date-time
+  // (e.g. "2021-01-01T12:34:56"), defaulting any missing time fields to zero.
+  private static final DateTimeFormatter LENIENT_ISO_DATE_TIME =
+      new DateTimeFormatterBuilder()
+          .append(DateTimeFormatter.ISO_LOCAL_DATE)
+          .optionalStart()
+          .appendLiteral('T')
+          .append(DateTimeFormatter.ISO_LOCAL_TIME)
+          .optionalEnd()
+          .parseDefaulting(ChronoField.HOUR_OF_DAY, 0)
+          .parseDefaulting(ChronoField.MINUTE_OF_HOUR, 0)
+          .parseDefaulting(ChronoField.SECOND_OF_MINUTE, 0)
+          .toFormatter();
+
+  private static long parseToEpochMillis(String value) {
+    LocalDateTime dateTime = LocalDateTime.parse(value, LENIENT_ISO_DATE_TIME);
+    return dateTime.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
   }
 
   public static String toColumnName(NamedReference ref) {
