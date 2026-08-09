@@ -166,6 +166,12 @@ class PruneColumns extends TypeWithSchemaVisitor<Type> {
   @Override
   public Type primitive(
       org.apache.iceberg.types.Type.PrimitiveType expected, PrimitiveType primitive) {
+    validatePrimitive(expected, primitive);
+    return null;
+  }
+
+  static void validatePrimitive(
+      org.apache.iceberg.types.Type.PrimitiveType expected, PrimitiveType primitive) {
     if (expected != null && (expected.typeId() == GEOMETRY || expected.typeId() == GEOGRAPHY)) {
       Preconditions.checkArgument(
           TypeUtil.isPromotionAllowed(MessageTypeToType.convertPrimitive(primitive), expected),
@@ -173,8 +179,6 @@ class PruneColumns extends TypeWithSchemaVisitor<Type> {
           primitive,
           expected);
     }
-
-    return null;
   }
 
   private Integer getId(Type type) {

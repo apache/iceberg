@@ -363,6 +363,22 @@ public class TestPruneColumns {
   }
 
   @Test
+  public void rejectsGeometryCrsMismatchWithoutIds() {
+    MessageType fileSchema =
+        Types.buildMessage()
+            .optional(PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.geometryType("EPSG:3857"))
+            .named("geom")
+            .named("table");
+    Schema projection = new Schema(NestedField.optional(1, "geom", GeometryType.crs84()));
+
+    assertThatThrownBy(() -> ParquetSchemaUtil.pruneColumnsFallback(fileSchema, projection))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot read Parquet type")
+        .hasMessageContaining("geometry(OGC:CRS84)");
+  }
+
+  @Test
   public void rejectsGeographyCrsMismatch() {
     MessageType fileSchema =
         Types.buildMessage()
