@@ -483,7 +483,7 @@ sh spark-sql --conf spark.sql.catalog.my_catalog=org.apache.iceberg.spark.SparkC
     --conf spark.sql.catalog.my_catalog.s3.write.table-tag-enabled=true \
     --conf spark.sql.catalog.my_catalog.s3.write.namespace-tag-enabled=true
 ```
-For more details on tag restrictions, please refer [User-Defined Tag Restrictions](https://docs.aws.amazon.com/AmazonS3/latest/userguide/tagging-managing.html).
+For more details on tag restrictions, please refer to [User-Defined Tag Restrictions](https://docs.aws.amazon.com/AmazonS3/latest/userguide/tagging-managing.html).
 
 ### S3 Access Points
 
@@ -507,7 +507,7 @@ spark-sql --conf spark.sql.catalog.my_catalog=org.apache.iceberg.spark.SparkCata
 For the above example, the objects in S3 on `my-bucket1` and `my-bucket2` buckets will use `arn:aws:s3::<ACCOUNT_ID>:accesspoint/<MRAP_ALIAS>`
 access-point for all S3 operations.
 
-For more details on using access-points, please refer [Using access points with compatible Amazon S3 operations](https://docs.aws.amazon.com/AmazonS3/latest/userguide/access-points-usage-examples.html), [Sample notebook](https://github.com/aws-samples/quant-research/tree/main) .
+For more details on using access-points, please refer to [Using access points with compatible Amazon S3 operations](https://docs.aws.amazon.com/AmazonS3/latest/userguide/access-points-usage-examples.html), [Sample notebook](https://github.com/aws-samples/quant-research/tree/main) .
 
 ### S3 Access Grants
 
@@ -657,7 +657,7 @@ spark-sql --conf spark.sql.catalog.my_catalog=org.apache.iceberg.spark.SparkCata
     --conf spark.sql.catalog.my_catalog.s3.dualstack-enabled=true
 ```
 
-For more details on using S3 Dual-stack, please refer [Using dual-stack endpoints from the AWS CLI and the AWS SDKs](https://docs.aws.amazon.com/AmazonS3/latest/userguide/dual-stack-endpoints.html#dual-stack-endpoints-cli)
+For more details on using S3 Dual-stack, please refer to [Using dual-stack endpoints from the AWS CLI and the AWS SDKs](https://docs.aws.amazon.com/AmazonS3/latest/userguide/dual-stack-endpoints.html#dual-stack-endpoints-cli)
 
 ## AWS Client Customization
 
