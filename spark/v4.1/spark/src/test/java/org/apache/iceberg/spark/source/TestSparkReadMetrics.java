@@ -63,6 +63,9 @@ public class TestSparkReadMetrics extends TestBaseWithCatalog {
     assertThat(metricsMap)
         .hasEntrySatisfying(
             "totalPlanningDuration", sqlMetric -> assertThat(sqlMetric.value()).isNotEqualTo(0));
+    assertThat(metricsMap)
+        .hasEntrySatisfying(
+            "scanDuration", sqlMetric -> assertThat(sqlMetric.value()).isGreaterThan(0));
 
     // data manifests
     assertThat(metricsMap)
@@ -139,6 +142,9 @@ public class TestSparkReadMetrics extends TestBaseWithCatalog {
     assertThat(metricsMap)
         .hasEntrySatisfying(
             "totalPlanningDuration", sqlMetric -> assertThat(sqlMetric.value()).isNotEqualTo(0));
+    assertThat(metricsMap)
+        .hasEntrySatisfying(
+            "scanDuration", sqlMetric -> assertThat(sqlMetric.value()).isGreaterThan(0));
 
     // data manifests
     assertThat(metricsMap)
@@ -222,6 +228,9 @@ public class TestSparkReadMetrics extends TestBaseWithCatalog {
     assertThat(metricsMap)
         .hasEntrySatisfying(
             "totalPlanningDuration", sqlMetric -> assertThat(sqlMetric.value()).isNotEqualTo(0));
+    assertThat(metricsMap)
+        .hasEntrySatisfying(
+            "scanDuration", sqlMetric -> assertThat(sqlMetric.value()).isGreaterThan(0));
 
     // data manifests
     assertThat(metricsMap)
