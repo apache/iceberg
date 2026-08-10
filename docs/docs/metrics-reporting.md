@@ -177,6 +177,19 @@ When the property is not set, the default attribute set above is used.
 
 The snapshot id is deliberately not exposed as a metric attribute because snapshot ids are monotonically increasing and unique per commit; including them would create a new time series for every commit and risk unbounded cardinality in any time-series backend.
 
+#### Cardinality limits
+
+Because `iceberg.table.name` is on by default, the number of time series per metric grows with the number of tables scanned or committed to. That interacts with a limit in the OpenTelemetry SDK worth knowing about before deploying at scale.
+
+The [metrics SDK specification](https://opentelemetry.io/docs/specs/otel/metrics/sdk/) defines a cardinality limit per metric stream, defaulting to 2000 attribute combinations. Once a stream reaches it, further measurements are not dropped: the SDK folds them into a single data point carrying the attribute `otel.metric.overflow=true`, and the original attributes are removed from that point. Totals therefore stay correct while per-table breakdowns silently become incomplete — the failure is easy to miss, since nothing errors and no metric disappears.
+
+With the default attribute set, a deployment touching more than 2000 distinct tables will reach this limit. Options, roughly in the order worth trying:
+
+1. Reduce what reaches the SDK in the first place, by not emitting per-table series: `iceberg.otel.metrics.attributes=operation` keeps the metrics while dropping `iceberg.table.name`, and `none` removes attributes entirely.
+2. Raise the limit in the host application's SDK configuration, if per-table series are genuinely needed at that scale. The reporter does not configure this, since the SDK lifecycle belongs to the host.
+
+In either case, alerting on `otel.metric.overflow="true"` is worth setting up, because it is the only signal that the breakdown has degraded.
+
 #### Getting started
 
 To use `OtelMetricsReporter`, add the OpenTelemetry API, SDK, and a metric exporter to the runtime classpath and register the SDK before the Iceberg catalog is loaded. Iceberg core compiles against `opentelemetry-api` only; it does not bundle the SDK or any exporter.
