@@ -24,14 +24,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.nio.file.Path;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Stream;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.Files;
 import org.apache.iceberg.ManifestFiles;
 import org.apache.iceberg.ManifestReader;
 import org.apache.iceberg.ManifestWriter;
@@ -39,10 +37,10 @@ import org.apache.iceberg.Metrics;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.TestTables;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.InclusiveMetricsEvaluator;
-import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.inmemory.InMemoryFileIO;
+import org.apache.iceberg.inmemory.InMemoryOutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -61,7 +59,6 @@ import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
 import org.apache.parquet.schema.Types;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 
 /**
  * Tests metrics for files whose column chunk stats omit {@code null_count}, which is allowed by the
@@ -133,7 +130,7 @@ public class TestParquetMissingNullCount {
   }
 
   @Test
-  public void testMissingNullCountIsNotWrittenToManifest(@TempDir Path temp) throws IOException {
+  public void testMissingNullCountIsNotWrittenToManifest() throws IOException {
     // ensure the null count is not written into manifest when there's missing
     // stats for a column chunk.
     DataFile file =
@@ -145,7 +142,7 @@ public class TestParquetMissingNullCount {
                 metrics(block(statsWithoutNullCount(1, 10), 10), block(stats(20, 30, 1), 10)))
             .build();
 
-    OutputFile outputFile = Files.localOutput(temp.resolve("manifest.avro").toFile());
+    InMemoryOutputFile outputFile = new InMemoryOutputFile("manifest.avro");
     ManifestWriter<DataFile> writer = ManifestFiles.write(2, SPEC, outputFile, 100L);
     try {
       writer.add(file);
@@ -153,12 +150,12 @@ public class TestParquetMissingNullCount {
       writer.close();
     }
 
+    InMemoryFileIO io = new InMemoryFileIO();
+    io.addFile(outputFile.location(), outputFile.toByteArray());
+
     DataFile read;
     try (ManifestReader<DataFile> reader =
-        ManifestFiles.read(
-            writer.toManifestFile(),
-            new TestTables.LocalFileIO(),
-            ImmutableMap.of(SPEC.specId(), SPEC))) {
+        ManifestFiles.read(writer.toManifestFile(), io, ImmutableMap.of(SPEC.specId(), SPEC))) {
       read = Iterables.getOnlyElement(reader);
     }
 
