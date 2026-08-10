@@ -275,6 +275,8 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
     /**
      * Reads content stats for the given table field IDs instead of for every field. Stats for
      * fields referenced by the {@link #filter(Expression) filter} are always read.
+     *
+     * <p>Passing no field IDs reads only the stats that the filter needs.
      */
     Builder projectStats(int... fieldIds) {
       Preconditions.checkArgument(fieldIds != null, "Invalid stats projection for field IDs: null");
@@ -284,6 +286,8 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
     /**
      * Reads content stats for the given table field IDs instead of for every field. Stats for
      * fields referenced by the {@link #filter(Expression) filter} are always read.
+     *
+     * <p>Passing an empty iterable reads only the stats that the filter needs.
      */
     Builder projectStats(Iterable<Integer> fieldIds) {
       Preconditions.checkArgument(fieldIds != null, "Invalid stats projection for field IDs: null");
@@ -322,8 +326,9 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
     }
 
     private Schema readSchema(boolean hasPartitionFilter) {
-      Set<Integer> requiredFieldIds = requiredStatsProjectionForFieldIds();
-      Schema fullSchema = fullSchema(requiredFieldIds);
+      Types.StructType requiredStatsType =
+          StatsUtil.statsReadSchema(tableSchema, requiredStatsProjectionForFieldIds());
+      Schema fullSchema = fullSchema(contentStatsType(requiredStatsType));
       if (scanPlanning) {
         // scan planning does not read the change-tracking fields omitted by SCAN_TYPE
         return TypeUtil.replaceFieldTypes(
@@ -333,20 +338,19 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
       if (columns != null) {
         Schema selected =
             caseSensitive ? fullSchema.select(columns) : fullSchema.caseInsensitiveSelect(columns);
-        return addRequiredColumns(fullSchema, selected, requiredFieldIds, hasPartitionFilter);
+        return addRequiredColumns(fullSchema, selected, requiredStatsType, hasPartitionFilter);
       }
 
       if (requestedProjection != null) {
         return addRequiredColumns(
-            fullSchema, requestedProjection, requiredFieldIds, hasPartitionFilter);
+            fullSchema, requestedProjection, requiredStatsType, hasPartitionFilter);
       }
 
       return fullSchema;
     }
 
     /** Returns the schema of everything this reader may read, including content stats. */
-    private Schema fullSchema(Set<Integer> requiredStatsProjectionFieldIds) {
-      Types.StructType contentStatsType = contentStatsType(requiredStatsProjectionFieldIds);
+    private Schema fullSchema(Types.StructType contentStatsType) {
       Schema base = TrackedFile.schema(unionPartitionType, contentStatsType);
       if (contentStatsType.fields().isEmpty()) {
         // schema uses the unknown type for empty stats, which cannot be paired with the stats
@@ -359,18 +363,23 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
           base, ImmutableMap.of(TrackedFile.TRACKING.fieldId(), TrackingStruct.BASE_TYPE));
     }
 
-    /** Returns the stats type to read, which is empty when no stats are needed. */
-    private Types.StructType contentStatsType(Set<Integer> requiredStatsProjectionForFieldIds) {
+    /**
+     * Returns the stats type to read, which is empty when no stats are needed.
+     *
+     * <p>Stats for every field are read unless the caller narrows them with {@link
+     * #forScanPlanning()} or {@link #projectStats(Iterable)}, because copying entries into a new
+     * manifest needs all of them. A {@link #filter(Expression) filter} therefore never narrows the
+     * stats that are read; it only widens a set the caller has already narrowed.
+     */
+    private Types.StructType contentStatsType(Types.StructType requiredStatsType) {
       if (scanPlanning || statsProjectionForFieldIds != null) {
-        // scan planning and projectStats(fieldIds) both narrow the set of stats that are read
-        return StatsUtil.statsReadSchema(tableSchema, requiredStatsProjectionForFieldIds);
+        return requiredStatsType;
       }
 
-      return StatsUtil.statsReadSchema(
-          tableSchema, TypeUtil.indexById(tableSchema.asStruct()).keySet());
+      return StatsUtil.statsReadSchema(tableSchema, tableSchema.idToName().keySet());
     }
 
-    /** Returns the IDs of table fields whose stats are read regardless of the projection. */
+    /** Returns the table field IDs whose stats are read regardless of the projection. */
     private Set<Integer> requiredStatsProjectionForFieldIds() {
       Set<Integer> fieldIds = Sets.newHashSet();
       if (statsProjectionForFieldIds != null) {
@@ -390,7 +399,7 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
     private Schema addRequiredColumns(
         Schema fullSchema,
         Schema projection,
-        Set<Integer> requiredStatsProjectionFieldIds,
+        Types.StructType requiredStatsType,
         boolean hasPartitionFilter) {
       Set<Integer> projectedIds = Sets.newHashSet(TypeUtil.getProjectedIds(projection));
 
@@ -413,8 +422,6 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
 
       // stats needed by the filter or requested by projectStats are read even when the caller's
       // projection omits them
-      Types.StructType requiredStatsType =
-          StatsUtil.statsReadSchema(tableSchema, requiredStatsProjectionFieldIds);
       if (!requiredStatsType.fields().isEmpty()) {
         projectedIds.add(TrackedFile.CONTENT_STATS_ID);
         projectedIds.addAll(TypeUtil.getProjectedIds(requiredStatsType));
