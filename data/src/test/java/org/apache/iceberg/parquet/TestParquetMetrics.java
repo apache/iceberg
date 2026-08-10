@@ -18,8 +18,14 @@
  */
 package org.apache.iceberg.parquet;
 
+import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.io.File;
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.Map;
 import java.util.UUID;
 import org.apache.iceberg.FileFormat;
@@ -30,6 +36,7 @@ import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TestMetrics;
+import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
 import org.apache.iceberg.io.FileAppender;
@@ -37,7 +44,13 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.types.Types.DoubleType;
+import org.apache.iceberg.types.Types.FloatType;
+import org.apache.iceberg.types.Types.GeometryType;
+import org.apache.iceberg.types.Types.LongType;
+import org.apache.iceberg.types.Types.StructType;
 import org.apache.parquet.hadoop.ParquetFileReader;
+import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 /** Test Metrics for Parquet. */
@@ -106,5 +119,51 @@ public class TestParquetMetrics extends TestMetrics {
   @Override
   public boolean supportsSmallRowGroups() {
     return true;
+  }
+
+  @TestTemplate
+  public void testMetricsForNullStructWithFloatingAndGeoLeaves() throws IOException {
+    // float, double, geometry and geography are the only types whose writers report metrics, so
+    // they are the ones whose nested null counts could be dropped when a struct is null. A required
+    // leaf is included because a null struct makes even a required field null.
+    StructType struct =
+        StructType.of(
+            optional(2, "optDouble", DoubleType.get()),
+            required(3, "reqFloat", FloatType.get()),
+            optional(4, "geom", GeometryType.crs84()),
+            optional(5, "optLong", LongType.get()));
+    Schema schema = new Schema(optional(1, "struct", struct));
+
+    Record inner = GenericRecord.create(struct);
+    inner.setField("optDouble", 1.5D);
+    inner.setField("reqFloat", 2.5F);
+    inner.setField("geom", wkbPoint(30, 10));
+    inner.setField("optLong", 10L);
+    Record withStruct = GenericRecord.create(schema);
+    withStruct.setField("struct", inner);
+    Record nullStruct = GenericRecord.create(schema);
+    nullStruct.setField("struct", null);
+
+    Metrics metrics = getMetrics(schema, withStruct, nullStruct, nullStruct);
+
+    assertThat(metrics.recordCount()).isEqualTo(3L);
+    // each leaf has one value from the populated struct and two nulls from the null structs
+    assertCounts(2, 3L, 2L, 0L, metrics);
+    assertCounts(3, 3L, 2L, 0L, metrics);
+    assertCounts(4, 3L, 2L, metrics);
+    // a type without writer metrics was already correct via the footer; included as a control
+    assertCounts(5, 3L, 2L, metrics);
+  }
+
+  private static ByteBuffer wkbPoint(double xCoord, double yCoord) {
+    // little-endian WKB encoding of a point
+    return ByteBuffer.wrap(
+        ByteBuffer.allocate(21)
+            .order(ByteOrder.LITTLE_ENDIAN)
+            .put((byte) 1) // byte order: little endian
+            .putInt(1) // WKB geometry type: Point
+            .putDouble(xCoord)
+            .putDouble(yCoord)
+            .array());
   }
 }
