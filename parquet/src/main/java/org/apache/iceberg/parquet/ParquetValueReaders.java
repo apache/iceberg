@@ -32,6 +32,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.PrimitiveIterator;
 import java.util.UUID;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.StructLike;
@@ -355,9 +356,30 @@ public class ParquetValueReaders {
   private static class PositionReader implements ParquetValueReader<Long> {
     private long rowOffset = -1;
     private long rowGroupStart;
+    private PrimitiveIterator.OfLong rowIndexes = null;
 
     @Override
     public Long read(Long reuse) {
+      if (rowIndexes != null) {
+        Preconditions.checkState(
+            rowIndexes.hasNext(), "No row index available for the next record");
+        /*
+         * PageReadStore.getRowIndexes() returns row-group-relative
+         * indexes for filtered reads.
+         *
+         * Convert them to the physical file position:
+         *
+         *   file position =
+         *       row-group start + relative row index
+         */
+        return rowGroupStart + rowIndexes.nextLong();
+      }
+
+      /*
+       * Normal unfiltered row-group read.
+       *
+       * Preserve the existing sequential behavior.
+       */
       rowOffset = rowOffset + 1;
       return rowGroupStart + rowOffset;
     }
@@ -381,6 +403,7 @@ public class ParquetValueReaders {
                   () ->
                       new IllegalArgumentException(
                           "PageReadStore does not contain row index offset"));
+      this.rowIndexes = pageStore.getRowIndexes().orElse(null);
       this.rowOffset = -1;
     }
   }
