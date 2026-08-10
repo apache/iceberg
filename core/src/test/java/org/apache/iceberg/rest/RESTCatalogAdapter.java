@@ -286,7 +286,7 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
                   responseHeaders.accept(
                       ImmutableMap.of(
                           HttpHeaders.ETAG,
-                          ETagProvider.of(response.metadataLocation(), defaultQueryParams())));
+                          entityTag(response.metadataLocation(), defaultQueryParams())));
                   return castResponse(responseType, response);
                 });
           }
@@ -324,7 +324,7 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
           Optional<HTTPHeaders.HTTPHeader> ifNoneMatchHeader =
               httpRequest.headers().firstEntry(HttpHeaders.IF_NONE_MATCH);
 
-          String eTag = ETagProvider.of(response.metadataLocation(), httpRequest.queryParameters());
+          String eTag = entityTag(response.metadataLocation(), httpRequest.queryParameters());
 
           if (ifNoneMatchHeader.isPresent() && eTag.equals(ifNoneMatchHeader.get().value())) {
             return null;
@@ -385,7 +385,7 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
                 responseHeaders.accept(
                     ImmutableMap.of(
                         HttpHeaders.ETAG,
-                        ETagProvider.of(response.metadataLocation(), defaultQueryParams())));
+                        entityTag(response.metadataLocation(), defaultQueryParams())));
 
                 return castResponse(responseType, response);
               });
@@ -405,7 +405,7 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
                 responseHeaders.accept(
                     ImmutableMap.of(
                         HttpHeaders.ETAG,
-                        ETagProvider.of(response.metadataLocation(), defaultQueryParams())));
+                        entityTag(response.metadataLocation(), defaultQueryParams())));
 
                 return castResponse(responseType, response);
               });
@@ -544,6 +544,10 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
     return Map.of(
         RESTCatalogProperties.SNAPSHOTS_QUERY_PARAMETER,
         SnapshotMode.ALL.toString().toLowerCase(Locale.US));
+  }
+
+  private static String entityTag(String metadataLocation, Map<String, String> queryParams) {
+    return "\"" + ETagProvider.of(metadataLocation, queryParams) + "\"";
   }
 
   /**
