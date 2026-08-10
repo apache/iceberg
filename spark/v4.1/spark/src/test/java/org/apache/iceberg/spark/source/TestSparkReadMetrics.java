@@ -24,6 +24,7 @@ import static scala.collection.JavaConverters.seqAsJavaListConverter;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.spark.TestBaseWithCatalog;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
@@ -198,6 +199,30 @@ public class TestSparkReadMetrics extends TestBaseWithCatalog {
     assertThat(metricsMap)
         .hasEntrySatisfying(
             "skippedDeleteFiles", sqlMetric -> assertThat(sqlMetric.value()).isEqualTo(0));
+  }
+
+  @TestTemplate
+  public void testScanDurationForNonVectorizedRead() throws NoSuchTableException {
+    // the other tests read through BatchDataReader, disable vectorization to cover RowDataReader
+    sql(
+        "CREATE TABLE %s (id BIGINT) USING iceberg TBLPROPERTIES ('%s'='false')",
+        tableName, TableProperties.PARQUET_VECTORIZATION_ENABLED);
+
+    spark.range(10000).coalesce(1).writeTo(tableName).append();
+
+    Dataset<Row> df = spark.sql(String.format("SELECT * FROM %s", tableName));
+    df.collect();
+
+    List<SparkPlan> sparkPlans =
+        seqAsJavaListConverter(df.queryExecution().executedPlan().collectLeaves()).asJava();
+    // sanity check that this really exercised the row-based path
+    assertThat(sparkPlans.get(0).supportsColumnar()).isFalse();
+
+    Map<String, SQLMetric> metricsMap =
+        JavaConverters.mapAsJavaMapConverter(sparkPlans.get(0).metrics()).asJava();
+    assertThat(metricsMap)
+        .hasEntrySatisfying(
+            "scanDuration", sqlMetric -> assertThat(sqlMetric.value()).isGreaterThan(0));
   }
 
   @TestTemplate
