@@ -411,6 +411,7 @@ public class TestPruneColumns {
     assertThatThrownBy(() -> ParquetSchemaUtil.pruneColumns(fileSchema, projection))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Cannot read Parquet type")
+        .hasMessageContaining("KARNEY")
         .hasMessageContaining("geography(OGC:CRS84, spherical)");
   }
 
