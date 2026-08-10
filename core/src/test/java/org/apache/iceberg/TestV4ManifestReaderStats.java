@@ -65,8 +65,18 @@ class TestV4ManifestReaderStats {
           optional(DATA_FIELD_ID, "data", Types.StringType.get()),
           optional(MEASURE_FIELD_ID, "measure", Types.DoubleType.get()));
   private static final Types.StructType CONTENT_STATS_TYPE =
-      StatsUtil.statsReadSchema(
-          TABLE_SCHEMA, List.of(ID_FIELD_ID, DATA_FIELD_ID, MEASURE_FIELD_ID));
+      StatsUtil.statsWriteSchema(
+          TABLE_SCHEMA,
+          MetricsConfig.from(
+              ImmutableMap.of(
+                  TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "id",
+                  "full",
+                  TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "data",
+                  "full",
+                  TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "measure",
+                  "full"),
+              TABLE_SCHEMA,
+              null));
   private static final FieldStats<Integer> ID_STATS =
       new FieldStatsStruct<>(
           CONTENT_STATS_TYPE.fieldType("id").asStructType(), 1, 100, true, 26L, 2L, 0L, null);
@@ -93,6 +103,14 @@ class TestV4ManifestReaderStats {
                 V4ManifestReader.builder(
                         manifest, TABLE_SCHEMA, UNPARTITIONED_SPECS, TABLE_LOCATION)
                     .projectStats((Iterable<Integer>) null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid stats projection for field IDs: null");
+
+    assertThatThrownBy(
+            () ->
+                V4ManifestReader.builder(
+                        manifest, TABLE_SCHEMA, UNPARTITIONED_SPECS, TABLE_LOCATION)
+                    .projectStats((int[]) null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid stats projection for field IDs: null");
   }
@@ -139,7 +157,6 @@ class TestV4ManifestReaderStats {
     TrackedFile file = fileWithStats("s3://bucket/file.parquet", contentStats());
     InputFile manifest = writeManifest(format, CONTENT_STATS_TYPE, List.of(file));
 
-    // stats are named after the column they describe, so a caller can select one column's stats
     try (V4ManifestReader reader =
         V4ManifestReader.builder(manifest, TABLE_SCHEMA, UNPARTITIONED_SPECS, TABLE_LOCATION)
             .select("location", "content_stats.data")
@@ -188,6 +205,25 @@ class TestV4ManifestReaderStats {
 
   @ParameterizedTest
   @FieldSource("MANIFEST_FORMATS")
+  void projectStatsWithoutFieldIdsStillReadsFilterStats(FileFormat format) throws IOException {
+    TrackedFile file = fileWithStats("s3://bucket/file.parquet", contentStats());
+    InputFile manifest = writeManifest(format, CONTENT_STATS_TYPE, List.of(file));
+
+    // requesting no field IDs opts out of every field's stats, but not out of what the filter needs
+    try (V4ManifestReader reader =
+        V4ManifestReader.builder(manifest, TABLE_SCHEMA, UNPARTITIONED_SPECS, TABLE_LOCATION)
+            .projectStats(List.of())
+            .filter(Expressions.equal("data", "m"))
+            .build()) {
+      ContentStats stats = Iterables.getOnlyElement(reader).contentStats();
+      assertFieldStats(stats.statsFor(DATA_FIELD_ID), DATA_STATS);
+      assertThat(stats.statsFor(ID_FIELD_ID)).isNull();
+      assertThat(stats.statsFor(MEASURE_FIELD_ID)).isNull();
+    }
+  }
+
+  @ParameterizedTest
+  @FieldSource("MANIFEST_FORMATS")
   void projectStatsCopiesFieldIds(FileFormat format) throws IOException {
     TrackedFile file = fileWithStats("s3://bucket/file.parquet", contentStats());
     InputFile manifest = writeManifest(format, CONTENT_STATS_TYPE, List.of(file));
@@ -210,11 +246,11 @@ class TestV4ManifestReaderStats {
 
   @ParameterizedTest
   @FieldSource("MANIFEST_FORMATS")
-  void requestedStatsAreProjectedWhenOmittedByCaller(FileFormat format) throws IOException {
+  void requestedStatsAreProjectedWhenOmittedBySchemaProjection(FileFormat format)
+      throws IOException {
     TrackedFile file = fileWithStats("s3://bucket/file.parquet", contentStats());
     InputFile manifest = writeManifest(format, CONTENT_STATS_TYPE, List.of(file));
 
-    // stats requested by field ID are read even though the projection omits them
     try (V4ManifestReader reader =
         V4ManifestReader.builder(manifest, TABLE_SCHEMA, UNPARTITIONED_SPECS, TABLE_LOCATION)
             .project(new Schema(TrackedFile.LOCATION))
@@ -229,11 +265,11 @@ class TestV4ManifestReaderStats {
 
   @ParameterizedTest
   @FieldSource("MANIFEST_FORMATS")
-  void filterStatsAreProjectedWhenOmittedByCaller(FileFormat format) throws IOException {
+  void filterStatsAreProjectedWhenOmittedBySchemaProjection(FileFormat format) throws IOException {
     TrackedFile file = fileWithStats("s3://bucket/file.parquet", contentStats());
     InputFile manifest = writeManifest(format, CONTENT_STATS_TYPE, List.of(file));
 
-    // the filter references data, so its stats are read even though the projection omits them
+    // filter references data, so its stats are read even though the schema projection omits them
     try (V4ManifestReader reader =
         V4ManifestReader.builder(manifest, TABLE_SCHEMA, UNPARTITIONED_SPECS, TABLE_LOCATION)
             .project(new Schema(TrackedFile.LOCATION))
@@ -276,6 +312,27 @@ class TestV4ManifestReaderStats {
     try (V4ManifestReader reader =
         V4ManifestReader.builder(manifest, TABLE_SCHEMA, UNPARTITIONED_SPECS, TABLE_LOCATION)
             .forScanPlanning()
+            .projectStats(ID_FIELD_ID)
+            .filter(Expressions.equal("data", "m"))
+            .build()) {
+      ContentStats stats = Iterables.getOnlyElement(reader).contentStats();
+      assertFieldStats(stats.statsFor(ID_FIELD_ID), ID_STATS);
+      assertFieldStats(stats.statsFor(DATA_FIELD_ID), DATA_STATS);
+      assertThat(stats.statsFor(MEASURE_FIELD_ID)).isNull();
+    }
+  }
+
+  @ParameterizedTest
+  @FieldSource("MANIFEST_FORMATS")
+  void projectStatsAndFilterStatsAreCombinedWithoutScanPlanning(FileFormat format)
+      throws IOException {
+    TrackedFile file = fileWithStats("s3://bucket/file.parquet", contentStats());
+    InputFile manifest = writeManifest(format, CONTENT_STATS_TYPE, List.of(file));
+
+    // projectStats narrows stats to the requested fields and the fields the filter needs, which
+    // does not depend on scan planning
+    try (V4ManifestReader reader =
+        V4ManifestReader.builder(manifest, TABLE_SCHEMA, UNPARTITIONED_SPECS, TABLE_LOCATION)
             .projectStats(ID_FIELD_ID)
             .filter(Expressions.equal("data", "m"))
             .build()) {
@@ -338,7 +395,12 @@ class TestV4ManifestReaderStats {
   void statsAreNullForColumnsWithoutStoredStats(FileFormat format) throws IOException {
     // the manifest stores stats for id alone, while the reader reads stats for every column
     Types.StructType storedStatsType =
-        StatsUtil.statsReadSchema(TABLE_SCHEMA, List.of(ID_FIELD_ID));
+        StatsUtil.statsWriteSchema(
+            TABLE_SCHEMA,
+            MetricsConfig.from(
+                ImmutableMap.of(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "id", "full"),
+                TABLE_SCHEMA,
+                null));
     ContentStatsStruct stored = new ContentStatsStruct(storedStatsType);
     stored.setStats(ID_FIELD_ID, ID_STATS);
 
@@ -359,8 +421,10 @@ class TestV4ManifestReaderStats {
   @ParameterizedTest
   @FieldSource("MANIFEST_FORMATS")
   void statsAreCorrectWithContainerReuse(FileFormat format) throws IOException {
-    // every entry stores stats for a different column, so a reused container must not carry the
-    // previous entry's stats into the next one
+    // the reader decodes entries into a reused container and copies each one before returning it,
+    // so every copy must hold the stats of its own entry rather than alias the container that the
+    // next entry overwrites; giving every entry stats for a different column makes a carried over
+    // value visible
     ContentStatsStruct idStats = new ContentStatsStruct(CONTENT_STATS_TYPE);
     idStats.setStats(ID_FIELD_ID, ID_STATS);
 
@@ -390,7 +454,6 @@ class TestV4ManifestReaderStats {
       assertThat(withIdStats.statsFor(MEASURE_FIELD_ID)).isNull();
       assertThat(withIdStats.fieldStats()).doesNotContainNull();
 
-      // containers are reused, so the second entry must not carry over the first entry's stats
       ContentStats withoutStats = read.get(1).contentStats();
       assertThat(withoutStats.statsFor(ID_FIELD_ID)).isNull();
       assertThat(withoutStats.fieldStats()).isEmpty();
@@ -431,7 +494,16 @@ class TestV4ManifestReaderStats {
                 "tags",
                 Types.ListType.ofOptional(tagFieldId, Types.StringType.get())));
     Types.StructType statsType =
-        StatsUtil.statsReadSchema(nestedSchema, List.of(latFieldId, lonFieldId));
+        StatsUtil.statsWriteSchema(
+            nestedSchema,
+            MetricsConfig.from(
+                ImmutableMap.of(
+                    TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "location.lat",
+                    "full",
+                    TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "location.lon",
+                    "full"),
+                nestedSchema,
+                null));
     FieldStats<Double> latStats =
         new FieldStatsStruct<>(
             statsType.fieldType("location_lat").asStructType(), 1.5, 9.5, true, 26L, 0L, 0L, null);
@@ -471,7 +543,13 @@ class TestV4ManifestReaderStats {
   void readVariantStats(FileFormat format) throws IOException {
     int fieldId = 12;
     Schema schema = new Schema(optional(fieldId, "var", Types.VariantType.get()));
-    Types.StructType statsType = StatsUtil.statsReadSchema(schema, List.of(fieldId));
+    Types.StructType statsType =
+        StatsUtil.statsWriteSchema(
+            schema,
+            MetricsConfig.from(
+                ImmutableMap.of(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "var", "full"),
+                schema,
+                null));
     Types.StructType varStatsType = statsType.fieldType("var").asStructType();
 
     VariantMetadata metadata = Variants.metadata("$['x']");
@@ -506,7 +584,13 @@ class TestV4ManifestReaderStats {
   void variantStatsAreCorrectWithContainerReuse(FileFormat format) throws IOException {
     int fieldId = 12;
     Schema schema = new Schema(optional(fieldId, "var", Types.VariantType.get()));
-    Types.StructType statsType = StatsUtil.statsReadSchema(schema, List.of(fieldId));
+    Types.StructType statsType =
+        StatsUtil.statsWriteSchema(
+            schema,
+            MetricsConfig.from(
+                ImmutableMap.of(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "var", "full"),
+                schema,
+                null));
     Types.StructType varStatsType = statsType.fieldType("var").asStructType();
 
     VariantMetadata metadata = Variants.metadata("$['x']");
@@ -566,7 +650,16 @@ class TestV4ManifestReaderStats {
             optional(geometryFieldId, "geom", Types.GeometryType.crs84()),
             optional(geographyFieldId, "geog", Types.GeographyType.crs84()));
     Types.StructType statsType =
-        StatsUtil.statsReadSchema(geoSchema, List.of(geometryFieldId, geographyFieldId));
+        StatsUtil.statsWriteSchema(
+            geoSchema,
+            MetricsConfig.from(
+                ImmutableMap.of(
+                    TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "geom",
+                    "full",
+                    TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "geog",
+                    "full"),
+                geoSchema,
+                null));
     Types.StructType geomStatsType = statsType.fieldType("geom").asStructType();
     Types.StructType geogStatsType = statsType.fieldType("geog").asStructType();
 
@@ -629,9 +722,17 @@ class TestV4ManifestReaderStats {
   void geoStatsAreCorrectWithContainerReuse(FileFormat format) throws IOException {
     int geometryFieldId = 10;
     Schema geoSchema = new Schema(optional(geometryFieldId, "geom", Types.GeometryType.crs84()));
-    Types.StructType statsType = StatsUtil.statsReadSchema(geoSchema, List.of(geometryFieldId));
+    Types.StructType statsType =
+        StatsUtil.statsWriteSchema(
+            geoSchema,
+            MetricsConfig.from(
+                ImmutableMap.of(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "geom", "full"),
+                geoSchema,
+                null));
     Types.StructType geomStatsType = statsType.fieldType("geom").asStructType();
 
+    // geo bounds are bounding box structs that the reader reuses across entries, so a copy that
+    // keeps a reference to one reports the last entry's box for every entry
     ContentStatsStruct first = new ContentStatsStruct(statsType);
     first.setStats(
         geometryFieldId,
