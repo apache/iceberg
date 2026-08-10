@@ -27,6 +27,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.apache.iceberg.expressions.Literal;
@@ -50,7 +51,8 @@ public class TestSchema {
           Types.GeometryType.crs84(),
           Types.GeometryType.of("srid:3857"),
           Types.GeographyType.crs84(),
-          Types.GeographyType.of("srid:4269", EdgeAlgorithm.KARNEY));
+          Types.GeographyType.of("srid:4269", EdgeAlgorithm.KARNEY),
+          Types.VectorType.of(Types.VectorType.ElementType.FLOAT, 768));
 
   private static final Schema INITIAL_DEFAULT_SCHEMA =
       new Schema(
@@ -311,5 +313,16 @@ public class TestSchema {
     assertThat(fields.get(4).name()).isEqualTo("age");
     assertThat(fields.get(5).name()).isEqualTo("email");
     assertThat(((Types.StructType) fields.get(2).type()).fields()).hasSize(3);
+  }
+
+  @Test
+  public void vectorCannotBeIdentifierField() {
+    Types.NestedField field =
+        Types.NestedField.required(
+            1, "emb", Types.VectorType.of(Types.VectorType.ElementType.INT, 4));
+
+    assertThatThrownBy(() -> new Schema(List.of(field), Set.of(1)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot add field emb as an identifier field: must not be a vector field");
   }
 }

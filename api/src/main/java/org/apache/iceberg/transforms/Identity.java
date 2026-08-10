@@ -32,7 +32,8 @@ class Identity<T> implements Transform<T, T> {
   private static final Identity<?> INSTANCE = new Identity<>();
 
   private static final Set<Type.TypeID> UNSUPPORTED_TYPES =
-      ImmutableSet.of(Type.TypeID.VARIANT, Type.TypeID.GEOMETRY, Type.TypeID.GEOGRAPHY);
+      ImmutableSet.of(
+          Type.TypeID.VARIANT, Type.TypeID.GEOMETRY, Type.TypeID.GEOGRAPHY, Type.TypeID.VECTOR);
 
   private final Type type;
 

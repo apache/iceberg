@@ -132,6 +132,8 @@ public abstract class DataTestBase {
         Types.GeographyType.crs84(),
         Types.GeographyType.of("srid:4269"),
         Types.GeographyType.of("srid:4269", EdgeAlgorithm.KARNEY),
+        Types.VectorType.of(Types.VectorType.ElementType.FLOAT, 768),
+        Types.VectorType.of(Types.VectorType.ElementType.INT, 4),
       };
 
   protected boolean supportsUnknown() {
@@ -147,6 +149,10 @@ public abstract class DataTestBase {
   }
 
   protected boolean supportsGeospatial() {
+    return false;
+  }
+
+  protected boolean supportsVector() {
     return false;
   }
 
@@ -180,6 +186,10 @@ public abstract class DataTestBase {
           .as("geography is not yet implemented")
           .isTrue();
     }
+    assumeThat(
+            supportsVector() || TypeUtil.find(type, t -> t.typeId() == Type.TypeID.VECTOR) == null)
+        .as("vector is not yet implemented")
+        .isTrue();
 
     writeAndValidate(
         new Schema(
