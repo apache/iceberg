@@ -42,8 +42,7 @@ public class ScanDuration extends CustomSumMetric {
       totalNanos += taskMetric;
     }
 
-    // Values are nanoseconds, which are unreadable raw on the UI. Scale to the largest unit that
-    // keeps the number meaningful, matching how Spark renders its own duration metrics.
+    // raw nanos are unreadable on the UI, scale to the largest meaningful unit
     if (totalNanos < TimeUnit.MICROSECONDS.toNanos(1)) {
       return totalNanos + " ns";
     } else if (totalNanos < TimeUnit.MILLISECONDS.toNanos(1)) {
