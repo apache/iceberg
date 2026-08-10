@@ -80,8 +80,10 @@ public class EncryptingFileIO implements FileIO, Serializable {
       }
     }
 
-    for (InputFile file : em.decrypt(encryptedFiles)) {
-      builder.put(file.location(), file);
+    if (!encryptedFiles.isEmpty()) {
+      for (InputFile file : em.decrypt(encryptedFiles)) {
+        builder.put(file.location(), file);
+      }
     }
 
     return builder.buildKeepingLast();
