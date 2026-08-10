@@ -53,7 +53,7 @@ com.google.cloud:google-cloud-monitoring:3.96
 com.google.cloud:google-cloud-storage:2.71
 com.google.code.findbugs:jsr305:3.0
 com.google.code.gson:gson:2.13
-com.google.errorprone:error_prone_annotations:2.48
+com.google.errorprone:error_prone_annotations:2.49
 com.google.flatbuffers:flatbuffers-java:24.3
 com.google.guava:failureaccess:1.0
 com.google.guava:guava:33.6
