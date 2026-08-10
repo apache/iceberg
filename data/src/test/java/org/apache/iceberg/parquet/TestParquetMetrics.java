@@ -28,11 +28,14 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Map;
 import java.util.UUID;
+import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Metrics;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TestMetrics;
@@ -153,6 +156,16 @@ public class TestParquetMetrics extends TestMetrics {
     assertCounts(4, 3L, 2L, metrics);
     // a type without writer metrics was already correct via the footer; included as a control
     assertCounts(5, 3L, 2L, metrics);
+
+    // the counts also reach a data file built from these metrics
+    DataFile dataFile =
+        DataFiles.builder(PartitionSpec.unpartitioned())
+            .withPath("/path/to/file.parquet")
+            .withFileSizeInBytes(1024)
+            .withFormat(FileFormat.PARQUET)
+            .withMetrics(metrics)
+            .build();
+    assertThat(dataFile.nullValueCounts()).containsEntry(2, 2L).containsEntry(3, 2L);
   }
 
   private static ByteBuffer wkbPoint(double xCoord, double yCoord) {
