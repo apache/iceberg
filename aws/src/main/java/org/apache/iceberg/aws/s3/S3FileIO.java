@@ -44,6 +44,7 @@ import org.apache.iceberg.io.DelegateFileIO;
 import org.apache.iceberg.io.FileInfo;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.io.PrefixListing;
 import org.apache.iceberg.io.StorageCredential;
 import org.apache.iceberg.io.SupportsRecoveryOperations;
 import org.apache.iceberg.io.SupportsStorageCredentials;
@@ -76,10 +77,12 @@ import software.amazon.awssdk.services.s3.model.DeleteObjectsResponse;
 import software.amazon.awssdk.services.s3.model.GetObjectTaggingRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectTaggingResponse;
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
+import software.amazon.awssdk.services.s3.model.ListObjectsV2Response;
 import software.amazon.awssdk.services.s3.model.ObjectIdentifier;
 import software.amazon.awssdk.services.s3.model.ObjectVersion;
 import software.amazon.awssdk.services.s3.model.PutObjectTaggingRequest;
 import software.amazon.awssdk.services.s3.model.S3Exception;
+import software.amazon.awssdk.services.s3.model.S3Object;
 import software.amazon.awssdk.services.s3.model.Tag;
 import software.amazon.awssdk.services.s3.model.Tagging;
 import software.amazon.awssdk.services.s3.paginators.ListObjectVersionsIterable;
@@ -343,13 +346,47 @@ public class S3FileIO
     return () ->
         client.s3().listObjectsV2Paginator(request).stream()
             .flatMap(r -> r.contents().stream())
-            .map(
-                o ->
-                    new FileInfo(
-                        String.format("%s://%s/%s", s3uri.scheme(), s3uri.bucket(), o.key()),
-                        o.size(),
-                        o.lastModified().toEpochMilli()))
+            .map(o -> createFileInfo(s3uri, o))
             .iterator();
+  }
+
+  @Override
+  public PrefixListing listImmediate(String prefix) {
+    PrefixedS3Client client = clientForStoragePath(prefix);
+
+    S3URI uri = new S3URI(prefix, client.s3FileIOProperties().bucketToAccessPointMapping());
+    if (uri.useS3DirectoryBucket()
+        && client.s3FileIOProperties().isS3DirectoryBucketListPrefixAsDirectory()) {
+      uri = uri.toDirectoryPath();
+    }
+
+    S3URI s3uri = uri;
+    ListObjectsV2Request request =
+        ListObjectsV2Request.builder()
+            .bucket(s3uri.bucket())
+            .prefix(s3uri.key())
+            .delimiter("/")
+            .build();
+
+    List<FileInfo> files = Lists.newArrayList();
+    List<String> subPrefixes = Lists.newArrayList();
+    for (ListObjectsV2Response response : client.s3().listObjectsV2Paginator(request)) {
+      response.contents().forEach(o -> files.add(createFileInfo(s3uri, o)));
+      response
+          .commonPrefixes()
+          .forEach(commonPrefix -> subPrefixes.add(toUri(s3uri, commonPrefix.prefix())));
+    }
+
+    return PrefixListing.of(files, subPrefixes);
+  }
+
+  private FileInfo createFileInfo(S3URI s3uri, S3Object object) {
+    return new FileInfo(
+        toUri(s3uri, object.key()), object.size(), object.lastModified().toEpochMilli());
+  }
+
+  private String toUri(S3URI s3uri, String key) {
+    return String.format("%s://%s/%s", s3uri.scheme(), s3uri.bucket(), key);
   }
 
   /**

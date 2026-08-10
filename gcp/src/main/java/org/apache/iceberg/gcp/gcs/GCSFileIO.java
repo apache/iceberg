@@ -43,6 +43,7 @@ import org.apache.iceberg.io.DelegateFileIO;
 import org.apache.iceberg.io.FileInfo;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.io.PrefixListing;
 import org.apache.iceberg.io.StorageCredential;
 import org.apache.iceberg.io.SupportsStorageCredentials;
 import org.apache.iceberg.metrics.MetricsContext;
@@ -297,13 +298,39 @@ public class GCSFileIO implements DelegateFileIO, SupportsStorageCredentials {
             .storage()
             .list(location.bucket(), Storage.BlobListOption.prefix(location.prefix()))
             .streamAll()
-            .map(
-                blob ->
-                    new FileInfo(
-                        String.format("gs://%s/%s", blob.getBucket(), blob.getName()),
-                        blob.getSize(),
-                        createTimeMillis(blob)))
+            .map(this::createFileInfo)
             .iterator();
+  }
+
+  @Override
+  public PrefixListing listImmediate(String prefix) {
+    GCSLocation location = new GCSLocation(prefix);
+    List<FileInfo> files = Lists.newArrayList();
+    List<String> subPrefixes = Lists.newArrayList();
+    clientForStoragePath(prefix)
+        .storage()
+        .list(
+            location.bucket(),
+            Storage.BlobListOption.prefix(location.prefix()),
+            Storage.BlobListOption.currentDirectory())
+        .streamAll()
+        .forEach(
+            blob -> {
+              if (blob.isDirectory()) {
+                subPrefixes.add(createUri(blob));
+              } else {
+                files.add(createFileInfo(blob));
+              }
+            });
+    return PrefixListing.of(files, subPrefixes);
+  }
+
+  private FileInfo createFileInfo(Blob blob) {
+    return new FileInfo(createUri(blob), blob.getSize(), createTimeMillis(blob));
+  }
+
+  private String createUri(Blob blob) {
+    return String.format("gs://%s/%s", blob.getBucket(), blob.getName());
   }
 
   private long createTimeMillis(Blob blob) {

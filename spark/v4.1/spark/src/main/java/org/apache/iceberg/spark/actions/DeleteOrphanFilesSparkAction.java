@@ -44,6 +44,7 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.BulkDeletionFailureException;
 import org.apache.iceberg.io.SupportsBulkOperations;
 import org.apache.iceberg.io.SupportsPrefixOperations;
+import org.apache.iceberg.io.SupportsShallowPrefixOperations;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -131,6 +132,7 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
   private Consumer<String> deleteFunc = null;
   private ExecutorService deleteExecutorService = null;
   private boolean usePrefixListing = false;
+  private int prefixListingMaxSeedDepth = 0;
   private static final Encoder<FileURI> FILE_URI_ENCODER = Encoders.bean(FileURI.class);
 
   DeleteOrphanFilesSparkAction(SparkSession spark, Table table) {
@@ -219,6 +221,15 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
 
   public DeleteOrphanFilesSparkAction usePrefixListing(boolean newUsePrefixListing) {
     this.usePrefixListing = newUsePrefixListing;
+    return this;
+  }
+
+  public DeleteOrphanFilesSparkAction prefixListingMaxSeedDepth(int newMaxSeedDepth) {
+    Preconditions.checkArgument(
+        newMaxSeedDepth >= 0,
+        "Prefix listing max seed depth must be non-negative: %s",
+        newMaxSeedDepth);
+    this.prefixListingMaxSeedDepth = newMaxSeedDepth;
     return this;
   }
 
@@ -422,17 +433,41 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
           "Cannot use prefix listing with FileIO %s which does not support prefix operations.",
           table.io());
 
-      Predicate<org.apache.iceberg.io.FileInfo> predicate =
-          fileInfo -> fileInfo.createdAtMillis() < olderThanTimestamp;
-      FileSystemWalker.listDirRecursivelyWithFileIO(
-          (SupportsPrefixOperations) table.io(),
-          location,
-          table.specs(),
-          predicate,
-          matchingFiles::add);
+      List<String> seedPrefixes = Lists.newArrayList();
+      if (prefixListingMaxSeedDepth == 0) {
+        seedPrefixes.add(location);
+      } else {
+        Preconditions.checkArgument(
+            table.io() instanceof SupportsShallowPrefixOperations,
+            "Cannot use prefix listing seed depth > 0 with FileIO %s which does not support"
+                + " shallow prefix operations.",
+            table.io());
+        Predicate<org.apache.iceberg.io.FileInfo> predicate =
+            fileInfo -> fileInfo.createdAtMillis() < olderThanTimestamp;
+        FileSystemWalker.listDirRecursivelyWithFileIO(
+            (SupportsShallowPrefixOperations) table.io(),
+            location,
+            table.specs(),
+            predicate,
+            prefixListingMaxSeedDepth,
+            MAX_DRIVER_LISTING_DIRECT_SUB_DIRS,
+            seedPrefixes::add,
+            matchingFiles::add);
+      }
 
-      JavaRDD<String> matchingFileRDD = sparkContext().parallelize(matchingFiles, 1);
-      return spark().createDataset(matchingFileRDD.rdd(), Encoders.STRING());
+      int parallelism = Math.min(Math.max(seedPrefixes.size(), 1), listingParallelism);
+      JavaRDD<String> seedPrefixRDD = sparkContext().parallelize(seedPrefixes, parallelism);
+      ListPrefixes listPrefixes =
+          new ListPrefixes(
+              (SupportsPrefixOperations) table.io(), olderThanTimestamp, table.specs());
+      JavaRDD<String> listPrefixRDD = seedPrefixRDD.mapPartitions(listPrefixes);
+
+      if (matchingFiles.isEmpty()) {
+        return spark().createDataset(listPrefixRDD.rdd(), Encoders.STRING());
+      }
+
+      JavaRDD<String> matchingFilesRDD = sparkContext().parallelize(matchingFiles, 1);
+      return spark().createDataset(matchingFilesRDD.union(listPrefixRDD).rdd(), Encoders.STRING());
     } else {
       Predicate<FileStatus> predicate = file -> file.getModificationTime() < olderThanTimestamp;
       // list at most MAX_DRIVER_LISTING_DEPTH levels and only dirs that have
@@ -520,6 +555,31 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
       }
 
       return files.iterator();
+    }
+  }
+
+  private static class ListPrefixes implements FlatMapFunction<Iterator<String>, String> {
+
+    private final SupportsPrefixOperations io;
+    private final long olderThanTimestamp;
+    private final Map<Integer, PartitionSpec> specs;
+
+    ListPrefixes(
+        SupportsPrefixOperations io, long olderThanTimestamp, Map<Integer, PartitionSpec> specs) {
+      this.io = io;
+      this.olderThanTimestamp = olderThanTimestamp;
+      this.specs = specs;
+    }
+
+    @Override
+    public Iterator<String> call(Iterator<String> prefixes) {
+      Predicate<org.apache.iceberg.io.FileInfo> predicate =
+          file -> file.createdAtMillis() < olderThanTimestamp;
+      return Iterators.concat(
+          Iterators.transform(
+              prefixes,
+              prefix ->
+                  FileSystemWalker.listDirRecursivelyWithFileIO(io, prefix, specs, predicate)));
     }
   }
 

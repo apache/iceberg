@@ -280,6 +280,11 @@ public class ResolvingFileIO
   }
 
   @Override
+  public PrefixListing listImmediate(String prefix) {
+    return io(prefix).listImmediate(prefix);
+  }
+
+  @Override
   public void setCredentials(List<StorageCredential> credentials) {
     Preconditions.checkArgument(credentials != null, "Invalid storage credentials: null");
     // copy credentials into a modifiable collection for Kryo serde

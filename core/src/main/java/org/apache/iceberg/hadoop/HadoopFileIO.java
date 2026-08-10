@@ -22,11 +22,13 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.RemoteIterator;
@@ -36,7 +38,9 @@ import org.apache.iceberg.io.DelegateFileIO;
 import org.apache.iceberg.io.FileInfo;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.io.PrefixListing;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.util.SerializableMap;
 import org.apache.iceberg.util.SerializableSupplier;
@@ -157,17 +161,39 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
       try {
         return Streams.stream(
                 new AdaptingIterator<>(fs.listFiles(prefixToList, true /* recursive */)))
-            .map(
-                fileStatus ->
-                    new FileInfo(
-                        fileStatus.getPath().toString(),
-                        fileStatus.getLen(),
-                        fileStatus.getModificationTime()))
+            .map(this::createFileInfo)
             .iterator();
       } catch (IOException e) {
         throw new UncheckedIOException(e);
       }
     };
+  }
+
+  @Override
+  public PrefixListing listImmediate(String prefix) {
+    Path prefixToList = new Path(prefix);
+    FileSystem fs = Util.getFs(prefixToList, getConf());
+
+    try {
+      List<FileInfo> files = Lists.newArrayList();
+      List<String> subPrefixes = Lists.newArrayList();
+
+      for (FileStatus status : fs.listStatus(prefixToList)) {
+        if (status.isDirectory()) {
+          subPrefixes.add(status.getPath().toString());
+        } else {
+          files.add(createFileInfo(status));
+        }
+      }
+
+      return PrefixListing.of(files, subPrefixes);
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
+  }
+
+  private FileInfo createFileInfo(FileStatus status) {
+    return new FileInfo(status.getPath().toString(), status.getLen(), status.getModificationTime());
   }
 
   @Override

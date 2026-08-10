@@ -25,7 +25,9 @@ import com.azure.storage.file.datalake.DataLakeFileSystemClient;
 import com.azure.storage.file.datalake.DataLakeFileSystemClientBuilder;
 import com.azure.storage.file.datalake.models.DataLakeStorageException;
 import com.azure.storage.file.datalake.models.ListPathsOptions;
+import com.azure.storage.file.datalake.models.PathItem;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -36,10 +38,11 @@ import org.apache.iceberg.io.DelegateFileIO;
 import org.apache.iceberg.io.FileInfo;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.io.PrefixListing;
+import org.apache.iceberg.io.SupportsShallowPrefixOperations;
 import org.apache.iceberg.metrics.MetricsContext;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.util.SerializableFunction;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.SerializableMap;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
@@ -47,7 +50,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /** FileIO implementation backed by Azure Data Lake Storage Gen2. */
-public class ADLSFileIO implements DelegateFileIO {
+public class ADLSFileIO implements DelegateFileIO, SupportsShallowPrefixOperations {
 
   private static final Logger LOG = LoggerFactory.getLogger(ADLSFileIO.class);
   private static final String DEFAULT_METRICS_IMPL =
@@ -59,8 +62,6 @@ public class ADLSFileIO implements DelegateFileIO {
   private MetricsContext metrics = MetricsContext.nullMetrics();
   private SerializableMap<String, String> properties;
   private VendedAdlsCredentialProvider vendedAdlsCredentialProvider;
-  private SerializableFunction<ADLSLocation, DataLakeFileSystemClient> clientSupplier;
-  private transient volatile Map<String, DataLakeFileSystemClient> clientCache;
 
   /**
    * No-arg constructor to load the FileIO dynamically.
@@ -72,23 +73,6 @@ public class ADLSFileIO implements DelegateFileIO {
   @VisibleForTesting
   ADLSFileIO(AzureProperties azureProperties) {
     this.azureProperties = azureProperties;
-  }
-
-  /**
-   * Constructor with custom DataLakeFileSystemClient function.
-   *
-   * <p>Unlike the no-arg constructor, this constructor initializes properties and azureProperties
-   * immediately, allowing immediate use without calling {@link ADLSFileIO#initialize(Map)}.
-   *
-   * <p>The function receives an {@link ADLSLocation} and should return an appropriate {@link
-   * DataLakeFileSystemClient} for that location. Clients are cached per storage account and
-   * container combination.
-   *
-   * @param clientSupplier function that creates a client for a given location
-   */
-  public ADLSFileIO(SerializableFunction<ADLSLocation, DataLakeFileSystemClient> clientSupplier) {
-    this.clientSupplier = clientSupplier;
-    initialize(Maps.newHashMap());
   }
 
   @Override
@@ -130,22 +114,6 @@ public class ADLSFileIO implements DelegateFileIO {
 
   @VisibleForTesting
   DataLakeFileSystemClient client(ADLSLocation location) {
-    if (clientCache == null) {
-      synchronized (this) {
-        if (clientCache == null) {
-          clientCache = Maps.newConcurrentMap();
-        }
-      }
-    }
-    String cacheKey = location.host() + "/" + location.container().orElse("");
-    return clientCache.computeIfAbsent(cacheKey, k -> buildClient(location));
-  }
-
-  private DataLakeFileSystemClient buildClient(ADLSLocation location) {
-    if (clientSupplier != null) {
-      return clientSupplier.apply(location);
-    }
-
     DataLakeFileSystemClientBuilder clientBuilder =
         new DataLakeFileSystemClientBuilder().httpClient(HTTP);
 
@@ -215,6 +183,7 @@ public class ADLSFileIO implements DelegateFileIO {
   @Override
   public Iterable<FileInfo> listPrefix(String prefix) {
     ADLSLocation location = new ADLSLocation(prefix);
+    String baseUri = toBaseUri(location);
 
     ListPathsOptions options = new ListPathsOptions();
     options.setPath(location.path());
@@ -224,12 +193,7 @@ public class ADLSFileIO implements DelegateFileIO {
       try {
         return client(location).listPaths(options, null).stream()
             .filter(pathItem -> !pathItem.isDirectory())
-            .map(
-                pathItem ->
-                    new FileInfo(
-                        pathItem.getName(),
-                        pathItem.getContentLength(),
-                        pathItem.getCreationTime().toInstant().toEpochMilli()))
+            .map(pathItem -> createFileInfo(baseUri, pathItem))
             .iterator();
       } catch (DataLakeStorageException e) {
         // other FileIO implementations return an empty iterator if nothing
@@ -240,6 +204,51 @@ public class ADLSFileIO implements DelegateFileIO {
         return Collections.emptyIterator();
       }
     };
+  }
+
+  @Override
+  public PrefixListing listImmediate(String prefix) {
+    ADLSLocation location = new ADLSLocation(prefix);
+    String baseUri = toBaseUri(location);
+
+    ListPathsOptions options = new ListPathsOptions();
+    options.setPath(location.path());
+    options.setRecursive(false);
+
+    List<FileInfo> files = Lists.newArrayList();
+    List<String> subPrefixes = Lists.newArrayList();
+
+    try {
+      client(location)
+          .listPaths(options, null)
+          .forEach(
+              pathItem -> {
+                if (pathItem.isDirectory()) {
+                  subPrefixes.add(baseUri + pathItem.getName());
+                } else {
+                  files.add(createFileInfo(baseUri, pathItem));
+                }
+              });
+    } catch (DataLakeStorageException e) {
+      if (e.getStatusCode() != 404) {
+        throw e;
+      }
+      return PrefixListing.of(Collections.emptyList(), Collections.emptyList());
+    }
+
+    return PrefixListing.of(files, subPrefixes);
+  }
+
+  private String toBaseUri(ADLSLocation location) {
+    return String.format(
+        "%s://%s@%s/", location.scheme(), location.container().orElse(""), location.host());
+  }
+
+  private FileInfo createFileInfo(String baseUri, PathItem pathItem) {
+    return new FileInfo(
+        baseUri + pathItem.getName(),
+        pathItem.getContentLength(),
+        pathItem.getCreationTime().toInstant().toEpochMilli());
   }
 
   @Override

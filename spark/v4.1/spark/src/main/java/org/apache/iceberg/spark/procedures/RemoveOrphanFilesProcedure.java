@@ -80,6 +80,10 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
   // Stream results to avoid loading all orphan files in driver memory. Default is false.
   private static final ProcedureParameter STREAM_RESULTS_PARAM =
       optionalInParameter("stream_results", DataTypes.BooleanType);
+  // Depth of shallow driver-side walk used to discover seed prefixes for parallel prefix
+  // listing. Only applies when prefix_listing is true. Default is 0 (single seed).
+  private static final ProcedureParameter PREFIX_LISTING_MAX_SEED_DEPTH_PARAM =
+      optionalInParameter("prefix_listing_max_seed_depth", DataTypes.IntegerType);
 
   private static final ProcedureParameter[] PARAMETERS =
       new ProcedureParameter[] {
@@ -93,7 +97,8 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
         EQUAL_AUTHORITIES_PARAM,
         PREFIX_MISMATCH_MODE_PARAM,
         PREFIX_LISTING_PARAM,
-        STREAM_RESULTS_PARAM
+        STREAM_RESULTS_PARAM,
+        PREFIX_LISTING_MAX_SEED_DEPTH_PARAM
       };
 
   private static final StructType OUTPUT_TYPE =
@@ -149,6 +154,7 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
 
     boolean prefixListing = input.asBoolean(PREFIX_LISTING_PARAM, false);
     boolean streamResults = input.asBoolean(STREAM_RESULTS_PARAM, false);
+    int prefixListingMaxSeedDepth = input.asInt(PREFIX_LISTING_MAX_SEED_DEPTH_PARAM, 0);
 
     return withIcebergTable(
         tableIdent,
@@ -197,6 +203,7 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
           }
 
           action.usePrefixListing(prefixListing);
+          action.prefixListingMaxSeedDepth(prefixListingMaxSeedDepth);
 
           if (streamResults) {
             action.option("stream-results", "true");

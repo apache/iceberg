@@ -21,6 +21,7 @@ package org.apache.iceberg.util;
 import java.io.IOException;
 import java.io.Serializable;
 import java.io.UncheckedIOException;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -35,7 +36,10 @@ import org.apache.hadoop.fs.PathFilter;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.hadoop.HiddenPathFilter;
 import org.apache.iceberg.io.FileInfo;
+import org.apache.iceberg.io.PrefixListing;
 import org.apache.iceberg.io.SupportsPrefixOperations;
+import org.apache.iceberg.io.SupportsShallowPrefixOperations;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 /**
@@ -63,18 +67,122 @@ public class FileSystemWalker {
       Map<Integer, PartitionSpec> specs,
       Predicate<FileInfo> filter,
       Consumer<String> fileConsumer) {
+    listDirRecursivelyWithFileIO(io, dir, specs, filter).forEachRemaining(fileConsumer);
+  }
+
+  public static Iterator<String> listDirRecursivelyWithFileIO(
+      SupportsPrefixOperations io,
+      String dir,
+      Map<Integer, PartitionSpec> specs,
+      Predicate<FileInfo> filter) {
     PathFilter pathFilter = PartitionAwareHiddenPathFilter.forSpecs(specs);
     String listPath = dir;
     if (!dir.endsWith("/")) {
       listPath = dir + "/";
     }
 
-    Iterable<FileInfo> files = io.listPrefix(listPath);
-    for (FileInfo file : files) {
-      Path path = new Path(file.location());
-      if (!isHiddenPath(dir, path, pathFilter) && filter.test(file)) {
+    Iterator<FileInfo> files = io.listPrefix(listPath).iterator();
+    return Iterators.transform(
+        Iterators.filter(
+            files,
+            file -> {
+              Path path = new Path(file.location());
+              return !isHiddenPath(dir, path, pathFilter) && filter.test(file);
+            }),
+        FileInfo::location);
+  }
+
+  /**
+   * Recursively lists files in the specified directory that satisfy the given conditions. Use
+   * {@link PartitionAwareHiddenPathFilter} to filter out hidden paths.
+   *
+   * <p>Provides the same depth-and-fan-out controls as {@link #listDirRecursivelyWithHadoop}:
+   *
+   * <ul>
+   *   <li>Stops traversal when the maximum recursion depth is reached and adds the current location
+   *       to the pending list via {@code directoryConsumer}.
+   *   <li>Stops traversal when the number of direct sub-prefixes at a level exceeds the threshold
+   *       and adds those sub-prefixes to the pending list.
+   * </ul>
+   *
+   * @param io FileIO implementation that supports shallow prefix listing
+   * @param dir the starting prefix to traverse
+   * @param specs partition specs used to preserve partition-name-based hidden paths
+   * @param filter file filter; only files satisfying this condition will be collected
+   * @param maxDepth maximum recursion depth
+   * @param maxDirectSubDirs upper limit of sub-prefixes that can be processed directly
+   * @param directoryConsumer consumer for sub-prefixes that were not expanded further
+   * @param fileConsumer consumer for qualifying file locations
+   */
+  public static void listDirRecursivelyWithFileIO(
+      SupportsShallowPrefixOperations io,
+      String dir,
+      Map<Integer, PartitionSpec> specs,
+      Predicate<FileInfo> filter,
+      int maxDepth,
+      int maxDirectSubDirs,
+      Consumer<String> directoryConsumer,
+      Consumer<String> fileConsumer) {
+    PathFilter pathFilter = PartitionAwareHiddenPathFilter.forSpecs(specs);
+    listDirRecursivelyWithFileIO(
+        io,
+        dir,
+        dir,
+        pathFilter,
+        filter,
+        maxDepth,
+        maxDirectSubDirs,
+        directoryConsumer,
+        fileConsumer);
+  }
+
+  private static void listDirRecursivelyWithFileIO(
+      SupportsShallowPrefixOperations io,
+      String baseDir,
+      String dir,
+      PathFilter pathFilter,
+      Predicate<FileInfo> filter,
+      int maxDepth,
+      int maxDirectSubDirs,
+      Consumer<String> directoryConsumer,
+      Consumer<String> fileConsumer) {
+    if (maxDepth <= 0) {
+      directoryConsumer.accept(dir);
+      return;
+    }
+
+    PrefixListing listing = io.listImmediate(dir);
+
+    List<String> subDirs = Lists.newArrayList();
+    for (String subPrefix : listing.subPrefixes()) {
+      if (!isHiddenPath(baseDir, new Path(subPrefix), pathFilter)) {
+        subDirs.add(subPrefix);
+      }
+    }
+
+    for (FileInfo file : listing.files()) {
+      Path filePath = new Path(file.location());
+      if (!isHiddenPath(baseDir, filePath, pathFilter) && filter.test(file)) {
         fileConsumer.accept(file.location());
       }
+    }
+
+    if (subDirs.size() > maxDirectSubDirs) {
+      subDirs.forEach(directoryConsumer);
+      return;
+    }
+
+    for (String subDir : subDirs) {
+      listDirRecursivelyWithFileIO(
+          io,
+          baseDir,
+          subDir,
+          pathFilter,
+          filter,
+          maxDepth - 1,
+          maxDirectSubDirs,
+          directoryConsumer,
+          fileConsumer);
     }
   }
 
