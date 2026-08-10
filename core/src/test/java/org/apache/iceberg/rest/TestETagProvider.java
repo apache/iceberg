@@ -44,20 +44,21 @@ public class TestETagProvider {
 
   @Test
   public void testETagContent() {
-    assertThat("90b8ad4e")
+    assertThat("\"90b8ad4e\"")
         .isEqualTo(
             ETagProvider.of(METADATA_LOCATION, Map.of("param1", "value1", "param2", "value2")));
 
-    assertThat("cb787e6a")
+    assertThat("\"cb787e6a\"")
         .isEqualTo(
             ETagProvider.of(
                 METADATA_LOCATION, Map.of("param1", "other_value1", "param2", "other_value2")));
 
-    assertThat("55faa5d9").isEqualTo(ETagProvider.of("/short/path", null));
+    assertThat("\"55faa5d9\"").isEqualTo(ETagProvider.of("/short/path", null));
 
-    assertThat("55faa5d9").isEqualTo(ETagProvider.of("/short/path", Map.of()));
+    assertThat("\"55faa5d9\"").isEqualTo(ETagProvider.of("/short/path", Map.of()));
 
-    assertThat("8adf3766").isEqualTo(ETagProvider.of("/short/path", Map.of("param", "some_value")));
+    assertThat("\"8adf3766\"")
+        .isEqualTo(ETagProvider.of("/short/path", Map.of("param", "some_value")));
   }
 
   @Test

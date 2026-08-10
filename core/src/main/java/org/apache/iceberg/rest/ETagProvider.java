@@ -45,6 +45,10 @@ class ETagProvider {
       stringToHash = COMMA.join(metadataLocation, PARAMS_JOINER.join(orderedParams));
     }
 
-    return MURMUR3.hashString(stringToHash, StandardCharsets.UTF_8).toString();
+    return quote(MURMUR3.hashString(stringToHash, StandardCharsets.UTF_8).toString());
+  }
+
+  private static String quote(String string) {
+    return String.format("\"%s\"", string);
   }
 }
