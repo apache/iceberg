@@ -1,5 +1,5 @@
 ---
-date: 2026-08-10
+date: 2026-08-12
 title: "Semi-Structured Data in Apache Iceberg: Meet the Variant Type"
 slug: variant-in-apache-iceberg
 authors:
@@ -77,7 +77,7 @@ optional group event_data (VARIANT(1)) {
 - `metadata` holds the dictionary of field names shared across the value, so names are stored once instead of per row.
 - `value` holds the data itself in compact binary form: primitives, arrays, and objects.
 
-Both fields are accessed by name and carry no Iceberg field IDs. Variant is stored as this `metadata` + `value` pair in Parquet, Avro, and ORC. One optimization sets Parquet apart: shredding is supported only there. In Avro and ORC, a Variant is always the single unshredded pair.
+Both fields are accessed by name and carry no Iceberg field IDs. Variant is stored as this `metadata` + `value` pair in Parquet, Avro, and ORC. Shredding, an optimization discussed later, is currently supported only in Parquet; in Avro and ORC, a Variant is always the single unshredded pair.
 
 ### Reading and writing across engines
 
@@ -135,7 +135,7 @@ Variant is not a replacement for a known schema. When a field is present on ever
 
 ## What's next: shredding
 
-So far, a Variant column is a single `metadata` + `value` pair: flexible, but reading one field means reading the whole value. Shredding stores frequently accessed fields as separate, typed Parquet columns, so queries that touch only those fields read only those columns, and anything that does not fit falls back to the untyped `value`. Deciding which fields to shred, and how, is the hard part. The next post covers it.
+So far, a Variant column is a single `metadata` + `value` pair: flexible, but reading one field means reading the whole value. Shredding stores frequently accessed fields as separate, typed Parquet columns, so queries that touch only those fields read only those columns, and anything that does not fit falls back to the untyped `value`. The next post in this series explains how shredding works and what it unlocks.
 
 ## Resources
 
