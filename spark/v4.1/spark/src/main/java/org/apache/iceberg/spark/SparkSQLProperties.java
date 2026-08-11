@@ -135,15 +135,17 @@ public class SparkSQLProperties {
   public static final String VARIANT_INFERENCE_BUFFER_SIZE =
       "spark.sql.iceberg.variant-inference-buffer-size";
 
-  // Controls how a view's stored schema is applied to the columns its SQL produces. The modes and
-  // their coercions match Spark's ViewSchemaMode, which only applies to Spark's own views.
-  // BINDING permits only widening casts, so stored-vs-query type drift fails resolution.
-  // COMPENSATION permits any ANSI cast, which can truncate values or fail at runtime.
-  // TYPE_EVOLUTION applies no cast, so the view reports the types its SQL produces.
-  // Defaults to BINDING when unset.
+  // Controls how a view's stored schema is applied to the columns its SQL produces. The modes match
+  // Spark's ViewSchemaMode. Defaults to BINDING.
   public static final String VIEW_SCHEMA_BINDING_MODE =
       "spark.sql.iceberg.view.schema-binding-mode";
+
+  // Permits only widening casts, so stored-vs-query type drift fails resolution
   public static final String VIEW_SCHEMA_MODE_BINDING = "BINDING";
+
+  // Permits any ANSI cast, which can truncate values or fail at runtime
   public static final String VIEW_SCHEMA_MODE_COMPENSATION = "COMPENSATION";
+
+  // Applies no cast, so the view reports the types its SQL produces
   public static final String VIEW_SCHEMA_MODE_TYPE_EVOLUTION = "TYPE_EVOLUTION";
 }
