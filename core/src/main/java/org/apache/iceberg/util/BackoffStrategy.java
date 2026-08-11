@@ -24,10 +24,10 @@ import java.util.Map;
  * Strategy that decides how long to wait between retry attempts in {@link Tasks}.
  *
  * <p>{@link Tasks} always retries through a {@code BackoffStrategy}. When none is supplied, the
- * built-in exponential backoff (configured via {@link Tasks.Builder#exponentialBackoff}) is used. A
- * custom strategy can be selected by setting the {@link BackoffStrategies#STRATEGY_IMPL} property
- * to the fully-qualified name of a class implementing this interface with a public no-arg
- * constructor.
+ * built-in {@link ExponentialBackoffStrategy} is used. Call sites typically resolve the strategy
+ * via {@link BackoffStrategies#from(java.util.Map, long, long, double)} so operators can supply a
+ * custom implementation by setting the {@link BackoffStrategies#STRATEGY_IMPL} property to the
+ * fully-qualified name of a class implementing this interface with a public no-arg constructor.
  *
  * <p>The total retry duration ({@code commit.retry.total-timeout-ms} and similar) and the maximum
  * number of attempts remain {@link Tasks} concerns; a strategy only computes the per-attempt wait.
