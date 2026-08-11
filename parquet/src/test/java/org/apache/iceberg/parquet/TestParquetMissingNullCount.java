@@ -81,7 +81,7 @@ public class TestParquetMissingNullCount {
   private static final PartitionSpec SPEC = PartitionSpec.builderFor(SCHEMA).build();
 
   @Test
-  public void testMissingNullCountInSingleRowGroup() {
+  public void missingNullCountInSingleRowGroup() {
     Metrics metrics = metrics(block(statsWithoutNullCount(1, 10), 10));
 
     assertThat(metrics.nullValueCounts()).doesNotContainKey(1);
@@ -92,7 +92,7 @@ public class TestParquetMissingNullCount {
   }
 
   @Test
-  public void testMissingNullCountInOneOfTwoRowGroups() {
+  public void missingNullCountInOneOfTwoRowGroups() {
     // without accounting for the -1 sentinel, this sums to an incorrect null count of 0
     Metrics metrics = metrics(block(statsWithoutNullCount(1, 10), 10), block(stats(20, 30, 1), 10));
 
@@ -101,7 +101,7 @@ public class TestParquetMissingNullCount {
   }
 
   @Test
-  public void testMissingNullCountAfterKnownNullCount() {
+  public void missingNullCountAfterKnownNullCount() {
     // the -1 sentinel must also be detected when it is not the first row group
     Metrics metrics = metrics(block(stats(20, 30, 5), 10), block(statsWithoutNullCount(1, 10), 10));
 
@@ -109,7 +109,7 @@ public class TestParquetMissingNullCount {
   }
 
   @Test
-  public void testMissingNullCountWithCountsMode() {
+  public void missingNullCountWithCountsMode() {
     Metrics metrics =
         metrics(
             MetricsConfig.fromProperties(
@@ -122,7 +122,7 @@ public class TestParquetMissingNullCount {
   }
 
   @Test
-  public void testKnownNullCountsAreSummed() {
+  public void knownNullCountsAreSummed() {
     Metrics metrics = metrics(block(stats(1, 10, 2), 10), block(stats(20, 30, 3), 10));
 
     assertThat(metrics.nullValueCounts()).containsEntry(1, 5L);
@@ -130,7 +130,7 @@ public class TestParquetMissingNullCount {
   }
 
   @Test
-  public void testMissingNullCountIsNotWrittenToManifest() throws IOException {
+  public void missingNullCountIsNotWrittenToManifest() throws IOException {
     // ensure the null count is not written into manifest when there's missing
     // stats for a column chunk.
     DataFile file =
