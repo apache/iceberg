@@ -37,7 +37,7 @@ public class ProjectionDatumReader<D>
   private final Map<String, String> renames;
   private NameMapping nameMapping;
   private Schema readSchema = null;
-  private boolean adjustToUtcDefault = true;
+  private boolean adjustToUtcDefault = false;
   private Schema fileSchema = null;
   private DatumReader<D> wrapped = null;
 
@@ -88,6 +88,7 @@ public class ProjectionDatumReader<D>
     if (reader instanceof SupportsLocalTimestamp) {
       ((SupportsLocalTimestamp) reader).setAdjustToUtcDefault(adjustToUtcDefault);
     }
+
     reader.setSchema(fileSchema);
     return reader;
   }

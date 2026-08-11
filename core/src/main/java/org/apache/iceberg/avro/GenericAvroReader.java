@@ -35,9 +35,11 @@ import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Pair;
 
 public class GenericAvroReader<T>
-    implements DatumReader<T>, SupportsRowPosition, SupportsCustomRecords {
+    implements DatumReader<T>, SupportsRowPosition, SupportsCustomRecords, SupportsLocalTimestamp {
 
-  private final Types.StructType expectedType;
+  private Types.StructType expectedType;
+  private Schema readSchema;
+  private boolean adjustToUtcDefault = false;
   private ClassLoader loader = Thread.currentThread().getContextClassLoader();
   private Map<String, String> renames = ImmutableMap.of();
   private final Map<Integer, Object> idToConstant = ImmutableMap.of();
@@ -57,11 +59,15 @@ public class GenericAvroReader<T>
   }
 
   GenericAvroReader(Schema readSchema) {
-    this.expectedType = AvroSchemaUtil.convert(readSchema).asStructType();
+    this.readSchema = readSchema;
   }
 
   @SuppressWarnings("unchecked")
   private void initReader() {
+    if (expectedType == null && readSchema != null) {
+      expectedType = AvroSchemaUtil.convert(readSchema, adjustToUtcDefault).asStructType();
+      readSchema = null;
+    }
     this.reader =
         (ValueReader<T>)
             AvroWithPartnerVisitor.visit(
@@ -80,6 +86,11 @@ public class GenericAvroReader<T>
   @Override
   public void setClassLoader(ClassLoader newClassLoader) {
     this.loader = newClassLoader;
+  }
+
+  @Override
+  public void setAdjustToUtcDefault(boolean adjustToUtcDefault) {
+    this.adjustToUtcDefault = adjustToUtcDefault;
   }
 
   @Override

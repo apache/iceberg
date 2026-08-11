@@ -53,7 +53,7 @@ public class PlannedDataReader<T>
 
   private final org.apache.iceberg.Schema expectedSchema;
   private final Map<Integer, ?> idToConstant;
-  private boolean adjustToUtcDefault = true;
+  private boolean adjustToUtcDefault = false;
   private ValueReader<T> reader;
 
   protected PlannedDataReader(
@@ -93,11 +93,11 @@ public class PlannedDataReader<T>
 
   private static class ReadBuilder extends AvroWithPartnerVisitor<Type, ValueReader<?>> {
     private final Map<Integer, ?> idToConstant;
-    private final boolean adjustToUtcDefault;
+    private final boolean adjustToUtc;
 
-    private ReadBuilder(Map<Integer, ?> idToConstant, boolean adjustToUtcDefault) {
+    private ReadBuilder(Map<Integer, ?> idToConstant, boolean adjustToUtc) {
       this.idToConstant = idToConstant;
-      this.adjustToUtcDefault = adjustToUtcDefault;
+      this.adjustToUtc = adjustToUtc;
     }
 
     @Override
@@ -153,19 +153,19 @@ public class PlannedDataReader<T>
             return GenericReaders.times();
 
           case "timestamp-micros":
-            if (AvroSchemaUtil.isTimestamptz(primitive, adjustToUtcDefault)) {
+            if ((Boolean) primitive.getObjectProp(AvroSchemaUtil.ADJUST_TO_UTC_PROP, adjustToUtc)) {
               return GenericReaders.timestamptz();
             }
             return GenericReaders.timestamps();
 
           case "timestamp-nanos":
-            if (AvroSchemaUtil.isTimestamptz(primitive, adjustToUtcDefault)) {
+            if ((Boolean) primitive.getObjectProp(AvroSchemaUtil.ADJUST_TO_UTC_PROP, adjustToUtc)) {
               return GenericReaders.timestamptzNanos();
             }
             return GenericReaders.timestampNanos();
 
           case "timestamp-millis":
-            if (AvroSchemaUtil.isTimestamptz(primitive, adjustToUtcDefault)) {
+            if ((Boolean) primitive.getObjectProp(AvroSchemaUtil.ADJUST_TO_UTC_PROP, adjustToUtc)) {
               return GenericReaders.timestamptzMillis();
             }
             return GenericReaders.timestampMillis();

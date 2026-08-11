@@ -34,8 +34,7 @@ import org.apache.iceberg.util.ByteBuffers;
 
 public class GenericPartitionFieldSummary
     implements PartitionFieldSummary, StructLike, IndexedRecord, SchemaConstructable, Serializable {
-  private static final Schema AVRO_SCHEMA =
-      AvroSchemaUtil.convert(PartitionFieldSummary.getType(), false);
+  private static final Schema AVRO_SCHEMA = AvroSchemaUtil.convert(PartitionFieldSummary.getType());
 
   private transient Schema avroSchema; // not final for Java serialization
   private int[] fromProjectionPos;

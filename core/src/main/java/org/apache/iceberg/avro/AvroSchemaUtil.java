@@ -24,8 +24,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.BiFunction;
 import org.apache.avro.JsonProperties;
-import org.apache.avro.LogicalType;
-import org.apache.avro.LogicalTypes;
 import org.apache.avro.Schema;
 import org.apache.iceberg.mapping.MappedField;
 import org.apache.iceberg.mapping.NameMapping;
@@ -56,66 +54,33 @@ public class AvroSchemaUtil {
   private static final Schema.Type RECORD = Schema.Type.RECORD;
 
   public static Schema convert(org.apache.iceberg.Schema schema, String tableName) {
-    return convert(schema, tableName, true);
-  }
-
-  public static Schema convert(
-      org.apache.iceberg.Schema schema, String tableName, boolean localTimestampEnabled) {
-    return convert(schema, ImmutableMap.of(schema.asStruct(), tableName), localTimestampEnabled);
+    return convert(schema, ImmutableMap.of(schema.asStruct(), tableName));
   }
 
   public static Schema convert(
       org.apache.iceberg.Schema schema, Map<Types.StructType, String> names) {
-    return convert(schema, names, true);
-  }
-
-  public static Schema convert(
-      org.apache.iceberg.Schema schema,
-      Map<Types.StructType, String> names,
-      boolean localTimestampEnabled) {
-    return TypeUtil.visit(schema, new TypeToSchema.WithTypeToName(names, localTimestampEnabled));
+    return TypeUtil.visit(schema, new TypeToSchema.WithTypeToName(names));
   }
 
   public static Schema convert(Type type) {
-    return convert(type, true);
-  }
-
-  public static Schema convert(Type type, boolean localTimestampEnabled) {
-    return convert(type, ImmutableMap.of(), localTimestampEnabled);
+    return convert(type, ImmutableMap.of());
   }
 
   public static Schema convert(Types.StructType type, String name) {
-    return convert(type, name, true);
-  }
-
-  public static Schema convert(Types.StructType type, String name, boolean localTimestampEnabled) {
-    return convert(type, ImmutableMap.of(type, name), localTimestampEnabled);
+    return convert(type, ImmutableMap.of(type, name));
   }
 
   public static Schema convert(Type type, Map<Types.StructType, String> names) {
-    return convert(type, names, true);
-  }
-
-  public static Schema convert(
-      Type type, Map<Types.StructType, String> names, boolean localTimestampEnabled) {
-    return TypeUtil.visit(type, new TypeToSchema.WithTypeToName(names, localTimestampEnabled));
+    return TypeUtil.visit(type, new TypeToSchema.WithTypeToName(names));
   }
 
   public static Schema convert(
       Type type, BiFunction<Integer, Types.StructType, String> namesFunction) {
-    return convert(type, namesFunction, true);
-  }
-
-  public static Schema convert(
-      Type type,
-      BiFunction<Integer, Types.StructType, String> namesFunction,
-      boolean localTimestampEnabled) {
-    return TypeUtil.visit(
-        type, new TypeToSchema.WithNamesFunction(namesFunction, localTimestampEnabled));
+    return TypeUtil.visit(type, new TypeToSchema.WithNamesFunction(namesFunction));
   }
 
   public static Type convert(Schema schema) {
-    return convert(schema, true);
+    return convert(schema, false);
   }
 
   public static Type convert(Schema schema, boolean adjustToUtcDefault) {
@@ -123,7 +88,7 @@ public class AvroSchemaUtil {
   }
 
   public static org.apache.iceberg.Schema toIceberg(Schema schema) {
-    return toIceberg(schema, true);
+    return toIceberg(schema, false);
   }
 
   public static org.apache.iceberg.Schema toIceberg(Schema schema, boolean adjustToUtcDefault) {
@@ -159,13 +124,8 @@ public class AvroSchemaUtil {
   }
 
   public static Map<Type, Schema> convertTypes(Types.StructType type, String name) {
-    return convertTypes(type, name, true);
-  }
-
-  public static Map<Type, Schema> convertTypes(
-      Types.StructType type, String name, boolean localTimestampEnabled) {
     TypeToSchema.WithTypeToName converter =
-        new TypeToSchema.WithTypeToName(ImmutableMap.of(type, name), localTimestampEnabled);
+        new TypeToSchema.WithTypeToName(ImmutableMap.of(type, name));
     TypeUtil.visit(type, converter);
     return ImmutableMap.copyOf(converter.getConversionMap());
   }
@@ -185,30 +145,6 @@ public class AvroSchemaUtil {
     }
 
     return fileSchema;
-  }
-
-  public static boolean isTimestamptz(Schema schema) {
-    return isTimestamptz(schema, true);
-  }
-
-  public static boolean isTimestamptz(Schema schema, boolean adjustToUtcDefault) {
-    LogicalType logicalType = schema.getLogicalType();
-    if (logicalType instanceof LogicalTypes.TimestampMillis
-        || logicalType instanceof LogicalTypes.TimestampMicros
-        || logicalType instanceof LogicalTypes.TimestampNanos) {
-      // timestamptz is adjusted to UTC
-      Object value = schema.getObjectProp(ADJUST_TO_UTC_PROP);
-
-      if (value == null) {
-        return adjustToUtcDefault;
-      } else if (value instanceof Boolean) {
-        return (Boolean) value;
-      } else if (value instanceof String) {
-        return Boolean.parseBoolean((String) value);
-      }
-    }
-
-    return false;
   }
 
   public static boolean isOptional(Schema schema) {

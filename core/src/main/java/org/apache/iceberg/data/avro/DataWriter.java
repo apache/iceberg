@@ -36,7 +36,7 @@ import org.apache.iceberg.avro.ValueWriters;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 public class DataWriter<T> implements MetricsAwareDatumWriter<T>, SupportsLocalTimestamp {
-  private boolean adjustToUtcDefault = true;
+  private boolean adjustToUtcDefault = false;
   private ValueWriter<T> writer = null;
 
   public static <D> DataWriter<D> create(Schema schema) {
@@ -48,8 +48,8 @@ public class DataWriter<T> implements MetricsAwareDatumWriter<T>, SupportsLocalT
   }
 
   @Override
-  public void setAdjustToUtcDefault(boolean newAdjustToUtcDefault) {
-    this.adjustToUtcDefault = newAdjustToUtcDefault;
+  public void setAdjustToUtcDefault(boolean adjustToUtcDefault) {
+    this.adjustToUtcDefault = adjustToUtcDefault;
   }
 
   @Override
@@ -74,10 +74,10 @@ public class DataWriter<T> implements MetricsAwareDatumWriter<T>, SupportsLocalT
   }
 
   private class WriteBuilder extends AvroSchemaVisitor<ValueWriter<?>> {
-    private final boolean adjustToUtcDefault;
+    private final boolean adjustToUtc;
 
-    WriteBuilder(boolean adjustToUtcDefault) {
-      this.adjustToUtcDefault = adjustToUtcDefault;
+    WriteBuilder(boolean adjustToUtc) {
+      this.adjustToUtc = adjustToUtc;
     }
 
     @Override
@@ -133,13 +133,13 @@ public class DataWriter<T> implements MetricsAwareDatumWriter<T>, SupportsLocalT
             return GenericWriters.times();
 
           case "timestamp-micros":
-            if (AvroSchemaUtil.isTimestamptz(primitive, adjustToUtcDefault)) {
+            if ((Boolean) primitive.getObjectProp(AvroSchemaUtil.ADJUST_TO_UTC_PROP, adjustToUtc)) {
               return GenericWriters.timestamptz();
             }
             return GenericWriters.timestamps();
 
           case "timestamp-nanos":
-            if (AvroSchemaUtil.isTimestamptz(primitive, adjustToUtcDefault)) {
+            if ((Boolean) primitive.getObjectProp(AvroSchemaUtil.ADJUST_TO_UTC_PROP, adjustToUtc)) {
               return GenericWriters.timestamptzNanos();
             }
             return GenericWriters.timestampNanos();

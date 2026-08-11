@@ -43,7 +43,8 @@ public class PartitionData
       };
 
   static Schema partitionDataSchema(Types.StructType partitionType) {
-    return AvroSchemaUtil.convert(partitionType, PartitionData.class.getName(), false);
+    return AvroLegacyTimestamps.convert(
+        AvroSchemaUtil.convert(partitionType, PartitionData.class.getName()));
   }
 
   private final Types.StructType partitionType;
