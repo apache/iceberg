@@ -29,6 +29,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.rest.auth.AuthSession;
 import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.apache.iceberg.rest.responses.LoadViewResponse;
 import org.apache.iceberg.types.Types;
@@ -88,6 +89,8 @@ public class TestRESTServerLabels {
                 String.format(
                     "http://localhost:%s/",
                     REST_SERVER_EXTENSION.config().get(RESTCatalogServer.REST_PORT)))
+            // the local fixture does not authenticate requests
+            .withAuthSession(AuthSession.EMPTY)
             .build();
   }
 
