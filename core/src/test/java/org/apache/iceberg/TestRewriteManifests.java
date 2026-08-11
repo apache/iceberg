@@ -1181,6 +1181,30 @@ public class TestRewriteManifests extends TestBase {
   }
 
   @TestTemplate
+  public void testRewriteManifestsOnEmptyTable() {
+    assertThat(table.currentSnapshot()).isNull();
+
+    table.rewriteManifests().clusterBy(file -> "").commit();
+
+    Snapshot snapshot = table.currentSnapshot();
+    assertThat(snapshot).isNotNull();
+    assertThat(snapshot.operation()).isEqualTo(DataOperations.REPLACE);
+    assertThat(snapshot.allManifests(table.io())).isEmpty();
+  }
+
+  @TestTemplate
+  public void testDeleteMissingManifestOnEmptyTable() throws IOException {
+    assertThat(table.currentSnapshot()).isNull();
+
+    ManifestFile manifest = writeManifest(FILE_A);
+
+    assertThatThrownBy(() -> table.rewriteManifests().deleteManifest(manifest).commit())
+        .isInstanceOf(ValidationException.class)
+        .hasMessage(
+            "Deleted manifest %s could not be found: branch main has no snapshot", manifest.path());
+  }
+
+  @TestTemplate
   public void testRewriteDataManifestsPreservesDeletes() {
     assumeThat(formatVersion).isGreaterThan(1);
 
