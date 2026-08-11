@@ -1173,7 +1173,7 @@ Table metadata consists of the following fields:
     |------------|-----------------------------|-------------|
     | _required_ | **`format-version`**        | An integer version number for the format. Implementations must throw an exception if a table's version is higher than the supported version. |
     | _required_ | **`table-uuid`**            | A UUID that identifies the table, generated when the table is created. Implementations must throw an exception if a table's UUID does not match the expected UUID after refreshing metadata. |
-    | _optional_ | **`location`**              | The table's base location. This is used by writers to determine where to store data files, manifest files, and table metadata files. Must be an absolute path when present. See [Table Locations](#table-location-specification). |
+    | _optional_ | **`location`**              | The table's base location. This is used by writers to determine where to store data files, manifest files, and table metadata files. Must be an absolute path when present. See [Table Locations](#table-location-specification). |  
     | _required_ | **`last-sequence-number`**  | The table's highest assigned sequence number, a monotonically increasing long that tracks the order of snapshots in a table. |
     | _required_ | **`last-updated-ms`**       | Timestamp in milliseconds from the unix epoch when the table was last updated. Each table metadata file should update this field just before writing. |
     | _required_ | **`last-column-id`**        | An integer; the highest assigned column ID for the table. This is used to ensure columns are always assigned an unused ID when evolving schemas. |
