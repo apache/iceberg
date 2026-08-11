@@ -97,7 +97,7 @@ public class TestRecordUtils extends WriterTestBase {
   }
 
   @Test
-  public void createTableWriterReadsIdColumnsForNamespacedTable() {
+  public void createTableWriterWithNonMatchingNamespace() {
     Map<String, String> props =
         ImmutableMap.of(
             "iceberg.catalog.type", "rest",
