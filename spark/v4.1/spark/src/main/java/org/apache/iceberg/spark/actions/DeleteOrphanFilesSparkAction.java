@@ -32,6 +32,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
+import javax.annotation.Nullable;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -42,6 +43,7 @@ import org.apache.iceberg.actions.FileURI;
 import org.apache.iceberg.actions.ImmutableDeleteOrphanFiles;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.BulkDeletionFailureException;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.SupportsBulkOperations;
 import org.apache.iceberg.io.SupportsPrefixOperations;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
@@ -131,6 +133,7 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
   private Consumer<String> deleteFunc = null;
   private ExecutorService deleteExecutorService = null;
   private boolean usePrefixListing = false;
+  private boolean useParallelDeletes = false;
   private static final Encoder<FileURI> FILE_URI_ENCODER = Encoders.bean(FileURI.class);
 
   DeleteOrphanFilesSparkAction(SparkSession spark, Table table) {
@@ -222,6 +225,11 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
     return this;
   }
 
+  public DeleteOrphanFilesSparkAction useParallelDeletes(boolean newUseParallelDeletes) {
+    this.useParallelDeletes = newUseParallelDeletes;
+    return this;
+  }
+
   private Dataset<String> filteredCompareToFileList() {
     Dataset<Row> files = compareToFileList;
     if (location != null) {
@@ -279,9 +287,12 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
     List<String> orphanFileList = Lists.newArrayListWithCapacity(maxSampleSize);
     long filesCount = 0;
 
+    if (useParallelDeletes) {
+      orphanFileDS = orphanFileDS.mapPartitions(new DeleteFiles(table.io()), Encoders.STRING());
+    }
+
     Iterator<String> orphanFiles =
         streamResults() ? orphanFileDS.toLocalIterator() : orphanFileDS.collectAsList().iterator();
-
     Iterator<List<String>> fileGroups = Iterators.partition(orphanFiles, DELETE_GROUP_SIZE);
 
     while (fileGroups.hasNext()) {
@@ -289,10 +300,12 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
 
       collectPathsForOutput(fileGroup, orphanFileList, maxSampleSize);
 
-      if (deleteFunc == null && table.io() instanceof SupportsBulkOperations) {
+      if (!useParallelDeletes
+          && deleteFunc == null
+          && table.io() instanceof SupportsBulkOperations) {
         deleteBulk((SupportsBulkOperations) table.io(), fileGroup);
-      } else {
-        deleteNonBulk(fileGroup);
+      } else if (!useParallelDeletes) {
+        deleteNonBulk(table.io(), fileGroup, deleteFunc, deleteExecutorService);
       }
 
       filesCount += fileGroup.size();
@@ -316,7 +329,7 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
     }
   }
 
-  private void deleteBulk(SupportsBulkOperations io, List<String> paths) {
+  private static void deleteBulk(SupportsBulkOperations io, List<String> paths) {
     try {
       io.deleteFiles(paths);
       LOG.info("Deleted {} files using bulk deletes", paths.size());
@@ -327,7 +340,11 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
     }
   }
 
-  private void deleteNonBulk(List<String> paths) {
+  private static void deleteNonBulk(
+      FileIO io,
+      List<String> paths,
+      @Nullable Consumer<String> deleteFunc,
+      @Nullable ExecutorService deleteExecutorService) {
     Tasks.Builder<String> deleteTasks =
         Tasks.foreach(paths)
             .noRetry()
@@ -338,8 +355,8 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
     if (deleteFunc == null) {
       LOG.info(
           "Table IO {} does not support bulk operations. Using non-bulk deletes.",
-          table.io().getClass().getName());
-      deleteTasks.run(table.io()::deleteFile);
+          io.getClass().getName());
+      deleteTasks.run(io::deleteFile);
     } else {
       LOG.info("Custom delete function provided. Using non-bulk deletes");
       deleteTasks.run(deleteFunc::accept);
@@ -564,6 +581,26 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
 
         return null;
       }
+    }
+  }
+
+  private static final class DeleteFiles implements MapPartitionsFunction<String, String> {
+
+    private final FileIO io;
+
+    public DeleteFiles(FileIO io) {
+      this.io = io;
+    }
+
+    @Override
+    public Iterator<String> call(Iterator<String> input) {
+      List<String> paths = Lists.newArrayList(input);
+      if (io instanceof SupportsBulkOperations) {
+        deleteBulk((SupportsBulkOperations) io, paths);
+      } else {
+        deleteNonBulk(io, paths, null, null);
+      }
+      return paths.iterator();
     }
   }
 

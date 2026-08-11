@@ -80,6 +80,9 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
   // Stream results to avoid loading all orphan files in driver memory. Default is false.
   private static final ProcedureParameter STREAM_RESULTS_PARAM =
       optionalInParameter("stream_results", DataTypes.BooleanType);
+  // Delete files in parallel using Spark executors. Default is false.
+  private static final ProcedureParameter PARALLEL_DELETES_PARAM =
+      optionalInParameter("parallel_deletes", DataTypes.BooleanType);
 
   private static final ProcedureParameter[] PARAMETERS =
       new ProcedureParameter[] {
@@ -93,7 +96,8 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
         EQUAL_AUTHORITIES_PARAM,
         PREFIX_MISMATCH_MODE_PARAM,
         PREFIX_LISTING_PARAM,
-        STREAM_RESULTS_PARAM
+        STREAM_RESULTS_PARAM,
+        PARALLEL_DELETES_PARAM
       };
 
   private static final StructType OUTPUT_TYPE =
@@ -149,6 +153,7 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
 
     boolean prefixListing = input.asBoolean(PREFIX_LISTING_PARAM, false);
     boolean streamResults = input.asBoolean(STREAM_RESULTS_PARAM, false);
+    boolean parallelDeletes = input.asBoolean(PARALLEL_DELETES_PARAM, false);
 
     return withIcebergTable(
         tableIdent,
@@ -197,6 +202,7 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
           }
 
           action.usePrefixListing(prefixListing);
+          action.useParallelDeletes(parallelDeletes);
 
           if (streamResults) {
             action.option("stream-results", "true");
