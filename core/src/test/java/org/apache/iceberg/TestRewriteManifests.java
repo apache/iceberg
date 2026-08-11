@@ -1078,16 +1078,103 @@ public class TestRewriteManifests extends TestBase {
   }
 
   @TestTemplate
-  public void testRewriteManifestsOnBranchUnsupported() {
+  public void testRewriteManifestsOnBranch() {
+    table.newFastAppend().appendFile(FILE_A).commit();
+    long firstSnapshotId = table.currentSnapshot().snapshotId();
+    table.manageSnapshots().createBranch("branch", firstSnapshotId).commit();
 
-    table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
-
+    // add a second file only to the branch, so the branch and main differ
+    table.newFastAppend().appendFile(FILE_B).toBranch("branch").commit();
+    Snapshot branchTip = table.snapshot(table.refs().get("branch").snapshotId());
+    assertThat(branchTip.allManifests(table.io())).hasSize(2);
     assertThat(table.currentSnapshot().allManifests(table.io())).hasSize(1);
 
-    assertThatThrownBy(() -> table.rewriteManifests().toBranch("someBranch").commit())
-        .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessage(
-            "Cannot commit to branch someBranch: org.apache.iceberg.BaseRewriteManifests does not support branch commits");
+    table.rewriteManifests().clusterBy(file -> "").toBranch("branch").commit();
+
+    // main must be untouched
+    assertThat(table.currentSnapshot().snapshotId()).isEqualTo(firstSnapshotId);
+
+    // the branch manifests must be rewritten into one, and still hold both files
+    Snapshot rewritten = table.snapshot(table.refs().get("branch").snapshotId());
+    assertThat(rewritten.snapshotId()).isNotEqualTo(branchTip.snapshotId());
+    assertThat(rewritten.operation()).isEqualTo(DataOperations.REPLACE);
+    List<ManifestFile> manifests = rewritten.allManifests(table.io());
+    assertThat(manifests).hasSize(1);
+    assertThat(manifests.get(0).addedFilesCount() + manifests.get(0).existingFilesCount())
+        .isEqualTo(2);
+  }
+
+  /**
+   * Before branch support, apply() read base.currentSnapshot() rather than the tip of the target
+   * branch, so a rewrite aimed at a branch would have operated on main's manifests. This pins the
+   * distinction: main has one file, the branch has two, and rewriting the branch must carry two.
+   */
+  @TestTemplate
+  public void testRewriteManifestsOnBranchUsesBranchManifestsNotMain() {
+    table.newFastAppend().appendFile(FILE_A).commit();
+    table.manageSnapshots().createBranch("branch", table.currentSnapshot().snapshotId()).commit();
+    table.newFastAppend().appendFile(FILE_B).appendFile(FILE_C).toBranch("branch").commit();
+
+    table.rewriteManifests().clusterBy(file -> "").toBranch("branch").commit();
+
+    Snapshot rewritten = table.snapshot(table.refs().get("branch").snapshotId());
+    List<ManifestFile> manifests = rewritten.allManifests(table.io());
+    assertThat(manifests).hasSize(1);
+    assertThat(manifests.get(0).addedFilesCount() + manifests.get(0).existingFilesCount())
+        .as("must carry the branch's three files, not main's one")
+        .isEqualTo(3);
+  }
+
+  /**
+   * Targeting a branch that does not exist yet creates it from main's current snapshot, which is
+   * how the other snapshot operations behave: SnapshotUtil.latestSnapshot falls back to the current
+   * snapshot when the ref is absent. main itself must stay where it was.
+   */
+  @TestTemplate
+  public void testRewriteManifestsCreatesMissingBranchFromMain() {
+    table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
+    long mainSnapshotId = table.currentSnapshot().snapshotId();
+
+    table.rewriteManifests().clusterBy(file -> "").toBranch("newBranch").commit();
+
+    assertThat(table.currentSnapshot().snapshotId())
+        .as("main must not move")
+        .isEqualTo(mainSnapshotId);
+    assertThat(table.refs()).containsKey("newBranch");
+
+    Snapshot created = table.snapshot(table.refs().get("newBranch").snapshotId());
+    List<ManifestFile> manifests = created.allManifests(table.io());
+    assertThat(manifests).hasSize(1);
+    assertThat(manifests.get(0).addedFilesCount() + manifests.get(0).existingFilesCount())
+        .as("the new branch starts from main's files")
+        .isEqualTo(2);
+  }
+
+  /**
+   * With no snapshots at all, apply() receives a null snapshot. Reading base.currentSnapshot()
+   * unconditionally, as this did before, threw a NullPointerException here.
+   */
+  @TestTemplate
+  public void testRewriteManifestsOnEmptyTable() {
+    assertThat(table.currentSnapshot()).isNull();
+
+    table.rewriteManifests().clusterBy(file -> "").commit();
+
+    assertThat(table.currentSnapshot().allManifests(table.io())).isEmpty();
+  }
+
+  @TestTemplate
+  public void testRewriteManifestsRejectsInvalidBranch() {
+    table.newFastAppend().appendFile(FILE_A).commit();
+    table.manageSnapshots().createTag("tag", table.currentSnapshot().snapshotId()).commit();
+
+    assertThatThrownBy(() -> table.rewriteManifests().toBranch(null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid branch name: null");
+
+    assertThatThrownBy(() -> table.rewriteManifests().toBranch("tag"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("tag is a tag, not a branch");
   }
 
   @TestTemplate

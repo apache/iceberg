@@ -84,6 +84,12 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
   }
 
   @Override
+  public RewriteManifests toBranch(String branch) {
+    targetBranch(branch);
+    return this;
+  }
+
+  @Override
   protected String operation() {
     return DataOperations.REPLACE;
   }
@@ -168,10 +174,14 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
 
   @Override
   public List<ManifestFile> apply(TableMetadata base, Snapshot snapshot) {
-    List<ManifestFile> currentManifests = base.currentSnapshot().allManifests(ops().io());
+    // snapshot is the tip of the branch being committed to, which is main by default and null
+    // when that branch does not exist yet. Reading base.currentSnapshot() here would rewrite
+    // main's manifests no matter which branch was targeted.
+    List<ManifestFile> currentManifests =
+        snapshot == null ? Collections.emptyList() : snapshot.allManifests(ops().io());
     Set<ManifestFile> currentManifestSet = ImmutableSet.copyOf(currentManifests);
 
-    validateDeletedManifests(currentManifestSet, base.currentSnapshot().snapshotId());
+    validateDeletedManifests(currentManifestSet, snapshot);
 
     if (requiresRewrite(currentManifestSet)) {
       performRewrite(currentManifests);
@@ -284,16 +294,22 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
   }
 
   private void validateDeletedManifests(
-      Set<ManifestFile> currentManifests, long currentSnapshotID) {
+      Set<ManifestFile> currentManifests, Snapshot currentSnapshot) {
     // directly deleted manifests must be still present in the current snapshot
     deletedManifests.stream()
         .filter(manifest -> !currentManifests.contains(manifest))
         .findAny()
         .ifPresent(
             manifest -> {
+              if (currentSnapshot == null) {
+                throw new ValidationException(
+                    "Deleted manifest %s could not be found: branch %s has no snapshot",
+                    manifest.path(), targetBranch());
+              }
+
               throw new ValidationException(
                   "Deleted manifest %s could not be found in the latest snapshot %d",
-                  manifest.path(), currentSnapshotID);
+                  manifest.path(), currentSnapshot.snapshotId());
             });
   }
 
