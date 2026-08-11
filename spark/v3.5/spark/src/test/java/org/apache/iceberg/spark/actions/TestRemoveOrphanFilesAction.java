@@ -1028,6 +1028,56 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
   }
 
   @TestTemplate
+  public void testCompareToFileListDoesNotMatchSiblingPaths() throws IOException {
+    assumeThat(usePrefixListing)
+        .as("Should not test both prefix listing and Hadoop file listing (redundant)")
+        .isEqualTo(false);
+    Table table = TABLES.create(SCHEMA, PartitionSpec.unpartitioned(), properties, tableLocation);
+
+    List<ThreeColumnRecord> records =
+        Lists.newArrayList(new ThreeColumnRecord(1, "AAAAAAAAAA", "AAAA"));
+
+    Dataset<Row> df = spark.createDataFrame(records, ThreeColumnRecord.class).coalesce(1);
+
+    df.select("c1", "c2", "c3").write().format("iceberg").mode("append").save(tableLocation);
+
+    // sibling paths that share the table location as a raw string prefix but are NOT
+    // subdirectories of the table location (e.g. table-backup/...). These must NOT be
+    // treated as in-scope orphan candidates.
+    String sibling1 = tableLocation + "-backup/data/sibling1.parquet";
+    String sibling2 = tableLocation + "_old/data/sibling2.parquet";
+    String insideLocation = tableLocation + "/data/inside.parquet";
+
+    List<FilePathLastModifiedRecord> mockFiles =
+        Lists.newArrayList(
+            new FilePathLastModifiedRecord(sibling1, new Timestamp(0L)),
+            new FilePathLastModifiedRecord(sibling2, new Timestamp(0L)),
+            new FilePathLastModifiedRecord(insideLocation, new Timestamp(0L)));
+
+    Dataset<Row> compareToFileList =
+        spark
+            .createDataFrame(mockFiles, FilePathLastModifiedRecord.class)
+            .withColumnRenamed("filePath", "file_path")
+            .withColumnRenamed("lastModified", "last_modified");
+
+    DeleteOrphanFiles.Result result =
+        SparkActions.get()
+            .deleteOrphanFiles(table)
+            .compareToFileList(compareToFileList)
+            .olderThan(System.currentTimeMillis())
+            .deleteWith(s -> {})
+            .execute();
+
+    // Only the file actually inside the table location should be considered in scope.
+    assertThat(result.orphanFileLocations())
+        .as("Only files inside the table location should be in scope")
+        .containsExactly(insideLocation);
+    assertThat(result.orphanFilesCount())
+        .as("Only 1 file inside the table location should be in scope")
+        .isEqualTo(1L);
+  }
+
+  @TestTemplate
   public void testRemoveOrphanFilesWithStatisticFiles() throws Exception {
     assumeThat(usePrefixListing)
         .as("Should not test both prefix listing and Hadoop file listing (redundant)")
