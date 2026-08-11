@@ -133,14 +133,11 @@ case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with Look
   }
 
   // Read on every resolution rather than cached, so that SET takes effect within a session.
-  private def viewSchemaMode: String = {
-    spark.conf.getOption(SparkSQLProperties.VIEW_SCHEMA_BINDING_MODE) match {
-      case Some(mode) =>
-        parseSchemaBindingMode(mode)
-      case None =>
-        SparkSQLProperties.VIEW_SCHEMA_MODE_BINDING
-    }
-  }
+  private def viewSchemaMode: String =
+    parseSchemaBindingMode(
+      conf.getConfString(
+        SparkSQLProperties.VIEW_SCHEMA_BINDING_MODE,
+        SparkSQLProperties.VIEW_SCHEMA_MODE_BINDING))
 
   // Spark spells this mode "TYPE EVOLUTION" in its WITH SCHEMA clause, so a space is accepted too.
   private def parseSchemaBindingMode(mode: String): String = {
