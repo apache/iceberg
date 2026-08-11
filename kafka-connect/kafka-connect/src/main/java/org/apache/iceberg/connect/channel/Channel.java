@@ -21,7 +21,6 @@ package org.apache.iceberg.connect.channel;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import org.apache.iceberg.connect.IcebergSinkConfig;
@@ -53,6 +52,7 @@ abstract class Channel {
   private final SinkTaskContext context;
   private final Admin admin;
   private final Map<Integer, Long> controlTopicOffsets = Maps.newHashMap();
+  private final Map<Integer, Long> committedOffsets = Maps.newHashMap();
   private final String producerId;
 
   Channel(
@@ -143,31 +143,34 @@ abstract class Channel {
     return controlTopicOffsets;
   }
 
+  /**
+   * Commit consumer offsets. Only commits offsets if it has not committed offsets before or the
+   * value is greater than the cached offset.
+   *
+   * <p>Note: there is a risk that two parallel coordinators may overwrite each other's offsets, to
+   * be fixed in a follow-up PR.
+   */
   protected void commitConsumerOffsets() {
-    Set<TopicPartition> partitions =
-        controlTopicOffsets().keySet().stream()
-            .map(k -> new TopicPartition(controlTopic, k))
-            .collect(Collectors.toSet());
-    Map<TopicPartition, OffsetAndMetadata> committed = consumer.committed(partitions);
-
     Map<TopicPartition, OffsetAndMetadata> offsetsToCommit = Maps.newHashMap();
-    controlTopicOffsets()
-        .forEach(
-            (partition, offsetToCommit) -> {
-              TopicPartition tp = new TopicPartition(controlTopic, partition);
-              OffsetAndMetadata lastCommitted = committed.get(tp);
-              if (lastCommitted == null || offsetToCommit > lastCommitted.offset()) {
-                offsetsToCommit.put(tp, new OffsetAndMetadata(offsetToCommit));
-              }
-            });
+    controlTopicOffsets.forEach(
+        (partition, offsetToCommit) -> {
+          TopicPartition tp = new TopicPartition(controlTopic, partition);
+          Long lastCommittedOffset = committedOffsets.get(tp.partition());
+          if (lastCommittedOffset == null || offsetToCommit > lastCommittedOffset) {
+            offsetsToCommit.put(tp, new OffsetAndMetadata(offsetToCommit));
+          }
+        });
     if (!offsetsToCommit.isEmpty()) {
       LOG.info("Coordinator committing offsets: {}", offsetsToCommit);
       consumer.commitSync(offsetsToCommit);
+      offsetsToCommit.forEach(
+          (topicPartition, metadata) ->
+              committedOffsets.put(topicPartition.partition(), metadata.offset()));
     } else {
-      LOG.info(
-          "Skipping consumer offset commit; local offsets {} are not ahead of committed offsets {}",
-          controlTopicOffsets(),
-          committed);
+      LOG.debug(
+          "Skipping consumer offset commit; local offsets {} are less than or equal to committed offsets {}",
+          controlTopicOffsets,
+          committedOffsets);
     }
   }
 
