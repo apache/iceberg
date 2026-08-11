@@ -103,6 +103,9 @@ public class S3FileIO
   private static final String DEFAULT_METRICS_IMPL =
       "org.apache.iceberg.hadoop.HadoopMetricsContext";
   private static final String ROOT_PREFIX = "s3";
+  // Default HTTP read chunk size for pre-signed URL reads, tuned for S3; overridable via the
+  // io.http.read.chunk-size-bytes property.
+  private static final int HTTP_READ_CHUNK_SIZE_BYTES_DEFAULT = 8 * 1024 * 1024; // 8 MB
   private static volatile ScheduledExecutorService executorService;
 
   private String credential = null;
@@ -570,7 +573,7 @@ public class S3FileIO
     if (httpUrlSupport == null) {
       synchronized (this) {
         if (httpUrlSupport == null) {
-          this.httpUrlSupport = new HttpUrlSupport(properties);
+          this.httpUrlSupport = new HttpUrlSupport(properties, HTTP_READ_CHUNK_SIZE_BYTES_DEFAULT);
         }
       }
     }

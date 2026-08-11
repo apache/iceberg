@@ -19,6 +19,7 @@
 package org.apache.iceberg.io.http;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.Map;
 import org.apache.hc.client5.http.config.ConnectionConfig;
@@ -134,6 +135,37 @@ class TestHttpUrlSupport {
     PoolingHttpClientConnectionManager pool = poolingManager(ImmutableMap.of());
     assertThat(pool.getMaxTotal()).isEqualTo(defaults.getMaxTotal());
     assertThat(pool.getDefaultMaxPerRoute()).isEqualTo(defaults.getDefaultMaxPerRoute());
+  }
+
+  @Test
+  void readChunkSizeUsesGenericDefaultWhenUnspecified() {
+    assertThat(new HttpUrlSupport(ImmutableMap.of()).readChunkSize())
+        .isEqualTo(HttpUrlSupport.READ_CHUNK_SIZE_BYTES_DEFAULT);
+  }
+
+  @Test
+  void readChunkSizeUsesCallerDefaultWhenPropertyUnset() {
+    int callerDefault = 8 * 1024 * 1024;
+    assertThat(new HttpUrlSupport(ImmutableMap.of(), callerDefault).readChunkSize())
+        .isEqualTo(callerDefault);
+  }
+
+  @Test
+  void readChunkSizePropertyOverridesCallerDefault() {
+    int override = 1024;
+    HttpUrlSupport support =
+        new HttpUrlSupport(
+            ImmutableMap.of(HttpUrlSupport.READ_CHUNK_SIZE_BYTES, String.valueOf(override)),
+            8 * 1024 * 1024);
+    assertThat(support.readChunkSize()).isEqualTo(override);
+  }
+
+  @Test
+  void nonPositiveReadChunkSizeIsRejected() {
+    assertThatThrownBy(
+            () -> new HttpUrlSupport(ImmutableMap.of(HttpUrlSupport.READ_CHUNK_SIZE_BYTES, "0")))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining(HttpUrlSupport.READ_CHUNK_SIZE_BYTES);
   }
 
   private static PoolingHttpClientConnectionManager poolingManager(Map<String, String> properties) {
