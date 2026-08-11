@@ -37,7 +37,6 @@ import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.metrics.Counter;
 import org.apache.iceberg.metrics.MetricsContext;
 import org.apache.iceberg.metrics.MetricsContext.Unit;
-import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.slf4j.Logger;
@@ -59,13 +58,13 @@ import org.slf4j.LoggerFactory;
 class HTTPInputStream extends SeekableInputStream implements RangeReadable {
   private static final Logger LOG = LoggerFactory.getLogger(HTTPInputStream.class);
 
-  @VisibleForTesting static final int CHUNK_SIZE = 8 * 1024 * 1024; // 8 MB
   private static final int MAX_RETRIES = 3;
 
   private final StackTraceElement[] createStack;
   private final CloseableHttpClient client;
   private final String location;
   private final String url;
+  private final int chunkSize;
 
   private final Counter readBytes;
   private final Counter readOperations;
@@ -79,10 +78,16 @@ class HTTPInputStream extends SeekableInputStream implements RangeReadable {
   private long next = 0;
   private boolean closed = false;
 
-  HTTPInputStream(CloseableHttpClient client, String location, String url, MetricsContext metrics) {
+  HTTPInputStream(
+      CloseableHttpClient client,
+      String location,
+      String url,
+      int chunkSize,
+      MetricsContext metrics) {
     this.client = client;
     this.location = location;
     this.url = url;
+    this.chunkSize = chunkSize;
     this.readBytes = metrics.counter(FileIOMetricsContext.READ_BYTES, Unit.BYTES);
     this.readOperations = metrics.counter(FileIOMetricsContext.READ_OPERATIONS);
     this.createStack = Thread.currentThread().getStackTrace();
@@ -186,7 +191,7 @@ class HTTPInputStream extends SeekableInputStream implements RangeReadable {
     }
 
     // Fetch a new chunk starting at the current position.
-    String range = String.format(Locale.ROOT, "bytes=%s-%s", next, next + CHUNK_SIZE - 1);
+    String range = String.format(Locale.ROOT, "bytes=%s-%s", next, next + chunkSize - 1);
     byte[] data = fetchRange(range);
     if (data == null || data.length == 0) {
       buffer = null;

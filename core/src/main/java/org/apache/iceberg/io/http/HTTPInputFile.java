@@ -46,12 +46,18 @@ class HTTPInputFile implements InputFile {
   private final CloseableHttpClient client;
   private final String location;
   private final String url;
+  private final int chunkSize;
   private final MetricsContext metrics;
 
   private long length;
 
-  HTTPInputFile(CloseableHttpClient client, String location, String url, MetricsContext metrics) {
-    this(client, location, url, UNKNOWN_LENGTH, metrics);
+  HTTPInputFile(
+      CloseableHttpClient client,
+      String location,
+      String url,
+      int chunkSize,
+      MetricsContext metrics) {
+    this(client, location, url, UNKNOWN_LENGTH, chunkSize, metrics);
   }
 
   HTTPInputFile(
@@ -59,6 +65,7 @@ class HTTPInputFile implements InputFile {
       String location,
       String url,
       long length,
+      int chunkSize,
       MetricsContext metrics) {
     Preconditions.checkNotNull(client, "Invalid HTTP client: null");
     Preconditions.checkNotNull(location, "Invalid location: null");
@@ -67,6 +74,7 @@ class HTTPInputFile implements InputFile {
     this.client = client;
     this.location = location;
     this.url = url;
+    this.chunkSize = chunkSize;
     this.length = length;
     this.metrics = metrics;
   }
@@ -82,7 +90,7 @@ class HTTPInputFile implements InputFile {
 
   @Override
   public SeekableInputStream newStream() {
-    return new HTTPInputStream(client, location, url, metrics);
+    return new HTTPInputStream(client, location, url, chunkSize, metrics);
   }
 
   @Override

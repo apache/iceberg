@@ -53,12 +53,13 @@ import org.junit.jupiter.api.Test;
 /**
  * Exercises {@link HTTPInputFile}/{@link HTTPInputStream} against a real {@link HttpServer} that
  * serves ranges from the request {@code Range} header, giving cloud-free coverage of the HTTP read
- * path, including multi-chunk reads that cross the {@link HTTPInputStream#CHUNK_SIZE} boundary.
+ * path, including multi-chunk reads that cross the configured chunk-size boundary.
  */
 class TestHTTPInputFile {
 
   private static final String PATH = "/object";
-  private static final byte[] DATA = randomBytes(HTTPInputStream.CHUNK_SIZE + 1_000, 42L);
+  private static final int CHUNK_SIZE = 64 * 1024;
+  private static final byte[] DATA = randomBytes(CHUNK_SIZE + 1_000, 42L);
 
   private static HttpServer server;
   private static CloseableHttpClient client;
@@ -97,8 +98,7 @@ class TestHTTPInputFile {
 
   @Test
   void getLengthFetchesTotalFromContentRange() {
-    HTTPInputFile inputFile =
-        new HTTPInputFile(client, "s3://bucket/object", url, MetricsContext.nullMetrics());
+    HTTPInputFile inputFile = httpInputFile(url, MetricsContext.nullMetrics());
 
     assertThat(inputFile.getLength()).isEqualTo(DATA.length);
     assertThat(REQUEST_COUNT.get()).isEqualTo(1);
@@ -107,7 +107,8 @@ class TestHTTPInputFile {
   @Test
   void getLengthUsesKnownLengthWithoutRequest() {
     HTTPInputFile inputFile =
-        new HTTPInputFile(client, "s3://bucket/object", url, 123L, MetricsContext.nullMetrics());
+        new HTTPInputFile(
+            client, "s3://bucket/object", url, 123L, CHUNK_SIZE, MetricsContext.nullMetrics());
 
     assertThat(inputFile.getLength()).isEqualTo(123L);
     assertThat(REQUEST_COUNT.get()).isZero();
@@ -115,8 +116,7 @@ class TestHTTPInputFile {
 
   @Test
   void readFullyReadsExactRange() throws IOException {
-    HTTPInputFile inputFile =
-        new HTTPInputFile(client, "s3://bucket/object", url, MetricsContext.nullMetrics());
+    HTTPInputFile inputFile = httpInputFile(url, MetricsContext.nullMetrics());
 
     byte[] buffer = new byte[2_048];
     try (SeekableInputStream stream = inputFile.newStream()) {
@@ -128,8 +128,7 @@ class TestHTTPInputFile {
 
   @Test
   void readTailReadsSuffix() throws IOException {
-    HTTPInputFile inputFile =
-        new HTTPInputFile(client, "s3://bucket/object", url, MetricsContext.nullMetrics());
+    HTTPInputFile inputFile = httpInputFile(url, MetricsContext.nullMetrics());
 
     byte[] buffer = new byte[512];
     int read;
@@ -144,8 +143,7 @@ class TestHTTPInputFile {
 
   @Test
   void sequentialReadCrossesChunkBoundary() throws IOException {
-    HTTPInputFile inputFile =
-        new HTTPInputFile(client, "s3://bucket/object", url, MetricsContext.nullMetrics());
+    HTTPInputFile inputFile = httpInputFile(url, MetricsContext.nullMetrics());
 
     byte[] actual = new byte[DATA.length];
     try (SeekableInputStream stream = inputFile.newStream()) {
@@ -153,14 +151,30 @@ class TestHTTPInputFile {
     }
 
     assertThat(actual).isEqualTo(DATA);
-    // reading past a single 8 MB chunk requires at least two range fetches
+    // reading past a single chunk requires at least two range fetches
     assertThat(REQUEST_COUNT.get()).isGreaterThanOrEqualTo(2);
+  }
+
+  @Test
+  void sequentialReadWithinSingleChunkFetchesOnce() throws IOException {
+    // a chunk larger than the object means the whole file is served by one range fetch
+    HTTPInputFile inputFile =
+        new HTTPInputFile(
+            client, "s3://bucket/object", url, DATA.length + 1_000, MetricsContext.nullMetrics());
+
+    byte[] actual = new byte[DATA.length];
+    try (SeekableInputStream stream = inputFile.newStream()) {
+      IOUtil.readFully(stream, actual, 0, actual.length);
+    }
+
+    assertThat(actual).isEqualTo(DATA);
+    assertThat(REQUEST_COUNT.get()).isEqualTo(1);
   }
 
   @Test
   void sequentialReadTracksReadMetrics() throws IOException {
     CachingMetricsContext metrics = new CachingMetricsContext();
-    HTTPInputFile inputFile = new HTTPInputFile(client, "s3://bucket/object", url, metrics);
+    HTTPInputFile inputFile = httpInputFile(url, metrics);
 
     byte[] actual = new byte[DATA.length];
     try (SeekableInputStream stream = inputFile.newStream()) {
@@ -175,8 +189,7 @@ class TestHTTPInputFile {
 
   @Test
   void getLengthThrowsNotFoundWhenMissing() {
-    HTTPInputFile inputFile =
-        new HTTPInputFile(client, "s3://bucket/object", missingUrl, MetricsContext.nullMetrics());
+    HTTPInputFile inputFile = httpInputFile(missingUrl, MetricsContext.nullMetrics());
 
     assertThatThrownBy(inputFile::getLength)
         .isInstanceOf(NotFoundException.class)
@@ -185,8 +198,7 @@ class TestHTTPInputFile {
 
   @Test
   void getLengthThrowsForbiddenWhenForbidden() {
-    HTTPInputFile inputFile =
-        new HTTPInputFile(client, "s3://bucket/object", forbiddenUrl, MetricsContext.nullMetrics());
+    HTTPInputFile inputFile = httpInputFile(forbiddenUrl, MetricsContext.nullMetrics());
 
     assertThatThrownBy(inputFile::getLength)
         .isInstanceOf(ForbiddenException.class)
@@ -195,8 +207,7 @@ class TestHTTPInputFile {
 
   @Test
   void readThrowsForbiddenWithoutRetry() {
-    HTTPInputFile inputFile =
-        new HTTPInputFile(client, "s3://bucket/object", forbiddenUrl, MetricsContext.nullMetrics());
+    HTTPInputFile inputFile = httpInputFile(forbiddenUrl, MetricsContext.nullMetrics());
 
     assertThatThrownBy(
             () -> {
@@ -211,9 +222,7 @@ class TestHTTPInputFile {
 
   @Test
   void readRetriesOnServerErrorThenFails() {
-    HTTPInputFile inputFile =
-        new HTTPInputFile(
-            client, "s3://bucket/object", serverErrorUrl, MetricsContext.nullMetrics());
+    HTTPInputFile inputFile = httpInputFile(serverErrorUrl, MetricsContext.nullMetrics());
 
     assertThatThrownBy(
             () -> {
@@ -228,24 +237,21 @@ class TestHTTPInputFile {
 
   @Test
   void existsReturnsTrueWhenPresent() {
-    HTTPInputFile inputFile =
-        new HTTPInputFile(client, "s3://bucket/object", url, MetricsContext.nullMetrics());
+    HTTPInputFile inputFile = httpInputFile(url, MetricsContext.nullMetrics());
 
     assertThat(inputFile.exists()).isTrue();
   }
 
   @Test
   void existsReturnsFalseWhenMissing() {
-    HTTPInputFile inputFile =
-        new HTTPInputFile(client, "s3://bucket/object", missingUrl, MetricsContext.nullMetrics());
+    HTTPInputFile inputFile = httpInputFile(missingUrl, MetricsContext.nullMetrics());
 
     assertThat(inputFile.exists()).isFalse();
   }
 
   @Test
   void existsReturnsFalseWhenForbidden() {
-    HTTPInputFile inputFile =
-        new HTTPInputFile(client, "s3://bucket/object", forbiddenUrl, MetricsContext.nullMetrics());
+    HTTPInputFile inputFile = httpInputFile(forbiddenUrl, MetricsContext.nullMetrics());
 
     assertThat(inputFile.exists()).isFalse();
   }
@@ -310,6 +316,10 @@ class TestHTTPInputFile {
     REQUEST_COUNT.incrementAndGet();
     exchange.sendResponseHeaders(status, -1);
     exchange.close();
+  }
+
+  private static HTTPInputFile httpInputFile(String requestUrl, MetricsContext metrics) {
+    return new HTTPInputFile(client, "s3://bucket/object", requestUrl, CHUNK_SIZE, metrics);
   }
 
   private static byte[] randomBytes(int size, long seed) {

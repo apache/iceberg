@@ -33,6 +33,7 @@ import org.apache.hc.core5.io.CloseMode;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.metrics.MetricsContext;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SerializableMap;
@@ -49,6 +50,10 @@ import org.apache.iceberg.util.SerializableMap;
  * <p>The underlying HTTP client's timeouts and connection pool are configurable through the
  * properties passed to {@link #HttpUrlSupport(Map)}. When a setting is not provided, the client
  * falls back to JVM system properties and then to the Apache HttpClient defaults.
+ *
+ * <p>The chunk size used for sequential reads is configurable via {@value #READ_CHUNK_SIZE_BYTES}.
+ * When the property is not set, the default passed to {@link #HttpUrlSupport(Map, int)} is used,
+ * letting a {@link org.apache.iceberg.io.FileIO} supply a value tuned for its backing object store.
  */
 public class HttpUrlSupport implements Serializable {
 
@@ -58,8 +63,11 @@ public class HttpUrlSupport implements Serializable {
       "io.http.connection-acquisition-timeout-ms";
   static final String MAX_CONNECTIONS = "io.http.max-connections";
   static final String MAX_CONNECTIONS_PER_ROUTE = "io.http.connections-per-route";
+  static final String READ_CHUNK_SIZE_BYTES = "io.http.read.chunk-size-bytes";
+  static final int READ_CHUNK_SIZE_BYTES_DEFAULT = 4 * 1024 * 1024; // 4 MB
 
   private final SerializableMap<String, String> properties;
+  private final int readChunkSize;
 
   private transient volatile CloseableHttpClient httpClient;
 
@@ -68,7 +76,27 @@ public class HttpUrlSupport implements Serializable {
   }
 
   public HttpUrlSupport(Map<String, String> properties) {
+    this(properties, READ_CHUNK_SIZE_BYTES_DEFAULT);
+  }
+
+  /**
+   * Creates a helper whose sequential-read chunk size defaults to {@code defaultReadChunkSize},
+   * unless the {@value #READ_CHUNK_SIZE_BYTES} property is set, in which case that value wins.
+   *
+   * @param properties configuration properties, typically the owning FileIO's properties
+   * @param defaultReadChunkSize the read chunk size, in bytes, to use when the property is unset
+   */
+  public HttpUrlSupport(Map<String, String> properties, int defaultReadChunkSize) {
     this.properties = SerializableMap.copyOf(properties == null ? Maps.newHashMap() : properties);
+    this.readChunkSize =
+        PropertyUtil.propertyAsInt(this.properties, READ_CHUNK_SIZE_BYTES, defaultReadChunkSize);
+    Preconditions.checkArgument(
+        readChunkSize > 0, "Invalid %s: %s (must be > 0)", READ_CHUNK_SIZE_BYTES, readChunkSize);
+  }
+
+  @VisibleForTesting
+  int readChunkSize() {
+    return readChunkSize;
   }
 
   /** Returns {@code true} if {@code location} is an HTTP(S) URL. */
@@ -92,7 +120,7 @@ public class HttpUrlSupport implements Serializable {
    * @param metrics a metrics context that receives read metrics for the returned file
    */
   public InputFile newInputFile(String location, MetricsContext metrics) {
-    return new HTTPInputFile(httpClient(), location, location, metrics);
+    return new HTTPInputFile(httpClient(), location, location, readChunkSize, metrics);
   }
 
   /**
@@ -104,7 +132,7 @@ public class HttpUrlSupport implements Serializable {
    * @param metrics a metrics context that receives read metrics for the returned file
    */
   public InputFile newInputFile(String location, long length, MetricsContext metrics) {
-    return new HTTPInputFile(httpClient(), location, location, length, metrics);
+    return new HTTPInputFile(httpClient(), location, location, length, readChunkSize, metrics);
   }
 
   public void close() {
