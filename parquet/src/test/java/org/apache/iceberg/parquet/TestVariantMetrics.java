@@ -560,7 +560,8 @@ public class TestVariantMetrics {
       return reader.getFooter();
     }
   }
-  
+
+  @Test
   public void testShreddedStringBoundsAcrossRowGroups() throws IOException {
     // shredded string bounds must use UTF-8 order (Comparators.charSequences), like the scan path;
     // String.compareTo (UTF-16) sorts a supplementary char below U+E000 and would invert the bounds
