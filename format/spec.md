@@ -826,7 +826,7 @@ Each stats struct holds statistics for one table field. It may contain the follo
 | _optional_  | 6      | `nan_value_count`         | `long`                    | `float`, `double`                             | Number of NaN values in the column |
 | _optional_  | 7      | `avg_value_size_in_bytes` | `int`                     | `string`, `binary`, `variant`, `geometry`, `geography` | Avg value size in memory (uncompressed) in bytes over non-null values to estimate memory consumption |
 
-A field is _nullable_ unless the field itself and all of its ancestor fields are required. That is, a `required` field is still nullable when any of its ancestor fields is `optional`, because a value of the field is null whenever an ancestor value is null. `null_value_count` is included for nullable fields; it is omitted for fields that can never be null (the field and all of its ancestors are required). Readers must not infer a null count of 0 from a field being declared `required`; they must rely on `null_value_count` being present and equal to 0.
+A field is _nullable_ unless the field itself and all of its ancestor fields are required. That is, a `required` field is still nullable when any of its ancestor fields is `optional`, because a value of the field is null whenever an ancestor value is null. `null_value_count` is included for nullable fields.
 
 For example, stats for a `required` `int` field named `id` with field-id `2` are stored using:
 
@@ -1173,7 +1173,7 @@ Table metadata consists of the following fields:
     |------------|-----------------------------|-------------|
     | _required_ | **`format-version`**        | An integer version number for the format. Implementations must throw an exception if a table's version is higher than the supported version. |
     | _required_ | **`table-uuid`**            | A UUID that identifies the table, generated when the table is created. Implementations must throw an exception if a table's UUID does not match the expected UUID after refreshing metadata. |
-    | _optional_ | **`location`**              | The table's base location. This is used by writers to determine where to store data files, manifest files, and table metadata files. Must be an absolute path when present. See [Table Locations](#table-location-specification). |  
+    | _optional_ | **`location`**              | The table's base location. This is used by writers to determine where to store data files, manifest files, and table metadata files. Must be an absolute path when present. See [Table Locations](#table-location-specification). |
     | _required_ | **`last-sequence-number`**  | The table's highest assigned sequence number, a monotonically increasing long that tracks the order of snapshots in a table. |
     | _required_ | **`last-updated-ms`**       | Timestamp in milliseconds from the unix epoch when the table was last updated. Each table metadata file should update this field just before writing. |
     | _required_ | **`last-column-id`**        | An integer; the highest assigned column ID for the table. This is used to ensure columns are always assigned an unused ID when evolving schemas. |
