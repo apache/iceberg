@@ -140,8 +140,7 @@ public class SparkSQLProperties {
   // BINDING permits only widening casts, so stored-vs-query type drift fails resolution.
   // COMPENSATION permits any ANSI cast, which can truncate values or fail at runtime.
   // TYPE_EVOLUTION applies no cast, so the view reports the types its SQL produces.
-  // When unset, Spark's spark.sql.legacy.viewSchemaBindingMode and
-  // spark.sql.legacy.viewSchemaCompensation are honored instead; neither can select TYPE_EVOLUTION.
+  // Defaults to BINDING when unset.
   public static final String VIEW_SCHEMA_BINDING_MODE =
       "spark.sql.iceberg.view.schema-binding-mode";
   public static final String VIEW_SCHEMA_MODE_BINDING = "BINDING";

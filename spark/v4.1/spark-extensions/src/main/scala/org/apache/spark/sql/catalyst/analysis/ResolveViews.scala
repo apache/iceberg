@@ -47,12 +47,6 @@ case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with Look
 
   protected lazy val catalogManager: CatalogManager = spark.sessionState.catalogManager
 
-  // Spark's own view schema binding confs, SQLConf.VIEW_SCHEMA_BINDING_ENABLED and
-  // VIEW_SCHEMA_COMPENSATION. Referenced by name because they were added in Spark 4.0 and this
-  // rule is also compiled against Spark 3.5. Both default to true.
-  private val sparkViewSchemaBindingMode = "spark.sql.legacy.viewSchemaBindingMode"
-  private val sparkViewSchemaCompensation = "spark.sql.legacy.viewSchemaCompensation"
-
   override def apply(plan: LogicalPlan): LogicalPlan = plan resolveOperators {
     case u @ UnresolvedRelation(nameParts, _, _)
         if catalogManager.v1SessionCatalog.isTempView(nameParts) =>
@@ -149,16 +143,7 @@ case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with Look
       case Some(mode) =>
         parseSchemaBindingMode(mode)
       case None =>
-        // Mirror SessionCatalog.castColToType: turning binding mode off selects SchemaUnsupported,
-        // which compensates with an ANSI cast unless compensation is turned off as well. Neither conf
-        // can select TYPE_EVOLUTION: in Spark that mode is requested per view, with
-        // CREATE or ALTER VIEW ... WITH SCHEMA TYPE EVOLUTION, and stored on the view itself.
-        if (isExplicitlyFalse(sparkViewSchemaBindingMode) &&
-          !isExplicitlyFalse(sparkViewSchemaCompensation)) {
-          SparkSQLProperties.VIEW_SCHEMA_MODE_COMPENSATION
-        } else {
-          SparkSQLProperties.VIEW_SCHEMA_MODE_BINDING
-        }
+        SparkSQLProperties.VIEW_SCHEMA_MODE_BINDING
     }
   }
 
@@ -181,9 +166,6 @@ case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with Look
           s"${SparkSQLProperties.VIEW_SCHEMA_MODE_TYPE_EVOLUTION}")
     }
   }
-
-  private def isExplicitlyFalse(key: String): Boolean =
-    spark.conf.getOption(key).exists(_.trim.equalsIgnoreCase("false"))
 
   private def parseViewText(name: String, viewText: String): LogicalPlan = {
     val origin = Origin(objectType = Some("VIEW"), objectName = Some(name))

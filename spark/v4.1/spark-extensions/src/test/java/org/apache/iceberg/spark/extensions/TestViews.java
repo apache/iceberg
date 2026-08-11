@@ -25,7 +25,6 @@ import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.nio.file.Paths;
 import java.util.List;
-import java.util.Map;
 import java.util.Random;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -71,9 +70,6 @@ public class TestViews extends ExtensionsTestBase {
   private static final Namespace NAMESPACE = Namespace.of("default");
   private static final String SPARK_CATALOG = "spark_catalog";
   private final String tableName = "table";
-
-  private static final String SPARK_BINDING_MODE = "spark.sql.legacy.viewSchemaBindingMode";
-  private static final String SPARK_COMPENSATION = "spark.sql.legacy.viewSchemaCompensation";
 
   @BeforeEach
   @Override
@@ -2172,48 +2168,6 @@ public class TestViews extends ExtensionsTestBase {
   }
 
   @TestTemplate
-  public void readFromViewWithNarrowedSchemaHonorsSparkLegacyConf() throws NoSuchTableException {
-    insertRows(3);
-    String viewName = viewName("legacyConfSchemaView");
-    createViewWithNarrowedSchema(viewName);
-
-    assertViewSchemaIsStrict(viewName, ImmutableMap.of());
-    assertViewSchemaIsStrict(viewName, ImmutableMap.of(SPARK_BINDING_MODE, "true"));
-    assertViewSchemaIsStrict(viewName, ImmutableMap.of(SPARK_COMPENSATION, "true"));
-    assertViewSchemaIsStrict(viewName, ImmutableMap.of(SPARK_COMPENSATION, "false"));
-    assertViewSchemaIsStrict(
-        viewName, ImmutableMap.of(SPARK_BINDING_MODE, "true", SPARK_COMPENSATION, "true"));
-    assertViewSchemaIsStrict(
-        viewName, ImmutableMap.of(SPARK_BINDING_MODE, "true", SPARK_COMPENSATION, "false"));
-    assertViewSchemaIsStrict(
-        viewName, ImmutableMap.of(SPARK_BINDING_MODE, "false", SPARK_COMPENSATION, "false"));
-
-    assertViewSchemaCompensates(viewName, ImmutableMap.of(SPARK_BINDING_MODE, "false"));
-    assertViewSchemaCompensates(
-        viewName, ImmutableMap.of(SPARK_BINDING_MODE, "false", SPARK_COMPENSATION, "true"));
-
-    assertViewSchemaCompensates(viewName, ImmutableMap.of(SPARK_BINDING_MODE, "FALSE"));
-  }
-
-  @TestTemplate
-  public void icebergViewSchemaBindingModeOverridesSparkLegacyConf() throws NoSuchTableException {
-    insertRows(3);
-    String viewName = viewName("precedenceSchemaView");
-    createViewWithNarrowedSchema(viewName);
-
-    withSQLConf(
-        ImmutableMap.of(
-            SparkSQLProperties.VIEW_SCHEMA_BINDING_MODE,
-            SparkSQLProperties.VIEW_SCHEMA_MODE_BINDING,
-            SPARK_BINDING_MODE,
-            "false"),
-        () ->
-            assertThatThrownBy(() -> sql("SELECT * FROM %s", viewName))
-                .isInstanceOf(AnalysisException.class)
-                .hasMessageContaining("Cannot up cast id"));
-  }
-
-  @TestTemplate
   public void schemaBindingModeAcceptsSparkSpelling() throws NoSuchTableException {
     insertRows(3);
     String viewName = viewName("sparkSpellingSchemaView");
@@ -2252,25 +2206,6 @@ public class TestViews extends ExtensionsTestBase {
         .withDefaultCatalog(catalogName)
         .withSchema(schema(storedSchemaSQL))
         .create();
-  }
-
-  private void assertViewSchemaIsStrict(String viewName, Map<String, String> conf) {
-    withSQLConf(
-        conf,
-        () ->
-            assertThatThrownBy(() -> sql("SELECT * FROM %s", viewName))
-                .as("expected strict binding with %s", conf)
-                .isInstanceOf(AnalysisException.class)
-                .hasMessageContaining("Cannot up cast id"));
-  }
-
-  private void assertViewSchemaCompensates(String viewName, Map<String, String> conf) {
-    withSQLConf(
-        conf,
-        () ->
-            assertThat(sql("SELECT * FROM %s ORDER BY id", viewName))
-                .as("expected an ANSI cast with %s", conf)
-                .containsExactly(row(1L), row(2L), row(3L)));
   }
 
   private void insertRows(int numRows) throws NoSuchTableException {
