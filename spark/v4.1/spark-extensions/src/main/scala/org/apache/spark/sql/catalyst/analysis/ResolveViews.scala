@@ -113,8 +113,7 @@ case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with Look
 
     // Apply the field aliases and column comments
     // This logic differs from how Spark handles views in SessionCatalog.fromCatalogTable.
-    // BINDING is more strict because it doesn't allow resolution by field name. COMPENSATION and
-    // TYPE_EVOLUTION coerce as SessionCatalog.castColToType does for those modes. Every mode keeps
+    // BINDING is more strict because it doesn't allow resolution by field name. Every mode keeps
     // the stored name and metadata; only the coercion differs.
     val mode = viewSchemaMode
     val aliases = view.schema.fields.zipWithIndex.map { case (expected, pos) =>
@@ -133,11 +132,7 @@ case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with Look
     SubqueryAlias(nameParts, Project(aliases, rewritten))
   }
 
-  /**
-   * How a view's stored schema is applied to the columns its SQL produces.
-   *
-   * Read on every resolution rather than cached, so that SET takes effect within a session.
-   */
+  // Read on every resolution rather than cached, so that SET takes effect within a session.
   private def viewSchemaMode: String = {
     spark.conf.getOption(SparkSQLProperties.VIEW_SCHEMA_BINDING_MODE) match {
       case Some(mode) =>
@@ -147,9 +142,7 @@ case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with Look
     }
   }
 
-  // Spark spells this mode "TYPE EVOLUTION" in its WITH SCHEMA clause, so accept a space as well as
-  // an underscore. Preconditions.checkArgument is avoided: with this many message arguments the call
-  // is an ambiguous overload under Scala 2.12, which spark/v3.5 is cross-built against.
+  // Spark spells this mode "TYPE EVOLUTION" in its WITH SCHEMA clause, so a space is accepted too.
   private def parseSchemaBindingMode(mode: String): String = {
     val normalized = mode.trim.replace(' ', '_')
     if (normalized.equalsIgnoreCase(SparkSQLProperties.VIEW_SCHEMA_MODE_BINDING)) {
