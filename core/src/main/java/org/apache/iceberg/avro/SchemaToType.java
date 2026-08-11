@@ -216,13 +216,13 @@ class SchemaToType extends AvroSchemaVisitor<Type> {
   }
 
   private Type timestampType(Schema primitive) {
-    return AvroSchemaUtil.isTimestamptz(primitive, adjustToUtcDefault)
+    return (Boolean) primitive.getObjectProp(AvroSchemaUtil.ADJUST_TO_UTC_PROP, adjustToUtcDefault)
         ? Types.TimestampType.withZone()
         : Types.TimestampType.withoutZone();
   }
 
   private Type timestampNanoType(Schema primitive) {
-    return AvroSchemaUtil.isTimestamptz(primitive, adjustToUtcDefault)
+    return (Boolean) primitive.getObjectProp(AvroSchemaUtil.ADJUST_TO_UTC_PROP, adjustToUtcDefault)
         ? Types.TimestampNanoType.withZone()
         : Types.TimestampNanoType.withoutZone();
   }

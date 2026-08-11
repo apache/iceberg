@@ -66,7 +66,7 @@ public class TestTimestampPartitions extends TestBase {
         statuses(ManifestEntry.Status.ADDED));
   }
 
-  // identity() keeps the source column type in the partition tuple, unlike day()/hour();
+  // identity() and void() keep the source column type in the partition tuple, unlike day()/hour();
   // this is the case where PartitionData/GenericDataFile/GenericDeleteFile must encode
   // TimestampType.withoutZone() as spec-mandated timestamp-micros, not local-timestamp-micros.
 
@@ -132,15 +132,11 @@ public class TestTimestampPartitions extends TestBase {
 
   @TestTemplate
   public void testPartitionDataReadFromSchemaWithoutAdjustToUtcProp() {
+    org.apache.avro.Schema tsSchema =
+        LogicalTypes.timestampMicros()
+            .addToSchema(org.apache.avro.Schema.create(org.apache.avro.Schema.Type.LONG));
     org.apache.avro.Schema avroSchema =
-        SchemaBuilder.record("r")
-            .fields()
-            .name("ts")
-            .type(
-                LogicalTypes.timestampMicros()
-                    .addToSchema(org.apache.avro.Schema.create(org.apache.avro.Schema.Type.LONG)))
-            .noDefault()
-            .endRecord();
+        SchemaBuilder.record("r").fields().name("ts").type(tsSchema).noDefault().endRecord();
     avroSchema.getField("ts").addProp("field-id", 1000);
 
     PartitionData data = new PartitionData(avroSchema);

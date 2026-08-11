@@ -59,6 +59,7 @@ class AvroFileAppender<D> implements FileAppender<D> {
     if (datumWriter instanceof SupportsLocalTimestamp) {
       ((SupportsLocalTimestamp) datumWriter).setAdjustToUtcDefault(adjustToUtcDefault);
     }
+
     this.writer = newAvroWriter(schema, stream, datumWriter, codec, metadata);
     this.metricsConfig = metricsConfig;
   }

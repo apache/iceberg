@@ -121,7 +121,7 @@ abstract class BaseFile<F> extends SupportsIndexProjection
   /** Used by internal readers to instantiate this class with a projection schema. */
   BaseFile(Types.StructType projection) {
     super(BASE_TYPE, projection);
-    this.avroSchema = AvroSchemaUtil.convert(projection, "data_file", false);
+    this.avroSchema = AvroLegacyTimestamps.convert(AvroSchemaUtil.convert(projection, "data_file"));
 
     // partition type may be null if the field was not projected
     Type partType = projection.fieldType("partition");

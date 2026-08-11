@@ -441,7 +441,7 @@ public class TestPlannedDataReader {
 
   private Schema utcAdjustedLongSchema() {
     Schema schema = Schema.create(Schema.Type.LONG);
-    schema.addProp(ADJUST_TO_UTC_PROP, "true");
+    schema.addProp(ADJUST_TO_UTC_PROP, true);
     return schema;
   }
 }

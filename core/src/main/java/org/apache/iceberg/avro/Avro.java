@@ -70,7 +70,10 @@ import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.mapping.MappingUtil;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ArrayUtil;
 import org.apache.iceberg.util.PropertyUtil;
 
@@ -210,13 +213,14 @@ public class Avro {
       Context context = createContextFunc.apply(config);
       CodecFactory codec = context.codec();
 
+      Map<Types.StructType, String> names = ImmutableMap.of(schema.asStruct(), name);
       boolean localTimestampEnabled =
           PropertyUtil.propertyAsBoolean(
               config, AVRO_LOCAL_TIMESTAMP_ENABLED, AVRO_LOCAL_TIMESTAMP_ENABLED_DEFAULT);
 
       return new AvroFileAppender<>(
           schema,
-          AvroSchemaUtil.convert(schema, name, localTimestampEnabled),
+          TypeUtil.visit(schema, new TypeToSchema.WithTypeToName(names, localTimestampEnabled)),
           file,
           writerFunc,
           codec,

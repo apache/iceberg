@@ -298,6 +298,10 @@ abstract class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
 
     private final Map<Type, Schema> results = Maps.newHashMap();
 
+    WithTypeToName(Map<Types.StructType, String> names) {
+      this(names, true);
+    }
+
     WithTypeToName(Map<Types.StructType, String> names, boolean localTimestampEnabled) {
       super((id, struct) -> names.get(struct), localTimestampEnabled);
     }
@@ -320,10 +324,8 @@ abstract class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
   static class WithNamesFunction extends TypeToSchema {
     private final Map<String, Schema> schemaCache = Maps.newHashMap();
 
-    WithNamesFunction(
-        BiFunction<Integer, Types.StructType, String> namesFunction,
-        boolean localTimestampEnabled) {
-      super(namesFunction, localTimestampEnabled);
+    WithNamesFunction(BiFunction<Integer, Types.StructType, String> namesFunction) {
+      super(namesFunction, true);
     }
 
     @Override
