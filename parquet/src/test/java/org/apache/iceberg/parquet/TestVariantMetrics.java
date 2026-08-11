@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.parquet;
 
+import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
@@ -559,6 +560,32 @@ public class TestVariantMetrics {
       return reader.getFooter();
     }
   }
+  
+  public void testShreddedStringBoundsAcrossRowGroups() throws IOException {
+    // shredded string bounds must use UTF-8 order (Comparators.charSequences), like the scan path;
+    // String.compareTo (UTF-16) sorts a supplementary char below U+E000 and would invert the bounds
+    String belowSurrogate = new String(Character.toChars(0xE000));
+    String supplementary = new String(Character.toChars(0x10000));
+
+    Variant[] rows = new Variant[300];
+    for (int i = 0; i < rows.length; i += 1) {
+      rows[i] = Variant.of(EMPTY, Variants.of(i < 150 ? belowSurrogate : supplementary));
+    }
+
+    // a tiny row-group size forces multiple row groups so cross-chunk bound aggregation runs
+    Metrics metrics =
+        writeParquetWithRowGroupSize(
+            (id, name) -> ParquetVariantUtil.toParquetSchema(Variants.of(belowSurrogate)),
+            "1",
+            rows);
+
+    assertThat(metrics.lowerBounds().get(2))
+        .extracting(b -> Variant.from(b).value().asObject().get(ROOT_FIELD))
+        .isEqualTo(Variants.of(belowSurrogate));
+    assertThat(metrics.upperBounds().get(2))
+        .extracting(b -> Variant.from(b).value().asObject().get(ROOT_FIELD))
+        .isEqualTo(Variants.of(supplementary));
+  }
 
   @Test
   public void testVariantFloatNaN() throws IOException {
@@ -879,6 +906,31 @@ public class TestVariantMetrics {
             .schema(SCHEMA)
             .variantShreddingFunc(shredding)
             .metricsConfig(metricsConfig)
+            .createWriterFunc(fileSchema -> InternalWriter.create(SCHEMA.asStruct(), fileSchema))
+            .build();
+
+    try (writer) {
+      for (int id = 0; id < variants.length; id += 1) {
+        record.setField("id", (long) id);
+        record.setField("var", variants[id]);
+        writer.add(record);
+      }
+    }
+
+    return writer.metrics();
+  }
+
+  private Metrics writeParquetWithRowGroupSize(
+      VariantShreddingFunction shredding, String rowGroupSizeBytes, Variant... variants)
+      throws IOException {
+    OutputFile out = new InMemoryOutputFile();
+    GenericRecord record = GenericRecord.create(SCHEMA);
+
+    FileAppender<Record> writer =
+        Parquet.write(out)
+            .schema(SCHEMA)
+            .variantShreddingFunc(shredding)
+            .set(PARQUET_ROW_GROUP_SIZE_BYTES, rowGroupSizeBytes)
             .createWriterFunc(fileSchema -> InternalWriter.create(SCHEMA.asStruct(), fileSchema))
             .build();
 
