@@ -168,6 +168,36 @@ public class TestParquetMetrics extends TestMetrics {
     assertThat(dataFile.nullValueCounts()).containsEntry(2, 2L).containsEntry(3, 2L);
   }
 
+  @TestTemplate
+  public void testMetricsForRequiredNestedFieldInNullStruct() throws IOException {
+    // a required field is still null when its parent struct is null, so its null count must be
+    // recorded even though the field itself is not nullable
+    StructType struct = StructType.of(required(2, "reqDouble", DoubleType.get()));
+    Schema schema = new Schema(optional(1, "struct", struct));
+
+    Record inner = GenericRecord.create(struct);
+    inner.setField("reqDouble", 1.5D);
+    Record withStruct = GenericRecord.create(schema);
+    withStruct.setField("struct", inner);
+    Record nullStruct = GenericRecord.create(schema);
+    nullStruct.setField("struct", null);
+
+    Metrics metrics = getMetrics(schema, withStruct, nullStruct, nullStruct);
+
+    assertThat(metrics.recordCount()).isEqualTo(3L);
+    // one value from the populated struct and two nulls from the null structs
+    assertCounts(2, 3L, 2L, 0L, metrics);
+
+    DataFile dataFile =
+        DataFiles.builder(PartitionSpec.unpartitioned())
+            .withPath("/path/to/file.parquet")
+            .withFileSizeInBytes(1024)
+            .withFormat(FileFormat.PARQUET)
+            .withMetrics(metrics)
+            .build();
+    assertThat(dataFile.nullValueCounts()).containsEntry(2, 2L);
+  }
+
   private static ByteBuffer wkbPoint(double xCoord, double yCoord) {
     // little-endian WKB encoding of a point
     return ByteBuffer.wrap(
