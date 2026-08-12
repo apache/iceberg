@@ -417,6 +417,27 @@ public class Parquet {
               });
     }
 
+    private void applyCompressionLevel(CompressionCodecName codec, String compressionLevel) {
+      if (compressionLevel == null) {
+        return;
+      }
+      switch (codec) {
+        case GZIP:
+          config.put("zlib.compress.level", compressionLevel);
+          break;
+        case BROTLI:
+          config.put("compression.brotli.quality", compressionLevel);
+          break;
+        case ZSTD:
+          // keep "io.compression.codec.zstd.level" for backwards compatibility
+          config.put("io.compression.codec.zstd.level", compressionLevel);
+          config.put("parquet.compression.codec.zstd.level", compressionLevel);
+          break;
+        default:
+          // compression level is not supported; ignore it
+      }
+    }
+
     @Override
     public <D> FileAppender<D> build() throws IOException {
       Preconditions.checkNotNull(schema, "Schema is required");
@@ -440,23 +461,7 @@ public class Parquet {
       boolean dictionaryEnabled = context.dictionaryEnabled();
       boolean trackUncompressedRowGroupSize = context.trackUncompressedRowGroupSize();
 
-      if (compressionLevel != null) {
-        switch (codec) {
-          case GZIP:
-            config.put("zlib.compress.level", compressionLevel);
-            break;
-          case BROTLI:
-            config.put("compression.brotli.quality", compressionLevel);
-            break;
-          case ZSTD:
-            // keep "io.compression.codec.zstd.level" for backwards compatibility
-            config.put("io.compression.codec.zstd.level", compressionLevel);
-            config.put("parquet.compression.codec.zstd.level", compressionLevel);
-            break;
-          default:
-            // compression level is not supported; ignore it
-        }
-      }
+      applyCompressionLevel(codec, compressionLevel);
 
       set("parquet.avro.write-old-list-structure", "false");
       MessageType type = ParquetSchemaUtil.convert(schema, name, variantShreddingFunc);
