@@ -19,6 +19,7 @@
 package org.apache.iceberg.flink.sink.dynamic;
 
 import java.util.Map;
+import java.util.Set;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.api.common.functions.OpenContext;
@@ -233,8 +234,11 @@ class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal
    */
   @VisibleForTesting
   static boolean isForwardEligible(DynamicRecord data) {
+    Set<String> equalityFields = data.equalityFields();
+    // Checks identifier field ids directly rather than resolving equality field names, which would
+    // allocate per record.
     return data.distributionMode() == null
-        && DynamicSinkUtil.resolveEqualityFieldNames(data.equalityFields(), data.schema())
-            .isEmpty();
+        && (equalityFields == null || equalityFields.isEmpty())
+        && data.schema().identifierFieldIds().isEmpty();
   }
 }
