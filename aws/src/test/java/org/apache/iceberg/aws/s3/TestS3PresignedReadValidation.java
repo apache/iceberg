@@ -68,7 +68,8 @@ class TestS3PresignedReadValidation {
             () ->
                 S3PresignedReadValidation.checkTrustedHttpsUrl(
                     "https://evil-amazonaws.com/key", ALLOWED))
-        .isInstanceOf(ValidationException.class);
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("evil-amazonaws.com");
   }
 
   @Test
@@ -86,6 +87,7 @@ class TestS3PresignedReadValidation {
   void rejectsUrlWithoutHost() {
     assertThatThrownBy(
             () -> S3PresignedReadValidation.checkTrustedHttpsUrl("https:///key", ALLOWED))
-        .isInstanceOf(ValidationException.class);
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("URL has no host");
   }
 }

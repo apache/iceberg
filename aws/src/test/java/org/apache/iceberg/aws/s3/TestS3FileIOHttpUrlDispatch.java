@@ -94,7 +94,8 @@ public class TestS3FileIOHttpUrlDispatch {
 
     // suffix matching is boundary-safe: a look-alike host is not a subdomain of amazonaws.com
     assertThatThrownBy(() -> fileIO.newInputFile("https://evil-amazonaws.com/key"))
-        .isInstanceOf(ValidationException.class);
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("evil-amazonaws.com");
   }
 
   @Test
