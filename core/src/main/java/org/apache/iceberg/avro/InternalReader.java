@@ -42,7 +42,8 @@ import org.apache.iceberg.util.Pair;
  *
  * @param <T> Java type returned by the reader
  */
-public class InternalReader<T> implements DatumReader<T>, SupportsRowPosition, SupportsCustomTypes {
+public class InternalReader<T>
+    implements DatumReader<T>, SupportsRowPosition, SupportsCustomTypes, AvroFileMetadataAware {
   private static final int ROOT_ID = -1;
 
   private final Types.StructType expectedType;
@@ -50,6 +51,7 @@ public class InternalReader<T> implements DatumReader<T>, SupportsRowPosition, S
   private final Map<Integer, Object> idToConstant = ImmutableMap.of();
   private Schema fileSchema = null;
   private ValueReader<T> reader = null;
+  private boolean useNewFixedEncoding = false;
 
   public static <D> InternalReader<D> create(org.apache.iceberg.Schema schema) {
     return new InternalReader<>(schema);
@@ -74,6 +76,18 @@ public class InternalReader<T> implements DatumReader<T>, SupportsRowPosition, S
   public void setSchema(Schema schema) {
     this.fileSchema = schema;
     initReader();
+  }
+
+  @Override
+  public void setFileMetadata(Map<String, String> metadata) {
+    this.useNewFixedEncoding =
+        AvroFileMetadataAware.FIXED_ENCODING_V2.equals(
+            metadata.getOrDefault(
+                AvroFileMetadataAware.FIXED_ENCODING_META_KEY,
+                AvroFileMetadataAware.FIXED_ENCODING_V1));
+    if (fileSchema != null) {
+      initReader();
+    }
   }
 
   @Override
@@ -222,7 +236,9 @@ public class InternalReader<T> implements DatumReader<T>, SupportsRowPosition, S
         case STRING:
           return ValueReaders.strings();
         case FIXED:
-          return ValueReaders.fixedBuffers(primitive.getFixedSize());
+          return useNewFixedEncoding
+              ? ValueReaders.fixedBuffers(primitive.getFixedSize())
+              : ValueReaders.byteBuffers();
         case BYTES:
           return ValueReaders.byteBuffers();
         case ENUM:

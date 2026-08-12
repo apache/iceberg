@@ -77,6 +77,10 @@ public class AvroIterable<D> extends CloseableGroup implements CloseableIterable
   public CloseableIterator<D> iterator() {
     FileReader<D> fileReader = initMetadata(newFileReader());
 
+    if (reader instanceof AvroFileMetadataAware) {
+      ((AvroFileMetadataAware) reader).setFileMetadata(metadata);
+    }
+
     if (start != null) {
       if (reader instanceof SupportsRowPosition) {
         ((SupportsRowPosition) reader)
