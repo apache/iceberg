@@ -100,12 +100,16 @@ public final class RESTCatalogProperties {
   /**
    * The base URI of the remote signer endpoint. Optional, defaults to {@link
    * CatalogProperties#URI}.
+   *
+   * @deprecated Will be removed in 1.13; there is no replacement.
    */
-  public static final String SIGNER_URI = "signer.uri";
+  @Deprecated public static final String SIGNER_URI = "signer.uri";
 
   /**
    * The endpoint path of the remote signer endpoint. If remote signing has been requested, this
    * must be set.
+   *
+   * @deprecated Will be removed in 1.13; there is no replacement.
    */
-  public static final String SIGNER_ENDPOINT = "signer.endpoint";
+  @Deprecated public static final String SIGNER_ENDPOINT = "signer.endpoint";
 }

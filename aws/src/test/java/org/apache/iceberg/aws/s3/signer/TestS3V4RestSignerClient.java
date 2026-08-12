@@ -19,12 +19,16 @@
 package org.apache.iceberg.aws.s3.signer;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.InstanceOfAssertFactories.type;
 import static org.mockito.Mockito.when;
 
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.rest.RESTCatalogInternalProperties;
 import org.apache.iceberg.rest.RESTCatalogProperties;
 import org.apache.iceberg.rest.RESTClient;
 import org.apache.iceberg.rest.auth.AuthProperties;
@@ -32,9 +36,13 @@ import org.apache.iceberg.rest.auth.AuthSession;
 import org.apache.iceberg.rest.auth.OAuth2Properties;
 import org.apache.iceberg.rest.auth.OAuth2Util;
 import org.apache.iceberg.rest.responses.OAuthTokenResponse;
+import org.apache.iceberg.rest.signing.ImmutableRemoteSigningConfig;
+import org.apache.iceberg.rest.signing.RemoteSigningConfig;
+import org.apache.iceberg.rest.signing.RemoteSigningConfigParser;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -42,6 +50,9 @@ import org.mockito.Mockito;
 import software.amazon.awssdk.utils.IoUtils;
 
 class TestS3V4RestSignerClient {
+
+  // A valid encoded table identifier (ns.t with %1F separator) used in test properties
+  private static final String TABLE_ID = "ns%1Ft";
 
   @BeforeAll
   static void beforeAll() {
@@ -122,6 +133,8 @@ class TestS3V4RestSignerClient {
         // No OAuth2 data
         Arguments.of(
             Map.of(
+                RESTCatalogInternalProperties.TABLE_IDENTIFIER,
+                TABLE_ID,
                 RESTCatalogProperties.SIGNER_URI,
                 "https://signer.com",
                 RESTCatalogProperties.SIGNER_ENDPOINT,
@@ -131,6 +144,8 @@ class TestS3V4RestSignerClient {
         // Token only
         Arguments.of(
             Map.of(
+                RESTCatalogInternalProperties.TABLE_IDENTIFIER,
+                TABLE_ID,
                 RESTCatalogProperties.SIGNER_URI,
                 "https://signer.com",
                 RESTCatalogProperties.SIGNER_ENDPOINT,
@@ -144,6 +159,8 @@ class TestS3V4RestSignerClient {
         // Credential only: expect a token to be fetched
         Arguments.of(
             Map.of(
+                RESTCatalogInternalProperties.TABLE_IDENTIFIER,
+                TABLE_ID,
                 RESTCatalogProperties.SIGNER_URI,
                 "https://signer.com",
                 RESTCatalogProperties.SIGNER_ENDPOINT,
@@ -157,6 +174,8 @@ class TestS3V4RestSignerClient {
         // Token and credential: should use token as is, not fetch a new one
         Arguments.of(
             Map.of(
+                RESTCatalogInternalProperties.TABLE_IDENTIFIER,
+                TABLE_ID,
                 RESTCatalogProperties.SIGNER_URI,
                 "https://signer.com",
                 RESTCatalogProperties.SIGNER_ENDPOINT,
@@ -172,6 +191,8 @@ class TestS3V4RestSignerClient {
         // Custom scope
         Arguments.of(
             Map.of(
+                RESTCatalogInternalProperties.TABLE_IDENTIFIER,
+                TABLE_ID,
                 RESTCatalogProperties.SIGNER_URI,
                 "https://signer.com",
                 RESTCatalogProperties.SIGNER_ENDPOINT,
@@ -187,8 +208,8 @@ class TestS3V4RestSignerClient {
   }
 
   @ParameterizedTest
-  @MethodSource("legacySignerProperties")
-  void legacySignerProperties(
+  @MethodSource("signerUriResolution")
+  void signerUriResolution(
       Map<String, String> properties, String expectedBaseSignerUri, String expectedEndpoint)
       throws Exception {
     try (S3V4RestSignerClient client =
@@ -198,23 +219,13 @@ class TestS3V4RestSignerClient {
     }
   }
 
-  @SuppressWarnings("deprecation")
-  public static Stream<Arguments> legacySignerProperties() {
+  public static Stream<Arguments> signerUriResolution() {
     return Stream.of(
-        // Only legacy properties
+        // Signer URI + explicit endpoint
         Arguments.of(
             Map.of(
-                CatalogProperties.URI,
-                "https://catalog.com",
-                S3V4RestSignerClient.S3_SIGNER_URI,
-                "https://legacy-signer.com",
-                S3V4RestSignerClient.S3_SIGNER_ENDPOINT,
-                "v1/legacy/sign"),
-            "https://legacy-signer.com",
-            "https://legacy-signer.com/v1/legacy/sign"),
-        // Only new properties
-        Arguments.of(
-            Map.of(
+                RESTCatalogInternalProperties.TABLE_IDENTIFIER,
+                TABLE_ID,
                 CatalogProperties.URI,
                 "https://catalog.com",
                 RESTCatalogProperties.SIGNER_URI,
@@ -223,25 +234,192 @@ class TestS3V4RestSignerClient {
                 "v1/new/sign"),
             "https://new-signer.com",
             "https://new-signer.com/v1/new/sign"),
-        // Mixed properties: legacy properties take precedence
+        // No signer URI: the catalog URI is used as base
         Arguments.of(
             Map.of(
+                RESTCatalogInternalProperties.TABLE_IDENTIFIER,
+                TABLE_ID,
                 CatalogProperties.URI,
                 "https://catalog.com",
-                RESTCatalogProperties.SIGNER_URI,
-                "https://new-signer.com",
                 RESTCatalogProperties.SIGNER_ENDPOINT,
-                "v1/new/sign",
-                S3V4RestSignerClient.S3_SIGNER_URI,
-                "https://legacy-signer.com",
-                S3V4RestSignerClient.S3_SIGNER_ENDPOINT,
-                "v1/legacy/sign"),
-            "https://legacy-signer.com",
-            "https://legacy-signer.com/v1/legacy/sign"),
-        // No signer properties: the catalog URI and the deprecated default endpoint are used
-        Arguments.of(
-            Map.of(CatalogProperties.URI, "https://catalog.com"),
+                "v1/tables/t/sign"),
             "https://catalog.com",
-            "https://catalog.com/" + S3V4RestSignerClient.S3_SIGNER_DEFAULT_ENDPOINT));
+            "https://catalog.com/v1/tables/t/sign"),
+        // No explicit endpoint: derived from TABLE_IDENTIFIER (ns.t →
+        // v1/namespaces/ns/tables/t/sign)
+        Arguments.of(
+            Map.of(
+                RESTCatalogInternalProperties.TABLE_IDENTIFIER,
+                TABLE_ID,
+                CatalogProperties.URI,
+                "https://catalog.com"),
+            "https://catalog.com",
+            "https://catalog.com/v1/namespaces/ns/tables/t/sign"));
+  }
+
+  @Test
+  void tableIdentifierIsRequired() {
+    assertThatThrownBy(
+            () ->
+                ImmutableS3V4RestSignerClient.builder()
+                    .properties(Map.of(CatalogProperties.URI, "https://catalog.com"))
+                    .build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Table identifier is required");
+  }
+
+  @Test
+  void signerUriIsRequired() {
+    assertThatThrownBy(
+            () ->
+                ImmutableS3V4RestSignerClient.builder()
+                    .properties(Map.of(RESTCatalogInternalProperties.TABLE_IDENTIFIER, TABLE_ID))
+                    .build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("S3 signer service URI is required");
+  }
+
+  @Test
+  void remoteSigningConfigDefaultEmpty() throws Exception {
+    try (S3V4RestSignerClient client =
+        ImmutableS3V4RestSignerClient.builder()
+            .properties(
+                Map.of(
+                    RESTCatalogInternalProperties.TABLE_IDENTIFIER,
+                    TABLE_ID,
+                    CatalogProperties.URI,
+                    "https://catalog.com"))
+            .build()) {
+      assertThat(client.remoteSigningConfig()).isEqualTo(RemoteSigningConfig.EMPTY);
+      assertThat(client.requestPropertiesSupplier().get()).isEmpty();
+    }
+  }
+
+  @Test
+  void remoteSigningConfigFromProperty() throws Exception {
+    RemoteSigningConfig config =
+        ImmutableRemoteSigningConfig.builder()
+            .putProperties("prop1", "val1")
+            .putHeaders("Authorization", List.of("Bearer token123"))
+            .build();
+
+    try (S3V4RestSignerClient client =
+        ImmutableS3V4RestSignerClient.builder()
+            .properties(
+                Map.of(
+                    RESTCatalogInternalProperties.TABLE_IDENTIFIER,
+                    TABLE_ID,
+                    CatalogProperties.URI,
+                    "https://catalog.com",
+                    RESTCatalogInternalProperties.REMOTE_SIGNING_CONFIG,
+                    RemoteSigningConfigParser.toJson(config)))
+            .build()) {
+      assertThat(client.remoteSigningConfig().properties()).containsEntry("prop1", "val1");
+      assertThat(client.remoteSigningConfig().headers().get("Authorization"))
+          .containsExactly("Bearer token123");
+      // requestPropertiesSupplier returns config.properties()
+      assertThat(client.requestPropertiesSupplier().get()).containsEntry("prop1", "val1");
+    }
+  }
+
+  @Test
+  void signingEndpointHeadersEmptyWhenNoHeaders() throws Exception {
+    RemoteSigningConfig config =
+        ImmutableRemoteSigningConfig.builder().putProperties("k", "v").build();
+
+    try (S3V4RestSignerClient client =
+        ImmutableS3V4RestSignerClient.builder()
+            .properties(
+                Map.of(
+                    RESTCatalogInternalProperties.TABLE_IDENTIFIER,
+                    TABLE_ID,
+                    CatalogProperties.URI,
+                    "https://catalog.com",
+                    RESTCatalogInternalProperties.REMOTE_SIGNING_CONFIG,
+                    RemoteSigningConfigParser.toJson(config)))
+            .build()) {
+      // headers are empty in config, so signing endpoint headers should be empty
+      assertThat(client.remoteSigningConfig().headers()).isEmpty();
+    }
+  }
+
+  @Test
+  void signingEndpointHeadersFromConfig() throws Exception {
+    RemoteSigningConfig config =
+        ImmutableRemoteSigningConfig.builder()
+            .putHeaders("Authorization", List.of("Bearer tok"))
+            .putHeaders("X-Multi", List.of("a", "b"))
+            .build();
+
+    try (S3V4RestSignerClient client =
+        ImmutableS3V4RestSignerClient.builder()
+            .properties(
+                Map.of(
+                    RESTCatalogInternalProperties.TABLE_IDENTIFIER,
+                    TABLE_ID,
+                    CatalogProperties.URI,
+                    "https://catalog.com",
+                    RESTCatalogInternalProperties.REMOTE_SIGNING_CONFIG,
+                    RemoteSigningConfigParser.toJson(config)))
+            .build()) {
+      Map<String, List<String>> headers = client.remoteSigningConfig().headers();
+      assertThat(headers.get("Authorization")).containsExactly("Bearer tok");
+      // multi-value headers are comma-joined when sent to signing endpoint
+      assertThat(String.join(", ", headers.get("X-Multi"))).isEqualTo("a, b");
+    }
+  }
+
+  @Test
+  void requestPropertiesSupplierOverride() throws Exception {
+    try (S3V4RestSignerClient client =
+        ImmutableS3V4RestSignerClient.builder()
+            .properties(
+                Map.of(
+                    RESTCatalogInternalProperties.TABLE_IDENTIFIER,
+                    TABLE_ID,
+                    CatalogProperties.URI,
+                    "https://catalog.com"))
+            .requestPropertiesSupplier(() -> Map.of("custom", "override"))
+            .build()) {
+      assertThat(client.requestPropertiesSupplier().get()).containsEntry("custom", "override");
+    }
+  }
+
+  @Test
+  void deprecatedSignerUriWarns() throws Exception {
+    // SIGNER_URI is deprecated — client still constructs, just logs a warning
+    try (S3V4RestSignerClient client =
+        ImmutableS3V4RestSignerClient.builder()
+            .properties(
+                Map.of(
+                    RESTCatalogInternalProperties.TABLE_IDENTIFIER,
+                    TABLE_ID,
+                    CatalogProperties.URI,
+                    "https://catalog.com",
+                    RESTCatalogProperties.SIGNER_URI,
+                    "https://custom-signer.com"))
+            .build()) {
+      assertThat(client.baseSignerUri()).isEqualTo("https://custom-signer.com");
+    }
+  }
+
+  @Test
+  void requestPropertiesSupplierDefaultUsesConfigProperties() throws Exception {
+    RemoteSigningConfig config =
+        ImmutableRemoteSigningConfig.builder().putProperties("signer-prop", "signer-val").build();
+    try (S3V4RestSignerClient client =
+        ImmutableS3V4RestSignerClient.builder()
+            .properties(
+                Map.of(
+                    RESTCatalogInternalProperties.TABLE_IDENTIFIER,
+                    TABLE_ID,
+                    CatalogProperties.URI,
+                    "https://catalog.com",
+                    RESTCatalogInternalProperties.REMOTE_SIGNING_CONFIG,
+                    RemoteSigningConfigParser.toJson(config)))
+            .build()) {
+      assertThat(client.requestPropertiesSupplier().get())
+          .containsExactlyEntriesOf(Collections.singletonMap("signer-prop", "signer-val"));
+    }
   }
 }

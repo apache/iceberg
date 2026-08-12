@@ -39,6 +39,7 @@ import org.apache.iceberg.io.BulkDeletionFailureException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.StorageCredential;
 import org.apache.iceberg.io.SupportsBulkOperations;
+import org.apache.iceberg.io.SupportsRemoteSigningConfig;
 import org.apache.iceberg.io.SupportsStorageCredentials;
 import org.apache.iceberg.metrics.LoggingMetricsReporter;
 import org.apache.iceberg.metrics.MetricsReporter;
@@ -48,6 +49,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.MapMaker;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.rest.signing.RemoteSigningConfig;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
@@ -388,12 +390,42 @@ public class CatalogUtil {
    * @throws IllegalArgumentException if class path not found or right constructor not found or the
    *     loaded class cannot be cast to the given interface type
    */
-  @SuppressWarnings("unchecked")
   public static FileIO loadFileIO(
       String impl,
       Map<String, String> properties,
       Object hadoopConf,
       List<StorageCredential> storageCredentials) {
+    return loadFileIO(impl, properties, hadoopConf, storageCredentials, RemoteSigningConfig.EMPTY);
+  }
+
+  /**
+   * Load a custom {@link FileIO} implementation.
+   *
+   * <p>The implementation must have a no-arg constructor. If the class implements Configurable, a
+   * Hadoop config will be passed using Configurable.setConf. If the class implements {@link
+   * SupportsStorageCredentials}, the storage credentials will be passed using {@link
+   * SupportsStorageCredentials#setCredentials(List)}. If the class implements {@link
+   * SupportsRemoteSigningConfig}, the remote signing config will be passed using {@link
+   * SupportsRemoteSigningConfig#setRemoteSigningConfig(RemoteSigningConfig)}. {@link
+   * FileIO#initialize(Map properties)} is called to complete the initialization.
+   *
+   * @param impl full class name of a custom FileIO implementation
+   * @param properties used to initialize the FileIO implementation
+   * @param hadoopConf a hadoop Configuration
+   * @param storageCredentials the storage credentials to configure if the FileIO implementation
+   *     implements {@link SupportsStorageCredentials}
+   * @param remoteSigningConfig the remote signing configuration to use if the FileIO implementation
+   *     implements {@link org.apache.iceberg.io.SupportsRemoteSigningConfig}
+   * @return FileIO class
+   * @throws IllegalArgumentException if class path not found or right constructor not found or the
+   *     loaded class cannot be cast to the given interface type
+   */
+  public static FileIO loadFileIO(
+      String impl,
+      Map<String, String> properties,
+      Object hadoopConf,
+      List<StorageCredential> storageCredentials,
+      RemoteSigningConfig remoteSigningConfig) {
     LOG.info("Loading custom FileIO implementation: {}", impl);
     DynConstructors.Ctor<FileIO> ctor;
     try {
@@ -418,6 +450,10 @@ public class CatalogUtil {
     configureHadoopConf(fileIO, hadoopConf);
     if (fileIO instanceof SupportsStorageCredentials) {
       ((SupportsStorageCredentials) fileIO).setCredentials(storageCredentials);
+    }
+
+    if (fileIO instanceof SupportsRemoteSigningConfig ioWithRemoteSigningConfig) {
+      ioWithRemoteSigningConfig.setRemoteSigningConfig(remoteSigningConfig);
     }
 
     fileIO.initialize(properties);

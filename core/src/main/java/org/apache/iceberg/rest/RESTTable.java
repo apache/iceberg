@@ -30,6 +30,7 @@ import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableScan;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.metrics.MetricsReporter;
+import org.apache.iceberg.rest.signing.RemoteSigningConfig;
 
 class RESTTable extends BaseTable implements SupportsDistributedScanPlanning {
   private final RESTClient client;
@@ -40,6 +41,7 @@ class RESTTable extends BaseTable implements SupportsDistributedScanPlanning {
   private final Set<Endpoint> supportedEndpoints;
   private final Map<String, String> catalogProperties;
   private final Object hadoopConf;
+  private final RemoteSigningConfig remoteSigningConfig;
 
   RESTTable(
       TableOperations ops,
@@ -51,7 +53,8 @@ class RESTTable extends BaseTable implements SupportsDistributedScanPlanning {
       ResourcePaths resourcePaths,
       Set<Endpoint> supportedEndpoints,
       Map<String, String> catalogProperties,
-      Object hadoopConf) {
+      Object hadoopConf,
+      RemoteSigningConfig remoteSigningConfig) {
     super(ops, name, reporter);
     this.reporter = reporter;
     this.client = client;
@@ -61,6 +64,7 @@ class RESTTable extends BaseTable implements SupportsDistributedScanPlanning {
     this.supportedEndpoints = supportedEndpoints;
     this.catalogProperties = catalogProperties;
     this.hadoopConf = hadoopConf;
+    this.remoteSigningConfig = remoteSigningConfig;
   }
 
   @Override
@@ -76,7 +80,8 @@ class RESTTable extends BaseTable implements SupportsDistributedScanPlanning {
         resourcePaths,
         supportedEndpoints,
         catalogProperties,
-        hadoopConf);
+        hadoopConf,
+        remoteSigningConfig);
   }
 
   @Override

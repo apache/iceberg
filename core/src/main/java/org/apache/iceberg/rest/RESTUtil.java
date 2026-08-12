@@ -22,7 +22,9 @@ import java.net.URLDecoder;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
+import org.apache.hc.core5.net.PercentCodec;
 import org.apache.iceberg.catalog.Namespace;
+import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
@@ -385,5 +387,47 @@ public class RESTUtil {
    */
   public static Map<String, String> idempotencyHeaders() {
     return ImmutableMap.of(IDEMPOTENCY_KEY_HEADER, UUIDUtil.generateUuidV7().toString());
+  }
+
+  /**
+   * Encodes the given table identifier by joining its parts using the given separator, then by
+   * percent-encoding the result as per RFC 3986.
+   *
+   * <p>The separator is assumed to be percent-encoded already and will not be re-encoded.
+   */
+  public static String encodeTableIdentifier(TableIdentifier identifier, String separator) {
+    Preconditions.checkArgument(identifier != null, "Invalid identifier: null");
+    Preconditions.checkArgument(
+        !Strings.isNullOrEmpty(separator), "Invalid separator: null or empty");
+
+    StringBuilder identifierString = new StringBuilder();
+
+    for (String level : identifier.namespace().levels()) {
+      PercentCodec.RFC3986.encode(identifierString, level);
+      identifierString.append(separator);
+    }
+
+    PercentCodec.RFC3986.encode(identifierString, identifier.name());
+    return identifierString.toString();
+  }
+
+  /**
+   * Decodes the given table identifier by percent-decoding it as per RFC 3986, then by splitting
+   * its parts using the given separator.
+   *
+   * <p>The separator is assumed to be percent-encoded and will be used as is for splitting.
+   */
+  public static TableIdentifier decodeTableIdentifier(String identifier, String separator) {
+    Preconditions.checkNotNull(identifier, "Invalid table identifier: null");
+    Preconditions.checkArgument(
+        !Strings.isNullOrEmpty(separator), "Invalid separator: null or empty");
+
+    String[] names =
+        Splitter.on(separator)
+            .splitToStream(identifier)
+            .map(PercentCodec.RFC3986::decode)
+            .toArray(String[]::new);
+
+    return TableIdentifier.of(names);
   }
 }

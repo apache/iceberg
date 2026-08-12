@@ -26,6 +26,7 @@ import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.rest.credentials.Credential;
 import org.apache.iceberg.rest.credentials.CredentialParser;
+import org.apache.iceberg.rest.signing.RemoteSigningConfigParser;
 import org.apache.iceberg.util.JsonUtil;
 
 public class LoadTableResponseParser {
@@ -34,6 +35,7 @@ public class LoadTableResponseParser {
   private static final String METADATA = "metadata";
   private static final String CONFIG = "config";
   private static final String STORAGE_CREDENTIALS = "storage-credentials";
+  private static final String REMOTE_SIGNING_CONFIG = "remote-signing-config";
 
   private LoadTableResponseParser() {}
 
@@ -70,6 +72,11 @@ public class LoadTableResponseParser {
       gen.writeEndArray();
     }
 
+    if (null != response.remoteSigningConfig() && !response.remoteSigningConfig().isEmpty()) {
+      gen.writeFieldName(REMOTE_SIGNING_CONFIG);
+      RemoteSigningConfigParser.toJson(response.remoteSigningConfig(), gen);
+    }
+
     gen.writeEndObject();
   }
 
@@ -99,6 +106,11 @@ public class LoadTableResponseParser {
 
     if (json.hasNonNull(STORAGE_CREDENTIALS)) {
       builder.addAllCredentials(LoadCredentialsResponseParser.fromJson(json).credentials());
+    }
+
+    if (json.hasNonNull(REMOTE_SIGNING_CONFIG)) {
+      builder.withRemoteSigningConfig(
+          RemoteSigningConfigParser.fromJson(JsonUtil.get(REMOTE_SIGNING_CONFIG, json)));
     }
 
     return builder.build();

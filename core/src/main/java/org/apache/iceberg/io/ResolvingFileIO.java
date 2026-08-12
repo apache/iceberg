@@ -39,6 +39,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.rest.signing.RemoteSigningConfig;
 import org.apache.iceberg.util.SerializableMap;
 import org.apache.iceberg.util.SerializableSupplier;
 import org.slf4j.Logger;
@@ -50,7 +51,10 @@ import org.slf4j.LoggerFactory;
  * otherwise initialization will fail.
  */
 public class ResolvingFileIO
-    implements HadoopConfigurable, DelegateFileIO, SupportsStorageCredentials {
+    implements HadoopConfigurable,
+        DelegateFileIO,
+        SupportsStorageCredentials,
+        SupportsRemoteSigningConfig {
   private static final Logger LOG = LoggerFactory.getLogger(ResolvingFileIO.class);
   private static final int BATCH_SIZE = 100_000;
   private static final String FALLBACK_IMPL = "org.apache.iceberg.hadoop.HadoopFileIO";
@@ -75,6 +79,8 @@ public class ResolvingFileIO
   private SerializableSupplier<Configuration> hadoopConf;
   // use modifiable collection for Kryo serde
   private List<StorageCredential> storageCredentials = Lists.newArrayList();
+  private SerializableRemoteSigningConfig remoteSigningConfig =
+      SerializableRemoteSigningConfig.copyOf(RemoteSigningConfig.EMPTY);
 
   /**
    * No-arg constructor to load the FileIO dynamically.
@@ -181,6 +187,11 @@ public class ResolvingFileIO
         ((SupportsStorageCredentials) io).setCredentials(storageCredentials);
       }
 
+      if (io instanceof SupportsRemoteSigningConfig ioWithRemoteSigningConfig
+          && !ioWithRemoteSigningConfig.remoteSigningConfig().equals(remoteSigningConfig)) {
+        ioWithRemoteSigningConfig.setRemoteSigningConfig(remoteSigningConfig);
+      }
+
       return io;
     }
 
@@ -195,7 +206,8 @@ public class ResolvingFileIO
             // ResolvingFileIO is keeping track of the creation stacktrace, so no need to do the
             // same in S3FileIO.
             props.put("init-creation-stacktrace", "false");
-            fileIO = CatalogUtil.loadFileIO(key, props, conf, storageCredentials);
+            fileIO =
+                CatalogUtil.loadFileIO(key, props, conf, storageCredentials, remoteSigningConfig);
           } catch (IllegalArgumentException e) {
             if (key.equals(FALLBACK_IMPL)) {
               // no implementation to fall back to, throw the exception
@@ -209,7 +221,8 @@ public class ResolvingFileIO
                   e);
               try {
                 fileIO =
-                    CatalogUtil.loadFileIO(FALLBACK_IMPL, properties, conf, storageCredentials);
+                    CatalogUtil.loadFileIO(
+                        FALLBACK_IMPL, properties, conf, storageCredentials, remoteSigningConfig);
               } catch (IllegalArgumentException suppressed) {
                 LOG.warn(
                     "Failed to load FileIO implementation: {} (fallback)",
@@ -289,5 +302,16 @@ public class ResolvingFileIO
   @Override
   public List<StorageCredential> credentials() {
     return ImmutableList.copyOf(storageCredentials);
+  }
+
+  @Override
+  public void setRemoteSigningConfig(RemoteSigningConfig config) {
+    Preconditions.checkArgument(config != null, "Invalid remote signing config: null");
+    remoteSigningConfig = SerializableRemoteSigningConfig.copyOf(config);
+  }
+
+  @Override
+  public RemoteSigningConfig remoteSigningConfig() {
+    return remoteSigningConfig.immutableConfig();
   }
 }

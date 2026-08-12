@@ -29,6 +29,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.RESTResponse;
 import org.apache.iceberg.rest.credentials.Credential;
+import org.apache.iceberg.rest.signing.RemoteSigningConfig;
 
 /**
  * A REST response that is used when a table is successfully loaded.
@@ -45,6 +46,7 @@ public class LoadTableResponse implements RESTResponse {
   private Map<String, String> config;
   private TableMetadata metadataWithLocation;
   private List<Credential> credentials;
+  private RemoteSigningConfig remoteSigningConfig;
 
   public LoadTableResponse() {
     // Required for Jackson deserialization
@@ -54,11 +56,13 @@ public class LoadTableResponse implements RESTResponse {
       String metadataLocation,
       TableMetadata metadata,
       Map<String, String> config,
-      List<Credential> credentials) {
+      List<Credential> credentials,
+      RemoteSigningConfig remoteSigningConfig) {
     this.metadataLocation = metadataLocation;
     this.metadata = metadata;
     this.config = config;
     this.credentials = credentials;
+    this.remoteSigningConfig = remoteSigningConfig;
   }
 
   @Override
@@ -87,6 +91,10 @@ public class LoadTableResponse implements RESTResponse {
     return credentials != null ? credentials : ImmutableList.of();
   }
 
+  public RemoteSigningConfig remoteSigningConfig() {
+    return remoteSigningConfig != null ? remoteSigningConfig : RemoteSigningConfig.EMPTY;
+  }
+
   @Override
   public String toString() {
     return MoreObjects.toStringHelper(this)
@@ -105,6 +113,7 @@ public class LoadTableResponse implements RESTResponse {
     private TableMetadata metadata;
     private final Map<String, String> config = Maps.newHashMap();
     private final List<Credential> credentials = Lists.newArrayList();
+    private RemoteSigningConfig remoteSigningConfig = RemoteSigningConfig.EMPTY;
 
     private Builder() {}
 
@@ -134,9 +143,15 @@ public class LoadTableResponse implements RESTResponse {
       return this;
     }
 
+    public Builder withRemoteSigningConfig(RemoteSigningConfig signingConfig) {
+      this.remoteSigningConfig = signingConfig;
+      return this;
+    }
+
     public LoadTableResponse build() {
       Preconditions.checkNotNull(metadata, "Invalid metadata: null");
-      return new LoadTableResponse(metadataLocation, metadata, config, credentials);
+      return new LoadTableResponse(
+          metadataLocation, metadata, config, credentials, remoteSigningConfig);
     }
   }
 }

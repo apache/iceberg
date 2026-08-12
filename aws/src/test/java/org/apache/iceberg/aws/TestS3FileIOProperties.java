@@ -28,6 +28,8 @@ import org.apache.iceberg.aws.s3.S3FileIOProperties;
 import org.apache.iceberg.aws.s3.signer.S3V4RestSignerClient;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.rest.RESTCatalogInternalProperties;
+import org.apache.iceberg.rest.RESTCatalogProperties;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
@@ -212,7 +214,11 @@ public class TestS3FileIOProperties {
   @Test
   public void testS3RemoteSignerWithoutUri() {
     Map<String, String> properties =
-        ImmutableMap.of(S3FileIOProperties.REMOTE_SIGNING_ENABLED, "true");
+        ImmutableMap.of(
+            S3FileIOProperties.REMOTE_SIGNING_ENABLED,
+            "true",
+            RESTCatalogInternalProperties.TABLE_IDENTIFIER,
+            "table1");
     S3FileIOProperties s3Properties = new S3FileIOProperties(properties);
 
     assertThatThrownBy(() -> s3Properties.applySignerConfiguration(S3Client.builder()))
@@ -225,7 +231,14 @@ public class TestS3FileIOProperties {
     String uri = "http://localhost:12345";
     Map<String, String> properties =
         ImmutableMap.of(
-            S3FileIOProperties.REMOTE_SIGNING_ENABLED, "true", CatalogProperties.URI, uri);
+            S3FileIOProperties.REMOTE_SIGNING_ENABLED,
+            "true",
+            CatalogProperties.URI,
+            uri,
+            RESTCatalogInternalProperties.TABLE_IDENTIFIER,
+            "table1",
+            RESTCatalogProperties.SIGNER_ENDPOINT,
+            "v1/aws/s3/sign");
     S3FileIOProperties s3Properties = new S3FileIOProperties(properties);
     S3ClientBuilder builder = S3Client.builder();
 
@@ -244,7 +257,14 @@ public class TestS3FileIOProperties {
     String uri = "http://localhost:12345";
     Map<String, String> properties =
         ImmutableMap.of(
-            S3FileIOProperties.REMOTE_SIGNING_ENABLED, "true", CatalogProperties.URI, uri);
+            S3FileIOProperties.REMOTE_SIGNING_ENABLED,
+            "true",
+            CatalogProperties.URI,
+            uri,
+            RESTCatalogInternalProperties.TABLE_IDENTIFIER,
+            "table1",
+            RESTCatalogProperties.SIGNER_ENDPOINT,
+            "v1/aws/s3/sign");
     S3FileIOProperties s3Properties = new S3FileIOProperties(properties);
     S3ClientBuilder builder = S3Client.builder();
 

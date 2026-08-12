@@ -34,6 +34,7 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import org.apache.iceberg.aws.s3.MinioUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.rest.RESTCatalogInternalProperties;
 import org.apache.iceberg.rest.RESTCatalogProperties;
 import org.apache.iceberg.rest.auth.OAuth2Properties;
 import org.apache.iceberg.util.ThreadPools;
@@ -112,6 +113,8 @@ public class TestS3RestSigner {
                         httpServer.getURI().toString(),
                         RESTCatalogProperties.SIGNER_ENDPOINT,
                         S3SignerServlet.S3_SIGNER_ENDPOINT,
+                        RESTCatalogInternalProperties.TABLE_IDENTIFIER,
+                        "table1",
                         OAuth2Properties.CREDENTIAL,
                         "catalog:12345"))
                 .build(),

@@ -51,6 +51,7 @@ import org.apache.iceberg.rest.requests.PlanTableScanRequest;
 import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.rest.responses.FetchPlanningResultResponse;
 import org.apache.iceberg.rest.responses.PlanTableScanResponse;
+import org.apache.iceberg.rest.signing.RemoteSigningConfig;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
@@ -85,6 +86,7 @@ class RESTTableScan extends DataTableScan {
   private final ParserContext parserContext;
   private final Map<String, String> catalogProperties;
   private final Object hadoopConf;
+  private final RemoteSigningConfig remoteSigningConfig;
   private String planId = null;
   private FileIO scanFileIO = null;
   private boolean useSnapshotSchema = false;
@@ -100,7 +102,8 @@ class RESTTableScan extends DataTableScan {
       ResourcePaths resourcePaths,
       Set<Endpoint> supportedEndpoints,
       Map<String, String> catalogProperties,
-      Object hadoopConf) {
+      Object hadoopConf,
+      RemoteSigningConfig remoteSigningConfig) {
     super(table, schema, context);
     this.client = client;
     this.headers = headers;
@@ -115,6 +118,7 @@ class RESTTableScan extends DataTableScan {
             .build();
     this.catalogProperties = catalogProperties;
     this.hadoopConf = hadoopConf;
+    this.remoteSigningConfig = remoteSigningConfig;
   }
 
   @Override
@@ -132,7 +136,8 @@ class RESTTableScan extends DataTableScan {
             resourcePaths,
             supportedEndpoints,
             catalogProperties,
-            hadoopConf);
+            hadoopConf,
+            remoteSigningConfig);
     scan.useSnapshotSchema = useSnapshotSchema;
     return scan;
   }
@@ -241,7 +246,8 @@ class RESTTableScan extends DataTableScan {
             hadoopConf,
             storageCredentials.stream()
                 .map(c -> StorageCredential.create(c.prefix(), c.config()))
-                .collect(Collectors.toList()));
+                .collect(Collectors.toList()),
+            remoteSigningConfig);
     FILEIO_TRACKER.put(this, ioForScan);
     return ioForScan;
   }
