@@ -30,11 +30,11 @@ import org.apache.hc.client5.http.io.HttpClientConnectionManager;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.Test;
 
-class TestHttpUrlHelper {
+class TestHttpUrlClient {
 
   @Test
   void connectionConfigIsNullWhenTimeoutsUnset() {
-    assertThat(HttpUrlHelper.configureConnectionConfig(ImmutableMap.of())).isNull();
+    assertThat(HttpUrlClient.configureConnectionConfig(ImmutableMap.of())).isNull();
   }
 
   @Test
@@ -43,10 +43,10 @@ class TestHttpUrlHelper {
     long socketTimeoutMs = 2_000L;
     Map<String, String> properties =
         ImmutableMap.of(
-            HttpUrlHelper.CONNECTION_TIMEOUT_MS, String.valueOf(connectionTimeoutMs),
-            HttpUrlHelper.SOCKET_TIMEOUT_MS, String.valueOf(socketTimeoutMs));
+            HttpUrlClient.CONNECTION_TIMEOUT_MS, String.valueOf(connectionTimeoutMs),
+            HttpUrlClient.SOCKET_TIMEOUT_MS, String.valueOf(socketTimeoutMs));
 
-    ConnectionConfig connectionConfig = HttpUrlHelper.configureConnectionConfig(properties);
+    ConnectionConfig connectionConfig = HttpUrlClient.configureConnectionConfig(properties);
     assertThat(connectionConfig).isNotNull();
     assertThat(connectionConfig.getConnectTimeout().toMilliseconds())
         .isEqualTo(connectionTimeoutMs);
@@ -59,9 +59,9 @@ class TestHttpUrlHelper {
     ConnectionConfig defaults = ConnectionConfig.custom().build();
 
     ConnectionConfig connectionConfig =
-        HttpUrlHelper.configureConnectionConfig(
+        HttpUrlClient.configureConnectionConfig(
             ImmutableMap.of(
-                HttpUrlHelper.CONNECTION_TIMEOUT_MS, String.valueOf(connectionTimeoutMs)));
+                HttpUrlClient.CONNECTION_TIMEOUT_MS, String.valueOf(connectionTimeoutMs)));
     assertThat(connectionConfig).isNotNull();
     assertThat(connectionConfig.getConnectTimeout().toMilliseconds())
         .isEqualTo(connectionTimeoutMs);
@@ -74,8 +74,8 @@ class TestHttpUrlHelper {
     ConnectionConfig defaults = ConnectionConfig.custom().build();
 
     ConnectionConfig connectionConfig =
-        HttpUrlHelper.configureConnectionConfig(
-            ImmutableMap.of(HttpUrlHelper.SOCKET_TIMEOUT_MS, String.valueOf(socketTimeoutMs)));
+        HttpUrlClient.configureConnectionConfig(
+            ImmutableMap.of(HttpUrlClient.SOCKET_TIMEOUT_MS, String.valueOf(socketTimeoutMs)));
     assertThat(connectionConfig).isNotNull();
     assertThat(connectionConfig.getSocketTimeout().toMilliseconds()).isEqualTo(socketTimeoutMs);
     assertThat(connectionConfig.getConnectTimeout()).isEqualTo(defaults.getConnectTimeout());
@@ -83,7 +83,7 @@ class TestHttpUrlHelper {
 
   @Test
   void requestConfigIsNullWhenAcquisitionTimeoutUnset() {
-    assertThat(HttpUrlHelper.configureRequestConfig(ImmutableMap.of())).isNull();
+    assertThat(HttpUrlClient.configureRequestConfig(ImmutableMap.of())).isNull();
   }
 
   @Test
@@ -91,9 +91,9 @@ class TestHttpUrlHelper {
     long acquisitionTimeoutMs = 3_000L;
 
     RequestConfig requestConfig =
-        HttpUrlHelper.configureRequestConfig(
+        HttpUrlClient.configureRequestConfig(
             ImmutableMap.of(
-                HttpUrlHelper.CONNECTION_ACQUISITION_TIMEOUT_MS,
+                HttpUrlClient.CONNECTION_ACQUISITION_TIMEOUT_MS,
                 String.valueOf(acquisitionTimeoutMs)));
     assertThat(requestConfig).isNotNull();
     assertThat(requestConfig.getConnectionRequestTimeout().toMilliseconds())
@@ -106,8 +106,8 @@ class TestHttpUrlHelper {
     int maxConnectionsPerRoute = 3;
     Map<String, String> properties =
         ImmutableMap.of(
-            HttpUrlHelper.MAX_CONNECTIONS, String.valueOf(maxConnections),
-            HttpUrlHelper.MAX_CONNECTIONS_PER_ROUTE, String.valueOf(maxConnectionsPerRoute));
+            HttpUrlClient.MAX_CONNECTIONS, String.valueOf(maxConnections),
+            HttpUrlClient.MAX_CONNECTIONS_PER_ROUTE, String.valueOf(maxConnectionsPerRoute));
 
     PoolingHttpClientConnectionManager pool = poolingManager(properties);
     assertThat(pool.getMaxTotal()).isEqualTo(maxConnections);
@@ -122,7 +122,7 @@ class TestHttpUrlHelper {
 
     PoolingHttpClientConnectionManager pool =
         poolingManager(
-            ImmutableMap.of(HttpUrlHelper.MAX_CONNECTIONS, String.valueOf(maxConnections)));
+            ImmutableMap.of(HttpUrlClient.MAX_CONNECTIONS, String.valueOf(maxConnections)));
     assertThat(pool.getMaxTotal()).isEqualTo(maxConnections);
     assertThat(pool.getDefaultMaxPerRoute()).isEqualTo(defaults.getDefaultMaxPerRoute());
   }
@@ -139,23 +139,23 @@ class TestHttpUrlHelper {
 
   @Test
   void readChunkSizeUsesGenericDefaultWhenUnspecified() {
-    assertThat(new HttpUrlHelper(ImmutableMap.of()).readChunkSize())
-        .isEqualTo(HttpUrlHelper.READ_CHUNK_SIZE_BYTES_DEFAULT);
+    assertThat(new HttpUrlClient(ImmutableMap.of()).readChunkSize())
+        .isEqualTo(HttpUrlClient.READ_CHUNK_SIZE_BYTES_DEFAULT);
   }
 
   @Test
   void readChunkSizeUsesCallerDefaultWhenPropertyUnset() {
     int callerDefault = 8 * 1024 * 1024;
-    assertThat(new HttpUrlHelper(ImmutableMap.of(), callerDefault).readChunkSize())
+    assertThat(new HttpUrlClient(ImmutableMap.of(), callerDefault).readChunkSize())
         .isEqualTo(callerDefault);
   }
 
   @Test
   void readChunkSizePropertyOverridesCallerDefault() {
     int override = 1024;
-    HttpUrlHelper support =
-        new HttpUrlHelper(
-            ImmutableMap.of(HttpUrlHelper.READ_CHUNK_SIZE_BYTES, String.valueOf(override)),
+    HttpUrlClient support =
+        new HttpUrlClient(
+            ImmutableMap.of(HttpUrlClient.READ_CHUNK_SIZE_BYTES, String.valueOf(override)),
             8 * 1024 * 1024);
     assertThat(support.readChunkSize()).isEqualTo(override);
   }
@@ -163,37 +163,37 @@ class TestHttpUrlHelper {
   @Test
   void nonPositiveReadChunkSizeIsRejected() {
     assertThatThrownBy(
-            () -> new HttpUrlHelper(ImmutableMap.of(HttpUrlHelper.READ_CHUNK_SIZE_BYTES, "0")))
+            () -> new HttpUrlClient(ImmutableMap.of(HttpUrlClient.READ_CHUNK_SIZE_BYTES, "0")))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining(HttpUrlHelper.READ_CHUNK_SIZE_BYTES);
+        .hasMessageContaining(HttpUrlClient.READ_CHUNK_SIZE_BYTES);
   }
 
   @Test
   void redactStripsQueryUserInfoAndFragment() {
     assertThat(
-            HttpUrlHelper.redact(
+            HttpUrlClient.redact(
                 "https://user:pass@bucket.s3.amazonaws.com:443/key/f.parquet?X-Amz-Signature=abc#frag"))
         .isEqualTo("https://bucket.s3.amazonaws.com:443/key/f.parquet");
   }
 
   @Test
   void redactKeepsSchemeHostAndPathForHttpAndHttps() {
-    assertThat(HttpUrlHelper.redact("https://bucket.s3.amazonaws.com/key"))
+    assertThat(HttpUrlClient.redact("https://bucket.s3.amazonaws.com/key"))
         .isEqualTo("https://bucket.s3.amazonaws.com/key");
-    assertThat(HttpUrlHelper.redact("http://127.0.0.1:9000/bucket/key"))
+    assertThat(HttpUrlClient.redact("http://127.0.0.1:9000/bucket/key"))
         .isEqualTo("http://127.0.0.1:9000/bucket/key");
   }
 
   @Test
   void redactFailsClosedForMalformedOrHostlessUrlsAndNull() {
-    assertThat(HttpUrlHelper.redact("not a url")).isEqualTo("<redacted>");
-    assertThat(HttpUrlHelper.redact("mailto:someone@example.com")).isEqualTo("<redacted>");
-    assertThat(HttpUrlHelper.redact(null)).isEqualTo("null");
+    assertThat(HttpUrlClient.redact("not a url")).isEqualTo("<redacted>");
+    assertThat(HttpUrlClient.redact("mailto:someone@example.com")).isEqualTo("<redacted>");
+    assertThat(HttpUrlClient.redact(null)).isEqualTo("null");
   }
 
   private static PoolingHttpClientConnectionManager poolingManager(Map<String, String> properties) {
     HttpClientConnectionManager connectionManager =
-        HttpUrlHelper.configureConnectionManager(properties);
+        HttpUrlClient.configureConnectionManager(properties);
     assertThat(connectionManager).isInstanceOf(PoolingHttpClientConnectionManager.class);
     return (PoolingHttpClientConnectionManager) connectionManager;
   }

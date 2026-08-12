@@ -60,8 +60,8 @@ import org.slf4j.LoggerFactory;
  * other non-retryable status. Status codes are classified in one place by {@link
  * HttpStatusCategory}.
  */
-class HTTPInputStream extends SeekableInputStream implements RangeReadable {
-  private static final Logger LOG = LoggerFactory.getLogger(HTTPInputStream.class);
+class HttpInputStream extends SeekableInputStream implements RangeReadable {
+  private static final Logger LOG = LoggerFactory.getLogger(HttpInputStream.class);
 
   private static final int MAX_RETRIES = 3;
   private static final int MIN_RETRY_WAIT_MS = 100;
@@ -87,7 +87,7 @@ class HTTPInputStream extends SeekableInputStream implements RangeReadable {
   private long next = 0;
   private boolean closed = false;
 
-  HTTPInputStream(
+  HttpInputStream(
       CloseableHttpClient client,
       String location,
       String url,
@@ -163,7 +163,7 @@ class HTTPInputStream extends SeekableInputStream implements RangeReadable {
     if (data.length < length) {
       throw new EOFException(
           "Reached end of "
-              + HttpUrlHelper.redact(location)
+              + HttpUrlClient.redact(location)
               + " with "
               + (length - data.length)
               + " bytes left to read");
@@ -256,24 +256,24 @@ class HTTPInputStream extends SeekableInputStream implements RangeReadable {
             }
             case NOT_FOUND ->
                 throw new NotFoundException(
-                    "Location does not exist: %s", HttpUrlHelper.redact(requestUrl));
+                    "Location does not exist: %s", HttpUrlClient.redact(requestUrl));
             case FORBIDDEN ->
                 throw new ForbiddenException(
-                    "Access forbidden for %s", HttpUrlHelper.redact(requestUrl));
+                    "Access forbidden for %s", HttpUrlClient.redact(requestUrl));
             case TRANSIENT ->
                 throw new TransientHttpException(
                     String.format(
                         Locale.ROOT,
                         "Transient HTTP %d for %s",
                         statusCode,
-                        HttpUrlHelper.redact(requestUrl)));
+                        HttpUrlClient.redact(requestUrl)));
             case TERMINAL ->
                 throw new IOException(
                     String.format(
                         Locale.ROOT,
                         "Unexpected HTTP %d for %s",
                         statusCode,
-                        HttpUrlHelper.redact(requestUrl)));
+                        HttpUrlClient.redact(requestUrl)));
           };
         });
   }

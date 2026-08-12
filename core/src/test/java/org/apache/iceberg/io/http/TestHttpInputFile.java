@@ -52,11 +52,11 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 /**
- * Exercises {@link HTTPInputFile}/{@link HTTPInputStream} against a real {@link HttpServer} that
+ * Exercises {@link HttpInputFile}/{@link HttpInputStream} against a real {@link HttpServer} that
  * serves ranges from the request {@code Range} header, giving cloud-free coverage of the HTTP read
  * path, including multi-chunk reads that cross the configured chunk-size boundary.
  */
-class TestHTTPInputFile {
+class TestHttpInputFile {
 
   private static final String PATH = "/object";
   private static final int CHUNK_SIZE = 64 * 1024;
@@ -76,15 +76,15 @@ class TestHTTPInputFile {
   @BeforeAll
   static void startServer() throws IOException {
     server = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
-    server.createContext(PATH, TestHTTPInputFile::handle);
+    server.createContext(PATH, TestHttpInputFile::handle);
     server.createContext("/missing", exchange -> respondStatus(exchange, 404));
     server.createContext("/forbidden", exchange -> respondStatus(exchange, 403));
     server.createContext("/server-error", exchange -> respondStatus(exchange, 500));
     server.createContext("/throttled", exchange -> respondStatus(exchange, 429));
     server.createContext("/not-implemented", exchange -> respondStatus(exchange, 501));
-    server.createContext("/redirect", TestHTTPInputFile::respondRedirect);
+    server.createContext("/redirect", TestHttpInputFile::respondRedirect);
     server.start();
-    // disable the client's built-in retries so tests exercise HTTPInputStream's own retry logic
+    // disable the client's built-in retries so tests exercise HttpInputStream's own retry logic
     client = HttpClients.custom().disableAutomaticRetries().build();
     int port = server.getAddress().getPort();
     url = String.format(Locale.ROOT, "http://127.0.0.1:%d%s", port, PATH);
@@ -109,7 +109,7 @@ class TestHTTPInputFile {
 
   @Test
   void getLengthFetchesTotalFromContentRange() {
-    HTTPInputFile inputFile = httpInputFile(url, MetricsContext.nullMetrics());
+    HttpInputFile inputFile = httpInputFile(url, MetricsContext.nullMetrics());
 
     assertThat(inputFile.getLength()).isEqualTo(DATA.length);
     assertThat(REQUEST_COUNT.get()).isEqualTo(1);
@@ -117,8 +117,8 @@ class TestHTTPInputFile {
 
   @Test
   void getLengthUsesKnownLengthWithoutRequest() {
-    HTTPInputFile inputFile =
-        new HTTPInputFile(
+    HttpInputFile inputFile =
+        new HttpInputFile(
             client, "s3://bucket/object", url, 123L, CHUNK_SIZE, MetricsContext.nullMetrics());
 
     assertThat(inputFile.getLength()).isEqualTo(123L);
@@ -127,7 +127,7 @@ class TestHTTPInputFile {
 
   @Test
   void readFullyReadsExactRange() throws IOException {
-    HTTPInputFile inputFile = httpInputFile(url, MetricsContext.nullMetrics());
+    HttpInputFile inputFile = httpInputFile(url, MetricsContext.nullMetrics());
 
     byte[] buffer = new byte[2_048];
     try (SeekableInputStream stream = inputFile.newStream()) {
@@ -139,7 +139,7 @@ class TestHTTPInputFile {
 
   @Test
   void readTailReadsSuffix() throws IOException {
-    HTTPInputFile inputFile = httpInputFile(url, MetricsContext.nullMetrics());
+    HttpInputFile inputFile = httpInputFile(url, MetricsContext.nullMetrics());
 
     byte[] buffer = new byte[512];
     int read;
@@ -154,7 +154,7 @@ class TestHTTPInputFile {
 
   @Test
   void sequentialReadCrossesChunkBoundary() throws IOException {
-    HTTPInputFile inputFile = httpInputFile(url, MetricsContext.nullMetrics());
+    HttpInputFile inputFile = httpInputFile(url, MetricsContext.nullMetrics());
 
     byte[] actual = new byte[DATA.length];
     try (SeekableInputStream stream = inputFile.newStream()) {
@@ -169,8 +169,8 @@ class TestHTTPInputFile {
   @Test
   void sequentialReadWithinSingleChunkFetchesOnce() throws IOException {
     // a chunk larger than the object means the whole file is served by one range fetch
-    HTTPInputFile inputFile =
-        new HTTPInputFile(
+    HttpInputFile inputFile =
+        new HttpInputFile(
             client, "s3://bucket/object", url, DATA.length + 1_000, MetricsContext.nullMetrics());
 
     byte[] actual = new byte[DATA.length];
@@ -185,7 +185,7 @@ class TestHTTPInputFile {
   @Test
   void sequentialReadTracksReadMetrics() throws IOException {
     CachingMetricsContext metrics = new CachingMetricsContext();
-    HTTPInputFile inputFile = httpInputFile(url, metrics);
+    HttpInputFile inputFile = httpInputFile(url, metrics);
 
     byte[] actual = new byte[DATA.length];
     try (SeekableInputStream stream = inputFile.newStream()) {
@@ -200,7 +200,7 @@ class TestHTTPInputFile {
 
   @Test
   void getLengthThrowsNotFoundWhenMissing() {
-    HTTPInputFile inputFile = httpInputFile(missingUrl, MetricsContext.nullMetrics());
+    HttpInputFile inputFile = httpInputFile(missingUrl, MetricsContext.nullMetrics());
 
     assertThatThrownBy(inputFile::getLength)
         .isInstanceOf(NotFoundException.class)
@@ -209,7 +209,7 @@ class TestHTTPInputFile {
 
   @Test
   void getLengthThrowsForbiddenWhenForbidden() {
-    HTTPInputFile inputFile = httpInputFile(forbiddenUrl, MetricsContext.nullMetrics());
+    HttpInputFile inputFile = httpInputFile(forbiddenUrl, MetricsContext.nullMetrics());
 
     assertThatThrownBy(inputFile::getLength)
         .isInstanceOf(ForbiddenException.class)
@@ -218,7 +218,7 @@ class TestHTTPInputFile {
 
   @Test
   void readThrowsForbiddenWithoutRetry() {
-    HTTPInputFile inputFile = httpInputFile(forbiddenUrl, MetricsContext.nullMetrics());
+    HttpInputFile inputFile = httpInputFile(forbiddenUrl, MetricsContext.nullMetrics());
 
     assertThatThrownBy(
             () -> {
@@ -233,7 +233,7 @@ class TestHTTPInputFile {
 
   @Test
   void readRetriesOnServerErrorThenFails() {
-    HTTPInputFile inputFile = httpInputFile(serverErrorUrl, MetricsContext.nullMetrics());
+    HttpInputFile inputFile = httpInputFile(serverErrorUrl, MetricsContext.nullMetrics());
 
     assertThatThrownBy(
             () -> {
@@ -249,7 +249,7 @@ class TestHTTPInputFile {
   @Test
   void readRetriesOnThrottlingThenFails() {
     // throttling (429) is transient and must be retried, with backoff, rather than failing outright
-    HTTPInputFile inputFile = httpInputFile(throttledUrl, MetricsContext.nullMetrics());
+    HttpInputFile inputFile = httpInputFile(throttledUrl, MetricsContext.nullMetrics());
 
     assertThatThrownBy(
             () -> {
@@ -265,7 +265,7 @@ class TestHTTPInputFile {
   @Test
   void readDoesNotRetryOnNonRetryableServerError() {
     // not every 5xx is transient: 501 Not Implemented is terminal and must not be retried
-    HTTPInputFile inputFile = httpInputFile(notImplementedUrl, MetricsContext.nullMetrics());
+    HttpInputFile inputFile = httpInputFile(notImplementedUrl, MetricsContext.nullMetrics());
 
     assertThatThrownBy(
             () -> {
@@ -280,9 +280,9 @@ class TestHTTPInputFile {
 
   @Test
   void readDoesNotFollowRedirect() {
-    // HttpUrlHelper builds the client with redirect handling disabled, so a 3xx is surfaced as an
+    // HttpUrlClient builds the client with redirect handling disabled, so a 3xx is surfaced as an
     // error rather than followed to its target (which would defeat a host allow-list).
-    HttpUrlHelper support = new HttpUrlHelper();
+    HttpUrlClient support = new HttpUrlClient();
     try {
       InputFile inputFile = support.newInputFile(redirectUrl, MetricsContext.nullMetrics());
       assertThatThrownBy(
@@ -302,21 +302,21 @@ class TestHTTPInputFile {
 
   @Test
   void existsReturnsTrueWhenPresent() {
-    HTTPInputFile inputFile = httpInputFile(url, MetricsContext.nullMetrics());
+    HttpInputFile inputFile = httpInputFile(url, MetricsContext.nullMetrics());
 
     assertThat(inputFile.exists()).isTrue();
   }
 
   @Test
   void existsReturnsFalseWhenMissing() {
-    HTTPInputFile inputFile = httpInputFile(missingUrl, MetricsContext.nullMetrics());
+    HttpInputFile inputFile = httpInputFile(missingUrl, MetricsContext.nullMetrics());
 
     assertThat(inputFile.exists()).isFalse();
   }
 
   @Test
   void existsReturnsFalseWhenForbidden() {
-    HTTPInputFile inputFile = httpInputFile(forbiddenUrl, MetricsContext.nullMetrics());
+    HttpInputFile inputFile = httpInputFile(forbiddenUrl, MetricsContext.nullMetrics());
 
     assertThat(inputFile.exists()).isFalse();
   }
@@ -390,8 +390,8 @@ class TestHTTPInputFile {
     exchange.close();
   }
 
-  private static HTTPInputFile httpInputFile(String requestUrl, MetricsContext metrics) {
-    return new HTTPInputFile(client, "s3://bucket/object", requestUrl, CHUNK_SIZE, metrics);
+  private static HttpInputFile httpInputFile(String requestUrl, MetricsContext metrics) {
+    return new HttpInputFile(client, "s3://bucket/object", requestUrl, CHUNK_SIZE, metrics);
   }
 
   private static byte[] randomBytes(int size, long seed) {

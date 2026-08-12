@@ -38,7 +38,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
  * <p>A known content length is returned directly; otherwise it is fetched lazily via a {@code GET
  * Range: bytes=0-0} request, which (unlike HEAD) works with pre-signed GET URLs.
  */
-class HTTPInputFile implements InputFile {
+class HttpInputFile implements InputFile {
   private final CloseableHttpClient client;
   private final String location;
   private final String url;
@@ -47,7 +47,7 @@ class HTTPInputFile implements InputFile {
 
   private long length;
 
-  HTTPInputFile(
+  HttpInputFile(
       CloseableHttpClient client,
       String location,
       String url,
@@ -56,7 +56,7 @@ class HTTPInputFile implements InputFile {
     this(client, location, url, HttpHeaderUtil.UNKNOWN_LENGTH, chunkSize, metrics);
   }
 
-  HTTPInputFile(
+  HttpInputFile(
       CloseableHttpClient client,
       String location,
       String url,
@@ -86,7 +86,7 @@ class HTTPInputFile implements InputFile {
 
   @Override
   public SeekableInputStream newStream() {
-    return new HTTPInputStream(client, location, url, chunkSize, metrics);
+    return new HttpInputStream(client, location, url, chunkSize, metrics);
   }
 
   @Override
@@ -104,7 +104,7 @@ class HTTPInputFile implements InputFile {
       return category == HttpStatusCategory.OK || category == HttpStatusCategory.PARTIAL_CONTENT;
     } catch (IOException e) {
       throw new RuntimeIOException(
-          e, "Failed to check existence of %s", HttpUrlHelper.redact(location));
+          e, "Failed to check existence of %s", HttpUrlClient.redact(location));
     }
   }
 
@@ -128,22 +128,22 @@ class HTTPInputFile implements InputFile {
               case OK -> HttpHeaderUtil.parseLengthFrom200(response);
               case NOT_FOUND ->
                   throw new NotFoundException(
-                      "Location does not exist: %s", HttpUrlHelper.redact(location));
+                      "Location does not exist: %s", HttpUrlClient.redact(location));
               case FORBIDDEN ->
                   throw new ForbiddenException(
-                      "Access forbidden for %s", HttpUrlHelper.redact(location));
+                      "Access forbidden for %s", HttpUrlClient.redact(location));
               default ->
                   throw new IOException(
                       String.format(
                           Locale.ROOT,
                           "Unexpected HTTP %d for %s",
                           statusCode,
-                          HttpUrlHelper.redact(url)));
+                          HttpUrlClient.redact(url)));
             };
           });
     } catch (IOException e) {
       throw new RuntimeIOException(
-          e, "Failed to fetch content length for %s", HttpUrlHelper.redact(location));
+          e, "Failed to fetch content length for %s", HttpUrlClient.redact(location));
     }
   }
 }

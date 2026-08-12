@@ -47,7 +47,7 @@ import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.StorageCredential;
 import org.apache.iceberg.io.SupportsRecoveryOperations;
 import org.apache.iceberg.io.SupportsStorageCredentials;
-import org.apache.iceberg.io.http.HttpUrlHelper;
+import org.apache.iceberg.io.http.HttpUrlClient;
 import org.apache.iceberg.metrics.MetricsContext;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
@@ -114,7 +114,7 @@ public class S3FileIO
   private SerializableMap<String, String> properties = null;
   private MetricsContext metrics = MetricsContext.nullMetrics();
   private final AtomicBoolean isResourceClosed = new AtomicBoolean(false);
-  private transient volatile HttpUrlHelper httpUrlHelper;
+  private transient volatile HttpUrlClient httpUrlClient;
   private transient volatile Set<String> presignedReadAllowedHosts;
   private transient StackTraceElement[] createStack;
   // use modifiable collection for Kryo serde
@@ -157,9 +157,9 @@ public class S3FileIO
 
   @Override
   public InputFile newInputFile(String path) {
-    if (HttpUrlHelper.isHttpUrl(path)) {
+    if (HttpUrlClient.isHttpUrl(path)) {
       S3PresignedReadValidation.checkTrustedHttpsUrl(path, presignedReadAllowedHosts());
-      return httpUrlHelper().newInputFile(path, metrics);
+      return httpUrlClient().newInputFile(path, metrics);
     }
 
     return S3InputFile.fromLocation(path, clientForStoragePath(path), metrics);
@@ -167,9 +167,9 @@ public class S3FileIO
 
   @Override
   public InputFile newInputFile(String path, long length) {
-    if (HttpUrlHelper.isHttpUrl(path)) {
+    if (HttpUrlClient.isHttpUrl(path)) {
       S3PresignedReadValidation.checkTrustedHttpsUrl(path, presignedReadAllowedHosts());
-      return httpUrlHelper().newInputFile(path, length, metrics);
+      return httpUrlClient().newInputFile(path, length, metrics);
     }
 
     return S3InputFile.fromLocation(path, length, clientForStoragePath(path), metrics);
@@ -520,9 +520,9 @@ public class S3FileIO
   public void initialize(Map<String, String> props) {
     this.properties = SerializableMap.copyOf(props);
     // reset so the next access rebuilds from the new properties
-    if (httpUrlHelper != null) {
-      httpUrlHelper.close();
-      this.httpUrlHelper = null;
+    if (httpUrlClient != null) {
+      httpUrlClient.close();
+      this.httpUrlClient = null;
     }
 
     this.createStack =
@@ -569,23 +569,23 @@ public class S3FileIO
         refreshFuture.cancel(true);
         refreshFuture = null;
       }
-      if (httpUrlHelper != null) {
-        httpUrlHelper.close();
-        this.httpUrlHelper = null;
+      if (httpUrlClient != null) {
+        httpUrlClient.close();
+        this.httpUrlClient = null;
       }
     }
   }
 
-  private HttpUrlHelper httpUrlHelper() {
-    if (httpUrlHelper == null) {
+  private HttpUrlClient httpUrlClient() {
+    if (httpUrlClient == null) {
       synchronized (this) {
-        if (httpUrlHelper == null) {
-          this.httpUrlHelper = new HttpUrlHelper(properties, HTTP_READ_CHUNK_SIZE_BYTES_DEFAULT);
+        if (httpUrlClient == null) {
+          this.httpUrlClient = new HttpUrlClient(properties, HTTP_READ_CHUNK_SIZE_BYTES_DEFAULT);
         }
       }
     }
 
-    return httpUrlHelper;
+    return httpUrlClient;
   }
 
   private Set<String> presignedReadAllowedHosts() {
