@@ -47,7 +47,7 @@ import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.StorageCredential;
 import org.apache.iceberg.io.SupportsRecoveryOperations;
 import org.apache.iceberg.io.SupportsStorageCredentials;
-import org.apache.iceberg.io.http.HttpUrlSupport;
+import org.apache.iceberg.io.http.HttpUrlHelper;
 import org.apache.iceberg.metrics.MetricsContext;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
@@ -114,7 +114,8 @@ public class S3FileIO
   private SerializableMap<String, String> properties = null;
   private MetricsContext metrics = MetricsContext.nullMetrics();
   private final AtomicBoolean isResourceClosed = new AtomicBoolean(false);
-  private transient volatile HttpUrlSupport httpUrlSupport;
+  private transient volatile HttpUrlHelper httpUrlHelper;
+  private transient volatile Set<String> presignedReadAllowedHosts;
   private transient StackTraceElement[] createStack;
   // use modifiable collection for Kryo serde
   private volatile List<StorageCredential> storageCredentials = Lists.newArrayList();
@@ -156,16 +157,22 @@ public class S3FileIO
 
   @Override
   public InputFile newInputFile(String path) {
-    return HttpUrlSupport.isHttpUrl(path)
-        ? httpUrlSupport().newInputFile(path, metrics)
-        : S3InputFile.fromLocation(path, clientForStoragePath(path), metrics);
+    if (HttpUrlHelper.isHttpUrl(path)) {
+      S3PresignedReadValidation.checkTrustedHttpsUrl(path, presignedReadAllowedHosts());
+      return httpUrlHelper().newInputFile(path, metrics);
+    }
+
+    return S3InputFile.fromLocation(path, clientForStoragePath(path), metrics);
   }
 
   @Override
   public InputFile newInputFile(String path, long length) {
-    return HttpUrlSupport.isHttpUrl(path)
-        ? httpUrlSupport().newInputFile(path, length, metrics)
-        : S3InputFile.fromLocation(path, length, clientForStoragePath(path), metrics);
+    if (HttpUrlHelper.isHttpUrl(path)) {
+      S3PresignedReadValidation.checkTrustedHttpsUrl(path, presignedReadAllowedHosts());
+      return httpUrlHelper().newInputFile(path, length, metrics);
+    }
+
+    return S3InputFile.fromLocation(path, length, clientForStoragePath(path), metrics);
   }
 
   @Override
@@ -513,9 +520,9 @@ public class S3FileIO
   public void initialize(Map<String, String> props) {
     this.properties = SerializableMap.copyOf(props);
     // reset so the next access rebuilds from the new properties
-    if (httpUrlSupport != null) {
-      httpUrlSupport.close();
-      this.httpUrlSupport = null;
+    if (httpUrlHelper != null) {
+      httpUrlHelper.close();
+      this.httpUrlHelper = null;
     }
 
     this.createStack =
@@ -562,23 +569,36 @@ public class S3FileIO
         refreshFuture.cancel(true);
         refreshFuture = null;
       }
-      if (httpUrlSupport != null) {
-        httpUrlSupport.close();
-        this.httpUrlSupport = null;
+      if (httpUrlHelper != null) {
+        httpUrlHelper.close();
+        this.httpUrlHelper = null;
       }
     }
   }
 
-  private HttpUrlSupport httpUrlSupport() {
-    if (httpUrlSupport == null) {
+  private HttpUrlHelper httpUrlHelper() {
+    if (httpUrlHelper == null) {
       synchronized (this) {
-        if (httpUrlSupport == null) {
-          this.httpUrlSupport = new HttpUrlSupport(properties, HTTP_READ_CHUNK_SIZE_BYTES_DEFAULT);
+        if (httpUrlHelper == null) {
+          this.httpUrlHelper = new HttpUrlHelper(properties, HTTP_READ_CHUNK_SIZE_BYTES_DEFAULT);
         }
       }
     }
 
-    return httpUrlSupport;
+    return httpUrlHelper;
+  }
+
+  private Set<String> presignedReadAllowedHosts() {
+    if (presignedReadAllowedHosts == null) {
+      synchronized (this) {
+        if (presignedReadAllowedHosts == null) {
+          this.presignedReadAllowedHosts =
+              new S3FileIOProperties(properties).presignedReadAllowedHosts();
+        }
+      }
+    }
+
+    return presignedReadAllowedHosts;
   }
 
   @SuppressWarnings({"checkstyle:NoFinalizer", "Finalize", "deprecation"})

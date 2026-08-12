@@ -39,16 +39,23 @@ class TestHttpStatusCategory {
   }
 
   @Test
-  void classifiesServerErrorsAsTransient() {
-    assertThat(HttpStatusCategory.classify(500)).isEqualTo(HttpStatusCategory.SERVER_ERROR);
-    assertThat(HttpStatusCategory.classify(503)).isEqualTo(HttpStatusCategory.SERVER_ERROR);
-    assertThat(HttpStatusCategory.classify(599)).isEqualTo(HttpStatusCategory.SERVER_ERROR);
+  void classifiesThrottlingAndTransientServerErrorsAsTransient() {
+    assertThat(HttpStatusCategory.classify(408)).isEqualTo(HttpStatusCategory.TRANSIENT);
+    assertThat(HttpStatusCategory.classify(429)).isEqualTo(HttpStatusCategory.TRANSIENT);
+    assertThat(HttpStatusCategory.classify(500)).isEqualTo(HttpStatusCategory.TRANSIENT);
+    assertThat(HttpStatusCategory.classify(502)).isEqualTo(HttpStatusCategory.TRANSIENT);
+    assertThat(HttpStatusCategory.classify(503)).isEqualTo(HttpStatusCategory.TRANSIENT);
+    assertThat(HttpStatusCategory.classify(504)).isEqualTo(HttpStatusCategory.TRANSIENT);
   }
 
   @Test
-  void classifiesOtherCodesAsUnexpected() {
-    assertThat(HttpStatusCategory.classify(301)).isEqualTo(HttpStatusCategory.UNEXPECTED);
-    assertThat(HttpStatusCategory.classify(400)).isEqualTo(HttpStatusCategory.UNEXPECTED);
-    assertThat(HttpStatusCategory.classify(401)).isEqualTo(HttpStatusCategory.UNEXPECTED);
+  void classifiesNonRetryableCodesAsTerminal() {
+    // not every 5xx is retryable, and specific client errors must never be retried
+    assertThat(HttpStatusCategory.classify(301)).isEqualTo(HttpStatusCategory.TERMINAL);
+    assertThat(HttpStatusCategory.classify(400)).isEqualTo(HttpStatusCategory.TERMINAL);
+    assertThat(HttpStatusCategory.classify(401)).isEqualTo(HttpStatusCategory.TERMINAL);
+    assertThat(HttpStatusCategory.classify(412)).isEqualTo(HttpStatusCategory.TERMINAL);
+    assertThat(HttpStatusCategory.classify(501)).isEqualTo(HttpStatusCategory.TERMINAL);
+    assertThat(HttpStatusCategory.classify(505)).isEqualTo(HttpStatusCategory.TERMINAL);
   }
 }

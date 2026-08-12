@@ -38,6 +38,7 @@ import org.apache.iceberg.exceptions.ForbiddenException;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.io.FileIOMetricsContext;
 import org.apache.iceberg.io.IOUtil;
+import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.RangeReadable;
 import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.metrics.Counter;
@@ -67,6 +68,9 @@ class TestHTTPInputFile {
   private static String missingUrl;
   private static String forbiddenUrl;
   private static String serverErrorUrl;
+  private static String throttledUrl;
+  private static String notImplementedUrl;
+  private static String redirectUrl;
   private static final AtomicInteger REQUEST_COUNT = new AtomicInteger();
 
   @BeforeAll
@@ -76,13 +80,20 @@ class TestHTTPInputFile {
     server.createContext("/missing", exchange -> respondStatus(exchange, 404));
     server.createContext("/forbidden", exchange -> respondStatus(exchange, 403));
     server.createContext("/server-error", exchange -> respondStatus(exchange, 500));
+    server.createContext("/throttled", exchange -> respondStatus(exchange, 429));
+    server.createContext("/not-implemented", exchange -> respondStatus(exchange, 501));
+    server.createContext("/redirect", TestHTTPInputFile::respondRedirect);
     server.start();
-    client = HttpClients.createDefault();
+    // disable the client's built-in retries so tests exercise HTTPInputStream's own retry logic
+    client = HttpClients.custom().disableAutomaticRetries().build();
     int port = server.getAddress().getPort();
     url = String.format(Locale.ROOT, "http://127.0.0.1:%d%s", port, PATH);
     missingUrl = String.format(Locale.ROOT, "http://127.0.0.1:%d/missing", port);
     forbiddenUrl = String.format(Locale.ROOT, "http://127.0.0.1:%d/forbidden", port);
     serverErrorUrl = String.format(Locale.ROOT, "http://127.0.0.1:%d/server-error", port);
+    throttledUrl = String.format(Locale.ROOT, "http://127.0.0.1:%d/throttled", port);
+    notImplementedUrl = String.format(Locale.ROOT, "http://127.0.0.1:%d/not-implemented", port);
+    redirectUrl = String.format(Locale.ROOT, "http://127.0.0.1:%d/redirect", port);
   }
 
   @AfterAll
@@ -236,6 +247,60 @@ class TestHTTPInputFile {
   }
 
   @Test
+  void readRetriesOnThrottlingThenFails() {
+    // throttling (429) is transient and must be retried, with backoff, rather than failing outright
+    HTTPInputFile inputFile = httpInputFile(throttledUrl, MetricsContext.nullMetrics());
+
+    assertThatThrownBy(
+            () -> {
+              try (SeekableInputStream stream = inputFile.newStream()) {
+                ((RangeReadable) stream).readFully(0, new byte[16], 0, 16);
+              }
+            })
+        .isInstanceOf(IOException.class)
+        .hasMessageContaining("Transient HTTP 429");
+    assertThat(REQUEST_COUNT.get()).isGreaterThan(1);
+  }
+
+  @Test
+  void readDoesNotRetryOnNonRetryableServerError() {
+    // not every 5xx is transient: 501 Not Implemented is terminal and must not be retried
+    HTTPInputFile inputFile = httpInputFile(notImplementedUrl, MetricsContext.nullMetrics());
+
+    assertThatThrownBy(
+            () -> {
+              try (SeekableInputStream stream = inputFile.newStream()) {
+                ((RangeReadable) stream).readFully(0, new byte[16], 0, 16);
+              }
+            })
+        .isInstanceOf(IOException.class)
+        .hasMessageContaining("Unexpected HTTP 501");
+    assertThat(REQUEST_COUNT.get()).isEqualTo(1);
+  }
+
+  @Test
+  void readDoesNotFollowRedirect() {
+    // HttpUrlHelper builds the client with redirect handling disabled, so a 3xx is surfaced as an
+    // error rather than followed to its target (which would defeat a host allow-list).
+    HttpUrlHelper support = new HttpUrlHelper();
+    try {
+      InputFile inputFile = support.newInputFile(redirectUrl, MetricsContext.nullMetrics());
+      assertThatThrownBy(
+              () -> {
+                try (SeekableInputStream stream = inputFile.newStream()) {
+                  stream.read();
+                }
+              })
+          .isInstanceOf(IOException.class)
+          .hasMessageContaining("Unexpected HTTP 302");
+      // only the redirect endpoint is hit; the target is never fetched
+      assertThat(REQUEST_COUNT.get()).isEqualTo(1);
+    } finally {
+      support.close();
+    }
+  }
+
+  @Test
   void existsReturnsTrueWhenPresent() {
     HTTPInputFile inputFile = httpInputFile(url, MetricsContext.nullMetrics());
 
@@ -315,6 +380,13 @@ class TestHTTPInputFile {
   private static void respondStatus(HttpExchange exchange, int status) throws IOException {
     REQUEST_COUNT.incrementAndGet();
     exchange.sendResponseHeaders(status, -1);
+    exchange.close();
+  }
+
+  private static void respondRedirect(HttpExchange exchange) throws IOException {
+    REQUEST_COUNT.incrementAndGet();
+    exchange.getResponseHeaders().set("Location", PATH);
+    exchange.sendResponseHeaders(302, -1);
     exchange.close();
   }
 

@@ -24,6 +24,7 @@ import java.net.SocketException;
 import java.net.SocketTimeoutException;
 import java.util.Arrays;
 import java.util.Locale;
+import java.util.concurrent.atomic.AtomicReference;
 import javax.net.ssl.SSLException;
 import org.apache.hc.client5.http.classic.methods.HttpGet;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
@@ -39,6 +40,7 @@ import org.apache.iceberg.metrics.MetricsContext;
 import org.apache.iceberg.metrics.MetricsContext.Unit;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.util.Tasks;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -50,15 +52,22 @@ import org.slf4j.LoggerFactory;
  * a single range GET fully consumed within the response handler so connections return to the pool.
  * Positional reads ({@link #readFully}, {@link #readTail}) each issue their own range GET.
  *
- * <p>Transient socket/TLS errors and 5xx responses are retried up to {@value #MAX_RETRIES} times. A
- * missing location ({@code 404}) surfaces as {@link NotFoundException} and a forbidden response
- * ({@code 403}, e.g. an expired pre-signed URL) as {@link ForbiddenException}; both are terminal.
- * Status codes are classified in one place by {@link HttpStatusCategory}.
+ * <p>Transient socket/TLS errors and retryable HTTP responses (throttling and transient server
+ * errors; see {@link HttpStatusCategory}) are retried with exponential backoff up to {@value
+ * #MAX_RETRIES} times, so a throttled or briefly unavailable endpoint is not hammered. A missing
+ * location ({@code 404}) surfaces as {@link NotFoundException} and a forbidden response ({@code
+ * 403}, e.g. an expired pre-signed URL) as {@link ForbiddenException}; both are terminal, as is any
+ * other non-retryable status. Status codes are classified in one place by {@link
+ * HttpStatusCategory}.
  */
 class HTTPInputStream extends SeekableInputStream implements RangeReadable {
   private static final Logger LOG = LoggerFactory.getLogger(HTTPInputStream.class);
 
   private static final int MAX_RETRIES = 3;
+  private static final int MIN_RETRY_WAIT_MS = 100;
+  private static final int MAX_RETRY_WAIT_MS = 5_000;
+  private static final int MAX_RETRY_DURATION_MS = 30_000;
+  private static final double RETRY_SCALE_FACTOR = 2.0;
 
   private final StackTraceElement[] createStack;
   private final CloseableHttpClient client;
@@ -153,7 +162,11 @@ class HTTPInputStream extends SeekableInputStream implements RangeReadable {
     byte[] data = fetchRange(range);
     if (data.length < length) {
       throw new EOFException(
-          "Reached end of " + location + " with " + (length - data.length) + " bytes left to read");
+          "Reached end of "
+              + HttpUrlHelper.redact(location)
+              + " with "
+              + (length - data.length)
+              + " bytes left to read");
     }
 
     System.arraycopy(data, 0, out, offset, length);
@@ -203,20 +216,23 @@ class HTTPInputStream extends SeekableInputStream implements RangeReadable {
     bufferLimit = data.length;
   }
 
-  /** Fetches a byte range from the URL, with retries on transient network and server errors. */
+  /**
+   * Fetches a byte range from the URL, retrying transient network and HTTP failures with
+   * exponential backoff so a throttled or briefly unavailable endpoint is not repeatedly hammered.
+   */
   private byte[] fetchRange(String range) throws IOException {
-    IOException lastException = null;
-    for (int attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-      try {
-        return doFetchRange(range, url);
-      } catch (TransientHttpException | SocketException | SocketTimeoutException | SSLException e) {
-        lastException = e;
-        LOG.warn(
-            "Retrying range fetch for {} range={} (attempt {})", location, range, attempt + 1, e);
-      }
-    }
-
-    throw lastException;
+    AtomicReference<byte[]> result = new AtomicReference<>();
+    Tasks.range(1)
+        .retry(MAX_RETRIES)
+        .exponentialBackoff(
+            MIN_RETRY_WAIT_MS, MAX_RETRY_WAIT_MS, MAX_RETRY_DURATION_MS, RETRY_SCALE_FACTOR)
+        .onlyRetryOn(
+            TransientHttpException.class,
+            SocketException.class,
+            SocketTimeoutException.class,
+            SSLException.class)
+        .run(ignored -> result.set(doFetchRange(range, url)), IOException.class);
+    return result.get();
   }
 
   private byte[] doFetchRange(String range, String requestUrl) throws IOException {
@@ -239,20 +255,30 @@ class HTTPInputStream extends SeekableInputStream implements RangeReadable {
               yield new byte[0];
             }
             case NOT_FOUND ->
-                throw new NotFoundException("Location does not exist: %s", requestUrl);
-            case FORBIDDEN -> throw new ForbiddenException("Access forbidden for %s", requestUrl);
-            case SERVER_ERROR ->
+                throw new NotFoundException(
+                    "Location does not exist: %s", HttpUrlHelper.redact(requestUrl));
+            case FORBIDDEN ->
+                throw new ForbiddenException(
+                    "Access forbidden for %s", HttpUrlHelper.redact(requestUrl));
+            case TRANSIENT ->
                 throw new TransientHttpException(
-                    String.format(Locale.ROOT, "Transient HTTP %d for %s", statusCode, requestUrl));
-            case UNEXPECTED ->
+                    String.format(
+                        Locale.ROOT,
+                        "Transient HTTP %d for %s",
+                        statusCode,
+                        HttpUrlHelper.redact(requestUrl)));
+            case TERMINAL ->
                 throw new IOException(
                     String.format(
-                        Locale.ROOT, "Unexpected HTTP %d for %s", statusCode, requestUrl));
+                        Locale.ROOT,
+                        "Unexpected HTTP %d for %s",
+                        statusCode,
+                        HttpUrlHelper.redact(requestUrl)));
           };
         });
   }
 
-  /** Marks an IOException as retryable (transient server errors, 5xx). */
+  /** Marks an IOException as retryable: throttling or a transient server error. */
   private static final class TransientHttpException extends IOException {
     TransientHttpException(String message) {
       super(message);

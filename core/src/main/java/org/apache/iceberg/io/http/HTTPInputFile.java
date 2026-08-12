@@ -22,8 +22,6 @@ import java.io.IOException;
 import java.util.Locale;
 import org.apache.hc.client5.http.classic.methods.HttpGet;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
-import org.apache.hc.core5.http.ClassicHttpResponse;
-import org.apache.hc.core5.http.Header;
 import org.apache.hc.core5.http.HttpHeaders;
 import org.apache.iceberg.exceptions.ForbiddenException;
 import org.apache.iceberg.exceptions.NotFoundException;
@@ -41,8 +39,6 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
  * Range: bytes=0-0} request, which (unlike HEAD) works with pre-signed GET URLs.
  */
 class HTTPInputFile implements InputFile {
-  private static final long UNKNOWN_LENGTH = -1L;
-
   private final CloseableHttpClient client;
   private final String location;
   private final String url;
@@ -57,7 +53,7 @@ class HTTPInputFile implements InputFile {
       String url,
       int chunkSize,
       MetricsContext metrics) {
-    this(client, location, url, UNKNOWN_LENGTH, chunkSize, metrics);
+    this(client, location, url, HttpHeaderUtil.UNKNOWN_LENGTH, chunkSize, metrics);
   }
 
   HTTPInputFile(
@@ -81,7 +77,7 @@ class HTTPInputFile implements InputFile {
 
   @Override
   public long getLength() {
-    if (length == UNKNOWN_LENGTH) {
+    if (length == HttpHeaderUtil.UNKNOWN_LENGTH) {
       this.length = fetchContentLength();
     }
 
@@ -107,7 +103,8 @@ class HTTPInputFile implements InputFile {
           client.execute(request, response -> HttpStatusCategory.classify(response.getCode()));
       return category == HttpStatusCategory.OK || category == HttpStatusCategory.PARTIAL_CONTENT;
     } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to check existence of %s", location);
+      throw new RuntimeIOException(
+          e, "Failed to check existence of %s", HttpUrlHelper.redact(location));
     }
   }
 
@@ -126,74 +123,27 @@ class HTTPInputFile implements InputFile {
             int statusCode = response.getCode();
             return switch (HttpStatusCategory.classify(statusCode)) {
                 // 206 Partial Content: total parsed from "Content-Range: bytes 0-0/TOTAL"
-              case PARTIAL_CONTENT -> parseTotalFromPartialContent(response);
+              case PARTIAL_CONTENT -> HttpHeaderUtil.parseTotalFromPartialContent(response);
                 // 200 OK: server returned full content, use Content-Length
-              case OK -> parseLengthFrom200(response);
+              case OK -> HttpHeaderUtil.parseLengthFrom200(response);
               case NOT_FOUND ->
-                  throw new NotFoundException("Location does not exist: %s", location);
-              case FORBIDDEN -> throw new ForbiddenException("Access forbidden for %s", location);
+                  throw new NotFoundException(
+                      "Location does not exist: %s", HttpUrlHelper.redact(location));
+              case FORBIDDEN ->
+                  throw new ForbiddenException(
+                      "Access forbidden for %s", HttpUrlHelper.redact(location));
               default ->
                   throw new IOException(
-                      String.format(Locale.ROOT, "Unexpected HTTP %d for %s", statusCode, url));
+                      String.format(
+                          Locale.ROOT,
+                          "Unexpected HTTP %d for %s",
+                          statusCode,
+                          HttpUrlHelper.redact(url)));
             };
           });
     } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to fetch content length for %s", location);
-    }
-  }
-
-  /** Reads the total object size from the {@code Content-Range} header of a 206 response. */
-  private static long parseTotalFromPartialContent(ClassicHttpResponse response) {
-    Header contentRange = response.getFirstHeader("Content-Range");
-    if (contentRange != null) {
-      long total = parseTotalFromContentRange(contentRange.getValue());
-      if (total >= 0) {
-        return total;
-      }
-    }
-
-    return UNKNOWN_LENGTH;
-  }
-
-  /** Extracts content length from a 200 response via entity or {@code Content-Length} header. */
-  private static long parseLengthFrom200(ClassicHttpResponse response) {
-    long contentLength =
-        response.getEntity() != null ? response.getEntity().getContentLength() : UNKNOWN_LENGTH;
-    if (contentLength >= 0) {
-      return contentLength;
-    }
-
-    Header header = response.getFirstHeader("Content-Length");
-    if (header != null) {
-      try {
-        return Long.parseLong(header.getValue());
-      } catch (NumberFormatException e) {
-        // fall through to UNKNOWN_LENGTH
-      }
-    }
-
-    return UNKNOWN_LENGTH;
-  }
-
-  /**
-   * Parses the total object size from a {@code Content-Range} header value such as {@code bytes
-   * 0-0/12345}.
-   */
-  private static long parseTotalFromContentRange(String contentRange) {
-    int slash = contentRange.lastIndexOf('/');
-    if (slash < 0) {
-      return UNKNOWN_LENGTH;
-    }
-
-    String totalStr = contentRange.substring(slash + 1).trim();
-    if ("*".equals(totalStr)) {
-      return UNKNOWN_LENGTH;
-    }
-
-    try {
-      return Long.parseLong(totalStr);
-    } catch (NumberFormatException e) {
-      return UNKNOWN_LENGTH;
+      throw new RuntimeIOException(
+          e, "Failed to fetch content length for %s", HttpUrlHelper.redact(location));
     }
   }
 }
