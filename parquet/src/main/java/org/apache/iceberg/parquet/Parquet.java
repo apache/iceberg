@@ -388,23 +388,13 @@ public class Parquet {
                 }
 
                 String codecStr = columnCompressionCodec.get(colName);
-                try {
-                  withCompressionCodec.accept(
-                      parquetColumnPath,
-                      codecStr != null ? Context.toCodec(codecStr) : context.codec());
-                } catch (IllegalArgumentException e) {
-                  throw new IllegalArgumentException(
-                      "Invalid compression codec for column " + colName + ": " + codecStr, e);
+                if (codecStr != null) {
+                  withCompressionCodec.accept(parquetColumnPath, Context.toCodec(codecStr));
                 }
 
                 String level = columnCompressionLevel.get(colName);
                 if (level != null) {
-                  try {
-                    withCompressionLevel.accept(parquetColumnPath, Integer.parseInt(level));
-                  } catch (NumberFormatException e) {
-                    throw new IllegalArgumentException(
-                        "Invalid compression level for column " + colName + ": " + level, e);
-                  }
+                  withCompressionLevel.accept(parquetColumnPath, Integer.parseInt(level));
                 }
               });
     }

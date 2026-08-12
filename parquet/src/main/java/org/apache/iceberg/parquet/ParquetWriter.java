@@ -32,6 +32,7 @@ import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.ColumnWriteStore;
 import org.apache.parquet.column.ParquetProperties;
 import org.apache.parquet.compression.CompressionCodecFactory;
@@ -260,22 +261,33 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
     this.recordCount = 0;
     this.rowGroupUncompressedSize = 0;
 
-    this.pageStore =
-        new ColumnChunkPageWriteStore(
-            codecFactory,
-            codec,
-            props,
-            parquetSchema,
-            props.getAllocator(),
-            this.columnIndexTruncateLength,
-            ParquetProperties.DEFAULT_PAGE_WRITE_CHECKSUM_ENABLED,
-            fileEncryptor,
-            rowGroupOrdinal);
+    this.pageStore = newColumnChunkPageWriteStore();
     this.rowGroupOrdinal++;
 
     this.writeStore = props.newColumnWriteStore(parquetSchema, pageStore, pageStore);
 
     model.setColumnStore(writeStore);
+  }
+
+  private ColumnChunkPageWriteStore newColumnChunkPageWriteStore() {
+    return ColumnChunkPageWriteStore.builder()
+        .withCompressorProvider(this::resolveCompressor)
+        .withSchema(parquetSchema)
+        .withAllocator(props.getAllocator())
+        .withColumnIndexTruncateLength(columnIndexTruncateLength)
+        .withPageWriteChecksumEnabled(ParquetProperties.DEFAULT_PAGE_WRITE_CHECKSUM_ENABLED)
+        .withFileEncryptor(fileEncryptor)
+        .withRowGroupOrdinal(rowGroupOrdinal)
+        .build();
+  }
+
+  private CompressionCodecFactory.BytesInputCompressor resolveCompressor(ColumnDescriptor column) {
+    CompressionCodecName columnCodec = props.getColumnCodec(column);
+    CompressionCodecName effectiveCodec = columnCodec != null ? columnCodec : codec;
+    Integer level = props.getColumnCompressionLevel(column);
+    return level != null
+        ? codecFactory.getCompressor(effectiveCodec, level)
+        : codecFactory.getCompressor(effectiveCodec);
   }
 
   @Override
