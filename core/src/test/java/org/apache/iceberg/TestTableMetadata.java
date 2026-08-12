@@ -60,7 +60,6 @@ import org.apache.iceberg.TableMetadata.MetadataLogEntry;
 import org.apache.iceberg.TableMetadata.SnapshotLogEntry;
 import org.apache.iceberg.encryption.PlaintextEncryptionManager;
 import org.apache.iceberg.exceptions.ValidationException;
-import org.apache.iceberg.exceptions.RetryableValidationException;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
