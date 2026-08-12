@@ -598,6 +598,7 @@ class ParquetMetrics {
         int scale = ParquetVariantUtil.scale(primitive);
         long valueCount = 0;
         long nullCount = 0;
+        long nanCount = 0;
         T lowerBound = null;
         T upperBound = null;
 
@@ -609,6 +610,9 @@ class ParquetMetrics {
 
           nullCount += stats.getNumNulls();
           valueCount += column.getValueCount();
+          if (stats.isNanCountSet()) {
+            nanCount += stats.getNanCount();
+          }
 
           if (stats.hasNonNullValue()) {
             T chunkMin = ParquetVariantUtil.convertValue(variantType, scale, stats.genericGetMin());
@@ -623,7 +627,7 @@ class ParquetMetrics {
           }
         }
 
-        if (NaNUtil.isNaN(lowerBound) || NaNUtil.isNaN(upperBound)) {
+        if (nanCount > 0 || NaNUtil.isNaN(lowerBound) || NaNUtil.isNaN(upperBound)) {
           return null;
         }
 

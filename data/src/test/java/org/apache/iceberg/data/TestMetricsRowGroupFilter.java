@@ -331,7 +331,8 @@ public class TestMetricsRowGroupFilter {
 
   @TestTemplate
   public void testFloatWithNan() {
-    // NaN's should break Parquet's Min/Max stats we should be reading in all cases
+    // NaN handling differs by format: Parquet 1.18.0 excludes NaN from float min/max, so the
+    // bounds are trusted and ordered predicates can prune; ORC keeps the row group readable.
     boolean shouldRead = shouldRead(greaterThan("some_nans", 1.0));
     assertThat(shouldRead).isTrue();
 
@@ -342,7 +343,13 @@ public class TestMetricsRowGroupFilter {
     assertThat(shouldRead).isTrue();
 
     shouldRead = shouldRead(lessThanOrEqual("some_nans", 1.0));
-    assertThat(shouldRead).isTrue();
+    if (format == FileFormat.PARQUET) {
+      assertThat(shouldRead)
+          .as("Parquet: no value is <= 1.0, so the row group is skipped")
+          .isFalse();
+    } else {
+      assertThat(shouldRead).as("ORC: NaN column stays readable").isTrue();
+    }
 
     shouldRead = shouldRead(equal("some_nans", 2.0));
     assertThat(shouldRead).isTrue();
@@ -362,7 +369,13 @@ public class TestMetricsRowGroupFilter {
     assertThat(shouldRead).as("Should read: column with some nans contains target value").isTrue();
 
     shouldRead = shouldRead(lessThanOrEqual("some_double_nans", 1.0));
-    assertThat(shouldRead).as("Should read: column with some nans contains target value").isTrue();
+    if (format == FileFormat.PARQUET) {
+      assertThat(shouldRead)
+          .as("Parquet: no value is <= 1.0, so the row group is skipped")
+          .isFalse();
+    } else {
+      assertThat(shouldRead).as("ORC: NaN column stays readable").isTrue();
+    }
 
     shouldRead = shouldRead(equal("some_double_nans", 2.0));
     assertThat(shouldRead).as("Should read: column with some nans contains target value").isTrue();
