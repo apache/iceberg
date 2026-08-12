@@ -38,7 +38,7 @@ class S3PresignedReadValidation {
    * pre-signed URL's query string is a bearer secret.
    *
    * @param url an HTTP(S) URL, as classified by {@link
-   *     org.apache.iceberg.io.http.HttpUrlHelper#isHttpUrl(String)}
+   *     org.apache.iceberg.io.http.HttpUrlClient#isHttpUrl(String)}
    * @param allowedHostSuffixes lower-case host suffixes permitted for pre-signed reads
    * @throws ValidationException if the scheme is not HTTPS, the URL has no host, or the host is not
    *     allow-listed

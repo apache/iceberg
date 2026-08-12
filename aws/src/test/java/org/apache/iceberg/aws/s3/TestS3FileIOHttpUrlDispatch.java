@@ -56,11 +56,11 @@ public class TestS3FileIOHttpUrlDispatch {
 
     assertThat(inputFile.location()).isEqualTo(url);
     assertThat(inputFile.getClass().getName())
-        .isEqualTo("org.apache.iceberg.io.http.HTTPInputFile");
+        .isEqualTo("org.apache.iceberg.io.http.HttpInputFile");
 
     InputFile withLength = fileIO.newInputFile(url, 100L);
     assertThat(withLength.getClass().getName())
-        .isEqualTo("org.apache.iceberg.io.http.HTTPInputFile");
+        .isEqualTo("org.apache.iceberg.io.http.HttpInputFile");
   }
 
   @Test
@@ -125,7 +125,7 @@ public class TestS3FileIOHttpUrlDispatch {
 
     InputFile inputFile = fileIO.newInputFile("https://minio.internal/bucket/key");
     assertThat(inputFile.getClass().getName())
-        .isEqualTo("org.apache.iceberg.io.http.HTTPInputFile");
+        .isEqualTo("org.apache.iceberg.io.http.HttpInputFile");
   }
 
   @Test
