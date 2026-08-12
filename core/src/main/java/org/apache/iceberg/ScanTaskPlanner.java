@@ -178,7 +178,9 @@ class ScanTaskPlanner {
     @Override
     public CloseableIterator<FileScanTask> iterator() {
       scanMetrics.scannedDataManifests().increment();
-      CloseableIterable<TrackedFile> entries = open(io.newInputFile(leaf.location()));
+      // pass the known leaf size so the reader sizes the read instead of stat-ing the file
+      CloseableIterable<TrackedFile> entries =
+          open(io.newInputFile(leaf.location(), leaf.fileSizeInBytes()));
       CloseableIterable<FileScanTask> tasks =
           CloseableIterable.transform(entries, ScanTaskPlanner.this::createTaskFromDataFileEntry);
       addCloseable(tasks);
