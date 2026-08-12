@@ -643,7 +643,7 @@ class QueryEventsRequest(BaseModel):
     catalog_objects_by_name: list[CatalogObjectIdentifier] | None = Field(
         None,
         alias='catalog-objects-by-name',
-        description='Filter events by catalog object name. Each entry is an ordered list of namespace/object levels and matches by prefix: an event matches when the entry equals the object\'s name path, or is a leading prefix of it (compared level by level). For example `["a","b"]` matches the namespace `a.b` itself and every object beneath it - the table `a.b.t1`, the view `a.b.v1`, the sub-namespace `a.b.c` and its contents - but not the sibling namespace `a.c`. Because matching is purely by name path, it is independent of object kind: the server does not resolve whether a path denotes a namespace, table, or view. Use `object-types` to restrict matches to specific kinds. If not provided, events for all objects must be returned subject to other filters.\n',
+        description='Filter events by catalog object name. Each entry is a `CatalogObjectIdentifier`: an array of name levels - e.g. `["a","b","t1"]` is the table `a.b.t1`. The filter matches an event when the entry\'s levels equal the event object\'s path, or form a leading prefix of it. Comparison is level-by-level: each array element is one path segment, so `["acc"]` is a prefix of `["acc","tax"]` but does not match `["accounting"]`.\nMatching is by name only, independent of object kind. Tables and views are leaves of the name tree, so a leaf entry matches a single object - `["a","b","t1"]` matches only the table or view `a.b.t1`. A namespace entry expands recursively: `["a","b"]` matches the namespace object `a.b` itself plus every descendant (`a.b.t1`, `a.b.v1`, sub-namespace `a.b.c`, and every object under it). It does not match the sibling namespace `a.c`.\nIf a path exists as more than one kind (e.g. a namespace and a same-named table), the filter matches events for all of them; combine with `object-types` to narrow. If not provided, events for all objects must be returned subject to other filters.\n',
     )
     catalog_objects_by_uuid: list[UUID] | None = Field(
         None,
@@ -906,7 +906,7 @@ class Actor(BaseModel):
 
 class BaseOperation(BaseModel):
     """
-    Base type for all catalog operations carried by an `Event`. The `operation-type` discriminator selects the concrete operation schema. Standard operation types are enumerated in `OperationType`; implementation-specific operation types use an `x-` prefix (see `OperationType`). The schema enumerates only the standard operations; validation behavior for other `operation-type` values is implementation-defined. The typical Iceberg pattern is for parsers to switch on `operation-type` and route unknown values (including `x-` prefixed types) to a default handler.
+    Base type for all catalog operations carried by an `Event`. The `operation-type` discriminator selects the concrete operation schema. Standard operation types are enumerated in `OperationType`; implementation-specific operation types use an `x-` prefix (see `OperationType`).
 
     """
 
@@ -1995,7 +1995,7 @@ class Event(BaseModel):
         | DropNamespaceOperation
     ) = Field(
         ...,
-        description='The operation that was performed, such as creating or updating a table. The concrete type is selected by the `operation-type` discriminator defined on `BaseOperation`. Parsers should route events with unknown `operation-type` values to a default handler rather than failing. Operations are emitted only when the underlying change is committed; staged changes are not surfaced.\n',
+        description='The operation that was performed, such as creating or updating a table. The concrete type is selected by the `operation-type` discriminator. Operations are emitted only when the underlying change is committed; staged changes are not surfaced.\n',
     )
 
 
