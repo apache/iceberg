@@ -458,22 +458,22 @@ public class Schema implements Serializable {
   }
 
   /**
-   * Returns whether the sub-field identified by the field id can be null.
+   * Returns whether the sub-field identified by the field id is effectively optional.
    *
-   * <p>A field can be null if it is declared optional, or if it is nested inside an optional field.
-   * For example, a required field inside an optional struct is effectively null whenever that
+   * <p>A field is effectively optional if it is declared optional, or if it is nested inside an
+   * optional field. For example, a required field inside an optional struct is null whenever that
    * struct is null. Field defaults are not taken into account, so an optional field with a non-null
-   * default is still nullable.
-   *
-   * <p>If the field is not present in this schema, this method returns true because its nullability
-   * cannot be determined.
+   * default is still optional.
    *
    * @param id a field id
    * @return true if the field may be null, false if it cannot be null
+   * @throws IllegalArgumentException if the field is not present in this schema
    */
-  public boolean isNullable(int id) {
+  public boolean isOptional(int id) {
     NestedField field = findField(id);
-    if (field == null || field.isOptional()) {
+    Preconditions.checkArgument(field != null, "Cannot find field with id: %s", id);
+
+    if (field.isOptional()) {
       return true;
     }
 

@@ -125,14 +125,14 @@ public class UnboundPredicate<T> extends Predicate<T, UnboundTerm<T>>
   private Expression bindUnaryOperation(StructType struct, BoundTerm<T> boundTerm) {
     switch (op()) {
       case IS_NULL:
-        if (!boundTerm.producesNull() && !struct.asSchema().isNullable(boundTerm.ref().fieldId())) {
+        if (!boundTerm.producesNull() && !struct.asSchema().isOptional(boundTerm.ref().fieldId())) {
           return Expressions.alwaysFalse();
         } else if (boundTerm.type().equals(Types.UnknownType.get())) {
           return Expressions.alwaysTrue();
         }
         return new BoundUnaryPredicate<>(Operation.IS_NULL, boundTerm);
       case NOT_NULL:
-        if (!boundTerm.producesNull() && !struct.asSchema().isNullable(boundTerm.ref().fieldId())) {
+        if (!boundTerm.producesNull() && !struct.asSchema().isOptional(boundTerm.ref().fieldId())) {
           return Expressions.alwaysTrue();
         } else if (boundTerm.type().equals(Types.UnknownType.get())) {
           return Expressions.alwaysFalse();
