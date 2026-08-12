@@ -19,7 +19,9 @@
 package org.apache.iceberg.aws.s3;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.AfterEach;
@@ -62,7 +64,7 @@ public class TestS3FileIOHttpUrlDispatch {
   }
 
   @Test
-  void httpLocationUsesHttpShortCircuit() {
+  void httpLocationIsRejected() {
     fileIO =
         new S3FileIO(
             () -> {
@@ -70,7 +72,57 @@ public class TestS3FileIOHttpUrlDispatch {
             });
     fileIO.initialize(ImmutableMap.of());
 
-    InputFile inputFile = fileIO.newInputFile("http://example.com/data.parquet");
+    // plain HTTP is refused even on an otherwise-allowed host
+    assertThatThrownBy(() -> fileIO.newInputFile("http://bucket.s3.amazonaws.com/key"))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("only https is allowed");
+  }
+
+  @Test
+  void httpsUntrustedHostIsRejected() {
+    fileIO =
+        new S3FileIO(
+            () -> {
+              throw new AssertionError("Native S3 client should not be used for an https:// path");
+            });
+    fileIO.initialize(ImmutableMap.of());
+
+    assertThatThrownBy(
+            () -> fileIO.newInputFile("https://evil.example.com/key?X-Amz-Signature=abc"))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("evil.example.com");
+
+    // suffix matching is boundary-safe: a look-alike host is not a subdomain of amazonaws.com
+    assertThatThrownBy(() -> fileIO.newInputFile("https://evil-amazonaws.com/key"))
+        .isInstanceOf(ValidationException.class);
+  }
+
+  @Test
+  void httpsUserInfoTrickIsRejected() {
+    fileIO =
+        new S3FileIO(
+            () -> {
+              throw new AssertionError("Native S3 client should not be used for an https:// path");
+            });
+    fileIO.initialize(ImmutableMap.of());
+
+    // the real host is evil.com; the allow-listed name is only user info before '@'
+    assertThatThrownBy(() -> fileIO.newInputFile("https://bucket.s3.amazonaws.com@evil.com/key"))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("evil.com");
+  }
+
+  @Test
+  void httpsCustomAllowedHostIsAccepted() {
+    fileIO =
+        new S3FileIO(
+            () -> {
+              throw new AssertionError("Native S3 client should not be used for an https:// path");
+            });
+    fileIO.initialize(
+        ImmutableMap.of(S3FileIOProperties.PRESIGNED_READ_ALLOWED_HOSTS, "minio.internal"));
+
+    InputFile inputFile = fileIO.newInputFile("https://minio.internal/bucket/key");
     assertThat(inputFile.getClass().getName())
         .isEqualTo("org.apache.iceberg.io.http.HTTPInputFile");
   }

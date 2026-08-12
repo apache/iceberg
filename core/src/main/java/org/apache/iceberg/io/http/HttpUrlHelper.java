@@ -48,14 +48,14 @@ import org.apache.iceberg.util.SerializableMap;
  * MetricsContext)}.
  *
  * <p>The underlying HTTP client's timeouts and connection pool are configurable through the
- * properties passed to {@link #HttpUrlSupport(Map)}. When a setting is not provided, the client
+ * properties passed to {@link #HttpUrlHelper(Map)}. When a setting is not provided, the client
  * falls back to JVM system properties and then to the Apache HttpClient defaults.
  *
  * <p>The chunk size used for sequential reads is configurable via {@value #READ_CHUNK_SIZE_BYTES}.
- * When the property is not set, the default passed to {@link #HttpUrlSupport(Map, int)} is used,
+ * When the property is not set, the default passed to {@link #HttpUrlHelper(Map, int)} is used,
  * letting a {@link org.apache.iceberg.io.FileIO} supply a value tuned for its backing object store.
  */
-public class HttpUrlSupport implements Serializable {
+public class HttpUrlHelper implements Serializable {
 
   static final String CONNECTION_TIMEOUT_MS = "io.http.connection-timeout-ms";
   static final String SOCKET_TIMEOUT_MS = "io.http.socket-timeout-ms";
@@ -71,11 +71,11 @@ public class HttpUrlSupport implements Serializable {
 
   private transient volatile CloseableHttpClient httpClient;
 
-  public HttpUrlSupport() {
+  public HttpUrlHelper() {
     this(Maps.newHashMap());
   }
 
-  public HttpUrlSupport(Map<String, String> properties) {
+  public HttpUrlHelper(Map<String, String> properties) {
     this(properties, READ_CHUNK_SIZE_BYTES_DEFAULT);
   }
 
@@ -86,7 +86,7 @@ public class HttpUrlSupport implements Serializable {
    * @param properties configuration properties, typically the owning FileIO's properties
    * @param defaultReadChunkSize the read chunk size, in bytes, to use when the property is unset
    */
-  public HttpUrlSupport(Map<String, String> properties, int defaultReadChunkSize) {
+  public HttpUrlHelper(Map<String, String> properties, int defaultReadChunkSize) {
     this.properties = SerializableMap.copyOf(properties == null ? Maps.newHashMap() : properties);
     this.readChunkSize =
         PropertyUtil.propertyAsInt(this.properties, READ_CHUNK_SIZE_BYTES, defaultReadChunkSize);
@@ -110,6 +110,40 @@ public class HttpUrlSupport implements Serializable {
       return "https".equalsIgnoreCase(scheme) || "http".equalsIgnoreCase(scheme);
     } catch (IllegalArgumentException e) {
       return false;
+    }
+  }
+
+  /**
+   * Returns {@code url} reduced to {@code scheme://host[:port]/path}, dropping the query, user
+   * info, and fragment so a pre-signed URL can be logged without exposing the signature or
+   * credentials those components carry. Returns {@code "<redacted>"} when {@code url} cannot be
+   * parsed or carries no host, and {@code "null"} for a null input.
+   */
+  static String redact(String url) {
+    if (url == null) {
+      return "null";
+    }
+
+    try {
+      URI uri = URI.create(url);
+      String scheme = uri.getScheme();
+      String host = uri.getHost();
+      if (scheme == null || host == null) {
+        return "<redacted>";
+      }
+
+      StringBuilder sanitized = new StringBuilder(scheme).append("://").append(host);
+      if (uri.getPort() != -1) {
+        sanitized.append(':').append(uri.getPort());
+      }
+
+      if (uri.getRawPath() != null) {
+        sanitized.append(uri.getRawPath());
+      }
+
+      return sanitized.toString();
+    } catch (IllegalArgumentException e) {
+      return "<redacted>";
     }
   }
 
@@ -151,6 +185,9 @@ public class HttpUrlSupport implements Serializable {
           HttpClientBuilder clientBuilder =
               HttpClients.custom()
                   .useSystemProperties()
+                  // Pre-signed URLs resolve directly to object bytes (200/206); never follow
+                  // redirects, so a 3xx cannot bounce a read to an untrusted or internal host.
+                  .disableRedirectHandling()
                   .setConnectionManager(configureConnectionManager(properties));
 
           RequestConfig requestConfig = configureRequestConfig(properties);
