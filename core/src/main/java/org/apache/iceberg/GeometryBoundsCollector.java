@@ -73,8 +73,12 @@ class GeometryBoundsCollector {
    *
    * <p>The input is read through a duplicate, so its position and limit are left unchanged.
    *
+   * <p>If this throws, the collector's state is undefined: coordinates parsed before the failure
+   * may already be folded in. A caller that continues after a rejected value must discard this
+   * collector.
+   *
    * @param wkb a buffer containing exactly one WKB geometry
-   * @throws IllegalArgumentException if the WKB is malformed
+   * @throws IllegalArgumentException if the WKB is malformed or has a non-finite coordinate
    */
   public void add(ByteBuffer wkb) {
     Preconditions.checkArgument(wkb != null, "Invalid WKB buffer: null");
@@ -101,6 +105,9 @@ class GeometryBoundsCollector {
     Preconditions.checkArgument(depth <= MAX_DEPTH, "Invalid WKB: nesting too deep");
     checkRemaining(buffer, 5);
 
+    // each geometry sets its own byte order; restore the caller's order before returning so a
+    // sibling read after a nested geometry is not misread with the wrong endianness
+    ByteOrder callerOrder = buffer.order();
     byte order = buffer.get();
     if (order == 0) {
       buffer.order(ByteOrder.BIG_ENDIAN);
@@ -110,6 +117,14 @@ class GeometryBoundsCollector {
       throw new IllegalArgumentException("Invalid WKB byte order: " + order);
     }
 
+    try {
+      parseGeometryBody(buffer, depth, expectedType);
+    } finally {
+      buffer.order(callerOrder);
+    }
+  }
+
+  private void parseGeometryBody(ByteBuffer buffer, int depth, int expectedType) {
     long typeCode = buffer.getInt() & 0xFFFFFFFFL;
     long dimensionGroup = typeCode / 1000;
     int geometryType = (int) (typeCode % 1000);
@@ -122,8 +137,8 @@ class GeometryBoundsCollector {
     Preconditions.checkArgument(
         expectedType == ANY_GEOMETRY || geometryType == expectedType,
         "Invalid WKB: expected geometry type %s but found %s",
-        expectedType,
-        geometryType);
+        typeName(expectedType),
+        typeName(geometryType));
 
     int numDimensions = numDimensions(dimensionGroup);
 
@@ -151,6 +166,27 @@ class GeometryBoundsCollector {
         break;
       default:
         throw new IllegalArgumentException("Invalid or unsupported WKB geometry type: " + typeCode);
+    }
+  }
+
+  private static String typeName(int geometryType) {
+    switch (geometryType) {
+      case TYPE_POINT:
+        return "Point";
+      case TYPE_LINE_STRING:
+        return "LineString";
+      case TYPE_POLYGON:
+        return "Polygon";
+      case TYPE_MULTI_POINT:
+        return "MultiPoint";
+      case TYPE_MULTI_LINE_STRING:
+        return "MultiLineString";
+      case TYPE_MULTI_POLYGON:
+        return "MultiPolygon";
+      case TYPE_GEOMETRY_COLLECTION:
+        return "GeometryCollection";
+      default:
+        return String.valueOf(geometryType);
     }
   }
 
@@ -208,6 +244,13 @@ class GeometryBoundsCollector {
       buffer.getDouble();
     }
 
+    // NaN marks an empty ordinate and is skipped per the spec, but an infinite coordinate is a real
+    // position that a finite box cannot cover; rejecting it avoids silently producing bounds that
+    // omit an object in the file.
+    Preconditions.checkArgument(
+        !Double.isInfinite(xCoord) && !Double.isInfinite(yCoord),
+        "Invalid WKB: coordinate is not finite");
+
     xBounds.add(xCoord);
     yBounds.add(yCoord);
   }
@@ -215,7 +258,14 @@ class GeometryBoundsCollector {
   private static int readCount(ByteBuffer buffer) {
     checkRemaining(buffer, Integer.BYTES);
     long count = buffer.getInt() & 0xFFFFFFFFL;
-    Preconditions.checkArgument(count <= Integer.MAX_VALUE, "Invalid WKB element count: %s", count);
+    // every element or point occupies at least one more byte, so a count larger than the bytes left
+    // cannot be valid; catch it here with a precise message instead of looping until the buffer
+    // ends
+    Preconditions.checkArgument(
+        count <= buffer.remaining(),
+        "Invalid WKB element count: %s exceeds %s remaining bytes",
+        count,
+        buffer.remaining());
     return (int) count;
   }
 
