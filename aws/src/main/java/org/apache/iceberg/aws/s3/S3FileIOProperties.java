@@ -576,7 +576,7 @@ public class S3FileIOProperties implements Serializable {
     this.sessionToken = null;
     this.acl = null;
     this.endpoint = null;
-    this.presignedReadAllowedHosts = PRESIGNED_READ_ALLOWED_HOSTS_DEFAULT;
+    this.presignedReadAllowedHosts = Sets.newHashSet(PRESIGNED_READ_ALLOWED_HOSTS_DEFAULT);
     this.multipartUploadThreads = Runtime.getRuntime().availableProcessors();
     this.multiPartSize = MULTIPART_SIZE_DEFAULT;
     this.multipartThresholdFactor = MULTIPART_THRESHOLD_FACTOR_DEFAULT;
@@ -902,7 +902,7 @@ public class S3FileIOProperties implements Serializable {
       }
     }
 
-    return Collections.unmodifiableSet(hosts);
+    return hosts;
   }
 
   public void setChecksumEnabled(boolean eTagCheckEnabled) {
