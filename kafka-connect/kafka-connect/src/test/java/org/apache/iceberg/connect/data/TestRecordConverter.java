@@ -73,6 +73,7 @@ import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.types.Types.StringType;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.types.Types.TimeType;
+import org.apache.iceberg.types.Types.TimestampNanoType;
 import org.apache.iceberg.types.Types.TimestampType;
 import org.apache.iceberg.types.Types.UUIDType;
 import org.apache.iceberg.types.Types.VariantType;
@@ -1805,5 +1806,67 @@ public class TestRecordConverter {
     GenericRecord rec = (GenericRecord) record;
     assertThat(rec.getField("ii")).isEqualTo(11);
     assertRecordValues((GenericRecord) rec.getField("st"));
+  }
+
+  /**
+   * timestamp_ns exists to carry nanoseconds, so the precision has to survive the conversion. A
+   * string and an OffsetDateTime both carry nanos, and reusing the timestamp converters preserves
+   * them.
+   */
+  @Test
+  public void testTimestampNanoConversionKeepsNanosecondPrecision() {
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(SIMPLE_SCHEMA);
+
+    RecordConverter converter = new RecordConverter(table, config);
+
+    OffsetDateTime expected = OffsetDateTime.parse("2023-05-18T07:14:21.123456789Z");
+
+    ImmutableList.of("2023-05-18T07:14:21.123456789Z", expected)
+        .forEach(
+            input -> {
+              Temporal val =
+                  converter.convertTimestampNanoValue(input, TimestampNanoType.withZone());
+              assertThat(val).isEqualTo(expected);
+              assertThat(((OffsetDateTime) val).getNano()).isEqualTo(123456789);
+            });
+  }
+
+  @Test
+  public void testTimestampNanoConversionWithoutZone() {
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(SIMPLE_SCHEMA);
+
+    RecordConverter converter = new RecordConverter(table, config);
+
+    LocalDateTime expected = LocalDateTime.parse("2023-05-18T07:14:21.123456789");
+
+    Temporal val =
+        converter.convertTimestampNanoValue(
+            "2023-05-18T07:14:21.123456789", TimestampNanoType.withoutZone());
+
+    assertThat(val).isEqualTo(expected);
+    assertThat(((LocalDateTime) val).getNano()).isEqualTo(123456789);
+  }
+
+  /**
+   * A numeric is milliseconds, matching the timestamp case in the same switch and the Kafka Connect
+   * Timestamp logical type. Pinned deliberately: reading it as nanoseconds instead would silently
+   * shift every such value by six orders of magnitude.
+   */
+  @Test
+  public void testTimestampNanoConversionTreatsNumberAsMillis() {
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(SIMPLE_SCHEMA);
+
+    RecordConverter converter = new RecordConverter(table, config);
+
+    long millis = OffsetDateTime.parse("2023-05-18T07:14:21Z").toInstant().toEpochMilli();
+
+    Temporal nanoVal = converter.convertTimestampNanoValue(millis, TimestampNanoType.withZone());
+    Temporal microVal = converter.convertTimestampValue(millis, TimestampType.withZone());
+
+    assertThat(nanoVal).isEqualTo(OffsetDateTime.parse("2023-05-18T07:14:21Z"));
+    assertThat(nanoVal).as("must agree with the timestamp path").isEqualTo(microVal);
   }
 }
