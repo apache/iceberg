@@ -537,7 +537,7 @@ public class CatalogHandlers {
       return LoadTableResponse.builder().withTableMetadata(metadata).build();
     } else if (table instanceof BaseMetadataTable) {
       // metadata tables are loaded on the client side, return NoSuchTableException for now
-      throw new NoSuchTableException("Table does not exist: %s", ident.toString());
+      throw new NoSuchTableException("Table does not exist: %s", ident);
     }
 
     throw new IllegalStateException("Cannot wrap catalog that does not produce BaseTable");

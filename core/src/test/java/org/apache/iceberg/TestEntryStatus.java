@@ -22,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.stream.IntStream;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -44,5 +45,14 @@ class TestEntryStatus {
     assertThatThrownBy(() -> EntryStatus.fromId(id))
         .isInstanceOf(ArrayIndexOutOfBoundsException.class)
         .hasMessageContaining(String.valueOf(id));
+  }
+
+  @Test
+  void isLive() {
+    assertThat(EntryStatus.EXISTING.isLive()).isTrue();
+    assertThat(EntryStatus.ADDED.isLive()).isTrue();
+    assertThat(EntryStatus.MODIFIED.isLive()).isTrue();
+    assertThat(EntryStatus.DELETED.isLive()).isFalse();
+    assertThat(EntryStatus.REPLACED.isLive()).isFalse();
   }
 }

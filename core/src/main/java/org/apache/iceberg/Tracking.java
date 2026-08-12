@@ -28,13 +28,13 @@ interface Tracking {
           0,
           "status",
           Types.IntegerType.get(),
-          "Entry status: 0=existing, 1=added, 2=deleted, 3=replaced");
+          "Entry status: 0=existing, 1=added, 2=deleted, 3=replaced, 4=modified");
   Types.NestedField SNAPSHOT_ID =
       Types.NestedField.optional(
           1,
           "snapshot_id",
           Types.LongType.get(),
-          "Snapshot ID where the file was added or deleted");
+          "Snapshot ID where the file was added, deleted, or replaced");
   Types.NestedField SEQUENCE_NUMBER =
       Types.NestedField.optional(
           3, "sequence_number", Types.LongType.get(), "Data sequence number of the file");
@@ -83,10 +83,10 @@ interface Tracking {
 
   /** Returns whether this entry is live. */
   default boolean isLive() {
-    return status() == EntryStatus.ADDED || status() == EntryStatus.EXISTING;
+    return status().isLive();
   }
 
-  /** Returns the snapshot ID where the file was added or deleted. */
+  /** Returns the snapshot ID where the file was added, deleted, or replaced. */
   Long snapshotId();
 
   /** Returns the data sequence number of the file. */

@@ -32,10 +32,13 @@ Iceberg tables support table properties to configure table behavior, like the de
 | read.split.metadata-target-size   | 33554432 (32 MB)   | Target size when combining metadata input splits       |
 | read.split.planning-lookback      | 10                 | Number of bins to consider when combining input splits |
 | read.split.open-file-cost         | 4194304 (4 MB)     | The estimated cost to open a file, used as a minimum weight when combining splits. |
+| read.split.adaptive-size.enabled  | true               | Controls whether the split size is adjusted adaptively to the scan size and available parallelism when no explicit split size is set |
 | read.parquet.vectorization.enabled| true               | Controls whether Parquet vectorized reads are used     |
 | read.parquet.vectorization.batch-size| 5000            | The batch size for parquet vectorized reads            |
 | read.orc.vectorization.enabled    | false              | Controls whether orc vectorized reads are used         |
 | read.orc.vectorization.batch-size | 5000               | The batch size for orc vectorized reads                |
+| read.data-planning-mode           | auto               | Mode used to plan data manifests: auto, local, or distributed |
+| read.delete-planning-mode         | auto               | Mode used to plan delete manifests: auto, local, or distributed |
 
 ### Write properties
 
@@ -57,7 +60,9 @@ Iceberg tables support table properties to configure table behavior, like the de
 | write.parquet.bloom-filter-max-bytes                | 1048576 (1 MB)              | The maximum number of bytes for a bloom filter bitset                                                                                                                                                                                              |
 | write.parquet.bloom-filter-fpp.column.col1          | 0.01                        | The false positive probability for a bloom filter applied to 'col1' (must > 0.0 and < 1.0)                                                                                                                                                         |
 | write.parquet.bloom-filter-ndv.column.col1          | (not set)                   | The expected number of distinct values for a bloom filter applied to 'col1' (must > 0)                                                                                                                                                          |
+| write.parquet.bloom-filter-adaptive-enabled         | false                       | Use Parquet adaptive bloom filter sizing, which evaluates candidate filters and picks the smallest that satisfies the actual NDV at the configured FPP, bounded by 'write.parquet.bloom-filter-max-bytes', instead of always allocating the full max-bytes buffer. Ignored for columns where 'write.parquet.bloom-filter-ndv.column.col1' is set |
 | write.parquet.stats-enabled.column.col1             | (not set)                   | Controls whether to collect parquet column statistics for column 'col1'                                                                                                                                                                            |
+| write.parquet.dict-encoding-enabled.column.col1     | (not set)                   | Controls whether to use parquet dictionary encoding for column 'col1'                                                                                                                                                                              |
 | write.avro.compression-codec                        | gzip                        | Avro compression codec: gzip(deflate with 9 level), zstd, snappy, uncompressed                                                                                                                                                                     |
 | write.avro.compression-level                        | null                        | Avro compression level                                                                                                                                                                                                                             |
 | write.orc.stripe-size-bytes                         | 67108864 (64 MB)            | Define the default ORC stripe size, in bytes                                                                                                                                                                                                       |

@@ -18,29 +18,18 @@
  */
 package org.apache.iceberg;
 
-import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Types;
 
-interface FieldStats<T> extends StructLike {
+interface FieldStats<T> {
   /** The field ID of the statistic */
   int fieldId();
 
-  /** The field type of the statistic */
-  Type type();
-
-  /** The total value count, including null and NaN */
-  Long valueCount();
-
-  /** The total null value count */
-  Long nullValueCount();
-
-  /** The total NaN value count */
-  Long nanValueCount();
-
-  /** The avg value size of variable-length types (String, Binary) */
-  Integer avgValueSize();
-
-  /** The max value size of variable-length types (String, Binary) */
-  Integer maxValueSize();
+  /**
+   * Struct type describing the stats tracked for the field identified by {@link #fieldId()}.
+   *
+   * <p>Note: This type may be a projection of the stats stored in manifest files.
+   */
+  Types.StructType type();
 
   /** The lower bound */
   T lowerBound();
@@ -48,6 +37,36 @@ interface FieldStats<T> extends StructLike {
   /** The upper bound */
   T upperBound();
 
-  /** Whether the upper/lower bound is exact or not. */
-  boolean hasExactBounds();
+  /**
+   * Whether {@link #lowerBound()} and {@link #upperBound()} are equal to the min and max values for
+   * the column.
+   */
+  boolean tightBounds();
+
+  /** Whether a value count is tracked for this field. */
+  boolean hasValueCount();
+
+  /** The total value count, including null and NaN, defined only when {@link #hasValueCount()}. */
+  long valueCount();
+
+  /** Whether a null value count is tracked for this field. */
+  boolean hasNullValueCount();
+
+  /** The total null value count, defined only when {@link #hasNullValueCount()}. */
+  long nullValueCount();
+
+  /** Whether a NaN value count is tracked for this field. */
+  boolean hasNanValueCount();
+
+  /** The total NaN value count, defined only when {@link #hasNanValueCount()}. */
+  long nanValueCount();
+
+  /**
+   * The avg value size in memory (uncompressed) in bytes for variable-length types (string, binary,
+   * variant)
+   */
+  Integer avgValueSizeInBytes();
+
+  /** Returns a copy of this {@link FieldStats}. */
+  FieldStats<T> copy();
 }

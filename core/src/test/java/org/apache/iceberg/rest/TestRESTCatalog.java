@@ -30,6 +30,7 @@ import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
@@ -430,6 +431,11 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     // https://jakarta.ee/specifications/servlet/6.0/jakarta-servlet-spec-6.0.html#uri-path-canonicalization
     // for additional details
     return false;
+  }
+
+  @Override
+  protected boolean supportsVariant() {
+    return true;
   }
 
   /* RESTCatalog specific tests */
@@ -3709,8 +3715,8 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     Mockito.verify(adapter, times(2))
         .execute(matches(HTTPMethod.GET, RESOURCE_PATHS.table(TABLE)), any(), any(), any());
 
-    // CommitReport reflects the table state after the commit
-    Mockito.verify(adapter)
+    // CommitReport reflects the table state after the commit (reported asynchronously)
+    Mockito.verify(adapter, timeout(5000))
         .execute(
             matches(
                 HTTPMethod.POST,
@@ -3747,6 +3753,13 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             .build();
 
     catalog.loadTable(TABLE).newFastAppend().appendFile(fileOnMain).commit();
+
+    // Wait for the async metrics report from the first commit to reach the adapter before
+    // setting up the next stub. Without this, the background metrics thread can call
+    // adapter.execute() while Mockito is in the middle of stubbing, causing
+    // UnfinishedStubbingException.
+    Mockito.verify(adapter, timeout(5000))
+        .execute(matches(HTTPMethod.POST, RESOURCE_PATHS.metrics(TABLE)), any(), any(), any());
 
     DataFile fileOnAnotherBranch =
         DataFiles.builder(SPEC)

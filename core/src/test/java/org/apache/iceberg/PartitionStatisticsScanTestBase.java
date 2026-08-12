@@ -27,6 +27,8 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -555,6 +557,313 @@ public abstract class PartitionStatisticsScanTestBase extends PartitionStatistic
               assertThat(stats.lastUpdatedSnapshotId()).isNull();
               assertThat(stats.dvCount()).isNull();
             });
+  }
+
+  @Test
+  public void testNullFilter() throws Exception {
+    Table testTable =
+        TestTables.create(
+            tempDir("scan_filter_null"), "scan_filter_null", SCHEMA, SPEC, 2, fileFormatProperty);
+
+    assertThatThrownBy(() -> testTable.newPartitionStatisticsScan().filter(null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Invalid filter");
+  }
+
+  @Test
+  public void testAlwaysTrueFilter() throws Exception {
+    Table testTable = tableWithTwoPartitions("scan_filter_always_true");
+
+    List<PartitionStatistics> partitionStats;
+    try (CloseableIterable<PartitionStatistics> recordIterator =
+        testTable.newPartitionStatisticsScan().filter(Expressions.alwaysTrue()).scan()) {
+      partitionStats = Lists.newArrayList(recordIterator);
+    }
+
+    assertThat(partitionStats).hasSize(2);
+  }
+
+  @Test
+  public void testAlwaysFalseFilter() throws Exception {
+    Table testTable = tableWithTwoPartitions("scan_filter_always_false");
+
+    List<PartitionStatistics> partitionStats;
+    try (CloseableIterable<PartitionStatistics> recordIterator =
+        testTable.newPartitionStatisticsScan().filter(Expressions.alwaysFalse()).scan()) {
+      partitionStats = Lists.newArrayList(recordIterator);
+    }
+
+    assertThat(partitionStats).isEmpty();
+  }
+
+  @Test
+  public void testFilterOnPartitionColumn() throws Exception {
+    Table testTable = tableWithTwoPartitions("scan_filter_partition_col");
+
+    List<PartitionStatistics> results;
+    try (CloseableIterable<PartitionStatistics> recordIterator =
+        testTable
+            .newPartitionStatisticsScan()
+            .filter(
+                Expressions.and(
+                    Expressions.equal("partition.c2", "foo"),
+                    Expressions.equal("partition.c3", "A")))
+            .scan()) {
+      results = Lists.newArrayList(recordIterator);
+    }
+
+    Types.StructType partitionType = Partitioning.partitionType(testTable);
+
+    assertThat(results)
+        .extracting(PartitionStatistics::partition)
+        .containsExactlyInAnyOrder(partitionRecord(partitionType, "foo", "A"));
+  }
+
+  @Test
+  public void testFilterOnStatsField() throws Exception {
+    Table testTable = tableWithUnevenPartitions("scan_filter_stats_field");
+
+    List<PartitionStatistics> results;
+    try (CloseableIterable<PartitionStatistics> recordIterator =
+        testTable
+            .newPartitionStatisticsScan()
+            .filter(Expressions.greaterThan("data_file_count", 2))
+            .scan()) {
+      results = Lists.newArrayList(recordIterator);
+    }
+
+    Types.StructType partitionType = Partitioning.partitionType(testTable);
+
+    assertThat(results)
+        .extracting(PartitionStatistics::partition, PartitionStatistics::dataFileCount)
+        .containsExactlyInAnyOrder(Tuple.tuple(partitionRecord(partitionType, "foo", "A"), 3));
+  }
+
+  @Test
+  public void testFilterOnUnknownColumnFails() throws Exception {
+    Table testTable = tableWithTwoPartitions("scan_filter_unknown_col");
+
+    assertThatThrownBy(
+            () ->
+                testTable
+                    .newPartitionStatisticsScan()
+                    .filter(Expressions.equal("does_not_exist", 1))
+                    .scan())
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("Cannot find field 'does_not_exist'");
+  }
+
+  @Test
+  public void testFilterOnUnknownPartitionSubFieldFails() throws Exception {
+    Table testTable = tableWithTwoPartitions("scan_filter_unknown_partition");
+
+    assertThatThrownBy(
+            () ->
+                testTable
+                    .newPartitionStatisticsScan()
+                    .filter(Expressions.equal("partition.no_such_col", "foo"))
+                    .scan())
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("Cannot find field 'partition.no_such_col'");
+  }
+
+  @Test
+  public void testFilterDvCountOnV2Stats() throws Exception {
+    Table testTable = tableWithTwoPartitions("scan_filter_v2_dvcount");
+
+    assertThatThrownBy(
+            () ->
+                testTable
+                    .newPartitionStatisticsScan()
+                    .filter(Expressions.isNull("dv_count"))
+                    .scan())
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("Cannot find field 'dv_count'");
+  }
+
+  @Test
+  public void testFilterColumnIncludedInProjection() throws Exception {
+    Table testTable = tableWithUnevenPartitions("scan_filter_in_projection");
+
+    Schema projection =
+        new Schema(
+            PartitionStatistics.EMPTY_PARTITION_FIELD,
+            PartitionStatistics.DATA_FILE_COUNT,
+            PartitionStatistics.DATA_RECORD_COUNT);
+
+    List<PartitionStatistics> results;
+    try (CloseableIterable<PartitionStatistics> recordIterator =
+        testTable
+            .newPartitionStatisticsScan()
+            .filter(Expressions.greaterThan("data_file_count", 2L))
+            .project(projection)
+            .scan()) {
+      results = Lists.newArrayList(recordIterator);
+    }
+
+    long expectedDataRecordCount = 0L;
+    try (CloseableIterable<FileScanTask> tasks = testTable.newScan().planFiles()) {
+      for (FileScanTask task : tasks) {
+        if ("A".equals(task.file().partition().get(1, String.class))) {
+          expectedDataRecordCount += task.file().recordCount();
+        }
+      }
+    }
+
+    Types.StructType partitionType = Partitioning.partitionType(testTable);
+
+    assertThat(results)
+        .extracting(
+            PartitionStatistics::partition,
+            PartitionStatistics::dataFileCount,
+            PartitionStatistics::dataRecordCount)
+        .containsExactlyInAnyOrder(
+            Tuple.tuple(partitionRecord(partitionType, "foo", "A"), 3, expectedDataRecordCount));
+
+    assertThat(results)
+        .allSatisfy(
+            stats -> {
+              assertThat(stats.specId()).isNull();
+              assertThat(stats.totalDataFileSizeInBytes()).isNull();
+              assertThat(stats.positionDeleteRecordCount()).isNull();
+              assertThat(stats.positionDeleteFileCount()).isNull();
+              assertThat(stats.equalityDeleteRecordCount()).isNull();
+              assertThat(stats.equalityDeleteFileCount()).isNull();
+              assertThat(stats.totalRecords()).isNull();
+              assertThat(stats.lastUpdatedAt()).isNull();
+              assertThat(stats.lastUpdatedSnapshotId()).isNull();
+              assertThat(stats.dvCount()).isNull();
+            });
+  }
+
+  @Test
+  public void testFilterColumnNotInProjection() throws Exception {
+    Table testTable = tableWithUnevenPartitions("scan_filter_outside_projection");
+
+    Schema projection =
+        new Schema(
+            PartitionStatistics.EMPTY_PARTITION_FIELD, PartitionStatistics.DATA_RECORD_COUNT);
+
+    List<PartitionStatistics> results;
+    try (CloseableIterable<PartitionStatistics> recordIterator =
+        testTable
+            .newPartitionStatisticsScan()
+            .filter(Expressions.greaterThan("data_file_count", 2L))
+            .project(projection)
+            .scan()) {
+      results = Lists.newArrayList(recordIterator);
+    }
+
+    long expectedDataRecordCount = 0L;
+    try (CloseableIterable<FileScanTask> tasks = testTable.newScan().planFiles()) {
+      for (FileScanTask task : tasks) {
+        if ("A".equals(task.file().partition().get(1, String.class))) {
+          expectedDataRecordCount += task.file().recordCount();
+        }
+      }
+    }
+
+    Types.StructType partitionType = Partitioning.partitionType(testTable);
+
+    assertThat(results)
+        .extracting(
+            PartitionStatistics::partition,
+            PartitionStatistics::dataFileCount,
+            PartitionStatistics::dataRecordCount)
+        .containsExactlyInAnyOrder(
+            Tuple.tuple(partitionRecord(partitionType, "foo", "A"), 3, expectedDataRecordCount));
+
+    assertThat(results)
+        .allSatisfy(
+            stats -> {
+              assertThat(stats.specId()).isNull();
+              assertThat(stats.totalDataFileSizeInBytes()).isNull();
+              assertThat(stats.positionDeleteRecordCount()).isNull();
+              assertThat(stats.positionDeleteFileCount()).isNull();
+              assertThat(stats.equalityDeleteRecordCount()).isNull();
+              assertThat(stats.equalityDeleteFileCount()).isNull();
+              assertThat(stats.totalRecords()).isNull();
+              assertThat(stats.lastUpdatedAt()).isNull();
+              assertThat(stats.lastUpdatedSnapshotId()).isNull();
+              assertThat(stats.dvCount()).isNull();
+            });
+  }
+
+  @Test
+  public void testCaseSensitiveFilterFailsOnUppercaseRef() throws Exception {
+    Table testTable = tableWithTwoPartitions("scan_filter_case_sensitive");
+
+    assertThatThrownBy(
+            () ->
+                testTable
+                    .newPartitionStatisticsScan()
+                    .filter(Expressions.greaterThan("DATA_RECORD_COUNT", 0L))
+                    .scan())
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("Cannot find field 'DATA_RECORD_COUNT'");
+  }
+
+  @Test
+  public void testCaseInsensitiveFilterMatchesUppercaseRef() throws Exception {
+    Table testTable = tableWithTwoPartitions("scan_filter_case_insensitive");
+
+    List<PartitionStatistics> results;
+    try (CloseableIterable<PartitionStatistics> recordIterator =
+        testTable
+            .newPartitionStatisticsScan()
+            .filter(Expressions.equal("partition.C3", "B"))
+            .caseSensitive(false)
+            .scan()) {
+      results = Lists.newArrayList(recordIterator);
+    }
+
+    Types.StructType partitionType = Partitioning.partitionType(testTable);
+
+    assertThat(results)
+        .extracting(PartitionStatistics::partition)
+        .containsExactlyInAnyOrder(partitionRecord(partitionType, "foo", "B"));
+  }
+
+  private Table tableWithTwoPartitions(String name) throws IOException {
+    Table testTable = TestTables.create(tempDir(name), name, SCHEMA, SPEC, 2, fileFormatProperty);
+
+    DataFile dataFile1 =
+        FileGenerationUtil.generateDataFile(testTable, TestHelpers.Row.of("foo", "A"));
+    DataFile dataFile2 =
+        FileGenerationUtil.generateDataFile(testTable, TestHelpers.Row.of("foo", "B"));
+    testTable.newAppend().appendFile(dataFile1).appendFile(dataFile2).commit();
+
+    long snapshotId = testTable.currentSnapshot().snapshotId();
+    testTable
+        .updatePartitionStatistics()
+        .setPartitionStatistics(
+            PartitionStatsHandler.computeAndWriteStatsFile(testTable, snapshotId))
+        .commit();
+    return testTable;
+  }
+
+  private Table tableWithUnevenPartitions(String name) throws IOException {
+    Table testTable = TestTables.create(tempDir(name), name, SCHEMA, SPEC, 2, fileFormatProperty);
+
+    for (int i = 0; i < 3; i++) {
+      testTable
+          .newAppend()
+          .appendFile(
+              FileGenerationUtil.generateDataFile(testTable, TestHelpers.Row.of("foo", "A")))
+          .commit();
+    }
+    testTable
+        .newAppend()
+        .appendFile(FileGenerationUtil.generateDataFile(testTable, TestHelpers.Row.of("foo", "B")))
+        .commit();
+
+    long snapshotId = testTable.currentSnapshot().snapshotId();
+    testTable
+        .updatePartitionStatistics()
+        .setPartitionStatistics(
+            PartitionStatsHandler.computeAndWriteStatsFile(testTable, snapshotId))
+        .commit();
+    return testTable;
   }
 
   private static void computeAndValidatePartitionStats(

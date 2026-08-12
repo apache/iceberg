@@ -228,7 +228,7 @@ When the `location` field is present in table metadata, it is used directly as t
 
 ### Schemas and Data Types
 
-A table's **schema** is a list of named columns. All data types are either primitives or nested types, which are maps, lists, or structs. A table schema is also a struct type.
+A table's **schema** is a list of named columns. Data types are primitive, nested, or semi-structured. Nested types are maps, lists, or structs. A table schema is also a struct type.
 
 For the representations of these types in Avro, ORC, and Parquet file formats, see Appendix A.
 
@@ -243,6 +243,8 @@ A **`map`** is a collection of key-value pairs with a key type and a value type.
 #### Semi-structured Types
 
 A **`variant`** is a value that stores semi-structured data. The structure and data types in a variant are not necessarily consistent across rows in a table or data file. The variant type and binary encoding are defined in the [Parquet project](https://github.com/apache/parquet-format/blob/master/VariantEncoding.md), with support currently available for V1. Support for Variant is added in Iceberg v3.
+
+As a semi-structured type, `variant` is neither a primitive type nor a nested type.
 
 Variants are similar to JSON with a wider set of primitive values including date, timestamp, timestamptz, binary, and decimals.
 
@@ -567,18 +569,22 @@ Partition field IDs must be reused if an existing partition spec contains an equ
 
 | Transform name    | Description                                                  | Source types                                                                                              | Result type |
 |-------------------|--------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------|-------------|
-| **`identity`**    | Source value, unmodified                                     | Any except for `geometry`, `geography`, and `variant`                                                     | Source type |
+| **`identity`**    | Source value, unmodified                                     | Any primitive except for `geometry` and `geography` | Source type |
 | **`bucket[N]`**   | Hash of value, mod `N` (see below)                           | `int`, `long`, `decimal`, `date`, `time`, `timestamp`, `timestamptz`, `timestamp_ns`, `timestamptz_ns`, `string`, `uuid`, `fixed`, `binary` | `int`       |
 | **`truncate[W]`** | Value truncated to width `W` (see below)                     | `int`, `long`, `decimal`, `string`, `binary`                                                              | Source type |
 | **`year`**        | Extract a date or timestamp year, as years from 1970         | `date`, `timestamp`, `timestamptz`, `timestamp_ns`, `timestamptz_ns`                                      | `int`       |
 | **`month`**       | Extract a date or timestamp month, as months from 1970-01-01 | `date`, `timestamp`, `timestamptz`, `timestamp_ns`, `timestamptz_ns`                                      | `int`       |
-| **`day`**         | Extract a date or timestamp day, as days from 1970-01-01     | `date`, `timestamp`, `timestamptz`, `timestamp_ns`, `timestamptz_ns`                                      | `int`       |
+| **`day`**         | Extract a date or timestamp day, as days from 1970-01-01     | `date`, `timestamp`, `timestamptz`, `timestamp_ns`, `timestamptz_ns`                                      | `date` [1]  |
 | **`hour`**        | Extract a timestamp hour, as hours from 1970-01-01 00:00:00  | `timestamp`, `timestamptz`, `timestamp_ns`, `timestamptz_ns`                                              | `int`       |
 | **`void`**        | Always produces `null`                                       | Any                                                                                                       | Source type or `int` |
 
 All transforms must return `null` for a `null` input value.
 
 The `void` transform may be used to replace the transform in an existing partition field so that the field is effectively dropped in v1 tables. See partition evolution below.
+
+Notes:
+
+1. Readers must also accept `int` values for the `day` transform, interpreting each integer as a `date` represented by the number of days since `1970-01-01`.
 
 #### Bucket Transform Details
 
@@ -814,11 +820,11 @@ Each stats struct holds statistics for one table field. It may contain the follo
 |-------------|--------|---------------------------|---------------------------|-----------------------------------------------|-------------|
 | _optional_  | 1      | `lower_bound`             | Field type or `geo_lower` | all primitives or `variant`                   | Lower bound stored as the field's type, or `geo_lower` for geo types |
 | _optional_  | 2      | `upper_bound`             | Field type or `geo_upper` | all primitives or `variant`                   | Upper bound stored as the field's type, or `geo_upper` for geo types |
-| _optional_  | 3      | `tight_bounds`            | `boolean`                 | all except `geometry`, `geography`, `variant` | When true, `lower_bound` and `upper_bound` must be equal to the min and max values |
+| _optional_  | 3      | `tight_bounds`            | `boolean`                 | all primitives except for `geometry` and `geography` | When true, `lower_bound` and `upper_bound` must be equal to the min and max values |
 | _optional_  | 4      | `value_count`             | `long`                    | all                                           | Number of values in the column (including null and NaN values) |
 | _optional_  | 5      | `null_value_count`        | `long`                    | optional fields                               | Number of null values in the column |
 | _optional_  | 6      | `nan_value_count`         | `long`                    | `float`, `double`                             | Number of NaN values in the column |
-| _optional_  | 7      | `avg_value_size_in_bytes` | `int`                     | `string`, `binary`, `variant`                 | Avg value size in memory (uncompressed) in bytes over non-null values to estimate memory consumption |
+| _optional_  | 7      | `avg_value_size_in_bytes` | `int`                     | `string`, `binary`, `variant`, `geometry`, `geography` | Avg value size in memory (uncompressed) in bytes over non-null values to estimate memory consumption |
 
 For example, stats for a `required` `int` field named `id` with field-id `2` are stored using:
 
@@ -875,7 +881,8 @@ For example, stats for an optional `geometry` field named `location` with field-
   }
   10_804: optional long value_count;
   10_805: optional long null_value_count;
-  // tight_bounds, nan_value_count, avg_value_size_in_bytes are omitted for geo types
+  10_807: optional int avg_value_size_in_bytes;
+  // tight_bounds and nan_value_count are omitted for geo types
 }
 ```
 
@@ -1681,7 +1688,9 @@ Types are serialized according to this table:
 |**`map`**|`JSON object: {`<br />&nbsp;&nbsp;`"type": "map",`<br />&nbsp;&nbsp;`"key-id": <key id int>,`<br />&nbsp;&nbsp;`"key": <type JSON>,`<br />&nbsp;&nbsp;`"value-id": <val id int>,`<br />&nbsp;&nbsp;`"value-required": <bool>`<br />&nbsp;&nbsp;`"value": <type JSON>`<br />`}`|`{`<br />&nbsp;&nbsp;`"type": "map",`<br />&nbsp;&nbsp;`"key-id": 4,`<br />&nbsp;&nbsp;`"key": "string",`<br />&nbsp;&nbsp;`"value-id": 5,`<br />&nbsp;&nbsp;`"value-required": false,`<br />&nbsp;&nbsp;`"value": "double"`<br />`}`|
 | **`variant`**| `JSON string: "variant"`|`"variant"`|
 | **`geometry(C)`** |`JSON string: "geometry(<C>)"`|`"geometry(srid:4326)"`|
-| **`geography(C, A)`** |`JSON string: "geography(<C>,<E>)"`|`"geography(srid:4326,spherical)"`|
+| **`geography(C, A)`** |`JSON string: "geography(<C>, <A>)"`|`"geography(srid:4326, spherical)"`|
+
+The schema JSON type strings in this table are the canonical serialized forms. Readers should accept optional whitespace around parameters and separators in parameterized type strings.
 
 Note that default values are serialized using the JSON single-value serialization in [Appendix D](#appendix-d-single-value-serialization).
 

@@ -31,7 +31,6 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TableScan;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Evaluator;
@@ -49,6 +48,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.CommitMetadata;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkReadConf;
+import org.apache.iceberg.spark.SparkTableProperties;
 import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.spark.SparkV2Filters;
@@ -375,15 +375,15 @@ public class SparkTable extends BaseSparkTable
   private static boolean acceptAnySchema(Table table) {
     return PropertyUtil.propertyAsBoolean(
         table.properties(),
-        TableProperties.SPARK_WRITE_ACCEPT_ANY_SCHEMA,
-        TableProperties.SPARK_WRITE_ACCEPT_ANY_SCHEMA_DEFAULT);
+        SparkTableProperties.WRITE_ACCEPT_ANY_SCHEMA,
+        SparkTableProperties.WRITE_ACCEPT_ANY_SCHEMA_DEFAULT);
   }
 
   private static boolean autoSchemaEvolution(Table table) {
     return PropertyUtil.propertyAsBoolean(
         table.properties(),
-        TableProperties.SPARK_WRITE_AUTO_SCHEMA_EVOLUTION,
-        TableProperties.SPARK_WRITE_AUTO_SCHEMA_EVOLUTION_DEFAULT);
+        SparkTableProperties.WRITE_AUTO_SCHEMA_EVOLUTION,
+        SparkTableProperties.WRITE_AUTO_SCHEMA_EVOLUTION_DEFAULT);
   }
 
   // returns latest snapshot for branch or current snapshot if branch is yet to be created

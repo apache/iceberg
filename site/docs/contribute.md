@@ -478,6 +478,12 @@ This helps separate logical sections of the code, making it easier to read and d
 
 ## Testing
 
+### Conventions and recommendations
+
+- Test class names must start with `Test`, for example `TestExample`.
+- Omit the `public` modifier for test classes, test methods, and lifecycle methods for newly added tests.
+- Omit the `test` prefix for newly added test methods.
+
 ### AssertJ
 
 Prefer using [AssertJ](https://github.com/assertj/assertj) assertions as those provide a rich and intuitive set of strongly-typed assertions.

@@ -170,7 +170,7 @@ Struct fields are created using `NestedField.optional` or `NestedField.required`
 
 ```java
 // struct<1 id: int, 2 data: optional string>
-StructType struct = Struct.of(
+StructType struct = StructType.of(
     Types.NestedField.required(1, "id", Types.IntegerType.get()),
     Types.NestedField.optional(2, "data", Types.StringType.get())
   )

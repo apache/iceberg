@@ -23,13 +23,12 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.ByteBuffers;
 
 class TrackingBuilder {
-  private final EntryStatus status;
+  private final long newSnapshotId;
   private final Long snapshotId;
   private final Long dataSequenceNumber;
   private final Long fileSequenceNumber;
   private final Long firstRowId;
-  // ID of the snapshot in which the new Tracking instance will be committed.
-  private final long newSnapshotId;
+  private EntryStatus status;
   private Long dvSnapshotId;
   private byte[] deletedPositions;
   private byte[] replacedPositions;
@@ -38,6 +37,7 @@ class TrackingBuilder {
    * Creates a builder for a newly added file.
    *
    * @param newSnapshotId the snapshot ID in which the new tracking instance will be committed
+   * @return a builder for a newly added file
    */
   static TrackingBuilder added(long newSnapshotId) {
     return new TrackingBuilder(newSnapshotId);
@@ -48,6 +48,7 @@ class TrackingBuilder {
    *
    * @param source source tracking from a manifest entry
    * @param newSnapshotId the snapshot ID in which the new tracking instance will be committed
+   * @return a builder for a tracking row derived from the source
    */
   static TrackingBuilder from(Tracking source, long newSnapshotId) {
     return new TrackingBuilder(source, newSnapshotId);
@@ -58,6 +59,7 @@ class TrackingBuilder {
    *
    * @param source source tracking from a manifest entry
    * @param newSnapshotId the snapshot ID in which the new tracking instance will be committed
+   * @return a DELETED tracking row derived from the source
    */
   static Tracking deleted(Tracking source, long newSnapshotId) {
     return terminal(EntryStatus.DELETED, source, newSnapshotId);
@@ -68,6 +70,7 @@ class TrackingBuilder {
    *
    * @param source source tracking from a manifest entry
    * @param newSnapshotId the snapshot ID in which the new tracking instance will be committed
+   * @return a REPLACED tracking row derived from the source
    */
   static Tracking replaced(Tracking source, long newSnapshotId) {
     return terminal(EntryStatus.REPLACED, source, newSnapshotId);
@@ -101,33 +104,34 @@ class TrackingBuilder {
 
   /** Indicates that the DV has been updated for the new Tracking. */
   TrackingBuilder dvUpdated() {
-    // DV applies to data files; deleted/replaced positions apply to manifest files
     Preconditions.checkState(
         deletedPositions == null && replacedPositions == null,
         "Cannot mark DV updated on a manifest entry (deleted/replaced positions are set)");
     this.dvSnapshotId = newSnapshotId;
+    if (status == EntryStatus.EXISTING) {
+      this.status = EntryStatus.MODIFIED;
+    }
+
     return this;
   }
 
+  /** Sets the positions deleted by this commit for a manifest entry. */
   TrackingBuilder deletedPositions(ByteBuffer positions) {
     Preconditions.checkState(
-        status == EntryStatus.EXISTING, "Cannot set deleted positions on %s entry", status);
-    // DV applies to data files; deleted positions apply to manifest files
-    Preconditions.checkState(
-        dvSnapshotId == null,
-        "Cannot set deleted positions on a data file entry (DV snapshot ID is set)");
+        status != EntryStatus.ADDED, "Cannot set deleted positions on ADDED entry");
     this.deletedPositions = ByteBuffers.toByteArray(positions);
+    this.dvSnapshotId = newSnapshotId;
+    this.status = EntryStatus.MODIFIED;
     return this;
   }
 
+  /** Sets the positions replaced by this commit for a manifest entry. */
   TrackingBuilder replacedPositions(ByteBuffer positions) {
     Preconditions.checkState(
-        status == EntryStatus.EXISTING, "Cannot set replaced positions on %s entry", status);
-    // DV applies to data files; replaced positions apply to manifest files
-    Preconditions.checkState(
-        dvSnapshotId == null,
-        "Cannot set replaced positions on a data file entry (DV snapshot ID is set)");
+        status != EntryStatus.ADDED, "Cannot set replaced positions on ADDED entry");
     this.replacedPositions = ByteBuffers.toByteArray(positions);
+    this.dvSnapshotId = newSnapshotId;
+    this.status = EntryStatus.MODIFIED;
     return this;
   }
 

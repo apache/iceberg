@@ -99,7 +99,7 @@ public class FlinkCatalogFactory implements CatalogFactory {
     }
 
     String catalogType = properties.getOrDefault(ICEBERG_CATALOG_TYPE, ICEBERG_CATALOG_TYPE_HIVE);
-    switch (catalogType.toLowerCase(Locale.ENGLISH)) {
+    switch (catalogType.toLowerCase(Locale.ROOT)) {
       case ICEBERG_CATALOG_TYPE_HIVE:
         // The values of properties 'uri', 'warehouse', 'hive-conf-dir' are allowed to be null, in
         // that case it will
@@ -170,7 +170,6 @@ public class FlinkCatalogFactory implements CatalogFactory {
         defaultDatabase,
         baseNamespace,
         catalogLoader,
-        properties,
         cacheEnabled,
         cacheExpirationIntervalMs);
   }

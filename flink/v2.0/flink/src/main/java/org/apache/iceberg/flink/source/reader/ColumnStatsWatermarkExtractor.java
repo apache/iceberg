@@ -51,6 +51,8 @@ public class ColumnStatsWatermarkExtractor implements SplitWatermarkExtractor, S
   public ColumnStatsWatermarkExtractor(
       Schema schema, String eventTimeFieldName, TimeUnit timeUnit) {
     Types.NestedField field = schema.findField(eventTimeFieldName);
+    Preconditions.checkArgument(
+        field != null, "Cannot find watermark column: %s", eventTimeFieldName);
     TypeID typeID = field.type().typeId();
     Preconditions.checkArgument(
         typeID.equals(TypeID.LONG)
@@ -95,7 +97,7 @@ public class ColumnStatsWatermarkExtractor implements SplitWatermarkExtractor, S
               Preconditions.checkArgument(
                   scanTask.file().lowerBounds() != null
                       && scanTask.file().lowerBounds().get(eventTimeFieldId) != null,
-                  "Missing statistics for column name = %s in file = %s",
+                  "Missing statistics for column name = %s with fieldId = %s in file = %s",
                   eventTimeFieldName,
                   eventTimeFieldId,
                   scanTask.file());
