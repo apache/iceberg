@@ -854,7 +854,7 @@ class TestEqualityConvertPlanner extends OperatorTestBase {
       assertThat(clears.get(0).type()).isEqualTo(IndexCommand.Type.CLEAR_INDEX);
       assertThat(clears.get(0).mainSnapshotId()).isEqualTo(mainAfterExternal);
       // The bootstrap on the first trigger took generation 1, so the reindex takes the next one.
-      assertThat(clears.get(0).indexGeneration()).isEqualTo(2L);
+      assertThat(clears.get(0).mainSequenceNumber()).isEqualTo(2L);
     }
   }
 

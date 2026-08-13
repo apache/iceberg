@@ -43,7 +43,7 @@ import org.apache.iceberg.PartitionSpec;
  *
  * <p>{@code mainSnapshotId} is sent for diagnostic output.
  *
- * <p>{@code indexGeneration} is used by the index to order eager evictions by.
+ * <p>{@code mainSequenceNumber} is used by the index to order eager evictions by.
  *
  * <p>{@code dataSequenceNumber} is the wrapped file's sequence number (data file or equality
  * delete), propagated to the worker so a delete only deletes rows older than itself.
@@ -55,31 +55,31 @@ import org.apache.iceberg.PartitionSpec;
 public record ReadCommand(
     ContentScanTask<?> task,
     Long mainSnapshotId,
-    Long indexGeneration,
+    Long mainSequenceNumber,
     long dataSequenceNumber,
     boolean staging)
     implements Serializable {
 
   public static ReadCommand dataFile(
-      FileScanTask task, Long mainSnapshotId, Long indexGeneration, long dataSequenceNumber) {
-    return new ReadCommand(task, mainSnapshotId, indexGeneration, dataSequenceNumber, false);
+      FileScanTask task, Long mainSnapshotId, Long mainSequenceNumber, long dataSequenceNumber) {
+    return new ReadCommand(task, mainSnapshotId, mainSequenceNumber, dataSequenceNumber, false);
   }
 
   public static ReadCommand stagingDataFile(
-      FileScanTask task, Long mainSnapshotId, Long indexGeneration, long dataSequenceNumber) {
-    return new ReadCommand(task, mainSnapshotId, indexGeneration, dataSequenceNumber, true);
+      FileScanTask task, Long mainSnapshotId, Long mainSequenceNumber, long dataSequenceNumber) {
+    return new ReadCommand(task, mainSnapshotId, mainSequenceNumber, dataSequenceNumber, true);
   }
 
   public static ReadCommand eqDeleteFile(
       DeleteFile file,
       PartitionSpec spec,
       Long mainSnapshotId,
-      Long indexGeneration,
+      Long mainSequenceNumber,
       long dataSequenceNumber) {
     return new ReadCommand(
         new EqualityDeleteFileScanTask(file, spec),
         mainSnapshotId,
-        indexGeneration,
+        mainSequenceNumber,
         dataSequenceNumber,
         false);
   }
