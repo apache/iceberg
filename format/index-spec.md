@@ -89,19 +89,32 @@ The following index type is reserved for future specifications.
 
 The source-table columns the index is built on and optimized for retrieval.
 
-### Transform
+### Index Keys
 
-The transform is a function applied to the key columns that produces the values used to order the index entries.
+The index keys are produced by an [Iceberg expression](expressions-spec.md) that is evaluated for each indexed row. The
+resulting index key determines the position of the entry in the index, as described in [Ordering](#ordering).
 
-The following transforms are defined in this specification:
+The index keys expression must be a value expression and must satisfy the following requirements:
 
-| Transform | Description                                            |
-|-----------|--------------------------------------------------------|
-| IDENTITY  | Uses the original key values                           |
-| HASH      | Hashes the key columns into hash buckets               |
-| HILBERT   | Maps multi-column keys to their Hilbert curve position |
+- Field references must be ID references. Named references are not allowed because the expression is stored and must
+  remain valid when columns are renamed.
+- Functions must be resolved in the `iceberg_functions` or `sql_functions` reserved catalogs. User-defined functions
+  and engine-specific function catalogs are not allowed because index keys must be portable across engines.
+- The expression must be deterministic. Non-deterministic functions, such as `random` or functions that depend on the
+  evaluation time, would invalidate the index as soon as it is written.
+- The result type must be a primitive type or a struct whose fields are, recursively, primitives or structs. List and
+  map result types are not allowed because no ordering is defined for them.
 
-The ordering each transform defines is described in [Ordering](#ordering).
+Examples of valid index keys expressions, shown as SQL for readability:
+
+| Index keys                              | Description                                                    |
+|-----------------------------------------|----------------------------------------------------------------|
+| `identity(user_id)`                     | Orders entries by the original key values                      |
+| `bucket(256, user_id)`                  | Orders entries by the hash bucket of the key column            |
+| `struct(bucket(256, user_id), user_id)` | Orders entries by hash bucket, then by the original key values |
+
+The index keys expression is serialized using the
+[JSON serialization](expressions-spec.md#appendix-b-json-serialization) defined by the expressions specification.
 
 ### Index Instance
 
@@ -111,7 +124,7 @@ Users create index instances by specifying:
 
 - Source table
 - Index type
-- Transform
+- Index keys
 - Key columns
 - Index properties (optional)
 
@@ -130,17 +143,17 @@ The index metadata file stores the index definition and snapshot history.
 
 ### Index Metadata File
 
-| Requirement | Field          | Type                 | Description                                        |
-|-------------|----------------|----------------------|----------------------------------------------------|
-| required    | format-version | int                  | Index specification version                        |
-| required    | uuid           | string               | Stable UUID assigned at creation                   |
-| required    | table-uuid     | string               | UUID of the indexed table                          |
-| required    | location       | string               | Index root location                                |
-| required    | type           | string               | Logical index type                                 |
-| required    | transform      | string               | Transform applied to the key columns               |
-| required    | key-column-ids | list<int>            | Ordered source-table column IDs of the key columns |
-| optional    | properties     | map<string,string>   | Index properties applicable for every snapshot     |
-| required    | snapshots      | list<index-snapshot> | Index snapshots                                    |
+| Requirement | Field          | Type                 | Description                                                                |
+|-------------|----------------|----------------------|----------------------------------------------------------------------------|
+| required    | format-version | int                  | Index specification version                                                |
+| required    | uuid           | string               | Stable UUID assigned at creation                                           |
+| required    | table-uuid     | string               | UUID of the indexed table                                                  |
+| required    | location       | string               | Index root location                                                        |
+| required    | type           | string               | Logical index type                                                         |
+| required    | index-keys     | JSON expression      | Expression producing the index keys, see [Index Keys](#index-keys)         |
+| required    | key-column-ids | list<int>            | Ordered source-table column IDs of the key columns                         |
+| optional    | properties     | map<string,string>   | Index properties applicable for every snapshot                             |
+| required    | snapshots      | list<index-snapshot> | Index snapshots                                                            |
 | optional    | encryption-keys| list<encryption-key> | Encryption keys used by the index, see [Encryption Keys](#encryption-keys) |
 
 ### Encryption Keys
@@ -149,12 +162,12 @@ Index metadata is not encrypted, so keys are never stored in plain form. Keys us
 index metadata as a list named `encryption-keys`, using the same structure as the table specification (see
 [Encryption Keys](spec.md#encryption-keys)). The schema of each key is a struct with the following fields:
 
-| Requirement | Field                   | Type                | Description                                                       |
-|-------------|-------------------------|---------------------|-------------------------------------------------------------------|
-| required    | key-id                  | string              | ID of the encryption key                                          |
-| required    | encrypted-key-metadata  | string              | Encrypted key and metadata, base64 encoded [1]                    |
-| optional    | encrypted-by-id         | string              | Optional ID of the key used to encrypt or wrap `key-metadata`     |
-| optional    | properties              | map<string,string>  | Additional metadata used by the index's encryption scheme         |
+| Requirement | Field                   | Type                | Description                                                   |
+|-------------|-------------------------|---------------------|---------------------------------------------------------------|
+| required    | key-id                  | string              | ID of the encryption key                                      |
+| required    | encrypted-key-metadata  | string              | Encrypted key and metadata, base64 encoded [1]                |
+| optional    | encrypted-by-id         | string              | Optional ID of the key used to encrypt or wrap `key-metadata` |
+| optional    | properties              | map<string,string>  | Additional metadata used by the index's encryption scheme     |
 
 Notes:
 
@@ -169,13 +182,13 @@ key encrypts the key metadata of the tracking file, which in turn holds the key 
 Every snapshot shares the common fields below and references its index data through the location of a single
 [tracking file](#tracking-file).
 
-| Requirement | Field                    | Type               | Description                                                          |
-|-------------|--------------------------|--------------------|----------------------------------------------------------------------|
-| required    | snapshot-id              | long               | Index snapshot identifier                                            |
-| required    | source-table-snapshot-id | long               | Source table snapshot                                                |
-| required    | timestamp-ms             | long               | Snapshot creation timestamp                                          |
-| required    | index-data               | string             | Location of the tracking file                                        |
-| optional    | properties               | map<string,string> | Snapshot properties specific to this snapshot                        |
+| Requirement | Field                    | Type               | Description                                                           |
+|-------------|--------------------------|--------------------|-----------------------------------------------------------------------|
+| required    | snapshot-id              | long               | Index snapshot identifier                                             |
+| required    | source-table-snapshot-id | long               | Source table snapshot                                                 |
+| required    | timestamp-ms             | long               | Snapshot creation timestamp                                           |
+| required    | index-data               | string             | Location of the tracking file                                         |
+| optional    | properties               | map<string,string> | Snapshot properties specific to this snapshot                         |
 | optional    | key-id                   | string             | ID of the encryption key that encrypts the tracking file key metadata |
 
 ## Commits and Concurrency
@@ -211,20 +224,25 @@ path of the Iceberg table data file, and the position within that file where the
 
 ### Ordering
 
-The transform defines a total **ordering** over the index entries. Entries are organized into non-overlapping ranges
+The index keys define a total **ordering** over the index entries. Entries are organized into non-overlapping ranges
 according to that ordering, and each range is stored in a separate leaf file.
 
-| Transform | Ordering                                                                                                  |
-|-----------|-----------------------------------------------------------------------------------------------------------|
-| IDENTITY  | By the original key values, ascending, nulls-first                                                        |
-| HASH      | By the hash bucket of the key columns, then by the original key values, ascending, nulls-first            |
-| HILBERT   | By the Hilbert curve position of the key columns, then by the original key values, ascending, nulls-first |
+Index entries are ordered by the [index key](#index-keys) produced for each indexed row:
 
-**HASH** follows the 32-bit hash requirements defined in the table specification (see
-[Appendix B: 32-bit Hash Requirements](spec.md#appendix-b-32-bit-hash-requirements)). ***TBD***: Specify the hash
-function for multiple columns.
+- If the index key is a **primitive** value, entries are ordered by that value, ascending.
+- If the index key is a **struct** value, entries are ordered by the struct fields in field order: entries are
+  compared by the first field, and the next field is used only when the preceding fields compare as equal. Nested
+  structs are compared by applying the same rule recursively.
 
-**HILBERT** ***TBD***: Specify the Hilbert function exactly.
+Primitive values are compared using the rules defined in the
+[expressions specification](expressions-spec.md#comparisons), extended so that null and NaN values have a defined
+position in the total order:
+
+- `null` values are ordered before all other values (nulls-first)
+- `NaN` values are ordered after all other `float` and `double` values
+
+When two entries have equal index keys, they are ordered by the source data file path, ascending, and then by
+the source row position within that file, ascending.
 
 ### Tracking File
 
@@ -241,25 +259,25 @@ queries against the index.
 Entries contain aggregated statistics for all referenced leaf files, enabling engines to perform pruning and planning
 without opening every leaf file.
 
-| Field ID | Name               | Type    | Requirement  | Description                                                                                                           |
-|----------|--------------------|---------|--------------|-----------------------------------------------------------------------------------------------------------------------|
-| 100      | location           | string  | required     | Location of the referenced file.                                                                                      |
-| 101      | file_format        | string  | required     | File format name, such as parquet, avro, or orc.                                                                      |
-| 103      | record_count       | long    | required     | Number of records contained in the referenced leaf file.                                                              |
-| 104      | file_size_in_bytes | long    | required     | Total file size in bytes.                                                                                             |
-| 146      | content_stats      | struct  | required     | Column statistics on the key columns and ordering bounds for the referenced leaf file, used for planning and pruning. |
-| 131      | key_metadata       | binary  | optional     | Implementation-specific key metadata, used for leaf file encryption.                                                  |
+| Field ID | Name               | Type    | Requirement  | Description                                                                                                                       |
+|----------|--------------------|---------|--------------|-----------------------------------------------------------------------------------------------------------------------------------|
+| 100      | location           | string  | required     | Location of the referenced file.                                                                                                  |
+| 101      | file_format        | string  | required     | File format name, such as parquet, avro, or orc.                                                                                  |
+| 103      | record_count       | long    | required     | Number of records contained in the referenced leaf file.                                                                          |
+| 104      | file_size_in_bytes | long    | required     | Total file size in bytes.                                                                                                         |
+| 146      | content_stats      | struct  | required     | Column statistics on the key columns and index key statistics for the referenced leaf file, used for planning and pruning.        |
+| 131      | key_metadata       | binary  | optional     | Implementation-specific key metadata, used for leaf file encryption.                                                              |
 
 #### Content Statistics
 
 The content statistics structure stored for each leaf file contains two complementary kinds of statistics:
 
 - **Column statistics** for the key columns: the minimum and maximum original key values in the leaf file, using each
-column's natural ordering. These are always present and let engines that do not implement the index ordering prune
-leaf files using predicates on the original key values.
-- **Ordering bounds** for the key columns: the original key values of the first and last entries in the leaf file
-according to the index ordering. Because leaf files partition the ordered data into non-overlapping ranges, engines
-that implement the index ordering can use these bounds to prune leaf files (see [Ordering](#ordering)).
+  column's natural ordering. These are always present and let engines that do not implement the index ordering prune
+  leaf files using predicates on the original key values.
+- **Index key statistics** for the leaf file: the index keys of the first and last entries in the leaf file according to
+  the index ordering. Because leaf files hold non-overlapping ranges of the index ordering, engines can evaluate the
+  index keys expression for a lookup value and use these statistics to prune leaf files (see [Ordering](#ordering)).
 
 ### Leaf Files
 
@@ -275,9 +293,8 @@ The schema of a leaf file is determined by the index definition and contains:
 - The source file path
 - The source row position
 
-Entries within a leaf file are organized by an ascending, nulls-first sort of the key columns, source file path and
-source row position. This lets a reader binary-search for a key within the leaf after selecting it from the tracking
-file even if the index ordering is not known.
+Entries within a leaf file are stored in the [index ordering](#ordering). This lets a reader binary-search for a key
+within the leaf after selecting it from the tracking file.
 
 #### Leaf Schema
 
@@ -298,16 +315,17 @@ Imagine an `events` table that already has a single snapshot (source table snaps
 point lookups on the `user_id` column, a key lookup index is created.
 
 ```sql
-CREATE INDEX hash_index
+CREATE INDEX bucket_index
     ON events (user_id)
-    USING HASH;
+    USING struct(bucket(2147483647, user_id), user_id);
 ```
 
-This creates a `SCALAR` index that applies the `HASH` transform to the `user_id` key column. When the index is created,
-the engine (or a later index maintenance job) reads the current table snapshot, writes the leaf files and a tracking
-file, and produces the first index metadata file containing a single index snapshot. Leaf file boundaries are created
-based on the hash value of the `user_id`, and data inside the leaf files are sorted by `user_id` itself. The tracking
-file stores summary information and pruning statistics.
+This creates a `SCALAR` index on the `user_id` key column that orders entries by the hash bucket of `user_id` and then
+by `user_id` itself. When the index is created, the engine (or a later index maintenance job) reads the current table
+snapshot, writes the leaf files and a tracking file, and produces the first index metadata file containing a single
+index snapshot. Leaf file boundaries are created based on the index keys, so a leaf file holds a contiguous range
+of buckets or a range of `user_id` values within a single bucket. The tracking file stores summary information and
+pruning statistics.
 
 Each leaf file row contains the key column and the location of the source row:
 
@@ -320,22 +338,32 @@ Each leaf file row contains the key column and the location of the source row:
 The JSON metadata file is shown below.
 
 ```
-s3://bucket/warehouse/default.db/events/index/hash_index/metadata/00001-(uuid).metadata.json
+s3://bucket/warehouse/default.db/events/index/bucket_index/metadata/00001-(uuid).metadata.json
 ```
 ```json
 {
   "format-version" : 1,
   "uuid" : "9c12d441-03fe-4693-9a96-a0705ddf69c1",
   "table-uuid" : "fb072c92-a02b-11e9-ae9c-1bb7bc9eca94",
-  "location" : "s3://bucket/warehouse/default.db/events/index/hash_index",
+  "location" : "s3://bucket/warehouse/default.db/events/index/bucket_index",
   "type" : "SCALAR",
-  "transform" : "HASH",
+  "index-keys" : {
+    "type" : "apply",
+    "function" : { "catalog" : "iceberg_functions", "identifier" : [ "struct" ] },
+    "arguments" : [ {
+      "type" : "apply",
+      "function" : { "catalog" : "iceberg_functions", "identifier" : [ "bucket" ] },
+      "arguments" : [ 2147483647, { "type" : "reference", "id" : 1 } ]
+    }, {
+      "type" : "reference", "id" : 1
+    } ]
+  },
   "key-column-ids" : [ 1 ],
   "snapshots" : [ {
     "snapshot-id" : 1,
     "source-table-snapshot-id" : 3055729675574597004,
     "timestamp-ms" : 1573518431292,
-    "index-data" : "s3://bucket/warehouse/default.db/events/index/hash_index/metadata/tracking-00001-(uuid).parquet"
+    "index-data" : "s3://bucket/warehouse/default.db/events/index/bucket_index/metadata/tracking-00001-(uuid).parquet"
   } ]
 }
 ```
@@ -348,27 +376,37 @@ This produces a new index metadata file that completely replaces the previous on
 1) is kept alongside the new one (`snapshot-id` 2), so engines can still use the index against the older table snapshot.
 
 ```
-s3://bucket/warehouse/default.db/events/index/hash_index/metadata/00002-(uuid).metadata.json
+s3://bucket/warehouse/default.db/events/index/bucket_index/metadata/00002-(uuid).metadata.json
 ```
 ```json
 {
   "format-version" : 1,
   "uuid" : "9c12d441-03fe-4693-9a96-a0705ddf69c1",
   "table-uuid" : "fb072c92-a02b-11e9-ae9c-1bb7bc9eca94",
-  "location" : "s3://bucket/warehouse/default.db/events/index/hash_index",
+  "location" : "s3://bucket/warehouse/default.db/events/index/bucket_index",
   "type" : "SCALAR",
-  "transform" : "HASH",
+  "index-keys" : {
+    "type" : "apply",
+    "function" : { "catalog" : "iceberg_functions", "identifier" : [ "struct" ] },
+    "arguments" : [ {
+      "type" : "apply",
+      "function" : { "catalog" : "iceberg_functions", "identifier" : [ "bucket" ] },
+      "arguments" : [ 2147483647, { "type" : "reference", "id" : 1 } ]
+    }, {
+      "type" : "reference", "id" : 1
+    } ]
+  },
   "key-column-ids" : [ 1 ],
   "snapshots" : [ {
     "snapshot-id" : 1,
     "source-table-snapshot-id" : 3055729675574597004,
     "timestamp-ms" : 1573518431292,
-    "index-data" : "s3://bucket/warehouse/default.db/events/index/hash_index/metadata/tracking-00001-(uuid).parquet"
+    "index-data" : "s3://bucket/warehouse/default.db/events/index/bucket_index/metadata/tracking-00001-(uuid).parquet"
   }, {
     "snapshot-id" : 2,
     "source-table-snapshot-id" : 5459876531255530170,
     "timestamp-ms" : 1573518981593,
-    "index-data" : "s3://bucket/warehouse/default.db/events/index/hash_index/metadata/tracking-00002-(uuid).parquet"
+    "index-data" : "s3://bucket/warehouse/default.db/events/index/bucket_index/metadata/tracking-00002-(uuid).parquet"
   } ]
 }
 ```
@@ -380,27 +418,39 @@ and any leaf files not referenced by a remaining snapshot. Leaf files still refe
 retained.
 
 ```
-s3://bucket/warehouse/default.db/events/index/hash_index/metadata/00003-(uuid).metadata.json
+s3://bucket/warehouse/default.db/events/index/bucket_index/metadata/00003-(uuid).metadata.json
 ```
 ```json
 {
   "format-version" : 1,
   "uuid" : "9c12d441-03fe-4693-9a96-a0705ddf69c1",
   "table-uuid" : "fb072c92-a02b-11e9-ae9c-1bb7bc9eca94",
-  "location" : "s3://bucket/warehouse/default.db/events/index/hash_index",
+  "location" : "s3://bucket/warehouse/default.db/events/index/bucket_index",
   "type" : "SCALAR",
-  "transform" : "HASH",
+  "index-keys" : {
+    "type" : "apply",
+    "function" : { "catalog" : "iceberg_functions", "identifier" : [ "struct" ] },
+    "arguments" : [ {
+      "type" : "apply",
+      "function" : { "catalog" : "iceberg_functions", "identifier" : [ "bucket" ] },
+      "arguments" : [ 2147483647, { "type" : "reference", "id" : 1 } ]
+    }, {
+      "type" : "reference", "id" : 1
+    } ]
+  },
   "key-column-ids" : [ 1 ],
   "snapshots" : [ {
     "snapshot-id" : 2,
     "source-table-snapshot-id" : 5459876531255530170,
     "timestamp-ms" : 1573518981593,
-    "index-data" : "s3://bucket/warehouse/default.db/events/index/hash_index/metadata/tracking-00002-(uuid).parquet"
+    "index-data" : "s3://bucket/warehouse/default.db/events/index/bucket_index/metadata/tracking-00002-(uuid).parquet"
   } ]
 }
 ```
 
 ## Future Extensions
 
-Future specifications may define additional index types and transforms, for example VECTOR indexes for similarity
-search or text/term indexes.
+Future specifications may define additional index types, for example VECTOR indexes for similarity search or text/term
+indexes. Additional ordering strategies do not require changes to this specification and can be added as functions in
+the `iceberg_functions` catalog of the [expressions specification](expressions-spec.md), for example a function that
+maps multi-column keys to their Hilbert curve position.
