@@ -87,7 +87,7 @@ public class Metrics implements Serializable {
    * @param lowerBounds a map of field id to the lower bound of the column, or null if unknown
    * @param upperBounds a map of field id to the upper bound of the column, or null if unknown
    * @param originalTypes a map of field id to the original type of the lower/upper bound, or null
-   *  if unknown
+   *     if unknown
    */
   public Metrics(
       Long rowCount,
