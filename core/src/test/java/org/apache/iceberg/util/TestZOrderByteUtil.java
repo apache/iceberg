@@ -473,6 +473,76 @@ public class TestZOrderByteUtil {
     }
   }
 
+  /**
+   * The full IEEE-754 ladder, in {@link Double#compare} order: signed zeros are distinguished, the
+   * infinities bound the finite range, and NaN sorts above everything.
+   */
+  @Test
+  public void testDoubleOrderingAcrossSpecialValues() {
+    List<Double> ascending =
+        Lists.newArrayList(
+            Double.NEGATIVE_INFINITY,
+            -Double.MAX_VALUE,
+            -1.0d,
+            -Double.MIN_VALUE,
+            -0.0d,
+            0.0d,
+            Double.MIN_VALUE,
+            1.0d,
+            Double.MAX_VALUE,
+            Double.POSITIVE_INFINITY,
+            Double.NaN);
+
+    assertOrderPreserved(
+        ascending, value -> encode(buffer -> ZOrderByteUtils.doubleToOrderedBytes(value, buffer)));
+  }
+
+  @Test
+  public void testFloatOrderingAcrossSpecialValues() {
+    List<Float> ascending =
+        Lists.newArrayList(
+            Float.NEGATIVE_INFINITY,
+            -Float.MAX_VALUE,
+            -1.0f,
+            -Float.MIN_VALUE,
+            -0.0f,
+            0.0f,
+            Float.MIN_VALUE,
+            1.0f,
+            Float.MAX_VALUE,
+            Float.POSITIVE_INFINITY,
+            Float.NaN);
+
+    assertOrderPreserved(
+        ascending, value -> encode(buffer -> ZOrderByteUtils.floatToOrderedBytes(value, buffer)));
+  }
+
+  /**
+   * The encoding goes through {@link Double#doubleToLongBits}, which collapses every NaN to the
+   * canonical quiet NaN. Distinct NaN payloads must therefore produce identical bytes, otherwise
+   * the z-order key would not be deterministic for NaN.
+   */
+  @Test
+  public void testDoubleOrderedBytesCanonicalizeNaN() {
+    byte[] canonical = encode(buffer -> ZOrderByteUtils.doubleToOrderedBytes(Double.NaN, buffer));
+
+    for (long rawNaNBits :
+        new long[] {
+          0x7ff8000000000001L, // quiet NaN, non-zero payload
+          0x7fffffffffffffffL, // quiet NaN, all payload bits set
+          0xfff8000000000000L, // NaN with the sign bit set
+          0x7ff0000000000001L // signalling NaN
+        }) {
+      double nan = Double.longBitsToDouble(rawNaNBits);
+      assertThat(Double.isNaN(nan)).isTrue();
+
+      byte[] actual = encode(buffer -> ZOrderByteUtils.doubleToOrderedBytes(nan, buffer));
+      assertThat(actual)
+          .as("NaN with raw bits 0x%016x must encode as the canonical NaN", rawNaNBits)
+          .isEqualTo(canonical);
+    }
+  }
+
   @Test
   public void testByteTruncatedOrFillNullIsZeroArray() {
     ByteBuffer buffer = ByteBuffer.allocate(128);
