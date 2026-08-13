@@ -52,6 +52,7 @@ import org.apache.iceberg.variants.VariantObject;
 public class InclusiveStatsEvaluator {
   private final Expression expr;
   private final Set<Integer> alwaysPresentFieldIds;
+  private final Set<Integer> requiredFieldIds;
 
   public InclusiveStatsEvaluator(Schema schema, Expression unbound) {
     this(schema, unbound, true);
@@ -60,19 +61,20 @@ public class InclusiveStatsEvaluator {
   public InclusiveStatsEvaluator(Schema schema, Expression unbound, boolean caseSensitive) {
     Types.StructType struct = schema.asStruct();
     this.expr = Binder.bind(struct, rewriteNot(unbound), caseSensitive);
-    this.alwaysPresentFieldIds =
-        alwaysPresentFieldIds(
-            schema, Binder.boundReferences(struct, Collections.singletonList(expr), caseSensitive));
+    Set<Integer> referencedIds =
+        Binder.boundReferences(struct, Collections.singletonList(expr), caseSensitive);
+    this.alwaysPresentFieldIds = alwaysPresentFieldIds(schema, referencedIds);
+    this.requiredFieldIds =
+        referencedIds.stream()
+            .filter(fieldId -> schema.findField(fieldId).isRequired())
+            .collect(Collectors.toSet());
   }
 
   /**
    * Returns the IDs of the referenced fields that cannot contain null values.
    *
-   * <p>A field cannot be null if it is required and every field that contains it is required.
-   *
-   * <p>Stats omit the null count for every required field. The count is zero for a field that
-   * cannot be null, but it is unknown for a required field that an optional struct contains because
-   * that field is null whenever the struct is null.
+   * <p>A field cannot be null if it is required and every field that contains it is required. Such
+   * a field is never null, even when stats are missing for it.
    */
   private static Set<Integer> alwaysPresentFieldIds(Schema schema, Set<Integer> fieldIds) {
     Map<Integer, Integer> idToParent = TypeUtil.indexParents(schema.asStruct());
@@ -145,11 +147,15 @@ public class InclusiveStatsEvaluator {
         return true;
       }
 
-      if (fieldStats.hasNullValueCount()) {
-        return fieldStats.nullValueCount() != 0;
-      } else {
-        return recordCount != fieldStats.valueCount();
+      if (fieldStats.hasNullValueCount() && fieldStats.nullValueCount() != 0) {
+        return true;
       }
+
+      if (recordCount != fieldStats.valueCount()) {
+        return true;
+      }
+
+      return !fieldStats.hasNullValueCount() && !requiredFieldIds.contains(id);
     }
 
     @Override

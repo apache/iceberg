@@ -54,10 +54,11 @@ class TestInclusiveStatsEvaluator extends TestInclusiveMetricsEvaluator<TrackedF
               "location",
               Types.StructType.of(
                   required(2, "lat", Types.FloatType.get()),
-                  optional(3, "alt", Types.FloatType.get()))));
+                  optional(3, "lon", Types.FloatType.get()),
+                  optional(4, "alt", Types.FloatType.get()))));
 
   private static final Types.StructType LOCATION_STATS_TYPE =
-      StatsUtil.statsReadSchema(LOCATION_SCHEMA, ImmutableList.of(2, 3));
+      StatsUtil.statsReadSchema(LOCATION_SCHEMA, ImmutableList.of(2, 3, 4));
 
   @Override
   protected boolean shouldRead(
@@ -117,10 +118,12 @@ class TestInclusiveStatsEvaluator extends TestInclusiveMetricsEvaluator<TrackedF
         10,
         contentStats(
             NESTED_STATS_TYPE,
-            stats(NESTED_STATS_TYPE, 102, null, null, 5L, null, null),
-            stats(NESTED_STATS_TYPE, 103, null, null, 5L, 5L, null),
+            // required_address is present in every row and optional_street1 is always null
+            stats(NESTED_STATS_TYPE, 102, null, null, 10L, null, null),
+            stats(NESTED_STATS_TYPE, 103, null, null, 10L, 10L, null),
+            // optional_address is null in every row, so the fields it contains have no values
             stats(NESTED_STATS_TYPE, 104, null, null, 0L, null, null),
-            stats(NESTED_STATS_TYPE, 105, null, null, 5L, 5L, null)));
+            stats(NESTED_STATS_TYPE, 105, null, null, 0L, 0L, null)));
   }
 
   @Override
@@ -187,6 +190,15 @@ class TestInclusiveStatsEvaluator extends TestInclusiveMetricsEvaluator<TrackedF
 
   @Test
   void nullsForFieldsInPartiallyPresentStruct() {
+    // location is null in 2 of the 5 rows:
+    //   {"lat": 1.0, "lon": 1.0, "alt": null}
+    //   {"lat": 2.0, "lon": 2.0, "alt": 0.0}
+    //   {"lat": 3.0, "lon": 3.0, "alt": null}
+    //   null
+    //   null
+    // rows where location is null are not counted in the value count of the fields it contains, so
+    // each of them has 3 values. lat is required and tracks no null count, lon has a value in every
+    // row where location is present, and alt is null in 2 of those rows
     TrackedFile file =
         trackedFile(
             "partially_present.avro",
@@ -194,7 +206,8 @@ class TestInclusiveStatsEvaluator extends TestInclusiveMetricsEvaluator<TrackedF
             contentStats(
                 LOCATION_STATS_TYPE,
                 stats(LOCATION_STATS_TYPE, 2, 1.0f, 3.0f, 3L, null, 0L),
-                stats(LOCATION_STATS_TYPE, 3, 0.0f, 0.0f, 3L, 2L, 0L)));
+                stats(LOCATION_STATS_TYPE, 3, 1.0f, 3.0f, 3L, 0L, 0L),
+                stats(LOCATION_STATS_TYPE, 4, 0.0f, 0.0f, 3L, 2L, 0L)));
 
     assertThat(shouldRead(LOCATION_SCHEMA, isNull("location.lat"), file))
         .as("Should read: location.lat is null in 2 rows")
@@ -202,6 +215,14 @@ class TestInclusiveStatsEvaluator extends TestInclusiveMetricsEvaluator<TrackedF
 
     assertThat(shouldRead(LOCATION_SCHEMA, notNull("location.lat"), file))
         .as("Should read: location.lat has a value in 3 rows")
+        .isTrue();
+
+    assertThat(shouldRead(LOCATION_SCHEMA, isNull("location.lon"), file))
+        .as("Should read: location.lon is null in the 2 rows where location is null")
+        .isTrue();
+
+    assertThat(shouldRead(LOCATION_SCHEMA, notNull("location.lon"), file))
+        .as("Should read: location.lon has a value in 3 rows")
         .isTrue();
 
     assertThat(shouldRead(LOCATION_SCHEMA, isNull("location.alt"), file))
@@ -215,6 +236,9 @@ class TestInclusiveStatsEvaluator extends TestInclusiveMetricsEvaluator<TrackedF
 
   @Test
   void nullsForFieldsInFullyPresentStruct() {
+    // location is present in every row, so every field it contains has 5 values. lat is required
+    // and tracks no null count, lon does not track a null count either, which leaves whether it is
+    // null unknown, and alt is not null in any row
     TrackedFile file =
         trackedFile(
             "fully_present.avro",
@@ -222,11 +246,16 @@ class TestInclusiveStatsEvaluator extends TestInclusiveMetricsEvaluator<TrackedF
             contentStats(
                 LOCATION_STATS_TYPE,
                 stats(LOCATION_STATS_TYPE, 2, 1.0f, 5.0f, 5L, null, 0L),
-                stats(LOCATION_STATS_TYPE, 3, 1.0f, 5.0f, 5L, 0L, 0L)));
+                stats(LOCATION_STATS_TYPE, 3, 1.0f, 5.0f, 5L, null, 0L),
+                stats(LOCATION_STATS_TYPE, 4, 1.0f, 5.0f, 5L, 0L, 0L)));
 
     assertThat(shouldRead(LOCATION_SCHEMA, isNull("location.lat"), file))
         .as("Should not read: location.lat has a value in every row")
         .isFalse();
+
+    assertThat(shouldRead(LOCATION_SCHEMA, isNull("location.lon"), file))
+        .as("Should read: location.lon does not track a null count")
+        .isTrue();
 
     assertThat(shouldRead(LOCATION_SCHEMA, isNull("location.alt"), file))
         .as("Should not read: location.alt has a value in every row")
