@@ -522,7 +522,7 @@ paths:
         5XX:
           $ref: '#/components/responses/ServerErrorResponse'
 
-  /v2/{prefix}/namespaces/{namespace}/tables:
+  /v1/{prefix}/namespaces/{namespace}/tables:
     parameters:
       - $ref: '#/components/parameters/prefix'
       - $ref: '#/components/parameters/namespace'
@@ -591,6 +591,106 @@ paths:
       responses:
         200:
           $ref: '#/components/responses/CreateTableResponse'
+        400:
+          $ref: '#/components/responses/BadRequestErrorResponse'
+        401:
+          $ref: '#/components/responses/UnauthorizedResponse'
+        403:
+          $ref: '#/components/responses/ForbiddenResponse'
+        404:
+          description: Not Found - The namespace specified does not exist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IcebergErrorResponse'
+              examples:
+                NamespaceNotFound:
+                  $ref: '#/components/examples/NoSuchNamespaceError'
+        409:
+          description: Conflict - The identifier already exists as a table or view
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IcebergErrorResponse'
+              examples:
+                TableAlreadyExists:
+                  $ref: '#/components/examples/TableAlreadyExistsError'
+        419:
+          $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
+        5XX:
+          $ref: '#/components/responses/ServerErrorResponse'
+
+  /v2/{prefix}/namespaces/{namespace}/tables:
+    parameters:
+      - $ref: '#/components/parameters/prefix'
+      - $ref: '#/components/parameters/namespace'
+
+    get:
+      tags:
+        - Catalog API
+      summary: List all table identifiers underneath a given namespace
+      description: Return all table identifiers under this namespace
+      operationId: listTablesV2
+      parameters:
+        - $ref: '#/components/parameters/page-token'
+        - $ref: '#/components/parameters/page-size'
+      responses:
+        200:
+          $ref: '#/components/responses/ListTablesResponse'
+        400:
+          $ref: '#/components/responses/BadRequestErrorResponse'
+        401:
+          $ref: '#/components/responses/UnauthorizedResponse'
+        403:
+          $ref: '#/components/responses/ForbiddenResponse'
+        404:
+          description: Not Found - The namespace specified does not exist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IcebergErrorResponse'
+              examples:
+                NamespaceNotFound:
+                  $ref: '#/components/examples/NoSuchNamespaceError'
+        419:
+          $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
+        5XX:
+          $ref: '#/components/responses/ServerErrorResponse'
+
+    post:
+      tags:
+        - Catalog API
+      summary: Create a table in the given namespace
+      description:
+        Create a table or start a create transaction, like atomic CTAS.
+
+
+        If `stage-create` is false, the table is created immediately.
+
+
+        If `stage-create` is true, the table is not created, but table metadata is initialized and returned.
+        The service should prepare as needed for a commit to the table commit endpoint to complete the create
+        transaction. The client uses the returned metadata to begin a transaction. To commit the transaction,
+        the client sends all create and subsequent changes to the table commit route. Changes from the table
+        create operation include changes like AddSchemaUpdate and SetCurrentSchemaUpdate that set the initial
+        table state.
+      operationId: createTableV2
+      parameters:
+        - $ref: '#/components/parameters/data-access'
+        - $ref: '#/components/parameters/idempotency-key'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTableRequest'
+      responses:
+        200:
+          $ref: '#/components/responses/CreateTableResponseV2'
         400:
           $ref: '#/components/responses/BadRequestErrorResponse'
         401:
@@ -968,7 +1068,7 @@ paths:
         5XX:
           $ref: '#/components/responses/ServerErrorResponse'
 
-  /v2/{prefix}/namespaces/{namespace}/register:
+  /v1/{prefix}/namespaces/{namespace}/register:
     parameters:
       - $ref: '#/components/parameters/prefix'
       - $ref: '#/components/parameters/namespace'
@@ -1024,7 +1124,63 @@ paths:
         5XX:
           $ref: '#/components/responses/ServerErrorResponse'
 
-  /v2/{prefix}/namespaces/{namespace}/tables/{table}:
+  /v2/{prefix}/namespaces/{namespace}/register:
+    parameters:
+      - $ref: '#/components/parameters/prefix'
+      - $ref: '#/components/parameters/namespace'
+
+    post:
+      tags:
+        - Catalog API
+      summary: Register a table in the given namespace using given metadata file location
+      parameters:
+        - $ref: '#/components/parameters/data-access'
+        - $ref: '#/components/parameters/idempotency-key'
+      description:
+        Register a table using given metadata file location.
+
+      operationId: registerTableV2
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterTableRequest'
+      responses:
+        200:
+          $ref: '#/components/responses/LoadTableResponseV2'
+        400:
+          $ref: '#/components/responses/BadRequestErrorResponse'
+        401:
+          $ref: '#/components/responses/UnauthorizedResponse'
+        403:
+          $ref: '#/components/responses/ForbiddenResponse'
+        404:
+          description: Not Found - The namespace specified does not exist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IcebergErrorResponse'
+              examples:
+                NamespaceNotFound:
+                  $ref: '#/components/examples/NoSuchNamespaceError'
+        409:
+          description: Conflict - The identifier already exists as a table or view
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IcebergErrorResponse'
+              examples:
+                TableAlreadyExists:
+                  $ref: '#/components/examples/TableAlreadyExistsError'
+        419:
+          $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
+        5XX:
+          $ref: '#/components/responses/ServerErrorResponse'
+
+  /v1/{prefix}/namespaces/{namespace}/tables/{table}:
     parameters:
       - $ref: '#/components/parameters/prefix'
       - $ref: '#/components/parameters/namespace'
@@ -1299,7 +1455,282 @@ paths:
         5XX:
           $ref: '#/components/responses/ServerErrorResponse'
 
-  /v2/{prefix}/namespaces/{namespace}/tables/{table}/unregister:
+  /v2/{prefix}/namespaces/{namespace}/tables/{table}:
+    parameters:
+      - $ref: '#/components/parameters/prefix'
+      - $ref: '#/components/parameters/namespace'
+      - $ref: '#/components/parameters/table'
+
+    get:
+      tags:
+        - Catalog API
+      summary: Load a table from the catalog
+      operationId: loadTableV2
+      description:
+        Load a table from the catalog.
+
+
+        The response contains both configuration and table metadata. The configuration, if non-empty is used
+        as additional configuration for the table that overrides catalog configuration. For example, this
+        configuration may change the FileIO implementation to be used for the table.
+
+
+        The response also contains the table's full metadata, matching the table metadata JSON file.
+
+
+        The catalog configuration may contain credentials that should be used for subsequent requests for the
+        table. The configuration key "token" is used to pass an access token to be used as a bearer token
+        for table requests. Otherwise, a token may be passed using a RFC 8693 token type as a configuration
+        key. For example, "urn:ietf:params:oauth:token-type:jwt=<JWT-token>".
+      parameters:
+        - $ref: '#/components/parameters/data-access'
+        - name: If-None-Match
+          in: header
+          description:
+            An optional header that allows the server to return 304 (Not Modified) if the metadata
+            is current. The content is the value of the ETag received in a CreateTableResponse,
+            LoadTableResponse or CommitTableResponse.
+          required: false
+          schema:
+            type: string
+        - in: query
+          name: snapshots
+          description:
+            The snapshots to return in the body of the metadata via the `snapshots` field. Setting
+            the value to `all` would return the full set of snapshots currently valid for the table.
+            Setting the value to `refs` would load all snapshots referenced by branches or tags.
+
+            Default if no param is provided is `all`.
+          required: false
+          schema:
+            type: string
+            enum: [ all, refs ]
+        - $ref: '#/components/parameters/referenced-by'
+      responses:
+        200:
+          $ref: '#/components/responses/LoadTableResponseV2'
+        304:
+          description:
+            Not Modified - Based on the content of the 'If-None-Match' header the table metadata has
+            not changed since.
+        400:
+          $ref: '#/components/responses/BadRequestErrorResponse'
+        401:
+          $ref: '#/components/responses/UnauthorizedResponse'
+        403:
+          $ref: '#/components/responses/ForbiddenResponse'
+        404:
+          description:
+            Not Found - NoSuchTableException, table to load does not exist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IcebergErrorResponse'
+              examples:
+                TableToLoadDoesNotExist:
+                  $ref: '#/components/examples/NoSuchTableError'
+        419:
+          $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
+        5XX:
+          $ref: '#/components/responses/ServerErrorResponse'
+
+    post:
+      tags:
+        - Catalog API
+      summary: Commit updates to a table
+      operationId: updateTableV2
+      parameters:
+        - $ref: '#/components/parameters/idempotency-key'
+      description:
+        Commit updates to a table.
+
+
+        Commits have two parts, requirements and updates. Requirements are assertions that will be validated
+        before attempting to make and commit changes. For example, `assert-ref-snapshot-id` will check that a
+        named ref's snapshot ID has a certain value.
+        Server implementations are required to fail with a 400 status code
+        if any unknown updates or requirements are received.
+
+
+        Updates are changes to make to table metadata. For example, after asserting that the current main ref
+        is at the expected snapshot, a commit may add a new child snapshot and set the ref to the new
+        snapshot id.
+
+
+        Create table transactions that are started by createTable with `stage-create` set to true are
+        committed using this route. Transactions should include all changes to the table, including table
+        initialization, like AddSchemaUpdate and SetCurrentSchemaUpdate. The `assert-create` requirement is
+        used to ensure that the table was not created concurrently.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CommitTableRequest'
+      responses:
+        200:
+          $ref: '#/components/responses/CommitTableResponseV2'
+        400:
+          $ref: '#/components/responses/BadRequestErrorResponse'
+        401:
+          $ref: '#/components/responses/UnauthorizedResponse'
+        403:
+          $ref: '#/components/responses/ForbiddenResponse'
+        404:
+          description:
+            Not Found - NoSuchTableException, table to load does not exist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IcebergErrorResponse'
+              examples:
+                TableToUpdateDoesNotExist:
+                  $ref: '#/components/examples/NoSuchTableError'
+        409:
+          description:
+            Conflict - CommitFailedException, one or more requirements failed. The client may retry.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IcebergErrorResponse'
+        419:
+          $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        500:
+          description:
+            An unknown server-side problem occurred; the commit state is unknown.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IcebergErrorResponse'
+              example: {
+                "error": {
+                  "message": "Internal Server Error",
+                  "type": "CommitStateUnknownException",
+                  "code": 500
+                }
+              }
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
+        502:
+          description:
+            A gateway or proxy received an invalid response from the upstream server; the commit state is unknown.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IcebergErrorResponse'
+              example: {
+                "error": {
+                  "message": "Invalid response from the upstream server",
+                  "type": "CommitStateUnknownException",
+                  "code": 502
+                }
+              }
+        504:
+          description:
+            A server-side gateway timeout occurred; the commit state is unknown.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IcebergErrorResponse'
+              example: {
+                "error": {
+                  "message": "Gateway timed out during commit",
+                  "type": "CommitStateUnknownException",
+                  "code": 504
+                }
+              }
+        5XX:
+          description:
+            A server-side problem that might not be addressable on the client.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IcebergErrorResponse'
+              example: {
+                "error": {
+                  "message": "Bad Gateway",
+                  "type": "InternalServerError",
+                  "code": 502
+                }
+              }
+
+    delete:
+      tags:
+        - Catalog API
+      summary: Drop a table from the catalog
+      operationId: dropTableV2
+      description: Remove a table from the catalog
+      parameters:
+        - $ref: '#/components/parameters/idempotency-key'
+        - name: purgeRequested
+          in: query
+          required: false
+          description: Whether the user requested to purge the underlying table's data and metadata
+          schema:
+            type: boolean
+            default: false
+      responses:
+        204:
+          description: Success, no content
+        400:
+          $ref: '#/components/responses/BadRequestErrorResponse'
+        401:
+          $ref: '#/components/responses/UnauthorizedResponse'
+        403:
+          $ref: '#/components/responses/ForbiddenResponse'
+        404:
+          description:
+            Not Found - NoSuchTableException, Table to drop does not exist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IcebergErrorResponse'
+              examples:
+                TableToDeleteDoesNotExist:
+                  $ref: '#/components/examples/NoSuchTableError'
+        419:
+          $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
+        5XX:
+          $ref: '#/components/responses/ServerErrorResponse'
+
+    head:
+      tags:
+        - Catalog API
+      summary: Check if a table exists
+      operationId: tableExistsV2
+      description:
+        Check if a table exists within a given namespace. The response does not contain a body.
+      responses:
+        204:
+          description: Success, no content
+        400:
+          $ref: '#/components/responses/BadRequestErrorResponse'
+        401:
+          $ref: '#/components/responses/UnauthorizedResponse'
+        403:
+          $ref: '#/components/responses/ForbiddenResponse'
+        404:
+          description:
+            Not Found - NoSuchTableException, Table not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IcebergErrorResponse'
+              examples:
+                TableToLoadDoesNotExist:
+                  $ref: '#/components/examples/NoSuchTableError'
+        419:
+          $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
+        5XX:
+          $ref: '#/components/responses/ServerErrorResponse'
+
+  /v1/{prefix}/namespaces/{namespace}/tables/{table}/unregister:
     parameters:
       - $ref: '#/components/parameters/prefix'
       - $ref: '#/components/parameters/namespace'
@@ -1326,6 +1757,56 @@ paths:
       responses:
         200:
           $ref: '#/components/responses/UnregisterTableResponse'
+        400:
+          $ref: '#/components/responses/BadRequestErrorResponse'
+        401:
+          $ref: '#/components/responses/UnauthorizedResponse'
+        403:
+          $ref: '#/components/responses/ForbiddenResponse'
+        404:
+          description:
+            Not Found - NoSuchTableException, table to unregister does not exist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IcebergErrorResponse'
+              examples:
+                TableToUnregisterDoesNotExist:
+                  $ref: '#/components/examples/NoSuchTableError'
+        419:
+          $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
+        5XX:
+          $ref: '#/components/responses/ServerErrorResponse'
+
+  /v2/{prefix}/namespaces/{namespace}/tables/{table}/unregister:
+    parameters:
+      - $ref: '#/components/parameters/prefix'
+      - $ref: '#/components/parameters/namespace'
+      - $ref: '#/components/parameters/table'
+
+    post:
+      tags:
+        - Catalog API
+      summary: Unregister a table without removing its data or metadata files
+      operationId: unregisterTableV2
+      parameters:
+        - $ref: '#/components/parameters/idempotency-key'
+      description:
+        Unregister a table from the catalog. This is the opposite of
+        `registerTable`. The table no longer exists in the catalog, but the
+        underlying data and metadata files are left in place so that the table
+        can be registered in another catalog.
+
+
+        On success, this returns the table's last metadata location and the
+        corresponding table metadata. This table metadata must include all
+        commits that happened before the unregister operation. All attempted
+        commits after the unregister operation in this catalog must fail.
+      responses:
+        200:
+          $ref: '#/components/responses/UnregisterTableResponseV2'
         400:
           $ref: '#/components/responses/BadRequestErrorResponse'
         401:
@@ -2951,7 +3432,7 @@ components:
           additionalProperties:
             type: string
 
-    Snapshot:
+    SnapshotV2:
       description: |
         A snapshot of the table's contents at a point in time.
 
@@ -2990,6 +3471,51 @@ components:
           description:
             Location of the snapshot's root manifest.
             Required for format version 4 and must be absent for format versions 1-3.
+        first-row-id:
+          type: integer
+          format: int64
+          description: The first _row_id assigned to the first row in the first data file in the first manifest
+        added-rows:
+          type: integer
+          format: int64
+          description: The upper bound of the number of rows with assigned row IDs
+        summary:
+          type: object
+          required:
+            - operation
+          properties:
+            operation:
+              type: string
+              enum: ["append", "replace", "overwrite", "delete"]
+          additionalProperties:
+            type: string
+        schema-id:
+          type: integer
+
+
+    Snapshot:
+      type: object
+      required:
+        - snapshot-id
+        - timestamp-ms
+        - manifest-list
+        - summary
+      properties:
+        snapshot-id:
+          type: integer
+          format: int64
+        parent-snapshot-id:
+          type: integer
+          format: int64
+        sequence-number:
+          type: integer
+          format: int64
+        timestamp-ms:
+          type: integer
+          format: int64
+        manifest-list:
+          type: string
+          description: Location of the snapshot's manifest list file
         first-row-id:
           type: integer
           format: int64
@@ -3066,7 +3592,7 @@ components:
             type: integer
             format: int64
 
-    TableMetadata:
+    TableMetadataV2:
       type: object
       required:
         - format-version
@@ -3085,6 +3611,90 @@ components:
             Required through format version 3, where it may be a path without a URI scheme; readers prepend a scheme for consistency with v4 absolute paths.
             Optional for format version 4, where the location may be managed externally and supplied by the catalog when the table is loaded, and where it must be an absolute path when present.
             See the `table-location` field of `LoadTableResult`.
+        last-updated-ms:
+          type: integer
+          format: int64
+        next-row-id:
+          type: integer
+          format: int64
+          description: A long higher than all assigned row IDs; the next snapshot's first-row-id.
+        properties:
+          type: object
+          additionalProperties:
+            type: string
+        # schema tracking
+        schemas:
+          type: array
+          items:
+            $ref: '#/components/schemas/Schema'
+        current-schema-id:
+          type: integer
+        last-column-id:
+          type: integer
+        # partition spec tracking
+        partition-specs:
+          type: array
+          items:
+            $ref: '#/components/schemas/PartitionSpec'
+        default-spec-id:
+          type: integer
+        last-partition-id:
+          type: integer
+        # sort order tracking
+        sort-orders:
+          type: array
+          items:
+            $ref: '#/components/schemas/SortOrder'
+        default-sort-order-id:
+          type: integer
+        # encryption
+        encryption-keys:
+          type: array
+          items:
+            $ref: '#/components/schemas/EncryptedKey'
+        # snapshot tracking
+        snapshots:
+          type: array
+          items:
+            $ref: '#/components/schemas/SnapshotV2'
+        refs:
+          $ref: '#/components/schemas/SnapshotReferences'
+        current-snapshot-id:
+          type: integer
+          format: int64
+        last-sequence-number:
+          type: integer
+          format: int64
+        # logs
+        snapshot-log:
+          $ref: '#/components/schemas/SnapshotLog'
+        metadata-log:
+          $ref: '#/components/schemas/MetadataLog'
+        # statistics
+        statistics:
+          type: array
+          items:
+            $ref: '#/components/schemas/StatisticsFile'
+        partition-statistics:
+          type: array
+          items:
+            $ref: '#/components/schemas/PartitionStatisticsFile'
+
+
+    TableMetadata:
+      type: object
+      required:
+        - format-version
+        - table-uuid
+      properties:
+        format-version:
+          type: integer
+          minimum: 1
+          maximum: 3
+        table-uuid:
+          type: string
+        location:
+          type: string
         last-updated-ms:
           type: integer
           format: int64
@@ -3417,7 +4027,7 @@ components:
           type: string
           const: "add-snapshot"
         snapshot:
-          $ref: '#/components/schemas/Snapshot'
+          $ref: '#/components/schemas/SnapshotV2'
 
     SetSnapshotRefUpdate:
       allOf:
@@ -3874,7 +4484,7 @@ components:
           items:
             $ref: '#/components/schemas/StorageCredential'
 
-    LoadTableResult:
+    LoadTableResultV2:
       description: |
         Result used when a table is successfully loaded, for tables at any format version.
 
@@ -3960,6 +4570,76 @@ components:
             The table's base location, used to resolve relative paths in metadata.
             Must be an absolute path with a URI scheme when present, and must be present when the returned metadata contains relative paths and omits `location`, because the metadata cannot be resolved otherwise.
             Takes precedence over `metadata.location`.
+        metadata:
+          $ref: '#/components/schemas/TableMetadataV2'
+        config:
+          type: object
+          additionalProperties:
+            type: string
+        storage-credentials:
+          type: array
+          items:
+            $ref: '#/components/schemas/StorageCredential'
+        remote-signing-config:
+          $ref: '#/components/schemas/RemoteSigningConfig'
+
+
+    LoadTableResult:
+      description: |
+        Result used when a table is successfully loaded.
+
+
+        The table metadata JSON is returned in the `metadata` field. The corresponding file location of table metadata should be returned in the `metadata-location` field, unless the metadata is not yet committed. For example, a create transaction may return metadata that is staged but not committed.
+        Clients can check whether metadata has changed by comparing metadata locations after the table has been created.
+
+
+        The `config` map returns table-specific configuration for the table's resources, including its HTTP client and FileIO. For example, config may contain a specific FileIO implementation class for the table depending on its underlying storage.
+
+
+        The following configurations should be respected by clients:
+
+        ## General Configurations
+
+        - `token`: Authorization bearer token to use for table requests if OAuth2 security is enabled
+        - `scan-planning-mode`: Communicates to clients the supported planning mode. Clients should use this value to fail fast if the supported scanning mode is not available on the client. Valid values:
+          - `client`: Clients MUST use client-side scan planning
+          - `server`: Clients MUST use server-side scan planning via the `planTableScan` endpoint
+
+        ## AWS Configurations
+
+        The following configurations should be respected when working with tables stored in AWS S3
+         - `client.region`: region to configure client for making requests to AWS
+         - `s3.access-key-id`: id for credentials that provide access to the data in S3
+         - `s3.secret-access-key`: secret for credentials that provide access to data in S3
+         - `s3.session-token`: if present, this value should be used for as the session token
+         - `s3.remote-signing-enabled`: if `true` remote signing should be performed as described in the `RemoteSignRequest` schema section of this spec document.
+         - `s3.cross-region-access-enabled`: if `true`, S3 Cross-Region bucket access is enabled
+
+        ## Storage Credentials
+
+        Credentials for ADLS / GCS / S3 / ... are provided through the `storage-credentials` field.
+        Clients must first check whether the respective credentials exist in the `storage-credentials` field before checking the `config` for credentials.
+
+        ## Remote Signing
+
+        If remote signing for a specific storage provider is enabled, the server SHOULD use the `remote-signing-config`
+        field to communicate all signer client settings. When the `remote-signing-config` field is present, clients
+        SHOULD respect the provided configuration.
+
+        For backward compatibility, the following `config` properties are still supported but **DEPRECATED** and SHOULD NOT be used by clients able to consume the remote signing configuration:
+         - `signer.endpoint` **DEPRECATED**.: the remote signer endpoint. Can either be a relative path (to be resolved against `signer.uri`) or an absolute URI.
+         - `signer.uri` **DEPRECATED**.: the base URI to resolve `signer.endpoint` against. Only meaningful if `signer.endpoint` is a relative path. Defaults to the catalog's base URI if not set.
+        If any of these properties is present, clients SHOULD use them to compute the actual remote signing endpoint URI to contact.
+        If none of these properties is present, clients SHOULD contact the default remote signing endpoint using the catalog's base URI.
+
+      type: object
+      required:
+        - metadata
+      properties:
+        metadata-location:
+          type: string
+          description: May be null if the table is staged as part of a transaction
+          nullable: true
         metadata:
           $ref: '#/components/schemas/TableMetadata'
         config:
@@ -4204,7 +4884,7 @@ components:
           type: boolean
           default: false
 
-    UnregisterTableResult:
+    UnregisterTableResultV2:
       description:
         Last metadata location and the corresponding table metadata for the
         table that was successfully unregistered and is no longer tracked by
@@ -4224,6 +4904,24 @@ components:
             The table's base location, used to resolve relative paths in metadata.
             Must be an absolute path with a URI scheme when present, and must be present when the returned metadata contains relative paths and omits `location`, because the metadata cannot be resolved otherwise.
             Takes precedence over `metadata.location`.
+        metadata:
+          $ref: '#/components/schemas/TableMetadataV2'
+
+
+    UnregisterTableResult:
+      description:
+        Last metadata location and the corresponding table metadata for the
+        table that was successfully unregistered and is no longer tracked by
+        the catalog.
+      type: object
+      required:
+        - metadata-location
+        - metadata
+      properties:
+        metadata-location:
+          type: string
+          description:
+            The last metadata location for the table at the time it was unregistered.
         metadata:
           $ref: '#/components/schemas/TableMetadata'
 
@@ -4989,7 +5687,7 @@ components:
             Server's do not need to implement this.
           nullable: true
 
-    CommitTableResponse:
+    CommitTableResponseV2:
       description: |
         Result used when a table is successfully updated, for tables at any format version.
 
@@ -5010,6 +5708,18 @@ components:
             The table's base location, used to resolve relative paths in metadata.
             Must be an absolute path with a URI scheme when present, and must be present when the returned metadata contains relative paths and omits `location`, because the metadata cannot be resolved otherwise.
             Takes precedence over `metadata.location`.
+        metadata:
+          $ref: '#/components/schemas/TableMetadataV2'
+
+
+    CommitTableResponse:
+      type: object
+      required:
+        - metadata-location
+        - metadata
+      properties:
+        metadata-location:
+          type: string
         metadata:
           $ref: '#/components/schemas/TableMetadata'
 
@@ -5783,6 +6493,17 @@ components:
             "missing": [ "bar" ]
           }
 
+    CreateTableResponseV2:
+      description: Table metadata result after creating a table
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/LoadTableResultV2'
+      headers:
+        etag:
+          $ref: '#/components/parameters/etag'
+
+
     CreateTableResponse:
       description: Table metadata result after creating a table
       content:
@@ -5814,6 +6535,17 @@ components:
           schema:
             $ref: '#/components/schemas/FetchScanTasksResult'
 
+    LoadTableResponseV2:
+      description: Table metadata result when loading a table
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/LoadTableResultV2'
+      headers:
+        etag:
+          $ref: '#/components/parameters/etag'
+
+
     LoadTableResponse:
       description: Table metadata result when loading a table
       content:
@@ -5823,6 +6555,14 @@ components:
       headers:
         etag:
           $ref: '#/components/parameters/etag'
+
+    UnregisterTableResponseV2:
+      description: Response when a table is successfully unregistered.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/UnregisterTableResultV2'
+
 
     UnregisterTableResponse:
       description: Response when a table is successfully unregistered.
@@ -5844,6 +6584,20 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/LoadViewResult'
+
+    CommitTableResponseV2:
+      description:
+        Response used when a table is successfully updated.
+
+        The table metadata JSON is returned in the metadata field. The corresponding file location of table metadata must be returned in the metadata-location field. Clients can check whether metadata has changed by comparing metadata locations.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/CommitTableResponseV2'
+      headers:
+        etag:
+          $ref: '#/components/parameters/etag'
+
 
     CommitTableResponse:
       description:
