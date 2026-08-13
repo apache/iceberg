@@ -25,6 +25,7 @@ import java.util.Map;
 import java.util.PriorityQueue;
 import java.util.Set;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -491,7 +492,7 @@ public abstract class VariantShreddingAnalyzer<T, S> {
         return null;
       }
 
-      return wider(current, candidate, family);
+      return widerOf(current, candidate, family);
     }
 
     /** Returns the widening family for {@code type}, or null if none applies. */
@@ -511,9 +512,10 @@ public abstract class VariantShreddingAnalyzer<T, S> {
      * Returns the wider of {@code first} and {@code second} within {@code family}, or null when
      * {@code second} is not in the family. {@code first} is always a member.
      */
-    private static PhysicalType wider(
+    private static PhysicalType widerOf(
         PhysicalType first, PhysicalType second, List<PhysicalType> family) {
       int firstIdx = family.indexOf(first);
+      Preconditions.checkArgument(firstIdx >= 0, "Type is not a member of its family: %s", first);
       int secondIdx = family.indexOf(second);
       if (secondIdx < 0) {
         return null;
