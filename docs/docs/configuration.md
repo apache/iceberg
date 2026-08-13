@@ -32,10 +32,13 @@ Iceberg tables support table properties to configure table behavior, like the de
 | read.split.metadata-target-size   | 33554432 (32 MB)   | Target size when combining metadata input splits       |
 | read.split.planning-lookback      | 10                 | Number of bins to consider when combining input splits |
 | read.split.open-file-cost         | 4194304 (4 MB)     | The estimated cost to open a file, used as a minimum weight when combining splits. |
+| read.split.adaptive-size.enabled  | true               | Controls whether the split size is adjusted adaptively to the scan size and available parallelism when no explicit split size is set |
 | read.parquet.vectorization.enabled| true               | Controls whether Parquet vectorized reads are used     |
 | read.parquet.vectorization.batch-size| 5000            | The batch size for parquet vectorized reads            |
 | read.orc.vectorization.enabled    | false              | Controls whether orc vectorized reads are used         |
 | read.orc.vectorization.batch-size | 5000               | The batch size for orc vectorized reads                |
+| read.data-planning-mode           | auto               | Mode used to plan data manifests: auto, local, or distributed |
+| read.delete-planning-mode         | auto               | Mode used to plan delete manifests: auto, local, or distributed |
 
 ### Write properties
 
