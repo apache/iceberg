@@ -386,8 +386,8 @@ public class TestZOrderByteUtil {
    * The random float/double ordering tests above draw from {@code nextFloat()}/{@code
    * nextDouble()}, so the compared values essentially never agree on their high bits. Ordering is
    * then decided by the high bits alone, which hides any corruption of the low bits. These cases
-   * pin the ordering for values that differ *only* in low mantissa bits, where the low bytes are
-   * what decides the comparison.
+   * pin the ordering for values that differ only in low mantissa bits, where the low bytes are what
+   * decides the comparison.
    */
   @Test
   public void testFloatOrderingForConsecutiveMantissaValues() {
@@ -397,8 +397,7 @@ public class TestZOrderByteUtil {
       values.add(Float.intBitsToFloat(baseBits + i));
     }
 
-    assertOrderPreserved(
-        values, value -> encode(buffer -> ZOrderByteUtils.floatToOrderedBytes(value, buffer)));
+    assertOrderPreserved(values, TestZOrderByteUtil::encodeFloat);
   }
 
   @Test
@@ -408,8 +407,7 @@ public class TestZOrderByteUtil {
       values.add(1.0d + (i * 0x1.0p-30));
     }
 
-    assertOrderPreserved(
-        values, value -> encode(buffer -> ZOrderByteUtils.doubleToOrderedBytes(value, buffer)));
+    assertOrderPreserved(values, TestZOrderByteUtil::encodeDouble);
   }
 
   @Test
@@ -419,8 +417,7 @@ public class TestZOrderByteUtil {
       values.add(-1.0d - (i * 0x1.0p-30));
     }
 
-    assertOrderPreserved(
-        values, value -> encode(buffer -> ZOrderByteUtils.doubleToOrderedBytes(value, buffer)));
+    assertOrderPreserved(values, TestZOrderByteUtil::encodeDouble);
   }
 
   /** Boundary pairs, including the ones that straddle zero and the extremes of the range. */
@@ -437,14 +434,96 @@ public class TestZOrderByteUtil {
     };
 
     for (double[] pair : ascendingPairs) {
-      assertOrderPreserved(
-          Lists.newArrayList(pair[0], pair[1]),
-          value -> encode(buffer -> ZOrderByteUtils.doubleToOrderedBytes(value, buffer)));
+      assertOrderPreserved(Lists.newArrayList(pair[0], pair[1]), TestZOrderByteUtil::encodeDouble);
     }
   }
 
-  private static byte[] encode(Function<ByteBuffer, ByteBuffer> encoder) {
-    return encoder.apply(ZOrderByteUtils.allocatePrimitiveBuffer()).array().clone();
+  /**
+   * The full IEEE-754 ladder, in {@link Double#compare} order: signed zeros are distinguished, the
+   * infinities bound the finite range, and NaN sorts above everything.
+   */
+  @Test
+  public void testDoubleOrderingAcrossSpecialValues() {
+    List<Double> ascending =
+        Lists.newArrayList(
+            Double.NEGATIVE_INFINITY,
+            -Double.MAX_VALUE,
+            -1.0d,
+            -Double.MIN_VALUE,
+            -0.0d,
+            0.0d,
+            Double.MIN_VALUE,
+            1.0d,
+            Double.MAX_VALUE,
+            Double.POSITIVE_INFINITY,
+            Double.NaN);
+
+    assertOrderPreserved(ascending, TestZOrderByteUtil::encodeDouble);
+  }
+
+  @Test
+  public void testFloatOrderingAcrossSpecialValues() {
+    List<Float> ascending =
+        Lists.newArrayList(
+            Float.NEGATIVE_INFINITY,
+            -Float.MAX_VALUE,
+            -1.0f,
+            -Float.MIN_VALUE,
+            -0.0f,
+            0.0f,
+            Float.MIN_VALUE,
+            1.0f,
+            Float.MAX_VALUE,
+            Float.POSITIVE_INFINITY,
+            Float.NaN);
+
+    assertOrderPreserved(ascending, TestZOrderByteUtil::encodeFloat);
+  }
+
+  /**
+   * The encoding goes through {@link Double#doubleToLongBits}, which collapses every NaN to the
+   * canonical quiet NaN. Distinct NaN payloads must therefore produce identical bytes, otherwise
+   * the z-order key would not be deterministic for NaN.
+   */
+  @Test
+  public void testDoubleOrderedBytesCanonicalizesNaN() {
+    byte[] canonical = encodeDouble(Double.NaN);
+
+    for (long rawNaNBits :
+        new long[] {
+          0x7ff8000000000001L, // quiet NaN, non-zero payload
+          0x7fffffffffffffffL, // quiet NaN, all payload bits set
+          0xfff8000000000000L, // NaN with the sign bit set
+          0x7ff0000000000001L // signalling NaN
+        }) {
+      double nan = Double.longBitsToDouble(rawNaNBits);
+      assertThat(Double.isNaN(nan)).isTrue();
+
+      byte[] actual = encodeDouble(nan);
+      assertThat(actual)
+          .as("NaN with raw bits 0x%016x must encode as the canonical NaN", rawNaNBits)
+          .isEqualTo(canonical);
+    }
+  }
+
+  @Test
+  public void testByteTruncatedOrFillNullIsZeroArray() {
+    ByteBuffer buffer = ByteBuffer.allocate(128);
+    byte[] actualBytes = ZOrderByteUtils.byteTruncateOrFill(null, 128, buffer).array();
+    ByteBuffer expected = ByteBuffer.allocate(128);
+    Arrays.fill(expected.array(), 0, 128, (byte) 0x00);
+
+    assertThat(actualBytes).isEqualTo(expected.array());
+  }
+
+  private static byte[] encodeDouble(double value) {
+    return ZOrderByteUtils.doubleToOrderedBytes(value, ZOrderByteUtils.allocatePrimitiveBuffer())
+        .array();
+  }
+
+  private static byte[] encodeFloat(float value) {
+    return ZOrderByteUtils.floatToOrderedBytes(value, ZOrderByteUtils.allocatePrimitiveBuffer())
+        .array();
   }
 
   /**
@@ -471,85 +550,5 @@ public class TestZOrderByteUtil {
               Arrays.toString(largerBytes))
           .isNegative();
     }
-  }
-
-  /**
-   * The full IEEE-754 ladder, in {@link Double#compare} order: signed zeros are distinguished, the
-   * infinities bound the finite range, and NaN sorts above everything.
-   */
-  @Test
-  public void testDoubleOrderingAcrossSpecialValues() {
-    List<Double> ascending =
-        Lists.newArrayList(
-            Double.NEGATIVE_INFINITY,
-            -Double.MAX_VALUE,
-            -1.0d,
-            -Double.MIN_VALUE,
-            -0.0d,
-            0.0d,
-            Double.MIN_VALUE,
-            1.0d,
-            Double.MAX_VALUE,
-            Double.POSITIVE_INFINITY,
-            Double.NaN);
-
-    assertOrderPreserved(
-        ascending, value -> encode(buffer -> ZOrderByteUtils.doubleToOrderedBytes(value, buffer)));
-  }
-
-  @Test
-  public void testFloatOrderingAcrossSpecialValues() {
-    List<Float> ascending =
-        Lists.newArrayList(
-            Float.NEGATIVE_INFINITY,
-            -Float.MAX_VALUE,
-            -1.0f,
-            -Float.MIN_VALUE,
-            -0.0f,
-            0.0f,
-            Float.MIN_VALUE,
-            1.0f,
-            Float.MAX_VALUE,
-            Float.POSITIVE_INFINITY,
-            Float.NaN);
-
-    assertOrderPreserved(
-        ascending, value -> encode(buffer -> ZOrderByteUtils.floatToOrderedBytes(value, buffer)));
-  }
-
-  /**
-   * The encoding goes through {@link Double#doubleToLongBits}, which collapses every NaN to the
-   * canonical quiet NaN. Distinct NaN payloads must therefore produce identical bytes, otherwise
-   * the z-order key would not be deterministic for NaN.
-   */
-  @Test
-  public void testDoubleOrderedBytesCanonicalizeNaN() {
-    byte[] canonical = encode(buffer -> ZOrderByteUtils.doubleToOrderedBytes(Double.NaN, buffer));
-
-    for (long rawNaNBits :
-        new long[] {
-          0x7ff8000000000001L, // quiet NaN, non-zero payload
-          0x7fffffffffffffffL, // quiet NaN, all payload bits set
-          0xfff8000000000000L, // NaN with the sign bit set
-          0x7ff0000000000001L // signalling NaN
-        }) {
-      double nan = Double.longBitsToDouble(rawNaNBits);
-      assertThat(Double.isNaN(nan)).isTrue();
-
-      byte[] actual = encode(buffer -> ZOrderByteUtils.doubleToOrderedBytes(nan, buffer));
-      assertThat(actual)
-          .as("NaN with raw bits 0x%016x must encode as the canonical NaN", rawNaNBits)
-          .isEqualTo(canonical);
-    }
-  }
-
-  @Test
-  public void testByteTruncatedOrFillNullIsZeroArray() {
-    ByteBuffer buffer = ByteBuffer.allocate(128);
-    byte[] actualBytes = ZOrderByteUtils.byteTruncateOrFill(null, 128, buffer).array();
-    ByteBuffer expected = ByteBuffer.allocate(128);
-    Arrays.fill(expected.array(), 0, 128, (byte) 0x00);
-
-    assertThat(actualBytes).isEqualTo(expected.array());
   }
 }
