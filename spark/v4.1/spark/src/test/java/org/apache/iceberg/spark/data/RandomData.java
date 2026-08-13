@@ -20,7 +20,6 @@ package org.apache.iceberg.spark.data;
 
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -42,7 +41,6 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.RandomUtil;
-import org.apache.iceberg.variants.Variant;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
 import org.apache.spark.sql.catalyst.util.ArrayBasedMapData;
@@ -349,17 +347,7 @@ public class RandomData {
 
     @Override
     public VariantVal variant(Types.VariantType type) {
-      Variant variant = RandomVariants.randomVariant(random);
-
-      byte[] metadataBytes = new byte[variant.metadata().sizeInBytes()];
-      ByteBuffer metadataBuffer = ByteBuffer.wrap(metadataBytes).order(ByteOrder.LITTLE_ENDIAN);
-      variant.metadata().writeTo(metadataBuffer, 0);
-
-      byte[] valueBytes = new byte[variant.value().sizeInBytes()];
-      ByteBuffer valueBuffer = ByteBuffer.wrap(valueBytes).order(ByteOrder.LITTLE_ENDIAN);
-      variant.value().writeTo(valueBuffer, 0);
-
-      return new VariantVal(valueBytes, metadataBytes);
+      return SparkVariantTestUtil.toVariantVal(RandomVariants.randomVariant(random));
     }
 
     @Override
