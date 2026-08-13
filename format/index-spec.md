@@ -77,7 +77,7 @@ The following index type is defined in this specification:
 
 | Type   | Description                                                           |
 |--------|-----------------------------------------------------------------------|
-| SCALAR | Accelerates point lookups and possibly range filters over key columns |
+| SCALAR | Accelerates point lookups and possibly range filters over index keys |
 
 The following index type is reserved for future specifications.
 
@@ -85,9 +85,28 @@ The following index type is reserved for future specifications.
 |--------|--------------------------------------------------------------------|
 | VECTOR | Reserved for accelerating similarity search over vector embeddings |
 
-### Key Columns
+### Index Values
 
-The source-table columns the index is built on and optimized for retrieval.
+The index values are produced by an [Iceberg expression](expressions-spec.md) that is evaluated for each indexed row.
+The index values expression defines the content of the index [leaf files](#leaf-files): each evaluation produces one
+leaf file row.
+
+The index values expression must be a value expression and must satisfy the following requirements:
+
+- The result type must be a struct and must be declared on the expression. The declared struct type is the
+  [leaf schema](#leaf-schema).
+- Field references must be ID references. Named references are not allowed because the expression is stored and must
+  remain valid when columns are renamed.
+- Functions must be resolved in the `iceberg_functions` or `sql_functions` reserved catalogs. User-defined functions
+  and engine-specific function catalogs are not allowed because index values must be portable across engines.
+- The expression must be deterministic. Non-deterministic functions, such as `random` or functions that depend on the
+  evaluation time, would invalidate the index as soon as it is written.
+- The result must locate the indexed row in the source table. It must include the `source_file_path` and
+  `source_file_pos` fields defined by the [leaf schema](#leaf-schema), populated from the `_file` and `_pos` metadata
+  columns of the source table.
+
+The index values expression is serialized using the
+[JSON serialization](expressions-spec.md#appendix-b-json-serialization) defined by the expressions specification.
 
 ### Index Keys
 
@@ -110,7 +129,7 @@ Examples of valid index keys expressions, shown as SQL for readability:
 | Index keys                              | Description                                                    |
 |-----------------------------------------|----------------------------------------------------------------|
 | `identity(user_id)`                     | Orders entries by the original key values                      |
-| `bucket(256, user_id)`                  | Orders entries by the hash bucket of the key column            |
+| `bucket(256, user_id)`                  | Orders entries by the hash bucket of the source column         |
 | `struct(bucket(256, user_id), user_id)` | Orders entries by hash bucket, then by the original key values |
 
 The index keys expression is serialized using the
@@ -124,8 +143,8 @@ Users create index instances by specifying:
 
 - Source table
 - Index type
+- Index values
 - Index keys
-- Key columns
 - Index properties (optional)
 
 Multiple instances of the same index type may exist for a table.
@@ -150,8 +169,8 @@ The index metadata file stores the index definition and snapshot history.
 | required    | table-uuid     | string               | UUID of the indexed table                                                  |
 | required    | location       | string               | Index root location                                                        |
 | required    | type           | string               | Logical index type                                                         |
+| required    | index-values   | JSON expression      | Expression producing the index values, see [Index Values](#index-values)   |
 | required    | index-keys     | JSON expression      | Expression producing the index keys, see [Index Keys](#index-keys)         |
-| required    | key-column-ids | list<int>            | Ordered source-table column IDs of the key columns                         |
 | optional    | properties     | map<string,string>   | Index properties applicable for every snapshot                             |
 | required    | snapshots      | list<index-snapshot> | Index snapshots                                                            |
 | optional    | encryption-keys| list<encryption-key> | Encryption keys used by the index, see [Encryption Keys](#encryption-keys) |
@@ -259,22 +278,22 @@ queries against the index.
 Entries contain aggregated statistics for all referenced leaf files, enabling engines to perform pruning and planning
 without opening every leaf file.
 
-| Field ID | Name               | Type    | Requirement  | Description                                                                                                                       |
-|----------|--------------------|---------|--------------|-----------------------------------------------------------------------------------------------------------------------------------|
-| 100      | location           | string  | required     | Location of the referenced file.                                                                                                  |
-| 101      | file_format        | string  | required     | File format name, such as parquet, avro, or orc.                                                                                  |
-| 103      | record_count       | long    | required     | Number of records contained in the referenced leaf file.                                                                          |
-| 104      | file_size_in_bytes | long    | required     | Total file size in bytes.                                                                                                         |
-| 146      | content_stats      | struct  | required     | Column statistics on the key columns and index key statistics for the referenced leaf file, used for planning and pruning.        |
-| 131      | key_metadata       | binary  | optional     | Implementation-specific key metadata, used for leaf file encryption.                                                              |
+| Field ID | Name               | Type    | Requirement  | Description                                                                                                                 |
+|----------|--------------------|---------|--------------|-----------------------------------------------------------------------------------------------------------------------------|
+| 100      | location           | string  | required     | Location of the referenced file.                                                                                            |
+| 101      | file_format        | string  | required     | File format name, such as parquet, avro, or orc.                                                                            |
+| 103      | record_count       | long    | required     | Number of records contained in the referenced leaf file.                                                                    |
+| 104      | file_size_in_bytes | long    | required     | Total file size in bytes.                                                                                                   |
+| 146      | content_stats      | struct  | required     | Column statistics on the index values and index key statistics for the referenced leaf file, used for planning and pruning. |
+| 131      | key_metadata       | binary  | optional     | Implementation-specific key metadata, used for leaf file encryption.                                                        |
 
 #### Content Statistics
 
 The content statistics structure stored for each leaf file contains two complementary kinds of statistics:
 
-- **Column statistics** for the key columns: the minimum and maximum original key values in the leaf file, using each
-  column's natural ordering. These are always present and let engines that do not implement the index ordering prune
-  leaf files using predicates on the original key values.
+- **Column statistics** for the index values: the minimum and maximum value of each leaf schema field in the leaf file,
+  using the field's natural ordering. These are always present and let engines prune on the index values even when
+  searching for partial keys.
 - **Index key statistics** for the leaf file: the index keys of the first and last entries in the leaf file according to
   the index ordering. Because leaf files hold non-overlapping ranges of the index ordering, engines can evaluate the
   index keys expression for a lookup value and use these statistics to prune leaf files (see [Ordering](#ordering)).
@@ -288,26 +307,31 @@ Leaf files must be standard Iceberg data files and may be stored using any Icebe
 - Avro
 - ORC - May be removed if ORC support is deprecated in Iceberg.
 
-The schema of a leaf file is determined by the index definition and contains:
-- All key columns defined by the index
-- The source file path
-- The source row position
+The schema of a leaf file is the struct type declared by the [index values](#index-values) expression. Each leaf file
+row is the result of evaluating that expression for one indexed row.
 
-Entries within a leaf file are stored in the [index ordering](#ordering). This lets a reader binary-search for a key
-within the leaf after selecting it from the tracking file.
+Entries within a leaf file are stored in the [index ordering](#ordering). This lets a reader binary-search for an index
+key within the leaf after selecting it from the tracking file.
 
 #### Leaf Schema
 
-Columns originating from the source table must preserve their original Iceberg field identifiers.
+The leaf schema is declared as the result type of the index values expression and must satisfy the requirements for
+struct types in the [table specification](spec.md#schemas-and-data-types).
+
+Fields that hold a value read directly from the source table should preserve the original Iceberg field identifier.
 Reusing the original field IDs ensures that schema evolution, column renames, and type compatibility semantics remain
 consistent between the table and the index.
 
-The index-specific columns are:
+The leaf schema must include fields that locate the indexed row in the source table:
 
-| Field Id  | Column          | Type   | Description                                               |
-|-----------|-----------------|--------|-----------------------------------------------------------|
-| TBD       | file_path       | string | The path of the source data file the entry references     |
-| TBD       | position        | long   | The row position of the entry within the source data file |
+| Field Id   | Column           | Type   | Description                                               |
+|------------|------------------|--------|-----------------------------------------------------------|
+| 2147483538 | source_file_path | string | The path of the source data file the entry references     |
+| 2147483537 | source_file_pos  | long   | The row position of the entry within the source data file |
+
+These fields are populated from the `_file` (`2147483646`) and `_pos` (`2147483645`) metadata columns of the source
+table, defined in [Reserved Field IDs](spec.md#reserved-field-ids). They are assigned separate index-specific field IDs
+from the same reserved range because they describe the source row rather than the leaf file the entry is stored in.
 
 ### Example: Key Lookup Index
 
@@ -320,20 +344,21 @@ CREATE INDEX bucket_index
     USING struct(bucket(2147483647, user_id), user_id);
 ```
 
-This creates a `SCALAR` index on the `user_id` key column that orders entries by the hash bucket of `user_id` and then
+This creates a `SCALAR` index on the `user_id` column that orders entries by the hash bucket of `user_id` and then
 by `user_id` itself. When the index is created, the engine (or a later index maintenance job) reads the current table
 snapshot, writes the leaf files and a tracking file, and produces the first index metadata file containing a single
 index snapshot. Leaf file boundaries are created based on the index keys, so a leaf file holds a contiguous range
 of buckets or a range of `user_id` values within a single bucket. The tracking file stores summary information and
 pruning statistics.
 
-Each leaf file row contains the key column and the location of the source row:
+The index values expression produces each leaf file row from `user_id` and the reserved metadata columns that identify
+the source row:
 
-| Column          | Description                                  |
-|-----------------|----------------------------------------------|
-| user_id         | The indexed key column                       |
-| file_path       | The source data file that contains the row   |
-| position        | The row position within the source data file |
+| Column           | Description                                  |
+|------------------|----------------------------------------------|
+| user_id          | The indexed source column                    |
+| source_file_path | The source data file that contains the row   |
+| source_file_pos  | The row position within the source data file |
 
 The JSON metadata file is shown below.
 
@@ -347,6 +372,23 @@ s3://bucket/warehouse/default.db/events/index/bucket_index/metadata/00001-(uuid)
   "table-uuid" : "fb072c92-a02b-11e9-ae9c-1bb7bc9eca94",
   "location" : "s3://bucket/warehouse/default.db/events/index/bucket_index",
   "type" : "SCALAR",
+  "index-values" : {
+    "type" : "apply",
+    "function" : { "catalog" : "iceberg_functions", "identifier" : [ "struct" ] },
+    "arguments" : [
+      { "type" : "reference", "id" : 1 },
+      { "type" : "reference", "id" : 2147483646 },
+      { "type" : "reference", "id" : 2147483645 }
+    ],
+    "result-type" : {
+      "type" : "struct",
+      "fields" : [
+        { "id" : 1, "name" : "user_id", "required" : true, "type" : "long" },
+        { "id" : 2147483538, "name" : "source_file_path", "required" : true, "type" : "string" },
+        { "id" : 2147483537, "name" : "source_file_pos", "required" : true, "type" : "long" }
+      ]
+    }
+  },
   "index-keys" : {
     "type" : "apply",
     "function" : { "catalog" : "iceberg_functions", "identifier" : [ "struct" ] },
@@ -358,7 +400,6 @@ s3://bucket/warehouse/default.db/events/index/bucket_index/metadata/00001-(uuid)
       "type" : "reference", "id" : 1
     } ]
   },
-  "key-column-ids" : [ 1 ],
   "snapshots" : [ {
     "snapshot-id" : 1,
     "source-table-snapshot-id" : 3055729675574597004,
@@ -385,6 +426,23 @@ s3://bucket/warehouse/default.db/events/index/bucket_index/metadata/00002-(uuid)
   "table-uuid" : "fb072c92-a02b-11e9-ae9c-1bb7bc9eca94",
   "location" : "s3://bucket/warehouse/default.db/events/index/bucket_index",
   "type" : "SCALAR",
+  "index-values" : {
+    "type" : "apply",
+    "function" : { "catalog" : "iceberg_functions", "identifier" : [ "struct" ] },
+    "arguments" : [
+      { "type" : "reference", "id" : 1 },
+      { "type" : "reference", "id" : 2147483646 },
+      { "type" : "reference", "id" : 2147483645 }
+    ],
+    "result-type" : {
+      "type" : "struct",
+      "fields" : [
+        { "id" : 1, "name" : "user_id", "required" : true, "type" : "long" },
+        { "id" : 2147483538, "name" : "source_file_path", "required" : true, "type" : "string" },
+        { "id" : 2147483537, "name" : "source_file_pos", "required" : true, "type" : "long" }
+      ]
+    }
+  },
   "index-keys" : {
     "type" : "apply",
     "function" : { "catalog" : "iceberg_functions", "identifier" : [ "struct" ] },
@@ -396,7 +454,6 @@ s3://bucket/warehouse/default.db/events/index/bucket_index/metadata/00002-(uuid)
       "type" : "reference", "id" : 1
     } ]
   },
-  "key-column-ids" : [ 1 ],
   "snapshots" : [ {
     "snapshot-id" : 1,
     "source-table-snapshot-id" : 3055729675574597004,
@@ -427,6 +484,23 @@ s3://bucket/warehouse/default.db/events/index/bucket_index/metadata/00003-(uuid)
   "table-uuid" : "fb072c92-a02b-11e9-ae9c-1bb7bc9eca94",
   "location" : "s3://bucket/warehouse/default.db/events/index/bucket_index",
   "type" : "SCALAR",
+  "index-values" : {
+    "type" : "apply",
+    "function" : { "catalog" : "iceberg_functions", "identifier" : [ "struct" ] },
+    "arguments" : [
+      { "type" : "reference", "id" : 1 },
+      { "type" : "reference", "id" : 2147483646 },
+      { "type" : "reference", "id" : 2147483645 }
+    ],
+    "result-type" : {
+      "type" : "struct",
+      "fields" : [
+        { "id" : 1, "name" : "user_id", "required" : true, "type" : "long" },
+        { "id" : 2147483538, "name" : "source_file_path", "required" : true, "type" : "string" },
+        { "id" : 2147483537, "name" : "source_file_pos", "required" : true, "type" : "long" }
+      ]
+    }
+  },
   "index-keys" : {
     "type" : "apply",
     "function" : { "catalog" : "iceberg_functions", "identifier" : [ "struct" ] },
@@ -438,7 +512,6 @@ s3://bucket/warehouse/default.db/events/index/bucket_index/metadata/00003-(uuid)
       "type" : "reference", "id" : 1
     } ]
   },
-  "key-column-ids" : [ 1 ],
   "snapshots" : [ {
     "snapshot-id" : 2,
     "source-table-snapshot-id" : 5459876531255530170,
