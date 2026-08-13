@@ -839,7 +839,6 @@ class TestEqualityConvertPlanner extends OperatorTestBase {
       table.newAppend().appendFile(externalFile).commit();
       table.refresh();
       long mainAfterExternal = table.snapshot(SnapshotRef.MAIN_BRANCH).snapshotId();
-      long mainSeqAfterExternal = table.snapshot(SnapshotRef.MAIN_BRANCH).sequenceNumber();
 
       DeleteFile eqDelete2 = writeEqualityDelete(table, 2, "b");
       table.newRowDelta().addDeletes(eqDelete2).toBranch(STAGING_BRANCH).commit();
@@ -854,7 +853,8 @@ class TestEqualityConvertPlanner extends OperatorTestBase {
       assertThat(clears).hasSize(1);
       assertThat(clears.get(0).type()).isEqualTo(IndexCommand.Type.CLEAR_INDEX);
       assertThat(clears.get(0).mainSnapshotId()).isEqualTo(mainAfterExternal);
-      assertThat(clears.get(0).mainSequenceNumber()).isEqualTo(mainSeqAfterExternal);
+      // The bootstrap on the first trigger took generation 1, so the reindex takes the next one.
+      assertThat(clears.get(0).indexGeneration()).isEqualTo(2L);
     }
   }
 
