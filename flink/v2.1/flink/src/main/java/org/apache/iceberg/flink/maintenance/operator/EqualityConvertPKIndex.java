@@ -209,11 +209,11 @@ public class EqualityConvertPKIndex
     try {
       ctx.applyToKeyedState(
           INDEX_GENERATION_DESCRIPTOR,
-          (key, sequenceState) -> {
-            Long storedGenerationNumber = sequenceState.value();
-            if (storedGenerationNumber != null && storedGenerationNumber < broadcastGeneration) {
+          (key, generationState) -> {
+            Long storedGeneration = generationState.value();
+            if (storedGeneration != null && storedGeneration < broadcastGeneration) {
               clearKeyState();
-              sequenceState.update(broadcastGeneration);
+              generationState.update(broadcastGeneration);
               eagerlyEvictedKeyNumCounter.inc();
             }
           });
