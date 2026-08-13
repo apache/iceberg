@@ -515,6 +515,72 @@ public class TestVariantShreddingAnalyzer {
   }
 
   @Test
+  public void testShreddedSchemaIsOrderIndependent() {
+    VariantMetadata meta = Variants.metadata("n");
+    ShreddedObject small = Variants.object(meta);
+    small.put("n", Variants.of(42));
+    ShreddedObject large = Variants.object(meta);
+    large.put("n", Variants.of(5_000_000_000L));
+
+    VariantValueShreddingAnalyzer analyzer = new VariantValueShreddingAnalyzer();
+    Type orderA = analyzer.analyzeAndCreateSchema(List.of(small, large), 0);
+    Type orderB = analyzer.analyzeAndCreateSchema(List.of(large, small), 0);
+
+    assertThat(orderA).isNotNull().isEqualTo(orderB);
+  }
+
+  @Test
+  public void testMixedTypesNotShreddedRegardlessOfOrder() {
+    VariantMetadata meta = Variants.metadata("mixed", "keep");
+    ShreddedObject intFirst = Variants.object(meta);
+    intFirst.put("mixed", Variants.of(42));
+    intFirst.put("keep", Variants.of(1));
+    ShreddedObject strFirst = Variants.object(meta);
+    strFirst.put("mixed", Variants.of("text"));
+    strFirst.put("keep", Variants.of(2));
+
+    VariantValueShreddingAnalyzer analyzer = new VariantValueShreddingAnalyzer();
+    Type orderA = analyzer.analyzeAndCreateSchema(List.of(intFirst, strFirst), 0);
+    Type orderB = analyzer.analyzeAndCreateSchema(List.of(strFirst, intFirst), 0);
+
+    assertThat(orderA).isNotNull().isEqualTo(orderB);
+    assertThat(((GroupType) orderA).containsField("mixed")).isFalse();
+    assertThat(((GroupType) orderA).containsField("keep")).isTrue();
+  }
+
+  @Test
+  public void testAllNullFieldNotShredded() {
+    VariantMetadata meta = Variants.metadata("n");
+    ShreddedObject row1 = Variants.object(meta);
+    row1.put("n", Variants.ofNull());
+    ShreddedObject row2 = Variants.object(meta);
+    row2.put("n", Variants.ofNull());
+
+    VariantValueShreddingAnalyzer analyzer = new VariantValueShreddingAnalyzer();
+    Type schema = analyzer.analyzeAndCreateSchema(List.of(row1, row2), 0);
+
+    // A field that is null in every observed row has no type family, so nothing is shredded.
+    assertThat(schema).isNull();
+  }
+
+  @Test
+  public void testFieldWithNullsAndSingleTypeStillShreds() {
+    VariantMetadata meta = Variants.metadata("n");
+    ShreddedObject row1 = Variants.object(meta);
+    row1.put("n", Variants.ofNull());
+    ShreddedObject row2 = Variants.object(meta);
+    row2.put("n", Variants.of(7));
+    ShreddedObject row3 = Variants.object(meta);
+    row3.put("n", Variants.of(9));
+
+    VariantValueShreddingAnalyzer analyzer = new VariantValueShreddingAnalyzer();
+    Type schema = analyzer.analyzeAndCreateSchema(List.of(row1, row2, row3), 0);
+
+    assertThat(schema).isNotNull().isInstanceOf(GroupType.class);
+    assertThat(((GroupType) schema).containsField("n")).isTrue();
+  }
+
+  @Test
   public void testIntAndDecimalAtSameFieldNotShredded() {
     VariantMetadata meta = Variants.metadata("mixed", "keep");
     ShreddedObject row1 = Variants.object(meta);

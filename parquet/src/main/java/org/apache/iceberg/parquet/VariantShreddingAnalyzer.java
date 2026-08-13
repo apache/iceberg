@@ -54,7 +54,9 @@ import org.apache.parquet.schema.Types;
  *       numeric widening. Integer types (INT8/16/32/64) widen within their family; decimal types
  *       (DECIMAL4/8/16) widen within theirs. All other physical types - including {@code FLOAT} vs
  *       {@code DOUBLE} and {@code TIMESTAMPTZ} vs {@code TIMESTAMPTZ_NANOS} - are treated as
- *       separate families.
+ *       separate families. Widening decides admission and the emitted typed_value type, not per-row
+ *       routing: the writer shreds a row only on an exact physical-type match, so narrower-width
+ *       rows fall to the residual value.
  *   <li>When the top-level variant's own observations span multiple families, the whole variant is
  *       written without any typed_value. When a nested field's observations are mixed, only that
  *       field stays in the residual value; sibling fields still shred.
@@ -506,14 +508,14 @@ public abstract class VariantShreddingAnalyzer<T, S> {
     }
 
     /**
-     * Returns the wider of {@code first} and {@code second} when both are in the given family
-     * (positions later in {@code family} are wider), or null when either is not in the family.
+     * Returns the wider of {@code first} and {@code second} within {@code family}, or null when
+     * {@code second} is not in the family. {@code first} is always a member.
      */
     private static PhysicalType wider(
         PhysicalType first, PhysicalType second, List<PhysicalType> family) {
       int firstIdx = family.indexOf(first);
       int secondIdx = family.indexOf(second);
-      if (firstIdx < 0 || secondIdx < 0) {
+      if (secondIdx < 0) {
         return null;
       }
 
