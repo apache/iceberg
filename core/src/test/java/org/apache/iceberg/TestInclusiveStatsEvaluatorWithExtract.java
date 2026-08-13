@@ -24,6 +24,7 @@ import static org.apache.iceberg.StatsTestUtil.trackedFile;
 
 import java.util.Map;
 import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.InclusiveStatsEvaluator;
 import org.apache.iceberg.expressions.TestInclusiveMetricsEvaluatorWithExtract;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.types.Types;

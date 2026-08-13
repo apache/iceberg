@@ -26,6 +26,7 @@ import static org.apache.iceberg.expressions.Expressions.notNull;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.InclusiveStatsEvaluator;
 import org.apache.iceberg.expressions.TestInclusiveMetricsEvaluator;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.types.Types;
