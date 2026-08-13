@@ -127,7 +127,7 @@ public class UnboundPredicate<T> extends Predicate<T, UnboundTerm<T>>
     switch (op()) {
       case IS_NULL:
         if (!boundTerm.producesNull()
-            && TypeUtil.alwaysPresent(struct, boundTerm.ref().fieldId())) {
+            && allAncestorFieldsAreRequired(struct, boundTerm.ref().fieldId())) {
           return Expressions.alwaysFalse();
         } else if (boundTerm.type().equals(Types.UnknownType.get())) {
           return Expressions.alwaysTrue();
@@ -135,7 +135,7 @@ public class UnboundPredicate<T> extends Predicate<T, UnboundTerm<T>>
         return new BoundUnaryPredicate<>(Operation.IS_NULL, boundTerm);
       case NOT_NULL:
         if (!boundTerm.producesNull()
-            && TypeUtil.alwaysPresent(struct, boundTerm.ref().fieldId())) {
+            && allAncestorFieldsAreRequired(struct, boundTerm.ref().fieldId())) {
           return Expressions.alwaysTrue();
         } else if (boundTerm.type().equals(Types.UnknownType.get())) {
           return Expressions.alwaysFalse();
@@ -156,6 +156,11 @@ public class UnboundPredicate<T> extends Predicate<T, UnboundTerm<T>>
       default:
         throw new ValidationException("Operation must be IS_NULL, NOT_NULL, IS_NAN, or NOT_NAN");
     }
+  }
+
+  private boolean allAncestorFieldsAreRequired(StructType struct, int fieldId) {
+    return TypeUtil.ancestorFields(struct.asSchema(), fieldId).stream()
+        .allMatch(Types.NestedField::isRequired);
   }
 
   private boolean floatingType(Type.TypeID typeID) {

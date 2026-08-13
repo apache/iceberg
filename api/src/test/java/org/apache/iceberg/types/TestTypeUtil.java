@@ -974,27 +974,27 @@ public class TestTypeUtil {
 
   @Test
   public void alwaysPresentWithUnknownFieldId() {
-    Types.StructType struct = Types.StructType.of(required(1, "id", IntegerType.get()));
+    Schema schema = new Schema(required(1, "id", IntegerType.get()));
 
-    assertThatThrownBy(() -> TypeUtil.alwaysPresent(struct, 2))
+    assertThatThrownBy(() -> TypeUtil.alwaysPresent(schema, 2))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot find field with ID: 2");
   }
 
   @Test
   public void alwaysPresentWithTopLevelFields() {
-    Types.StructType struct =
-        Types.StructType.of(
+    Schema schema =
+        new Schema(
             required(1, "id", IntegerType.get()), optional(2, "data", Types.StringType.get()));
 
-    assertThat(TypeUtil.alwaysPresent(struct, 1)).isTrue();
-    assertThat(TypeUtil.alwaysPresent(struct, 2)).isFalse();
+    assertThat(TypeUtil.alwaysPresent(schema, 1)).isTrue();
+    assertThat(TypeUtil.alwaysPresent(schema, 2)).isFalse();
   }
 
   @Test
   public void alwaysPresentWithNestedStructs() {
-    Types.StructType struct =
-        Types.StructType.of(
+    Schema schema =
+        new Schema(
             required(
                 1,
                 "required_location",
@@ -1016,25 +1016,25 @@ public class TestTypeUtil {
                         Types.StructType.of(required(9, "required_zip", IntegerType.get()))))));
 
     // a required field is always present when every field that contains it is required
-    assertThat(TypeUtil.alwaysPresent(struct, 1)).isTrue();
-    assertThat(TypeUtil.alwaysPresent(struct, 3)).isTrue();
-    assertThat(TypeUtil.alwaysPresent(struct, 5)).isTrue();
-    assertThat(TypeUtil.alwaysPresent(struct, 6)).isTrue();
+    assertThat(TypeUtil.alwaysPresent(schema, 1)).isTrue();
+    assertThat(TypeUtil.alwaysPresent(schema, 3)).isTrue();
+    assertThat(TypeUtil.alwaysPresent(schema, 5)).isTrue();
+    assertThat(TypeUtil.alwaysPresent(schema, 6)).isTrue();
 
     // an optional field is null regardless of the fields that contain it
-    assertThat(TypeUtil.alwaysPresent(struct, 4)).isFalse();
+    assertThat(TypeUtil.alwaysPresent(schema, 4)).isFalse();
 
     // a required field nested in an optional struct is null when the struct is null
-    assertThat(TypeUtil.alwaysPresent(struct, 2)).isFalse();
-    assertThat(TypeUtil.alwaysPresent(struct, 7)).isFalse();
-    assertThat(TypeUtil.alwaysPresent(struct, 8)).isFalse();
-    assertThat(TypeUtil.alwaysPresent(struct, 9)).isFalse();
+    assertThat(TypeUtil.alwaysPresent(schema, 2)).isFalse();
+    assertThat(TypeUtil.alwaysPresent(schema, 7)).isFalse();
+    assertThat(TypeUtil.alwaysPresent(schema, 8)).isFalse();
+    assertThat(TypeUtil.alwaysPresent(schema, 9)).isFalse();
   }
 
   @Test
   public void alwaysPresentWithListsAndMaps() {
-    Types.StructType struct =
-        Types.StructType.of(
+    Schema schema =
+        new Schema(
             required(
                 1,
                 "required_points",
@@ -1055,20 +1055,20 @@ public class TestTypeUtil {
                     Types.StructType.of(required(10, "required_lat", Types.DoubleType.get())))));
 
     // a required element of a required list is always present, as is anything it contains
-    assertThat(TypeUtil.alwaysPresent(struct, 1)).isTrue();
-    assertThat(TypeUtil.alwaysPresent(struct, 4)).isTrue();
-    assertThat(TypeUtil.alwaysPresent(struct, 5)).isTrue();
+    assertThat(TypeUtil.alwaysPresent(schema, 1)).isTrue();
+    assertThat(TypeUtil.alwaysPresent(schema, 4)).isTrue();
+    assertThat(TypeUtil.alwaysPresent(schema, 5)).isTrue();
 
     // an optional element is null, as is anything it contains
-    assertThat(TypeUtil.alwaysPresent(struct, 2)).isFalse();
-    assertThat(TypeUtil.alwaysPresent(struct, 6)).isFalse();
-    assertThat(TypeUtil.alwaysPresent(struct, 7)).isFalse();
+    assertThat(TypeUtil.alwaysPresent(schema, 2)).isFalse();
+    assertThat(TypeUtil.alwaysPresent(schema, 6)).isFalse();
+    assertThat(TypeUtil.alwaysPresent(schema, 7)).isFalse();
 
     // required map keys and values are always present
-    assertThat(TypeUtil.alwaysPresent(struct, 3)).isTrue();
-    assertThat(TypeUtil.alwaysPresent(struct, 8)).isTrue();
-    assertThat(TypeUtil.alwaysPresent(struct, 9)).isTrue();
-    assertThat(TypeUtil.alwaysPresent(struct, 10)).isTrue();
+    assertThat(TypeUtil.alwaysPresent(schema, 3)).isTrue();
+    assertThat(TypeUtil.alwaysPresent(schema, 8)).isTrue();
+    assertThat(TypeUtil.alwaysPresent(schema, 9)).isTrue();
+    assertThat(TypeUtil.alwaysPresent(schema, 10)).isTrue();
   }
 
   @Test

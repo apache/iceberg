@@ -297,30 +297,17 @@ public class TypeUtil {
    * <p>A field is always present if it is required and every field that contains it is required. A
    * required field nested in an optional struct is null whenever that struct is null.
    *
-   * @param struct The struct that contains the field ID
+   * @param schema The schema that contains the field ID
    * @param fieldId The field ID to check
    * @return true if the field cannot be null and is always present, false if it may be null
-   * @throws IllegalArgumentException if the field ID is not present in the struct
+   * @throws IllegalArgumentException if the field ID is not present in the schema
    */
-  public static boolean alwaysPresent(Types.StructType struct, int fieldId) {
-    Types.NestedField field = struct.field(fieldId);
+  public static boolean alwaysPresent(Schema schema, int fieldId) {
+    Types.NestedField field = schema.findField(fieldId);
     Preconditions.checkArgument(null != field, "Cannot find field with ID: %s", fieldId);
 
-    if (field.isOptional()) {
-      return false;
-    }
-
-    Map<Integer, Integer> idToParent = indexParents(struct);
-    Integer parentId = idToParent.get(fieldId);
-    while (parentId != null) {
-      if (struct.field(parentId).isOptional()) {
-        return false;
-      }
-
-      parentId = idToParent.get(parentId);
-    }
-
-    return true;
+    return field.isRequired()
+        && ancestorFields(schema, fieldId).stream().allMatch(Types.NestedField::isRequired);
   }
 
   /**
