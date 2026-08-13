@@ -512,7 +512,7 @@ public class TestHadoopCommits extends HadoopTableTestBase {
   }
 
   @Test
-  public void testCommitReportContainsMetadataFileSizeInBytes() {
+  public void commitReportContainsMetadataFileSizeInBytes() {
     BaseTable baseTable = (BaseTable) table;
     HadoopTableOperations ops = (HadoopTableOperations) baseTable.operations();
 
@@ -529,12 +529,48 @@ public class TestHadoopCommits extends HadoopTableTestBase {
 
     CommitReport commitReport = capturedReport.get();
     assertThat(commitReport).isNotNull();
-    assertThat(commitReport.commitMetrics().metadataFileSizeInBytes()).isNotNull();
-    assertThat(commitReport.commitMetrics().metadataFileSizeInBytes().unit())
-        .isEqualTo(MetricsContext.Unit.BYTES);
+    assertThat(reportedMetadataFileSize(commitReport)).isEqualTo(metadataFileSize(ops));
+  }
 
-    long expectedSize = ops.io().newInputFile(ops.current().metadataFileLocation()).getLength();
-    assertThat(commitReport.commitMetrics().metadataFileSizeInBytes().value())
-        .isEqualTo(expectedSize);
+  @Test
+  public void eachCommitReportsTheMetadataFileSizeItWrote() {
+    BaseTable baseTable = (BaseTable) table;
+    HadoopTableOperations ops = (HadoopTableOperations) baseTable.operations();
+
+    List<CommitReport> capturedReports = Lists.newArrayList();
+    MetricsReporter reporter =
+        report -> {
+          if (report instanceof CommitReport) {
+            capturedReports.add((CommitReport) report);
+          }
+        };
+
+    Table tableWithReporter = new BaseTable(ops, baseTable.name(), reporter);
+
+    tableWithReporter.newFastAppend().appendFile(FILE_A).commit();
+    long firstMetadataFileSize = metadataFileSize(ops);
+
+    tableWithReporter.newFastAppend().appendFile(FILE_B).commit();
+    long secondMetadataFileSize = metadataFileSize(ops);
+
+    assertThat(secondMetadataFileSize)
+        .as(
+            "Each commit must write a differently sized metadata file for this test to be meaningful")
+        .isNotEqualTo(firstMetadataFileSize);
+
+    assertThat(capturedReports).hasSize(2);
+    assertThat(reportedMetadataFileSize(capturedReports.get(0))).isEqualTo(firstMetadataFileSize);
+    assertThat(reportedMetadataFileSize(capturedReports.get(1))).isEqualTo(secondMetadataFileSize);
+  }
+
+  private long reportedMetadataFileSize(CommitReport report) {
+    assertThat(report.commitMetrics().metadataFileSizeInBytes()).isNotNull();
+    assertThat(report.commitMetrics().metadataFileSizeInBytes().unit())
+        .isEqualTo(MetricsContext.Unit.BYTES);
+    return report.commitMetrics().metadataFileSizeInBytes().value();
+  }
+
+  private long metadataFileSize(TableOperations ops) {
+    return ops.io().newInputFile(ops.current().metadataFileLocation()).getLength();
   }
 }

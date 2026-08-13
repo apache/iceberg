@@ -41,7 +41,7 @@ A [`CommitReport`](https://github.com/apache/iceberg/blob/main/core/src/main/jav
 * number of added/removed data/delete files
 * number of added/removed equality/positional delete files
 * number of added/removed equality/positional deletes
-* metadata file size in bytes for the committed table metadata file (optional, may be null depending on catalog implementation)
+* size in bytes of the table metadata file written by the commit, when available (some catalogs do not write metadata files directly)
 
 ## Available Metrics Reporters
 

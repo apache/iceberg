@@ -45,6 +45,7 @@ import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.encryption.EncryptingFileIO;
@@ -483,6 +484,9 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   public void commit() {
     // this is always set to the latest commit attempt's snapshot id.
     AtomicLong newSnapshotId = new AtomicLong(-1L);
+    // this is always set to the metadata file size written by the latest commit attempt, and stays
+    // null when the table operations implementation cannot report it
+    AtomicReference<Long> metadataFileSizeInBytes = new AtomicReference<>();
     try (Timed ignore = commitMetrics().totalDuration().start()) {
       try {
         Tasks.foreach(ops)
@@ -523,6 +527,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
                   // to ensure that if a concurrent operation assigns the UUID, this operation will
                   // not fail.
                   taskOps.commit(base, updated.withUUID());
+                  metadataFileSizeInBytes.set(taskOps.metadataFileSizeInBytes());
                 });
 
       } catch (CommitStateUnknownException commitStateUnknownException) {
@@ -567,13 +572,13 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
     }
 
     try {
-      notifyListeners();
+      notifyListeners(metadataFileSizeInBytes.get());
     } catch (Throwable e) {
       LOG.warn("Failed to notify event listeners", e);
     }
   }
 
-  private void notifyListeners() {
+  private void notifyListeners(Long metadataFileSizeInBytes) {
     try {
       Object event = updateEvent();
       if (event != null) {
@@ -584,7 +589,6 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
 
           CommitMetricsResult commitMetricsResult =
               CommitMetricsResult.from(commitMetrics(), createSnapshotEvent.summary());
-          Long metadataFileSizeInBytes = ops().metadataFileSizeInBytes();
           if (metadataFileSizeInBytes != null) {
             commitMetricsResult =
                 ImmutableCommitMetricsResult.builder()

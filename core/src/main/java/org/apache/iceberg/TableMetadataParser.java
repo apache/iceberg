@@ -130,33 +130,28 @@ public class TableMetadataParser {
   }
 
   public static long writeAndReturnLength(TableMetadata metadata, OutputFile outputFile) {
-    PositionOutputStream outputStream = writeMetadata(metadata, outputFile, false);
-    return metadataLength(outputStream, outputFile.location());
+    return writeMetadata(metadata, outputFile, false);
   }
 
   public static long overwriteAndReturnLength(TableMetadata metadata, OutputFile outputFile) {
-    PositionOutputStream outputStream = writeMetadata(metadata, outputFile, true);
-    return metadataLength(outputStream, outputFile.location());
+    return writeMetadata(metadata, outputFile, true);
   }
 
-  private static long metadataLength(PositionOutputStream stream, String location) {
-    try {
-      return stream.storedLength();
-    } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to read stored length for file: %s", location);
-    }
-  }
-
-  private static PositionOutputStream writeMetadata(
+  private static long writeMetadata(
       TableMetadata metadata, OutputFile outputFile, boolean overwrite) {
     boolean isGzip = Codec.fromFileName(outputFile.location()) == Codec.GZIP;
     PositionOutputStream stream = overwrite ? outputFile.createOrOverwrite() : outputFile.create();
-    try (OutputStream ou = isGzip ? new GZIPOutputStream(stream) : stream;
-        OutputStreamWriter writer = new OutputStreamWriter(ou, StandardCharsets.UTF_8)) {
-      JsonGenerator generator = JsonUtil.factory().createGenerator(writer);
-      toJson(metadata, generator);
-      generator.flush();
-      return stream;
+    try {
+      try (OutputStream ou = isGzip ? new GZIPOutputStream(stream) : stream;
+          OutputStreamWriter writer = new OutputStreamWriter(ou, StandardCharsets.UTF_8)) {
+        JsonGenerator generator = JsonUtil.factory().createGenerator(writer);
+        toJson(metadata, generator);
+        generator.flush();
+      }
+
+      // gzip and encrypting streams write trailing bytes when closed, so the stored length is
+      // only final once the stream above has been closed
+      return stream.storedLength();
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to write json to file: %s", outputFile.location());
     }
