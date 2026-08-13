@@ -70,12 +70,12 @@ class TestParquetValueWriters {
   }
 
   @Test
-  void nullStructCountsNullsForNestedFields() {
-    // a null struct is also null for the fields it contains, but those columns are written by the
-    // struct's writer and never see the value, so the struct must count the nulls for them
+  void nullStructCountsNullsForOptionalNestedFields() {
+    // a null struct is also null for the optional fields it contains, but those columns are written
+    // by the struct's writer and never see the value, so the struct must count the nulls for them
     Types.StructType struct =
         Types.StructType.of(
-            optional(2, "d", Types.DoubleType.get()), required(3, "f", Types.FloatType.get()));
+            optional(2, "d", Types.DoubleType.get()), optional(3, "f", Types.FloatType.get()));
     Schema schema = new Schema(optional(1, "s", struct));
 
     ParquetValueWriter<Record> writer = writerFor(schema);
@@ -93,6 +93,33 @@ class TestParquetValueWriters {
     assertThat(metrics.get(2).valueCount()).isEqualTo(3);
     assertThat(metrics.get(3).nullValueCount()).isEqualTo(2);
     assertThat(metrics.get(3).valueCount()).isEqualTo(3);
+  }
+
+  @Test
+  void nullStructDoesNotCountNullsForRequiredNestedFields() {
+    // null counts are only tracked for optional fields, so a required leaf keeps its prior
+    // behavior: the null struct's nulls are not added to it
+    Types.StructType struct =
+        Types.StructType.of(
+            optional(2, "d", Types.DoubleType.get()), required(3, "f", Types.FloatType.get()));
+    Schema schema = new Schema(optional(1, "s", struct));
+
+    ParquetValueWriter<Record> writer = writerFor(schema);
+    Record inner = GenericRecord.create(struct);
+    inner.set(0, 2.0D);
+    inner.set(1, 1.0F);
+
+    writer.write(0, record(schema, inner));
+    writer.write(0, record(schema, null));
+    writer.write(0, record(schema, null));
+
+    Map<Integer, FieldMetrics<?>> metrics = metricsById(writer);
+    // the optional field is corrected
+    assertThat(metrics.get(2).nullValueCount()).isEqualTo(2);
+    assertThat(metrics.get(2).valueCount()).isEqualTo(3);
+    // the required field is left as the writer saw it: only the one populated value
+    assertThat(metrics.get(3).nullValueCount()).isEqualTo(0);
+    assertThat(metrics.get(3).valueCount()).isEqualTo(1);
   }
 
   @Test

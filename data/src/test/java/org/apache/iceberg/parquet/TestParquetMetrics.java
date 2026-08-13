@@ -127,19 +127,19 @@ public class TestParquetMetrics extends TestMetrics {
   @TestTemplate
   public void testMetricsForNullStructWithFloatingAndGeoLeaves() throws IOException {
     // float, double, geometry and geography are the only types whose writers report metrics, so
-    // they are the ones whose nested null counts could be dropped when a struct is null. A required
-    // leaf is included because a null struct makes even a required field null.
+    // they are the ones whose nested null counts could be dropped when a struct is null. Null
+    // counts are only tracked for optional fields, so the fix applies only to optional leaves.
     StructType struct =
         StructType.of(
             optional(2, "optDouble", DoubleType.get()),
-            required(3, "reqFloat", FloatType.get()),
+            optional(3, "optFloat", FloatType.get()),
             optional(4, "geom", GeometryType.crs84()),
             optional(5, "optLong", LongType.get()));
     Schema schema = new Schema(optional(1, "struct", struct));
 
     Record inner = GenericRecord.create(struct);
     inner.setField("optDouble", 1.5D);
-    inner.setField("reqFloat", 2.5F);
+    inner.setField("optFloat", 2.5F);
     inner.setField("geom", wkbPoint(30, 10));
     inner.setField("optLong", 10L);
     Record withStruct = GenericRecord.create(schema);
@@ -170,13 +170,17 @@ public class TestParquetMetrics extends TestMetrics {
 
   @TestTemplate
   public void testMetricsForRequiredNestedFieldInNullStruct() throws IOException {
-    // a required field is still null when its parent struct is null, so its null count must be
-    // recorded even though the field itself is not nullable
-    StructType struct = StructType.of(required(2, "reqDouble", DoubleType.get()));
+    // null counts are only tracked for optional fields, so a required float/double leaf keeps its
+    // prior behavior when the struct is null: the null count is not recorded (a required long, by
+    // contrast, is counted from the footer, which is unaffected by this fix)
+    StructType struct =
+        StructType.of(
+            required(2, "reqDouble", DoubleType.get()), required(3, "reqLong", LongType.get()));
     Schema schema = new Schema(optional(1, "struct", struct));
 
     Record inner = GenericRecord.create(struct);
     inner.setField("reqDouble", 1.5D);
+    inner.setField("reqLong", 10L);
     Record withStruct = GenericRecord.create(schema);
     withStruct.setField("struct", inner);
     Record nullStruct = GenericRecord.create(schema);
@@ -185,8 +189,11 @@ public class TestParquetMetrics extends TestMetrics {
     Metrics metrics = getMetrics(schema, withStruct, nullStruct, nullStruct);
 
     assertThat(metrics.recordCount()).isEqualTo(3L);
-    // one value from the populated struct and two nulls from the null structs
-    assertCounts(2, 3L, 2L, 0L, metrics);
+    // reqDouble uses writer metrics, which do not count nulls for required fields: only the
+    // populated struct's value is seen
+    assertCounts(2, 1L, 0L, 0L, metrics);
+    // reqLong uses footer stats, so its counts are unaffected
+    assertCounts(3, 3L, 2L, metrics);
 
     DataFile dataFile =
         DataFiles.builder(PartitionSpec.unpartitioned())
@@ -195,7 +202,7 @@ public class TestParquetMetrics extends TestMetrics {
             .withFormat(FileFormat.PARQUET)
             .withMetrics(metrics)
             .build();
-    assertThat(dataFile.nullValueCounts()).containsEntry(2, 2L);
+    assertThat(dataFile.nullValueCounts()).containsEntry(2, 0L).containsEntry(3, 2L);
   }
 
   private static ByteBuffer wkbPoint(double xCoord, double yCoord) {

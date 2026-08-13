@@ -27,6 +27,7 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -41,6 +42,7 @@ import org.apache.iceberg.ValueSizeFieldMetrics;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.DecimalUtil;
@@ -56,10 +58,36 @@ public class ParquetValueWriters {
   public static <T> ParquetValueWriter<T> option(
       Type type, int definitionLevel, ParquetValueWriter<T> writer) {
     if (type.isRepetition(Type.Repetition.OPTIONAL)) {
-      return new OptionWriter<>(definitionLevel, writer);
+      return new OptionWriter<>(definitionLevel, writer, optionalLeafIds(type));
     }
 
     return writer;
+  }
+
+  /**
+   * Collects the ids of optional primitive leaves within a type. A null written for an optional
+   * value is also a null for these fields, but not for required fields, whose null count is left as
+   * it was before (per the spec, null counts are only tracked for optional fields).
+   */
+  private static Set<Integer> optionalLeafIds(Type type) {
+    Set<Integer> ids = Sets.newHashSet();
+    collectOptionalLeafIds(type, ids);
+    return ids;
+  }
+
+  private static void collectOptionalLeafIds(Type type, Set<Integer> ids) {
+    if (type.isRepetition(Type.Repetition.REPEATED)) {
+      // repeated (list and map) fields are not propagated to from an enclosing option
+      return;
+    } else if (type.isPrimitive()) {
+      if (type.isRepetition(Type.Repetition.OPTIONAL) && type.getId() != null) {
+        ids.add(type.getId().intValue());
+      }
+    } else {
+      for (Type field : type.asGroupType().getFields()) {
+        collectOptionalLeafIds(field, ids);
+      }
+    }
   }
 
   public static UnboxedWriter<Boolean> booleans(ColumnDescriptor desc) {
@@ -433,12 +461,14 @@ public class ParquetValueWriters {
     private final int definitionLevel;
     private final ParquetValueWriter<T> writer;
     private final List<TripleWriter<?>> children;
+    private final Set<Integer> optionalFieldIds;
     private long nullValueCount = 0;
 
-    OptionWriter(int definitionLevel, ParquetValueWriter<T> writer) {
+    OptionWriter(int definitionLevel, ParquetValueWriter<T> writer, Set<Integer> optionalFieldIds) {
       this.definitionLevel = definitionLevel;
       this.writer = writer;
       this.children = writer.columns();
+      this.optionalFieldIds = optionalFieldIds;
     }
 
     @Override
@@ -474,7 +504,8 @@ public class ParquetValueWriters {
           // we are not tracking field metrics for this type ourselves
           return Stream.empty();
         } else if (fieldMetricsFromWriter.size() == 1) {
-          return Stream.of(withNullValues(fieldMetricsFromWriter.get(0)));
+          // this option directly wraps an optional primitive, so its null count applies
+          return Stream.of(addNullValues(fieldMetricsFromWriter.get(0)));
         } else {
           throw new IllegalStateException(
               String.format(
@@ -485,12 +516,17 @@ public class ParquetValueWriters {
       }
 
       // A null value here is also null for every descendant column, but those columns are written
-      // directly and never see it, so their writers cannot count it. Add it to their metrics.
-      return writer.metrics().map(this::withNullValues);
+      // directly and never see it, so their writers cannot count it. Add it to the metrics of
+      // optional descendants; null counts are not tracked for required fields.
+      return writer
+          .metrics()
+          .map(
+              metrics ->
+                  optionalFieldIds.contains(metrics.id()) ? addNullValues(metrics) : metrics);
     }
 
     /** Adds the nulls counted by this writer to metrics produced by a descendant column. */
-    private FieldMetrics<?> withNullValues(FieldMetrics<?> metrics) {
+    private FieldMetrics<?> addNullValues(FieldMetrics<?> metrics) {
       if (nullValueCount == 0) {
         return metrics;
       }
