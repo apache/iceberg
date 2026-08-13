@@ -292,25 +292,6 @@ public class TypeUtil {
   }
 
   /**
-   * Returns whether a field is always present, meaning that it can never contain null values.
-   *
-   * <p>A field is always present if it is required and every field that contains it is required. A
-   * required field nested in an optional struct is null whenever that struct is null.
-   *
-   * @param schema The schema that contains the field ID
-   * @param fieldId The field ID to check
-   * @return true if the field cannot be null and is always present, false if it may be null
-   * @throws IllegalArgumentException if the field ID is not present in the schema
-   */
-  public static boolean alwaysPresent(Schema schema, int fieldId) {
-    Types.NestedField field = schema.findField(fieldId);
-    Preconditions.checkArgument(null != field, "Cannot find field with ID: %s", fieldId);
-
-    return field.isRequired()
-        && ancestorFields(schema, fieldId).stream().allMatch(Types.NestedField::isRequired);
-  }
-
-  /**
    * Assigns fresh ids from the {@link NextID nextId function} for all fields in a type.
    *
    * @param type a type

@@ -21,12 +21,13 @@ package org.apache.iceberg.expressions;
 import static org.apache.iceberg.expressions.Expressions.rewriteNot;
 
 import java.util.Collections;
+import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 import org.apache.iceberg.ContentStats;
 import org.apache.iceberg.FieldStats;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TrackedFile;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.variants.Variant;
@@ -50,7 +51,7 @@ import org.apache.iceberg.variants.VariantObject;
  */
 public class InclusiveStatsEvaluator {
   private final Expression expr;
-  private final Set<Integer> neverNullIds;
+  private final Set<Integer> alwaysPresentFieldIds;
 
   public InclusiveStatsEvaluator(Schema schema, Expression unbound) {
     this(schema, unbound, true);
@@ -59,28 +60,43 @@ public class InclusiveStatsEvaluator {
   public InclusiveStatsEvaluator(Schema schema, Expression unbound, boolean caseSensitive) {
     Types.StructType struct = schema.asStruct();
     this.expr = Binder.bind(struct, rewriteNot(unbound), caseSensitive);
-    this.neverNullIds =
-        neverNullIds(
+    this.alwaysPresentFieldIds =
+        alwaysPresentFieldIds(
             schema, Binder.boundReferences(struct, Collections.singletonList(expr), caseSensitive));
   }
 
   /**
    * Returns the IDs of the referenced fields that cannot contain null values.
    *
+   * <p>A field cannot be null if it is required and every field that contains it is required.
+   *
    * <p>Stats omit the null count for every required field. The count is zero for a field that
    * cannot be null, but it is unknown for a required field that an optional struct contains because
    * that field is null whenever the struct is null.
    */
-  private static Set<Integer> neverNullIds(Schema schema, Set<Integer> referencedIds) {
-    ImmutableSet.Builder<Integer> neverNull = ImmutableSet.builder();
+  private static Set<Integer> alwaysPresentFieldIds(Schema schema, Set<Integer> fieldIds) {
+    Map<Integer, Integer> idToParent = TypeUtil.indexParents(schema.asStruct());
+    return fieldIds.stream()
+        .filter(fieldId -> isAlwaysPresent(schema, idToParent, fieldId))
+        .collect(Collectors.toSet());
+  }
 
-    for (int id : referencedIds) {
-      if (TypeUtil.alwaysPresent(schema, id)) {
-        neverNull.add(id);
-      }
+  private static boolean isAlwaysPresent(
+      Schema schema, Map<Integer, Integer> idToParent, int fieldId) {
+    if (schema.findField(fieldId).isOptional()) {
+      return false;
     }
 
-    return neverNull.build();
+    Integer parentId = idToParent.get(fieldId);
+    while (parentId != null) {
+      if (schema.findField(parentId).isOptional()) {
+        return false;
+      }
+
+      parentId = idToParent.get(parentId);
+    }
+
+    return true;
   }
 
   /**
@@ -118,7 +134,7 @@ public class InclusiveStatsEvaluator {
 
     @Override
     protected boolean mayContainNull(int id) {
-      if (neverNullIds.contains(id)) {
+      if (alwaysPresentFieldIds.contains(id)) {
         return false;
       }
 
