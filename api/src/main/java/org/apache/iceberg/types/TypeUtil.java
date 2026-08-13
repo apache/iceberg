@@ -292,22 +292,35 @@ public class TypeUtil {
   }
 
   /**
-   * Returns whether a field may contain null values.
+   * Returns whether a field is always present, meaning that it can never contain null values.
    *
-   * <p>A field may be null if it is optional or if any field that contains it is optional. A
-   * required field nested in an optional struct is null whenever that struct is null. A field that
-   * is not present in the schema may be null because its requirement is unknown.
+   * <p>A field is always present if it is required and every field that contains it is required. A
+   * required field nested in an optional struct is null whenever that struct is null.
    *
-   * @param schema The schema that contains the field ID
+   * @param struct The struct that contains the field ID
    * @param fieldId The field ID to check
-   * @return true if the field may be null, false if it cannot be null
+   * @return true if the field cannot be null and is always present, false if it may be null
+   * @throws IllegalArgumentException if the field ID is not present in the struct
    */
-  public static boolean isNullable(Schema schema, int fieldId) {
-    Types.NestedField field = schema.findField(fieldId);
+  public static boolean alwaysPresent(Types.StructType struct, int fieldId) {
+    Types.NestedField field = struct.field(fieldId);
+    Preconditions.checkArgument(null != field, "Cannot find field with ID: %s", fieldId);
 
-    return field == null
-        || field.isOptional()
-        || ancestorFields(schema, fieldId).stream().anyMatch(Types.NestedField::isOptional);
+    if (field.isOptional()) {
+      return false;
+    }
+
+    Map<Integer, Integer> idToParent = indexParents(struct);
+    Integer parentId = idToParent.get(fieldId);
+    while (parentId != null) {
+      if (struct.field(parentId).isOptional()) {
+        return false;
+      }
+
+      parentId = idToParent.get(parentId);
+    }
+
+    return true;
   }
 
   /**

@@ -63,7 +63,7 @@ class InclusiveStatsEvaluator {
     this.expr = Binder.bind(struct, rewriteNot(unbound), caseSensitive);
     this.neverNullIds =
         neverNullIds(
-            schema, Binder.boundReferences(struct, Collections.singletonList(expr), caseSensitive));
+            struct, Binder.boundReferences(struct, Collections.singletonList(expr), caseSensitive));
   }
 
   /**
@@ -73,11 +73,11 @@ class InclusiveStatsEvaluator {
    * cannot be null, but it is unknown for a required field that an optional struct contains because
    * that field is null whenever the struct is null.
    */
-  private static Set<Integer> neverNullIds(Schema schema, Set<Integer> referencedIds) {
+  private static Set<Integer> neverNullIds(Types.StructType struct, Set<Integer> referencedIds) {
     ImmutableSet.Builder<Integer> neverNull = ImmutableSet.builder();
 
     for (int id : referencedIds) {
-      if (!TypeUtil.isNullable(schema, id)) {
+      if (TypeUtil.alwaysPresent(struct, id)) {
         neverNull.add(id);
       }
     }
