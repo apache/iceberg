@@ -24,7 +24,10 @@ import java.nio.ByteBuffer;
 import java.nio.charset.CharsetEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Random;
+import java.util.function.Function;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.primitives.UnsignedBytes;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
@@ -376,6 +379,97 @@ public class TestZOrderByteUtil {
               Arrays.toString(bBytes),
               byteCompare)
           .isEqualTo(stringCompare);
+    }
+  }
+
+  /**
+   * The random float/double ordering tests above draw from {@code nextFloat()}/{@code
+   * nextDouble()}, so the compared values essentially never agree on their high bits. Ordering is
+   * then decided by the high bits alone, which hides any corruption of the low bits. These cases
+   * pin the ordering for values that differ *only* in low mantissa bits, where the low bytes are
+   * what decides the comparison.
+   */
+  @Test
+  public void testFloatOrderingForConsecutiveMantissaValues() {
+    int baseBits = Float.floatToIntBits(1.0f);
+    List<Float> values = Lists.newArrayList();
+    for (int i = 0; i < 64; i++) {
+      values.add(Float.intBitsToFloat(baseBits + i));
+    }
+
+    assertOrderPreserved(
+        values, value -> encode(buffer -> ZOrderByteUtils.floatToOrderedBytes(value, buffer)));
+  }
+
+  @Test
+  public void testDoubleOrderingForValuesDifferingInLowMantissaBits() {
+    List<Double> values = Lists.newArrayList();
+    for (int i = 0; i < 64; i++) {
+      values.add(1.0d + (i * 0x1.0p-30));
+    }
+
+    assertOrderPreserved(
+        values, value -> encode(buffer -> ZOrderByteUtils.doubleToOrderedBytes(value, buffer)));
+  }
+
+  @Test
+  public void testNegativeDoubleOrderingForValuesDifferingInLowMantissaBits() {
+    List<Double> values = Lists.newArrayList();
+    for (int i = 63; i >= 0; i--) {
+      values.add(-1.0d - (i * 0x1.0p-30));
+    }
+
+    assertOrderPreserved(
+        values, value -> encode(buffer -> ZOrderByteUtils.doubleToOrderedBytes(value, buffer)));
+  }
+
+  /** Boundary pairs, including the ones that straddle zero and the extremes of the range. */
+  @Test
+  public void testDoubleOrderingForBoundaryPairs() {
+    double[][] ascendingPairs = {
+      {-921614.125d, -921614.0625d},
+      {-1.6001329423771755E213d, -1.600132804916327E213d},
+      {5.716890676284865E-207d, 5.7168911255697246E-207d},
+      {-Double.MIN_VALUE, 0.0d},
+      {0.0d, Double.MIN_VALUE},
+      {-Double.MAX_VALUE, Double.MAX_VALUE},
+      {-1.0d, 1.0d},
+    };
+
+    for (double[] pair : ascendingPairs) {
+      assertOrderPreserved(
+          Lists.newArrayList(pair[0], pair[1]),
+          value -> encode(buffer -> ZOrderByteUtils.doubleToOrderedBytes(value, buffer)));
+    }
+  }
+
+  private static byte[] encode(Function<ByteBuffer, ByteBuffer> encoder) {
+    return encoder.apply(ZOrderByteUtils.allocatePrimitiveBuffer()).array().clone();
+  }
+
+  /**
+   * Asserts that the given values, which must already be in ascending order, encode to
+   * lexicographically ascending bytes.
+   */
+  private static <T extends Comparable<T>> void assertOrderPreserved(
+      List<T> ascendingValues, Function<T, byte[]> encoder) {
+    for (int i = 1; i < ascendingValues.size(); i++) {
+      T smaller = ascendingValues.get(i - 1);
+      T larger = ascendingValues.get(i);
+      assertThat(smaller).isLessThan(larger);
+
+      byte[] smallerBytes = encoder.apply(smaller);
+      byte[] largerBytes = encoder.apply(larger);
+
+      assertThat(UnsignedBytes.lexicographicalComparator().compare(smallerBytes, largerBytes))
+          .as(
+              "Ordering of %s should match ordering of bytes, %s -> %s is not less than %s -> %s",
+              smaller.getClass().getSimpleName(),
+              smaller,
+              Arrays.toString(smallerBytes),
+              larger,
+              Arrays.toString(largerBytes))
+          .isNegative();
     }
   }
 
