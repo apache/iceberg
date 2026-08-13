@@ -111,6 +111,7 @@ public class InclusiveStatsEvaluator {
 
   private class StatsEvalVisitor extends InclusiveEvalVisitor {
     private ContentStats stats = null;
+    private long recordCount = 0;
 
     private boolean eval(TrackedFile file) {
       if (file.recordCount() == 0) {
@@ -128,6 +129,7 @@ public class InclusiveStatsEvaluator {
       }
 
       this.stats = contentStats;
+      this.recordCount = file.recordCount();
 
       return ExpressionVisitors.visitEvaluator(expr, this);
     }
@@ -139,18 +141,29 @@ public class InclusiveStatsEvaluator {
       }
 
       FieldStats<?> fieldStats = stats.statsFor(id);
-      return fieldStats == null
-          || !fieldStats.hasNullValueCount()
-          || fieldStats.nullValueCount() != 0;
+      if (fieldStats == null || !fieldStats.hasValueCount()) {
+        return true;
+      }
+
+      if (fieldStats.hasNullValueCount()) {
+        return fieldStats.nullValueCount() != 0;
+      } else {
+        return recordCount != fieldStats.valueCount();
+      }
     }
 
     @Override
     protected boolean containsNullsOnly(int id) {
       FieldStats<?> fieldStats = stats.statsFor(id);
-      return fieldStats != null
-          && fieldStats.hasValueCount()
-          && fieldStats.hasNullValueCount()
-          && fieldStats.valueCount() == fieldStats.nullValueCount();
+      if (fieldStats == null || !fieldStats.hasValueCount()) {
+        return false;
+      }
+
+      if (fieldStats.hasNullValueCount()) {
+        return fieldStats.nullValueCount() == fieldStats.valueCount();
+      } else {
+        return fieldStats.valueCount() == 0;
+      }
     }
 
     @Override

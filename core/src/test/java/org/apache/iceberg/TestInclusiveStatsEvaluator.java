@@ -21,8 +21,11 @@ package org.apache.iceberg;
 import static org.apache.iceberg.StatsTestUtil.contentStats;
 import static org.apache.iceberg.StatsTestUtil.fieldStats;
 import static org.apache.iceberg.StatsTestUtil.trackedFile;
+import static org.apache.iceberg.expressions.Expressions.isNull;
 import static org.apache.iceberg.expressions.Expressions.lessThan;
 import static org.apache.iceberg.expressions.Expressions.notNull;
+import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import org.apache.iceberg.expressions.Expression;
@@ -43,6 +46,18 @@ class TestInclusiveStatsEvaluator extends TestInclusiveMetricsEvaluator<TrackedF
 
   private static final Types.StructType FLOAT_STATS_TYPE =
       StatsUtil.statsReadSchema(FLOAT_SCHEMA, ImmutableList.of(1));
+
+  private static final Schema LOCATION_SCHEMA =
+      new Schema(
+          optional(
+              1,
+              "location",
+              Types.StructType.of(
+                  required(2, "lat", Types.FloatType.get()),
+                  optional(3, "alt", Types.FloatType.get()))));
+
+  private static final Types.StructType LOCATION_STATS_TYPE =
+      StatsUtil.statsReadSchema(LOCATION_SCHEMA, ImmutableList.of(2, 3));
 
   @Override
   protected boolean shouldRead(
@@ -104,8 +119,7 @@ class TestInclusiveStatsEvaluator extends TestInclusiveMetricsEvaluator<TrackedF
             NESTED_STATS_TYPE,
             stats(NESTED_STATS_TYPE, 102, null, null, 5L, null, null),
             stats(NESTED_STATS_TYPE, 103, null, null, 5L, 5L, null),
-            // required_street2 is required, so its stats do not track a null count
-            stats(NESTED_STATS_TYPE, 104, null, null, 5L, null, null),
+            stats(NESTED_STATS_TYPE, 104, null, null, 0L, null, null),
             stats(NESTED_STATS_TYPE, 105, null, null, 5L, 5L, null)));
   }
 
@@ -171,16 +185,60 @@ class TestInclusiveStatsEvaluator extends TestInclusiveMetricsEvaluator<TrackedF
         contentStats(FLOAT_STATS_TYPE, stats(FLOAT_STATS_TYPE, 1, 1.0f, 1.0f, 10L, null, 1L)));
   }
 
-  /**
-   * Content stats omit the null count for a required field, even when an optional struct contains
-   * it, so a file where every value is null cannot be pruned.
-   */
-  @Override
   @Test
-  public void notNullForRequiredFieldInOptionalStruct() {
-    boolean shouldRead =
-        shouldRead(NESTED_SCHEMA, notNull("optional_address.required_street2"), file6());
-    assertThat(shouldRead).as("Should read: the null count is not tracked").isTrue();
+  void nullsForFieldsInPartiallyPresentStruct() {
+    TrackedFile file =
+        trackedFile(
+            "partially_present.avro",
+            5,
+            contentStats(
+                LOCATION_STATS_TYPE,
+                stats(LOCATION_STATS_TYPE, 2, 1.0f, 3.0f, 3L, null, 0L),
+                stats(LOCATION_STATS_TYPE, 3, 0.0f, 0.0f, 3L, 2L, 0L)));
+
+    assertThat(shouldRead(LOCATION_SCHEMA, isNull("location.lat"), file))
+        .as("Should read: location.lat is null in 2 rows")
+        .isTrue();
+
+    assertThat(shouldRead(LOCATION_SCHEMA, notNull("location.lat"), file))
+        .as("Should read: location.lat has a value in 3 rows")
+        .isTrue();
+
+    assertThat(shouldRead(LOCATION_SCHEMA, isNull("location.alt"), file))
+        .as("Should read: location.alt is null in 4 rows")
+        .isTrue();
+
+    assertThat(shouldRead(LOCATION_SCHEMA, notNull("location.alt"), file))
+        .as("Should read: location.alt has a value in 1 row")
+        .isTrue();
+  }
+
+  @Test
+  void nullsForFieldsInFullyPresentStruct() {
+    TrackedFile file =
+        trackedFile(
+            "fully_present.avro",
+            5,
+            contentStats(
+                LOCATION_STATS_TYPE,
+                stats(LOCATION_STATS_TYPE, 2, 1.0f, 5.0f, 5L, null, 0L),
+                stats(LOCATION_STATS_TYPE, 3, 1.0f, 5.0f, 5L, 0L, 0L)));
+
+    assertThat(shouldRead(LOCATION_SCHEMA, isNull("location.lat"), file))
+        .as("Should not read: location.lat has a value in every row")
+        .isFalse();
+
+    assertThat(shouldRead(LOCATION_SCHEMA, isNull("location.alt"), file))
+        .as("Should not read: location.alt has a value in every row")
+        .isFalse();
+
+    assertThat(shouldRead(LOCATION_SCHEMA, notNull("location.lat"), file))
+        .as("Should read: location.lat has a value in every row")
+        .isTrue();
+
+    assertThat(shouldRead(LOCATION_SCHEMA, notNull("location.alt"), file))
+        .as("Should read: location.alt has a value in every row")
+        .isTrue();
   }
 
   @Test
