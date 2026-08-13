@@ -484,10 +484,15 @@ public class TestDictionaryRowGroupFilter {
   public void testColumnNotInFile() {
     Expression[] exprs =
         new Expression[] {
-          lessThan("not_in_file", 1.0f), lessThanOrEqual("not_in_file", 1.0f),
-          equal("not_in_file", 1.0f), greaterThan("not_in_file", 1.0f),
-          greaterThanOrEqual("not_in_file", 1.0f), notNull("not_in_file"),
-          isNull("not_in_file"), notEqual("not_in_file", 1.0f)
+          lessThan("not_in_file", 1.0f),
+          lessThanOrEqual("not_in_file", 1.0f),
+          equal("not_in_file", 1.0f),
+          greaterThan("not_in_file", 1.0f),
+          greaterThanOrEqual("not_in_file", 1.0f),
+          notNull("not_in_file"),
+          isNull("not_in_file"),
+          notEqual("not_in_file", 1.0f),
+          notNaN("not_in_file")
         };
 
     for (Expression expr : exprs) {
