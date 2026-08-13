@@ -86,7 +86,8 @@ public class Metrics implements Serializable {
    * @param nanValueCounts a map of field id to the number of NaN values, or null if unknown
    * @param lowerBounds a map of field id to the lower bound of the column, or null if unknown
    * @param upperBounds a map of field id to the upper bound of the column, or null if unknown
-   * @param originalTypes a map of field id to the original type of the column, or null if unknown
+   * @param originalTypes a map of field id to the original type of the lower/upper bound, or null
+   *  if unknown
    */
   public Metrics(
       Long rowCount,
