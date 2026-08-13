@@ -1342,6 +1342,131 @@ class TestConvertEqualityDeletes extends MaintenanceTaskTestBase {
     }
   }
 
+  @Test
+  void testDeleteResolvedBeforeFailureIsRetained() throws Exception {
+    Table table = createTableWithDelete(3);
+    insert(table, 1, "a");
+    insert(table, 2, "b");
+
+    // Two eq deletes in one commit. id=1's delete file stays readable so it resolves, while id=2's
+    // is removed so the cycle aborts only after id=1 has been resolved out of the index.
+    DeleteFile readableDelete = writeEqualityDelete(table, 1, "a");
+    DeleteFile missingDelete = writeEqualityDelete(table, 2, "b");
+    table.newRowDelta().addDeletes(readableDelete).addDeletes(missingDelete).commit();
+    table.refresh();
+
+    // Both rows are hidden by the eq deletes before the conversion runs.
+    assertRecords(table, ImmutableList.of());
+
+    long mainSnapshotBeforeConversion = table.currentSnapshot().snapshotId();
+    File missingDeleteLocalFile = new File(missingDelete.location().replace("file:", ""));
+    assertThat(missingDeleteLocalFile.delete()).isTrue();
+
+    appendConvertTask(SnapshotRef.MAIN_BRANCH);
+
+    JobClient jobClient = null;
+    try {
+      jobClient = infra.env().executeAsync();
+
+      long time1 = System.currentTimeMillis();
+      infra.source().sendRecord(Trigger.create(time1, 0), time1);
+      TaskResult result1 = infra.sink().poll(Duration.ofSeconds(10));
+
+      assertThat(result1.success()).isFalse();
+      table.refresh();
+      assertThat(table.currentSnapshot().snapshotId()).isEqualTo(mainSnapshotBeforeConversion);
+
+      // Rewrite an identical delete file and retry. The cursor did not advance, so the planner
+      // re-processes the same snapshot.
+      DeleteFile recreated =
+          FileHelpers.writeDeleteFile(
+              table,
+              Files.localOutput(missingDeleteLocalFile),
+              new PartitionData(PartitionSpec.unpartitioned().partitionType()),
+              Lists.newArrayList(createRecord(2, "b")),
+              table.schema());
+      assertThat(recreated.location()).isEqualTo(missingDelete.location());
+
+      long time2 = time1 + 1;
+      infra.source().sendRecord(Trigger.create(time2, 0), time2);
+      TaskResult result2 = infra.sink().poll(Duration.ofSeconds(10));
+
+      assertThat(result2.exceptions()).isEmpty();
+      assertThat(result2.success()).isTrue();
+
+      table.refresh();
+      // The retried cycle converted both eq deletes, so both rows stay deleted.
+      assertNoEqualityDeletesOnMain(table, 0);
+      assertRecords(table, ImmutableList.of());
+    } finally {
+      closeJobClient(jobClient);
+    }
+  }
+
+  @Test
+  void testDeleteResolvedBeforeFailureIsRetainedOnSeparateStagingBranch() throws Exception {
+    Table table = createTableWithDelete(3);
+    insert(table, 1, "a");
+    insert(table, 2, "b");
+
+    table.manageSnapshots().createBranch(STAGING_BRANCH).commit();
+    table.refresh();
+
+    long targetSnapshotBeforeConversion = table.currentSnapshot().snapshotId();
+
+    // Same shape as the in-place case, but the eq deletes live on a separate staging branch. The
+    // target only advances when the converter commits, so nothing else can rebuild the index.
+    DeleteFile readableDelete = writeEqualityDelete(table, 1, "a");
+    DeleteFile missingDelete = writeEqualityDelete(table, 2, "b");
+    table
+        .newRowDelta()
+        .addDeletes(readableDelete)
+        .addDeletes(missingDelete)
+        .toBranch(STAGING_BRANCH)
+        .commit();
+    table.refresh();
+
+    File missingDeleteLocalFile = new File(missingDelete.location().replace("file:", ""));
+    assertThat(missingDeleteLocalFile.delete()).isTrue();
+
+    appendConvertTask(STAGING_BRANCH);
+
+    JobClient jobClient = null;
+    try {
+      jobClient = infra.env().executeAsync();
+
+      long time1 = System.currentTimeMillis();
+      infra.source().sendRecord(Trigger.create(time1, 0), time1);
+      TaskResult result1 = infra.sink().poll(Duration.ofSeconds(10));
+
+      assertThat(result1.success()).isFalse();
+      table.refresh();
+      assertThat(table.currentSnapshot().snapshotId()).isEqualTo(targetSnapshotBeforeConversion);
+
+      DeleteFile recreated =
+          FileHelpers.writeDeleteFile(
+              table,
+              Files.localOutput(missingDeleteLocalFile),
+              new PartitionData(PartitionSpec.unpartitioned().partitionType()),
+              Lists.newArrayList(createRecord(2, "b")),
+              table.schema());
+      assertThat(recreated.location()).isEqualTo(missingDelete.location());
+
+      long time2 = time1 + 1;
+      infra.source().sendRecord(Trigger.create(time2, 0), time2);
+      TaskResult result2 = infra.sink().poll(Duration.ofSeconds(10));
+
+      assertThat(result2.exceptions()).isEmpty();
+      assertThat(result2.success()).isTrue();
+
+      table.refresh();
+      // Both deletes converted to DVs on the target, so neither row is visible there.
+      assertRecords(table, ImmutableList.of());
+    } finally {
+      closeJobClient(jobClient);
+    }
+  }
+
   private void appendConvertTask() {
     appendConvertTask(STAGING_BRANCH);
   }

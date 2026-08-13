@@ -58,9 +58,11 @@ import org.slf4j.LoggerFactory;
  * On a separate target branch the committer reassigns data sequence numbers, so every match is
  * deleted; event-time ordering prevents over-deletion.
  *
- * <p>Stale-index protection runs on two levels. Each key tracks the main sequence number its stored
- * positions were indexed against. The sequence number is unique and monotonic per snapshot, so it
- * serves both the equality test below and the ordering test:
+ * <p>Stale-index protection runs on two levels. Each key tracks the sequence number the commands
+ * carrying its stored positions were stamped with. That number is main's sequence number at the
+ * last index build, or higher when the planner rebuilds the index while main stands still, and it
+ * strictly increases with every rebuild, so it serves both the equality test below and the ordering
+ * test:
  *
  * <ul>
  *   <li><b>Lazy (per-key)</b>: any keyed command at the top of {@link #processElement} whose {@link
