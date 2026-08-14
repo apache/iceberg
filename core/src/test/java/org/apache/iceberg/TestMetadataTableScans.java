@@ -99,7 +99,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
   }
 
   @TestTemplate
-  public void testManifestsTableWithDroppedPartition() throws IOException {
+  public void manifestsTableWithDroppedPartition() throws IOException {
     table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
     table.updateSpec().removeField(Expressions.bucket("data", 16)).commit();
@@ -122,7 +122,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
   }
 
   @TestTemplate
-  public void testManifestsTableAlwaysIgnoresResiduals() throws IOException {
+  public void manifestsTableAlwaysIgnoresResiduals() throws IOException {
     table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
     Table manifestsTable = new ManifestsTable(table);
@@ -140,7 +140,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
   }
 
   @TestTemplate
-  public void testMetadataTableUUID() {
+  public void metadataTableUUID() {
     Table manifestsTable = new ManifestsTable(table);
 
     assertThat(manifestsTable.uuid())
@@ -152,7 +152,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
   }
 
   @TestTemplate
-  public void testDataFilesTableWithDroppedPartition() throws IOException {
+  public void dataFilesTableWithDroppedPartition() throws IOException {
     table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
     table.updateSpec().removeField(Expressions.bucket("data", 16)).commit();
@@ -175,7 +175,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
   }
 
   @TestTemplate
-  public void testDataFilesTableHonorsIgnoreResiduals() throws IOException {
+  public void dataFilesTableHonorsIgnoreResiduals() throws IOException {
     table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
     Table dataFilesTable = new DataFilesTable(table);
@@ -189,7 +189,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
   }
 
   @TestTemplate
-  public void testManifestEntriesTableHonorsIgnoreResiduals() throws IOException {
+  public void manifestEntriesTableHonorsIgnoreResiduals() throws IOException {
     table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
     Table manifestEntriesTable = new ManifestEntriesTable(table);
@@ -206,7 +206,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
   }
 
   @TestTemplate
-  public void testManifestEntriesTableWithDroppedPartition() throws IOException {
+  public void manifestEntriesTableWithDroppedPartition() throws IOException {
     table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
     table.updateSpec().removeField(Expressions.bucket("data", 16)).commit();
@@ -229,7 +229,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
   }
 
   @TestTemplate
-  public void testEntriesTableDataFileContentEq() {
+  public void entriesTableDataFileContentEq() {
     preparePartitionedTable();
 
     Table entriesTable = new ManifestEntriesTable(table);
@@ -252,7 +252,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
   }
 
   @TestTemplate
-  public void testEntriesTableDataFileContentNotEq() {
+  public void entriesTableDataFileContentNotEq() {
     // Write position and equality deletes into the same delete manifest.
     preparePartitionedTable(true);
 
@@ -290,7 +290,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
   }
 
   @TestTemplate
-  public void testEntriesTableDataFileContentIn() {
+  public void entriesTableDataFileContentIn() {
     preparePartitionedTable();
     Table entriesTable = new ManifestEntriesTable(table);
 
@@ -327,7 +327,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
   }
 
   @TestTemplate
-  public void testEntriesTableDataFileContentNotIn() {
+  public void entriesTableDataFileContentNotIn() {
     // Write position and equality deletes into the same delete manifest.
     preparePartitionedTable(true);
     Table entriesTable = new ManifestEntriesTable(table);
@@ -376,7 +376,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
   }
 
   @TestTemplate
-  public void testAllDataFilesTableHonorsIgnoreResiduals() throws IOException {
+  public void allDataFilesTableHonorsIgnoreResiduals() throws IOException {
     table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
     Table allDataFilesTable = new AllDataFilesTable(table);
@@ -390,7 +390,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
   }
 
   @TestTemplate
-  public void testAllDataFilesTableWithDroppedPartition() throws IOException {
+  public void allDataFilesTableWithDroppedPartition() throws IOException {
     table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
     table.updateSpec().removeField(Expressions.bucket("data", 16)).commit();
@@ -413,7 +413,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
   }
 
   @TestTemplate
-  public void testAllEntriesTableHonorsIgnoreResiduals() throws IOException {
+  public void allEntriesTableHonorsIgnoreResiduals() throws IOException {
     table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
     Table allEntriesTable = new AllEntriesTable(table);
@@ -427,7 +427,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
   }
 
   @TestTemplate
-  public void testAllEntriesTableWithDroppedPartition() throws IOException {
+  public void allEntriesTableWithDroppedPartition() throws IOException {
     table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
     table.updateSpec().removeField(Expressions.bucket("data", 16)).commit();
@@ -450,7 +450,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
   }
 
   @TestTemplate
-  public void testAllManifestsTableWithDroppedPartition() throws IOException {
+  public void allManifestsTableWithDroppedPartition() throws IOException {
     table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
     table.updateSpec().removeField(Expressions.bucket("data", 16)).commit();
@@ -474,7 +474,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
   }
 
   @TestTemplate
-  public void testAllManifestsTableHonorsIgnoreResiduals() throws IOException {
+  public void allManifestsTableHonorsIgnoreResiduals() throws IOException {
     table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
     Table allManifestsTable = new AllManifestsTable(table);
@@ -491,7 +491,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
   }
 
   @TestTemplate
-  public void testAllManifestsTableNegatedPredicateOnNonSnapshotColumn() {
+  public void allManifestsTableNegatedPredicateOnNonSnapshotColumn() {
     // Snapshots 1,2,3,4
     preparePartitionedTableData();
 
@@ -507,7 +507,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
   }
 
   @TestTemplate
-  public void testAllManifestsTableNotEqualPredicateOnNonSnapshotColumn() {
+  public void allManifestsTableNotEqualPredicateOnNonSnapshotColumn() {
     // Snapshots 1,2,3,4
     preparePartitionedTableData();
 
@@ -523,7 +523,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
   }
 
   @TestTemplate
-  public void testAllManifestsTableNegatedOrPredicate() {
+  public void allManifestsTableNegatedOrPredicate() {
     // Snapshots 1,2,3,4
     preparePartitionedTableData();
 
@@ -557,7 +557,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
   }
 
   @TestTemplate
-  public void testAllManifestsTableNegatedAndPredicate() {
+  public void allManifestsTableNegatedAndPredicate() {
     // Snapshots 1,2,3,4
     preparePartitionedTableData();
 
@@ -590,7 +590,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
   }
 
   @TestTemplate
-  public void testAllManifestsTableNegatedSnapshotOnlyPredicate() {
+  public void allManifestsTableNegatedSnapshotOnlyPredicate() {
     // Snapshots 1,2,3,4
     preparePartitionedTableData();
 
@@ -614,7 +614,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
   }
 
   @TestTemplate
-  public void testPartitionsTableScanNoFilter() {
+  public void partitionsTableScanNoFilter() {
     preparePartitionedTable();
 
     Table partitionsTable = new PartitionsTable(table);
@@ -643,7 +643,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
   }
 
   @TestTemplate
-  public void testPartitionsTableScanWithProjection() {
+  public void partitionsTableScanWithProjection() {
     preparePartitionedTable();
 
     Table partitionsTable = new PartitionsTable(table);
@@ -668,7 +668,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
   }
 
   @TestTemplate
-  public void testPartitionsTableReusesPartitionDataSchema() {
+  public void partitionsTableReusesPartitionDataSchema() {
     preparePartitionedTable();
 
     Table partitionsTable = new PartitionsTable(table);
@@ -685,7 +685,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
   }
 
   @TestTemplate
-  public void testPartitionsTableScanNoStats() {
+  public void partitionsTableScanNoStats() {
     table.newFastAppend().appendFile(FILE_WITH_STATS).commit();
 
     Table partitionsTable = new PartitionsTable(table);
@@ -702,7 +702,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
   }
 
   @TestTemplate
-  public void testPartitionsTableScanAndFilter() {
+  public void partitionsTableScanAndFilter() {
     preparePartitionedTable();
 
     Table partitionsTable = new PartitionsTable(table);
@@ -724,7 +724,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
   }
 
   @TestTemplate
-  public void testPartitionsTableScanLtFilter() {
+  public void partitionsTableScanLtFilter() {
     preparePartitionedTable();
 
     Table partitionsTable = new PartitionsTable(table);
@@ -747,7 +747,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
   }
 
   @TestTemplate
-  public void testPartitionsTableScanOrFilter() {
+  public void partitionsTableScanOrFilter() {
     preparePartitionedTable();
 
     Table partitionsTable = new PartitionsTable(table);
@@ -773,7 +773,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
   }
 
   @TestTemplate
-  public void testPartitionsScanNotFilter() {
+  public void partitionsScanNotFilter() {
     preparePartitionedTable();
     Table partitionsTable = new PartitionsTable(table);
 
@@ -792,7 +792,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
   }
 
   @TestTemplate
-  public void testPartitionsTableScanInFilter() {
+  public void partitionsTableScanInFilter() {
     preparePartitionedTable();
 
     Table partitionsTable = new PartitionsTable(table);
@@ -812,7 +812,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
   }
 
   @TestTemplate
-  public void testPartitionsTableScanNotNullFilter() {
+  public void partitionsTableScanNotNullFilter() {
     preparePartitionedTable();
 
     Table partitionsTable = new PartitionsTable(table);
@@ -834,7 +834,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
   }
 
   @TestTemplate
-  public void testFilesTableScanWithDroppedPartition() throws IOException {
+  public void filesTableScanWithDroppedPartition() throws IOException {
     preparePartitionedTable();
 
     table.updateSpec().removeField(Expressions.bucket("data", 16)).commit();
@@ -880,7 +880,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
   }
 
   @TestTemplate
-  public void testDeleteFilesTableSelection() throws IOException {
+  public void deleteFilesTableSelection() throws IOException {
     assumeThat(formatVersion).as("Position deletes are not supported by V1 Tables").isNotEqualTo(1);
     table.newFastAppend().appendFile(FILE_A).commit();
 
@@ -908,7 +908,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
   }
 
   @TestTemplate
-  public void testFilesTableReadableMetricsSchema() {
+  public void filesTableReadableMetricsSchema() {
     Table filesTable = new FilesTable(table);
     Types.StructType actual = filesTable.newScan().schema().select("readable_metrics").asStruct();
     int highestId = filesTable.schema().highestFieldId();
@@ -995,7 +995,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
   }
 
   @TestTemplate
-  public void testEntriesTableReadableMetricsSchema() {
+  public void entriesTableReadableMetricsSchema() {
     Table entriesTable = new ManifestEntriesTable(table);
     Types.StructType actual = entriesTable.newScan().schema().select("readable_metrics").asStruct();
     int highestId = entriesTable.schema().highestFieldId();
@@ -1082,7 +1082,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
   }
 
   @TestTemplate
-  public void testPartitionSpecEvolutionAdditive() {
+  public void partitionSpecEvolutionAdditive() {
     preparePartitionedTable();
 
     // Change spec and add two data files
@@ -1147,7 +1147,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
   }
 
   @TestTemplate
-  public void testPartitionSpecEvolutionRemoval() {
+  public void partitionSpecEvolutionRemoval() {
     preparePartitionedTable();
 
     // Remove partition field
@@ -1226,7 +1226,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
   }
 
   @TestTemplate
-  public void testPartitionColumnNamedPartition() throws Exception {
+  public void partitionColumnNamedPartition() throws Exception {
     TestTables.clearTables();
 
     Schema schema =
@@ -1277,7 +1277,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
   }
 
   @TestTemplate
-  public void testAllDataFilesTableScanWithPlanExecutor() throws IOException {
+  public void allDataFilesTableScanWithPlanExecutor() throws IOException {
     table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
     Table allDataFilesTable = new AllDataFilesTable(table);
@@ -1302,7 +1302,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
   }
 
   @TestTemplate
-  public void testAllEntriesTableScanWithPlanExecutor() throws IOException {
+  public void allEntriesTableScanWithPlanExecutor() throws IOException {
     table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
     Table allEntriesTable = new AllEntriesTable(table);
@@ -1327,7 +1327,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
   }
 
   @TestTemplate
-  public void testPartitionsTableScanWithPlanExecutor() {
+  public void partitionsTableScanWithPlanExecutor() {
     preparePartitionedTable();
 
     Table partitionsTable = new PartitionsTable(table);
@@ -1359,7 +1359,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
   }
 
   @TestTemplate
-  public void testAllManifestsTableSnapshotGt() {
+  public void allManifestsTableSnapshotGt() {
     // Snapshots 1,2,3,4
     preparePartitionedTableData();
 
@@ -1373,7 +1373,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
   }
 
   @TestTemplate
-  public void testAllManifestsTableSnapshotGte() {
+  public void allManifestsTableSnapshotGte() {
     // Snapshots 1,2,3,4
     preparePartitionedTableData();
 
@@ -1387,7 +1387,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
   }
 
   @TestTemplate
-  public void testAllManifestsTableSnapshotLt() {
+  public void allManifestsTableSnapshotLt() {
     // Snapshots 1,2,3,4
     preparePartitionedTableData();
 
@@ -1401,7 +1401,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
   }
 
   @TestTemplate
-  public void testAllManifestsTableSnapshotLte() {
+  public void allManifestsTableSnapshotLte() {
     // Snapshots 1,2,3,4
     preparePartitionedTableData();
 
@@ -1415,7 +1415,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
   }
 
   @TestTemplate
-  public void testAllManifestsTableSnapshotEq() {
+  public void allManifestsTableSnapshotEq() {
     // Snapshots 1,2,3,4
     preparePartitionedTableData();
 
@@ -1429,7 +1429,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
   }
 
   @TestTemplate
-  public void testAllManifestsTableSnapshotNotEq() {
+  public void allManifestsTableSnapshotNotEq() {
     // Snapshots 1,2,3,4
     preparePartitionedTableData();
 
@@ -1443,7 +1443,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
   }
 
   @TestTemplate
-  public void testAllManifestsTableSnapshotIn() {
+  public void allManifestsTableSnapshotIn() {
     // Snapshots 1,2,3,4
     preparePartitionedTableData();
 
@@ -1457,7 +1457,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
   }
 
   @TestTemplate
-  public void testAllManifestsTableSnapshotNotIn() {
+  public void allManifestsTableSnapshotNotIn() {
     // Snapshots 1,2,3,4
     preparePartitionedTableData();
 
@@ -1471,7 +1471,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
   }
 
   @TestTemplate
-  public void testAllManifestsTableSnapshotAnd() {
+  public void allManifestsTableSnapshotAnd() {
     // Snapshots 1,2,3,4
     preparePartitionedTableData();
 
@@ -1490,7 +1490,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
   }
 
   @TestTemplate
-  public void testAllManifestsTableSnapshotOr() {
+  public void allManifestsTableSnapshotOr() {
     // Snapshots 1,2,3,4
     preparePartitionedTableData();
 
@@ -1509,7 +1509,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
   }
 
   @TestTemplate
-  public void testAllManifestsTableSnapshotNot() {
+  public void allManifestsTableSnapshotNot() {
     // Snapshots 1,2,3,4
     preparePartitionedTableData();
 
@@ -1525,7 +1525,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
   }
 
   @TestTemplate
-  public void testPositionDeletesWithFilter() {
+  public void positionDeletesWithFilter() {
     assumeThat(formatVersion).as("Position deletes are not supported by V1 Tables").isNotEqualTo(1);
     preparePartitionedTable();
 
@@ -1579,16 +1579,16 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
   }
 
   @TestTemplate
-  public void testPositionDeletesBaseTableFilterManifestLevel() {
-    testPositionDeletesBaseTableFilter(false);
+  public void positionDeletesBaseTableFilterManifestLevel() {
+    positionDeletesBaseTableFilter(false);
   }
 
   @TestTemplate
-  public void testPositionDeletesBaseTableFilterEntriesLevel() {
-    testPositionDeletesBaseTableFilter(true);
+  public void positionDeletesBaseTableFilterEntriesLevel() {
+    positionDeletesBaseTableFilter(true);
   }
 
-  private void testPositionDeletesBaseTableFilter(boolean transactional) {
+  private void positionDeletesBaseTableFilter(boolean transactional) {
     assumeThat(formatVersion).as("Position deletes are not supported by V1 Tables").isNotEqualTo(1);
     preparePartitionedTable(transactional);
 
@@ -1649,7 +1649,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
   }
 
   @TestTemplate
-  public void testPositionDeletesWithBaseTableFilterNot() {
+  public void positionDeletesWithBaseTableFilterNot() {
     assumeThat(formatVersion).as("Position deletes are not supported by V1 Tables").isEqualTo(2);
     // use identity rather than bucket partition spec,
     // as bucket.project does not support projecting notEq
@@ -1732,7 +1732,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
   }
 
   @TestTemplate
-  public void testPositionDeletesResiduals() {
+  public void positionDeletesResiduals() {
     assumeThat(formatVersion).as("Position deletes are not supported by V1 Tables").isNotEqualTo(1);
     preparePartitionedTable();
 
@@ -1761,7 +1761,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
   }
 
   @TestTemplate
-  public void testPositionDeletesUnpartitioned() {
+  public void positionDeletesUnpartitioned() {
     assumeThat(formatVersion).as("Position deletes are not supported by V1 Tables").isNotEqualTo(1);
     table.updateSpec().removeField(Expressions.bucket("data", BUCKETS_NUMBER)).commit();
 
@@ -1840,7 +1840,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
   }
 
   @TestTemplate
-  public void testPositionDeletesManyColumns() {
+  public void positionDeletesManyColumns() {
     assumeThat(formatVersion).as("Position deletes are not supported by V1 Tables").isNotEqualTo(1);
     UpdateSchema updateSchema = table.updateSchema();
     for (int i = 0; i <= 2000; i++) {
@@ -1894,7 +1894,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
   }
 
   @TestTemplate
-  public void testFilesTableEstimateSize() throws Exception {
+  public void filesTableEstimateSize() throws Exception {
     preparePartitionedTable(true);
 
     assertEstimatedRowCount(new DataFilesTable(table), 4);
@@ -1908,7 +1908,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
   }
 
   @TestTemplate
-  public void testEntriesTableEstimateSize() throws Exception {
+  public void entriesTableEstimateSize() throws Exception {
     preparePartitionedTable(true);
 
     assertEstimatedRowCount(new ManifestEntriesTable(table), 4);
@@ -1916,7 +1916,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
   }
 
   @TestTemplate
-  public void testMetadataTableScansOnBranch() throws IOException {
+  public void metadataTableScansOnBranch() throws IOException {
     table.newFastAppend().appendFile(FILE_A).commit();
     table.manageSnapshots().createBranch("testBranch").commit();
     table.newFastAppend().appendFile(FILE_B).commit();
@@ -1961,7 +1961,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
   }
 
   @TestTemplate
-  public void testDeleteFilesTableScanOnBranch() throws IOException {
+  public void deleteFilesTableScanOnBranch() throws IOException {
     assumeThat(formatVersion).as("Delete files are not supported by V1 Tables").isGreaterThan(1);
 
     table.newFastAppend().appendFile(FILE_A).commit();
@@ -1980,7 +1980,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
   }
 
   @TestTemplate
-  public void testNotEqualReturnsEqualityDeletesFromMixedDeleteManifest() throws IOException {
+  public void notEqualReturnsEqualityDeletesFromMixedDeleteManifest() throws IOException {
     assumeThat(formatVersion).as("Only V2+ tables support deletes").isGreaterThanOrEqualTo(2);
 
     // Creates one delete manifest containing both position and equality deletes.

@@ -78,6 +78,7 @@ nav:
         - DuckDB: https://duckdb.org/docs/preview/core_extensions/iceberg/overview
         - Estuary: https://docs.estuary.dev/reference/Connectors/materialization-connectors/apache-iceberg/
         - Firebolt: https://docs.firebolt.io/reference-sql/functions-reference/table-valued/read_iceberg
+        - Fivetran: https://fivetran.com/docs/managed-data-lake-service
         - Google BigQuery: https://cloud.google.com/bigquery/docs/iceberg-tables
         - Impala: https://impala.apache.org/docs/build/html/topics/impala_iceberg.html
         - Memiiso Debezium: https://memiiso.github.io/debezium-server-iceberg/

@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.util;
 
-import java.util.Objects;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -62,54 +61,5 @@ public class DeleteFileSet extends WrapperSet<DeleteFile> {
   @Override
   protected Class<DeleteFile> elementClass() {
     return DeleteFile.class;
-  }
-
-  private static class DeleteFileWrapper implements Wrapper<DeleteFile> {
-    private DeleteFile file;
-
-    private DeleteFileWrapper(DeleteFile file) {
-      this.file = file;
-    }
-
-    private static DeleteFileWrapper wrap(DeleteFile deleteFile) {
-      return new DeleteFileWrapper(deleteFile);
-    }
-
-    @Override
-    public DeleteFile get() {
-      return file;
-    }
-
-    @Override
-    public Wrapper<DeleteFile> set(DeleteFile deleteFile) {
-      this.file = deleteFile;
-      return this;
-    }
-
-    @Override
-    public boolean equals(Object o) {
-      if (this == o) {
-        return true;
-      }
-
-      if (!(o instanceof DeleteFileWrapper)) {
-        return false;
-      }
-
-      DeleteFileWrapper that = (DeleteFileWrapper) o;
-      return Objects.equals(file.location(), that.file.location())
-          && Objects.equals(file.contentOffset(), that.file.contentOffset())
-          && Objects.equals(file.contentSizeInBytes(), that.file.contentSizeInBytes());
-    }
-
-    @Override
-    public int hashCode() {
-      return Objects.hash(file.location(), file.contentOffset(), file.contentSizeInBytes());
-    }
-
-    @Override
-    public String toString() {
-      return file.location();
-    }
   }
 }
