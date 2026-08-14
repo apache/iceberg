@@ -19,21 +19,35 @@
 package org.apache.iceberg.connect.data;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import java.util.Map;
+import org.apache.iceberg.connect.IcebergSinkConfig;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.SchemaBuilder;
 import org.apache.kafka.connect.data.Struct;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 public class TestRecordUtils {
+
+  private IcebergSinkConfig config;
+
+  @BeforeEach
+  public void before() {
+    this.config = mock(IcebergSinkConfig.class);
+    when(config.replaceNullWithDefault()).thenReturn(true);
+  }
 
   @Test
   public void testExtractFromRecordValueStruct() {
     Schema valSchema = SchemaBuilder.struct().field("key", Schema.INT64_SCHEMA).build();
     Struct val = new Struct(valSchema).put("key", 123L);
-    Object result = RecordUtils.extractFromRecordValue(val, "key");
+    Object result = RecordUtils.extractFromRecordValue(val, "key", config);
     assertThat(result).isEqualTo(123L);
   }
 
@@ -47,7 +61,7 @@ public class TestRecordUtils {
     Struct data = new Struct(dataSchema).put("id", id);
     Struct val = new Struct(valSchema).put("data", data);
 
-    Object result = RecordUtils.extractFromRecordValue(val, "data.id.key");
+    Object result = RecordUtils.extractFromRecordValue(val, "data.id.key", config);
     assertThat(result).isEqualTo(123L);
   }
 
@@ -56,17 +70,37 @@ public class TestRecordUtils {
     Schema valSchema = SchemaBuilder.struct().field("key", Schema.INT64_SCHEMA).build();
     Struct val = new Struct(valSchema).put("key", 123L);
 
-    Object result = RecordUtils.extractFromRecordValue(val, "");
+    Object result = RecordUtils.extractFromRecordValue(val, "", config);
     assertThat(result).isNull();
 
-    result = RecordUtils.extractFromRecordValue(val, "xkey");
+    result = RecordUtils.extractFromRecordValue(val, "xkey", config);
     assertThat(result).isNull();
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  public void testExtractFromRecordValueStructReplaceNullWithDefault(
+      boolean replaceNullWithDefault) {
+    when(config.replaceNullWithDefault()).thenReturn(replaceNullWithDefault);
+
+    Schema valSchema =
+        SchemaBuilder.struct()
+            .field("key", SchemaBuilder.string().optional().defaultValue("default").build())
+            .build();
+    Struct val = new Struct(valSchema).put("key", null);
+
+    Object result = RecordUtils.extractFromRecordValue(val, "key", config);
+    if (replaceNullWithDefault) {
+      assertThat(result).isEqualTo("default");
+    } else {
+      assertThat(result).isNull();
+    }
   }
 
   @Test
   public void testExtractFromRecordValueMap() {
     Map<String, Object> val = ImmutableMap.of("key", 123L);
-    Object result = RecordUtils.extractFromRecordValue(val, "key");
+    Object result = RecordUtils.extractFromRecordValue(val, "key", config);
     assertThat(result).isEqualTo(123L);
   }
 
@@ -76,7 +110,7 @@ public class TestRecordUtils {
     Map<String, Object> data = ImmutableMap.of("id", id);
     Map<String, Object> val = ImmutableMap.of("data", data);
 
-    Object result = RecordUtils.extractFromRecordValue(val, "data.id.key");
+    Object result = RecordUtils.extractFromRecordValue(val, "data.id.key", config);
     assertThat(result).isEqualTo(123L);
   }
 
@@ -84,10 +118,10 @@ public class TestRecordUtils {
   public void testExtractFromRecordValueMapNull() {
     Map<String, Object> val = ImmutableMap.of("key", 123L);
 
-    Object result = RecordUtils.extractFromRecordValue(val, "");
+    Object result = RecordUtils.extractFromRecordValue(val, "", config);
     assertThat(result).isNull();
 
-    result = RecordUtils.extractFromRecordValue(val, "xkey");
+    result = RecordUtils.extractFromRecordValue(val, "xkey", config);
     assertThat(result).isNull();
   }
 }

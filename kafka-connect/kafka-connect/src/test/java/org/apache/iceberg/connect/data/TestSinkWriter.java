@@ -45,10 +45,14 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.record.TimestampType;
+import org.apache.kafka.connect.data.SchemaBuilder;
+import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 public class TestSinkWriter {
 
@@ -152,6 +156,51 @@ public class TestSinkWriter {
     assertThat(writerResults).hasSize(1);
     IcebergWriterResult writerResult = writerResults.get(0);
     assertThat(writerResult.tableReference().identifier()).isEqualTo(TABLE_IDENTIFIER);
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  public void testDynamicRouteReplaceNullWithDefault(boolean replaceNullWithDefault) {
+    IcebergSinkConfig config = mock(IcebergSinkConfig.class);
+    when(config.tables()).thenReturn(ImmutableList.of(TABLE_IDENTIFIER.toString()));
+    when(config.tableConfig(any())).thenReturn(mock(TableSinkConfig.class));
+    when(config.dynamicTablesEnabled()).thenReturn(true);
+    when(config.tablesRouteField()).thenReturn(ROUTE_FIELD);
+    when(config.replaceNullWithDefault()).thenReturn(replaceNullWithDefault);
+
+    org.apache.kafka.connect.data.Schema valueSchema =
+        SchemaBuilder.struct()
+            .field("id", org.apache.kafka.connect.data.Schema.OPTIONAL_INT64_SCHEMA)
+            .field(
+                ROUTE_FIELD,
+                SchemaBuilder.string().optional().defaultValue(TABLE_IDENTIFIER.toString()).build())
+            .build();
+    Struct value = new Struct(valueSchema).put("id", 123L).put(ROUTE_FIELD, null);
+
+    SinkWriter sinkWriter = new SinkWriter(catalog, config);
+    SinkRecord rec =
+        new SinkRecord(
+            "topic",
+            1,
+            null,
+            "key",
+            valueSchema,
+            value,
+            100L,
+            Instant.now().toEpochMilli(),
+            TimestampType.LOG_APPEND_TIME);
+    sinkWriter.save(ImmutableList.of(rec));
+    SinkWriterResult result = sinkWriter.completeWrite();
+
+    if (replaceNullWithDefault) {
+      // the schema default is used as the route value
+      assertThat(result.writerResults()).hasSize(1);
+      assertThat(result.writerResults().get(0).tableReference().identifier())
+          .isEqualTo(TABLE_IDENTIFIER);
+    } else {
+      // an explicitly-null route field is skipped like any other null route value
+      assertThat(result.writerResults()).isEmpty();
+    }
   }
 
   @Test

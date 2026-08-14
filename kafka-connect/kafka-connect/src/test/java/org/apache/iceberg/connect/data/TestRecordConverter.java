@@ -220,6 +220,7 @@ public class TestRecordConverter {
   public void before() {
     this.config = mock(IcebergSinkConfig.class);
     when(config.jsonConverter()).thenReturn(JSON_CONVERTER);
+    when(config.replaceNullWithDefault()).thenReturn(true);
   }
 
   @Test
@@ -449,6 +450,31 @@ public class TestRecordConverter {
     } else {
       assertThat(record1.getField("ii")).isEqualTo(null);
       assertThat(record2.getField("ii")).isEqualTo(null);
+    }
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  public void testReplaceNullWithDefault(boolean replaceNullWithDefault) {
+    Table table = mock(Table.class);
+    when(table.schema())
+        .thenReturn(new org.apache.iceberg.Schema(NestedField.optional(1, "s", StringType.get())));
+
+    when(config.replaceNullWithDefault()).thenReturn(replaceNullWithDefault);
+
+    RecordConverter converter = new RecordConverter(table, config);
+
+    Schema connectSchema =
+        SchemaBuilder.struct()
+            .field("s", SchemaBuilder.string().optional().defaultValue("").build())
+            .build();
+    Struct data = new Struct(connectSchema).put("s", null);
+    Record record = converter.convert(data);
+
+    if (replaceNullWithDefault) {
+      assertThat(record.getField("s")).isEqualTo("");
+    } else {
+      assertThat(record.getField("s")).isNull();
     }
   }
 
@@ -1730,6 +1756,29 @@ public class TestRecordConverter {
 
     assertThat(innerVal.asObject().get("d").type()).isEqualTo(PhysicalType.DATE);
     assertThat(innerVal.asObject().get("d").asPrimitive().get()).isEqualTo(20182);
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  public void testConvertVariantValueFromStructReplaceNullWithDefault(
+      boolean replaceNullWithDefault) {
+    when(config.replaceNullWithDefault()).thenReturn(replaceNullWithDefault);
+
+    Schema schema =
+        SchemaBuilder.struct()
+            .field("id", Schema.INT64_SCHEMA)
+            .field("memo", SchemaBuilder.string().optional().defaultValue("").build())
+            .build();
+    Struct struct = new Struct(schema).put("id", 100L).put("memo", null);
+
+    Variant variant = variantConverter().convertVariantValue(struct);
+
+    assertThat(variant.value().asObject().get("id").asPrimitive().get()).isEqualTo(100L);
+    if (replaceNullWithDefault) {
+      assertThat(variant.value().asObject().get("memo").asPrimitive().get()).isEqualTo("");
+    } else {
+      assertThat(variant.value().asObject().get("memo").type()).isEqualTo(PhysicalType.NULL);
+    }
   }
 
   public static Map<String, Object> createMapData() {
