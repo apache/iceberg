@@ -54,10 +54,10 @@ public class TestFieldStatsStruct {
   private static final int BASE_ID = 30_000;
 
   private static final Types.StructType STRING_STATS =
-      StatsUtil.fieldStatsStruct(true, Types.StringType.get(), BASE_ID, MetricsModes.Full.get());
+      StatsUtil.fieldStatsStruct(Types.StringType.get(), BASE_ID, MetricsModes.Full.get());
 
   private static final Types.StructType DOUBLE_STATS =
-      StatsUtil.fieldStatsStruct(true, Types.DoubleType.get(), BASE_ID, MetricsModes.Full.get());
+      StatsUtil.fieldStatsStruct(Types.DoubleType.get(), BASE_ID, MetricsModes.Full.get());
 
   @Test
   public void fieldAccess() {
@@ -256,7 +256,7 @@ public class TestFieldStatsStruct {
       RoundTripSerializer<FieldStatsStruct<?>> serializer)
       throws Exception {
     Types.StructType statsStruct =
-        StatsUtil.fieldStatsStruct(true, type, BASE_ID, MetricsModes.Full.get());
+        StatsUtil.fieldStatsStruct(type, BASE_ID, MetricsModes.Full.get());
 
     boolean isFloatingPoint =
         type.typeId() == Type.TypeID.FLOAT || type.typeId() == Type.TypeID.DOUBLE;
@@ -292,7 +292,7 @@ public class TestFieldStatsStruct {
   public void geoSerialization(Type geoType, RoundTripSerializer<FieldStatsStruct<?>> serializer)
       throws Exception {
     Types.StructType statsStruct =
-        StatsUtil.fieldStatsStruct(true, geoType, BASE_ID, MetricsModes.Full.get());
+        StatsUtil.fieldStatsStruct(geoType, BASE_ID, MetricsModes.Full.get());
 
     // geometry and geography use bounding-box structs (x, y, z, m) for their bounds
     PartitionData lowerBound =
@@ -331,7 +331,7 @@ public class TestFieldStatsStruct {
   public void variantSerialization(RoundTripSerializer<FieldStatsStruct<?>> serializer)
       throws Exception {
     Types.StructType statsStruct =
-        StatsUtil.fieldStatsStruct(true, Types.VariantType.get(), BASE_ID, MetricsModes.Full.get());
+        StatsUtil.fieldStatsStruct(Types.VariantType.get(), BASE_ID, MetricsModes.Full.get());
 
     // variant bounds are variants keyed by JSON path expression that hold the bounds of fields
     // within the variant; here the field "$['x']" ranges from 1 to 10

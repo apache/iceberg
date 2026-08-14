@@ -18,11 +18,160 @@
  */
 package org.apache.iceberg;
 
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Types;
 import org.mockito.Mockito;
 
 class StatsTestUtil {
   private StatsTestUtil() {}
+
+  static TrackedFile trackedFile(String location, long recordCount, ContentStats stats) {
+    return new TrackedFileStruct(
+        null,
+        FileContent.DATA,
+        4,
+        location,
+        FileFormat.fromFileName(location),
+        recordCount,
+        1024L,
+        0,
+        null,
+        stats,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null);
+  }
+
+  static ContentStats contentStats(Types.StructType statsType, FieldStats<?>... fieldStats) {
+    ContentStatsStruct stats = new ContentStatsStruct(statsType);
+    for (FieldStats<?> field : fieldStats) {
+      stats.setStats(field.fieldId(), field);
+    }
+
+    return stats;
+  }
+
+  /** Returns the stats for a field, where a null metric is one that the column does not track. */
+  static FieldStats<Object> fieldStats(
+      Types.StructType statsType,
+      int fieldId,
+      Object lower,
+      Object upper,
+      Long valueCount,
+      Long nullCount,
+      Long nanCount) {
+    Types.StructType type = statsType.field(StatsUtil.toBaseId(fieldId)).type().asStructType();
+    validateTrackedMetric(type, StatsUtil.LOWER_BOUND_NAME, lower);
+    validateTrackedMetric(type, StatsUtil.UPPER_BOUND_NAME, upper);
+    validateTrackedMetric(type, "value_count", valueCount);
+    validateTrackedMetric(type, "null_value_count", nullCount);
+    validateTrackedMetric(type, "nan_value_count", nanCount);
+
+    return new TestFieldStats(fieldId, type, lower, upper, valueCount, nullCount, nanCount);
+  }
+
+  private static void validateTrackedMetric(Types.StructType type, String metric, Object value) {
+    Preconditions.checkArgument(
+        value == null || type.field(metric) != null,
+        "Cannot set %s: not tracked by %s",
+        metric,
+        type);
+  }
+
+  private static class TestFieldStats implements FieldStats<Object> {
+    private final int fieldId;
+    private final Types.StructType type;
+    private final Object lowerBound;
+    private final Object upperBound;
+    private final Long valueCount;
+    private final Long nullValueCount;
+    private final Long nanValueCount;
+
+    private TestFieldStats(
+        int fieldId,
+        Types.StructType type,
+        Object lowerBound,
+        Object upperBound,
+        Long valueCount,
+        Long nullValueCount,
+        Long nanValueCount) {
+      this.fieldId = fieldId;
+      this.type = type;
+      this.lowerBound = lowerBound;
+      this.upperBound = upperBound;
+      this.valueCount = valueCount;
+      this.nullValueCount = nullValueCount;
+      this.nanValueCount = nanValueCount;
+    }
+
+    @Override
+    public int fieldId() {
+      return fieldId;
+    }
+
+    @Override
+    public Types.StructType type() {
+      return type;
+    }
+
+    @Override
+    public Object lowerBound() {
+      return lowerBound;
+    }
+
+    @Override
+    public Object upperBound() {
+      return upperBound;
+    }
+
+    @Override
+    public boolean tightBounds() {
+      return false;
+    }
+
+    @Override
+    public boolean hasValueCount() {
+      return valueCount != null;
+    }
+
+    @Override
+    public long valueCount() {
+      return valueCount;
+    }
+
+    @Override
+    public boolean hasNullValueCount() {
+      return nullValueCount != null;
+    }
+
+    @Override
+    public long nullValueCount() {
+      return nullValueCount;
+    }
+
+    @Override
+    public boolean hasNanValueCount() {
+      return nanValueCount != null;
+    }
+
+    @Override
+    public long nanValueCount() {
+      return nanValueCount;
+    }
+
+    @Override
+    public Integer avgValueSizeInBytes() {
+      return null;
+    }
+
+    @Override
+    public FieldStats<Object> copy() {
+      return this;
+    }
+  }
 
   /**
    * Mocks a {@link FieldStats} for a stats struct type, stubbing the bounds and only the counts

@@ -51,7 +51,7 @@ public class TestContentStatsStruct {
   private static final Types.StructType CONTENT_STATS_STRUCT =
       StatsUtil.statsReadSchema(SCHEMA, ImmutableList.of(1, 2, 3));
   private static final Types.StructType UNKNOWN_FIELD_STATS_STRUCT =
-      StatsUtil.fieldStatsStruct(false, Types.IntegerType.get(), 10_800, MetricsModes.Full.get());
+      StatsUtil.fieldStatsStruct(Types.IntegerType.get(), 10_800, MetricsModes.Full.get());
 
   private static final FieldStats<Long> ID_STATS =
       new FieldStatsStruct<>(
