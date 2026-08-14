@@ -169,6 +169,35 @@ class TestV4ManifestReaderStats {
 
   @ParameterizedTest
   @FieldSource("MANIFEST_FORMATS")
+  void schemaProjectionStatsAreReadWhenOmittedByMetricsConfig(FileFormat format)
+      throws IOException {
+    TrackedFile file = fileWithStats("s3://bucket/file.parquet", contentStats());
+    InputFile manifest = writeManifest(format, CONTENT_STATS_TYPE, List.of(file));
+
+    // the projection is based on the manifest schema, so it determines the stats that are read even
+    // though the metrics config would not produce stats for measure
+    Schema projection =
+        new Schema(TrackedFile.LOCATION, StatsUtil.contentStatsField(CONTENT_STATS_TYPE));
+    MetricsConfig metricsConfig =
+        MetricsConfig.from(
+            ImmutableMap.of(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "measure", "none"),
+            TABLE_SCHEMA,
+            null);
+
+    try (V4ManifestReader reader =
+        V4ManifestReader.builder(manifest, TABLE_SCHEMA, UNPARTITIONED_SPECS, TABLE_LOCATION)
+            .project(projection)
+            .metricsConfig(metricsConfig)
+            .build()) {
+      ContentStats stats = Iterables.getOnlyElement(reader).contentStats();
+      assertFieldStats(stats.statsFor(ID_FIELD_ID), ID_STATS);
+      assertFieldStats(stats.statsFor(DATA_FIELD_ID), DATA_STATS);
+      assertFieldStats(stats.statsFor(MEASURE_FIELD_ID), MEASURE_STATS);
+    }
+  }
+
+  @ParameterizedTest
+  @FieldSource("MANIFEST_FORMATS")
   void rowFilterKeepsStatsForAllFieldIds(FileFormat format) throws IOException {
     TrackedFile file = fileWithStats("s3://bucket/file.parquet", contentStats());
     InputFile manifest = writeManifest(format, CONTENT_STATS_TYPE, List.of(file));
@@ -312,6 +341,76 @@ class TestV4ManifestReaderStats {
             .build()) {
       ContentStats stats = Iterables.getOnlyElement(reader).contentStats();
       assertFieldStats(stats.statsFor(DATA_FIELD_ID), DATA_STATS);
+      assertThat(stats.statsFor(ID_FIELD_ID)).isNull();
+      assertThat(stats.statsFor(MEASURE_FIELD_ID)).isNull();
+    }
+  }
+
+  @ParameterizedTest
+  @FieldSource("MANIFEST_FORMATS")
+  void singleStatsFieldIsReadForSchemaProjection(FileFormat format) throws IOException {
+    TrackedFile file = fileWithStats("s3://bucket/file.parquet", contentStats());
+    InputFile manifest = writeManifest(format, CONTENT_STATS_TYPE, List.of(file));
+
+    // a projection may narrow stats to a single field rather than to whole stats structs
+    Types.NestedField dataStats = CONTENT_STATS_TYPE.field("data");
+    Types.StructType lowerBoundOnly =
+        Types.StructType.of(
+            optional(
+                dataStats.fieldId(),
+                dataStats.name(),
+                Types.StructType.of(
+                    dataStats.type().asStructType().field(StatsUtil.LOWER_BOUND_NAME))));
+
+    try (V4ManifestReader reader =
+        V4ManifestReader.builder(manifest, TABLE_SCHEMA, UNPARTITIONED_SPECS, TABLE_LOCATION)
+            .project(new Schema(TrackedFile.LOCATION, StatsUtil.contentStatsField(lowerBoundOnly)))
+            .build()) {
+      ContentStats stats = Iterables.getOnlyElement(reader).contentStats();
+      FieldStats<?> actual = stats.statsFor(DATA_FIELD_ID);
+      assertThat(actual).isNotNull();
+      assertThat(actual.type()).isEqualTo(lowerBoundOnly.fieldType("data").asStructType());
+      assertThat(actual.lowerBound()).isEqualTo(DATA_STATS.lowerBound());
+      assertThat(actual.upperBound()).isNull();
+      assertThat(actual.hasValueCount()).isFalse();
+      assertThat(stats.statsFor(ID_FIELD_ID)).isNull();
+      assertThat(stats.statsFor(MEASURE_FIELD_ID)).isNull();
+    }
+  }
+
+  @ParameterizedTest
+  @FieldSource("MANIFEST_FORMATS")
+  void filterStatsAreProjectedWhenNarrowedBySchemaProjection(FileFormat format) throws IOException {
+    TrackedFile file = fileWithStats("s3://bucket/file.parquet", contentStats());
+    InputFile manifest = writeManifest(format, CONTENT_STATS_TYPE, List.of(file));
+
+    // the projection carries stats for data, but without the bounds that the filter is evaluated
+    // against, so the stats that are read for data must be widened back to the full stats struct
+    Types.StructType narrowStatsType =
+        StatsUtil.statsWriteSchema(
+            TABLE_SCHEMA,
+            MetricsConfig.from(
+                ImmutableMap.of(
+                    TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "id",
+                    "none",
+                    TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "data",
+                    "counts",
+                    TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "measure",
+                    "none"),
+                TABLE_SCHEMA,
+                null));
+    assertThat(narrowStatsType.fieldType("data").asStructType().field(StatsUtil.LOWER_BOUND_NAME))
+        .isNull();
+
+    try (V4ManifestReader reader =
+        V4ManifestReader.builder(manifest, TABLE_SCHEMA, UNPARTITIONED_SPECS, TABLE_LOCATION)
+            .project(new Schema(TrackedFile.LOCATION, StatsUtil.contentStatsField(narrowStatsType)))
+            .filter(Expressions.equal("data", "m"))
+            .build()) {
+      ContentStats stats = Iterables.getOnlyElement(reader).contentStats();
+      assertFieldStats(stats.statsFor(DATA_FIELD_ID), DATA_STATS);
+
+      // stats omitted by the projection are not read because the filter does not need them
       assertThat(stats.statsFor(ID_FIELD_ID)).isNull();
       assertThat(stats.statsFor(MEASURE_FIELD_ID)).isNull();
     }
