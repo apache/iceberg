@@ -202,6 +202,7 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
     private Collection<String> columns = null;
     private Schema requestedProjection = null;
     private Set<Integer> fieldIdsWithRequestedStats = null;
+    private MetricsConfig metricsConfig = null;
     private ScanMetrics scanMetrics = ScanMetrics.noop();
 
     private Builder(
@@ -294,6 +295,16 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
       return this;
     }
 
+    /**
+     * Sets the metrics config that determines which stats the manifest holds. Defaults to the
+     * config produced by the table's default metrics properties.
+     */
+    Builder metricsConfig(MetricsConfig newMetricsConfig) {
+      Preconditions.checkArgument(newMetricsConfig != null, "Invalid metrics config: null");
+      this.metricsConfig = newMetricsConfig;
+      return this;
+    }
+
     Builder scanMetrics(ScanMetrics newScanMetrics) {
       Preconditions.checkArgument(newScanMetrics != null, "Invalid scan metrics: null");
       this.scanMetrics = newScanMetrics;
@@ -380,7 +391,15 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
         return requiredStatsType;
       }
 
-      return StatsUtil.statsReadSchema(tableSchema, tableSchema.idToName().keySet());
+      return StatsUtil.statsWriteSchema(tableSchema, metricsConfig());
+    }
+
+    private MetricsConfig metricsConfig() {
+      if (metricsConfig == null) {
+        this.metricsConfig = MetricsConfig.from(ImmutableMap.of(), tableSchema, null);
+      }
+
+      return metricsConfig;
     }
 
     /** Returns the requested field IDs, plus the field IDs referenced by the row filter. */
