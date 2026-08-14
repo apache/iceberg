@@ -223,6 +223,7 @@ public class TestRewriteTablePathsAction extends TestBase {
 
     // copy the metadata files and data files
     copyTableFiles(result);
+    assertManifestLengthsMatchActual(targetTableLocation);
 
     // verify the data file path after the rebuild
     List<String> validDataFilesAfterRebuilt =
@@ -415,6 +416,8 @@ public class TestRewriteTablePathsAction extends TestBase {
     // copy the metadata files and data files
     copyTableFiles(result);
 
+    assertManifestLengthsMatchActual(targetTableLocation());
+
     // verify data rows
     Dataset<Row> resultDF = spark.read().format("iceberg").load(targetTableLocation());
     assertThat(resultDF.as(Encoders.bean(ThreeColumnRecord.class)).collectAsList())
@@ -485,6 +488,7 @@ public class TestRewriteTablePathsAction extends TestBase {
 
     // copy the metadata files and data files
     copyTableFiles(result);
+    assertManifestLengthsMatchActual(targetTableLocation());
 
     // Positional delete affects a single row, so only one row must remain
     assertThat(spark.read().format("iceberg").load(targetTableLocation()).collectAsList())
@@ -523,6 +527,7 @@ public class TestRewriteTablePathsAction extends TestBase {
 
     // copy the metadata files and data files
     copyTableFiles(result);
+    assertManifestLengthsMatchActual(targetTableLocation());
 
     // check copied position delete row - only v2 stores row data with position deletes
     // v3+ uses Deletion Vectors (DV) which only store position information
@@ -986,6 +991,7 @@ public class TestRewriteTablePathsAction extends TestBase {
 
     // copy the metadata files and data files
     copyTableFiles(result);
+    assertManifestLengthsMatchActual(targetTableLocation());
 
     // Equality deletes affect three rows, so just two rows must remain
     assertThat(spark.read().format("iceberg").load(targetTableLocation()).collectAsList())
@@ -1109,6 +1115,7 @@ public class TestRewriteTablePathsAction extends TestBase {
 
     // copy the metadata files and data files
     copyTableFiles(result);
+    assertManifestLengthsMatchActual(targetTableLocation());
 
     // expect deleted data file is excluded from rewrite and copy
     List<String> copiedDataFiles =
@@ -1561,6 +1568,7 @@ public class TestRewriteTablePathsAction extends TestBase {
     checkFileNum(3, 2, 2, 9, result);
     // one data and one metadata file
     copyTableFiles(result);
+    assertManifestLengthsMatchActual(targetTableLocation());
 
     // register table
     String metadataLocation = currentMetadata(sourceTable).metadataFileLocation();
@@ -1793,6 +1801,19 @@ public class TestRewriteTablePathsAction extends TestBase {
 
   protected String toAbsolute(Path relative) {
     return relative.toFile().toURI().toString();
+  }
+
+  private void assertManifestLengthsMatchActual(String tableLocation) {
+    Table targetTable = TABLES.load(tableLocation);
+    for (ManifestFile manifest : targetTable.currentSnapshot().allManifests(targetTable.io())) {
+      long recordedLength = manifest.length();
+      long actualLength = targetTable.io().newInputFile(manifest.path()).getLength();
+      assertThat(recordedLength)
+          .as(
+              "Manifest %s: length recorded in manifest list (%d) should match actual file size (%d)",
+              manifest.path(), recordedLength, actualLength)
+          .isEqualTo(actualLength);
+    }
   }
 
   private void copyTableFiles(RewriteTablePath.Result result) throws Exception {
