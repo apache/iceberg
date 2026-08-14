@@ -106,7 +106,7 @@ class TestV4ManifestReaderStats {
                         manifest, io, TABLE_SCHEMA, UNPARTITIONED_SPECS, TABLE_LOCATION)
                     .projectStats((Iterable<Integer>) null))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid stats projection for field IDs: null");
+        .hasMessage("Invalid field IDs: null");
 
     assertThatThrownBy(
             () ->
@@ -114,7 +114,7 @@ class TestV4ManifestReaderStats {
                         manifest, TABLE_SCHEMA, UNPARTITIONED_SPECS, TABLE_LOCATION)
                     .projectStats((int[]) null))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid stats projection for field IDs: null");
+        .hasMessage("Invalid field IDs: null");
   }
 
   @ParameterizedTest
