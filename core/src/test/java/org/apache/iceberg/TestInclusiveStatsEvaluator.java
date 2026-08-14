@@ -63,7 +63,8 @@ class TestInclusiveStatsEvaluator extends TestInclusiveMetricsEvaluator<TrackedF
   @Override
   protected boolean shouldRead(
       Schema schema, Expression expr, boolean caseSensitive, TrackedFile testFile) {
-    return new InclusiveStatsEvaluator(schema, expr, caseSensitive).eval(testFile);
+    return new InclusiveStatsEvaluator(schema, expr, caseSensitive)
+        .eval(testFile.contentStats(), testFile.recordCount());
   }
 
   @Override

@@ -35,7 +35,8 @@ class TestInclusiveStatsEvaluatorWithTransforms
 
   @Override
   protected boolean shouldRead(Expression expr, TrackedFile testFile, boolean caseSensitive) {
-    return new InclusiveStatsEvaluator(SCHEMA, expr, caseSensitive).eval(testFile);
+    return new InclusiveStatsEvaluator(SCHEMA, expr, caseSensitive)
+        .eval(testFile.contentStats(), testFile.recordCount());
   }
 
   @Override

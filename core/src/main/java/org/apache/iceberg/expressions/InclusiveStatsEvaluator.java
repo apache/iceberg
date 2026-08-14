@@ -27,22 +27,21 @@ import java.util.stream.Collectors;
 import org.apache.iceberg.ContentStats;
 import org.apache.iceberg.FieldStats;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.TrackedFile;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.variants.Variant;
 import org.apache.iceberg.variants.VariantObject;
 
 /**
- * Evaluates an {@link Expression} on a {@link TrackedFile} to test whether rows in the file may
- * match.
+ * Evaluates an {@link Expression} on the {@link ContentStats} of a file to test whether rows in the
+ * file may match.
  *
  * <p>This evaluation is inclusive: it returns true if a file may match and false if it cannot
  * match.
  *
- * <p>Files are passed to {@link #eval(TrackedFile)}, which returns true if the file may contain
- * matching rows and false if the file cannot contain matching rows. Files may be skipped if and
- * only if the return value of {@code eval} is false.
+ * <p>Stats are passed to {@link #eval(ContentStats, long)}, which returns true if the file may
+ * contain matching rows and false if the file cannot contain matching rows. Files may be skipped if
+ * and only if the return value of {@code eval} is false.
  *
  * <p>Due to the comparison implementation of ORC stats, for float/double columns in ORC files, if
  * the first value in a file is NaN, metrics of this file will report NaN for both upper and lower
@@ -97,36 +96,36 @@ public class InclusiveStatsEvaluator {
   }
 
   /**
-   * Test whether the file may contain records that match the expression.
+   * Test whether a file may contain records that match the expression.
    *
-   * @param file a tracked file
+   * @param stats the content stats of the file, or null if the file tracks no stats
+   * @param recordCount the number of records in the file
    * @return false if the file cannot contain rows that match the expression, true otherwise.
    */
-  public boolean eval(TrackedFile file) {
-    return new StatsEvalVisitor().eval(file);
+  public boolean eval(ContentStats stats, long recordCount) {
+    return new StatsEvalVisitor().eval(stats, recordCount);
   }
 
   private class StatsEvalVisitor extends InclusiveEvalVisitor {
     private ContentStats stats = null;
     private long recordCount = 0;
 
-    private boolean eval(TrackedFile file) {
-      if (file.recordCount() == 0) {
+    private boolean eval(ContentStats contentStats, long fileRecordCount) {
+      if (fileRecordCount == 0) {
         return ROWS_CANNOT_MATCH;
       }
 
-      if (file.recordCount() < 0) {
+      if (fileRecordCount < 0) {
         // imported Avro files may have an incorrect -1 row count
         return ROWS_MIGHT_MATCH;
       }
 
-      ContentStats contentStats = file.contentStats();
       if (null == contentStats) {
         return ROWS_MIGHT_MATCH;
       }
 
       this.stats = contentStats;
-      this.recordCount = file.recordCount();
+      this.recordCount = fileRecordCount;
 
       return ExpressionVisitors.visitEvaluator(expr, this);
     }
@@ -138,17 +137,10 @@ public class InclusiveStatsEvaluator {
       }
 
       FieldStats<?> fieldStats = stats.statsFor(id);
-      if (fieldStats == null) {
-        return true;
-      }
-
-      // rows where a struct that contains this field is null are not counted in the value count, so
-      // the field is null in every row that the value count does not cover
-      if (fieldStats.hasValueCount() && recordCount - fieldStats.valueCount() > 0) {
-        return true;
-      }
-
-      return !fieldStats.hasNullValueCount() || fieldStats.nullValueCount() != 0;
+      return fieldStats == null
+          || (fieldStats.hasValueCount() && fieldStats.valueCount() < recordCount)
+          || !fieldStats.hasNullValueCount()
+          || fieldStats.nullValueCount() != 0;
     }
 
     @Override

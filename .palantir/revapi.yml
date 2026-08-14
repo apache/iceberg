@@ -585,11 +585,6 @@ acceptedBreaks:
         \ be implemented outside the project. Promoting them to public reads as an\
         \ existing type gaining methods, not as a new type appearing."
     - code: "java.method.addedToInterface"
-      new: "method int org.apache.iceberg.TrackedFile::formatVersion()"
-      justification: "These interfaces were package-private in 1.11.0 and could not\
-        \ be implemented outside the project. Promoting them to public reads as an\
-        \ existing type gaining methods, not as a new type appearing."
-    - code: "java.method.addedToInterface"
       new: "method java.lang.Integer org.apache.iceberg.FieldStats<T>::avgValueSizeInBytes()"
       justification: "These interfaces were package-private in 1.11.0 and could not\
         \ be implemented outside the project. Promoting them to public reads as an\
