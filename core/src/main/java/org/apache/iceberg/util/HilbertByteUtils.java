@@ -30,8 +30,9 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
  * number of bits, so each column is read to a fixed {@code bitsPerColumn} precision.
  *
  * <p>The transform is the standard "axes to transposed Hilbert index" algorithm from J. Skilling,
- * "Programming the Hilbert curve" (2004); the transposed index is then serialized to a scalar with
- * {@link ZOrderByteUtils#interleaveBits}.
+ * "Programming the Hilbert curve," AIP Conf. Proc. 707, 381 (2004), <a
+ * href="https://doi.org/10.1063/1.1751381">https://doi.org/10.1063/1.1751381</a>; the transposed
+ * index is then serialized to a scalar with {@link ZOrderByteUtils#interleaveBits}.
  */
 public class HilbertByteUtils {
 

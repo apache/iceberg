@@ -1832,7 +1832,7 @@ public class TestRewriteDataFilesAction extends TestBase {
   }
 
   @TestTemplate
-  public void testHilbertWithHColumnCollision() {
+  public void hilbertWithHColumnCollision() {
     Schema schema =
         new Schema(
             optional(1, "c1", Types.IntegerType.get()),
@@ -1852,7 +1852,7 @@ public class TestRewriteDataFilesAction extends TestBase {
   }
 
   @TestTemplate
-  public void testHilbertSort() {
+  public void hilbertSort() {
     int originalFiles = 20;
     Table table = createTable(originalFiles);
     shouldHaveLastCommitUnsorted(table, "c2");

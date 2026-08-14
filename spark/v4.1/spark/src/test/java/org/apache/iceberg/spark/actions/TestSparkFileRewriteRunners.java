@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark.actions;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.Map;
@@ -138,7 +139,7 @@ public class TestSparkFileRewriteRunners extends TestBase {
   }
 
   @Test
-  public void testInvalidConstructorUsagesHilbertData() {
+  public void invalidConstructorUsagesHilbertData() {
     Table table = catalog.createTable(TABLE_IDENT, SCHEMA, SPEC);
 
     assertThatThrownBy(() -> new SparkHilbertFileRewriteRunner(spark, table, null))
@@ -156,10 +157,24 @@ public class TestSparkFileRewriteRunners extends TestBase {
             () -> new SparkHilbertFileRewriteRunner(spark, table, ImmutableList.of("DeP")))
         .hasMessageContaining("Cannot HILBERT")
         .hasMessageContaining("all columns provided were identity partition columns");
+
+    assertThatThrownBy(
+            () -> new SparkHilbertFileRewriteRunner(spark, table, ImmutableList.of("nonexistent")))
+        .hasMessageContaining("Cannot find column 'nonexistent' in table schema");
   }
 
   @Test
-  public void testHilbertDataDescriptionAndValidOptions() {
+  public void hilbertIgnoresIdentityPartitionColumnsWhenDataColumnsRemain() {
+    Table table = catalog.createTable(TABLE_IDENT, SCHEMA, SPEC);
+
+    // 'dep' is an identity partition column and is dropped, leaving 'id' to cluster on
+    assertThatNoException()
+        .isThrownBy(
+            () -> new SparkHilbertFileRewriteRunner(spark, table, ImmutableList.of("dep", "id")));
+  }
+
+  @Test
+  public void hilbertDataDescriptionAndValidOptions() {
     Table table = catalog.createTable(TABLE_IDENT, SCHEMA);
     ImmutableList<String> hilbertCols = ImmutableList.of("id");
     SparkHilbertFileRewriteRunner rewriter =

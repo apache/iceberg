@@ -43,6 +43,7 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.ExpressionVisitors;
+import org.apache.iceberg.expressions.Hilbert;
 import org.apache.iceberg.expressions.Term;
 import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.expressions.UnboundTerm;
@@ -403,7 +404,7 @@ public class Spark3Util {
                   .map(org.apache.iceberg.expressions.Expressions::ref)
                   .collect(Collectors.toList()));
         case "hilbert":
-          return new org.apache.iceberg.expressions.Hilbert(
+          return new Hilbert(
               Stream.of(transform.references())
                   .map(ref -> DOT.join(ref.fieldNames()))
                   .map(org.apache.iceberg.expressions.Expressions::ref)

@@ -39,6 +39,8 @@ class SparkHilbertUDF implements Serializable {
 
   private transient ThreadLocal<ByteBuffer> outputBuffer;
 
+  private transient ThreadLocal<byte[][]> inputHolder;
+
   private final int numCols;
   private final int bitsPerColumn;
   private final int outputBytes;
@@ -52,10 +54,11 @@ class SparkHilbertUDF implements Serializable {
   private void readObject(ObjectInputStream in) throws IOException, ClassNotFoundException {
     in.defaultReadObject();
     outputBuffer = ThreadLocal.withInitial(() -> ByteBuffer.allocate(outputBytes));
+    inputHolder = ThreadLocal.withInitial(() -> new byte[numCols][]);
   }
 
   private byte[] hilbertValue(Seq<byte[]> scalaBinary) {
-    byte[][] columnsBinary = JavaConverters.seqAsJavaList(scalaBinary).toArray(new byte[numCols][]);
+    byte[][] columnsBinary = JavaConverters.seqAsJavaList(scalaBinary).toArray(inputHolder.get());
     return HilbertByteUtils.hilbertIndex(columnsBinary, bitsPerColumn, outputBuffer.get());
   }
 

@@ -115,7 +115,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
   }
 
   @TestTemplate
-  public void testHilbertSortExpression() {
+  public void hilbertSortExpression() {
     List<ExtendedParser.RawOrderField> order =
         ExtendedParser.parseSortOrder(spark, "c1, hilbert(c2, c3)");
     assertThat(order).as("Should parse 2 order fields").hasSize(2);
@@ -128,7 +128,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
   }
 
   @TestTemplate
-  public void testRewriteDataFilesWithHilbert() {
+  public void rewriteDataFilesWithHilbert() {
     createTable();
     // create 10 files under non-partitioned table
     insertData(10);
@@ -156,7 +156,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
   }
 
   @TestTemplate
-  public void testRewriteDataFilesMixingZOrderAndHilbertFails() {
+  public void rewriteDataFilesMixingZOrderAndHilbertFails() {
     createTable();
     insertData(10);
 
