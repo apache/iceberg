@@ -20,15 +20,9 @@ package org.apache.iceberg.expressions;
 
 import static org.apache.iceberg.expressions.Expressions.rewriteNot;
 
-import java.util.Collections;
-import java.util.Map;
-import java.util.Set;
-import java.util.stream.Collectors;
 import org.apache.iceberg.ContentStats;
 import org.apache.iceberg.FieldStats;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.types.TypeUtil;
-import org.apache.iceberg.types.Types;
 import org.apache.iceberg.variants.Variant;
 import org.apache.iceberg.variants.VariantObject;
 
@@ -50,49 +44,13 @@ import org.apache.iceberg.variants.VariantObject;
  */
 public class InclusiveStatsEvaluator {
   private final Expression expr;
-  private final Set<Integer> alwaysPresentFieldIds;
 
   public InclusiveStatsEvaluator(Schema schema, Expression unbound) {
     this(schema, unbound, true);
   }
 
   public InclusiveStatsEvaluator(Schema schema, Expression unbound, boolean caseSensitive) {
-    Types.StructType struct = schema.asStruct();
-    this.expr = Binder.bind(struct, rewriteNot(unbound), caseSensitive);
-    Set<Integer> referencedIds =
-        Binder.boundReferences(struct, Collections.singletonList(expr), caseSensitive);
-    this.alwaysPresentFieldIds = alwaysPresentFieldIds(schema, referencedIds);
-  }
-
-  /**
-   * Returns the IDs of the referenced fields that cannot contain null values.
-   *
-   * <p>A field cannot be null if it is required and every field that contains it is required. Such
-   * a field is never null, even when stats are missing for it.
-   */
-  private static Set<Integer> alwaysPresentFieldIds(Schema schema, Set<Integer> fieldIds) {
-    Map<Integer, Integer> idToParent = TypeUtil.indexParents(schema.asStruct());
-    return fieldIds.stream()
-        .filter(fieldId -> isAlwaysPresent(schema, idToParent, fieldId))
-        .collect(Collectors.toSet());
-  }
-
-  private static boolean isAlwaysPresent(
-      Schema schema, Map<Integer, Integer> idToParent, int fieldId) {
-    if (schema.findField(fieldId).isOptional()) {
-      return false;
-    }
-
-    Integer parentId = idToParent.get(fieldId);
-    while (parentId != null) {
-      if (schema.findField(parentId).isOptional()) {
-        return false;
-      }
-
-      parentId = idToParent.get(parentId);
-    }
-
-    return true;
+    this.expr = Binder.bind(schema.asStruct(), rewriteNot(unbound), caseSensitive);
   }
 
   /**
@@ -132,12 +90,10 @@ public class InclusiveStatsEvaluator {
 
     @Override
     protected boolean mayContainNull(int id) {
-      if (alwaysPresentFieldIds.contains(id)) {
-        return false;
-      }
-
       FieldStats<?> fieldStats = stats.statsFor(id);
       return fieldStats == null
+          // rows where a struct that contains this field is null are not counted in the value
+          // count, so the field is null in every row that the value count does not cover
           || (fieldStats.hasValueCount() && fieldStats.valueCount() < recordCount)
           || !fieldStats.hasNullValueCount()
           || fieldStats.nullValueCount() != 0;

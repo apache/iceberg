@@ -59,8 +59,8 @@ class TestInclusiveStatsEvaluatorWithExtract
         50,
         contentStats(
             STATS_TYPE,
-            fieldStats(STATS_TYPE, 1, null, null, 50L, null, null),
-            fieldStats(STATS_TYPE, 2, LOWER_BOUND, UPPER_BOUND, 50L, null, null),
+            fieldStats(STATS_TYPE, 1, null, null, 50L, 0L, null),
+            fieldStats(STATS_TYPE, 2, LOWER_BOUND, UPPER_BOUND, 50L, 0L, null),
             fieldStats(STATS_TYPE, 3, null, null, 50L, 50L, null)));
   }
 

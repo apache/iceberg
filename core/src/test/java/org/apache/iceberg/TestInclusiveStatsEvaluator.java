@@ -91,25 +91,25 @@ class TestInclusiveStatsEvaluator extends TestInclusiveMetricsEvaluator<TrackedF
   @Override
   protected TrackedFile file2() {
     return trackedFile(
-        "file_2.avro", 50, contentStats(STATS_TYPE, stats(3, "aa", "dC", 50L, null, null)));
+        "file_2.avro", 50, contentStats(STATS_TYPE, stats(3, "aa", "dC", 50L, 0L, null)));
   }
 
   @Override
   protected TrackedFile file3() {
     return trackedFile(
-        "file_3.avro", 50, contentStats(STATS_TYPE, stats(3, "1str1", "3str3", 50L, null, null)));
+        "file_3.avro", 50, contentStats(STATS_TYPE, stats(3, "1str1", "3str3", 50L, 0L, null)));
   }
 
   @Override
   protected TrackedFile file4() {
     return trackedFile(
-        "file_4.avro", 50, contentStats(STATS_TYPE, stats(3, "abc", "イロハニホヘト", 50L, null, null)));
+        "file_4.avro", 50, contentStats(STATS_TYPE, stats(3, "abc", "イロハニホヘト", 50L, 0L, null)));
   }
 
   @Override
   protected TrackedFile file5() {
     return trackedFile(
-        "file_5.avro", 50, contentStats(STATS_TYPE, stats(3, "abc", "abcdefghi", 50L, null, null)));
+        "file_5.avro", 50, contentStats(STATS_TYPE, stats(3, "abc", "abcdefghi", 50L, 0L, null)));
   }
 
   @Override
@@ -142,13 +142,13 @@ class TestInclusiveStatsEvaluator extends TestInclusiveMetricsEvaluator<TrackedF
     return trackedFile(
         "range_of_values.avro",
         10,
-        contentStats(STATS_TYPE, stats(3, "aaa", "zzz", 10L, null, null)));
+        contentStats(STATS_TYPE, stats(3, "aaa", "zzz", 10L, 0L, null)));
   }
 
   @Override
   protected TrackedFile singleValueFile() {
     return trackedFile(
-        "single_value.avro", 10, contentStats(STATS_TYPE, stats(3, "abc", "abc", 10L, null, null)));
+        "single_value.avro", 10, contentStats(STATS_TYPE, stats(3, "abc", "abc", 10L, 0L, null)));
   }
 
   @Override
@@ -178,7 +178,7 @@ class TestInclusiveStatsEvaluator extends TestInclusiveMetricsEvaluator<TrackedF
     return trackedFile(
         "single_value_file.avro",
         10,
-        contentStats(FLOAT_STATS_TYPE, stats(FLOAT_STATS_TYPE, 1, 1.0f, 1.0f, 10L, null, 0L)));
+        contentStats(FLOAT_STATS_TYPE, stats(FLOAT_STATS_TYPE, 1, 1.0f, 1.0f, 10L, 0L, 0L)));
   }
 
   @Override
@@ -186,7 +186,7 @@ class TestInclusiveStatsEvaluator extends TestInclusiveMetricsEvaluator<TrackedF
     return trackedFile(
         "single_value_file.avro",
         10,
-        contentStats(FLOAT_STATS_TYPE, stats(FLOAT_STATS_TYPE, 1, 1.0f, 1.0f, 10L, null, 1L)));
+        contentStats(FLOAT_STATS_TYPE, stats(FLOAT_STATS_TYPE, 1, 1.0f, 1.0f, 10L, 0L, 1L)));
   }
 
   @Test

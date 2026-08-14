@@ -146,11 +146,7 @@ class StatsUtil {
       if (isScalar(tableSchema, parentIndex, id)) {
         int baseId = toBaseId(id);
         Types.StructType fieldStruct =
-            fieldStatsStruct(
-                isNullable(tableSchema, parentIndex, id),
-                field.type(),
-                baseId,
-                metricsConfig.columnMode(id));
+            fieldStatsStruct(field.type(), baseId, metricsConfig.columnMode(id));
 
         if (fieldStruct != null) {
           fieldStructs.add(optional(baseId, fieldName, fieldStruct));
@@ -181,11 +177,7 @@ class StatsUtil {
       if (field != null && isScalar(tableSchema, parentIndex, id)) {
         int baseId = toBaseId(id);
         Types.StructType fieldStruct =
-            fieldStatsStruct(
-                isNullable(tableSchema, parentIndex, id),
-                field.type(),
-                baseId,
-                MetricsModes.Full.get());
+            fieldStatsStruct(field.type(), baseId, MetricsModes.Full.get());
 
         if (fieldStruct != null) {
           fieldStructs.add(optional(baseId, fieldName, fieldStruct));
@@ -268,8 +260,7 @@ class StatsUtil {
   }
 
   @VisibleForTesting
-  static Types.StructType fieldStatsStruct(
-      boolean isNullable, Type type, int baseId, MetricsModes.MetricsMode mode) {
+  static Types.StructType fieldStatsStruct(Type type, int baseId, MetricsModes.MetricsMode mode) {
     if (null == mode || mode == MetricsModes.None.get() || type.isNestedType() || baseId < 0) {
       return null;
     }
@@ -297,14 +288,12 @@ class StatsUtil {
             Types.LongType.get(),
             "Number of values (including null and NaN)"));
 
-    if (isNullable) {
-      fields.add(
-          optional(
-              baseId + NULL_VALUE_COUNT_OFFSET,
-              "null_value_count",
-              Types.LongType.get(),
-              "Number of null values"));
-    }
+    fields.add(
+        optional(
+            baseId + NULL_VALUE_COUNT_OFFSET,
+            "null_value_count",
+            Types.LongType.get(),
+            "Number of null values"));
 
     if (isFloatingPoint(type)) {
       fields.add(
@@ -322,20 +311,6 @@ class StatsUtil {
     }
 
     return Types.StructType.of(fields);
-  }
-
-  /** Return whether a field may be null, either because it or any ancestor is optional. */
-  private static boolean isNullable(Schema schema, Map<Integer, Integer> parentIndex, int id) {
-    Integer currentId = id;
-    while (currentId != null) {
-      if (schema.findField(currentId).isOptional()) {
-        return true;
-      }
-
-      currentId = parentIndex.get(currentId);
-    }
-
-    return false;
   }
 
   /** Return whether a field has one value or may be repeated in map or list. */
