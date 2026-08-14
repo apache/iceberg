@@ -229,7 +229,10 @@ A branch can be created using [Spark DDL](spark-ddl.md#branching-and-tagging-ddl
 Branch writes can be performed by providing a branch identifier, `branch_yourBranch` in the operation.
 
 Branch writes can also be performed as part of a write-audit-publish (WAP) workflow by specifying the `spark.wap.branch` config.
-Note WAP branch and branch identifier cannot both be specified.
+If a branch is specified in both the table identifier and a write option, the values must match.
+An explicit branch from the table identifier or write option takes precedence over the session WAP branch.
+If neither is specified, the session WAP branch is used when configured.
+The WAP branch and an explicit branch cannot be used together.
 
 ```sql
 -- INSERT (1,' a') (2, 'b') into the audit branch.
