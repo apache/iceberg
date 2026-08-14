@@ -80,6 +80,8 @@ The Variant column itself is addressed by field ID like any other Iceberg column
 
 Because these engines all use the same Iceberg Variant type, a value written by one reads back identically in the others.
 
+Apache Arrow carries that same Variant value in memory through its canonical extension type `arrow.parquet.variant`, letting engines exchange it without special handling.
+
 ## Working with Variant
 
 With Spark SQL, you store heterogeneous events in a single `VARIANT` column and read fields back with `variant_get`. A Variant column requires an Iceberg v3 table:
@@ -139,3 +141,4 @@ Variant support in Iceberg is still growing, and contributions are welcome. The 
 
 - **Iceberg Table Spec, Variant type:** [Semi-structured Types](https://iceberg.apache.org/spec/#semi-structured-types)
 - **Variant in Apache Parquet:** [Variant Type in Apache Parquet for Semi-Structured Data](https://parquet.apache.org/blog/2026/02/27/variant-type-in-apache-parquet-for-semi-structured-data/)
+- **Variant in Apache Arrow:** [Parquet Variant canonical extension type](https://arrow.apache.org/docs/format/CanonicalExtensions.html#parquet-variant)
