@@ -676,7 +676,7 @@ A manifest file must store the partition spec and other metadata as properties i
 
 #### Content file uniqueness
 
-Within a snapshot, each content file may be referenced by at most one manifest entry across all manifests. A snapshot in which more than one entry references the same content file has undefined behavior. Writers are not required to validate uniqueness at commit time.
+Within a snapshot, each content file must be referenced by at most one manifest entry across all manifests; otherwise, the snapshot has undefined behavior. Writers are not required to validate uniqueness at commit time.
 
 #### Manifest Entry Fields
 
