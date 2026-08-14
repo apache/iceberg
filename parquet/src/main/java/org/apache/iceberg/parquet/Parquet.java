@@ -97,6 +97,7 @@ import org.apache.iceberg.hadoop.HadoopOutputFile;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.DataWriter;
 import org.apache.iceberg.io.DeleteSchemaUtil;
+import org.apache.iceberg.io.EagerInputFile;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
@@ -143,6 +144,12 @@ public class Parquet {
           "parquet.private.read.filter.predicate",
           "parquet.read.support.class",
           "parquet.crypto.factory.class");
+
+  /*
+   * Size threshold (bytes) at or below which a Parquet file is fetched eagerly on the first read.
+   * Fixed at 1 MB - not user configurable
+   */
+  private static final long EAGER_FETCH_THRESHOLD_BYTES = 1024 * 1024;
 
   public static WriteBuilder write(OutputFile file) {
     if (file instanceof EncryptedOutputFile) {
@@ -1352,7 +1359,12 @@ public class Parquet {
     }
 
     private ReadBuilder(InputFile file) {
-      this.file = file;
+      long length = file.getLength();
+      this.file = canEagerFetch(length) ? new EagerInputFile(file, length) : file;
+    }
+
+    private static boolean canEagerFetch(long length) {
+      return length > 0 && length <= EAGER_FETCH_THRESHOLD_BYTES;
     }
 
     /**
