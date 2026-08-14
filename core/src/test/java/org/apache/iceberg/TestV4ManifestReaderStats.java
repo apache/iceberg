@@ -134,6 +134,41 @@ class TestV4ManifestReaderStats {
 
   @ParameterizedTest
   @FieldSource("MANIFEST_FORMATS")
+  void statsAreReadWithMetricsConfig(FileFormat format) throws IOException {
+    TrackedFile file = fileWithStats("s3://bucket/file.parquet", contentStats());
+    InputFile manifest = writeManifest(format, CONTENT_STATS_TYPE, List.of(file));
+
+    MetricsConfig metricsConfig =
+        MetricsConfig.from(
+            ImmutableMap.of(
+                TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "data",
+                "counts",
+                TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "measure",
+                "none"),
+            TABLE_SCHEMA,
+            null);
+
+    try (V4ManifestReader reader =
+        V4ManifestReader.builder(manifest, TABLE_SCHEMA, UNPARTITIONED_SPECS, TABLE_LOCATION)
+            .metricsConfig(metricsConfig)
+            .build()) {
+      ContentStats stats = Iterables.getOnlyElement(reader).contentStats();
+      assertFieldStats(stats.statsFor(ID_FIELD_ID), ID_STATS);
+
+      FieldStats<?> dataStats = stats.statsFor(DATA_FIELD_ID);
+      assertThat(dataStats).isNotNull();
+      assertThat(dataStats.lowerBound()).isNull();
+      assertThat(dataStats.upperBound()).isNull();
+      assertThat(dataStats.valueCount()).isEqualTo(DATA_STATS.valueCount());
+      assertThat(dataStats.nullValueCount()).isEqualTo(DATA_STATS.nullValueCount());
+      assertThat(dataStats.avgValueSizeInBytes()).isEqualTo(DATA_STATS.avgValueSizeInBytes());
+
+      assertThat(stats.statsFor(MEASURE_FIELD_ID)).isNull();
+    }
+  }
+
+  @ParameterizedTest
+  @FieldSource("MANIFEST_FORMATS")
   void rowFilterKeepsStatsForAllFieldIds(FileFormat format) throws IOException {
     TrackedFile file = fileWithStats("s3://bucket/file.parquet", contentStats());
     InputFile manifest = writeManifest(format, CONTENT_STATS_TYPE, List.of(file));
