@@ -990,21 +990,13 @@ public class TestInclusiveMetricsEvaluator<F> {
     shouldRead = shouldRead(NESTED_SCHEMA, notNull("optional_address"), file6());
     assertThat(shouldRead).as("Should read: metrics are not tracked for structs").isTrue();
 
+    shouldRead = shouldRead(NESTED_SCHEMA, notNull("optional_address.required_street2"), file6());
+    assertThat(shouldRead).as("Should not read: optional_address is optional").isFalse();
+
     shouldRead = shouldRead(NESTED_SCHEMA, notNull("optional_address.optional_street2"), file6());
     assertThat(shouldRead)
         .as("Should not read: optional_address.optional_street2 is optional")
         .isFalse();
-  }
-
-  @Test
-  public void notNullForRequiredFieldInOptionalStruct() {
-    boolean shouldRead =
-        shouldRead(NESTED_SCHEMA, notNull("optional_address.required_street2"), file6());
-    assertThat(shouldRead).as("Should not read: optional_address is optional").isFalse();
-
-    assertThat(shouldRead(NESTED_SCHEMA, isNull("optional_address.required_street2"), file6()))
-        .as("Should read: optional_address is optional")
-        .isTrue();
   }
 
   @Test

@@ -74,42 +74,50 @@ class TestInclusiveStatsEvaluator extends TestInclusiveMetricsEvaluator<TrackedF
         50,
         contentStats(
             STATS_TYPE,
-            stats(1, INT_MIN_VALUE, INT_MAX_VALUE, null, null, null),
-            stats(4, null, null, 50L, 50L, null),
-            stats(5, null, null, 50L, 10L, null),
-            stats(6, null, null, 50L, 0L, null),
-            stats(7, null, null, 50L, null, 50L),
-            stats(8, null, null, 50L, null, 10L),
-            stats(9, null, null, 50L, null, 0L),
-            stats(10, null, null, 50L, 50L, null),
-            stats(11, Float.NaN, Float.NaN, 50L, 0L, null),
-            stats(12, Double.NaN, Double.NaN, 50L, 1L, null),
-            stats(13, null, null, 50L, null, null),
-            stats(14, "", "房东整租霍营小区二层两居室", 50L, 0L, null)));
+            fieldStats(STATS_TYPE, 1, INT_MIN_VALUE, INT_MAX_VALUE, null, null, null),
+            fieldStats(STATS_TYPE, 4, null, null, 50L, 50L, null),
+            fieldStats(STATS_TYPE, 5, null, null, 50L, 10L, null),
+            fieldStats(STATS_TYPE, 6, null, null, 50L, 0L, null),
+            fieldStats(STATS_TYPE, 7, null, null, 50L, null, 50L),
+            fieldStats(STATS_TYPE, 8, null, null, 50L, null, 10L),
+            fieldStats(STATS_TYPE, 9, null, null, 50L, null, 0L),
+            fieldStats(STATS_TYPE, 10, null, null, 50L, 50L, null),
+            fieldStats(STATS_TYPE, 11, Float.NaN, Float.NaN, 50L, 0L, null),
+            fieldStats(STATS_TYPE, 12, Double.NaN, Double.NaN, 50L, 1L, null),
+            fieldStats(STATS_TYPE, 13, null, null, 50L, null, null),
+            fieldStats(STATS_TYPE, 14, "", "房东整租霍营小区二层两居室", 50L, 0L, null)));
   }
 
   @Override
   protected TrackedFile file2() {
     return trackedFile(
-        "file_2.avro", 50, contentStats(STATS_TYPE, stats(3, "aa", "dC", 50L, 0L, null)));
+        "file_2.avro",
+        50,
+        contentStats(STATS_TYPE, fieldStats(STATS_TYPE, 3, "aa", "dC", 50L, 0L, null)));
   }
 
   @Override
   protected TrackedFile file3() {
     return trackedFile(
-        "file_3.avro", 50, contentStats(STATS_TYPE, stats(3, "1str1", "3str3", 50L, 0L, null)));
+        "file_3.avro",
+        50,
+        contentStats(STATS_TYPE, fieldStats(STATS_TYPE, 3, "1str1", "3str3", 50L, 0L, null)));
   }
 
   @Override
   protected TrackedFile file4() {
     return trackedFile(
-        "file_4.avro", 50, contentStats(STATS_TYPE, stats(3, "abc", "イロハニホヘト", 50L, 0L, null)));
+        "file_4.avro",
+        50,
+        contentStats(STATS_TYPE, fieldStats(STATS_TYPE, 3, "abc", "イロハニホヘト", 50L, 0L, null)));
   }
 
   @Override
   protected TrackedFile file5() {
     return trackedFile(
-        "file_5.avro", 50, contentStats(STATS_TYPE, stats(3, "abc", "abcdefghi", 50L, 0L, null)));
+        "file_5.avro",
+        50,
+        contentStats(STATS_TYPE, fieldStats(STATS_TYPE, 3, "abc", "abcdefghi", 50L, 0L, null)));
   }
 
   @Override
@@ -120,11 +128,11 @@ class TestInclusiveStatsEvaluator extends TestInclusiveMetricsEvaluator<TrackedF
         contentStats(
             NESTED_STATS_TYPE,
             // required_address is present in every row and optional_street1 is always null
-            stats(NESTED_STATS_TYPE, 102, null, null, 5L, null, null),
-            stats(NESTED_STATS_TYPE, 103, null, null, 5L, 5L, null),
+            fieldStats(NESTED_STATS_TYPE, 102, null, null, 5L, null, null),
+            fieldStats(NESTED_STATS_TYPE, 103, null, null, 5L, 5L, null),
             // optional_address is null in every row, so the fields it contains have no values
-            stats(NESTED_STATS_TYPE, 104, null, null, 5L, 5L, null),
-            stats(NESTED_STATS_TYPE, 105, null, null, 5L, 5L, null)));
+            fieldStats(NESTED_STATS_TYPE, 104, null, null, 5L, 5L, null),
+            fieldStats(NESTED_STATS_TYPE, 105, null, null, 5L, 5L, null)));
   }
 
   @Override
@@ -142,13 +150,15 @@ class TestInclusiveStatsEvaluator extends TestInclusiveMetricsEvaluator<TrackedF
     return trackedFile(
         "range_of_values.avro",
         10,
-        contentStats(STATS_TYPE, stats(3, "aaa", "zzz", 10L, 0L, null)));
+        contentStats(STATS_TYPE, fieldStats(STATS_TYPE, 3, "aaa", "zzz", 10L, 0L, null)));
   }
 
   @Override
   protected TrackedFile singleValueFile() {
     return trackedFile(
-        "single_value.avro", 10, contentStats(STATS_TYPE, stats(3, "abc", "abc", 10L, 0L, null)));
+        "single_value.avro",
+        10,
+        contentStats(STATS_TYPE, fieldStats(STATS_TYPE, 3, "abc", "abc", 10L, 0L, null)));
   }
 
   @Override
@@ -156,13 +166,15 @@ class TestInclusiveStatsEvaluator extends TestInclusiveMetricsEvaluator<TrackedF
     return trackedFile(
         "single_value_nulls.avro",
         10,
-        contentStats(STATS_TYPE, stats(14, "abc", "abc", 10L, 2L, null)));
+        contentStats(STATS_TYPE, fieldStats(STATS_TYPE, 14, "abc", "abc", 10L, 2L, null)));
   }
 
   @Override
   protected TrackedFile singleValueWithNaN() {
     return trackedFile(
-        "single_value_nan.avro", 10, contentStats(STATS_TYPE, stats(9, 5.0f, 5.0f, 10L, 0L, 2L)));
+        "single_value_nan.avro",
+        10,
+        contentStats(STATS_TYPE, fieldStats(STATS_TYPE, 9, 5.0f, 5.0f, 10L, 0L, 2L)));
   }
 
   @Override
@@ -170,7 +182,7 @@ class TestInclusiveStatsEvaluator extends TestInclusiveMetricsEvaluator<TrackedF
     return trackedFile(
         "single_value_nan_bounds.avro",
         10,
-        contentStats(STATS_TYPE, stats(9, Float.NaN, Float.NaN, 10L, 0L, 0L)));
+        contentStats(STATS_TYPE, fieldStats(STATS_TYPE, 9, Float.NaN, Float.NaN, 10L, 0L, 0L)));
   }
 
   @Override
@@ -178,7 +190,7 @@ class TestInclusiveStatsEvaluator extends TestInclusiveMetricsEvaluator<TrackedF
     return trackedFile(
         "single_value_file.avro",
         10,
-        contentStats(FLOAT_STATS_TYPE, stats(FLOAT_STATS_TYPE, 1, 1.0f, 1.0f, 10L, 0L, 0L)));
+        contentStats(FLOAT_STATS_TYPE, fieldStats(FLOAT_STATS_TYPE, 1, 1.0f, 1.0f, 10L, 0L, 0L)));
   }
 
   @Override
@@ -186,7 +198,7 @@ class TestInclusiveStatsEvaluator extends TestInclusiveMetricsEvaluator<TrackedF
     return trackedFile(
         "single_value_file.avro",
         10,
-        contentStats(FLOAT_STATS_TYPE, stats(FLOAT_STATS_TYPE, 1, 1.0f, 1.0f, 10L, 0L, 1L)));
+        contentStats(FLOAT_STATS_TYPE, fieldStats(FLOAT_STATS_TYPE, 1, 1.0f, 1.0f, 10L, 0L, 1L)));
   }
 
   @Test
@@ -206,9 +218,9 @@ class TestInclusiveStatsEvaluator extends TestInclusiveMetricsEvaluator<TrackedF
             5,
             contentStats(
                 LOCATION_STATS_TYPE,
-                stats(LOCATION_STATS_TYPE, 2, 1.0f, 3.0f, 3L, null, 0L),
-                stats(LOCATION_STATS_TYPE, 3, 1.0f, 3.0f, 3L, 0L, 0L),
-                stats(LOCATION_STATS_TYPE, 4, 0.0f, 0.0f, 3L, 2L, 0L)));
+                fieldStats(LOCATION_STATS_TYPE, 2, 1.0f, 3.0f, 3L, null, 0L),
+                fieldStats(LOCATION_STATS_TYPE, 3, 1.0f, 3.0f, 3L, 0L, 0L),
+                fieldStats(LOCATION_STATS_TYPE, 4, 0.0f, 0.0f, 3L, 2L, 0L)));
 
     assertThat(shouldRead(LOCATION_SCHEMA, isNull("location.lat"), file))
         .as("Should read: location.lat is null in 2 rows")
@@ -246,9 +258,9 @@ class TestInclusiveStatsEvaluator extends TestInclusiveMetricsEvaluator<TrackedF
             5,
             contentStats(
                 LOCATION_STATS_TYPE,
-                stats(LOCATION_STATS_TYPE, 2, 1.0f, 5.0f, 5L, 0L, 0L),
-                stats(LOCATION_STATS_TYPE, 3, 1.0f, 5.0f, 5L, null, 0L),
-                stats(LOCATION_STATS_TYPE, 4, 1.0f, 5.0f, 5L, 0L, 0L)));
+                fieldStats(LOCATION_STATS_TYPE, 2, 1.0f, 5.0f, 5L, 0L, 0L),
+                fieldStats(LOCATION_STATS_TYPE, 3, 1.0f, 5.0f, 5L, null, 0L),
+                fieldStats(LOCATION_STATS_TYPE, 4, 1.0f, 5.0f, 5L, 0L, 0L)));
 
     assertThat(shouldRead(LOCATION_SCHEMA, isNull("location.lat"), file))
         .as("Should not read: location.lat has a value in every row")
@@ -278,21 +290,5 @@ class TestInclusiveStatsEvaluator extends TestInclusiveMetricsEvaluator<TrackedF
     assertThat(shouldRead(SCHEMA, lessThan("id", INT_MIN_VALUE), file))
         .as("Should read: file does not track content stats")
         .isTrue();
-  }
-
-  private static FieldStats<Object> stats(
-      int fieldId, Object lower, Object upper, Long valueCount, Long nullCount, Long nanCount) {
-    return stats(STATS_TYPE, fieldId, lower, upper, valueCount, nullCount, nanCount);
-  }
-
-  private static FieldStats<Object> stats(
-      Types.StructType statsType,
-      int fieldId,
-      Object lower,
-      Object upper,
-      Long valueCount,
-      Long nullCount,
-      Long nanCount) {
-    return fieldStats(statsType, fieldId, lower, upper, valueCount, nullCount, nanCount);
   }
 }
