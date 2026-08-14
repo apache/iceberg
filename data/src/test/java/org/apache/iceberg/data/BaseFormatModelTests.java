@@ -175,7 +175,7 @@ public abstract class BaseFormatModelTests<T> {
   static final String FEATURE_COLUMN_METRICS_TRUNCATE_BINARY = "columnMetricsTruncateBinary";
   static final String FEATURE_NATIVE_ENCRYPTION = "nativeEncryption";
   static final String FEATURE_AES_STREAM_ENCRYPTION = "aesStreamEncryption";
-  protected static final String FEATURE_VARIANT = "variant";
+  static final String FEATURE_VARIANT = "variant";
 
   private static final Map<FileFormat, String[]> MISSING_FEATURES =
       Map.of(
