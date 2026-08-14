@@ -24,8 +24,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import java.util.Map;
 import java.util.UUID;
 import org.apache.iceberg.DataFile;
@@ -48,9 +46,6 @@ import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types.DoubleType;
-import org.apache.iceberg.types.Types.FloatType;
-import org.apache.iceberg.types.Types.GeometryType;
-import org.apache.iceberg.types.Types.LongType;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.junit.jupiter.api.TestTemplate;
@@ -125,23 +120,18 @@ public class TestParquetMetrics extends TestMetrics {
   }
 
   @TestTemplate
-  public void testMetricsForNullStructWithFloatingAndGeoLeaves() throws IOException {
-    // float, double, geometry and geography are the only types whose writers report metrics, so
-    // they are the ones whose nested null counts could be dropped when a struct is null. A required
-    // leaf is included because a null struct makes even a required field null.
+  public void testMetricsForNullStructWithNestedFields() throws IOException {
+    // a null struct contributes a null to its nested fields; this verifies that the writer's
+    // FieldMetrics carry those counts through to the file metrics. Per-type coverage of the writer
+    // is in TestParquetValueWriters; here one nested case is enough to exercise the conversion.
     StructType struct =
         StructType.of(
-            optional(2, "optDouble", DoubleType.get()),
-            required(3, "reqFloat", FloatType.get()),
-            optional(4, "geom", GeometryType.crs84()),
-            optional(5, "optLong", LongType.get()));
+            optional(2, "optional", DoubleType.get()), required(3, "required", DoubleType.get()));
     Schema schema = new Schema(optional(1, "struct", struct));
 
     Record inner = GenericRecord.create(struct);
-    inner.setField("optDouble", 1.5D);
-    inner.setField("reqFloat", 2.5F);
-    inner.setField("geom", wkbPoint(30, 10));
-    inner.setField("optLong", 10L);
+    inner.setField("optional", 1.5D);
+    inner.setField("required", 2.5D);
     Record withStruct = GenericRecord.create(schema);
     withStruct.setField("struct", inner);
     Record nullStruct = GenericRecord.create(schema);
@@ -150,12 +140,9 @@ public class TestParquetMetrics extends TestMetrics {
     Metrics metrics = getMetrics(schema, withStruct, nullStruct, nullStruct);
 
     assertThat(metrics.recordCount()).isEqualTo(3L);
-    // each leaf has one value from the populated struct and two nulls from the null structs
+    // each field has one value from the populated struct and two nulls from the null structs
     assertCounts(2, 3L, 2L, 0L, metrics);
     assertCounts(3, 3L, 2L, 0L, metrics);
-    assertCounts(4, 3L, 2L, metrics);
-    // a type without writer metrics was already correct via the footer; included as a control
-    assertCounts(5, 3L, 2L, metrics);
 
     // the counts also reach a data file built from these metrics
     DataFile dataFile =
@@ -166,47 +153,5 @@ public class TestParquetMetrics extends TestMetrics {
             .withMetrics(metrics)
             .build();
     assertThat(dataFile.nullValueCounts()).containsEntry(2, 2L).containsEntry(3, 2L);
-  }
-
-  @TestTemplate
-  public void testMetricsForRequiredNestedFieldInNullStruct() throws IOException {
-    // a required field is still null when its parent struct is null, so its null count must be
-    // recorded even though the field itself is not nullable
-    StructType struct = StructType.of(required(2, "reqDouble", DoubleType.get()));
-    Schema schema = new Schema(optional(1, "struct", struct));
-
-    Record inner = GenericRecord.create(struct);
-    inner.setField("reqDouble", 1.5D);
-    Record withStruct = GenericRecord.create(schema);
-    withStruct.setField("struct", inner);
-    Record nullStruct = GenericRecord.create(schema);
-    nullStruct.setField("struct", null);
-
-    Metrics metrics = getMetrics(schema, withStruct, nullStruct, nullStruct);
-
-    assertThat(metrics.recordCount()).isEqualTo(3L);
-    // one value from the populated struct and two nulls from the null structs
-    assertCounts(2, 3L, 2L, 0L, metrics);
-
-    DataFile dataFile =
-        DataFiles.builder(PartitionSpec.unpartitioned())
-            .withPath("/path/to/file.parquet")
-            .withFileSizeInBytes(1024)
-            .withFormat(FileFormat.PARQUET)
-            .withMetrics(metrics)
-            .build();
-    assertThat(dataFile.nullValueCounts()).containsEntry(2, 2L);
-  }
-
-  private static ByteBuffer wkbPoint(double xCoord, double yCoord) {
-    // little-endian WKB encoding of a point
-    return ByteBuffer.wrap(
-        ByteBuffer.allocate(21)
-            .order(ByteOrder.LITTLE_ENDIAN)
-            .put((byte) 1) // byte order: little endian
-            .putInt(1) // WKB geometry type: Point
-            .putDouble(xCoord)
-            .putDouble(yCoord)
-            .array());
   }
 }
