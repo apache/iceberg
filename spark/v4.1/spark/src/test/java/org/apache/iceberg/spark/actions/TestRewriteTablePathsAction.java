@@ -1803,8 +1803,8 @@ public class TestRewriteTablePathsAction extends TestBase {
     return relative.toFile().toURI().toString();
   }
 
-  private void assertManifestLengthsMatchActual(String tableLocation) {
-    Table targetTable = TABLES.load(tableLocation);
+  private void assertManifestLengthsMatchActual(String location) {
+    Table targetTable = TABLES.load(location);
     for (ManifestFile manifest : targetTable.currentSnapshot().allManifests(targetTable.io())) {
       long recordedLength = manifest.length();
       long actualLength = targetTable.io().newInputFile(manifest.path()).getLength();
