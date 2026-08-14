@@ -119,11 +119,11 @@ class TestInclusiveStatsEvaluator extends TestInclusiveMetricsEvaluator<TrackedF
         contentStats(
             NESTED_STATS_TYPE,
             // required_address is present in every row and optional_street1 is always null
-            stats(NESTED_STATS_TYPE, 102, null, null, 10L, null, null),
-            stats(NESTED_STATS_TYPE, 103, null, null, 10L, 10L, null),
+            stats(NESTED_STATS_TYPE, 102, null, null, 5L, null, null),
+            stats(NESTED_STATS_TYPE, 103, null, null, 5L, 5L, null),
             // optional_address is null in every row, so the fields it contains have no values
-            stats(NESTED_STATS_TYPE, 104, null, null, 0L, null, null),
-            stats(NESTED_STATS_TYPE, 105, null, null, 0L, 0L, null)));
+            stats(NESTED_STATS_TYPE, 104, null, null, 5L, 5L, null),
+            stats(NESTED_STATS_TYPE, 105, null, null, 5L, 5L, null)));
   }
 
   @Override
@@ -245,7 +245,7 @@ class TestInclusiveStatsEvaluator extends TestInclusiveMetricsEvaluator<TrackedF
             5,
             contentStats(
                 LOCATION_STATS_TYPE,
-                stats(LOCATION_STATS_TYPE, 2, 1.0f, 5.0f, 5L, null, 0L),
+                stats(LOCATION_STATS_TYPE, 2, 1.0f, 5.0f, 5L, 0L, 0L),
                 stats(LOCATION_STATS_TYPE, 3, 1.0f, 5.0f, 5L, null, 0L),
                 stats(LOCATION_STATS_TYPE, 4, 1.0f, 5.0f, 5L, 0L, 0L)));
 

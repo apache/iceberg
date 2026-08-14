@@ -52,7 +52,6 @@ import org.apache.iceberg.variants.VariantObject;
 public class InclusiveStatsEvaluator {
   private final Expression expr;
   private final Set<Integer> alwaysPresentFieldIds;
-  private final Set<Integer> requiredFieldIds;
 
   public InclusiveStatsEvaluator(Schema schema, Expression unbound) {
     this(schema, unbound, true);
@@ -64,10 +63,6 @@ public class InclusiveStatsEvaluator {
     Set<Integer> referencedIds =
         Binder.boundReferences(struct, Collections.singletonList(expr), caseSensitive);
     this.alwaysPresentFieldIds = alwaysPresentFieldIds(schema, referencedIds);
-    this.requiredFieldIds =
-        referencedIds.stream()
-            .filter(fieldId -> schema.findField(fieldId).isRequired())
-            .collect(Collectors.toSet());
   }
 
   /**
@@ -143,33 +138,26 @@ public class InclusiveStatsEvaluator {
       }
 
       FieldStats<?> fieldStats = stats.statsFor(id);
-      if (fieldStats == null || !fieldStats.hasValueCount()) {
+      if (fieldStats == null) {
         return true;
       }
 
-      if (fieldStats.hasNullValueCount() && fieldStats.nullValueCount() != 0) {
+      // rows where a struct that contains this field is null are not counted in the value count, so
+      // the field is null in every row that the value count does not cover
+      if (fieldStats.hasValueCount() && recordCount - fieldStats.valueCount() > 0) {
         return true;
       }
 
-      if (recordCount != fieldStats.valueCount()) {
-        return true;
-      }
-
-      return !fieldStats.hasNullValueCount() && !requiredFieldIds.contains(id);
+      return !fieldStats.hasNullValueCount() || fieldStats.nullValueCount() != 0;
     }
 
     @Override
     protected boolean containsNullsOnly(int id) {
       FieldStats<?> fieldStats = stats.statsFor(id);
-      if (fieldStats == null || !fieldStats.hasValueCount()) {
-        return false;
-      }
-
-      if (fieldStats.hasNullValueCount()) {
-        return fieldStats.nullValueCount() == fieldStats.valueCount();
-      } else {
-        return fieldStats.valueCount() == 0;
-      }
+      return fieldStats != null
+          && fieldStats.hasValueCount()
+          && fieldStats.hasNullValueCount()
+          && fieldStats.valueCount() - fieldStats.nullValueCount() == 0;
     }
 
     @Override
