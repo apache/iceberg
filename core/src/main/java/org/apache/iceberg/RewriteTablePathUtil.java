@@ -261,6 +261,46 @@ public class RewriteTablePathUtil {
    * @param outputPath location to write the manifest list
    * @return a copy plan for manifest files whose metadata were contained in the rewritten manifest
    *     list
+   * @deprecated Use {@link #rewriteManifestList(Snapshot, FileIO, TableMetadata, Set, String,
+   *     String, String, String, Map)} instead
+   */
+  @Deprecated
+  public static RewriteResult<ManifestFile> rewriteManifestList(
+      Snapshot snapshot,
+      FileIO io,
+      TableMetadata tableMetadata,
+      Set<String> manifestsToRewrite,
+      String sourcePrefix,
+      String targetPrefix,
+      String stagingDir,
+      String outputPath) {
+    return rewriteManifestList(
+        snapshot,
+        io,
+        tableMetadata,
+        manifestsToRewrite,
+        sourcePrefix,
+        targetPrefix,
+        stagingDir,
+        outputPath,
+        ImmutableMap.of());
+  }
+
+  /**
+   * Rewrite a manifest list representing a snapshot, replacing path references.
+   *
+   * @param snapshot snapshot represented by the manifest list
+   * @param io file io
+   * @param tableMetadata metadata of table
+   * @param manifestsToRewrite a list of manifest files to filter for rewrite
+   * @param sourcePrefix source prefix that will be replaced
+   * @param targetPrefix target prefix that will replace it
+   * @param stagingDir staging directory
+   * @param outputPath location to write the manifest list
+   * @param rewrittenManifestSizes map from source manifest path to actual byte size of the
+   *     rewritten staging file; used to record correct lengths in the manifest list
+   * @return a copy plan for manifest files whose metadata were contained in the rewritten manifest
+   *     list
    */
   public static RewriteResult<ManifestFile> rewriteManifestList(
       Snapshot snapshot,
