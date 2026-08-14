@@ -359,6 +359,37 @@ public class TestRewriteTablePathUtil extends TestBase {
     assertThat(seen).as("Both the live and deleted entries should be present").isEqualTo(2);
   }
 
+  @TestTemplate
+  public void testRewriteDeleteManifestExcludesDeletedEntriesFromRewrite() throws IOException {
+    assumeThat(formatVersion)
+        .as("Delete files only work for format version 2+")
+        .isGreaterThanOrEqualTo(2);
+
+    // FILE_B_DELETES is a DELETED entry. Its file may already have been removed by
+    // expire_snapshots, so rewriting it would read a file that no longer exists.
+    ManifestFile manifest = deleteManifestWithLiveAndDeletedEntry(FILE_A_DELETES, FILE_B_DELETES);
+
+    RewriteTablePathUtil.RewriteResult<DeleteFile> result =
+        RewriteTablePathUtil.rewriteDeleteManifest(
+            manifest,
+            Set.of(1000L),
+            Files.localOutput(
+                FileFormat.AVRO.addExtension(
+                    temp.resolve("junit" + System.nanoTime()).toFile().toString())),
+            table.io(),
+            formatVersion,
+            table.specs(),
+            "/path/to/",
+            "/path/new/",
+            "/staging/",
+            ImmutableMap.of());
+
+    assertThat(result.toRewrite())
+        .as("Only the live position delete file should be rewritten")
+        .extracting(ContentFile::location)
+        .containsExactly(FILE_A_DELETES.location());
+  }
+
   private ManifestFile deleteManifestWithLiveAndDeletedEntry(DeleteFile live, DeleteFile deleted)
       throws IOException {
     OutputFile manifestFile =

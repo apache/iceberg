@@ -524,7 +524,11 @@ public class RewriteTablePathUtil {
                       stagingPath(file.location(), sourcePrefix, stagingLocation),
                       posDeleteFile.location()));
         }
-        result.toRewrite().add(file.copy());
+        // Only live files can be rewritten. A deleted entry is a tombstone whose file may already
+        // have been removed by expire_snapshots, so reading it to rewrite embedded paths fails.
+        if (entry.isLive()) {
+          result.toRewrite().add(file.copy());
+        }
         return result;
       case EQUALITY_DELETES:
         DeleteFile eqDeleteFile = newEqualityDeleteEntry(file, spec, sourcePrefix, targetPrefix);
