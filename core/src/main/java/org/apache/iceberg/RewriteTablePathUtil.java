@@ -270,7 +270,8 @@ public class RewriteTablePathUtil {
       String sourcePrefix,
       String targetPrefix,
       String stagingDir,
-      String outputPath) {
+      String outputPath,
+      Map<String, Long> rewrittenManifestSizes) {
     RewriteResult<ManifestFile> result = new RewriteResult<>();
     OutputFile outputFile = io.newOutputFile(outputPath);
 
@@ -301,6 +302,7 @@ public class RewriteTablePathUtil {
       for (ManifestFile file : manifestFiles) {
         ManifestFile newFile = file.copy();
         ((StructLike) newFile).set(0, newPath(newFile.path(), sourcePrefix, targetPrefix));
+        ((StructLike) newFile).set(1, rewrittenManifestSizes.getOrDefault(file.path(), file.length()));
         writer.add(newFile);
 
         if (manifestsToRewrite.contains(file.path())) {
