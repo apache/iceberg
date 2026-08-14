@@ -154,14 +154,14 @@ abstract class Channel {
     Map<TopicPartition, OffsetAndMetadata> offsetsToCommit = Maps.newHashMap();
     controlTopicOffsets.forEach(
         (partition, offsetToCommit) -> {
-          TopicPartition tp = new TopicPartition(controlTopic, partition);
-          Long lastCommittedOffset = committedOffsets.get(tp.partition());
+          Long lastCommittedOffset = committedOffsets.get(partition);
           if (lastCommittedOffset == null || offsetToCommit > lastCommittedOffset) {
+            TopicPartition tp = new TopicPartition(controlTopic, partition);
             offsetsToCommit.put(tp, new OffsetAndMetadata(offsetToCommit));
           }
         });
     if (!offsetsToCommit.isEmpty()) {
-      LOG.info("Coordinator committing offsets: {}", offsetsToCommit);
+      LOG.debug("Committing consumer offsets: {}", offsetsToCommit);
       consumer.commitSync(offsetsToCommit);
       offsetsToCommit.forEach(
           (topicPartition, metadata) ->

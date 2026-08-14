@@ -378,8 +378,42 @@ public class TestCoordinator extends ChannelTestBase {
 
     assertThat(committed)
         .as(
-            "commitConsumerOffsets should not rewind offsets when consumer group was updated by another coordinator")
+            "commitConsumerOffsets should not commit offsets when offset has not changed relative to local cache")
         .isEqualTo(nextWatermark);
+  }
+
+  @Test
+  public void testCommitConsumerRewindsOffsetsWhenAnotherCoordinatorAdvancesOffsets() {
+    when(config.commitIntervalMs()).thenReturn(0);
+    when(config.commitTimeoutMs()).thenReturn(Integer.MAX_VALUE);
+
+    SinkTaskContext context = mock(SinkTaskContext.class);
+    Coordinator coordinator =
+        new Coordinator(catalog, config, ImmutableList.of(), clientFactory, context);
+    coordinator.start();
+    initConsumer();
+
+    TopicPartition ctl = new TopicPartition(CTL_TOPIC_NAME, 0);
+
+    long healthyWatermark = 100L;
+    coordinator.controlTopicOffsets().put(0, healthyWatermark);
+    coordinator.commitConsumerOffsets();
+
+    long nextWatermark = healthyWatermark + 5;
+    consumer.commitSync(ImmutableMap.of(ctl, new OffsetAndMetadata(nextWatermark)));
+
+    long rewindWatermark = healthyWatermark + 3;
+    coordinator.controlTopicOffsets().put(0, rewindWatermark);
+    coordinator.commitConsumerOffsets();
+
+    OffsetAndMetadata committedOffsetAndMetadata =
+        consumer.committed(ImmutableSet.of(ctl)).get(ctl);
+    long committed = committedOffsetAndMetadata == null ? 0L : committedOffsetAndMetadata.offset();
+
+    assertThat(committed)
+        .as(
+            "Expected Limitation: commitConsumerOffsets will rewind offsets if local offset advances and another coordinator committed a higher offset")
+        .isEqualTo(rewindWatermark);
   }
 
   @Test
@@ -471,16 +505,14 @@ public class TestCoordinator extends ChannelTestBase {
     Map<TopicPartition, OffsetAndMetadata> committedOffsetAndMetadata =
         consumer.committed(ImmutableSet.of(ctl0, ctl1));
 
-    long committed0 =
-        committedOffsetAndMetadata == null ? 0L : committedOffsetAndMetadata.get(ctl0).offset();
-    long committed1 =
-        committedOffsetAndMetadata == null ? 0L : committedOffsetAndMetadata.get(ctl1).offset();
+    OffsetAndMetadata committed0 = committedOffsetAndMetadata.get(ctl0);
+    OffsetAndMetadata committed1 = committedOffsetAndMetadata.get(ctl1);
 
-    assertThat(committed0)
+    assertThat(committed0 == null ? 0L : committed0.offset())
         .as("commitConsumerOffsets should advance the consumer group offsets")
         .isEqualTo(watermarkToCommit);
 
-    assertThat(committed1)
+    assertThat(committed1 == null ? 0L : committed1.offset())
         .as("commitConsumerOffsets should not rewind consumer group offsets")
         .isEqualTo(healthWatermark1);
   }
