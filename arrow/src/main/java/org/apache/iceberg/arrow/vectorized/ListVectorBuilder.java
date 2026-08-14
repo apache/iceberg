@@ -18,12 +18,23 @@
  */
 package org.apache.iceberg.arrow.vectorized;
 
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import org.apache.arrow.memory.BufferAllocator;
+import org.apache.arrow.vector.BaseVariableWidthVector;
+import org.apache.arrow.vector.BigIntVector;
 import org.apache.arrow.vector.FieldVector;
+import org.apache.arrow.vector.FixedSizeBinaryVector;
+import org.apache.arrow.vector.Float4Vector;
+import org.apache.arrow.vector.Float8Vector;
 import org.apache.arrow.vector.IntVector;
 import org.apache.arrow.vector.complex.ListVector;
 import org.apache.iceberg.arrow.ArrowSchemaUtil;
+import org.apache.iceberg.parquet.ParquetUtil;
 import org.apache.iceberg.types.Types;
+import org.apache.parquet.column.Dictionary;
+import org.apache.parquet.schema.LogicalTypeAnnotation;
+import org.apache.parquet.schema.PrimitiveType;
 
 /**
  * Owns the Arrow {@link ListVector} construction state for {@link VectorizedListReader}.
@@ -39,7 +50,7 @@ import org.apache.iceberg.types.Types;
  *
  * <p>Not thread-safe.
  */
-class VectorizedListBuilder implements AutoCloseable {
+class ListVectorBuilder implements AutoCloseable {
 
   private final Types.NestedField icebergField;
   private final BufferAllocator allocator;
@@ -57,7 +68,7 @@ class VectorizedListBuilder implements AutoCloseable {
   private int listDefinitionLevel;
   private int elementIndex;
 
-  VectorizedListBuilder(
+  ListVectorBuilder(
       Types.NestedField icebergField,
       BufferAllocator allocator,
       int definitionLevel,
@@ -108,47 +119,112 @@ class VectorizedListBuilder implements AutoCloseable {
     elementIndex = 0;
   }
 
-  /** Child (data) vector of the underlying {@link ListVector}. */
-  FieldVector childVector() {
-    return listVector.getDataVector();
-  }
-
-  /** Current write position in the child vector; caller uses this as the destination index. */
-  int nextElementIndex() {
-    return elementIndex;
-  }
-
-  /**
-   * Closes the currently open list, if any, using the definition level that was recorded when it
-   * was opened. Idempotent: returns {@code false} without side effects when no list is currently
-   * open (e.g. before the batch's first list has been opened).
-   *
-   * @return {@code true} if a list was actually closed, {@code false} otherwise
-   */
-  boolean closeCurrentList() {
-    if (listIndex < 0) {
-      return false;
-    }
-    closeList(listDefinitionLevel);
-    return true;
-  }
-
   /**
    * Opens a new list at the given repetition/definition level. The caller must ensure any
-   * previously-open list was closed via {@link #closeCurrentList()} first.
+   * previously-open list was closed via {@link #endCurrentList()} first.
    */
   void openNewList(int elementRepetitionLevel, int elementDefinitionLevel) {
     listDefinitionLevel = elementDefinitionLevel;
     listIndex++;
     listSize = 0;
     listVector.startNewValue(listIndex);
-    listRepetitionLevels.setSafe(listIndex, elementRepetitionLevel);
+    listRepetitionLevels.set(listIndex, elementRepetitionLevel);
   }
 
-  /** Records that one non-null element was written at {@link #nextElementIndex()}. */
-  void elementAppended() {
+  public void writeNull() {
+    listVector.getDataVector().setNull(elementIndex);
     listSize++;
     elementIndex++;
+  }
+
+  /**
+   * Writes one element from an element-reader batch into the child vector at elementIndex.
+   * Handles both plain and Parquet dictionary-encoded source batches: when {@code
+   * sourceBatch.isDictionaryEncoded()} is {@code true}, the {@link IntVector} of dictionary IDs is
+   * decoded through {@code sourceBatch.dictionary()} into the plain-typed child vector; otherwise
+   * the value is copied directly via {@link FieldVector#copyFromSafe}.
+   *
+   * <p>The dispatch mirrors the {@code nextVal} implementations in {@code
+   * VectorizedDictionaryEncodedParquetValuesReader} and the vector allocation done by {@code
+   * VectorizedArrowReader#allocateFieldVector}, so that a list<T> read produces the same
+   * materialized child regardless of the element column's encoding on disk.
+   */
+  void writeNonNullElement(VectorHolder sourceBatch, int sourceOffset) {
+    FieldVector targetVector = listVector.getDataVector();
+    if (!sourceBatch.isDictionaryEncoded()) {
+      targetVector.copyFromSafe(sourceOffset, elementIndex, sourceBatch.vector());
+      listSize++;
+      elementIndex++;
+      return;
+    }
+    IntVector dictIds = (IntVector) sourceBatch.vector();
+    int dictId = dictIds.get(sourceOffset);
+    Dictionary dictionary = sourceBatch.dictionary();
+    PrimitiveType primitive = sourceBatch.descriptor().getPrimitiveType();
+    LogicalTypeAnnotation logicalType = primitive.getLogicalTypeAnnotation();
+    if (logicalType instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation ts) {
+      long micros = dictionary.decodeToLong(dictId);
+      if (ts.getUnit() == LogicalTypeAnnotation.TimeUnit.MILLIS) {
+        micros *= 1000;
+      }
+      // The child vector is always allocated as BigIntVector for Iceberg timestamp types.
+      ((BigIntVector) targetVector).setSafe(elementIndex, micros);
+      return;
+    }
+    switch (primitive.getPrimitiveTypeName()) {
+      case INT32 ->
+          ((IntVector) targetVector).setSafe(elementIndex, dictionary.decodeToInt(dictId));
+      case INT64 ->
+          ((BigIntVector) targetVector).setSafe(elementIndex, dictionary.decodeToLong(dictId));
+      case FLOAT ->
+          ((Float4Vector) targetVector).setSafe(elementIndex, dictionary.decodeToFloat(dictId));
+      case DOUBLE ->
+          ((Float8Vector) targetVector).setSafe(elementIndex, dictionary.decodeToDouble(dictId));
+      case BINARY -> {
+        ByteBuffer buffer = dictionary.decodeToBinary(dictId).toByteBuffer();
+        ((BaseVariableWidthVector) targetVector)
+            .setSafe(elementIndex, buffer, buffer.position(), buffer.remaining());
+      }
+      case FIXED_LEN_BYTE_ARRAY -> {
+        FixedSizeBinaryVector fixed = (FixedSizeBinaryVector) targetVector;
+        byte[] bytes = dictionary.decodeToBinary(dictId).getBytesUnsafe();
+        byte[] slot = new byte[fixed.getByteWidth()];
+        System.arraycopy(bytes, 0, slot, 0, fixed.getByteWidth());
+        fixed.setSafe(elementIndex, slot);
+      }
+      case INT96 -> {
+        ByteBuffer int96 =
+            dictionary.decodeToBinary(dictId).toByteBuffer().order(ByteOrder.LITTLE_ENDIAN);
+        ((BigIntVector) targetVector)
+            .setSafe(elementIndex, ParquetUtil.extractTimestampInt96(int96));
+      }
+      default ->
+          throw new UnsupportedOperationException(
+              "Unsupported dictionary-encoded element type: " + primitive);
+    }
+    listSize++;
+    elementIndex++;
+  }
+
+  /**
+   * Ends the currently open list, if any, using the definition level that was recorded when it
+   * was opened.
+   *
+   * @return {@code true} if a list was actually closed, {@code false} otherwise it happens the first list of the batch
+   */
+  boolean endCurrentList() {
+    if (listIndex < 0) {
+      return false;
+    }
+    int nullThreshold = definitionLevel - (isElementRequired ? 1 : 2);
+    if (!isListRequired && listDefinitionLevel < nullThreshold) {
+      listVector.setNull(listIndex);
+      nullabilityHolder.setNull(listIndex, listDefinitionLevel);
+    } else {
+      listVector.endValue(listIndex, listSize);
+      nullabilityHolder.setNotNull(listIndex, nullThreshold);
+    }
+    return true;
   }
 
   /**
@@ -156,7 +232,7 @@ class VectorizedListBuilder implements AutoCloseable {
    * ListVector}, its list-level {@link NullabilityHolder}, and the repetition-level {@link
    * IntVector}.
    */
-  VectorHolder buildResult() {
+  VectorHolder build() {
     listRepetitionLevels.setValueCount(listIndex + 1);
     listVector.setValueCount(listIndex + 1);
     return VectorHolder.vectorHolder(
@@ -172,17 +248,6 @@ class VectorizedListBuilder implements AutoCloseable {
     if (listRepetitionLevels != null) {
       listRepetitionLevels.close();
       listRepetitionLevels = null;
-    }
-  }
-
-  private void closeList(int closingDefinitionLevel) {
-    int nullThreshold = definitionLevel - (isElementRequired ? 1 : 2);
-    if (!isListRequired && closingDefinitionLevel < nullThreshold) {
-      listVector.setNull(listIndex);
-      nullabilityHolder.setNull(listIndex, closingDefinitionLevel);
-    } else {
-      listVector.endValue(listIndex, listSize);
-      nullabilityHolder.setNotNull(listIndex, nullThreshold);
     }
   }
 }

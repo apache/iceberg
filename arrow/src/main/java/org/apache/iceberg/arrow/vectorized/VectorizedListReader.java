@@ -21,7 +21,6 @@ package org.apache.iceberg.arrow.vectorized;
 import java.util.List;
 import java.util.Map;
 import org.apache.arrow.memory.BufferAllocator;
-import org.apache.arrow.vector.FieldVector;
 import org.apache.iceberg.parquet.TripleIterator;
 import org.apache.iceberg.parquet.VectorizedReader;
 import org.apache.iceberg.types.Types;
@@ -37,7 +36,7 @@ public class VectorizedListReader extends VectorizedArrowReader {
   private final int repetitionLevel;
   private final int definitionLevel;
   private final boolean isElementRequired;
-  private final VectorizedListBuilder listBuilder;
+  private final ListVectorBuilder listBuilder;
   private long estimatedSize;
 
   public VectorizedListReader(
@@ -54,7 +53,7 @@ public class VectorizedListReader extends VectorizedArrowReader {
     this.definitionLevel = desc.getMaxDefinitionLevel();
     this.isElementRequired = isElementRequired;
     this.listBuilder =
-        new VectorizedListBuilder(
+        new ListVectorBuilder(
             icebergField, rootAllocator, definitionLevel, isListRequired, isElementRequired);
   }
 
@@ -74,7 +73,7 @@ public class VectorizedListReader extends VectorizedArrowReader {
     this.rootAlloc = rootAllocator;
     this.isElementRequired = isElementRequired;
     this.listBuilder =
-        new VectorizedListBuilder(
+        new ListVectorBuilder(
             icebergField, rootAllocator, definitionLevel, isListRequired, isElementRequired);
   }
 
@@ -87,7 +86,6 @@ public class VectorizedListReader extends VectorizedArrowReader {
   @Override
   public VectorHolder read(VectorHolder reuse, int numRowsToRead) {
     listBuilder.prepareBatch(numRowsToRead, (int) estimatedSize);
-    FieldVector childVector = listBuilder.childVector();
     int rowsRemaining = numRowsToRead;
 
     while (rowsRemaining > 0 && elements.hasNext()) {
@@ -95,7 +93,7 @@ public class VectorizedListReader extends VectorizedArrowReader {
       int elementDefinitionLevel = elements.currentDefinitionLevel();
 
       if (elementRepetitionLevel < repetitionLevel) { // new list
-        if (listBuilder.closeCurrentList()) { // no-op on the batch's first list
+        if (listBuilder.endCurrentList()) { // no-op on the batch's first list
           if (elementRepetitionLevel == 0) {
             rowsRemaining--;
             if (rowsRemaining == 0) {
@@ -109,21 +107,19 @@ public class VectorizedListReader extends VectorizedArrowReader {
       if (elementDefinitionLevel < definitionLevel) { // null value or empty list
         elements.nextNull();
         if (!isElementRequired && elementDefinitionLevel == definitionLevel - 1) { // null element
-          childVector.setNull(listBuilder.nextElementIndex());
-          listBuilder.elementAppended();
+          listBuilder.writeNull();
         }
         // nothing to do if emptyList
       } else { // non-null element
-        elements.setNext(childVector, listBuilder.nextElementIndex());
-        listBuilder.elementAppended();
+        elements.writeNextElement(listBuilder);
       }
     }
 
     if (rowsRemaining > 0) {
       // EOF exit: close the last opened list using the def level recorded when it was started.
-      listBuilder.closeCurrentList();
+      listBuilder.endCurrentList();
     }
-    return listBuilder.buildResult();
+    return listBuilder.build();
   }
 
   @Override
@@ -185,9 +181,9 @@ public class VectorizedListReader extends VectorizedArrowReader {
       return currentBatch.nullabilityHolder().definitionLevelAt(currentOffset);
     }
 
-    void setNext(FieldVector targetVector, int targetIndex) {
+    void writeNextElement(ListVectorBuilder builder) {
       advance();
-      targetVector.copyFromSafe(currentOffset, targetIndex, currentBatch.vector());
+      builder.writeNonNullElement(currentBatch, currentOffset);
       currentOffset++;
     }
 

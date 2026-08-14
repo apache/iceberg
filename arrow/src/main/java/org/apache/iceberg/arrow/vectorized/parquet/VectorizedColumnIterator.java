@@ -122,7 +122,7 @@ public class VectorizedColumnIterator extends BaseColumnIterator {
         NullabilityHolder holder,
         IntVector repetitionLevels) {
       return vectorizedPageIterator.nextBatchDictionaryIds(
-          (IntVector) vector, expectedBatchSize, numValsInVector, holder);
+          (IntVector) vector, expectedBatchSize, numValsInVector, holder, repetitionLevels);
     }
   }
 
