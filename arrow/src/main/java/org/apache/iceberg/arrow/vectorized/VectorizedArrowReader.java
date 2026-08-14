@@ -305,7 +305,9 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
           this.readType = ReadType.FIXED_WIDTH_BINARY;
         }
         this.vec = arrowField.createVector(rootAlloc);
-        vec.setInitialCapacity(batchSize * len);
+        // Fixed-width vectors size their data buffer as valueCount * typeWidth, so passing a byte
+        // count reserves typeWidth times too many values.
+        vec.setInitialCapacity(batchSize);
         vec.allocateNew();
         this.typeWidth = len;
         break;
@@ -341,7 +343,8 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
         int length = BigIntVector.TYPE_WIDTH;
         this.readType = ReadType.TIMESTAMP_INT96;
         this.vec = arrowField.createVector(rootAlloc);
-        vec.setInitialCapacity(batchSize * length);
+        // See the FIXED_LEN_BYTE_ARRAY case: the argument is a value count, not a byte count.
+        vec.setInitialCapacity(batchSize);
         vec.allocateNew();
         this.typeWidth = length;
         break;

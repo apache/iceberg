@@ -22,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
+import org.apache.arrow.vector.FixedSizeBinaryVector;
 import org.apache.arrow.vector.VarCharVector;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -63,6 +64,28 @@ public class TestVariableWidthInitialCapacity {
           .as("offsets should be reserved for one batch of rows")
           .isGreaterThanOrEqualTo(BATCH_SIZE)
           .isLessThan(BATCH_SIZE * AVERAGE_WIDTH);
+    }
+  }
+
+  @Test
+  public void testFixedWidthVectorIsSizedByValueCount() {
+    int byteWidth = 16; // a UUID column
+    try (FixedSizeBinaryVector sizedByValues =
+            new FixedSizeBinaryVector("v", allocator, byteWidth);
+        FixedSizeBinaryVector sizedByBytes = new FixedSizeBinaryVector("v", allocator, byteWidth)) {
+      sizedByValues.setInitialCapacity(BATCH_SIZE);
+      sizedByValues.allocateNew();
+
+      sizedByBytes.setInitialCapacity(BATCH_SIZE * byteWidth);
+      sizedByBytes.allocateNew();
+
+      assertThat(sizedByValues.getValueCapacity())
+          .as("a batch worth of values is enough to hold the batch")
+          .isGreaterThanOrEqualTo(BATCH_SIZE);
+
+      assertThat(sizedByBytes.getDataBuffer().capacity())
+          .as("passing a byte count over-allocates by the byte width")
+          .isGreaterThan(sizedByValues.getDataBuffer().capacity() * (byteWidth - 1L));
     }
   }
 
