@@ -21,7 +21,6 @@ package org.apache.iceberg.flink.data;
 import org.apache.flink.table.types.logical.ArrayType;
 import org.apache.flink.table.types.logical.LogicalType;
 import org.apache.flink.table.types.logical.LogicalTypeFamily;
-import org.apache.flink.table.types.logical.MapType;
 import org.apache.flink.table.types.logical.NullType;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.table.types.logical.VariantType;
@@ -44,7 +43,7 @@ public abstract class AvroWithFlinkSchemaVisitor<T>
 
   @Override
   protected boolean isMapType(LogicalType logicalType) {
-    return logicalType instanceof MapType;
+    return FlinkMultisets.isMapLike(logicalType);
   }
 
   @Override
@@ -56,14 +55,16 @@ public abstract class AvroWithFlinkSchemaVisitor<T>
 
   @Override
   protected LogicalType mapKeyType(LogicalType mapType) {
-    Preconditions.checkArgument(isMapType(mapType), "Invalid map: %s is not a map", mapType);
-    return ((MapType) mapType).getKeyType();
+    Preconditions.checkArgument(
+        isMapType(mapType), "Invalid map: %s is not a map or multiset", mapType);
+    return FlinkMultisets.asMapType(mapType).getKeyType();
   }
 
   @Override
   protected LogicalType mapValueType(LogicalType mapType) {
-    Preconditions.checkArgument(isMapType(mapType), "Invalid map: %s is not a map", mapType);
-    return ((MapType) mapType).getValueType();
+    Preconditions.checkArgument(
+        isMapType(mapType), "Invalid map: %s is not a map or multiset", mapType);
+    return FlinkMultisets.asMapType(mapType).getValueType();
   }
 
   @Override
