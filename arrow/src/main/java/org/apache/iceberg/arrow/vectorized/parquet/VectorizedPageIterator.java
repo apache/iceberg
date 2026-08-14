@@ -171,10 +171,18 @@ public class VectorizedPageIterator extends BasePageIterator {
       final IntVector vector,
       final int expectedBatchSize,
       final int numValsInVector,
-      NullabilityHolder holder) {
+      NullabilityHolder holder,
+      IntVector repLevels) {
     final int actualBatchSize = getActualBatchSize(expectedBatchSize);
     if (actualBatchSize <= 0) {
       return 0;
+    }
+    if (repLevels != null) {
+      for (int i = 0; i < actualBatchSize; i++) {
+        int repetitionLevel = nextRepetitionLevel();
+        repLevels.setSafe(numValsInVector + i, repetitionLevel);
+      }
+      repLevels.setValueCount(numValsInVector + actualBatchSize);
     }
     vectorizedDefinitionLevelReader
         .dictionaryIdReader()

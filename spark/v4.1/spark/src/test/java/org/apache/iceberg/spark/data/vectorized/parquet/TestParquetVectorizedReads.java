@@ -36,12 +36,14 @@ import java.nio.file.Paths;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.arrow.ArrowAllocation;
+import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.parquet.GenericParquetReaders;
@@ -364,6 +366,128 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
       writer.addAll(data);
     }
     assertRecordsMatch(schema, 20_000, data, dataFile, false, 10_000);
+  }
+
+  /**
+   * Exercises the dictionary-encoded list element path. List columns whose elements are drawn from
+   * a small distinct value set are guaranteed to be Parquet dictionary encoded across every page.
+   * With the default 10_000 batch size and 20_000 rows, the read crosses at least one batch
+   * boundary so the {@code ElementIterator} refetches the element batch mid-read.
+   */
+  @Test
+  public void testListWithDictionaryEncodedElements() throws IOException {
+    Schema schema =
+        new Schema(
+            optional(1, "int_list", Types.ListType.ofOptional(2, Types.IntegerType.get())),
+            optional(3, "long_list", Types.ListType.ofOptional(4, Types.LongType.get())),
+            optional(5, "float_list", Types.ListType.ofOptional(6, Types.FloatType.get())),
+            optional(7, "double_list", Types.ListType.ofOptional(8, Types.DoubleType.get())),
+            optional(9, "string_list", Types.ListType.ofOptional(10, Types.StringType.get())));
+
+    List<Integer> intPool = ImmutableList.of(0, 1, 2, 3, 4);
+    List<Long> longPool = ImmutableList.of(100L, 200L, 300L, 400L);
+    List<Float> floatPool = ImmutableList.of(1.5f, 2.5f, 3.5f);
+    List<Double> doublePool = ImmutableList.of(10.25d, 20.5d, 30.75d, 40.125d);
+    List<String> stringPool = ImmutableList.of("alpha", "beta", "gamma", "delta");
+
+    int numRows = 20_000;
+    List<Record> data = Lists.newArrayListWithCapacity(numRows);
+    Random rand = new Random(42L);
+    for (int row = 0; row < numRows; row++) {
+      Record record = GenericRecord.create(schema);
+      record.setField("int_list", pick(rand, intPool, 3));
+      record.setField("long_list", pick(rand, longPool, 4));
+      record.setField("float_list", pick(rand, floatPool, 2));
+      record.setField("double_list", pick(rand, doublePool, 3));
+      record.setField("string_list", pick(rand, stringPool, 5));
+      data.add(record);
+    }
+
+    File dataFile = temp.resolve("dict-list-data.parquet").toFile();
+    try (FileAppender<Record> writer = getParquetWriter(schema, dataFile)) {
+      writer.addAll(data);
+    }
+    assertRecordsMatch(schema, numRows, data, dataFile, false, 10_000);
+  }
+
+  /**
+   * Covers the null-element path when the surrounding batch is dictionary encoded. Optional string
+   * elements are interleaved with nulls at each list position while the non-null values are drawn
+   * from a small pool to force dictionary encoding.
+   */
+  @Test
+  public void testListWithDictionaryEncodedNullElements() throws IOException {
+    Schema schema =
+        new Schema(
+            optional(1, "string_list", Types.ListType.ofOptional(2, Types.StringType.get())));
+
+    List<String> stringPool = ImmutableList.of("alpha", "beta", "gamma", "delta");
+    int numRows = 15_000;
+    List<Record> data = Lists.newArrayListWithCapacity(numRows);
+    Random rand = new Random(7L);
+    for (int row = 0; row < numRows; row++) {
+      Record record = GenericRecord.create(schema);
+      int listLen = rand.nextInt(6);
+      List<String> values = Lists.newArrayListWithCapacity(listLen);
+      for (int i = 0; i < listLen; i++) {
+        // ~30% nulls interleaved with dict-encodable values
+        values.add(
+            rand.nextFloat() < 0.3f ? null : stringPool.get(rand.nextInt(stringPool.size())));
+      }
+      record.setField("string_list", values);
+      data.add(record);
+    }
+
+    File dataFile = temp.resolve("dict-list-null-elements.parquet").toFile();
+    try (FileAppender<Record> writer = getParquetWriter(schema, dataFile)) {
+      writer.addAll(data);
+    }
+    assertRecordsMatch(schema, numRows, data, dataFile, false, 10_000);
+  }
+
+  /**
+   * Regression coverage: identical logical data written with and without Parquet dictionary
+   * encoding must produce identical results through the vectorized list reader.
+   */
+  @Test
+  public void testListWithMixedElementEncodings() throws IOException {
+    Schema schema =
+        new Schema(
+            optional(1, "string_list", Types.ListType.ofOptional(2, Types.StringType.get())),
+            optional(3, "long_list", Types.ListType.ofOptional(4, Types.LongType.get())));
+
+    List<String> stringPool = ImmutableList.of("alpha", "beta", "gamma", "delta");
+    List<Long> longPool = ImmutableList.of(100L, 200L, 300L, 400L);
+    int numRows = 12_000;
+    List<Record> data = Lists.newArrayListWithCapacity(numRows);
+    Random rand = new Random(99L);
+    for (int row = 0; row < numRows; row++) {
+      Record record = GenericRecord.create(schema);
+      record.setField("string_list", pick(rand, stringPool, 4));
+      record.setField("long_list", pick(rand, longPool, 4));
+      data.add(record);
+    }
+
+    File dictFile = temp.resolve("mixed-list-dict.parquet").toFile();
+    try (FileAppender<Record> writer = getParquetWriter(schema, dictFile)) {
+      writer.addAll(data);
+    }
+    File plainFile = temp.resolve("mixed-list-plain.parquet").toFile();
+    try (FileAppender<Record> writer = parquetWriterWithoutDictionary(schema, plainFile)) {
+      writer.addAll(data);
+    }
+
+    assertRecordsMatch(schema, numRows, data, dictFile, false, 10_000);
+    assertRecordsMatch(schema, numRows, data, plainFile, false, 10_000);
+  }
+
+  private static <T> List<T> pick(Random rand, List<T> pool, int maxLen) {
+    int listLen = rand.nextInt(maxLen + 1);
+    List<T> values = Lists.newArrayListWithCapacity(listLen);
+    for (int i = 0; i < listLen; i++) {
+      values.add(pool.get(rand.nextInt(pool.size())));
+    }
+    return values;
   }
 
   @Test
