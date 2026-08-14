@@ -128,7 +128,7 @@ public class TestParquetMetrics extends TestMetrics {
   public void testMetricsForNullStructWithFloatingAndGeoLeaves() throws IOException {
     // float, double, geometry and geography are the only types whose writers report metrics, so
     // they are the ones whose nested null counts could be dropped when a struct is null. Null
-    // counts are only tracked for optional fields.
+    // counts are only tracked for optional fields, so the fix applies only to optional leaves.
     StructType struct =
         StructType.of(
             optional(2, "optDouble", DoubleType.get()),
@@ -171,7 +171,8 @@ public class TestParquetMetrics extends TestMetrics {
   @TestTemplate
   public void testMetricsForRequiredNestedFieldInNullStruct() throws IOException {
     // null counts are only tracked for optional fields, so a required float/double leaf keeps its
-    // prior behavior when the struct is null: the null count is not recorded.
+    // prior behavior when the struct is null: the null count is not recorded (a required long, by
+    // contrast, is counted from the footer, which is unaffected by this fix)
     StructType struct =
         StructType.of(
             required(2, "reqDouble", DoubleType.get()), required(3, "reqLong", LongType.get()));
