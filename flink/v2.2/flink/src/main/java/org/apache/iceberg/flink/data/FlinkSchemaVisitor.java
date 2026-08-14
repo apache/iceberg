@@ -20,8 +20,10 @@ package org.apache.iceberg.flink.data;
 
 import java.util.List;
 import org.apache.flink.table.types.logical.ArrayType;
+import org.apache.flink.table.types.logical.IntType;
 import org.apache.flink.table.types.logical.LogicalType;
 import org.apache.flink.table.types.logical.MapType;
+import org.apache.flink.table.types.logical.MultisetType;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -41,7 +43,16 @@ abstract class FlinkSchemaVisitor<T> {
         return visitRecord(flinkType, iType.asStructType(), visitor);
 
       case MAP:
-        MapType mapType = (MapType) flinkType;
+        // A Flink MULTISET<T> is converted to an Iceberg map<T, int> of element to occurrence
+        // count by FlinkTypeToType#visit(MultisetType), and RowData represents both as MapData,
+        // so the multiset is visited as its equivalent map.
+        MapType mapType =
+            flinkType instanceof MultisetType
+                ? new MapType(
+                    flinkType.isNullable(),
+                    ((MultisetType) flinkType).getElementType(),
+                    new IntType(false))
+                : (MapType) flinkType;
         Types.MapType iMapType = iType.asMapType();
         T key;
         T value;

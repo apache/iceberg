@@ -19,9 +19,11 @@
 package org.apache.iceberg.flink.data;
 
 import org.apache.flink.table.types.logical.ArrayType;
+import org.apache.flink.table.types.logical.IntType;
 import org.apache.flink.table.types.logical.LogicalType;
 import org.apache.flink.table.types.logical.LogicalTypeFamily;
 import org.apache.flink.table.types.logical.MapType;
+import org.apache.flink.table.types.logical.MultisetType;
 import org.apache.flink.table.types.logical.NullType;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.avro.AvroWithPartnerByStructureVisitor;
@@ -38,7 +40,9 @@ public abstract class AvroWithFlinkSchemaVisitor<T>
 
   @Override
   protected boolean isMapType(LogicalType logicalType) {
-    return logicalType instanceof MapType;
+    // A Flink MULTISET<T> is converted to an Iceberg map<T, int> of element to occurrence count
+    // by FlinkTypeToType#visit(MultisetType), and RowData represents both as MapData.
+    return logicalType instanceof MapType || logicalType instanceof MultisetType;
   }
 
   @Override
@@ -51,12 +55,21 @@ public abstract class AvroWithFlinkSchemaVisitor<T>
   @Override
   protected LogicalType mapKeyType(LogicalType mapType) {
     Preconditions.checkArgument(isMapType(mapType), "Invalid map: %s is not a map", mapType);
+    if (mapType instanceof MultisetType) {
+      return ((MultisetType) mapType).getElementType();
+    }
+
     return ((MapType) mapType).getKeyType();
   }
 
   @Override
   protected LogicalType mapValueType(LogicalType mapType) {
     Preconditions.checkArgument(isMapType(mapType), "Invalid map: %s is not a map", mapType);
+    if (mapType instanceof MultisetType) {
+      // the occurrence count is a required int
+      return new IntType(false);
+    }
+
     return ((MapType) mapType).getValueType();
   }
 
