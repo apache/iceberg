@@ -193,8 +193,9 @@ leaf files that hold the index entries.
 
 ### Ordering
 
-The index keys define a total **ordering** over the index entries. Entries must be organized into non-overlapping ranges
-according to that ordering, and each range must be stored in a separate leaf file.
+The index keys, together with the tie-break below, define a total **ordering** over all index entries of an index
+snapshot. Entries must be organized into non-overlapping ranges according to that ordering, and each range must be
+stored in a separate leaf file, so leaf files inherit the ordering from the ranges they contain.
 
 Index entries are ordered by the [index key](#index-keys) produced for each indexed row:
 
@@ -224,14 +225,17 @@ Each tracking file contains a collection of tracking file entries. A tracking fi
 tracked by an index snapshot. The fields are the subset of the V4 [data file fields](spec.md#data-file-fields) that are
 relevant to planning queries against the index.
 
-| Field ID | Name               | Type    | Requirement  | Description                                                                                                                 |
-|----------|--------------------|---------|--------------|-----------------------------------------------------------------------------------------------------------------------------|
-| 100      | location           | string  | required     | Location of the referenced file.                                                                                            |
-| 101      | file_format        | string  | required     | File format name, such as parquet, avro, or orc.                                                                            |
-| 103      | record_count       | long    | required     | Number of records contained in the referenced leaf file.                                                                    |
-| 104      | file_size_in_bytes | long    | required     | Total file size in bytes.                                                                                                   |
-| 146      | content_stats      | struct  | required     | Column statistics on the index values and index key statistics for the referenced leaf file, used for planning and pruning. |
-| 131      | key_metadata       | binary  | optional     | Implementation-specific key metadata, used for leaf file encryption.                                                        |
+Tracking file entries must be stored in the [index ordering](#ordering) of the leaf files they describe, which is the
+ascending order of the index key upper bounds recorded in the [content statistics](#content-statistics).
+
+| Field ID | Name               | Type    | Requirement  | Description                                                                                                                     |
+|----------|--------------------|---------|--------------|---------------------------------------------------------------------------------------------------------------------------------|
+| 100      | location           | string  | required     | Location of the referenced file.                                                                                                |
+| 101      | file_format        | string  | required     | File format name, such as parquet, avro, or orc.                                                                                |
+| 103      | record_count       | long    | required     | Number of records contained in the referenced leaf file.                                                                        |
+| 104      | file_size_in_bytes | long    | required     | Total file size in bytes.                                                                                                       |
+| 146      | content_stats      | struct  | required     | Column statistics on the index values and the index key upper bound of the referenced leaf file, used for planning and pruning. |
+| 131      | key_metadata       | binary  | optional     | Implementation-specific key metadata, used for leaf file encryption.                                                            |
 
 #### Content Statistics
 
@@ -240,9 +244,9 @@ The content statistics structure stored for each leaf file contains two compleme
 - **Column statistics** for the index values: the minimum and maximum value of each leaf schema field in the leaf file,
   using the field's natural ordering. These are always present and let engines prune on the index values even when
   searching for partial keys.
-- **Index key statistics** for the leaf file: the index keys of the first and last entries in the leaf file according to
-  the index ordering. Engines that evaluate the index keys expression for a lookup value use these statistics to prune
-  leaf files (see [Ordering](#ordering)).
+- **Index key upper bound** for the leaf file: the index key of the last entry in the leaf file according to the index
+  ordering. Engines that evaluate the index keys expression for a lookup value use these bounds to prune leaf files (see
+  [Ordering](#ordering)).
 
 ### Leaf Files
 
@@ -324,6 +328,10 @@ The ordering is what makes the index usable at two levels. Leaf files hold non-o
 the index key statistics in the tracking file are enough to eliminate a leaf file without opening it. Within a leaf
 file, entries are stored in the same ordering, so a reader can search for an index key efficiently once the leaf file
 has been selected.
+
+Only the upper bound of a leaf file's index key range is stored. Sorted entries in the tracking file and non-overlapping
+ranges make the lower bound redundant: it is the upper bound of the preceding entry. Storing one bound halves the size
+of the index key statistics.
 
 ### Leaf schema
 
@@ -428,30 +436,29 @@ files:
 | .../leaf-00002.parquet | parquet     | 2            | 1024               |
 
 Each entry also carries a `content_stats` struct. For `leaf-00001.parquet` the column statistics cover the three leaf
-schema fields, and the index key statistics record the first and last index key in the file:
+schema fields, and the index key upper bound records the last index key in the file:
 
 | Statistic                | Value                                                                  |
 |--------------------------|------------------------------------------------------------------------|
 | `user_id` bounds         | `12094` .. `84721`                                                     |
 | `source_file_path` bounds| `.../data/00000-0-(uuid).parquet` .. `.../data/00001-0-(uuid).parquet` |
 | `source_file_pos` bounds | `3` .. `92`                                                            |
-| first index key          | `{ bucket: 3, user_id: 84721 }`                                        |
-| last index key           | `{ bucket: 88, user_id: 55310 }`                                       |
+| index key upper bound    | `{ bucket: 88, user_id: 55310 }`                                       |
 
 The equivalent statistics for `leaf-00002.parquet` show that the two files hold non-overlapping ranges of the index
-ordering:
+ordering. `leaf-00002.parquet` is the second entry of the tracking file, so its range starts after the upper bound of
+`leaf-00001.parquet`:
 
 | Statistic                | Value                                                                  |
 |--------------------------|------------------------------------------------------------------------|
 | `user_id` bounds         | `3277` .. `99182`                                                      |
 | `source_file_path` bounds| `.../data/00000-0-(uuid).parquet` .. `.../data/00001-0-(uuid).parquet` |
 | `source_file_pos` bounds | `7` .. `41`                                                            |
-| first index key          | `{ bucket: 137, user_id: 99182 }`                                      |
-| last index key           | `{ bucket: 209, user_id: 3277 }`                                       |
+| index key upper bound    | `{ bucket: 209, user_id: 3277 }`                                       |
 
 A lookup for `user_id = 55310` evaluates the index keys expression for that value, producing
-`{ bucket: 88, user_id: 55310 }`. That key falls inside the range of `leaf-00001.parquet` and before the range
-of `leaf-00002.parquet`, so only the first leaf file is read.
+`{ bucket: 88, user_id: 55310 }`. That key is not greater than the upper bound of `leaf-00001.parquet`, the first entry
+of the tracking file, so only the first leaf file is read.
 
 The rows of `leaf-00001.parquet` follow the leaf schema declared by the index values expression, stored in the index
 ordering. The index key of each row is not stored; it is shown here to make the ordering visible:
@@ -543,8 +550,7 @@ from the previous tracking file:
 | `user_id` bounds         | `12094` .. `84721`                                                     |
 | `source_file_path` bounds| `.../data/00000-0-(uuid).parquet` .. `.../data/00002-0-(uuid).parquet` |
 | `source_file_pos` bounds | `3` .. `92`                                                            |
-| first index key          | `{ bucket: 3, user_id: 84721 }`                                        |
-| last index key           | `{ bucket: 88, user_id: 55310 }`                                       |
+| index key upper bound    | `{ bucket: 88, user_id: 55310 }`                                       |
 
 The rows of `leaf-00003.parquet` interleave the entries of the rewritten leaf file with the entries added for the new
 data file, keeping the index ordering:
