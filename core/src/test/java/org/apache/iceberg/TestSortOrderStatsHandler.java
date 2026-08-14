@@ -26,8 +26,10 @@ import java.io.File;
 import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.apache.iceberg.SortOrderStatsHandler.PartitionOverlapStats;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
@@ -212,5 +214,99 @@ public class TestSortOrderStatsHandler {
 
     List<PartitionOverlapStats> old = SortOrderStatsHandler.computeStats(table, firstSnapshot);
     assertThat(old.get(0).maxOverlapDepth()).isEqualTo(2);
+  }
+
+  private Set<String> highOverlapFiles(int minOverlapDepth, DataFile... files) {
+    return SortOrderStatsHandler.highOverlapFiles(
+        ImmutableList.copyOf(files),
+        table.specs(),
+        table.sortOrder(),
+        table.name(),
+        minOverlapDepth);
+  }
+
+  @Test
+  public void testHighOverlapFilesReportsOnlyOverlappingFiles() {
+    createTable(SORT_ORDER);
+    DataFile fileA = dataFile("/data/fileA.parquet", 0L, 10L);
+    DataFile fileB = dataFile("/data/fileB.parquet", 5L, 15L);
+    DataFile fileC = dataFile("/data/fileC.parquet", 20L, 30L);
+
+    assertThat(highOverlapFiles(2, fileA, fileB, fileC))
+        .containsExactlyInAnyOrder("/data/fileA.parquet", "/data/fileB.parquet");
+  }
+
+  @Test
+  public void testHighOverlapFilesBelowThresholdReportsNothing() {
+    createTable(SORT_ORDER);
+    DataFile fileA = dataFile("/data/fileA.parquet", 0L, 10L);
+    DataFile fileB = dataFile("/data/fileB.parquet", 5L, 15L);
+    DataFile fileC = dataFile("/data/fileC.parquet", 20L, 30L);
+
+    assertThat(highOverlapFiles(3, fileA, fileB, fileC)).isEmpty();
+  }
+
+  @Test
+  public void testHighOverlapFilesReportsEveryFileOnFullOverlap() {
+    createTable(SORT_ORDER);
+    DataFile fileA = dataFile("/data/fileA.parquet", 0L, 100L);
+    DataFile fileB = dataFile("/data/fileB.parquet", 0L, 100L);
+    DataFile fileC = dataFile("/data/fileC.parquet", 0L, 100L);
+
+    assertThat(highOverlapFiles(3, fileA, fileB, fileC))
+        .containsExactlyInAnyOrder(
+            "/data/fileA.parquet", "/data/fileB.parquet", "/data/fileC.parquet");
+  }
+
+  @Test
+  public void testHighOverlapFilesReportsOnlyTheDeepRegion() {
+    createTable(SORT_ORDER);
+    // fileA, fileB and fileC pile up on [5, 10]; fileD and fileE overlap each other only in pairs
+    DataFile fileA = dataFile("/data/fileA.parquet", 0L, 10L);
+    DataFile fileB = dataFile("/data/fileB.parquet", 5L, 15L);
+    DataFile fileC = dataFile("/data/fileC.parquet", 5L, 20L);
+    DataFile fileD = dataFile("/data/fileD.parquet", 30L, 40L);
+    DataFile fileE = dataFile("/data/fileE.parquet", 35L, 45L);
+
+    assertThat(highOverlapFiles(3, fileA, fileB, fileC, fileD, fileE))
+        .containsExactlyInAnyOrder(
+            "/data/fileA.parquet", "/data/fileB.parquet", "/data/fileC.parquet");
+  }
+
+  @Test
+  public void testHighOverlapFilesIgnoresFilesMissingBounds() {
+    createTable(SORT_ORDER);
+    DataFile fileA = dataFile("/data/fileA.parquet", 0L, 10L);
+    DataFile fileB = dataFile("/data/fileB.parquet", 0L, 10L);
+    DataFile noBounds = dataFile("/data/no_bounds.parquet", null, null);
+
+    assertThat(highOverlapFiles(2, fileA, fileB, noBounds))
+        .containsExactlyInAnyOrder("/data/fileA.parquet", "/data/fileB.parquet");
+  }
+
+  @Test
+  public void testHighOverlapFilesWithoutFilesReportsNothing() {
+    createTable(SORT_ORDER);
+    assertThat(highOverlapFiles(2)).isEmpty();
+  }
+
+  @Test
+  public void testHighOverlapFilesRejectsDepthBelowTwo() {
+    createTable(SORT_ORDER);
+    DataFile fileA = dataFile("/data/fileA.parquet", 0L, 10L);
+
+    assertThatThrownBy(() -> highOverlapFiles(1, fileA))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("must be > 1");
+  }
+
+  @Test
+  public void testHighOverlapFilesUnsortedTableFails() {
+    createTable(SortOrder.unsorted());
+    DataFile fileA = dataFile("/data/fileA.parquet", 0L, 10L);
+
+    assertThatThrownBy(() -> highOverlapFiles(2, fileA))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("does not declare a sort order");
   }
 }
