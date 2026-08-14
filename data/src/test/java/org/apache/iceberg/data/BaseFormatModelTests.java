@@ -2229,20 +2229,9 @@ public abstract class BaseFormatModelTests<T> {
   }
 
   private static boolean supportsGenerator(FileFormat fileFormat, DataGenerator generator) {
-    return requiredFeatures(generator.schema().asStruct()).stream()
-        .allMatch(feature -> supportsFeature(fileFormat, feature));
-  }
-
-  private static Set<String> requiredFeatures(Type type) {
-    if (containsType(type, Type.TypeID.VARIANT)) {
-      return Set.of(FEATURE_VARIANT);
-    }
-
-    return Set.of();
-  }
-
-  private static boolean containsType(Type type, Type.TypeID typeId) {
-    return TypeUtil.find(type, nested -> nested.typeId() == typeId) != null;
+    boolean hasVariant =
+        TypeUtil.find(generator.schema(), type -> type.typeId() == Type.TypeID.VARIANT) != null;
+    return !hasVariant || supportsFeature(fileFormat, FEATURE_VARIANT);
   }
 
   /**
