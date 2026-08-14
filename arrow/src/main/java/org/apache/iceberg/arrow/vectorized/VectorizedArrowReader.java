@@ -22,6 +22,7 @@ import java.util.Map;
 import java.util.Optional;
 import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.memory.BufferAllocator;
+import org.apache.arrow.vector.BaseVariableWidthVector;
 import org.apache.arrow.vector.BigIntVector;
 import org.apache.arrow.vector.BitVector;
 import org.apache.arrow.vector.BitVectorHelper;
@@ -311,7 +312,12 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
       case BINARY:
         this.vec = arrowField.createVector(rootAlloc);
         // TODO: Possibly use the uncompressed page size info to set the initial capacity
-        vec.setInitialCapacity(batchSize * AVERAGE_VARIABLE_WIDTH_RECORD_SIZE);
+        // The single argument overload takes a value count, so passing a byte count reserves
+        // offsets for AVERAGE_VARIABLE_WIDTH_RECORD_SIZE times too many values and sizes the data
+        // buffer with Arrow's default 8 bytes per value. The density overload expresses the intent
+        // directly: batchSize values averaging AVERAGE_VARIABLE_WIDTH_RECORD_SIZE bytes each.
+        ((BaseVariableWidthVector) vec)
+            .setInitialCapacity(batchSize, AVERAGE_VARIABLE_WIDTH_RECORD_SIZE);
         vec.allocateNewSafe();
         this.readType = ReadType.VARBINARY;
         this.typeWidth = UNKNOWN_WIDTH;
@@ -631,7 +637,10 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     private Optional<LogicalTypeVisitorResult> allocateVectorForEnumJsonBsonString() {
       FieldVector vector = arrowField.createVector(rootAlloc);
       // TODO: Possibly use the uncompressed page size info to set the initial capacity
-      vector.setInitialCapacity(batchSize * AVERAGE_VARIABLE_WIDTH_RECORD_SIZE);
+      // See the note in the BINARY case: the density overload takes a value count and an average
+      // width, which is what this constant describes.
+      ((BaseVariableWidthVector) vector)
+          .setInitialCapacity(batchSize, AVERAGE_VARIABLE_WIDTH_RECORD_SIZE);
       vector.allocateNewSafe();
       return Optional.of(new LogicalTypeVisitorResult(vector, ReadType.VARCHAR, UNKNOWN_WIDTH));
     }
