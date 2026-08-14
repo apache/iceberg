@@ -22,6 +22,8 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.iceberg.expressions.Binder;
 import org.apache.iceberg.expressions.Evaluator;
 import org.apache.iceberg.expressions.Expression;
@@ -381,14 +383,19 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
     /**
      * Returns the stats type to read, which is empty when no stats are needed.
      *
-     * <p>Stats for every field are read unless the caller narrows them with {@link
-     * #forScanPlanning()} or {@link #projectStats(Iterable)}, because copying entries into a new
-     * manifest needs all of them. A {@link #filter(Expression) filter} therefore never narrows the
-     * stats that are read; it only widens a set the caller has already narrowed.
+     * <p>Stats for every field the manifest holds are read unless the caller narrows them with
+     * {@link #forScanPlanning()}, {@link #projectStats(Iterable)}, or a {@link #project(Schema)
+     * projection} that carries its own stats, because copying entries into a new manifest needs all
+     * of them. A {@link #filter(Expression) filter} therefore never narrows the stats that are
+     * read; it only widens a set the caller has already narrowed.
      */
     private Types.StructType contentStatsType(Types.StructType requiredStatsType) {
       if (scanPlanning || fieldIdsWithRequestedStats != null) {
         return requiredStatsType;
+      }
+
+      if (requestedProjection != null) {
+        return union(requiredStatsType, projectedStatsType(requestedProjection));
       }
 
       return StatsUtil.statsWriteSchema(tableSchema, metricsConfig());
@@ -420,6 +427,31 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
       }
 
       return fieldIds;
+    }
+
+    /** Returns the fields of both stats structs */
+    private static Types.StructType union(
+        Types.StructType statsType, Types.StructType otherStatsType) {
+      if (otherStatsType.fields().isEmpty()) {
+        return statsType;
+      }
+
+      return Types.StructType.of(
+          Stream.concat(
+                  statsType.fields().stream(),
+                  otherStatsType.fields().stream()
+                      .filter(field -> statsType.field(field.fieldId()) == null))
+              .collect(Collectors.toList()));
+    }
+
+    /** Returns the content stats struct carried by the projection, which may be empty. */
+    private static Types.StructType projectedStatsType(Schema projection) {
+      Types.NestedField statsField = projection.findField(TrackedFile.CONTENT_STATS_ID);
+      if (statsField == null || !statsField.type().isStructType()) {
+        return Types.StructType.of();
+      }
+
+      return statsField.type().asStructType();
     }
 
     private static Schema addRequiredColumns(
