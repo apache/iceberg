@@ -166,17 +166,6 @@ public abstract class BaseFormatModelTests<T> {
         .toList();
   }
 
-  private static final FileFormat[] FILE_FORMATS = FileFormatTestSupport.formats();
-
-  private static final List<Arguments> FORMAT_AND_GENERATOR =
-      Arrays.stream(FILE_FORMATS)
-          .flatMap(
-              format ->
-                  Arrays.stream(DataGenerators.ALL)
-                      .filter(generator -> generator.supportedFormats().contains(format))
-                      .map(generator -> Arguments.of(format, generator)))
-          .toList();
-
   static final String FEATURE_FILTER = "filter";
   static final String FEATURE_CASE_SENSITIVE = "caseSensitive";
   static final String FEATURE_SPLIT = "split";
@@ -186,6 +175,7 @@ public abstract class BaseFormatModelTests<T> {
   static final String FEATURE_COLUMN_METRICS_TRUNCATE_BINARY = "columnMetricsTruncateBinary";
   static final String FEATURE_NATIVE_ENCRYPTION = "nativeEncryption";
   static final String FEATURE_AES_STREAM_ENCRYPTION = "aesStreamEncryption";
+  protected static final String FEATURE_VARIANT = "variant";
 
   private static final Map<FileFormat, String[]> MISSING_FEATURES =
       Map.of(
@@ -204,10 +194,22 @@ public abstract class BaseFormatModelTests<T> {
             FEATURE_COLUMN_METRICS_TRUNCATE_BINARY,
             FEATURE_READER_DEFAULT,
             FEATURE_AES_STREAM_ENCRYPTION,
-            FEATURE_NATIVE_ENCRYPTION
+            FEATURE_NATIVE_ENCRYPTION,
+            FEATURE_VARIANT
           },
           FileFormat.PARQUET,
           new String[] {FEATURE_AES_STREAM_ENCRYPTION});
+
+  private static final FileFormat[] FILE_FORMATS = FileFormatTestSupport.formats();
+
+  private static final List<Arguments> FORMAT_AND_GENERATOR =
+      Arrays.stream(FILE_FORMATS)
+          .flatMap(
+              format ->
+                  Arrays.stream(DataGenerators.ALL)
+                      .filter(generator -> supportsGenerator(format, generator))
+                      .map(generator -> Arguments.of(format, generator)))
+          .toList();
 
   private InMemoryFileIO fileIO;
   private EncryptedOutputFile encryptedFile;
@@ -2223,6 +2225,23 @@ public abstract class BaseFormatModelTests<T> {
 
   private static void assumeSupports(FileFormat fileFormat, String feature) {
     assumeThat(MISSING_FEATURES.getOrDefault(fileFormat, new String[] {})).doesNotContain(feature);
+  }
+
+  private static boolean supportsGenerator(FileFormat fileFormat, DataGenerator generator) {
+    return requiredFeatures(generator.schema().asStruct()).stream()
+        .allMatch(feature -> supportsFeature(fileFormat, feature));
+  }
+
+  private static Set<String> requiredFeatures(Type type) {
+    if (containsType(type, Type.TypeID.VARIANT)) {
+      return Set.of(FEATURE_VARIANT);
+    }
+
+    return Set.of();
+  }
+
+  private static boolean containsType(Type type, Type.TypeID typeId) {
+    return TypeUtil.find(type, nested -> nested.typeId() == typeId) != null;
   }
 
   /**

@@ -22,8 +22,6 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
-import java.util.Set;
-import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.types.Type;
@@ -111,11 +109,6 @@ class DataGenerators {
     @Override
     public Schema schema() {
       return schema;
-    }
-
-    @Override
-    public Set<FileFormat> supportedFormats() {
-      return Set.of(FileFormat.PARQUET);
     }
 
     @Override
