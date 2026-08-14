@@ -1359,12 +1359,12 @@ public class Parquet {
     }
 
     private ReadBuilder(InputFile file) {
-      long length = file.getLength();
-      this.file = canEagerFetch(length) ? new EagerInputFile(file, length) : file;
+      long fileLength = file.getLength();
+      this.file = canEagerFetch(fileLength) ? new EagerInputFile(file, fileLength) : file;
     }
 
-    private static boolean canEagerFetch(long length) {
-      return length > 0 && length <= EAGER_FETCH_THRESHOLD_BYTES;
+    private static boolean canEagerFetch(long fileLength) {
+      return fileLength > 0 && fileLength <= EAGER_FETCH_THRESHOLD_BYTES;
     }
 
     /**
