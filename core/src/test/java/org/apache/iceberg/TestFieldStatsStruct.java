@@ -318,9 +318,9 @@ public class TestFieldStatsStruct {
     assertThat(copy.type()).isEqualTo(stats.type());
     assertThat(comparator.compare(copy, stats)).isEqualTo(0);
 
-    // readers hold copies, so a copied bounding box must survive the same round trip
-    FieldStatsStruct<?> roundTrippedCopy = serializer.apply(stats.copy());
-    assertThat(comparator.compare(roundTrippedCopy, stats)).isEqualTo(0);
+    // readers reuse bounding boxes across entries, so the bounds must be deep-copied
+    assertThat(copy.lowerBound()).isNotSameAs(lowerBound);
+    assertThat(copy.upperBound()).isNotSameAs(upperBound);
   }
 
   // Variant is not Serializable so this does not test Java serialization

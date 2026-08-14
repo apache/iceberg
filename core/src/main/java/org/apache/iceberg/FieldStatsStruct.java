@@ -228,12 +228,6 @@ class FieldStatsStruct<T> implements FieldStats<T>, StructLike, Serializable {
     return posToOffset;
   }
 
-  /**
-   * Copies a bound stored using its internal representation.
-   *
-   * <p>Binary bounds are byte arrays and geo bounds are bounding box structs. Both are mutable and
-   * readers may reuse them across rows, so both are copied. All other bounds are immutable.
-   */
   private static Object copyBound(Object bound) {
     if (bound instanceof byte[] bytes) {
       return copyOf(bytes);
