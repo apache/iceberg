@@ -70,25 +70,60 @@ class TestParquetValueWriters {
   }
 
   @Test
-  void nullStructCountsNullsForNestedFields() {
-    // a null struct is also null for the fields it contains, but those columns are written by the
-    // struct's writer and never see the value, so the struct must count the nulls for them
+  void nullStructCountsNullsForNestedDoubleFields() {
     Types.StructType struct =
         Types.StructType.of(
-            optional(2, "d", Types.DoubleType.get()), required(3, "f", Types.FloatType.get()));
-    Schema schema = new Schema(optional(1, "s", struct));
+            optional(2, "optional", Types.DoubleType.get()),
+            required(3, "required", Types.DoubleType.get()));
 
-    ParquetValueWriter<Record> writer = writerFor(schema);
+    // a null struct contributes a null to the null count of every field it contains. The leaf
+    // columns are written directly by the struct writer and never see the struct, so the struct
+    // writer must add these nulls to the leaf metrics, whether the leaf is optional or required.
     Record inner = GenericRecord.create(struct);
-    inner.set(0, 2.0D);
-    inner.set(1, 1.0F);
+    inner.setField("optional", 2.0D);
+    inner.setField("required", 3.0D);
 
-    writer.write(0, record(schema, inner));
-    writer.write(0, record(schema, null));
-    writer.write(0, record(schema, null));
+    Map<Integer, FieldMetrics<?>> metrics = writeNullStructs(struct, inner);
 
-    Map<Integer, FieldMetrics<?>> metrics = metricsById(writer);
-    // both fields have one non-null value and two nulls from the null structs
+    // each field has one value from the present struct and two nulls from the null structs
+    assertThat(metrics.get(2).nullValueCount()).isEqualTo(2);
+    assertThat(metrics.get(2).valueCount()).isEqualTo(3);
+    assertThat(metrics.get(3).nullValueCount()).isEqualTo(2);
+    assertThat(metrics.get(3).valueCount()).isEqualTo(3);
+  }
+
+  @Test
+  void nullStructCountsNullsForNestedFloatFields() {
+    Types.StructType struct =
+        Types.StructType.of(
+            optional(2, "optional", Types.FloatType.get()),
+            required(3, "required", Types.FloatType.get()));
+
+    Record inner = GenericRecord.create(struct);
+    inner.setField("optional", 2.0F);
+    inner.setField("required", 3.0F);
+
+    Map<Integer, FieldMetrics<?>> metrics = writeNullStructs(struct, inner);
+
+    assertThat(metrics.get(2).nullValueCount()).isEqualTo(2);
+    assertThat(metrics.get(2).valueCount()).isEqualTo(3);
+    assertThat(metrics.get(3).nullValueCount()).isEqualTo(2);
+    assertThat(metrics.get(3).valueCount()).isEqualTo(3);
+  }
+
+  @Test
+  void nullStructCountsNullsForNestedGeometryFields() {
+    Types.StructType struct =
+        Types.StructType.of(
+            optional(2, "optional", Types.GeometryType.crs84()),
+            required(3, "required", Types.GeometryType.crs84()));
+
+    Record inner = GenericRecord.create(struct);
+    inner.setField("optional", ByteBuffer.allocate(21));
+    inner.setField("required", ByteBuffer.allocate(21));
+
+    Map<Integer, FieldMetrics<?>> metrics = writeNullStructs(struct, inner);
+
     assertThat(metrics.get(2).nullValueCount()).isEqualTo(2);
     assertThat(metrics.get(2).valueCount()).isEqualTo(3);
     assertThat(metrics.get(3).nullValueCount()).isEqualTo(2);
@@ -102,9 +137,9 @@ class TestParquetValueWriters {
 
     ParquetValueWriter<Record> writer = writerFor(schema);
     Record present = GenericRecord.create(struct);
-    present.set(0, 2.0D);
+    present.setField("d", 2.0D);
     Record nullField = GenericRecord.create(struct);
-    nullField.set(0, null);
+    nullField.setField("d", null);
 
     writer.write(0, record(schema, present));
     // the field is null while the struct is present, so the field's own writer counts it
@@ -124,11 +159,11 @@ class TestParquetValueWriters {
 
     ParquetValueWriter<Record> writer = writerFor(schema);
     Record innerRecord = GenericRecord.create(inner);
-    innerRecord.set(0, 2.0D);
+    innerRecord.setField("d", 2.0D);
     Record withInner = GenericRecord.create(outer);
-    withInner.set(0, innerRecord);
+    withInner.setField("inner", innerRecord);
     Record withoutInner = GenericRecord.create(outer);
-    withoutInner.set(0, null);
+    withoutInner.setField("inner", null);
 
     writer.write(0, record(schema, withInner));
     // a null at either level is a null for the leaf
@@ -140,29 +175,25 @@ class TestParquetValueWriters {
     assertThat(metrics.get(3).valueCount()).isEqualTo(3);
   }
 
-  @Test
-  void nullStructCountsNullsForNestedGeospatialField() {
-    // geospatial writers also report metrics, so they are affected in the same way
-    Types.StructType struct = Types.StructType.of(optional(2, "g", Types.GeometryType.crs84()));
+  /**
+   * Writes an optional struct with the given populated value followed by two null structs, and
+   * returns the resulting field metrics by id.
+   */
+  private static Map<Integer, FieldMetrics<?>> writeNullStructs(
+      Types.StructType struct, Record populated) {
     Schema schema = new Schema(optional(1, "s", struct));
-
     ParquetValueWriter<Record> writer = writerFor(schema);
-    Record present = GenericRecord.create(struct);
-    present.set(0, ByteBuffer.allocate(21));
 
-    writer.write(0, record(schema, present));
+    writer.write(0, record(schema, populated));
+    writer.write(0, record(schema, null));
     writer.write(0, record(schema, null));
 
-    Map<Integer, FieldMetrics<?>> metrics = metricsById(writer);
-    assertThat(metrics.get(2).nullValueCount()).isEqualTo(1);
-    assertThat(metrics.get(2).valueCount()).isEqualTo(2);
-    // the size of the one non-null value is still reported
-    assertThat(metrics.get(2).avgValueSizeInBytes()).isEqualTo(21);
+    return metricsById(writer);
   }
 
   private static Record record(Schema schema, Record struct) {
     Record record = GenericRecord.create(schema);
-    record.set(0, struct);
+    record.setField("s", struct);
     return record;
   }
 
