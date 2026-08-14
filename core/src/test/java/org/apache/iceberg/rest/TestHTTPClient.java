@@ -56,13 +56,19 @@ import org.apache.hc.client5.http.ssl.NoopHostnameVerifier;
 import org.apache.hc.core5.http.HttpHost;
 import org.apache.hc.core5.http.HttpStatus;
 import org.apache.iceberg.IcebergBuild;
+import org.apache.iceberg.MetadataUpdate;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.rest.auth.AuthSession;
 import org.apache.iceberg.rest.auth.TLSConfigurer;
+import org.apache.iceberg.rest.requests.CreateTableRequest;
+import org.apache.iceberg.rest.requests.UpdateTableRequest;
 import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.rest.responses.ErrorResponseParser;
+import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -132,6 +138,81 @@ public class TestHTTPClient {
   @Test
   public void testPostSuccess() throws Exception {
     testHttpMethodOnSuccess(HttpMethod.POST);
+  }
+
+  @Test
+  public void testPostUnicodeBody() throws Exception {
+    String unicodeComment = "这是一个中文表注释";
+    assertUnicodeBodyRoundTrip("post_unicode", new Item(0L, unicodeComment), unicodeComment);
+  }
+
+  @Test
+  public void testPostCreateTableUnicodeColumnComment() throws Exception {
+    // Positive verification + negative reproduction: a non-ASCII column comment (doc) in the
+    // schema of a create-table request must be encoded as UTF-8.
+    String columnComment = "这是一个中文字段注释";
+    Schema schema =
+        new Schema(Types.NestedField.required(1, "id", Types.IntegerType.get(), columnComment));
+    CreateTableRequest body =
+        CreateTableRequest.builder().withName("table").withSchema(schema).build();
+    assertUnicodeBodyRoundTrip("post_create_table_unicode", body, columnComment);
+  }
+
+  @Test
+  public void testPostUpdateTableUnicodeColumnComment() throws Exception {
+    // Positive verification + negative reproduction: a non-ASCII column comment (doc) added via
+    // an add-column metadata update must be encoded as UTF-8.
+    String columnComment = "这是一个中文新增字段注释";
+    Schema newSchema =
+        new Schema(
+            Types.NestedField.required(1, "id", Types.IntegerType.get()),
+            Types.NestedField.optional(2, "name", Types.StringType.get(), columnComment));
+    UpdateTableRequest body =
+        UpdateTableRequest.create(
+            TableIdentifier.of("ns", "table"),
+            ImmutableList.of(),
+            ImmutableList.of(new MetadataUpdate.AddSchema(newSchema)));
+    assertUnicodeBodyRoundTrip("post_update_table_unicode", body, columnComment);
+  }
+
+  private void assertUnicodeBodyRoundTrip(String path, RESTRequest body, String expectedUnicode)
+      throws JsonProcessingException {
+    String expectedJson = MAPPER.writeValueAsString(body);
+
+    HttpRequest mockRequest =
+        request("/" + path)
+            .withMethod(HttpMethod.POST.name().toUpperCase(Locale.ROOT))
+            .withHeader("Authorization", "Bearer " + BEARER_AUTH_TOKEN)
+            .withHeader(HTTPClient.CLIENT_VERSION_HEADER, icebergBuildFullVersion)
+            .withHeader(HTTPClient.CLIENT_GIT_COMMIT_SHORT_HEADER, icebergBuildGitCommitShort)
+            .withHeader(USER_AGENT, TEST_USER_AGENT)
+            .withBody(expectedJson);
+
+    Item expectedResponse = new Item(0L, expectedUnicode);
+    HttpResponse mockResponse =
+        response().withStatusCode(200).withBody(MAPPER.writeValueAsString(expectedResponse));
+    mockServer.when(mockRequest, Times.exactly(1)).respond(mockResponse);
+
+    ErrorHandler onError = mock(ErrorHandler.class);
+
+    Item response =
+        restClient.post(
+            path,
+            body,
+            Item.class,
+            ImmutableMap.of("Authorization", "Bearer " + BEARER_AUTH_TOKEN),
+            onError);
+
+    // Positive verification: the non-ASCII comment survives the round trip unchanged.
+    assertThat(response).isEqualTo(expectedResponse);
+
+    // Negative reproduction: the body actually received by the server must contain the correct
+    // UTF-8 encoded text rather than garbled characters.
+    HttpRequest[] recordedRequests =
+        mockServer.retrieveRecordedRequests(
+            request("/" + path).withMethod(HttpMethod.POST.name().toUpperCase(Locale.ROOT)));
+    assertThat(recordedRequests).hasSize(1);
+    assertThat(recordedRequests[0].getBodyAsString()).contains(expectedUnicode);
   }
 
   @Test
