@@ -186,7 +186,8 @@ public abstract class BaseFormatModelTests<T> {
             FEATURE_SPLIT,
             FEATURE_COLUMN_LEVEL_METRICS,
             FEATURE_COLUMN_METRICS_TRUNCATE_BINARY,
-            FEATURE_NATIVE_ENCRYPTION
+            FEATURE_NATIVE_ENCRYPTION,
+            FEATURE_VARIANT
           },
           FileFormat.ORC,
           new String[] {
