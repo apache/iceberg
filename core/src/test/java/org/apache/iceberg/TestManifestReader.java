@@ -270,6 +270,49 @@ public class TestManifestReader extends TestBase {
     }
   }
 
+  @TestTemplate
+  public void testDataFileSplitOffsetsCachedAcrossCalls() throws IOException {
+    DataFile fileWithOffsets =
+        DataFiles.builder(SPEC)
+            .withPath("/path/to/data-with-offsets.parquet")
+            .withFileSizeInBytes(1000)
+            .withRecordCount(1)
+            .withSplitOffsets(ImmutableList.of(4L, 512L))
+            .build();
+    ManifestFile manifest = writeManifest(1000L, fileWithOffsets);
+    try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, FILE_IO, table.specs())) {
+      DataFile file = Iterables.getOnlyElement(reader);
+      List<Long> first = file.splitOffsets();
+      List<Long> second = file.splitOffsets();
+      assertThat(first).isEqualTo(ImmutableList.of(4L, 512L));
+      assertThat(second).isSameInstanceAs(first);
+    }
+  }
+
+  @TestTemplate
+  public void testDataFileSplitOffsetsCacheInvalidatedOnPut() {
+    // When the Avro reader runs in reuseContainers mode it calls put() on the same BaseFile
+    // object for each new manifest entry. Verify that the cached list is cleared so callers
+    // don't see stale offsets from a previous record.
+    DataFile file =
+        DataFiles.builder(SPEC)
+            .withPath("/path/to/file.parquet")
+            .withFileSizeInBytes(1000)
+            .withRecordCount(1)
+            .withSplitOffsets(ImmutableList.of(4L, 512L))
+            .build();
+    List<Long> cached = file.splitOffsets();
+    assertThat(cached).isEqualTo(ImmutableList.of(4L, 512L));
+    assertThat(file.splitOffsets()).isSameInstanceAs(cached);
+
+    // Simulate reuseContainers: Avro calls put(14, newOffsets) for the next record
+    ((BaseFile<?>) file).put(14, ImmutableList.of(100L, 200L, 800L));
+
+    List<Long> updated = file.splitOffsets();
+    assertThat(updated).isEqualTo(ImmutableList.of(100L, 200L, 800L));
+    assertThat(updated).isNotSameInstanceAs(cached);
+  }
+
   @SuppressWarnings("deprecation")
   @TestTemplate
   public void testDeprecatedReadWithoutSpecsById() throws IOException {
