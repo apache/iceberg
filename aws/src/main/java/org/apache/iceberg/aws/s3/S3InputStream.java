@@ -57,27 +57,33 @@ class S3InputStream extends SeekableInputStream implements RangeReadable {
   private static final List<Class<? extends Throwable>> RETRYABLE_EXCEPTIONS =
       ImmutableList.of(SSLException.class, SocketTimeoutException.class, SocketException.class);
 
+  private static final String[] APACHE_HTTP_CLIENT_PREMATURE_CONNECTION_CLOSE_FORMATS =
+      new String[] {
+        // https://github.com/apache/httpcomponents-core/blob/rel/v4.4.16/httpcore/src/main/java/org/apache/http/impl/io/ContentLengthInputStream.java#L141
+        "Premature end of Content-Length delimited message body (expected: %,d; received: %,d)",
+        // https://github.com/apache/httpcomponents-core/blob/rel/v5.4.3/httpcore5/src/main/java/org/apache/hc/core5/http/impl/io/ContentLengthInputStream.java#L138
+        "Premature end of Content-Length delimited message body (expected: %d; received: %d)",
+      };
+
   /**
    * Returns true when the Apache HTTP client reports that S3 closed the response body before all
    * declared Content-Length bytes were delivered. This happens when an S3 HTTP connection goes idle
    * between Parquet row groups and S3 tears it down server-side. The message is reconstructed to
    * distinguish this specific failure from unrelated {@code ConnectionClosedException} instances.
-   *
-   * @see <a
-   *     href="https://github.com/apache/httpcomponents-core/blob/rel/v4.4.16/httpcore/src/main/java/org/apache/http/impl/io/ContentLengthInputStream.java#L141">ContentLengthInputStream</a>
-   * @see <a
-   *     href="https://github.com/apache/httpcomponents-core/blob/rel/v4.4.16/httpcore/src/main/java/org/apache/http/ConnectionClosedException.java#L68">ConnectionClosedException</a>
    */
   private boolean isPrematureConnectionCloseApacheHttpClient(Throwable ex) {
-    return ex.getClass().getSimpleName().equals("ConnectionClosedException")
-        && ex.getMessage() != null
-        && ex.getMessage()
-            .equals(
-                String.format(
-                    Locale.getDefault(),
-                    "Premature end of Content-Length delimited message body (expected: %,d; received: %,d)",
-                    streamEnd - streamStart,
-                    pos - streamStart));
+    if (!ex.getClass().getSimpleName().equals("ConnectionClosedException")) {
+      return false;
+    }
+    Locale locale = Locale.getDefault(Locale.Category.FORMAT);
+    long expected = streamEnd - streamStart;
+    long received = pos - streamStart;
+    for (String format : APACHE_HTTP_CLIENT_PREMATURE_CONNECTION_CLOSE_FORMATS) {
+      if (String.format(locale, format, expected, received).equals(ex.getMessage())) {
+        return true;
+      }
+    }
+    return false;
   }
 
   /**
