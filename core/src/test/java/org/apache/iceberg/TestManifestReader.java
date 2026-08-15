@@ -45,7 +45,9 @@ public class TestManifestReader extends TestBase {
               "fileSequenceNumber",
               "fromProjectionPos",
               "manifestLocation",
-              "partitionData.partitionType.fieldsById")
+              "partitionData.partitionType.fieldsById",
+              "splitOffsetList",
+              "equalityFieldIdList")
           .build();
 
   @TestTemplate
