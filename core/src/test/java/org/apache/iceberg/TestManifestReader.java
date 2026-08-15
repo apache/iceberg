@@ -285,7 +285,7 @@ public class TestManifestReader extends TestBase {
       List<Long> first = file.splitOffsets();
       List<Long> second = file.splitOffsets();
       assertThat(first).isEqualTo(ImmutableList.of(4L, 512L));
-      assertThat(second).isSameInstanceAs(first);
+      assertThat(second).isSameAs(first);
     }
   }
 
@@ -303,14 +303,14 @@ public class TestManifestReader extends TestBase {
             .build();
     List<Long> cached = file.splitOffsets();
     assertThat(cached).isEqualTo(ImmutableList.of(4L, 512L));
-    assertThat(file.splitOffsets()).isSameInstanceAs(cached);
+    assertThat(file.splitOffsets()).isSameAs(cached);
 
     // Simulate reuseContainers: Avro calls put(14, newOffsets) for the next record
     ((BaseFile<?>) file).put(14, ImmutableList.of(100L, 200L, 800L));
 
     List<Long> updated = file.splitOffsets();
     assertThat(updated).isEqualTo(ImmutableList.of(100L, 200L, 800L));
-    assertThat(updated).isNotSameInstanceAs(cached);
+    assertThat(updated).isNotSameAs(cached);
   }
 
   @SuppressWarnings("deprecation")
