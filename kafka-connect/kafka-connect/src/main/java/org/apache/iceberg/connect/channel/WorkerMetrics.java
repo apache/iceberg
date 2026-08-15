@@ -26,7 +26,7 @@ class WorkerMetrics extends ChannelMetrics {
   private static final String GROUP = "worker-metrics";
 
   private final Sensor saveTime;
-  private final Sensor dataWritten;
+  private final Sensor dataFilesWritten;
   private final Sensor dataComplete;
 
   WorkerMetrics(String connector, String task) {
@@ -37,9 +37,9 @@ class WorkerMetrics extends ChannelMetrics {
           createTimerSensor("save-time", "Time spent in Worker.save() in microseconds", tags);
       // Counters are bumped only after send() succeeds, so they count events successfully emitted;
       // a failed send leaves them unmoved even though the files are already on disk.
-      this.dataWritten =
+      this.dataFilesWritten =
           createCounterSensor(
-              "data-written",
+              "data-files-written",
               "Number of data/delete files in successfully emitted DATA_WRITTEN events",
               tags);
       this.dataComplete =
@@ -51,12 +51,12 @@ class WorkerMetrics extends ChannelMetrics {
     }
   }
 
-  void recordSave(long elapsedMs) {
-    saveTime.record((double) elapsedMs);
+  void recordSave(long elapsedMicros) {
+    saveTime.record((double) elapsedMicros);
   }
 
-  void incDataWritten(long count) {
-    dataWritten.record((double) count);
+  void incDataFilesWritten(long count) {
+    dataFilesWritten.record((double) count);
   }
 
   void incDataComplete() {

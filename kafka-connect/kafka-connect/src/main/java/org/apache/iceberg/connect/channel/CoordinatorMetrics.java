@@ -28,6 +28,9 @@ class CoordinatorMetrics extends ChannelMetrics {
   private static final String TASK = "coordinator";
   private static final String FULL = "full";
   private static final String PARTIAL = "partial";
+  // Recorded from a finally block, so it covers commits that failed as well as ones that succeeded.
+  private static final String COMMIT_TIME_DESC =
+      "Time spent in Coordinator.commit() in microseconds, whether the commit succeeded or failed";
 
   // Commit timers are tagged by commitMode (partial vs full) so the two paths stay separable.
   private final Sensor fullCommitTime;
@@ -40,15 +43,9 @@ class CoordinatorMetrics extends ChannelMetrics {
     super(GROUP, connector, TASK);
     try {
       this.fullCommitTime =
-          createTimerSensor(
-              "commit-time",
-              "Time spent in Coordinator.commit() in microseconds",
-              metricTags(connector, TASK, FULL));
+          createTimerSensor("commit-time", COMMIT_TIME_DESC, metricTags(connector, TASK, FULL));
       this.partialCommitTime =
-          createTimerSensor(
-              "commit-time",
-              "Time spent in Coordinator.commit() in microseconds",
-              metricTags(connector, TASK, PARTIAL));
+          createTimerSensor("commit-time", COMMIT_TIME_DESC, metricTags(connector, TASK, PARTIAL));
       // Counters are bumped only after send() succeeds, so they count events successfully emitted;
       // a failed send leaves them unmoved even though the commit is already in progress.
       this.startCommit =
@@ -78,8 +75,8 @@ class CoordinatorMetrics extends ChannelMetrics {
     }
   }
 
-  void recordCommit(boolean partialCommit, long elapsedMs) {
-    (partialCommit ? partialCommitTime : fullCommitTime).record((double) elapsedMs);
+  void recordCommit(boolean partialCommit, long elapsedMicros) {
+    (partialCommit ? partialCommitTime : fullCommitTime).record((double) elapsedMicros);
   }
 
   void incStartCommit() {

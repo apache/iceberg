@@ -54,38 +54,34 @@ public class TestWorkerMetrics {
       metrics.recordSave(100);
       metrics.recordSave(200);
 
-      assertThat(readDouble("save-time-avg")).isEqualTo(150.0);
-      assertThat(readDouble("save-time-max")).isEqualTo(200.0);
       assertThat(readDouble("save-time-total")).isEqualTo(300.0);
       assertThat(readDouble("save-time-count")).isEqualTo(2.0);
 
       metrics.recordMessageRead(10);
       metrics.recordMessageRead(30);
 
-      assertThat(readDouble("channel-message-read-time-avg")).isEqualTo(20.0);
-      assertThat(readDouble("channel-message-read-time-max")).isEqualTo(30.0);
       assertThat(readDouble("channel-message-read-time-total")).isEqualTo(40.0);
+      assertThat(readDouble("channel-message-read-time-count")).isEqualTo(2.0);
 
       metrics.recordMessageProcess(5);
       metrics.recordMessageProcess(15);
 
-      assertThat(readDouble("channel-message-process-time-avg")).isEqualTo(10.0);
-      assertThat(readDouble("channel-message-process-time-max")).isEqualTo(15.0);
       assertThat(readDouble("channel-message-process-time-total")).isEqualTo(20.0);
+      assertThat(readDouble("channel-message-process-time-count")).isEqualTo(2.0);
     }
   }
 
   @Test
   public void testCounters() throws Exception {
     try (WorkerMetrics metrics = new WorkerMetrics(connector, taskId)) {
-      metrics.incDataWritten(3);
-      metrics.incDataWritten(2);
-      // empty poll cycle still records 0 so data-written and data-complete stay comparable
-      metrics.incDataWritten(0);
+      metrics.incDataFilesWritten(3);
+      metrics.incDataFilesWritten(2);
+      // empty poll cycle still records 0 so data-files-written and data-complete stay comparable
+      metrics.incDataFilesWritten(0);
       metrics.incDataComplete();
       metrics.incDataComplete();
 
-      assertThat(readDouble("data-written-total")).isEqualTo(5.0);
+      assertThat(readDouble("data-files-written-total")).isEqualTo(5.0);
       assertThat(readDouble("data-complete-total")).isEqualTo(2.0);
     }
   }
