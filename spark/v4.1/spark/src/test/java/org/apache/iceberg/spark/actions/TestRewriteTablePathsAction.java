@@ -223,7 +223,7 @@ public class TestRewriteTablePathsAction extends TestBase {
 
     // copy the metadata files and data files
     copyTableFiles(result);
-    assertManifestLengthsMatchActual(targetTableLocation);
+    assertManifestLengthsMatchActual(TABLES.load(targetTableLocation));
 
     // verify the data file path after the rebuild
     List<String> validDataFilesAfterRebuilt =
@@ -416,7 +416,7 @@ public class TestRewriteTablePathsAction extends TestBase {
     // copy the metadata files and data files
     copyTableFiles(result);
 
-    assertManifestLengthsMatchActual(targetTableLocation());
+    assertManifestLengthsMatchActual(TABLES.load(targetTableLocation()));
 
     // verify data rows
     Dataset<Row> resultDF = spark.read().format("iceberg").load(targetTableLocation());
@@ -488,7 +488,7 @@ public class TestRewriteTablePathsAction extends TestBase {
 
     // copy the metadata files and data files
     copyTableFiles(result);
-    assertManifestLengthsMatchActual(targetTableLocation());
+    assertManifestLengthsMatchActual(TABLES.load(targetTableLocation()));
 
     // Positional delete affects a single row, so only one row must remain
     assertThat(spark.read().format("iceberg").load(targetTableLocation()).collectAsList())
@@ -527,7 +527,7 @@ public class TestRewriteTablePathsAction extends TestBase {
 
     // copy the metadata files and data files
     copyTableFiles(result);
-    assertManifestLengthsMatchActual(targetTableLocation());
+    assertManifestLengthsMatchActual(TABLES.load(targetTableLocation()));
 
     // check copied position delete row - only v2 stores row data with position deletes
     // v3+ uses Deletion Vectors (DV) which only store position information
@@ -991,7 +991,7 @@ public class TestRewriteTablePathsAction extends TestBase {
 
     // copy the metadata files and data files
     copyTableFiles(result);
-    assertManifestLengthsMatchActual(targetTableLocation());
+    assertManifestLengthsMatchActual(TABLES.load(targetTableLocation()));
 
     // Equality deletes affect three rows, so just two rows must remain
     assertThat(spark.read().format("iceberg").load(targetTableLocation()).collectAsList())
@@ -1115,7 +1115,7 @@ public class TestRewriteTablePathsAction extends TestBase {
 
     // copy the metadata files and data files
     copyTableFiles(result);
-    assertManifestLengthsMatchActual(targetTableLocation());
+    assertManifestLengthsMatchActual(TABLES.load(targetTableLocation()));
 
     // expect deleted data file is excluded from rewrite and copy
     List<String> copiedDataFiles =
@@ -1568,7 +1568,6 @@ public class TestRewriteTablePathsAction extends TestBase {
     checkFileNum(3, 2, 2, 9, result);
     // one data and one metadata file
     copyTableFiles(result);
-    assertManifestLengthsMatchActual(targetTableLocation());
 
     // register table
     String metadataLocation = currentMetadata(sourceTable).metadataFileLocation();
@@ -1576,6 +1575,8 @@ public class TestRewriteTablePathsAction extends TestBase {
     String targetTableName = String.format("copiedV%sTable", formatVersion);
     TableIdentifier tableIdentifier = TableIdentifier.of("default", targetTableName);
     catalog.registerTable(tableIdentifier, targetTableLocation() + "/metadata/" + versionFile);
+
+    assertManifestLengthsMatchActual(catalog.loadTable(tableIdentifier));
 
     List<Object[]> copiedData =
         rowsToJava(
@@ -1803,11 +1804,10 @@ public class TestRewriteTablePathsAction extends TestBase {
     return relative.toFile().toURI().toString();
   }
 
-  private void assertManifestLengthsMatchActual(String location) {
-    Table targetTable = TABLES.load(location);
-    for (ManifestFile manifest : targetTable.currentSnapshot().allManifests(targetTable.io())) {
+  private void assertManifestLengthsMatchActual(Table table) {
+    for (ManifestFile manifest : table.currentSnapshot().allManifests(table.io())) {
       long recordedLength = manifest.length();
-      long actualLength = targetTable.io().newInputFile(manifest.path()).getLength();
+      long actualLength = table.io().newInputFile(manifest.path()).getLength();
       assertThat(recordedLength)
           .as(
               "Manifest %s: length recorded in manifest list (%d) should match actual file size (%d)",
