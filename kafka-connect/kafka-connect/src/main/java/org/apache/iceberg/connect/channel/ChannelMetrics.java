@@ -29,10 +29,8 @@ import org.apache.kafka.common.metrics.KafkaMetricsContext;
 import org.apache.kafka.common.metrics.MetricConfig;
 import org.apache.kafka.common.metrics.Metrics;
 import org.apache.kafka.common.metrics.Sensor;
-import org.apache.kafka.common.metrics.stats.Avg;
 import org.apache.kafka.common.metrics.stats.CumulativeCount;
 import org.apache.kafka.common.metrics.stats.CumulativeSum;
-import org.apache.kafka.common.metrics.stats.Max;
 import org.apache.kafka.common.utils.Time;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -49,8 +47,13 @@ abstract class ChannelMetrics implements AutoCloseable {
   /** JMX domain; dotted to sit alongside Kafka's own {@code kafka.connect.*} beans in jconsole. */
   static final String NAMESPACE = "iceberg.kafka.connect";
 
-  private final Metrics metrics;
   private final String group;
+  private final Object closeLock = new Object();
+
+  // Nulled out by the first close() so a second close cannot unregister MBeans that a replacement
+  // instance (e.g. a newly elected coordinator in the same JVM) has since registered under the same
+  // ObjectName. Only written under closeLock; volatile so readers see the null without locking.
+  private volatile Metrics metrics;
 
   private final Sensor messageReadTime;
   private final Sensor messageProcessTime;
@@ -81,18 +84,31 @@ abstract class ChannelMetrics implements AutoCloseable {
     }
   }
 
-  void recordMessageRead(long elapsedMs) {
-    messageReadTime.record((double) elapsedMs);
+  void recordMessageRead(long elapsedMicros) {
+    messageReadTime.record((double) elapsedMicros);
   }
 
-  void recordMessageProcess(long elapsedMs) {
-    messageProcessTime.record((double) elapsedMs);
+  void recordMessageProcess(long elapsedMicros) {
+    messageProcessTime.record((double) elapsedMicros);
   }
 
+  /**
+   * Closes the underlying registry, unregistering its MBeans. Idempotent: callers may close from
+   * more than one shutdown path (the coordinator closes from both {@code terminate()} and {@code
+   * stop()}) and only the first call unregisters anything.
+   */
   @Override
   public void close() {
+    Metrics toClose;
+    synchronized (closeLock) {
+      toClose = metrics;
+      this.metrics = null;
+    }
+    if (toClose == null) {
+      return;
+    }
     try {
-      metrics.close();
+      toClose.close();
     } catch (Exception e) {
       LOG.warn("Error closing {}", getClass().getSimpleName(), e);
     }
@@ -102,8 +118,16 @@ abstract class ChannelMetrics implements AutoCloseable {
    * Closes the registry while an in-flight constructor failure is unwinding, to avoid MBean leaks.
    */
   protected void closeQuietly(RuntimeException failure) {
+    Metrics toClose;
+    synchronized (closeLock) {
+      toClose = metrics;
+      this.metrics = null;
+    }
+    if (toClose == null) {
+      return;
+    }
     try {
-      metrics.close();
+      toClose.close();
     } catch (Exception suppressed) {
       failure.addSuppressed(suppressed);
     }
@@ -117,16 +141,21 @@ abstract class ChannelMetrics implements AutoCloseable {
         (Gauge<Long>) (config, now) -> supplier.get());
   }
 
+  /**
+   * Creates a timer sensor reporting a cumulative total and a cumulative sample count. Both stats
+   * are cumulative on purpose: the sampled {@code Avg}/{@code Max} stats only cover the default 30s
+   * x 2 sample window, which is far shorter than a typical commit interval, so they would read NaN
+   * most of the time. A consumer can derive an average or a rate from the total and the count.
+   */
   protected Sensor createTimerSensor(
       String baseName, String description, Map<String, String> tags) {
     Sensor sensor = metrics.sensor(sensorName(baseName, tags));
-    sensor.add(new MetricName(baseName + "-avg", group, description + " (avg)", tags), new Avg());
-    sensor.add(new MetricName(baseName + "-max", group, description + " (max)", tags), new Max());
     sensor.add(
-        new MetricName(baseName + "-total", group, description + " (total)", tags),
+        new MetricName(baseName + "-total", group, description + " (cumulative total)", tags),
         new CumulativeSum());
     sensor.add(
-        new MetricName(baseName + "-count", group, description + " (count)", tags),
+        new MetricName(
+            baseName + "-count", group, description + " (number of sampled points)", tags),
         new CumulativeCount());
     return sensor;
   }
@@ -148,7 +177,7 @@ abstract class ChannelMetrics implements AutoCloseable {
     tags.put("connector", connector);
     tags.put("task", task);
     if (commitMode != null) {
-      tags.put("commitMode", commitMode);
+      tags.put("commit-mode", commitMode);
     }
     return tags;
   }

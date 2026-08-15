@@ -56,8 +56,6 @@ public class TestCoordinatorMetrics {
       metrics.recordCommit(false, 50);
       metrics.recordCommit(false, 150);
 
-      assertThat(readCommitDouble("full", "commit-time-avg")).isEqualTo(100.0);
-      assertThat(readCommitDouble("full", "commit-time-max")).isEqualTo(150.0);
       assertThat(readCommitDouble("full", "commit-time-total")).isEqualTo(200.0);
       assertThat(readCommitDouble("full", "commit-time-count")).isEqualTo(2.0);
 
@@ -68,9 +66,8 @@ public class TestCoordinatorMetrics {
 
       metrics.recordMessageRead(5);
       metrics.recordMessageRead(15);
-      assertThat(readDouble("channel-message-read-time-avg")).isEqualTo(10.0);
-      assertThat(readDouble("channel-message-read-time-max")).isEqualTo(15.0);
       assertThat(readDouble("channel-message-read-time-total")).isEqualTo(20.0);
+      assertThat(readDouble("channel-message-read-time-count")).isEqualTo(2.0);
     }
   }
 
@@ -119,6 +116,27 @@ public class TestCoordinatorMetrics {
     }
   }
 
+  @Test
+  public void testRepeatedCloseDoesNotUnregisterReplacement() throws Exception {
+    MBeanServer server = ManagementFactory.getPlatformMBeanServer();
+    ObjectName query =
+        new ObjectName(
+            "iceberg.kafka.connect:type=coordinator-metrics,connector=" + connector + ",*");
+
+    // The coordinator closes from both terminate() and stop(); a re-elected coordinator can
+    // register the same ObjectName in between. The second close must not take the new beans down.
+    CoordinatorMetrics old = new CoordinatorMetrics(connector, () -> 0L, () -> 0L);
+    old.close();
+
+    try (CoordinatorMetrics replacement = new CoordinatorMetrics(connector, () -> 0L, () -> 0L)) {
+      assertThat(server.queryNames(query, null)).isNotEmpty();
+      old.close();
+      assertThat(server.queryNames(query, null)).isNotEmpty();
+      assertThat(replacement).isNotNull();
+    }
+    assertThat(server.queryNames(query, null)).isEmpty();
+  }
+
   private double readDouble(String name) throws Exception {
     return ((Number) attribute(connectorName(), name)).doubleValue();
   }
@@ -128,7 +146,7 @@ public class TestCoordinatorMetrics {
   }
 
   private double readCommitDouble(String commitMode, String name) throws Exception {
-    return ((Number) attribute(connectorName() + ",commitMode=" + commitMode, name)).doubleValue();
+    return ((Number) attribute(connectorName() + ",commit-mode=" + commitMode, name)).doubleValue();
   }
 
   private String connectorName() {

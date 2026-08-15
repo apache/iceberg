@@ -446,6 +446,13 @@ class Coordinator extends Channel {
 
     exec.shutdownNow();
 
+    // Unregister the MBeans here rather than waiting for the CoordinatorThread to reach stop():
+    // stopCoordinator() does not join that thread, so a newly elected coordinator in the same JVM
+    // could otherwise register the same connector-level ObjectName first and then have it
+    // unregistered by this instance's late close(). ChannelMetrics#close() is idempotent, so the
+    // close() in stop() below is a no-op once this has run.
+    coordinatorMetrics.close();
+
     // wait for coordinator termination, else cause the sink task to fail
     try {
       if (!exec.awaitTermination(1, TimeUnit.MINUTES)) {
@@ -459,8 +466,8 @@ class Coordinator extends Channel {
   @Override
   void stop() {
     // stop() runs at the very end of the CoordinatorThread run loop, after process() (and any
-    // commit() recording) can no longer fire, so closing the registry here avoids racing a
-    // record* call against a closed Metrics instance.
+    // commit() recording) can no longer fire, so closing the registry here covers the shutdown
+    // paths that never call terminate().
     super.stop();
     coordinatorMetrics.close();
   }

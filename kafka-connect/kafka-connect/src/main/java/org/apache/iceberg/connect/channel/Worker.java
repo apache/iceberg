@@ -121,7 +121,7 @@ class Worker extends Channel {
         results.writerResults().stream()
             .mapToLong(result -> result.dataFiles().size() + result.deleteFiles().size())
             .sum();
-    workerMetrics.incDataWritten(fileCount);
+    workerMetrics.incDataFilesWritten(fileCount);
     workerMetrics.incDataComplete();
 
     return true;
