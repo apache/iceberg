@@ -395,7 +395,14 @@ public class RewriteTablePathUtil {
       String targetPrefix)
       throws IOException {
     return rewriteDataManifestAndMeasureLength(
-            manifestFile, snapshotIds, outputFile, io, format, specsById, sourcePrefix, targetPrefix)
+            manifestFile,
+            snapshotIds,
+            outputFile,
+            io,
+            format,
+            specsById,
+            sourcePrefix,
+            targetPrefix)
         .first();
   }
 
