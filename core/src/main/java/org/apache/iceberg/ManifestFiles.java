@@ -47,7 +47,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.math.IntMath;
-import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
 import org.slf4j.Logger;
@@ -631,24 +630,13 @@ public class ManifestFiles {
       Function<List<F>, List<ManifestFile>> writeFunc) {
     List<List<F>> groups = divide(files, parallelism);
 
-    // Pair each group with its index so results can be reassembled in input order.
-    List<Pair<Integer, List<F>>> groupsWithIndex = Lists.newArrayListWithCapacity(groups.size());
-    for (int i = 0; i < groups.size(); i++) {
-      groupsWithIndex.add(Pair.of(i, groups.get(i)));
-    }
-
     AtomicReferenceArray<List<ManifestFile>> results = new AtomicReferenceArray<>(groups.size());
 
-    Tasks.foreach(groupsWithIndex)
+    Tasks.range(groups.size())
         .stopOnFailure()
         .throwFailureWhenFinished()
         .executeWith(writePool)
-        .run(
-            indexedGroup -> {
-              int index = indexedGroup.first();
-              List<F> group = indexedGroup.second();
-              results.set(index, writeFunc.apply(group));
-            });
+        .run(index -> results.set(index, writeFunc.apply(groups.get(index))));
 
     ImmutableList.Builder<ManifestFile> builder = ImmutableList.builder();
     for (int i = 0; i < results.length(); i++) {
