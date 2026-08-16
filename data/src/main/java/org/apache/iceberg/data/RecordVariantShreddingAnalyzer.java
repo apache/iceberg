@@ -105,11 +105,14 @@ class RecordVariantShreddingAnalyzer extends VariantShreddingAnalyzer<Record, Sc
         continue;
       }
 
-      Preconditions.checkArgument(
-          fieldValue instanceof Variant,
-          "Expected Variant at index %s but was: %s",
-          variantFieldIndex,
-          fieldValue.getClass().getName());
+      if (!(fieldValue instanceof Variant)) {
+        LOG.warn(
+            "Skipping variant shredding for column at index {}: expected Variant but was {}",
+            variantFieldIndex,
+            fieldValue.getClass().getName());
+        return Lists.newArrayList();
+      }
+
       values.add(((Variant) fieldValue).value());
     }
 

@@ -214,21 +214,18 @@ public class TestRecordVariantShreddingAnalyzer {
   }
 
   @Test
-  public void testAnalyzeVariantColumnsRejectsNonVariantValues() {
+  public void testAnalyzeVariantColumnsSkipsNonVariantValues() {
     GenericRecord invalidRecord = GenericRecord.create(VARIANT_AFTER_ID_SCHEMA);
     invalidRecord.setField("id", 1L);
     invalidRecord.setField("v", "not-a-variant");
 
     RecordVariantShreddingAnalyzer analyzer = new RecordVariantShreddingAnalyzer();
 
-    assertThatThrownBy(
-            () ->
-                analyzer.analyzeVariantColumns(
-                    ImmutableList.of(invalidRecord),
-                    VARIANT_AFTER_ID_SCHEMA,
-                    VARIANT_AFTER_ID_SCHEMA))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Expected Variant at index 1 but was: java.lang.String");
+    Map<Integer, Type> shreddedTypes =
+        analyzer.analyzeVariantColumns(
+            ImmutableList.of(invalidRecord), VARIANT_AFTER_ID_SCHEMA, VARIANT_AFTER_ID_SCHEMA);
+
+    assertThat(shreddedTypes).isEmpty();
   }
 
   @Test
