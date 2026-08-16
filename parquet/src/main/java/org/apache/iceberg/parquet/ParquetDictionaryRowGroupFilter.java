@@ -398,6 +398,10 @@ public class ParquetDictionaryRowGroupFilter {
         return ROWS_MIGHT_MATCH;
       }
 
+      if (mayContainNulls.get(id)) {
+        return ROWS_MIGHT_MATCH;
+      }
+
       Set<T> dictionary = dict(id, lit.comparator());
       for (T item : dictionary) {
         if (!item.toString().startsWith(lit.value().toString())) {
