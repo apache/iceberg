@@ -462,7 +462,7 @@ public class TestDictionaryRowGroupFilter {
     shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, notStartsWith("some_nulls", "some"))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    assertThat(shouldRead).as("Should skip: no match in dictionary").isFalse();
+    assertThat(shouldRead).as("Should read: row group contains nulls matching notStartsWith").isTrue();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, notStartsWith("no_nulls", "xxx"))
