@@ -268,6 +268,10 @@ public class OrcValueReaders {
         if (fileIdReader != null) {
           this.orcFieldIndex[pos] = orcIndex;
         }
+      } else if (fileReader != null) {
+        this.readers[pos] = fileReader;
+        this.isConstantOrMetadataField[pos] = false;
+        this.orcFieldIndex[pos] = orcIndex;
       } else {
         this.isConstantOrMetadataField[pos] = true;
         this.readers[pos] = constants(null);
@@ -282,14 +286,17 @@ public class OrcValueReaders {
         Map<Integer, ?> idToConstant,
         int orcIndex) {
       Long fileLastUpdated = (Long) idToConstant.get(field.fieldId());
-      Long firstRowId = (Long) idToConstant.get(MetadataColumns.ROW_ID.fieldId());
-      if (fileLastUpdated != null && firstRowId != null) {
+      if (fileLastUpdated != null) {
         OrcValueReader<Long> fileSeqReader = (OrcValueReader<Long>) fileReader;
         this.readers[pos] = new LastUpdatedSeqReader(fileLastUpdated, fileSeqReader);
         this.isConstantOrMetadataField[pos] = fileSeqReader == null;
         if (fileSeqReader != null) {
           this.orcFieldIndex[pos] = orcIndex;
         }
+      } else if (fileReader != null) {
+        this.readers[pos] = fileReader;
+        this.isConstantOrMetadataField[pos] = false;
+        this.orcFieldIndex[pos] = orcIndex;
       } else {
         this.isConstantOrMetadataField[pos] = true;
         this.readers[pos] = constants(null);
