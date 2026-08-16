@@ -402,7 +402,7 @@ public class TestRewriteTablePathUtil extends TestBase {
     ManifestFile unmeasured = manifests.get(1);
 
     String manifestPath = measured.path();
-    String sourcePrefix = manifestPath.substring(0, manifestPath.indexOf("/metadata/"));
+    String sourcePrefix = manifestPath.substring(0, manifestPath.lastIndexOf("/metadata/"));
     String targetPrefix = sourcePrefix + "/relocated";
     String stagingDir = temp.resolve("staging").toString();
     String outputPath = temp.resolve("rewritten-list-" + System.nanoTime() + ".avro").toString();
@@ -420,7 +420,7 @@ public class TestRewriteTablePathUtil extends TestBase {
         targetPrefix,
         stagingDir,
         outputPath,
-        Map.of(measured.path(), rewrittenLength));
+        ImmutableMap.of(measured.path(), rewrittenLength));
 
     List<ManifestFile> rewritten = ManifestLists.read(table.io().newInputFile(outputPath));
     assertThat(rewritten).hasSize(2);

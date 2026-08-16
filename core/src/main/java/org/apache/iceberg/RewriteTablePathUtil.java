@@ -265,7 +265,9 @@ public class RewriteTablePathUtil {
       String targetPrefix,
       String stagingDir,
       String outputPath) {
-    return rewriteManifestList(
+    // no lengths are known to this overload, so every entry keeping its source length is expected
+    // and is not reported
+    return writeManifestList(
         snapshot,
         io,
         tableMetadata,
@@ -319,6 +321,40 @@ public class RewriteTablePathUtil {
       String stagingDir,
       String outputPath,
       Map<String, Long> rewrittenManifestLengths) {
+    manifestFiles.stream()
+        .filter(file -> rewrittenManifestLengths.get(file.path()) == null)
+        .forEach(
+            file ->
+                LOG.warn(
+                    "No measured length for manifest {}; recording its source length {}, which "
+                        + "will not match the rewritten file at the target",
+                    file.path(),
+                    file.length()));
+
+    return writeManifestList(
+        snapshot,
+        io,
+        tableMetadata,
+        manifestFiles,
+        manifestsToRewrite,
+        sourcePrefix,
+        targetPrefix,
+        stagingDir,
+        outputPath,
+        rewrittenManifestLengths);
+  }
+
+  private static RewriteResult<ManifestFile> writeManifestList(
+      Snapshot snapshot,
+      FileIO io,
+      TableMetadata tableMetadata,
+      List<ManifestFile> manifestFiles,
+      Set<String> manifestsToRewrite,
+      String sourcePrefix,
+      String targetPrefix,
+      String stagingDir,
+      String outputPath,
+      Map<String, Long> rewrittenManifestLengths) {
     RewriteResult<ManifestFile> result = new RewriteResult<>();
     OutputFile outputFile = io.newOutputFile(outputPath);
 
@@ -341,13 +377,6 @@ public class RewriteTablePathUtil {
         ManifestFile newFile = file.copy();
         ((StructLike) newFile).set(0, newPath(newFile.path(), sourcePrefix, targetPrefix));
         Long rewrittenLength = rewrittenManifestLengths.get(file.path());
-        if (rewrittenLength == null && !rewrittenManifestLengths.isEmpty()) {
-          LOG.warn(
-              "No measured length for manifest {}; recording its source length {}, which will not "
-                  + "match the rewritten file at the target",
-              file.path(),
-              file.length());
-        }
         ((StructLike) newFile).set(1, rewrittenLength != null ? rewrittenLength : file.length());
         writer.add(newFile);
 
@@ -363,17 +392,6 @@ public class RewriteTablePathUtil {
       throw new UncheckedIOException(
           "Failed to rewrite the manifest list file " + snapshot.manifestListLocation(), e);
     }
-  }
-
-  private static List<ManifestFile> manifestFilesInSnapshot(FileIO io, Snapshot snapshot) {
-    String path = snapshot.manifestListLocation();
-    List<ManifestFile> manifestFiles = Lists.newArrayList();
-    try {
-      manifestFiles = ManifestLists.read(io.newInputFile(path));
-    } catch (RuntimeIOException e) {
-      LOG.warn("Failed to read manifest list {}", path, e);
-    }
-    return manifestFiles;
   }
 
   /**
@@ -395,7 +413,14 @@ public class RewriteTablePathUtil {
    */
   public static List<ManifestFile> manifestsInSnapshot(
       Snapshot snapshot, FileIO io, String sourcePrefix) {
-    List<ManifestFile> manifestFiles = manifestFilesInSnapshot(io, snapshot);
+    String path = snapshot.manifestListLocation();
+    List<ManifestFile> manifestFiles = Lists.newArrayList();
+    try {
+      manifestFiles = ManifestLists.read(io.newInputFile(path));
+    } catch (RuntimeIOException e) {
+      LOG.warn("Failed to read manifest list {}", path, e);
+    }
+
     manifestFiles.forEach(
         manifestFile ->
             Preconditions.checkArgument(

@@ -278,9 +278,10 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
    *
    * <ul>
    *   <li>Rebuild version files to staging
-   *   <li>Rebuild manifest list files to staging
+   *   <li>Read the manifest lists of all valid snapshots
    *   <li>Rewrite referenced position delete files to staging
    *   <li>Rebuild manifests to staging
+   *   <li>Rebuild manifest list files to staging, recording each rewritten manifest's length
    *   <li>Get all files needed to move
    * </ul>
    */
@@ -302,9 +303,7 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
     Set<Snapshot> validSnapshots =
         Sets.difference(snapshotSet(endMetadata), snapshotSet(startMetadata));
 
-    // Read every valid snapshot's manifest list once, before writing anything. The rewritten
-    // manifest list must record each referenced manifest's rewritten length (manifest_length),
-    // which is only known after the manifests are rewritten below.
+    // read every valid snapshot's manifest list
     Map<Snapshot, List<ManifestFile>> manifestsBySnapshot = Maps.newConcurrentMap();
     Tasks.foreach(validSnapshots)
         .noRetry()
@@ -316,9 +315,7 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
                     snapshot,
                     RewriteTablePathUtil.manifestsInSnapshot(snapshot, table.io(), sourcePrefix)));
 
-    // Manifests selected for rewrite. In an incremental run this is only the manifests added by the
-    // delta snapshots, so a manifest carried over from an earlier run is not rewritten here and
-    // keeps its source length in the manifest list. See the note on rewriteManifestList.
+    // manifests selected for rewrite; see rewriteManifestList for the incremental gap
     Set<ManifestFile> manifestFiles = Sets.newHashSet();
     manifestsBySnapshot
         .values()
@@ -344,7 +341,7 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
             manifestFiles,
             sparkContext().broadcast(rewrittenDeleteFileSizes));
 
-    // rebuild manifest-list files last, stamping manifest_length with the rewritten manifest sizes
+    // rebuild manifest-list files
     Set<RewriteResult<ManifestFile>> manifestListResults = Sets.newConcurrentHashSet();
     Tasks.foreach(validSnapshots)
         .noRetry()
@@ -523,9 +520,11 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
    *
    * @param snapshot snapshot represented by the manifest list
    * @param tableMetadata metadata of table
-   * @param manifestFiles the manifests the snapshot's manifest list references
-   * @param manifestsToRewrite filter of manifests to rewrite.
-   * @param rewrittenManifestLengths map from source manifest path to its rewritten byte length
+   * @param manifestFiles the manifests referenced by the snapshot's manifest list, as returned by
+   *     {@link RewriteTablePathUtil#manifestsInSnapshot(Snapshot, FileIO, String)}
+   * @param manifestsToRewrite a list of manifest files to filter for rewrite
+   * @param rewrittenManifestLengths map from source manifest path to the byte length of its
+   *     rewritten manifest
    * @return a result including a copy plan for the manifests contained in the manifest list, as
    *     well as for the manifest list itself
    */
