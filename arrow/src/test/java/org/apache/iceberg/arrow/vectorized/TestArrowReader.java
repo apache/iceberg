@@ -743,13 +743,13 @@ public class TestArrowReader {
   }
 
   /**
-   * Reading a column added by ALTER TABLE after the data files were written produces a constant
-   * holder with a null vector. This used to throw a confusing NullPointerException because the
-   * accessor factory called {@code vector.getClass()} on the null vector. Reading such a column is
-   * not supported yet (see issue #10275), so the reader must fail with a clear message instead.
+   * A column added by ALTER TABLE is not present in the data files written before it, so it is read
+   * as a constant rather than from the file. The reader used to fail on such a column with a
+   * NullPointerException because it passed the missing vector straight to the accessor factory. It
+   * now builds a vector holding the value for every row, so the column reads as null.
    */
   @Test
-  public void testReadAddedColumnFailsWithClearMessage() throws Exception {
+  public void testReadColumnAddedAfterDataFileWasWritten() throws Exception {
     tables = new HadoopTables();
     Schema schema = new Schema(Types.NestedField.required(1, "col", Types.IntegerType.get()));
     Table table = tables.create(schema, tableLocation);
@@ -778,22 +778,29 @@ public class TestArrowReader {
             .build();
     table.newAppend().appendFile(dataFile).commit();
 
-    // Add a column after the data file was written. The added column has no data in the file, so
-    // the reader produces a constant holder with a null vector.
     table.updateSchema().addColumn("added", Types.IntegerType.get()).commit();
     Table reloaded = tables.load(tableLocation);
 
-    assertThatThrownBy(
-            () -> {
-              try (VectorizedTableScanIterable vectorizedReader =
-                  new VectorizedTableScanIterable(reloaded.newScan(), 1024, false)) {
-                for (ColumnarBatch batch : vectorizedReader) {
-                  batch.createVectorSchemaRootFromVectors().close();
-                }
-              }
-            })
-        .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessage("Unsupported vector: null");
+    int rowsRead = 0;
+    try (VectorizedTableScanIterable vectorizedReader =
+        new VectorizedTableScanIterable(reloaded.newScan(), 1024, false)) {
+      for (ColumnarBatch batch : vectorizedReader) {
+        assertThat(batch.numCols()).isEqualTo(2);
+        assertThat(batch.column(1).isNullAt(0)).isTrue();
+
+        try (VectorSchemaRoot root = batch.createVectorSchemaRootFromVectors()) {
+          IntVector existing = (IntVector) root.getVector("col");
+          IntVector added = (IntVector) root.getVector("added");
+          assertThat(existing.getObject(0)).isEqualTo(1);
+          assertThat(added.getValueCount()).isEqualTo(batch.numRows());
+          assertThat(added.isNull(0)).isTrue();
+        }
+
+        rowsRead += batch.numRows();
+      }
+    }
+
+    assertThat(rowsRead).isEqualTo(1);
   }
 
   private static Stream<Arguments> rejectedUnsignedIntegerCases() {
