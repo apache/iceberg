@@ -109,7 +109,10 @@ public class LoadTableResponseParser {
     }
 
     if (json.hasNonNull(READ_RESTRICTIONS)) {
-      builder.withReadRestrictions(ReadRestrictionsParser.fromJson(json.get(READ_RESTRICTIONS)));
+      // The row filter references columns by field id, so it is parsed against the schema from the
+      // metadata in this same response.
+      builder.withReadRestrictions(
+          ReadRestrictionsParser.fromJson(json.get(READ_RESTRICTIONS), metadata.schema()));
     }
 
     return builder.build();

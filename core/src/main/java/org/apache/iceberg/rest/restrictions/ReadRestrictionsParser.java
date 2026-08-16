@@ -22,6 +22,7 @@ import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
 import java.util.List;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ExpressionParser;
 import org.apache.iceberg.functions.IcebergFunction;
@@ -67,10 +68,28 @@ public class ReadRestrictionsParser {
   }
 
   public static ReadRestrictions fromJson(String json) {
-    return JsonUtil.parse(json, ReadRestrictionsParser::fromJson);
+    return fromJson(json, null);
+  }
+
+  public static ReadRestrictions fromJson(String json, Schema schema) {
+    return JsonUtil.parse(json, node -> fromJson(node, schema));
   }
 
   public static ReadRestrictions fromJson(JsonNode node) {
+    return fromJson(node, null);
+  }
+
+  /**
+   * Parses read restrictions, resolving row filter references against the given schema.
+   *
+   * <p>The spec requires column references in {@code required-row-filter} to be field ids, so a
+   * schema is needed to map each id back to a column name. Passing a null schema leaves id
+   * references unresolvable and {@link ExpressionParser} fails rather than guessing, which keeps an
+   * unenforceable filter from being read as no filter at all.
+   *
+   * @param schema the schema to resolve field id references against, or null if unavailable
+   */
+  public static ReadRestrictions fromJson(JsonNode node, Schema schema) {
     if (node == null || node.isNull()) {
       return ReadRestrictions.empty();
     }
@@ -79,7 +98,7 @@ public class ReadRestrictionsParser {
 
     Expression rowFilter = null;
     if (node.hasNonNull(REQUIRED_ROW_FILTER)) {
-      rowFilter = ExpressionParser.fromJson(node.get(REQUIRED_ROW_FILTER));
+      rowFilter = ExpressionParser.fromJson(node.get(REQUIRED_ROW_FILTER), schema);
     }
 
     List<IcebergFunction<?, ?>> actions = Lists.newArrayList();

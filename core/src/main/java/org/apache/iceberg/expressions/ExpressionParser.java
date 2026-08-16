@@ -359,7 +359,7 @@ public class ExpressionParser {
     return JsonUtil.parse(json, node -> fromJson(node, schema));
   }
 
-  static Expression fromJson(JsonNode json, Schema schema) {
+  public static Expression fromJson(JsonNode json, Schema schema) {
     Preconditions.checkArgument(null != json, "Cannot parse expression from null object");
     if (json.isBoolean()) {
       if (json.asBoolean()) {

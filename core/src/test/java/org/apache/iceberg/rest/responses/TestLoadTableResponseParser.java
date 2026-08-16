@@ -27,6 +27,7 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.expressions.Binder;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.functions.Sha256Global;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -490,7 +491,7 @@ public class TestLoadTableResponseParser {
             .withTableMetadata(metadataWithSingleLongColumn())
             .withReadRestrictions(
                 ReadRestrictions.of(
-                    Expressions.equal("country", "US"), ImmutableList.of(new Sha256Global(1))))
+                    Expressions.equal("x", 42L), ImmutableList.of(new Sha256Global(1))))
             .build();
 
     // the surrounding metadata document is already pinned by roundTripSerdeV2; assert the node this
@@ -501,8 +502,11 @@ public class TestLoadTableResponseParser {
             "  \"read-restrictions\" : {\n"
                 + "    \"required-row-filter\" : {\n"
                 + "      \"type\" : \"eq\",\n"
-                + "      \"term\" : \"country\",\n"
-                + "      \"value\" : \"US\"\n"
+                + "      \"left\" : {\n"
+                + "        \"type\" : \"reference\",\n"
+                + "        \"name\" : \"x\"\n"
+                + "      },\n"
+                + "      \"right\" : 42\n"
                 + "    },\n"
                 + "    \"required-column-projections\" : [ {\n"
                 + "      \"action\" : \"sha-256-global\",\n"
@@ -511,6 +515,39 @@ public class TestLoadTableResponseParser {
                 + "  }");
     assertThat(LoadTableResponseParser.toJson(LoadTableResponseParser.fromJson(json), true))
         .isEqualTo(json);
+  }
+
+  @Test
+  public void rowFilterFieldIdsAreResolvedAgainstTheSchemaInTheResponse() {
+    // The spec requires column references in required-row-filter to be field ids, which only
+    // resolve
+    // against a schema. The schema comes from the metadata in this same response.
+    TableMetadata metadata = metadataWithSingleLongColumn();
+    LoadTableResponse response =
+        LoadTableResponse.builder()
+            .withTableMetadata(metadata)
+            .withReadRestrictions(
+                ReadRestrictions.of(
+                    Binder.bind(metadata.schema().asStruct(), Expressions.equal("x", 42L), true),
+                    ImmutableList.of()))
+            .build();
+
+    String json = LoadTableResponseParser.toJson(response, true);
+    assertThat(json)
+        .contains(
+            "  \"read-restrictions\" : {\n"
+                + "    \"required-row-filter\" : {\n"
+                + "      \"type\" : \"eq\",\n"
+                + "      \"left\" : {\n"
+                + "        \"type\" : \"reference\",\n"
+                + "        \"id\" : 1\n"
+                + "      },\n"
+                + "      \"right\" : 42\n"
+                + "    }\n"
+                + "  }");
+
+    assertThat(LoadTableResponseParser.fromJson(json).readRestrictions().rowFilter())
+        .hasToString(Expressions.equal("x", 42L).toString());
   }
 
   @Test
