@@ -21,11 +21,9 @@ package org.apache.iceberg.expressions;
 import static org.apache.iceberg.expressions.Expressions.rewriteNot;
 
 import java.nio.ByteBuffer;
-import java.util.Collection;
 import java.util.Comparator;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Schema;
@@ -426,40 +424,39 @@ public class StrictMetricsEvaluator {
         return ROWS_MUST_MATCH;
       }
 
-      Collection<T> literals = literalSet;
-
-      if (lowerBounds != null && lowerBounds.containsKey(id)) {
-        T lower = Conversions.fromByteBuffer(struct.field(id).type(), lowerBounds.get(id));
-
+      boolean hasLowerBound = lowerBounds != null && lowerBounds.containsKey(id);
+      T lower = null;
+      if (hasLowerBound) {
+        lower = Conversions.fromByteBuffer(struct.field(id).type(), lowerBounds.get(id));
         if (NaNUtil.isNaN(lower)) {
           // NaN indicates unreliable bounds. See the StrictMetricsEvaluator docs for more.
           return ROWS_MIGHT_NOT_MATCH;
         }
-
-        literals =
-            literals.stream()
-                .filter(v -> ref.comparator().compare(lower, v) <= 0)
-                .collect(Collectors.toList());
-        if (literals
-            .isEmpty()) { // if all values are less than lower bound, rows must match (notIn).
-          return ROWS_MUST_MATCH;
-        }
       }
 
-      if (upperBounds != null && upperBounds.containsKey(id)) {
-        T upper = Conversions.fromByteBuffer(ref.type(), upperBounds.get(id));
-        literals =
-            literals.stream()
-                .filter(v -> ref.comparator().compare(upper, v) >= 0)
-                .collect(Collectors.toList());
-        if (literals
-            .isEmpty()) { // if all remaining values are greater than upper bound, rows must match
-          // (notIn).
-          return ROWS_MUST_MATCH;
-        }
+      boolean hasUpperBound = upperBounds != null && upperBounds.containsKey(id);
+      T upper = hasUpperBound ? Conversions.fromByteBuffer(ref.type(), upperBounds.get(id)) : null;
+
+      // if no literal falls within the file's bounds, every row differs from the set (notIn)
+      if ((hasLowerBound || hasUpperBound)
+          && !anyWithinBounds(literalSet, ref.comparator(), lower, upper)) {
+        return ROWS_MUST_MATCH;
       }
 
       return ROWS_MIGHT_NOT_MATCH;
+    }
+
+    // a null bound is treated as unbounded on that side
+    private static <T> boolean anyWithinBounds(
+        Set<T> literals, Comparator<T> comparator, T lower, T upper) {
+      for (T literal : literals) {
+        if ((lower == null || comparator.compare(lower, literal) <= 0)
+            && (upper == null || comparator.compare(upper, literal) >= 0)) {
+          return true;
+        }
+      }
+
+      return false;
     }
 
     @Override

@@ -184,10 +184,13 @@ class ParquetVariantUtil {
    */
   @SuppressWarnings("unchecked")
   static <T> Comparator<T> comparator(PhysicalType primitive) {
-    if (primitive == PhysicalType.BINARY) {
-      return (Comparator<T>) Comparators.unsignedBytes();
-    } else {
-      return (Comparator<T>) Comparator.naturalOrder();
+    switch (primitive) {
+      case BINARY:
+        return (Comparator<T>) Comparators.unsignedBytes();
+      case STRING:
+        return (Comparator<T>) Comparators.charSequences();
+      default:
+        return (Comparator<T>) Comparator.naturalOrder();
     }
   }
 
