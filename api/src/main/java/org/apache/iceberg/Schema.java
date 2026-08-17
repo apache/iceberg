@@ -81,7 +81,6 @@ public class Schema implements Serializable {
   private transient Map<Integer, Accessor<StructLike>> idToAccessor = null;
   private transient Map<Integer, String> idToName = null;
   private transient Set<Integer> identifierFieldIdSet = null;
-  private transient Set<String> identifierFieldNameSet = null;
   private final transient Map<Integer, Integer> idsToReassigned;
   private final transient Map<Integer, Integer> idsToOriginal;
 
@@ -255,16 +254,6 @@ public class Schema implements Serializable {
     return identifierFieldIdSet;
   }
 
-  private Set<String> lazyIdentifierFieldNameSet() {
-    if (identifierFieldNameSet == null) {
-      this.identifierFieldNameSet =
-          lazyIdentifierFieldIdSet().stream()
-              .map(id -> lazyIdToName().get(id))
-              .collect(ImmutableSet.toImmutableSet());
-    }
-    return identifierFieldNameSet;
-  }
-
   /**
    * Returns the schema ID for this schema.
    *
@@ -342,7 +331,9 @@ public class Schema implements Serializable {
 
   /** Returns the set of identifier field names. */
   public Set<String> identifierFieldNames() {
-    return lazyIdentifierFieldNameSet();
+    return identifierFieldIds().stream()
+        .map(id -> lazyIdToName().get(id))
+        .collect(Collectors.toSet());
   }
 
   /**

@@ -87,7 +87,7 @@ class SchemaUpdate implements UpdateSchema {
     this.schema = schema;
     this.lastColumnId = lastColumnId;
     this.idToParent = Maps.newHashMap(TypeUtil.indexParents(schema.asStruct()));
-    this.identifierFieldNames = Sets.newHashSet(schema.identifierFieldNames());
+    this.identifierFieldNames = schema.identifierFieldNames();
   }
 
   @Override

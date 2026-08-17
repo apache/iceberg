@@ -57,6 +57,11 @@ class DynamicSinkUtil {
    */
   static Set<String> resolveEqualityFieldNames(
       @Nullable Set<String> equalityFields, Schema schema) {
+    if ((equalityFields == null || equalityFields.isEmpty())
+        && schema.identifierFieldIds().isEmpty()) {
+      return Collections.emptySet();
+    }
+
     if (equalityFields != null && !equalityFields.isEmpty()) {
       return equalityFields;
     }
