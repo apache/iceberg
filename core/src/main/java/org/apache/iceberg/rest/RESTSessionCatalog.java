@@ -119,12 +119,6 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   private static final Logger LOG = LoggerFactory.getLogger(RESTSessionCatalog.class);
   private static final String DEFAULT_FILE_IO_IMPL = "org.apache.iceberg.io.ResolvingFileIO";
 
-  /**
-   * @deprecated will be removed in 1.12.0. Use {@link
-   *     org.apache.iceberg.rest.RESTCatalogProperties#PAGE_SIZE} instead.
-   */
-  @Deprecated public static final String REST_PAGE_SIZE = "rest-page-size";
-
   // these default endpoints must not be updated in order to maintain backwards compatibility with
   // legacy servers
   private static final Set<Endpoint> DEFAULT_ENDPOINTS =
