@@ -294,11 +294,11 @@ that an index written by one engine can be read by another. Indexes are operated
 metadata, which allows them to be built and maintained without rewriting the table. The index type and the index
 expressions together form a framework in which new kinds of indexes can be defined without changing this specification.
 
-Iceberg standardizes the index lifecycle, discovery model, snapshot relationship, and the minimum metadata needed for
-safe cross-engine use. Beyond that minimum, engines remain free to ignore unsupported indexes, use exact snapshot
-matches only, or implement more advanced stale-index and incremental-query logic. The index type exists to support this
-choice: it tells an engine what class of queries an index can accelerate, so the engine can decide whether the index
-applies to a query without understanding how the index was built.
+Iceberg standardizes the index lifecycle, snapshot relationship, and the minimum metadata needed for safe cross-engine
+use. Beyond that minimum, engines remain free to ignore unsupported indexes, use exact snapshot matches only, or
+implement more advanced stale-index and incremental-query logic. The index type exists to support this choice: it tells
+an engine what class of queries an index can accelerate, so the engine can decide whether the index applies to a query
+without understanding how the index was built.
 
 ### Index expressions
 
