@@ -22,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.nio.ByteBuffer;
+import org.apache.iceberg.expressions.Literal;
 import org.junit.jupiter.api.Test;
 
 class TestBinaryUtil {
@@ -76,6 +77,46 @@ class TestBinaryUtil {
   void truncateBinaryMaxReturnsNullWhenAllBytesOverflow() {
     // 0xFF bytes overflow when incremented, so no greater bound of this length exists
     ByteBuffer input = ByteBuffer.wrap(new byte[] {(byte) 0xFF, (byte) 0xFF, 1});
+    assertThat(BinaryUtil.truncateBinaryMax(input, 2)).isNull();
+  }
+
+  @Test
+  void truncateBinaryMinByteBuffer() {
+    ByteBuffer input = ByteBuffer.wrap(new byte[] {1, 2, 3, 4, 5});
+    // shorter than the input: the lower bound is the truncated prefix
+    assertThat(BinaryUtil.truncateBinaryMin(input, 3))
+        .isEqualTo(ByteBuffer.wrap(new byte[] {1, 2, 3}));
+    // a length covering the whole input returns the same buffer
+    assertThat(BinaryUtil.truncateBinaryMin(input, 5)).isSameAs(input);
+  }
+
+  @Test
+  void truncateBinaryMinLiteralReturnsSameLiteralWhenNotLonger() {
+    Literal<ByteBuffer> input = Literal.of(ByteBuffer.wrap(new byte[] {1, 2, 3}));
+    // the Literal overload returns the input unchanged when the length covers the value
+    assertThat(BinaryUtil.truncateBinaryMin(input, 3)).isSameAs(input);
+    assertThat(BinaryUtil.truncateBinaryMin(input, 5)).isSameAs(input);
+  }
+
+  @Test
+  void truncateBinaryMinLiteralTruncatesWhenLonger() {
+    Literal<ByteBuffer> input = Literal.of(ByteBuffer.wrap(new byte[] {1, 2, 3, 4, 5}));
+    assertThat(BinaryUtil.truncateBinaryMin(input, 3).value())
+        .isEqualTo(ByteBuffer.wrap(new byte[] {1, 2, 3}));
+  }
+
+  @Test
+  void truncateBinaryMaxLiteralIncrementsLastByte() {
+    Literal<ByteBuffer> input = Literal.of(ByteBuffer.wrap(new byte[] {1, 2, 3, 4}));
+    assertThat(BinaryUtil.truncateBinaryMax(input, 2).value())
+        .isEqualTo(ByteBuffer.wrap(new byte[] {1, 3}));
+  }
+
+  @Test
+  void truncateBinaryMaxLiteralReturnsNullWhenAllBytesOverflow() {
+    // when the ByteBuffer overload returns null, the Literal overload propagates null
+    Literal<ByteBuffer> input =
+        Literal.of(ByteBuffer.wrap(new byte[] {(byte) 0xFF, (byte) 0xFF, 1}));
     assertThat(BinaryUtil.truncateBinaryMax(input, 2)).isNull();
   }
 }
