@@ -32,6 +32,9 @@ import org.apache.iceberg.ChangelogScanTask;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.IncrementalChangelogScan;
+import org.apache.iceberg.Parameter;
+import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
@@ -42,22 +45,33 @@ import org.apache.iceberg.data.FileHelpers;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.io.CloseableIterable;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.TestBase;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 
+@ExtendWith(ParameterizedTestExtension.class)
 public class TestChangelogReader extends TestBase {
+  private static final TableIdentifier TABLE_IDENT = TableIdentifier.of("default", "test");
   private static final Schema SCHEMA =
       new Schema(
           required(1, "id", Types.IntegerType.get()), optional(2, "data", Types.StringType.get()));
   private static final PartitionSpec SPEC =
       PartitionSpec.builderFor(SCHEMA).bucket("data", 16).build();
+
+  @Parameters(name = "formatVersion = {0}")
+  public static Object[][] parameters() {
+    return new Object[][] {{2}, {3}};
+  }
+
+  @Parameter(index = 0)
+  private int formatVersion;
+
   private final List<Record> records1 = Lists.newArrayList();
   private final List<Record> records2 = Lists.newArrayList();
 
@@ -69,9 +83,9 @@ public class TestChangelogReader extends TestBase {
 
   @BeforeEach
   public void before() throws IOException {
-    table = catalog.createTable(TableIdentifier.of("default", "test"), SCHEMA, SPEC);
+    table = catalog.createTable(TABLE_IDENT, SCHEMA, SPEC);
     // create some data
-    GenericRecord record = GenericRecord.create(table.schema());
+    GenericRecord record = GenericRecord.create(SCHEMA);
     records1.add(record.copy("id", 29, "data", "a"));
     records1.add(record.copy("id", 43, "data", "b"));
     records1.add(record.copy("id", 61, "data", "c"));
@@ -88,10 +102,12 @@ public class TestChangelogReader extends TestBase {
 
   @AfterEach
   public void after() {
-    catalog.dropTable(TableIdentifier.of("default", "test"));
+    records1.clear();
+    records2.clear();
+    catalog.dropTable(TABLE_IDENT);
   }
 
-  @Test
+  @TestTemplate
   public void testInsert() throws IOException {
     table.newAppend().appendFile(dataFile1).commit();
     long snapshotId1 = table.currentSnapshot().snapshotId();
@@ -121,7 +137,7 @@ public class TestChangelogReader extends TestBase {
     assertEquals("Should have expected rows", expectedRows, internalRowsToJava(rows));
   }
 
-  @Test
+  @TestTemplate
   public void testDelete() throws IOException {
     table.newAppend().appendFile(dataFile1).commit();
     long snapshotId1 = table.currentSnapshot().snapshotId();
@@ -151,16 +167,13 @@ public class TestChangelogReader extends TestBase {
     assertEquals("Should have expected rows", expectedRows, internalRowsToJava(rows));
   }
 
-  @Test
+  @TestTemplate
   public void testDataFileRewrite() throws IOException {
     table.newAppend().appendFile(dataFile1).commit();
     table.newAppend().appendFile(dataFile2).commit();
     long snapshotId2 = table.currentSnapshot().snapshotId();
 
-    table
-        .newRewrite()
-        .rewriteFiles(ImmutableSet.of(dataFile1), ImmutableSet.of(dataFile2))
-        .commit();
+    table.newRewrite().deleteFile(dataFile1).addFile(dataFile2).commit();
 
     // the rewrite operation should generate no Changelog rows
     CloseableIterable<ScanTaskGroup<ChangelogScanTask>> taskGroups =
@@ -180,7 +193,7 @@ public class TestChangelogReader extends TestBase {
     assertThat(rows).as("Should have no rows").isEmpty();
   }
 
-  @Test
+  @TestTemplate
   public void testMixDeleteAndInsert() throws IOException {
     table.newAppend().appendFile(dataFile1).commit();
     long snapshotId1 = table.currentSnapshot().snapshotId();
@@ -226,7 +239,7 @@ public class TestChangelogReader extends TestBase {
     return table.newIncrementalChangelogScan();
   }
 
-  private List<Object[]> addExpectedRows(
+  private void addExpectedRows(
       List<Object[]> expectedRows,
       ChangelogOperation operation,
       long snapshotId,
@@ -235,7 +248,6 @@ public class TestChangelogReader extends TestBase {
     records.forEach(
         r ->
             expectedRows.add(row(r.get(0), r.get(1), operation.name(), changeOrdinal, snapshotId)));
-    return expectedRows;
   }
 
   protected List<Object[]> internalRowsToJava(List<InternalRow> rows) {
