@@ -621,6 +621,15 @@ acceptedBreaks:
         \ org.apache.iceberg.PartitionStatsHandler::readPartitionStatsFile(org.apache.iceberg.Schema,\
         \ org.apache.iceberg.io.InputFile)"
       justification: "Removed deprecated functionality for partition stats"
+    org.apache.iceberg:iceberg-data:
+    - code: "java.class.removed"
+      old: "class org.apache.iceberg.data.BaseFileWriterFactory<T extends java.lang.Object>"
+      justification: "Removing deprecated GenericAppenderFactory and BaseFileWriterFactory\
+        \ scheduled for removal in 1.12.0"
+    - code: "java.class.removed"
+      old: "class org.apache.iceberg.data.GenericAppenderFactory"
+      justification: "Removing deprecated GenericAppenderFactory and BaseFileWriterFactory\
+        \ scheduled for removal in 1.12.0"
   "1.2.0":
     org.apache.iceberg:iceberg-api:
     - code: "java.field.constantValueChanged"
