@@ -522,6 +522,9 @@ acceptedBreaks:
     - code: "java.class.removed"
       old: "class org.apache.iceberg.PartitionStats"
       justification: "Removed deprecated functionality for partition stats"
+    - code: "java.class.removed"
+      old: "class org.apache.iceberg.SystemProperties"
+      justification: "Removed deprecated API scheduled for removal in 1.12.0"
     - code: "java.field.removed"
       old: "field org.apache.iceberg.PartitionStatsHandler.DATA_FILE_COUNT"
       justification: "Removed deprecated functionality for partition stats"
@@ -564,6 +567,12 @@ acceptedBreaks:
     - code: "java.field.removedWithConstant"
       old: "field org.apache.iceberg.PartitionStatsHandler.PARTITION_FIELD_NAME"
       justification: "Removed deprecated functionality for partition stats"
+    - code: "java.field.removedWithConstant"
+      old: "field org.apache.iceberg.TableProperties.MANIFEST_LISTS_ENABLED"
+      justification: "Removed deprecated API scheduled for removal in 1.12.0"
+    - code: "java.field.removedWithConstant"
+      old: "field org.apache.iceberg.TableProperties.MANIFEST_LISTS_ENABLED_DEFAULT"
+      justification: "Removed deprecated API scheduled for removal in 1.12.0"
     - code: "java.method.addedToInterface"
       new: "method boolean org.apache.iceberg.FieldStats<T>::hasNanValueCount()"
       justification: "These interfaces were package-private in 1.11.0 and could not\
@@ -610,12 +619,55 @@ acceptedBreaks:
         \ be implemented outside the project. Promoting them to public reads as an\
         \ existing type gaining methods, not as a new type appearing."
     - code: "java.method.removed"
+      old: "method boolean org.apache.iceberg.util.TableScanUtil::hasDeletes(org.apache.iceberg.CombinedScanTask)"
+      justification: "Removed deprecated API scheduled for removal in 1.12.0"
+    - code: "java.method.removed"
+      old: "method boolean org.apache.iceberg.util.TableScanUtil::hasEqDeletes(org.apache.iceberg.CombinedScanTask)"
+      justification: "Removed deprecated API scheduled for removal in 1.12.0"
+    - code: "java.method.removed"
+      old: "method java.nio.ByteBuffer org.apache.iceberg.encryption.StandardEncryptionManager::unwrapKey(java.nio.ByteBuffer)"
+      justification: "Removed deprecated API scheduled for removal in 1.12.0"
+    - code: "java.method.removed"
+      old: "method java.nio.ByteBuffer org.apache.iceberg.encryption.StandardEncryptionManager::wrapKey(java.nio.ByteBuffer)"
+      justification: "Removed deprecated API scheduled for removal in 1.12.0"
+    - code: "java.method.removed"
+      old: "method java.util.List<org.apache.iceberg.DataFile> org.apache.iceberg.util.SnapshotUtil::newFiles(java.lang.Long,\
+        \ long, java.util.function.Function<java.lang.Long, org.apache.iceberg.Snapshot>,\
+        \ org.apache.iceberg.io.FileIO)"
+      justification: "Removed deprecated API scheduled for removal in 1.12.0"
+    - code: "java.method.removed"
+      old: "method java.util.concurrent.ExecutorService org.apache.iceberg.util.ThreadPools::newWorkerPool(java.lang.String)"
+      justification: "Removed deprecated API scheduled for removal in 1.12.0"
+    - code: "java.method.removed"
+      old: "method java.util.concurrent.ExecutorService org.apache.iceberg.util.ThreadPools::newWorkerPool(java.lang.String,\
+        \ int)"
+      justification: "Removed deprecated API scheduled for removal in 1.12.0"
+    - code: "java.method.removed"
+      old: "method org.apache.avro.Schema org.apache.iceberg.avro.AvroSchemaUtil::pruneColumns(org.apache.avro.Schema,\
+        \ java.util.Set<java.lang.Integer>, org.apache.iceberg.mapping.NameMapping)"
+      justification: "Removed deprecated API scheduled for removal in 1.12.0"
+    - code: "java.method.removed"
+      old: "method org.apache.iceberg.ManifestReader<org.apache.iceberg.DataFile>\
+        \ org.apache.iceberg.ManifestFiles::read(org.apache.iceberg.ManifestFile,\
+        \ org.apache.iceberg.io.FileIO)"
+      justification: "Removed deprecated API scheduled for removal in 1.12.0"
+    - code: "java.method.removed"
       old: "method org.apache.iceberg.MetricsConfig org.apache.iceberg.MetricsConfig::forPositionDelete(org.apache.iceberg.Table)"
       justification: "Deprecated for removal in 1.12.0"
     - code: "java.method.removed"
       old: "method org.apache.iceberg.Schema org.apache.iceberg.PartitionStatsHandler::schema(org.apache.iceberg.types.Types.StructType,\
         \ int)"
       justification: "Removed deprecated functionality for partition stats"
+    - code: "java.method.removed"
+      old: "method org.apache.iceberg.io.CloseableIterable<java.lang.String> org.apache.iceberg.ManifestFiles::readPaths(org.apache.iceberg.ManifestFile,\
+        \ org.apache.iceberg.io.FileIO)"
+      justification: "Removing deprecated API scheduled for removal in 1.12.0"
+    - code: "java.method.removed"
+      old: "method org.apache.iceberg.io.CloseableIterable<org.apache.iceberg.DataFile>\
+        \ org.apache.iceberg.util.SnapshotUtil::newFilesBetween(java.lang.Long, long,\
+        \ java.util.function.Function<java.lang.Long, org.apache.iceberg.Snapshot>,\
+        \ org.apache.iceberg.io.FileIO)"
+      justification: "Removing deprecated API scheduled for removal in 1.12.0"
     - code: "java.method.removed"
       old: "method org.apache.iceberg.io.CloseableIterable<org.apache.iceberg.PartitionStats>\
         \ org.apache.iceberg.PartitionStatsHandler::readPartitionStatsFile(org.apache.iceberg.Schema,\
@@ -630,6 +682,65 @@ acceptedBreaks:
       old: "class org.apache.iceberg.data.GenericAppenderFactory"
       justification: "Removing deprecated GenericAppenderFactory and BaseFileWriterFactory\
         \ scheduled for removal in 1.12.0"
+    - code: "java.method.removed"
+      old: "method org.apache.iceberg.io.FileIO org.apache.iceberg.BaseScan<ThisT,\
+        \ T extends org.apache.iceberg.ScanTask, G extends org.apache.iceberg.ScanTaskGroup<T\
+        \ extends org.apache.iceberg.ScanTask>>::io() @ org.apache.iceberg.AllDataFilesTable.AllDataFilesTableScan"
+      justification: "Removing deprecated API scheduled for removal in 1.12.0"
+    - code: "java.method.removed"
+      old: "method org.apache.iceberg.io.FileIO org.apache.iceberg.BaseScan<ThisT,\
+        \ T extends org.apache.iceberg.ScanTask, G extends org.apache.iceberg.ScanTaskGroup<T\
+        \ extends org.apache.iceberg.ScanTask>>::io() @ org.apache.iceberg.AllDeleteFilesTable.AllDeleteFilesTableScan"
+      justification: "Removing deprecated API scheduled for removal in 1.12.0"
+    - code: "java.method.removed"
+      old: "method org.apache.iceberg.io.FileIO org.apache.iceberg.BaseScan<ThisT,\
+        \ T extends org.apache.iceberg.ScanTask, G extends org.apache.iceberg.ScanTaskGroup<T\
+        \ extends org.apache.iceberg.ScanTask>>::io() @ org.apache.iceberg.AllFilesTable.AllFilesTableScan"
+      justification: "Removing deprecated API scheduled for removal in 1.12.0"
+    - code: "java.method.removed"
+      old: "method org.apache.iceberg.io.FileIO org.apache.iceberg.BaseScan<ThisT,\
+        \ T extends org.apache.iceberg.ScanTask, G extends org.apache.iceberg.ScanTaskGroup<T\
+        \ extends org.apache.iceberg.ScanTask>>::io() @ org.apache.iceberg.AllManifestsTable.AllManifestsTableScan"
+      justification: "Removing deprecated API scheduled for removal in 1.12.0"
+    - code: "java.method.removed"
+      old: "method org.apache.iceberg.io.FileIO org.apache.iceberg.BaseScan<ThisT,\
+        \ T extends org.apache.iceberg.ScanTask, G extends org.apache.iceberg.ScanTaskGroup<T\
+        \ extends org.apache.iceberg.ScanTask>>::io() @ org.apache.iceberg.DataFilesTable.DataFilesTableScan"
+      justification: "Removing deprecated API scheduled for removal in 1.12.0"
+    - code: "java.method.removed"
+      old: "method org.apache.iceberg.io.FileIO org.apache.iceberg.BaseScan<ThisT,\
+        \ T extends org.apache.iceberg.ScanTask, G extends org.apache.iceberg.ScanTaskGroup<T\
+        \ extends org.apache.iceberg.ScanTask>>::io() @ org.apache.iceberg.DataTableScan"
+      justification: "Removing deprecated API scheduled for removal in 1.12.0"
+    - code: "java.method.removed"
+      old: "method org.apache.iceberg.io.FileIO org.apache.iceberg.BaseScan<ThisT,\
+        \ T extends org.apache.iceberg.ScanTask, G extends org.apache.iceberg.ScanTaskGroup<T\
+        \ extends org.apache.iceberg.ScanTask>>::io() @ org.apache.iceberg.DeleteFilesTable.DeleteFilesTableScan"
+      justification: "Removing deprecated API scheduled for removal in 1.12.0"
+    - code: "java.method.removed"
+      old: "method org.apache.iceberg.io.FileIO org.apache.iceberg.BaseScan<ThisT,\
+        \ T extends org.apache.iceberg.ScanTask, G extends org.apache.iceberg.ScanTaskGroup<T\
+        \ extends org.apache.iceberg.ScanTask>>::io() @ org.apache.iceberg.FilesTable.FilesTableScan"
+      justification: "Removing deprecated API scheduled for removal in 1.12.0"
+    - code: "java.method.removed"
+      old: "method org.apache.iceberg.io.FileIO org.apache.iceberg.BaseScan<ThisT,\
+        \ T extends org.apache.iceberg.ScanTask, G extends org.apache.iceberg.ScanTaskGroup<T\
+        \ extends org.apache.iceberg.ScanTask>>::io() @ org.apache.iceberg.PositionDeletesTable.PositionDeletesBatchScan"
+      justification: "Removing deprecated API scheduled for removal in 1.12.0"
+    - code: "java.method.removed"
+      old: "method org.apache.iceberg.io.FileIO org.apache.iceberg.BaseScan<ThisT,\
+        \ T extends org.apache.iceberg.ScanTask, G extends org.apache.iceberg.ScanTaskGroup<T\
+        \ extends org.apache.iceberg.ScanTask>>::io() @ org.apache.iceberg.SnapshotScan<ThisT,\
+        \ T extends org.apache.iceberg.ScanTask, G extends org.apache.iceberg.ScanTaskGroup<T\
+        \ extends org.apache.iceberg.ScanTask>>"
+      justification: "Removing deprecated API scheduled for removal in 1.12.0"
+    - code: "java.method.removed"
+      old: "method void org.apache.iceberg.encryption.StandardEncryptionManager::<init>(java.lang.String,\
+        \ int, org.apache.iceberg.encryption.KeyManagementClient)"
+      justification: "Removing deprecated API scheduled for removal in 1.12.0"
+    - code: "java.method.removed"
+      old: "method void org.apache.iceberg.io.ContentCache::invalidateAll()"
+      justification: "Removing deprecated API scheduled for removal in 1.12.0"
   "1.2.0":
     org.apache.iceberg:iceberg-api:
     - code: "java.field.constantValueChanged"
