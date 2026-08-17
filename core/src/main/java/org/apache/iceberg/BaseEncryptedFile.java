@@ -23,11 +23,11 @@ import java.nio.ByteBuffer;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.encryption.EncryptionUtil;
 
-class BaseManifestListFile implements ManifestListFile, Serializable {
+class BaseEncryptedFile implements EncryptedFile, Serializable {
   private final String location;
   private final String encryptionKeyID;
 
-  BaseManifestListFile(String location, String encryptionKeyID) {
+  BaseEncryptedFile(String location, String encryptionKeyID) {
     this.location = location;
     this.encryptionKeyID = encryptionKeyID;
   }
@@ -44,6 +44,6 @@ class BaseManifestListFile implements ManifestListFile, Serializable {
 
   @Override
   public ByteBuffer decryptKeyMetadata(EncryptionManager em) {
-    return EncryptionUtil.decryptManifestListKeyMetadata(this, em);
+    return EncryptionUtil.decryptKeyMetadata(this, em);
   }
 }
