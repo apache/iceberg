@@ -502,7 +502,7 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
       Snapshot snapshot, TableMetadata tableMetadata, Set<String> manifestsToRewrite) {
     RewriteResult<ManifestFile> result = new RewriteResult<>();
 
-    String path = snapshot.manifestListLocation();
+    String path = snapshot.snapshotFileLocation();
     String outputPath = RewriteTablePathUtil.stagingPath(path, sourcePrefix, stagingDir);
     RewriteResult<ManifestFile> rewriteResult =
         RewriteTablePathUtil.rewriteManifestList(

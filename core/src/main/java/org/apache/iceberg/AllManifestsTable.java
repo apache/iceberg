@@ -134,13 +134,13 @@ public class AllManifestsTable extends BaseMetadataTable {
           Iterables.transform(
               filteredSnapshots,
               snap -> {
-                if (snap.manifestListLocation() != null) {
+                if (snap.snapshotFileLocation() != null) {
                   return new ManifestListReadTask(
                       dataTableSchema,
                       io,
                       schema(),
                       specs,
-                      new BaseManifestListFile(snap.manifestListLocation(), snap.keyId()),
+                      new BaseManifestListFile(snap.snapshotFileLocation(), snap.keyId()),
                       filter,
                       snap.snapshotId());
                 } else {
