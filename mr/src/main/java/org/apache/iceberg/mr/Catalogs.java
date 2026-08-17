@@ -225,7 +225,8 @@ public final class Catalogs {
     if (catalogType != null) {
       return CatalogUtil.ICEBERG_CATALOG_TYPE_HIVE.equalsIgnoreCase(catalogType);
     }
-    return getCatalogProperties(conf, catalogName).get(CatalogProperties.CATALOG_IMPL) == null;
+    String name = catalogName == null ? ICEBERG_DEFAULT_CATALOG_NAME : catalogName;
+    return getCatalogProperties(conf, name).get(CatalogProperties.CATALOG_IMPL) == null;
   }
 
   @VisibleForTesting
