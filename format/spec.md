@@ -234,7 +234,7 @@ For the representations of these types in Avro, ORC, and Parquet file formats, s
 
 #### Nested Types
 
-A **`struct`** is a tuple of typed values. Each field in the tuple is named and has an integer id that is unique in the table schema. Each field can be either optional or required. A required field must have a non-null value whenever its enclosing struct is present; note that a required field is still absent when an ancestor struct value is null. Fields may be any type. Fields may have an optional comment or doc string. Fields can have [default values](#default-values).
+A **`struct`** is a tuple of typed values. Each field in the tuple is named and has an integer id that is unique in the table schema. Each field can be either optional or required, meaning that values can (or cannot) be null. Fields may be any type. Fields may have an optional comment or doc string. Fields can have [default values](#default-values).
 
 A **`list`** is a collection of values with some element type. The element field has an integer id that is unique in the table schema. Elements can be either optional or required. Element types may be any type.
 
@@ -822,11 +822,11 @@ Each stats struct holds statistics for one table field. It may contain the follo
 | _optional_  | 2      | `upper_bound`             | Field type or `geo_upper` | all primitives or `variant`                   | Upper bound stored as the field's type, or `geo_upper` for geo types |
 | _optional_  | 3      | `tight_bounds`            | `boolean`                 | all primitives except for `geometry` and `geography` | When true, `lower_bound` and `upper_bound` must be equal to the min and max values |
 | _optional_  | 4      | `value_count`             | `long`                    | all                                           | Number of values in the column (including null and NaN values) |
-| _optional_  | 5      | `null_value_count`        | `long`                    | nullable fields                               | Number of null values in the column |
+| _optional_  | 5      | `null_value_count`        | `long`                    | all                                           | Number of null values in the column |
 | _optional_  | 6      | `nan_value_count`         | `long`                    | `float`, `double`                             | Number of NaN values in the column |
 | _optional_  | 7      | `avg_value_size_in_bytes` | `int`                     | `string`, `binary`, `variant`, `geometry`, `geography` | Avg value size in memory (uncompressed) in bytes over non-null values to estimate memory consumption |
 
-A field is _nullable_ unless the field itself and all of its ancestor fields are required. That is, a `required` field is still nullable when any of its ancestor fields is `optional`, because a value of the field is null whenever an ancestor value is null. `null_value_count` is included for nullable fields.
+`null_value_count` is included for `required` and `optional` fields because a field that is `required` in the table schema is **null** in rows where an `optional` parent struct is **null**.
 
 For example, stats for a `required` `int` field named `id` with field-id `2` are stored using:
 
@@ -836,8 +836,8 @@ For example, stats for a `required` `int` field named `id` with field-id `2` are
   10_402: optional int upper_bound; // type matches the field type (int)
   10_403: optional boolean tight_bounds;
   10_404: optional long value_count;
+  10_405: optional long null_value_count;
 
-  // null_value_count is only used for nullable fields (see above)
   // nan_value_count is only used for float and double
   // avg_value_size_in_bytes is only used for variable length types
 }
@@ -904,6 +904,7 @@ For example, stats for a table with a required int, `id`, and an optional string
     10_402: optional int upper_bound;
     10_403: optional boolean tight_bounds;
     10_404: optional long value_count;
+    10_405: optional long null_value_count;
   }
 
   // stats struct for table field 3: optional string data
