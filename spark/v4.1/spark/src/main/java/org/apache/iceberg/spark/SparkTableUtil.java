@@ -94,18 +94,13 @@ import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.TableIdentifier;
 import org.apache.spark.sql.catalyst.analysis.NoSuchDatabaseException;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
-import org.apache.spark.sql.catalyst.analysis.UnresolvedAttribute;
 import org.apache.spark.sql.catalyst.catalog.CatalogTable;
 import org.apache.spark.sql.catalyst.catalog.CatalogTablePartition;
 import org.apache.spark.sql.catalyst.catalog.SessionCatalog;
-import org.apache.spark.sql.catalyst.expressions.Expression;
-import org.apache.spark.sql.catalyst.expressions.NamedExpression;
-import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan;
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import scala.Function2;
 import scala.Option;
 import scala.Some;
 import scala.Tuple2;
@@ -113,7 +108,6 @@ import scala.collection.JavaConverters;
 import scala.collection.immutable.Map$;
 import scala.collection.immutable.Seq;
 import scala.collection.mutable.Builder;
-import scala.runtime.AbstractPartialFunction;
 
 /**
  * Java version of the original SparkTableUtil.scala
@@ -210,31 +204,6 @@ public class SparkTableUtil {
     Map<String, String> partitionSpec =
         JavaConverters.mapAsJavaMapConverter(partition.spec()).asJava();
     return new SparkPartition(partitionSpec, uri, format);
-  }
-
-  private static Expression resolveAttrs(SparkSession spark, String table, Expression expr) {
-    Function2<String, String, Object> resolver = spark.sessionState().analyzer().resolver();
-    LogicalPlan plan = spark.table(table).queryExecution().analyzed();
-    return expr.transform(
-        new AbstractPartialFunction<Expression, Expression>() {
-          @Override
-          public Expression apply(Expression attr) {
-            UnresolvedAttribute unresolvedAttribute = (UnresolvedAttribute) attr;
-            Option<NamedExpression> namedExpressionOption =
-                plan.resolve(unresolvedAttribute.nameParts(), resolver);
-            if (namedExpressionOption.isDefined()) {
-              return (Expression) namedExpressionOption.get();
-            } else {
-              throw new IllegalArgumentException(
-                  String.format("Could not resolve %s using columns: %s", attr, plan.output()));
-            }
-          }
-
-          @Override
-          public boolean isDefinedAt(Expression attr) {
-            return attr instanceof UnresolvedAttribute;
-          }
-        });
   }
 
   private static Iterator<ManifestFile> buildManifest(
