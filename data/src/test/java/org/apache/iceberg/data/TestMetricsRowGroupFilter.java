@@ -45,6 +45,8 @@ import static org.assertj.core.api.Assumptions.assumeThat;
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
@@ -70,12 +72,15 @@ import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.parquet.ParquetMetricsRowGroupFilter;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.DoubleType;
 import org.apache.iceberg.types.Types.FloatType;
 import org.apache.iceberg.types.Types.IntegerType;
 import org.apache.iceberg.types.Types.StringType;
+import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.iceberg.variants.ShreddedObject;
 import org.apache.iceberg.variants.Variant;
 import org.apache.iceberg.variants.VariantMetadata;
@@ -1172,6 +1177,52 @@ public class TestMetricsRowGroupFilter {
         new ParquetMetricsRowGroupFilter(promotedSchema, equal("id", INT_MIN_VALUE + 1), true)
             .shouldRead(parquetSchema, rowGroupMetadata);
     assertThat(shouldRead).as("Should succeed with promoted schema").isTrue();
+  }
+
+  @TestTemplate
+  public void testParquetDateToTimestampPromotion() throws IOException {
+    assumeThat(format).as("Only valid for Parquet").isEqualTo(FileFormat.PARQUET);
+
+    Schema dateSchema = new Schema(required(1, "dt", Types.DateType.get()));
+    List<GenericRecord> records = Lists.newArrayList();
+    for (String date : new String[] {"2018-01-01", "2018-01-31"}) {
+      GenericRecord record = GenericRecord.create(dateSchema);
+      record.setField("dt", LocalDate.parse(date));
+      records.add(record);
+    }
+
+    File parquetFile = writeParquetFile("test-date-promotion", dateSchema, records);
+
+    try (ParquetFileReader reader =
+        ParquetFileReader.open(parquetInputFile(Files.localInput(parquetFile)))) {
+      assertThat(reader.getRowGroups()).as("Should create only one row group").hasSize(1);
+      BlockMetaData rowGroup = reader.getRowGroups().get(0);
+      parquetSchema = reader.getFileMetaData().getSchema();
+
+      // bounds for both promoted types are given in micros, see Literals.LongLiteral#to
+      long withinRange =
+          DateTimeUtil.microsFromTimestamp(LocalDateTime.parse("2018-01-15T12:00:00"));
+      long belowRange =
+          DateTimeUtil.microsFromTimestamp(LocalDateTime.parse("2017-12-01T12:00:00"));
+
+      for (Type.PrimitiveType promoted :
+          ImmutableList.of(
+              Types.TimestampType.withoutZone(), Types.TimestampNanoType.withoutZone())) {
+        Schema promotedSchema = new Schema(required(1, "dt", promoted));
+
+        assertThat(
+                new ParquetMetricsRowGroupFilter(promotedSchema, lessThan("dt", withinRange), true)
+                    .shouldRead(parquetSchema, rowGroup))
+            .as("Should read %s: one possible date", promoted)
+            .isTrue();
+
+        assertThat(
+                new ParquetMetricsRowGroupFilter(promotedSchema, lessThan("dt", belowRange), true)
+                    .shouldRead(parquetSchema, rowGroup))
+            .as("Should not read %s: date range below lower bound", promoted)
+            .isFalse();
+      }
+    }
   }
 
   @TestTemplate
