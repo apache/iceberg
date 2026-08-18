@@ -81,6 +81,9 @@ abstract class BaseFile<F> extends SupportsIndexProjection
 
   // cached schema
   private transient Schema avroSchema = null;
+  // cached list wrappers to avoid repeated allocation on hot scan and rewrite paths
+  private transient List<Long> splitOffsetList = null;
+  private transient List<Integer> equalityFieldIdList = null;
 
   // struct type that corresponds to the positions used for internalGet and internalSet
   private static final Types.StructType BASE_TYPE =
@@ -358,9 +361,11 @@ abstract class BaseFile<F> extends SupportsIndexProjection
         return;
       case 14:
         this.splitOffsets = ArrayUtil.toLongArray((List<Long>) value);
+        this.splitOffsetList = null;
         return;
       case 15:
         this.equalityIds = ArrayUtil.toIntArray((List<Integer>) value);
+        this.equalityFieldIdList = null;
         return;
       case 16:
         this.sortOrderId = (Integer) value;
@@ -529,7 +534,10 @@ abstract class BaseFile<F> extends SupportsIndexProjection
   @Override
   public List<Long> splitOffsets() {
     if (hasWellDefinedOffsets()) {
-      return ArrayUtil.toUnmodifiableLongList(splitOffsets);
+      if (splitOffsetList == null) {
+        splitOffsetList = ArrayUtil.toUnmodifiableLongList(splitOffsets);
+      }
+      return splitOffsetList;
     }
 
     return null;
@@ -553,7 +561,10 @@ abstract class BaseFile<F> extends SupportsIndexProjection
 
   @Override
   public List<Integer> equalityFieldIds() {
-    return ArrayUtil.toUnmodifiableIntList(equalityIds);
+    if (equalityIds != null && equalityFieldIdList == null) {
+      equalityFieldIdList = ArrayUtil.toUnmodifiableIntList(equalityIds);
+    }
+    return equalityFieldIdList;
   }
 
   @Override
