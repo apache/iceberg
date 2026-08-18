@@ -24,17 +24,24 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
+import java.util.List;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.connect.IcebergSinkConfig;
 import org.apache.iceberg.connect.TableSinkConfig;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.data.parquet.GenericParquetReaders;
+import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.UnpartitionedWriter;
 import org.apache.iceberg.io.WriteResult;
+import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.parquet.ParquetFileTestUtils;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.variants.Variant;
+import org.apache.iceberg.variants.VariantObject;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.SchemaBuilder;
 import org.apache.kafka.connect.data.Struct;
@@ -86,6 +93,7 @@ public class TestVariantShreddingWrite extends WriterTestBase {
     assertThat(result.dataFiles()).hasSize(1);
     DataFile dataFile = result.dataFiles()[0];
 
+    // The variant column is physically shredded: typed_value carries subfields a and b.
     try (ParquetFileReader reader =
         ParquetFileReader.open(
             ParquetFileTestUtils.file(fileIO.newInputFile(dataFile.location())))) {
@@ -97,5 +105,26 @@ public class TestVariantShreddingWrite extends WriterTestBase {
       assertThat(typedValue.containsField("a")).isTrue();
       assertThat(typedValue.containsField("b")).isTrue();
     }
+
+    // Reading the rows back reconstructs the exact values that were shredded, ordered by the write.
+    try (CloseableIterable<Record> reader =
+        Parquet.read(fileIO.newInputFile(dataFile.location()))
+            .project(VARIANT_TABLE_SCHEMA)
+            .createReaderFunc(
+                fileSchema -> GenericParquetReaders.buildReader(VARIANT_TABLE_SCHEMA, fileSchema))
+            .build()) {
+      List<Record> rows = Lists.newArrayList(reader);
+      assertThat(rows).hasSize(2);
+      assertShreddedVariant(rows.get(0), 1L, 1, 2);
+      assertShreddedVariant(rows.get(1), 2L, 3, 4);
+    }
+  }
+
+  private static void assertShreddedVariant(
+      Record row, long expectedId, int expectedA, int expectedB) {
+    assertThat(row.getField("id")).isEqualTo(expectedId);
+    VariantObject value = ((Variant) row.getField("v")).value().asObject();
+    assertThat(value.get("a").asPrimitive().get()).isEqualTo(expectedA);
+    assertThat(value.get("b").asPrimitive().get()).isEqualTo(expectedB);
   }
 }

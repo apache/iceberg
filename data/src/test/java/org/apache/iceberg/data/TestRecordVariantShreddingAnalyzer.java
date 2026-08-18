@@ -81,8 +81,7 @@ public class TestRecordVariantShreddingAnalyzer {
           Types.NestedField.optional(3, "other", Types.StringType.get()),
           Types.NestedField.optional(4, "v2", Types.VariantType.get()));
 
-  // Engine schema whose variant column is named "w" instead of "v", so the "v" column resolved
-  // from the Iceberg schema is not found and shredding does not activate.
+  // Engine schema that renames the variant to "w", so it is not sameSchema as the Iceberg schema.
   private static final Schema MISMATCHED_ENGINE_SCHEMA =
       new Schema(
           Types.NestedField.required(1, "id", Types.LongType.get()),
@@ -241,22 +240,31 @@ public class TestRecordVariantShreddingAnalyzer {
   }
 
   @Test
-  public void testResolveColumnIndexRejectsNullEngineSchema() {
+  public void testAnalyzeVariantColumnsAcceptsEquivalentEngineSchema() {
     RecordVariantShreddingAnalyzer analyzer = new RecordVariantShreddingAnalyzer();
+    Schema equivalentEngineSchema =
+        new Schema(
+            Types.NestedField.required(1, "id", Types.LongType.get()),
+            Types.NestedField.optional(2, "v", Types.VariantType.get()));
 
-    assertThatThrownBy(() -> analyzer.resolveColumnIndex(null, "v"))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid engine schema: null");
+    Map<Integer, Type> shreddedTypes =
+        analyzer.analyzeVariantColumns(records, VARIANT_AFTER_ID_SCHEMA, equivalentEngineSchema);
+
+    assertThat(shreddedTypes).containsOnlyKeys(VARIANT_FIELD_ID);
+    assertThat(shreddedTypes.get(VARIANT_FIELD_ID).asGroupType().containsField("a")).isTrue();
+    assertThat(shreddedTypes.get(VARIANT_FIELD_ID).asGroupType().containsField("b")).isTrue();
   }
 
   @Test
-  public void testAnalyzeVariantColumnsSkipsColumnMissingFromEngineSchema() {
+  public void testAnalyzeVariantColumnsRejectsNonMatchingEngineSchema() {
     RecordVariantShreddingAnalyzer analyzer = new RecordVariantShreddingAnalyzer();
 
-    Map<Integer, Type> shreddedTypes =
-        analyzer.analyzeVariantColumns(records, VARIANT_AFTER_ID_SCHEMA, MISMATCHED_ENGINE_SCHEMA);
-
-    assertThat(shreddedTypes).isEmpty();
+    assertThatThrownBy(
+            () ->
+                analyzer.analyzeVariantColumns(
+                    records, VARIANT_AFTER_ID_SCHEMA, MISMATCHED_ENGINE_SCHEMA))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Engine schema must match the Iceberg schema");
   }
 
   @Test
@@ -268,8 +276,7 @@ public class TestRecordVariantShreddingAnalyzer {
                 analyzer.analyzeVariantColumns(
                     records, VARIANT_AFTER_ID_SCHEMA, VARIANT_BEFORE_ID_SCHEMA))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage(
-            "Variant column v position mismatch between Iceberg and engine schemas: 1 vs 0");
+        .hasMessageContaining("Engine schema must match the Iceberg schema");
   }
 
   @Test
@@ -287,8 +294,7 @@ public class TestRecordVariantShreddingAnalyzer {
                 analyzer.analyzeVariantColumns(
                     ImmutableList.<Record>of(), MULTI_VARIANT_SCHEMA, swappedEngineSchema))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage(
-            "Variant column v1 position mismatch between Iceberg and engine schemas: 1 vs 3");
+        .hasMessageContaining("Engine schema must match the Iceberg schema");
   }
 
   @Test
@@ -471,22 +477,21 @@ public class TestRecordVariantShreddingAnalyzer {
   }
 
   @Test
-  public void testExplicitEngineSchemaSurvivesSchemaCall() throws IOException {
-    assertExplicitEngineSchemaSuppressesShredding(true);
+  public void testExplicitEngineSchemaRejectedWhenSchemaCalledFirst() throws IOException {
+    assertMismatchedEngineSchemaRejected(false);
   }
 
   @Test
-  public void testExplicitEngineSchemaSurvivesReverseCallOrder() throws IOException {
-    assertExplicitEngineSchemaSuppressesShredding(false);
+  public void testExplicitEngineSchemaRejectedWhenEngineSchemaCalledFirst() throws IOException {
+    assertMismatchedEngineSchemaRejected(true);
   }
 
-  private void assertExplicitEngineSchemaSuppressesShredding(boolean engineSchemaFirst)
-      throws IOException {
-    // Explicit engine schema names the variant "w", so "v" is not resolved and shredding is
-    // skipped.
-    assertThat(writeAndDetectShredding(MISMATCHED_ENGINE_SCHEMA, engineSchemaFirst)).isFalse();
-    // Positive control: the same fixture with no explicit engine schema derives it and shreds "v",
-    // so the suppression above is the explicit schema surviving, not shredding being disabled.
+  private void assertMismatchedEngineSchemaRejected(boolean engineSchemaFirst) throws IOException {
+    // Reject in both builder call orders, so the engine schema reaches the analyzer either way.
+    assertThatThrownBy(() -> writeAndDetectShredding(MISMATCHED_ENGINE_SCHEMA, engineSchemaFirst))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Engine schema must match the Iceberg schema");
+    // Positive control: with no explicit engine schema the fixture derives it and shreds.
     assertThat(writeAndDetectShredding(null, engineSchemaFirst)).isTrue();
   }
 

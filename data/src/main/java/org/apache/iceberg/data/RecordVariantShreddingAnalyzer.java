@@ -32,9 +32,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * {@link Record} analyzer that resolves variant columns by position in {@link Schema#columns()}.
- * Rows are read positionally, so an engine schema, if supplied, must place each variant column at
- * its Iceberg-schema position.
+ * {@link Record} analyzer for variant columns. An engine schema, if supplied, must be identical to
+ * the Iceberg schema, since rows are read positionally against it.
  */
 class RecordVariantShreddingAnalyzer extends VariantShreddingAnalyzer<Record, Schema> {
   private static final Logger LOG = LoggerFactory.getLogger(RecordVariantShreddingAnalyzer.class);
@@ -44,48 +43,18 @@ class RecordVariantShreddingAnalyzer extends VariantShreddingAnalyzer<Record, Sc
   @Override
   public Map<Integer, Type> analyzeVariantColumns(
       List<Record> bufferedRows, Schema icebergSchema, Schema engineSchema) {
-    // Record rows are built against the Iceberg schema; use it when no engine schema is supplied.
-    if (engineSchema == null) {
-      return super.analyzeVariantColumns(bufferedRows, icebergSchema, icebergSchema);
-    }
-
-    checkVariantColumnPositionsAligned(icebergSchema, engineSchema);
-    return super.analyzeVariantColumns(bufferedRows, icebergSchema, engineSchema);
+    // Resolve against the Iceberg schema (rows are positional); an engine schema must match it.
+    Preconditions.checkArgument(
+        engineSchema == null || engineSchema.sameSchema(icebergSchema),
+        "Engine schema must match the Iceberg schema to shred variants: %s vs %s",
+        engineSchema,
+        icebergSchema);
+    return super.analyzeVariantColumns(bufferedRows, icebergSchema, icebergSchema);
   }
 
   @Override
   protected int resolveColumnIndex(Schema engineSchema, String columnName) {
-    Preconditions.checkArgument(engineSchema != null, "Invalid engine schema: null");
-    int index = positionOf(engineSchema, columnName);
-    if (index < 0) {
-      LOG.warn("Variant column {} not found in engine schema; skipping shredding", columnName);
-    }
-
-    return index;
-  }
-
-  // Rows are read positionally, so a variant column must sit at the same index in both schemas.
-  private static void checkVariantColumnPositionsAligned(
-      Schema icebergSchema, Schema engineSchema) {
-    List<NestedField> icebergColumns = icebergSchema.columns();
-    for (int icebergIndex = 0; icebergIndex < icebergColumns.size(); icebergIndex++) {
-      NestedField col = icebergColumns.get(icebergIndex);
-      if (!col.type().isVariantType()) {
-        continue;
-      }
-
-      int engineIndex = positionOf(engineSchema, col.name());
-      Preconditions.checkArgument(
-          engineIndex < 0 || engineIndex == icebergIndex,
-          "Variant column %s position mismatch between Iceberg and engine schemas: %s vs %s",
-          col.name(),
-          icebergIndex,
-          engineIndex);
-    }
-  }
-
-  private static int positionOf(Schema schema, String columnName) {
-    List<NestedField> columns = schema.columns();
+    List<NestedField> columns = engineSchema.columns();
     for (int index = 0; index < columns.size(); index++) {
       if (columns.get(index).name().equals(columnName)) {
         return index;
@@ -105,7 +74,7 @@ class RecordVariantShreddingAnalyzer extends VariantShreddingAnalyzer<Record, Sc
         continue;
       }
 
-      if (!(fieldValue instanceof Variant)) {
+      if (!(fieldValue instanceof Variant variant)) {
         LOG.warn(
             "Skipping variant shredding for column at index {}: expected Variant but was {}",
             variantFieldIndex,
@@ -113,7 +82,7 @@ class RecordVariantShreddingAnalyzer extends VariantShreddingAnalyzer<Record, Sc
         return Lists.newArrayList();
       }
 
-      values.add(((Variant) fieldValue).value());
+      values.add(variant.value());
     }
 
     return values;
