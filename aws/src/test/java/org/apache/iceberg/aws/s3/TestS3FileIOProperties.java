@@ -108,6 +108,9 @@ public class TestS3FileIOProperties {
     assertThat(s3FileIOProperties.isChecksumEnabled())
         .isEqualTo(S3FileIOProperties.CHECKSUM_ENABLED_DEFAULT);
 
+    assertThat(s3FileIOProperties.isCreateStackTraceEnabled())
+        .isEqualTo(S3FileIOProperties.CREATE_STACK_TRACE_ENABLED_DEFAULT);
+
     assertThat(s3FileIOProperties.writeTags()).isEqualTo(Sets.newHashSet());
 
     assertThat(s3FileIOProperties.writeTableTagEnabled())
@@ -224,6 +227,11 @@ public class TestS3FileIOProperties {
         .containsEntry(
             S3FileIOProperties.CHECKSUM_ENABLED,
             String.valueOf(s3FileIOProperties.isChecksumEnabled()));
+
+    assertThat(map)
+        .containsEntry(
+            S3FileIOProperties.CREATE_STACK_TRACE_ENABLED,
+            String.valueOf(s3FileIOProperties.isCreateStackTraceEnabled()));
 
     List<String> writeTagValues =
         s3FileIOProperties.writeTags().stream().map(Tag::value).collect(Collectors.toList());
@@ -427,6 +435,7 @@ public class TestS3FileIOProperties {
     https://docs.aws.amazon.com/AmazonS3/latest/dev/acl-overview.html*/
     map.put(S3FileIOProperties.ACL, "public-read-write");
     map.put(S3FileIOProperties.CHECKSUM_ENABLED, "true");
+    map.put(S3FileIOProperties.CREATE_STACK_TRACE_ENABLED, "false");
     map.put(S3FileIOProperties.DELETE_BATCH_SIZE, "1");
     map.put(S3FileIOProperties.WRITE_TAGS_PREFIX + S3_WRITE_TAG_KEY, S3_WRITE_TAG_VALUE);
     map.put(S3FileIOProperties.WRITE_TABLE_TAG_ENABLED, "true");
