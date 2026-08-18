@@ -30,6 +30,9 @@ import org.junit.jupiter.api.TestTemplate;
 
 public class TestFlinkTableSource extends TableSourceTestBase {
 
+  private static final String NESTED_TABLE_NAME = "nested_table";
+  private static final String MAP_TABLE_NAME = "map_table";
+
   @TestTemplate
   public void testLimitPushDown() {
 
@@ -557,5 +560,168 @@ public class TestFlinkTableSource extends TableSourceTestBase {
   @TestTemplate
   public void testSqlParseNaN() {
     // todo add some test case to test NaN
+  }
+
+  private void createNestedTable() {
+    createNestedTable("(1, ROW('a', 10), ROW('nyc', ROW(40, -74)), ARRAY[ROW('a', 10)])");
+  }
+
+  private void createNestedTable(String values) {
+    sql(
+        "CREATE TABLE %s ("
+            + "id INT, "
+            + "person ROW<name STRING, age INT>, "
+            + "address ROW<city STRING, geo ROW<lat INT, lng INT>>, "
+            + "people ARRAY<ROW<name STRING, age INT>>"
+            + ") WITH ('write.format.default'='%s')",
+        NESTED_TABLE_NAME, format.name());
+
+    sql("INSERT INTO %s VALUES %s", NESTED_TABLE_NAME, values);
+  }
+
+  private void createMapTable() {
+    sql(
+        "CREATE TABLE %s ("
+            + "id INT, "
+            + "attrs MAP<STRING, ROW<code STRING, label STRING>>"
+            + ") WITH ('write.format.default'='%s')",
+        MAP_TABLE_NAME, format.name());
+
+    sql("INSERT INTO %s VALUES (1, MAP['x', ROW('c1', 'l1')])", MAP_TABLE_NAME);
+  }
+
+  private void assertProjection(String expected) {
+    assertThat(scanEventCount).isEqualTo(1);
+    assertThat(lastScanEvent.projection().asStruct()).hasToString(expected);
+  }
+
+  @TestTemplate
+  public void testNestedFieldProjectionPushedDown() {
+    createNestedTable();
+
+    List<Row> result = sql("SELECT person.name FROM %s", NESTED_TABLE_NAME);
+    assertSameElements(Lists.newArrayList(Row.of("a")), result);
+
+    assertProjection("struct<2: person: optional struct<5: name: optional string>>");
+  }
+
+  @TestTemplate
+  public void testMixedTopLevelAndNestedProjection() {
+    createNestedTable();
+
+    List<Row> result = sql("SELECT id, person.name FROM %s", NESTED_TABLE_NAME);
+    assertSameElements(Lists.newArrayList(Row.of(1, "a")), result);
+
+    assertProjection(
+        "struct<1: id: optional int, 2: person: optional struct<5: name: optional string>>");
+  }
+
+  @TestTemplate
+  public void testWholeStructProjection() {
+    createNestedTable();
+
+    List<Row> result = sql("SELECT person FROM %s", NESTED_TABLE_NAME);
+    assertSameElements(Lists.newArrayList(Row.of(Row.of("a", 10))), result);
+
+    assertProjection(
+        "struct<2: person: optional struct<5: name: optional string, 6: age: optional int>>");
+  }
+
+  @TestTemplate
+  public void testNullNestedStruct() {
+    createNestedTable(
+        "(1, ROW('a', 10), ROW('nyc', ROW(40, -74)), ARRAY[ROW('a', 10)]), "
+            + "(2, CAST(NULL AS ROW<name STRING, age INT>), ROW('sf', ROW(37, -122)), ARRAY[ROW('c', 30)])");
+
+    List<Row> result = sql("SELECT id, person.name FROM %s", NESTED_TABLE_NAME);
+    assertSameElements(Lists.newArrayList(Row.of(1, "a"), Row.of(2, null)), result);
+
+    assertProjection(
+        "struct<1: id: optional int, 2: person: optional struct<5: name: optional string>>");
+  }
+
+  @TestTemplate
+  public void testNullIntermediateNestedStruct() {
+    createNestedTable(
+        "(1, ROW('a', 10), ROW('nyc', CAST(NULL AS ROW<lat INT, lng INT>)), ARRAY[ROW('a', 10)])");
+
+    // geo is null, so the leaf short-circuits to null one level deeper than testNullNestedStruct.
+    List<Row> result = sql("SELECT address.geo.lat FROM %s", NESTED_TABLE_NAME);
+    assertSameElements(Lists.newArrayList(Row.of((Object) null)), result);
+
+    assertProjection(
+        "struct<3: address: optional struct<8: geo: optional struct<9: lat: optional int>>>");
+  }
+
+  @TestTemplate
+  public void testDeeplyNestedProjection() {
+    createNestedTable();
+
+    List<Row> result = sql("SELECT address.geo.lat FROM %s", NESTED_TABLE_NAME);
+    assertSameElements(Lists.newArrayList(Row.of(40)), result);
+
+    assertProjection(
+        "struct<3: address: optional struct<8: geo: optional struct<9: lat: optional int>>>");
+  }
+
+  @TestTemplate
+  public void testSiblingLeavesShareIntermediateStruct() {
+    createNestedTable();
+
+    List<Row> result = sql("SELECT address.geo.lat, address.geo.lng FROM %s", NESTED_TABLE_NAME);
+    assertSameElements(Lists.newArrayList(Row.of(40, -74)), result);
+
+    assertProjection(
+        "struct<3: address: optional struct<8: geo: optional struct<9: lat: optional int, 10: lng: optional int>>>");
+  }
+
+  @TestTemplate
+  public void testProjectionOutputOrderPreserved() {
+    createNestedTable();
+
+    // Output rows follow the SELECT list (name, id), while the pushed-down projection keeps table
+    // schema order (id, person).
+    List<Row> result = sql("SELECT person.name, id FROM %s", NESTED_TABLE_NAME);
+    assertSameElements(Lists.newArrayList(Row.of("a", 1)), result);
+
+    assertProjection(
+        "struct<1: id: optional int, 2: person: optional struct<5: name: optional string>>");
+  }
+
+  @TestTemplate
+  public void testNestedLeavesFromDifferentStructs() {
+    createNestedTable();
+
+    List<Row> result = sql("SELECT person.name, address.city FROM %s", NESTED_TABLE_NAME);
+    assertSameElements(Lists.newArrayList(Row.of("a", "nyc")), result);
+
+    assertProjection(
+        "struct<2: person: optional struct<5: name: optional string>, 3: address: optional struct<7: city: optional string>>");
+  }
+
+  @TestTemplate
+  public void testArrayElementSubfieldReadsWholeStruct() {
+    createNestedTable();
+
+    List<Row> result = sql("SELECT people[1].name FROM %s", NESTED_TABLE_NAME);
+    assertSameElements(Lists.newArrayList(Row.of("a")), result);
+
+    // Flink does not support projection pushdown through arrays so age is still read despite only
+    // name being referenced: the element struct is not pruned. Other top-level fields are.
+    assertProjection(
+        "struct<4: people: optional list<struct<12: name: optional string, 13: age: optional int>>>");
+  }
+
+  @TestTemplate
+  public void testMapValueSubfieldReadsWholeStruct() {
+    createMapTable();
+
+    List<Row> result = sql("SELECT attrs['x'].code FROM %s", MAP_TABLE_NAME);
+    assertSameElements(Lists.newArrayList(Row.of("c1")), result);
+
+    // Flink does not support projection pushdown through maps so label is still read despite only
+    // code being referenced: the value struct is not pruned. Other top-level fields are.
+    assertProjection(
+        "struct<2: attrs: optional map<string, struct<5: code: optional string, 6: label: optional string>>>");
   }
 }

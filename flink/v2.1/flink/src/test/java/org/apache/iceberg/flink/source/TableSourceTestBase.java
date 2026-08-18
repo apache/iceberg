@@ -98,7 +98,9 @@ public abstract class TableSourceTestBase extends TestBase {
 
   @AfterEach
   public void clean() {
-    sql("DROP TABLE IF EXISTS %s.%s", DATABASE_NAME, TABLE_NAME);
+    for (String table : getTableEnv().listTables()) {
+      sql("DROP TABLE IF EXISTS %s.%s", DATABASE_NAME, table);
+    }
     dropDatabase(DATABASE_NAME, true);
     dropCatalog(CATALOG_NAME, true);
   }
