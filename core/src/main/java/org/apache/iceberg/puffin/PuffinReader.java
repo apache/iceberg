@@ -35,12 +35,16 @@ import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.puffin.PuffinFormat.Flag;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
 import org.apache.iceberg.util.Pair;
 
 public class PuffinReader implements Closeable {
   // Must not be modified
   private static final byte[] MAGIC = PuffinFormat.getMagic();
+
+  // Bound on a single coalesced read, so a long contiguous run is split into bounded buffers.
+  private static final long MAX_COALESCED_READ_SIZE = 8 * 1024 * 1024;
 
   private final long fileSize;
   private final SeekableInputStream input;
@@ -125,27 +129,61 @@ public class PuffinReader implements Closeable {
       return ImmutableList.of();
     }
 
-    // TODO inspect blob offsets and coalesce read regions close to each other
+    List<BlobMetadata> ordered = Lists.newArrayList(blobs);
+    ordered.sort(Comparator.comparingLong(BlobMetadata::offset));
+    List<List<BlobMetadata>> groups = coalesce(ordered, MAX_COALESCED_READ_SIZE);
 
-    return () ->
-        blobs.stream()
-            .sorted(Comparator.comparingLong(BlobMetadata::offset))
-            .map(
-                (BlobMetadata blobMetadata) -> {
-                  try {
-                    input.seek(blobMetadata.offset());
-                    byte[] bytes = new byte[Math.toIntExact(blobMetadata.length())];
-                    ByteStreams.readFully(input, bytes);
-                    ByteBuffer rawData = ByteBuffer.wrap(bytes);
-                    PuffinCompressionCodec codec =
-                        PuffinCompressionCodec.forName(blobMetadata.compressionCodec());
-                    ByteBuffer data = PuffinFormat.decompress(codec, rawData);
-                    return Pair.of(blobMetadata, data);
-                  } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                  }
-                })
-            .iterator();
+    return () -> groups.stream().flatMap(group -> readGroup(group).stream()).iterator();
+  }
+
+  private List<Pair<BlobMetadata, ByteBuffer>> readGroup(List<BlobMetadata> group) {
+    long start = group.get(0).offset();
+    long end = start;
+    for (BlobMetadata blob : group) {
+      end = Math.max(end, blob.offset() + blob.length());
+    }
+
+    byte[] region;
+    try {
+      region = readInput(start, Math.toIntExact(end - start));
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
+
+    List<Pair<BlobMetadata, ByteBuffer>> data = Lists.newArrayListWithCapacity(group.size());
+    for (BlobMetadata blob : group) {
+      int position = Math.toIntExact(blob.offset() - start);
+      // slice so the blob's bytes align to the buffer's array offset (needed by decompress)
+      ByteBuffer rawData =
+          ByteBuffer.wrap(region, position, Math.toIntExact(blob.length())).slice();
+      PuffinCompressionCodec codec = PuffinCompressionCodec.forName(blob.compressionCodec());
+      data.add(Pair.of(blob, PuffinFormat.decompress(codec, rawData)));
+    }
+
+    return data;
+  }
+
+  static List<List<BlobMetadata>> coalesce(List<BlobMetadata> orderedByOffset, long maxReadSize) {
+    List<List<BlobMetadata>> groups = Lists.newArrayList();
+    List<BlobMetadata> current = null;
+    long currentStart = 0;
+    long currentEnd = 0;
+    for (BlobMetadata blob : orderedByOffset) {
+      long blobEnd = blob.offset() + blob.length();
+      boolean gap = current != null && blob.offset() > currentEnd;
+      boolean tooLarge = current != null && blobEnd - currentStart > maxReadSize;
+      if (current == null || gap || tooLarge) {
+        current = Lists.newArrayList();
+        groups.add(current);
+        currentStart = blob.offset();
+        currentEnd = blob.offset();
+      }
+
+      current.add(blob);
+      currentEnd = Math.max(currentEnd, blobEnd);
+    }
+
+    return groups;
   }
 
   private static void checkMagic(byte[] data, int offset) {
