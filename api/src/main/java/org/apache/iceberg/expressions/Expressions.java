@@ -248,7 +248,7 @@ public class Expressions {
             && op != Operation.NOT_NULL
             && op != Operation.IS_NAN
             && op != Operation.NOT_NAN,
-        "Cannot create %s predicate inclusive a value",
+        "Cannot create %s predicate with a value",
         op);
     Preconditions.checkArgument(
         !NaNUtil.isNaN(lit.value()),
