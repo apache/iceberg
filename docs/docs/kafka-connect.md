@@ -82,6 +82,7 @@ for exactly-once semantics. This requires Kafka 2.5 or later.
 | iceberg.control.commit.timeout-ms          | Commit timeout interval in msec, default is 30,000 (30 sec)                                                      |
 | iceberg.control.commit.threads             | Number of threads to use for commits, default is (`cores * 2`)                                                     |
 | iceberg.control.commit.max-consecutive-failures | Maximum number of consecutive commit failures before the coordinator terminates, default is `1`              |
+| iceberg.control.poll.interval-ms            | Interval in msec each worker task waits for control topic events on its polling thread, default is `100`, minimum is `10` |
 | iceberg.coordinator.transactional.prefix   | Prefix for the transactional id to use for the coordinator producer, default is to use no/empty prefix           |
 | iceberg.catalog                            | Name of the catalog, default is `iceberg`                                                                        |
 | iceberg.catalog.*                          | Properties passed through to Iceberg catalog initialization                                                      |
