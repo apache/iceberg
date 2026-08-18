@@ -84,6 +84,14 @@ public class TableMetadata implements Serializable {
     return newTableMetadata(schema, spec, SortOrder.unsorted(), location, properties);
   }
 
+  public static void checkFormatVersionCompatibility(
+      Schema schema, Map<String, String> properties) {
+    int formatVersion =
+        PropertyUtil.propertyAsInt(
+            properties, TableProperties.FORMAT_VERSION, DEFAULT_TABLE_FORMAT_VERSION);
+    Schema.checkCompatibility(schema, formatVersion);
+  }
+
   private static Map<String, String> unreservedProperties(Map<String, String> rawProperties) {
     return rawProperties.entrySet().stream()
         .filter(e -> !TableProperties.RESERVED_PROPERTIES.contains(e.getKey()))

@@ -973,6 +973,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     public Table create() {
       Endpoint.check(endpoints, Endpoint.V1_CREATE_TABLE);
       propertiesBuilder.putAll(tableOverrideProperties());
+      Map<String, String> tableProperties = propertiesBuilder.buildKeepingLast();
+      TableMetadata.checkFormatVersionCompatibility(schema, tableProperties);
       CreateTableRequest request =
           CreateTableRequest.builder()
               .withName(ident.name())
@@ -980,7 +982,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
               .withPartitionSpec(spec)
               .withWriteOrder(writeOrder)
               .withLocation(location)
-              .setProperties(propertiesBuilder.buildKeepingLast())
+              .setProperties(tableProperties)
               .build();
 
       AuthSession contextualSession = authManager.contextualSession(context, catalogAuth);
@@ -1131,6 +1133,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     private LoadTableResponse stageCreate() {
       propertiesBuilder.putAll(tableOverrideProperties());
       Map<String, String> tableProperties = propertiesBuilder.buildKeepingLast();
+      TableMetadata.checkFormatVersionCompatibility(schema, tableProperties);
 
       CreateTableRequest request =
           CreateTableRequest.builder()
