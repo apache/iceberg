@@ -106,7 +106,7 @@ settle disagreements or to force a decision.
 
 ## Building the Project Locally
 
-Iceberg is built using Gradle with Java 17 or 21.
+Iceberg is built using Gradle with Java 17, 21, or 25.
 
 * To invoke a build and run tests: `./gradlew build`
 * To skip tests: `./gradlew build -x test -x integrationTest`
@@ -299,9 +299,10 @@ public interface ManageSnapshots extends PendingUpdate<Snapshot> {
 Java code adheres to the [Google style](https://google.github.io/styleguide/javaguide.html), which will be verified via `./gradlew spotlessCheck` during builds.
 In order to automatically fix Java code style issues, please use `./gradlew spotlessApply`.
 
-**NOTE**: The **google-java-format** plugin will always use the latest version of the **google-java-format**. However, `spotless` itself is configured to use **google-java-format** 1.7
-since that version is compatible with JDK 8. When formatting the code in the IDE, there is a slight chance that it will produce slightly different results. In such a case please run `./gradlew spotlessApply`
-as CI will check the style against **google-java-format** 1.7.
+**NOTE**: The **google-java-format** plugin will always use the latest version of the **google-java-format**. However, `spotless` itself is configured to use **google-java-format** 1.22.0,
+which fails on JDKs newer than 21. Java formatting and license headers are therefore only applied when the build runs on JDK 17 or 21; on newer JDKs `./gradlew spotlessApply` skips Java
+sources and logs a warning, so format Java code with JDK 17 or 21. When formatting the code in the IDE, there is a slight chance that it will produce slightly different results. In such a
+case please run `./gradlew spotlessApply` as CI will check the style against **google-java-format** 1.22.0.
 
 ### Copyright
 

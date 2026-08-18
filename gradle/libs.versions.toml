@@ -41,6 +41,7 @@ bson-ver = "4.11.5"
 caffeine = "3.2.4"
 calcite = "1.42.0"
 datasketches = "6.2.0"
+datasketchesMemory = "7.0.0"
 delta-standalone = "3.3.2"
 delta-spark = "3.3.2"
 derby = "10.15.2.0"
@@ -118,6 +119,7 @@ caffeine = { module = "com.github.ben-manes.caffeine:caffeine", version.ref = "c
 calcite-core = { module = "org.apache.calcite:calcite-core", version.ref = "calcite" }
 calcite-druid = { module = "org.apache.calcite:calcite-druid", version.ref = "calcite" }
 datasketches = { module = "org.apache.datasketches:datasketches-java", version.ref = "datasketches" }
+datasketchesMemory = { module = "org.apache.datasketches:datasketches-memory-java17_25", version.ref = "datasketchesMemory" }
 delta-standalone = { module = "io.delta:delta-standalone_2.12", version.ref = "delta-standalone" }
 errorprone-annotations = { module = "com.google.errorprone:error_prone_annotations", version.ref = "errorprone-annotations" }
 failsafe = { module = "dev.failsafe:failsafe", version.ref = "failsafe"}
