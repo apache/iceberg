@@ -25,6 +25,7 @@ import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.data.EqualityDeletes;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
@@ -46,6 +47,11 @@ class BatchDataReader extends BaseBatchReader<FileScanTask>
   private static final Logger LOG = LoggerFactory.getLogger(BatchDataReader.class);
 
   private final long numSplits;
+
+  // Shared across every data file in this task group so an equality delete file referenced by
+  // more than one of them is read and materialized only once. Not thread-safe because open()
+  // is called sequentially by the single task thread, so these are mutated by one thread.
+  private final EqualityDeletes sharedEqDeletes;
 
   BatchDataReader(
       SparkInputPartition partition,
@@ -83,6 +89,8 @@ class BatchDataReader extends BaseBatchReader<FileScanTask>
 
     numSplits = taskGroup.tasks().size();
     LOG.debug("Reading {} file split(s) for table {}", numSplits, table.name());
+
+    sharedEqDeletes = new EqualityDeletes(table.specs());
   }
 
   @Override
@@ -108,8 +116,9 @@ class BatchDataReader extends BaseBatchReader<FileScanTask>
     InputFile inputFile = getInputFile(filePath);
     Preconditions.checkNotNull(inputFile, "Could not find InputFile associated with FileScanTask");
 
+    Long fileSeq = task.file().dataSequenceNumber();
     SparkDeleteFilter deleteFilter =
-        new SparkDeleteFilter(filePath, task.deletes(), counter(), true);
+        new SparkDeleteFilter(filePath, fileSeq, task.deletes(), sharedEqDeletes, counter(), true);
 
     Map<Integer, ?> idToConstant = constantsMap(task, deleteFilter.requiredSchema());
 
