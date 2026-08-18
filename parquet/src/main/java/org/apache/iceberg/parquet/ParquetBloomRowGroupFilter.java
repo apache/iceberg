@@ -302,6 +302,7 @@ public class ParquetBloomRowGroupFilter {
             case LONG:
             case TIME:
             case TIMESTAMP:
+            case TIMESTAMP_NANO:
               hashValue = bloom.hash(((Number) value).longValue());
               return bloom.findHash(hashValue);
             default:
