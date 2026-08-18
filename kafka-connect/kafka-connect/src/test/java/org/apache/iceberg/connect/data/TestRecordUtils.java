@@ -19,9 +19,32 @@
 package org.apache.iceberg.connect.data;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.withSettings;
 
 import java.util.Map;
+import java.util.UUID;
+import org.apache.iceberg.HasTableOperations;
+import org.apache.iceberg.LocationProviders;
+import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Table;
+import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.TableOperations;
+import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.connect.IcebergSinkConfig;
+import org.apache.iceberg.connect.TableSinkConfig;
+import org.apache.iceberg.connect.events.TableReference;
+import org.apache.iceberg.data.Record;
+import org.apache.iceberg.encryption.PlaintextEncryptionManager;
+import org.apache.iceberg.inmemory.InMemoryFileIO;
+import org.apache.iceberg.io.TaskWriter;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.types.Types;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.SchemaBuilder;
 import org.apache.kafka.connect.data.Struct;
@@ -89,5 +112,87 @@ public class TestRecordUtils {
 
     result = RecordUtils.extractFromRecordValue(val, "xkey");
     assertThat(result).isNull();
+  }
+
+  private static final org.apache.iceberg.Schema CDC_SCHEMA =
+      new org.apache.iceberg.Schema(
+          ImmutableList.of(
+              Types.NestedField.required(1, "id", Types.LongType.get()),
+              Types.NestedField.required(2, "data", Types.StringType.get()),
+              Types.NestedField.required(3, "id2", Types.LongType.get()),
+              Types.NestedField.required(4, "_op", Types.StringType.get())),
+          ImmutableSet.of(1, 3));
+
+  @Test
+  public void testCreateTableWriterFormatVersion1ThrowsException() {
+    Table table = createMockTable(1);
+    IcebergSinkConfig config = createCdcConfig();
+    TableReference tableReference =
+        TableReference.of("test_catalog", TableIdentifier.of("test_table"), UUID.randomUUID());
+
+    assertThatThrownBy(() -> RecordUtils.createTableWriter(table, tableReference, config))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining(
+            "CDC and upsert modes are not supported for Iceberg table format version 1");
+  }
+
+  @Test
+  public void testCreateTableWriterFormatVersion2CreatesEqualityDeleteWriter() {
+    Table table = createMockTable(2);
+    IcebergSinkConfig config = createCdcConfig();
+    TableReference tableReference =
+        TableReference.of("test_catalog", TableIdentifier.of("test_table"), UUID.randomUUID());
+
+    try (TaskWriter<Record> writer = RecordUtils.createTableWriter(table, tableReference, config)) {
+      // Format version 2 should create UnpartitionedDeltaWriter with useDv=false
+      assertThat(writer).isInstanceOf(UnpartitionedDeltaWriter.class);
+    } catch (Exception e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  @Test
+  public void testCreateTableWriterFormatVersion3CreatesDeleteVectorWriter() {
+    Table table = createMockTable(3);
+    IcebergSinkConfig config = createCdcConfig();
+    TableReference tableReference =
+        TableReference.of("test_catalog", TableIdentifier.of("test_table"), UUID.randomUUID());
+
+    try (TaskWriter<Record> writer = RecordUtils.createTableWriter(table, tableReference, config)) {
+      // Format version 3 should create UnpartitionedDeltaWriter with useDv=true
+      assertThat(writer).isInstanceOf(UnpartitionedDeltaWriter.class);
+    } catch (Exception e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  private Table createMockTable(int formatVersion) {
+    InMemoryFileIO fileIO = new InMemoryFileIO();
+    Table table = mock(Table.class, withSettings().extraInterfaces(HasTableOperations.class));
+    when(table.schema()).thenReturn(CDC_SCHEMA);
+    when(table.spec()).thenReturn(PartitionSpec.unpartitioned());
+    when(table.io()).thenReturn(fileIO);
+    when(table.locationProvider())
+        .thenReturn(LocationProviders.locationsFor("file", ImmutableMap.of()));
+    when(table.encryption()).thenReturn(PlaintextEncryptionManager.instance());
+    when(table.properties()).thenReturn(ImmutableMap.of());
+
+    TableOperations ops = mock(TableOperations.class);
+    TableMetadata metadata = mock(TableMetadata.class);
+    when(metadata.formatVersion()).thenReturn(formatVersion);
+    when(ops.current()).thenReturn(metadata);
+    when(((HasTableOperations) table).operations()).thenReturn(ops);
+
+    return table;
+  }
+
+  private IcebergSinkConfig createCdcConfig() {
+    IcebergSinkConfig config = mock(IcebergSinkConfig.class);
+    when(config.tableConfig(any())).thenReturn(mock(TableSinkConfig.class));
+    when(config.writeProps()).thenReturn(ImmutableMap.of());
+    when(config.isUpsertMode()).thenReturn(true);
+    when(config.tablesDefaultIdColumns()).thenReturn("id,id2");
+    when(config.tablesCdcField()).thenReturn("_op");
+    return config;
   }
 }
