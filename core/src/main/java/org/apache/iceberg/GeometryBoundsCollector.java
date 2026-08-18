@@ -30,8 +30,10 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
  * <p>The seven OGC geometry types are supported: point, line string, polygon, multi point, multi
  * line string, multi polygon, and geometry collection.
  *
- * <p>Coordinates are tracked independently for the X and Y dimensions. {@code NaN} values do not
- * contribute to a dimension, and no bounds are produced unless both dimensions are present.
+ * <p>Coordinates are tracked independently for the X and Y dimensions. A {@code NaN} ordinate marks
+ * an empty value and does not contribute to its dimension; an infinite ordinate is a real position
+ * and is kept as a bound, since the spec forbids only NaN as a lower or upper bound. No bounds are
+ * produced unless both dimensions are present.
  *
  * <p>These bounds apply to {@code geometry} columns, whose edges are always interpolated linearly,
  * so a box that contains every vertex contains the whole geometry. They are not valid for {@code
@@ -78,7 +80,7 @@ class GeometryBoundsCollector {
    * collector.
    *
    * @param wkb a buffer containing exactly one WKB geometry
-   * @throws IllegalArgumentException if the WKB is malformed or has a non-finite coordinate
+   * @throws IllegalArgumentException if the WKB is malformed
    */
   public void add(ByteBuffer wkb) {
     Preconditions.checkArgument(wkb != null, "Invalid WKB buffer: null");
@@ -244,13 +246,6 @@ class GeometryBoundsCollector {
       buffer.getDouble();
     }
 
-    // NaN marks an empty ordinate and is skipped per the spec, but an infinite coordinate is a real
-    // position that a finite box cannot cover; rejecting it avoids silently producing bounds that
-    // omit an object in the file.
-    Preconditions.checkArgument(
-        !Double.isInfinite(xCoord) && !Double.isInfinite(yCoord),
-        "Invalid WKB: coordinate is not finite");
-
     xBounds.add(xCoord);
     yBounds.add(yCoord);
   }
@@ -280,6 +275,8 @@ class GeometryBoundsCollector {
     private boolean hasValue = false;
 
     private void add(double value) {
+      // NaN marks an empty ordinate and is skipped per the spec; an infinite value is a real
+      // position and is kept, since the spec forbids only NaN as a lower or upper bound
       if (Double.isNaN(value)) {
         return;
       }

@@ -80,6 +80,38 @@ class TestGeometryBoundsCollector {
     assertThat(bounds.boundingBox()).isEqualTo(box(1, 2, 1, 2));
   }
 
+  @Test
+  void infiniteOrdinateIsKeptAsBound() {
+    GeometryBoundsCollector bounds = new GeometryBoundsCollector();
+    // the spec forbids only NaN as a bound, so an infinite ordinate is kept as a real position
+    bounds.add(ByteBuffer.wrap(wkb(point(Double.POSITIVE_INFINITY, 2))));
+
+    assertThat(bounds.boundingBox())
+        .as("POINT(Infinity 2)")
+        .isEqualTo(box(Double.POSITIVE_INFINITY, 2, Double.POSITIVE_INFINITY, 2));
+  }
+
+  @Test
+  void infiniteOrdinateWidensBounds() {
+    GeometryBoundsCollector bounds = new GeometryBoundsCollector();
+    bounds.add(ByteBuffer.wrap(wkb(point(1, 2))));
+    // an infinite coordinate is a real position, so it widens the box toward that infinity
+    bounds.add(ByteBuffer.wrap(wkb(point(Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY))));
+
+    assertThat(bounds.boundingBox())
+        .isEqualTo(box(1, Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, 2));
+  }
+
+  @Test
+  void nanIsStillSkippedWhileInfiniteIsKept() {
+    GeometryBoundsCollector bounds = new GeometryBoundsCollector();
+    // NaN X is skipped (empty ordinate) while infinite Y is kept, so only Y produces a bound;
+    // with X missing, no box is produced
+    bounds.add(ByteBuffer.wrap(wkb(point(Double.NaN, Double.POSITIVE_INFINITY))));
+
+    assertThat(bounds.boundingBox()).as("POINT(NaN Infinity)").isNull();
+  }
+
   @ParameterizedTest(name = "{0}")
   @MethodSource("extraDimensionCases")
   void extraDimensionsAreIgnored(String description, Geom geom, BoundingBox expected) {
@@ -250,11 +282,6 @@ class TestGeometryBoundsCollector {
             "multi point with a line string child",
             wkb(multiPoint(emptyLineString())),
             "expected geometry type"),
-        // an infinite coordinate is a real position a finite box cannot cover
-        Arguments.of(
-            "positive infinity coordinate", wkb(point(Double.POSITIVE_INFINITY, 0)), "not finite"),
-        Arguments.of(
-            "negative infinity coordinate", wkb(point(0, Double.NEGATIVE_INFINITY)), "not finite"),
         // base type 8 is beyond the seven OGC types
         Arguments.of(
             "unknown geometry type", wkb(geom(LE, 8, coordinates(0, 0))), "unsupported WKB"),
