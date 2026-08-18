@@ -47,7 +47,7 @@ bin/spark-sql
   --conf spark.sql.extensions="org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions,org.projectnessie.spark.extensions.NessieSparkSessionExtensions"
   --conf <other settings>
 ```
-Please refer [Nessie SQL extension document](https://projectnessie.org/tools/sql/) to learn more about it.
+Please refer to the [Nessie SQL extension document](https://projectnessie.org/tools/sql/) to learn more about it.
 
 ## Nessie Catalog
 
