@@ -107,7 +107,7 @@ public class RewriteTablePathUtil {
    */
   public static TableMetadata replacePaths(
       TableMetadata metadata, String sourcePrefix, String targetPrefix) {
-    String newLocation = metadata.location().replaceFirst(sourcePrefix, targetPrefix);
+    String newLocation = newPath(metadata.location(), sourcePrefix, targetPrefix);
     List<Snapshot> newSnapshots = updatePathInSnapshots(metadata, sourcePrefix, targetPrefix);
     List<TableMetadata.MetadataLogEntry> metadataLogEntries =
         updatePathInMetadataLogs(metadata, sourcePrefix, targetPrefix);
