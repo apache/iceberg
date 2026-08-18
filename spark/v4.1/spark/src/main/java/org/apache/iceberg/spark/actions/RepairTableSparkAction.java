@@ -23,6 +23,7 @@ import static org.apache.iceberg.MetadataTableType.ENTRIES;
 import java.io.Serializable;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -207,6 +208,28 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
       return RepairedManifests.empty();
     }
 
+    // A manifest is rewritten with the spec it was written under, so manifests are grouped by
+    // spec and each group is repaired separately. Rewriting a manifest of an older spec with the
+    // current spec of the table would change the partition data of its entries.
+    Map<Integer, List<ManifestFile>> manifestsBySpecId =
+        manifests.stream().collect(Collectors.groupingBy(ManifestFile::partitionSpecId));
+
+    List<ManifestFile> repairedManifests = Lists.newArrayList();
+    List<ManifestFile> newManifests = Lists.newArrayList();
+    long repairedCount = 0L;
+
+    for (Map.Entry<Integer, List<ManifestFile>> group : manifestsBySpecId.entrySet()) {
+      RepairedManifests repaired = repairManifests(content, group.getKey(), group.getValue());
+      repairedManifests.addAll(repaired.repairedManifests());
+      newManifests.addAll(repaired.newManifests());
+      repairedCount += repaired.repairedCount();
+    }
+
+    return RepairedManifests.of(repairedManifests, newManifests, repairedCount);
+  }
+
+  private RepairedManifests repairManifests(
+      ManifestContent content, int specId, List<ManifestFile> manifests) {
     Dataset<Row> entryDF = buildManifestEntryDF(manifests);
 
     return withReusableDS(
@@ -237,7 +260,7 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
           Dataset<Row> entriesToRewrite =
               df.filter(df.col("manifest").isin(manifestsToRewrite.toArray()));
           List<ManifestFile> written =
-              writeManifests(content, entriesToRewrite, rewritten.size(), repairedPaths);
+              writeManifests(content, specId, entriesToRewrite, rewritten.size(), repairedPaths);
 
           return RepairedManifests.of(rewritten, written, repairedCount);
         });
@@ -268,19 +291,27 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
   }
 
   private List<ManifestFile> writeManifests(
-      ManifestContent content, Dataset<Row> entryDF, int numManifests, Set<String> repairedPaths) {
+      ManifestContent content,
+      int specId,
+      Dataset<Row> entryDF,
+      int numManifests,
+      Set<String> repairedPaths) {
     StructType sparkType = (StructType) entryDF.schema().apply("data_file").dataType();
     Types.StructType combinedFileType = DataFile.getType(Partitioning.partitionType(table));
-    ManifestWriterFactory writers = manifestWriters();
+    Types.StructType fileType = DataFile.getType(table.specs().get(specId).partitionType());
+    ManifestWriterFactory writers = manifestWriters(specId);
     Broadcast<Set<String>> repaired = sparkContext().broadcast(repairedPaths);
     RepairContext context = newRepairContext(content);
 
     WriteManifests<?> writeFunc =
         content == ManifestContent.DATA
-            ? new WriteDataManifests(writers, combinedFileType, sparkType, repaired, context)
-            : new WriteDeleteManifests(writers, combinedFileType, sparkType, repaired, context);
+            ? new WriteDataManifests(
+                writers, combinedFileType, fileType, sparkType, repaired, context)
+            : new WriteDeleteManifests(
+                writers, combinedFileType, fileType, sparkType, repaired, context);
 
-    // preserve the entry order of the manifests being rewritten
+    // write about as many manifests as are being replaced, so repairing does not change the
+    // manifest layout of the table
     return writeFunc.apply(entryDF.repartition(numManifests)).collectAsList();
   }
 
@@ -344,11 +375,11 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
     }
   }
 
-  private ManifestWriterFactory manifestWriters() {
+  private ManifestWriterFactory manifestWriters(int specId) {
     return new ManifestWriterFactory(
         sparkContext().broadcast(SerializableTableWithSize.copyOf(table)),
         formatVersion,
-        table.spec().specId(),
+        specId,
         outputLocation,
         // allow the actual size of manifests to be 20% higher as the estimation is not precise
         (long) (1.2 * targetManifestSizeBytes));
@@ -553,10 +584,11 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
     WriteDataManifests(
         ManifestWriterFactory writers,
         Types.StructType combinedFileType,
+        Types.StructType fileType,
         StructType sparkFileType,
         Broadcast<Set<String>> repairedPaths,
         RepairContext context) {
-      super(writers, combinedFileType, sparkFileType, repairedPaths, context);
+      super(writers, combinedFileType, fileType, sparkFileType, repairedPaths, context);
     }
 
     @Override
@@ -574,10 +606,11 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
     WriteDeleteManifests(
         ManifestWriterFactory writers,
         Types.StructType combinedFileType,
+        Types.StructType fileType,
         StructType sparkFileType,
         Broadcast<Set<String>> repairedPaths,
         RepairContext context) {
-      super(writers, combinedFileType, sparkFileType, repairedPaths, context);
+      super(writers, combinedFileType, fileType, sparkFileType, repairedPaths, context);
     }
 
     @Override
@@ -607,6 +640,7 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
 
     private final ManifestWriterFactory writers;
     private final Types.StructType combinedFileType;
+    private final Types.StructType fileType;
     private final StructType sparkFileType;
     private final Broadcast<Set<String>> repairedPaths;
     private final RepairContext context;
@@ -614,11 +648,13 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
     WriteManifests(
         ManifestWriterFactory writers,
         Types.StructType combinedFileType,
+        Types.StructType fileType,
         StructType sparkFileType,
         Broadcast<Set<String>> repairedPaths,
         RepairContext context) {
       this.writers = writers;
       this.combinedFileType = combinedFileType;
+      this.fileType = fileType;
       this.sparkFileType = sparkFileType;
       this.repairedPaths = repairedPaths;
       this.context = context;
@@ -682,7 +718,7 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
     }
 
     protected Types.StructType fileType() {
-      return DataFile.getType(context.table().spec().partitionType());
+      return fileType;
     }
 
     protected StructType sparkFileType() {
