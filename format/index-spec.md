@@ -63,53 +63,52 @@ The following index type is reserved for future specifications:
 
 ### Index Expressions
 
-An index is defined by two [Iceberg expressions](expressions-spec.md), the [index values](#index-values) expression and
-the [index keys](#index-keys) expression. Both are evaluated for each indexed row of the source table.
+An index is defined by two lists of [Iceberg expressions](expressions-spec.md), the [index values](#index-values) and
+the [index keys](#index-keys). Every expression in both lists is evaluated for each indexed row of the source table.
 
-Both expressions must be value expressions and must satisfy the following requirements:
+Each expression must be a value expression and must satisfy the following requirements:
 
 - Field references must be ID references. Named references must not be used.
-- Functions must resolve in the `iceberg_functions` or `sql_functions` reserved catalogs. User-defined functions and
-  engine-specific function catalogs must not be used.
 - The expression must be deterministic.
 
-Both expressions are serialized using the [JSON serialization](expressions-spec.md#appendix-b-json-serialization)
-defined by the expressions specification.
+An expression that consists of a single field reference, or of an `identity` function applied to a single field
+reference, is an **identity expression** of the referenced source field.
+
+Expressions are serialized using the [JSON serialization](expressions-spec.md#appendix-b-json-serialization) defined by
+the expressions specification.
 
 ### Index Values
 
-The index values expression defines the content of the index [leaf files](#leaf-files). Each evaluation produces one
-leaf file row.
+The index values define the content of the index [leaf files](#leaf-files). `index-values` is a list of expressions and
+each expression produces one field of the [leaf schema](#leaf-schema). Evaluating the list for one indexed row produces
+one leaf file row.
 
-In addition to the requirements in [Index Expressions](#index-expressions), the index values expression must satisfy:
-
-- The result type must be a struct and must be declared on the expression. The declared struct type is the
-  [leaf schema](#leaf-schema).
-- The result must include the `source_file_path` and `source_file_pos` fields defined by the
-  [leaf schema](#leaf-schema).
+The list may contain an identity expression of the `_file` (`2147483646`) metadata column and an identity expression
+of the `_pos` (`2147483645`) metadata column, which produce the `file_path` (`2147483546`) and `pos` (`2147483545`)
+fields of the [leaf schema](#leaf-schema).
 
 ### Index Keys
 
-The index keys expression produces the index key of an entry. Index keys determine the position of an entry in the
-index, as defined in [Ordering](#ordering).
+`index-keys` is a list of expressions and the results of the expressions, in list order, form the index key of the
+entry. Index keys determine the position of an entry in the index, as defined in [Ordering](#ordering).
 
-In addition to the requirements in [Index Expressions](#index-expressions), the index keys expression must satisfy:
+In addition to the requirements in [Index Expressions](#index-expressions), each index keys expression must satisfy:
 
-- The result type must be a primitive type, or a struct whose fields are, recursively, primitives or structs. List and
-  map result types must not be used.
+- The result type must be a primitive type. List, map, and struct result types must not be used.
 
-Examples of index keys expressions, shown as SQL for readability:
+Examples of index keys, shown as SQL for readability:
 
-| Index keys                              | Ordering                                         |
-|-----------------------------------------|--------------------------------------------------|
-| `identity(user_id)`                     | By the source column values                      |
-| `bucket(2147483647, user_id)`           | By the hash bucket of the source column          |
-| `struct(bucket(256, user_id), user_id)` | By hash bucket, then by the source column values |
+| Index keys                          | Ordering                                         |
+|-------------------------------------|--------------------------------------------------|
+| `[ user_id ]`                       | By the source column values                      |
+| `[ bucket(2147483647, user_id) ]`   | By the hash bucket of the source column          |
+| `[ bucket(256, user_id), user_id ]` | By hash bucket, then by the source column values |
 
 ### Index Instance
 
 An index instance is a concrete realization of an index type applied to a specific table. It is defined by a source
-table, an index type, an index values expression, an index keys expression, and optional index properties.
+table, an index type, a list of index values expressions, a list of index keys expressions, and optional index
+properties.
 
 Multiple instances of the same index type may exist for a table.
 
@@ -119,18 +118,18 @@ The index metadata file stores the index definition and snapshot history.
 
 ### Index Metadata File
 
-| Requirement | Field          | Type                 | Description                                                                |
-|-------------|----------------|----------------------|----------------------------------------------------------------------------|
-| required    | format-version | int                  | Index specification version                                                |
-| required    | uuid           | string               | Stable UUID assigned at creation                                           |
-| required    | table-uuid     | string               | UUID of the indexed table                                                  |
-| required    | location       | string               | Index root location                                                        |
-| required    | type           | string               | Logical index type                                                         |
-| required    | index-values   | JSON expression      | Expression producing the index values, see [Index Values](#index-values)   |
-| required    | index-keys     | JSON expression      | Expression producing the index keys, see [Index Keys](#index-keys)         |
-| optional    | properties     | map<string,string>   | Index properties applicable for every snapshot                             |
-| required    | snapshots      | list<index-snapshot> | Index snapshots                                                            |
-| optional    | encryption-keys| list<encryption-key> | Encryption keys used by the index, see [Encryption Keys](#encryption-keys) |
+| Requirement | Field           | Type                  | Description                                                                |
+|-------------|-----------------|-----------------------|----------------------------------------------------------------------------|
+| required    | format-version  | int                   | Index specification version                                                |
+| required    | uuid            | string                | Stable UUID assigned at creation                                           |
+| required    | table-uuid      | string                | UUID of the indexed table                                                  |
+| required    | location        | string                | Index root location                                                        |
+| required    | type            | string                | Logical index type                                                         |
+| required    | index-values    | list<JSON expression> | Expressions producing the index values, see [Index Values](#index-values)  |
+| required    | index-keys      | list<JSON expression> | Expressions producing the index keys, see [Index Keys](#index-keys)        |
+| optional    | properties      | map<string,string>    | Index properties applicable for every snapshot                             |
+| required    | snapshots       | list<index-snapshot>  | Index snapshots                                                            |
+| optional    | encryption-keys | list<encryption-key>  | Encryption keys used by the index, see [Encryption Keys](#encryption-keys) |
 
 ### Index Snapshot
 
@@ -197,12 +196,9 @@ The index keys, together with the tie-break below, define a total **ordering** o
 snapshot. Entries must be organized into non-overlapping ranges according to that ordering, and each range must be
 stored in a separate leaf file, so leaf files inherit the ordering from the ranges they contain.
 
-Index entries are ordered by the [index key](#index-keys) produced for each indexed row:
-
-- If the index key is a **primitive** value, entries are ordered by that value, ascending.
-- If the index key is a **struct** value, entries are ordered by the struct fields in field order: entries are compared
-  by the first field, and the next field is used only when the preceding fields compare as equal. Nested structs are
-  compared by applying the same rule recursively.
+Index entries are ordered by the [index key](#index-keys) produced for each indexed row. The key is compared by the
+index keys expressions in list order: entries are compared by the result of the first expression, and the result of the
+next expression is used only when the preceding results compare as equal. Each result is ordered ascending.
 
 Primitive values are compared using the rules defined in the
 [expressions specification](expressions-spec.md#comparisons), extended so that null and NaN values have a defined
@@ -211,7 +207,7 @@ position in the total order:
 - `null` values are ordered before all other values (nulls-first)
 - `NaN` values are ordered after all other `float` and `double` values
 
-Entries with equal index keys must be ordered by `source_file_path`, ascending, and then by `source_file_pos`,
+Entries with equal index keys must be ordered by `_file`, ascending, and then by `_pos` metadata columns,
 ascending.
 
 ### Tracking File
@@ -244,39 +240,42 @@ The content statistics structure stored for each leaf file contains two compleme
 - **Column statistics** for the index values: the minimum and maximum value of each leaf schema field in the leaf file,
   using the field's natural ordering. These are always present and let engines prune on the index values even when
   searching for partial keys.
-- **Index key upper bound** for the leaf file: the index key of the last entry in the leaf file according to the index
-  ordering. Engines that evaluate the index keys expression for a lookup value use these bounds to prune leaf files (see
-  [Ordering](#ordering)).
+- **Index key upper bound** for the leaf file: the index key of the max entry in the leaf file according to the index
+  ordering. Engines that evaluate the index keys expressions for a lookup value use these bounds to prune leaf files
+  (see [Ordering](#ordering)).
 
 ### Leaf Files
 
-Leaf files contain the index entries and represent the lowest level of the index hierarchy.
+Leaf files contain the index values and represent the lowest level of the index hierarchy.
 
 Leaf files must be standard Iceberg data files and may be stored using any Iceberg-supported file format:
 - Parquet
 - Avro
 - ORC - May be removed if ORC support is deprecated in Iceberg.
 
-Each leaf file row is the result of evaluating the [index values](#index-values) expression for one indexed row.
+Each leaf file row is the result of evaluating the [index values](#index-values) expressions for one indexed row.
 Entries within a leaf file must be stored in the [index ordering](#ordering), which allows an effective search for
 an index key within the leaf file.
 
 #### Leaf Schema
 
-The leaf schema is the declared result type of the index values expression and must satisfy the requirements for struct
-types in the [table specification](spec.md#schemas-and-data-types).
+The leaf schema is derived from the [index values](#index-values) expressions. It is a struct with one field per index
+values expression, in the order the expressions are listed. The type of a leaf schema field is the result type of the
+expression that produces it.
 
-Fields that hold a value read directly from the source table should preserve the original Iceberg field identifier.
+The field ID of a leaf schema field is assigned as follows:
 
-The leaf schema must include the following fields, which locate the indexed row in the source table:
+- An identity expression of the `_file` (`2147483646`) metadata column produces the `file_path` field (`2147483546`).
+- An identity expression of the `_pos` (`2147483645`) metadata column produces the `pos` (`2147483545`) field.
+- Any other identity expression preserves the field ID of the referenced source table field, including the IDs of its
+  nested fields.
+- Any other expression is assigned a generated field ID which should not clash with an existing field ID, or metadata
+  field ID, of the source table. Users of the index must not rely on the generated field IDs, which may change when the
+  index is rebuilt.
 
-| Field Id   | Column           | Type   | Description                                               |
-|------------|------------------|--------|-----------------------------------------------------------|
-| 2147483538 | source_file_path | string | The path of the source data file the entry references     |
-| 2147483537 | source_file_pos  | long   | The row position of the entry within the source data file |
-
-These fields are populated from the `_file` (`2147483646`) and `_pos` (`2147483645`) metadata columns of the source
-table, defined in [Reserved Field IDs](spec.md#reserved-field-ids).
+The field name of a leaf schema field that preserves a source table field ID is the name of that field in the current
+source table schema. Names of generated fields are not defined by this specification and must not be used to resolve
+leaf schema fields; readers must match leaf file columns by field ID.
 
 ## Future Extensions
 
@@ -303,23 +302,22 @@ without understanding how the index was built.
 ### Index expressions
 
 An index is defined by expressions rather than by a fixed list of columns and a closed set of transforms. This keeps
-the index definition open ended, but it also means the definition must survive schema changes and must mean the same
-thing to every engine that touches the index.
+the index definition open ended, but it also means the definition must survive schema changes and expressions must be
+deterministic for the same reason a sort key must be stable: an expression that depends on `random` or on the evaluation
+time would place entries at positions that cannot be reproduced, invalidating the index as soon as it is written.
 
-The restrictions on index expressions all follow from that requirement. Expressions are stored with the index and must
-remain valid when source columns are renamed, so fields are referenced by ID rather than by name. Functions are limited
-to the `iceberg_functions` and `sql_functions` reserved catalogs, which every engine can resolve identically;
-user-defined functions are excluded because their definitions may be unavailable to a reader or may change after
-entries have been written. Expressions must be deterministic for the same reason a sort key must be stable: an
-expression that depends on `random` or on the evaluation time would place entries at positions that cannot be
-reproduced, invalidating the index as soon as it is written.
+Index values and index keys are lists of expressions. A list generates the individual key and value components, and
+their order, part of the index definition, which is what engines need to match an index to a query and to compare index
+keys component by component. If an engine does not support a specific expression, it cannot use the index for queries
+that require that expression.
 
 ### Ordering
 
-The index keys expression determines where an entry is placed, so its result type is limited to values that Iceberg can
-order. Primitives are ordered by the rules the expressions specification already defines. Structs are ordered field by
-field, which is an extension of the sort orders in the Iceberg table specification. Lists and maps have no defined
-ordering in Iceberg and are therefore excluded.
+Each index keys expression determines part of the position of an entry, so its result type is limited to values that
+Iceberg can order. Primitives are ordered by the rules the expressions specification already defines. Multi-component
+keys are compared expression by expression, which is an extension of the sort orders in the Iceberg table
+specification. Structs, lists, and maps are excluded: lists and maps have no defined ordering in Iceberg, and a struct
+key is expressed as separate index keys expressions instead.
 
 Index keys alone do not have to be unique. Ordering entries with equal index keys by the location of the source row
 makes the ordering total, because a source row is uniquely identified by its file path and position.
@@ -335,13 +333,16 @@ of the index key statistics.
 
 ### Leaf schema
 
-The leaf schema is the declared result type of the index values expression, so the index definition and the physical
-layout of the index cannot drift apart. Fields copied from the source table keep their original field IDs, which keeps
-schema evolution, column renames, and type compatibility semantics consistent between the table and the index.
+The leaf schema is derived from the index values expressions, so the index definition and the physical layout of the
+index cannot drift apart and the schema does not have to be maintained as a second, redundant copy of the definition.
 
-The source row location is stored under its own field IDs rather than reusing `_file` and `_pos`. Those metadata
-columns describe the file a row is physically stored in, which for an index entry is the leaf file, not the source data
-file the entry points at.
+Fields produced by identity expressions keep the field ID of the source column, which keeps schema evolution, column
+renames, and type compatibility semantics consistent between the table and the index. Fields produced by any other
+expression have no counterpart in the table, so they are assigned IDs.
+
+The source row location is stored under its field IDs reusing delete file `file_name` and `pos` columns, rather than
+using `_file` and `_pos`. Those metadata columns point to a physical place and describe the file a row is physically
+stored in.
 
 ### Commits
 
@@ -358,7 +359,7 @@ point lookups on the `user_id` column, a key lookup index is created.
 ```sql
 CREATE INDEX bucket_index
     ON events (user_id)
-    USING struct(bucket(256, user_id), user_id);
+    USING (bucket(256, user_id), user_id);
 ```
 
 This creates a `SCALAR` index on the `user_id` column that orders entries by the hash bucket of `user_id` and then
@@ -368,14 +369,14 @@ index snapshot. Leaf file boundaries are created based on the index keys, so a l
 of buckets or a range of `user_id` values within a single bucket. The tracking file stores summary information and
 pruning statistics.
 
-The index values expression produces each leaf file row from `user_id` and the reserved metadata columns that identify
-the source row:
+The index values expressions produce each leaf file row from `user_id` and the reserved metadata columns that identify
+the source row. All three are identity expressions, so the leaf schema is derived as:
 
-| Column           | Description                                  |
-|------------------|----------------------------------------------|
-| user_id          | The indexed source column                    |
-| source_file_path | The source data file that contains the row   |
-| source_file_pos  | The row position within the source data file |
+| Field ID   | Column    | Type   | Description                                                  |
+|------------|-----------|--------|--------------------------------------------------------------|
+| 1          | user_id   | long   | The indexed source column, keeping its source table field ID |
+| 2147483546 | file_path | string | The source data file that contains the row, from `_file`     |
+| 2147483545 | pos       | long   | The row position within the source data file, from `_pos`    |
 
 The JSON metadata file is shown below.
 
@@ -389,34 +390,18 @@ s3://bucket/warehouse/default.db/events/index/bucket_index/metadata/00001-(uuid)
   "table-uuid" : "fb072c92-a02b-11e9-ae9c-1bb7bc9eca94",
   "location" : "s3://bucket/warehouse/default.db/events/index/bucket_index",
   "type" : "SCALAR",
-  "index-values" : {
+  "index-values" : [
+    { "type" : "reference", "id" : 1 },
+    { "type" : "reference", "id" : 2147483646 },
+    { "type" : "reference", "id" : 2147483645 }
+  ],
+  "index-keys" : [ {
     "type" : "apply",
-    "function" : { "catalog" : "iceberg_functions", "identifier" : [ "struct" ] },
-    "arguments" : [
-      { "type" : "reference", "id" : 1 },
-      { "type" : "reference", "id" : 2147483646 },
-      { "type" : "reference", "id" : 2147483645 }
-    ],
-    "result-type" : {
-      "type" : "struct",
-      "fields" : [
-        { "id" : 1, "name" : "user_id", "required" : true, "type" : "long" },
-        { "id" : 2147483538, "name" : "source_file_path", "required" : true, "type" : "string" },
-        { "id" : 2147483537, "name" : "source_file_pos", "required" : true, "type" : "long" }
-      ]
-    }
-  },
-  "index-keys" : {
-    "type" : "apply",
-    "function" : { "catalog" : "iceberg_functions", "identifier" : [ "struct" ] },
-    "arguments" : [ {
-      "type" : "apply",
-      "function" : { "catalog" : "iceberg_functions", "identifier" : [ "bucket" ] },
-      "arguments" : [ 256, { "type" : "reference", "id" : 1 } ]
-    }, {
-      "type" : "reference", "id" : 1
-    } ]
-  },
+    "function" : { "catalog" : "iceberg_functions", "identifier" : [ "bucket" ] },
+    "arguments" : [ 256, { "type" : "reference", "id" : 1 } ]
+  }, {
+    "type" : "reference", "id" : 1
+  } ],
   "snapshots" : [ {
     "snapshot-id" : 1,
     "source-table-snapshot-id" : 3055729675574597004,
@@ -438,29 +423,29 @@ files:
 Each entry also carries a `content_stats` struct. For `leaf-00001.parquet` the column statistics cover the three leaf
 schema fields, and the index key upper bound records the last index key in the file:
 
-| Statistic                | Value                                                                  |
-|--------------------------|------------------------------------------------------------------------|
-| `user_id` bounds         | `12094` .. `84721`                                                     |
-| `source_file_path` bounds| `.../data/00000-0-(uuid).parquet` .. `.../data/00001-0-(uuid).parquet` |
-| `source_file_pos` bounds | `3` .. `92`                                                            |
-| index key upper bound    | `{ bucket: 88, user_id: 55310 }`                                       |
+| Statistic             | Value                                                                  |
+|-----------------------|------------------------------------------------------------------------|
+| `user_id` bounds      | `12094` .. `84721`                                                     |
+| `file_path` bounds    | `.../data/00000-0-(uuid).parquet` .. `.../data/00001-0-(uuid).parquet` |
+| `pos` bounds          | `3` .. `92`                                                            |
+| index key upper bound | `{ bucket: 88, user_id: 55310 }`                                       |
 
 The equivalent statistics for `leaf-00002.parquet` show that the two files hold non-overlapping ranges of the index
 ordering. `leaf-00002.parquet` is the second entry of the tracking file, so its range starts after the upper bound of
 `leaf-00001.parquet`:
 
-| Statistic                | Value                                                                  |
-|--------------------------|------------------------------------------------------------------------|
-| `user_id` bounds         | `3277` .. `99182`                                                      |
-| `source_file_path` bounds| `.../data/00000-0-(uuid).parquet` .. `.../data/00001-0-(uuid).parquet` |
-| `source_file_pos` bounds | `7` .. `41`                                                            |
-| index key upper bound    | `{ bucket: 209, user_id: 3277 }`                                       |
+| Statistic             | Value                                                                  |
+|-----------------------|------------------------------------------------------------------------|
+| `user_id` bounds      | `3277` .. `99182`                                                      |
+| `file_path` bounds    | `.../data/00000-0-(uuid).parquet` .. `.../data/00001-0-(uuid).parquet` |
+| `pos` bounds          | `7` .. `41`                                                            |
+| index key upper bound | `{ bucket: 209, user_id: 3277 }`                                       |
 
-A lookup for `user_id = 55310` evaluates the index keys expression for that value, producing
+A lookup for `user_id = 55310` evaluates the index keys expressions for that value, producing
 `{ bucket: 88, user_id: 55310 }`. That key is not greater than the upper bound of `leaf-00001.parquet`, the first entry
 of the tracking file, so only the first leaf file is read.
 
-The rows of `leaf-00001.parquet` follow the leaf schema declared by the index values expression, stored in the index
+The rows of `leaf-00001.parquet` follow the leaf schema derived from the index values expressions, stored in the index
 ordering. The index key of each row is not stored; it is shown here to make the ordering visible:
 
 | user_id | source_file_path                 | source_file_pos | (index key)     |
@@ -490,34 +475,18 @@ s3://bucket/warehouse/default.db/events/index/bucket_index/metadata/00002-(uuid)
   "table-uuid" : "fb072c92-a02b-11e9-ae9c-1bb7bc9eca94",
   "location" : "s3://bucket/warehouse/default.db/events/index/bucket_index",
   "type" : "SCALAR",
-  "index-values" : {
+  "index-values" : [
+    { "type" : "reference", "id" : 1 },
+    { "type" : "reference", "id" : 2147483646 },
+    { "type" : "reference", "id" : 2147483645 }
+  ],
+  "index-keys" : [ {
     "type" : "apply",
-    "function" : { "catalog" : "iceberg_functions", "identifier" : [ "struct" ] },
-    "arguments" : [
-      { "type" : "reference", "id" : 1 },
-      { "type" : "reference", "id" : 2147483646 },
-      { "type" : "reference", "id" : 2147483645 }
-    ],
-    "result-type" : {
-      "type" : "struct",
-      "fields" : [
-        { "id" : 1, "name" : "user_id", "required" : true, "type" : "long" },
-        { "id" : 2147483538, "name" : "source_file_path", "required" : true, "type" : "string" },
-        { "id" : 2147483537, "name" : "source_file_pos", "required" : true, "type" : "long" }
-      ]
-    }
-  },
-  "index-keys" : {
-    "type" : "apply",
-    "function" : { "catalog" : "iceberg_functions", "identifier" : [ "struct" ] },
-    "arguments" : [ {
-      "type" : "apply",
-      "function" : { "catalog" : "iceberg_functions", "identifier" : [ "bucket" ] },
-      "arguments" : [ 256, { "type" : "reference", "id" : 1 } ]
-    }, {
-      "type" : "reference", "id" : 1
-    } ]
-  },
+    "function" : { "catalog" : "iceberg_functions", "identifier" : [ "bucket" ] },
+    "arguments" : [ 256, { "type" : "reference", "id" : 1 } ]
+  }, {
+    "type" : "reference", "id" : 1
+  } ],
   "snapshots" : [ {
     "snapshot-id" : 1,
     "source-table-snapshot-id" : 3055729675574597004,
@@ -545,12 +514,12 @@ with the merged entries. `leaf-00002.parquet` covers a disjoint range and is reu
 The statistics of `leaf-00003.parquet` cover the merged entries, while the entry for `leaf-00002.parquet` is copied
 from the previous tracking file:
 
-| Statistic                | Value                                                                  |
-|--------------------------|------------------------------------------------------------------------|
-| `user_id` bounds         | `12094` .. `84721`                                                     |
-| `source_file_path` bounds| `.../data/00000-0-(uuid).parquet` .. `.../data/00002-0-(uuid).parquet` |
-| `source_file_pos` bounds | `3` .. `92`                                                            |
-| index key upper bound    | `{ bucket: 88, user_id: 55310 }`                                       |
+| Statistic             | Value                                                                  |
+|-----------------------|------------------------------------------------------------------------|
+| `user_id` bounds      | `12094` .. `84721`                                                     |
+| `file_path` bounds    | `.../data/00000-0-(uuid).parquet` .. `.../data/00002-0-(uuid).parquet` |
+| `pos` bounds          | `3` .. `92`                                                            |
+| index key upper bound | `{ bucket: 88, user_id: 55310 }`                                       |
 
 The rows of `leaf-00003.parquet` interleave the entries of the rewritten leaf file with the entries added for the new
 data file, keeping the index ordering:
@@ -582,34 +551,18 @@ s3://bucket/warehouse/default.db/events/index/bucket_index/metadata/00003-(uuid)
   "table-uuid" : "fb072c92-a02b-11e9-ae9c-1bb7bc9eca94",
   "location" : "s3://bucket/warehouse/default.db/events/index/bucket_index",
   "type" : "SCALAR",
-  "index-values" : {
+  "index-values" : [
+    { "type" : "reference", "id" : 1 },
+    { "type" : "reference", "id" : 2147483646 },
+    { "type" : "reference", "id" : 2147483645 }
+  ],
+  "index-keys" : [ {
     "type" : "apply",
-    "function" : { "catalog" : "iceberg_functions", "identifier" : [ "struct" ] },
-    "arguments" : [
-      { "type" : "reference", "id" : 1 },
-      { "type" : "reference", "id" : 2147483646 },
-      { "type" : "reference", "id" : 2147483645 }
-    ],
-    "result-type" : {
-      "type" : "struct",
-      "fields" : [
-        { "id" : 1, "name" : "user_id", "required" : true, "type" : "long" },
-        { "id" : 2147483538, "name" : "source_file_path", "required" : true, "type" : "string" },
-        { "id" : 2147483537, "name" : "source_file_pos", "required" : true, "type" : "long" }
-      ]
-    }
-  },
-  "index-keys" : {
-    "type" : "apply",
-    "function" : { "catalog" : "iceberg_functions", "identifier" : [ "struct" ] },
-    "arguments" : [ {
-      "type" : "apply",
-      "function" : { "catalog" : "iceberg_functions", "identifier" : [ "bucket" ] },
-      "arguments" : [ 256, { "type" : "reference", "id" : 1 } ]
-    }, {
-      "type" : "reference", "id" : 1
-    } ]
-  },
+    "function" : { "catalog" : "iceberg_functions", "identifier" : [ "bucket" ] },
+    "arguments" : [ 256, { "type" : "reference", "id" : 1 } ]
+  }, {
+    "type" : "reference", "id" : 1
+  } ],
   "snapshots" : [ {
     "snapshot-id" : 2,
     "source-table-snapshot-id" : 5459876531255530170,
