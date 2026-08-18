@@ -24,9 +24,9 @@ import java.io.IOException;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.rest.RemoteSigningConfigParser;
 import org.apache.iceberg.rest.credentials.Credential;
 import org.apache.iceberg.rest.credentials.CredentialParser;
-import org.apache.iceberg.rest.signing.RemoteSigningConfigParser;
 import org.apache.iceberg.util.JsonUtil;
 
 public class LoadTableResponseParser {

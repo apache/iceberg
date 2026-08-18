@@ -39,6 +39,6 @@ public final class RemoteSigningProperties {
    */
   public static final String ENDPOINT = PREFIX + "endpoint";
 
-  /** The {@link org.apache.iceberg.rest.signing.RemoteSigningConfig}, JSON-encoded. */
+  /** The {@link RemoteSigningConfig}, JSON-encoded. */
   public static final String CONFIG = PREFIX + "config";
 }

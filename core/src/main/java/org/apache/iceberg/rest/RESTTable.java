@@ -30,7 +30,6 @@ import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableScan;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.metrics.MetricsReporter;
-import org.apache.iceberg.rest.signing.RemoteSigningConfig;
 
 class RESTTable extends BaseTable implements SupportsDistributedScanPlanning {
   private final RESTClient client;

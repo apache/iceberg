@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.rest.signing;
+package org.apache.iceberg.rest;
 
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -34,8 +34,8 @@ public class RemoteSigningConfigParser {
 
   private RemoteSigningConfigParser() {}
 
-  public static String toJson(RemoteSigningConfig credential) {
-    return toJson(credential, false);
+  public static String toJson(RemoteSigningConfig remoteSigningConfig) {
+    return toJson(remoteSigningConfig, false);
   }
 
   public static String toJson(RemoteSigningConfig remoteSigningConfig, boolean pretty) {
