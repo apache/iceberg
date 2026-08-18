@@ -467,6 +467,43 @@ public class TestRepairTableAction extends TestBase {
     return paths;
   }
 
+  @TestTemplate
+  public void testRepairAfterPartitionSpecEvolution() throws IOException {
+    Table table = createTable(PartitionSpec.unpartitioned());
+    appendRecords(table, records(4));
+
+    DataFile original = onlyDataFile(table);
+    assertThat(original.specId()).isEqualTo(0);
+    assertThat(original.partition().size()).isEqualTo(0);
+
+    // evolve the table to a partitioned spec; the existing manifest keeps referring to spec 0
+    table.updateSpec().addField("c1").commit();
+    table.refresh();
+    assertThat(table.spec().specId()).isEqualTo(1);
+
+    ManifestFile oldManifest = table.currentSnapshot().dataManifests(table.io()).get(0);
+    assertThat(oldManifest.partitionSpecId())
+        .as("the manifest written before the evolution must still be tagged with the old spec")
+        .isEqualTo(0);
+
+    // corrupt the stats of the entry that still belongs to the original, unpartitioned spec
+    corruptStats(table, oldManifest, original.location());
+
+    SparkActions.get().repairTable(table).execute();
+
+    table.refresh();
+    DataFile repaired = onlyDataFile(table);
+    assertThat(repaired.recordCount())
+        .as("the repair must still correct the stats")
+        .isEqualTo(original.recordCount());
+    assertThat(repaired.specId())
+        .as("the repaired entry must keep the spec it was originally written under")
+        .isEqualTo(0);
+    assertThat(repaired.partition().size())
+        .as("an unpartitioned file's partition data must still have zero fields after repair")
+        .isEqualTo(0);
+  }
+
   private List<DataFile> dataFiles(Table table) throws IOException {
     List<DataFile> files = Lists.newArrayList();
     for (ManifestFile manifest : table.currentSnapshot().dataManifests(table.io())) {
