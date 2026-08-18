@@ -271,7 +271,7 @@ public class TestManifestReader extends TestBase {
   }
 
   @TestTemplate
-  public void testReadWithoutSpecsById() throws IOException {
+  public void readWithoutSpecsById() throws IOException {
     assumeThat(formatVersion)
         .as("Deprecated read without specsById requires Avro metadata; V4 uses Parquet")
         .isLessThan(TableMetadata.MIN_FORMAT_VERSION_PARQUET_MANIFESTS);
