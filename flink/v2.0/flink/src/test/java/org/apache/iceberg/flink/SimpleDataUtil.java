@@ -61,7 +61,6 @@ import org.apache.iceberg.flink.sink.FlinkFileWriterFactory;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.DataWriter;
-import org.apache.iceberg.io.FileAppenderFactory;
 import org.apache.iceberg.io.FileWriterFactory;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -209,24 +208,6 @@ public class SimpleDataUtil {
 
   public static DeleteFile writeEqDeleteFile(
       Table table,
-      FileFormat format,
-      String filename,
-      FileAppenderFactory<RowData> appenderFactory,
-      List<RowData> deletes)
-      throws IOException {
-    EncryptedOutputFile outputFile =
-        encrypt(fromPath(new Path(table.location(), filename), new Configuration()));
-
-    EqualityDeleteWriter<RowData> eqWriter =
-        appenderFactory.newEqDeleteWriter(outputFile, format, null);
-    try (EqualityDeleteWriter<RowData> writer = eqWriter) {
-      writer.write(deletes);
-    }
-    return eqWriter.toDeleteFile();
-  }
-
-  public static DeleteFile writeEqDeleteFile(
-      Table table,
       PartitionSpec spec,
       String filename,
       FileWriterFactory<RowData> writerFactory,
@@ -242,27 +223,6 @@ public class SimpleDataUtil {
     }
 
     return eqWriter.toDeleteFile();
-  }
-
-  public static DeleteFile writePosDeleteFile(
-      Table table,
-      FileFormat format,
-      String filename,
-      FileAppenderFactory<RowData> appenderFactory,
-      List<Pair<CharSequence, Long>> positions)
-      throws IOException {
-    EncryptedOutputFile outputFile =
-        encrypt(fromPath(new Path(table.location(), filename), new Configuration()));
-
-    PositionDeleteWriter<RowData> posWriter =
-        appenderFactory.newPosDeleteWriter(outputFile, format, null);
-    PositionDelete<RowData> posDelete = PositionDelete.create();
-    try (PositionDeleteWriter<RowData> writer = posWriter) {
-      for (Pair<CharSequence, Long> p : positions) {
-        writer.write(posDelete.set(p.first(), p.second(), null));
-      }
-    }
-    return posWriter.toDeleteFile();
   }
 
   public static DeleteFile writePosDeleteFile(

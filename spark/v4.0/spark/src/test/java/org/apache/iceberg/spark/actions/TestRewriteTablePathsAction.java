@@ -71,11 +71,12 @@ import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.deletes.BaseDVFileWriter;
 import org.apache.iceberg.deletes.DVFileWriter;
-import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.hadoop.HadoopTables;
+import org.apache.iceberg.io.DeleteSchemaUtil;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.OutputFileFactory;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -193,6 +194,47 @@ public class TestRewriteTablePathsAction extends TestBase {
   private void dropNameSpaces() {
     sql("DROP DATABASE IF EXISTS %s CASCADE", ns);
     sql("DROP DATABASE IF EXISTS %s CASCADE", backupNs);
+  }
+
+  @TestTemplate
+  void positionDeleteWithRowIsRejected() throws Exception {
+    assumeThat(formatVersion).as("Only v2 position deletes could carry row data").isEqualTo(2);
+
+    String dataFileLocation =
+        SnapshotChanges.builderFor(table).build().addedDataFiles().iterator().next().location();
+    OutputFile deleteFile =
+        table
+            .io()
+            .newOutputFile(
+                new File(removePrefix(table.location() + "/data/deeply/nested/deletes.parquet"))
+                    .toURI()
+                    .toString());
+
+    GenericRecord row = GenericRecord.create(table.schema());
+    row.set(0, 1);
+    row.set(1, "AAAAAAAAAA");
+    row.set(2, "AAAA");
+    GenericRecord posDelete =
+        GenericRecord.create(DeleteSchemaUtil.posDeleteSchema(table.schema()));
+    posDelete.set(0, dataFileLocation);
+    posDelete.set(1, 0L);
+    posDelete.set(2, row);
+
+    DeleteFile positionDeleteWithRow =
+        FileHelpers.testOnlyPosDeleteFileWithRow(
+            table, deleteFile, null, ImmutableList.of(posDelete));
+    table.newRowDelta().addDeletes(positionDeleteWithRow).commit();
+
+    assertThatThrownBy(
+            () ->
+                actions()
+                    .rewriteTablePath(table)
+                    .stagingLocation(stagingLocation())
+                    .rewriteLocationPrefix(table.location(), targetTableLocation())
+                    .execute())
+        .rootCause()
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot rewrite position delete file with row data for");
   }
 
   @TestTemplate
@@ -485,52 +527,6 @@ public class TestRewriteTablePathsAction extends TestBase {
 
     // copy the metadata files and data files
     copyTableFiles(result);
-
-    // Positional delete affects a single row, so only one row must remain
-    assertThat(spark.read().format("iceberg").load(targetTableLocation()).collectAsList())
-        .hasSize(1);
-  }
-
-  @TestTemplate
-  public void testPositionDeleteWithRow() throws Exception {
-    String dataFileLocation =
-        SnapshotChanges.builderFor(table).build().addedDataFiles().iterator().next().location();
-    List<PositionDelete<?>> deletes = Lists.newArrayList();
-    OutputFile deleteFile =
-        table
-            .io()
-            .newOutputFile(
-                new File(removePrefix(table.location() + "/data/deeply/nested/deletes.parquet"))
-                    .toURI()
-                    .toString());
-    deletes.add(positionDelete(SCHEMA, dataFileLocation, 0L, 1, "AAAAAAAAAA", "AAAA"));
-    DeleteFile positionDeletes =
-        FileHelpers.writePosDeleteFile(table, deleteFile, null, deletes, formatVersion);
-    table.newRowDelta().addDeletes(positionDeletes).commit();
-
-    assertThat(spark.read().format("iceberg").load(table.location()).collectAsList()).hasSize(1);
-
-    RewriteTablePath.Result result =
-        actions()
-            .rewriteTablePath(table)
-            .stagingLocation(stagingLocation())
-            .rewriteLocationPrefix(table.location(), targetTableLocation())
-            .execute();
-
-    // We have one more snapshot, an additional manifest list, and a new (delete) manifest,
-    // and an additional position delete
-    checkFileNum(4, 3, 3, 13, result);
-
-    // copy the metadata files and data files
-    copyTableFiles(result);
-
-    // check copied position delete row - only v2 stores row data with position deletes
-    // v3+ uses Deletion Vectors (DV) which only store position information
-    if (formatVersion == 2) {
-      Object[] deletedRow = (Object[]) rows(targetTableLocation() + "#position_deletes").get(0)[2];
-      assertEquals(
-          "Position deletes should be equal", new Object[] {1, "AAAAAAAAAA", "AAAA"}, deletedRow);
-    }
 
     // Positional delete affects a single row, so only one row must remain
     assertThat(spark.read().format("iceberg").load(targetTableLocation()).collectAsList())
@@ -1923,17 +1919,6 @@ public class TestRewriteTablePathsAction extends TestBase {
 
   private List<Object[]> rowsSorted(String location, String sortCol) {
     return rowsToJava(spark.read().format("iceberg").load(location).sort(sortCol).collectAsList());
-  }
-
-  private PositionDelete<GenericRecord> positionDelete(
-      Schema tableSchema, CharSequence path, Long position, Object... values) {
-    PositionDelete<GenericRecord> posDelete = PositionDelete.create();
-    GenericRecord nested = GenericRecord.create(tableSchema);
-    for (int i = 0; i < values.length; i++) {
-      nested.set(i, values[i]);
-    }
-    posDelete.set(path, position, nested);
-    return posDelete;
   }
 
   private void removeBroadcastValuesFromLocalBlockManager(long id) {
