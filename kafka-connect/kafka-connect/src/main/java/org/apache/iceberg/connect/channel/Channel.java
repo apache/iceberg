@@ -122,7 +122,9 @@ abstract class Channel {
     while (!records.isEmpty()) {
       for (ConsumerRecord<String, byte[]> record : records) {
         Long nextOffset = controlTopicOffsets.get(record.partition());
-        // A consumer group rebalance can rewind the fetch position without recreating this channel.
+        // A rebalance may revoke and later reassign this control partition to the same
+        // consumer. Kafka then initializes it from the group's committed offset, which
+        // can lag this channel's retained in-memory position.
         if (nextOffset != null && record.offset() < nextOffset) {
           LOG.debug(
               "Skipping already-consumed control topic offset {} for partition {}",
