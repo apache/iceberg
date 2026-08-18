@@ -63,7 +63,8 @@ public class GenericManifestFile extends SupportsIndexProjection
 
   /** Used by Avro reflection to instantiate this class when reading manifest files. */
   public GenericManifestFile(Schema avroSchema) {
-    super(ManifestFile.schema().asStruct(), AvroSchemaUtil.convert(avroSchema).asStructType());
+    super(
+        ManifestFile.schema().asStruct(), AvroSchemaUtil.convert(avroSchema, false).asStructType());
     this.avroSchema = avroSchema;
   }
 
