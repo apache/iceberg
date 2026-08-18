@@ -118,7 +118,7 @@ public class TestRESTUtil {
     assertThat(namespaceAsUnicode).contains("\u001f");
 
     // newer server would try and decode the namespace with the separator it communicates to clients
-    String separator = RESTCatalogAdapter.NAMESPACE_SEPARATOR_URLENCODED_UTF_8;
+    String separator = "%2E";
     Namespace decodedNamespace = RESTUtil.decodeNamespace(encodedNamespace, separator);
     assertThat(decodedNamespace).isEqualTo(namespace);
 

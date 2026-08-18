@@ -157,8 +157,8 @@ public class RESTUtil {
 
   /**
    * This converts the given namespace to a string and separates each part in a multipart namespace
-   * using the unicode character '\u001f'. Note that this method uses the raw unicode separator,
-   * unlike the percent-encoded form used by the REST catalog path encoding.
+   * using the unicode character '\u001f'. Note that this method is different from {@link
+   * RESTUtil#encodeNamespace(Namespace, String)}, which URL-encodes each part of the namespace.
    *
    * <p>{@link #namespaceFromQueryParam(String)} should be used to convert the namespace string back
    * to a {@link Namespace} instance.
@@ -173,8 +173,7 @@ public class RESTUtil {
 
   /**
    * This converts the given namespace to a string and separates each part in a multipart namespace
-   * using the provided unicode separator. Note that this method uses the raw unicode separator,
-   * unlike the percent-encoded form used by the REST catalog path encoding.
+   * using the provided unicode separator.
    *
    * <p>{@link #namespaceFromQueryParam(String, String)} should be used to convert the namespace
    * string back to a {@link Namespace} instance.
