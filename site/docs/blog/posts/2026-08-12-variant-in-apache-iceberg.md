@@ -95,9 +95,9 @@ Snapshots do not change this. Each snapshot records the schema that was current 
 
 ### Statistics and data skipping
 
-Because Variant is a column in the Iceberg schema, the table's manifests carry statistics for it, and that is what lets Iceberg skip files during planning. Iceberg records value and null counts for a Variant column. When a field is shredded into its own typed column, Iceberg also records lower and upper bounds for it, stored as a Variant object whose keys are normalized JSON paths to each field. An unshredded `value` blob is opaque, so it contributes counts but no bounds.
+Because Variant is a column in the Iceberg schema, the table's manifests can carry statistics for it, and that is what lets Iceberg skip files during planning. Iceberg records value and null counts for a Variant column. Per-field lower and upper bounds are optional, stored as a Variant object whose keys are normalized JSON paths to each field. For an unshredded `value`, computing those bounds means reading the raw value bytes, so writers typically record only counts. When a field is shredded into its own typed column, its Parquet statistics are available directly, so Iceberg can record its bounds.
 
-With those bounds in the manifest, a predicate on a shredded field can prune whole files before any data is read: if a file's recorded range for that field cannot match, Iceberg skips it during planning. Fields that are not shredded have no bounds, so the engine reads and filters them instead.
+With those bounds in the manifest, a predicate on a field that has them can prune whole files before any data is read: if a file's recorded range for that field cannot match, Iceberg skips it during planning. A field with no recorded bounds is read and filtered by the engine instead.
 
 ### Reading and writing across engines
 
