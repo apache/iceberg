@@ -151,7 +151,8 @@ public class FileSystemWalker {
       return;
     }
 
-    PrefixListing listing = io.listImmediate(dir);
+    String listPath = dir.endsWith("/") ? dir : dir + "/";
+    PrefixListing listing = io.listImmediate(listPath);
 
     List<String> subDirs = Lists.newArrayList();
     for (String subPrefix : listing.subPrefixes()) {

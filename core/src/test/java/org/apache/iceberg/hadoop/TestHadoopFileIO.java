@@ -38,6 +38,7 @@ import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.io.BulkDeletionFailureException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.FileIOParser;
+import org.apache.iceberg.io.PrefixListing;
 import org.apache.iceberg.io.ResolvingFileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -84,6 +85,29 @@ public class TestHadoopFileIO {
     long totalFiles = scaleSizes.stream().mapToLong(Integer::longValue).sum();
     assertThat(Streams.stream(hadoopFileIO.listPrefix(parent.toUri().toString())).count())
         .isEqualTo(totalFiles);
+  }
+
+  @Test
+  public void testListImmediate() throws IOException {
+    Path parent = new Path(tempDir.toURI());
+
+    Path subDir = new Path(parent, "sub");
+    fs.mkdirs(subDir);
+    fs.createNewFile(new Path(subDir, "nested.txt"));
+
+    Path immediateFile1 = new Path(parent, "a.txt");
+    Path immediateFile2 = new Path(parent, "b.txt");
+    fs.createNewFile(immediateFile1);
+    fs.createNewFile(immediateFile2);
+
+    PrefixListing listing = hadoopFileIO.listImmediate(parent.toUri().toString());
+
+    assertThat(listing.files())
+        .extracting(fileInfo -> new Path(fileInfo.location()).getName())
+        .containsExactlyInAnyOrder("a.txt", "b.txt");
+    assertThat(listing.subPrefixes())
+        .extracting(prefix -> new Path(prefix).getName())
+        .containsExactly("sub");
   }
 
   @Test
