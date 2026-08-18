@@ -24,7 +24,6 @@ import static org.mockito.Mockito.when;
 
 import java.io.IOException;
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -45,6 +44,7 @@ import org.apache.iceberg.connect.events.TopicPartitionOffset;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.kafka.clients.admin.MemberAssignment;
 import org.apache.kafka.clients.admin.MemberDescription;
@@ -129,7 +129,7 @@ class TestControlTopicReplay extends ChannelTestBase {
     assertThat(snapshots).hasSize(1);
     assertThat(snapshots.get(0).summary()).containsEntry(OFFSETS_SNAPSHOT_PROP, "{\"0\":5}");
 
-    List<String> locations = new ArrayList<>();
+    List<String> locations = Lists.newArrayList();
     try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
       tasks.forEach(task -> locations.add(task.file().location()));
     }
