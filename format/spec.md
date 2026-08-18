@@ -676,7 +676,7 @@ A manifest file must store the partition spec and other metadata as properties i
 
 #### Content file uniqueness
 
-Within a snapshot, each content file must be referenced by at most one manifest entry across all manifests; otherwise, the snapshot has undefined behavior. Writers are not required to validate uniqueness at commit time.
+Within a snapshot, each content file must be referenced by at most one live manifest entry across all manifests; otherwise, the snapshot has undefined behavior. Writers should not produce multiple manifest entries for the same content file in a snapshot (for example, both ADDED and DELETED entries for the same file). Writers are not required to validate uniqueness at commit time.
 
 #### Manifest Entry Fields
 
@@ -1064,7 +1064,7 @@ Scan predicates are also used to filter data and delete files using column bound
 
 Data files that match the query filter must be read by the scan.
 
-Manifest entries that reference the same content file violate [content file uniqueness](#content-file-uniqueness). When duplicates are present, table behavior (including scan results) is undefined. Reader implementations may raise an error but are not required to do so.
+Duplicate live manifest entries for the same content file violate [content file uniqueness](#content-file-uniqueness). When duplicate live entries are present, table behavior (including scan results) is undefined. Reader implementations may raise an error but are not required to do so.
 
 Delete files and deletion vector metadata that match the filters must be applied to data files at read time, limited by the following scope rules.
 
