@@ -142,10 +142,6 @@ import org.mockito.Mockito;
 public class TestRewriteDataFilesAction extends TestBase {
 
   @TempDir private File tableDir;
-  // Most tests only assert on file/snapshot counts and rewrite structure, which do not depend on
-  // the absolute data volume, so they use a small scale to keep CI fast. The few tests whose
-  // assertions genuinely depend on large files (size-based splitting, sort/z-order shuffle output)
-  // use LARGE_SCALE to stay byte-for-byte equivalent to the original behavior.
   private static final int SCALE = 400;
   private static final int LARGE_SCALE = 400000;
 
