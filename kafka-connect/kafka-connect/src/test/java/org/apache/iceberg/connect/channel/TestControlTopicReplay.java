@@ -93,11 +93,7 @@ class TestControlTopicReplay extends ChannelTestBase {
         new MemberDescription(null, Optional.empty(), null, null, assignment);
     Coordinator coordinator =
         new Coordinator(
-            catalog,
-            config,
-            ImmutableList.of(member),
-            clientFactory,
-            mock(SinkTaskContext.class));
+            catalog, config, ImmutableList.of(member), clientFactory, mock(SinkTaskContext.class));
     coordinator.start();
     initConsumer();
     coordinator.process();
