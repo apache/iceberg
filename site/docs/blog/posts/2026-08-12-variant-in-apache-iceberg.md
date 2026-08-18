@@ -25,9 +25,11 @@ categories:
  - limitations under the License.
  -->
 
-Semi-structured data, such as JSON-like documents whose fields differ from row to row, has always been a poor fit for table formats built around fixed schemas. Iceberg v3 adds the Variant type for exactly this data: a single column can hold values of arbitrary, evolving shape, stored in a compact binary form that engines read and write consistently.
+Semi-structured data, such as JSON-like documents whose fields differ from row to row, has always been a poor fit for table formats built around fixed schemas. Iceberg v3 adds the Variant type for exactly this data: a single column can hold values of arbitrary, evolving shape, stored as a compact binary value that engines read and write consistently.
 
-This is the first post in a series on Variant in Apache Iceberg. It covers what Variant is, why it exists, and how it fits into an Iceberg table. The next post covers shredding, the technique that stores frequently accessed Variant fields as typed, columnar data. Variant is stored in Parquet, Avro, and ORC; shredding is currently available only in Parquet.
+This is the first post in a series on Variant in Apache Iceberg: what Variant is, why it exists, and how it fits into an Iceberg table. Parquet already defines the Variant type and its binary encoding, so this post focuses on what Iceberg adds on top: how Variant fits the table's schema, files, snapshots, and statistics.
+
+Variant is stored in Parquet, Avro, and ORC. Shredding, an optimization that stores commonly queried Variant fields as their own typed columns, is available only in Parquet; a later post covers how it works.
 
 <!-- more -->
 
@@ -41,12 +43,12 @@ Consider event data whose shape changes over time:
 {"event": "view", "page": "/docs", "session": "s-3c07", "referrer": {"source": "search", "term": "iceberg variant"}}
 ```
 
-Two traditional approaches handle this, and both have drawbacks:
+Without Variant, an Iceberg table has two ways to store data like this, and both have drawbacks:
 
 - **JSON stored as a string.** This is flexible, but reading a single field means parsing the whole text. JSON's type system is also thin: a timestamp is just a string, and a number's precision is ambiguous.
 - **A rigid, flattened schema.** This is fast to query, but every new field is a schema migration, and sparse or one-off fields waste space.
 
-Variant is as flexible as JSON but stores data in a compact, typed binary form. Values keep their native types: a timestamp stays a timestamp and a decimal stays an exact decimal, instead of collapsing to JSON's strings and numbers. Within a value, field names are collected into a dictionary and referenced by id, so a name is not written out in full each time it appears. No schema is declared up front, so documents of different shapes coexist in one column and a new field needs no migration.
+Variant is as flexible as JSON but encodes data as compact, typed binary. Values keep their native types: a timestamp stays a timestamp and a decimal stays an exact decimal, instead of collapsing to JSON's strings and numbers. No schema is declared up front, so documents of different shapes coexist in one column and a new field needs no migration.
 
 ## Variant in Apache Iceberg
 
@@ -56,6 +58,8 @@ A Variant value is similar to JSON, but with a wider set of primitives including
 
 1. A **Variant array** is an ordered collection of Variant values. Unlike an Iceberg list, its elements are not constrained to a single element type.
 2. A **Variant object** is a collection of string-keyed fields whose values are themselves Variant values. Unlike a struct column in an Iceberg schema, its fields are not a fixed, named set of typed columns.
+
+In an Iceberg schema, a Variant column is declared with the type name `variant` and stored in table metadata as a plain string, `"variant"`, not a nested object like a struct or list. Because its shape is not fixed, a Variant column cannot be promoted to or from another type, cannot be used for partitioning or as an identifier field, and must default to null.
 
 ### How it is stored
 
@@ -68,10 +72,32 @@ optional group payload (VARIANT(1)) {
 }
 ```
 
-- `metadata` holds a dictionary of the field names used in the value, so the `value` bytes reference each name by an integer id instead of repeating the name string.
+- `metadata` holds the dictionary of field names used in the value, so those names are not repeated inline with the data.
 - `value` holds the encoded data: a scalar, an array, or an object. Arrays and objects store a `field_offset` per element (the byte offset where that element's value starts), and objects also store a `field_id` per field (an index into the metadata dictionary).
 
-The Variant column itself is addressed by field ID like any other Iceberg column, but its `metadata` and `value` subfields are accessed by name, which matters for shredding.
+The Variant column itself is addressed by its Iceberg field ID like any other column, but its `metadata` and `value` subfields are accessed by name, which matters for shredding.
+
+The same Variant maps into every file format Iceberg supports: a Parquet `group`, an Avro `record`, or an ORC `struct`, each holding the `metadata` and `value` pair. In Avro and ORC, a Variant is always the single unshredded pair.
+
+### One column, many layouts
+
+A Variant's structure is not consistent across rows or files, but the column's Iceberg type is always `variant`, whatever shapes flow through it. Adding or removing a field inside the data changes only the bytes in each row.
+
+That one logical column can be laid out differently in each data file. In Parquet, one file may store it unshredded as the `metadata` + `value` pair while another shreds its hot fields into dedicated typed columns. Both files carry the same Variant field ID, and a reader reconciles whichever layout it finds:
+
+```text
+payload  (one Variant column, one field ID)
+├─ data file A, unshredded:  metadata + value
+└─ data file B, shredded:    metadata + value + typed_value.event, typed_value.country
+```
+
+Snapshots do not change this. Each snapshot records the schema that was current when it was written, and because the Variant column keeps its field ID across schema changes, time travel reads every file back through the same column.
+
+### Statistics and data skipping
+
+Because Variant is a column in the Iceberg schema, the table's manifests carry statistics for it, and that is what lets Iceberg skip files during planning. Iceberg records value and null counts for a Variant column. When a field is shredded into its own typed column, Iceberg also records lower and upper bounds for it, stored as a Variant object whose keys are normalized JSON paths to each field. An unshredded `value` blob is opaque, so it contributes counts but no bounds.
+
+With those bounds in the manifest, a predicate on a shredded field can prune whole files before any data is read: if a file's recorded range for that field cannot match, Iceberg skips it during planning. Fields that are not shredded have no bounds, so the engine reads and filters them instead.
 
 ### Reading and writing across engines
 
@@ -127,11 +153,11 @@ Variant is the right choice when you do not control the shape of the data, or it
 - **Third-party API responses and webhooks**, whose schema is owned by someone else and can change without notice.
 - **Sparse attributes** that would otherwise become a wide table of mostly-null columns.
 
-Variant is not a replacement for a known schema. When a field is present on every row and you query it constantly, a regular typed column, or a struct for a fixed nested shape, is simpler and more efficient. A common pattern is to keep the stable, frequently queried fields as normal columns and put the variable part in a single Variant column.
+Variant is not a replacement for a known schema. When a field is present on every row and you query it constantly, a regular typed column, or a struct for a fixed nested shape, is simpler and more efficient. A common pattern is to keep the stable, frequently queried fields as normal columns and put the variable part in one Variant column.
 
 ## What's next: shredding
 
-So far, a Variant column is a single `metadata` + `value` pair. Reading one field means decoding the `metadata` dictionary, then deserializing that field out of the `value` blob if it is present. That is flexible, but the flexibility costs performance: because the whole document lives in one `value` column, the engine cannot use per-field min/max statistics to prune data the way it can for a regular typed column. Shredding recovers this: it stores frequently accessed fields as separate, typed Parquet columns, so queries that touch only those fields read only those columns and can use their statistics for data skipping, while anything that does not fit falls back to the untyped `value`. The next post in this series explains how shredding works and what it unlocks.
+So far, a Variant column is a single `metadata` + `value` pair. Reading one field still means decoding the `metadata` dictionary and pulling that field from the single `value` blob, so a query for one field reads the entire `value` column. The next post explains how shredding works: how a writer chooses which fields to extract into their own typed columns and infers a type for each, how values that do not fit fall back to the untyped `value`, and how a reader reconstructs the original Variant from both.
 
 ## Getting Involved
 
