@@ -32,21 +32,21 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
-class TestGeometryBoundsCollector {
+class TestGeometryBoundsBuilder {
 
   @ParameterizedTest(name = "{0}")
   @MethodSource("boundingBoxCases")
   void boundingBox(String wkt, Geom geom, BoundingBox expected) {
-    GeometryBoundsCollector bounds = new GeometryBoundsCollector();
+    GeometryBoundsBuilder bounds = new GeometryBoundsBuilder();
     ByteBuffer wkb = ByteBuffer.wrap(wkb(geom));
     int position = wkb.position();
     int limit = wkb.limit();
 
-    bounds.add(wkb);
+    bounds.addValue(wkb);
 
     assertThat(wkb.position()).as(wkt).isEqualTo(position);
     assertThat(wkb.limit()).as(wkt).isEqualTo(limit);
-    assertThat(bounds.boundingBox()).as(wkt).isEqualTo(expected);
+    assertThat(bounds.build()).as(wkt).isEqualTo(expected);
   }
 
   @Test
@@ -56,96 +56,97 @@ class TestGeometryBoundsCollector {
     System.arraycopy(wkb, 0, padded, 11, wkb.length);
     ByteBuffer slice = ByteBuffer.wrap(padded, 11, wkb.length).slice();
 
-    GeometryBoundsCollector bounds = new GeometryBoundsCollector();
-    bounds.add(slice);
+    GeometryBoundsBuilder bounds = new GeometryBoundsBuilder();
+    bounds.addValue(slice);
 
     assertThat(slice.position()).isEqualTo(0);
-    assertThat(bounds.boundingBox()).isEqualTo(box(1, 2, 1, 2));
+    assertThat(bounds.build()).isEqualTo(box(1, 2, 1, 2));
   }
 
   @Test
   void noBoundsWhenOneDimensionIsMissing() {
-    GeometryBoundsCollector bounds = new GeometryBoundsCollector();
-    bounds.add(ByteBuffer.wrap(wkb(point(1, Double.NaN))));
+    GeometryBoundsBuilder bounds = new GeometryBoundsBuilder();
+    bounds.addValue(ByteBuffer.wrap(wkb(point(1, Double.NaN))));
 
-    assertThat(bounds.boundingBox()).as("POINT(1 NaN)").isNull();
+    assertThat(bounds.build()).as("POINT(1 NaN)").isNull();
   }
 
   @Test
   void boundsAcrossValuesWithMissingCoordinates() {
-    GeometryBoundsCollector bounds = new GeometryBoundsCollector();
-    bounds.add(ByteBuffer.wrap(wkb(point(1, Double.NaN))));
-    bounds.add(ByteBuffer.wrap(wkb(point(Double.NaN, 2))));
+    GeometryBoundsBuilder bounds = new GeometryBoundsBuilder();
+    bounds.addValue(ByteBuffer.wrap(wkb(point(1, Double.NaN))));
+    bounds.addValue(ByteBuffer.wrap(wkb(point(Double.NaN, 2))));
 
-    assertThat(bounds.boundingBox()).isEqualTo(box(1, 2, 1, 2));
+    assertThat(bounds.build()).isEqualTo(box(1, 2, 1, 2));
   }
 
   @Test
   void infiniteOrdinateIsKeptAsBound() {
-    GeometryBoundsCollector bounds = new GeometryBoundsCollector();
+    GeometryBoundsBuilder bounds = new GeometryBoundsBuilder();
     // the spec forbids only NaN as a bound, so an infinite ordinate is kept as a real position
-    bounds.add(ByteBuffer.wrap(wkb(point(Double.POSITIVE_INFINITY, 2))));
+    bounds.addValue(ByteBuffer.wrap(wkb(point(Double.POSITIVE_INFINITY, 2))));
 
-    assertThat(bounds.boundingBox())
+    assertThat(bounds.build())
         .as("POINT(Infinity 2)")
         .isEqualTo(box(Double.POSITIVE_INFINITY, 2, Double.POSITIVE_INFINITY, 2));
   }
 
   @Test
   void infiniteOrdinateWidensBounds() {
-    GeometryBoundsCollector bounds = new GeometryBoundsCollector();
-    bounds.add(ByteBuffer.wrap(wkb(point(1, 2))));
+    GeometryBoundsBuilder bounds = new GeometryBoundsBuilder();
+    bounds.addValue(ByteBuffer.wrap(wkb(point(1, 2))));
     // an infinite coordinate is a real position, so it widens the box toward that infinity
-    bounds.add(ByteBuffer.wrap(wkb(point(Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY))));
+    bounds.addValue(
+        ByteBuffer.wrap(wkb(point(Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY))));
 
-    assertThat(bounds.boundingBox())
+    assertThat(bounds.build())
         .isEqualTo(box(1, Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, 2));
   }
 
   @Test
   void nanIsStillSkippedWhileInfiniteIsKept() {
-    GeometryBoundsCollector bounds = new GeometryBoundsCollector();
+    GeometryBoundsBuilder bounds = new GeometryBoundsBuilder();
     // NaN X is skipped (empty ordinate) while infinite Y is kept, so only Y produces a bound;
     // with X missing, no box is produced
-    bounds.add(ByteBuffer.wrap(wkb(point(Double.NaN, Double.POSITIVE_INFINITY))));
+    bounds.addValue(ByteBuffer.wrap(wkb(point(Double.NaN, Double.POSITIVE_INFINITY))));
 
-    assertThat(bounds.boundingBox()).as("POINT(NaN Infinity)").isNull();
+    assertThat(bounds.build()).as("POINT(NaN Infinity)").isNull();
   }
 
   @ParameterizedTest(name = "{0}")
   @MethodSource("extraDimensionCases")
   void extraDimensionsAreIgnored(String description, Geom geom, BoundingBox expected) {
-    GeometryBoundsCollector bounds = new GeometryBoundsCollector();
+    GeometryBoundsBuilder bounds = new GeometryBoundsBuilder();
 
-    bounds.add(ByteBuffer.wrap(wkb(geom)));
+    bounds.addValue(ByteBuffer.wrap(wkb(geom)));
 
-    assertThat(bounds.boundingBox()).as(description).isEqualTo(expected);
+    assertThat(bounds.build()).as(description).isEqualTo(expected);
   }
 
   @Test
   void boundsAcrossValuesWithDifferentDimensions() {
-    GeometryBoundsCollector bounds = new GeometryBoundsCollector();
-    bounds.add(ByteBuffer.wrap(wkb(pointZ(1, 2, 3))));
-    bounds.add(ByteBuffer.wrap(wkb(pointZM(1, 2, 3, 4))));
+    GeometryBoundsBuilder bounds = new GeometryBoundsBuilder();
+    bounds.addValue(ByteBuffer.wrap(wkb(pointZ(1, 2, 3))));
+    bounds.addValue(ByteBuffer.wrap(wkb(pointZM(1, 2, 3, 4))));
 
-    assertThat(bounds.boundingBox()).isEqualTo(box(1, 2, 1, 2));
+    assertThat(bounds.build()).isEqualTo(box(1, 2, 1, 2));
   }
 
   @Test
   void extraDimensionsNestedInCollectionAreIgnored() {
-    GeometryBoundsCollector bounds = new GeometryBoundsCollector();
+    GeometryBoundsBuilder bounds = new GeometryBoundsBuilder();
 
-    bounds.add(ByteBuffer.wrap(wkb(collection(point(1, 2), pointZ(3, 4, 5)))));
+    bounds.addValue(ByteBuffer.wrap(wkb(collection(point(1, 2), pointZ(3, 4, 5)))));
 
-    assertThat(bounds.boundingBox()).isEqualTo(box(1, 2, 3, 4));
+    assertThat(bounds.build()).isEqualTo(box(1, 2, 3, 4));
   }
 
   @ParameterizedTest(name = "{0}")
   @MethodSource("invalidWkbCases")
   void invalidWkb(String description, byte[] wkb, String expectedMessage) {
-    GeometryBoundsCollector bounds = new GeometryBoundsCollector();
+    GeometryBoundsBuilder bounds = new GeometryBoundsBuilder();
 
-    assertThatThrownBy(() -> bounds.add(ByteBuffer.wrap(wkb)))
+    assertThatThrownBy(() -> bounds.addValue(ByteBuffer.wrap(wkb)))
         .as(description)
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining(expectedMessage);
@@ -153,29 +154,29 @@ class TestGeometryBoundsCollector {
 
   @Test
   void nestingAtTheLimitIsAccepted() {
-    GeometryBoundsCollector bounds = new GeometryBoundsCollector();
+    GeometryBoundsBuilder bounds = new GeometryBoundsBuilder();
     // 100 collection wrappers around POINT(1 2): the outermost is depth 0, the point is depth 100
-    bounds.add(ByteBuffer.wrap(nestedCollections(100)));
+    bounds.addValue(ByteBuffer.wrap(nestedCollections(100)));
 
-    assertThat(bounds.boundingBox()).isEqualTo(box(1, 2, 1, 2));
+    assertThat(bounds.build()).isEqualTo(box(1, 2, 1, 2));
   }
 
   @Test
   void nestingPastTheLimitIsRejected() {
-    GeometryBoundsCollector bounds = new GeometryBoundsCollector();
+    GeometryBoundsBuilder bounds = new GeometryBoundsBuilder();
 
-    assertThatThrownBy(() -> bounds.add(ByteBuffer.wrap(nestedCollections(101))))
+    assertThatThrownBy(() -> bounds.addValue(ByteBuffer.wrap(nestedCollections(101))))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("nesting too deep");
   }
 
   @Test
   void bigEndianParentWithLittleEndianChild() {
-    GeometryBoundsCollector bounds = new GeometryBoundsCollector();
+    GeometryBoundsBuilder bounds = new GeometryBoundsBuilder();
     // a big-endian multi point holding a little-endian point, the reverse of the MULTIPOINT case
-    bounds.add(ByteBuffer.wrap(wkb(multiPointBigEndian(point(1, 2)))));
+    bounds.addValue(ByteBuffer.wrap(wkb(multiPointBigEndian(point(1, 2)))));
 
-    assertThat(bounds.boundingBox()).isEqualTo(box(1, 2, 1, 2));
+    assertThat(bounds.build()).isEqualTo(box(1, 2, 1, 2));
   }
 
   @Test
@@ -184,32 +185,33 @@ class TestGeometryBoundsCollector {
     ByteBuffer direct = ByteBuffer.allocateDirect(wkb.length);
     direct.put(wkb).flip();
 
-    GeometryBoundsCollector bounds = new GeometryBoundsCollector();
-    bounds.add(direct);
+    GeometryBoundsBuilder bounds = new GeometryBoundsBuilder();
+    bounds.addValue(direct);
 
     assertThat(direct.hasArray()).isFalse();
-    assertThat(bounds.boundingBox()).isEqualTo(box(1, 2, 1, 2));
+    assertThat(bounds.build()).isEqualTo(box(1, 2, 1, 2));
   }
 
   @Test
   void interiorRingOutsideShellIsNotCovered() {
-    GeometryBoundsCollector bounds = new GeometryBoundsCollector();
+    GeometryBoundsBuilder bounds = new GeometryBoundsBuilder();
     // documented limitation: only the exterior ring is read, so an interior ring past the shell is
     // not covered; this pins the behavior so a future change to read every ring is noticed
-    bounds.add(
+    bounds.addValue(
         ByteBuffer.wrap(wkb(polygon(ring(0, 0, 1, 0, 0, 1, 0, 0), ring(0, 0, 9, 0, 0, 9, 0, 0)))));
 
-    assertThat(bounds.boundingBox()).isEqualTo(box(0, 0, 1, 1));
+    assertThat(bounds.build()).isEqualTo(box(0, 0, 1, 1));
   }
 
   @Test
-  void stateIsUndefinedAfterAddThrows() {
-    GeometryBoundsCollector bounds = new GeometryBoundsCollector();
-    bounds.add(ByteBuffer.wrap(wkb(point(1, 2))));
+  void stateIsUndefinedAfterAddValueThrows() {
+    GeometryBoundsBuilder bounds = new GeometryBoundsBuilder();
+    bounds.addValue(ByteBuffer.wrap(wkb(point(1, 2))));
 
-    // adding a malformed value throws; per the add contract the collector must then be discarded,
+    // adding a malformed value throws; per the addValue contract the builder must then be
+    // discarded,
     // so this only documents that a caller cannot keep using it, not a guaranteed rolled-back state
-    assertThatThrownBy(() -> bounds.add(ByteBuffer.wrap(truncate(wkb(point(5, 6)), 5))))
+    assertThatThrownBy(() -> bounds.addValue(ByteBuffer.wrap(truncate(wkb(point(5, 6)), 5))))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("unexpected end of buffer");
   }
@@ -514,7 +516,6 @@ class TestGeometryBoundsCollector {
             ByteBuffer.allocate(Math.max(buffer.capacity() * 2, buffer.position() + bytes))
                 .order(buffer.order());
         grown.put(buffer.duplicate().flip());
-        grown.order(buffer.order());
         buffer = grown;
       }
 

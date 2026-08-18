@@ -48,7 +48,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
  * polygon by geometry libraries such as JTS. Iceberg does not validate geometries, so a polygon
  * with a hole extending past its shell produces bounds that do not contain the geometry.
  */
-class GeometryBoundsCollector {
+class GeometryBoundsBuilder {
 
   private static final int TYPE_POINT = 1;
   private static final int TYPE_LINE_STRING = 2;
@@ -71,18 +71,17 @@ class GeometryBoundsCollector {
   private final DimensionBounds yBounds = new DimensionBounds();
 
   /**
-   * Adds the coordinates from one WKB geometry to these bounds.
+   * Adds one WKB geometry value to these bounds.
    *
    * <p>The input is read through a duplicate, so its position and limit are left unchanged.
    *
-   * <p>If this throws, the collector's state is undefined: coordinates parsed before the failure
-   * may already be folded in. A caller that continues after a rejected value must discard this
-   * collector.
+   * <p>If this throws, the builder's state is undefined: coordinates parsed before the failure may
+   * already be folded in. A caller that continues after a rejected value must discard this builder.
    *
    * @param wkb a buffer containing exactly one WKB geometry
    * @throws IllegalArgumentException if the WKB is malformed
    */
-  public void add(ByteBuffer wkb) {
+  public void addValue(ByteBuffer wkb) {
     Preconditions.checkArgument(wkb != null, "Invalid WKB buffer: null");
     ByteBuffer buffer = wkb.duplicate();
     parseGeometry(buffer, 0, ANY_GEOMETRY);
@@ -90,10 +89,10 @@ class GeometryBoundsCollector {
   }
 
   /**
-   * Returns the accumulated bounding box, or {@code null} if either the X or Y dimension has no
-   * value.
+   * Builds the bounding box covering every geometry added, or {@code null} if either the X or Y
+   * dimension has no value.
    */
-  public BoundingBox boundingBox() {
+  public BoundingBox build() {
     if (!xBounds.hasValue() || !yBounds.hasValue()) {
       return null;
     }
