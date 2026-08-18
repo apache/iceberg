@@ -895,9 +895,6 @@ project(':iceberg-orc') {
     api project(':iceberg-api')
     implementation project(':iceberg-common')
     implementation project(':iceberg-core')
-    implementation(libs.avro.avro) {
-      exclude group: 'org.tukaani' // xz compression is not supported
-    }
 
     implementation("${libs.orc.core.get().module}:${libs.versions.orc.get()}:nohive") {
       exclude group: 'org.apache.hadoop'
