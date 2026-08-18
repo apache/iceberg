@@ -20,7 +20,7 @@ package org.apache.iceberg;
 
 import org.apache.iceberg.types.Types;
 
-interface FieldStats<T> {
+public interface FieldStats<T> {
   /** The field ID of the statistic */
   int fieldId();
 

@@ -67,13 +67,13 @@ ICEBERG_VERSION={{ icebergVersion }}
 MAVEN_URL=https://repo1.maven.org/maven2
 ICEBERG_MAVEN_URL=$MAVEN_URL/org/apache/iceberg
 
-wget $ICEBERG_MAVEN_URL/iceberg-flink-runtime/$ICEBERG_VERSION/iceberg-flink-runtime-$ICEBERG_VERSION.jar
+wget $ICEBERG_MAVEN_URL/iceberg-flink-runtime-{{ flinkVersionMajor }}/$ICEBERG_VERSION/iceberg-flink-runtime-{{ flinkVersionMajor }}-$ICEBERG_VERSION.jar
 
 wget $ICEBERG_MAVEN_URL/iceberg-aws-bundle/$ICEBERG_VERSION/iceberg-aws-bundle-$ICEBERG_VERSION.jar
 
 # start Flink SQL client shell
 /path/to/bin/sql-client.sh embedded \
-    -j iceberg-flink-runtime-$ICEBERG_VERSION.jar \
+    -j iceberg-flink-runtime-{{ flinkVersionMajor }}-$ICEBERG_VERSION.jar \
     -j iceberg-aws-bundle-$ICEBERG_VERSION.jar \
     shell
 ```
@@ -779,7 +779,7 @@ LIB_PATH=/usr/share/aws/aws-java-sdk/
 
 ICEBERG_PACKAGES=(
   "iceberg-spark-runtime-3.5_2.12"
-  "iceberg-flink-runtime"
+  "iceberg-flink-runtime-{{ flinkVersionMajor }}"
   "iceberg-aws-bundle"
 )
 

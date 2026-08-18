@@ -3,7 +3,7 @@ com.fasterxml.jackson.core:jackson-core:2.18
 com.fasterxml.jackson.core:jackson-databind:2.18
 com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.22
 com.github.ben-manes.caffeine:caffeine:3.2
-com.google.errorprone:error_prone_annotations:2.36
+com.google.errorprone:error_prone_annotations:2.49
 com.google.flatbuffers:flatbuffers-java:23.5
 dev.failsafe:failsafe:3.3
 io.airlift:aircompressor:2.0
