@@ -62,11 +62,12 @@ configure(jmhProjects) {
 
   jmh {
     jmhVersion = '1.37'
-    failOnError = true
+    failOnError = project.findProperty('jmhFailOnError')?.toBoolean() ?: true
     forceGC = true
     includeTests = true
     humanOutputFile = file(jmhOutputPath)
-    jvmArgs = ['-Xmx32g']
+    jvmArgs = ["-Xmx${project.findProperty('jmhHeapSize') ?: '32g'}",
+               '--add-opens=java.base/java.nio=ALL-UNNAMED']
     resultsFile = file(jmhJsonOutputPath)
     resultFormat = 'JSON'
     includes = [jmhIncludeRegex]
