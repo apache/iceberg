@@ -120,6 +120,7 @@ import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.apache.iceberg.rest.responses.OAuthTokenResponse;
 import org.apache.iceberg.rest.signing.ImmutableRemoteSigningConfig;
 import org.apache.iceberg.rest.signing.RemoteSigningConfig;
+import org.apache.iceberg.rest.signing.RemoteSigningConfigParser;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Pair;
 import org.assertj.core.api.InstanceOfAssertFactories;
@@ -1335,7 +1336,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             CatalogProperties.URI,
             "ignored",
             CatalogProperties.FILE_IO_IMPL,
-            TestCatalogUtil.TestFileIOWithRemoteSigningConfig.class.getName()));
+            "org.apache.iceberg.inmemory.InMemoryFileIO"));
 
     if (requiresNamespaceCreate()) {
       catalog.createNamespace(TABLE.namespace());
@@ -1346,9 +1347,9 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     Table table = catalog.loadTable(TABLE);
     FileIO io = table.io();
 
-    assertThat(io).isInstanceOf(TestCatalogUtil.TestFileIOWithRemoteSigningConfig.class);
-    assertThat(((TestCatalogUtil.TestFileIOWithRemoteSigningConfig) io).remoteSigningConfig())
-        .isEqualTo(signingConfig);
+    assertThat(io.properties())
+        .containsEntry(
+            RemoteSigningProperties.CONFIG, RemoteSigningConfigParser.toJson(signingConfig));
 
     catalog.close();
   }

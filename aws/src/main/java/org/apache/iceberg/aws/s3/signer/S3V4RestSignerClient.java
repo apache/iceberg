@@ -30,17 +30,16 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 import javax.annotation.Nullable;
 import org.apache.iceberg.CatalogProperties;
-import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.ErrorHandlers;
 import org.apache.iceberg.rest.HTTPClient;
-import org.apache.iceberg.rest.RESTCatalogInternalProperties;
 import org.apache.iceberg.rest.RESTCatalogProperties;
 import org.apache.iceberg.rest.RESTClient;
 import org.apache.iceberg.rest.RESTUtil;
+import org.apache.iceberg.rest.RemoteSigningProperties;
 import org.apache.iceberg.rest.ResourcePaths;
 import org.apache.iceberg.rest.auth.AuthManager;
 import org.apache.iceberg.rest.auth.AuthManagers;
@@ -96,7 +95,7 @@ public abstract class S3V4RestSignerClient
 
   @Value.Derived
   public RemoteSigningConfig remoteSigningConfig() {
-    String json = properties().get(RESTCatalogInternalProperties.REMOTE_SIGNING_CONFIG);
+    String json = properties().get(RemoteSigningProperties.CONFIG);
     return json == null ? RemoteSigningConfig.EMPTY : RemoteSigningConfigParser.fromJson(json);
   }
 
@@ -113,20 +112,11 @@ public abstract class S3V4RestSignerClient
 
   @Value.Lazy
   public String endpoint() {
-    String endpointPath = properties().get(RESTCatalogProperties.SIGNER_ENDPOINT);
-
-    if (endpointPath == null) {
-      String tableIdentifier = properties().get(RESTCatalogInternalProperties.TABLE_IDENTIFIER);
-      String namespaceSeparator =
-          PropertyUtil.propertyAsString(
-              properties(),
-              RESTCatalogProperties.NAMESPACE_SEPARATOR,
-              RESTCatalogProperties.NAMESPACE_SEPARATOR_DEFAULT);
-      TableIdentifier identifier =
-          RESTUtil.decodeTableIdentifier(tableIdentifier, namespaceSeparator);
-      ResourcePaths paths = ResourcePaths.forCatalogProperties(properties());
-      endpointPath = paths.remoteSign(identifier);
-    }
+    String endpointPath =
+        properties()
+            .getOrDefault(
+                RESTCatalogProperties.SIGNER_ENDPOINT,
+                properties().get(RemoteSigningProperties.ENDPOINT));
 
     return RESTUtil.resolveEndpoint(baseSignerUri(), endpointPath);
   }
@@ -236,8 +226,9 @@ public abstract class S3V4RestSignerClient
   @Value.Check
   protected void check() {
     Preconditions.checkArgument(
-        properties().containsKey(RESTCatalogInternalProperties.TABLE_IDENTIFIER),
-        "Table identifier is required");
+        properties().containsKey(RESTCatalogProperties.SIGNER_ENDPOINT)
+            || properties().containsKey(RemoteSigningProperties.ENDPOINT),
+        "Remote signing endpoint is required");
 
     Preconditions.checkArgument(
         properties().containsKey(RESTCatalogProperties.SIGNER_URI)

@@ -28,11 +28,9 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.withSettings;
 
 import java.io.IOException;
-import java.lang.reflect.Field;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentMap;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.apache.hadoop.conf.Configuration;
@@ -43,13 +41,10 @@ import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.rest.signing.ImmutableRemoteSigningConfig;
-import org.apache.iceberg.rest.signing.RemoteSigningConfig;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
-import org.mockito.Mockito;
 
 public class TestResolvingIO {
 
@@ -186,80 +181,5 @@ public class TestResolvingIO {
     assertThat(roundTripSerializer.apply(resolvingFileIO).credentials())
         .isEqualTo(storageCredentials)
         .isEqualTo(resolvingFileIO.credentials());
-  }
-
-  @Test
-  public void setRemoteSigningConfigAndGet() {
-    RemoteSigningConfig config =
-        ImmutableRemoteSigningConfig.builder().putProperties("k1", "v1").build();
-
-    ResolvingFileIO resolvingFileIO = new ResolvingFileIO();
-    resolvingFileIO.initialize(ImmutableMap.of());
-    resolvingFileIO.setRemoteSigningConfig(config);
-
-    assertThat(resolvingFileIO.remoteSigningConfig().properties()).containsEntry("k1", "v1");
-  }
-
-  @ParameterizedTest
-  @MethodSource("org.apache.iceberg.TestHelpers#serializers")
-  public void resolvingFileIOWithRemoteSigningConfigSerialization(
-      TestHelpers.RoundTripSerializer<ResolvingFileIO> roundTripSerializer)
-      throws IOException, ClassNotFoundException {
-    RemoteSigningConfig config =
-        ImmutableRemoteSigningConfig.builder()
-            .putProperties("k1", "v1")
-            .putHeaders("Authorization", List.of("Bearer token"))
-            .build();
-
-    ResolvingFileIO resolvingFileIO =
-        (ResolvingFileIO)
-            CatalogUtil.loadFileIO(
-                ResolvingFileIO.class.getName(),
-                ImmutableMap.of(),
-                new Configuration(),
-                ImmutableList.of(),
-                config);
-
-    ResolvingFileIO roundTripped = roundTripSerializer.apply(resolvingFileIO);
-    assertThat(roundTripped.remoteSigningConfig().properties())
-        .containsExactlyInAnyOrderEntriesOf(config.properties());
-    assertThat(roundTripped.remoteSigningConfig().headers().get("Authorization"))
-        .containsExactly("Bearer token");
-  }
-
-  @Test
-  @SuppressWarnings("unchecked")
-  public void remoteSigningConfigPropagatedToDelegate() throws Exception {
-    RemoteSigningConfig initialConfig = RemoteSigningConfig.EMPTY;
-    RemoteSigningConfig updatedConfig =
-        ImmutableRemoteSigningConfig.builder().putProperties("k", "v").build();
-
-    ResolvingFileIO resolvingFileIO = new ResolvingFileIO();
-    resolvingFileIO.setConf(new Configuration());
-    resolvingFileIO.initialize(ImmutableMap.of());
-
-    // Build a mock that implements both DelegateFileIO and SupportsRemoteSigningConfig
-    DelegateFileIO mockDelegate =
-        mock(
-            DelegateFileIO.class,
-            withSettings().extraInterfaces(SupportsRemoteSigningConfig.class));
-    SupportsRemoteSigningConfig mockSigningDelegate = (SupportsRemoteSigningConfig) mockDelegate;
-    Mockito.when(mockSigningDelegate.remoteSigningConfig()).thenReturn(initialConfig);
-
-    // Inject the mock into the private ioInstances cache using the scheme key for HadoopFileIO
-    Field ioInstancesField = ResolvingFileIO.class.getDeclaredField("ioInstances");
-    ioInstancesField.setAccessible(true);
-    ConcurrentMap<String, DelegateFileIO> ioInstances =
-        (ConcurrentMap<String, DelegateFileIO>) ioInstancesField.get(resolvingFileIO);
-    // Use the fallback impl key so that any non-s3/gcs/adls path hits this delegate
-    ioInstances.put("org.apache.iceberg.hadoop.HadoopFileIO", mockDelegate);
-
-    // Set a new config that differs from the delegate's current config
-    resolvingFileIO.setRemoteSigningConfig(updatedConfig);
-
-    // Calling io() on a non-cloud path resolves to the HadoopFileIO impl key
-    resolvingFileIO.io("/local/path");
-
-    Mockito.verify(mockSigningDelegate).setRemoteSigningConfig(Mockito.any());
   }
 }

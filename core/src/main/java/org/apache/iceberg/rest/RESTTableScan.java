@@ -52,6 +52,7 @@ import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.rest.responses.FetchPlanningResultResponse;
 import org.apache.iceberg.rest.responses.PlanTableScanResponse;
 import org.apache.iceberg.rest.signing.RemoteSigningConfig;
+import org.apache.iceberg.rest.signing.RemoteSigningConfigParser;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
@@ -233,7 +234,13 @@ class RESTTableScan extends DataTableScan {
 
   private FileIO scanFileIO(List<Credential> storageCredentials) {
     ImmutableMap.Builder<String, String> builder =
-        ImmutableMap.<String, String>builder().putAll(catalogProperties);
+        ImmutableMap.<String, String>builder()
+            .putAll(catalogProperties)
+            .put(RemoteSigningProperties.ENDPOINT, resourcePaths.remoteSign(tableIdentifier))
+            .put(
+                RemoteSigningProperties.CONFIG,
+                RemoteSigningConfigParser.toJson(remoteSigningConfig));
+
     if (null != planId) {
       builder.put(RESTCatalogProperties.REST_SCAN_PLAN_ID, planId);
     }
@@ -246,8 +253,7 @@ class RESTTableScan extends DataTableScan {
             hadoopConf,
             storageCredentials.stream()
                 .map(c -> StorageCredential.create(c.prefix(), c.config()))
-                .collect(Collectors.toList()),
-            remoteSigningConfig);
+                .collect(Collectors.toList()));
     FILEIO_TRACKER.put(this, ioForScan);
     return ioForScan;
   }

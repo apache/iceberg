@@ -44,10 +44,8 @@ import org.apache.iceberg.io.DelegateFileIO;
 import org.apache.iceberg.io.FileInfo;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
-import org.apache.iceberg.io.SerializableRemoteSigningConfig;
 import org.apache.iceberg.io.StorageCredential;
 import org.apache.iceberg.io.SupportsRecoveryOperations;
-import org.apache.iceberg.io.SupportsRemoteSigningConfig;
 import org.apache.iceberg.io.SupportsStorageCredentials;
 import org.apache.iceberg.metrics.MetricsContext;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
@@ -61,9 +59,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Multimaps;
 import org.apache.iceberg.relocated.com.google.common.collect.SetMultimap;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
-import org.apache.iceberg.rest.RESTCatalogInternalProperties;
-import org.apache.iceberg.rest.signing.RemoteSigningConfig;
-import org.apache.iceberg.rest.signing.RemoteSigningConfigParser;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SerializableMap;
 import org.apache.iceberg.util.SerializableSupplier;
@@ -100,8 +95,7 @@ public class S3FileIO
     implements CredentialSupplier,
         DelegateFileIO,
         SupportsRecoveryOperations,
-        SupportsStorageCredentials,
-        SupportsRemoteSigningConfig {
+        SupportsStorageCredentials {
   private static final Logger LOG = LoggerFactory.getLogger(S3FileIO.class);
   private static final String DEFAULT_METRICS_IMPL =
       "org.apache.iceberg.hadoop.HadoopMetricsContext";
@@ -119,8 +113,6 @@ public class S3FileIO
   private volatile List<StorageCredential> storageCredentials = Lists.newArrayList();
   private transient volatile Map<String, PrefixedS3Client> clientByPrefix;
   private transient volatile ScheduledFuture<?> refreshFuture;
-  private volatile SerializableRemoteSigningConfig remoteSigningConfig =
-      SerializableRemoteSigningConfig.copyOf(RemoteSigningConfig.EMPTY);
 
   /**
    * No-arg constructor to load the FileIO dynamically.
@@ -416,10 +408,8 @@ public class S3FileIO
         if (null == clientByPrefix) {
           Map<String, PrefixedS3Client> localClientByPrefix = Maps.newHashMap();
 
-          Map<String, String> propertiesWithSigningConfig = withRemoteSigningConfig();
           localClientByPrefix.put(
-              ROOT_PREFIX,
-              new PrefixedS3Client(ROOT_PREFIX, propertiesWithSigningConfig, s3, s3Async));
+              ROOT_PREFIX, new PrefixedS3Client(ROOT_PREFIX, properties, s3, s3Async));
           storageCredentials.stream()
               .filter(c -> c.prefix().startsWith(ROOT_PREFIX))
               .collect(Collectors.toList())
@@ -427,7 +417,7 @@ public class S3FileIO
                   storageCredential -> {
                     Map<String, String> propertiesWithCredentials =
                         ImmutableMap.<String, String>builder()
-                            .putAll(propertiesWithSigningConfig)
+                            .putAll(properties)
                             .putAll(storageCredential.config())
                             .buildKeepingLast();
 
@@ -446,19 +436,6 @@ public class S3FileIO
     }
 
     return clientByPrefix;
-  }
-
-  private Map<String, String> withRemoteSigningConfig() {
-    if (remoteSigningConfig.isEmpty()) {
-      return properties;
-    }
-
-    return ImmutableMap.<String, String>builder()
-        .putAll(properties)
-        .put(
-            RESTCatalogInternalProperties.REMOTE_SIGNING_CONFIG,
-            RemoteSigningConfigParser.toJson(remoteSigningConfig))
-        .build();
   }
 
   private void scheduleCredentialRefresh() {
@@ -657,16 +634,5 @@ public class S3FileIO
   @Override
   public List<StorageCredential> credentials() {
     return ImmutableList.copyOf(storageCredentials);
-  }
-
-  @Override
-  public void setRemoteSigningConfig(RemoteSigningConfig config) {
-    Preconditions.checkArgument(config != null, "Invalid remote signing config: null");
-    this.remoteSigningConfig = SerializableRemoteSigningConfig.copyOf(config);
-  }
-
-  @Override
-  public RemoteSigningConfig remoteSigningConfig() {
-    return remoteSigningConfig.immutableConfig();
   }
 }

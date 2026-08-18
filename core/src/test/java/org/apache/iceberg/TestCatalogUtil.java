@@ -42,15 +42,12 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.StorageCredential;
 import org.apache.iceberg.io.SupportsBulkOperations;
-import org.apache.iceberg.io.SupportsRemoteSigningConfig;
 import org.apache.iceberg.io.SupportsStorageCredentials;
 import org.apache.iceberg.metrics.MetricsReport;
 import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.rest.signing.ImmutableRemoteSigningConfig;
-import org.apache.iceberg.rest.signing.RemoteSigningConfig;
 import org.junit.jupiter.api.Test;
 
 public class TestCatalogUtil {
@@ -199,41 +196,6 @@ public class TestCatalogUtil {
     assertThat(fileIO).isInstanceOf(TestFileIOWithStorageCredentials.class);
     assertThat(((TestFileIOWithStorageCredentials) fileIO).credentials())
         .isEqualTo(storageCredentials);
-  }
-
-  @Test
-  public void loadFileIOWithRemoteSigningConfig() {
-    RemoteSigningConfig config =
-        ImmutableRemoteSigningConfig.builder()
-            .putProperties("k1", "v1")
-            .putHeaders("Authorization", List.of("Bearer token"))
-            .build();
-
-    FileIO fileIO =
-        CatalogUtil.loadFileIO(
-            TestFileIOWithRemoteSigningConfig.class.getName(),
-            Maps.newHashMap(),
-            null,
-            ImmutableList.of(),
-            config);
-
-    assertThat(fileIO).isInstanceOf(TestFileIOWithRemoteSigningConfig.class);
-    assertThat(((TestFileIOWithRemoteSigningConfig) fileIO).remoteSigningConfig())
-        .isEqualTo(config);
-  }
-
-  @Test
-  public void loadFileIOWithRemoteSigningConfigDefaultsToEmpty() {
-    FileIO fileIO =
-        CatalogUtil.loadFileIO(
-            TestFileIOWithRemoteSigningConfig.class.getName(),
-            Maps.newHashMap(),
-            null,
-            ImmutableList.of());
-
-    assertThat(fileIO).isInstanceOf(TestFileIOWithRemoteSigningConfig.class);
-    assertThat(((TestFileIOWithRemoteSigningConfig) fileIO).remoteSigningConfig().isEmpty())
-        .isTrue();
   }
 
   @Test
@@ -616,37 +578,6 @@ public class TestCatalogUtil {
     @Override
     public List<StorageCredential> credentials() {
       return storageCredentials;
-    }
-  }
-
-  public static class TestFileIOWithRemoteSigningConfig
-      implements FileIO, SupportsRemoteSigningConfig {
-
-    private RemoteSigningConfig remoteSigningConfig;
-
-    public TestFileIOWithRemoteSigningConfig() {}
-
-    @Override
-    public InputFile newInputFile(String path) {
-      return null;
-    }
-
-    @Override
-    public OutputFile newOutputFile(String path) {
-      return null;
-    }
-
-    @Override
-    public void deleteFile(String path) {}
-
-    @Override
-    public void setRemoteSigningConfig(RemoteSigningConfig config) {
-      this.remoteSigningConfig = config;
-    }
-
-    @Override
-    public RemoteSigningConfig remoteSigningConfig() {
-      return remoteSigningConfig;
     }
   }
 }

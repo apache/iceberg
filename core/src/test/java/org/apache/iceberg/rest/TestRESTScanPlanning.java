@@ -57,11 +57,8 @@ import org.apache.iceberg.TableScan;
 import org.apache.iceberg.catalog.SessionCatalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.expressions.Expressions;
-import org.apache.iceberg.inmemory.InMemoryFileIO;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
-import org.apache.iceberg.io.FileIO;
-import org.apache.iceberg.io.SupportsRemoteSigningConfig;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -73,8 +70,6 @@ import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.rest.responses.FetchPlanningResultResponse;
 import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.apache.iceberg.rest.responses.PlanTableScanResponse;
-import org.apache.iceberg.rest.signing.ImmutableRemoteSigningConfig;
-import org.apache.iceberg.rest.signing.RemoteSigningConfig;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
@@ -1516,152 +1511,6 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
     }
 
     return response;
-  }
-
-  /**
-   * When server-side planning returns storage credentials, the scan builds its own scan-scoped
-   * {@link FileIO}. That FileIO must reuse the {@link RemoteSigningConfig} the catalog received at
-   * table-load time.
-   */
-  @ParameterizedTest
-  @EnumSource(PlanningMode.class)
-  void scanFileIOReusesRemoteSigningConfigWhenCredentialsReturned(
-      Function<TestPlanningBehavior.Builder, TestPlanningBehavior.Builder> planMode) {
-    RemoteSigningConfig signingConfig =
-        ImmutableRemoteSigningConfig.builder().putProperties("k", "v").build();
-
-    RESTCatalogAdapter adapter =
-        Mockito.spy(
-            new RESTCatalogAdapter(backendCatalog) {
-              @Override
-              public <T extends RESTResponse> T execute(
-                  HTTPRequest request,
-                  Class<T> responseType,
-                  Consumer<ErrorResponse> errorHandler,
-                  Consumer<Map<String, String>> responseHeaders,
-                  ParserContext parserContext) {
-                T response =
-                    super.execute(
-                        request, responseType, errorHandler, responseHeaders, parserContext);
-                if (response instanceof LoadTableResponse loadResponse) {
-                  return castResponse(responseType, withSigningConfig(loadResponse, signingConfig));
-                }
-
-                return maybeAddStorageCredential(response);
-              }
-            });
-
-    adapter.setPlanningBehavior(planMode.apply(TestPlanningBehavior.builder()).build());
-
-    RESTCatalog catalog =
-        new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
-    catalog.initialize(
-        "test",
-        ImmutableMap.of(
-            CatalogProperties.FILE_IO_IMPL,
-            RemoteSigningInMemoryFileIO.class.getName(),
-            RESTCatalogProperties.SCAN_PLANNING_MODE,
-            RESTCatalogProperties.ScanPlanningMode.SERVER.modeName()));
-
-    Table table = restTableFor(catalog, "scan_signing_config_with_credentials");
-
-    TableScan scan = table.newScan();
-    assertThat(scan.planFiles()).hasSize(1);
-
-    FileIO scanIO = scan.fileIO().get();
-    assertThat(scanIO)
-        .as("scan-scoped FileIO is built from the returned credentials, not the table's FileIO")
-        .isNotSameAs(table.io())
-        .isInstanceOf(RemoteSigningInMemoryFileIO.class);
-    assertThat(((RemoteSigningInMemoryFileIO) scanIO).remoteSigningConfig())
-        .isEqualTo(signingConfig);
-  }
-
-  /**
-   * When server-side planning returns no storage credentials, the scan reuses the table's {@link
-   * FileIO}, which already carries the load-time {@link RemoteSigningConfig}.
-   */
-  @Test
-  void scanReusesTableFileIORemoteSigningConfigWhenNoCredentialsReturned() {
-    RemoteSigningConfig signingConfig =
-        ImmutableRemoteSigningConfig.builder().putProperties("k", "v").build();
-
-    RESTCatalogAdapter adapter =
-        Mockito.spy(
-            new RESTCatalogAdapter(backendCatalog) {
-              @Override
-              public <T extends RESTResponse> T execute(
-                  HTTPRequest request,
-                  Class<T> responseType,
-                  Consumer<ErrorResponse> errorHandler,
-                  Consumer<Map<String, String>> responseHeaders,
-                  ParserContext parserContext) {
-                T response =
-                    super.execute(
-                        request, responseType, errorHandler, responseHeaders, parserContext);
-                if (response instanceof LoadTableResponse loadResponse) {
-                  return castResponse(responseType, withSigningConfig(loadResponse, signingConfig));
-                }
-
-                return response;
-              }
-            });
-
-    adapter.setPlanningBehavior(TestPlanningBehavior.builder().synchronous().build());
-
-    RESTCatalog catalog =
-        new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
-    catalog.initialize(
-        "test",
-        ImmutableMap.of(
-            CatalogProperties.FILE_IO_IMPL,
-            RemoteSigningInMemoryFileIO.class.getName(),
-            RESTCatalogProperties.SCAN_PLANNING_MODE,
-            RESTCatalogProperties.ScanPlanningMode.SERVER.modeName()));
-
-    Table table = restTableFor(catalog, "scan_signing_config_no_credentials");
-
-    TableScan scan = table.newScan();
-    assertThat(scan.planFiles()).hasSize(1);
-
-    FileIO scanIO = scan.fileIO().get();
-    assertThat(scanIO)
-        .as("scan reuses the table's FileIO when no credentials are returned")
-        .isSameAs(table.io())
-        .isInstanceOf(RemoteSigningInMemoryFileIO.class);
-    assertThat(((RemoteSigningInMemoryFileIO) scanIO).remoteSigningConfig())
-        .isEqualTo(signingConfig);
-  }
-
-  /** In-memory FileIO that also records the {@link RemoteSigningConfig} it is configured with. */
-  public static class RemoteSigningInMemoryFileIO extends InMemoryFileIO
-      implements SupportsRemoteSigningConfig {
-    private RemoteSigningConfig remoteSigningConfig;
-
-    public RemoteSigningInMemoryFileIO() {}
-
-    @Override
-    public void setRemoteSigningConfig(RemoteSigningConfig config) {
-      this.remoteSigningConfig = config;
-    }
-
-    @Override
-    public RemoteSigningConfig remoteSigningConfig() {
-      return remoteSigningConfig;
-    }
-  }
-
-  private static LoadTableResponse withSigningConfig(
-      LoadTableResponse response, RemoteSigningConfig signingConfig) {
-    return LoadTableResponse.builder()
-        .withTableMetadata(response.tableMetadata())
-        .addAllConfig(response.config())
-        .addConfig(
-            RESTCatalogProperties.SCAN_PLANNING_MODE,
-            RESTCatalogProperties.ScanPlanningMode.SERVER.modeName())
-        .addAllCredentials(response.credentials())
-        .withRemoteSigningConfig(signingConfig)
-        .build();
   }
 
   @Test

@@ -24,7 +24,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.Map;
 import org.apache.iceberg.catalog.Namespace;
-import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -241,74 +240,6 @@ public class TestRESTUtil {
         .isEqualTo(Namespace.of("one%1Ftwo%1Fns"));
     assertThat(RESTUtil.namespaceFromQueryParam("one%1Ftwo\u001fns"))
         .isEqualTo(Namespace.of("one%1Ftwo", "ns"));
-  }
-
-  @ParameterizedTest
-  @ValueSource(strings = {"%1F", "%2D", "%2E", "#", "_"})
-  public void testRoundTripEncodeDecodeTableIdentifier(String separator) {
-    Object[][] testCases =
-        new Object[][] {
-          // No namespace
-          new Object[] {TableIdentifier.of("table"), "table"},
-          // Single namespace level
-          new Object[] {TableIdentifier.of("ns", "table"), String.format("ns%stable", separator)},
-          // Multi-level namespace
-          new Object[] {
-            TableIdentifier.of("ns1", "ns2", "table"),
-            String.format("ns1%sns2%stable", separator, separator)
-          },
-          // Dots in namespace level and table name: dots are not encoded (RFC 3986 unreserved)
-          new Object[] {
-            TableIdentifier.of("my.ns", "my.table"), String.format("my.ns%smy.table", separator)
-          },
-          // Spaces in namespace level and table name: encoded as %20 (RFC 3986 reserved)
-          new Object[] {
-            TableIdentifier.of("my ns", "my table"),
-            String.format("my%%20ns%smy%%20table", separator)
-          },
-          // Slashes in parts must be percent-encoded
-          new Object[] {
-            TableIdentifier.of("ns/1", "my/table"), String.format("ns%%2F1%smy%%2Ftable", separator)
-          },
-        };
-
-    for (Object[] testCase : testCases) {
-      TableIdentifier identifier = (TableIdentifier) testCase[0];
-      String encoded = (String) testCase[1];
-
-      assertThat(RESTUtil.encodeTableIdentifier(identifier, separator)).isEqualTo(encoded);
-      assertThat(RESTUtil.decodeTableIdentifier(encoded, separator)).isEqualTo(identifier);
-    }
-  }
-
-  @Test
-  public void encodeTableIdentifierNullChecks() {
-    assertThatThrownBy(() -> RESTUtil.encodeTableIdentifier(null, "%1F"))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid identifier: null");
-
-    assertThatThrownBy(() -> RESTUtil.encodeTableIdentifier(TableIdentifier.of("ns", "t"), null))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid separator: null or empty");
-
-    assertThatThrownBy(() -> RESTUtil.encodeTableIdentifier(TableIdentifier.of("ns", "t"), ""))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid separator: null or empty");
-  }
-
-  @Test
-  public void decodeTableIdentifierNullChecks() {
-    assertThatThrownBy(() -> RESTUtil.decodeTableIdentifier(null, "%1F"))
-        .isInstanceOf(NullPointerException.class)
-        .hasMessage("Invalid table identifier: null");
-
-    assertThatThrownBy(() -> RESTUtil.decodeTableIdentifier("ns%1Ft", null))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid separator: null or empty");
-
-    assertThatThrownBy(() -> RESTUtil.decodeTableIdentifier("ns%1Ft", ""))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid separator: null or empty");
   }
 
   @Test

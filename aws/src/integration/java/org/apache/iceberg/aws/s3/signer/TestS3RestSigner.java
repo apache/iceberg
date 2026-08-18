@@ -32,10 +32,10 @@ import java.util.Map;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
+import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.aws.s3.MinioUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.rest.RESTCatalogInternalProperties;
-import org.apache.iceberg.rest.RESTCatalogProperties;
+import org.apache.iceberg.rest.RemoteSigningProperties;
 import org.apache.iceberg.rest.auth.OAuth2Properties;
 import org.apache.iceberg.util.ThreadPools;
 import org.eclipse.jetty.compression.gzip.GzipCompression;
@@ -109,12 +109,10 @@ public class TestS3RestSigner {
             ImmutableS3V4RestSignerClient.builder()
                 .properties(
                     ImmutableMap.of(
-                        RESTCatalogProperties.SIGNER_URI,
+                        CatalogProperties.URI,
                         httpServer.getURI().toString(),
-                        RESTCatalogProperties.SIGNER_ENDPOINT,
+                        RemoteSigningProperties.ENDPOINT,
                         S3SignerServlet.S3_SIGNER_ENDPOINT,
-                        RESTCatalogInternalProperties.TABLE_IDENTIFIER,
-                        "table1",
                         OAuth2Properties.CREDENTIAL,
                         "catalog:12345"))
                 .build(),

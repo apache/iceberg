@@ -28,8 +28,7 @@ import org.apache.iceberg.aws.s3.S3FileIOProperties;
 import org.apache.iceberg.aws.s3.signer.S3V4RestSignerClient;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.rest.RESTCatalogInternalProperties;
-import org.apache.iceberg.rest.RESTCatalogProperties;
+import org.apache.iceberg.rest.RemoteSigningProperties;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
@@ -217,8 +216,8 @@ public class TestS3FileIOProperties {
         ImmutableMap.of(
             S3FileIOProperties.REMOTE_SIGNING_ENABLED,
             "true",
-            RESTCatalogInternalProperties.TABLE_IDENTIFIER,
-            "table1");
+            RemoteSigningProperties.ENDPOINT,
+            "v1/namespaces/ns1/tables/t1/sign");
     S3FileIOProperties s3Properties = new S3FileIOProperties(properties);
 
     assertThatThrownBy(() -> s3Properties.applySignerConfiguration(S3Client.builder()))
@@ -227,18 +226,32 @@ public class TestS3FileIOProperties {
   }
 
   @Test
+  public void testS3RemoteSignerWithoutEndpoint() {
+    Map<String, String> properties =
+        ImmutableMap.of(
+            S3FileIOProperties.REMOTE_SIGNING_ENABLED,
+            "true",
+            CatalogProperties.URI,
+            "http://localhost:12345");
+    S3FileIOProperties s3Properties = new S3FileIOProperties(properties);
+
+    assertThatThrownBy(() -> s3Properties.applySignerConfiguration(S3Client.builder()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Remote signing endpoint is required");
+  }
+
+  @Test
   public void testS3RemoteSigningEnabled() {
-    String uri = "http://localhost:12345";
+    String uri = "http://localhost:12345/";
+    String endpoint = "v1/namespaces/ns1/tables/t1/sign";
     Map<String, String> properties =
         ImmutableMap.of(
             S3FileIOProperties.REMOTE_SIGNING_ENABLED,
             "true",
             CatalogProperties.URI,
             uri,
-            RESTCatalogInternalProperties.TABLE_IDENTIFIER,
-            "table1",
-            RESTCatalogProperties.SIGNER_ENDPOINT,
-            "v1/aws/s3/sign");
+            RemoteSigningProperties.ENDPOINT,
+            endpoint);
     S3FileIOProperties s3Properties = new S3FileIOProperties(properties);
     S3ClientBuilder builder = S3Client.builder();
 
@@ -249,6 +262,7 @@ public class TestS3FileIOProperties {
     assertThat(signer).isPresent().get().isInstanceOf(S3V4RestSignerClient.class);
     S3V4RestSignerClient signerClient = (S3V4RestSignerClient) signer.get();
     assertThat(signerClient.baseSignerUri()).isEqualTo(uri);
+    assertThat(signerClient.endpoint()).isEqualTo(uri + endpoint);
     assertThat(signerClient.properties()).isEqualTo(properties);
   }
 
@@ -261,10 +275,8 @@ public class TestS3FileIOProperties {
             "true",
             CatalogProperties.URI,
             uri,
-            RESTCatalogInternalProperties.TABLE_IDENTIFIER,
-            "table1",
-            RESTCatalogProperties.SIGNER_ENDPOINT,
-            "v1/aws/s3/sign");
+            RemoteSigningProperties.ENDPOINT,
+            "v1/namespaces/ns1/tables/t1/sign");
     S3FileIOProperties s3Properties = new S3FileIOProperties(properties);
     S3ClientBuilder builder = S3Client.builder();
 

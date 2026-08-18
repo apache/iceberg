@@ -61,7 +61,6 @@ import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.FileIOTracker;
 import org.apache.iceberg.io.StorageCredential;
-import org.apache.iceberg.io.SupportsRemoteSigningConfig;
 import org.apache.iceberg.io.SupportsStorageCredentials;
 import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.metrics.MetricsReporters;
@@ -101,6 +100,7 @@ import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.apache.iceberg.rest.responses.LoadViewResponse;
 import org.apache.iceberg.rest.responses.UpdateNamespacePropertiesResponse;
 import org.apache.iceberg.rest.signing.RemoteSigningConfig;
+import org.apache.iceberg.rest.signing.RemoteSigningConfigParser;
 import org.apache.iceberg.util.EnvironmentUtil;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.ThreadPools;
@@ -1232,14 +1232,11 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   }
 
   private FileIO newFileIO(SessionContext context, Map<String, String> properties) {
-    return newFileIO(context, properties, ImmutableList.of(), RemoteSigningConfig.EMPTY);
+    return newFileIO(context, properties, ImmutableList.of());
   }
 
   private FileIO newFileIO(
-      SessionContext context,
-      Map<String, String> properties,
-      List<Credential> storageCredentials,
-      RemoteSigningConfig remoteSigningConfig) {
+      SessionContext context, Map<String, String> properties, List<Credential> storageCredentials) {
     if (null != ioBuilder) {
       FileIO fileIO = ioBuilder.apply(context, properties);
       if (!storageCredentials.isEmpty()
@@ -1248,10 +1245,6 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
             storageCredentials.stream()
                 .map(c -> StorageCredential.create(c.prefix(), c.config()))
                 .collect(Collectors.toList()));
-      }
-      if (!remoteSigningConfig.isEmpty()
-          && fileIO instanceof SupportsRemoteSigningConfig ioWithRemoteSigningConfig) {
-        ioWithRemoteSigningConfig.setRemoteSigningConfig(remoteSigningConfig);
       }
       return fileIO;
     } else {
@@ -1262,20 +1255,19 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
           conf,
           storageCredentials.stream()
               .map(c -> StorageCredential.create(c.prefix(), c.config()))
-              .collect(Collectors.toList()),
-          remoteSigningConfig);
+              .collect(Collectors.toList()));
     }
   }
 
   private FileIO tableFileIO(
       TableIdentifier tableIdentifier,
       SessionContext context,
-      Map<String, String> config,
+      Map<String, String> tableConf,
       List<Credential> storageCredentials,
       RemoteSigningConfig remoteSigningConfig) {
 
     boolean canReuseCatalogIO =
-        config.isEmpty()
+        tableConf.isEmpty()
             && ioBuilder == null
             && storageCredentials.isEmpty()
             && remoteSigningConfig.isEmpty();
@@ -1287,13 +1279,14 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     Map<String, String> fullConf =
         ImmutableMap.<String, String>builder()
             .putAll(properties())
-            .putAll(config)
+            .putAll(tableConf)
+            .put(RemoteSigningProperties.ENDPOINT, paths.remoteSign(tableIdentifier))
             .put(
-                RESTCatalogInternalProperties.TABLE_IDENTIFIER,
-                RESTUtil.encodeTableIdentifier(tableIdentifier, namespaceSeparator))
+                RemoteSigningProperties.CONFIG,
+                RemoteSigningConfigParser.toJson(remoteSigningConfig))
             .buildKeepingLast();
 
-    return newFileIO(context, fullConf, storageCredentials, remoteSigningConfig);
+    return newFileIO(context, fullConf, storageCredentials);
   }
 
   /**
