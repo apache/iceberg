@@ -173,8 +173,7 @@ public class BasePartitionStatistics extends SupportsIndexProjection
       case DV_COUNT_POSITION:
         return dvCount;
       default:
-        throw new UnsupportedOperationException(
-            "Unknown position: " + pos + " (expected 0-" + DV_COUNT_POSITION + ")");
+        throw unknownPosition(pos);
     }
   }
 
@@ -225,8 +224,12 @@ public class BasePartitionStatistics extends SupportsIndexProjection
         this.dvCount = (int) value;
         break;
       default:
-        throw new UnsupportedOperationException(
-            "Unknown position: " + pos + " (expected 0-" + DV_COUNT_POSITION + ")");
+        throw unknownPosition(pos);
     }
+  }
+
+  private static UnsupportedOperationException unknownPosition(int pos) {
+    return new UnsupportedOperationException(
+        "Unknown position: " + pos + " (expected 0-" + (BASE_TYPE.fields().size() - 1) + ")");
   }
 }
