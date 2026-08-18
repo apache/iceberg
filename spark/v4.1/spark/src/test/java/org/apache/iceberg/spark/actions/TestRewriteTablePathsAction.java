@@ -365,12 +365,6 @@ public class TestRewriteTablePathsAction extends TestBase {
 
   @TestTemplate
   public void testManifestLengthAfterRewrite() throws Exception {
-    // Rewriting a manifest embeds the new (here, longer) data-file paths, so the rewritten manifest
-    // differs in byte size from the source. Every rewritten manifest list - for the current and all
-    // historical snapshots - must record that new size in manifest_length; otherwise readers that
-    // validate the field (e.g. Trino) fail with "Incorrect file size (end of stream not reached)".
-    // Each snapshot's manifest holds many data files so the byte-size change from the prefix is
-    // dominated by the data block (not the constant Avro schema header), making it unambiguous.
     String sourceLocation = newTableLocation();
     Table sourceTable =
         TABLES.create(
@@ -379,7 +373,6 @@ public class TestRewriteTablePathsAction extends TestBase {
             ImmutableMap.of(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion)),
             sourceLocation);
 
-    // Two appends produce two snapshots so the older snapshot is exercised as a historical one.
     appendManifestLengthRecords(sourceLocation, 0);
     appendManifestLengthRecords(sourceLocation, 1);
     sourceTable.refresh();
@@ -420,10 +413,6 @@ public class TestRewriteTablePathsAction extends TestBase {
         .save(location);
   }
 
-  /**
-   * Assert that every manifest referenced by any snapshot of the target table records a
-   * manifest_length matching the file on disk, and return how many entries were checked.
-   */
   private int assertManifestLengthsMatchOnDisk(Table targetTable) {
     FileIO io = targetTable.io();
     int checkedManifests = 0;
@@ -441,15 +430,11 @@ public class TestRewriteTablePathsAction extends TestBase {
     return checkedManifests;
   }
 
-  /**
-   * Guard against the length assertions degenerating into a tautology: if the prefix change did not
-   * move the byte size of any manifest, they would hold even without stamping the measured length.
-   */
+  /** Guards the length assertions against a prefix change that moved no manifest's byte size. */
   private void assertRewriteChangedManifestLength(Table sourceTable, Table targetTable) {
     Map<String, Long> sourceLengths = manifestLengthsByFileName(sourceTable);
     Map<String, Long> targetLengths = manifestLengthsByFileName(targetTable);
-    // compare like with like: a target manifest missing from the source map would otherwise satisfy
-    // the check below for the wrong reason, since Long.equals(null) is false
+    // a target manifest missing from the source map would pass anyMatch for the wrong reason
     assertThat(targetLengths.keySet())
         .as("target manifests should be the source manifests under a new prefix")
         .isEqualTo(sourceLengths.keySet());
@@ -936,20 +921,23 @@ public class TestRewriteTablePathsAction extends TestBase {
             .first();
     table.newRowDelta().addDeletes(positionDeletes).commit();
 
+    // a longer target prefix so the rewritten manifests change byte size
+    String targetLocation = targetTableLocation() + "a/much/longer/nested/target/prefix";
+
     RewriteTablePath.Result result =
         actions()
             .rewriteTablePath(table)
             .stagingLocation(stagingLocation())
-            .rewriteLocationPrefix(table.location(), targetTableLocation())
+            .rewriteLocationPrefix(table.location(), targetLocation)
             .execute();
     copyTableFiles(result);
 
-    Table targetTable = TABLES.load(targetTableLocation());
+    Table targetTable = TABLES.load(targetLocation);
+    assertRewriteChangedManifestLength(table, targetTable);
     List<ManifestFile> deleteManifests =
         targetTable.currentSnapshot().deleteManifests(targetTable.io());
     assertThat(deleteManifests).isNotEmpty();
     for (ManifestFile manifest : deleteManifests) {
-      // the delete manifest itself is rewritten, so its manifest_length must be measured too
       assertThat(manifest.length())
           .as("manifest_length of the rewritten delete manifest %s", manifest.path())
           .isEqualTo(targetTable.io().newInputFile(manifest.path()).getLength());
