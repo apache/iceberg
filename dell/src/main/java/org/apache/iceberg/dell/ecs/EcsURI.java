@@ -35,7 +35,7 @@ class EcsURI {
   private final String name;
 
   EcsURI(String location) {
-    Preconditions.checkNotNull(location == null, "Location %s can not be null", location);
+    Preconditions.checkNotNull(location, "Location can not be null");
 
     this.location = location;
 
