@@ -58,7 +58,7 @@ A catalog is created and named by adding a property `spark.sql.catalog.(catalog-
 
 Iceberg supplies two implementations:
 
-* `org.apache.iceberg.spark.SparkCatalog` supports a Hive Metastore or a Hadoop warehouse as a catalog
+* `org.apache.iceberg.spark.SparkCatalog` supports Hive, Hadoop, REST, Glue, JDBC, and Nessie catalogs
 * `org.apache.iceberg.spark.SparkSessionCatalog` adds support for Iceberg tables to Spark's built-in catalog, and delegates to the built-in catalog for non-Iceberg tables
 
 Both catalogs are configured using properties nested under the catalog name. Common configuration properties for Hive and Hadoop are:
