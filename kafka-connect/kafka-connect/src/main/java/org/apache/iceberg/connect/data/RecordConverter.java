@@ -61,6 +61,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Type.PrimitiveType;
 import org.apache.iceberg.types.Types.DecimalType;
@@ -581,7 +582,9 @@ class RecordConverter {
     }
 
     List<String> sortedFieldNames =
-        collectFieldNames(value).stream().sorted().collect(Collectors.toList());
+        collectFieldNames(value).stream()
+            .sorted(Comparators.charSequences())
+            .collect(Collectors.toList());
     VariantMetadata metadata = Variants.metadata(sortedFieldNames);
     return Variant.of(metadata, objectToVariantValue(value, metadata, null));
   }

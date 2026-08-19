@@ -28,6 +28,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.util.ByteBuffers;
 
 /**
@@ -61,7 +62,8 @@ public class ShreddedObject implements VariantObject, Serializable {
   }
 
   private Set<String> nameSet() {
-    Set<String> names = Sets.newTreeSet(shreddedFields.keySet());
+    Set<String> names = Sets.newTreeSet(Comparators.charSequences());
+    names.addAll(shreddedFields.keySet());
 
     if (unshredded != null) {
       Iterables.addAll(names, unshredded.fieldNames());
@@ -157,7 +159,7 @@ public class ShreddedObject implements VariantObject, Serializable {
         Set<String> removedFields) {
       this.fieldIdSize = VariantUtil.sizeOf(metadata.dictionarySize());
 
-      Map<String, Entry> sorted = Maps.newTreeMap();
+      Map<String, Entry> sorted = Maps.newTreeMap(Comparators.charSequences());
       int totalDataSize = 0;
 
       for (Map.Entry<String, VariantValue> field : shredded.entrySet()) {

@@ -25,6 +25,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.UUID;
+import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.util.ByteBuffers;
 import org.apache.iceberg.util.DateTimeUtil;
 
@@ -57,7 +58,7 @@ public class Variants {
     for (String name : fieldNames) {
       nameBuffers[pos] = ByteBuffer.wrap(name.getBytes(StandardCharsets.UTF_8));
       dataSize += nameBuffers[pos].remaining();
-      if (last != null && last.compareTo(name) >= 0) {
+      if (last != null && Comparators.charSequences().compare(last, name) >= 0) {
         sorted = false;
       }
 

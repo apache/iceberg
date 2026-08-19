@@ -23,6 +23,7 @@ import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.util.function.Function;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.util.ByteBuffers;
 
 class VariantUtil {
@@ -99,13 +100,13 @@ class VariantUtil {
     }
   }
 
-  static <T extends Comparable<T>> int find(int size, T key, Function<Integer, T> resolve) {
+  static int find(int size, String key, Function<Integer, String> resolve) {
     int low = 0;
     int high = size - 1;
     while (low <= high) {
       int mid = (low + high) >>> 1;
-      T value = resolve.apply(mid);
-      int cmp = key.compareTo(value);
+      String value = resolve.apply(mid);
+      int cmp = Comparators.charSequences().compare(key, value);
       if (cmp == 0) {
         return mid;
       } else if (cmp < 0) {

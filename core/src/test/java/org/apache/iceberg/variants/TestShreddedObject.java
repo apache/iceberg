@@ -66,6 +66,25 @@ public class TestShreddedObject {
   }
 
   @Test
+  public void testShreddedFieldOrderFollowsUtf8ByteOrder() {
+    // U+FFFF is 3 UTF-8 bytes (EF BF BF), U+10000 is 4 (F0 90 80 80); they order oppositely in
+    // UTF-16
+    String threeByteName = new String(Character.toChars(0xFFFF));
+    String fourByteName = new String(Character.toChars(0x10000));
+    VariantMetadata metadata = Variants.metadata(threeByteName, fourByteName);
+    Map<String, VariantValue> fields =
+        ImmutableMap.of(threeByteName, Variants.of(1), fourByteName, Variants.of(2));
+    ShreddedObject object = createShreddedObject(metadata, fields);
+
+    VariantValue value = roundTripMinimalBuffer(object, metadata);
+
+    assertThat(value).isInstanceOf(SerializedObject.class);
+    SerializedObject actual = (SerializedObject) value;
+    assertThat(actual.get(threeByteName).asPrimitive().get()).isEqualTo(1);
+    assertThat(actual.get(fourByteName).asPrimitive().get()).isEqualTo(2);
+  }
+
+  @Test
   public void testByteBufferConversion() {
     Map<String, VariantValue> pathNormalizedFields =
         ImmutableMap.of(
