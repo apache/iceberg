@@ -138,8 +138,8 @@ class ListVectorBuilder implements AutoCloseable {
   }
 
   /**
-   * Writes one element from an element-reader batch into the child vector at elementIndex.
-   * Handles both plain and Parquet dictionary-encoded source batches: when {@code
+   * Writes one element from an element-reader batch into the child vector at elementIndex. Handles
+   * both plain and Parquet dictionary-encoded source batches: when {@code
    * sourceBatch.isDictionaryEncoded()} is {@code true}, the {@link IntVector} of dictionary IDs is
    * decoded through {@code sourceBatch.dictionary()} into the plain-typed child vector; otherwise
    * the value is copied directly via {@link FieldVector#copyFromSafe}.
@@ -207,10 +207,11 @@ class ListVectorBuilder implements AutoCloseable {
   }
 
   /**
-   * Ends the currently open list, if any, using the definition level that was recorded when it
-   * was opened.
+   * Ends the currently open list, if any, using the definition level that was recorded when it was
+   * opened.
    *
-   * @return {@code true} if a list was actually closed, {@code false} otherwise it happens the first list of the batch
+   * @return {@code true} if a list was actually closed, {@code false} otherwise it happens the
+   *     first list of the batch
    */
   boolean endCurrentList() {
     if (listIndex < 0) {
