@@ -1880,7 +1880,6 @@ public class TestViews extends ExtensionsTestBase {
                 + "  'format-version' = '1',\n"
                 + "  'location' = '%s',\n"
                 + "  'provider' = 'iceberg')\n"
-                + "WITH SCHEMA COMPENSATION\n"
                 + "AS\n%s\n",
             catalogName, NAMESPACE, viewName, location, sql);
     assertThat(sql("SHOW CREATE TABLE %s", viewName)).containsExactly(row(expected));
@@ -1909,7 +1908,6 @@ public class TestViews extends ExtensionsTestBase {
                 + "  'key2' = 'val2',\n"
                 + "  'location' = '%s',\n"
                 + "  'provider' = 'iceberg')\n"
-                + "WITH SCHEMA COMPENSATION\n"
                 + "AS\n%s\n",
             catalogName, NAMESPACE, viewName, location, sql);
     assertThat(sql("SHOW CREATE TABLE %s", viewName)).containsExactly(row(expected));
@@ -1936,16 +1934,6 @@ public class TestViews extends ExtensionsTestBase {
   }
 
   @TestTemplate
-  public void showCreateViewWithSchemaMode() {
-    String viewName = viewName("showCreateViewWithSchemaMode");
-
-    sql("CREATE VIEW %s WITH SCHEMA EVOLUTION AS SELECT id, data FROM %s", viewName, tableName);
-
-    String createDDL = (String) sql("SHOW CREATE TABLE %s", viewName).get(0)[0];
-    assertThat(createDDL).contains("WITH SCHEMA EVOLUTION\n");
-  }
-
-  @TestTemplate
   public void showCreateMetricViewIsUnsupported() {
     String viewName = viewName("showCreateMetricViewIsUnsupported");
     String query = String.format("SELECT id FROM %s", tableName);
@@ -1963,53 +1951,6 @@ public class TestViews extends ExtensionsTestBase {
     assertThatThrownBy(() -> sql("SHOW CREATE TABLE %s", viewName))
         .isInstanceOf(AnalysisException.class)
         .hasMessageContaining("The command is not supported on a metric view");
-  }
-
-  @TestTemplate
-  public void alterViewSchemaMode() throws NoSuchViewException {
-    String viewName = viewName("alterViewSchemaMode");
-    TableIdentifier identifier = TableIdentifier.of(NAMESPACE, viewName);
-
-    sql("CREATE VIEW %s AS SELECT id, data FROM %s", viewName, tableName);
-
-    View view = viewCatalog().loadView(identifier);
-    assertThat(view.properties())
-        .containsEntry(SparkView.VIEW_SCHEMA_MODE, "COMPENSATION")
-        .containsEntry(SparkView.QUERY_COLUMN_NAMES, "id,data")
-        .containsEntry(QUERY_COLUMN_NAMES_JSON, "[\"id\",\"data\"]");
-    assertThat(view.history()).hasSize(1);
-    assertThat(view.versions()).hasSize(1);
-
-    spark.catalog().cacheTable(viewName);
-    assertThat(spark.catalog().isCached(viewName)).isTrue();
-
-    sql("ALTER VIEW %s WITH SCHEMA EVOLUTION", viewName);
-    assertThat(spark.catalog().isCached(viewName)).isFalse();
-
-    view = viewCatalog().loadView(identifier);
-    assertThat(view.properties())
-        .containsEntry(SparkView.VIEW_SCHEMA_MODE, "EVOLUTION")
-        .containsEntry(SparkView.QUERY_COLUMN_NAMES, "id,data")
-        .containsEntry(QUERY_COLUMN_NAMES_JSON, "[\"id\",\"data\"]");
-    org.apache.spark.sql.connector.catalog.View sparkView =
-        ((org.apache.spark.sql.connector.catalog.ViewCatalog)
-                spark.sessionState().catalogManager().catalog(catalogName))
-            .loadView(Identifier.of(NAMESPACE.levels(), viewName));
-    assertThat(sparkView.queryColumnNames()).isEmpty();
-    assertThat(view.history()).hasSize(1);
-    assertThat(view.versions()).hasSize(1);
-    assertThat(view.currentVersion().versionId()).isEqualTo(1);
-    assertThat(sql("SHOW CREATE TABLE %s", viewName).get(0)[0])
-        .asString()
-        .contains("WITH SCHEMA EVOLUTION\n");
-
-    sql("ALTER VIEW %s WITH SCHEMA COMPENSATION", viewName);
-    sparkView =
-        ((org.apache.spark.sql.connector.catalog.ViewCatalog)
-                spark.sessionState().catalogManager().catalog(catalogName))
-            .loadView(Identifier.of(NAMESPACE.levels(), viewName));
-    assertThat(sparkView.queryColumnNames()).containsExactly("id", "data");
-    assertThat(sql("SELECT id, data FROM %s", viewName)).isEmpty();
   }
 
   @TestTemplate
