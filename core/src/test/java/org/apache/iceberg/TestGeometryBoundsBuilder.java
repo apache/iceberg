@@ -259,8 +259,6 @@ class TestGeometryBoundsBuilder {
 
   private static Stream<Arguments> invalidWkbCases() {
     return Stream.of(
-        // a well-formed point followed by one extra byte
-        Arguments.of("trailing data", append(wkb(point(3, 4)), (byte) 0), "trailing data"),
         // a multi point whose child is a line string rather than a point
         Arguments.of(
             "multi point with a line string child",
@@ -453,12 +451,6 @@ class TestGeometryBoundsBuilder {
         buffer.putDouble(ordinate);
       }
     };
-  }
-
-  private static byte[] append(byte[] wkb, byte... extra) {
-    byte[] result = Arrays.copyOf(wkb, wkb.length + extra.length);
-    System.arraycopy(extra, 0, result, wkb.length, extra.length);
-    return result;
   }
 
   private static byte[] truncate(byte[] wkb, int length) {

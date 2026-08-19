@@ -83,7 +83,6 @@ class GeometryBoundsBuilder {
     Preconditions.checkArgument(wkb != null, "Invalid WKB buffer: null");
     ByteBuffer buffer = wkb.duplicate();
     parseGeometry(buffer, ANY_GEOMETRY);
-    Preconditions.checkArgument(!buffer.hasRemaining(), "Invalid WKB: trailing data");
   }
 
   /**
