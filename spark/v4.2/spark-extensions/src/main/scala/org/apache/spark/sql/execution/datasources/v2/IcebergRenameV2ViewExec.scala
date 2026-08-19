@@ -36,7 +36,9 @@ case class IcebergRenameV2ViewExec(catalog: ViewCatalog, oldIdent: Identifier, n
   override protected def run(): Seq[InternalRow] = {
     val qualifiedNewIdent = if (newIdent.namespace.isEmpty) {
       Identifier.of(oldIdent.namespace, newIdent.name)
-    } else newIdent
+    } else {
+      newIdent
+    }
 
     val oldQualified = (catalog.name() +: oldIdent.asMultipartIdentifier).quoted
     val storageLevel = Try(session.table(oldQualified)).toOption.flatMap { relation =>
