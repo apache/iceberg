@@ -63,8 +63,9 @@ The following index type is reserved for future specifications:
 
 ### Index Expressions
 
-An index is defined by two lists of [Iceberg expressions](expressions-spec.md), the [index values](#index-values) and
-the [index keys](#index-keys). Every expression in both lists is evaluated for each indexed row of the source table.
+An index is defined by the [index values](#index-values) and the [index keys](#index-keys), which are built from
+[Iceberg expressions](expressions-spec.md). Every expression in both is evaluated for each indexed row of the source
+table.
 
 Each expression must be a value expression and must satisfy the following requirements:
 
@@ -79,13 +80,31 @@ the expressions specification.
 
 ### Index Values
 
-The index values define the content of the index [leaf files](#leaf-files). `index-values` is a list of expressions and
-each expression produces one field of the [leaf schema](#leaf-schema). Evaluating the list for one indexed row produces
-one leaf file row.
+The index values define the content of the index [leaf files](#leaf-files). `index-values` is a list of index value
+entries and each entry produces one field of the [leaf schema](#leaf-schema). Evaluating the list for one indexed row
+produces one leaf file row.
 
-The list may contain an identity expression of the `_file` (`2147483646`) metadata column and an identity expression
-of the `_pos` (`2147483645`) metadata column, which produce the `file_path` (`2147483546`) and `pos` (`2147483545`)
-fields of the [leaf schema](#leaf-schema).
+| Requirement | Field      | Type            | Description                                                             |
+|-------------|------------|-----------------|-------------------------------------------------------------------------|
+| required    | field-id   | int             | Field ID of the [leaf schema](#leaf-schema) field produced by the entry |
+| required    | expression | JSON expression | Expression producing the value of the field                             |
+
+In addition to the requirements in [Index Expressions](#index-expressions), the entries must satisfy:
+
+- The result type of the expression must be a primitive type. List, map, and struct result types must not be used.
+- Each `field-id` must be unique within the list.
+- The `field-id` of an identity expression of a source table field must be the field ID of that field.
+- The `field-id` of an identity expression of the `_file` (`2147483646`) metadata column must be `2147483546`
+  (`file_path`).
+- The `field-id` of an identity expression of the `_pos` (`2147483645`) metadata column must be `2147483545` (`pos`).
+- The `field-id` of any other expression should not be the field ID of a source table field or of a metadata column, so
+  that leaf schema fields that carry a source table field ID can be recognized.
+
+The index values must allow a reader to identify the leaf file rows that match a lookup. For each
+[index keys](#index-keys) expression, the list must contain an entry for every source table field that the expression
+references, or, when the expression produces a distinct result for every distinct input, an entry whose expression is
+the index keys expression. For example, an index keyed on `bucket(256, user_id)` must store `user_id`, because rows
+with different `user_id` values can share a bucket, while an index keyed on `user_id` may store the key itself.
 
 ### Index Keys
 
@@ -107,8 +126,11 @@ Examples of index keys, shown as SQL for readability:
 ### Index Instance
 
 An index instance is a concrete realization of an index type applied to a specific table. It is defined by a source
-table, an index type, a list of index values expressions, a list of index keys expressions, and optional index
-properties.
+table, an index type, a list of index values, a list of index keys expressions, and optional index properties.
+
+The index definition is fixed when the index is created. The index type, the index values, and the index keys must not
+change for the lifetime of the index, so leaf files remain readable through every index snapshot that references them.
+A different definition requires a new index.
 
 Multiple instances of the same index type may exist for a table.
 
@@ -125,7 +147,7 @@ The index metadata file stores the index definition and snapshot history.
 | required    | table-uuid      | string                | UUID of the indexed table                                                  |
 | required    | location        | string                | Index root location                                                        |
 | required    | type            | string                | Logical index type                                                         |
-| required    | index-values    | list<JSON expression> | Expressions producing the index values, see [Index Values](#index-values)  |
+| required    | index-values    | list<index-value>     | Index values, see [Index Values](#index-values)                            |
 | required    | index-keys      | list<JSON expression> | Expressions producing the index keys, see [Index Keys](#index-keys)        |
 | optional    | properties      | map<string,string>    | Index properties applicable for every snapshot                             |
 | required    | snapshots       | list<index-snapshot>  | Index snapshots                                                            |
@@ -253,29 +275,17 @@ Leaf files must be standard Iceberg data files and may be stored using any Icebe
 - Avro
 - ORC - May be removed if ORC support is deprecated in Iceberg.
 
-Each leaf file row is the result of evaluating the [index values](#index-values) expressions for one indexed row.
-Entries within a leaf file must be stored in the [index ordering](#ordering), which allows an effective search for
-an index key within the leaf file.
+Each leaf file row is the result of evaluating the [index values](#index-values) for one indexed row.
+Entries within a leaf file must be stored in the [index ordering](#ordering).
 
 #### Leaf Schema
 
-The leaf schema is derived from the [index values](#index-values) expressions. It is a struct with one field per index
-values expression, in the order the expressions are listed. The type of a leaf schema field is the result type of the
-expression that produces it.
+The leaf schema is constructed from the [index values](#index-values). The result is a struct containing one field for
+each index value entry, with fields appearing in the same order as the entries. Each field takes its ID from the
+`field-id` of the corresponding entry and its type from the result type of that entry's expression.
 
-The field ID of a leaf schema field is assigned as follows:
-
-- An identity expression of the `_file` (`2147483646`) metadata column produces the `file_path` field (`2147483546`).
-- An identity expression of the `_pos` (`2147483645`) metadata column produces the `pos` (`2147483545`) field.
-- Any other identity expression preserves the field ID of the referenced source table field, including the IDs of its
-  nested fields.
-- Any other expression is assigned a generated field ID which should not clash with an existing field ID, or metadata
-  field ID, of the source table. Users of the index must not rely on the generated field IDs, which may change when the
-  index is rebuilt.
-
-The field name of a leaf schema field that preserves a source table field ID is the name of that field in the current
-source table schema. Names of generated fields are not defined by this specification and must not be used to resolve
-leaf schema fields; readers must match leaf file columns by field ID.
+Field names in the leaf schema are generated by the writer and are not defined by this specification. Users of the
+index must not rely on them; readers must match leaf file columns by field ID.
 
 ## Future Extensions
 
@@ -306,10 +316,10 @@ the index definition open ended, but it also means the definition must survive s
 deterministic for the same reason a sort key must be stable: an expression that depends on `random` or on the evaluation
 time would place entries at positions that cannot be reproduced, invalidating the index as soon as it is written.
 
-Index values and index keys are lists of expressions. A list generates the individual key and value components, and
-their order, part of the index definition, which is what engines need to match an index to a query and to compare index
-keys component by component. If an engine does not support a specific expression, it cannot use the index for queries
-that require that expression.
+Index values and index keys are lists that generate the individual key and value components, and their order, part of
+the index definition, which is what engines need to match an index to a query and to compare index keys component by
+component. An engine matches the expressions of a query against the index expressions to decide whether the index
+applies and which leaf schema field holds a value.
 
 ### Ordering
 
@@ -322,23 +332,42 @@ key is expressed as separate index keys expressions instead.
 Index keys alone do not have to be unique. Ordering entries with equal index keys by the location of the source row
 makes the ordering total, because a source row is uniquely identified by its file path and position.
 
-The ordering is what makes the index usable at two levels. Leaf files hold non-overlapping ranges of the ordering, so
-the index key statistics in the tracking file are enough to eliminate a leaf file without opening it. Within a leaf
-file, entries are stored in the same ordering, so a reader can search for an index key efficiently once the leaf file
-has been selected.
+The ordering makes the index usable at two levels: leaf files can be pruned without being opened, and the entries of a
+leaf file that is opened can be located without reading all of it.
 
-Only the upper bound of a leaf file's index key range is stored. Sorted entries in the tracking file and non-overlapping
-ranges make the lower bound redundant: it is the upper bound of the preceding entry. Storing one bound halves the size
-of the index key statistics.
+Leaf files hold non-overlapping ranges of the ordering, so the index key statistics in the tracking file are enough to
+eliminate a leaf file. Only the upper bound of a range is stored, because sorted entries in the tracking file and
+non-overlapping ranges make the lower bound redundant: it is the upper bound of the preceding entry. Storing one bound
+halves the size of the index key statistics.
+
+Within a leaf file, the entries that match a lookup are contiguous, so a reader can locate them with the structures the
+file format provides for stored columns, such as Parquet page indexes, instead of examining every entry. Those
+structures work on a stored column that the ordering keeps sorted, which is a key stored as an index value, or a value
+the key is derived from by an order-preserving transformation: a file keyed on `day(ts)` is also sorted by a stored
+`ts` column. A key like `bucket(256, user_id)` leaves the stored `user_id` column unsorted, so unless the bucket is
+also stored as an index value, a reader has to evaluate the index keys expressions over the entries of the file.
 
 ### Leaf schema
 
-The leaf schema is derived from the index values expressions, so the index definition and the physical layout of the
-index cannot drift apart and the schema does not have to be maintained as a second, redundant copy of the definition.
+The leaf schema is derived from the index values, so the index definition and the physical layout of the index cannot
+drift apart and the schema does not have to be maintained as a second, redundant copy of the definition.
+
+Requiring the index values to identify the matching rows is what keeps a leaf file useful on its own. A transformation
+that maps several values to the same result cannot distinguish the entries that share a key, so the values it is
+computed from have to be stored. Storing the key results as well is a performance choice, because those are what make a
+leaf file efficient to search, and an engine may decide not to use an index that does not store them.
+
+Field types are not stored in the definition. A field takes the result type of its expression, which is determined when
+the expression is bound to the source table schema, so the field follows the source column through type promotion. A
+stored type would instead be fixed at index creation and go stale as soon as a source column is promoted.
 
 Fields produced by identity expressions keep the field ID of the source column, which keeps schema evolution, column
-renames, and type compatibility semantics consistent between the table and the index. Fields produced by any other
-expression have no counterpart in the table, so they are assigned IDs.
+renames, and type compatibility semantics consistent between the table and the index. It also allows the index keys
+expressions, which reference source field IDs, to be evaluated against leaf file rows without remapping references,
+whenever the fields they reference are stored as index values.
+
+Index values are restricted to primitive result types, so one field ID per entry fully describes the leaf schema. A
+nested result type would also require IDs for every field of its subtree.
 
 The source row location is stored under its field IDs reusing delete file `file_name` and `pos` columns, rather than
 using `_file` and `_pos`. Those metadata columns point to a physical place and describe the file a row is physically
@@ -369,8 +398,9 @@ index snapshot. Leaf file boundaries are created based on the index keys, so a l
 of buckets or a range of `user_id` values within a single bucket. The tracking file stores summary information and
 pruning statistics.
 
-The index values expressions produce each leaf file row from `user_id` and the reserved metadata columns that identify
-the source row. All three are identity expressions, so the leaf schema is derived as:
+The index values produce each leaf file row from `user_id` and the reserved metadata columns that identify the source
+row. All three are identity expressions, so their field IDs are the field ID of the source column and the two reserved
+IDs, and the leaf schema is:
 
 | Field ID   | Column    | Type   | Description                                                  |
 |------------|-----------|--------|--------------------------------------------------------------|
@@ -391,9 +421,9 @@ s3://bucket/warehouse/default.db/events/index/bucket_index/metadata/00001-(uuid)
   "location" : "s3://bucket/warehouse/default.db/events/index/bucket_index",
   "type" : "SCALAR",
   "index-values" : [
-    { "type" : "reference", "id" : 1 },
-    { "type" : "reference", "id" : 2147483646 },
-    { "type" : "reference", "id" : 2147483645 }
+    { "field-id" : 1, "expression" : { "type" : "reference", "id" : 1 } },
+    { "field-id" : 2147483546, "expression" : { "type" : "reference", "id" : 2147483646 } },
+    { "field-id" : 2147483545, "expression" : { "type" : "reference", "id" : 2147483645 } }
   ],
   "index-keys" : [ {
     "type" : "apply",
@@ -445,7 +475,7 @@ A lookup for `user_id = 55310` evaluates the index keys expressions for that val
 `{ bucket: 88, user_id: 55310 }`. That key is not greater than the upper bound of `leaf-00001.parquet`, the first entry
 of the tracking file, so only the first leaf file is read.
 
-The rows of `leaf-00001.parquet` follow the leaf schema derived from the index values expressions, stored in the index
+The rows of `leaf-00001.parquet` follow the leaf schema constructed from the index values, stored in the index
 ordering. The index key of each row is not stored; it is shown here to make the ordering visible:
 
 | user_id | source_file_path                 | source_file_pos | (index key)     |
@@ -476,9 +506,9 @@ s3://bucket/warehouse/default.db/events/index/bucket_index/metadata/00002-(uuid)
   "location" : "s3://bucket/warehouse/default.db/events/index/bucket_index",
   "type" : "SCALAR",
   "index-values" : [
-    { "type" : "reference", "id" : 1 },
-    { "type" : "reference", "id" : 2147483646 },
-    { "type" : "reference", "id" : 2147483645 }
+    { "field-id" : 1, "expression" : { "type" : "reference", "id" : 1 } },
+    { "field-id" : 2147483546, "expression" : { "type" : "reference", "id" : 2147483646 } },
+    { "field-id" : 2147483545, "expression" : { "type" : "reference", "id" : 2147483645 } }
   ],
   "index-keys" : [ {
     "type" : "apply",
@@ -552,9 +582,9 @@ s3://bucket/warehouse/default.db/events/index/bucket_index/metadata/00003-(uuid)
   "location" : "s3://bucket/warehouse/default.db/events/index/bucket_index",
   "type" : "SCALAR",
   "index-values" : [
-    { "type" : "reference", "id" : 1 },
-    { "type" : "reference", "id" : 2147483646 },
-    { "type" : "reference", "id" : 2147483645 }
+    { "field-id" : 1, "expression" : { "type" : "reference", "id" : 1 } },
+    { "field-id" : 2147483546, "expression" : { "type" : "reference", "id" : 2147483646 } },
+    { "field-id" : 2147483545, "expression" : { "type" : "reference", "id" : 2147483645 } }
   ],
   "index-keys" : [ {
     "type" : "apply",
