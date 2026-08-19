@@ -100,7 +100,12 @@ class GeometryBoundsBuilder {
   }
 
   private void parseGeometry(ByteBuffer buffer, int expectedType) {
-    checkRemaining(buffer, 5);
+    // a geometry header is a one-byte order flag followed by a four-byte type code:
+    //   +-------+-----------------------+
+    //   | order |       type code       |
+    //   | (1 B) |         (4 B)         |
+    //   +-------+-----------------------+
+    checkRemaining(buffer, Byte.BYTES + Integer.BYTES);
 
     // each geometry sets its own byte order; restore the caller's order before returning so a
     // sibling read after a nested geometry is not misread with the wrong endianness
