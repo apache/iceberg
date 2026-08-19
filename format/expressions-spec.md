@@ -77,8 +77,6 @@ The context in which an expression is used determines the type of references tha
 
 An apply expression represents the result of a function applied to (or called on) zero or more values produced by child value expressions or predicates.
 
-An apply expression may declare a result type. When a result type is declared, the expression must produce that type. This is used when a function does not fully determine the type of its result, such as [`struct`](#struct-construction).
-
 Functions are referenced using a catalog and a function identifier.
 
 * The function identifier consists of 0 or more namespace names followed by the function name. At least one part, the function name, is required.
@@ -105,16 +103,6 @@ A value expression's result type is determined when it is bound to a specific in
 Function calls may produce different types when function definitions change, and type changes may change the definition that is resolved for a function name. For example, if the input field passed to `identity(int) -> int` is promoted from `int` to `long`, the resolved `identity` function can change to `identity(long) -> long` if it is defined.
 
 If types are incompatible at runtime, implementations binding or evaluating expressions may apply type promotion to align types for predicates and to resolve functions. Implementations may choose when to promote values to accommodate engines that differ in casting behavior. However, implementations must fail rather than insert unsafe casts.
-
-When a value expression declares a result type, the declared type must match the type that the expression would otherwise produce. Types match when:
-
-* Primitive types are equal
-* Struct types have the same number of fields and each field type matches, matching fields by position
-* List and map types have matching element, key, and value types
-
-Field names, field IDs, docs, and whether a field is required are not part of this comparison and are taken from the declared type. Binding must fail if the types do not match.
-
-Type promotion must not be used to match a declared result type with the type that the expression produces.
 
 
 ### Predicates
@@ -227,66 +215,6 @@ This section defines the functions in the `iceberg_functions` reserved catalog n
 
 * `if_else(condition: predicate, when_true: T, when_false: T) -> T`: returns the value of `when_true` when `condition` is true and `when_false` otherwise
 
-### Struct construction
-
-`struct` builds a struct value from the results of other value expressions.
-
-```
-struct(value_1, ..., value_N) -> struct<...>
-```
-
-Each value expression produces the value of one result field. Values are assigned to result fields positionally.
-
-When no result type is declared on the apply expression, `struct` does not fully determine the type of its result. Only the field types are determined: the type of the `i`th field is the result type of the `i`th value expression. Everything else is up to the implementation and must not be relied on.
-
-To produce a fully specified struct, declare a result type on the apply expression. The declared type must be a struct type that satisfies the requirements for struct types in the [table spec][table-spec-schemas], and:
-
-* The number of fields must equal the number of value expressions
-* Fields must not set `initial-default` or `write-default` because every field value is produced by a value expression
-
-A declared result type also applies to nested `struct` calls. The type of a nested struct field is declared by the enclosing type, so a nested call should not declare its own result type.
-
-`struct` never produces a null result. If a value expression produces `null` for a required field, evaluation must fail.
-
-#### Examples
-
-These examples use the [JSON serialization](#appendix-b-json-serialization) below, where field 4 is `id` (`int`) and field 5 is `x` (`float`).
-
-`struct(id, x)` produces a struct with an `int` field and a `float` field:
-
-```json
-{
-  "type": "apply",
-  "function": { "catalog": "iceberg_functions", "identifier": ["struct"] },
-  "arguments": [
-    { "type": "reference", "id": 4 },
-    { "type": "reference", "id": 5 }
-  ]
-}
-```
-
-A declared result type supplies the field names, field IDs, and required flags that `struct` does not determine. Field types must match the types produced by the value expressions. This produces `struct<1 id: required int, 2 x: required float>`:
-
-```json
-{
-  "type": "apply",
-  "function": { "catalog": "iceberg_functions", "identifier": ["struct"] },
-  "arguments": [
-    { "type": "reference", "id": 4 },
-    { "type": "reference", "id": 5 }
-  ],
-  "result-type": {
-    "type": "struct",
-    "fields": [
-      { "id": 1, "name": "id", "required": true, "type": "int" },
-      { "id": 2, "name": "x", "required": true, "type": "float" }
-    ]
-  }
-}
-```
-
-[table-spec-schemas]: spec/#schemas-and-data-types
-
 ### Partition transforms
 
 Iceberg partition transforms are also defined as functions (other than `void`).
@@ -334,7 +262,6 @@ BOUND_REF: { "type": "reference", "id": ID }
 UNBOUND_REF: { "type": "reference", "name": NAME }
 
 APPLY: { "type": "apply", "function": FUNC_REF, "arguments": [ FUNC_ARG* ] }
-    | { "type": "apply", "function": FUNC_REF, "arguments": [ FUNC_ARG* ], "result-type": DATA_TYPE }
 FUNC_ARG: EXPR | PREDICATE
 FUNC_REF: NAME
     | [ NAME* ]
@@ -350,7 +277,6 @@ DATA_TYPE: Iceberg type from the spec
 
 If a function reference is a string, that string is the one-part identifier and the catalog is missing/null.
 If a function reference is a list of strings, it is the function identifier and the catalog is missing/null.
-If `result-type` is missing or null, the result type of an apply expression is determined by the function that is called. See [`struct`](#struct-construction) for examples.
 
 ### Predicates
 
