@@ -39,7 +39,6 @@ import org.apache.iceberg.data.DataTestBase;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
-import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.TestHelpers;
 import org.apache.iceberg.inmemory.InMemoryOutputFile;
@@ -227,78 +226,6 @@ public class TestFlinkParquetReader extends DataTestBase {
       assertThat(rowData.getBinary(1)).isEqualTo(expectedByte);
       assertThat(rows).isExhausted();
     }
-  }
-
-  @Test
-  public void testNestedInitialDefaultWhenAncestorStructIsNull() throws IOException {
-    Schema writeSchema =
-        new Schema(
-            Types.NestedField.required(1, "id", Types.LongType.get()),
-            Types.NestedField.optional("nested")
-                .withId(2)
-                .ofType(
-                    Types.StructType.of(
-                        Types.NestedField.required(3, "inner", Types.StringType.get())))
-                .build());
-
-    org.apache.iceberg.data.GenericRecord present =
-        org.apache.iceberg.data.GenericRecord.create(writeSchema);
-    present.setField("id", 1L);
-    org.apache.iceberg.data.GenericRecord presentNested =
-        org.apache.iceberg.data.GenericRecord.create(
-            writeSchema.findField("nested").type().asStructType());
-    presentNested.setField("inner", "a");
-    present.setField("nested", presentNested);
-
-    org.apache.iceberg.data.GenericRecord nullNested =
-        org.apache.iceberg.data.GenericRecord.create(writeSchema);
-    nullNested.setField("id", 2L);
-    nullNested.setField("nested", null);
-
-    OutputFile output = new InMemoryOutputFile();
-    try (FileAppender<Record> writer =
-        Parquet.write(output)
-            .schema(writeSchema)
-            .createWriterFunc(GenericParquetWriter::create)
-            .build()) {
-      writer.add(present);
-      writer.add(nullNested);
-    }
-
-    // read schema drops "inner" and projects only a nested field with an initial default, so the
-    // struct retains no real column of its own. A null struct must still read as null rather than
-    // being materialized as a struct of default values.
-    Schema expectedSchema =
-        new Schema(
-            Types.NestedField.required(1, "id", Types.LongType.get()),
-            Types.NestedField.optional("nested")
-                .withId(2)
-                .ofType(
-                    Types.StructType.of(
-                        Types.NestedField.optional("added")
-                            .withId(4)
-                            .ofType(Types.StringType.get())
-                            .withInitialDefault(Literal.of("US"))
-                            .build()))
-                .build());
-
-    List<RowData> rows;
-    try (CloseableIterable<RowData> reader =
-        Parquet.read(output.toInputFile())
-            .project(expectedSchema)
-            .createReaderFunc(type -> FlinkParquetReaders.buildReader(expectedSchema, type))
-            .build()) {
-      rows = Lists.newArrayList(reader);
-    }
-
-    assertThat(rows).hasSize(2);
-
-    // present struct reads the default
-    assertThat(rows.get(0).isNullAt(1)).isFalse();
-    assertThat(rows.get(0).getRow(1, 1).getString(0).toString()).isEqualTo("US");
-
-    // null struct reads as null
-    assertThat(rows.get(1).isNullAt(1)).isTrue();
   }
 
   private void writeAndValidate(

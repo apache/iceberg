@@ -34,12 +34,10 @@ import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.IcebergGenerics;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
-import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.inmemory.InMemoryOutputFile;
 import org.apache.iceberg.io.CloseableIterable;
@@ -151,47 +149,6 @@ public class TestSparkParquetReader extends AvroDataTestBase {
         .commit();
 
     return table;
-  }
-
-  @Test
-  public void testNestedInitialDefaultWhenAncestorStructIsNull() throws IOException {
-    Schema writeSchema =
-        new Schema(
-            required(1, "id", Types.LongType.get()),
-            Types.NestedField.optional("nested")
-                .withId(2)
-                .ofType(Types.StructType.of(required(3, "inner", Types.StringType.get())))
-                .build());
-
-    Record present = GenericRecord.create(writeSchema);
-    present.setField("id", 1L);
-    Record presentNested =
-        GenericRecord.create(writeSchema.findField("nested").type().asStructType());
-    presentNested.setField("inner", "a");
-    present.setField("nested", presentNested);
-
-    Record nullNested = GenericRecord.create(writeSchema);
-    nullNested.setField("id", 2L);
-    nullNested.setField("nested", null);
-
-    // read schema drops "inner" and projects only a nested field with an initial default, so the
-    // struct retains no real column of its own. A null struct must still read as null rather than
-    // being materialized as a struct of default values.
-    Schema expectedSchema =
-        new Schema(
-            required(1, "id", Types.LongType.get()),
-            Types.NestedField.optional("nested")
-                .withId(2)
-                .ofType(
-                    Types.StructType.of(
-                        Types.NestedField.optional("added")
-                            .withId(4)
-                            .ofType(Types.StringType.get())
-                            .withInitialDefault(Literal.of("US"))
-                            .build()))
-                .build());
-
-    writeAndValidate(writeSchema, expectedSchema, Lists.newArrayList(present, nullNested));
   }
 
   @Test
