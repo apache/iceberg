@@ -1074,6 +1074,12 @@ project(':iceberg-open-api') {
   apply plugin: 'java-test-fixtures'
   apply plugin: 'com.gradleup.shadow'
 
+  // There are no main sources, so drop the implicit test fixtures -> main component dependency that
+  // would otherwise put the disabled main JAR on consumers' classpaths
+  configurations.testFixturesApi.dependencies.removeIf {
+    it instanceof ProjectDependency && it.path == project.path
+  }
+
   build.dependsOn shadowJar
 
   dependencies {
