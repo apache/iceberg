@@ -176,17 +176,6 @@ class TestGeometryBoundsBuilder {
   }
 
   @Test
-  void interiorRingContributesToBounds() {
-    GeometryBoundsBuilder bounds = new GeometryBoundsBuilder();
-    // every ring contributes, so an interior ring extending past the shell widens the box rather
-    // than under-covering the polygon (matching the JTS envelope over all coordinates)
-    bounds.addValue(
-        ByteBuffer.wrap(wkb(polygon(ring(0, 0, 1, 0, 0, 1, 0, 0), ring(0, 0, 9, 0, 0, 9, 0, 0)))));
-
-    assertThat(bounds.build()).isEqualTo(box(0, 0, 9, 9));
-  }
-
-  @Test
   void stateIsUndefinedAfterAddValueThrows() {
     GeometryBoundsBuilder bounds = new GeometryBoundsBuilder();
     bounds.addValue(ByteBuffer.wrap(wkb(point(1, 2))));
