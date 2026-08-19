@@ -277,6 +277,7 @@ public class TestJdbcSnowflakeClient {
     assertThatExceptionOfType(UncheckedSQLException.class)
         .isThrownBy(() -> snowflakeClient.listDatabases())
         .withMessageContaining("Failed to list databases")
+        .withMessageContaining("SQL exception with Error Code 0")
         .withCause(injectedException);
   }
 
@@ -294,6 +295,7 @@ public class TestJdbcSnowflakeClient {
     assertThatExceptionOfType(UncheckedSQLException.class)
         .isThrownBy(() -> snowflakeClient.listDatabases())
         .withMessageContaining("Failed to list databases")
+        .withMessageContaining("Fake SQL exception")
         .withCause(injectedException);
   }
 
