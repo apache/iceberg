@@ -1388,6 +1388,30 @@ public class TestRecordConverter {
   }
 
   @Test
+  public void testConvertOrdersOutputByTableSchemaNotSourceFieldOrder() {
+    org.apache.iceberg.Schema tableSchema =
+        new org.apache.iceberg.Schema(
+            NestedField.required(1, "a", LongType.get()),
+            NestedField.required(2, "b", LongType.get()));
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(tableSchema);
+    RecordConverter converter = new RecordConverter(table, config);
+
+    // Connect struct declares its fields in the opposite order of the table schema.
+    Schema connectSchema =
+        SchemaBuilder.struct()
+            .field("b", Schema.INT64_SCHEMA)
+            .field("a", Schema.INT64_SCHEMA)
+            .build();
+    Struct data = new Struct(connectSchema).put("b", 200L).put("a", 100L);
+
+    Record record = converter.convert(data);
+
+    assertThat(record.get(0)).isEqualTo(100L);
+    assertThat(record.get(1)).isEqualTo(200L);
+  }
+
+  @Test
   public void testConvertVariantValuePassThrough() {
     Variant original = variantConverter().convertVariantValue("hello");
     assertThat(variantConverter().convertVariantValue(original)).isSameAs(original);
