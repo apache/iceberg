@@ -308,11 +308,13 @@ public class TestMergeOnReadDelete extends TestDelete {
         .set("spark.sql.catalog.dummy_catalog", "org.apache.iceberg.spark.source.TestSparkCatalog");
     config.forEach(
         (key, value) -> spark.conf().set("spark.sql.catalog.dummy_catalog." + key, value));
-    Identifier ident = Identifier.of(new String[] {"default"}, "table");
+    String dummyTable = "table_" + table.uuid().toString().replace("-", "_");
+    String dummyTableName = "dummy_catalog.default." + dummyTable;
+    Identifier ident = Identifier.of(new String[] {"default"}, dummyTable);
     TestSparkCatalog.setTable(ident, sparkTable);
 
     // Although an exception is thrown here, write and commit have succeeded
-    assertThatThrownBy(() -> sql("DELETE FROM %s WHERE id = 2", "dummy_catalog.default.table"))
+    assertThatThrownBy(() -> sql("DELETE FROM %s WHERE id = 2", dummyTableName))
         .isInstanceOf(CommitStateUnknownException.class)
         .hasMessageStartingWith("Datacenter on Fire");
 
@@ -325,7 +327,7 @@ public class TestMergeOnReadDelete extends TestDelete {
     assertEquals(
         "Should have expected rows",
         ImmutableList.of(row(1, "hr", "c1"), row(3, "hr", "c1")),
-        sql("SELECT * FROM %s ORDER BY id", "dummy_catalog.default.table"));
+        sql("SELECT * FROM %s ORDER BY id", dummyTableName));
   }
 
   @TestTemplate

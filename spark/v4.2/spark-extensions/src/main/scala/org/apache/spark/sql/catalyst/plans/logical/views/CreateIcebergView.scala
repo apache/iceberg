@@ -19,30 +19,31 @@
 package org.apache.spark.sql.catalyst.plans.logical.views
 
 import org.apache.spark.sql.catalyst.analysis.AnalysisContext
+import org.apache.spark.sql.catalyst.analysis.ViewSchemaMode
 import org.apache.spark.sql.catalyst.plans.logical.AnalysisOnlyCommand
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 
-// Align Iceberg's CreateIcebergView with Spark’s CreateViewCommand by extending AnalysisOnlyCommand.
-// The command’s children are analyzed then hidden, so the optimizer/planner won’t traverse the view body.
+// Analyze the view's children without exposing them to the optimizer or physical planner.
 case class CreateIcebergView(
     child: LogicalPlan,
     queryText: String,
     query: LogicalPlan,
     columnAliases: Seq[String],
     columnComments: Seq[Option[String]],
-    queryColumnNames: Seq[String] = Seq.empty,
     comment: Option[String],
+    collation: Option[String],
     properties: Map[String, String],
     allowExisting: Boolean,
     replace: Boolean,
-    rewritten: Boolean = false,
-    isAnalyzed: Boolean = false)
+    viewSchemaMode: ViewSchemaMode,
+    isAnalyzed: Boolean = false,
+    referredTempFunctions: Seq[String] = Seq.empty)
     extends AnalysisOnlyCommand {
 
   override def childrenToAnalyze: Seq[LogicalPlan] = child :: query :: Nil
 
   override def markAsAnalyzed(analysisContext: AnalysisContext): LogicalPlan = {
-    copy(isAnalyzed = true)
+    copy(isAnalyzed = true, referredTempFunctions = analysisContext.referredTempFunctionNames.toSeq)
   }
 
   override protected def withNewChildrenInternal(

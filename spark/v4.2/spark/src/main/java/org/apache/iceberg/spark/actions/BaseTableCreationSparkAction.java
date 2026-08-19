@@ -34,7 +34,6 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkCatalog;
 import org.apache.iceberg.spark.SparkSessionCatalog;
 import org.apache.iceberg.spark.source.StagedSparkTable;
@@ -47,6 +46,8 @@ import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.StagingTableCatalog;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.apache.spark.sql.connector.catalog.V1Table;
+import org.apache.spark.sql.connector.expressions.Transform;
+import org.apache.spark.sql.types.StructType;
 
 abstract class BaseTableCreationSparkAction<ThisT> extends BaseSparkAction<ThisT> {
   private static final Set<String> ALLOWED_SOURCES =
@@ -155,11 +156,10 @@ abstract class BaseTableCreationSparkAction<ThisT> extends BaseSparkAction<ThisT
   protected StagedSparkTable stageDestTable() {
     try {
       Map<String, String> props = destTableProps();
+      StructType schema = sourceTable.schema();
+      Transform[] partitioning = sourceTable.partitioning();
       return (StagedSparkTable)
-          destCatalog()
-              .stageCreate(
-                  destTableIdent(),
-                  Spark3Util.tableInfo(sourceTable.columns(), sourceTable.partitioning(), props));
+          destCatalog().stageCreate(destTableIdent(), schema, partitioning, props);
     } catch (org.apache.spark.sql.catalyst.analysis.NoSuchNamespaceException e) {
       throw new NoSuchNamespaceException(
           "Cannot create table %s as the namespace does not exist", destTableIdent());

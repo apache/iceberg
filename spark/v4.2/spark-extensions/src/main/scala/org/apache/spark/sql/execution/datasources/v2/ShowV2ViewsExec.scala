@@ -47,7 +47,7 @@ case class ShowV2ViewsExec(
         .getOrElse(session.sessionState.catalog.globalTempViewManager.listViewNames("*"))
         .map(name => rows += toCatalystRow(globalTemp, name, true))
     } else {
-      val views = catalog.listViews(namespace: _*)
+      val views = catalog.listViews(namespace.toArray)
       views.map { view =>
         if (pattern.map(StringUtils.filterPattern(Seq(view.name()), _).nonEmpty).getOrElse(true)) {
           rows += toCatalystRow(view.namespace().quoted, view.name(), false)

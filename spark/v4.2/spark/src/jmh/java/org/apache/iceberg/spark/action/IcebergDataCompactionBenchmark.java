@@ -45,8 +45,8 @@ import org.openjdk.jmh.annotations.Warmup;
 /**
  * A benchmark that evaluates the performance of the rewrite data files action in Spark.
  *
- * <p>To run this benchmark for spark-4.1: <code>
- *   ./gradlew :iceberg-spark:iceberg-spark-4.1_2.13:jmh
+ * <p>To run this benchmark for spark-4.2: <code>
+ *   ./gradlew :iceberg-spark:iceberg-spark-4.2_2.13:jmh
  *       -PjmhIncludeRegex=IcebergDataCompactionBenchmark.rewriteDataFiles
  *       -PjmhOutputPath=benchmark/data-compaction-benchmark-results.txt
  *       -PjmhJsonOutputPath=benchmark/data-compaction-benchmark-results.json
