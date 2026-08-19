@@ -152,5 +152,12 @@ class BaseRewriteFiles extends MergingSnapshotProducer<RewriteFiles> implements 
     Preconditions.checkArgument(
         deletesDeleteFiles() || !addsDeleteFiles(),
         "Delete files to add must be empty because there's no delete file to be rewritten");
+
+    for (DataFile added : addedDataFiles()) {
+      Preconditions.checkArgument(
+          !replacedDataFiles.contains(added),
+          "Cannot add and delete the same file in the same rewrite: %s",
+          added.location());
+    }
   }
 }

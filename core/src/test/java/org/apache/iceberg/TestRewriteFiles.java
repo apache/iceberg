@@ -173,6 +173,22 @@ public class TestRewriteFiles extends TestBase {
   }
 
   @TestTemplate
+  public void addingAndDeletingSameFileDisallowed() {
+    assertThat(listManifestFiles()).isEmpty();
+
+    commit(table, table.newAppend().appendFile(FILE_A).appendFile(FILE_B), branch);
+
+    assertThatThrownBy(
+            () ->
+                apply(
+                    table.newRewrite().rewriteFiles(Sets.newSet(FILE_A), Sets.newSet(FILE_A)),
+                    branch))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Cannot add and delete the same file in the same rewrite: " + FILE_A.location());
+  }
+
+  @TestTemplate
   public void testDeleteWithDuplicateEntriesInManifest() {
     assertThat(listManifestFiles()).isEmpty();
 
