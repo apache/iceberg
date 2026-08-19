@@ -228,24 +228,7 @@ class RESTTableScan extends DataTableScan {
 
   private FileIO scanFileIO(List<Credential> storageCredentials) {
     ImmutableMap.Builder<String, String> builder =
-        ImmutableMap.<String, String>builder()
-            .putAll(catalogProperties)
-            .put(
-                RESTCatalogProperties.REMOTE_SIGNING_ENDPOINT,
-                resourcePaths.remoteSign(tableIdentifier));
-
-    // If the original FileIO has a remote signing config property,
-    // we need to propagate it to the scan FileIO
-
-    @SuppressWarnings("resource")
-    Map<String, String> ioProperties = operations.io().properties();
-
-    if (ioProperties.containsKey(RESTCatalogProperties.REMOTE_SIGNING_CONFIG)) {
-      builder.put(
-          RESTCatalogProperties.REMOTE_SIGNING_CONFIG,
-          ioProperties.get(RESTCatalogProperties.REMOTE_SIGNING_CONFIG));
-    }
-
+        ImmutableMap.<String, String>builder().putAll(catalogProperties);
     if (null != planId) {
       builder.put(RESTCatalogProperties.REST_SCAN_PLAN_ID, planId);
     }
