@@ -20,6 +20,7 @@ package org.apache.iceberg;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.Arrays;
 import org.apache.iceberg.geospatial.BoundingBox;
 import org.apache.iceberg.geospatial.GeospatialBound;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -64,6 +65,9 @@ class GeometryBoundsBuilder {
   private static final int XYZ_GROUP = 1;
   private static final int XYM_GROUP = 2;
   private static final int XYZM_GROUP = 3;
+  private static final int ANY_DIMENSION = -1;
+
+  private static final int MIN_RING_POINTS = 4;
 
   private final DimensionBounds xBounds = new DimensionBounds();
   private final DimensionBounds yBounds = new DimensionBounds();
@@ -83,7 +87,7 @@ class GeometryBoundsBuilder {
   public void addValue(ByteBuffer wkb) {
     Preconditions.checkArgument(wkb != null, "Invalid WKB buffer: null");
     ByteBuffer buffer = wkb.duplicate();
-    parseGeometry(buffer, ANY_GEOMETRY);
+    parseGeometry(buffer, ANY_GEOMETRY, ANY_DIMENSION);
   }
 
   /**
@@ -100,7 +104,7 @@ class GeometryBoundsBuilder {
     return new BoundingBox(min, max);
   }
 
-  private void parseGeometry(ByteBuffer buffer, int expectedType) {
+  private void parseGeometry(ByteBuffer buffer, int expectedType, int expectedDimension) {
     // a geometry header is a one-byte order flag followed by a four-byte type code:
     //   +-------+-----------------------+
     //   | order |       type code       |
@@ -120,13 +124,14 @@ class GeometryBoundsBuilder {
       throw new IllegalArgumentException("Invalid WKB byte order: " + order);
     }
 
-    parseGeometryBodyAndUpdateBound(buffer, expectedType);
+    parseGeometryBodyAndUpdateBound(buffer, expectedType, expectedDimension);
     buffer.order(callerOrder);
   }
 
-  private void parseGeometryBodyAndUpdateBound(ByteBuffer buffer, int expectedType) {
+  private void parseGeometryBodyAndUpdateBound(
+      ByteBuffer buffer, int expectedType, int expectedDimension) {
     long typeCode = Integer.toUnsignedLong(buffer.getInt());
-    long dimensionGroup = typeCode / DIMENSION_DIVISOR;
+    int dimensionGroup = (int) (typeCode / DIMENSION_DIVISOR);
     int geometryType = (int) (typeCode % DIMENSION_DIVISOR);
     Preconditions.checkArgument(
         geometryType >= TYPE_POINT
@@ -134,14 +139,21 @@ class GeometryBoundsBuilder {
             && dimensionGroup <= XYZM_GROUP,
         "Invalid or unsupported WKB geometry type: %s",
         typeCode);
-    // built with an if/throw rather than checkArgument so typeName() is not evaluated for every
-    // value on the write path, only when the type is actually wrong
+    // an element of a multi geometry or collection must match its parent's member type and
+    // dimensions; if/throw so the message is built only when a value is actually rejected
     if (expectedType != ANY_GEOMETRY && geometryType != expectedType) {
       throw new IllegalArgumentException(
           "Invalid WKB: expected geometry type "
               + typeName(expectedType)
               + " but found "
               + typeName(geometryType));
+    }
+    if (expectedDimension != ANY_DIMENSION && dimensionGroup != expectedDimension) {
+      throw new IllegalArgumentException(
+          "Invalid WKB: expected dimensions "
+              + dimensionName(expectedDimension)
+              + " but found "
+              + dimensionName(dimensionGroup));
     }
 
     int numDimensions = numDimensions(dimensionGroup);
@@ -157,19 +169,31 @@ class GeometryBoundsBuilder {
         readPolygon(buffer, numDimensions);
         break;
       case TYPE_MULTI_POINT:
-        readCollection(buffer, TYPE_POINT);
+        readCollection(buffer, TYPE_POINT, dimensionGroup);
         break;
       case TYPE_MULTI_LINE_STRING:
-        readCollection(buffer, TYPE_LINE_STRING);
+        readCollection(buffer, TYPE_LINE_STRING, dimensionGroup);
         break;
       case TYPE_MULTI_POLYGON:
-        readCollection(buffer, TYPE_POLYGON);
+        readCollection(buffer, TYPE_POLYGON, dimensionGroup);
         break;
       case TYPE_GEOMETRY_COLLECTION:
-        readCollection(buffer, ANY_GEOMETRY);
+        readCollection(buffer, ANY_GEOMETRY, dimensionGroup);
         break;
       default:
         throw new IllegalArgumentException("Invalid or unsupported WKB geometry type: " + typeCode);
+    }
+  }
+
+  private static int numDimensions(int dimensionGroup) {
+    switch (dimensionGroup) {
+      case XY_GROUP:
+        return 2;
+      case XYZ_GROUP:
+      case XYM_GROUP:
+        return 3;
+      default: // XYZM_GROUP, the only remaining group the caller accepts
+        return 4;
     }
   }
 
@@ -194,15 +218,16 @@ class GeometryBoundsBuilder {
     }
   }
 
-  private static int numDimensions(long dimensionGroup) {
-    switch ((int) dimensionGroup) {
+  private static String dimensionName(int dimensionGroup) {
+    switch (dimensionGroup) {
       case XY_GROUP:
-        return 2;
+        return "XY";
       case XYZ_GROUP:
+        return "XYZ";
       case XYM_GROUP:
-        return 3;
-      default: // XYZM_GROUP, the only remaining group the caller accepts
-        return 4;
+        return "XYM";
+      default:
+        return "XYZM";
     }
   }
 
@@ -216,8 +241,40 @@ class GeometryBoundsBuilder {
     // otherwise under-cover the polygon, pruning a file from a query it should match
     int numRings = readCount(buffer);
     for (int i = 0; i < numRings; i += 1) {
-      readCoordinateSequence(buffer, numDimensions);
+      readRing(buffer, numDimensions);
     }
+  }
+
+  // a point count, then that many coordinates forming a linear ring; a non-empty ring must be
+  // closed (its first and last points are equal) and hold at least four points:
+  //   +----------+-----------------------+
+  //   | # points | coord 0 .. coord n-1  |
+  //   | (4 B)    | (n coordinates)       |
+  //   +----------+-----------------------+
+  private void readRing(ByteBuffer buffer, int numDimensions) {
+    int numPoints = readCount(buffer);
+    checkRemaining(buffer, (long) numPoints * numDimensions * Double.BYTES);
+    if (numPoints == 0) {
+      return;
+    }
+
+    Preconditions.checkArgument(
+        numPoints >= MIN_RING_POINTS,
+        "Invalid WKB: polygon ring has fewer than %s points: %s",
+        MIN_RING_POINTS,
+        numPoints);
+
+    // capture the first and last full coordinates to verify closure; middle points only bound
+    double[] first = new double[numDimensions];
+    double[] last = new double[numDimensions];
+    readCoordinate(buffer, first);
+    for (int i = 1; i < numPoints - 1; i += 1) {
+      readCoordinate(buffer, numDimensions);
+    }
+    readCoordinate(buffer, last);
+
+    Preconditions.checkArgument(
+        Arrays.equals(first, last), "Invalid WKB: polygon ring is not closed");
   }
 
   // an element count, then that many complete WKB geometries:
@@ -225,11 +282,12 @@ class GeometryBoundsBuilder {
   //   | # elems  | geometry 0, 1, ...    |
   //   | (4 B)    | (each a full WKB)     |
   //   +----------+-----------------------+
-  private void readCollection(ByteBuffer buffer, int expectedChildType) {
+  private void readCollection(ByteBuffer buffer, int expectedChildType, int expectedDimension) {
     int numElements = readCount(buffer);
     for (int i = 0; i < numElements; i += 1) {
-      // each child carries its own byte order, type code, and dimensions
-      parseGeometry(buffer, expectedChildType);
+      // each child carries its own byte order and type code, and must match the parent's member
+      // type and dimensions
+      parseGeometry(buffer, expectedChildType, expectedDimension);
     }
   }
 
@@ -263,6 +321,18 @@ class GeometryBoundsBuilder {
 
     xBounds.add(xCoord);
     yBounds.add(yCoord);
+  }
+
+  // reads one coordinate into the given array (used to capture a ring's endpoints for the closure
+  // check) while still folding its X and Y into the box
+  private void readCoordinate(ByteBuffer buffer, double[] ordinates) {
+    checkRemaining(buffer, (long) ordinates.length * Double.BYTES);
+    for (int i = 0; i < ordinates.length; i += 1) {
+      ordinates[i] = buffer.getDouble();
+    }
+
+    xBounds.add(ordinates[0]);
+    yBounds.add(ordinates[1]);
   }
 
   // a 4-byte unsigned count (rings, points, or elements):

@@ -135,8 +135,9 @@ class TestGeometryBoundsBuilder {
   @Test
   void extraDimensionsNestedInCollectionAreIgnored() {
     GeometryBoundsBuilder bounds = new GeometryBoundsBuilder();
-
-    bounds.addValue(ByteBuffer.wrap(wkb(collection(point(1, 2), pointZ(3, 4, 5)))));
+    // a 3D collection holding 3D children (dimensions must match the parent): each child's Z is
+    // read past, so only XY bounds the box
+    bounds.addValue(ByteBuffer.wrap(wkb(collectionZ(pointZ(1, 2, 9), pointZ(3, 4, 9)))));
 
     assertThat(bounds.build()).isEqualTo(box(1, 2, 3, 4));
   }
@@ -259,11 +260,6 @@ class TestGeometryBoundsBuilder {
 
   private static Stream<Arguments> invalidWkbCases() {
     return Stream.of(
-        // a multi point whose child is a line string rather than a point
-        Arguments.of(
-            "multi point with a line string child",
-            wkb(multiPoint(emptyLineString())),
-            "expected geometry type"),
         // base type 8 is beyond the seven OGC types
         Arguments.of(
             "unknown geometry type", wkb(geom(LE, 8, coordinates(0, 0))), "unsupported WKB"),
@@ -288,7 +284,36 @@ class TestGeometryBoundsBuilder {
                       buffer.putDouble(0.0);
                       buffer.putDouble(0.0);
                     })),
-            "element count"));
+            "element count"),
+        // a multi geometry whose child has the wrong member type
+        Arguments.of(
+            "multi point with a line string child",
+            wkb(multiPoint(lineString(1, 2, 3, 4))),
+            "expected geometry type"),
+        Arguments.of(
+            "multi line string with a point child",
+            wkb(multiLineString(point(1, 2))),
+            "expected geometry type"),
+        Arguments.of(
+            "multi polygon with a point child",
+            wkb(multiPolygon(point(1, 2))),
+            "expected geometry type"),
+        // a multi geometry or collection whose child dimension differs from the parent's
+        Arguments.of(
+            "multi point z with a 2D child",
+            wkb(collectionOf(LE, 1004, point(1, 2))),
+            "expected dimensions"),
+        Arguments.of(
+            "geometry collection z with a 2D child",
+            wkb(collectionOf(LE, 1007, point(1, 2))),
+            "expected dimensions"),
+        // a polygon ring that does not close, and one with fewer than four points
+        Arguments.of(
+            "polygon ring not closed", wkb(polygon(ring(0, 0, 1, 0, 0, 1, 1, 1))), "not closed"),
+        Arguments.of(
+            "polygon ring with too few points",
+            wkb(polygon(ring(0, 0, 1, 0, 0, 0))),
+            "fewer than"));
   }
 
   private static GeospatialBound xy(double xCoord, double yCoord) {
@@ -408,6 +433,10 @@ class TestGeometryBoundsBuilder {
 
   private static Geom collection(Geom... children) {
     return collectionOf(LE, 7, children);
+  }
+
+  private static Geom collectionZ(Geom... children) {
+    return collectionOf(LE, 1007, children);
   }
 
   private static Geom emptyMultiPoint() {
