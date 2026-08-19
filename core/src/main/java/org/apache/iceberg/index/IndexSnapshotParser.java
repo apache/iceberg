@@ -21,6 +21,7 @@ package org.apache.iceberg.index;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.util.Map;
 import org.apache.iceberg.util.ByteBuffers;
@@ -67,7 +68,7 @@ class IndexSnapshotParser {
       try {
         builder.keyMetadata(ByteBuffer.wrap(node.get(KEY_METADATA).binaryValue()));
       } catch (IOException e) {
-        throw new RuntimeException("Failed to read key-metadata", e);
+        throw new UncheckedIOException("Failed to read key-metadata", e);
       }
     }
     return builder.build();

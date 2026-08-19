@@ -19,6 +19,7 @@
 package org.apache.iceberg.index;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
@@ -31,6 +32,7 @@ import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
@@ -203,6 +205,115 @@ public class TestScalarIndexBuild {
   }
 
   // ------------------------------------------------------------------
+  // Metadata file persistence
+  // ------------------------------------------------------------------
+
+  @Test
+  void committedMetadataRoundTripsThroughIndexMetadataIO() {
+    committer.commit(
+        IDX, TABLE_UUID, 1000L,
+        "SCALAR", "HASH", ImmutableList.of(3),
+        ImmutableList.of(),
+        ImmutableMap.of("hash.num-buckets", "256"),
+        INDEX_LOCATION,
+        sampleLeafFiles());
+
+    IndexMetadata inMemory = catalog.loadIndex(IDX);
+    String metadataPath = inMemory.metadataFileLocation();
+    assertThat(fileIO.files).containsKey(metadataPath);
+
+    // Read back the actual bytes written to disk, not the in-memory object the catalog holds.
+    IndexMetadata fromDisk = IndexMetadataIO.read(fileIO, metadataPath);
+
+    assertThat(fromDisk.uuid()).isEqualTo(inMemory.uuid());
+    assertThat(fromDisk.tableUuid()).isEqualTo(TABLE_UUID);
+    assertThat(fromDisk.type()).isEqualTo("SCALAR");
+    assertThat(fromDisk.transformFunction()).isEqualTo("HASH");
+    assertThat(fromDisk.keyColumnIds()).containsExactly(3);
+    assertThat(fromDisk.properties()).containsEntry("hash.num-buckets", "256");
+    assertThat(fromDisk.snapshots()).hasSize(1);
+    assertThat(fromDisk.currentSnapshotId()).isEqualTo(inMemory.currentSnapshotId());
+    assertThat(fromDisk.currentSnapshot().trackingFile())
+        .isEqualTo(inMemory.currentSnapshot().trackingFile());
+    assertThat(fromDisk.metadataFileLocation()).isEqualTo(metadataPath);
+  }
+
+  @Test
+  void secondCommitMetadataFileRoundTripsAllSnapshots() {
+    committer.commit(
+        IDX, TABLE_UUID, 1000L, "SCALAR", "HASH", ImmutableList.of(3),
+        INDEX_LOCATION, sampleLeafFiles());
+    committer.commit(
+        IDX, TABLE_UUID, 2000L, "SCALAR", "HASH", ImmutableList.of(3),
+        INDEX_LOCATION, sampleLeafFiles());
+
+    String metadataPath = catalog.loadIndex(IDX).metadataFileLocation();
+    IndexMetadata fromDisk = IndexMetadataIO.read(fileIO, metadataPath);
+
+    assertThat(fromDisk.snapshots()).hasSize(2);
+    assertThat(fromDisk.snapshotForTableSnapshot(1000L)).isNotNull();
+    assertThat(fromDisk.snapshotForTableSnapshot(2000L)).isNotNull();
+    assertThat(fromDisk.currentSnapshot().sourceTableSnapshotId()).isEqualTo(2000L);
+  }
+
+  // ------------------------------------------------------------------
+  // Validation and concurrency
+  // ------------------------------------------------------------------
+
+  @Test
+  void commitRejectsNullLeafFiles() {
+    assertThatThrownBy(
+            () ->
+                committer.commit(
+                    IDX, TABLE_UUID, 1000L, "SCALAR", "HASH", ImmutableList.of(3),
+                    INDEX_LOCATION, null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("leafFiles must be non-empty");
+  }
+
+  @Test
+  void commitRejectsEmptyLeafFiles() {
+    assertThatThrownBy(
+            () ->
+                committer.commit(
+                    IDX, TABLE_UUID, 1000L, "SCALAR", "HASH", ImmutableList.of(3),
+                    INDEX_LOCATION, List.of()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("leafFiles must be non-empty");
+  }
+
+  /**
+   * Characterizes a known gap in {@link ScalarIndexCommitter}: its javadoc says callers should
+   * retry on {@link ConcurrentModificationException}, but a race on the very first commit for an
+   * identifier (two committers both observe {@code indexExists() == false}) surfaces {@link
+   * AlreadyExistsException} instead, which the documented retry contract does not cover. This
+   * test pins down current behavior; it is not an assertion that the behavior is correct.
+   */
+  @Test
+  void concurrentFirstCommitThrowsAlreadyExistsInsteadOfDocumentedRetryException() {
+    IndexMetadata concurrentWinner =
+        GenericIndexMetadata.builder()
+            .uuid("11111111-1111-1111-1111-111111111111")
+            .tableUuid(TABLE_UUID)
+            .location(INDEX_LOCATION)
+            .type("SCALAR")
+            .transformFunction("HASH")
+            .keyColumnIds(ImmutableList.of(3))
+            .metadataFileLocation(INDEX_LOCATION + "/metadata/00001-race-winner.metadata.json")
+            .build();
+
+    RaceInjectingCatalog racyCatalog = new RaceInjectingCatalog(IDX, concurrentWinner);
+    ScalarIndexCommitter racyCommitter = new ScalarIndexCommitter(racyCatalog, fileIO);
+
+    assertThatThrownBy(
+            () ->
+                racyCommitter.commit(
+                    IDX, TABLE_UUID, 1000L, "SCALAR", "HASH", ImmutableList.of(3),
+                    INDEX_LOCATION, sampleLeafFiles()))
+        .isInstanceOf(AlreadyExistsException.class);
+  }
+
+  // ------------------------------------------------------------------
   // Helpers
   // ------------------------------------------------------------------
 
@@ -211,6 +322,58 @@ public class TestScalarIndexBuild {
         new LeafFileMetadata(INDEX_LOCATION + "/data/leaf-0.parquet", "parquet", 1000, 204800, 0, 127),
         new LeafFileMetadata(INDEX_LOCATION + "/data/leaf-1.parquet", "parquet", 1100, 225000, 128, 255)
     );
+  }
+
+  /**
+   * An {@link IndexCatalog} that reproduces a specific race deterministically: the first call to
+   * {@link #indexExists} for {@code raceIdentifier} reports {@code false} (what the caller
+   * actually observed), but as a side effect it also creates the index in the underlying catalog
+   * — simulating a second committer winning the create race between the caller's existence check
+   * and its own {@code createIndex} call.
+   */
+  static class RaceInjectingCatalog implements IndexCatalog {
+    private final InMemoryIndexCatalog delegate = new InMemoryIndexCatalog();
+    private final IndexIdentifier raceIdentifier;
+    private final IndexMetadata concurrentWinner;
+
+    RaceInjectingCatalog(IndexIdentifier raceIdentifier, IndexMetadata concurrentWinner) {
+      this.raceIdentifier = raceIdentifier;
+      this.concurrentWinner = concurrentWinner;
+    }
+
+    @Override
+    public void createIndex(IndexIdentifier identifier, IndexMetadata metadata) {
+      delegate.createIndex(identifier, metadata);
+    }
+
+    @Override
+    public IndexMetadata loadIndex(IndexIdentifier identifier) {
+      return delegate.loadIndex(identifier);
+    }
+
+    @Override
+    public void updateIndex(IndexIdentifier identifier, IndexMetadata base, IndexMetadata updated) {
+      delegate.updateIndex(identifier, base, updated);
+    }
+
+    @Override
+    public void dropIndex(IndexIdentifier identifier) {
+      delegate.dropIndex(identifier);
+    }
+
+    @Override
+    public boolean indexExists(IndexIdentifier identifier) {
+      boolean existed = delegate.indexExists(identifier);
+      if (!existed && identifier.equals(raceIdentifier)) {
+        delegate.createIndex(identifier, concurrentWinner);
+      }
+      return existed;
+    }
+
+    @Override
+    public List<IndexMetadata> listIndexes(TableIdentifier tableIdentifier) {
+      return delegate.listIndexes(tableIdentifier);
+    }
   }
 
   /**

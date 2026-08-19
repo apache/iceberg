@@ -19,6 +19,7 @@
 package org.apache.iceberg.index;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
@@ -167,6 +168,7 @@ public class ScalarIndexCommitter {
     int version = current == null ? 1 : current.snapshots().size() + 1;
     String suffix = UUID.randomUUID().toString().replace("-", "").substring(0, 8);
     return String.format(
+        Locale.ROOT,
         "%s/metadata/tracking-%05d-%s.avro",
         indexLocation.replaceAll("/$", ""), version, suffix);
   }

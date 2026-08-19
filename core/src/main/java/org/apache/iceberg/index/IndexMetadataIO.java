@@ -23,6 +23,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Locale;
 import java.util.UUID;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
@@ -101,6 +102,7 @@ public class IndexMetadataIO {
     int version = currentMetadata == null ? 1 : currentMetadata.snapshots().size() + 1;
     String uuid = UUID.randomUUID().toString().replace("-", "").substring(0, 8);
     return String.format(
+        Locale.ROOT,
         "%s/metadata/%05d-%s.metadata.json",
         indexLocation.replaceAll("/$", ""), version, uuid);
   }
