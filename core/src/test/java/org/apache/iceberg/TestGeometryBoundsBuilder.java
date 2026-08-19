@@ -153,26 +153,6 @@ class TestGeometryBoundsBuilder {
   }
 
   @Test
-  void nestingAtTheLimitIsAccepted() {
-    GeometryBoundsBuilder bounds = new GeometryBoundsBuilder();
-    // 100 collection wrappers around POINT(1 2): the outermost is depth 0, the point is depth 100
-    bounds.addValue(ByteBuffer.wrap(nestedCollections(100)));
-
-    assertThat(bounds.build()).isEqualTo(box(1, 2, 1, 2));
-  }
-
-  @Test
-  void nestingPastTheLimitSuppressesBounds() {
-    GeometryBoundsBuilder bounds = new GeometryBoundsBuilder();
-    // too-deep nesting suppresses the box rather than throwing, and a later valid value cannot
-    // revive it, since a box that omits the too-deep object would under-cover the file
-    bounds.addValue(ByteBuffer.wrap(nestedCollections(101)));
-    bounds.addValue(ByteBuffer.wrap(wkb(point(1, 2))));
-
-    assertThat(bounds.build()).isNull();
-  }
-
-  @Test
   void bigEndianParentWithLittleEndianChild() {
     GeometryBoundsBuilder bounds = new GeometryBoundsBuilder();
     // a big-endian multi point holding a little-endian point, the reverse of the MULTIPOINT case
@@ -489,20 +469,6 @@ class TestGeometryBoundsBuilder {
     byte[] result = wkb.clone();
     result[0] = order;
     return result;
-  }
-
-  /** Returns WKB for a chain of geometry collections, each holding the next, around POINT(1 2). */
-  private static byte[] nestedCollections(int depth) {
-    WkbBuffer buffer = new WkbBuffer();
-    buffer.order(LE);
-    for (int i = 0; i < depth; i += 1) {
-      buffer.putByte(1);
-      buffer.putInt(7); // geometry collection
-      buffer.putInt(1); // holding one child
-    }
-
-    point(1, 2).writeTo(buffer);
-    return buffer.toBytes();
   }
 
   /** A growable little/big-endian aware writer for assembling WKB test data. */

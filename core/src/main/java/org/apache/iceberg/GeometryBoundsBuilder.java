@@ -64,49 +64,34 @@ class GeometryBoundsBuilder {
   private static final int XYM_GROUP = 2;
   private static final int XYZM_GROUP = 3;
 
-  private static final int MAX_DEPTH = 100;
-
   private final DimensionBounds xBounds = new DimensionBounds();
   private final DimensionBounds yBounds = new DimensionBounds();
-
-  // set when a value nests deeper than MAX_DEPTH; the box is then suppressed for the whole builder
-  // rather than aborting the write, since a box that omits the too-deep object would under-cover
-  private boolean boundsUnavailable = false;
 
   /**
    * Adds one WKB geometry value to these bounds.
    *
    * <p>The input is read through a duplicate, so its position and limit are left unchanged.
    *
-   * <p>A value nested beyond the supported depth is not rejected; it suppresses the bounds for the
-   * whole builder, so {@link #build()} returns {@code null}. If this throws, the builder's state is
-   * undefined: coordinates parsed before the failure may already be folded in, so a caller that
-   * continues after a rejected value must discard this builder.
+   * <p>If this throws, the builder's state is undefined: coordinates parsed before the failure may
+   * already be folded in, so a caller that continues after a rejected value must discard this
+   * builder.
    *
    * @param wkb a buffer containing exactly one WKB geometry
    * @throws IllegalArgumentException if the WKB is malformed
    */
   public void addValue(ByteBuffer wkb) {
     Preconditions.checkArgument(wkb != null, "Invalid WKB buffer: null");
-    if (boundsUnavailable) {
-      return;
-    }
-
     ByteBuffer buffer = wkb.duplicate();
-    parseGeometry(buffer, 0, ANY_GEOMETRY);
-    // a too-deep value stops parsing early, so only check for trailing data on a fully-read buffer
-    if (!boundsUnavailable) {
-      Preconditions.checkArgument(!buffer.hasRemaining(), "Invalid WKB: trailing data");
-    }
+    parseGeometry(buffer, ANY_GEOMETRY);
+    Preconditions.checkArgument(!buffer.hasRemaining(), "Invalid WKB: trailing data");
   }
 
   /**
-   * Builds the bounding box covering every geometry added, or {@code null} if no bounds are
-   * available: either the X or Y dimension has no value, or a value nested beyond the supported
-   * depth.
+   * Builds the bounding box covering every geometry added, or {@code null} if either the X or Y
+   * dimension has no value.
    */
   public BoundingBox build() {
-    if (boundsUnavailable || !xBounds.hasValue() || !yBounds.hasValue()) {
+    if (!xBounds.hasValue() || !yBounds.hasValue()) {
       return null;
     }
 
@@ -115,18 +100,7 @@ class GeometryBoundsBuilder {
     return new BoundingBox(min, max);
   }
 
-  private void parseGeometry(ByteBuffer buffer, int depth, int expectedType) {
-    if (boundsUnavailable) {
-      return;
-    }
-
-    if (depth > MAX_DEPTH) {
-      // stop before recursing further, which could otherwise overflow the stack; suppressing the
-      // box is safe because metrics are optional, whereas throwing would abort the write
-      boundsUnavailable = true;
-      return;
-    }
-
+  private void parseGeometry(ByteBuffer buffer, int expectedType) {
     checkRemaining(buffer, 5);
 
     // each geometry sets its own byte order; restore the caller's order before returning so a
@@ -142,13 +116,13 @@ class GeometryBoundsBuilder {
     }
 
     try {
-      parseGeometryBody(buffer, depth, expectedType);
+      parseGeometryBody(buffer, expectedType);
     } finally {
       buffer.order(callerOrder);
     }
   }
 
-  private void parseGeometryBody(ByteBuffer buffer, int depth, int expectedType) {
+  private void parseGeometryBody(ByteBuffer buffer, int expectedType) {
     long typeCode = buffer.getInt() & 0xFFFFFFFFL;
     long dimensionGroup = typeCode / 1000;
     int geometryType = (int) (typeCode % 1000);
@@ -181,16 +155,16 @@ class GeometryBoundsBuilder {
         readPolygon(buffer, numDimensions);
         break;
       case TYPE_MULTI_POINT:
-        readCollection(buffer, depth, TYPE_POINT);
+        readCollection(buffer, TYPE_POINT);
         break;
       case TYPE_MULTI_LINE_STRING:
-        readCollection(buffer, depth, TYPE_LINE_STRING);
+        readCollection(buffer, TYPE_LINE_STRING);
         break;
       case TYPE_MULTI_POLYGON:
-        readCollection(buffer, depth, TYPE_POLYGON);
+        readCollection(buffer, TYPE_POLYGON);
         break;
       case TYPE_GEOMETRY_COLLECTION:
-        readCollection(buffer, depth, ANY_GEOMETRY);
+        readCollection(buffer, ANY_GEOMETRY);
         break;
       default:
         throw new IllegalArgumentException("Invalid or unsupported WKB geometry type: " + typeCode);
@@ -239,11 +213,11 @@ class GeometryBoundsBuilder {
     }
   }
 
-  private void readCollection(ByteBuffer buffer, int depth, int expectedChildType) {
+  private void readCollection(ByteBuffer buffer, int expectedChildType) {
     int numElements = readCount(buffer);
     for (int i = 0; i < numElements; i += 1) {
       // each child carries its own byte order, type code, and dimensions
-      parseGeometry(buffer, depth + 1, expectedChildType);
+      parseGeometry(buffer, expectedChildType);
     }
   }
 
