@@ -217,7 +217,7 @@ Then create the table:
 Iceberg catalogs support the full range of SQL DDL commands, including:
 
 * [`CREATE TABLE ... PARTITIONED BY`](docs/latest/spark-ddl.md#create-table)
-* [`CREATE TABLE ... AS SELECT`](docs/latest/spark-ddl.md#create-table--as-select)
+* [`CREATE TABLE ... AS SELECT`](docs/latest/spark-ddl.md#create-table-as-select)
 * [`ALTER TABLE`](docs/latest/spark-ddl.md#alter-table)
 * [`DROP TABLE`](docs/latest/spark-ddl.md#drop-table)
 
