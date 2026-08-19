@@ -602,8 +602,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
       trackFileIO(ops);
 
-      RESTTable table =
-          restTableForScanPlanning(ops, identifier, tableClient, tableConf, remoteSigningConfig);
+      RESTTable table = restTableForScanPlanning(ops, identifier, tableClient, tableConf);
       if (table != null) {
         return table;
       }
@@ -617,8 +616,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       TableOperations ops,
       TableIdentifier finalIdentifier,
       RESTClient restClient,
-      Map<String, String> tableConf,
-      RemoteSigningConfig remoteSigningConfig) {
+      Map<String, String> tableConf) {
     String planningModeServerConfig = tableConf.get(RESTCatalogProperties.SCAN_PLANNING_MODE);
     ScanPlanningMode serverScanPlanningMode =
         planningModeServerConfig == null
@@ -663,8 +661,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
           paths,
           endpoints,
           properties(),
-          conf,
-          remoteSigningConfig);
+          conf);
     }
 
     // Default to client-side planning
@@ -752,9 +749,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
     trackFileIO(ops);
 
-    RESTTable restTable =
-        restTableForScanPlanning(
-            ops, ident, tableClient, tableConf, response.remoteSigningConfig());
+    RESTTable restTable = restTableForScanPlanning(ops, ident, tableClient, tableConf);
     if (restTable != null) {
       return restTable;
     }
@@ -1028,9 +1023,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
       trackFileIO(ops);
 
-      RESTTable restTable =
-          restTableForScanPlanning(
-              ops, ident, tableClient, tableConf, response.remoteSigningConfig());
+      RESTTable restTable = restTableForScanPlanning(ops, ident, tableClient, tableConf);
       if (restTable != null) {
         return restTable;
       }

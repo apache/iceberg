@@ -40,7 +40,6 @@ class RESTTable extends BaseTable implements SupportsDistributedScanPlanning {
   private final Set<Endpoint> supportedEndpoints;
   private final Map<String, String> catalogProperties;
   private final Object hadoopConf;
-  private final RemoteSigningConfig remoteSigningConfig;
 
   RESTTable(
       TableOperations ops,
@@ -52,8 +51,7 @@ class RESTTable extends BaseTable implements SupportsDistributedScanPlanning {
       ResourcePaths resourcePaths,
       Set<Endpoint> supportedEndpoints,
       Map<String, String> catalogProperties,
-      Object hadoopConf,
-      RemoteSigningConfig remoteSigningConfig) {
+      Object hadoopConf) {
     super(ops, name, reporter);
     this.reporter = reporter;
     this.client = client;
@@ -63,7 +61,6 @@ class RESTTable extends BaseTable implements SupportsDistributedScanPlanning {
     this.supportedEndpoints = supportedEndpoints;
     this.catalogProperties = catalogProperties;
     this.hadoopConf = hadoopConf;
-    this.remoteSigningConfig = remoteSigningConfig;
   }
 
   @Override
@@ -79,8 +76,7 @@ class RESTTable extends BaseTable implements SupportsDistributedScanPlanning {
         resourcePaths,
         supportedEndpoints,
         catalogProperties,
-        hadoopConf,
-        remoteSigningConfig);
+        hadoopConf);
   }
 
   @Override

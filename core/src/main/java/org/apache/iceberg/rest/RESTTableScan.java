@@ -85,7 +85,6 @@ class RESTTableScan extends DataTableScan {
   private final ParserContext parserContext;
   private final Map<String, String> catalogProperties;
   private final Object hadoopConf;
-  private final RemoteSigningConfig remoteSigningConfig;
   private String planId = null;
   private FileIO scanFileIO = null;
   private boolean useSnapshotSchema = false;
@@ -101,8 +100,7 @@ class RESTTableScan extends DataTableScan {
       ResourcePaths resourcePaths,
       Set<Endpoint> supportedEndpoints,
       Map<String, String> catalogProperties,
-      Object hadoopConf,
-      RemoteSigningConfig remoteSigningConfig) {
+      Object hadoopConf) {
     super(table, schema, context);
     this.client = client;
     this.headers = headers;
@@ -117,7 +115,6 @@ class RESTTableScan extends DataTableScan {
             .build();
     this.catalogProperties = catalogProperties;
     this.hadoopConf = hadoopConf;
-    this.remoteSigningConfig = remoteSigningConfig;
   }
 
   @Override
@@ -135,8 +132,7 @@ class RESTTableScan extends DataTableScan {
             resourcePaths,
             supportedEndpoints,
             catalogProperties,
-            hadoopConf,
-            remoteSigningConfig);
+            hadoopConf);
     scan.useSnapshotSchema = useSnapshotSchema;
     return scan;
   }
@@ -236,10 +232,19 @@ class RESTTableScan extends DataTableScan {
             .putAll(catalogProperties)
             .put(
                 RESTCatalogProperties.REMOTE_SIGNING_ENDPOINT,
-                resourcePaths.remoteSign(tableIdentifier))
-            .put(
-                RESTCatalogProperties.REMOTE_SIGNING_CONFIG,
-                RemoteSigningConfigParser.toJson(remoteSigningConfig));
+                resourcePaths.remoteSign(tableIdentifier));
+
+    // If the original FileIO has a remote signing config property,
+    // we need to propagate it to the scan FileIO
+
+    @SuppressWarnings("resource")
+    Map<String, String> ioProperties = operations.io().properties();
+
+    if (ioProperties.containsKey(RESTCatalogProperties.REMOTE_SIGNING_CONFIG)) {
+      builder.put(
+          RESTCatalogProperties.REMOTE_SIGNING_CONFIG,
+          ioProperties.get(RESTCatalogProperties.REMOTE_SIGNING_CONFIG));
+    }
 
     if (null != planId) {
       builder.put(RESTCatalogProperties.REST_SCAN_PLAN_ID, planId);
