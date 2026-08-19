@@ -114,6 +114,15 @@ public abstract class BaseFormatModelTests<T> {
     return false;
   }
 
+  protected boolean readOnly() {
+    return false;
+  }
+
+  protected void assertRecordsEqual(Schema schema, List<Record> expected, List<T> actual) {
+    assertThat(actual).hasSize(expected.size());
+    assertEquals(schema, convertToEngineRecords(expected, schema), actual);
+  }
+
   @TempDir private File tableDir;
 
   /**
@@ -244,6 +253,7 @@ public abstract class BaseFormatModelTests<T> {
   @FieldSource("FORMAT_AND_GENERATOR")
   void testDataWriterEngineWriteGenericRead(FileFormat fileFormat, DataGenerator dataGenerator)
       throws IOException {
+    assumeFalse(readOnly(), "Engine does not support writes");
     Schema schema = supportedSchema(dataGenerator);
     List<Record> genericRecords = project(dataGenerator.generateRecords(), schema);
     List<T> engineRecords = convertToEngineRecords(genericRecords, schema);
@@ -256,6 +266,7 @@ public abstract class BaseFormatModelTests<T> {
   @FieldSource("FORMAT_AND_GENERATOR")
   void testDataWriterEngineWriteWithoutEngineSchema(
       FileFormat fileFormat, DataGenerator dataGenerator) throws IOException {
+    assumeFalse(readOnly(), "Engine does not support writes");
     Schema schema = supportedSchema(dataGenerator);
     List<Record> genericRecords = project(dataGenerator.generateRecords(), schema);
     List<T> engineRecords = convertToEngineRecords(genericRecords, schema);
@@ -275,15 +286,13 @@ public abstract class BaseFormatModelTests<T> {
 
     // Read back and verify
     InputFile inputFile = encryptedFile.encryptingOutputFile().toInputFile();
-    List<T> readRecords;
     try (CloseableIterable<T> reader =
         FormatModelRegistry.readBuilder(fileFormat, engineType(), inputFile)
             .project(schema)
             .build()) {
-      readRecords = ImmutableList.copyOf(reader);
+      List<T> readRecords = ImmutableList.copyOf(reader);
+      assertRecordsEqual(schema, genericRecords, readRecords);
     }
-
-    assertEquals(schema, convertToEngineRecords(genericRecords, schema), readRecords);
   }
 
   /** Write with engine type T, read with engine type T */
@@ -291,6 +300,7 @@ public abstract class BaseFormatModelTests<T> {
   @FieldSource("FORMAT_AND_GENERATOR")
   void testDataWriterEngineWriteEngineRead(FileFormat fileFormat, DataGenerator dataGenerator)
       throws IOException {
+    assumeFalse(readOnly(), "Engine does not support writes");
     Schema schema = supportedSchema(dataGenerator);
     List<Record> genericRecords = project(dataGenerator.generateRecords(), schema);
     List<T> engineRecords = convertToEngineRecords(genericRecords, schema);
@@ -303,6 +313,7 @@ public abstract class BaseFormatModelTests<T> {
   @FieldSource("FORMAT_AND_GENERATOR")
   void testEqualityDeleteWriterEngineWriteGenericRead(
       FileFormat fileFormat, DataGenerator dataGenerator) throws IOException {
+    assumeFalse(readOnly(), "Engine does not support writes");
     Schema schema = supportedSchema(dataGenerator);
     FileWriterBuilder<EqualityDeleteWriter<T>, Object> writerBuilder =
         FormatModelRegistry.equalityDeleteWriteBuilder(fileFormat, engineType(), encryptedFile);
@@ -339,6 +350,7 @@ public abstract class BaseFormatModelTests<T> {
   @FieldSource("FORMAT_AND_GENERATOR")
   void testEqualityDeleteWriterEngineWriteWithoutEngineSchema(
       FileFormat fileFormat, DataGenerator dataGenerator) throws IOException {
+    assumeFalse(readOnly(), "Engine does not support writes");
     Schema schema = supportedSchema(dataGenerator);
     FileWriterBuilder<EqualityDeleteWriter<T>, Object> writerBuilder =
         FormatModelRegistry.equalityDeleteWriteBuilder(fileFormat, engineType(), encryptedFile);
@@ -398,15 +410,13 @@ public abstract class BaseFormatModelTests<T> {
 
     // Read back and verify
     InputFile inputFile = encryptedFile.encryptingOutputFile().toInputFile();
-    List<T> readRecords;
     try (CloseableIterable<T> reader =
         FormatModelRegistry.readBuilder(fileFormat, engineType(), inputFile)
             .project(schema)
             .build()) {
-      readRecords = ImmutableList.copyOf(reader);
+      List<T> readRecords = ImmutableList.copyOf(reader);
+      assertRecordsEqual(schema, genericRecords, readRecords);
     }
-
-    assertEquals(schema, convertToEngineRecords(genericRecords, schema), readRecords);
   }
 
   /** Write position deletes, read with Generic Record */
@@ -465,25 +475,20 @@ public abstract class BaseFormatModelTests<T> {
     writeGenericRecords(fileFormat, fullSchema, genericRecords);
 
     List<Record> projectedGenericRecords = project(genericRecords, projectedSchema);
-    List<T> expectedEngineRecords =
-        convertToEngineRecords(projectedGenericRecords, projectedSchema);
 
     InputFile inputFile = encryptedFile.encryptingOutputFile().toInputFile();
-    List<T> readRecords;
     try (CloseableIterable<T> reader =
         FormatModelRegistry.readBuilder(fileFormat, engineType(), inputFile)
             .project(projectedSchema)
             .build()) {
-      readRecords = ImmutableList.copyOf(reader);
+      List<T> readRecords = ImmutableList.copyOf(reader);
+      assertRecordsEqual(projectedSchema, projectedGenericRecords, readRecords);
     }
-
-    assertEquals(projectedSchema, expectedEngineRecords, readRecords);
   }
 
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
   void testReaderBuilderFilter(FileFormat fileFormat) throws IOException {
-
     assumeSupports(fileFormat, FEATURE_FILTER);
 
     Schema schema = SCHEMA;
@@ -533,7 +538,6 @@ public abstract class BaseFormatModelTests<T> {
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
   void testReaderBuilderCaseSensitive(FileFormat fileFormat) throws IOException {
-
     assumeSupports(fileFormat, FEATURE_CASE_SENSITIVE);
 
     DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
@@ -590,7 +594,7 @@ public abstract class BaseFormatModelTests<T> {
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
   void testReaderBuilderSplit(FileFormat fileFormat) throws IOException {
-
+    assumeFalse(supportsBatchReads(), "Batch reads return batches, not rows");
     assumeSupports(fileFormat, FEATURE_SPLIT);
 
     DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
@@ -646,7 +650,7 @@ public abstract class BaseFormatModelTests<T> {
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
   void testReaderBuilderReuseContainers(FileFormat fileFormat) throws IOException {
-
+    assumeFalse(supportsBatchReads(), "Batch reads reuse differently");
     assumeSupports(fileFormat, FEATURE_REUSE_CONTAINERS);
 
     DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
@@ -781,6 +785,7 @@ public abstract class BaseFormatModelTests<T> {
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
   void testNestedDefaultValue(FileFormat fileFormat) throws IOException {
+    assumeFalse(supportsBatchReads(), "Vectorized reads do not support nested types");
     assumeSupports(fileFormat, FEATURE_READER_DEFAULT);
 
     Types.NestedField idField = Types.NestedField.required(1, "id", Types.LongType.get());
@@ -847,6 +852,7 @@ public abstract class BaseFormatModelTests<T> {
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
   void testMapNestedDefaultValue(FileFormat fileFormat) throws IOException {
+    assumeFalse(supportsBatchReads(), "Vectorized reads do not support nested types");
     assumeSupports(fileFormat, FEATURE_READER_DEFAULT);
 
     Types.NestedField idField = Types.NestedField.required(1, "id", Types.LongType.get());
@@ -934,6 +940,7 @@ public abstract class BaseFormatModelTests<T> {
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
   void testListNestedDefaultValue(FileFormat fileFormat) throws IOException {
+    assumeFalse(supportsBatchReads(), "Vectorized reads do not support nested types");
     assumeSupports(fileFormat, FEATURE_READER_DEFAULT);
 
     Types.NestedField idField = Types.NestedField.required(1, "id", Types.LongType.get());
@@ -1377,7 +1384,6 @@ public abstract class BaseFormatModelTests<T> {
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
   void testReadMetadataColumnFilePath(FileFormat fileFormat) throws IOException {
-
     DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
     Schema schema = dataGenerator.schema();
     List<Record> genericRecords = dataGenerator.generateRecords();
@@ -1402,7 +1408,6 @@ public abstract class BaseFormatModelTests<T> {
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
   void testReadMetadataColumnSpecId(FileFormat fileFormat) throws IOException {
-
     DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
     Schema schema = dataGenerator.schema();
     List<Record> genericRecords = dataGenerator.generateRecords();
@@ -1425,7 +1430,6 @@ public abstract class BaseFormatModelTests<T> {
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
   void testReadMetadataColumnRowPosition(FileFormat fileFormat) throws IOException {
-
     DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
     Schema schema = dataGenerator.schema();
     List<Record> genericRecords = dataGenerator.generateRecords();
@@ -1446,7 +1450,7 @@ public abstract class BaseFormatModelTests<T> {
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
   void testReadMetadataColumnIsDeleted(FileFormat fileFormat) throws IOException {
-
+    assumeFalse(supportsBatchReads(), "DeletedColumnVector requires a delete filter");
     DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
     Schema schema = dataGenerator.schema();
     List<Record> genericRecords = dataGenerator.generateRecords();
@@ -1466,7 +1470,10 @@ public abstract class BaseFormatModelTests<T> {
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
   void testReadMetadataColumnRowLineage(FileFormat fileFormat) throws IOException {
-
+    // TODO: ORC's vectorized reader treats _row_id as a plain constant
+    // (VectorizedSparkOrcReaders.StructConverter) rather than applying row-lineage rules,
+    // unlike Arrow's RowIdVectorReader.
+    assumeFalse(supportsBatchReads(), "Row lineage is incorrect for vectorized ORC reads");
     DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
     Schema schema = dataGenerator.schema();
     List<Record> genericRecords = dataGenerator.generateRecords();
@@ -1499,7 +1506,10 @@ public abstract class BaseFormatModelTests<T> {
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
   void testReadMetadataColumnRowLineageExistingValues(FileFormat fileFormat) throws IOException {
-
+    // TODO: ORC's vectorized reader treats _row_id as a plain constant
+    // (VectorizedSparkOrcReaders.StructConverter) rather than applying row-lineage rules,
+    // unlike Arrow's RowIdVectorReader.
+    assumeFalse(supportsBatchReads(), "Row lineage is incorrect for vectorized ORC reads");
     DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
     Schema dataSchema = dataGenerator.schema();
 
@@ -1573,7 +1583,6 @@ public abstract class BaseFormatModelTests<T> {
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
   void testReadMetadataColumnPartitionIdentity(FileFormat fileFormat) throws IOException {
-
     DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
     PartitionSpec spec = PartitionSpec.builderFor(dataGenerator.schema()).identity("col_a").build();
 
@@ -1803,7 +1812,6 @@ public abstract class BaseFormatModelTests<T> {
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
   void testSchemaEvolutionDropAndReAddSameNameColumn(FileFormat fileFormat) throws IOException {
-
     DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
     Schema writeSchema = dataGenerator.schema();
 
@@ -1959,6 +1967,7 @@ public abstract class BaseFormatModelTests<T> {
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
   void testSchemaEvolutionEmptyProjection(FileFormat fileFormat) throws IOException {
+    assumeFalse(supportsBatchReads(), "Row count assertion does not apply to batches");
     DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
     Schema writeSchema = dataGenerator.schema();
 
@@ -1995,21 +2004,21 @@ public abstract class BaseFormatModelTests<T> {
     NameMapping nameMapping = MappingUtil.create(icebergSchema);
 
     InputFile inputFile = encryptedFile.encryptingOutputFile().toInputFile();
-    List<T> readRecords;
+
     try (CloseableIterable<T> reader =
         FormatModelRegistry.readBuilder(fileFormat, engineType(), inputFile)
             .project(icebergSchema)
             .withNameMapping(nameMapping)
             .build()) {
-      readRecords = ImmutableList.copyOf(reader);
+      List<T> readRecords = ImmutableList.copyOf(reader);
+      assertRecordsEqual(icebergSchema, genericRecords, readRecords);
     }
-
-    assertEquals(icebergSchema, convertToEngineRecords(genericRecords, icebergSchema), readRecords);
   }
 
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
   void testDataWriterOverwrite(FileFormat fileFormat) throws IOException {
+    assumeFalse(readOnly(), "Engine does not support writes");
     DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
     Schema schema = dataGenerator.schema();
 
@@ -2028,6 +2037,7 @@ public abstract class BaseFormatModelTests<T> {
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
   void testDataWriterNoOverwriteFailsIfFileExists(FileFormat fileFormat) throws IOException {
+    assumeFalse(readOnly(), "Engine does not support writes");
     DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
     Schema schema = dataGenerator.schema();
 
@@ -2045,6 +2055,7 @@ public abstract class BaseFormatModelTests<T> {
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
   void testDataWriterSet(FileFormat fileFormat) throws IOException {
+    assumeFalse(readOnly(), "Engine does not support writes");
     writeAndAssertDataWriterWithConfig(
         fileFormat,
         (writerBuilder, format) -> testPropertiesToSet(format).forEach(writerBuilder::set),
@@ -2054,6 +2065,7 @@ public abstract class BaseFormatModelTests<T> {
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
   void testDataWriterSetAll(FileFormat fileFormat) throws IOException {
+    assumeFalse(readOnly(), "Engine does not support writes");
     writeAndAssertDataWriterWithConfig(
         fileFormat,
         (writerBuilder, format) -> writerBuilder.setAll(testPropertiesToSet(format)),
@@ -2063,6 +2075,7 @@ public abstract class BaseFormatModelTests<T> {
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
   void testDataWriterMeta(FileFormat fileFormat) throws IOException {
+    assumeFalse(readOnly(), "Engine does not support writes");
     writeAndAssertDataWriterWithConfig(
         fileFormat,
         (writerBuilder, format) -> writerBuilder.meta("tck.meta.key", "tck-meta-value"),
@@ -2073,6 +2086,7 @@ public abstract class BaseFormatModelTests<T> {
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
   void testDataWriterMetaMap(FileFormat fileFormat) throws IOException {
+    assumeFalse(readOnly(), "Engine does not support writes");
     writeAndAssertDataWriterWithConfig(
         fileFormat,
         (writerBuilder, format) ->
@@ -2087,6 +2101,7 @@ public abstract class BaseFormatModelTests<T> {
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
   void testDataWriterAesStreamEncryption(FileFormat fileFormat) throws IOException {
+    assumeFalse(readOnly(), "Engine does not support writes");
     assumeSupports(fileFormat, FEATURE_AES_STREAM_ENCRYPTION);
 
     EncryptionManager encryptionManager = EncryptionTestHelpers.createEncryptionManager();
@@ -2104,6 +2119,7 @@ public abstract class BaseFormatModelTests<T> {
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
   void testDataWriterNativeEncryption(FileFormat fileFormat) throws IOException {
+    assumeFalse(readOnly(), "Engine does not support writes");
     assumeSupports(fileFormat, FEATURE_NATIVE_ENCRYPTION);
 
     EncryptionManager encryptionManager = EncryptionTestHelpers.createEncryptionManager();
@@ -2228,7 +2244,7 @@ public abstract class BaseFormatModelTests<T> {
     assumeThat(MISSING_FEATURES.getOrDefault(fileFormat, new String[] {})).doesNotContain(feature);
   }
 
-  private static boolean supportsGenerator(FileFormat fileFormat, DataGenerator generator) {
+  protected static boolean supportsGenerator(FileFormat fileFormat, DataGenerator generator) {
     boolean hasVariant =
         TypeUtil.find(generator.schema(), type -> type.typeId() == Type.TypeID.VARIANT) != null;
     return !hasVariant || supportsFeature(fileFormat, FEATURE_VARIANT);
@@ -2621,7 +2637,6 @@ public abstract class BaseFormatModelTests<T> {
       throws IOException {
 
     InputFile inputFile = encryptedFile.encryptingOutputFile().toInputFile();
-    List<T> readRecords;
 
     ReadBuilder<T, ?> readerBuilder =
         FormatModelRegistry.readBuilder(fileFormat, engineType(), inputFile)
@@ -2632,12 +2647,9 @@ public abstract class BaseFormatModelTests<T> {
     }
 
     try (CloseableIterable<T> reader = readerBuilder.build()) {
-      readRecords = ImmutableList.copyOf(reader);
+      List<T> readRecords = ImmutableList.copyOf(reader);
+      assertRecordsEqual(projectionSchema, expectedRecords, readRecords);
     }
-
-    assertThat(readRecords).hasSize(expectedRecords.size());
-    assertEquals(
-        projectionSchema, convertToEngineRecords(expectedRecords, projectionSchema), readRecords);
   }
 
   private static Record copy(Record source, Schema sourceSchema, Schema targetSchema) {
@@ -2658,7 +2670,6 @@ public abstract class BaseFormatModelTests<T> {
 
     List<Record> genericRecords = RandomGenericData.generate(writeSchema, 10, 1L);
     writeGenericRecords(fileFormat, writeSchema, genericRecords);
-
     readAndAssertEngineRecords(
         fileFormat,
         readSchema,
@@ -2678,17 +2689,13 @@ public abstract class BaseFormatModelTests<T> {
       throws IOException {
     List<Record> expectedGenericRecords = sourceRecords.stream().map(converter).toList();
     InputFile inputFile = encryptedFile.encryptingOutputFile().toInputFile();
-    List<T> readRecords;
     try (CloseableIterable<T> reader =
         FormatModelRegistry.readBuilder(fileFormat, engineType(), inputFile)
             .project(readSchema)
             .build()) {
-      readRecords = ImmutableList.copyOf(reader);
+      List<T> readRecords = ImmutableList.copyOf(reader);
+      assertRecordsEqual(readSchema, expectedGenericRecords, readRecords);
     }
-
-    assertThat(readRecords).hasSize(expectedGenericRecords.size());
-    assertEquals(
-        readSchema, convertToEngineRecords(expectedGenericRecords, readSchema), readRecords);
   }
 
   private DataFile writeEngineRecords(FileFormat fileFormat, Schema schema, List<T> records)
