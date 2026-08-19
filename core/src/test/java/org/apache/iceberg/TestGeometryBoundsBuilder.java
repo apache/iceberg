@@ -162,12 +162,14 @@ class TestGeometryBoundsBuilder {
   }
 
   @Test
-  void nestingPastTheLimitIsRejected() {
+  void nestingPastTheLimitSuppressesBounds() {
     GeometryBoundsBuilder bounds = new GeometryBoundsBuilder();
+    // too-deep nesting suppresses the box rather than throwing, and a later valid value cannot
+    // revive it, since a box that omits the too-deep object would under-cover the file
+    bounds.addValue(ByteBuffer.wrap(nestedCollections(101)));
+    bounds.addValue(ByteBuffer.wrap(wkb(point(1, 2))));
 
-    assertThatThrownBy(() -> bounds.addValue(ByteBuffer.wrap(nestedCollections(101))))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("nesting too deep");
+    assertThat(bounds.build()).isNull();
   }
 
   @Test
@@ -193,14 +195,14 @@ class TestGeometryBoundsBuilder {
   }
 
   @Test
-  void interiorRingOutsideShellIsNotCovered() {
+  void interiorRingContributesToBounds() {
     GeometryBoundsBuilder bounds = new GeometryBoundsBuilder();
-    // documented limitation: only the exterior ring is read, so an interior ring past the shell is
-    // not covered; this pins the behavior so a future change to read every ring is noticed
+    // every ring contributes, so an interior ring extending past the shell widens the box rather
+    // than under-covering the polygon (matching the JTS envelope over all coordinates)
     bounds.addValue(
         ByteBuffer.wrap(wkb(polygon(ring(0, 0, 1, 0, 0, 1, 0, 0), ring(0, 0, 9, 0, 0, 9, 0, 0)))));
 
-    assertThat(bounds.build()).isEqualTo(box(0, 0, 1, 1));
+    assertThat(bounds.build()).isEqualTo(box(0, 0, 9, 9));
   }
 
   @Test
@@ -295,7 +297,20 @@ class TestGeometryBoundsBuilder {
         // the leading byte is neither 0 (big endian) nor 1 (little endian)
         Arguments.of("invalid byte order", withByteOrder((byte) 2, wkb(point(0, 0))), "byte order"),
         // a point header with its coordinates cut off
-        Arguments.of("truncated point", truncate(wkb(point(1, 2)), 5), "unexpected end of buffer"));
+        Arguments.of("truncated point", truncate(wkb(point(1, 2)), 5), "unexpected end of buffer"),
+        // a line string that declares far more points than the buffer could hold
+        Arguments.of(
+            "element count exceeds remaining bytes",
+            wkb(
+                geom(
+                    LE,
+                    2,
+                    buffer -> {
+                      buffer.putInt(1000);
+                      buffer.putDouble(0.0);
+                      buffer.putDouble(0.0);
+                    })),
+            "element count"));
   }
 
   private static GeospatialBound xy(double xCoord, double yCoord) {

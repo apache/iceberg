@@ -43,10 +43,9 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
  * <p>Only the X and Y dimensions contribute to the box. Z and M ordinates are valid in the ISO WKB
  * serializations that Iceberg accepts, so they are read past and ignored rather than rejected.
  *
- * <p>The bounds of a polygon are derived from its exterior ring alone, which assumes OGC-valid
- * polygons whose interior rings lie within the shell. This matches the envelope computed for a
- * polygon by geometry libraries such as JTS. Iceberg does not validate geometries, so a polygon
- * with a hole extending past its shell produces bounds that do not contain the geometry.
+ * <p>Every ring of a polygon contributes, so the box covers the whole polygon even when an interior
+ * ring extends past the shell. This matches the envelope a library such as JTS derives from all of
+ * a geometry's coordinates.
  */
 class GeometryBoundsBuilder {
 
@@ -70,30 +69,44 @@ class GeometryBoundsBuilder {
   private final DimensionBounds xBounds = new DimensionBounds();
   private final DimensionBounds yBounds = new DimensionBounds();
 
+  // set when a value nests deeper than MAX_DEPTH; the box is then suppressed for the whole builder
+  // rather than aborting the write, since a box that omits the too-deep object would under-cover
+  private boolean boundsUnavailable = false;
+
   /**
    * Adds one WKB geometry value to these bounds.
    *
    * <p>The input is read through a duplicate, so its position and limit are left unchanged.
    *
-   * <p>If this throws, the builder's state is undefined: coordinates parsed before the failure may
-   * already be folded in. A caller that continues after a rejected value must discard this builder.
+   * <p>A value nested beyond the supported depth is not rejected; it suppresses the bounds for the
+   * whole builder, so {@link #build()} returns {@code null}. If this throws, the builder's state is
+   * undefined: coordinates parsed before the failure may already be folded in, so a caller that
+   * continues after a rejected value must discard this builder.
    *
    * @param wkb a buffer containing exactly one WKB geometry
    * @throws IllegalArgumentException if the WKB is malformed
    */
   public void addValue(ByteBuffer wkb) {
     Preconditions.checkArgument(wkb != null, "Invalid WKB buffer: null");
+    if (boundsUnavailable) {
+      return;
+    }
+
     ByteBuffer buffer = wkb.duplicate();
     parseGeometry(buffer, 0, ANY_GEOMETRY);
-    Preconditions.checkArgument(!buffer.hasRemaining(), "Invalid WKB: trailing data");
+    // a too-deep value stops parsing early, so only check for trailing data on a fully-read buffer
+    if (!boundsUnavailable) {
+      Preconditions.checkArgument(!buffer.hasRemaining(), "Invalid WKB: trailing data");
+    }
   }
 
   /**
-   * Builds the bounding box covering every geometry added, or {@code null} if either the X or Y
-   * dimension has no value.
+   * Builds the bounding box covering every geometry added, or {@code null} if no bounds are
+   * available: either the X or Y dimension has no value, or a value nested beyond the supported
+   * depth.
    */
   public BoundingBox build() {
-    if (!xBounds.hasValue() || !yBounds.hasValue()) {
+    if (boundsUnavailable || !xBounds.hasValue() || !yBounds.hasValue()) {
       return null;
     }
 
@@ -103,7 +116,17 @@ class GeometryBoundsBuilder {
   }
 
   private void parseGeometry(ByteBuffer buffer, int depth, int expectedType) {
-    Preconditions.checkArgument(depth <= MAX_DEPTH, "Invalid WKB: nesting too deep");
+    if (boundsUnavailable) {
+      return;
+    }
+
+    if (depth > MAX_DEPTH) {
+      // stop before recursing further, which could otherwise overflow the stack; suppressing the
+      // box is safe because metrics are optional, whereas throwing would abort the write
+      boundsUnavailable = true;
+      return;
+    }
+
     checkRemaining(buffer, 5);
 
     // each geometry sets its own byte order; restore the caller's order before returning so a
@@ -135,11 +158,15 @@ class GeometryBoundsBuilder {
             && dimensionGroup <= XYZM_GROUP,
         "Invalid or unsupported WKB geometry type: %s",
         typeCode);
-    Preconditions.checkArgument(
-        expectedType == ANY_GEOMETRY || geometryType == expectedType,
-        "Invalid WKB: expected geometry type %s but found %s",
-        typeName(expectedType),
-        typeName(geometryType));
+    // built with an if/throw rather than checkArgument so typeName() is not evaluated for every
+    // value on the write path, only when the type is actually wrong
+    if (expectedType != ANY_GEOMETRY && geometryType != expectedType) {
+      throw new IllegalArgumentException(
+          "Invalid WKB: expected geometry type "
+              + typeName(expectedType)
+              + " but found "
+              + typeName(geometryType));
+    }
 
     int numDimensions = numDimensions(dimensionGroup);
 
@@ -148,7 +175,7 @@ class GeometryBoundsBuilder {
         readCoordinate(buffer, numDimensions);
         break;
       case TYPE_LINE_STRING:
-        readCoordinateSequence(buffer, numDimensions, true);
+        readCoordinateSequence(buffer, numDimensions);
         break;
       case TYPE_POLYGON:
         readPolygon(buffer, numDimensions);
@@ -204,13 +231,11 @@ class GeometryBoundsBuilder {
   }
 
   private void readPolygon(ByteBuffer buffer, int numDimensions) {
+    // every ring contributes, including interior rings: a hole extending past the shell would
+    // otherwise under-cover the polygon, pruning a file from a query it should match
     int numRings = readCount(buffer);
-    if (numRings > 0) {
-      readCoordinateSequence(buffer, numDimensions, true);
-    }
-
-    for (int i = 1; i < numRings; i += 1) {
-      readCoordinateSequence(buffer, numDimensions, false);
+    for (int i = 0; i < numRings; i += 1) {
+      readCoordinateSequence(buffer, numDimensions);
     }
   }
 
@@ -222,15 +247,10 @@ class GeometryBoundsBuilder {
     }
   }
 
-  private void readCoordinateSequence(ByteBuffer buffer, int numDimensions, boolean updateBounds) {
+  private void readCoordinateSequence(ByteBuffer buffer, int numDimensions) {
     int numPoints = readCount(buffer);
     long numBytes = (long) numPoints * numDimensions * Double.BYTES;
     checkRemaining(buffer, numBytes);
-    if (!updateBounds) {
-      buffer.position(buffer.position() + (int) numBytes);
-      return;
-    }
-
     for (int i = 0; i < numPoints; i += 1) {
       readCoordinate(buffer, numDimensions);
     }
