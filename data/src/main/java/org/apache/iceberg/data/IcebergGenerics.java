@@ -19,12 +19,15 @@
 package org.apache.iceberg.data;
 
 import java.util.Collection;
+import java.util.Optional;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableScan;
+import org.apache.iceberg.TableUtil;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.metrics.MetricsReporter;
+import org.apache.iceberg.rest.restrictions.ReadRestrictions;
 
 public class IcebergGenerics {
   private IcebergGenerics() {}
@@ -40,10 +43,12 @@ public class IcebergGenerics {
   }
 
   public static class ScanBuilder {
+    private final Table table;
     private TableScan tableScan;
     private boolean reuseContainers = false;
 
     public ScanBuilder(Table table) {
+      this.table = table;
       this.tableScan = table.newScan();
     }
 
@@ -103,7 +108,16 @@ public class IcebergGenerics {
     }
 
     public CloseableIterable<Record> build() {
-      return new TableScanIterable(tableScan, reuseContainers);
+      Optional<ReadRestrictions> restrictions = TableUtil.readRestrictions(table);
+      if (restrictions.isPresent() && restrictions.get().rowFilter() != null) {
+        this.tableScan = tableScan.filter(restrictions.get().rowFilter());
+      }
+
+      CloseableIterable<Record> records = new TableScanIterable(tableScan, reuseContainers);
+      if (restrictions.isPresent()) {
+        records = ReadRestrictionsApplier.apply(records, restrictions.get(), tableScan.schema());
+      }
+      return records;
     }
   }
 }
