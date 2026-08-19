@@ -28,7 +28,7 @@ import org.apache.iceberg.aws.s3.S3FileIOProperties;
 import org.apache.iceberg.aws.s3.signer.S3V4RestSignerClient;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.rest.RemoteSigningProperties;
+import org.apache.iceberg.rest.RESTCatalogProperties;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
@@ -216,7 +216,7 @@ public class TestS3FileIOProperties {
         ImmutableMap.of(
             S3FileIOProperties.REMOTE_SIGNING_ENABLED,
             "true",
-            RemoteSigningProperties.ENDPOINT,
+            RESTCatalogProperties.REMOTE_SIGNING_ENDPOINT,
             "v1/namespaces/ns1/tables/t1/sign");
     S3FileIOProperties s3Properties = new S3FileIOProperties(properties);
 
@@ -250,7 +250,7 @@ public class TestS3FileIOProperties {
             "true",
             CatalogProperties.URI,
             uri,
-            RemoteSigningProperties.ENDPOINT,
+            RESTCatalogProperties.REMOTE_SIGNING_ENDPOINT,
             endpoint);
     S3FileIOProperties s3Properties = new S3FileIOProperties(properties);
     S3ClientBuilder builder = S3Client.builder();
@@ -275,7 +275,7 @@ public class TestS3FileIOProperties {
             "true",
             CatalogProperties.URI,
             uri,
-            RemoteSigningProperties.ENDPOINT,
+            RESTCatalogProperties.REMOTE_SIGNING_ENDPOINT,
             "v1/namespaces/ns1/tables/t1/sign");
     S3FileIOProperties s3Properties = new S3FileIOProperties(properties);
     S3ClientBuilder builder = S3Client.builder();

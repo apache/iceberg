@@ -234,9 +234,11 @@ class RESTTableScan extends DataTableScan {
     ImmutableMap.Builder<String, String> builder =
         ImmutableMap.<String, String>builder()
             .putAll(catalogProperties)
-            .put(RemoteSigningProperties.ENDPOINT, resourcePaths.remoteSign(tableIdentifier))
             .put(
-                RemoteSigningProperties.CONFIG,
+                RESTCatalogProperties.REMOTE_SIGNING_ENDPOINT,
+                resourcePaths.remoteSign(tableIdentifier))
+            .put(
+                RESTCatalogProperties.REMOTE_SIGNING_CONFIG,
                 RemoteSigningConfigParser.toJson(remoteSigningConfig));
 
     if (null != planId) {

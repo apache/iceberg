@@ -43,8 +43,7 @@ public final class RESTCatalogProperties {
   public static final String PAGE_SIZE = "rest-page-size";
 
   public static final String NAMESPACE_SEPARATOR = "namespace-separator";
-  public static final String NAMESPACE_SEPARATOR_DEFAULT =
-      RESTUtil.NAMESPACE_SEPARATOR_URLENCODED_UTF_8;
+  public static final String NAMESPACE_SEPARATOR_DEFAULT = "%1F";
 
   // Configure scan planning mode
   // Can be set by server in LoadTableResponse.config() for table-level override
@@ -112,4 +111,27 @@ public final class RESTCatalogProperties {
    * @deprecated Will be removed in 1.13; there is no replacement.
    */
   @Deprecated public static final String SIGNER_ENDPOINT = "signer.endpoint";
+
+  /**
+   * The remote signing endpoint path, as computed by {@link
+   * ResourcePaths#remoteSign(org.apache.iceberg.catalog.TableIdentifier)}.
+   *
+   * <p>This property is automatically set by the REST catalog client when creating table-scoped
+   * FileIO instances, and is intended for consumption by remote request signers.
+   *
+   * <p>It is not intended for user-facing configuration, and may be removed or changed in future
+   * releases without notice.
+   */
+  public static final String REMOTE_SIGNING_ENDPOINT = "rest.remote-signing.endpoint";
+
+  /**
+   * The {@link RemoteSigningConfig}, JSON-encoded.
+   *
+   * <p>This property is automatically set by the REST catalog client when creating table-scoped
+   * FileIO instances, and is intended for consumption by remote request signers.
+   *
+   * <p>It is not intended for user-facing configuration, and may be removed or changed in future
+   * releases without notice.
+   */
+  public static final String REMOTE_SIGNING_CONFIG = "rest.remote-signing.config";
 }

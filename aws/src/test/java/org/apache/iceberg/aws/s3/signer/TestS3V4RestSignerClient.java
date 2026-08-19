@@ -27,7 +27,6 @@ import java.util.stream.Stream;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.rest.RESTCatalogProperties;
 import org.apache.iceberg.rest.RESTClient;
-import org.apache.iceberg.rest.RemoteSigningProperties;
 import org.apache.iceberg.rest.auth.AuthProperties;
 import org.apache.iceberg.rest.auth.AuthSession;
 import org.apache.iceberg.rest.auth.OAuth2Properties;
@@ -125,7 +124,7 @@ class TestS3V4RestSignerClient {
             Map.of(
                 CatalogProperties.URI,
                 "https://signer.com",
-                RemoteSigningProperties.ENDPOINT,
+                RESTCatalogProperties.REMOTE_SIGNING_ENDPOINT,
                 "v1/namespaces/ns1/tables/t1/sign"),
             "sign",
             null),
@@ -134,7 +133,7 @@ class TestS3V4RestSignerClient {
             Map.of(
                 CatalogProperties.URI,
                 "https://signer.com",
-                RemoteSigningProperties.ENDPOINT,
+                RESTCatalogProperties.REMOTE_SIGNING_ENDPOINT,
                 "v1/namespaces/ns1/tables/t1/sign",
                 AuthProperties.AUTH_TYPE,
                 AuthProperties.AUTH_TYPE_OAUTH2,
@@ -147,7 +146,7 @@ class TestS3V4RestSignerClient {
             Map.of(
                 CatalogProperties.URI,
                 "https://signer.com",
-                RemoteSigningProperties.ENDPOINT,
+                RESTCatalogProperties.REMOTE_SIGNING_ENDPOINT,
                 "v1/namespaces/ns1/tables/t1/sign",
                 AuthProperties.AUTH_TYPE,
                 AuthProperties.AUTH_TYPE_OAUTH2,
@@ -160,7 +159,7 @@ class TestS3V4RestSignerClient {
             Map.of(
                 CatalogProperties.URI,
                 "https://signer.com",
-                RemoteSigningProperties.ENDPOINT,
+                RESTCatalogProperties.REMOTE_SIGNING_ENDPOINT,
                 "v1/namespaces/ns1/tables/t1/sign",
                 AuthProperties.AUTH_TYPE,
                 AuthProperties.AUTH_TYPE_OAUTH2,
@@ -175,7 +174,7 @@ class TestS3V4RestSignerClient {
             Map.of(
                 CatalogProperties.URI,
                 "https://signer.com",
-                RemoteSigningProperties.ENDPOINT,
+                RESTCatalogProperties.REMOTE_SIGNING_ENDPOINT,
                 "v1/namespaces/ns1/tables/t1/sign",
                 AuthProperties.AUTH_TYPE,
                 AuthProperties.AUTH_TYPE_OAUTH2,
@@ -216,7 +215,7 @@ class TestS3V4RestSignerClient {
             Map.of(
                 CatalogProperties.URI,
                 "https://new-signer.com",
-                RemoteSigningProperties.ENDPOINT,
+                RESTCatalogProperties.REMOTE_SIGNING_ENDPOINT,
                 "v1/new/sign"),
             "https://new-signer.com",
             "https://new-signer.com/v1/new/sign"),
@@ -225,7 +224,7 @@ class TestS3V4RestSignerClient {
             Map.of(
                 CatalogProperties.URI,
                 "https://new-signer.com",
-                RemoteSigningProperties.ENDPOINT,
+                RESTCatalogProperties.REMOTE_SIGNING_ENDPOINT,
                 "v1/new/sign",
                 RESTCatalogProperties.SIGNER_URI,
                 "https://legacy-signer.com",

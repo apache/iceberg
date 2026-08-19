@@ -35,7 +35,7 @@ import javax.annotation.Nonnull;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.aws.s3.MinioUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.rest.RemoteSigningProperties;
+import org.apache.iceberg.rest.RESTCatalogProperties;
 import org.apache.iceberg.rest.auth.OAuth2Properties;
 import org.apache.iceberg.util.ThreadPools;
 import org.eclipse.jetty.compression.gzip.GzipCompression;
@@ -111,7 +111,7 @@ public class TestS3RestSigner {
                     ImmutableMap.of(
                         CatalogProperties.URI,
                         httpServer.getURI().toString(),
-                        RemoteSigningProperties.ENDPOINT,
+                        RESTCatalogProperties.REMOTE_SIGNING_ENDPOINT,
                         S3SignerServlet.S3_SIGNER_ENDPOINT,
                         OAuth2Properties.CREDENTIAL,
                         "catalog:12345"))

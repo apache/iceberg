@@ -1346,7 +1346,8 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
     assertThat(io.properties())
         .containsEntry(
-            RemoteSigningProperties.CONFIG, RemoteSigningConfigParser.toJson(signingConfig));
+            RESTCatalogProperties.REMOTE_SIGNING_CONFIG,
+            RemoteSigningConfigParser.toJson(signingConfig));
 
     catalog.close();
   }

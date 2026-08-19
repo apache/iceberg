@@ -41,7 +41,6 @@ import org.apache.iceberg.rest.RESTClient;
 import org.apache.iceberg.rest.RESTUtil;
 import org.apache.iceberg.rest.RemoteSigningConfig;
 import org.apache.iceberg.rest.RemoteSigningConfigParser;
-import org.apache.iceberg.rest.RemoteSigningProperties;
 import org.apache.iceberg.rest.ResourcePaths;
 import org.apache.iceberg.rest.auth.AuthManager;
 import org.apache.iceberg.rest.auth.AuthManagers;
@@ -95,7 +94,7 @@ public abstract class S3V4RestSignerClient
 
   @Value.Derived
   public RemoteSigningConfig remoteSigningConfig() {
-    String json = properties().get(RemoteSigningProperties.CONFIG);
+    String json = properties().get(RESTCatalogProperties.REMOTE_SIGNING_CONFIG);
     return json == null ? RemoteSigningConfig.EMPTY : RemoteSigningConfigParser.fromJson(json);
   }
 
@@ -116,7 +115,7 @@ public abstract class S3V4RestSignerClient
         properties()
             .getOrDefault(
                 RESTCatalogProperties.SIGNER_ENDPOINT,
-                properties().get(RemoteSigningProperties.ENDPOINT));
+                properties().get(RESTCatalogProperties.REMOTE_SIGNING_ENDPOINT));
 
     return RESTUtil.resolveEndpoint(baseSignerUri(), endpointPath);
   }
@@ -227,7 +226,7 @@ public abstract class S3V4RestSignerClient
   protected void check() {
     Preconditions.checkArgument(
         properties().containsKey(RESTCatalogProperties.SIGNER_ENDPOINT)
-            || properties().containsKey(RemoteSigningProperties.ENDPOINT),
+            || properties().containsKey(RESTCatalogProperties.REMOTE_SIGNING_ENDPOINT),
         "Remote signing endpoint is required");
 
     Preconditions.checkArgument(

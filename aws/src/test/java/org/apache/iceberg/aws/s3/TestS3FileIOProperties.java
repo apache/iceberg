@@ -32,7 +32,7 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
-import org.apache.iceberg.rest.RemoteSigningProperties;
+import org.apache.iceberg.rest.RESTCatalogProperties;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
@@ -506,7 +506,7 @@ public class TestS3FileIOProperties {
             "true",
             CatalogProperties.URI,
             "http://localhost:12345",
-            RemoteSigningProperties.ENDPOINT,
+            RESTCatalogProperties.REMOTE_SIGNING_ENDPOINT,
             "v1/namespaces/ns1/tables/t1/sign");
     S3FileIOProperties s3FileIOProperties = new S3FileIOProperties(properties);
     S3ClientBuilder mockS3ClientBuilder = Mockito.mock(S3ClientBuilder.class);

@@ -1278,9 +1278,9 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
         ImmutableMap.<String, String>builder()
             .putAll(properties())
             .putAll(tableConf)
-            .put(RemoteSigningProperties.ENDPOINT, paths.remoteSign(tableIdentifier))
+            .put(RESTCatalogProperties.REMOTE_SIGNING_ENDPOINT, paths.remoteSign(tableIdentifier))
             .put(
-                RemoteSigningProperties.CONFIG,
+                RESTCatalogProperties.REMOTE_SIGNING_CONFIG,
                 RemoteSigningConfigParser.toJson(remoteSigningConfig))
             .buildKeepingLast();
 
