@@ -229,7 +229,7 @@ public interface ManifestFile {
 
     /**
      * Returns true if at least one file in the manifest has a NaN value for the field. Null if this
-     * information doesn't exist.
+     * inso tion doesn't exist.
      *
      * <p>Default to return null to ensure backward compatibility.
      */

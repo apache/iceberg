@@ -20,6 +20,7 @@ package org.apache.iceberg;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
@@ -46,20 +47,12 @@ import org.apache.iceberg.util.ParallelIterable;
  * <p>Emits a task for each live {@code DATA} entry and expands {@code DATA_MANIFEST} entries into
  * their leaf manifests. A data entry's colocated deletion vector is attached to its task as a
  * {@link DeleteFile}.
- *
- * <p>Emitted tasks do not yet carry inherited tracking: leaf and root {@code DATA} entries are not
- * assigned the data/file sequence numbers, snapshot id, and first-row-id they inherit from their
- * parent, so {@code data_sequence_number}, {@code file_sequence_number}, and row-lineage columns
- * ({@code _row_id}, {@code _last_updated_sequence_number}) read null for added files. Inheritance
- * must be applied before this planner is wired into a scan or the delete-manifest matching path,
- * since delete scoping compares a data file's sequence number against the delete's.
  */
 class ScanTaskPlanner {
-  private static final int FORMAT_VERSION = 4;
   private static final DeleteFile[] NO_DELETES = new DeleteFile[0];
 
   private final FileIO io;
-  private final InputFile rootManifest;
+  private final String rootManifestLocation;
   private final Map<Integer, PartitionSpec> specsById;
   private final String tableLocation;
   private final Expression dataFilter;
@@ -71,7 +64,7 @@ class ScanTaskPlanner {
 
   private ScanTaskPlanner(
       FileIO io,
-      InputFile rootManifest,
+      String rootManifestLocation,
       Map<Integer, PartitionSpec> specsById,
       String tableLocation,
       Expression dataFilter,
@@ -80,7 +73,7 @@ class ScanTaskPlanner {
       ScanMetrics scanMetrics,
       ExecutorService executorService) {
     this.io = io;
-    this.rootManifest = rootManifest;
+    this.rootManifestLocation = rootManifestLocation;
     this.specsById = specsById;
     this.tableLocation = tableLocation;
     this.dataFilter = dataFilter;
@@ -92,61 +85,63 @@ class ScanTaskPlanner {
 
   static Builder builder(
       FileIO io,
-      InputFile rootManifest,
+      String rootManifestLocation,
       Map<Integer, PartitionSpec> specsById,
       String tableLocation) {
-    return new Builder(io, rootManifest, specsById, tableLocation);
+    return new Builder(io, rootManifestLocation, specsById, tableLocation);
   }
 
   CloseableIterable<FileScanTask> planFiles() {
-    List<TrackedFile> dataFiles = Lists.newArrayList();
+    List<TrackedFile> rootDataFiles = Lists.newArrayList();
     List<TrackedFile> leafManifests = Lists.newArrayList();
 
     // root is drained into these lists. Leaf references must be buffered so they can be fanned
     // out; direct DATA entries are buffered too, bounded by how many data files a tree keeps
-    // directly in the root. Leaf tasks stay lazy: createLeafTasks opens no reader until iterated.
+    // directly in the root. Leaf tasks stay lazy: planLeaf opens no reader until iterated.
     scanMetrics.scannedDataManifests().increment();
-    try (CloseableIterable<TrackedFile> rootEntries = open(rootManifest)) {
+    try (CloseableIterable<TrackedFile> rootEntries =
+        open(io.newInputFile(rootManifestLocation), /* manifestDv= */ null)) {
       for (TrackedFile entry : rootEntries) {
         switch (entry.contentType()) {
           case DATA:
-            dataFiles.add(entry);
+            rootDataFiles.add(entry);
             break;
           case DATA_MANIFEST:
             leafManifests.add(entry);
             break;
           default:
-            // delete content appears only on upgraded trees
+            // delete manifests appear only on upgraded v2/v3 tables; that 2-phase path is not
+            // supported yet, so a natively-written v4 tree is the only supported input for now
             throw new UnsupportedOperationException(
                 "Cannot plan content type in root manifest: " + entry.contentType());
         }
       }
     } catch (IOException e) {
-      throw new UncheckedIOException(
-          "Failed to close root manifest: " + rootManifest.location(), e);
+      throw new UncheckedIOException("Failed to close root manifest: " + rootManifestLocation, e);
     }
 
-    // root DATA tasks are already in hand, so emit them directly; only leaf expansion, which reads
-    // each leaf manifest, is worth handing to the parallel backend
-    CloseableIterable<FileScanTask> rootTasks =
-        CloseableIterable.transform(CloseableIterable.withNoopClose(dataFiles), this::createTask);
-
-    List<CloseableIterable<FileScanTask>> leafTasks = Lists.newArrayList();
+    // read each leaf's data entries lazily; only leaf reads are worth the parallel backend, so the
+    // already-in-hand root data entries are concatenated in directly
+    List<CloseableIterable<TrackedFile>> leafDataEntries = Lists.newArrayList();
     for (TrackedFile leaf : leafManifests) {
-      leafTasks.add(createLeafTasks(leaf));
+      leafDataEntries.add(planLeaf(leaf));
     }
 
-    CloseableIterable<FileScanTask> expandedLeafTasks =
+    CloseableIterable<TrackedFile> expandedLeafEntries =
         executorService != null
-            ? new ParallelIterable<>(leafTasks, executorService)
-            : CloseableIterable.concat(leafTasks);
+            ? new ParallelIterable<>(leafDataEntries, executorService)
+            : CloseableIterable.concat(leafDataEntries);
 
-    return CloseableIterable.concat(ImmutableList.of(rootTasks, expandedLeafTasks));
+    CloseableIterable<TrackedFile> dataEntries =
+        CloseableIterable.concat(
+            ImmutableList.of(CloseableIterable.withNoopClose(rootDataFiles), expandedLeafEntries));
+
+    return CloseableIterable.transform(dataEntries, this::createTask);
   }
 
-  private CloseableIterable<FileScanTask> createLeafTasks(TrackedFile leaf) {
+  private CloseableIterable<TrackedFile> planLeaf(TrackedFile leaf) {
     // an upgraded tree can reference a legacy-format leaf
-    if (leaf.formatVersion() != FORMAT_VERSION) {
+    if (leaf.formatVersion() != TableMetadata.MIN_FORMAT_VERSION_ADAPTIVE_MANIFEST_TREE) {
       throw new UnsupportedOperationException(
           "Cannot expand leaf manifest with format version "
               + leaf.formatVersion()
@@ -154,60 +149,57 @@ class ScanTaskPlanner {
               + leaf.location());
     }
 
-    if (leaf.manifestInfo() != null && leaf.manifestInfo().dv() != null) {
-      throw new UnsupportedOperationException(
-          "Cannot apply manifest deletion vector for leaf manifest: " + leaf.location());
-    }
-
     if (leaf.keyMetadata() != null) {
       throw new UnsupportedOperationException(
           "Cannot read encrypted leaf manifest: " + leaf.location());
     }
 
-    return new LeafTasks(leaf);
+    return new LeafDataEntries(leaf);
   }
 
-  /** A leaf's tasks, with each iteration owning and counting its own reader. */
-  private class LeafTasks extends CloseableGroup implements CloseableIterable<FileScanTask> {
+  /** Lazily reads one leaf manifest's data entries; each iteration owns and counts its reader. */
+  private class LeafDataEntries extends CloseableGroup implements CloseableIterable<TrackedFile> {
     private final TrackedFile leaf;
 
-    private LeafTasks(TrackedFile leaf) {
+    private LeafDataEntries(TrackedFile leaf) {
       this.leaf = leaf;
     }
 
     @Override
-    public CloseableIterator<FileScanTask> iterator() {
-      scanMetrics.scannedDataManifests().increment();
+    public CloseableIterator<TrackedFile> iterator() {
       // pass the known leaf size so the reader sizes the read instead of stat-ing the file
+      ByteBuffer manifestDv = leaf.manifestInfo() != null ? leaf.manifestInfo().dv() : null;
       CloseableIterable<TrackedFile> entries =
-          open(io.newInputFile(leaf.location(), leaf.fileSizeInBytes()));
-      CloseableIterable<FileScanTask> tasks =
-          CloseableIterable.transform(entries, ScanTaskPlanner.this::createTaskFromDataFileEntry);
-      addCloseable(tasks);
-      return tasks.iterator();
+          open(io.newInputFile(leaf.location(), leaf.fileSizeInBytes()), manifestDv);
+      addCloseable(entries);
+      scanMetrics.scannedDataManifests().increment();
+      return CloseableIterable.transform(entries, ScanTaskPlanner.this::requireDataEntry)
+          .iterator();
     }
   }
 
-  private FileScanTask createTaskFromDataFileEntry(TrackedFile entry) {
-    // the tree is at most two levels, so a leaf holds only DATA entries
-    if (entry.contentType() == FileContent.DATA_MANIFEST) {
-      throw new IllegalArgumentException(
-          "Cannot expand a nested manifest in a leaf manifest: " + entry.location());
-    } else if (entry.contentType() != FileContent.DATA) {
-      throw new UnsupportedOperationException(
-          "Cannot plan content type in leaf manifest: " + entry.contentType());
-    }
-
-    return createTask(entry);
-  }
-
-  private CloseableIterable<TrackedFile> open(InputFile manifest) {
+  private CloseableIterable<TrackedFile> open(InputFile manifest, ByteBuffer manifestDv) {
     return V4ManifestReader.builder(manifest, specsById, tableLocation)
         .forScanPlanning()
         .filter(dataFilter)
         .caseSensitive(caseSensitive)
         .scanMetrics(scanMetrics)
+        .manifestDv(manifestDv)
         .build();
+  }
+
+  private TrackedFile requireDataEntry(TrackedFile entry) {
+    // the tree is at most two levels, so a leaf holds only DATA entries
+    Preconditions.checkArgument(
+        entry.contentType() != FileContent.DATA_MANIFEST,
+        "Cannot expand a nested manifest in a leaf manifest: %s",
+        entry.location());
+    if (entry.contentType() != FileContent.DATA) {
+      throw new UnsupportedOperationException(
+          "Cannot plan content type in leaf manifest: " + entry.contentType());
+    }
+
+    return entry;
   }
 
   private FileScanTask createTask(TrackedFile trackedFile) {
@@ -252,7 +244,7 @@ class ScanTaskPlanner {
 
   static class Builder {
     private final FileIO io;
-    private final InputFile rootManifest;
+    private final String rootManifestLocation;
     private final Map<Integer, PartitionSpec> specsById;
     private final String tableLocation;
     private Expression dataFilter = Expressions.alwaysTrue();
@@ -263,23 +255,24 @@ class ScanTaskPlanner {
 
     private Builder(
         FileIO io,
-        InputFile rootManifest,
+        String rootManifestLocation,
         Map<Integer, PartitionSpec> specsById,
         String tableLocation) {
       Preconditions.checkArgument(io != null, "Invalid file IO: null");
-      Preconditions.checkArgument(rootManifest != null, "Invalid root manifest: null");
+      Preconditions.checkArgument(
+          rootManifestLocation != null, "Invalid root manifest location: null");
       Preconditions.checkArgument(specsById != null, "Invalid specs by ID: null");
       Preconditions.checkArgument(tableLocation != null, "Invalid table location: null");
       this.io = io;
-      this.rootManifest = rootManifest;
+      this.rootManifestLocation = rootManifestLocation;
       this.specsById = ImmutableMap.copyOf(specsById);
       this.tableLocation = tableLocation;
     }
 
-    /** Narrows the filter used for partition pruning and residual evaluation. */
+    /** Sets the filter used for partition pruning and residual evaluation. */
     Builder filterData(Expression expr) {
       Preconditions.checkArgument(expr != null, "Invalid filter: null");
-      this.dataFilter = Expressions.and(dataFilter, expr);
+      this.dataFilter = expr;
       return this;
     }
 
@@ -300,6 +293,7 @@ class ScanTaskPlanner {
     }
 
     Builder planWith(ExecutorService newExecutorService) {
+      Preconditions.checkArgument(newExecutorService != null, "Invalid executor service: null");
       this.executorService = newExecutorService;
       return this;
     }
@@ -307,7 +301,7 @@ class ScanTaskPlanner {
     ScanTaskPlanner build() {
       return new ScanTaskPlanner(
           io,
-          rootManifest,
+          rootManifestLocation,
           specsById,
           tableLocation,
           dataFilter,

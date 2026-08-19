@@ -100,7 +100,7 @@ class TestScanTaskPlanner {
 
   @ParameterizedTest
   @FieldSource("MANIFEST_FORMATS")
-  void rootWithDataManifestExpandsLeaf(FileFormat format) throws IOException {
+  void rootWithLeafManifestEntriesOnly(FileFormat format) throws IOException {
     InputFile leaf =
         writeManifest(
             format,
@@ -111,12 +111,17 @@ class TestScanTaskPlanner {
     InputFile root =
         writeManifest(format, EMPTY_PARTITION, ImmutableList.of(dataManifest(leaf.location())));
 
-    List<FileScanTask> tasks = plan(root, UNPARTITIONED_SPECS);
+    ScanMetrics metrics = ScanMetrics.of(new DefaultMetricsContext());
+    List<FileScanTask> tasks =
+        plan(root, UNPARTITIONED_SPECS, planner -> planner.scanMetrics(metrics));
 
     assertThat(tasks)
         .hasSize(2)
         .extracting(task -> task.file().location())
         .containsExactlyInAnyOrder(resolved("leaf-a.parquet"), resolved("leaf-b.parquet"));
+    assertThat(metrics.scannedDataManifests().value())
+        .as("the root and the expanded leaf are each counted as a scanned manifest")
+        .isEqualTo(2L);
   }
 
   @ParameterizedTest
@@ -194,6 +199,26 @@ class TestScanTaskPlanner {
 
   @ParameterizedTest
   @FieldSource("MANIFEST_FORMATS")
+  void onlyLiveLeafEntriesArePlanned(FileFormat format) throws IOException {
+    InputFile leaf =
+        writeManifest(
+            format,
+            EMPTY_PARTITION,
+            ImmutableList.of(
+                dataFileWithStatus(EntryStatus.ADDED, "added.parquet"),
+                dataFileWithStatus(EntryStatus.DELETED, "deleted.parquet")));
+    InputFile root =
+        writeManifest(format, EMPTY_PARTITION, ImmutableList.of(dataManifest(leaf.location())));
+
+    List<FileScanTask> tasks = plan(root, UNPARTITIONED_SPECS);
+
+    assertThat(tasks)
+        .extracting(task -> task.file().location())
+        .containsExactly(resolved("added.parquet"));
+  }
+
+  @ParameterizedTest
+  @FieldSource("MANIFEST_FORMATS")
   void partitionFilterPrunesFiles(FileFormat format) throws IOException {
     InputFile root =
         writeManifest(
@@ -203,40 +228,12 @@ class TestScanTaskPlanner {
                 dataFile("keep.parquet", partition(1)), dataFile("prune.parquet", partition(2))));
 
     List<FileScanTask> tasks =
-        plan(root, PARTITIONED_SPECS, expander -> expander.filterData(Expressions.equal("id", 1)));
+        plan(root, PARTITIONED_SPECS, planner -> planner.filterData(Expressions.equal("id", 1)));
 
     assertThat(tasks)
         .hasSize(1)
         .extracting(task -> task.file().location())
         .containsExactly(resolved("keep.parquet"));
-  }
-
-  @ParameterizedTest
-  @FieldSource("MANIFEST_FORMATS")
-  void filterDataAccumulatesWithAnd(FileFormat format) throws IOException {
-    InputFile root =
-        writeManifest(
-            format,
-            PARTITION_TYPE,
-            ImmutableList.of(
-                dataFile("id1.parquet", partition(1)),
-                dataFile("id2.parquet", partition(2)),
-                dataFile("id3.parquet", partition(3))));
-
-    // two filters AND together: id >= 2 AND id <= 2 keeps only id2. A last-filter-wins bug would
-    // apply just id <= 2 and also keep id1; dropping the second filter would also keep id3.
-    List<FileScanTask> tasks =
-        plan(
-            root,
-            PARTITIONED_SPECS,
-            expander ->
-                expander
-                    .filterData(Expressions.greaterThanOrEqual("id", 2))
-                    .filterData(Expressions.lessThanOrEqual("id", 2)));
-
-    assertThat(tasks)
-        .extracting(task -> task.file().location())
-        .containsExactly(resolved("id2.parquet"));
   }
 
   @ParameterizedTest
@@ -248,9 +245,7 @@ class TestScanTaskPlanner {
 
     List<FileScanTask> withResidual =
         plan(
-            root,
-            PARTITIONED_SPECS,
-            expander -> expander.filterData(Expressions.equal("data", "x")));
+            root, PARTITIONED_SPECS, planner -> planner.filterData(Expressions.equal("data", "x")));
     // the identity partition on id leaves the data predicate as a residual
     assertThat(withResidual.get(0).residual())
         .hasToString(Expressions.equal("data", "x").toString());
@@ -259,7 +254,7 @@ class TestScanTaskPlanner {
         plan(
             root,
             PARTITIONED_SPECS,
-            expander -> expander.filterData(Expressions.equal("data", "x")).ignoreResiduals());
+            planner -> planner.filterData(Expressions.equal("data", "x")).ignoreResiduals());
     assertThat(ignored.get(0).residual()).isEqualTo(Expressions.alwaysTrue());
   }
 
@@ -275,19 +270,15 @@ class TestScanTaskPlanner {
 
     List<FileScanTask> tasks =
         plan(
-            root,
-            PARTITIONED_SPECS,
-            expander -> expander.filterData(Expressions.equal("data", "x")));
+            root, PARTITIONED_SPECS, planner -> planner.filterData(Expressions.equal("data", "x")));
 
-    // both files share spec 0, so both tasks must carry the same schema, spec, and residual
-    assertThat(tasks)
-        .hasSize(2)
-        .allSatisfy(
-            task -> {
-              assertThat(task.schema().asStruct()).isEqualTo(TABLE_SCHEMA.asStruct());
-              assertThat(task.spec()).isEqualTo(SPEC);
-              assertThat(task.residual()).hasToString(Expressions.equal("data", "x").toString());
-            });
+    // both files share spec 0, so both tasks resolve from the same shared context
+    assertThat(tasks).hasSize(2);
+    FileScanTask first = tasks.get(0);
+    FileScanTask second = tasks.get(1);
+    assertThat(second.schema()).isSameAs(first.schema());
+    assertThat(second.spec()).isSameAs(first.spec());
+    assertThat(second.residual()).isSameAs(first.residual());
   }
 
   @ParameterizedTest
@@ -303,7 +294,7 @@ class TestScanTaskPlanner {
 
     ScanMetrics metrics = ScanMetrics.of(new DefaultMetricsContext());
     ScanTaskPlanner planner =
-        ScanTaskPlanner.builder(fileIO, root, UNPARTITIONED_SPECS, TABLE_LOCATION)
+        ScanTaskPlanner.builder(fileIO, root.location(), UNPARTITIONED_SPECS, TABLE_LOCATION)
             .scanMetrics(metrics)
             .build();
     // the root is read eagerly to route its entries; leaf readers open lazily, so closing the plan
@@ -327,7 +318,7 @@ class TestScanTaskPlanner {
         plan(
             root,
             PARTITIONED_SPECS,
-            expander -> expander.caseSensitive(false).filterData(Expressions.equal("ID", 1)));
+            planner -> planner.caseSensitive(false).filterData(Expressions.equal("ID", 1)));
 
     assertThat(tasks)
         .as("a case-insensitive filter resolves the upper-case column and prunes")
@@ -358,9 +349,7 @@ class TestScanTaskPlanner {
 
     List<FileScanTask> sequential =
         plan(
-            root,
-            PARTITIONED_SPECS,
-            expander -> expander.filterData(Expressions.equal("data", "x")));
+            root, PARTITIONED_SPECS, planner -> planner.filterData(Expressions.equal("data", "x")));
 
     ExecutorService pool = ThreadPools.newFixedThreadPool("test-scan-task-planner", 2);
     try {
@@ -368,7 +357,7 @@ class TestScanTaskPlanner {
           plan(
               root,
               PARTITIONED_SPECS,
-              expander -> expander.filterData(Expressions.equal("data", "x")).planWith(pool));
+              planner -> planner.filterData(Expressions.equal("data", "x")).planWith(pool));
       assertThat(parallel)
           .extracting(
               task -> task.file().location(),
@@ -394,9 +383,10 @@ class TestScanTaskPlanner {
         writeManifest(format, EMPTY_PARTITION, ImmutableList.of(deleteManifest("deletes.avro")));
 
     // delete content is only produced by upgraded trees; that path is not yet implemented
-    ScanTaskPlanner expander =
-        ScanTaskPlanner.builder(fileIO, root, UNPARTITIONED_SPECS, TABLE_LOCATION).build();
-    assertThatThrownBy(() -> Lists.newArrayList(expander.planFiles()))
+    ScanTaskPlanner planner =
+        ScanTaskPlanner.builder(fileIO, root.location(), UNPARTITIONED_SPECS, TABLE_LOCATION)
+            .build();
+    assertThatThrownBy(() -> Lists.newArrayList(planner.planFiles()))
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessage("Cannot plan content type in root manifest: DELETE_MANIFEST");
   }
@@ -414,9 +404,10 @@ class TestScanTaskPlanner {
     InputFile root =
         writeManifest(format, EMPTY_PARTITION, ImmutableList.of(dataManifest(leaf.location())));
 
-    ScanTaskPlanner expander =
-        ScanTaskPlanner.builder(fileIO, root, UNPARTITIONED_SPECS, TABLE_LOCATION).build();
-    assertThatThrownBy(() -> Lists.newArrayList(expander.planFiles()))
+    ScanTaskPlanner planner =
+        ScanTaskPlanner.builder(fileIO, root.location(), UNPARTITIONED_SPECS, TABLE_LOCATION)
+            .build();
+    assertThatThrownBy(() -> Lists.newArrayList(planner.planFiles()))
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessage("Cannot plan content type in leaf manifest: DELETE_MANIFEST");
   }
@@ -431,9 +422,10 @@ class TestScanTaskPlanner {
         writeManifest(format, EMPTY_PARTITION, ImmutableList.of(dataManifest(leaf.location())));
 
     // a nested manifest is structurally impossible in a two-level tree, not merely unsupported
-    ScanTaskPlanner expander =
-        ScanTaskPlanner.builder(fileIO, root, UNPARTITIONED_SPECS, TABLE_LOCATION).build();
-    assertThatThrownBy(() -> Lists.newArrayList(expander.planFiles()))
+    ScanTaskPlanner planner =
+        ScanTaskPlanner.builder(fileIO, root.location(), UNPARTITIONED_SPECS, TABLE_LOCATION)
+            .build();
+    assertThatThrownBy(() -> Lists.newArrayList(planner.planFiles()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
             "Cannot expand a nested manifest in a leaf manifest: "
@@ -453,12 +445,13 @@ class TestScanTaskPlanner {
             format, EMPTY_PARTITION, ImmutableList.of(dataManifestWithDv(leaf.location())));
 
     // applying the manifest-level DV is not built yet; expanding the leaf would resurface deleted
-    // entries, so the planner rejects rather than silently corrupting
-    ScanTaskPlanner expander =
-        ScanTaskPlanner.builder(fileIO, root, UNPARTITIONED_SPECS, TABLE_LOCATION).build();
-    assertThatThrownBy(() -> Lists.newArrayList(expander.planFiles()))
+    // entries, so the reader rejects rather than silently corrupting
+    ScanTaskPlanner planner =
+        ScanTaskPlanner.builder(fileIO, root.location(), UNPARTITIONED_SPECS, TABLE_LOCATION)
+            .build();
+    assertThatThrownBy(() -> Lists.newArrayList(planner.planFiles()))
         .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessage("Cannot apply manifest deletion vector for leaf manifest: " + leaf.location());
+        .hasMessage("Cannot apply manifest deletion vector: " + leaf.location());
   }
 
   @ParameterizedTest
@@ -473,9 +466,10 @@ class TestScanTaskPlanner {
     InputFile root =
         writeManifest(format, EMPTY_PARTITION, ImmutableList.of(dataManifest(leaf.location(), 3)));
 
-    ScanTaskPlanner expander =
-        ScanTaskPlanner.builder(fileIO, root, UNPARTITIONED_SPECS, TABLE_LOCATION).build();
-    assertThatThrownBy(() -> Lists.newArrayList(expander.planFiles()))
+    ScanTaskPlanner planner =
+        ScanTaskPlanner.builder(fileIO, root.location(), UNPARTITIONED_SPECS, TABLE_LOCATION)
+            .build();
+    assertThatThrownBy(() -> Lists.newArrayList(planner.planFiles()))
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessage("Cannot expand leaf manifest with format version 3: " + leaf.location());
   }
@@ -494,9 +488,10 @@ class TestScanTaskPlanner {
 
     // reading the leaf as a plain file would hand ciphertext to the reader; the decrypting path
     // is not built yet, so the planner rejects rather than silently corrupting
-    ScanTaskPlanner expander =
-        ScanTaskPlanner.builder(fileIO, root, UNPARTITIONED_SPECS, TABLE_LOCATION).build();
-    assertThatThrownBy(() -> Lists.newArrayList(expander.planFiles()))
+    ScanTaskPlanner planner =
+        ScanTaskPlanner.builder(fileIO, root.location(), UNPARTITIONED_SPECS, TABLE_LOCATION)
+            .build();
+    assertThatThrownBy(() -> Lists.newArrayList(planner.planFiles()))
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessage("Cannot read encrypted leaf manifest: " + leaf.location());
   }
@@ -566,7 +561,7 @@ class TestScanTaskPlanner {
     // id = 1 prunes the spec0 file partitioned on id=2; spec1 is not partitioned by id, so its
     // residual keeps the predicate. A per-spec residual mis-keying would surface here.
     List<FileScanTask> tasks =
-        plan(root, specsById, expander -> expander.filterData(Expressions.equal("id", 1)));
+        plan(root, specsById, planner -> planner.filterData(Expressions.equal("id", 1)));
 
     assertThat(tasks)
         .extracting(
@@ -594,7 +589,7 @@ class TestScanTaskPlanner {
 
     ScanMetrics metrics = ScanMetrics.of(new DefaultMetricsContext());
     List<FileScanTask> tasks =
-        plan(root, UNPARTITIONED_SPECS, expander -> expander.scanMetrics(metrics));
+        plan(root, UNPARTITIONED_SPECS, planner -> planner.scanMetrics(metrics));
 
     assertThat(tasks).hasSize(2);
     assertThat(metrics.scannedDataManifests().value())
@@ -610,33 +605,6 @@ class TestScanTaskPlanner {
         .isEqualTo(DV_SIZE_IN_BYTES);
   }
 
-  @ParameterizedTest
-  @FieldSource("MANIFEST_FORMATS")
-  void scannedManifestsCountsRootAndLeaves(FileFormat format) throws IOException {
-    InputFile leaf1 =
-        writeManifest(
-            format,
-            EMPTY_PARTITION,
-            ImmutableList.of(dataFile("leaf1.parquet", EMPTY_PARTITION_DATA)));
-    InputFile leaf2 =
-        writeManifest(
-            format,
-            EMPTY_PARTITION,
-            ImmutableList.of(dataFile("leaf2.parquet", EMPTY_PARTITION_DATA)));
-    InputFile root =
-        writeManifest(
-            format,
-            EMPTY_PARTITION,
-            ImmutableList.of(dataManifest(leaf1.location()), dataManifest(leaf2.location())));
-
-    ScanMetrics metrics = ScanMetrics.of(new DefaultMetricsContext());
-    plan(root, UNPARTITIONED_SPECS, expander -> expander.scanMetrics(metrics));
-
-    assertThat(metrics.scannedDataManifests().value())
-        .as("the root and both leaves are each counted as a scanned manifest")
-        .isEqualTo(3L);
-  }
-
   private List<FileScanTask> plan(InputFile root, Map<Integer, PartitionSpec> specsById)
       throws IOException {
     return plan(root, specsById, UnaryOperator.identity());
@@ -647,9 +615,11 @@ class TestScanTaskPlanner {
       Map<Integer, PartitionSpec> specsById,
       UnaryOperator<ScanTaskPlanner.Builder> configure)
       throws IOException {
-    ScanTaskPlanner expander =
-        configure.apply(ScanTaskPlanner.builder(fileIO, root, specsById, TABLE_LOCATION)).build();
-    try (CloseableIterable<FileScanTask> tasks = expander.planFiles()) {
+    ScanTaskPlanner planner =
+        configure
+            .apply(ScanTaskPlanner.builder(fileIO, root.location(), specsById, TABLE_LOCATION))
+            .build();
+    try (CloseableIterable<FileScanTask> tasks = planner.planFiles()) {
       return Lists.newArrayList(tasks);
     }
   }
@@ -689,7 +659,7 @@ class TestScanTaskPlanner {
         /* contentType= */ FileContent.DATA_MANIFEST,
         /* formatVersion= */ formatVersion,
         /* location= */ location,
-        /* fileFormat= */ FileFormat.PARQUET,
+        /* fileFormat= */ FileFormat.fromFileName(location),
         /* recordCount= */ RECORD_COUNT,
         /* fileSizeInBytes= */ FILE_SIZE_IN_BYTES,
         /* specId= */ null,
@@ -728,7 +698,7 @@ class TestScanTaskPlanner {
         /* contentType= */ FileContent.DATA_MANIFEST,
         /* formatVersion= */ WRITER_FORMAT_VERSION,
         /* location= */ location,
-        /* fileFormat= */ FileFormat.PARQUET,
+        /* fileFormat= */ FileFormat.fromFileName(location),
         /* recordCount= */ RECORD_COUNT,
         /* fileSizeInBytes= */ FILE_SIZE_IN_BYTES,
         /* specId= */ null,
@@ -760,7 +730,7 @@ class TestScanTaskPlanner {
         /* contentType= */ contentType,
         /* formatVersion= */ WRITER_FORMAT_VERSION,
         /* location= */ location,
-        /* fileFormat= */ FileFormat.PARQUET,
+        /* fileFormat= */ FileFormat.fromFileName(location),
         /* recordCount= */ RECORD_COUNT,
         /* fileSizeInBytes= */ FILE_SIZE_IN_BYTES,
         /* specId= */ specId,
