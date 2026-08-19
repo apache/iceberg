@@ -34,6 +34,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.SparkCatalogConfig;
 import org.apache.iceberg.spark.source.HasIcebergCatalog;
+import org.apache.iceberg.spark.source.SparkView;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
@@ -139,6 +140,20 @@ public class TestViewCatalogCache extends ExtensionsTestBase {
 
     sql("ALTER VIEW %s UNSET TBLPROPERTIES ('key')", viewName);
     assertThat(viewCatalog().loadView(identifier).properties()).doesNotContainKey("key");
+  }
+
+  @TestTemplate
+  public void alterViewSchemaModeRefreshesCatalogCache() {
+    String viewName = viewName("alterSchemaMode");
+    TableIdentifier identifier = TableIdentifier.of(NAMESPACE, viewName);
+
+    sql("CREATE VIEW %s AS SELECT id FROM %s", viewName, TABLE_NAME);
+    assertThat(viewCatalog().loadView(identifier).properties())
+        .containsEntry(SparkView.VIEW_SCHEMA_MODE, "COMPENSATION");
+
+    sql("ALTER VIEW %s WITH SCHEMA EVOLUTION", viewName);
+    assertThat(viewCatalog().loadView(identifier).properties())
+        .containsEntry(SparkView.VIEW_SCHEMA_MODE, "EVOLUTION");
   }
 
   @TestTemplate
