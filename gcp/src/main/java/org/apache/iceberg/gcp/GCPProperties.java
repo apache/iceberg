@@ -44,6 +44,14 @@ public class GCPProperties implements Serializable {
   public static final String GCS_ENCRYPTION_KEY = "gcs.encryption-key";
   public static final String GCS_USER_PROJECT = "gcs.user-project";
 
+  /**
+   * Configure an alternative endpoint of the KMS service for GcpKeyManagementClient to access.
+   *
+   * <p>This could be used to use KMS key management with any KMS-compatible service that has a
+   * different endpoint
+   */
+  public static final String GCS_KMS_ENDPOINT = "gcs.kms.endpoint";
+
   public static final String GCS_CHANNEL_READ_CHUNK_SIZE = "gcs.channel.read.chunk-size-bytes";
   public static final String GCS_CHANNEL_WRITE_CHUNK_SIZE = "gcs.channel.write.chunk-size-bytes";
 
@@ -88,6 +96,7 @@ public class GCPProperties implements Serializable {
   private String gcsDecryptionKey;
   private String gcsEncryptionKey;
   private String gcsUserProject;
+  private String kmsEndpoint;
 
   private Integer gcsChannelReadChunkSize;
   private Integer gcsChannelWriteChunkSize;
@@ -152,6 +161,7 @@ public class GCPProperties implements Serializable {
     gcsDecryptionKey = properties.get(GCS_DECRYPTION_KEY);
     gcsEncryptionKey = properties.get(GCS_ENCRYPTION_KEY);
     gcsUserProject = properties.get(GCS_USER_PROJECT);
+    kmsEndpoint = properties.get(GCS_KMS_ENDPOINT);
 
     if (properties.containsKey(GCS_CHANNEL_READ_CHUNK_SIZE)) {
       gcsChannelReadChunkSize = Integer.parseInt(properties.get(GCS_CHANNEL_READ_CHUNK_SIZE));
@@ -229,6 +239,10 @@ public class GCPProperties implements Serializable {
 
   public Optional<String> userProject() {
     return Optional.ofNullable(gcsUserProject);
+  }
+
+  public Optional<String> kmsEndpoint() {
+    return Optional.ofNullable(kmsEndpoint);
   }
 
   public Optional<String> oauth2Token() {
