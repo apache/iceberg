@@ -206,6 +206,11 @@ class GeometryBoundsBuilder {
     }
   }
 
+  // a ring count, then that many rings, each a coordinate sequence:
+  //   +----------+-----------------------+
+  //   | # rings  | ring 0, ring 1, ...   |
+  //   | (4 B)    | (each a point seq)    |
+  //   +----------+-----------------------+
   private void readPolygon(ByteBuffer buffer, int numDimensions) {
     // every ring contributes, including interior rings: a hole extending past the shell would
     // otherwise under-cover the polygon, pruning a file from a query it should match
@@ -215,6 +220,11 @@ class GeometryBoundsBuilder {
     }
   }
 
+  // an element count, then that many complete WKB geometries:
+  //   +----------+-----------------------+
+  //   | # elems  | geometry 0, 1, ...    |
+  //   | (4 B)    | (each a full WKB)     |
+  //   +----------+-----------------------+
   private void readCollection(ByteBuffer buffer, int expectedChildType) {
     int numElements = readCount(buffer);
     for (int i = 0; i < numElements; i += 1) {
@@ -223,6 +233,11 @@ class GeometryBoundsBuilder {
     }
   }
 
+  // a point count, then that many coordinates:
+  //   +----------+-----------------------+
+  //   | # points | coord 0 .. coord n-1  |
+  //   | (4 B)    | (n coordinates)       |
+  //   +----------+-----------------------+
   private void readCoordinateSequence(ByteBuffer buffer, int numDimensions) {
     int numPoints = readCount(buffer);
     long numBytes = (long) numPoints * numDimensions * Double.BYTES;
@@ -232,6 +247,11 @@ class GeometryBoundsBuilder {
     }
   }
 
+  // one coordinate; only X and Y bound the box, any Z and M are read past:
+  //   +-------+-------+-------+-------+
+  //   |   X   |   Y   |  [Z]  |  [M]  |
+  //   | (8 B) | (8 B) | (8 B) | (8 B) |
+  //   +-------+-------+-------+-------+
   private void readCoordinate(ByteBuffer buffer, int numDimensions) {
     checkRemaining(buffer, (long) numDimensions * Double.BYTES);
     double xCoord = buffer.getDouble();
@@ -245,6 +265,11 @@ class GeometryBoundsBuilder {
     yBounds.add(yCoord);
   }
 
+  // a 4-byte unsigned count (rings, points, or elements):
+  //   +---------+
+  //   |  count  |
+  //   |  (4 B)  |
+  //   +---------+
   private static int readCount(ByteBuffer buffer) {
     checkRemaining(buffer, Integer.BYTES);
     long count = Integer.toUnsignedLong(buffer.getInt());
