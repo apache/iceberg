@@ -453,7 +453,42 @@ public class TestRewriteTablePathUtil extends TestBase {
                     outputPath,
                     ImmutableMap.of()))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Missing rewritten length for manifest");
+        .hasMessageContaining("Missing rewritten length for manifests")
+        .hasMessageContaining(manifest.path());
+  }
+
+  @TestTemplate
+  public void testRewriteManifestListRejectsUnmeasuredManifestFromAnotherSnapshot() {
+    table.newFastAppend().appendFile(FILE_A).commit();
+    Snapshot firstSnapshot = table.currentSnapshot();
+    ManifestFile firstManifest = firstSnapshot.allManifests(table.io()).get(0);
+
+    table.newFastAppend().appendFile(FILE_B).commit();
+    ManifestFile laterManifest =
+        table.currentSnapshot().allManifests(table.io()).stream()
+            .filter(manifest -> !manifest.path().equals(firstManifest.path()))
+            .findFirst()
+            .orElseThrow();
+
+    String sourcePrefix =
+        firstManifest.path().substring(0, firstManifest.path().lastIndexOf("/metadata/"));
+    String outputPath = temp.resolve("rewritten-list-" + System.nanoTime() + ".avro").toString();
+
+    assertThatThrownBy(
+            () ->
+                RewriteTablePathUtil.rewriteManifestList(
+                    firstSnapshot,
+                    table.io(),
+                    table.ops().current(),
+                    Set.of(firstManifest.path(), laterManifest.path()),
+                    sourcePrefix,
+                    sourcePrefix + "/relocated",
+                    temp.resolve("staging").toString(),
+                    outputPath,
+                    ImmutableMap.of(firstManifest.path(), firstManifest.length() + 4242L)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Missing rewritten length for manifests")
+        .hasMessageContaining(laterManifest.path());
   }
 
   @TestTemplate

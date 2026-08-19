@@ -301,15 +301,19 @@ public class RewriteTablePathUtil {
                 mf.path(),
                 sourcePrefix));
 
-    long unmeasured =
+    Preconditions.checkArgument(
+        rewrittenManifestLengths.keySet().containsAll(manifestsToRewrite),
+        "Missing rewritten length for manifests: %s",
+        Sets.difference(manifestsToRewrite, rewrittenManifestLengths.keySet()));
+
+    long carriedOver =
         manifestFiles.stream()
             .filter(mf -> !rewrittenManifestLengths.containsKey(mf.path()))
             .count();
-    if (unmeasured > 0) {
-      LOG.warn(
-          "{} of {} manifests in {} keep their source length, which does not match the rewritten "
-              + "manifest at the target",
-          unmeasured,
+    if (carriedOver > 0) {
+      LOG.info(
+          "{} of {} manifests in {} were not rewritten in this run and keep their source length",
+          carriedOver,
           manifestFiles.size(),
           snapshot.manifestListLocation());
     }
@@ -332,12 +336,8 @@ public class RewriteTablePathUtil {
       for (ManifestFile file : manifestFiles) {
         ManifestFile newFile = file.copy();
         ((StructLike) newFile).set(0, newPath(newFile.path(), sourcePrefix, targetPrefix));
-        Long rewrittenLength = rewrittenManifestLengths.get(file.path());
-        Preconditions.checkArgument(
-            rewrittenLength != null || !manifestsToRewrite.contains(file.path()),
-            "Missing rewritten length for manifest %s",
-            file.path());
-        ((StructLike) newFile).set(1, rewrittenLength != null ? rewrittenLength : file.length());
+        ((StructLike) newFile)
+            .set(1, rewrittenManifestLengths.getOrDefault(file.path(), file.length()));
         writer.add(newFile);
 
         if (manifestsToRewrite.contains(file.path())) {
