@@ -62,7 +62,6 @@ import org.apache.parquet.schema.Type;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.util.ArrayData;
 import org.apache.spark.sql.catalyst.util.MapData;
-import org.apache.spark.sql.catalyst.util.STUtils;
 import org.apache.spark.sql.types.ArrayType;
 import org.apache.spark.sql.types.ByteType;
 import org.apache.spark.sql.types.DataType;
@@ -73,8 +72,7 @@ import org.apache.spark.sql.types.ShortType;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.types.VariantType;
-import org.apache.spark.unsafe.types.GeographyVal;
-import org.apache.spark.unsafe.types.GeometryVal;
+import org.apache.spark.unsafe.types.BinaryView;
 import org.apache.spark.unsafe.types.UTF8String;
 import org.apache.spark.unsafe.types.VariantVal;
 
@@ -489,7 +487,7 @@ public class SparkParquetWriters {
     }
   }
 
-  private abstract static class GeospatialWriter<T> extends PrimitiveWriter<T> {
+  private abstract static class GeospatialWriter extends PrimitiveWriter<BinaryView> {
     private final ValueSizeFieldMetrics.Builder metricsBuilder;
 
     private GeospatialWriter(ColumnDescriptor desc) {
@@ -499,7 +497,7 @@ public class SparkParquetWriters {
     }
 
     @Override
-    public void write(int repetitionLevel, T value) {
+    public void write(int repetitionLevel, BinaryView value) {
       byte[] wkb = toWkb(value);
       metricsBuilder.addValueSize(wkb.length);
       column.writeBinary(repetitionLevel, Binary.fromReusedByteArray(wkb));
@@ -510,32 +508,22 @@ public class SparkParquetWriters {
       return Stream.of(metricsBuilder.build());
     }
 
-    protected abstract byte[] toWkb(T value);
+    private byte[] toWkb(BinaryView value) {
+      // Slice off Spark's SRID header to preserve the original WKB bytes. STUtils.stGeomAsBinary
+      // and stGeogAsBinary would re-encode the value using little-endian byte order.
+      return value.slice(Integer.BYTES, value.numBytes() - Integer.BYTES).getBytes();
+    }
   }
 
-  /** Writes a Spark {@link GeometryVal} as its WKB bytes into a BINARY column. */
-  private static class GeometryWriter extends GeospatialWriter<GeometryVal> {
+  private static class GeometryWriter extends GeospatialWriter {
     private GeometryWriter(ColumnDescriptor desc) {
       super(desc);
     }
-
-    @Override
-    protected byte[] toWkb(GeometryVal value) {
-      // Spark stores geometry as [SRID | WKB]; Iceberg stores pure WKB, so strip the SRID header.
-      return STUtils.stAsBinary(value);
-    }
   }
 
-  /** Writes a Spark {@link GeographyVal} as its WKB bytes into a BINARY column. */
-  private static class GeographyWriter extends GeospatialWriter<GeographyVal> {
+  private static class GeographyWriter extends GeospatialWriter {
     private GeographyWriter(ColumnDescriptor desc) {
       super(desc);
-    }
-
-    @Override
-    protected byte[] toWkb(GeographyVal value) {
-      // Spark stores geography as [SRID | WKB]; Iceberg stores pure WKB, so strip the SRID header.
-      return STUtils.stAsBinary(value);
     }
   }
 

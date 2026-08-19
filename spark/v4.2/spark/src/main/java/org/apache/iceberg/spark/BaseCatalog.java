@@ -22,11 +22,14 @@ import org.apache.iceberg.spark.procedures.SparkProcedures;
 import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
 import org.apache.iceberg.spark.source.HasIcebergCatalog;
 import org.apache.iceberg.util.PropertyUtil;
+import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
+import org.apache.spark.sql.catalyst.analysis.NoSuchViewException;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.ProcedureCatalog;
+import org.apache.spark.sql.connector.catalog.Relation;
+import org.apache.spark.sql.connector.catalog.RelationCatalog;
 import org.apache.spark.sql.connector.catalog.StagingTableCatalog;
 import org.apache.spark.sql.connector.catalog.SupportsNamespaces;
-import org.apache.spark.sql.connector.catalog.ViewCatalog;
 import org.apache.spark.sql.connector.catalog.procedures.UnboundProcedure;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 
@@ -36,8 +39,7 @@ abstract class BaseCatalog
         SupportsNamespaces,
         HasIcebergCatalog,
         SupportsFunctions,
-        ViewCatalog,
-        SupportsReplaceView {
+        RelationCatalog {
   private static final String USE_NULLABLE_QUERY_SCHEMA_CTAS_RTAS = "use-nullable-query-schema";
   private static final boolean USE_NULLABLE_QUERY_SCHEMA_CTAS_RTAS_DEFAULT = true;
 
@@ -97,6 +99,20 @@ abstract class BaseCatalog
   @Override
   public boolean useNullableQuerySchema() {
     return useNullableQuerySchema;
+  }
+
+  @Override
+  public Relation loadRelation(Identifier ident) throws NoSuchTableException {
+    try {
+      return loadTable(ident);
+    } catch (NoSuchTableException e) {
+      try {
+        return loadView(ident);
+      } catch (NoSuchViewException viewException) {
+        e.addSuppressed(viewException);
+        throw e;
+      }
+    }
   }
 
   private static boolean isSystemNamespace(String[] namespace) {
