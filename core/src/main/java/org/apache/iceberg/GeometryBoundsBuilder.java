@@ -59,6 +59,7 @@ class GeometryBoundsBuilder {
   private static final int ANY_GEOMETRY = 0;
 
   // ISO WKB encodes the dimensions of a geometry in the thousands digit of its type code
+  private static final int DIMENSION_DIVISOR = 1000;
   private static final int XY_GROUP = 0;
   private static final int XYZ_GROUP = 1;
   private static final int XYM_GROUP = 2;
@@ -119,14 +120,14 @@ class GeometryBoundsBuilder {
       throw new IllegalArgumentException("Invalid WKB byte order: " + order);
     }
 
-    parseGeometryBody(buffer, expectedType);
+    parseGeometryBodyAndUpdateBound(buffer, expectedType);
     buffer.order(callerOrder);
   }
 
-  private void parseGeometryBody(ByteBuffer buffer, int expectedType) {
-    long typeCode = buffer.getInt() & 0xFFFFFFFFL;
-    long dimensionGroup = typeCode / 1000;
-    int geometryType = (int) (typeCode % 1000);
+  private void parseGeometryBodyAndUpdateBound(ByteBuffer buffer, int expectedType) {
+    long typeCode = Integer.toUnsignedLong(buffer.getInt());
+    long dimensionGroup = typeCode / DIMENSION_DIVISOR;
+    int geometryType = (int) (typeCode % DIMENSION_DIVISOR);
     Preconditions.checkArgument(
         geometryType >= TYPE_POINT
             && geometryType <= TYPE_GEOMETRY_COLLECTION
@@ -246,7 +247,7 @@ class GeometryBoundsBuilder {
 
   private static int readCount(ByteBuffer buffer) {
     checkRemaining(buffer, Integer.BYTES);
-    long count = buffer.getInt() & 0xFFFFFFFFL;
+    long count = Integer.toUnsignedLong(buffer.getInt());
     // every element or point occupies at least one more byte, so a count larger than the bytes left
     // cannot be valid; catch it here with a precise message instead of looping until the buffer
     // ends
