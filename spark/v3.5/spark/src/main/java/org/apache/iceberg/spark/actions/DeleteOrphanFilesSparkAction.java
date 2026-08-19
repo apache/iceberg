@@ -52,6 +52,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.JobGroupInfo;
 import org.apache.iceberg.util.FileSystemWalker;
+import org.apache.iceberg.util.LocationUtil;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
@@ -225,7 +226,12 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
   private Dataset<String> filteredCompareToFileList() {
     Dataset<Row> files = compareToFileList;
     if (location != null) {
-      files = files.filter(files.col(FILE_PATH).startsWith(location));
+      String strippedLocation = LocationUtil.stripTrailingSlash(location);
+      String locationWithTrailingSlash =
+          strippedLocation.endsWith(LocationUtil.PATH_SEPARATOR)
+              ? strippedLocation
+              : strippedLocation + LocationUtil.PATH_SEPARATOR;
+      files = files.filter(files.col(FILE_PATH).startsWith(locationWithTrailingSlash));
     }
     return files
         .filter(files.col(LAST_MODIFIED).lt(new Timestamp(olderThanTimestamp)))
