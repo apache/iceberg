@@ -275,6 +275,27 @@ subprojects {
       exceptionFormat "full"
     }
 
+    def failedTests = []
+    addTestListener(new TestListener() {
+      void afterTest(TestDescriptor descriptor, TestResult result) {
+        if (result.resultType == TestResult.ResultType.FAILURE) {
+          failedTests << "${descriptor.className}.${descriptor.name}"
+        }
+      }
+      
+      void afterSuite(TestDescriptor descriptor, TestResult result) {
+        if (descriptor.parent == null && !failedTests.isEmpty()) {
+          println "\nFailures:"
+          failedTests.each { testName ->
+            println "  ${testName}"
+          }
+        }
+      }
+      
+      void beforeTest(TestDescriptor descriptor) {}
+      void beforeSuite(TestDescriptor descriptor) {}
+    })
+
     systemProperty 'project.version', project.version
   }
 
