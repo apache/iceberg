@@ -1267,17 +1267,19 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       return io;
     }
 
-    Map<String, String> fullConf =
+    ImmutableMap.Builder<String, String> fullConf =
         ImmutableMap.<String, String>builder()
             .putAll(properties())
             .putAll(tableConf)
-            .put(RESTCatalogProperties.REMOTE_SIGNING_ENDPOINT, paths.remoteSign(tableIdentifier))
-            .put(
-                RESTCatalogProperties.REMOTE_SIGNING_CONFIG,
-                RemoteSigningConfigParser.toJson(remoteSigningConfig))
-            .buildKeepingLast();
+            .put(RESTCatalogProperties.REMOTE_SIGNING_ENDPOINT, paths.remoteSign(tableIdentifier));
 
-    return newFileIO(context, fullConf, storageCredentials);
+    if (!remoteSigningConfig.isEmpty()) {
+      fullConf.put(
+          RESTCatalogProperties.REMOTE_SIGNING_CONFIG,
+          RemoteSigningConfigParser.toJson(remoteSigningConfig));
+    }
+
+    return newFileIO(context, fullConf.buildKeepingLast(), storageCredentials);
   }
 
   /**
