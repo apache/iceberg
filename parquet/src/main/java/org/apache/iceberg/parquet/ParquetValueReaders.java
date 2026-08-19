@@ -33,6 +33,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.BiFunction;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.common.DynConstructors;
@@ -52,6 +53,7 @@ import org.apache.parquet.schema.LogicalTypeAnnotation.DecimalLogicalTypeAnnotat
 import org.apache.parquet.schema.LogicalTypeAnnotation.TimeLogicalTypeAnnotation;
 import org.apache.parquet.schema.LogicalTypeAnnotation.TimeUnit;
 import org.apache.parquet.schema.LogicalTypeAnnotation.TimestampLogicalTypeAnnotation;
+import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
 
@@ -247,6 +249,105 @@ public class ParquetValueReaders {
     }
 
     return reader;
+  }
+
+  /**
+   * Builds readers for a struct's expected fields, in field order. A field present in the file uses
+   * its column reader; a field missing from the file uses a metadata or partition constant, or its
+   * initial default. When no expected field reads a file column, one default reader is given a
+   * probe column so its definition level tracks the struct's null-ness.
+   */
+  public static List<ParquetValueReader<?>> structFieldReaders(
+      MessageType fileSchema,
+      String[] structPath,
+      List<Types.NestedField> expectedFields,
+      Map<Integer, ParquetValueReader<?>> readersById,
+      Map<Integer, ?> idToConstant,
+      BiFunction<org.apache.iceberg.types.Type, Object, Object> convertConstant) {
+    int constantDefinitionLevel = fileSchema.getMaxDefinitionLevel(structPath);
+    ColumnDescriptor probe =
+        definitionLevelProbe(
+            fileSchema, structPath, constantDefinitionLevel, expectedFields, readersById);
+    Integer probeHostId = probe == null ? null : firstInitialDefaultFieldId(expectedFields);
+
+    List<ParquetValueReader<?>> readers = Lists.newArrayListWithExpectedSize(expectedFields.size());
+    for (Types.NestedField field : expectedFields) {
+      int id = field.fieldId();
+      ParquetValueReader<?> reader =
+          replaceWithMetadataReader(id, readersById.get(id), idToConstant, constantDefinitionLevel);
+      ColumnDescriptor fieldProbe = probeHostId != null && id == probeHostId ? probe : null;
+      readers.add(
+          defaultReader(field, reader, constantDefinitionLevel, fieldProbe, convertConstant));
+    }
+
+    return readers;
+  }
+
+  private static ParquetValueReader<?> defaultReader(
+      Types.NestedField field,
+      ParquetValueReader<?> reader,
+      int constantDefinitionLevel,
+      ColumnDescriptor probe,
+      BiFunction<org.apache.iceberg.types.Type, Object, Object> convertConstant) {
+    if (reader != null) {
+      return reader;
+    } else if (field.initialDefault() != null) {
+      Object value = convertConstant.apply(field.type(), field.initialDefault());
+      return probe != null ? constant(value, probe) : constant(value, constantDefinitionLevel);
+    } else if (field.isOptional()) {
+      return nulls();
+    }
+
+    throw new IllegalArgumentException(String.format("Missing required field: %s", field.name()));
+  }
+
+  /**
+   * Returns the first leaf column under the struct, or null if an expected field already reads a
+   * file column or the struct has no leaf columns.
+   */
+  private static ColumnDescriptor definitionLevelProbe(
+      MessageType fileSchema,
+      String[] structPath,
+      int structDefinitionLevel,
+      List<Types.NestedField> expectedFields,
+      Map<Integer, ParquetValueReader<?>> readersById) {
+    boolean hasRealFieldReader =
+        expectedFields.stream().anyMatch(field -> readersById.containsKey(field.fieldId()));
+    if (hasRealFieldReader || structDefinitionLevel <= 0) {
+      return null;
+    }
+
+    for (ColumnDescriptor descriptor : fileSchema.getColumns()) {
+      String[] columnPath = descriptor.getPath();
+      if (columnPath.length <= structPath.length) {
+        continue;
+      }
+
+      boolean isUnderStruct = true;
+      for (int i = 0; i < structPath.length; i += 1) {
+        if (!structPath[i].equals(columnPath[i])) {
+          isUnderStruct = false;
+          break;
+        }
+      }
+
+      if (isUnderStruct) {
+        return descriptor;
+      }
+    }
+
+    return null;
+  }
+
+  /** Returns the id of the first field with an initial default, or null if none has one. */
+  private static Integer firstInitialDefaultFieldId(List<Types.NestedField> fields) {
+    for (Types.NestedField field : fields) {
+      if (field.initialDefault() != null) {
+        return field.fieldId();
+      }
+    }
+
+    return null;
   }
 
   private static class NullReader<T> implements ParquetValueReader<T> {
