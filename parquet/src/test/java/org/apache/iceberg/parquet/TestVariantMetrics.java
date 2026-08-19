@@ -608,6 +608,34 @@ public class TestVariantMetrics {
   }
 
   @Test
+  public void testShreddedObjectBoundFieldsOrderedByUtf8() throws IOException {
+    // U+FFFF is 3 UTF-8 bytes (EF BF BF), U+10000 is 4 (F0 90 80 80); UTF-16 orders them oppositely
+    String threeByteName = new String(Character.toChars(0xFFFF));
+    String fourByteName = new String(Character.toChars(0x10000));
+    VariantMetadata objectMetadata = Variants.metadata(threeByteName, fourByteName);
+
+    ShreddedObject object0 = Variants.object(objectMetadata);
+    object0.put(threeByteName, Variants.of(1));
+    object0.put(fourByteName, Variants.of(2));
+    ShreddedObject object1 = Variants.object(objectMetadata);
+    object1.put(threeByteName, Variants.of(3));
+    object1.put(fourByteName, Variants.of(4));
+
+    Metrics metrics =
+        writeParquet(
+            (id, name) -> ParquetVariantUtil.toParquetSchema(object0),
+            Variant.of(objectMetadata, object0),
+            Variant.of(objectMetadata, object1));
+
+    String threePath = "$['" + threeByteName + "']";
+    String fourPath = "$['" + fourByteName + "']";
+    VariantObject lowerBounds = Variant.from(metrics.lowerBounds().get(2)).value().asObject();
+    assertThat(lowerBounds.fieldNames()).containsExactly(threePath, fourPath);
+    VariantObject upperBounds = Variant.from(metrics.upperBounds().get(2)).value().asObject();
+    assertThat(upperBounds.fieldNames()).containsExactly(threePath, fourPath);
+  }
+
+  @Test
   public void testPartiallyShreddedObject() throws IOException {
     VariantValue date = Variants.ofIsoDate("2025-03-17");
     VariantValue num = Variants.of(34);

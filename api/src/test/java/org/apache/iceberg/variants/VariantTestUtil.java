@@ -163,7 +163,10 @@ public class VariantTestUtil {
     }
 
     int numElements = fieldNames.size();
-    Stream<String> names = sortNames ? fieldNames.stream().sorted() : fieldNames.stream();
+    Stream<String> names =
+        sortNames
+            ? fieldNames.stream().sorted(VariantMetadata.FIELD_NAME_ORDER)
+            : fieldNames.stream();
     ByteBuffer[] nameBuffers =
         names
             .map(str -> ByteBuffer.wrap(str.getBytes(StandardCharsets.UTF_8)))
