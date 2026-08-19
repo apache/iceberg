@@ -23,6 +23,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -34,6 +36,7 @@ import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.IcebergGenerics;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
@@ -53,11 +56,14 @@ import org.apache.iceberg.types.Types;
 import org.apache.parquet.hadoop.ParquetWriter;
 import org.apache.parquet.hadoop.api.WriteSupport;
 import org.apache.parquet.hadoop.util.HadoopOutputFile;
+import org.apache.spark.SparkIllegalArgumentException;
 import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.spark.sql.catalyst.util.STUtils;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
+import org.apache.spark.unsafe.types.BinaryView;
 import org.junit.jupiter.api.Test;
 
 public class TestSparkParquetReader extends AvroDataTestBase {
@@ -121,6 +127,80 @@ public class TestSparkParquetReader extends AvroDataTestBase {
   @Override
   protected boolean supportsGeospatial() {
     return true;
+  }
+
+  @Test
+  public void geospatialReaderBuildsSparkPhysicalValues() throws IOException {
+    Schema schema =
+        new Schema(
+            required(1, "geom", Types.GeometryType.of("EPSG:3857")),
+            required(2, "geog", Types.GeographyType.crs84()));
+    byte[] geomWkb = pointWkb(30.0, 10.0);
+    byte[] geogWkb = pointWkb(-71.0, 42.0);
+    GenericRecord record = GenericRecord.create(schema);
+    record.set(0, ByteBuffer.wrap(geomWkb));
+    record.set(1, ByteBuffer.wrap(geogWkb));
+
+    OutputFile output = new InMemoryOutputFile();
+    try (FileAppender<Record> writer =
+        Parquet.write(output)
+            .schema(schema)
+            .createWriterFunc(GenericParquetWriter::create)
+            .build()) {
+      writer.add(record);
+    }
+
+    InternalRow row = rowsFromFile(output.toInputFile(), schema).get(0);
+    BinaryView geometry = row.getBinaryView(0);
+    BinaryView geography = row.getBinaryView(1);
+    assertThat(STUtils.stGeomSrid(geometry)).isEqualTo(3857);
+    assertThat(STUtils.stGeogSrid(geography)).isEqualTo(4326);
+    assertThat(STUtils.stGeomAsBinary(geometry)).isEqualTo(geomWkb);
+    assertThat(STUtils.stGeogAsBinary(geography)).isEqualTo(geogWkb);
+  }
+
+  @Test
+  public void rejectsUnsupportedGeometryWkb() throws IOException {
+    byte[] unsupportedWkb =
+        ByteBuffer.allocate(5).order(ByteOrder.LITTLE_ENDIAN).put((byte) 1).putInt(8).array();
+    assertInvalidWkbRejected(
+        required(1, "geom", Types.GeometryType.of("EPSG:3857")), unsupportedWkb);
+  }
+
+  @Test
+  public void rejectsOutOfBoundsGeographyWkb() throws IOException {
+    assertInvalidWkbRejected(
+        required(1, "geog", Types.GeographyType.crs84()), pointWkb(181.0, 91.0));
+  }
+
+  private void assertInvalidWkbRejected(Types.NestedField field, byte[] invalidWkb)
+      throws IOException {
+    Schema schema = new Schema(field);
+    GenericRecord record = GenericRecord.create(schema);
+    record.set(0, ByteBuffer.wrap(invalidWkb));
+
+    OutputFile output = new InMemoryOutputFile();
+    try (FileAppender<Record> writer =
+        Parquet.write(output)
+            .schema(schema)
+            .createWriterFunc(GenericParquetWriter::create)
+            .build()) {
+      writer.add(record);
+    }
+
+    assertThatThrownBy(() -> rowsFromFile(output.toInputFile(), schema))
+        .isInstanceOf(SparkIllegalArgumentException.class)
+        .hasMessageContaining("[WKB_PARSE_ERROR]");
+  }
+
+  private static byte[] pointWkb(double xCoordinate, double yCoordinate) {
+    return ByteBuffer.allocate(21)
+        .order(ByteOrder.LITTLE_ENDIAN)
+        .put((byte) 1)
+        .putInt(1)
+        .putDouble(xCoordinate)
+        .putDouble(yCoordinate)
+        .array();
   }
 
   protected List<InternalRow> rowsFromFile(InputFile inputFile, Schema schema) throws IOException {

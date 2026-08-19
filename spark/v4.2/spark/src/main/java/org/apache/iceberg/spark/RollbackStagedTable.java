@@ -30,8 +30,10 @@ import org.apache.spark.sql.connector.catalog.SupportsWrite;
 import org.apache.spark.sql.connector.catalog.Table;
 import org.apache.spark.sql.connector.catalog.TableCapability;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
+import org.apache.spark.sql.connector.catalog.TruncatableTable;
 import org.apache.spark.sql.connector.expressions.Transform;
 import org.apache.spark.sql.connector.expressions.filter.Predicate;
+import org.apache.spark.sql.connector.metric.CustomTaskMetric;
 import org.apache.spark.sql.connector.read.ScanBuilder;
 import org.apache.spark.sql.connector.write.LogicalWriteInfo;
 import org.apache.spark.sql.connector.write.WriteBuilder;
@@ -78,6 +80,20 @@ public class RollbackStagedTable
   public void abortStagedChanges() {
     // roll back changes by dropping the table
     catalog.dropTable(ident);
+  }
+
+  // Java requires an explicit override to disambiguate the unrelated defaults inherited from
+  // StagedTable and TruncatableTable. Table does not expose this method, so delegate through the
+  // corresponding interface implemented by the wrapped table.
+  @Override
+  public CustomTaskMetric[] reportDriverMetrics() {
+    if (table instanceof StagedTable) {
+      return ((StagedTable) table).reportDriverMetrics();
+    } else if (table instanceof TruncatableTable) {
+      return ((TruncatableTable) table).reportDriverMetrics();
+    }
+
+    return new CustomTaskMetric[0];
   }
 
   @Override

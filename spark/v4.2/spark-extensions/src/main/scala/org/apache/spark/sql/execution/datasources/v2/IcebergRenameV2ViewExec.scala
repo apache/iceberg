@@ -19,22 +19,47 @@
 package org.apache.spark.sql.execution.datasources.v2
 
 import org.apache.spark.sql.catalyst.InternalRow
+import org.apache.spark.sql.catalyst.analysis.ResolvedIdentifier
 import org.apache.spark.sql.catalyst.expressions.Attribute
 import org.apache.spark.sql.connector.catalog.Identifier
 import org.apache.spark.sql.connector.catalog.ViewCatalog
+import org.apache.spark.sql.execution.command.CommandUtils
+import scala.util.Try
 
-case class RenameV2ViewExec(catalog: ViewCatalog, oldIdent: Identifier, newIdent: Identifier)
+case class IcebergRenameV2ViewExec(catalog: ViewCatalog, oldIdent: Identifier, newIdent: Identifier)
     extends LeafV2CommandExec {
+
+  import org.apache.spark.sql.connector.catalog.CatalogV2Implicits._
 
   override lazy val output: Seq[Attribute] = Nil
 
   override protected def run(): Seq[InternalRow] = {
-    catalog.renameView(oldIdent, newIdent)
+    val qualifiedNewIdent = if (newIdent.namespace.isEmpty) {
+      Identifier.of(oldIdent.namespace, newIdent.name)
+    } else {
+      newIdent
+    }
+
+    val oldQualified = (catalog.name() +: oldIdent.asMultipartIdentifier).quoted
+    val storageLevel = Try(session.table(oldQualified)).toOption.flatMap { relation =>
+      session.sharedState.cacheManager
+        .lookupCachedData(relation)
+        .map(_.cachedRepresentation.cacheBuilder.storageLevel)
+    }
+
+    CommandUtils.uncacheTableOrView(session, ResolvedIdentifier(catalog, oldIdent))
+    catalog.invalidateView(oldIdent)
+    catalog.renameView(oldIdent, qualifiedNewIdent)
+
+    storageLevel.foreach { level =>
+      val newQualified = (catalog.name() +: qualifiedNewIdent.asMultipartIdentifier).quoted
+      session.catalog.cacheTable(newQualified, level)
+    }
 
     Seq.empty
   }
 
   override def simpleString(maxFields: Int): String = {
-    s"RenameV2View ${oldIdent} to {newIdent}"
+    s"IcebergRenameV2ViewExec $oldIdent to $newIdent"
   }
 }

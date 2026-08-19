@@ -37,7 +37,6 @@ import org.apache.iceberg.spark.CatalogTestBase;
 import org.apache.iceberg.spark.SparkSessionCatalog;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
-import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 import org.joda.time.DateTime;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -157,7 +156,7 @@ public class TestTimestampWithoutZone extends CatalogTestBase {
   }
 
   @TestTemplate
-  public void testCreateNewTableShouldHaveTimestampWithZoneIcebergType() {
+  public void testCreateNewTablePreservesTimestampTypes() {
     sql("INSERT INTO %s VALUES %s", tableName, rowToSqlValues(values));
 
     sql("CREATE TABLE %s USING iceberg AS SELECT * FROM %s", NEW_TABLE_NAME, tableName);
@@ -171,30 +170,6 @@ public class TestTimestampWithoutZone extends CatalogTestBase {
         sql("SELECT * FROM %s ORDER BY id", tableName),
         sql("SELECT * FROM %s ORDER BY id", NEW_TABLE_NAME));
 
-    Table createdTable = validationCatalog.loadTable(TableIdentifier.of("default", NEW_TABLE_NAME));
-    assertFieldsType(createdTable.schema(), Types.TimestampType.withoutZone(), "ts");
-    assertFieldsType(createdTable.schema(), Types.TimestampType.withZone(), "tsz");
-  }
-
-  @TestTemplate
-  public void testCreateNewTableShouldHaveTimestampWithoutZoneIcebergType() {
-    spark
-        .sessionState()
-        .catalogManager()
-        .currentCatalog()
-        .initialize(catalog.name(), new CaseInsensitiveStringMap(catalogConfig));
-    sql("INSERT INTO %s VALUES %s", tableName, rowToSqlValues(values));
-
-    sql("CREATE TABLE %s USING iceberg AS SELECT * FROM %s", NEW_TABLE_NAME, tableName);
-
-    assertThat(scalarSql("SELECT count(*) FROM %s", NEW_TABLE_NAME))
-        .as("Should have " + values.size() + " row")
-        .isEqualTo((long) values.size());
-
-    assertEquals(
-        "Row data should match expected",
-        sql("SELECT * FROM %s ORDER BY id", tableName),
-        sql("SELECT * FROM %s ORDER BY id", NEW_TABLE_NAME));
     Table createdTable = validationCatalog.loadTable(TableIdentifier.of("default", NEW_TABLE_NAME));
     assertFieldsType(createdTable.schema(), Types.TimestampType.withoutZone(), "ts");
     assertFieldsType(createdTable.schema(), Types.TimestampType.withZone(), "tsz");

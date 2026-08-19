@@ -169,7 +169,7 @@ public class TestVariantShredding extends CatalogTestBase {
   }
 
   @TestTemplate
-  public void testInconsistentTypeNotShredded() throws IOException {
+  public void inconsistentTypeNotShredded() throws IOException {
     spark.conf().set(SparkSQLProperties.SHRED_VARIANTS, "true");
 
     String values =
@@ -213,7 +213,7 @@ public class TestVariantShredding extends CatalogTestBase {
   }
 
   @TestTemplate
-  public void testMixedPrimitiveTypesAtRootNotShredded() throws IOException {
+  public void mixedPrimitiveTypesAtRootNotShredded() throws IOException {
     spark.conf().set(SparkSQLProperties.SHRED_VARIANTS, "true");
 
     String values =
@@ -774,7 +774,7 @@ public class TestVariantShredding extends CatalogTestBase {
   }
 
   @TestTemplate
-  public void testMixedTypeFieldNotShredded() throws IOException {
+  public void mixedTypeFieldNotShredded() throws IOException {
     spark.conf().set(SparkSQLProperties.SHRED_VARIANTS, "true");
     spark.conf().set(SparkSQLProperties.VARIANT_INFERENCE_BUFFER_SIZE, "10");
 

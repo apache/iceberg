@@ -20,98 +20,172 @@ package org.apache.iceberg.spark.source;
 
 import static org.apache.iceberg.TableProperties.FORMAT_VERSION;
 
+import java.util.Arrays;
 import java.util.Map;
 import java.util.Set;
+import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.spark.SparkSchemaUtil;
-import org.apache.iceberg.types.Types;
 import org.apache.iceberg.view.BaseView;
 import org.apache.iceberg.view.SQLViewRepresentation;
-import org.apache.iceberg.view.View;
 import org.apache.iceberg.view.ViewOperations;
-import org.apache.spark.sql.types.StructType;
+import org.apache.spark.sql.connector.catalog.DependencyList;
+import org.apache.spark.sql.connector.catalog.TableCatalog;
+import org.apache.spark.sql.connector.catalog.TableSummary;
+import org.apache.spark.sql.connector.catalog.View;
 
-public class SparkView implements org.apache.spark.sql.connector.catalog.View {
+/**
+ * Converts Iceberg view metadata to Spark's {@link View} representation.
+ *
+ * <p>Keeps this conversion in Iceberg instead of relying on Spark's built-in view handling so
+ * reserved properties and Iceberg defaults are exposed consistently to Spark commands.
+ */
+public class SparkView {
 
+  private static final String DEFAULT_VIEW_SCHEMA_MODE = "COMPENSATION";
+  private static final String EVOLUTION_VIEW_SCHEMA_MODE = "EVOLUTION";
+  public static final String PROP_CREATE_ENGINE_VERSION = "create_engine_version";
+  public static final String PROP_ENGINE_VERSION = "engine_version";
   public static final String QUERY_COLUMN_NAMES = "spark.query-column-names";
-  public static final Set<String> RESERVED_PROPERTIES =
-      ImmutableSet.of("provider", "location", FORMAT_VERSION, QUERY_COLUMN_NAMES);
+  private static final String QUERY_COLUMN_NAMES_JSON = "spark.query-column-names-json";
+  public static final String SQL_CONFIG_PREFIX = "spark.sql-config.";
+  public static final String VIEW_SCHEMA_MODE = "spark.view-schema-mode";
+  public static final String VIEW_DEPENDENCIES = "spark.view-dependencies";
+  private static final Set<String> INTERNAL_PROPERTIES =
+      ImmutableSet.of(
+          TableCatalog.PROP_PROVIDER,
+          TableCatalog.PROP_LOCATION,
+          TableCatalog.PROP_TABLE_TYPE,
+          FORMAT_VERSION,
+          PROP_CREATE_ENGINE_VERSION,
+          PROP_ENGINE_VERSION,
+          QUERY_COLUMN_NAMES,
+          QUERY_COLUMN_NAMES_JSON,
+          VIEW_SCHEMA_MODE,
+          VIEW_DEPENDENCIES);
 
-  private final View icebergView;
-  private final String catalogName;
-  private StructType lazySchema = null;
+  private SparkView() {}
 
-  public SparkView(String catalogName, View icebergView) {
-    this.catalogName = catalogName;
-    this.icebergView = icebergView;
-  }
-
-  public View view() {
-    return icebergView;
-  }
-
-  @Override
-  public String name() {
-    return icebergView.name();
-  }
-
-  @Override
-  public String query() {
+  public static View toView(String catalogName, org.apache.iceberg.view.View icebergView) {
     SQLViewRepresentation sqlRepr = icebergView.sqlFor("spark");
-    Preconditions.checkState(sqlRepr != null, "Cannot load SQL for view %s", name());
-    return sqlRepr.sql();
+    Preconditions.checkState(sqlRepr != null, "Cannot load SQL for view %s", icebergView.name());
+
+    Namespace defaultNamespace = icebergView.currentVersion().defaultNamespace();
+    String defaultCatalog = icebergView.currentVersion().defaultCatalog();
+    String schemaMode =
+        icebergView.properties().getOrDefault(VIEW_SCHEMA_MODE, DEFAULT_VIEW_SCHEMA_MODE);
+
+    View.Builder builder =
+        new View.Builder()
+            .withQueryText(sqlRepr.sql())
+            .withCurrentCatalog(defaultCatalog != null ? defaultCatalog : catalogName)
+            .withCurrentNamespace(
+                defaultNamespace != null ? defaultNamespace.levels() : new String[0])
+            .withSchema(SparkSchemaUtil.convert(icebergView.schema()))
+            .withQueryColumnNames(queryColumnNames(icebergView.properties(), schemaMode))
+            .withProperties(properties(icebergView));
+
+    Map<String, String> sqlConfigs = sqlConfigs(icebergView.properties());
+    DependencyList dependencies = viewDependencies(icebergView.properties());
+
+    return applyOptionalFields(builder, schemaMode, sqlConfigs, dependencies).build();
   }
 
-  @Override
-  public String currentCatalog() {
-    return icebergView.currentVersion().defaultCatalog() != null
-        ? icebergView.currentVersion().defaultCatalog()
-        : catalogName;
-  }
-
-  @Override
-  public String[] currentNamespace() {
-    return icebergView.currentVersion().defaultNamespace().levels();
-  }
-
-  @Override
-  public StructType schema() {
-    if (null == lazySchema) {
-      this.lazySchema = SparkSchemaUtil.convert(icebergView.schema());
+  /** Applies optional Spark view fields to a view builder when present. */
+  public static View.Builder applyOptionalFields(
+      View.Builder builder,
+      String schemaMode,
+      Map<String, String> sqlConfigs,
+      DependencyList dependencies) {
+    if (schemaMode != null) {
+      builder.withSchemaMode(schemaMode);
     }
 
-    return lazySchema;
+    if (sqlConfigs != null) {
+      builder.withSqlConfigs(sqlConfigs);
+    }
+
+    if (dependencies != null) {
+      builder.withViewDependencies(dependencies);
+    }
+
+    return builder;
   }
 
-  @Override
-  public String[] queryColumnNames() {
-    return icebergView.properties().containsKey(QUERY_COLUMN_NAMES)
-        ? icebergView.properties().get(QUERY_COLUMN_NAMES).split(",")
-        : new String[0];
+  /**
+   * Returns reserved properties that preserve Spark view metadata not represented by Iceberg view
+   * metadata fields.
+   */
+  public static Map<String, String> internalProperties(View view) {
+    ImmutableMap.Builder<String, String> propsBuilder = ImmutableMap.builder();
+    String tableType = view.properties().get(TableCatalog.PROP_TABLE_TYPE);
+    if (tableType != null && !TableSummary.VIEW_TABLE_TYPE.equals(tableType)) {
+      propsBuilder.put(TableCatalog.PROP_TABLE_TYPE, tableType);
+    }
+
+    String[] queryColumnNames = view.queryColumnNames();
+    propsBuilder.put(
+        QUERY_COLUMN_NAMES_JSON, SparkViewQueryColumnNamesParser.toJson(queryColumnNames));
+    if (queryColumnNames.length > 0
+        && Arrays.stream(queryColumnNames).noneMatch(name -> name.contains(","))) {
+      propsBuilder.put(QUERY_COLUMN_NAMES, String.join(",", queryColumnNames));
+    }
+
+    view.sqlConfigs().forEach((key, value) -> propsBuilder.put(SQL_CONFIG_PREFIX + key, value));
+
+    if (view.schemaMode() != null) {
+      propsBuilder.put(VIEW_SCHEMA_MODE, view.schemaMode());
+    }
+
+    if (view.viewDependencies() != null) {
+      propsBuilder.put(
+          VIEW_DEPENDENCIES, SparkViewDependenciesParser.toJson(view.viewDependencies()));
+    }
+
+    return propsBuilder.build();
   }
 
-  @Override
-  public String[] columnAliases() {
-    return icebergView.schema().columns().stream()
-        .map(Types.NestedField::name)
-        .toArray(String[]::new);
+  public static boolean isReservedProperty(String property) {
+    return INTERNAL_PROPERTIES.contains(property) || property.startsWith(SQL_CONFIG_PREFIX);
   }
 
-  @Override
-  public String[] columnComments() {
-    return icebergView.schema().columns().stream()
-        .map(Types.NestedField::doc)
-        .toArray(String[]::new);
+  private static String[] queryColumnNames(Map<String, String> properties, String schemaMode) {
+    if (EVOLUTION_VIEW_SCHEMA_MODE.equals(schemaMode)) {
+      return new String[0];
+    }
+
+    String queryColumnNamesJson = properties.get(QUERY_COLUMN_NAMES_JSON);
+    if (queryColumnNamesJson != null) {
+      return SparkViewQueryColumnNamesParser.fromJson(queryColumnNamesJson);
+    }
+
+    String queryColumnNames = properties.get(QUERY_COLUMN_NAMES);
+    return queryColumnNames != null ? queryColumnNames.split(",") : new String[0];
   }
 
-  @Override
-  public Map<String, String> properties() {
+  private static Map<String, String> sqlConfigs(Map<String, String> properties) {
+    ImmutableMap.Builder<String, String> configsBuilder = ImmutableMap.builder();
+    properties.forEach(
+        (key, value) -> {
+          if (key.startsWith(SQL_CONFIG_PREFIX)) {
+            configsBuilder.put(key.substring(SQL_CONFIG_PREFIX.length()), value);
+          }
+        });
+    return configsBuilder.build();
+  }
+
+  private static DependencyList viewDependencies(Map<String, String> properties) {
+    String dependencies = properties.get(VIEW_DEPENDENCIES);
+    return dependencies != null ? SparkViewDependenciesParser.fromJson(dependencies) : null;
+  }
+
+  private static Map<String, String> properties(org.apache.iceberg.view.View icebergView) {
     ImmutableMap.Builder<String, String> propsBuilder = ImmutableMap.builder();
 
-    propsBuilder.put("provider", "iceberg");
-    propsBuilder.put("location", icebergView.location());
+    propsBuilder.put(TableCatalog.PROP_PROVIDER, "iceberg");
+    propsBuilder.put(TableCatalog.PROP_LOCATION, icebergView.location());
 
     if (icebergView instanceof BaseView) {
       ViewOperations ops = ((BaseView) icebergView).operations();
@@ -119,33 +193,14 @@ public class SparkView implements org.apache.spark.sql.connector.catalog.View {
     }
 
     icebergView.properties().entrySet().stream()
-        .filter(entry -> !RESERVED_PROPERTIES.contains(entry.getKey()))
+        .filter(
+            entry ->
+                !isReservedProperty(entry.getKey())
+                    || TableCatalog.PROP_TABLE_TYPE.equals(entry.getKey())
+                    || PROP_CREATE_ENGINE_VERSION.equals(entry.getKey())
+                    || PROP_ENGINE_VERSION.equals(entry.getKey()))
         .forEach(propsBuilder::put);
 
     return propsBuilder.build();
-  }
-
-  @Override
-  public String toString() {
-    return icebergView.toString();
-  }
-
-  @Override
-  public boolean equals(Object other) {
-    if (this == other) {
-      return true;
-    } else if (other == null || getClass() != other.getClass()) {
-      return false;
-    }
-
-    // use only name in order to correctly invalidate Spark cache
-    SparkView that = (SparkView) other;
-    return icebergView.name().equals(that.icebergView.name());
-  }
-
-  @Override
-  public int hashCode() {
-    // use only name in order to correctly invalidate Spark cache
-    return icebergView.name().hashCode();
   }
 }

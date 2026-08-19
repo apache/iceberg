@@ -37,6 +37,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
@@ -47,6 +48,8 @@ import org.apache.spark.sql.catalyst.util.ArrayBasedMapData;
 import org.apache.spark.sql.catalyst.util.GenericArrayData;
 import org.apache.spark.sql.catalyst.util.STUtils;
 import org.apache.spark.sql.types.Decimal;
+import org.apache.spark.sql.types.GeographyType;
+import org.apache.spark.sql.types.GeometryType;
 import org.apache.spark.unsafe.types.UTF8String;
 import org.apache.spark.unsafe.types.VariantVal;
 
@@ -361,10 +364,11 @@ public class RandomData {
         case UUID:
           return UTF8String.fromString(UUID.nameUUIDFromBytes((byte[]) obj).toString());
         case GEOMETRY:
-          // Spark's GeometryVal is [SRID | WKB]; build it from the generated WKB.
-          return STUtils.stGeomFromWKB((byte[]) obj);
+          GeometryType geometryType = (GeometryType) SparkSchemaUtil.convert(primitive);
+          return STUtils.stGeomFromWKB((byte[]) obj, geometryType.srid());
         case GEOGRAPHY:
-          return STUtils.stGeogFromWKB((byte[]) obj);
+          GeographyType geographyType = (GeographyType) SparkSchemaUtil.convert(primitive);
+          return STUtils.stGeogFromWKB((byte[]) obj, geographyType.srid());
         default:
           return obj;
       }

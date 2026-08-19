@@ -55,8 +55,8 @@ public class TestAlterTable extends CatalogTestBase {
   public void testAddColumnNotNull() {
     assertThatThrownBy(() -> sql("ALTER TABLE %s ADD COLUMN c3 INT NOT NULL", tableName))
         .isInstanceOf(SparkException.class)
-        .hasMessage(
-            "Unsupported table change: Incompatible change: cannot add required column: c3");
+        .hasMessageContaining("[UNSUPPORTED_TABLE_CHANGE]")
+        .hasMessageContaining("cannot add required column: c3");
   }
 
   @TestTemplate
@@ -151,7 +151,8 @@ public class TestAlterTable extends CatalogTestBase {
     // should not allow changing map key column
     assertThatThrownBy(() -> sql("ALTER TABLE %s ADD COLUMN data2.key.y int", tableName))
         .isInstanceOf(SparkException.class)
-        .hasMessageStartingWith("Unsupported table change: Cannot add fields to map keys:");
+        .hasMessageStartingWith(
+            "[UNSUPPORTED_TABLE_CHANGE] Unsupported table change: Cannot add fields to map keys:");
   }
 
   @TestTemplate
