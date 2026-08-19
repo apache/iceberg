@@ -27,8 +27,12 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.functions.Sha256Global;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.rest.credentials.ImmutableCredential;
+import org.apache.iceberg.rest.restrictions.ReadRestrictions;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -477,5 +481,59 @@ public class TestLoadTableResponseParser {
     // can't do an equality comparison because Schema doesn't implement equals/hashCode
     assertThat(LoadTableResponseParser.toJson(LoadTableResponseParser.fromJson(json), true))
         .isEqualTo(expectedJson);
+  }
+
+  @Test
+  public void roundTripSerdeWithReadRestrictions() {
+    LoadTableResponse response =
+        LoadTableResponse.builder()
+            .withTableMetadata(metadataWithSingleLongColumn())
+            .withReadRestrictions(
+                ReadRestrictions.of(
+                    Expressions.equal("country", "US"), ImmutableList.of(new Sha256Global(1))))
+            .build();
+
+    // the surrounding metadata document is already pinned by roundTripSerdeV2; assert the node this
+    // response adds, then that a parse/serialize cycle preserves the whole document
+    String json = LoadTableResponseParser.toJson(response, true);
+    assertThat(json)
+        .contains(
+            "  \"read-restrictions\" : {\n"
+                + "    \"required-row-filter\" : {\n"
+                + "      \"type\" : \"eq\",\n"
+                + "      \"term\" : \"country\",\n"
+                + "      \"value\" : \"US\"\n"
+                + "    },\n"
+                + "    \"required-column-projections\" : [ {\n"
+                + "      \"action\" : \"sha-256-global\",\n"
+                + "      \"field-id\" : 1\n"
+                + "    } ]\n"
+                + "  }");
+    assertThat(LoadTableResponseParser.toJson(LoadTableResponseParser.fromJson(json), true))
+        .isEqualTo(json);
+  }
+
+  @Test
+  public void missingReadRestrictionsParsesAsEmpty() {
+    String json =
+        LoadTableResponseParser.toJson(
+            LoadTableResponse.builder().withTableMetadata(metadataWithSingleLongColumn()).build());
+
+    // an absent field must not be serialized, and must read back as "no restrictions" rather than
+    // null, so callers never have to null-check before enforcing
+    assertThat(json).doesNotContain("read-restrictions");
+    assertThat(LoadTableResponseParser.fromJson(json).readRestrictions().isEmpty()).isTrue();
+  }
+
+  private static TableMetadata metadataWithSingleLongColumn() {
+    return TableMetadata.buildFromEmpty()
+        .assignUUID("386b9f01-002b-4d8c-b77f-42c3fd3b7c9b")
+        .setLocation("location")
+        .setCurrentSchema(new Schema(Types.NestedField.required(1, "x", Types.LongType.get())), 1)
+        .addPartitionSpec(PartitionSpec.unpartitioned())
+        .addSortOrder(SortOrder.unsorted())
+        .discardChanges()
+        .withMetadataLocation("metadata-location")
+        .build();
   }
 }
