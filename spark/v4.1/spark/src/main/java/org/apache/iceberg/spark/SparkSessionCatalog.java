@@ -26,6 +26,7 @@ import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.spark.source.HasIcebergCatalog;
+import org.apache.iceberg.util.ArrayUtil;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.analysis.NamespaceAlreadyExistsException;
 import org.apache.spark.sql.catalyst.analysis.NoSuchFunctionException;
@@ -427,16 +428,19 @@ public class SparkSessionCatalog<
   @Override
   public Identifier[] listViews(String... namespace) {
     try {
+      Identifier[] views = new Identifier[0];
       if (null != asViewCatalog) {
-        return asViewCatalog.listViews(namespace);
-      } else if (isViewCatalog()) {
-        return getSessionCatalog().listViews(namespace);
+        views = asViewCatalog.listViews(namespace);
       }
+
+      if (isViewCatalog()) {
+        views = ArrayUtil.concat(Identifier.class, views, getSessionCatalog().listViews(namespace));
+      }
+
+      return views;
     } catch (NoSuchNamespaceException e) {
       throw new RuntimeException(e);
     }
-
-    return new Identifier[0];
   }
 
   @Override
