@@ -54,6 +54,7 @@ import org.apache.iceberg.exceptions.CleanableFailure;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.BasePositionDeltaWriter;
+import org.apache.iceberg.io.ClusteredDVWriter;
 import org.apache.iceberg.io.ClusteredDataWriter;
 import org.apache.iceberg.io.ClusteredPositionDeleteWriter;
 import org.apache.iceberg.io.DataWriteResult;
@@ -509,6 +510,12 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
       DeleteGranularity deleteGranularity = context.deleteGranularity();
 
       if (context.useDVs()) {
+        if (inputOrdered) {
+          // clustered input allows flushing each data file's DV as soon as the input moves on,
+          // bounding the writer's resident state to one data file instead of all touched files
+          return new ClusteredDVWriter<>(files, previousDeleteLoader);
+        }
+
         return new PartitioningDVWriter<>(files, previousDeleteLoader);
       } else if (inputOrdered && rewritableDeletes == null) {
         return new ClusteredPositionDeleteWriter<>(
