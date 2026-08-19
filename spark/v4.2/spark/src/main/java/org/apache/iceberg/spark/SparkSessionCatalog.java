@@ -27,6 +27,7 @@ import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.catalog.Catalog;
+import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.source.HasIcebergCatalog;
@@ -164,8 +165,7 @@ public class SparkSessionCatalog<
     }
 
     for (Identifier identifier : listViews(namespace)) {
-      TableSummary summary = summaries.get(identifier);
-      summaries.put(identifier, TableSummary.of(identifier, viewType(identifier, summary)));
+      summaries.put(identifier, TableSummary.of(identifier, TableSummary.VIEW_TABLE_TYPE));
     }
 
     return summaries.values().toArray(new TableSummary[0]);
@@ -174,20 +174,6 @@ public class SparkSessionCatalog<
   private static boolean isViewType(String tableType) {
     return TableSummary.VIEW_TABLE_TYPE.equals(tableType)
         || TableSummary.METRIC_VIEW_TABLE_TYPE.equals(tableType);
-  }
-
-  private String viewType(Identifier identifier, TableSummary summary) {
-    if (summary != null && isViewType(summary.tableType())) {
-      return summary.tableType();
-    }
-
-    try {
-      return loadView(identifier)
-          .properties()
-          .getOrDefault(TableCatalog.PROP_TABLE_TYPE, TableSummary.VIEW_TABLE_TYPE);
-    } catch (NoSuchViewException e) {
-      return TableSummary.VIEW_TABLE_TYPE;
-    }
   }
 
   @Override
@@ -456,6 +442,14 @@ public class SparkSessionCatalog<
   }
 
   @Override
+  public TableIdentifier icebergIdentifier(Identifier identifier) {
+    Preconditions.checkArgument(
+        icebergCatalog instanceof HasIcebergCatalog,
+        "Cannot map identifier, wrapped catalog does not contain an Iceberg Catalog");
+    return ((HasIcebergCatalog) icebergCatalog).icebergIdentifier(identifier);
+  }
+
+  @Override
   public org.apache.iceberg.catalog.ViewCatalog icebergViewCatalog() {
     Preconditions.checkArgument(
         icebergCatalog instanceof HasIcebergCatalog,
@@ -519,15 +513,12 @@ public class SparkSessionCatalog<
   @Override
   public View createView(Identifier ident, View view)
       throws ViewAlreadyExistsException, NoSuchNamespaceException {
-    if (view == null) {
-      return null;
-    }
+    Preconditions.checkArgument(view != null, "Invalid view metadata: null");
 
-    View normalizedView = normalizeViewCurrentCatalog(catalogName, view);
     if (null != asViewCatalog) {
-      return asViewCatalog.createView(ident, normalizedView);
+      return asViewCatalog.createView(ident, view);
     } else if (isViewCatalog()) {
-      return getSessionCatalog().createView(ident, normalizedView);
+      return getSessionCatalog().createView(ident, view);
     }
 
     throw new UnsupportedOperationException(
@@ -536,11 +527,10 @@ public class SparkSessionCatalog<
 
   @Override
   public View replaceView(Identifier ident, View view) throws NoSuchViewException {
-    View normalizedView = normalizeViewCurrentCatalog(catalogName, view);
     if (null != asViewCatalog && asViewCatalog.viewExists(ident)) {
-      return asViewCatalog.replaceView(ident, normalizedView);
+      return asViewCatalog.replaceView(ident, view);
     } else if (isViewCatalog() && getSessionCatalog().viewExists(ident)) {
-      return getSessionCatalog().replaceView(ident, normalizedView);
+      return getSessionCatalog().replaceView(ident, view);
     }
 
     throw new NoSuchViewException(ident);
@@ -549,15 +539,14 @@ public class SparkSessionCatalog<
   @Override
   public View createOrReplaceView(Identifier ident, View view)
       throws ViewAlreadyExistsException, NoSuchNamespaceException {
-    View normalizedView = normalizeViewCurrentCatalog(catalogName, view);
     if (null != asViewCatalog && asViewCatalog.viewExists(ident)) {
-      return asViewCatalog.createOrReplaceView(ident, normalizedView);
+      return asViewCatalog.createOrReplaceView(ident, view);
     } else if (isViewCatalog() && getSessionCatalog().viewExists(ident)) {
-      return getSessionCatalog().createOrReplaceView(ident, normalizedView);
+      return getSessionCatalog().createOrReplaceView(ident, view);
     } else if (null != asViewCatalog) {
-      return asViewCatalog.createOrReplaceView(ident, normalizedView);
+      return asViewCatalog.createOrReplaceView(ident, view);
     } else if (isViewCatalog()) {
-      return getSessionCatalog().createOrReplaceView(ident, normalizedView);
+      return getSessionCatalog().createOrReplaceView(ident, view);
     }
 
     throw new UnsupportedOperationException(

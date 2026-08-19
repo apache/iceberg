@@ -18,7 +18,6 @@
  */
 package org.apache.spark.sql.execution.datasources.v2
 
-import org.apache.iceberg.spark.Spark3Util
 import org.apache.iceberg.spark.source.SparkView
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.analysis.ResolvedIdentifier
@@ -45,13 +44,11 @@ case class IcebergAlterV2ViewSetPropertiesExec(
   override protected def run(): Seq[InternalRow] = {
     properties.keys.foreach(verifyNonReservedPropertyIsSet)
 
-    val icebergViewCatalog =
+    val view =
       ViewUtil
-        .icebergViewCatalog(catalog, ident)
+        .loadIcebergView(catalog, ident)
         .getOrElse(
-          throw new IllegalStateException(
-            s"Cannot load underlying Iceberg view catalog for view: $ident"))
-    val view = icebergViewCatalog.loadView(Spark3Util.identifierToTableIdentifier(ident))
+          throw new IllegalStateException(s"Cannot load underlying Iceberg view for view: $ident"))
     val update = view.updateProperties()
     properties.foreach { case (key, value) => update.set(key, value) }
     CommandUtils.uncacheTableOrView(session, ResolvedIdentifier(catalog, ident))

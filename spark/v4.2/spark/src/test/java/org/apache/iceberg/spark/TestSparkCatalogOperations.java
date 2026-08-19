@@ -196,7 +196,7 @@ public class TestSparkCatalogOperations extends CatalogTestBase {
   }
 
   @TestTemplate
-  public void testDefaultViewTypeIsNotPersisted()
+  public void testDefaultViewTypeAndCatalogRoundTrip()
       throws NoSuchNamespaceException, NoSuchViewException, ViewAlreadyExistsException {
     BaseCatalog catalog = (BaseCatalog) spark.sessionState().catalogManager().catalog(catalogName);
     assumeThat(catalog).isInstanceOf(SparkCatalog.class);
@@ -215,7 +215,7 @@ public class TestSparkCatalogOperations extends CatalogTestBase {
       org.apache.iceberg.view.View icebergView =
           ((ViewCatalog) validationCatalog).loadView(icebergIdentifier);
       assertThat(icebergView.properties()).doesNotContainKey(TableCatalog.PROP_TABLE_TYPE);
-      assertThat(icebergView.currentVersion().defaultCatalog()).isNull();
+      assertThat(icebergView.currentVersion().defaultCatalog()).isEqualTo(catalogName);
       View loaded = catalog.loadView(identifier);
       assertThat(loaded.properties())
           .containsEntry(TableCatalog.PROP_TABLE_TYPE, TableSummary.VIEW_TABLE_TYPE);

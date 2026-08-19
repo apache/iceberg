@@ -18,7 +18,6 @@
  */
 package org.apache.spark.sql.execution.datasources.v2
 
-import org.apache.iceberg.spark.Spark3Util
 import org.apache.iceberg.spark.source.SparkView
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.analysis.ResolvedIdentifier
@@ -39,13 +38,11 @@ case class IcebergAlterV2ViewSchemaBindingExec(
   override lazy val output: Seq[Attribute] = Nil
 
   override protected def run(): Seq[InternalRow] = {
-    val icebergViewCatalog =
+    val view =
       ViewUtil
-        .icebergViewCatalog(catalog, ident)
+        .loadIcebergView(catalog, ident)
         .getOrElse(
-          throw new IllegalStateException(
-            s"Cannot load underlying Iceberg view catalog for view: $ident"))
-    val view = icebergViewCatalog.loadView(Spark3Util.identifierToTableIdentifier(ident))
+          throw new IllegalStateException(s"Cannot load underlying Iceberg view for view: $ident"))
     val update = view.updateProperties().set(SparkView.VIEW_SCHEMA_MODE, schemaMode.toString)
 
     CommandUtils.uncacheTableOrView(session, ResolvedIdentifier(catalog, ident))

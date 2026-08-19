@@ -21,6 +21,7 @@ package org.apache.iceberg.spark;
 import static org.apache.hadoop.hive.conf.HiveConf.ConfVars.METASTOREURIS;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -30,14 +31,17 @@ import static org.mockito.Mockito.withSettings;
 import java.util.Collections;
 import org.apache.spark.sql.catalyst.analysis.NoSuchNamespaceException;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
+import org.apache.spark.sql.catalyst.analysis.NoSuchViewException;
 import org.apache.spark.sql.catalyst.analysis.ViewAlreadyExistsException;
 import org.apache.spark.sql.connector.catalog.FunctionCatalog;
 import org.apache.spark.sql.connector.catalog.Identifier;
+import org.apache.spark.sql.connector.catalog.SupportsDeleteV2;
 import org.apache.spark.sql.connector.catalog.SupportsNamespaces;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.apache.spark.sql.connector.catalog.TableSummary;
 import org.apache.spark.sql.connector.catalog.View;
 import org.apache.spark.sql.connector.catalog.ViewCatalog;
+import org.apache.spark.sql.connector.metric.CustomTaskMetric;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -136,8 +140,21 @@ public class TestSparkSessionCatalog extends TestBase {
   }
 
   @Test
+  public void rollbackStagedTableDelegatesDriverMetrics() {
+    SupportsDeleteV2 table = mock(SupportsDeleteV2.class);
+    CustomTaskMetric metric = mock(CustomTaskMetric.class);
+    when(table.reportDriverMetrics()).thenReturn(new CustomTaskMetric[] {metric});
+
+    RollbackStagedTable stagedTable =
+        new RollbackStagedTable(
+            mock(TableCatalog.class), Identifier.of(new String[] {"default"}, "table"), table);
+
+    assertThat(stagedTable.reportDriverMetrics()).containsExactly(metric);
+  }
+
+  @Test
   public void listRelationSummariesUnionsAndDeduplicatesViews()
-      throws NoSuchNamespaceException, NoSuchTableException {
+      throws NoSuchNamespaceException, NoSuchTableException, NoSuchViewException {
     String[] namespace = new String[] {"default"};
     Identifier tableIdent = Identifier.of(namespace, "table");
     Identifier sharedViewIdent = Identifier.of(namespace, "shared_view");
@@ -150,6 +167,7 @@ public class TestSparkSessionCatalog extends TestBase {
             withSettings()
                 .extraInterfaces(
                     FunctionCatalog.class, SupportsNamespaces.class, ViewCatalog.class));
+    ViewCatalog sessionViewCatalog = (ViewCatalog) sessionCatalog;
     when(sessionCatalog.listTableSummaries(namespace))
         .thenReturn(
             new TableSummary[] {
@@ -157,12 +175,13 @@ public class TestSparkSessionCatalog extends TestBase {
               TableSummary.of(sharedViewIdent, TableSummary.FOREIGN_TABLE_TYPE),
               TableSummary.of(sessionViewIdent, TableSummary.VIEW_TABLE_TYPE)
             });
-    when(((ViewCatalog) sessionCatalog).listViews(namespace))
+    when(sessionViewCatalog.listViews(namespace))
         .thenReturn(new Identifier[] {sharedViewIdent, sessionViewIdent});
 
     TableCatalog icebergCatalog =
         mock(TableCatalog.class, withSettings().extraInterfaces(ViewCatalog.class));
-    when(((ViewCatalog) icebergCatalog).listViews(namespace))
+    ViewCatalog icebergViewCatalog = (ViewCatalog) icebergCatalog;
+    when(icebergViewCatalog.listViews(namespace))
         .thenReturn(new Identifier[] {sharedViewIdent, icebergViewIdent});
 
     SparkSessionCatalog<?> catalog = new CatalogWithIcebergViews<>(icebergCatalog);
@@ -182,6 +201,8 @@ public class TestSparkSessionCatalog extends TestBase {
         .singleElement()
         .extracting(TableSummary::tableType)
         .isEqualTo(TableSummary.VIEW_TABLE_TYPE);
+    verify(sessionViewCatalog, never()).loadView(any());
+    verify(icebergViewCatalog, never()).loadView(any());
   }
 
   @Test

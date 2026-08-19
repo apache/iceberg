@@ -30,6 +30,7 @@ import org.apache.spark.sql.connector.catalog.SupportsWrite;
 import org.apache.spark.sql.connector.catalog.Table;
 import org.apache.spark.sql.connector.catalog.TableCapability;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
+import org.apache.spark.sql.connector.catalog.TruncatableTable;
 import org.apache.spark.sql.connector.expressions.Transform;
 import org.apache.spark.sql.connector.expressions.filter.Predicate;
 import org.apache.spark.sql.connector.metric.CustomTaskMetric;
@@ -85,6 +86,12 @@ public class RollbackStagedTable
   // StagedTable and TruncatableTable.
   @Override
   public CustomTaskMetric[] reportDriverMetrics() {
+    if (table instanceof StagedTable) {
+      return ((StagedTable) table).reportDriverMetrics();
+    } else if (table instanceof TruncatableTable) {
+      return ((TruncatableTable) table).reportDriverMetrics();
+    }
+
     return new CustomTaskMetric[0];
   }
 

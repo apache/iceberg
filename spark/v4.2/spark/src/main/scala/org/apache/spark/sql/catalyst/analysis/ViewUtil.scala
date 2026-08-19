@@ -18,10 +18,10 @@
  */
 package org.apache.spark.sql.catalyst.analysis
 
-import org.apache.iceberg.catalog.{ViewCatalog => IcebergViewCatalog}
 import org.apache.iceberg.spark.Spark3Util
 import org.apache.iceberg.spark.source.HasIcebergCatalog
 import org.apache.iceberg.spark.source.SparkView
+import org.apache.iceberg.view.{View => IcebergView}
 import org.apache.spark.sql.connector.catalog.CatalogPlugin
 import org.apache.spark.sql.connector.catalog.Identifier
 import org.apache.spark.sql.connector.catalog.TableCatalog
@@ -62,11 +62,13 @@ object ViewUtil {
     case _ => None
   }
 
-  def icebergViewCatalog(catalog: CatalogPlugin, ident: Identifier): Option[IcebergViewCatalog] =
+  def loadIcebergView(catalog: CatalogPlugin, ident: Identifier): Option[IcebergView] =
     catalog match {
       case catalogWithIceberg: HasIcebergCatalog =>
+        val icebergIdent = catalogWithIceberg.icebergIdentifier(ident)
         Option(catalogWithIceberg.icebergViewCatalog())
-          .filter(_.viewExists(Spark3Util.identifierToTableIdentifier(ident)))
+          .filter(_.viewExists(icebergIdent))
+          .map(_.loadView(icebergIdent))
       case _ =>
         None
     }

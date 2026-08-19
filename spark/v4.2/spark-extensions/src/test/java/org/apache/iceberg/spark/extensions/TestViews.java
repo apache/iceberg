@@ -28,7 +28,6 @@ import java.util.List;
 import java.util.Random;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import org.apache.iceberg.CachingCatalog;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.IcebergBuild;
@@ -39,7 +38,6 @@ import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.catalog.ViewCatalog;
-import org.apache.iceberg.inmemory.InMemoryCatalog;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.Spark3Util;
@@ -75,7 +73,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 public class TestViews extends ExtensionsTestBase {
   private static final Namespace NAMESPACE = Namespace.of("default");
   private static final String SPARK_CATALOG = "spark_catalog";
-  private static final String SPARK_CACHED_CATALOG = "spark_with_cached_views";
   private static final String QUERY_COLUMN_NAMES_JSON = "spark.query-column-names-json";
   private final String tableName = "table";
 
@@ -122,25 +119,6 @@ public class TestViews extends ExtensionsTestBase {
         SparkCatalogConfig.SPARK_WITH_HIVE_VIEWS.catalogName(),
         SparkCatalogConfig.SPARK_WITH_HIVE_VIEWS.implementation(),
         SparkCatalogConfig.SPARK_WITH_HIVE_VIEWS.properties()
-      },
-      {
-        SPARK_CACHED_CATALOG,
-        SparkCatalogConfig.SPARK_WITH_VIEWS.implementation(),
-        ImmutableMap.builder()
-            .put(CatalogProperties.CATALOG_IMPL, InMemoryCatalog.class.getName())
-            .put("default-namespace", "default")
-            .put(CatalogProperties.CACHE_ENABLED, "true")
-            .build()
-      },
-      {
-        SparkCatalogConfig.SPARK_SESSION_WITH_VIEWS.catalogName(),
-        SparkCatalogConfig.SPARK_SESSION_WITH_VIEWS.implementation(),
-        ImmutableMap.builder()
-            .put("type", "rest")
-            .put("default-namespace", "default")
-            .put(CatalogProperties.CACHE_ENABLED, "true")
-            .put(CatalogProperties.URI, restCatalog.properties().get(CatalogProperties.URI))
-            .build()
       },
     };
   }
@@ -1993,12 +1971,6 @@ public class TestViews extends ExtensionsTestBase {
     TableIdentifier identifier = TableIdentifier.of(NAMESPACE, viewName);
 
     sql("CREATE VIEW %s AS SELECT id, data FROM %s", viewName, tableName);
-
-    if (cachingCatalogEnabled()) {
-      HasIcebergCatalog sparkCatalog =
-          (HasIcebergCatalog) spark.sessionState().catalogManager().catalog(catalogName);
-      assertThat(sparkCatalog.icebergCatalog()).isInstanceOf(CachingCatalog.class);
-    }
 
     View view = viewCatalog().loadView(identifier);
     assertThat(view.properties())

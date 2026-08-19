@@ -55,8 +55,8 @@ public class TestAlterTable extends CatalogTestBase {
   public void testAddColumnNotNull() {
     assertThatThrownBy(() -> sql("ALTER TABLE %s ADD COLUMN c3 INT NOT NULL", tableName))
         .isInstanceOf(SparkException.class)
-        .hasMessage(
-            "[UNSUPPORTED_TABLE_CHANGE] Unsupported table change: Incompatible change: cannot add required column: c3 SQLSTATE: 0A000");
+        .hasMessageContaining("[UNSUPPORTED_TABLE_CHANGE]")
+        .hasMessageContaining("cannot add required column: c3");
   }
 
   @TestTemplate

@@ -56,6 +56,7 @@ import org.apache.iceberg.types.Types;
 import org.apache.parquet.hadoop.ParquetWriter;
 import org.apache.parquet.hadoop.api.WriteSupport;
 import org.apache.parquet.hadoop.util.HadoopOutputFile;
+import org.apache.spark.SparkIllegalArgumentException;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.util.STUtils;
 import org.apache.spark.sql.types.DataTypes;
@@ -156,6 +157,40 @@ public class TestSparkParquetReader extends AvroDataTestBase {
     assertThat(STUtils.stGeogSrid(geography)).isEqualTo(4326);
     assertThat(STUtils.stGeomAsBinary(geometry)).isEqualTo(geomWkb);
     assertThat(STUtils.stGeogAsBinary(geography)).isEqualTo(geogWkb);
+  }
+
+  @Test
+  public void rejectsUnsupportedGeometryWkb() throws IOException {
+    byte[] unsupportedWkb =
+        ByteBuffer.allocate(5).order(ByteOrder.LITTLE_ENDIAN).put((byte) 1).putInt(8).array();
+    assertInvalidWkbRejected(
+        required(1, "geom", Types.GeometryType.of("EPSG:3857")), unsupportedWkb);
+  }
+
+  @Test
+  public void rejectsOutOfBoundsGeographyWkb() throws IOException {
+    assertInvalidWkbRejected(
+        required(1, "geog", Types.GeographyType.crs84()), pointWkb(181.0, 91.0));
+  }
+
+  private void assertInvalidWkbRejected(Types.NestedField field, byte[] invalidWkb)
+      throws IOException {
+    Schema schema = new Schema(field);
+    GenericRecord record = GenericRecord.create(schema);
+    record.set(0, ByteBuffer.wrap(invalidWkb));
+
+    OutputFile output = new InMemoryOutputFile();
+    try (FileAppender<Record> writer =
+        Parquet.write(output)
+            .schema(schema)
+            .createWriterFunc(GenericParquetWriter::create)
+            .build()) {
+      writer.add(record);
+    }
+
+    assertThatThrownBy(() -> rowsFromFile(output.toInputFile(), schema))
+        .isInstanceOf(SparkIllegalArgumentException.class)
+        .hasMessageContaining("[WKB_PARSE_ERROR]");
   }
 
   private static byte[] pointWkb(double xCoordinate, double yCoordinate) {

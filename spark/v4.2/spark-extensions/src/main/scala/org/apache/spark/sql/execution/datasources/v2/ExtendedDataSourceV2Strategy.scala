@@ -131,7 +131,7 @@ case class ExtendedDataSourceV2Strategy(spark: SparkSession) extends Strategy wi
         throw new IcebergAnalysisException(
           s"Cannot move view between catalogs: from=${oldCatalog.name} and to=${newIdent.catalog().name()}")
       }
-      RenameV2ViewExec(oldCatalog, oldIdent, newIdent.identifier()) :: Nil
+      IcebergRenameV2ViewExec(oldCatalog, oldIdent, newIdent.identifier()) :: Nil
 
     case DropIcebergView(ResolvedIdentifier(viewCatalog: ViewCatalog, ident), ifExists) =>
       DropV2ViewExec(viewCatalog, ident, ifExists) :: Nil

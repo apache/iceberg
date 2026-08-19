@@ -487,7 +487,7 @@ public class SparkParquetWriters {
     }
   }
 
-  private abstract static class GeospatialWriter<T> extends PrimitiveWriter<T> {
+  private abstract static class GeospatialWriter extends PrimitiveWriter<BinaryView> {
     private final ValueSizeFieldMetrics.Builder metricsBuilder;
 
     private GeospatialWriter(ColumnDescriptor desc) {
@@ -497,7 +497,7 @@ public class SparkParquetWriters {
     }
 
     @Override
-    public void write(int repetitionLevel, T value) {
+    public void write(int repetitionLevel, BinaryView value) {
       byte[] wkb = toWkb(value);
       metricsBuilder.addValueSize(wkb.length);
       column.writeBinary(repetitionLevel, Binary.fromReusedByteArray(wkb));
@@ -508,30 +508,22 @@ public class SparkParquetWriters {
       return Stream.of(metricsBuilder.build());
     }
 
-    protected abstract byte[] toWkb(T value);
+    private byte[] toWkb(BinaryView value) {
+      // Slice off Spark's SRID header to preserve the original WKB bytes. STUtils.stGeomAsBinary
+      // and stGeogAsBinary would re-encode the value using little-endian byte order.
+      return value.slice(Integer.BYTES, value.numBytes() - Integer.BYTES).getBytes();
+    }
   }
 
-  private static class GeometryWriter extends GeospatialWriter<BinaryView> {
+  private static class GeometryWriter extends GeospatialWriter {
     private GeometryWriter(ColumnDescriptor desc) {
       super(desc);
     }
-
-    @Override
-    protected byte[] toWkb(BinaryView value) {
-      // Strip Spark's physical SRID representation before writing WKB to Parquet.
-      return value.slice(Integer.BYTES, value.numBytes() - Integer.BYTES).getBytes();
-    }
   }
 
-  private static class GeographyWriter extends GeospatialWriter<BinaryView> {
+  private static class GeographyWriter extends GeospatialWriter {
     private GeographyWriter(ColumnDescriptor desc) {
       super(desc);
-    }
-
-    @Override
-    protected byte[] toWkb(BinaryView value) {
-      // Strip Spark's physical SRID representation before writing WKB to Parquet.
-      return value.slice(Integer.BYTES, value.numBytes() - Integer.BYTES).getBytes();
     }
   }
 

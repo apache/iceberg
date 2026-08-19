@@ -97,6 +97,8 @@ object CheckViews extends (LogicalPlan => Unit) {
         plan.children.foreach(child => checkCyclicViewReference(viewIdent, child, cyclePath))
     }
 
+    // Spark's helper only matches a SubqueryExpression at the root of each expression. Walk the
+    // complete expression tree so cycles in predicates and other nested expressions are detected.
     plan.expressions.flatMap(_.flatMap {
       case e: SubqueryExpression =>
         checkCyclicViewReference(viewIdent, e.plan, cyclePath)

@@ -630,20 +630,19 @@ public class SparkCatalog extends BaseCatalog {
           "View operations are not supported by catalog: " + catalogName);
     }
 
-    View normalizedView = normalizeViewCurrentCatalog(catalogName, view);
-    String[] currentNamespace = normalizedView.currentNamespace();
-    Map<String, String> properties = normalizedView.properties();
-    Schema icebergSchema = SparkSchemaUtil.convert(normalizedView.schema());
-    Map<String, String> props = ViewUtil.createProperties(normalizedView);
+    String[] currentNamespace = view.currentNamespace();
+    Map<String, String> properties = view.properties();
+    Schema icebergSchema = SparkSchemaUtil.convert(view.schema());
+    Map<String, String> props = ViewUtil.createProperties(view);
     TableIdentifier viewIdentifier = buildIdentifier(ident);
 
     try {
       ViewBuilder builder =
           asViewCatalog
               .buildView(viewIdentifier)
-              .withDefaultCatalog(normalizedView.currentCatalog())
+              .withDefaultCatalog(view.currentCatalog())
               .withDefaultNamespace(Namespace.of(currentNamespace))
-              .withQuery("spark", normalizedView.queryText())
+              .withQuery("spark", view.queryText())
               .withSchema(icebergSchema)
               .withLocation(properties.get(TableCatalog.PROP_LOCATION))
               .withProperties(props);
@@ -746,7 +745,16 @@ public class SparkCatalog extends BaseCatalog {
     if (!removals.isEmpty()) {
       UpdateViewProperties update = view.updateProperties();
       removals.forEach(update::remove);
-      update.commit();
+      try {
+        update.commit();
+      } catch (RuntimeException e) {
+        // TODO: Remove this best-effort follow-up when ViewBuilder supports atomic removals.
+        LOG.warn(
+            "Failed to remove dropped properties {} from replaced view {}",
+            removals,
+            view.name(),
+            e);
+      }
     }
   }
 
@@ -1077,6 +1085,11 @@ public class SparkCatalog extends BaseCatalog {
   @Override
   public Catalog icebergCatalog() {
     return icebergCatalog;
+  }
+
+  @Override
+  public TableIdentifier icebergIdentifier(Identifier identifier) {
+    return buildIdentifier(identifier);
   }
 
   @Override
