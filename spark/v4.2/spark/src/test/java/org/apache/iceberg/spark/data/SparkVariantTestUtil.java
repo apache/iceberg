@@ -16,24 +16,25 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.spark.source.parquet;
+package org.apache.iceberg.spark.data;
 
-import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.spark.source.WritersBenchmark;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import org.apache.iceberg.variants.Variant;
+import org.apache.spark.unsafe.types.VariantVal;
 
-/**
- * A benchmark that evaluates the performance of various Iceberg writers for Parquet data.
- *
- * <p>To run this benchmark for spark-4.2: <code>
- *   ./gradlew -DsparkVersions=4.2 :iceberg-spark:iceberg-spark-4.2_2.13:jmh \
- *       -PjmhIncludeRegex=ParquetWritersBenchmark \
- *       -PjmhOutputPath=benchmark/parquet-writers-benchmark-result.txt
- * </code>
- */
-public class ParquetWritersBenchmark extends WritersBenchmark {
+final class SparkVariantTestUtil {
+  private SparkVariantTestUtil() {}
 
-  @Override
-  protected FileFormat fileFormat() {
-    return FileFormat.PARQUET;
+  static VariantVal toVariantVal(Variant variant) {
+    byte[] metadataBytes = new byte[variant.metadata().sizeInBytes()];
+    ByteBuffer metadataBuffer = ByteBuffer.wrap(metadataBytes).order(ByteOrder.LITTLE_ENDIAN);
+    variant.metadata().writeTo(metadataBuffer, 0);
+
+    byte[] valueBytes = new byte[variant.value().sizeInBytes()];
+    ByteBuffer valueBuffer = ByteBuffer.wrap(valueBytes).order(ByteOrder.LITTLE_ENDIAN);
+    variant.value().writeTo(valueBuffer, 0);
+
+    return new VariantVal(valueBytes, metadataBytes);
   }
 }

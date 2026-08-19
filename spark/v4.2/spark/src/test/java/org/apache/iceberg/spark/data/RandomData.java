@@ -20,7 +20,6 @@ package org.apache.iceberg.spark.data;
 
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -38,17 +37,19 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.RandomUtil;
-import org.apache.iceberg.variants.Variant;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
 import org.apache.spark.sql.catalyst.util.ArrayBasedMapData;
 import org.apache.spark.sql.catalyst.util.GenericArrayData;
 import org.apache.spark.sql.catalyst.util.STUtils;
 import org.apache.spark.sql.types.Decimal;
+import org.apache.spark.sql.types.GeographyType;
+import org.apache.spark.sql.types.GeometryType;
 import org.apache.spark.unsafe.types.UTF8String;
 import org.apache.spark.unsafe.types.VariantVal;
 
@@ -349,17 +350,7 @@ public class RandomData {
 
     @Override
     public VariantVal variant(Types.VariantType type) {
-      Variant variant = RandomVariants.randomVariant(random);
-
-      byte[] metadataBytes = new byte[variant.metadata().sizeInBytes()];
-      ByteBuffer metadataBuffer = ByteBuffer.wrap(metadataBytes).order(ByteOrder.LITTLE_ENDIAN);
-      variant.metadata().writeTo(metadataBuffer, 0);
-
-      byte[] valueBytes = new byte[variant.value().sizeInBytes()];
-      ByteBuffer valueBuffer = ByteBuffer.wrap(valueBytes).order(ByteOrder.LITTLE_ENDIAN);
-      variant.value().writeTo(valueBuffer, 0);
-
-      return new VariantVal(valueBytes, metadataBytes);
+      return SparkVariantTestUtil.toVariantVal(RandomVariants.randomVariant(random));
     }
 
     @Override
@@ -373,10 +364,11 @@ public class RandomData {
         case UUID:
           return UTF8String.fromString(UUID.nameUUIDFromBytes((byte[]) obj).toString());
         case GEOMETRY:
-          // Spark's GeometryVal is [SRID | WKB]; build it from the generated WKB.
-          return STUtils.stGeomFromWKB((byte[]) obj);
+          GeometryType geometryType = (GeometryType) SparkSchemaUtil.convert(primitive);
+          return STUtils.stGeomFromWKB((byte[]) obj, geometryType.srid());
         case GEOGRAPHY:
-          return STUtils.stGeogFromWKB((byte[]) obj);
+          GeographyType geographyType = (GeographyType) SparkSchemaUtil.convert(primitive);
+          return STUtils.stGeogFromWKB((byte[]) obj, geographyType.srid());
         default:
           return obj;
       }

@@ -19,6 +19,10 @@
 package org.apache.iceberg.spark.source;
 
 import org.apache.iceberg.catalog.Catalog;
+import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.catalog.ViewCatalog;
+import org.apache.iceberg.spark.Spark3Util;
+import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
 
 public interface HasIcebergCatalog extends TableCatalog {
@@ -27,4 +31,24 @@ public interface HasIcebergCatalog extends TableCatalog {
    * Returns the underlying {@link org.apache.iceberg.catalog.Catalog} backing this Spark Catalog
    */
   Catalog icebergCatalog();
+
+  /**
+   * Converts a Spark identifier to the identifier used by the underlying Iceberg catalog.
+   *
+   * @param identifier a Spark identifier
+   * @return the corresponding Iceberg identifier
+   */
+  default TableIdentifier icebergIdentifier(Identifier identifier) {
+    return Spark3Util.identifierToTableIdentifier(identifier);
+  }
+
+  /**
+   * Returns the underlying Iceberg view catalog backing this Spark Catalog.
+   *
+   * @return an Iceberg view catalog, or null if the catalog does not support views
+   */
+  default ViewCatalog icebergViewCatalog() {
+    Catalog catalog = icebergCatalog();
+    return catalog instanceof ViewCatalog ? (ViewCatalog) catalog : null;
+  }
 }

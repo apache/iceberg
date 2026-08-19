@@ -142,5 +142,10 @@ public class HoursFunction extends UnaryUnboundFunction {
     public Integer reduce(Integer hour) {
       return DateTimeUtil.hoursToDays(hour);
     }
+
+    @Override
+    public DataType resultType() {
+      return DataTypes.DateType;
+    }
   }
 }
