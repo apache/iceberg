@@ -119,11 +119,8 @@ class GeometryBoundsBuilder {
       throw new IllegalArgumentException("Invalid WKB byte order: " + order);
     }
 
-    try {
-      parseGeometryBody(buffer, expectedType);
-    } finally {
-      buffer.order(callerOrder);
-    }
+    parseGeometryBody(buffer, expectedType);
+    buffer.order(callerOrder);
   }
 
   private void parseGeometryBody(ByteBuffer buffer, int expectedType) {
