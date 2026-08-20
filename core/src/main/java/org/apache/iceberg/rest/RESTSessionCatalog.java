@@ -557,10 +557,17 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     }
 
     List<Credential> credentials = response.credentials();
+    RemoteSigningConfig remoteSigningConfig = response.remoteSigningConfig();
     RESTClient tableClient = client.withAuthSession(tableSession);
     Supplier<BaseTable> tableSupplier =
         createTableSupplier(
-            finalIdentifier, tableMetadata, context, tableClient, tableConf, credentials);
+            finalIdentifier,
+            tableMetadata,
+            context,
+            tableClient,
+            tableConf,
+            credentials,
+            remoteSigningConfig);
 
     String eTag = responseHeaders.getOrDefault(HttpHeaders.ETAG, null);
     if (eTag != null) {
@@ -580,7 +587,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       SessionContext context,
       RESTClient tableClient,
       Map<String, String> tableConf,
-      List<Credential> credentials) {
+      List<Credential> credentials,
+      RemoteSigningConfig remoteSigningConfig) {
     return () -> {
       RESTTableOperations ops =
           newTableOps(
@@ -588,7 +596,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
               paths.table(identifier),
               Map::of,
               mutationHeaders,
-              tableFileIO(context, tableConf, credentials),
+              tableFileIO(identifier, context, tableConf, credentials, remoteSigningConfig),
               tableMetadata,
               endpoints);
 
@@ -734,7 +742,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
             paths.table(ident),
             Map::of,
             mutationHeaders,
-            tableFileIO(context, tableConf, response.credentials()),
+            tableFileIO(
+                ident, context, tableConf, response.credentials(), response.remoteSigningConfig()),
             response.tableMetadata(),
             endpoints);
 
@@ -1003,7 +1012,12 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
               paths.table(ident),
               Map::of,
               mutationHeaders,
-              tableFileIO(context, tableConf, response.credentials()),
+              tableFileIO(
+                  ident,
+                  context,
+                  tableConf,
+                  response.credentials(),
+                  response.remoteSigningConfig()),
               response.tableMetadata(),
               endpoints);
 
@@ -1036,7 +1050,12 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
               paths.table(ident),
               Map::of,
               mutationHeaders,
-              tableFileIO(context, tableConf, response.credentials()),
+              tableFileIO(
+                  ident,
+                  context,
+                  tableConf,
+                  response.credentials(),
+                  response.remoteSigningConfig()),
               RESTTableOperations.UpdateType.CREATE,
               createChanges(meta),
               meta,
@@ -1101,7 +1120,12 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
               paths.table(ident),
               Map::of,
               mutationHeaders,
-              tableFileIO(context, tableConf, response.credentials()),
+              tableFileIO(
+                  ident,
+                  context,
+                  tableConf,
+                  response.credentials(),
+                  response.remoteSigningConfig()),
               RESTTableOperations.UpdateType.REPLACE,
               changes.build(),
               base,
@@ -1227,14 +1251,35 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   }
 
   private FileIO tableFileIO(
-      SessionContext context, Map<String, String> config, List<Credential> storageCredentials) {
-    if (config.isEmpty() && ioBuilder == null && storageCredentials.isEmpty()) {
-      return io; // reuse client and io since config/credentials are the same
+      TableIdentifier tableIdentifier,
+      SessionContext context,
+      Map<String, String> tableConf,
+      List<Credential> storageCredentials,
+      RemoteSigningConfig remoteSigningConfig) {
+
+    boolean canReuseCatalogIO =
+        tableConf.isEmpty()
+            && ioBuilder == null
+            && storageCredentials.isEmpty()
+            && remoteSigningConfig.isEmpty();
+
+    if (canReuseCatalogIO) {
+      return io;
     }
 
-    Map<String, String> fullConf = RESTUtil.merge(properties(), config);
+    ImmutableMap.Builder<String, String> fullConf =
+        ImmutableMap.<String, String>builder()
+            .putAll(properties())
+            .putAll(tableConf)
+            .put(RESTCatalogProperties.REMOTE_SIGNING_ENDPOINT, paths.remoteSign(tableIdentifier));
 
-    return newFileIO(context, fullConf, storageCredentials);
+    if (!remoteSigningConfig.isEmpty()) {
+      fullConf.put(
+          RESTCatalogProperties.REMOTE_SIGNING_CONFIG,
+          RemoteSigningConfigParser.toJson(remoteSigningConfig));
+    }
+
+    return newFileIO(context, fullConf.buildKeepingLast(), storageCredentials);
   }
 
   /**
