@@ -18,9 +18,15 @@
  */
 package org.apache.iceberg.rest;
 
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
+import org.apache.iceberg.ImmutableFieldLabels;
+import org.apache.iceberg.ImmutableLabels;
+import org.apache.iceberg.Labels;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.aws.s3.S3FileIOProperties;
 import org.apache.iceberg.azure.AzureProperties;
 import org.apache.iceberg.gcp.GCPProperties;
@@ -29,12 +35,21 @@ import org.apache.iceberg.rest.RESTCatalogServer.CatalogContext;
 import org.apache.iceberg.rest.credentials.Credential;
 import org.apache.iceberg.rest.credentials.ImmutableCredential;
 import org.apache.iceberg.rest.responses.FetchPlanningResultResponse;
+import org.apache.iceberg.rest.responses.ImmutableLoadViewResponse;
 import org.apache.iceberg.rest.responses.LoadTableResponse;
+import org.apache.iceberg.rest.responses.LoadViewResponse;
 import org.apache.iceberg.rest.responses.PlanTableScanResponse;
 import org.apache.iceberg.util.PropertyUtil;
 
 class RESTServerCatalogAdapter extends RESTCatalogAdapter {
   private static final String INCLUDE_CREDENTIALS = "include-credentials";
+  private static final String INCLUDE_LABELS = "include-labels";
+
+  private static final String CATALOG_NAME_LABEL = "catalog-name";
+  private static final String CATALOG_HOST_LABEL = "catalog-host";
+  private static final String CLASSIFICATION_LABEL = "classification";
+
+  private static final String HOSTNAME = hostname();
 
   private final CatalogContext catalogContext;
 
@@ -80,7 +95,68 @@ class RESTServerCatalogAdapter extends RESTCatalogAdapter {
       }
     }
 
+    if (PropertyUtil.propertyAsBoolean(catalogContext.configuration(), INCLUDE_LABELS, false)) {
+      if (restResponse instanceof LoadTableResponse response) {
+        // rebuild because labels can only be set through the builder. this preserves the metadata
+        // as it was produced by the handler, including any snapshot suppression already applied.
+        return (T)
+            LoadTableResponse.builder()
+                .withTableMetadata(response.tableMetadata())
+                .addAllConfig(response.config())
+                .addAllCredentials(response.credentials())
+                .withLabels(labels(response.tableMetadata().schema()))
+                .build();
+      } else if (restResponse instanceof LoadViewResponse response) {
+        return (T)
+            ImmutableLoadViewResponse.builder()
+                .from(response)
+                .labels(labels(response.metadata().schema()))
+                .build();
+      }
+    }
+
     return restResponse;
+  }
+
+  /**
+   * Produces labels derived from the catalog and the server environment.
+   *
+   * <p>These values carry no meaning beyond exercising the labels read path end-to-end: they let
+   * clients verify that object-level and field-level labels survive a round trip over the wire.
+   */
+  private Labels labels(Schema schema) {
+    ImmutableLabels.Builder labels =
+        ImmutableLabels.builder()
+            .putObjectLabels(
+                CATALOG_NAME_LABEL,
+                PropertyUtil.propertyAsString(
+                    catalogContext.configuration(),
+                    RESTCatalogServer.CATALOG_NAME,
+                    RESTCatalogServer.CATALOG_NAME_DEFAULT));
+
+    if (null != HOSTNAME) {
+      labels.putObjectLabels(CATALOG_HOST_LABEL, HOSTNAME);
+    }
+
+    // label the first column so that field-level labels are covered without assuming a schema
+    if (!schema.columns().isEmpty()) {
+      labels.addFields(
+          ImmutableFieldLabels.builder()
+              .fieldId(schema.columns().get(0).fieldId())
+              .putLabels(CLASSIFICATION_LABEL, "public")
+              .build());
+    }
+
+    return labels.build();
+  }
+
+  private static String hostname() {
+    try {
+      return InetAddress.getLocalHost().getHostName();
+    } catch (UnknownHostException e) {
+      // the hostname is not resolvable in all environments, so it is simply omitted
+      return null;
+    }
   }
 
   private void applyCredentials(
