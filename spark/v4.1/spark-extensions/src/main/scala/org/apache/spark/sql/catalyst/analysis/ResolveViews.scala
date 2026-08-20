@@ -18,10 +18,12 @@
  */
 package org.apache.spark.sql.catalyst.analysis
 
+import org.apache.iceberg.spark.SparkSQLProperties
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.FunctionIdentifier
 import org.apache.spark.sql.catalyst.analysis.ViewUtil.IcebergViewHelper
 import org.apache.spark.sql.catalyst.expressions.Alias
+import org.apache.spark.sql.catalyst.expressions.Cast
 import org.apache.spark.sql.catalyst.expressions.SubqueryExpression
 import org.apache.spark.sql.catalyst.expressions.UpCast
 import org.apache.spark.sql.catalyst.parser.ParseException
@@ -111,14 +113,48 @@ case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with Look
 
     // Apply the field aliases and column comments
     // This logic differs from how Spark handles views in SessionCatalog.fromCatalogTable.
-    // This is more strict because it doesn't allow resolution by field name.
+    // BINDING is more strict because it doesn't allow resolution by field name. Every mode keeps
+    // the stored name and metadata; only the coercion differs.
+    val mode = viewSchemaMode
     val aliases = view.schema.fields.zipWithIndex.map { case (expected, pos) =>
       val attr = GetColumnByOrdinal(pos, expected.dataType)
-      Alias(UpCast(attr, expected.dataType), expected.name)(explicitMetadata =
-        Some(expected.metadata))
+      val coerced =
+        if (mode == SparkSQLProperties.VIEW_SCHEMA_MODE_COMPENSATION) {
+          Cast(attr, expected.dataType, ansiEnabled = true)
+        } else if (mode == SparkSQLProperties.VIEW_SCHEMA_MODE_TYPE_EVOLUTION) {
+          attr
+        } else {
+          UpCast(attr, expected.dataType)
+        }
+      Alias(coerced, expected.name)(explicitMetadata = Some(expected.metadata))
     }.toIndexedSeq
 
     SubqueryAlias(nameParts, Project(aliases, rewritten))
+  }
+
+  // Read on every resolution rather than cached, so that SET takes effect within a session.
+  private def viewSchemaMode: String =
+    parseSchemaBindingMode(
+      conf.getConfString(
+        SparkSQLProperties.VIEW_SCHEMA_BINDING_MODE,
+        SparkSQLProperties.VIEW_SCHEMA_MODE_BINDING))
+
+  // Spark spells this mode "TYPE EVOLUTION" in its WITH SCHEMA clause, so a space is accepted too.
+  private def parseSchemaBindingMode(mode: String): String = {
+    val normalized = mode.trim.replace(' ', '_')
+    if (normalized.equalsIgnoreCase(SparkSQLProperties.VIEW_SCHEMA_MODE_BINDING)) {
+      SparkSQLProperties.VIEW_SCHEMA_MODE_BINDING
+    } else if (normalized.equalsIgnoreCase(SparkSQLProperties.VIEW_SCHEMA_MODE_COMPENSATION)) {
+      SparkSQLProperties.VIEW_SCHEMA_MODE_COMPENSATION
+    } else if (normalized.equalsIgnoreCase(SparkSQLProperties.VIEW_SCHEMA_MODE_TYPE_EVOLUTION)) {
+      SparkSQLProperties.VIEW_SCHEMA_MODE_TYPE_EVOLUTION
+    } else {
+      throw new IllegalArgumentException(
+        s"Invalid value for ${SparkSQLProperties.VIEW_SCHEMA_BINDING_MODE}: $mode, expected " +
+          s"${SparkSQLProperties.VIEW_SCHEMA_MODE_BINDING}, " +
+          s"${SparkSQLProperties.VIEW_SCHEMA_MODE_COMPENSATION} or " +
+          s"${SparkSQLProperties.VIEW_SCHEMA_MODE_TYPE_EVOLUTION}")
+    }
   }
 
   private def parseViewText(name: String, viewText: String): LogicalPlan = {
