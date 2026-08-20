@@ -43,7 +43,8 @@ public final class RESTCatalogProperties {
   public static final String PAGE_SIZE = "rest-page-size";
 
   public static final String NAMESPACE_SEPARATOR = "namespace-separator";
-  public static final String NAMESPACE_SEPARATOR_DEFAULT = "%1F";
+  public static final String NAMESPACE_SEPARATOR_DEFAULT =
+      RESTUtil.NAMESPACE_SEPARATOR_URLENCODED_UTF_8;
 
   // Configure scan planning mode
   // Can be set by server in LoadTableResponse.config() for table-level override
@@ -100,7 +101,7 @@ public final class RESTCatalogProperties {
    * The base URI of the remote signer endpoint. Optional, defaults to {@link
    * CatalogProperties#URI}.
    *
-   * @deprecated Will be removed in 1.13; there is no replacement.
+   * @deprecated since 1.12.0, will be removed in 1.13.0; there is no replacement
    */
   @Deprecated public static final String SIGNER_URI = "signer.uri";
 
@@ -108,7 +109,7 @@ public final class RESTCatalogProperties {
    * The endpoint path of the remote signer endpoint. If remote signing has been requested, this
    * must be set.
    *
-   * @deprecated Will be removed in 1.13; there is no replacement.
+   * @deprecated since 1.12.0, will be removed in 1.13.0; there is no replacement
    */
   @Deprecated public static final String SIGNER_ENDPOINT = "signer.endpoint";
 
@@ -119,8 +120,8 @@ public final class RESTCatalogProperties {
    * <p>This property is automatically set by the REST catalog client when creating table-scoped
    * FileIO instances, and is intended for consumption by remote request signers.
    *
-   * <p>It is not intended for user-facing configuration, and may be removed or changed in future
-   * releases without notice.
+   * <p>Even if it's public, this field is not intended for user-facing configuration, and may be
+   * removed or changed in future releases without notice.
    */
   public static final String REMOTE_SIGNING_ENDPOINT = "rest.remote-signing.endpoint";
 
@@ -130,8 +131,8 @@ public final class RESTCatalogProperties {
    * <p>This property is automatically set by the REST catalog client when creating table-scoped
    * FileIO instances, and is intended for consumption by remote request signers.
    *
-   * <p>It is not intended for user-facing configuration, and may be removed or changed in future
-   * releases without notice.
+   * <p>Even if it's public, this field is not intended for user-facing configuration, and may be
+   * removed or changed in future releases without notice.
    */
   public static final String REMOTE_SIGNING_CONFIG = "rest.remote-signing.config";
 }

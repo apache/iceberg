@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.rest.signing;
+package org.apache.iceberg.rest;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -25,9 +25,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import org.apache.iceberg.rest.ImmutableRemoteSigningConfig;
-import org.apache.iceberg.rest.RemoteSigningConfig;
-import org.apache.iceberg.rest.RemoteSigningConfigParser;
 import org.junit.jupiter.api.Test;
 
 class TestRemoteSigningConfigParser {
