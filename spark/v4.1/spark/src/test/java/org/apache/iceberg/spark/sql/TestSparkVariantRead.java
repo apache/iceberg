@@ -509,6 +509,55 @@ public class TestSparkVariantRead extends TestBase {
     sql("DROP TABLE IF EXISTS %s", noStatsTable);
   }
 
+  @ParameterizedTest
+  @ValueSource(strings = {"none", "counts"})
+  public void testReadShreddedViaSessionConfWithoutTableProperty(String writeMetricsMode)
+      throws IOException, NoSuchTableException, ParseException {
+    // Shredding enabled through the session conf leaves the table property false, and metrics off
+    // leaves the file with no variant bound; the shredded file must still read correctly.
+    String sessionShredTable = CATALOG + ".default.var_session_shred";
+    sql("DROP TABLE IF EXISTS %s", sessionShredTable);
+    sql(
+        "CREATE TABLE %s (id BIGINT, v VARIANT) USING iceberg "
+            + "TBLPROPERTIES ('format-version'='3', 'write.metadata.metrics.default'='%s')",
+        sessionShredTable, writeMetricsMode);
+
+    spark.conf().set("spark.sql.iceberg.shred-variants", "true");
+    try {
+      sql(
+          "INSERT INTO %s VALUES "
+              + "(1, parse_json('{\"name\":\"alice\",\"age\":30}')), "
+              + "(2, parse_json('{\"name\":\"bob\",\"age\":25}'))",
+          sessionShredTable);
+    } finally {
+      spark.conf().unset("spark.sql.iceberg.shred-variants");
+    }
+
+    Table table = Spark3Util.loadIcebergTable(spark, sessionShredTable);
+    assertThat(table.properties()).doesNotContainKey("write.parquet.shred-variants");
+    assertHasTypedValueSubtree(table);
+
+    sql(
+        "ALTER TABLE %s SET TBLPROPERTIES ('write.metadata.metrics.default'='full')",
+        sessionShredTable);
+    setVectorization(sessionShredTable, true);
+
+    List<Row> rows = spark.table(sessionShredTable).select("id", "v").orderBy("id").collectAsList();
+    assertThat(rows).hasSize(2);
+    Variant v1 =
+        new Variant(
+            ((VariantVal) rows.get(0).get(1)).getValue(),
+            ((VariantVal) rows.get(0).get(1)).getMetadata());
+    assertThat(v1.getFieldByKey("name").getString()).isEqualTo("alice");
+    Variant v2 =
+        new Variant(
+            ((VariantVal) rows.get(1).get(1)).getValue(),
+            ((VariantVal) rows.get(1).get(1)).getMetadata());
+    assertThat(v2.getFieldByKey("name").getString()).isEqualTo("bob");
+
+    sql("DROP TABLE IF EXISTS %s", sessionShredTable);
+  }
+
   private void setVectorization(boolean on) {
     sql(
         "ALTER TABLE %s SET TBLPROPERTIES ('read.parquet.vectorization.enabled'='%s')",
