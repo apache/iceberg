@@ -56,14 +56,16 @@ class CatalogConfig(BaseModel):
     )
     endpoints: list[str] | None = Field(
         None,
-        description='A list of endpoints that the server supports. The format of each endpoint must be "<HTTP verb> <resource path from OpenAPI REST spec>". The HTTP verb and the resource path must be separated by a space character.',
+        description='A list of endpoints that the server supports. The format of each endpoint must be "<HTTP verb> <resource path from OpenAPI REST spec>". The HTTP verb and the resource path must be separated by a space character. Table endpoints are available under `/v1` and `/v2`. Clients that understand format version 4 should prefer the `/v2` APIs when available.',
         examples=[
             [
                 'GET /v1/{prefix}/namespaces/{namespace}',
                 'GET /v1/{prefix}/namespaces',
                 'POST /v1/{prefix}/namespaces',
-                'GET /v1/{prefix}/namespaces/{namespace}/tables/{table}',
                 'GET /v1/{prefix}/namespaces/{namespace}/views/{view}',
+                'GET /v2/{prefix}/namespaces/{namespace}/tables/{table}',
+                'POST /v2/{prefix}/namespaces/{namespace}/tables/{table}',
+                'POST /v2/{prefix}/namespaces/{namespace}/register',
             ]
         ],
     )
@@ -330,6 +332,87 @@ class Summary(BaseModel):
     operation: Literal['append', 'replace', 'overwrite', 'delete']
 
 
+class SnapshotV21(BaseModel):
+    """
+    A snapshot of the table's contents at a point in time.
+
+
+    Format versions 1-3 use `manifest-list` and format version 4 uses `root-manifest`.
+
+    """
+
+    snapshot_id: int = Field(..., alias='snapshot-id')
+    parent_snapshot_id: int | None = Field(None, alias='parent-snapshot-id')
+    sequence_number: int | None = Field(None, alias='sequence-number')
+    timestamp_ms: int = Field(..., alias='timestamp-ms')
+    manifest_list: str = Field(
+        ...,
+        alias='manifest-list',
+        description="Location of the snapshot's manifest list file. Used for format versions 1-3 and must be absent for format version 4, which uses `root-manifest` instead.",
+    )
+    root_manifest: str | None = Field(
+        None,
+        alias='root-manifest',
+        description="Location of the snapshot's root manifest. Required for format version 4 and must be absent for format versions 1-3.",
+    )
+    first_row_id: int | None = Field(
+        None,
+        alias='first-row-id',
+        description='The first _row_id assigned to the first row in the first data file in the first manifest',
+    )
+    added_rows: int | None = Field(
+        None,
+        alias='added-rows',
+        description='The upper bound of the number of rows with assigned row IDs',
+    )
+    summary: Summary
+    schema_id: int | None = Field(None, alias='schema-id')
+
+
+class SnapshotV22(BaseModel):
+    """
+    A snapshot of the table's contents at a point in time.
+
+
+    Format versions 1-3 use `manifest-list` and format version 4 uses `root-manifest`.
+
+    """
+
+    snapshot_id: int = Field(..., alias='snapshot-id')
+    parent_snapshot_id: int | None = Field(None, alias='parent-snapshot-id')
+    sequence_number: int | None = Field(None, alias='sequence-number')
+    timestamp_ms: int = Field(..., alias='timestamp-ms')
+    manifest_list: str | None = Field(
+        None,
+        alias='manifest-list',
+        description="Location of the snapshot's manifest list file. Used for format versions 1-3 and must be absent for format version 4, which uses `root-manifest` instead.",
+    )
+    root_manifest: str = Field(
+        ...,
+        alias='root-manifest',
+        description="Location of the snapshot's root manifest. Required for format version 4 and must be absent for format versions 1-3.",
+    )
+    first_row_id: int | None = Field(
+        None,
+        alias='first-row-id',
+        description='The first _row_id assigned to the first row in the first data file in the first manifest',
+    )
+    added_rows: int | None = Field(
+        None,
+        alias='added-rows',
+        description='The upper bound of the number of rows with assigned row IDs',
+    )
+    summary: Summary
+    schema_id: int | None = Field(None, alias='schema-id')
+
+
+class SnapshotV2(RootModel[SnapshotV21 | SnapshotV22]):
+    root: SnapshotV21 | SnapshotV22 = Field(
+        ...,
+        description="A snapshot of the table's contents at a point in time.\n\n\nFormat versions 1-3 use `manifest-list` and format version 4 uses `root-manifest`.\n",
+    )
+
+
 class Snapshot(BaseModel):
     snapshot_id: int = Field(..., alias='snapshot-id')
     parent_snapshot_id: int | None = Field(None, alias='parent-snapshot-id')
@@ -470,7 +553,7 @@ class SetDefaultSortOrderUpdate(BaseUpdate):
 
 class AddSnapshotUpdate(BaseUpdate):
     action: Literal['add-snapshot']
-    snapshot: Snapshot
+    snapshot: SnapshotV2
 
 
 class SetSnapshotRefUpdate(BaseUpdate, SnapshotReference):
@@ -1649,6 +1732,41 @@ class Apply(BaseModel):
     arguments: list[FunctionArgument]
 
 
+class TableMetadataV2(BaseModel):
+    format_version: int = Field(..., alias='format-version', ge=1, le=4)
+    table_uuid: str = Field(..., alias='table-uuid')
+    location: str | None = Field(
+        None,
+        description="The table's base location. Required through format version 3, where it may be a path without a URI scheme; readers prepend a scheme for consistency with v4 absolute paths. Optional for format version 4, where the location may be managed externally and supplied by the catalog when the table is loaded, and where it must be an absolute path when present. See the `table-location` field of `LoadTableResult`.",
+    )
+    last_updated_ms: int | None = Field(None, alias='last-updated-ms')
+    next_row_id: int | None = Field(
+        None,
+        alias='next-row-id',
+        description="A long higher than all assigned row IDs; the next snapshot's first-row-id.",
+    )
+    properties: dict[str, str] | None = None
+    schemas: list[Schema] | None = None
+    current_schema_id: int | None = Field(None, alias='current-schema-id')
+    last_column_id: int | None = Field(None, alias='last-column-id')
+    partition_specs: list[PartitionSpec] | None = Field(None, alias='partition-specs')
+    default_spec_id: int | None = Field(None, alias='default-spec-id')
+    last_partition_id: int | None = Field(None, alias='last-partition-id')
+    sort_orders: list[SortOrder] | None = Field(None, alias='sort-orders')
+    default_sort_order_id: int | None = Field(None, alias='default-sort-order-id')
+    encryption_keys: list[EncryptedKey] | None = Field(None, alias='encryption-keys')
+    snapshots: list[SnapshotV2] | None = None
+    refs: SnapshotReferences | None = None
+    current_snapshot_id: int | None = Field(None, alias='current-snapshot-id')
+    last_sequence_number: int | None = Field(None, alias='last-sequence-number')
+    snapshot_log: SnapshotLog | None = Field(None, alias='snapshot-log')
+    metadata_log: MetadataLog | None = Field(None, alias='metadata-log')
+    statistics: list[StatisticsFile] | None = None
+    partition_statistics: list[PartitionStatisticsFile] | None = Field(
+        None, alias='partition-statistics'
+    )
+
+
 class TableMetadata(BaseModel):
     format_version: int = Field(..., alias='format-version', ge=1, le=3)
     table_uuid: str = Field(..., alias='table-uuid')
@@ -1700,6 +1818,100 @@ class AddSchemaUpdate(BaseUpdate):
         alias='last-column-id',
         deprecated=True,
         description="This optional field is **DEPRECATED for REMOVAL** since it more safe to handle this internally, and shouldn't be exposed to the clients.\nThe highest assigned column ID for the table. This is used to ensure columns are always assigned an unused ID when evolving schemas. When omitted, it will be computed on the server side.",
+    )
+
+
+class LoadTableResultV2(BaseModel):
+    """
+    Result used when a table is successfully loaded, for tables at any format version.
+
+
+    The table metadata JSON is returned in the `metadata` field.
+    The location of the table metadata file is returned in the `metadata-location` field when the table has one, and the table's base location in the `table-location` field.
+
+
+    ## Metadata location
+
+
+    The `metadata-location` field is optional.
+    It is absent when the metadata is staged but not committed, as in a create transaction, and when the table has no client-visible metadata location, as for a catalog-managed table where the catalog is the source of truth for table state and no metadata pointer need exist.
+
+
+    Clients must not require this field to be present, and must not use it to bypass the catalog for reads or commits.
+    To obtain a metadata location for a catalog-managed table, use the `unregisterTable` endpoint, which returns the table's last metadata location at the point the table leaves catalog control and further commits are rejected.
+
+
+    ## Table location
+
+
+    The `table-location` field carries the table's base location.
+    Format version 4 allows location fields in metadata to be relative, and such paths must be resolved against the table location.
+    Format version 4 also makes `metadata.location` optional, so a table may have metadata that contains relative paths and omits `location`.
+    Servers must populate `table-location` for any such table, because it cannot be read otherwise.
+
+
+    When both `metadata.location` and `table-location` are present, `table-location` takes precedence:
+    the catalog is authoritative for table state.
+
+
+    The `config` map returns table-specific configuration for the table's resources, including its HTTP client and FileIO. For example, config may contain a specific FileIO implementation class for the table depending on its underlying storage.
+
+
+    The following configurations should be respected by clients:
+
+    ## General Configurations
+
+    - `token`: Authorization bearer token to use for table requests if OAuth2 security is enabled
+    - `scan-planning-mode`: Communicates to clients the supported planning mode. Clients should use this value to fail fast if the supported scanning mode is not available on the client. Valid values:
+      - `client`: Clients MUST use client-side scan planning
+      - `server`: Clients MUST use server-side scan planning via the `planTableScan` endpoint
+
+    ## AWS Configurations
+
+    The following configurations should be respected when working with tables stored in AWS S3
+     - `client.region`: region to configure client for making requests to AWS
+     - `s3.access-key-id`: id for credentials that provide access to the data in S3
+     - `s3.secret-access-key`: secret for credentials that provide access to data in S3
+     - `s3.session-token`: if present, this value should be used for as the session token
+     - `s3.remote-signing-enabled`: if `true` remote signing should be performed as described in the `RemoteSignRequest` schema section of this spec document.
+     - `s3.cross-region-access-enabled`: if `true`, S3 Cross-Region bucket access is enabled
+
+    ## Storage Credentials
+
+    Credentials for ADLS / GCS / S3 / ... are provided through the `storage-credentials` field.
+    Clients must first check whether the respective credentials exist in the `storage-credentials` field before checking the `config` for credentials.
+
+    ## Remote Signing
+
+    If remote signing for a specific storage provider is enabled, the server SHOULD use the `remote-signing-config`
+    field to communicate all signer client settings. When the `remote-signing-config` field is present, clients
+    SHOULD respect the provided configuration.
+
+    For backward compatibility, the following `config` properties are still supported but **DEPRECATED** and SHOULD NOT be used by clients able to consume the remote signing configuration:
+     - `signer.endpoint` **DEPRECATED**.: the remote signer endpoint. Can either be a relative path (to be resolved against `signer.uri`) or an absolute URI.
+     - `signer.uri` **DEPRECATED**.: the base URI to resolve `signer.endpoint` against. Only meaningful if `signer.endpoint` is a relative path. Defaults to the catalog's base URI if not set.
+    If any of these properties is present, clients SHOULD use them to compute the actual remote signing endpoint URI to contact.
+    If none of these properties is present, clients SHOULD contact the default remote signing endpoint using the catalog's base URI.
+
+    """
+
+    metadata_location: str | None = Field(
+        None,
+        alias='metadata-location',
+        description='Location of the table metadata file. Absent when the metadata is staged but not committed, as in a create transaction, and when the table has no client-visible metadata location, as for a catalog-managed table where the catalog is the source of truth for table state.',
+    )
+    table_location: str | None = Field(
+        None,
+        alias='table-location',
+        description="The table's base location, used to resolve relative paths in metadata. Must be an absolute path with a URI scheme when present, and must be present when the returned metadata contains relative paths and omits `location`, because the metadata cannot be resolved otherwise. Takes precedence over `metadata.location`.",
+    )
+    metadata: TableMetadataV2
+    config: dict[str, str] | None = None
+    storage_credentials: list[StorageCredential] | None = Field(
+        None, alias='storage-credentials'
+    )
+    remote_signing_config: RemoteSigningConfig | None = Field(
+        None, alias='remote-signing-config'
     )
 
 
@@ -1829,6 +2041,24 @@ class CreateTableRequest(BaseModel):
     write_order: SortOrder | None = Field(None, alias='write-order')
     stage_create: bool | None = Field(None, alias='stage-create')
     properties: dict[str, str] | None = None
+
+
+class UnregisterTableResultV2(BaseModel):
+    """
+    Last metadata location and the corresponding table metadata for the table that was successfully unregistered and is no longer tracked by the catalog.
+    """
+
+    metadata_location: str = Field(
+        ...,
+        alias='metadata-location',
+        description='The last metadata location for the table at the time it was unregistered.',
+    )
+    table_location: str | None = Field(
+        None,
+        alias='table-location',
+        description="The table's base location, used to resolve relative paths in metadata. Must be an absolute path with a URI scheme when present, and must be present when the returned metadata contains relative paths and omits `location`, because the metadata cannot be resolved otherwise. Takes precedence over `metadata.location`.",
+    )
+    metadata: TableMetadataV2
 
 
 class UnregisterTableResult(BaseModel):
@@ -2023,6 +2253,28 @@ class FunctionStructField(BaseModel):
 
     name: str
     type: FunctionDataType
+
+
+class CommitTableResponseV2(BaseModel):
+    """
+    Result used when a table is successfully updated, for tables at any format version.
+
+
+    The `table-location` field carries the table's base location, so that a client can resolve relative paths in the returned metadata.
+
+    """
+
+    metadata_location: str | None = Field(
+        None,
+        alias='metadata-location',
+        description='Location of the committed table metadata file. Absent when the table has no client-visible metadata location, as for a catalog-managed table where the catalog is the source of truth for table state.',
+    )
+    table_location: str | None = Field(
+        None,
+        alias='table-location',
+        description="The table's base location, used to resolve relative paths in metadata. Must be an absolute path with a URI scheme when present, and must be present when the returned metadata contains relative paths and omits `location`, because the metadata cannot be resolved otherwise. Takes precedence over `metadata.location`.",
+    )
+    metadata: TableMetadataV2
 
 
 class CommitTableResponse(BaseModel):
@@ -2294,6 +2546,7 @@ UnaryPredicate.model_rebuild()
 ComparisonPredicate.model_rebuild()
 SetPredicate.model_rebuild()
 Apply.model_rebuild()
+TableMetadataV2.model_rebuild()
 TableMetadata.model_rebuild()
 ViewMetadata.model_rebuild()
 AddSchemaUpdate.model_rebuild()
