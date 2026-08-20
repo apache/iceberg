@@ -19,12 +19,21 @@
 package org.apache.iceberg;
 
 import java.util.List;
+import java.util.Map;
+import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.SnapshotUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class MetadataLogEntriesTable extends BaseMetadataTable {
+
+  private static final int PROPERTIES_FIELD_ID = 6;
+
+  private static final Logger LOG = LoggerFactory.getLogger(MetadataLogEntriesTable.class);
 
   private static final Schema METADATA_LOG_ENTRIES_SCHEMA =
       new Schema(
@@ -32,7 +41,11 @@ public class MetadataLogEntriesTable extends BaseMetadataTable {
           Types.NestedField.required(2, "file", Types.StringType.get()),
           Types.NestedField.optional(3, "latest_snapshot_id", Types.LongType.get()),
           Types.NestedField.optional(4, "latest_schema_id", Types.IntegerType.get()),
-          Types.NestedField.optional(5, "latest_sequence_number", Types.LongType.get()));
+          Types.NestedField.optional(5, "latest_sequence_number", Types.LongType.get()),
+          Types.NestedField.optional(
+              PROPERTIES_FIELD_ID,
+              "properties",
+              Types.MapType.ofRequired(7, 8, Types.StringType.get(), Types.StringType.get())));
 
   MetadataLogEntriesTable(Table table) {
     this(table, table.name() + ".metadata_log_entries");
@@ -64,13 +77,19 @@ public class MetadataLogEntriesTable extends BaseMetadataTable {
     metadataLogEntries.add(
         new TableMetadata.MetadataLogEntry(
             current.lastUpdatedMillis(), current.metadataFileLocation()));
+    FileIO io = table().io();
+    Schema projectedSchema = scan.schema();
+    boolean skipPropertiesLoad = projectedSchema.findField(PROPERTIES_FIELD_ID) == null;
     return StaticDataTask.of(
-        table().io().newInputFile(current.metadataFileLocation()),
+        io.newInputFile(current.metadataFileLocation()),
         schema(),
-        scan.schema(),
+        projectedSchema,
         metadataLogEntries,
         metadataLogEntry ->
-            MetadataLogEntriesTable.metadataLogEntryToRow(metadataLogEntry, table()));
+            MetadataLogEntriesTable.metadataLogEntryToRow(
+                metadataLogEntry,
+                table(),
+                tablePropertiesResolver(metadataLogEntry, io, current, skipPropertiesLoad)));
   }
 
   private class MetadataLogScan extends StaticTableScan {
@@ -103,7 +122,9 @@ public class MetadataLogEntriesTable extends BaseMetadataTable {
   }
 
   private static StaticDataTask.Row metadataLogEntryToRow(
-      TableMetadata.MetadataLogEntry metadataLogEntry, Table table) {
+      TableMetadata.MetadataLogEntry metadataLogEntry,
+      Table table,
+      Map<String, String> properties) {
     Long latestSnapshotId = null;
     Snapshot latestSnapshot = null;
     try {
@@ -119,6 +140,32 @@ public class MetadataLogEntriesTable extends BaseMetadataTable {
         // latest snapshot in this file corresponding to the log entry
         latestSnapshotId,
         latestSnapshot != null ? latestSnapshot.schemaId() : null,
-        latestSnapshot != null ? latestSnapshot.sequenceNumber() : null);
+        latestSnapshot != null ? latestSnapshot.sequenceNumber() : null,
+        properties);
+  }
+
+  private static Map<String, String> tablePropertiesResolver(
+      TableMetadata.MetadataLogEntry metadataLogEntry,
+      FileIO io,
+      TableMetadata current,
+      boolean skipPropertiesLoad) {
+
+    // Avoid loading metadata file when properties are not projected.
+    if (skipPropertiesLoad) {
+      return null;
+    }
+
+    // Reuse the already loaded current metadata.
+    if (metadataLogEntry.file().equals(current.metadataFileLocation())) {
+      return current.properties();
+    }
+
+    try {
+      return TableMetadataParser.read(io, metadataLogEntry.file()).properties();
+    } catch (NotFoundException e) {
+      LOG.warn(
+          "Metadata file {} was not found, setting properties to null", metadataLogEntry.file(), e);
+      return null;
+    }
   }
 }
