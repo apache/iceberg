@@ -644,19 +644,22 @@ public class TestMetadataTables extends ExtensionsTestBase {
                 metadataLogEntries.get(0).file(),
                 null,
                 null,
-                null),
+                null,
+                tableMetadata.properties()),
             row(
                 DateTimeUtils.toJavaTimestamp(metadataLogEntries.get(1).timestampMillis() * 1000),
                 metadataLogEntries.get(1).file(),
                 parentSnapshot.snapshotId(),
                 parentSnapshot.schemaId(),
-                parentSnapshot.sequenceNumber()),
+                parentSnapshot.sequenceNumber(),
+                tableMetadata.properties()),
             row(
                 DateTimeUtils.toJavaTimestamp(tableMetadata.lastUpdatedMillis() * 1000),
                 tableMetadata.metadataFileLocation(),
                 currentSnapshot.snapshotId(),
                 currentSnapshot.schemaId(),
-                currentSnapshot.sequenceNumber())),
+                currentSnapshot.sequenceNumber(),
+                tableMetadata.properties())),
         metadataLogs);
 
     // test filtering
@@ -675,7 +678,8 @@ public class TestMetadataTables extends ExtensionsTestBase {
                 tableMetadata.metadataFileLocation(),
                 tableMetadata.currentSnapshot().snapshotId(),
                 tableMetadata.currentSnapshot().schemaId(),
-                tableMetadata.currentSnapshot().sequenceNumber())),
+                tableMetadata.currentSnapshot().sequenceNumber(),
+                tableMetadata.properties())),
         metadataLogWithFilters);
 
     // test projection
@@ -978,7 +982,8 @@ public class TestMetadataTables extends ExtensionsTestBase {
             tableMetadata.metadataFileLocation(),
             null,
             null,
-            null);
+            null,
+            tableMetadata.properties());
 
     assertThat(sql("SELECT * FROM %s.metadata_log_entries", tableName)).containsExactly(firstEntry);
 
@@ -995,7 +1000,8 @@ public class TestMetadataTables extends ExtensionsTestBase {
             tableMetadata.metadataFileLocation(),
             currentSnapshot.snapshotId(),
             currentSnapshot.schemaId(),
-            currentSnapshot.sequenceNumber());
+            currentSnapshot.sequenceNumber(),
+            tableMetadata.properties());
 
     assertThat(sql("SELECT * FROM %s.metadata_log_entries", tableName))
         .containsExactly(firstEntry, secondEntry);
@@ -1013,7 +1019,8 @@ public class TestMetadataTables extends ExtensionsTestBase {
             tableMetadata.metadataFileLocation(),
             currentSnapshot.snapshotId(),
             currentSnapshot.schemaId(),
-            currentSnapshot.sequenceNumber());
+            currentSnapshot.sequenceNumber(),
+            tableMetadata.properties());
 
     assertThat(sql("SELECT * FROM %s.metadata_log_entries", tableName))
         .containsExactly(firstEntry, secondEntry, thirdEntry);
@@ -1042,7 +1049,8 @@ public class TestMetadataTables extends ExtensionsTestBase {
             tableMetadata.metadataFileLocation(),
             lastSnapshot.snapshotId(),
             lastSnapshot.schemaId(),
-            lastSnapshot.sequenceNumber());
+            lastSnapshot.sequenceNumber(),
+            tableMetadata.properties());
 
     assertThat(sql("SELECT * FROM %s.metadata_log_entries", tableName))
         .containsExactly(firstEntry, secondEntry, thirdEntry, fourthEntry);
@@ -1060,7 +1068,8 @@ public class TestMetadataTables extends ExtensionsTestBase {
             tableMetadata.metadataFileLocation(),
             currentSnapshot.snapshotId(),
             currentSnapshot.schemaId(),
-            currentSnapshot.sequenceNumber());
+            currentSnapshot.sequenceNumber(),
+            tableMetadata.properties());
 
     assertThat(sql("SELECT * FROM %s.metadata_log_entries", tableName))
         .containsExactly(firstEntry, secondEntry, thirdEntry, fourthEntry, fifthEntry);

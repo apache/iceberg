@@ -614,6 +614,7 @@ public class TestFlinkMetaDataTable extends CatalogTestBase {
     assertThat(metadataLog.getField("latest_snapshot_id")).isNull();
     assertThat(metadataLog.getField("latest_schema_id")).isNull();
     assertThat(metadataLog.getField("latest_sequence_number")).isNull();
+    assertThat(metadataLog.getField("properties")).isEqualTo(tableMetadata.properties());
 
     metadataLog = metadataLogs.get(1);
     assertThat(metadataLog.getField("timestamp"))
@@ -623,6 +624,7 @@ public class TestFlinkMetaDataTable extends CatalogTestBase {
     assertThat(metadataLog.getField("latest_schema_id")).isEqualTo(parentSnapshot.schemaId());
     assertThat(metadataLog.getField("latest_sequence_number"))
         .isEqualTo(parentSnapshot.sequenceNumber());
+    assertThat(metadataLog.getField("properties")).isEqualTo(tableMetadata.properties());
     assertThat(metadataLog.getField("latest_snapshot_id")).isEqualTo(parentSnapshot.snapshotId());
 
     metadataLog = metadataLogs.get(2);
@@ -634,6 +636,7 @@ public class TestFlinkMetaDataTable extends CatalogTestBase {
     assertThat(metadataLog.getField("latest_schema_id")).isEqualTo(currentSnapshot.schemaId());
     assertThat(metadataLog.getField("latest_sequence_number"))
         .isEqualTo(currentSnapshot.sequenceNumber());
+    assertThat(metadataLog.getField("properties")).isEqualTo(tableMetadata.properties());
 
     // test filtering
     List<Row> metadataLogWithFilters =
@@ -652,6 +655,7 @@ public class TestFlinkMetaDataTable extends CatalogTestBase {
         .isEqualTo(tableMetadata.currentSnapshot().schemaId());
     assertThat(metadataLog.getField("latest_sequence_number"))
         .isEqualTo(tableMetadata.currentSnapshot().sequenceNumber());
+    assertThat(metadataLog.getField("properties")).isEqualTo(tableMetadata.properties());
 
     // test projection
     List<String> metadataFiles =
