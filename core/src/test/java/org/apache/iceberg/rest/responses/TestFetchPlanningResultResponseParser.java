@@ -32,6 +32,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.InjectableValues;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectReader;
+import java.util.Collections;
 import java.util.List;
 import org.apache.iceberg.BaseFileScanTask;
 import org.apache.iceberg.DeleteFile;
@@ -57,6 +58,17 @@ public class TestFetchPlanningResultResponseParser {
           .configure(JsonFactory.Feature.FAIL_ON_SYMBOL_HASH_OVERFLOW, false)
           .build();
   private static final ObjectMapper MAPPER = new ObjectMapper(FACTORY);
+
+  private static final Credential S3_CREDENTIAL =
+      ImmutableCredential.builder()
+          .prefix("s3://custom-uri")
+          .config(ImmutableMap.of("s3.access-key-id", "keyId"))
+          .build();
+  private static final Credential GCS_CREDENTIAL =
+      ImmutableCredential.builder()
+          .prefix("gs://custom-uri")
+          .config(ImmutableMap.of("gcs.oauth2.token", "gcsToken"))
+          .build();
 
   @BeforeEach
   public void before() {
@@ -395,5 +407,56 @@ public class TestFetchPlanningResultResponseParser {
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid response: error can only be returned in a 'failed' status");
+  }
+
+  @Test
+  void withCredentialsReplacesPreviouslySetCredentials() {
+    FetchPlanningResultResponse response =
+        FetchPlanningResultResponse.builder()
+            .withPlanStatus(PlanStatus.COMPLETED)
+            .withCredentials(ImmutableList.of(S3_CREDENTIAL))
+            .withCredentials(ImmutableList.of(GCS_CREDENTIAL))
+            .build();
+
+    assertThat(response.credentials()).containsExactly(GCS_CREDENTIAL);
+  }
+
+  @Test
+  void withCredentialsClearsPreviouslySetCredentials() {
+    FetchPlanningResultResponse response =
+        FetchPlanningResultResponse.builder()
+            .withPlanStatus(PlanStatus.COMPLETED)
+            .withCredentials(ImmutableList.of(S3_CREDENTIAL))
+            .withCredentials(ImmutableList.of())
+            .build();
+
+    assertThat(response.credentials()).isEmpty();
+  }
+
+  @Test
+  void credentialsAreNotAffectedByLaterBuilderChanges() {
+    FetchPlanningResultResponse.Builder builder =
+        FetchPlanningResultResponse.builder()
+            .withPlanStatus(PlanStatus.COMPLETED)
+            .withCredentials(ImmutableList.of(S3_CREDENTIAL));
+    FetchPlanningResultResponse response = builder.build();
+
+    builder.withCredentials(ImmutableList.of(GCS_CREDENTIAL));
+
+    assertThat(response.credentials()).containsExactly(S3_CREDENTIAL);
+  }
+
+  @Test
+  void nullCredentials() {
+    assertThatThrownBy(() -> FetchPlanningResultResponse.builder().withCredentials(null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid credentials list: null");
+
+    assertThatThrownBy(
+            () ->
+                FetchPlanningResultResponse.builder()
+                    .withCredentials(Collections.singletonList((Credential) null)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid credential: null");
   }
 }

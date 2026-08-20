@@ -144,8 +144,11 @@ public class PlanTableScanResponse extends BaseScanTaskResponse {
       return this;
     }
 
-    public Builder withCredentials(List<Credential> credentialsToAdd) {
-      credentials.addAll(credentialsToAdd);
+    public Builder withCredentials(List<Credential> newCredentials) {
+      Preconditions.checkArgument(null != newCredentials, "Invalid credentials list: null");
+      Preconditions.checkArgument(!newCredentials.contains(null), "Invalid credential: null");
+      credentials.clear();
+      credentials.addAll(newCredentials);
       return this;
     }
 
@@ -159,7 +162,7 @@ public class PlanTableScanResponse extends BaseScanTaskResponse {
           fileScanTasks(),
           deleteFiles(),
           specsById(),
-          credentials);
+          ImmutableList.copyOf(credentials));
     }
   }
 }

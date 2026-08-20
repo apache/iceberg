@@ -30,6 +30,7 @@ import static org.apache.iceberg.TestBase.SPEC;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.util.Collections;
 import java.util.List;
 import org.apache.iceberg.BaseFileScanTask;
 import org.apache.iceberg.DataFile;
@@ -49,6 +50,17 @@ import org.apache.iceberg.rest.credentials.ImmutableCredential;
 import org.junit.jupiter.api.Test;
 
 public class TestPlanTableScanResponseParser {
+
+  private static final Credential S3_CREDENTIAL =
+      ImmutableCredential.builder()
+          .prefix("s3://custom-uri")
+          .config(ImmutableMap.of("s3.access-key-id", "keyId"))
+          .build();
+  private static final Credential GCS_CREDENTIAL =
+      ImmutableCredential.builder()
+          .prefix("gs://custom-uri")
+          .config(ImmutableMap.of("gcs.oauth2.token", "gcsToken"))
+          .build();
 
   @Test
   public void nullAndEmptyCheck() {
@@ -837,5 +849,59 @@ public class TestPlanTableScanResponseParser {
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid response: error can only be defined when status is 'failed'");
+  }
+
+  @Test
+  void withCredentialsReplacesPreviouslySetCredentials() {
+    PlanTableScanResponse response =
+        PlanTableScanResponse.builder()
+            .withPlanStatus(PlanStatus.COMPLETED)
+            .withSpecsById(PARTITION_SPECS_BY_ID)
+            .withCredentials(ImmutableList.of(S3_CREDENTIAL))
+            .withCredentials(ImmutableList.of(GCS_CREDENTIAL))
+            .build();
+
+    assertThat(response.credentials()).containsExactly(GCS_CREDENTIAL);
+  }
+
+  @Test
+  void withCredentialsClearsPreviouslySetCredentials() {
+    PlanTableScanResponse response =
+        PlanTableScanResponse.builder()
+            .withPlanStatus(PlanStatus.COMPLETED)
+            .withSpecsById(PARTITION_SPECS_BY_ID)
+            .withCredentials(ImmutableList.of(S3_CREDENTIAL))
+            .withCredentials(ImmutableList.of())
+            .build();
+
+    assertThat(response.credentials()).isEmpty();
+  }
+
+  @Test
+  void credentialsAreNotAffectedByLaterBuilderChanges() {
+    PlanTableScanResponse.Builder builder =
+        PlanTableScanResponse.builder()
+            .withPlanStatus(PlanStatus.COMPLETED)
+            .withSpecsById(PARTITION_SPECS_BY_ID)
+            .withCredentials(ImmutableList.of(S3_CREDENTIAL));
+    PlanTableScanResponse response = builder.build();
+
+    builder.withCredentials(ImmutableList.of(GCS_CREDENTIAL));
+
+    assertThat(response.credentials()).containsExactly(S3_CREDENTIAL);
+  }
+
+  @Test
+  void nullCredentials() {
+    assertThatThrownBy(() -> PlanTableScanResponse.builder().withCredentials(null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid credentials list: null");
+
+    assertThatThrownBy(
+            () ->
+                PlanTableScanResponse.builder()
+                    .withCredentials(Collections.singletonList((Credential) null)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid credential: null");
   }
 }
