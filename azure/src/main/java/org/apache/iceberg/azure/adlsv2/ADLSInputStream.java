@@ -189,7 +189,7 @@ class ADLSInputStream extends SeekableInputStream implements RangeReadable {
     if (this.fileSize == null) {
       this.fileSize = fileClient.getProperties().getFileSize();
     }
-    long readStart = fileSize - length;
+    long readStart = Math.max(0, fileSize - length);
 
     try (InputStream inputStream = openRange(new FileRange(readStart)).getInputStream()) {
       return IOUtil.readRemaining(inputStream, buffer, offset, length);
