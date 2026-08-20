@@ -34,6 +34,7 @@ import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Type.TypeID;
+import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.orc.TypeDescription;
 import org.apache.orc.storage.common.type.HiveDecimal;
 import org.apache.orc.storage.ql.io.sarg.PredicateLeaf;
@@ -301,6 +302,7 @@ class ExpressionToSearchArgument
       case DATE:
         return PredicateLeaf.Type.DATE;
       case TIMESTAMP:
+      case TIMESTAMP_NANO:
         return PredicateLeaf.Type.TIMESTAMP;
       case STRING:
         return PredicateLeaf.Type.STRING;
@@ -333,6 +335,8 @@ class ExpressionToSearchArgument
             Instant.ofEpochSecond(
                 Math.floorDiv(microsFromEpoch, 1_000_000),
                 Math.floorMod(microsFromEpoch, 1_000_000) * 1_000L));
+      case TIMESTAMP_NANO:
+        return Timestamp.from(DateTimeUtil.timestamptzFromNanos((Long) icebergLiteral).toInstant());
       case DECIMAL:
         return new HiveDecimalWritable(HiveDecimal.create((BigDecimal) icebergLiteral, false));
       default:
