@@ -23,6 +23,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import org.apache.iceberg.ImmutableFieldLabels;
+import org.apache.iceberg.ImmutableLabels;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
@@ -477,5 +479,120 @@ public class TestLoadTableResponseParser {
     // can't do an equality comparison because Schema doesn't implement equals/hashCode
     assertThat(LoadTableResponseParser.toJson(LoadTableResponseParser.fromJson(json), true))
         .isEqualTo(expectedJson);
+  }
+
+  @Test
+  public void roundTripSerdeWithLabels() {
+    String uuid = "386b9f01-002b-4d8c-b77f-42c3fd3b7c9b";
+    TableMetadata metadata =
+        TableMetadata.buildFromEmpty()
+            .assignUUID(uuid)
+            .setLocation("location")
+            .setCurrentSchema(
+                new Schema(Types.NestedField.required(1, "x", Types.LongType.get())), 1)
+            .addPartitionSpec(PartitionSpec.unpartitioned())
+            .addSortOrder(SortOrder.unsorted())
+            .discardChanges()
+            .withMetadataLocation("metadata-location")
+            .build();
+
+    LoadTableResponse response =
+        LoadTableResponse.builder()
+            .withTableMetadata(metadata)
+            .withLabels(
+                ImmutableLabels.builder()
+                    .objectLabels(ImmutableMap.of("owner", "team-a"))
+                    .addFields(
+                        ImmutableFieldLabels.builder()
+                            .fieldId(1)
+                            .labels(ImmutableMap.of("classification", "pii"))
+                            .build())
+                    .build())
+            .build();
+
+    String expectedJson =
+        String.format(
+            """
+            {
+              "metadata-location" : "metadata-location",
+              "metadata" : {
+                "format-version" : 2,
+                "table-uuid" : "386b9f01-002b-4d8c-b77f-42c3fd3b7c9b",
+                "location" : "location",
+                "last-sequence-number" : 0,
+                "last-updated-ms" : %d,
+                "last-column-id" : 1,
+                "current-schema-id" : 0,
+                "schemas" : [ {
+                  "type" : "struct",
+                  "schema-id" : 0,
+                  "fields" : [ {
+                    "id" : 1,
+                    "name" : "x",
+                    "required" : true,
+                    "type" : "long"
+                  } ]
+                } ],
+                "default-spec-id" : 0,
+                "partition-specs" : [ {
+                  "spec-id" : 0,
+                  "fields" : [ ]
+                } ],
+                "last-partition-id" : 999,
+                "default-sort-order-id" : 0,
+                "sort-orders" : [ {
+                  "order-id" : 0,
+                  "fields" : [ ]
+                } ],
+                "properties" : { },
+                "current-snapshot-id" : -1,
+                "refs" : { },
+                "snapshots" : [ ],
+                "statistics" : [ ],
+                "partition-statistics" : [ ],
+                "snapshot-log" : [ ],
+                "metadata-log" : [ ]
+              },
+              "labels" : {
+                "object-labels" : {
+                  "owner" : "team-a"
+                },
+                "fields" : [ {
+                  "field-id" : 1,
+                  "labels" : {
+                    "classification" : "pii"
+                  }
+                } ]
+              }
+            }""",
+            metadata.lastUpdatedMillis());
+
+    String json = LoadTableResponseParser.toJson(response, true);
+    assertThat(json).isEqualTo(expectedJson);
+    // can't do an equality comparison because Schema doesn't implement equals/hashCode
+    assertThat(LoadTableResponseParser.toJson(LoadTableResponseParser.fromJson(json), true))
+        .isEqualTo(expectedJson);
+  }
+
+  @Test
+  public void labelsAreOptional() {
+    String uuid = "386b9f01-002b-4d8c-b77f-42c3fd3b7c9b";
+    TableMetadata metadata =
+        TableMetadata.buildFromEmpty()
+            .assignUUID(uuid)
+            .setLocation("location")
+            .setCurrentSchema(
+                new Schema(Types.NestedField.required(1, "x", Types.LongType.get())), 1)
+            .addPartitionSpec(PartitionSpec.unpartitioned())
+            .addSortOrder(SortOrder.unsorted())
+            .discardChanges()
+            .withMetadataLocation("metadata-location")
+            .build();
+
+    LoadTableResponse response = LoadTableResponse.builder().withTableMetadata(metadata).build();
+
+    String json = LoadTableResponseParser.toJson(response, true);
+    assertThat(json).doesNotContain("labels");
+    assertThat(LoadTableResponseParser.fromJson(json).labels().isEmpty()).isTrue();
   }
 }

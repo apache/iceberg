@@ -22,6 +22,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import org.apache.iceberg.ImmutableFieldLabels;
+import org.apache.iceberg.ImmutableLabels;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -278,5 +280,119 @@ public class TestLoadViewResponseParser {
     LoadViewResponse parsed = LoadViewResponseParser.fromJson(jsonWithNullConfig);
     assertThat(parsed.config()).isEmpty();
     assertThat(LoadViewResponseParser.toJson(parsed, true)).isEqualTo(jsonWithoutConfig);
+  }
+
+  @Test
+  public void roundTripSerdeWithLabels() {
+    String uuid = "386b9f01-002b-4d8c-b77f-42c3fd3b7c9b";
+    ViewMetadata viewMetadata =
+        ViewMetadata.builder()
+            .assignUUID(uuid)
+            .setLocation("location")
+            .addSchema(new Schema(Types.NestedField.required(1, "x", Types.LongType.get())))
+            .addVersion(
+                ImmutableViewVersion.builder()
+                    .schemaId(0)
+                    .versionId(1)
+                    .timestampMillis(23L)
+                    .defaultNamespace(Namespace.of("ns1"))
+                    .build())
+            .setCurrentVersionId(1)
+            .build();
+
+    LoadViewResponse response =
+        ImmutableLoadViewResponse.builder()
+            .metadata(viewMetadata)
+            .metadataLocation("custom-location")
+            .labels(
+                ImmutableLabels.builder()
+                    .objectLabels(ImmutableMap.of("owner", "team-a"))
+                    .addFields(
+                        ImmutableFieldLabels.builder()
+                            .fieldId(1)
+                            .labels(ImmutableMap.of("classification", "pii"))
+                            .build())
+                    .build())
+            .build();
+
+    String expectedJson =
+        """
+        {
+          "metadata-location" : "custom-location",
+          "metadata" : {
+            "view-uuid" : "386b9f01-002b-4d8c-b77f-42c3fd3b7c9b",
+            "format-version" : 1,
+            "location" : "location",
+            "schemas" : [ {
+              "type" : "struct",
+              "schema-id" : 0,
+              "fields" : [ {
+                "id" : 1,
+                "name" : "x",
+                "required" : true,
+                "type" : "long"
+              } ]
+            } ],
+            "current-version-id" : 1,
+            "versions" : [ {
+              "version-id" : 1,
+              "timestamp-ms" : 23,
+              "schema-id" : 0,
+              "summary" : { },
+              "default-namespace" : [ "ns1" ],
+              "representations" : [ ]
+            } ],
+            "version-log" : [ {
+              "timestamp-ms" : 23,
+              "version-id" : 1
+            } ]
+          },
+          "labels" : {
+            "object-labels" : {
+              "owner" : "team-a"
+            },
+            "fields" : [ {
+              "field-id" : 1,
+              "labels" : {
+                "classification" : "pii"
+              }
+            } ]
+          }
+        }""";
+
+    String json = LoadViewResponseParser.toJson(response, true);
+    assertThat(json).isEqualTo(expectedJson);
+    // can't do an equality comparison because Schema doesn't implement equals/hashCode
+    assertThat(LoadViewResponseParser.toJson(LoadViewResponseParser.fromJson(json), true))
+        .isEqualTo(expectedJson);
+  }
+
+  @Test
+  public void labelsAreOptional() {
+    String uuid = "386b9f01-002b-4d8c-b77f-42c3fd3b7c9b";
+    ViewMetadata viewMetadata =
+        ViewMetadata.builder()
+            .assignUUID(uuid)
+            .setLocation("location")
+            .addSchema(new Schema(Types.NestedField.required(1, "x", Types.LongType.get())))
+            .addVersion(
+                ImmutableViewVersion.builder()
+                    .schemaId(0)
+                    .versionId(1)
+                    .timestampMillis(23L)
+                    .defaultNamespace(Namespace.of("ns1"))
+                    .build())
+            .setCurrentVersionId(1)
+            .build();
+
+    LoadViewResponse response =
+        ImmutableLoadViewResponse.builder()
+            .metadata(viewMetadata)
+            .metadataLocation("custom-location")
+            .build();
+
+    String json = LoadViewResponseParser.toJson(response, true);
+    assertThat(json).doesNotContain("labels");
+    assertThat(LoadViewResponseParser.fromJson(json).labels().isEmpty()).isTrue();
   }
 }
