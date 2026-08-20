@@ -199,4 +199,88 @@ public class TestLeafFile {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("position must be >= 0");
   }
+
+  @Test
+  void writerRejectsOutOfOrderTransformValue() {
+    File file = newFile("leaf-unsorted-transform-value.parquet");
+
+    try (LeafFileWriter writer = new LeafFileWriter(Files.localOutput(file), STRING_KEY_FIELD)) {
+      writer.add(
+          LeafFileEntry.builder()
+              .keyValue("aaa")
+              .transformValue(5L)
+              .filePath("f1.parquet")
+              .position(0L)
+              .build());
+
+      assertThatThrownBy(
+              () ->
+                  writer.add(
+                      LeafFileEntry.builder()
+                          .keyValue("bbb")
+                          .transformValue(4L)
+                          .filePath("f1.parquet")
+                          .position(1L)
+                          .build()))
+          .isInstanceOf(IllegalStateException.class)
+          .hasMessageContaining("must be added in non-decreasing")
+          .hasMessageContaining("(4, bbb)")
+          .hasMessageContaining("(5, aaa)");
+    }
+  }
+
+  @Test
+  void writerRejectsOutOfOrderKeyValueWithinSameTransformValue() {
+    File file = newFile("leaf-unsorted-key.parquet");
+
+    try (LeafFileWriter writer = new LeafFileWriter(Files.localOutput(file), STRING_KEY_FIELD)) {
+      writer.add(
+          LeafFileEntry.builder()
+              .keyValue("bbb")
+              .transformValue(1L)
+              .filePath("f1.parquet")
+              .position(0L)
+              .build());
+
+      assertThatThrownBy(
+              () ->
+                  writer.add(
+                      LeafFileEntry.builder()
+                          .keyValue("aaa")
+                          .transformValue(1L)
+                          .filePath("f1.parquet")
+                          .position(1L)
+                          .build()))
+          .isInstanceOf(IllegalStateException.class)
+          .hasMessageContaining("must be added in non-decreasing");
+    }
+  }
+
+  @Test
+  void writerAllowsEqualConsecutiveKeys() {
+    File file = newFile("leaf-duplicate-keys.parquet");
+
+    try (LeafFileWriter writer = new LeafFileWriter(Files.localOutput(file), STRING_KEY_FIELD)) {
+      writer.add(
+          LeafFileEntry.builder()
+              .keyValue("aaa")
+              .transformValue(1L)
+              .filePath("f1.parquet")
+              .position(0L)
+              .build());
+      // Same (transform_value, key_value) as the previous entry -- must not throw, since a key
+      // value is not required to be unique across rows.
+      writer.add(
+          LeafFileEntry.builder()
+              .keyValue("aaa")
+              .transformValue(1L)
+              .filePath("f1.parquet")
+              .position(1L)
+              .build());
+    }
+
+    List<LeafFileEntry> entries =
+        LeafFileReader.readAll(Files.localInput(file), STRING_KEY_FIELD);
+    assertThat(entries).hasSize(2);
+  }
 }

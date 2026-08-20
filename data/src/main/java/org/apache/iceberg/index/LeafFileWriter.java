@@ -21,6 +21,7 @@ package org.apache.iceberg.index;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
+import java.util.Locale;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
@@ -35,17 +36,29 @@ import org.apache.iceberg.types.Types;
  * Writes a SCALAR index leaf file (Parquet), following the schema defined by {@link
  * LeafFileEntry#schema(Types.NestedField)}.
  *
- * <p>Rows must be added in {@code (transform_value, key_value)} sorted order — this class does
- * not sort; callers (the index build job) are responsible for sorting before writing, since that
- * ordering is what leaf-file consumers rely on for page-level pruning.
+ * <p>Entries must be added in non-decreasing {@code (transform_value, key_value)} order —
+ * required for the row-group-level statistics pruning {@link LeafFileReader} relies on to work at
+ * all. This class does not sort; callers (the index build job, e.g. Spark's {@code
+ * sortWithinPartitions}) are responsible for producing entries in that order. What this class
+ * does do is validate that order as entries are added, and fail fast with {@link
+ * IllegalStateException} on the first violation, rather than silently writing an unsorted leaf
+ * file that would still return correct results but with row-group pruning providing little to no
+ * benefit. Equal consecutive keys are allowed, since a key value is not required to be unique
+ * across rows.
  */
 public class LeafFileWriter implements AutoCloseable {
 
   private final FileAppender<Record> appender;
   private final Schema schema;
+  private final Types.NestedField keyField;
+
+  private boolean hasWritten = false;
+  private long lastTransformValue;
+  private Object lastKeyValue;
 
   public LeafFileWriter(OutputFile outputFile, Types.NestedField keyField) {
     Preconditions.checkNotNull(outputFile, "outputFile is required");
+    this.keyField = Preconditions.checkNotNull(keyField, "keyField is required");
     this.schema = LeafFileEntry.schema(keyField);
     try {
       this.appender =
@@ -58,11 +71,17 @@ public class LeafFileWriter implements AutoCloseable {
     }
   }
 
-  /** Write a single leaf file entry. */
+  /**
+   * Write a single leaf file entry.
+   *
+   * @throws IllegalStateException if {@code entry} is out of order relative to the previously
+   *     written entry
+   */
   public void add(LeafFileEntry entry) {
     Preconditions.checkNotNull(entry, "entry is required");
+    checkOrder(entry);
+
     Record record = GenericRecord.create(schema);
-    Types.NestedField keyField = schema.columns().get(0);
     record.setField(keyField.name(), entry.keyValue());
     record.setField(LeafFileEntry.TRANSFORM_VALUE_FIELD_NAME, entry.transformValue());
     record.setField(LeafFileEntry.FILE_PATH_FIELD_NAME, entry.filePath());
@@ -75,6 +94,31 @@ public class LeafFileWriter implements AutoCloseable {
     entries.forEach(this::add);
   }
 
+  private void checkOrder(LeafFileEntry entry) {
+    if (hasWritten) {
+      int cmp = Long.compare(entry.transformValue(), lastTransformValue);
+      if (cmp == 0) {
+        cmp = compareKeys(entry.keyValue(), lastKeyValue);
+      }
+      if (cmp < 0) {
+        throw new IllegalStateException(
+            String.format(
+                Locale.ROOT,
+                "Leaf file entries must be added in non-decreasing (transform_value, key_value) "
+                    + "order: entry (%s, %s) is out of order after (%s, %s)",
+                entry.transformValue(), entry.keyValue(), lastTransformValue, lastKeyValue));
+      }
+    }
+    this.hasWritten = true;
+    this.lastTransformValue = entry.transformValue();
+    this.lastKeyValue = entry.keyValue();
+  }
+
+  @SuppressWarnings("unchecked")
+  private static int compareKeys(Object a, Object b) {
+    return ((Comparable<Object>) a).compareTo(b);
+  }
+
   @Override
   public void close() {
     try {
@@ -84,3 +128,4 @@ public class LeafFileWriter implements AutoCloseable {
     }
   }
 }
+
