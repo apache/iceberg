@@ -49,6 +49,15 @@ project(":iceberg-azure-bundle") {
       include 'NOTICE'
     }
 
+    // exclude dependency-provided LICENSE/NOTICE files in favor of the bundled Iceberg ones
+    exclude 'META-INF/LICENSE*'
+    exclude 'META-INF/NOTICE*'
+
+    // dependencies that ship a root LICENSE/NOTICE would place a second copy next to the
+    // bundled ones above, so drop every root copy that is not read from the project directory
+    def bundledNotices = [file('LICENSE'), file('NOTICE')]
+    exclude { it.relativePath.pathString in ['LICENSE', 'NOTICE'] && !(it.file in bundledNotices) }
+
     // relocate Azure-specific versions
     relocate 'io.netty', 'org.apache.iceberg.azure.shaded.io.netty'
     relocate 'com.fasterxml.jackson', 'org.apache.iceberg.azure.shaded.com.fasterxml.jackson'

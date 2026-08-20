@@ -280,6 +280,15 @@ project(":iceberg-spark:iceberg-spark-runtime-${sparkMajorVersion}_${scalaVersio
       include 'NOTICE'
     }
 
+    // exclude dependency-provided LICENSE/NOTICE files in favor of the bundled Iceberg ones
+    exclude 'META-INF/LICENSE*'
+    exclude 'META-INF/NOTICE*'
+
+    // dependencies that ship a root LICENSE/NOTICE would place a second copy next to the
+    // bundled ones above, so drop every root copy that is not read from the project directory
+    def bundledNotices = [file('LICENSE'), file('NOTICE')]
+    exclude { it.relativePath.pathString in ['LICENSE', 'NOTICE'] && !(it.file in bundledNotices) }
+
     // Relocate dependencies to avoid conflicts
     relocate 'com.google.errorprone', 'org.apache.iceberg.shaded.com.google.errorprone'
     relocate 'com.google.flatbuffers', 'org.apache.iceberg.shaded.com.google.flatbuffers'
