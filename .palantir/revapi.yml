@@ -615,18 +615,18 @@ acceptedBreaks:
       justification: "These interfaces were package-private in 1.11.0 and could not\
         \ be implemented outside the project. Promoting them to public reads as an\
         \ existing type gaining methods, not as a new type appearing."
-    - code: "java.method.numberOfParametersChanged"
-      old: "method org.apache.iceberg.RewriteTablePathUtil.RewriteResult<org.apache.iceberg.ManifestFile>\
+    - code: "java.method.parameterTypeChanged"
+      old: "parameter org.apache.iceberg.RewriteTablePathUtil.RewriteResult<org.apache.iceberg.ManifestFile>\
         \ org.apache.iceberg.RewriteTablePathUtil::rewriteManifestList(org.apache.iceberg.Snapshot,\
-        \ org.apache.iceberg.io.FileIO, org.apache.iceberg.TableMetadata, java.util.Set<java.lang.String>,\
+        \ org.apache.iceberg.io.FileIO, org.apache.iceberg.TableMetadata, ===java.util.Set<java.lang.String>===,\
         \ java.lang.String, java.lang.String, java.lang.String, java.lang.String)"
-      new: "method org.apache.iceberg.RewriteTablePathUtil.RewriteResult<org.apache.iceberg.ManifestFile>\
+      new: "parameter org.apache.iceberg.RewriteTablePathUtil.RewriteResult<org.apache.iceberg.ManifestFile>\
         \ org.apache.iceberg.RewriteTablePathUtil::rewriteManifestList(org.apache.iceberg.Snapshot,\
-        \ org.apache.iceberg.io.FileIO, org.apache.iceberg.TableMetadata, java.util.Set<java.lang.String>,\
-        \ java.lang.String, java.lang.String, java.lang.String, java.lang.String,\
-        \ java.util.Map<java.lang.String, java.lang.Long>)"
-      justification: "Manifest lengths are known only after the manifests are rewritten,\
-        \ which the previous signature cannot record"
+        \ org.apache.iceberg.io.FileIO, org.apache.iceberg.TableMetadata, ===java.util.Map<java.lang.String,\
+        \ java.lang.Long>===, java.lang.String, java.lang.String, java.lang.String,\
+        \ java.lang.String)"
+      justification: "A manifest can only be rewritten together with its measured\
+        \ length, which the set of manifest paths cannot carry"
     - code: "java.method.removed"
       old: "method org.apache.iceberg.MetricsConfig org.apache.iceberg.MetricsConfig::forPositionDelete(org.apache.iceberg.Table)"
       justification: "Deprecated for removal in 1.12.0"

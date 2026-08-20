@@ -341,10 +341,7 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
             snapshot ->
                 manifestListResults.add(
                     rewriteManifestList(
-                        snapshot,
-                        endMetadata,
-                        manifestsToRewrite,
-                        rewriteManifestResult.rewrittenManifestLengths())));
+                        snapshot, endMetadata, rewriteManifestResult.rewrittenManifestLengths())));
 
     RewriteResult<ManifestFile> rewriteManifestListResult = new RewriteResult<>();
     manifestListResults.forEach(rewriteManifestListResult::append);
@@ -509,16 +506,12 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
    *
    * @param snapshot snapshot represented by the manifest list
    * @param tableMetadata metadata of table
-   * @param manifestsToRewrite filter of manifests to rewrite.
    * @param rewrittenManifestLengths byte length of each rewritten manifest, keyed by source path
    * @return a result including a copy plan for the manifests contained in the manifest list, as
    *     well as for the manifest list itself
    */
   private RewriteResult<ManifestFile> rewriteManifestList(
-      Snapshot snapshot,
-      TableMetadata tableMetadata,
-      Set<String> manifestsToRewrite,
-      Map<String, Long> rewrittenManifestLengths) {
+      Snapshot snapshot, TableMetadata tableMetadata, Map<String, Long> rewrittenManifestLengths) {
     RewriteResult<ManifestFile> result = new RewriteResult<>();
 
     String path = snapshot.manifestListLocation();
@@ -528,12 +521,11 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
             snapshot,
             table.io(),
             tableMetadata,
-            manifestsToRewrite,
+            rewrittenManifestLengths,
             sourcePrefix,
             targetPrefix,
             stagingDir,
-            outputPath,
-            rewrittenManifestLengths);
+            outputPath);
 
     result.append(rewriteResult);
     // add the manifest list copy plan itself to the result

@@ -268,14 +268,13 @@ public class RewriteTablePathUtil {
    * @param snapshot snapshot represented by the manifest list
    * @param io file io
    * @param tableMetadata metadata of table
-   * @param manifestsToRewrite a list of manifest files to filter for rewrite
+   * @param rewrittenManifestLengths byte length of each manifest rewritten by this run, keyed by
+   *     source manifest path. Only these manifests are rewritten; any other manifest in the
+   *     snapshot keeps the length recorded in the source table.
    * @param sourcePrefix source prefix that will be replaced
    * @param targetPrefix target prefix that will replace it
    * @param stagingDir staging directory
    * @param outputPath location to write the manifest list
-   * @param rewrittenManifestLengths byte length of each rewritten manifest, keyed by source
-   *     manifest path. Every manifest in {@code manifestsToRewrite} must be present; any other
-   *     manifest missing from the map keeps its source length.
    * @return a copy plan for manifest files whose metadata were contained in the rewritten manifest
    *     list
    */
@@ -283,12 +282,11 @@ public class RewriteTablePathUtil {
       Snapshot snapshot,
       FileIO io,
       TableMetadata tableMetadata,
-      Set<String> manifestsToRewrite,
+      Map<String, Long> rewrittenManifestLengths,
       String sourcePrefix,
       String targetPrefix,
       String stagingDir,
-      String outputPath,
-      Map<String, Long> rewrittenManifestLengths) {
+      String outputPath) {
     RewriteResult<ManifestFile> result = new RewriteResult<>();
     OutputFile outputFile = io.newOutputFile(outputPath);
 
@@ -300,11 +298,6 @@ public class RewriteTablePathUtil {
                 "Encountered manifest file %s not under the source prefix %s",
                 mf.path(),
                 sourcePrefix));
-
-    Preconditions.checkArgument(
-        rewrittenManifestLengths.keySet().containsAll(manifestsToRewrite),
-        "Missing rewritten length for manifests: %s",
-        Sets.difference(manifestsToRewrite, rewrittenManifestLengths.keySet()));
 
     long carriedOver =
         manifestFiles.stream()
@@ -340,7 +333,7 @@ public class RewriteTablePathUtil {
             .set(1, rewrittenManifestLengths.getOrDefault(file.path(), file.length()));
         writer.add(newFile);
 
-        if (manifestsToRewrite.contains(file.path())) {
+        if (rewrittenManifestLengths.containsKey(file.path())) {
           result.toRewrite().add(file);
           result
               .copyPlan()
