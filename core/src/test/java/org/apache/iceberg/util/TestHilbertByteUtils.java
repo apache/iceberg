@@ -23,6 +23,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.fail;
 
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.BitSet;
 import java.util.Set;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -227,6 +228,59 @@ public class TestHilbertByteUtils {
     assertThatThrownBy(() -> HilbertByteUtils.hilbertIndex(cols, 72))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Hilbert bitsPerColumn must be no greater than 64, was 72");
+  }
+
+  /**
+   * The reusing overload must be indistinguishable from the allocating one, including when the
+   * scratch it is handed still holds the previous row's values.
+   */
+  @Test
+  public void reusedScratchMatchesFreshAllocation() {
+    long[] axes = new long[2];
+    byte[][] transposed = new byte[2][1];
+    ByteBuffer reuse = ByteBuffer.allocate(2);
+
+    for (int x = 0; x < 256; x++) {
+      for (int y = 0; y < 256; y++) {
+        byte[][] cols = new byte[][] {new byte[] {(byte) x}, new byte[] {(byte) y}};
+        byte[] fresh = HilbertByteUtils.hilbertIndex(cols, 8);
+        byte[] reused = HilbertByteUtils.hilbertIndex(cols, 8, reuse, axes, transposed).clone();
+        if (!Arrays.equals(fresh, reused)) {
+          fail(
+              "reused scratch gave %s but a fresh allocation gave %s for (%s,%s)",
+              Arrays.toString(reused), Arrays.toString(fresh), x, y);
+        }
+      }
+    }
+  }
+
+  @Test
+  public void wrongSizedAxesScratchIsRejected() {
+    byte[][] cols = new byte[][] {new byte[] {0}, new byte[] {0}};
+    assertThatThrownBy(
+            () ->
+                HilbertByteUtils.hilbertIndex(
+                    cols, 8, ByteBuffer.allocate(2), new long[3], new byte[2][1]))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Axes scratch holds 3 columns but 2 are required");
+  }
+
+  @Test
+  public void wrongSizedTransposedScratchIsRejected() {
+    byte[][] cols = new byte[][] {new byte[] {0}, new byte[] {0}};
+    assertThatThrownBy(
+            () ->
+                HilbertByteUtils.hilbertIndex(
+                    cols, 8, ByteBuffer.allocate(2), new long[2], new byte[3][1]))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Transposed scratch holds 3 columns but 2 are required");
+
+    assertThatThrownBy(
+            () ->
+                HilbertByteUtils.hilbertIndex(
+                    cols, 8, ByteBuffer.allocate(2), new long[2], new byte[2][4]))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Transposed scratch for column 0 holds 4 bytes but 1 are required");
   }
 
   @Test

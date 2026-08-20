@@ -75,10 +75,13 @@ public class HilbertByteUtilsBenchmark {
   public void hilbertIndexFourColumns(Blackhole blackhole) {
     int outputSize = ZOrderByteUtils.PRIMITIVE_BUFFER_SIZE * 4;
     ByteBuffer outputBuffer = ByteBuffer.allocate(outputSize);
+    long[] axes = new long[4];
+    byte[][] transposed = new byte[4][BITS_PER_COLUMN / 8];
 
     for (byte[][] columnsBinary : fourColumnInput) {
       byte[] hilbertBytes =
-          HilbertByteUtils.hilbertIndex(columnsBinary, BITS_PER_COLUMN, outputBuffer);
+          HilbertByteUtils.hilbertIndex(
+              columnsBinary, BITS_PER_COLUMN, outputBuffer, axes, transposed);
       blackhole.consume(hilbertBytes);
     }
   }
@@ -88,10 +91,13 @@ public class HilbertByteUtilsBenchmark {
   public void hilbertIndexThreeColumns(Blackhole blackhole) {
     int outputSize = ZOrderByteUtils.PRIMITIVE_BUFFER_SIZE * 3;
     ByteBuffer outputBuffer = ByteBuffer.allocate(outputSize);
+    long[] axes = new long[3];
+    byte[][] transposed = new byte[3][BITS_PER_COLUMN / 8];
 
     for (int i = 0; i < threeColumnInput.length; i++) {
       byte[] hilbertBytes =
-          HilbertByteUtils.hilbertIndex(threeColumnInput[i], BITS_PER_COLUMN, outputBuffer);
+          HilbertByteUtils.hilbertIndex(
+              threeColumnInput[i], BITS_PER_COLUMN, outputBuffer, axes, transposed);
       blackhole.consume(hilbertBytes);
     }
   }
@@ -101,10 +107,13 @@ public class HilbertByteUtilsBenchmark {
   public void hilbertIndexTwoColumns(Blackhole blackhole) {
     int outputSize = ZOrderByteUtils.PRIMITIVE_BUFFER_SIZE * 2;
     ByteBuffer outputBuffer = ByteBuffer.allocate(outputSize);
+    long[] axes = new long[2];
+    byte[][] transposed = new byte[2][BITS_PER_COLUMN / 8];
 
     for (int i = 0; i < twoColumnInput.length; i++) {
       byte[] hilbertBytes =
-          HilbertByteUtils.hilbertIndex(twoColumnInput[i], BITS_PER_COLUMN, outputBuffer);
+          HilbertByteUtils.hilbertIndex(
+              twoColumnInput[i], BITS_PER_COLUMN, outputBuffer, axes, transposed);
       blackhole.consume(hilbertBytes);
     }
   }

@@ -54,6 +54,81 @@ public class HilbertByteUtils {
    * @return the Hilbert index, of length {@code numColumns * bitsPerColumn / 8}
    */
   public static byte[] hilbertIndex(byte[][] columnsBinary, int bitsPerColumn, ByteBuffer reuse) {
+    validate(columnsBinary, bitsPerColumn);
+    int numColumns = columnsBinary.length;
+    int bytesPerColumn = bitsPerColumn / 8;
+    return hilbertIndex(
+        columnsBinary,
+        bitsPerColumn,
+        reuse,
+        new long[numColumns],
+        new byte[numColumns][bytesPerColumn]);
+  }
+
+  /**
+   * Compute the Hilbert index for the given columns, reusing caller-owned scratch space.
+   *
+   * <p>This is the allocation-free variant: callers that convert many rows should hold {@code
+   * axesReuse} and {@code transposedReuse} for the lifetime of the conversion instead of letting
+   * every row allocate them, in the same way {@code reuse} already avoids a per-row output buffer.
+   *
+   * @param columnsBinary one ordered-byte array per column; each must be at least {@code
+   *     bitsPerColumn / 8} bytes long (only the leading bytes are used)
+   * @param bitsPerColumn bits taken from each column; a positive multiple of 8, no greater than 64
+   * @param reuse a buffer with capacity at least {@code numColumns * bitsPerColumn / 8}
+   * @param axesReuse scratch of length {@code numColumns}; contents are overwritten
+   * @param transposedReuse scratch of shape {@code [numColumns][bitsPerColumn / 8]}; contents are
+   *     overwritten
+   * @return the Hilbert index, of length {@code numColumns * bitsPerColumn / 8}
+   */
+  public static byte[] hilbertIndex(
+      byte[][] columnsBinary,
+      int bitsPerColumn,
+      ByteBuffer reuse,
+      long[] axesReuse,
+      byte[][] transposedReuse) {
+    validate(columnsBinary, bitsPerColumn);
+
+    int numColumns = columnsBinary.length;
+    int bytesPerColumn = bitsPerColumn / 8;
+
+    Preconditions.checkArgument(
+        axesReuse.length == numColumns,
+        "Axes scratch holds %s columns but %s are required",
+        axesReuse.length,
+        numColumns);
+    Preconditions.checkArgument(
+        transposedReuse.length == numColumns,
+        "Transposed scratch holds %s columns but %s are required",
+        transposedReuse.length,
+        numColumns);
+
+    for (int i = 0; i < numColumns; i++) {
+      Preconditions.checkArgument(
+          columnsBinary[i].length >= bytesPerColumn,
+          "Column %s contributes %s bytes but %s are required",
+          i,
+          columnsBinary[i].length,
+          bytesPerColumn);
+      axesReuse[i] = readBigEndian(columnsBinary[i], bytesPerColumn);
+    }
+
+    axesToTranspose(axesReuse, bitsPerColumn);
+
+    for (int i = 0; i < numColumns; i++) {
+      Preconditions.checkArgument(
+          transposedReuse[i].length == bytesPerColumn,
+          "Transposed scratch for column %s holds %s bytes but %s are required",
+          i,
+          transposedReuse[i].length,
+          bytesPerColumn);
+      writeBigEndian(axesReuse[i], transposedReuse[i], bytesPerColumn);
+    }
+
+    return ZOrderByteUtils.interleaveBits(transposedReuse, numColumns * bytesPerColumn, reuse);
+  }
+
+  private static void validate(byte[][] columnsBinary, int bitsPerColumn) {
     Preconditions.checkArgument(
         bitsPerColumn > 0 && bitsPerColumn % 8 == 0,
         "Hilbert bitsPerColumn must be a positive multiple of 8, was %s",
@@ -64,29 +139,6 @@ public class HilbertByteUtils {
         bitsPerColumn);
     Preconditions.checkArgument(
         columnsBinary.length > 0, "Cannot compute a Hilbert index for zero columns");
-
-    int numColumns = columnsBinary.length;
-    int bytesPerColumn = bitsPerColumn / 8;
-
-    long[] transpose = new long[numColumns];
-    for (int i = 0; i < numColumns; i++) {
-      Preconditions.checkArgument(
-          columnsBinary[i].length >= bytesPerColumn,
-          "Column %s contributes %s bytes but %s are required",
-          i,
-          columnsBinary[i].length,
-          bytesPerColumn);
-      transpose[i] = readBigEndian(columnsBinary[i], bytesPerColumn);
-    }
-
-    axesToTranspose(transpose, bitsPerColumn);
-
-    byte[][] transposedBytes = new byte[numColumns][bytesPerColumn];
-    for (int i = 0; i < numColumns; i++) {
-      writeBigEndian(transpose[i], transposedBytes[i], bytesPerColumn);
-    }
-
-    return ZOrderByteUtils.interleaveBits(transposedBytes, numColumns * bytesPerColumn, reuse);
   }
 
   // Ref: J. Skilling, "Programming the Hilbert curve"

@@ -41,6 +41,11 @@ class SparkHilbertUDF implements Serializable {
 
   private transient ThreadLocal<byte[][]> inputHolder;
 
+  /** Scratch for the axes-to-transpose step, reused per row like {@link #outputBuffer}. */
+  private transient ThreadLocal<long[]> axesHolder;
+
+  private transient ThreadLocal<byte[][]> transposedHolder;
+
   private final int numCols;
   private final int bitsPerColumn;
   private final int outputBytes;
@@ -55,11 +60,14 @@ class SparkHilbertUDF implements Serializable {
     in.defaultReadObject();
     outputBuffer = ThreadLocal.withInitial(() -> ByteBuffer.allocate(outputBytes));
     inputHolder = ThreadLocal.withInitial(() -> new byte[numCols][]);
+    axesHolder = ThreadLocal.withInitial(() -> new long[numCols]);
+    transposedHolder = ThreadLocal.withInitial(() -> new byte[numCols][bitsPerColumn / 8]);
   }
 
   private byte[] hilbertValue(Seq<byte[]> scalaBinary) {
     byte[][] columnsBinary = JavaConverters.seqAsJavaList(scalaBinary).toArray(inputHolder.get());
-    return HilbertByteUtils.hilbertIndex(columnsBinary, bitsPerColumn, outputBuffer.get());
+    return HilbertByteUtils.hilbertIndex(
+        columnsBinary, bitsPerColumn, outputBuffer.get(), axesHolder.get(), transposedHolder.get());
   }
 
   private final UserDefinedFunction hilbertUDF =
