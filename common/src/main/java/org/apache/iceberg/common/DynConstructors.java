@@ -64,7 +64,7 @@ public class DynConstructors {
         return newInstanceChecked(args);
       } catch (Exception e) {
         Throwables.throwIfInstanceOf(e, RuntimeException.class);
-        throw new RuntimeException(e.getCause());
+        throw new RuntimeException(e);
       }
     }
 
