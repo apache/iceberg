@@ -20,7 +20,6 @@ package org.apache.iceberg;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.util.Arrays;
 import org.apache.iceberg.geospatial.BoundingBox;
 import org.apache.iceberg.geospatial.GeospatialBound;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -44,9 +43,8 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
  * <p>Only the X and Y dimensions contribute to the box. Z and M ordinates are valid in the ISO WKB
  * serializations that Iceberg accepts, so they are read past and ignored rather than rejected.
  *
- * <p>Every ring of a polygon contributes, so the box covers the whole polygon even when an interior
- * ring extends past the shell. This matches the envelope a library such as JTS derives from all of
- * a geometry's coordinates.
+ * <p>Every ring of a polygon, including interior rings, contributes to the bounds. In a valid
+ * polygon the holes lie inside the shell, so this is the shell's own box.
  */
 class GeometryBoundsBuilder {
 
@@ -71,31 +69,43 @@ class GeometryBoundsBuilder {
 
   private final DimensionBounds xBounds = new DimensionBounds();
   private final DimensionBounds yBounds = new DimensionBounds();
+  // set when a value carried bytes beyond its declared geometry, meaning it was not fully parsed
+  // and an object may be missing from the box; build() then suppresses the bounds
+  private boolean incomplete = false;
 
   /**
    * Adds one WKB geometry value to these bounds.
    *
    * <p>The input is read through a duplicate, so its position and limit are left unchanged.
    *
+   * <p>If the value carries bytes beyond the single geometry it declares, it was not fully parsed
+   * (for example a multi geometry whose declared element count is short), so an object never
+   * reached the bounds and the box can no longer cover the whole value. {@link #build()} then
+   * returns no bounds, since suppressing optional metrics is safe where under-covering a file is
+   * not.
+   *
    * <p>If this throws, the builder's state is undefined: coordinates parsed before the failure may
    * already be folded in, so a caller that continues after a rejected value must discard this
    * builder.
    *
-   * @param wkb a buffer containing exactly one WKB geometry
+   * @param wkb a buffer containing one WKB geometry; trailing bytes suppress the bounds
    * @throws IllegalArgumentException if the WKB is malformed
    */
   public void addValue(ByteBuffer wkb) {
     Preconditions.checkArgument(wkb != null, "Invalid WKB buffer: null");
     ByteBuffer buffer = wkb.duplicate();
     parseGeometry(buffer, ANY_GEOMETRY, ANY_DIMENSION);
+    if (buffer.hasRemaining()) {
+      incomplete = true;
+    }
   }
 
   /**
    * Builds the bounding box covering every geometry added, or {@code null} if either the X or Y
-   * dimension has no value.
+   * dimension has no value, or if any value carried trailing bytes (see {@link #addValue}).
    */
   public BoundingBox build() {
-    if (!xBounds.hasValue() || !yBounds.hasValue()) {
+    if (incomplete || !xBounds.hasValue() || !yBounds.hasValue()) {
       return null;
     }
 
@@ -237,8 +247,8 @@ class GeometryBoundsBuilder {
   //   | (4 B)    | (each a point seq)    |
   //   +----------+-----------------------+
   private void readPolygon(ByteBuffer buffer, int numDimensions) {
-    // every ring contributes, including interior rings: a hole extending past the shell would
-    // otherwise under-cover the polygon, pruning a file from a query it should match
+    // read every ring, interior rings included: they must be consumed to reach the end of the
+    // polygon anyway, and folding their coordinates in can only widen the box, never under-cover it
     int numRings = readCount(buffer);
     for (int i = 0; i < numRings; i += 1) {
       readRing(buffer, numDimensions);
@@ -246,7 +256,7 @@ class GeometryBoundsBuilder {
   }
 
   // a point count, then that many coordinates forming a linear ring; a non-empty ring must be
-  // closed (its first and last points are equal) and hold at least four points:
+  // closed (its first and last vertices share the same X and Y) and hold at least four points:
   //   +----------+-----------------------+
   //   | # points | coord 0 .. coord n-1  |
   //   | (4 B)    | (n coordinates)       |
@@ -264,17 +274,27 @@ class GeometryBoundsBuilder {
         MIN_RING_POINTS,
         numPoints);
 
-    // capture the first and last full coordinates to verify closure; middle points only bound
-    double[] first = new double[numDimensions];
-    double[] last = new double[numDimensions];
-    readCoordinate(buffer, first);
+    // a ring is closed on X and Y only: the closing vertex's Z or M may differ from the first (a
+    // measure can increase around the ring), and -0.0 must count as 0.0, so compare the two X/Y
+    // pairs with == rather than the whole coordinate. Every vertex still folds into the bounds.
+    double firstX = buffer.getDouble();
+    double firstY = buffer.getDouble();
+    skipExtraOrdinates(buffer, numDimensions);
+    xBounds.add(firstX);
+    yBounds.add(firstY);
+
     for (int i = 1; i < numPoints - 1; i += 1) {
       readCoordinate(buffer, numDimensions);
     }
-    readCoordinate(buffer, last);
+
+    double lastX = buffer.getDouble();
+    double lastY = buffer.getDouble();
+    skipExtraOrdinates(buffer, numDimensions);
+    xBounds.add(lastX);
+    yBounds.add(lastY);
 
     Preconditions.checkArgument(
-        Arrays.equals(first, last), "Invalid WKB: polygon ring is not closed");
+        firstX == lastX && firstY == lastY, "Invalid WKB: polygon ring is not closed");
   }
 
   // an element count, then that many complete WKB geometries:
@@ -314,25 +334,16 @@ class GeometryBoundsBuilder {
     checkRemaining(buffer, (long) numDimensions * Double.BYTES);
     double xCoord = buffer.getDouble();
     double yCoord = buffer.getDouble();
-    // only X and Y contribute to the box; skip any Z and M ordinates
-    for (int i = 2; i < numDimensions; i += 1) {
-      buffer.getDouble();
-    }
-
+    skipExtraOrdinates(buffer, numDimensions);
     xBounds.add(xCoord);
     yBounds.add(yCoord);
   }
 
-  // reads one coordinate into the given array (used to capture a ring's endpoints for the closure
-  // check) while still folding its X and Y into the box
-  private void readCoordinate(ByteBuffer buffer, double[] ordinates) {
-    checkRemaining(buffer, (long) ordinates.length * Double.BYTES);
-    for (int i = 0; i < ordinates.length; i += 1) {
-      ordinates[i] = buffer.getDouble();
+  // skip any Z and M ordinates that follow X and Y; only X and Y contribute to the box
+  private static void skipExtraOrdinates(ByteBuffer buffer, int numDimensions) {
+    for (int i = 2; i < numDimensions; i += 1) {
+      buffer.getDouble();
     }
-
-    xBounds.add(ordinates[0]);
-    yBounds.add(ordinates[1]);
   }
 
   // a 4-byte unsigned count (rings, points, or elements):

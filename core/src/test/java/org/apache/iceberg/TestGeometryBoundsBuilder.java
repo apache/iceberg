@@ -176,6 +176,38 @@ class TestGeometryBoundsBuilder {
   }
 
   @Test
+  void polygonRingClosesOnXYIgnoringZ() {
+    GeometryBoundsBuilder bounds = new GeometryBoundsBuilder();
+    // a ring closes on X and Y only: the closing vertex repeats the first X and Y but may carry a
+    // different Z (or M), as when a measure increases around the ring, so this 3D ring is closed
+    // even though its first and last Z differ
+    bounds.addValue(ByteBuffer.wrap(wkb(polygonZ(ring(0, 0, 0, 1, 0, 1, 1, 1, 2, 0, 0, 9)))));
+
+    assertThat(bounds.build()).isEqualTo(box(0, 0, 1, 1));
+  }
+
+  @Test
+  void trailingBytesSuppressBounds() {
+    // a multi point that declares one element but carries two point bodies: only the first is
+    // parsed, so the second point never reaches the bounds. The leftover bytes are the only sign
+    // the box no longer covers the value, so the bounds are dropped rather than under-covering.
+    Geom shortCountMultiPoint =
+        buffer -> {
+          buffer.order(LE);
+          buffer.putByte(1);
+          buffer.putInt(4);
+          buffer.putInt(1); // count says one element
+          point(1, 2).writeTo(buffer);
+          point(9, 9).writeTo(buffer); // but a second body follows
+        };
+
+    GeometryBoundsBuilder bounds = new GeometryBoundsBuilder();
+    bounds.addValue(ByteBuffer.wrap(wkb(shortCountMultiPoint)));
+
+    assertThat(bounds.build()).isNull();
+  }
+
+  @Test
   void stateIsUndefinedAfterAddValueThrows() {
     GeometryBoundsBuilder bounds = new GeometryBoundsBuilder();
     bounds.addValue(ByteBuffer.wrap(wkb(point(1, 2))));
@@ -402,6 +434,18 @@ class TestGeometryBoundsBuilder {
 
   private static Geom emptyPolygon() {
     return polygon();
+  }
+
+  private static Geom polygonZ(double[]... rings) {
+    return geom(
+        LE,
+        1003,
+        buffer -> {
+          buffer.putInt(rings.length);
+          for (double[] ring : rings) {
+            sequence(3, ring).writeTo(buffer);
+          }
+        });
   }
 
   private static Geom multiPoint(Geom... children) {
