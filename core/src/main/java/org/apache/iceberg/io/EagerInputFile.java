@@ -19,8 +19,12 @@
 package org.apache.iceberg.io;
 
 import java.io.IOException;
+import java.util.function.Function;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.hadoop.HadoopConfigurable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.util.SerializableSupplier;
 
 /**
  * A decorator that collapses multiple object-store requests into one by fetching the entire file
@@ -29,23 +33,35 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 public class EagerInputFile implements InputFile {
 
   private final InputFile delegate;
-  private final long fileSize;
+  private final long length;
 
-  public EagerInputFile(InputFile delegate, long fileSize) {
+  private EagerInputFile(InputFile delegate, long length) {
     Preconditions.checkNotNull(delegate, "delegate is null");
-    Preconditions.checkArgument(fileSize >= 0, "fileSize is negative: %s", fileSize);
+    Preconditions.checkArgument(length >= 0, "length is negative: %s", length);
     Preconditions.checkArgument(
-        fileSize <= Integer.MAX_VALUE,
-        "Cannot eagerly load file because fileSize exceeds eager loading capacity, consider reducing eager fetch threshold below %s bytes: %s",
+        length <= Integer.MAX_VALUE,
+        "Cannot eagerly load file because length exceeds eager loading capacity, consider reducing eager fetch threshold below %s bytes: %s",
         Integer.MAX_VALUE,
-        fileSize);
+        length);
     this.delegate = delegate;
-    this.fileSize = fileSize;
+    this.length = length;
+  }
+
+  /**
+   * Returns an {@link EagerInputFile}, preserving Hadoop config if {@code delegate} is {@link
+   * HadoopConfigurable}.
+   */
+  public static InputFile of(InputFile delegate, long length) {
+    if (delegate instanceof HadoopConfigurable) {
+      return new EagerInputFileConfigurable(
+          delegate, length, ((HadoopConfigurable) delegate).getConf());
+    }
+    return new EagerInputFile(delegate, length);
   }
 
   @Override
   public long getLength() {
-    return fileSize;
+    return length;
   }
 
   @Override
@@ -60,12 +76,35 @@ public class EagerInputFile implements InputFile {
 
   @Override
   public SeekableInputStream newStream() {
-    byte[] bytes = new byte[(int) fileSize];
+    byte[] bytes = new byte[(int) length];
     try (SeekableInputStream src = delegate.newStream()) {
       IOUtil.readFully(src, bytes, 0, bytes.length);
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to fetch file: %s", delegate.location());
     }
     return new EagerInputStream(bytes);
+  }
+
+  /** An {@link EagerInputFile} that carries the delegate's Hadoop configuration. */
+  private static class EagerInputFileConfigurable extends EagerInputFile
+      implements HadoopConfigurable {
+
+    private final Configuration conf;
+
+    EagerInputFileConfigurable(InputFile delegate, long length, Configuration conf) {
+      super(delegate, length);
+      this.conf = conf;
+    }
+
+    @Override
+    public Configuration getConf() {
+      return conf;
+    }
+
+    @Override
+    public void serializeConfWith(
+        Function<Configuration, SerializableSupplier<Configuration>> confSerializer) {
+      // no-op: EagerInputFile is not serialized
+    }
   }
 }
