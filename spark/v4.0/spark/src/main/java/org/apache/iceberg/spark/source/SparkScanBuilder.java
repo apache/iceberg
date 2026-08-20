@@ -479,7 +479,9 @@ public class SparkScanBuilder
             .project(expectedSchema)
             .metricsReporter(metricsReporter);
 
-    scan = includeStats(scan, expectedSchema, withStats);
+    if (withStats) {
+      scan = scan.includeColumnStats();
+    }
 
     if (snapshotId != null) {
       scan = scan.useSnapshot(snapshotId);
@@ -511,29 +513,15 @@ public class SparkScanBuilder
             .project(expectedSchema)
             .metricsReporter(metricsReporter);
 
-    scan = includeStats(scan, expectedSchema, withStats);
+    if (withStats) {
+      scan = scan.includeColumnStats();
+    }
 
     if (endSnapshotId != null) {
       scan = scan.toSnapshot(endSnapshotId);
     }
 
     return configureSplitPlanning(scan);
-  }
-
-  private <S extends org.apache.iceberg.Scan<S, ?, ?>> S includeStats(
-      S scan, Schema projection, boolean withStats) {
-    if (withStats) {
-      return scan.includeColumnStats();
-    }
-    List<String> variantColumns = variantColumnNames(projection);
-    return variantColumns.isEmpty() ? scan : scan.includeColumnStats(variantColumns);
-  }
-
-  private List<String> variantColumnNames(Schema projection) {
-    return projection.columns().stream()
-        .filter(field -> field.type().isVariantType())
-        .map(Types.NestedField::name)
-        .collect(Collectors.toList());
   }
 
   @SuppressWarnings("CyclomaticComplexity")
