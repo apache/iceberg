@@ -23,6 +23,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.EOFException;
 import java.util.Arrays;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.iceberg.hadoop.HadoopConfigurable;
+import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.inmemory.InMemoryInputFile;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -39,14 +42,14 @@ public class TestEagerInputFile {
     return data;
   }
 
-  private static EagerInputFile eagerFile(byte[] bytes) {
-    return new EagerInputFile(new InMemoryInputFile(bytes), bytes.length);
+  private static InputFile eagerFile(byte[] bytes) {
+    return EagerInputFile.of(new InMemoryInputFile(bytes), bytes.length);
   }
 
   @Test
   public void testNewStream() throws Exception {
     InputFile delegate = Mockito.spy(new InMemoryInputFile(makeBytes()));
-    try (SeekableInputStream stream = new EagerInputFile(delegate, SIZE).newStream()) {
+    try (SeekableInputStream stream = EagerInputFile.of(delegate, SIZE).newStream()) {
       assertThat(stream)
           .as("newStream() should return an EagerInputStream")
           .isInstanceOf(EagerInputStream.class);
@@ -169,14 +172,14 @@ public class TestEagerInputFile {
   @Test
   public void testGetLength() {
     assertThat(eagerFile(makeBytes()).getLength())
-        .as("getLength() should return fileSize")
+        .as("getLength() should return the file length")
         .isEqualTo(SIZE);
   }
 
   @Test
   public void testLocation() {
     InMemoryInputFile inner = new InMemoryInputFile(makeBytes());
-    assertThat(new EagerInputFile(inner, SIZE).location())
+    assertThat(EagerInputFile.of(inner, SIZE).location())
         .as("location should pass through unchanged")
         .isEqualTo(inner.location());
   }
@@ -188,21 +191,20 @@ public class TestEagerInputFile {
 
   @Test
   public void testNewFileThrows() {
-    assertThatThrownBy(() -> new EagerInputFile(null, SIZE))
+    assertThatThrownBy(() -> EagerInputFile.of(null, SIZE))
         .as("Null delegate is not allowed")
         .isInstanceOf(NullPointerException.class)
         .hasMessageContaining("delegate is null");
 
-    assertThatThrownBy(() -> new EagerInputFile(new InMemoryInputFile(makeBytes()), -1))
-        .as("Negative fileSize is not allowed")
+    assertThatThrownBy(() -> EagerInputFile.of(new InMemoryInputFile(makeBytes()), -1))
+        .as("Negative length is not allowed")
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("fileSize is negative");
+        .hasMessageContaining("length is negative");
 
     assertThatThrownBy(
             () ->
-                new EagerInputFile(
-                    new InMemoryInputFile(makeBytes()), (long) Integer.MAX_VALUE + 1))
-        .as("fileSize exceeds eager loading capacity")
+                EagerInputFile.of(new InMemoryInputFile(makeBytes()), (long) Integer.MAX_VALUE + 1))
+        .as("length exceeds eager loading capacity")
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("exceeds eager loading capacity");
   }
@@ -230,5 +232,22 @@ public class TestEagerInputFile {
           .isInstanceOf(EOFException.class)
           .hasMessageContaining("exceeds stream length");
     }
+  }
+
+  @Test
+  public void testOfPreservesHadoopConfiguration() {
+    Configuration conf = new Configuration(false);
+    conf.set("test.key", "test-value");
+    InputFile delegate = HadoopInputFile.fromLocation("file:/tmp/eager-configurable", SIZE, conf);
+    InputFile eager = EagerInputFile.of(delegate, SIZE);
+
+    assertThat(eager)
+        .as("of() should return EagerInputFileConfigurable for a HadoopConfigurable delegate")
+        .isInstanceOf(EagerInputFile.class)
+        .isInstanceOf(HadoopConfigurable.class);
+
+    assertThat(((HadoopConfigurable) eager).getConf().get("test.key"))
+        .as("getConf() should return the delegate's configuration")
+        .isEqualTo("test-value");
   }
 }
