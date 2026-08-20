@@ -92,7 +92,7 @@ import org.apache.iceberg.encryption.NativeEncryptionInputFile;
 import org.apache.iceberg.encryption.NativeEncryptionOutputFile;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Expression;
-import org.apache.iceberg.hadoop.HadoopInputFile;
+import org.apache.iceberg.hadoop.HadoopConfigurable;
 import org.apache.iceberg.hadoop.HadoopOutputFile;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.DataWriter;
@@ -145,10 +145,7 @@ public class Parquet {
           "parquet.read.support.class",
           "parquet.crypto.factory.class");
 
-  /*
-   * Size threshold (bytes) at or below which a Parquet file is fetched eagerly on the first read.
-   * Fixed at 1 MB - not user configurable
-   */
+  // Size threshold (bytes) at or below which a Parquet file is fetched eagerly on the first read.
   private static final long EAGER_FETCH_THRESHOLD_BYTES = 1024 * 1024;
 
   public static WriteBuilder write(OutputFile file) {
@@ -1360,7 +1357,7 @@ public class Parquet {
 
     private ReadBuilder(InputFile file) {
       long fileLength = file.getLength();
-      this.file = canEagerFetch(fileLength) ? new EagerInputFile(file, fileLength) : file;
+      this.file = canEagerFetch(fileLength) ? EagerInputFile.of(file, fileLength) : file;
     }
 
     private static boolean canEagerFetch(long fileLength) {
@@ -1557,9 +1554,9 @@ public class Parquet {
           || batchedReaderFuncWithSchema != null
           || readerFunction != null) {
         ParquetReadOptions.Builder optionsBuilder;
-        if (file instanceof HadoopInputFile) {
+        if (file instanceof HadoopConfigurable) {
           // remove read properties already set that may conflict with this read
-          Configuration conf = new Configuration(((HadoopInputFile) file).getConf());
+          Configuration conf = new Configuration(((HadoopConfigurable) file).getConf());
           for (String property : READ_PROPERTIES_TO_REMOVE) {
             conf.unset(property);
           }
