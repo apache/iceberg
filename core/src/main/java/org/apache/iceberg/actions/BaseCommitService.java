@@ -38,9 +38,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * An async service which allows for committing multiple file groups as their rewrites complete. The
- * service also allows for partial-progress since commits can fail. Once the service has been closed
- * no new file groups should not be offered.
+ * A service which commits file groups to the table as their rewrites complete. Commits are
+ * serialized so that concurrent callers cannot produce conflicting commits on the same table, and a
+ * commit triggered by {@link #offer(Object)} runs synchronously on the offering thread before that
+ * call returns. The service supports partial progress since individual commits are allowed to fail.
+ *
+ * <p>Once the service has been closed, no new file groups should be offered.
  *
  * <p>Specific implementations provide implementations for {@link #commitOrClean(Set)} and {@link
  * #abortFileGroup(Object)}
@@ -210,29 +213,33 @@ abstract class BaseCommitService<T> implements Closeable {
   }
 
   private void commitReadyCommitGroups() {
-    Set<T> batch = null;
     if (canCreateCommitGroup()) {
+      // Serialize commits by holding the lock across commitOrClean. Otherwise concurrent callers
+      // (e.g. rewrite threads offering completed groups under partial progress) would each take a
+      // batch and commit in parallel, producing conflicting commits on the table. Producers can
+      // still enqueue into completedRewrites while a commit runs; they only wait before starting
+      // another. Commits stay inline on the offering thread (not moved to a background thread)
+      // because some callers rely on a commit being visible synchronously once offer() returns.
       synchronized (completedRewrites) {
         if (canCreateCommitGroup()) {
-          batch = Sets.newHashSetWithExpectedSize(rewritesPerCommit);
+          Set<T> batch = Sets.newHashSetWithExpectedSize(rewritesPerCommit);
           for (int i = 0; i < rewritesPerCommit && !completedRewrites.isEmpty(); i++) {
             batch.add(completedRewrites.poll());
           }
+
+          String inProgressCommitToken = UUID.randomUUID().toString();
+          inProgressCommits.add(inProgressCommitToken);
+          try {
+            commitOrClean(batch);
+            committedRewrites.addAll(batch);
+            succeededCommits++;
+          } catch (Exception e) {
+            LOG.error(
+                "Failure during rewrite commit process, partial progress enabled. Ignoring", e);
+          }
+          inProgressCommits.remove(inProgressCommitToken);
         }
       }
-    }
-
-    if (batch != null) {
-      String inProgressCommitToken = UUID.randomUUID().toString();
-      inProgressCommits.add(inProgressCommitToken);
-      try {
-        commitOrClean(batch);
-        committedRewrites.addAll(batch);
-        succeededCommits++;
-      } catch (Exception e) {
-        LOG.error("Failure during rewrite commit process, partial progress enabled. Ignoring", e);
-      }
-      inProgressCommits.remove(inProgressCommitToken);
     }
   }
 
