@@ -28,6 +28,12 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
  */
 class ArrowBatchReader extends BaseBatchReader<ColumnarBatch> {
 
+  /**
+   * Column vectors handed out with the previous batch. Retained so that vectors allocated by
+   * dictionary decoding can be released, since this reader owns them.
+   */
+  private ColumnVector[] columnVectors;
+
   ArrowBatchReader(List<VectorizedReader<?>> readers) {
     super(readers);
   }
@@ -41,7 +47,11 @@ class ArrowBatchReader extends BaseBatchReader<ColumnarBatch> {
       closeVectors();
     }
 
-    ColumnVector[] columnVectors = new ColumnVector[readers.length];
+    // release the decoded vectors the previous batch materialized, safe with reused containers
+    // because only decoded vectors are released never the holders' vectors
+    closeArrowVectors();
+    this.columnVectors = new ColumnVector[readers.length];
+
     for (int i = 0; i < readers.length; i += 1) {
       vectorHolders[i] = readers[i].read(vectorHolders[i], numRowsToRead);
       int numRowsInVector = vectorHolders[i].numValues();
@@ -54,5 +64,23 @@ class ArrowBatchReader extends BaseBatchReader<ColumnarBatch> {
       columnVectors[i] = new ColumnVector(vectorHolders[i]);
     }
     return new ColumnarBatch(numRowsToRead, columnVectors);
+  }
+
+  @Override
+  public void close() {
+    closeArrowVectors();
+    super.close();
+  }
+
+  private void closeArrowVectors() {
+    if (columnVectors != null) {
+      for (ColumnVector columnVector : columnVectors) {
+        if (columnVector != null) {
+          columnVector.closeArrowVector();
+        }
+      }
+
+      this.columnVectors = null;
+    }
   }
 }

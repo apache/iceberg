@@ -78,6 +78,7 @@ import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TableScan;
+import org.apache.iceberg.arrow.ArrowAllocation;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
@@ -116,6 +117,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 public class TestArrowReader {
 
   private static final int NUM_ROWS_PER_MONTH = 20;
+  private static final int NUM_DICT_ENCODED_ROWS = 100;
   private static final ImmutableList<String> ALL_COLUMNS =
       ImmutableList.of(
           "timestamp",
@@ -387,6 +389,43 @@ public class TestArrowReader {
     }
 
     assertThat(totalRowsRead).as("Should read all rows").isEqualTo(millisValues.size());
+  }
+
+  @Test
+  public void testReleasesDecodedVectorsWhenDictEncodedBatchIsMaterialized() throws Exception {
+    Table table = createDictEncodedTable();
+    long allocatedBefore = ArrowAllocation.rootAllocator().getAllocatedMemory();
+
+    int rowsRead = 0;
+    try (VectorizedTableScanIterable reader =
+        new VectorizedTableScanIterable(table.newScan(), 1024, false)) {
+      for (ColumnarBatch batch : reader) {
+        VectorSchemaRoot root = batch.createVectorSchemaRootFromVectors();
+        // repeated calls must return the cached decoded vector
+        assertThat(batch.column(0).getArrowVector()).isSameAs(batch.column(0).getArrowVector());
+        rowsRead += root.getRowCount();
+      }
+    }
+
+    assertThat(rowsRead).isEqualTo(NUM_DICT_ENCODED_ROWS);
+    assertThat(ArrowAllocation.rootAllocator().getAllocatedMemory() - allocatedBefore).isZero();
+  }
+
+  @Test
+  public void testReleasesMemoryWhenDictEncodedBatchIsNotMaterialized() throws Exception {
+    Table table = createDictEncodedTable();
+    long allocatedBefore = ArrowAllocation.rootAllocator().getAllocatedMemory();
+
+    int rowsRead = 0;
+    try (VectorizedTableScanIterable reader =
+        new VectorizedTableScanIterable(table.newScan(), 1024, false)) {
+      for (ColumnarBatch batch : reader) {
+        rowsRead += batch.numRows();
+      }
+    }
+
+    assertThat(rowsRead).isEqualTo(NUM_DICT_ENCODED_ROWS);
+    assertThat(ArrowAllocation.rootAllocator().getAllocatedMemory() - allocatedBefore).isZero();
   }
 
   /**
@@ -1495,6 +1534,41 @@ public class TestArrowReader {
       records.add(rec);
     }
     return records;
+  }
+
+  private Table createDictEncodedTable() throws Exception {
+    tables = new HadoopTables();
+    Schema schema = new Schema(Types.NestedField.required(1, "s", Types.StringType.get()));
+    Table table = tables.create(schema, tableLocation);
+
+    MessageType parquetSchema =
+        new MessageType(
+            "test",
+            primitive(PrimitiveType.PrimitiveTypeName.BINARY, Type.Repetition.REQUIRED)
+                .as(LogicalTypeAnnotation.stringType())
+                .id(1)
+                .named("s"));
+
+    File testFile = new File(tempDir, "dict-encoded.parquet");
+    try (ParquetWriter<Group> writer =
+        ExampleParquetWriter.builder(new Path(testFile.toURI())).withType(parquetSchema).build()) {
+      SimpleGroupFactory factory = new SimpleGroupFactory(parquetSchema);
+      for (int i = 0; i < NUM_DICT_ENCODED_ROWS; i++) {
+        // few distinct values, so Parquet dictionary encodes the column
+        writer.write(factory.newGroup().append("s", "v" + (i % 4)));
+      }
+    }
+
+    DataFile dataFile =
+        DataFiles.builder(PartitionSpec.unpartitioned())
+            .withPath(testFile.getAbsolutePath())
+            .withFileSizeInBytes(testFile.length())
+            .withFormat(FileFormat.PARQUET)
+            .withRecordCount(NUM_DICT_ENCODED_ROWS)
+            .build();
+
+    table.newAppend().appendFile(dataFile).commit();
+    return table;
   }
 
   private DataFile writeParquetFile(Table table, List<GenericRecord> records) throws IOException {
