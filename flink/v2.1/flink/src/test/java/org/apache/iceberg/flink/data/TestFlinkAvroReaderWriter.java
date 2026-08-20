@@ -59,6 +59,11 @@ public class TestFlinkAvroReaderWriter extends DataTestBase {
   }
 
   @Override
+  protected boolean supportsVariant() {
+    return true;
+  }
+
+  @Override
   protected void writeAndValidate(Schema schema) throws IOException {
     List<Record> expectedRecords = RandomGenericData.generate(schema, NUM_RECORDS, 1991L);
     writeAndValidate(schema, expectedRecords);

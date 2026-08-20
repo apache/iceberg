@@ -24,12 +24,18 @@ import org.apache.flink.table.types.logical.LogicalTypeFamily;
 import org.apache.flink.table.types.logical.MapType;
 import org.apache.flink.table.types.logical.NullType;
 import org.apache.flink.table.types.logical.RowType;
+import org.apache.flink.table.types.logical.VariantType;
 import org.apache.iceberg.avro.AvroWithPartnerByStructureVisitor;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.Pair;
 
 public abstract class AvroWithFlinkSchemaVisitor<T>
     extends AvroWithPartnerByStructureVisitor<LogicalType, T> {
+
+  @Override
+  protected boolean isVariantType(LogicalType logicalType) {
+    return logicalType instanceof VariantType;
+  }
 
   @Override
   protected boolean isStringType(LogicalType logicalType) {
