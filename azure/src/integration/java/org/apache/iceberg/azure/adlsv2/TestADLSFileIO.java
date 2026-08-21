@@ -24,6 +24,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -42,6 +43,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.time.OffsetDateTime;
 import java.util.Iterator;
+import java.util.function.Consumer;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.azure.AzureProperties;
 import org.apache.iceberg.exceptions.NotFoundException;
@@ -49,6 +51,7 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.FileInfo;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.io.PrefixListing;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.Test;
@@ -175,6 +178,44 @@ public class TestADLSFileIO extends AzuriteTestBase {
     assertThat(fileInfo.createdAtMillis()).isEqualTo(now.toInstant().toEpochMilli());
 
     assertThat(result.hasNext()).isFalse();
+  }
+
+  /** Azurite does not support ADLSv2 directory operations yet so use mocks here. */
+  @SuppressWarnings("unchecked")
+  @Test
+  void listPrefixWithDelimiter() {
+    String prefix = "abfs://container@account.dfs.core.windows.net/dir";
+    OffsetDateTime now = OffsetDateTime.now();
+    PathItem dir =
+        new PathItem("tag", now, 0L, "group", true, "dir/sub", "owner", "permissions", now, null);
+    PathItem file =
+        new PathItem(
+            "tag", now, 123L, "group", false, "dir/file", "owner", "permissions", now, null);
+
+    PagedIterable<PathItem> response = mock(PagedIterable.class);
+    doAnswer(
+            invocation -> {
+              Consumer<PathItem> consumer = invocation.getArgument(0);
+              consumer.accept(dir);
+              consumer.accept(file);
+              return null;
+            })
+        .when(response)
+        .forEach(any());
+
+    DataLakeFileSystemClient client = mock(DataLakeFileSystemClient.class);
+    when(client.listPaths(any(), any())).thenReturn(response);
+
+    ADLSFileIO io = spy(new ADLSFileIO());
+    io.initialize(ImmutableMap.of());
+    doReturn(client).when(io).client(any(ADLSLocation.class));
+
+    PrefixListing listing = io.listPrefix(prefix, "/");
+    assertThat(listing.files())
+        .extracting(FileInfo::location)
+        .containsExactly("abfs://container@account.dfs.core.windows.net/dir/file");
+    assertThat(listing.subPrefixes())
+        .containsExactly("abfs://container@account.dfs.core.windows.net/dir/sub/");
   }
 
   /** Azurite does not support ADLSv2 directory operations yet so use mocks here. */

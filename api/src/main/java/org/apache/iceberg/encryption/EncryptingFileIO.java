@@ -37,7 +37,6 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.PrefixListing;
 import org.apache.iceberg.io.SupportsPrefixOperations;
-import org.apache.iceberg.io.SupportsShallowPrefixOperations;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 
@@ -54,8 +53,6 @@ public class EncryptingFileIO implements FileIO, Serializable {
 
     if (io instanceof DelegateFileIO) {
       return new WithDelegateFileIO((DelegateFileIO) io, em);
-    } else if (io instanceof SupportsShallowPrefixOperations) {
-      return new WithSupportsShallowPrefixOperations((SupportsShallowPrefixOperations) io, em);
     } else if (io instanceof SupportsPrefixOperations) {
       return new WithSupportsPrefixOperations((SupportsPrefixOperations) io, em);
     } else {
@@ -226,32 +223,6 @@ public class EncryptingFileIO implements FileIO, Serializable {
     }
   }
 
-  static class WithSupportsShallowPrefixOperations extends EncryptingFileIO
-      implements SupportsShallowPrefixOperations {
-
-    private final SupportsShallowPrefixOperations prefixIo;
-
-    WithSupportsShallowPrefixOperations(SupportsShallowPrefixOperations io, EncryptionManager em) {
-      super(io, em);
-      this.prefixIo = io;
-    }
-
-    @Override
-    public Iterable<FileInfo> listPrefix(String prefix) {
-      return prefixIo.listPrefix(prefix);
-    }
-
-    @Override
-    public void deletePrefix(String prefix) {
-      prefixIo.deletePrefix(prefix);
-    }
-
-    @Override
-    public PrefixListing listImmediate(String prefix) {
-      return prefixIo.listImmediate(prefix);
-    }
-  }
-
   static class WithSupportsPrefixOperations extends EncryptingFileIO
       implements SupportsPrefixOperations {
 
@@ -265,6 +236,16 @@ public class EncryptingFileIO implements FileIO, Serializable {
     @Override
     public Iterable<FileInfo> listPrefix(String prefix) {
       return prefixIo.listPrefix(prefix);
+    }
+
+    @Override
+    public boolean supportsPrefixListingWithDelimiter(String prefix, String delimiter) {
+      return prefixIo.supportsPrefixListingWithDelimiter(prefix, delimiter);
+    }
+
+    @Override
+    public PrefixListing listPrefix(String prefix, String delimiter) {
+      return prefixIo.listPrefix(prefix, delimiter);
     }
 
     @Override
@@ -292,13 +273,18 @@ public class EncryptingFileIO implements FileIO, Serializable {
     }
 
     @Override
-    public void deletePrefix(String prefix) {
-      delegateFileIO.deletePrefix(prefix);
+    public boolean supportsPrefixListingWithDelimiter(String prefix, String delimiter) {
+      return delegateFileIO.supportsPrefixListingWithDelimiter(prefix, delimiter);
     }
 
     @Override
-    public PrefixListing listImmediate(String prefix) {
-      return delegateFileIO.listImmediate(prefix);
+    public PrefixListing listPrefix(String prefix, String delimiter) {
+      return delegateFileIO.listPrefix(prefix, delimiter);
+    }
+
+    @Override
+    public void deletePrefix(String prefix) {
+      delegateFileIO.deletePrefix(prefix);
     }
   }
 }

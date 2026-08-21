@@ -88,7 +88,7 @@ public class TestHadoopFileIO {
   }
 
   @Test
-  public void testListImmediate() throws IOException {
+  public void listPrefixWithDelimiter() throws IOException {
     Path parent = new Path(tempDir.toURI());
 
     Path subDir = new Path(parent, "sub");
@@ -100,14 +100,25 @@ public class TestHadoopFileIO {
     fs.createNewFile(immediateFile1);
     fs.createNewFile(immediateFile2);
 
-    PrefixListing listing = hadoopFileIO.listImmediate(parent.toUri().toString());
+    PrefixListing listing = hadoopFileIO.listPrefix(parent.toUri().toString(), "/");
 
     assertThat(listing.files())
         .extracting(fileInfo -> new Path(fileInfo.location()).getName())
         .containsExactlyInAnyOrder("a.txt", "b.txt");
-    assertThat(listing.subPrefixes())
-        .extracting(prefix -> new Path(prefix).getName())
-        .containsExactly("sub");
+    assertThat(listing.subPrefixes()).containsExactly(subDir + "/");
+  }
+
+  @Test
+  void delimitedPrefixListingSupport() {
+    String prefix = tempDir.toURI().toString();
+
+    assertThat(hadoopFileIO.supportsPrefixListingWithDelimiter(prefix, "/")).isTrue();
+    assertThat(hadoopFileIO.supportsPrefixListingWithDelimiter(prefix, "|")).isFalse();
+    assertThat(hadoopFileIO.supportsPrefixListingWithDelimiter(prefix, "")).isFalse();
+    assertThat(hadoopFileIO.supportsPrefixListingWithDelimiter(prefix, null)).isFalse();
+    assertThatThrownBy(() -> hadoopFileIO.listPrefix(prefix, "|"))
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage("Prefix listing with delimiter '|' is not supported");
   }
 
   @Test

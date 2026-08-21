@@ -170,7 +170,12 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
   }
 
   @Override
-  public PrefixListing listImmediate(String prefix) {
+  public PrefixListing listPrefix(String prefix, String delimiter) {
+    if (!"/".equals(delimiter)) {
+      throw new UnsupportedOperationException(
+          String.format("Prefix listing with delimiter '%s' is not supported", delimiter));
+    }
+
     Path prefixToList = new Path(prefix);
     FileSystem fs = Util.getFs(prefixToList, getConf());
 
@@ -180,7 +185,7 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
 
       for (FileStatus status : fs.listStatus(prefixToList)) {
         if (status.isDirectory()) {
-          subPrefixes.add(status.getPath().toString());
+          subPrefixes.add(status.getPath() + "/");
         } else {
           files.add(createFileInfo(status));
         }
@@ -190,6 +195,11 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }
+  }
+
+  @Override
+  public boolean supportsPrefixListingWithDelimiter(String prefix, String delimiter) {
+    return "/".equals(delimiter);
   }
 
   private FileInfo createFileInfo(FileStatus status) {

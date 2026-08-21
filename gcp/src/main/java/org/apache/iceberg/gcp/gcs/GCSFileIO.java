@@ -303,7 +303,12 @@ public class GCSFileIO implements DelegateFileIO, SupportsStorageCredentials {
   }
 
   @Override
-  public PrefixListing listImmediate(String prefix) {
+  public PrefixListing listPrefix(String prefix, String delimiter) {
+    if (!"/".equals(delimiter)) {
+      throw new UnsupportedOperationException(
+          String.format("Prefix listing with delimiter '%s' is not supported", delimiter));
+    }
+
     GCSLocation location = new GCSLocation(prefix);
     List<FileInfo> files = Lists.newArrayList();
     List<String> subPrefixes = Lists.newArrayList();
@@ -323,6 +328,11 @@ public class GCSFileIO implements DelegateFileIO, SupportsStorageCredentials {
               }
             });
     return PrefixListing.of(files, subPrefixes);
+  }
+
+  @Override
+  public boolean supportsPrefixListingWithDelimiter(String prefix, String delimiter) {
+    return "/".equals(delimiter);
   }
 
   private FileInfo createFileInfo(Blob blob) {

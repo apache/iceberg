@@ -1229,8 +1229,7 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
   public void testPrefixListingMaxSeedDepthRejectsNegative() {
     Table table = TABLES.create(SCHEMA, PartitionSpec.unpartitioned(), properties, tableLocation);
     assertThatThrownBy(
-            () ->
-                SparkActions.get().deleteOrphanFiles(table).prefixListingMaxSeedDepth(-1))
+            () -> SparkActions.get().deleteOrphanFiles(table).prefixListingMaxSeedDepth(-1))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Prefix listing max seed depth must be non-negative");
   }

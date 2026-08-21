@@ -39,7 +39,6 @@ import org.apache.iceberg.io.FileInfo;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.PrefixListing;
-import org.apache.iceberg.io.SupportsShallowPrefixOperations;
 import org.apache.iceberg.metrics.MetricsContext;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -52,7 +51,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /** FileIO implementation backed by Azure Data Lake Storage Gen2. */
-public class ADLSFileIO implements DelegateFileIO, SupportsShallowPrefixOperations {
+public class ADLSFileIO implements DelegateFileIO {
 
   private static final Logger LOG = LoggerFactory.getLogger(ADLSFileIO.class);
   private static final String DEFAULT_METRICS_IMPL =
@@ -244,7 +243,12 @@ public class ADLSFileIO implements DelegateFileIO, SupportsShallowPrefixOperatio
   }
 
   @Override
-  public PrefixListing listImmediate(String prefix) {
+  public PrefixListing listPrefix(String prefix, String delimiter) {
+    if (!"/".equals(delimiter)) {
+      throw new UnsupportedOperationException(
+          String.format("Prefix listing with delimiter '%s' is not supported", delimiter));
+    }
+
     ADLSLocation location = new ADLSLocation(prefix);
     String baseUri = toBaseUri(location);
 
@@ -261,7 +265,7 @@ public class ADLSFileIO implements DelegateFileIO, SupportsShallowPrefixOperatio
           .forEach(
               pathItem -> {
                 if (pathItem.isDirectory()) {
-                  subPrefixes.add(baseUri + pathItem.getName());
+                  subPrefixes.add(baseUri + pathItem.getName() + "/");
                 } else {
                   files.add(createFileInfo(baseUri, pathItem));
                 }
@@ -274,6 +278,11 @@ public class ADLSFileIO implements DelegateFileIO, SupportsShallowPrefixOperatio
     }
 
     return PrefixListing.of(files, subPrefixes);
+  }
+
+  @Override
+  public boolean supportsPrefixListingWithDelimiter(String prefix, String delimiter) {
+    return "/".equals(delimiter);
   }
 
   private String toBaseUri(ADLSLocation location) {

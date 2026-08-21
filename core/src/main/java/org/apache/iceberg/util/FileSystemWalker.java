@@ -38,7 +38,7 @@ import org.apache.iceberg.hadoop.HiddenPathFilter;
 import org.apache.iceberg.io.FileInfo;
 import org.apache.iceberg.io.PrefixListing;
 import org.apache.iceberg.io.SupportsPrefixOperations;
-import org.apache.iceberg.io.SupportsShallowPrefixOperations;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
@@ -105,7 +105,7 @@ public class FileSystemWalker {
    *       and adds those sub-prefixes to the pending list.
    * </ul>
    *
-   * @param io FileIO implementation that supports shallow prefix listing
+   * @param io FileIO implementation that supports prefix listing
    * @param dir the starting prefix to traverse
    * @param specs partition specs used to preserve partition-name-based hidden paths
    * @param filter file filter; only files satisfying this condition will be collected
@@ -115,7 +115,7 @@ public class FileSystemWalker {
    * @param fileConsumer consumer for qualifying file locations
    */
   public static void listDirRecursivelyWithFileIO(
-      SupportsShallowPrefixOperations io,
+      SupportsPrefixOperations io,
       String dir,
       Map<Integer, PartitionSpec> specs,
       Predicate<FileInfo> filter,
@@ -137,7 +137,7 @@ public class FileSystemWalker {
   }
 
   private static void listDirRecursivelyWithFileIO(
-      SupportsShallowPrefixOperations io,
+      SupportsPrefixOperations io,
       String baseDir,
       String dir,
       PathFilter pathFilter,
@@ -152,7 +152,11 @@ public class FileSystemWalker {
     }
 
     String listPath = dir.endsWith("/") ? dir : dir + "/";
-    PrefixListing listing = io.listImmediate(listPath);
+    Preconditions.checkArgument(
+        io.supportsPrefixListingWithDelimiter(listPath, "/"),
+        "FileIO does not support prefix listing with '/' delimiter: %s",
+        io);
+    PrefixListing listing = io.listPrefix(listPath, "/");
 
     List<String> subDirs = Lists.newArrayList();
     for (String subPrefix : listing.subPrefixes()) {

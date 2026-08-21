@@ -22,5 +22,4 @@ package org.apache.iceberg.io;
  * This interface is intended as an extension for FileIO implementations that support being a
  * delegate target.
  */
-public interface DelegateFileIO
-    extends FileIO, SupportsShallowPrefixOperations, SupportsBulkOperations {}
+public interface DelegateFileIO extends FileIO, SupportsPrefixOperations, SupportsBulkOperations {}

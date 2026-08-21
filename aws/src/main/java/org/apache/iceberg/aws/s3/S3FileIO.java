@@ -351,10 +351,15 @@ public class S3FileIO
   }
 
   @Override
-  public PrefixListing listImmediate(String prefix) {
+  public PrefixListing listPrefix(String prefix, String delimiter) {
     PrefixedS3Client client = clientForStoragePath(prefix);
 
     S3URI uri = new S3URI(prefix, client.s3FileIOProperties().bucketToAccessPointMapping());
+    if (!supportsPrefixListingWithDelimiter(uri, client.s3FileIOProperties(), delimiter)) {
+      throw new UnsupportedOperationException(
+          String.format("Prefix listing with delimiter '%s' is not supported", delimiter));
+    }
+
     if (uri.useS3DirectoryBucket()
         && client.s3FileIOProperties().isS3DirectoryBucketListPrefixAsDirectory()) {
       uri = uri.toDirectoryPath();
@@ -365,7 +370,7 @@ public class S3FileIO
         ListObjectsV2Request.builder()
             .bucket(s3uri.bucket())
             .prefix(s3uri.key())
-            .delimiter("/")
+            .delimiter(delimiter)
             .build();
 
     List<FileInfo> files = Lists.newArrayList();
@@ -378,6 +383,31 @@ public class S3FileIO
     }
 
     return PrefixListing.of(files, subPrefixes);
+  }
+
+  @Override
+  public boolean supportsPrefixListingWithDelimiter(String prefix, String delimiter) {
+    if (delimiter == null || delimiter.isEmpty()) {
+      return false;
+    }
+
+    PrefixedS3Client client = clientForStoragePath(prefix);
+    S3URI uri = new S3URI(prefix, client.s3FileIOProperties().bucketToAccessPointMapping());
+    return supportsPrefixListingWithDelimiter(uri, client.s3FileIOProperties(), delimiter);
+  }
+
+  private static boolean supportsPrefixListingWithDelimiter(
+      S3URI uri, S3FileIOProperties properties, String delimiter) {
+    if (delimiter == null || delimiter.isEmpty()) {
+      return false;
+    } else if (!uri.useS3DirectoryBucket()) {
+      return true;
+    }
+
+    return "/".equals(delimiter)
+        && (uri.key().isEmpty()
+            || uri.key().endsWith("/")
+            || properties.isS3DirectoryBucketListPrefixAsDirectory());
   }
 
   private FileInfo createFileInfo(S3URI s3uri, S3Object object) {

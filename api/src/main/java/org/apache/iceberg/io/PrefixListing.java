@@ -19,8 +19,8 @@
 package org.apache.iceberg.io;
 
 /**
- * Result of a shallow (single-level) prefix listing, separating files found immediately under the
- * prefix from sub-prefixes that would be expanded further.
+ * Result of a delimited prefix listing, separating files from common prefixes that group files
+ * containing the delimiter.
  *
  * <p>For key/value object stores this maps directly to a delimited listing where {@link #files()}
  * corresponds to entries returned as objects and {@link #subPrefixes()} corresponds to entries
@@ -30,10 +30,15 @@ package org.apache.iceberg.io;
  */
 public interface PrefixListing {
 
-  /** Files found immediately under the listed prefix. */
+  /** Files that do not contain the delimiter after the listed prefix. */
   Iterable<FileInfo> files();
 
-  /** Sub-prefixes one level below the listed prefix. Each is a location suitable for re-listing. */
+  /**
+   * Common prefixes through the first delimiter after the listed prefix.
+   *
+   * <p>Each common prefix includes the delimiter and is a location suitable for a subsequent
+   * listing operation.
+   */
   Iterable<String> subPrefixes();
 
   /** Create a {@link PrefixListing} from the given iterables. */

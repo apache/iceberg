@@ -275,13 +275,18 @@ public class ResolvingFileIO
   }
 
   @Override
-  public void deletePrefix(String prefix) {
-    io(prefix).deletePrefix(prefix);
+  public PrefixListing listPrefix(String prefix, String delimiter) {
+    return io(prefix).listPrefix(prefix, delimiter);
   }
 
   @Override
-  public PrefixListing listImmediate(String prefix) {
-    return io(prefix).listImmediate(prefix);
+  public boolean supportsPrefixListingWithDelimiter(String prefix, String delimiter) {
+    return io(prefix).supportsPrefixListingWithDelimiter(prefix, delimiter);
+  }
+
+  @Override
+  public void deletePrefix(String prefix) {
+    io(prefix).deletePrefix(prefix);
   }
 
   @Override

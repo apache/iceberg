@@ -38,7 +38,6 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.PrefixListing;
 import org.apache.iceberg.io.SupportsPrefixOperations;
-import org.apache.iceberg.io.SupportsShallowPrefixOperations;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -326,8 +325,8 @@ public class TestFileSystemWalker {
   }
 
   @Test
-  public void testShallowListDirRecursivelyWithFileIONormalizesTrailingSlash() {
-    RecordingShallowFileIO recordingIO = new RecordingShallowFileIO();
+  void delimitedListDirRecursivelyWithFileIONormalizesTrailingSlash() {
+    RecordingPrefixFileIO recordingIO = new RecordingPrefixFileIO();
     FileSystemWalker.listDirRecursivelyWithFileIO(
         recordingIO,
         "s3://bucket/table",
@@ -341,6 +340,25 @@ public class TestFileSystemWalker {
     // walker must normalize the seed prefix so object-store list calls do not accidentally match
     // sibling prefixes like "s3://bucket/table_backup/"
     assertThat(recordingIO.calls).containsExactly("s3://bucket/table/");
+  }
+
+  @Test
+  void rejectsUnsupportedDelimitedPrefixListing() {
+    SupportsPrefixOperations io = new StaticPrefixFileIO(ImmutableList.of());
+
+    assertThatThrownBy(
+            () ->
+                FileSystemWalker.listDirRecursivelyWithFileIO(
+                    io,
+                    "s3://bucket/table",
+                    null,
+                    fileInfo -> true,
+                    1,
+                    Integer.MAX_VALUE,
+                    dir -> {},
+                    file -> {}))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("does not support prefix listing with '/' delimiter");
   }
 
   @Test
@@ -404,11 +422,16 @@ public class TestFileSystemWalker {
     return foundFiles;
   }
 
-  private static class RecordingShallowFileIO implements SupportsShallowPrefixOperations {
+  private static class RecordingPrefixFileIO implements SupportsPrefixOperations {
     private final List<String> calls = Lists.newArrayList();
 
     @Override
-    public PrefixListing listImmediate(String prefix) {
+    public boolean supportsPrefixListingWithDelimiter(String prefix, String delimiter) {
+      return "/".equals(delimiter);
+    }
+
+    @Override
+    public PrefixListing listPrefix(String prefix, String delimiter) {
       calls.add(prefix);
       return PrefixListing.of(ImmutableList.of(), ImmutableList.of());
     }

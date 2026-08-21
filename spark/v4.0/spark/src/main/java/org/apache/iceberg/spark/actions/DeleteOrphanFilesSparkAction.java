@@ -44,7 +44,6 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.BulkDeletionFailureException;
 import org.apache.iceberg.io.SupportsBulkOperations;
 import org.apache.iceberg.io.SupportsPrefixOperations;
-import org.apache.iceberg.io.SupportsShallowPrefixOperations;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -437,15 +436,10 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
       if (prefixListingMaxSeedDepth == 0) {
         seedPrefixes.add(location);
       } else {
-        Preconditions.checkArgument(
-            table.io() instanceof SupportsShallowPrefixOperations,
-            "Cannot use prefix listing seed depth > 0 with FileIO %s which does not support"
-                + " shallow prefix operations.",
-            table.io());
         Predicate<org.apache.iceberg.io.FileInfo> predicate =
             fileInfo -> fileInfo.createdAtMillis() < olderThanTimestamp;
         FileSystemWalker.listDirRecursivelyWithFileIO(
-            (SupportsShallowPrefixOperations) table.io(),
+            (SupportsPrefixOperations) table.io(),
             location,
             table.specs(),
             predicate,
