@@ -25,9 +25,28 @@ info:
     name: Apache 2.0
     url: https://www.apache.org/licenses/LICENSE-2.0.html
   version: 0.0.1
-  description:
+  description: |
     Defines the specification for the first version of the REST Catalog API.
     Implementations should ideally support all Iceberg table spec versions.
+
+    ## Client Identification
+
+    Clients SHOULD identify themselves to the catalog using the standard HTTP
+    `User-Agent` header (RFC 7231, Section 5.5.3). A consistent, parseable
+    format gives catalog operators usable telemetry for observability,
+    debugging, and support across the many engines and libraries that speak
+    this protocol. The recommended format is defined by the `User-Agent`
+    parameter in the components section of this document.
+
+    Client identification is informational only:
+
+    - Servers MUST NOT reject a request because the header is absent or
+      malformed.
+    - Servers MUST NOT use its value for authentication, authorization, or any
+      trust decision. The value is client-asserted and trivially spoofed.
+    - It is NOT a capability negotiation mechanism. Clients do not advertise
+      the protocol features they support through this header, and servers do
+      not change response semantics based on it.
 servers:
   - url: "{scheme}://{host}/{basePath}"
     description: Server URL when the port can be inferred from the scheme
@@ -2161,6 +2180,56 @@ components:
       style: simple
       explode: false
       example: "vended-credentials,remote-signing"
+
+    user-agent:
+      name: User-Agent
+      in: header
+      description: >
+        Recommended header for a client to identify itself to the catalog. It
+        follows the standard HTTP `User-Agent` grammar (RFC 7231, Section
+        5.5.3): a whitespace-separated list of `product/version` tokens,
+        optionally followed by a parenthesized comment.
+
+
+        Tokens SHOULD be ordered from the outermost component to the innermost,
+        so the most specific caller appears first: the engine or application,
+        then any integration or connector, then the Iceberg client library,
+        then the language runtime. The Iceberg client library token is the one
+        component every client can supply and SHOULD always be present.
+        Recommended library tokens are `iceberg-java`, `pyiceberg`,
+        `iceberg-rust`, and `iceberg-go`.
+
+
+        The trailing parenthesized comment is an open extension point for
+        additional, lower-value context such as build identifiers, the HTTP
+        library, or the operating system, given as bare tokens or `key=value`
+        pairs separated by `; `. Servers SHOULD treat the comment as free-form
+        and MUST NOT depend on its contents.
+
+
+        Examples:
+
+
+        `pyiceberg/0.11.0 (cpython/3.11.4)` — a client library used directly.
+
+
+        `Trino/438 iceberg-java/1.9.0 (jvm/17.0.9)` — an engine embedding the
+        Iceberg Java library.
+
+
+        `Spark/4.0.0 iceberg-spark/1.9.0 iceberg-java/1.9.0 (scala/2.13.16)` —
+        an engine with a connector layer on top of the library.
+
+
+        This header is optional and informational; see "Client Identification"
+        in the API description for the rules that apply to all client-identity
+        headers. Servers MUST NOT reject a request based on its presence,
+        absence, or contents.
+
+      required: false
+      schema:
+        type: string
+      example: "Trino/438 iceberg-java/1.9.0 (jvm/17.0.9)"
 
     page-token:
       name: pageToken
