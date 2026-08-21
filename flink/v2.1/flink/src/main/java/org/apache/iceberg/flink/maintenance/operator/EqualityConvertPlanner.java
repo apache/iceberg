@@ -73,7 +73,9 @@ import org.slf4j.LoggerFactory;
  *       (e.g. compaction) have advanced main past the currently-indexed snapshot.
  *   <li>{@link #processStagingSnapshot}: resolve the chosen staging snapshot's eq deletes against
  *       the (now-current) index, pass through any DV files, and index the snapshot's new data files
- *       for the next cycle.
+ *       for the next cycle. The index is rebuilt first when the chosen staging snapshot is the one
+ *       the previous plan covered, because that cycle did not commit and resolving its deletes
+ *       consumed the matching index entries.
  * </ol>
  *
  * Watermarks separate phases that gate the worker's keyed state. The contract is documented on
@@ -116,8 +118,10 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
 
   // Main snapshot id the worker's index reflects.
   private transient ListState<Long> indexSnapshotState;
-  // Main sequence number the worker's index reflects.
-  private transient ListState<Long> indexedSequenceNumberState;
+  // Generation of the worker's current index build.
+  private transient ListState<Long> indexGenerationState;
+  // Staging snapshot the last emitted plan covered.
+  private transient ListState<Long> pendingStagingSnapshotState;
   // Equality field IDs the index was built with, allows to detect reconfiguration.
   private transient ListState<Integer> eqFieldIdsState;
 
@@ -126,7 +130,10 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
   private transient Long lastMainSnapshotId;
   private transient Long lastStagingSnapshotId;
   private transient Long indexSnapshotId;
-  private transient Long indexedSequenceNumber;
+  private transient Long indexGeneration;
+  // Staging snapshot the last emitted plan covered, checkpointed so it survives a restore taken
+  // mid-cycle. Selecting it again means that cycle never committed.
+  private transient Long pendingStagingSnapshotId;
 
   private transient long nextPhaseTs;
 
@@ -189,17 +196,16 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
       indexSnapshotId = stateValue;
     }
 
-    indexedSequenceNumberState =
+    indexGenerationState =
         context
             .getOperatorStateStore()
-            .getListState(new ListStateDescriptor<>("indexedSequenceNumber", Types.LONG));
+            .getListState(new ListStateDescriptor<>("indexGeneration", Types.LONG));
 
-    indexedSequenceNumber = null;
-    for (Long stateValue : indexedSequenceNumberState.get()) {
+    indexGeneration = null;
+    for (Long stateValue : indexGenerationState.get()) {
       Preconditions.checkState(
-          indexedSequenceNumber == null,
-          "indexedSequenceNumber state should hold at most one value");
-      indexedSequenceNumber = stateValue;
+          indexGeneration == null, "indexGeneration state should hold at most one value");
+      indexGeneration = stateValue;
     }
 
     eqFieldIdsState =
@@ -214,6 +220,19 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
             + "restart from a clean state (no savepoint).",
         restoredEqFieldIds,
         eqFieldIds);
+
+    pendingStagingSnapshotState =
+        context
+            .getOperatorStateStore()
+            .getListState(new ListStateDescriptor<>("pendingStagingSnapshotId", Types.LONG));
+
+    pendingStagingSnapshotId = null;
+    for (Long stateValue : pendingStagingSnapshotState.get()) {
+      Preconditions.checkState(
+          pendingStagingSnapshotId == null,
+          "pendingStagingSnapshotId state should hold at most one value");
+      pendingStagingSnapshotId = stateValue;
+    }
   }
 
   @Override
@@ -224,14 +243,19 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
       indexSnapshotState.add(indexSnapshotId);
     }
 
-    indexedSequenceNumberState.clear();
-    if (indexedSequenceNumber != null) {
-      indexedSequenceNumberState.add(indexedSequenceNumber);
+    indexGenerationState.clear();
+    if (indexGeneration != null) {
+      indexGenerationState.add(indexGeneration);
     }
 
     eqFieldIdsState.clear();
     for (int id : eqFieldIds) {
       eqFieldIdsState.add(id);
+    }
+
+    pendingStagingSnapshotState.clear();
+    if (pendingStagingSnapshotId != null) {
+      pendingStagingSnapshotState.add(pendingStagingSnapshotId);
     }
   }
 
@@ -246,7 +270,7 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
       Snapshot mainSnapshot = table.snapshot(targetBranch);
       currentMainSnapshotId = mainSnapshot != null ? mainSnapshot.snapshotId() : null;
 
-      ensureIndexCurrent(mainSnapshot);
+      boolean rebuilt = ensureIndexCurrent(mainSnapshot);
 
       Snapshot nextToProcess =
           nextUnprocessedStagingSnapshot(table.snapshot(stagingBranch), mainSnapshot);
@@ -255,6 +279,18 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
         LOG.info("Nothing new to convert on staging branch '{}'.", stagingBranch);
         emitNoOpResult(triggerTs, currentMainSnapshotId);
         return;
+      }
+
+      // Resolving an eq delete consumes the index entries it matches, so a cycle that failed after
+      // its delete phase left the index without them. The cursor only advances once the committer's
+      // marker is on the target branch, so picking the same staging snapshot again means that cycle
+      // did not commit, and the target has not moved either, so nothing else rebuilds the index.
+      // This also covers a restore from a checkpoint taken mid-cycle, because the planned snapshot
+      // is part of the checkpointed state.
+      if (!rebuilt
+          && mainSnapshot != null
+          && Objects.equals(pendingStagingSnapshotId, nextToProcess.snapshotId())) {
+        rebuildIndex(mainSnapshot, true);
       }
 
       processStagingSnapshot(nextToProcess, triggerTs, currentMainSnapshotId);
@@ -278,12 +314,14 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
    *
    * <p>No-op when main hasn't moved since the last trigger. Otherwise the history walk is bounded
    * to commits added since {@link #lastMainSnapshotId}.
+   *
+   * @return whether the index was rebuilt
    */
-  private void ensureIndexCurrent(Snapshot mainSnapshot) {
+  private boolean ensureIndexCurrent(Snapshot mainSnapshot) {
     Long currentMainSnapshotId = mainSnapshot != null ? mainSnapshot.snapshotId() : null;
 
     if (Objects.equals(lastMainSnapshotId, currentMainSnapshotId)) {
-      return;
+      return false;
     }
 
     LastCommittedWork info = discoverLastCommittedWork(mainSnapshot);
@@ -297,22 +335,37 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
           bootstrap ? "Bootstrapping" : "Reindexing",
           currentMainSnapshotId,
           eqFieldIds);
-      if (reindex) {
-        // Evict keyed entries the reindex will not re-add (e.g. data file removed by CoW).
-        output.collect(
-            CLEAR_BROADCAST_STREAM,
-            new StreamRecord<>(
-                IndexCommand.clearBeforeReindex(
-                    currentMainSnapshotId, mainSnapshot.sequenceNumber())));
-        reindexCounter.inc();
-      }
-
-      indexSnapshotId = currentMainSnapshotId;
-      indexedSequenceNumber = mainSnapshot.sequenceNumber();
-      emitMainDataReadCommands(mainSnapshot);
+      rebuildIndex(mainSnapshot, reindex);
     }
 
     lastMainSnapshotId = currentMainSnapshotId;
+    return bootstrap || reindex;
+  }
+
+  /**
+   * Re-emits every data row on {@code mainSnapshot} so the worker's index holds all their positions
+   * again, optionally preceded by a CLEAR_INDEX broadcast that evicts keyed entries the re-emission
+   * will not re-add (e.g. a PK whose data file was removed by a CoW commit). A bootstrap has no
+   * earlier index and so nothing to evict.
+   *
+   * <p>The worker detects stale state by comparing the generation stamped on the commands it
+   * receives with the one it stored, so every rebuild hands out a higher generation, including a
+   * rebuild while the target branch stands still.
+   */
+  private void rebuildIndex(Snapshot mainSnapshot, boolean evictStaleKeys) {
+    long generation = indexGeneration == null ? 1 : indexGeneration + 1;
+
+    if (evictStaleKeys) {
+      output.collect(
+          CLEAR_BROADCAST_STREAM,
+          new StreamRecord<>(
+              IndexCommand.clearBeforeReindex(mainSnapshot.snapshotId(), generation)));
+      reindexCounter.inc();
+    }
+
+    indexSnapshotId = mainSnapshot.snapshotId();
+    indexGeneration = generation;
+    emitMainDataReadCommands(mainSnapshot);
   }
 
   private void updateLastStagingSnapshotId(LastCommittedWork info) {
@@ -445,6 +498,10 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
         "Staging snapshot %s has no convertible inputs; shouldSkip should have filtered it.",
         stagingSnapshot.snapshotId());
 
+    // Recorded only once the inputs are known to be convertible: a snapshot that fails validation
+    // consumes no index entries, so it must not make later triggers rebuild the index.
+    pendingStagingSnapshotId = stagingSnapshot.snapshotId();
+
     emitDeletePhase(inputs.eqDeleteFiles());
     emitSnapshotDataPhase(inputs.newDataFiles());
 
@@ -572,7 +629,7 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
                   deleteFile,
                   spec,
                   indexSnapshotId,
-                  indexedSequenceNumber,
+                  indexGeneration,
                   dataSequenceNumber(deleteFile)),
               nextPhaseTs));
       processedEqDeleteFileNumCounter.inc();
@@ -593,7 +650,7 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
                 ReadCommand.stagingDataFile(
                     new FlinkAddedRowsScanTask(dataFile, spec),
                     indexSnapshotId,
-                    indexedSequenceNumber,
+                    indexGeneration,
                     dataSequenceNumber(dataFile)),
                 nextPhaseTs));
       }
@@ -632,7 +689,7 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
         output.collect(
             new StreamRecord<>(
                 ReadCommand.dataFile(
-                    task, indexSnapshotId, indexedSequenceNumber, dataSequenceNumber(task.file())),
+                    task, indexSnapshotId, indexGeneration, dataSequenceNumber(task.file())),
                 nextPhaseTs));
       }
     } catch (IOException e) {
