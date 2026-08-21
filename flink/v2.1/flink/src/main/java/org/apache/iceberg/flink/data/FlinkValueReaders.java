@@ -35,6 +35,7 @@ import org.apache.flink.table.data.MapData;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.StringData;
 import org.apache.flink.table.data.TimestampData;
+import org.apache.flink.types.variant.BinaryVariant;
 import org.apache.iceberg.avro.ValueReader;
 import org.apache.iceberg.avro.ValueReaders;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -77,6 +78,10 @@ public class FlinkValueReaders {
   static ValueReader<DecimalData> decimal(
       ValueReader<byte[]> unscaledReader, int precision, int scale) {
     return new DecimalReader(unscaledReader, precision, scale);
+  }
+
+  static ValueReader<BinaryVariant> variants() {
+    return VariantReader.INSTANCE;
   }
 
   static ValueReader<ArrayData> array(ValueReader<?> elementReader) {
@@ -151,6 +156,32 @@ public class FlinkValueReaders {
       byte[] bytes = bytesReader.read(decoder, null);
       return DecimalData.fromBigDecimal(
           new BigDecimal(new BigInteger(bytes), scale), precision, scale);
+    }
+  }
+
+  /** Variant reader reads the metadata and value bytes into a Flink {@link BinaryVariant}. */
+  private static class VariantReader implements ValueReader<BinaryVariant> {
+    private static final VariantReader INSTANCE = new VariantReader();
+
+    private final ValueReader<byte[]> metadataReader;
+    private final ValueReader<byte[]> valueReader;
+
+    private VariantReader() {
+      this.metadataReader = ValueReaders.bytes();
+      this.valueReader = ValueReaders.bytes();
+    }
+
+    @Override
+    public BinaryVariant read(Decoder decoder, Object reuse) throws IOException {
+      byte[] metadata = metadataReader.read(decoder, null);
+      byte[] value = valueReader.read(decoder, null);
+      return new BinaryVariant(value, metadata);
+    }
+
+    @Override
+    public void skip(Decoder decoder) throws IOException {
+      metadataReader.skip(decoder);
+      valueReader.skip(decoder);
     }
   }
 
