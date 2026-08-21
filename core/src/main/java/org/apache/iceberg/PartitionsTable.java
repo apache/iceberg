@@ -153,7 +153,7 @@ public class PartitionsTable extends BaseMetadataTable {
     if (unpartitionedTable) {
       // the table is unpartitioned, partitions contains only the root partition
       return StaticDataTask.of(
-          io().newInputFile(table().operations().current().metadataFileLocation()),
+          table().operations().current().metadataFileLocation(),
           schema(),
           scan.schema(),
           partitions,
@@ -170,7 +170,7 @@ public class PartitionsTable extends BaseMetadataTable {
                   root.lastUpdatedSnapshotId));
     } else {
       return StaticDataTask.of(
-          io().newInputFile(table().operations().current().metadataFileLocation()),
+          table().operations().current().metadataFileLocation(),
           schema(),
           scan.schema(),
           partitions,
