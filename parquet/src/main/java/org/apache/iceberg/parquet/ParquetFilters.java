@@ -223,7 +223,7 @@ class ParquetFilters {
 
     // TODO: this needs to convert to handle BigDecimal and UUID
     Object value = lit.value();
-    if (value instanceof Number) {
+    if (value instanceof Number || value instanceof Boolean) {
       return (C) lit.value();
     } else if (value instanceof CharSequence) {
       return (C) Binary.fromString(value.toString());
