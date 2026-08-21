@@ -737,7 +737,7 @@ public class RewriteTablePathUtil {
 
       if (recordIt.hasNext()) {
         record = recordIt.next();
-        rowSchema = record.get(2) != null ? spec.schema() : null;
+        rowSchema = record.size() > 2 && record.get(2) != null ? spec.schema() : null;
       }
 
       if (record != null) {
@@ -829,7 +829,8 @@ public class RewriteTablePathUtil {
               + oldPath);
     }
     String newPath = newPath(oldPath, sourcePrefix, targetPrefix);
-    delete.set(newPath, (Long) record.get(1), record.get(2));
+    Object row = record.size() > 2 ? record.get(2) : null;
+    delete.set(newPath, (Long) record.get(1), row);
     return delete;
   }
 
