@@ -23,8 +23,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.emc.object.s3.request.PutObjectRequest;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Map;
 import org.apache.iceberg.dell.mock.ecs.EcsS3MockRule;
+import org.apache.iceberg.io.FileIOMetricsContext;
+import org.apache.iceberg.metrics.Counter;
+import org.apache.iceberg.metrics.DefaultMetricsContext;
 import org.apache.iceberg.metrics.MetricsContext;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 
@@ -88,6 +93,47 @@ public class TestEcsSeekableInputStream {
       assertThat(new String(buffer, StandardCharsets.UTF_8))
           .as("The first 3 bytes should be 012")
           .isEqualTo("012");
+    }
+  }
+
+  @Test
+  public void testReadAtEofDoesNotCountMetrics() throws IOException {
+    String objectName = rule.randomObjectName();
+    rule.client().putObject(new PutObjectRequest(rule.bucket(), objectName, "ab".getBytes()));
+
+    CachingMetricsContext metrics = new CachingMetricsContext();
+    Counter readBytes = metrics.counter(FileIOMetricsContext.READ_BYTES, MetricsContext.Unit.BYTES);
+    Counter readOperations = metrics.counter(FileIOMetricsContext.READ_OPERATIONS);
+
+    try (EcsSeekableInputStream input =
+        new EcsSeekableInputStream(
+            rule.client(), new EcsURI(rule.bucket(), objectName), metrics)) {
+      // read the two bytes of content
+      assertThat(input.read()).isEqualTo('a');
+      assertThat(input.read()).isEqualTo('b');
+      assertThat(readBytes.value()).isEqualTo(2);
+      assertThat(readOperations.value()).isEqualTo(2);
+
+      // reading past EOF must not count bytes or operations, and must not decrement
+      assertThat(input.read()).isEqualTo(-1);
+      byte[] buffer = new byte[8];
+      assertThat(input.read(buffer, 0, buffer.length)).isEqualTo(-1);
+      assertThat(readBytes.value()).isEqualTo(2);
+      assertThat(readOperations.value()).isEqualTo(2);
+    }
+  }
+
+  /**
+   * A {@link MetricsContext} that returns the same {@link Counter} instance for a given name, so
+   * that tests can observe the counters the stream under test increments. {@link
+   * DefaultMetricsContext} allocates a fresh counter on every {@code counter(...)} call.
+   */
+  private static class CachingMetricsContext extends DefaultMetricsContext {
+    private final Map<String, Counter> counters = Maps.newConcurrentMap();
+
+    @Override
+    public Counter counter(String name, Unit unit) {
+      return counters.computeIfAbsent(name, ignored -> super.counter(name, unit));
     }
   }
 }
