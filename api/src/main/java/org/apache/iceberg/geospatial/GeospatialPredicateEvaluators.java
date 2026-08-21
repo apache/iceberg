@@ -42,14 +42,12 @@ public class GeospatialPredicateEvaluators {
    * @return the evaluator
    */
   public static GeospatialPredicateEvaluator create(Type type) {
-    switch (type.typeId()) {
-      case GEOMETRY:
-        return new GeometryEvaluator();
-      case GEOGRAPHY:
-        return new GeographyEvaluator();
-      default:
-        throw new UnsupportedOperationException("Unsupported type for BoundingBox: " + type);
-    }
+    return switch (type.typeId()) {
+      case GEOMETRY -> new GeometryEvaluator();
+      case GEOGRAPHY -> new GeographyEvaluator();
+      default ->
+          throw new UnsupportedOperationException("Unsupported type for BoundingBox: " + type);
+    };
   }
 
   public static class GeometryEvaluator implements GeospatialPredicateEvaluator {
