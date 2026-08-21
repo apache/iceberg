@@ -412,7 +412,7 @@ class TestEqualityConvertReader extends OperatorTestBase {
     GenericRecord nested = GenericRecord.create(table.schema());
     for (long pos : positions) {
       PositionDelete<GenericRecord> delete = PositionDelete.create();
-      delete.set(dataFilePath, pos, nested);
+      delete.set(dataFilePath, pos);
       deletes.add(delete);
     }
 
