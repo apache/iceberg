@@ -22,6 +22,7 @@ import java.util.Map;
 import org.apache.iceberg.aws.AssumeRoleAwsClientFactory;
 import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.util.PropertyUtil;
 import software.amazon.awssdk.auth.credentials.AwsCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
@@ -35,6 +36,8 @@ import software.amazon.awssdk.services.lakeformation.model.GetTemporaryGlueTable
 import software.amazon.awssdk.services.lakeformation.model.GetTemporaryGlueTableCredentialsResponse;
 import software.amazon.awssdk.services.lakeformation.model.PermissionType;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.utils.cache.CachedSupplier;
+import software.amazon.awssdk.utils.cache.RefreshResult;
 
 /**
  * This implementation of AwsClientFactory is used by default if {@link
@@ -56,6 +59,8 @@ public class LakeFormationAwsClientFactory extends AssumeRoleAwsClientFactory {
   private String tableName;
   private String glueCatalogId;
   private String glueAccountId;
+  private boolean cacheEnabled;
+  private long cacheRefreshLeadTimeMs;
 
   public LakeFormationAwsClientFactory() {}
 
@@ -72,6 +77,16 @@ public class LakeFormationAwsClientFactory extends AssumeRoleAwsClientFactory {
     this.tableName = catalogProperties.get(AwsProperties.LAKE_FORMATION_TABLE_NAME);
     this.glueCatalogId = catalogProperties.get(AwsProperties.GLUE_CATALOG_ID);
     this.glueAccountId = catalogProperties.get(AwsProperties.GLUE_ACCOUNT_ID);
+    this.cacheEnabled =
+        PropertyUtil.propertyAsBoolean(
+            catalogProperties,
+            AwsProperties.LAKE_FORMATION_CACHE_ENABLED,
+            AwsProperties.LAKE_FORMATION_CACHE_ENABLED_DEFAULT);
+    this.cacheRefreshLeadTimeMs =
+        PropertyUtil.propertyAsLong(
+            catalogProperties,
+            AwsProperties.LAKE_FORMATION_CACHE_REFRESH_LEAD_TIME_MS,
+            AwsProperties.LAKE_FORMATION_CACHE_REFRESH_LEAD_TIME_MS_DEFAULT);
   }
 
   @Override
@@ -84,7 +99,8 @@ public class LakeFormationAwsClientFactory extends AssumeRoleAwsClientFactory {
           .applyMutation(s3FileIOProperties()::applyServiceConfigurations)
           .applyMutation(s3FileIOProperties()::applyRetryConfigurations)
           .credentialsProvider(
-              new LakeFormationCredentialsProvider(lakeFormation(), buildTableArn()))
+              new LakeFormationCredentialsProvider(
+                  lakeFormation(), buildTableArn(), cacheEnabled, cacheRefreshLeadTimeMs))
           .region(Region.of(region()))
           .build();
     } else {
@@ -99,7 +115,8 @@ public class LakeFormationAwsClientFactory extends AssumeRoleAwsClientFactory {
           .applyMutation(httpClientProperties()::applyHttpClientConfigurations)
           .applyMutation(awsClientProperties()::applyRetryConfigurations)
           .credentialsProvider(
-              new LakeFormationCredentialsProvider(lakeFormation(), buildTableArn()))
+              new LakeFormationCredentialsProvider(
+                  lakeFormation(), buildTableArn(), cacheEnabled, cacheRefreshLeadTimeMs))
           .region(Region.of(region()))
           .build();
     } else {
@@ -144,26 +161,40 @@ public class LakeFormationAwsClientFactory extends AssumeRoleAwsClientFactory {
   static class LakeFormationCredentialsProvider implements AwsCredentialsProvider {
     private final LakeFormationClient client;
     private final String tableArn;
+    private final long refreshLeadTimeMs;
+    private final CachedSupplier<AwsCredentials> cache;
 
-    LakeFormationCredentialsProvider(LakeFormationClient lakeFormationClient, String tableArn) {
+    LakeFormationCredentialsProvider(
+        LakeFormationClient lakeFormationClient,
+        String tableArn,
+        boolean cacheEnabled,
+        long refreshLeadTimeMs) {
       this.client = lakeFormationClient;
       this.tableArn = tableArn;
+      this.refreshLeadTimeMs = refreshLeadTimeMs;
+      this.cache = cacheEnabled ? CachedSupplier.builder(this::fetchCredentials).build() : null;
     }
 
     @Override
     public AwsCredentials resolveCredentials() {
-      GetTemporaryGlueTableCredentialsRequest getTemporaryGlueTableCredentialsRequest =
-          GetTemporaryGlueTableCredentialsRequest.builder()
-              .tableArn(tableArn)
-              // Now only two permission types (COLUMN_PERMISSION and CELL_FILTER_PERMISSION) are
-              // supported
-              // and Iceberg only supports COLUMN_PERMISSION at this time
-              .supportedPermissionTypes(PermissionType.COLUMN_PERMISSION)
-              .build();
+      return cache != null ? cache.get() : fetchCredentials().value();
+    }
+
+    private RefreshResult<AwsCredentials> fetchCredentials() {
       GetTemporaryGlueTableCredentialsResponse response =
-          client.getTemporaryGlueTableCredentials(getTemporaryGlueTableCredentialsRequest);
-      return AwsSessionCredentials.create(
-          response.accessKeyId(), response.secretAccessKey(), response.sessionToken());
+          client.getTemporaryGlueTableCredentials(
+              GetTemporaryGlueTableCredentialsRequest.builder()
+                  .tableArn(tableArn)
+                  // Now only two permission types (COLUMN_PERMISSION and CELL_FILTER_PERMISSION)
+                  // are supported and Iceberg only supports COLUMN_PERMISSION at this time
+                  .supportedPermissionTypes(PermissionType.COLUMN_PERMISSION)
+                  .build());
+      AwsCredentials credentials =
+          AwsSessionCredentials.create(
+              response.accessKeyId(), response.secretAccessKey(), response.sessionToken());
+      return RefreshResult.builder(credentials)
+          .staleTime(response.expiration().minusMillis(refreshLeadTimeMs))
+          .build();
     }
   }
 }
