@@ -302,21 +302,7 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
     Set<Snapshot> validSnapshots =
         Sets.difference(snapshotSet(endMetadata), snapshotSet(startMetadata));
 
-    // rebuild manifest-list files
-    Set<RewriteResult<ManifestFile>> manifestListResults = Sets.newConcurrentHashSet();
-    Tasks.foreach(validSnapshots)
-        .noRetry()
-        .throwFailureWhenFinished()
-        .executeWith(executorService)
-        .run(
-            snapshot ->
-                manifestListResults.add(
-                    rewriteManifestList(snapshot, endMetadata, manifestsToRewrite)));
-
-    RewriteResult<ManifestFile> rewriteManifestListResult = new RewriteResult<>();
-    manifestListResults.forEach(rewriteManifestListResult::append);
-
-    Set<ManifestFile> manifestFiles = rewriteManifestListResult.toRewrite();
+    Set<ManifestFile> manifestFiles = collectManifestFiles(validSnapshots, manifestsToRewrite);
 
     // rebuild position delete files
     Set<ManifestFile> deleteManifests =
@@ -333,6 +319,23 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
             endMetadata,
             manifestFiles,
             sparkContext().broadcast(rewrittenDeleteFileSizes));
+
+    Map<String, Long> rewrittenManifestSizes = collectRewrittenManifestSizes(manifestFiles);
+
+    // rebuild manifest-list files
+    Set<RewriteResult<ManifestFile>> manifestListResults = Sets.newConcurrentHashSet();
+    Tasks.foreach(validSnapshots)
+        .noRetry()
+        .throwFailureWhenFinished()
+        .executeWith(executorService)
+        .run(
+            snapshot ->
+                manifestListResults.add(
+                    rewriteManifestList(
+                        snapshot, endMetadata, manifestsToRewrite, rewrittenManifestSizes)));
+
+    RewriteResult<ManifestFile> rewriteManifestListResult = new RewriteResult<>();
+    manifestListResults.forEach(rewriteManifestListResult::append);
 
     ImmutableRewriteTablePath.Result.Builder builder =
         ImmutableRewriteTablePath.Result.builder()
@@ -499,7 +502,10 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
    *     well as for the manifest list itself
    */
   private RewriteResult<ManifestFile> rewriteManifestList(
-      Snapshot snapshot, TableMetadata tableMetadata, Set<String> manifestsToRewrite) {
+      Snapshot snapshot,
+      TableMetadata tableMetadata,
+      Set<String> manifestsToRewrite,
+      Map<String, Long> rewrittenManifestSizes) {
     RewriteResult<ManifestFile> result = new RewriteResult<>();
 
     String path = snapshot.manifestListLocation();
@@ -513,7 +519,8 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
             sourcePrefix,
             targetPrefix,
             stagingDir,
-            outputPath);
+            outputPath,
+            rewrittenManifestSizes);
 
     result.append(rewriteResult);
     // add the manifest list copy plan itself to the result
@@ -549,6 +556,30 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
               + "Please choose an earlier version without invalid snapshots.",
           e);
     }
+  }
+
+  private Set<ManifestFile> collectManifestFiles(
+      Set<Snapshot> validSnapshots, Set<String> manifestsToRewrite) {
+    Set<ManifestFile> result = Sets.newConcurrentHashSet();
+    Tasks.foreach(validSnapshots)
+        .noRetry()
+        .throwFailureWhenFinished()
+        .executeWith(executorService)
+        .run(
+            snapshot ->
+                snapshot.allManifests(table.io()).stream()
+                    .filter(mf -> manifestsToRewrite.contains(mf.path()))
+                    .forEach(result::add));
+    return result;
+  }
+
+  private Map<String, Long> collectRewrittenManifestSizes(Set<ManifestFile> manifestFiles) {
+    Map<String, Long> sizes = Maps.newHashMapWithExpectedSize(manifestFiles.size());
+    for (ManifestFile mf : manifestFiles) {
+      String stagingPath = RewriteTablePathUtil.stagingPath(mf.path(), sourcePrefix, stagingDir);
+      sizes.put(mf.path(), table.io().newInputFile(stagingPath).getLength());
+    }
+    return sizes;
   }
 
   public static class RewriteContentFileResult extends RewriteResult<ContentFile<?>> {
