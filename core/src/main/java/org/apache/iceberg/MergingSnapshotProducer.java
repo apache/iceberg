@@ -756,7 +756,10 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
         DeleteFileIndex.builderFor(ops().io(), deleteManifests)
             .afterSequenceNumber(startingSequenceNumber)
             .caseSensitive(caseSensitive)
-            .specsById(ops().current().specsById());
+            .specsById(ops().current().specsById())
+            // the index covers every snapshot in the window and is not scoped to the data files
+            // being validated, so it legitimately sees more than one DV per data file
+            .indexDVsAsPositionDeletes();
 
     if (dataFilter != null) {
       builder.filterData(dataFilter);
