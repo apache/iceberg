@@ -33,6 +33,11 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.actions.ComputeTableStats;
 import org.apache.iceberg.actions.ImmutableComputeTableStats;
+import org.apache.iceberg.encryption.EncryptedOutputFile;
+import org.apache.iceberg.encryption.EncryptingFileIO;
+import org.apache.iceberg.encryption.EncryptionKeyMetadata;
+import org.apache.iceberg.encryption.NativeEncryptionKeyMetadata;
+import org.apache.iceberg.encryption.StandardEncryptionManager;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.puffin.Blob;
@@ -110,19 +115,43 @@ public class ComputeTableStatsSparkAction extends BaseSparkAction<ComputeTableSt
 
   private StatisticsFile writeStatsFile(List<Blob> blobs) {
     LOG.info("Writing stats for table {} for snapshot {}", table.name(), snapshotId());
-    OutputFile outputFile = table.io().newOutputFile(outputPath());
+    EncryptingFileIO io = EncryptingFileIO.combine(table.io(), table.encryption());
+    EncryptedOutputFile encryptedOutputFile = io.newEncryptingOutputFile(outputPath());
+    OutputFile outputFile = encryptedOutputFile.encryptingOutputFile();
+
     try (PuffinWriter writer = Puffin.write(outputFile).createdBy(appIdentifier()).build()) {
       blobs.forEach(writer::add);
       writer.finish();
+      long fileSize = writer.fileSize();
+      String encryptionKeyId = encryptKeyMetadata(encryptedOutputFile.keyMetadata(), fileSize);
       return new GenericStatisticsFile(
           snapshotId(),
           outputFile.location(),
-          writer.fileSize(),
+          fileSize,
           writer.footerSize(),
+          encryptionKeyId,
           GenericBlobMetadata.from(writer.writtenBlobsMetadata()));
     } catch (IOException e) {
       throw new RuntimeIOException(e);
     }
+  }
+
+  /**
+   * Encrypts the key metadata.
+   *
+   * @return the encryption key ID of the encrypted key metadata, or null if the file is written in
+   *     plain text
+   */
+  private String encryptKeyMetadata(EncryptionKeyMetadata keyMetadata, long fileSizeInBytes) {
+    if (!(keyMetadata instanceof NativeEncryptionKeyMetadata nativeKeyMetadata)) {
+      return null;
+    }
+
+    Preconditions.checkState(
+        table.encryption() instanceof StandardEncryptionManager,
+        "Encrypted statistics files require a StandardEncryptionManager");
+    StandardEncryptionManager em = (StandardEncryptionManager) table.encryption();
+    return em.addKeyMetadata(nativeKeyMetadata.copyWithLength(fileSizeInBytes));
   }
 
   private List<Blob> generateNDVBlobs() {

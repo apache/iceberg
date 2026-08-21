@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark.sql;
 
 import static org.apache.iceberg.Files.localInput;
+import static org.apache.iceberg.spark.actions.NDVSketchUtil.APACHE_DATASKETCHES_THETA_V1_NDV_PROPERTY;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -41,19 +42,26 @@ import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.Parameters;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.StatisticsFile;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.encryption.Ciphers;
+import org.apache.iceberg.encryption.EncryptedKey;
+import org.apache.iceberg.encryption.EncryptingFileIO;
+import org.apache.iceberg.encryption.EncryptionUtil;
 import org.apache.iceberg.encryption.UnitestKMS;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.parquet.Parquet;
+import org.apache.iceberg.puffin.Puffin;
+import org.apache.iceberg.puffin.PuffinReader;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.spark.CatalogTestBase;
 import org.apache.iceberg.spark.SparkCatalogConfig;
+import org.apache.iceberg.spark.actions.SparkActions;
 import org.apache.iceberg.types.Types;
 import org.apache.parquet.crypto.ParquetCryptoRuntimeException;
 import org.apache.spark.SparkException;
@@ -363,6 +371,54 @@ public class TestTableEncryption extends CatalogTestBase {
     assertThat(catalog.tableExists(tableIdent)).as("Table should not exist").isFalse();
     assertThat(dataFiles)
         .allSatisfy(filePath -> assertThat(localInput(filePath).exists()).isFalse());
+  }
+
+  @TestTemplate
+  public void testWriteAndReadEncryptedStatisticsFile() throws IOException {
+    validationCatalog.initialize(catalogName, catalogConfig);
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    StatisticsFile statisticsFile =
+        SparkActions.get().computeTableStats(table).columns("id").execute().statisticsFile();
+
+    assertThat(statisticsFile.keyId()).isNotNull();
+
+    table.refresh();
+    assertThat(((HasTableOperations) table).operations().current().encryptionKeys())
+        .extracting(EncryptedKey::keyId)
+        .contains(statisticsFile.keyId());
+
+    EncryptingFileIO io = EncryptingFileIO.combine(table.io(), table.encryption());
+    InputFile decryptingInputFile =
+        io.newDecryptingInputFile(
+            statisticsFile.path(),
+            statisticsFile.fileSizeInBytes(),
+            EncryptionUtil.decryptKeyMetadata(statisticsFile.keyId(), table.encryption()));
+
+    try (PuffinReader reader = Puffin.read(decryptingInputFile).build()) {
+      assertThat(reader.fileMetadata().blobs())
+          .singleElement()
+          .satisfies(
+              blob ->
+                  assertThat(blob.properties())
+                      .containsEntry(APACHE_DATASKETCHES_THETA_V1_NDV_PROPERTY, "3"));
+    }
+  }
+
+  @TestTemplate
+  public void testFailToReadEncryptedStatisticsFileAsPlain() throws IOException {
+    validationCatalog.initialize(catalogName, catalogConfig);
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    StatisticsFile statisticsFile =
+        SparkActions.get().computeTableStats(table).columns("id").execute().statisticsFile();
+
+    InputFile plainTextInputFile = table.io().newInputFile(statisticsFile.path());
+    try (PuffinReader reader = Puffin.read(plainTextInputFile).build()) {
+      assertThatThrownBy(reader::fileMetadata)
+          .isInstanceOf(IllegalStateException.class)
+          .hasMessageStartingWith("Invalid file: expected magic at offset");
+    }
   }
 
   private void checkMetadataFileEncryption(InputFile file) throws IOException {
