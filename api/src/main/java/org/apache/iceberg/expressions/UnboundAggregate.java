@@ -46,20 +46,14 @@ public class UnboundAggregate<T> extends Aggregate<UnboundTerm<T>>
    */
   @Override
   public Expression bind(Types.StructType struct, boolean caseSensitive) {
-    switch (op()) {
-      case COUNT_STAR:
-        return new CountStar<>(null);
-      case COUNT:
-        return new CountNonNull<>(boundTerm(struct, caseSensitive));
-      case COUNT_NULL:
-        return new CountNull<>(boundTerm(struct, caseSensitive));
-      case MAX:
-        return new MaxAggregate<>(boundTerm(struct, caseSensitive));
-      case MIN:
-        return new MinAggregate<>(boundTerm(struct, caseSensitive));
-      default:
-        throw new UnsupportedOperationException("Unsupported aggregate type: " + op());
-    }
+    return switch (op()) {
+      case COUNT_STAR -> new CountStar<>(null);
+      case COUNT -> new CountNonNull<>(boundTerm(struct, caseSensitive));
+      case COUNT_NULL -> new CountNull<>(boundTerm(struct, caseSensitive));
+      case MAX -> new MaxAggregate<>(boundTerm(struct, caseSensitive));
+      case MIN -> new MinAggregate<>(boundTerm(struct, caseSensitive));
+      default -> throw new UnsupportedOperationException("Unsupported aggregate type: " + op());
+    };
   }
 
   private BoundTerm<T> boundTerm(Types.StructType struct, boolean caseSensitive) {
