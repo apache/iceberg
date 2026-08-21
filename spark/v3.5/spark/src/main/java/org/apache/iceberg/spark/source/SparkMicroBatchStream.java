@@ -107,7 +107,11 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
 
     InitialOffsetStore initialOffsetStore =
         new InitialOffsetStore(
-            table, checkpointLocation, fromTimestamp, sparkContext.hadoopConfiguration());
+            table,
+            checkpointLocation,
+            fromTimestamp,
+            readConf.streamFromSnapshot(),
+            sparkContext.hadoopConfiguration());
     this.initialOffset = initialOffsetStore.initialOffset();
   }
 
@@ -123,8 +127,13 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
     }
 
     Snapshot latestSnapshot = table.currentSnapshot();
+    boolean scanAllFiles =
+        initialOffset.shouldScanAllFiles()
+            && initialOffset.snapshotId() == latestSnapshot.snapshotId();
     return new StreamingOffset(
-        latestSnapshot.snapshotId(), MicroBatchUtils.addedFilesCount(table, latestSnapshot), false);
+        latestSnapshot.snapshotId(),
+        MicroBatchUtils.endPositionFor(table, latestSnapshot, scanAllFiles),
+        scanAllFiles);
   }
 
   @Override
@@ -267,13 +276,19 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
     private final FileIO io;
     private final String initialOffsetLocation;
     private final long fromTimestamp;
+    private final String fromSnapshot;
 
     InitialOffsetStore(
-        Table table, String checkpointLocation, long fromTimestamp, Configuration conf) {
+        Table table,
+        String checkpointLocation,
+        long fromTimestamp,
+        String fromSnapshot,
+        Configuration conf) {
       this.table = table;
       this.io = new HadoopFileIO(conf);
       this.initialOffsetLocation = SLASH.join(checkpointLocation, "offsets/0");
       this.fromTimestamp = fromTimestamp;
+      this.fromSnapshot = fromSnapshot;
     }
 
     public StreamingOffset initialOffset() {
@@ -283,7 +298,8 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
       }
 
       table.refresh();
-      StreamingOffset offset = MicroBatchUtils.determineStartingOffset(table, fromTimestamp);
+      StreamingOffset offset =
+          MicroBatchUtils.determineStartingOffset(table, fromTimestamp, fromSnapshot);
 
       OutputFile outputFile = io.newOutputFile(initialOffsetLocation);
       writeOffset(offset, outputFile);

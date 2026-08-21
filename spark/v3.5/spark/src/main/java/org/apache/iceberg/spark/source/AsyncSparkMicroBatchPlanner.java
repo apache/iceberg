@@ -271,18 +271,29 @@ class AsyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner implements 
       if (this.lastOffsetForTriggerAvailableNow != null) {
         return this.lastOffsetForTriggerAvailableNow;
       }
-      Snapshot lastValidSnapshot = table().snapshot(startOffset.snapshotId());
-      Snapshot nextValidSnapshot;
-      do {
-        nextValidSnapshot = nextValidSnapshot(lastValidSnapshot);
-        if (nextValidSnapshot != null) {
-          lastValidSnapshot = nextValidSnapshot;
+      // Bootstrap START_OFFSET into a real starting offset so we honor initial-snapshot mode
+      StreamingOffset effectiveStart = startOffset;
+      if (StreamingOffset.START_OFFSET.equals(startOffset)) {
+        effectiveStart =
+            MicroBatchUtils.determineStartingOffset(
+                table(), readConf().streamFromTimestamp(), readConf().streamFromSnapshot());
+        if (StreamingOffset.START_OFFSET.equals(effectiveStart)) {
+          return StreamingOffset.START_OFFSET;
         }
-      } while (nextValidSnapshot != null);
+      }
+      Snapshot lastValidSnapshot = table().snapshot(effectiveStart.snapshotId());
+      Snapshot next;
+      while ((next = nextValidSnapshot(lastValidSnapshot)) != null) {
+        lastValidSnapshot = next;
+      }
+      // no snapshot after effectiveStart: preserve its scanAllFiles flag
+      boolean scanAllFiles =
+          lastValidSnapshot.snapshotId() == effectiveStart.snapshotId()
+              && effectiveStart.shouldScanAllFiles();
       return new StreamingOffset(
           lastValidSnapshot.snapshotId(),
-          MicroBatchUtils.addedFilesCount(table(), lastValidSnapshot),
-          false);
+          MicroBatchUtils.endPositionFor(table(), lastValidSnapshot, scanAllFiles),
+          scanAllFiles);
     }
 
     return computeLimitedOffset(limit);
@@ -399,16 +410,24 @@ class AsyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner implements 
   private void addMicroBatchToQueue(
       Snapshot snapshot, long startFileIndex, long endFileIndex, boolean shouldScanAllFile) {
     LOG.info("Adding MicroBatch for snapshot: {} to the queue", snapshot.snapshotId());
-    MicroBatches.MicroBatch microBatch =
-        MicroBatches.from(snapshot, table().io())
-            .caseSensitive(readConf().caseSensitive())
-            .specsById(table().specs())
-            .generate(startFileIndex, endFileIndex, Long.MAX_VALUE, shouldScanAllFile);
+
+    List<FileScanTask> tasks;
+    if (shouldScanAllFile) {
+      MicroBatches.MicroBatchBuilder plan = fullScanBuilder(snapshot);
+      tasks = plan.planFullScan(startFileIndex, endFileIndex);
+    } else {
+      MicroBatches.MicroBatch microBatch =
+          MicroBatches.from(snapshot, table().io())
+              .caseSensitive(readConf().caseSensitive())
+              .specsById(table().specs())
+              .generate(startFileIndex, endFileIndex, Long.MAX_VALUE, false);
+      tasks = microBatch.tasks();
+    }
 
     long position = startFileIndex;
-    for (FileScanTask task : microBatch.tasks()) {
+    for (FileScanTask task : tasks) {
       Pair<StreamingOffset, FileScanTask> elem =
-          Pair.of(new StreamingOffset(microBatch.snapshotId(), position, shouldScanAllFile), task);
+          Pair.of(new StreamingOffset(snapshot.snapshotId(), position, shouldScanAllFile), task);
       queuedFileCount.incrementAndGet();
       queuedRowCount.addAndGet(task.file().recordCount());
       queue.addLast(elem);
@@ -432,7 +451,7 @@ class AsyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner implements 
       addMicroBatchToQueue(
           currentSnapshot,
           fromOffset.position(),
-          MicroBatchUtils.addedFilesCount(table(), currentSnapshot),
+          endFileIndexFor(currentSnapshot, fromOffset.shouldScanAllFiles()),
           fromOffset.shouldScanAllFiles());
     }
     if (toOffset != null) {
@@ -468,13 +487,9 @@ class AsyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner implements 
       return; // Empty table
     }
 
-    // START_OFFSET case: initialize using nextValidSnapshot which respects timestamp filtering
     Snapshot current = startSnapshot;
     if (current == null) {
-      current = nextValidSnapshot(null);
-      if (current != null) {
-        addMicroBatchToQueue(current, 0, MicroBatchUtils.addedFilesCount(table(), current), false);
-      }
+      current = addInitialQueueEntry();
     }
 
     // Continue loading more snapshots within safety limits
@@ -526,18 +541,45 @@ class AsyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner implements 
           minQueuedRows,
           queuedFileCount.get(),
           minQueuedFiles);
-    } else {
-      // add an entire snapshot to the queue
-      Snapshot nextValidSnapshot = nextValidSnapshot(readFrom);
-      if (nextValidSnapshot != null) {
-        addMicroBatchToQueue(
-            nextValidSnapshot,
-            0,
-            MicroBatchUtils.addedFilesCount(table(), nextValidSnapshot),
-            false);
-      } else {
+      return;
+    }
+
+    if (readFrom == null) {
+      // nothing queued yet, pick initial snapshot or incremental
+      if (addInitialQueueEntry() == null) {
         LOG.debug("No snapshots ready to be read");
       }
+      return;
     }
+
+    Snapshot next = nextValidSnapshot(readFrom);
+    if (next != null) {
+      addMicroBatchToQueue(next, 0, MicroBatchUtils.addedFilesCount(table(), next), false);
+    } else {
+      LOG.debug("No snapshots ready to be read");
+    }
+  }
+
+  private Snapshot addInitialQueueEntry() {
+    StreamingOffset startingOffset =
+        MicroBatchUtils.determineStartingOffset(
+            table(), readConf().streamFromTimestamp(), readConf().streamFromSnapshot());
+    if (StreamingOffset.START_OFFSET.equals(startingOffset)) {
+      return null;
+    }
+    Snapshot snap = table().snapshot(startingOffset.snapshotId());
+    if (snap == null) {
+      return null;
+    }
+    addMicroBatchToQueue(
+        snap,
+        startingOffset.position(),
+        endFileIndexFor(snap, startingOffset.shouldScanAllFiles()),
+        startingOffset.shouldScanAllFiles());
+    return snap;
+  }
+
+  private long endFileIndexFor(Snapshot snapshot, boolean scanAllFiles) {
+    return scanAllFiles ? Long.MAX_VALUE : MicroBatchUtils.addedFilesCount(table(), snapshot);
   }
 }

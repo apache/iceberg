@@ -19,10 +19,13 @@
 package org.apache.iceberg;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
@@ -30,6 +33,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.util.ContentFileUtil;
 import org.apache.iceberg.util.Pair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -46,7 +50,8 @@ public class MicroBatches {
                 .filter(m -> m.snapshotId().equals(snapshot.snapshotId()))
                 .collect(Collectors.toList());
 
-    List<Pair<ManifestFile, Integer>> manifestIndexes = indexManifests(manifests);
+    // no specsById available here; liveFileCount falls back to each manifest's own embedded spec
+    List<Pair<ManifestFile, Integer>> manifestIndexes = indexManifests(manifests, io, null);
 
     return skipManifests(manifestIndexes, startFileIndex);
   }
@@ -62,15 +67,14 @@ public class MicroBatches {
     ManifestGroup manifestGroup =
         new ManifestGroup(io, ImmutableList.of(manifestFile))
             .specsById(specsById)
-            .caseSensitive(caseSensitive);
+            .caseSensitive(caseSensitive)
+            .ignoreDeleted();
     if (!scanAllFiles) {
       manifestGroup =
-          manifestGroup
-              .filterManifestEntries(
-                  entry ->
-                      entry.snapshotId() == snapshot.snapshotId()
-                          && entry.status() == ManifestEntry.Status.ADDED)
-              .ignoreDeleted();
+          manifestGroup.filterManifestEntries(
+              entry ->
+                  entry.snapshotId() == snapshot.snapshotId()
+                      && entry.status() == ManifestEntry.Status.ADDED);
     }
 
     return manifestGroup.planFiles();
@@ -86,16 +90,36 @@ public class MicroBatches {
    *     manifest.
    */
   private static List<Pair<ManifestFile, Integer>> indexManifests(
-      List<ManifestFile> manifestFiles) {
+      List<ManifestFile> manifestFiles, FileIO io, Map<Integer, PartitionSpec> specsById) {
     int currentFileIndex = 0;
     List<Pair<ManifestFile, Integer>> manifestIndexes = Lists.newArrayList();
 
     for (ManifestFile manifest : manifestFiles) {
       manifestIndexes.add(Pair.of(manifest, currentFileIndex));
-      currentFileIndex += manifest.addedFilesCount() + manifest.existingFilesCount();
+      currentFileIndex += liveFileCount(manifest, io, specsById);
     }
 
     return manifestIndexes;
+  }
+
+  /**
+   * Number of live files in a manifest. Falls back to counting entries directly when the summary
+   * counts are unavailable.
+   */
+  private static int liveFileCount(
+      ManifestFile manifest, FileIO io, Map<Integer, PartitionSpec> specsById) {
+    Integer added = manifest.addedFilesCount();
+    Integer existing = manifest.existingFilesCount();
+    if (added != null && existing != null) {
+      return added + existing;
+    }
+
+    try (CloseableIterable<ManifestEntry<DataFile>> entries =
+        ManifestFiles.read(manifest, io, specsById).liveEntries()) {
+      return Iterables.size(entries);
+    } catch (IOException e) {
+      throw new UncheckedIOException("Failed to read manifest: " + manifest.path(), e);
+    }
   }
 
   /**
@@ -186,6 +210,7 @@ public class MicroBatches {
     private final FileIO io;
     private boolean caseSensitive;
     private Map<Integer, PartitionSpec> specsById;
+    private DeleteFileIndex deleteFileIndex;
 
     private MicroBatchBuilder(Snapshot snapshot, FileIO io) {
       this.snapshot = snapshot;
@@ -201,6 +226,10 @@ public class MicroBatches {
     public MicroBatchBuilder specsById(Map<Integer, PartitionSpec> specs) {
       this.specsById = specs;
       return this;
+    }
+
+    public long snapshotId() {
+      return snapshot.snapshotId();
     }
 
     public MicroBatch generate(long startFileIndex, long targetSizeInBytes, boolean scanAllFiles) {
@@ -318,6 +347,78 @@ public class MicroBatches {
           currentSizeInBytes,
           tasks,
           isLastIndex);
+    }
+
+    /** Total number of live files (added and existing) in the snapshot. */
+    public long fullScanFileCount() {
+      long count = 0;
+      for (ManifestFile manifest : snapshot.dataManifests(io)) {
+        count += liveFileCount(manifest, io, specsById);
+      }
+      return count;
+    }
+
+    /**
+     * Returns the live files in {@code [startFileIndex, endFileIndex)} with deletes attached,
+     * without materializing files outside that range.
+     */
+    public List<FileScanTask> planFullScan(long startFileIndex, long endFileIndex) {
+      Preconditions.checkArgument(startFileIndex >= 0, "startFileIndex must be >= 0");
+      if (startFileIndex >= endFileIndex) {
+        return Lists.newArrayList();
+      }
+
+      List<Pair<ManifestFile, Integer>> manifestIndex =
+          indexManifests(snapshot.dataManifests(io), io, specsById);
+      DeleteFileIndex deletes = deleteFileIndex();
+      List<FileScanTask> tasks = Lists.newArrayList();
+
+      for (Pair<ManifestFile, Integer> indexed : skipManifests(manifestIndex, startFileIndex)) {
+        long manifestStart = indexed.second();
+        if (manifestStart >= endFileIndex) {
+          break;
+        }
+
+        ManifestFile manifest = indexed.first();
+        PartitionSpec spec = specsById.get(manifest.partitionSpecId());
+        String schemaAsString = SchemaParser.toJson(spec.schema());
+        String specAsString = PartitionSpecParser.toJson(spec);
+        ResidualEvaluator residuals =
+            ResidualEvaluator.of(spec, Expressions.alwaysTrue(), caseSensitive);
+
+        try (CloseableIterable<ManifestEntry<DataFile>> entries =
+                ManifestFiles.read(manifest, io, specsById)
+                    .caseSensitive(caseSensitive)
+                    .liveEntries();
+            CloseableIterator<ManifestEntry<DataFile>> entryIter = entries.iterator()) {
+          long pos = manifestStart;
+          while (entryIter.hasNext() && pos < endFileIndex) {
+            ManifestEntry<DataFile> entry = entryIter.next();
+            if (pos >= startFileIndex) {
+              DataFile dataFile = ContentFileUtil.copy(entry.file(), true, null);
+              tasks.add(
+                  new BaseFileScanTask(
+                      dataFile, deletes.forEntry(entry), schemaAsString, specAsString, residuals));
+            }
+            pos++;
+          }
+        } catch (IOException e) {
+          LOG.warn("Failed to close manifest reader for {}", manifest.path(), e);
+        }
+      }
+
+      return tasks;
+    }
+
+    private DeleteFileIndex deleteFileIndex() {
+      if (deleteFileIndex == null) {
+        deleteFileIndex =
+            DeleteFileIndex.builderFor(io, snapshot.deleteManifests(io))
+                .specsById(specsById)
+                .caseSensitive(caseSensitive)
+                .build();
+      }
+      return deleteFileIndex;
     }
   }
 }
