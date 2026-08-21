@@ -208,6 +208,30 @@ public class TestSnapshotDeltaLakeKernelTable extends SparkDeltaLakeSnapshotTest
   }
 
   @Test
+  public void testConversionAfterVacuumNoCheckpoints() throws IOException {
+    String sourceTable = toFullTableName(DEFAULT_SPARK_CATALOG, "vacuumed_table_no_checkpoints");
+    String sourceTableLocation = sourceLocation.toURI().toString();
+
+    writeDeltaTable(genericDataFrame, sourceTable, sourceTableLocation, "id");
+    spark.sql("UPDATE " + sourceTable + " SET created_at=current_date() ;");
+    spark.sql("VACUUM " + sourceTable + " RETAIN 0 HOURS");
+
+    String newTableIdentifier =
+        toFullTableName(ICEBERG_CATALOG_NAME, "iceberg_vacuumed_table_no_checkpoints");
+
+    // Act
+    SnapshotDeltaLakeTable conversionAction =
+        DeltaLakeToIcebergMigrationSparkIntegration.snapshotDeltaLakeKernelTable(
+            spark, newTableIdentifier, sourceTableLocation);
+    SnapshotDeltaLakeTable.Result result = conversionAction.execute();
+
+    // Assert
+    checkLatestSnapshotIntegrity(sourceTable, newTableIdentifier);
+    checkTagContentAndOrder(sourceTable, sourceTableLocation, newTableIdentifier, 1);
+    checkIcebergTableLocation(newTableIdentifier, sourceTableLocation);
+  }
+
+  @Test
   public void testConversionWithDeletionVectors() {
     String sourceTable = toFullTableName(DEFAULT_SPARK_CATALOG, "dv_table");
     String sourceTableLocation = sourceLocation.toURI().toString();

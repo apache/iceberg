@@ -26,6 +26,7 @@ import io.delta.kernel.data.FilteredColumnarBatch;
 import io.delta.kernel.data.Row;
 import io.delta.kernel.defaults.engine.DefaultEngine;
 import io.delta.kernel.engine.Engine;
+import io.delta.kernel.exceptions.KernelException;
 import io.delta.kernel.exceptions.TableNotFoundException;
 import io.delta.kernel.types.StructType;
 import io.delta.kernel.utils.CloseableIterator;
@@ -37,7 +38,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import org.apache.hadoop.conf.Configuration;
@@ -64,6 +64,7 @@ import org.apache.iceberg.deletes.DVFileWriter;
 import org.apache.iceberg.delta.InternalDeltaKernelUtils.DeltaAddFile;
 import org.apache.iceberg.delta.InternalDeltaKernelUtils.DeltaRemoveFile;
 import org.apache.iceberg.exceptions.NotFoundException;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFileFactory;
@@ -173,20 +174,18 @@ class BaseSnapshotDeltaLakeKernelTableAction implements SnapshotDeltaLakeTable {
         "Conversion of Delta Lake tables with columnMapping feature is not supported.");
 
     final long latestDeltaVersion = deltaLatestSnapshot.getVersion();
-    final long minimalAvailableDeltaVersion = getEarliestRecreatableDeltaLog();
-
-    Snapshot initialDeltaSnapshot = getDeltaSnapshotAsOfVersion(minimalAvailableDeltaVersion);
+    final long minimalAvailableVersionInDeltaLogs = getLowerBoundAvailableDeltaVersion();
 
     LOG.info(
         "Converting Delta Lake table at {} from version {} to version {} into Iceberg table {} ...",
         deltaTableLocation,
-        minimalAvailableDeltaVersion,
+        minimalAvailableVersionInDeltaLogs,
         latestDeltaVersion,
         newTableIdentifier);
 
-    Schema icebergSchema = convertToIcebergSchema(initialDeltaSnapshot.getSchema());
+    Schema icebergSchema = convertToIcebergSchema(deltaLatestSnapshot.getSchema());
     PartitionSpec partitionSpec =
-        buildPartitionSpec(icebergSchema, initialDeltaSnapshot.getPartitionColumnNames());
+        buildPartitionSpec(icebergSchema, deltaLatestSnapshot.getPartitionColumnNames());
 
     Transaction transaction =
         icebergCatalog.newCreateTableTransaction(
@@ -194,7 +193,7 @@ class BaseSnapshotDeltaLakeKernelTableAction implements SnapshotDeltaLakeTable {
             icebergSchema,
             partitionSpec,
             newTableLocation,
-            buildTablePropertiesWithDelta(initialDeltaSnapshot, deltaTableLocation));
+            buildTablePropertiesWithDelta(deltaLatestSnapshot, deltaTableLocation));
     setDefaultNamingMapping(transaction);
     // Create an initial empty snapshot so currentSnapshot() is never null
     transaction.newAppend().commit();
@@ -204,10 +203,17 @@ class BaseSnapshotDeltaLakeKernelTableAction implements SnapshotDeltaLakeTable {
 
     Set<String> processedDataFiles = Sets.newHashSet();
     try {
-      commitDeltaSnapshotToIcebergTransaction(
-          initialDeltaSnapshot, transaction, processedDataFiles);
+      long reconstructableStartVersion =
+          commitInitialDeltaSnapshotToIcebergTransaction(
+              minimalAvailableVersionInDeltaLogs,
+              latestDeltaVersion,
+              transaction,
+              processedDataFiles);
+      LOG.info(
+          "Converting Delta Lake table from frist re-constructable version {}",
+          reconstructableStartVersion);
       convertEachDeltaVersion(
-          minimalAvailableDeltaVersion + 1, latestDeltaVersion, transaction, processedDataFiles);
+          reconstructableStartVersion + 1, latestDeltaVersion, transaction, processedDataFiles);
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }
@@ -224,15 +230,56 @@ class BaseSnapshotDeltaLakeKernelTableAction implements SnapshotDeltaLakeTable {
         .build();
   }
 
+  /**
+   * Commit the initial delta snapshot to iceberg transaction. It tries the snapshot starting from
+   * {@code startVersion} to {@code latestVersion} and commit the first constructable one.
+   *
+   * <p>There are two cases that the delta snapshot is not constructable:
+   *
+   * <ul>
+   *   <li>the version is earlier than the earliest checkpoint
+   *   <li>the corresponding data files are deleted by {@code VACUUM}
+   * </ul>
+   *
+   * <p>For more information, please refer to delta lake's <a
+   * href="https://docs.delta.io/latest/delta-batch.html#-data-retention">Data Retention</a>
+   *
+   * @param startVersion the earliest recreatable delta log version
+   * @param latestVersion the latest version of the delta lake table
+   * @param transaction the iceberg transaction
+   * @param processedDataFiles the set to collect processed data file paths
+   * @return the initial version of the delta lake table that is successfully committed to iceberg
+   */
+  private long commitInitialDeltaSnapshotToIcebergTransaction(
+      long startVersion,
+      long latestVersion,
+      Transaction transaction,
+      Set<String> processedDataFiles)
+      throws IOException {
+    long constructableStartVersion = startVersion;
+    while (constructableStartVersion <= latestVersion) {
+      try {
+        Snapshot deltaSnapshot = getDeltaSnapshotAsOfVersion(constructableStartVersion);
+        commitDeltaSnapshotToIcebergTransaction(deltaSnapshot, transaction, processedDataFiles);
+        return constructableStartVersion;
+      } catch (NotFoundException | IllegalArgumentException | KernelException e) {
+        constructableStartVersion++;
+      }
+    }
+
+    throw new ValidationException(
+        "Delta Lake table at %s contains no constructable snapshot", deltaTableLocation);
+  }
+
   private void commitDeltaSnapshotToIcebergTransaction(
       Snapshot deltaSnapshot, Transaction transaction, Set<String> processedDataFiles)
       throws IOException {
     Scan scan = deltaSnapshot.getScanBuilder().build();
     try (CloseableIterator<FilteredColumnarBatch> changes = scan.getScanFiles(deltaEngine)) {
 
-      commitDeltaColumnarBatchToIcebergTransaction(
+      commitDeltaRowsToIcebergTransaction(
           deltaSnapshot.getVersion(),
-          Iterators.transform(changes, batch -> batch::getData),
+          Iterators.transform(changes, FilteredColumnarBatch::getRows),
           transaction,
           processedDataFiles);
       tagCurrentSnapshot(
@@ -255,9 +302,9 @@ class BaseSnapshotDeltaLakeKernelTableAction implements SnapshotDeltaLakeTable {
               deltaTable, deltaEngine, currDeltaVersion, currDeltaVersion)) {
 
         Long commitTimestamp =
-            commitDeltaColumnarBatchToIcebergTransaction(
+            commitDeltaRowsToIcebergTransaction(
                 currDeltaVersion,
-                Iterators.transform(changes, batch -> () -> batch),
+                Iterators.transform(changes, ColumnarBatch::getRows),
                 transaction,
                 processedDataFiles);
         tagCurrentSnapshot(currDeltaVersion, commitTimestamp, transaction);
@@ -300,18 +347,18 @@ class BaseSnapshotDeltaLakeKernelTableAction implements SnapshotDeltaLakeTable {
   }
 
   /**
-   * Convert each delta log {@code ColumnarBatch} to Iceberg action and commit to the given {@code
+   * Convert each delta log {@code Row} iterator to Iceberg action and commit to the given {@code
    * Transaction}. The complete <a
    * href="https://github.com/delta-io/delta/blob/master/PROTOCOL.md#Actions">spec</a> of delta
    * actions. <br>
    * Supported:
    * <li>Add
    *
-   * @return number of added data files
+   * @return commit timestamp
    */
-  private Long commitDeltaColumnarBatchToIcebergTransaction(
+  private Long commitDeltaRowsToIcebergTransaction(
       Long deltaVersion,
-      Iterator<Supplier<ColumnarBatch>> changes,
+      Iterator<CloseableIterator<Row>> changes,
       Transaction transaction,
       Set<String> processedDataFiles)
       throws IOException {
@@ -322,9 +369,7 @@ class BaseSnapshotDeltaLakeKernelTableAction implements SnapshotDeltaLakeTable {
     List<DeleteFile> deleteFilesToAdd = Lists.newArrayList();
 
     while (changes.hasNext()) {
-      Supplier<ColumnarBatch> container = changes.next();
-      ColumnarBatch columnarBatch = container.get();
-      try (CloseableIterator<Row> rows = columnarBatch.getRows()) {
+      try (CloseableIterator<Row> rows = changes.next()) {
         while (rows.hasNext()) {
           Row row = rows.next();
           if (DeltaLakeActionsTranslationUtil.isCommitInfo(row)) {
@@ -342,12 +387,10 @@ class BaseSnapshotDeltaLakeKernelTableAction implements SnapshotDeltaLakeTable {
                 convertDeltaDVsToIcebergDVs(transaction.table().spec(), addFile, dataFile);
 
             deleteFilesToAdd.addAll(deleteFiles);
-            processedDataFiles.add(dataFile.location());
           } else if (DeltaLakeActionsTranslationUtil.isRemove(row)) {
             DeltaRemoveFile remove = InternalDeltaKernelUtils.toRemoveFile(row);
             DataFile dataFile = buildDataFileFromRemoveDeltaAction(remove, transaction);
             dataFilesToRemove.add(dataFile);
-            processedDataFiles.add(dataFile.location());
           }
         }
       }
@@ -355,6 +398,8 @@ class BaseSnapshotDeltaLakeKernelTableAction implements SnapshotDeltaLakeTable {
 
     // TODO support more actions
     commitIcebergTransaction(transaction, dataFilesToAdd, dataFilesToRemove, deleteFilesToAdd);
+    dataFilesToAdd.forEach(dataFile -> processedDataFiles.add(dataFile.location()));
+    dataFilesToRemove.forEach(dataFile -> processedDataFiles.add(dataFile.location()));
 
     return originalCommitTimestamp;
   }
@@ -507,7 +552,16 @@ class BaseSnapshotDeltaLakeKernelTableAction implements SnapshotDeltaLakeTable {
     return new Schema(converted.asNestedType().asStructType().fields());
   }
 
-  private long getEarliestRecreatableDeltaLog() {
+  /**
+   * Returns the minimal available commit version present in the Delta table log.
+   *
+   * <p>Note that this method may return a Delta log version that points to data files that no
+   * longer exist (e.g. removed by {@code VACUUM}), meaning that this version may not be
+   * constructable.
+   *
+   * @return the earliest available commit version in the Delta log
+   */
+  private long getLowerBoundAvailableDeltaVersion() {
     try {
       return InternalDeltaKernelUtils.earliestRecreatableCommit(deltaEngine, deltaTableLocation);
     } catch (TableNotFoundException e) {

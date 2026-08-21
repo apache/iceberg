@@ -52,6 +52,9 @@ class InternalDeltaKernelUtils {
 
   static long earliestRecreatableCommit(Engine engine, String tableLocation)
       throws TableNotFoundException {
+    // Note that this version isn't guaranteed to exist when performing an action as a concurrent
+    // operation
+    // can delete the file during cleanup. This value must be used as a lower bound.
     return DeltaHistoryManager.getEarliestRecreatableCommit(
         engine, new Path(tableLocation, "_delta_log"));
   }
