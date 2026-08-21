@@ -113,7 +113,6 @@ class BaseSnapshotDeltaLakeKernelTableAction implements SnapshotDeltaLakeTable {
   private TableIdentifier newTableIdentifier;
   private String newTableLocation;
   private HadoopFileIO deltaLakeFileIO;
-  private DeletionVectorConverter deletionVectorConverter;
   private OutputFileFactory icebergDVFileFactory;
   private final Set<Long> deltaTimestampTags = Sets.newHashSet();
 
@@ -157,7 +156,6 @@ class BaseSnapshotDeltaLakeKernelTableAction implements SnapshotDeltaLakeTable {
     deltaEngine = DefaultEngine.create(conf);
     deltaLakeFileIO = new HadoopFileIO(conf);
     deltaTable = Table.forPath(deltaEngine, deltaTableLocation);
-    deletionVectorConverter = new DeletionVectorConverter(deltaEngine, deltaTableLocation);
     return this;
   }
 
@@ -369,7 +367,8 @@ class BaseSnapshotDeltaLakeKernelTableAction implements SnapshotDeltaLakeTable {
 
     DVFileWriter dvWriter = new BaseDVFileWriter(icebergDVFileFactory, path -> null);
     try (DVFileWriter closeableWriter = dvWriter) {
-      long[] positions = deletionVectorConverter.readDeltaDVPositions(addFile);
+      long[] positions =
+          InternalDeltaKernelUtils.readDeltaDVPositions(deltaEngine, deltaTableLocation, addFile);
       for (long deletedRowIndex : positions) {
         closeableWriter.delete(
             dataFile.location(), deletedRowIndex, partitionSpec, dataFile.partition());
