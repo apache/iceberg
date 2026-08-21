@@ -38,6 +38,17 @@ public class Transforms {
 
   private static final Pattern HAS_WIDTH = Pattern.compile("(\\w+)\\[(\\d+)\\]");
 
+  /**
+   * Parses a transform from its string representation.
+   *
+   * <p>Recognized transforms are {@code identity}, {@code year}, {@code month}, {@code day}, {@code
+   * hour}, {@code void}, and the width-parameterized {@code truncate[N]} and {@code bucket[N]} (for
+   * example, {@code truncate[16]} or {@code bucket[8]}). Any other value is parsed as an unknown
+   * transform.
+   *
+   * @param transform a transform string, such as {@code "day"} or {@code "bucket[16]"}
+   * @return the parsed transform
+   */
   public static Transform<?, ?> fromString(String transform) {
     Matcher widthMatcher = HAS_WIDTH.matcher(transform);
     if (widthMatcher.matches()) {
