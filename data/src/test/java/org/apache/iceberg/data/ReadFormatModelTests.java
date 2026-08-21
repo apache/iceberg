@@ -189,8 +189,7 @@ public abstract class ReadFormatModelTests<T> {
             FEATURE_SPLIT,
             FEATURE_COLUMN_LEVEL_METRICS,
             FEATURE_COLUMN_METRICS_TRUNCATE_BINARY,
-            FEATURE_NATIVE_ENCRYPTION,
-            FEATURE_VARIANT
+            FEATURE_NATIVE_ENCRYPTION
           },
           FileFormat.ORC,
           new String[] {
