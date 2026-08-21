@@ -22,13 +22,35 @@ import static org.apache.iceberg.gcp.GCPProperties.GCS_NO_AUTH;
 import static org.apache.iceberg.gcp.GCPProperties.GCS_OAUTH2_REFRESH_CREDENTIALS_ENABLED;
 import static org.apache.iceberg.gcp.GCPProperties.GCS_OAUTH2_REFRESH_CREDENTIALS_ENDPOINT;
 import static org.apache.iceberg.gcp.GCPProperties.GCS_OAUTH2_TOKEN;
+import static org.apache.iceberg.gcp.GCPProperties.GCS_WRITE_THRESHOLD_BYTES;
+import static org.apache.iceberg.gcp.GCPProperties.GCS_WRITE_THRESHOLD_BYTES_DEFAULT;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
 import static org.assertj.core.api.Assertions.assertThatIllegalStateException;
 
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.Test;
 
 public class TestGCPProperties {
+
+  @Test
+  public void testWriteThresholdDefault() {
+    assertThat(new GCPProperties().writeThresholdBytes())
+        .isEqualTo(GCS_WRITE_THRESHOLD_BYTES_DEFAULT);
+  }
+
+  @Test
+  public void testWriteThresholdOverride() {
+    GCPProperties props = new GCPProperties(ImmutableMap.of(GCS_WRITE_THRESHOLD_BYTES, "1048576"));
+    assertThat(props.writeThresholdBytes()).isEqualTo(1_048_576L);
+  }
+
+  @Test
+  public void testWriteThresholdNegativeRejected() {
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> new GCPProperties(ImmutableMap.of(GCS_WRITE_THRESHOLD_BYTES, "-1")))
+        .withMessageContaining(GCS_WRITE_THRESHOLD_BYTES);
+  }
 
   @Test
   public void testOAuthWithNoAuth() {
