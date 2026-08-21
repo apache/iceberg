@@ -37,6 +37,7 @@ import io.delta.kernel.internal.util.VectorUtils;
 import io.delta.kernel.utils.CloseableIterator;
 import java.util.Arrays;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
@@ -56,7 +57,7 @@ class InternalDeltaKernelUtils {
     // operation
     // can delete the file during cleanup. This value must be used as a lower bound.
     return DeltaHistoryManager.getEarliestRecreatableCommit(
-        engine, new Path(tableLocation, "_delta_log"));
+        engine, new Path(tableLocation, "_delta_log"), Optional.empty());
   }
 
   static CloseableIterator<ColumnarBatch> changes(
