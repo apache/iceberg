@@ -39,6 +39,7 @@ import org.apache.iceberg.io.BulkDeletionFailureException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.FileIOParser;
 import org.apache.iceberg.io.PrefixListing;
+import org.apache.iceberg.io.PrefixListingPage;
 import org.apache.iceberg.io.ResolvingFileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -101,11 +102,12 @@ public class TestHadoopFileIO {
     fs.createNewFile(immediateFile2);
 
     PrefixListing listing = hadoopFileIO.listPrefix(parent.toUri().toString(), "/");
+    PrefixListingPage page = listing.pages().iterator().next();
 
-    assertThat(listing.files())
+    assertThat(page.files())
         .extracting(fileInfo -> new Path(fileInfo.location()).getName())
         .containsExactlyInAnyOrder("a.txt", "b.txt");
-    assertThat(listing.subPrefixes()).containsExactly(subDir + "/");
+    assertThat(page.subPrefixes()).containsExactly(subDir + "/");
   }
 
   @Test

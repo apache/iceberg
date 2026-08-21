@@ -37,6 +37,7 @@ import org.apache.iceberg.io.FileInfo;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.PrefixListing;
+import org.apache.iceberg.io.PrefixListingPage;
 import org.apache.iceberg.io.SupportsPrefixOperations;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -298,7 +299,7 @@ public class TestFileSystemWalker {
         .contains(Paths.get("file://", basePath, "normal_dir_1/file4.txt").toString());
     assertThat(remainingDirs).hasSize(1);
     assertThat(remainingDirs)
-        .contains(Paths.get("file://", basePath, "normal_dir/dep1").toString());
+        .contains(Paths.get("file://", basePath, "normal_dir/dep1").toString() + "/");
   }
 
   @Test
@@ -319,9 +320,12 @@ public class TestFileSystemWalker {
     assertThat(foundFiles).hasSize(1);
     assertThat(foundFiles).contains(Paths.get("file://", basePath, "file1.txt").toString());
     assertThat(remainingDirs).hasSize(3);
-    assertThat(remainingDirs).contains(Paths.get("file://", basePath, "normal_dir").toString());
-    assertThat(remainingDirs).contains(Paths.get("file://", basePath, "normal_dir_1").toString());
-    assertThat(remainingDirs).contains(Paths.get("file://", basePath, "hidden_dir").toString());
+    assertThat(remainingDirs)
+        .contains(Paths.get("file://", basePath, "normal_dir").toString() + "/");
+    assertThat(remainingDirs)
+        .contains(Paths.get("file://", basePath, "normal_dir_1").toString() + "/");
+    assertThat(remainingDirs)
+        .contains(Paths.get("file://", basePath, "hidden_dir").toString() + "/");
   }
 
   @Test
@@ -433,7 +437,8 @@ public class TestFileSystemWalker {
     @Override
     public PrefixListing listPrefix(String prefix, String delimiter) {
       calls.add(prefix);
-      return PrefixListing.of(ImmutableList.of(), ImmutableList.of());
+      return PrefixListing.of(
+          ImmutableList.of(PrefixListingPage.of(ImmutableList.of(), ImmutableList.of())));
     }
 
     @Override

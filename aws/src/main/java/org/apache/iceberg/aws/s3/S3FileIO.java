@@ -45,6 +45,7 @@ import org.apache.iceberg.io.FileInfo;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.PrefixListing;
+import org.apache.iceberg.io.PrefixListingPage;
 import org.apache.iceberg.io.StorageCredential;
 import org.apache.iceberg.io.SupportsRecoveryOperations;
 import org.apache.iceberg.io.SupportsStorageCredentials;
@@ -373,16 +374,11 @@ public class S3FileIO
             .delimiter(delimiter)
             .build();
 
-    List<FileInfo> files = Lists.newArrayList();
-    List<String> subPrefixes = Lists.newArrayList();
-    for (ListObjectsV2Response response : client.s3().listObjectsV2Paginator(request)) {
-      response.contents().forEach(o -> files.add(createFileInfo(s3uri, o)));
-      response
-          .commonPrefixes()
-          .forEach(commonPrefix -> subPrefixes.add(toUri(s3uri, commonPrefix.prefix())));
-    }
-
-    return PrefixListing.of(files, subPrefixes);
+    return PrefixListing.of(
+        () ->
+            client.s3().listObjectsV2Paginator(request).stream()
+                .map(response -> createPrefixListingPage(s3uri, response))
+                .iterator());
   }
 
   @Override
@@ -408,6 +404,16 @@ public class S3FileIO
         && (uri.key().isEmpty()
             || uri.key().endsWith("/")
             || properties.isS3DirectoryBucketListPrefixAsDirectory());
+  }
+
+  private PrefixListingPage createPrefixListingPage(S3URI s3uri, ListObjectsV2Response response) {
+    List<FileInfo> files = Lists.newArrayList();
+    List<String> subPrefixes = Lists.newArrayList();
+    response.contents().forEach(object -> files.add(createFileInfo(s3uri, object)));
+    response
+        .commonPrefixes()
+        .forEach(commonPrefix -> subPrefixes.add(toUri(s3uri, commonPrefix.prefix())));
+    return PrefixListingPage.of(files, subPrefixes);
   }
 
   private FileInfo createFileInfo(S3URI s3uri, S3Object object) {

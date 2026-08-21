@@ -21,6 +21,7 @@ package org.apache.iceberg.hadoop;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -39,6 +40,7 @@ import org.apache.iceberg.io.FileInfo;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.PrefixListing;
+import org.apache.iceberg.io.PrefixListingPage;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
@@ -191,7 +193,7 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
         }
       }
 
-      return PrefixListing.of(files, subPrefixes);
+      return PrefixListing.of(Collections.singletonList(PrefixListingPage.of(files, subPrefixes)));
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }

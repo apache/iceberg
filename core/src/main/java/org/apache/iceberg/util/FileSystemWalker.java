@@ -37,6 +37,7 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.hadoop.HiddenPathFilter;
 import org.apache.iceberg.io.FileInfo;
 import org.apache.iceberg.io.PrefixListing;
+import org.apache.iceberg.io.PrefixListingPage;
 import org.apache.iceberg.io.SupportsPrefixOperations;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
@@ -159,16 +160,18 @@ public class FileSystemWalker {
     PrefixListing listing = io.listPrefix(listPath, "/");
 
     List<String> subDirs = Lists.newArrayList();
-    for (String subPrefix : listing.subPrefixes()) {
-      if (!isHiddenPath(baseDir, new Path(subPrefix), pathFilter)) {
-        subDirs.add(subPrefix);
+    for (PrefixListingPage page : listing.pages()) {
+      for (String subPrefix : page.subPrefixes()) {
+        if (!isHiddenPath(baseDir, new Path(subPrefix), pathFilter)) {
+          subDirs.add(subPrefix);
+        }
       }
-    }
 
-    for (FileInfo file : listing.files()) {
-      Path filePath = new Path(file.location());
-      if (!isHiddenPath(baseDir, filePath, pathFilter) && filter.test(file)) {
-        fileConsumer.accept(file.location());
+      for (FileInfo file : page.files()) {
+        Path filePath = new Path(file.location());
+        if (!isHiddenPath(baseDir, filePath, pathFilter) && filter.test(file)) {
+          fileConsumer.accept(file.location());
+        }
       }
     }
 

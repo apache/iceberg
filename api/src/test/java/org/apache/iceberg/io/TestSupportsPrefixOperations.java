@@ -27,6 +27,19 @@ import org.junit.jupiter.api.Test;
 class TestSupportsPrefixOperations {
 
   @Test
+  void prefixListingContainsPages() {
+    FileInfo file = new FileInfo("file:/table/file.parquet", 10L, 20L);
+    PrefixListingPage page =
+        PrefixListingPage.of(
+            Collections.singletonList(file), Collections.singletonList("file:/table/partition/"));
+    PrefixListing listing = PrefixListing.of(Collections.singletonList(page));
+
+    assertThat(listing.pages()).containsExactly(page);
+    assertThat(page.files()).containsExactly(file);
+    assertThat(page.subPrefixes()).containsExactly("file:/table/partition/");
+  }
+
+  @Test
   void delimitedListingIsUnsupportedByDefault() {
     SupportsPrefixOperations io = new TestFileIO();
 

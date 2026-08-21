@@ -20,6 +20,7 @@ package org.apache.iceberg.gcp.gcs;
 
 import com.google.api.client.util.Lists;
 import com.google.api.client.util.Maps;
+import com.google.api.gax.paging.Page;
 import com.google.cloud.storage.Blob;
 import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.Storage;
@@ -27,8 +28,10 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Comparator;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -44,6 +47,7 @@ import org.apache.iceberg.io.FileInfo;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.PrefixListing;
+import org.apache.iceberg.io.PrefixListingPage;
 import org.apache.iceberg.io.StorageCredential;
 import org.apache.iceberg.io.SupportsStorageCredentials;
 import org.apache.iceberg.metrics.MetricsContext;
@@ -310,24 +314,15 @@ public class GCSFileIO implements DelegateFileIO, SupportsStorageCredentials {
     }
 
     GCSLocation location = new GCSLocation(prefix);
-    List<FileInfo> files = Lists.newArrayList();
-    List<String> subPrefixes = Lists.newArrayList();
-    clientForStoragePath(prefix)
-        .storage()
-        .list(
-            location.bucket(),
-            Storage.BlobListOption.prefix(location.prefix()),
-            Storage.BlobListOption.currentDirectory())
-        .streamAll()
-        .forEach(
-            blob -> {
-              if (blob.isDirectory()) {
-                subPrefixes.add(createUri(blob));
-              } else {
-                files.add(createFileInfo(blob));
-              }
-            });
-    return PrefixListing.of(files, subPrefixes);
+    return PrefixListing.of(
+        () ->
+            prefixListingPages(
+                clientForStoragePath(prefix)
+                    .storage()
+                    .list(
+                        location.bucket(),
+                        Storage.BlobListOption.prefix(location.prefix()),
+                        Storage.BlobListOption.currentDirectory())));
   }
 
   @Override
@@ -337,6 +332,43 @@ public class GCSFileIO implements DelegateFileIO, SupportsStorageCredentials {
 
   private FileInfo createFileInfo(Blob blob) {
     return new FileInfo(createUri(blob), blob.getSize(), createTimeMillis(blob));
+  }
+
+  private Iterator<PrefixListingPage> prefixListingPages(Page<Blob> firstPage) {
+    return new Iterator<PrefixListingPage>() {
+      private Page<Blob> currentPage = firstPage;
+      private boolean first = true;
+
+      @Override
+      public boolean hasNext() {
+        return first || currentPage.hasNextPage();
+      }
+
+      @Override
+      public PrefixListingPage next() {
+        if (!hasNext()) {
+          throw new NoSuchElementException();
+        }
+
+        if (first) {
+          first = false;
+        } else {
+          currentPage = currentPage.getNextPage();
+        }
+
+        List<FileInfo> files = Lists.newArrayList();
+        List<String> subPrefixes = Lists.newArrayList();
+        for (Blob blob : currentPage.getValues()) {
+          if (blob.isDirectory()) {
+            subPrefixes.add(createUri(blob));
+          } else {
+            files.add(createFileInfo(blob));
+          }
+        }
+
+        return PrefixListingPage.of(files, subPrefixes);
+      }
+    };
   }
 
   private String createUri(Blob blob) {

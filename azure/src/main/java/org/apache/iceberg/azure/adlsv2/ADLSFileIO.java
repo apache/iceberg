@@ -39,10 +39,12 @@ import org.apache.iceberg.io.FileInfo;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.PrefixListing;
+import org.apache.iceberg.io.PrefixListingPage;
 import org.apache.iceberg.metrics.MetricsContext;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.util.SerializableFunction;
 import org.apache.iceberg.util.SerializableMap;
 import org.apache.iceberg.util.Tasks;
@@ -256,28 +258,20 @@ public class ADLSFileIO implements DelegateFileIO {
     options.setPath(location.path());
     options.setRecursive(false);
 
-    List<FileInfo> files = Lists.newArrayList();
-    List<String> subPrefixes = Lists.newArrayList();
+    return PrefixListing.of(
+        () -> {
+          try {
+            return Streams.stream(client(location).listPaths(options, null).iterableByPage())
+                .map(response -> createPrefixListingPage(baseUri, response.getElements()))
+                .iterator();
+          } catch (DataLakeStorageException e) {
+            if (e.getStatusCode() != 404) {
+              throw e;
+            }
 
-    try {
-      client(location)
-          .listPaths(options, null)
-          .forEach(
-              pathItem -> {
-                if (pathItem.isDirectory()) {
-                  subPrefixes.add(baseUri + pathItem.getName() + "/");
-                } else {
-                  files.add(createFileInfo(baseUri, pathItem));
-                }
-              });
-    } catch (DataLakeStorageException e) {
-      if (e.getStatusCode() != 404) {
-        throw e;
-      }
-      return PrefixListing.of(Collections.emptyList(), Collections.emptyList());
-    }
-
-    return PrefixListing.of(files, subPrefixes);
+            return Collections.emptyIterator();
+          }
+        });
   }
 
   @Override
@@ -295,6 +289,20 @@ public class ADLSFileIO implements DelegateFileIO {
         baseUri + pathItem.getName(),
         pathItem.getContentLength(),
         pathItem.getCreationTime().toInstant().toEpochMilli());
+  }
+
+  private PrefixListingPage createPrefixListingPage(String baseUri, Iterable<PathItem> pathItems) {
+    List<FileInfo> files = Lists.newArrayList();
+    List<String> subPrefixes = Lists.newArrayList();
+    for (PathItem pathItem : pathItems) {
+      if (pathItem.isDirectory()) {
+        subPrefixes.add(baseUri + pathItem.getName() + "/");
+      } else {
+        files.add(createFileInfo(baseUri, pathItem));
+      }
+    }
+
+    return PrefixListingPage.of(files, subPrefixes);
   }
 
   @Override

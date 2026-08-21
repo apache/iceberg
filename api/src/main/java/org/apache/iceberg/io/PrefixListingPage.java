@@ -18,23 +18,31 @@
  */
 package org.apache.iceberg.io;
 
-/**
- * Result of a delimited prefix listing, returned as an iterable of pages.
- *
- * <p>Pages are retrieved lazily and each page separates files from common prefixes that group files
- * containing the delimiter.
- */
-public interface PrefixListing {
+/** A page in a delimited prefix listing. */
+public interface PrefixListingPage {
 
-  /** Pages in this listing. */
-  Iterable<PrefixListingPage> pages();
+  /** Files that do not contain the delimiter after the listed prefix. */
+  Iterable<FileInfo> files();
 
-  /** Create a {@link PrefixListing} from the given pages. */
-  static PrefixListing of(Iterable<PrefixListingPage> pages) {
-    return new PrefixListing() {
+  /**
+   * Common prefixes through the first delimiter after the listed prefix.
+   *
+   * <p>Each common prefix includes the delimiter and is a location suitable for a subsequent
+   * listing operation.
+   */
+  Iterable<String> subPrefixes();
+
+  /** Create a page from the given files and common prefixes. */
+  static PrefixListingPage of(Iterable<FileInfo> files, Iterable<String> subPrefixes) {
+    return new PrefixListingPage() {
       @Override
-      public Iterable<PrefixListingPage> pages() {
-        return pages;
+      public Iterable<FileInfo> files() {
+        return files;
+      }
+
+      @Override
+      public Iterable<String> subPrefixes() {
+        return subPrefixes;
       }
     };
   }

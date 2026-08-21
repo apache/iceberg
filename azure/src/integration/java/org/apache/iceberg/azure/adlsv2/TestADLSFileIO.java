@@ -24,7 +24,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.any;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -32,7 +31,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.azure.core.http.rest.PagedIterable;
+import com.azure.core.http.rest.PagedResponse;
 import com.azure.core.http.rest.Response;
+import com.azure.core.util.IterableStream;
 import com.azure.storage.blob.models.BlobStorageException;
 import com.azure.storage.file.datalake.DataLakeFileClient;
 import com.azure.storage.file.datalake.DataLakeFileSystemClient;
@@ -43,7 +44,6 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.time.OffsetDateTime;
 import java.util.Iterator;
-import java.util.function.Consumer;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.azure.AzureProperties;
 import org.apache.iceberg.exceptions.NotFoundException;
@@ -52,6 +52,7 @@ import org.apache.iceberg.io.FileInfo;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.PrefixListing;
+import org.apache.iceberg.io.PrefixListingPage;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.Test;
@@ -193,15 +194,10 @@ public class TestADLSFileIO extends AzuriteTestBase {
             "tag", now, 123L, "group", false, "dir/file", "owner", "permissions", now, null);
 
     PagedIterable<PathItem> response = mock(PagedIterable.class);
-    doAnswer(
-            invocation -> {
-              Consumer<PathItem> consumer = invocation.getArgument(0);
-              consumer.accept(dir);
-              consumer.accept(file);
-              return null;
-            })
-        .when(response)
-        .forEach(any());
+    PagedResponse<PathItem> pageResponse = mock(PagedResponse.class);
+    when(pageResponse.getElements()).thenReturn(new IterableStream<>(ImmutableList.of(dir, file)));
+    when(response.iterableByPage())
+        .thenReturn(new IterableStream<>(ImmutableList.of(pageResponse)));
 
     DataLakeFileSystemClient client = mock(DataLakeFileSystemClient.class);
     when(client.listPaths(any(), any())).thenReturn(response);
@@ -211,10 +207,11 @@ public class TestADLSFileIO extends AzuriteTestBase {
     doReturn(client).when(io).client(any(ADLSLocation.class));
 
     PrefixListing listing = io.listPrefix(prefix, "/");
-    assertThat(listing.files())
+    PrefixListingPage page = listing.pages().iterator().next();
+    assertThat(page.files())
         .extracting(FileInfo::location)
         .containsExactly("abfs://container@account.dfs.core.windows.net/dir/file");
-    assertThat(listing.subPrefixes())
+    assertThat(page.subPrefixes())
         .containsExactly("abfs://container@account.dfs.core.windows.net/dir/sub/");
   }
 
