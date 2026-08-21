@@ -272,6 +272,37 @@ public class TestSchemaUtils {
     assertThat(structType.asStructType().field("i").isOptional()).isEqualTo(forceOptional);
   }
 
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  public void testToIcebergTypeNestedStruct(boolean forceOptional) {
+    IcebergSinkConfig config = mock(IcebergSinkConfig.class);
+    when(config.schemaForceOptional()).thenReturn(forceOptional);
+
+    // nested struct: outer struct has a field "inner" which is itself a struct with two fields
+    org.apache.kafka.connect.data.Schema innerSchema =
+        SchemaBuilder.struct()
+            .field("a", Schema.INT32_SCHEMA)
+            .field("b", Schema.STRING_SCHEMA)
+            .build();
+    org.apache.kafka.connect.data.Schema outerSchema =
+        SchemaBuilder.struct().field("inner", innerSchema).build();
+
+    Type type = SchemaUtils.toIcebergType(outerSchema, config);
+    assertThat(type).isInstanceOf(StructType.class);
+    StructType outerStruct = type.asStructType();
+
+    NestedField innerField = outerStruct.field("inner");
+    assertThat(innerField).isNotNull();
+    assertThat(innerField.isOptional()).isEqualTo(forceOptional);
+    assertThat(innerField.type()).isInstanceOf(StructType.class);
+
+    StructType innerStruct = (StructType) innerField.type();
+    assertThat(innerStruct.field("a").isOptional()).isEqualTo(forceOptional);
+    assertThat(innerStruct.field("a").type()).isInstanceOf(IntegerType.class);
+    assertThat(innerStruct.field("b").isOptional()).isEqualTo(forceOptional);
+    assertThat(innerStruct.field("b").type()).isInstanceOf(StringType.class);
+  }
+
   @Test
   public void testInferIcebergType() {
     IcebergSinkConfig config = mock(IcebergSinkConfig.class);
