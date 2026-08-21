@@ -853,22 +853,101 @@ class TestFlinkVariantShreddingType extends CatalogTestBase {
     sql("DROP TEMPORARY VIEW IF EXISTS tmp_source");
   }
 
+  @TestTemplate
+  public void testReadMultipleShreddedVariantColumns() throws IOException {
+    String multiTable = "multi_shredded_variant";
+    sql(
+        """
+            CREATE TABLE %s (
+              id int NOT NULL,
+              v1 variant NOT NULL,
+              v2 variant NOT NULL
+            ) WITH (
+              'write.format.default'='%s',
+              'format-version'='3',
+              'shred-variants'='true',
+              'variant-inference-buffer-size'='10'
+            )
+            """,
+        multiTable, FileFormat.PARQUET.name());
+
+    sql(
+        """
+            INSERT INTO %s VALUES
+              (1, parse_json('{"name": "Alice", "age": 30}'), parse_json('{"city": "Seattle", "zip": 98101}')),
+              (2, parse_json('{"name": "Bob", "age": 25}'), parse_json('{"city": "Portland", "zip": 97201}'))
+            """,
+        multiTable);
+
+    Table table = validationCatalog.loadTable(TableIdentifier.of(icebergNamespace, multiTable));
+    assertShredded(table, "v1", "v2");
+
+    List<Row> rows =
+        sql(
+            """
+                SELECT id,
+                       json_value(v1, '$.name'),
+                       json_value(v1, '$.age' RETURNING int),
+                       json_value(v2, '$.city'),
+                       json_value(v2, '$.zip' RETURNING int)
+                FROM %s
+                ORDER BY id
+                """,
+            multiTable);
+    assertThat(rows).hasSize(2);
+    assertThat(rows.get(0).getField(1)).isEqualTo("Alice");
+    assertThat(rows.get(0).getField(2)).isEqualTo(30);
+    assertThat(rows.get(0).getField(3)).isEqualTo("Seattle");
+    assertThat(rows.get(0).getField(4)).isEqualTo(98101);
+    assertThat(rows.get(1).getField(1)).isEqualTo("Bob");
+    assertThat(rows.get(1).getField(2)).isEqualTo(25);
+    assertThat(rows.get(1).getField(3)).isEqualTo("Portland");
+    assertThat(rows.get(1).getField(4)).isEqualTo(97201);
+
+    sql("DROP TABLE %s", multiTable);
+  }
+
   private void verifyParquetSchema(Table table, MessageType expectedSchema) throws IOException {
-    table.refresh();
-    try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
-      assertThat(tasks).isNotEmpty();
+    assertThat(dataFileSchemas(table).get(0)).isEqualTo(expectedSchema);
+  }
 
-      FileScanTask task = tasks.iterator().next();
-      String path = task.file().location();
-
-      HadoopInputFile inputFile =
-          HadoopInputFile.fromPath(new org.apache.hadoop.fs.Path(path), new Configuration());
-
-      try (ParquetFileReader reader = ParquetFileReader.open(inputFile)) {
-        MessageType actualSchema = reader.getFileMetaData().getSchema();
-        assertThat(actualSchema).isEqualTo(expectedSchema);
+  private void assertShredded(Table table, String... columns) throws IOException {
+    for (MessageType schema : dataFileSchemas(table)) {
+      for (String column : columns) {
+        assertThat(containsTypedValue(schema.getType(column)))
+            .as("Expected column %s to be shredded with a typed_value subtree", column)
+            .isTrue();
       }
     }
+  }
+
+  private List<MessageType> dataFileSchemas(Table table) throws IOException {
+    table.refresh();
+    List<MessageType> schemas = Lists.newArrayList();
+    try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
+      assertThat(tasks).isNotEmpty();
+      for (FileScanTask task : tasks) {
+        HadoopInputFile inputFile =
+            HadoopInputFile.fromPath(
+                new org.apache.hadoop.fs.Path(task.file().location()), new Configuration());
+        try (ParquetFileReader reader = ParquetFileReader.open(inputFile)) {
+          schemas.add(reader.getFileMetaData().getSchema());
+        }
+      }
+    }
+    return schemas;
+  }
+
+  private static boolean containsTypedValue(Type type) {
+    if (type.isPrimitive()) {
+      return false;
+    }
+    for (Type child : type.asGroupType().getFields()) {
+      if (child.getName().equals("typed_value") || containsTypedValue(child)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   private static MessageType parquetSchema(Type variantTypes) {
