@@ -115,7 +115,7 @@ final class HiveViewOperations extends BaseViewOperations implements HiveOperati
     refreshFromMetadataLocation(metadataLocation);
   }
 
-  @SuppressWarnings("checkstyle:CyclomaticComplexity")
+  @SuppressWarnings({"checkstyle:CyclomaticComplexity", "MethodLength"})
   @Override
   public void doCommit(ViewMetadata base, ViewMetadata metadata) {
     boolean newView = base == null;
@@ -210,16 +210,6 @@ final class HiveViewOperations extends BaseViewOperations implements HiveOperati
 
       } catch (Throwable e) {
         if (e.getMessage() != null
-            && e.getMessage()
-                .contains(
-                    "The table has been modified. The parameter value for key '"
-                        + BaseMetastoreTableOperations.METADATA_LOCATION_PROP
-                        + "' is")) {
-          throw new CommitFailedException(
-              e, "The view %s.%s has been modified concurrently", database, viewName);
-        }
-
-        if (e.getMessage() != null
             && e.getMessage().contains("Table/View 'HIVE_LOCKS' does not exist")) {
           throw new RuntimeException(
               "Failed to acquire locks from metastore because the underlying metastore "
@@ -228,18 +218,41 @@ final class HiveViewOperations extends BaseViewOperations implements HiveOperati
               e);
         }
 
-        LOG.error(
-            "Cannot tell if commit to {}.{} succeeded, attempting to reconnect and check.",
-            database,
-            viewName,
-            e);
         commitStatus = BaseMetastoreOperations.CommitStatus.UNKNOWN;
-        commitStatus =
-            checkCommitStatus(
-                viewName,
-                newMetadataLocation,
-                metadata.properties(),
-                () -> checkCurrentMetadataLocation(newMetadataLocation));
+        if (e.getMessage() != null
+            && e.getMessage()
+                .contains(
+                    "The table has been modified. The parameter value for key '"
+                        + BaseMetastoreTableOperations.METADATA_LOCATION_PROP
+                        + "' is")) {
+          // It's possible the HMS client incorrectly retries a successful operation, due to network
+          // issue for example, and triggers this exception. So we need double-check to make sure
+          // this is really a concurrent modification. Hitting this exception means no pending
+          // requests, if any, can succeed later, so it's safe to check status in strict mode
+          commitStatus =
+              checkCommitStatusStrict(
+                  viewName,
+                  newMetadataLocation,
+                  metadata.properties(),
+                  () -> checkCurrentMetadataLocation(newMetadataLocation));
+          if (commitStatus == BaseMetastoreOperations.CommitStatus.FAILURE) {
+            throw new CommitFailedException(
+                e, "The view %s.%s has been modified concurrently", database, viewName);
+          }
+        } else {
+          LOG.error(
+              "Cannot tell if commit to {}.{} succeeded, attempting to reconnect and check.",
+              database,
+              viewName,
+              e);
+          commitStatus =
+              checkCommitStatus(
+                  viewName,
+                  newMetadataLocation,
+                  metadata.properties(),
+                  () -> checkCurrentMetadataLocation(newMetadataLocation));
+        }
+
         switch (commitStatus) {
           case SUCCESS:
             break;
