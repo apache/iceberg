@@ -168,9 +168,12 @@ public class BaseRowDelta extends MergingSnapshotProducer<RowDelta> implements R
       }
 
       validateNoConflictingFileAndPositionDeletes();
-
-      validateAddedDVs(base, startingSnapshotId, conflictDetectionFilter, parent);
     }
+
+    boolean canMergeConcurrentDVs =
+        !validateNewDeleteFiles && !addsDataFiles() && !deletesDataFiles();
+    validateAddedDVs(
+        base, startingSnapshotId, conflictDetectionFilter, parent, canMergeConcurrentDVs);
   }
 
   /**
