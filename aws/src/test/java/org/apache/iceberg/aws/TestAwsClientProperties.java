@@ -26,6 +26,7 @@ import org.apache.iceberg.aws.s3.VendedCredentialsProvider;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.auth.OAuth2Properties;
+import org.apache.iceberg.util.PropertyUtil;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
@@ -43,6 +44,23 @@ public class TestAwsClientProperties {
   public static class CustomCredentialProvider implements AwsCredentialsProvider {
     public static AwsCredentialsProvider create(Map<String, String> properties) {
       return new CustomCredentialProvider();
+    }
+
+    @Override
+    public AwsCredentials resolveCredentials() {
+      return AwsBasicCredentials.builder().build();
+    }
+  }
+
+  public static class CapturingCredentialProvider implements AwsCredentialsProvider {
+    private static Map<String, String> lastProperties;
+
+    public static AwsCredentialsProvider create(Map<String, String> properties) {
+      lastProperties = properties;
+      // Mirrors a real-world custom provider that re-derives its own AwsClientProperties
+      // from the properties it is handed; this is what surfaces a null value as an NPE.
+      PropertyUtil.filterProperties(properties, key -> true);
+      return new CapturingCredentialProvider();
     }
 
     @Override
@@ -261,5 +279,27 @@ public class TestAwsClientProperties {
     AwsCredentialsProvider provider =
         awsClientProperties.credentialsProvider("key", "secret", "token");
     assertThat(provider).isInstanceOf(CustomCredentialProvider.class);
+  }
+
+  @Test
+  public void customCredentialsProviderWithoutRefreshEndpointDoesNotPassNullUri() {
+    // No REFRESH_CREDENTIALS_ENDPOINT and no CatalogProperties.URI set, so
+    // refreshCredentialsEndpoint resolves to null. A custom provider must not be handed a
+    // properties map containing a null value for VendedCredentialsProvider.URI, since some
+    // implementations (e.g. ones that re-derive their own AwsClientProperties from the map)
+    // will NPE on that null value.
+    AwsClientProperties awsClientProperties =
+        new AwsClientProperties(
+            ImmutableMap.of(
+                AwsClientProperties.CLIENT_CREDENTIALS_PROVIDER,
+                CapturingCredentialProvider.class.getName()));
+
+    AwsCredentialsProvider provider =
+        awsClientProperties.credentialsProvider("key", "secret", "token");
+
+    assertThat(provider).isInstanceOf(CapturingCredentialProvider.class);
+    assertThat(CapturingCredentialProvider.lastProperties)
+        .as("properties handed to a custom provider should never contain a null value")
+        .doesNotContainValue(null);
   }
 }
