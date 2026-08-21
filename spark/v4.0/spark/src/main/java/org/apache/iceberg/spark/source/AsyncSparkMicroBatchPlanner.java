@@ -428,7 +428,7 @@ class AsyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner implements 
     LOG.debug("filling queue from {}, to: {}", fromOffset, toOffset);
     Snapshot currentSnapshot = table().snapshot(fromOffset.snapshotId());
     // this could be a partial snapshot so add it outside the loop
-    if (currentSnapshot != null) {
+    if (currentSnapshot != null && shouldProcess(currentSnapshot)) {
       addMicroBatchToQueue(
           currentSnapshot,
           fromOffset.position(),
