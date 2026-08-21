@@ -28,6 +28,7 @@ import static org.mockito.Mockito.when;
 
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.DataFile;
@@ -53,9 +54,12 @@ import org.apache.iceberg.connect.events.TopicPartitionOffset;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.sink.SinkTaskContext;
 import org.junit.jupiter.api.Test;
@@ -314,6 +318,203 @@ public class TestCoordinator extends ChannelTestBase {
     consumer.addRecord(new ConsumerRecord<>(CTL_TOPIC_NAME, 0, nextOffset++, "key", bytes));
 
     coordinator.process();
+  }
+
+  @Test
+  public void testCommitConsumerOffsetsDoesNotRewind() {
+    when(config.commitIntervalMs()).thenReturn(0);
+    when(config.commitTimeoutMs()).thenReturn(Integer.MAX_VALUE);
+
+    SinkTaskContext context = mock(SinkTaskContext.class);
+    Coordinator coordinator =
+        new Coordinator(catalog, config, ImmutableList.of(), clientFactory, context);
+    coordinator.start();
+    initConsumer();
+
+    TopicPartition ctl = new TopicPartition(CTL_TOPIC_NAME, 0);
+
+    long healthyWatermark = 100L;
+    coordinator.controlTopicOffsets().put(0, healthyWatermark);
+    coordinator.commitConsumerOffsets();
+
+    coordinator.controlTopicOffsets().put(0, 5L);
+    coordinator.commitConsumerOffsets();
+
+    OffsetAndMetadata committedOffsetAndMetadata =
+        consumer.committed(ImmutableSet.of(ctl)).get(ctl);
+    long committed = committedOffsetAndMetadata == null ? 0L : committedOffsetAndMetadata.offset();
+
+    assertThat(committed)
+        .as("commitConsumerOffsets should not rewind the shared -coord consumer group offsets")
+        .isEqualTo(healthyWatermark);
+  }
+
+  @Test
+  public void testCommitConsumerDuplicateDoesNotCommit() {
+    when(config.commitIntervalMs()).thenReturn(0);
+    when(config.commitTimeoutMs()).thenReturn(Integer.MAX_VALUE);
+
+    SinkTaskContext context = mock(SinkTaskContext.class);
+    Coordinator coordinator =
+        new Coordinator(catalog, config, ImmutableList.of(), clientFactory, context);
+    coordinator.start();
+    initConsumer();
+
+    TopicPartition ctl = new TopicPartition(CTL_TOPIC_NAME, 0);
+
+    long healthyWatermark = 100L;
+    coordinator.controlTopicOffsets().put(0, healthyWatermark);
+    coordinator.commitConsumerOffsets();
+
+    long nextWatermark = healthyWatermark + 5;
+    consumer.commitSync(ImmutableMap.of(ctl, new OffsetAndMetadata(nextWatermark)));
+
+    coordinator.controlTopicOffsets().put(0, 100L);
+    coordinator.commitConsumerOffsets();
+
+    OffsetAndMetadata committedOffsetAndMetadata =
+        consumer.committed(ImmutableSet.of(ctl)).get(ctl);
+    long committed = committedOffsetAndMetadata == null ? 0L : committedOffsetAndMetadata.offset();
+
+    assertThat(committed)
+        .as(
+            "commitConsumerOffsets should not commit offsets when offset has not changed relative to local cache")
+        .isEqualTo(nextWatermark);
+  }
+
+  @Test
+  public void testCommitConsumerRewindsOffsetsWhenAnotherCoordinatorAdvancesOffsets() {
+    when(config.commitIntervalMs()).thenReturn(0);
+    when(config.commitTimeoutMs()).thenReturn(Integer.MAX_VALUE);
+
+    SinkTaskContext context = mock(SinkTaskContext.class);
+    Coordinator coordinator =
+        new Coordinator(catalog, config, ImmutableList.of(), clientFactory, context);
+    coordinator.start();
+    initConsumer();
+
+    TopicPartition ctl = new TopicPartition(CTL_TOPIC_NAME, 0);
+
+    long healthyWatermark = 100L;
+    coordinator.controlTopicOffsets().put(0, healthyWatermark);
+    coordinator.commitConsumerOffsets();
+
+    long nextWatermark = healthyWatermark + 5;
+    consumer.commitSync(ImmutableMap.of(ctl, new OffsetAndMetadata(nextWatermark)));
+
+    long rewindWatermark = healthyWatermark + 3;
+    coordinator.controlTopicOffsets().put(0, rewindWatermark);
+    coordinator.commitConsumerOffsets();
+
+    OffsetAndMetadata committedOffsetAndMetadata =
+        consumer.committed(ImmutableSet.of(ctl)).get(ctl);
+    long committed = committedOffsetAndMetadata == null ? 0L : committedOffsetAndMetadata.offset();
+
+    assertThat(committed)
+        .as(
+            "Expected Limitation: commitConsumerOffsets will rewind offsets if local offset advances and another coordinator committed a higher offset")
+        .isEqualTo(rewindWatermark);
+  }
+
+  @Test
+  public void testCommitNewConsumerAdvances() {
+    when(config.commitIntervalMs()).thenReturn(0);
+    when(config.commitTimeoutMs()).thenReturn(Integer.MAX_VALUE);
+
+    SinkTaskContext context = mock(SinkTaskContext.class);
+    Coordinator coordinator =
+        new Coordinator(catalog, config, ImmutableList.of(), clientFactory, context);
+    coordinator.start();
+    initConsumer();
+
+    long newWatermark = 5L;
+
+    TopicPartition ctl = new TopicPartition(CTL_TOPIC_NAME, 0);
+    coordinator.controlTopicOffsets().put(0, newWatermark);
+
+    coordinator.commitConsumerOffsets();
+
+    OffsetAndMetadata committedOffsetAndMetadata =
+        consumer.committed(ImmutableSet.of(ctl)).get(ctl);
+    long committed = committedOffsetAndMetadata == null ? 0L : committedOffsetAndMetadata.offset();
+
+    assertThat(committed)
+        .as("commitConsumerOffsets should advance offsets on its first commit")
+        .isEqualTo(newWatermark);
+  }
+
+  @Test
+  public void testCommitConsumerAdvances() {
+    when(config.commitIntervalMs()).thenReturn(0);
+    when(config.commitTimeoutMs()).thenReturn(Integer.MAX_VALUE);
+
+    SinkTaskContext context = mock(SinkTaskContext.class);
+    Coordinator coordinator =
+        new Coordinator(catalog, config, ImmutableList.of(), clientFactory, context);
+    coordinator.start();
+    initConsumer();
+
+    long healthyWatermark = 100L;
+    TopicPartition ctl = new TopicPartition(CTL_TOPIC_NAME, 0);
+
+    coordinator.controlTopicOffsets().put(0, healthyWatermark);
+    coordinator.commitConsumerOffsets();
+
+    long watermarkToCommit = 105L;
+    coordinator.controlTopicOffsets().put(0, watermarkToCommit);
+    coordinator.commitConsumerOffsets();
+
+    OffsetAndMetadata committedOffsetAndMetadata =
+        consumer.committed(ImmutableSet.of(ctl)).get(ctl);
+    long committed = committedOffsetAndMetadata == null ? 0L : committedOffsetAndMetadata.offset();
+
+    assertThat(committed)
+        .as("commitConsumerOffsets should advance offsets when its value is greater")
+        .isEqualTo(watermarkToCommit);
+  }
+
+  @Test
+  public void testCommitConsumerMixedPartitionsRewindOrAdvance() {
+    when(config.commitIntervalMs()).thenReturn(0);
+    when(config.commitTimeoutMs()).thenReturn(Integer.MAX_VALUE);
+
+    SinkTaskContext context = mock(SinkTaskContext.class);
+    Coordinator coordinator =
+        new Coordinator(catalog, config, ImmutableList.of(), clientFactory, context);
+    coordinator.start();
+    initConsumer();
+
+    long healthyWatermark0 = 100L;
+    long healthWatermark1 = 200L;
+    TopicPartition ctl0 = new TopicPartition(CTL_TOPIC_NAME, 0);
+    TopicPartition ctl1 = new TopicPartition(CTL_TOPIC_NAME, 1);
+
+    consumer.rebalance(ImmutableList.of(ctl0, ctl1));
+    consumer.updateBeginningOffsets(ImmutableMap.of(ctl0, 0L, ctl1, 0L));
+
+    coordinator.controlTopicOffsets().put(0, healthyWatermark0);
+    coordinator.controlTopicOffsets().put(1, healthWatermark1);
+    coordinator.commitConsumerOffsets();
+
+    long watermarkToCommit = 105L;
+    long watermarkToSkip = 195L;
+    coordinator.controlTopicOffsets().put(0, watermarkToCommit);
+    coordinator.controlTopicOffsets().put(1, watermarkToSkip);
+    coordinator.commitConsumerOffsets();
+
+    Map<TopicPartition, OffsetAndMetadata> committedOffsetAndMetadata =
+        consumer.committed(ImmutableSet.of(ctl0, ctl1));
+
+    OffsetAndMetadata committed0 = committedOffsetAndMetadata.get(ctl0);
+    OffsetAndMetadata committed1 = committedOffsetAndMetadata.get(ctl1);
+
+    assertThat(committed0 == null ? 0L : committed0.offset())
+        .as("commitConsumerOffsets should advance the consumer group offsets")
+        .isEqualTo(watermarkToCommit);
+
+    assertThat(committed1 == null ? 0L : committed1.offset())
+        .as("commitConsumerOffsets should not rewind consumer group offsets")
+        .isEqualTo(healthWatermark1);
   }
 
   private void assertCommitTable(int idx, UUID commitId, OffsetDateTime ts) {
