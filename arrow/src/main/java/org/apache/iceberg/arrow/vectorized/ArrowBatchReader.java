@@ -47,8 +47,9 @@ class ArrowBatchReader extends BaseBatchReader<ColumnarBatch> {
       closeVectors();
     }
 
-    // release the decoded vectors the previous batch materialized, safe with reused containers
-    // because only decoded vectors are released never the holders' vectors
+    // reading the next batch invalidates the previous one, so release the vectors it decoded
+    // from dictionary encoded columns. The holders' vectors are left alone, which keeps this
+    // safe when containers are reused.
     closeArrowVectors();
     this.columnVectors = new ColumnVector[readers.length];
 
