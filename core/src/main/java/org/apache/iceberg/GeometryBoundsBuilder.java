@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg;
 
+import com.google.errorprone.annotations.FormatMethod;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import org.apache.iceberg.geospatial.BoundingBox;
@@ -40,8 +41,9 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
  * geography} columns: geodesic edges can reach beyond their endpoints, longitude is periodic, and a
  * geography box may cross the antimeridian.
  *
- * <p>Only the X and Y dimensions contribute to the box. Z and M ordinates are valid in the ISO WKB
- * serializations that Iceberg accepts, so they are read past and ignored rather than rejected.
+ * <p>Only X and Y bounds are produced. The spec also defines optional Z and M bounds, but producing
+ * them is a deliberate non-goal here: any Z and M ordinates in a value are read past rather than
+ * bounded, so an XYZ or XYZM value still parses and contributes its X and Y.
  *
  * <p>Every ring of a polygon, including interior rings, contributes to the bounds. In a valid
  * polygon the holes lie inside the shell, so this is the shell's own box.
@@ -69,8 +71,9 @@ class GeometryBoundsBuilder {
 
   private final DimensionBounds xBounds = new DimensionBounds();
   private final DimensionBounds yBounds = new DimensionBounds();
-  // set when a value carried bytes beyond its declared geometry, meaning it was not fully parsed
-  // and an object may be missing from the box; build() then suppresses the bounds
+  // set when a value could not be fully bounded -- malformed or unsupported WKB, or bytes left
+  // after the declared geometry -- so an object may be missing from the box; build() then
+  // suppresses the bounds
   private boolean incomplete = false;
 
   /**
@@ -78,23 +81,27 @@ class GeometryBoundsBuilder {
    *
    * <p>The input is read through a duplicate, so its position and limit are left unchanged.
    *
-   * <p>If the value carries bytes beyond the single geometry it declares, it was not fully parsed
-   * (for example a multi geometry whose declared element count is short), so an object never
-   * reached the bounds and the box can no longer cover the whole value. {@link #build()} then
-   * returns no bounds, since suppressing optional metrics is safe where under-covering a file is
-   * not.
+   * <p>A value the parser cannot bound never fails the caller. Malformed WKB, a valid OGC type this
+   * builder does not support (such as PolyhedralSurface, TIN, or Triangle), and bytes left after
+   * the declared geometry all mean an object may be missing from the box, so {@link #build()}
+   * returns no bounds for the file instead. Suppressing optional metrics is safe where failing the
+   * write is not, since the write cannot skip the value or retry past it.
    *
-   * <p>If this throws, the builder's state is undefined: coordinates parsed before the failure may
-   * already be folded in, so a caller that continues after a rejected value must discard this
-   * builder.
-   *
-   * @param wkb a buffer containing one WKB geometry; trailing bytes suppress the bounds
-   * @throws IllegalArgumentException if the WKB is malformed
+   * @param wkb a buffer containing one WKB geometry
+   * @throws IllegalArgumentException if {@code wkb} is null
    */
   public void addValue(ByteBuffer wkb) {
     Preconditions.checkArgument(wkb != null, "Invalid WKB buffer: null");
     ByteBuffer buffer = wkb.duplicate();
-    parseGeometry(buffer, ANY_GEOMETRY, ANY_DIMENSION);
+    try {
+      parseGeometry(buffer, ANY_GEOMETRY, ANY_DIMENSION);
+    } catch (InvalidWkbException e) {
+      incomplete = true;
+      return;
+    }
+
+    // a complete geometry that leaves bytes behind was not fully parsed (for example a multi
+    // geometry whose declared element count is short), so an object never reached the bounds
     if (buffer.hasRemaining()) {
       incomplete = true;
     }
@@ -102,7 +109,7 @@ class GeometryBoundsBuilder {
 
   /**
    * Builds the bounding box covering every geometry added, or {@code null} if either the X or Y
-   * dimension has no value, or if any value carried trailing bytes (see {@link #addValue}).
+   * dimension has no value, or if any value could not be bounded (see {@link #addValue}).
    */
   public BoundingBox build() {
     if (incomplete || !xBounds.hasValue() || !yBounds.hasValue()) {
@@ -131,7 +138,7 @@ class GeometryBoundsBuilder {
     } else if (order == 1) {
       buffer.order(ByteOrder.LITTLE_ENDIAN);
     } else {
-      throw new IllegalArgumentException("Invalid WKB byte order: " + order);
+      throw new InvalidWkbException("Invalid WKB byte order: " + order);
     }
 
     parseGeometryBodyAndUpdateBound(buffer, expectedType, expectedDimension);
@@ -143,7 +150,9 @@ class GeometryBoundsBuilder {
     long typeCode = Integer.toUnsignedLong(buffer.getInt());
     int dimensionGroup = (int) (typeCode / DIMENSION_DIVISOR);
     int geometryType = (int) (typeCode % DIMENSION_DIVISOR);
-    Preconditions.checkArgument(
+    // only the seven OGC types in XY/XYZ/XYM/XYZM are bounded here; other valid OGC types (such as
+    // PolyhedralSurface, TIN, and Triangle) are unsupported and cost the value its bounds
+    checkWkb(
         geometryType >= TYPE_POINT
             && geometryType <= TYPE_GEOMETRY_COLLECTION
             && dimensionGroup <= XYZM_GROUP,
@@ -152,14 +161,14 @@ class GeometryBoundsBuilder {
     // an element of a multi geometry or collection must match its parent's member type and
     // dimensions; if/throw so the message is built only when a value is actually rejected
     if (expectedType != ANY_GEOMETRY && geometryType != expectedType) {
-      throw new IllegalArgumentException(
+      throw new InvalidWkbException(
           "Invalid WKB: expected geometry type "
               + typeName(expectedType)
               + " but found "
               + typeName(geometryType));
     }
     if (expectedDimension != ANY_DIMENSION && dimensionGroup != expectedDimension) {
-      throw new IllegalArgumentException(
+      throw new InvalidWkbException(
           "Invalid WKB: expected dimensions "
               + dimensionName(expectedDimension)
               + " but found "
@@ -191,7 +200,7 @@ class GeometryBoundsBuilder {
         readCollection(buffer, ANY_GEOMETRY, dimensionGroup);
         break;
       default:
-        throw new IllegalArgumentException("Invalid or unsupported WKB geometry type: " + typeCode);
+        throw new InvalidWkbException("Invalid or unsupported WKB geometry type: " + typeCode);
     }
   }
 
@@ -268,7 +277,7 @@ class GeometryBoundsBuilder {
       return;
     }
 
-    Preconditions.checkArgument(
+    checkWkb(
         numPoints >= MIN_RING_POINTS,
         "Invalid WKB: polygon ring has fewer than %s points: %s",
         MIN_RING_POINTS,
@@ -293,8 +302,7 @@ class GeometryBoundsBuilder {
     xBounds.add(lastX);
     yBounds.add(lastY);
 
-    Preconditions.checkArgument(
-        firstX == lastX && firstY == lastY, "Invalid WKB: polygon ring is not closed");
+    checkWkb(firstX == lastX && firstY == lastY, "Invalid WKB: polygon ring is not closed");
   }
 
   // an element count, then that many complete WKB geometries:
@@ -357,7 +365,7 @@ class GeometryBoundsBuilder {
     // every element or point occupies at least one more byte, so a count larger than the bytes left
     // cannot be valid; catch it here with a precise message instead of looping until the buffer
     // ends
-    Preconditions.checkArgument(
+    checkWkb(
         count <= buffer.remaining(),
         "Invalid WKB element count: %s exceeds %s remaining bytes",
         count,
@@ -366,8 +374,24 @@ class GeometryBoundsBuilder {
   }
 
   private static void checkRemaining(ByteBuffer buffer, long bytes) {
-    Preconditions.checkArgument(
-        buffer.remaining() >= bytes, "Invalid WKB: unexpected end of buffer");
+    checkWkb(buffer.remaining() >= bytes, "Invalid WKB: unexpected end of buffer");
+  }
+
+  // throws InvalidWkbException (caught in addValue, where it suppresses the file's bounds rather
+  // than failing the write); the message is formatted only when the check fails
+  @FormatMethod
+  private static void checkWkb(boolean valid, String message, Object... args) {
+    if (!valid) {
+      throw new InvalidWkbException(String.format(message, args));
+    }
+  }
+
+  // thrown from the parse paths for any value this builder cannot bound; addValue catches it and
+  // suppresses the bounds. Kept private so the catch stays narrow and never swallows other errors.
+  private static class InvalidWkbException extends RuntimeException {
+    private InvalidWkbException(String message) {
+      super(message);
+    }
   }
 
   private static class DimensionBounds {

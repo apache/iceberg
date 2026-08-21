@@ -19,7 +19,6 @@
 package org.apache.iceberg;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -143,14 +142,13 @@ class TestGeometryBoundsBuilder {
   }
 
   @ParameterizedTest(name = "{0}")
-  @MethodSource("invalidWkbCases")
-  void invalidWkb(String description, byte[] wkb, String expectedMessage) {
+  @MethodSource("unboundableWkbCases")
+  void unboundableWkbSuppressesBounds(String description, byte[] wkb) {
     GeometryBoundsBuilder bounds = new GeometryBoundsBuilder();
+    // a value the parser cannot bound never throws to the caller; it costs the file its bounds
+    bounds.addValue(ByteBuffer.wrap(wkb));
 
-    assertThatThrownBy(() -> bounds.addValue(ByteBuffer.wrap(wkb)))
-        .as(description)
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining(expectedMessage);
+    assertThat(bounds.build()).as(description).isNull();
   }
 
   @Test
@@ -208,16 +206,15 @@ class TestGeometryBoundsBuilder {
   }
 
   @Test
-  void stateIsUndefinedAfterAddValueThrows() {
+  void negativeZeroSortsBeforePositiveZero() {
     GeometryBoundsBuilder bounds = new GeometryBoundsBuilder();
-    bounds.addValue(ByteBuffer.wrap(wkb(point(1, 2))));
+    // the spec orders -0.0 before +0.0 (IEEE 754 totalOrder), which Math.min/Math.max honor, so the
+    // lower bound is -0.0 and the upper bound is +0.0 (GeospatialBound compares with
+    // Double.compare)
+    bounds.addValue(ByteBuffer.wrap(wkb(point(0, 0))));
+    bounds.addValue(ByteBuffer.wrap(wkb(point(-0.0, -0.0))));
 
-    // adding a malformed value throws; per the addValue contract the builder must then be
-    // discarded,
-    // so this only documents that a caller cannot keep using it, not a guaranteed rolled-back state
-    assertThatThrownBy(() -> bounds.addValue(ByteBuffer.wrap(truncate(wkb(point(5, 6)), 5))))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("unexpected end of buffer");
+    assertThat(bounds.build()).isEqualTo(box(-0.0, -0.0, 0.0, 0.0));
   }
 
   private static Stream<Arguments> boundingBoxCases() {
@@ -279,20 +276,19 @@ class TestGeometryBoundsBuilder {
             "LINESTRING Z(0 1 9,2 -1 9)", lineStringZ(0, 1, 9, 2, -1, 9), box(0, -1, 2, 1)));
   }
 
-  private static Stream<Arguments> invalidWkbCases() {
+  private static Stream<Arguments> unboundableWkbCases() {
     return Stream.of(
-        // base type 8 is beyond the seven OGC types
+        // base type 8 is beyond the seven OGC types this builder bounds
+        Arguments.of("unknown geometry type", wkb(geom(LE, 8, coordinates(0, 0)))),
+        // a valid OGC type this builder does not support: PolyhedralSurface is 15 (06-103r4 8.2.8)
         Arguments.of(
-            "unknown geometry type", wkb(geom(LE, 8, coordinates(0, 0))), "unsupported WKB"),
+            "unsupported OGC type (PolyhedralSurface)", wkb(geom(LE, 15, coordinates(0, 0)))),
         // a type code with the high bits set, e.g. EWKB with an SRID flag
-        Arguments.of(
-            "type code with SRID flag",
-            wkb(geom(LE, 0xFFFFFFFF, coordinates(0, 0))),
-            "unsupported WKB"),
+        Arguments.of("type code with SRID flag", wkb(geom(LE, 0xFFFFFFFF, coordinates(0, 0)))),
         // the leading byte is neither 0 (big endian) nor 1 (little endian)
-        Arguments.of("invalid byte order", withByteOrder((byte) 2, wkb(point(0, 0))), "byte order"),
+        Arguments.of("invalid byte order", withByteOrder((byte) 2, wkb(point(0, 0)))),
         // a point header with its coordinates cut off
-        Arguments.of("truncated point", truncate(wkb(point(1, 2)), 5), "unexpected end of buffer"),
+        Arguments.of("truncated point", truncate(wkb(point(1, 2)), 5)),
         // a line string that declares far more points than the buffer could hold
         Arguments.of(
             "element count exceeds remaining bytes",
@@ -304,37 +300,19 @@ class TestGeometryBoundsBuilder {
                       buffer.putInt(1000);
                       buffer.putDouble(0.0);
                       buffer.putDouble(0.0);
-                    })),
-            "element count"),
+                    }))),
         // a multi geometry whose child has the wrong member type
         Arguments.of(
-            "multi point with a line string child",
-            wkb(multiPoint(lineString(1, 2, 3, 4))),
-            "expected geometry type"),
-        Arguments.of(
-            "multi line string with a point child",
-            wkb(multiLineString(point(1, 2))),
-            "expected geometry type"),
-        Arguments.of(
-            "multi polygon with a point child",
-            wkb(multiPolygon(point(1, 2))),
-            "expected geometry type"),
+            "multi point with a line string child", wkb(multiPoint(lineString(1, 2, 3, 4)))),
+        Arguments.of("multi line string with a point child", wkb(multiLineString(point(1, 2)))),
+        Arguments.of("multi polygon with a point child", wkb(multiPolygon(point(1, 2)))),
         // a multi geometry or collection whose child dimension differs from the parent's
+        Arguments.of("multi point z with a 2D child", wkb(collectionOf(LE, 1004, point(1, 2)))),
         Arguments.of(
-            "multi point z with a 2D child",
-            wkb(collectionOf(LE, 1004, point(1, 2))),
-            "expected dimensions"),
-        Arguments.of(
-            "geometry collection z with a 2D child",
-            wkb(collectionOf(LE, 1007, point(1, 2))),
-            "expected dimensions"),
+            "geometry collection z with a 2D child", wkb(collectionOf(LE, 1007, point(1, 2)))),
         // a polygon ring that does not close, and one with fewer than four points
-        Arguments.of(
-            "polygon ring not closed", wkb(polygon(ring(0, 0, 1, 0, 0, 1, 1, 1))), "not closed"),
-        Arguments.of(
-            "polygon ring with too few points",
-            wkb(polygon(ring(0, 0, 1, 0, 0, 0))),
-            "fewer than"));
+        Arguments.of("polygon ring not closed", wkb(polygon(ring(0, 0, 1, 0, 0, 1, 1, 1)))),
+        Arguments.of("polygon ring with too few points", wkb(polygon(ring(0, 0, 1, 0, 0, 0)))));
   }
 
   private static GeospatialBound xy(double xCoord, double yCoord) {
