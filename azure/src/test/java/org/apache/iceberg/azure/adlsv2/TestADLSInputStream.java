@@ -19,17 +19,23 @@
 package org.apache.iceberg.azure.adlsv2;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.azure.core.http.HttpHeaders;
+import com.azure.core.http.HttpResponse;
+import com.azure.storage.blob.models.BlobStorageException;
 import com.azure.storage.file.datalake.DataLakeFileClient;
 import com.azure.storage.file.datalake.implementation.models.InternalDataLakeFileOpenInputStreamResult;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Arrays;
+import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.metrics.MetricsContext;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -122,5 +128,32 @@ class TestADLSInputStream {
     adlsInputStream.readTail(new byte[0], 0, 0);
 
     verify(inputStream).close();
+  }
+
+  @Test
+  void readTranslatesNotFoundOnMidStreamRead() throws IOException {
+    IOException notFound = new IOException(blobNotFoundException());
+    when(inputStream.read()).thenThrow(notFound);
+
+    assertThatThrownBy(() -> adlsInputStream.read())
+        .isInstanceOf(NotFoundException.class)
+        .hasMessageContaining("Location does not exist");
+  }
+
+  @Test
+  void readBufferTranslatesNotFoundOnMidStreamRead() throws IOException {
+    IOException notFound = new IOException(blobNotFoundException());
+    when(inputStream.read(any(byte[].class), anyInt(), anyInt())).thenThrow(notFound);
+
+    assertThatThrownBy(() -> adlsInputStream.read(new byte[10], 0, 10))
+        .isInstanceOf(NotFoundException.class)
+        .hasMessageContaining("Location does not exist");
+  }
+
+  private static BlobStorageException blobNotFoundException() {
+    HttpResponse response = mock(HttpResponse.class);
+    when(response.getHeaders())
+        .thenReturn(new HttpHeaders().set("x-ms-error-code", "BlobNotFound"));
+    return new BlobStorageException("The specified blob does not exist.", response, null);
   }
 }
