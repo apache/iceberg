@@ -103,17 +103,22 @@ public class ManifestFiles {
   }
 
   /**
-   * Returns a {@link CloseableIterable} of file paths in the {@link ManifestFile}.
+   * Returns a {@link CloseableIterable} of live file paths in the {@link ManifestFile}.
+   *
+   * <p>Works for both {@link ManifestContent#DATA DATA} and {@link ManifestContent#DELETES DELETE}
+   * manifests: data manifests yield data file locations and delete manifests yield delete file
+   * locations (position-delete files and DVs). Only entries currently marked as live are returned;
+   * tombstone entries (DELETED status) are skipped.
    *
    * @param manifest a ManifestFile
    * @param io a FileIO
    * @param specsById a Map from spec ID to partition spec
-   * @return a manifest reader
+   * @return a CloseableIterable of live file locations referenced by the manifest
    */
   public static CloseableIterable<String> readPaths(
       ManifestFile manifest, FileIO io, Map<Integer, PartitionSpec> specsById) {
     return CloseableIterable.transform(
-        read(manifest, io, specsById).select(ImmutableList.of("file_path")).liveEntries(),
+        open(manifest, io, specsById).select(ImmutableList.of("file_path")).liveEntries(),
         entry -> entry.file().location());
   }
 
