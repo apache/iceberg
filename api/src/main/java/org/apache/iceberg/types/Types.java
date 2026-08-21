@@ -1028,7 +1028,7 @@ public class Types {
     private transient Map<String, NestedField> fieldsByLowerCaseName = null;
     private transient Map<Integer, NestedField> fieldsById = null;
 
-    private StructType(List<NestedField> fields) {
+    StructType(List<NestedField> fields) {
       Preconditions.checkNotNull(fields, "Field list cannot be null");
       this.fields = new NestedField[fields.size()];
       for (int i = 0; i < this.fields.length; i += 1) {
@@ -1106,6 +1106,10 @@ public class Types {
       }
 
       StructType that = (StructType) o;
+      if (isFileType() != that.isFileType()) {
+        return false;
+      }
+
       return Arrays.equals(fields, that.fields);
     }
 
@@ -1152,6 +1156,74 @@ public class Types {
         this.fieldsById = byIdBuilder.build();
       }
       return fieldsById;
+    }
+  }
+
+  public static class FileType extends StructType {
+    public static final String NAME = "file";
+    public static final int NUM_NESTED_FIELDS = 6;
+
+    private static final String URI = "uri";
+    private static final String OFFSET = "offset";
+    private static final String SIZE = "size";
+    private static final String CONTENT_TYPE = "content_type";
+    private static final String CHECKSUM = "checksum";
+    private static final String INLINE = "inline";
+
+    public static FileType of(int fieldId) {
+      return new FileType(fieldId);
+    }
+
+    private final int fieldId;
+
+    private FileType(int fieldId) {
+      super(nestedFields(fieldId));
+      this.fieldId = fieldId;
+    }
+
+    private static List<NestedField> nestedFields(int fieldId) {
+      return ImmutableList.of(
+          NestedField.optional(fieldId + 1, URI, StringType.get()),
+          NestedField.optional(fieldId + 2, OFFSET, LongType.get()),
+          NestedField.optional(fieldId + 3, SIZE, LongType.get()),
+          NestedField.optional(fieldId + 4, CONTENT_TYPE, StringType.get()),
+          NestedField.optional(fieldId + 5, CHECKSUM, StringType.get()),
+          NestedField.optional(fieldId + 6, INLINE, BinaryType.get()));
+    }
+
+    public int fieldId() {
+      return fieldId;
+    }
+
+    @Override
+    public boolean isFileType() {
+      return true;
+    }
+
+    @Override
+    public FileType asFileType() {
+      return this;
+    }
+
+    @Override
+    public String toString() {
+      return NAME;
+    }
+
+    @Override
+    public boolean equals(Object other) {
+      if (this == other) {
+        return true;
+      } else if (!(other instanceof FileType)) {
+        return false;
+      }
+
+      return fieldId == ((FileType) other).fieldId;
+    }
+
+    @Override
+    public int hashCode() {
+      return Objects.hash(FileType.class, fieldId);
     }
   }
 

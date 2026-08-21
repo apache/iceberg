@@ -131,6 +131,12 @@ public class CheckCompatibility extends TypeUtil.CustomOrderSchemaVisitor<List<S
       return ImmutableList.of(String.format(": %s cannot be read as a struct", currentType));
     }
 
+    // a file type has a closed set of nested fields, so it is not interchangeable with a struct
+    if (readStruct.isFileType() != currentType.isFileType()) {
+      return ImmutableList.of(
+          String.format(": %s cannot be read as a %s", currentType, readStruct));
+    }
+
     List<String> errors = Lists.newArrayList();
 
     for (List<String> fieldErrors : fieldErrorLists) {

@@ -639,11 +639,39 @@ public class TypeUtil {
   /** Interface for passing a function that assigns column IDs. */
   public interface NextID {
     int get();
+
+    default int get(int numReserved) {
+      int id = get();
+      if (numReserved > 0) {
+        for (int offset = 1; offset <= numReserved; offset += 1) {
+          int reserved = get();
+          Preconditions.checkState(
+              reserved == id + offset,
+              "Cannot reserve %s IDs after %s: assigned %s",
+              numReserved,
+              id,
+              reserved);
+        }
+      }
+
+      return id;
+    }
   }
 
   /** Interface for passing a function that assigns column IDs from the previous Id. */
   public interface GetID {
     int get(int oldId);
+
+    /**
+     * Assigns a new ID, reserving the IDs that immediately follow it.
+     *
+     * @param oldId an existing field ID
+     * @param numReserved number of IDs after the new ID that must not be assigned
+     * @return a new field ID
+     */
+    default int get(int oldId, int numReserved) {
+      return get(oldId);
+    }
   }
 
   /**
@@ -674,21 +702,38 @@ public class TypeUtil {
 
     @Override
     public int get(int oldId) {
+      return get(oldId, 0);
+    }
+
+    @Override
+    public int get(int oldId, int numReserved) {
       if (conflictingIds.contains(oldId)) {
-        return nextAvailableId();
+        return nextAvailableId(numReserved);
       } else {
         return oldId;
       }
     }
 
-    private int nextAvailableId() {
+    private int nextAvailableId(int numReserved) {
       int candidateId = nextId.incrementAndGet();
 
-      while (allUsedIds.contains(candidateId)) {
+      while (!isAvailable(candidateId, numReserved)) {
         candidateId = nextId.incrementAndGet();
       }
 
+      nextId.addAndGet(numReserved);
+
       return candidateId;
+    }
+
+    private boolean isAvailable(int candidateId, int numReserved) {
+      for (int id = candidateId; id <= candidateId + numReserved; id += 1) {
+        if (allUsedIds.contains(id)) {
+          return false;
+        }
+      }
+
+      return true;
     }
   }
 

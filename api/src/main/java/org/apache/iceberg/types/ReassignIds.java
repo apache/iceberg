@@ -50,7 +50,7 @@ class ReassignIds extends TypeUtil.CustomOrderSchemaVisitor<Type> {
     }
   }
 
-  private int id(Types.StructType sourceStruct, String name) {
+  private int id(Types.StructType sourceStruct, String name, Type type) {
     Types.NestedField sourceField =
         caseSensitive ? sourceStruct.field(name) : sourceStruct.caseInsensitiveField(name);
 
@@ -59,10 +59,18 @@ class ReassignIds extends TypeUtil.CustomOrderSchemaVisitor<Type> {
     }
 
     if (assignId != null) {
-      return assignId.get();
+      return assignId.get(type.isFileType() ? Types.FileType.NUM_NESTED_FIELDS : 0);
     }
 
     throw new IllegalArgumentException("Field " + name + " not found in source schema");
+  }
+
+  private static Type typeFor(Type original, int newId, Type visited) {
+    if (original.isFileType()) {
+      return Types.FileType.of(newId);
+    }
+
+    return visited;
   }
 
   @Override
@@ -78,8 +86,9 @@ class ReassignIds extends TypeUtil.CustomOrderSchemaVisitor<Type> {
     List<Types.NestedField> newFields = Lists.newArrayListWithExpectedSize(length);
     for (int i = 0; i < length; i += 1) {
       Types.NestedField field = fields.get(i);
-      int fieldId = id(sourceStruct, field.name());
-      newFields.add(Types.NestedField.from(field).withId(fieldId).ofType(types.get(i)).build());
+      int fieldId = id(sourceStruct, field.name(), field.type());
+      Type type = typeFor(field.type(), fieldId, types.get(i));
+      newFields.add(Types.NestedField.from(field).withId(fieldId).ofType(type).build());
     }
 
     return Types.StructType.of(newFields);
@@ -120,10 +129,11 @@ class ReassignIds extends TypeUtil.CustomOrderSchemaVisitor<Type> {
 
     this.sourceType = sourceList.elementType();
     try {
+      Type elementType = typeFor(list.elementType(), sourceElementId, elementTypeFuture.get());
       if (list.isElementOptional()) {
-        return Types.ListType.ofOptional(sourceElementId, elementTypeFuture.get());
+        return Types.ListType.ofOptional(sourceElementId, elementType);
       } else {
-        return Types.ListType.ofRequired(sourceElementId, elementTypeFuture.get());
+        return Types.ListType.ofRequired(sourceElementId, elementType);
       }
 
     } finally {
@@ -141,10 +151,10 @@ class ReassignIds extends TypeUtil.CustomOrderSchemaVisitor<Type> {
 
     try {
       this.sourceType = sourceMap.keyType();
-      Type keyType = keyTypeFuture.get();
+      Type keyType = typeFor(map.keyType(), sourceKeyId, keyTypeFuture.get());
 
       this.sourceType = sourceMap.valueType();
-      Type valueType = valueTypeFuture.get();
+      Type valueType = typeFor(map.valueType(), sourceValueId, valueTypeFuture.get());
 
       if (map.isValueOptional()) {
         return Types.MapType.ofOptional(sourceKeyId, sourceValueId, keyType, valueType);

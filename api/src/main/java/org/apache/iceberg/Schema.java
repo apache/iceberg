@@ -60,6 +60,8 @@ public class Schema implements Serializable {
 
   @VisibleForTesting static final int DEFAULT_VALUES_MIN_FORMAT_VERSION = 3;
 
+  @VisibleForTesting static final int FILE_TYPE_MIN_FORMAT_VERSION = 4;
+
   @VisibleForTesting
   static final Map<Type.TypeID, Integer> MIN_FORMAT_VERSIONS =
       ImmutableMap.of(
@@ -578,18 +580,41 @@ public class Schema implements Serializable {
     if (getID == null) {
       return columns;
     }
-    Type res =
-        TypeUtil.assignIds(
-            StructType.of(columns),
-            oldId -> {
-              int newId = getID.get(oldId);
-              if (newId != oldId) {
-                idsToReassigned.put(oldId, newId);
-                idsToOriginal.put(newId, oldId);
-              }
-              return newId;
-            });
+
+    TypeUtil.GetID tracked =
+        new TypeUtil.GetID() {
+          @Override
+          public int get(int oldId) {
+            return track(oldId, getID.get(oldId));
+          }
+
+          @Override
+          public int get(int oldId, int numReserved) {
+            return track(oldId, getID.get(oldId, numReserved));
+          }
+        };
+
+    Type res = TypeUtil.assignIds(StructType.of(columns), tracked);
     return res.asStructType().fields();
+  }
+
+  private int track(int oldId, int newId) {
+    if (newId != oldId) {
+      idsToReassigned.put(oldId, newId);
+      idsToOriginal.put(newId, oldId);
+    }
+
+    return newId;
+  }
+
+  private static Integer minFormatVersion(Type type) {
+    // the file type reports STRUCT as its type ID so that it is handled as a struct everywhere it
+    // is not persisted, which means it cannot be gated through MIN_FORMAT_VERSIONS
+    if (type.isFileType()) {
+      return FILE_TYPE_MIN_FORMAT_VERSION;
+    }
+
+    return MIN_FORMAT_VERSIONS.get(type.typeId());
   }
 
   /**
@@ -607,7 +632,7 @@ public class Schema implements Serializable {
 
     // check each field's type and defaults
     for (NestedField field : schema.lazyIdToField().values()) {
-      Integer minFormatVersion = MIN_FORMAT_VERSIONS.get(field.type().typeId());
+      Integer minFormatVersion = minFormatVersion(field.type());
       if (minFormatVersion != null && formatVersion < minFormatVersion) {
         problems.put(
             field.fieldId(),
