@@ -166,6 +166,7 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
               tableBroadcast,
               fileIOBroadcast,
               projection,
+              null,
               caseSensitive,
               locations != null ? locations[index] : SparkPlanningUtil.NO_LOCATION_PREFERENCE,
               cacheDeleteFilesOnExecutors);
