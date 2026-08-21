@@ -189,6 +189,23 @@ public interface RewriteDataFiles
   }
 
   /**
+   * Choose K-WAY MERGE as a strategy for this rewrite operation. This strategy merges pre-sorted
+   * files in sort-key order without shuffling. All input files must already be sorted according to
+   * the table's sort order. The table must have a defined sort order.
+   *
+   * <p>K-way merge preserves the table's sort order in output files. It is optimal for tables that
+   * are already sorted but have accumulated multiple overlapping files per partition (e.g., after
+   * daily ingestion into a previously compacted table).
+   *
+   * @return this for method chaining
+   * @since 1.11.0
+   */
+  default RewriteDataFiles kWayMerge() {
+    throw new UnsupportedOperationException(
+        "K-WAY MERGE Rewrite Strategy not implemented for this framework");
+  }
+
+  /**
    * A user provided filter for determining which files will be considered by the rewrite strategy.
    * This will be used in addition to whatever rules the rewrite strategy generates. For example
    * this would be used for providing a restriction to only run rewrite on a specific partition.
