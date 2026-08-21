@@ -61,6 +61,7 @@ nav:
         - DataHub: https://docs.datahub.com/docs/iceberg-catalog
         - Google BigLake metastore: https://cloud.google.com/bigquery/docs/blms-manage-resources
         - Lakekeeper: https://github.com/lakekeeper/lakekeeper
+        - SeaweedFS: https://github.com/seaweedfs/seaweedfs
       - Integrations:
         - Amazon Athena: https://docs.aws.amazon.com/athena/latest/ug/querying-iceberg.html
         - Amazon Data Firehose: https://docs.aws.amazon.com/firehose/latest/dev/apache-iceberg-destination.html
