@@ -35,7 +35,6 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.iceberg.ManifestEntry.Status;
 import org.apache.iceberg.TestHelpers.Row;
-import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -1175,9 +1174,7 @@ public class TestMergeAppend extends TestBase {
         ids(pending.snapshotId(), baseId),
         concat(files(FILE_B), files(initialManifest)));
 
-    assertThatThrownBy(() -> commit(table, append, branch))
-        .isInstanceOf(CommitFailedException.class)
-        .hasMessage("Injected failure");
+    InternalTestHelpers.assertCommitRetryExhausted(() -> commit(table, append, branch));
 
     V2Assert.assertEquals(
         "Last sequence number should be 1", 1, readMetadata().lastSequenceNumber());
@@ -1213,9 +1210,7 @@ public class TestMergeAppend extends TestBase {
       assertThat(newManifest.path()).isEqualTo(manifest.path());
     }
 
-    assertThatThrownBy(() -> commit(table, append, branch))
-        .isInstanceOf(CommitFailedException.class)
-        .hasMessage("Injected failure");
+    InternalTestHelpers.assertCommitRetryExhausted(() -> commit(table, append, branch));
     V2Assert.assertEquals(
         "Last sequence number should be 0", 0, readMetadata().lastSequenceNumber());
     V1Assert.assertEquals(
@@ -1399,9 +1394,7 @@ public class TestMergeAppend extends TestBase {
     AppendFiles append = table.newAppend();
     append.appendManifest(manifest);
 
-    assertThatThrownBy(() -> commit(table, append, branch))
-        .isInstanceOf(CommitFailedException.class)
-        .hasMessage("Injected failure");
+    InternalTestHelpers.assertCommitRetryExhausted(() -> commit(table, append, branch));
 
     assertThat(readMetadata().lastSequenceNumber()).isEqualTo(0);
     assertThat(new File(manifest.path())).exists();

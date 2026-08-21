@@ -19,6 +19,7 @@
 package org.apache.iceberg.rest;
 
 import java.util.function.Consumer;
+import org.apache.iceberg.RetryableValidationException;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.BadRequestException;
 import org.apache.iceberg.exceptions.CommitFailedException;
@@ -125,6 +126,13 @@ public class ErrorHandlers {
         case 404:
           throw new NoSuchTableException("%s", error.message());
         case 409:
+          if (RetryableValidationException.class.getSimpleName().equals(error.type())) {
+            throw new CommitFailedException(
+                new RetryableValidationException("%s", error.message()),
+                "Commit failed: %s",
+                error.message());
+          }
+
           throw new CommitFailedException("Commit failed: %s", error.message());
         case 500:
         case 502:

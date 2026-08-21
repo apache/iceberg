@@ -31,6 +31,7 @@ import java.util.List;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.util.CommitRetryExceptions;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.Tasks;
 
@@ -115,6 +116,7 @@ class SetSnapshotOperation implements PendingUpdate<Snapshot> {
             base.propertyAsInt(COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT),
             2.0 /* exponential */)
         .onlyRetryOn(CommitFailedException.class)
+        .onRetryExhausted(CommitRetryExceptions::retryExhaustedException)
         .run(
             taskOps -> {
               Snapshot snapshot = apply();

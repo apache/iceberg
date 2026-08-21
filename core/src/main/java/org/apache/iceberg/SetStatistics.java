@@ -32,6 +32,7 @@ import java.util.Map;
 import java.util.Optional;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.util.CommitRetryExceptions;
 import org.apache.iceberg.util.Tasks;
 
 public class SetStatistics implements UpdateStatistics {
@@ -71,6 +72,7 @@ public class SetStatistics implements UpdateStatistics {
                 .propertyAsInt(COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT),
             2.0 /* exponential */)
         .onlyRetryOn(CommitFailedException.class)
+        .onRetryExhausted(CommitRetryExceptions::retryExhaustedException)
         .run(
             taskOps -> {
               TableMetadata base = taskOps.refresh();

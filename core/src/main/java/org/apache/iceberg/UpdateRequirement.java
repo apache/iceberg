@@ -18,9 +18,9 @@
  */
 package org.apache.iceberg;
 
-import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.util.CommitFailureMessages;
 import org.apache.iceberg.view.ViewMetadata;
 
 /** Represents a requirement for a {@link MetadataUpdate} */
@@ -41,7 +41,7 @@ public interface UpdateRequirement {
     @Override
     public void validate(TableMetadata base) {
       if (base != null) {
-        throw new CommitFailedException("Requirement failed: table already exists");
+        throw CommitFailureMessages.requirementFailure("table already exists");
       }
     }
   }
@@ -61,8 +61,8 @@ public interface UpdateRequirement {
     @Override
     public void validate(TableMetadata base) {
       if (!uuid.equalsIgnoreCase(base.uuid())) {
-        throw new CommitFailedException(
-            "Requirement failed: UUID does not match: expected %s != %s", base.uuid(), uuid);
+        throw CommitFailureMessages.requirementFailure(
+            "UUID does not match: expected %s != %s", base.uuid(), uuid);
       }
     }
   }
@@ -82,8 +82,8 @@ public interface UpdateRequirement {
     @Override
     public void validate(ViewMetadata base) {
       if (!uuid.equalsIgnoreCase(base.uuid())) {
-        throw new CommitFailedException(
-            "Requirement failed: view UUID does not match: expected %s != %s", base.uuid(), uuid);
+        throw CommitFailureMessages.requirementFailure(
+            "view UUID does not match: expected %s != %s", base.uuid(), uuid);
       }
     }
   }
@@ -112,16 +112,15 @@ public interface UpdateRequirement {
         String type = ref.isBranch() ? "branch" : "tag";
         if (snapshotId == null) {
           // a null snapshot ID means the ref should not exist already
-          throw new CommitFailedException(
-              "Requirement failed: %s %s was created concurrently", type, name);
+          throw CommitFailureMessages.requirementFailure(
+              "%s %s was created concurrently", type, name);
         } else if (snapshotId != ref.snapshotId()) {
-          throw new CommitFailedException(
-              "Requirement failed: %s %s has changed: expected id %s != %s",
-              type, name, snapshotId, ref.snapshotId());
+          throw CommitFailureMessages.requirementFailure(
+              "%s %s has changed: expected id %s != %s", type, name, snapshotId, ref.snapshotId());
         }
       } else if (snapshotId != null) {
-        throw new CommitFailedException(
-            "Requirement failed: branch or tag %s is missing, expected %s", name, snapshotId);
+        throw CommitFailureMessages.requirementFailure(
+            "branch or tag %s is missing, expected %s", name, snapshotId);
       }
     }
   }
@@ -140,8 +139,8 @@ public interface UpdateRequirement {
     @Override
     public void validate(TableMetadata base) {
       if (base != null && base.lastColumnId() != lastAssignedFieldId) {
-        throw new CommitFailedException(
-            "Requirement failed: last assigned field id changed: expected id %s != %s",
+        throw CommitFailureMessages.requirementFailure(
+            "last assigned field id changed: expected id %s != %s",
             lastAssignedFieldId, base.lastColumnId());
       }
     }
@@ -161,9 +160,8 @@ public interface UpdateRequirement {
     @Override
     public void validate(TableMetadata base) {
       if (schemaId != base.currentSchemaId()) {
-        throw new CommitFailedException(
-            "Requirement failed: current schema changed: expected id %s != %s",
-            schemaId, base.currentSchemaId());
+        throw CommitFailureMessages.requirementFailure(
+            "current schema changed: expected id %s != %s", schemaId, base.currentSchemaId());
       }
     }
   }
@@ -182,8 +180,8 @@ public interface UpdateRequirement {
     @Override
     public void validate(TableMetadata base) {
       if (base != null && base.lastAssignedPartitionId() != lastAssignedPartitionId) {
-        throw new CommitFailedException(
-            "Requirement failed: last assigned partition id changed: expected id %s != %s",
+        throw CommitFailureMessages.requirementFailure(
+            "last assigned partition id changed: expected id %s != %s",
             lastAssignedPartitionId, base.lastAssignedPartitionId());
       }
     }
@@ -203,9 +201,8 @@ public interface UpdateRequirement {
     @Override
     public void validate(TableMetadata base) {
       if (specId != base.defaultSpecId()) {
-        throw new CommitFailedException(
-            "Requirement failed: default partition spec changed: expected id %s != %s",
-            specId, base.defaultSpecId());
+        throw CommitFailureMessages.requirementFailure(
+            "default partition spec changed: expected id %s != %s", specId, base.defaultSpecId());
       }
     }
   }
@@ -224,8 +221,8 @@ public interface UpdateRequirement {
     @Override
     public void validate(TableMetadata base) {
       if (sortOrderId != base.defaultSortOrderId()) {
-        throw new CommitFailedException(
-            "Requirement failed: default sort order changed: expected id %s != %s",
+        throw CommitFailureMessages.requirementFailure(
+            "default sort order changed: expected id %s != %s",
             sortOrderId, base.defaultSortOrderId());
       }
     }

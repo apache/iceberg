@@ -18,8 +18,6 @@
  */
 package org.apache.iceberg;
 
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-
 import java.io.File;
 import java.net.URI;
 import java.util.Arrays;
@@ -27,7 +25,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.iceberg.ManifestEntry.Status;
-import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.junit.jupiter.api.TestTemplate;
 
@@ -112,9 +109,8 @@ public class TestSequenceNumberForV2Table extends TestBase {
 
     table.ops().failCommits(1);
 
-    assertThatThrownBy(() -> table.newFastAppend().appendFile(FILE_B).commit())
-        .isInstanceOf(CommitFailedException.class)
-        .hasMessage("Injected failure");
+    InternalTestHelpers.assertCommitRetryExhausted(
+        () -> table.newFastAppend().appendFile(FILE_B).commit());
 
     table.updateProperties().set(TableProperties.COMMIT_NUM_RETRIES, "5").commit();
 
@@ -370,9 +366,7 @@ public class TestSequenceNumberForV2Table extends TestBase {
     Transaction txn = table.newTransaction();
     txn.newAppend().appendFile(FILE_C).commit();
 
-    assertThatThrownBy(txn::commitTransaction)
-        .isInstanceOf(CommitFailedException.class)
-        .hasMessage("Injected failure");
+    InternalTestHelpers.assertCommitRetryExhausted(txn::commitTransaction);
 
     V2Assert.assertEquals(
         "Last sequence number should be 1", 1, readMetadata().lastSequenceNumber());

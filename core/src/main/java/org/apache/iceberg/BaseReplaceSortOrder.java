@@ -29,6 +29,7 @@ import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFA
 
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.expressions.Term;
+import org.apache.iceberg.util.CommitRetryExceptions;
 import org.apache.iceberg.util.Tasks;
 
 public class BaseReplaceSortOrder implements ReplaceSortOrder {
@@ -57,6 +58,7 @@ public class BaseReplaceSortOrder implements ReplaceSortOrder {
             base.propertyAsInt(COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT),
             2.0 /* exponential */)
         .onlyRetryOn(CommitFailedException.class)
+        .onRetryExhausted(CommitRetryExceptions::retryExhaustedException)
         .run(
             taskOps -> {
               this.base = ops.refresh();
