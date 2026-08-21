@@ -49,7 +49,7 @@ public class UnboundApply<T> implements UnboundTerm<T> {
   private final List<Object> arguments;
 
   UnboundApply(FunctionReference function, List<Object> arguments) {
-    Preconditions.checkArgument(function != null, "Function reference cannot be null");
+    Preconditions.checkArgument(function != null, "Invalid function: null");
     this.function = function;
     // not an immutable list so that Kryo can deserialize this class
     this.arguments = arguments == null ? Lists.newArrayList() : Lists.newArrayList(arguments);

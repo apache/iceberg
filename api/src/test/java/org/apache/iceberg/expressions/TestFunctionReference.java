@@ -55,19 +55,19 @@ public class TestFunctionReference {
   public void testInvalidIdentifier() {
     assertThatThrownBy(() -> Expressions.function(ImmutableList.of()))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Function identifier cannot be null or empty");
+        .hasMessage("Invalid function identifier: []");
 
     assertThatThrownBy(() -> Expressions.function("cat", null))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Function identifier cannot be null or empty");
+        .hasMessage("Invalid function identifier: null");
 
     assertThatThrownBy(() -> Expressions.function(""))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Function identifier cannot contain empty parts: []");
+        .hasMessage("Invalid function identifier (empty or null part): []");
 
     assertThatThrownBy(() -> Expressions.function(ImmutableList.of("ns", "")))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Function identifier cannot contain empty parts: [ns, ]");
+        .hasMessage("Invalid function identifier (empty or null part): [ns, ]");
   }
 
   @Test

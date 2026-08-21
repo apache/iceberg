@@ -36,10 +36,10 @@ public class FunctionReference implements Serializable {
 
   FunctionReference(String catalog, List<String> identifier) {
     Preconditions.checkArgument(
-        identifier != null && !identifier.isEmpty(), "Function identifier cannot be null or empty");
+        identifier != null && !identifier.isEmpty(), "Invalid function identifier: %s", identifier);
     Preconditions.checkArgument(
         identifier.stream().noneMatch(part -> part == null || part.isEmpty()),
-        "Function identifier cannot contain empty parts: %s",
+        "Invalid function identifier (empty or null part): %s",
         identifier);
     this.catalog = catalog;
     // not an immutable list so that Kryo can deserialize this class
@@ -64,9 +64,11 @@ public class FunctionReference implements Serializable {
     if (this == o) {
       return true;
     }
+
     if (!(o instanceof FunctionReference)) {
       return false;
     }
+
     FunctionReference that = (FunctionReference) o;
     return Objects.equals(catalog, that.catalog) && Objects.equals(identifier, that.identifier);
   }
