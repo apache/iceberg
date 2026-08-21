@@ -43,6 +43,7 @@ import org.apache.spark.sql.types.ShortType;
 import org.apache.spark.sql.types.StringType;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
+import org.apache.spark.sql.types.TimeType;
 import org.apache.spark.sql.types.TimestampNTZType;
 import org.apache.spark.sql.types.TimestampType;
 import org.apache.spark.unsafe.types.UTF8String;
@@ -93,6 +94,8 @@ public class BucketFunction implements UnboundFunction {
       return new BucketLong(type);
     } else if (type instanceof TimestampNTZType) {
       return new BucketLong(type);
+    } else if (type instanceof TimeType) {
+      return new BucketTime(type);
     } else if (type instanceof DecimalType) {
       return new BucketDecimal(type);
     } else if (type instanceof StringType) {
@@ -101,7 +104,7 @@ public class BucketFunction implements UnboundFunction {
       return new BucketBinary();
     } else {
       throw new UnsupportedOperationException(
-          "Expected column to be date, tinyint, smallint, int, bigint, decimal, timestamp, string, or binary");
+          "Expected column to be date, tinyint, smallint, int, bigint, decimal, time, timestamp, string, or binary");
     }
   }
 
@@ -110,7 +113,7 @@ public class BucketFunction implements UnboundFunction {
     return name()
         + "(numBuckets, col) - Call Iceberg's bucket transform\n"
         + "  numBuckets :: number of buckets to divide the rows into, e.g. bucket(100, 34) -> 79 (must be a tinyint, smallint, or int)\n"
-        + "  col :: column to bucket (must be a date, integer, long, timestamp, decimal, string, or binary)";
+        + "  col :: column to bucket (must be a date, integer, long, time, timestamp, decimal, string, or binary)";
   }
 
   @Override
@@ -207,6 +210,46 @@ public class BucketFunction implements UnboundFunction {
     }
 
     public BucketLong(DataType sqlType) {
+      this.sqlType = sqlType;
+    }
+
+    @Override
+    public DataType[] inputTypes() {
+      return new DataType[] {DataTypes.IntegerType, sqlType};
+    }
+
+    @Override
+    public String canonicalName() {
+      return String.format("iceberg.bucket(%s)", sqlType.catalogString());
+    }
+
+    @Override
+    public Integer produceResult(InternalRow input) {
+      if (input.isNullAt(NUM_BUCKETS_ORDINAL) || input.isNullAt(VALUE_ORDINAL)) {
+        return null;
+      } else {
+        return invoke(input.getInt(NUM_BUCKETS_ORDINAL), input.getLong(VALUE_ORDINAL));
+      }
+    }
+  }
+
+  // Used for Time. This must not reuse BucketLong: Spark stores time as nanoseconds, but
+  // Iceberg's bucket transform hashes microseconds, so the value is converted before hashing.
+  public static class BucketTime extends BucketBase {
+    private final DataType sqlType;
+
+    // magic function for usage with codegen - needs to be static
+    public static int invoke(int numBuckets, long valueNanos) {
+      return apply(numBuckets, hash(valueNanos));
+    }
+
+    // Visible for testing
+    public static int hash(long valueNanos) {
+      // Spark stores time as nanoseconds, but Iceberg stores it as microseconds
+      return BucketUtil.hash(valueNanos / 1000);
+    }
+
+    public BucketTime(DataType sqlType) {
       this.sqlType = sqlType;
     }
 

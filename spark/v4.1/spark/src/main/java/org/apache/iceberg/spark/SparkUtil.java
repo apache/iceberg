@@ -294,6 +294,9 @@ public class SparkUtil {
     }
 
     switch (type.typeId()) {
+      case TIME:
+        // Iceberg stores time as microseconds, but Spark stores it as nanoseconds
+        return (long) value * 1000;
       case DECIMAL:
         return Decimal.apply((BigDecimal) value);
       case UUID:

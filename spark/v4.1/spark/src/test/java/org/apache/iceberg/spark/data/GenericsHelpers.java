@@ -30,6 +30,7 @@ import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
@@ -248,6 +249,10 @@ public class GenericsHelpers {
             .isEqualTo(((ByteBuffer) expected).array());
         break;
       case TIME:
+        assertThat(expected).as("Should expect a LocalTime").isInstanceOf(LocalTime.class);
+        assertThat(actual).as("Should be a LocalTime").isInstanceOf(LocalTime.class);
+        assertThat(actual).as("Time should be equal").isEqualTo(expected);
+        break;
       default:
         throw new IllegalArgumentException("Not a supported type: " + type);
     }
@@ -461,6 +466,11 @@ public class GenericsHelpers {
             .isEqualTo(((ByteBuffer) expected).array());
         break;
       case TIME:
+        assertThat(expected).as("Should expect a LocalTime").isInstanceOf(LocalTime.class);
+        assertThat(actual)
+            .as("Primitive value should be equal to expected")
+            .isEqualTo(((LocalTime) expected).toNanoOfDay());
+        break;
       default:
         throw new IllegalArgumentException("Not a supported type: " + type);
     }

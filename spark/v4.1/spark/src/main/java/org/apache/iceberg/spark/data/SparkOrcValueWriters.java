@@ -31,6 +31,7 @@ import org.apache.orc.storage.ql.exec.vector.BytesColumnVector;
 import org.apache.orc.storage.ql.exec.vector.ColumnVector;
 import org.apache.orc.storage.ql.exec.vector.DecimalColumnVector;
 import org.apache.orc.storage.ql.exec.vector.ListColumnVector;
+import org.apache.orc.storage.ql.exec.vector.LongColumnVector;
 import org.apache.orc.storage.ql.exec.vector.MapColumnVector;
 import org.apache.orc.storage.ql.exec.vector.TimestampColumnVector;
 import org.apache.spark.sql.catalyst.util.ArrayData;
@@ -51,6 +52,10 @@ class SparkOrcValueWriters {
 
   static OrcValueWriter<?> timestampTz() {
     return TimestampTzWriter.INSTANCE;
+  }
+
+  static OrcValueWriter<?> times() {
+    return TimeWriter.INSTANCE;
   }
 
   static OrcValueWriter<?> decimal(int precision, int scale) {
@@ -101,6 +106,16 @@ class SparkOrcValueWriters {
       TimestampColumnVector cv = (TimestampColumnVector) output;
       cv.time[rowId] = Math.floorDiv(micros, 1_000); // millis
       cv.nanos[rowId] = (int) Math.floorMod(micros, 1_000_000) * 1_000; // nanos
+    }
+  }
+
+  private static class TimeWriter implements OrcValueWriter<Long> {
+    private static final TimeWriter INSTANCE = new TimeWriter();
+
+    @Override
+    public void nonNullWrite(int rowId, Long nanos, ColumnVector output) {
+      // Spark stores time as nanoseconds from midnight, but Iceberg stores it as microseconds
+      ((LongColumnVector) output).vector[rowId] = nanos / 1000;
     }
   }
 

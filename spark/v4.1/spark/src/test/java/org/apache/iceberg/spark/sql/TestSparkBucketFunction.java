@@ -24,12 +24,17 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalTime;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.expressions.Literal;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.io.BaseEncoding;
 import org.apache.iceberg.spark.TestBaseWithCatalog;
 import org.apache.iceberg.spark.functions.BucketFunction;
+import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.BucketUtil;
+import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.types.DataTypes;
 import org.junit.jupiter.api.BeforeEach;
@@ -147,6 +152,32 @@ public class TestSparkBucketFunction extends TestBaseWithCatalog {
   }
 
   @TestTemplate
+  public void testBucketTime() {
+    // buckets must match Iceberg's bucket transform, which hashes time as microseconds
+    LocalTime time = LocalTime.of(10, 20, 30, 123_456_000);
+    long micros = DateTimeUtil.microsFromTime(time);
+    int expected = Transforms.bucket(100).bind(Types.TimeType.get()).apply(micros);
+
+    assertThat(BucketFunction.BucketTime.hash(time.toNanoOfDay()))
+        .as("BucketTime must hash the value as microseconds, matching Iceberg")
+        .isEqualTo(BucketUtil.hash(micros));
+
+    withSQLConf(
+        ImmutableMap.of("spark.sql.timeType.enabled", "true"),
+        () -> {
+          assertThat(scalarSql("SELECT system.bucket(100, TIME '10:20:30.123456')"))
+              .isEqualTo(expected);
+          assertThat(scalarSql("SELECT system.bucket(2, CAST(null AS time))")).isNull();
+          assertThat(
+                  scalarSql("EXPLAIN EXTENDED SELECT system.bucket(100, TIME '10:20:30.123456')"))
+              .asString()
+              .as("Codegen must resolve the time-specific magic method, not BucketLong's")
+              .contains(
+                  "static_invoke(org.apache.iceberg.spark.functions.BucketFunction$BucketTime");
+        });
+  }
+
+  @TestTemplate
   public void testBucketString() {
     assertThat(scalarSql("SELECT system.bucket(5, 'abcdefg')")).isEqualTo(4);
     assertThat(scalarSql("SELECT system.bucket(128, 'abc')")).isEqualTo(122);
@@ -245,12 +276,12 @@ public class TestSparkBucketFunction extends TestBaseWithCatalog {
     assertThatThrownBy(() -> scalarSql("SELECT system.bucket(10, cast(12.3456 as float))"))
         .isInstanceOf(AnalysisException.class)
         .hasMessageStartingWith(
-            "Function 'bucket' cannot process input: (int, float): Expected column to be date, tinyint, smallint, int, bigint, decimal, timestamp, string, or binary");
+            "Function 'bucket' cannot process input: (int, float): Expected column to be date, tinyint, smallint, int, bigint, decimal, time, timestamp, string, or binary");
 
     assertThatThrownBy(() -> scalarSql("SELECT system.bucket(10, cast(12.3456 as double))"))
         .isInstanceOf(AnalysisException.class)
         .hasMessageStartingWith(
-            "Function 'bucket' cannot process input: (int, double): Expected column to be date, tinyint, smallint, int, bigint, decimal, timestamp, string, or binary");
+            "Function 'bucket' cannot process input: (int, double): Expected column to be date, tinyint, smallint, int, bigint, decimal, time, timestamp, string, or binary");
 
     assertThatThrownBy(() -> scalarSql("SELECT system.bucket(10, true)"))
         .isInstanceOf(AnalysisException.class)
