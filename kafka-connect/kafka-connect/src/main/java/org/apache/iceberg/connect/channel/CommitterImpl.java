@@ -188,10 +188,14 @@ public class CommitterImpl implements Committer {
 
   @Override
   public void save(Collection<SinkRecord> sinkRecords) {
-    if (sinkRecords != null && !sinkRecords.isEmpty()) {
+    if (ownsPartitions()) {
       startWorker();
-      worker.save(sinkRecords);
+
+      if (sinkRecords != null && !sinkRecords.isEmpty()) {
+        worker.save(sinkRecords);
+      }
     }
+
     processControlEvents();
   }
 
@@ -203,6 +207,10 @@ public class CommitterImpl implements Committer {
     if (worker != null) {
       worker.process();
     }
+  }
+
+  private boolean ownsPartitions() {
+    return isInitialized.get() && !context.assignment().isEmpty();
   }
 
   private void startWorker() {
