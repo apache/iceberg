@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.connect.channel;
 
+import java.time.Duration;
 import java.util.Map;
 import java.util.UUID;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -46,13 +47,22 @@ class KafkaClientFactory {
     producerProps.put(ProducerConfig.TRANSACTIONAL_ID_CONFIG, transactionalId);
     KafkaProducer<String, byte[]> result =
         new KafkaProducer<>(producerProps, new StringSerializer(), new ByteArraySerializer());
-    result.initTransactions();
+    try {
+      result.initTransactions();
+    } catch (RuntimeException e) {
+      result.close(Duration.ZERO);
+      throw e;
+    }
     return result;
   }
 
   Consumer<String, byte[]> createConsumer(String consumerGroupId) {
+    return createConsumer(consumerGroupId, "latest");
+  }
+
+  Consumer<String, byte[]> createConsumer(String consumerGroupId, String defaultAutoOffsetReset) {
     Map<String, Object> consumerProps = Maps.newHashMap(kafkaProps);
-    consumerProps.putIfAbsent(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "latest");
+    consumerProps.putIfAbsent(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, defaultAutoOffsetReset);
     consumerProps.putIfAbsent(ConsumerConfig.CLIENT_ID_CONFIG, UUID.randomUUID().toString());
     consumerProps.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, false);
     consumerProps.put(ConsumerConfig.ISOLATION_LEVEL_CONFIG, "read_committed");
