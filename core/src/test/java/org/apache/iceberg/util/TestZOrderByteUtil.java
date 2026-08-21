@@ -134,6 +134,92 @@ public class TestZOrderByteUtil {
     }
   }
 
+  /**
+   * The uniform case, where every column contributes the same number of bytes, is what all
+   * production callers produce and is the case the lookup table optimizes. Column counts up to 9
+   * exercise both the table and the fallback used beyond its supported width.
+   */
+  @Test
+  public void testInterleaveUniformColumns() {
+    for (int numColumns = 1; numColumns <= 9; numColumns++) {
+      for (int colLength = 1; colLength <= 9; colLength++) {
+        byte[][] testBytes = new byte[numColumns][];
+        String[] testStrings = new String[numColumns];
+        for (int columnIndex = 0; columnIndex < numColumns; columnIndex++) {
+          testBytes[columnIndex] = generateRandomBytes(colLength);
+          testStrings[columnIndex] = bytesToString(testBytes[columnIndex]);
+        }
+
+        byte[] byteResult = ZOrderByteUtils.interleaveBits(testBytes, numColumns * colLength);
+
+        assertThat(bytesToString(byteResult))
+            .as("String interleave didn't match byte interleave")
+            .isEqualTo(interleaveStrings(testStrings));
+      }
+    }
+  }
+
+  /**
+   * A requested output smaller than the full interleaving must produce exactly the prefix of the
+   * full interleaving, for every truncation point.
+   */
+  @Test
+  public void testInterleaveUniformColumnsTruncatedOutput() {
+    for (int numColumns = 1; numColumns <= 9; numColumns++) {
+      int colLength = 8;
+      byte[][] testBytes = new byte[numColumns][];
+      String[] testStrings = new String[numColumns];
+      for (int columnIndex = 0; columnIndex < numColumns; columnIndex++) {
+        testBytes[columnIndex] = generateRandomBytes(colLength);
+        testStrings[columnIndex] = bytesToString(testBytes[columnIndex]);
+      }
+      String fullResult = interleaveStrings(testStrings);
+
+      for (int outputSize = 1; outputSize <= numColumns * colLength; outputSize++) {
+        byte[] byteResult = ZOrderByteUtils.interleaveBits(testBytes, outputSize);
+
+        assertThat(bytesToString(byteResult))
+            .as("Truncated interleave should be a prefix of the full interleave")
+            .isEqualTo(fullResult.substring(0, outputSize * 8));
+      }
+    }
+  }
+
+  /** Columns of differing lengths drop out of the interleaving once exhausted. */
+  @Test
+  public void testInterleaveRaggedColumns() {
+    for (int test = 0; test < NUM_INTERLEAVE_TESTS; test++) {
+      int numColumns = random.nextInt(9) + 1;
+      byte[][] testBytes = new byte[numColumns][];
+      String[] testStrings = new String[numColumns];
+      for (int columnIndex = 0; columnIndex < numColumns; columnIndex++) {
+        testBytes[columnIndex] = generateRandomBytes(random.nextInt(8) + 1);
+        testStrings[columnIndex] = bytesToString(testBytes[columnIndex]);
+      }
+
+      int zOrderSize = Arrays.stream(testBytes).mapToInt(column -> column.length).sum();
+      byte[] byteResult = ZOrderByteUtils.interleaveBits(testBytes, zOrderSize);
+
+      assertThat(bytesToString(byteResult))
+          .as("String interleave didn't match byte interleave")
+          .isEqualTo(interleaveStrings(testStrings));
+    }
+  }
+
+  /** A zero-length column contributes nothing and must not disturb the other columns. */
+  @Test
+  public void testInterleaveWithEmptyColumn() {
+    byte[][] test = new byte[3][];
+    test[0] = new byte[] {IOIOIOIO, OIOIOIOI};
+    test[1] = new byte[0];
+    test[2] = new byte[] {OIOIOIOI, IOIOIOIO};
+    String[] testStrings = {bytesToString(test[0]), "", bytesToString(test[2])};
+
+    assertThat(bytesToString(ZOrderByteUtils.interleaveBits(test, 4)))
+        .as("Empty column should be skipped")
+        .isEqualTo(interleaveStrings(testStrings));
+  }
+
   @Test
   public void testInterleaveEmptyBits() {
     byte[][] test = new byte[4][10];
