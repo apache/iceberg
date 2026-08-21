@@ -35,6 +35,7 @@ import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.actions.ExpireSnapshots;
 import org.apache.iceberg.actions.ImmutableExpireSnapshots;
+import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.SupportsBulkOperations;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -42,8 +43,11 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.JobGroupInfo;
 import org.apache.iceberg.util.PropertyUtil;
+import org.apache.iceberg.util.Tasks;
+import org.apache.iceberg.util.ThreadPools;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.util.CollectionAccumulator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -82,10 +86,15 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
   private Dataset<FileInfo> expiredFileDS = null;
   private Boolean cleanExpiredMetadata = null;
 
+  private final Set<String> missingManifestListLocations = Sets.newConcurrentHashSet();
+  private final CollectionAccumulator<String> missingManifests;
+
   ExpireSnapshotsSparkAction(SparkSession spark, Table table) {
     super(spark);
     this.table = table;
     this.ops = ((HasTableOperations) table).operations();
+    this.missingManifests =
+        spark.sparkContext().collectionAccumulator("expire-snapshots-missing-manifests");
 
     ValidationException.check(
         PropertyUtil.propertyAsBoolean(table.properties(), GC_ENABLED, GC_ENABLED_DEFAULT),
@@ -178,7 +187,8 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
 
       // fetch files referenced by expired snapshots
       Set<Long> deletedSnapshotIds = findExpiredSnapshotIds(originalMetadata, updatedMetadata);
-      Dataset<FileInfo> deleteCandidateFileDS = fileDS(originalMetadata, deletedSnapshotIds);
+      Dataset<FileInfo> deleteCandidateFileDS =
+          deleteCandidateFileDS(originalMetadata, deletedSnapshotIds);
 
       // determine expired files
       this.expiredFileDS = deleteCandidateFileDS.except(validFileDS);
@@ -222,10 +232,28 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
   }
 
   private ExpireSnapshots.Result doExecute() {
+    ExpireSnapshots.Result result;
     if (streamResults()) {
-      return deleteFiles(expireFiles().toLocalIterator());
+      result = deleteFiles(expireFiles().toLocalIterator());
     } else {
-      return deleteFiles(expireFiles().collectAsList().iterator());
+      result = deleteFiles(expireFiles().collectAsList().iterator());
+    }
+
+    failIfMissingFiles();
+
+    return result;
+  }
+
+  private void failIfMissingFiles() {
+    Set<String> missingFiles = Sets.newTreeSet(missingManifestListLocations);
+    missingFiles.addAll(missingManifests.value());
+
+    if (!missingFiles.isEmpty()) {
+      throw new NotFoundException(
+          "Expired snapshots and deleted all fully-resolved files, but %s metadata file(s) "
+              + "reachable only from expired snapshots are missing from storage and were skipped. "
+              + "Missing files: %s",
+          missingFiles.size(), COMMA_JOINER.join(missingFiles));
     }
   }
 
@@ -234,15 +262,42 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
   }
 
   private Dataset<FileInfo> fileDS(TableMetadata metadata) {
-    return fileDS(metadata, null);
+    Table staticTable = newStaticTable(metadata, table.io());
+    return contentFileDS(staticTable)
+        .union(manifestDS(staticTable))
+        .union(manifestListDS(staticTable))
+        .union(statisticsFileDS(staticTable, null));
   }
 
-  private Dataset<FileInfo> fileDS(TableMetadata metadata, Set<Long> snapshotIds) {
+  private Dataset<FileInfo> deleteCandidateFileDS(
+      TableMetadata metadata, Set<Long> deletedSnapshotIds) {
+    List<Snapshot> expiredSnapshots =
+        deletedSnapshotIds.stream().map(metadata::snapshot).collect(Collectors.toList());
+
+    Set<Long> resolvableSnapshotIds = Sets.newConcurrentHashSet();
+    Tasks.foreach(expiredSnapshots)
+        .executeWith(ThreadPools.getWorkerPool())
+        .run(
+            snapshot -> {
+              long snapshotId = snapshot.snapshotId();
+              String manifestListLocation = snapshot.manifestListLocation();
+              if (manifestListLocation != null
+                  && !table.io().newInputFile(manifestListLocation).exists()) {
+                LOG.warn(
+                    "Manifest list {} of expired snapshot {} is missing; skipping its files",
+                    manifestListLocation,
+                    snapshotId);
+                missingManifestListLocations.add(manifestListLocation);
+              } else {
+                resolvableSnapshotIds.add(snapshotId);
+              }
+            });
+
     Table staticTable = newStaticTable(metadata, table.io());
-    return contentFileDS(staticTable, snapshotIds)
-        .union(manifestDS(staticTable, snapshotIds))
-        .union(manifestListDS(staticTable, snapshotIds))
-        .union(statisticsFileDS(staticTable, snapshotIds));
+    return contentFileDS(staticTable, resolvableSnapshotIds, missingManifests)
+        .union(manifestDS(staticTable, resolvableSnapshotIds))
+        .union(manifestListDS(staticTable, resolvableSnapshotIds))
+        .union(statisticsFileDS(staticTable, resolvableSnapshotIds));
   }
 
   private Set<Long> findExpiredSnapshotIds(

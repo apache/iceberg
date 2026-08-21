@@ -31,6 +31,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.BaseTable;
@@ -52,6 +53,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.actions.ExpireSnapshots;
+import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.hadoop.HadoopTables;
@@ -1415,5 +1417,95 @@ public class TestExpireSnapshotsAction extends TestBase {
         .as("Should remove the file from first snapshot")
         .contains(FILE_A.location())
         .doesNotContain(fileInNewSpec.location());
+  }
+
+  @TestTemplate
+  public void testExpireWithMissingManifestListReachableOnlyFromExpiredSnapshots() {
+    assertBestEffortExpireSkipsMissingMetadata(Snapshot::manifestListLocation);
+  }
+
+  @TestTemplate
+  public void testExpireWithMissingManifestReachableOnlyFromExpiredSnapshots() {
+    assertBestEffortExpireSkipsMissingMetadata(
+        snapshot -> Iterables.getOnlyElement(snapshot.allManifests(table.io())).path());
+  }
+
+  private void assertBestEffortExpireSkipsMissingMetadata(
+      Function<Snapshot, String> missingLocationResolver) {
+    table.newAppend().appendFile(FILE_A).commit();
+    String missingLocation = missingLocationResolver.apply(table.currentSnapshot());
+
+    table.newOverwrite().deleteFile(FILE_A).addFile(FILE_B).commit();
+    table.newOverwrite().deleteFile(FILE_B).addFile(FILE_C).commit();
+    table.newAppend().appendFile(FILE_D).commit();
+
+    long end = rightAfterSnapshot();
+
+    table.io().deleteFile(missingLocation);
+
+    Set<String> deletedFiles = ConcurrentHashMap.newKeySet();
+
+    assertThatThrownBy(
+            () ->
+                SparkActions.get()
+                    .expireSnapshots(table)
+                    .expireOlderThan(end)
+                    .deleteWith(deletedFiles::add)
+                    .execute())
+        .isInstanceOf(NotFoundException.class)
+        .hasMessageContaining(missingLocation);
+
+    assertThat(table.snapshots()).as("Expiration should still commit").hasSize(1);
+    assertThat(deletedFiles)
+        .as("Should delete files resolved from other expired snapshots")
+        .contains(FILE_B.location());
+    assertThat(deletedFiles)
+        .as("Should leave files reachable only through the missing metadata as orphans")
+        .doesNotContain(FILE_A.location());
+  }
+
+  @TestTemplate
+  public void testExpireFailsFastWhenMissingManifestReachableFromRetainedSnapshot() {
+    assertExpireFailsFastWhenMissingManifestReachableFromRetainedSnapshot(false);
+  }
+
+  @TestTemplate
+  public void testExpireFailsFastWhenMissingManifestReachableFromRetainedSnapshotStreaming() {
+    assertExpireFailsFastWhenMissingManifestReachableFromRetainedSnapshot(true);
+  }
+
+  private void assertExpireFailsFastWhenMissingManifestReachableFromRetainedSnapshot(
+      boolean streamResults) {
+    table.newFastAppend().appendFile(FILE_A).commit();
+    long firstSnapshotId = table.currentSnapshot().snapshotId();
+    String sharedManifest =
+        Iterables.getOnlyElement(table.snapshot(firstSnapshotId).allManifests(table.io())).path();
+
+    table.newFastAppend().appendFile(FILE_B).commit();
+    table.newFastAppend().appendFile(FILE_C).commit();
+
+    long end = rightAfterSnapshot();
+
+    table.io().deleteFile(sharedManifest);
+
+    Set<String> deletedFiles = ConcurrentHashMap.newKeySet();
+
+    ExpireSnapshots action =
+        SparkActions.get()
+            .expireSnapshots(table)
+            .expireOlderThan(end)
+            .retainLast(1)
+            .deleteWith(deletedFiles::add);
+    if (streamResults) {
+      action.option("stream-results", "true");
+    }
+
+    assertThatThrownBy(action::execute)
+        .isInstanceOf(Exception.class)
+        .hasMessageContaining(sharedManifest);
+
+    assertThat(deletedFiles)
+        .as("Must not delete any file when the delete set cannot be computed safely")
+        .isEmpty();
   }
 }
