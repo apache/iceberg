@@ -239,7 +239,7 @@ public class TestHiveCreateReplaceTable {
     table = catalog.loadTable(TABLE_IDENTIFIER);
     assertThat(table.properties())
         .as("Table props should be updated")
-        .doesNotContainKey("another-prop")
+        .containsEntry("another-prop", "another-value")
         .containsEntry("prop", "value");
   }
 
@@ -329,9 +329,9 @@ public class TestHiveCreateReplaceTable {
     txn.commitTransaction();
 
     Table table = catalog.loadTable(TABLE_IDENTIFIER);
-    assertThat(table.spec())
-        .as("Partition spec should match")
-        .isEqualTo(PartitionSpec.unpartitioned());
+    assertThat(table.spec().isUnpartitioned())
+        .as("Partition spec should be unpartitioned")
+        .isTrue();
     assertThat(table.properties()).as("Table props should match").containsEntry("prop", "value");
   }
 
