@@ -19,6 +19,7 @@
 package org.apache.iceberg.orc;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
 import java.io.IOException;
@@ -104,6 +105,57 @@ public class TestOrcDeleteWriters {
     }
 
     assertThat(deletedRecords).as("Deleted records should match expected").isEqualTo(records);
+  }
+
+  @Test
+  public void equalityDeleteWriterRejectsEmptyEqualityFieldIds() {
+    OutputFile out = Files.localOutput(temp);
+
+    assertThatThrownBy(
+            () ->
+                ORC.writeDeletes(out)
+                    .createWriterFunc(GenericOrcWriter::buildWriter)
+                    .overwrite()
+                    .rowSchema(SCHEMA)
+                    .withSpec(PartitionSpec.unpartitioned())
+                    .equalityFieldIds(new int[0])
+                    .buildEqualityWriter())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Equality delete field IDs must not be null or empty");
+  }
+
+  @Test
+  public void equalityDeleteWriterRejectsDuplicateEqualityFieldIds() {
+    OutputFile out = Files.localOutput(temp);
+
+    assertThatThrownBy(
+            () ->
+                ORC.writeDeletes(out)
+                    .createWriterFunc(GenericOrcWriter::buildWriter)
+                    .overwrite()
+                    .rowSchema(SCHEMA)
+                    .withSpec(PartitionSpec.unpartitioned())
+                    .equalityFieldIds(1, 1)
+                    .buildEqualityWriter())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Duplicate equality delete field ID: 1");
+  }
+
+  @Test
+  public void equalityDeleteWriterRejectsMissingEqualityFieldId() {
+    OutputFile out = Files.localOutput(temp);
+
+    assertThatThrownBy(
+            () ->
+                ORC.writeDeletes(out)
+                    .createWriterFunc(GenericOrcWriter::buildWriter)
+                    .overwrite()
+                    .rowSchema(SCHEMA)
+                    .withSpec(PartitionSpec.unpartitioned())
+                    .equalityFieldIds(99)
+                    .buildEqualityWriter())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Invalid equality delete field ID: 99");
   }
 
   @Test

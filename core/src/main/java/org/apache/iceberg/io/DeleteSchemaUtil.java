@@ -18,8 +18,11 @@
  */
 package org.apache.iceberg.io;
 
+import java.util.Set;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
 
 public class DeleteSchemaUtil {
@@ -53,5 +56,22 @@ public class DeleteSchemaUtil {
             MetadataColumns.DELETE_FILE_ROW_FIELD_NAME,
             rowSchema.asStruct(),
             MetadataColumns.DELETE_FILE_ROW_DOC));
+  }
+
+  public static void validateEqualityFieldIds(int[] equalityFieldIds, Schema equalityDeleteSchema) {
+    Preconditions.checkArgument(
+        equalityFieldIds != null && equalityFieldIds.length > 0,
+        "Equality delete field IDs must not be null or empty");
+    Preconditions.checkArgument(equalityDeleteSchema != null, "Schema must not be null");
+
+    Set<Integer> seenFieldIds = Sets.newHashSetWithExpectedSize(equalityFieldIds.length);
+    for (int fieldId : equalityFieldIds) {
+      Preconditions.checkArgument(
+          seenFieldIds.add(fieldId), "Duplicate equality delete field ID: %s", fieldId);
+      Preconditions.checkArgument(
+          equalityDeleteSchema.findField(fieldId) != null,
+          "Invalid equality delete field ID: %s",
+          fieldId);
+    }
   }
 }
