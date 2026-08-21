@@ -86,4 +86,31 @@ public class TestCopyValue {
       assertThat(newValue.get("data_copy")).isEqualTo("foobar");
     }
   }
+
+  @Test
+  public void testCopyValueWithSchemaPreservesNullOfFieldWithDefault() {
+    Map<String, String> props =
+        ImmutableMap.of(
+            "source.field", "data",
+            "target.field", "data_copy");
+
+    Schema schema =
+        SchemaBuilder.struct()
+            .field("id", Schema.INT64_SCHEMA)
+            .field("data", SchemaBuilder.string().optional().defaultValue("").build());
+
+    Struct value = new Struct(schema).put("id", 123L).put("data", null);
+
+    try (CopyValue<SinkRecord> smt = new CopyValue<>()) {
+      smt.configure(props);
+      SinkRecord record = new SinkRecord("topic", 0, null, null, schema, value, 0);
+      SinkRecord result = smt.apply(record);
+
+      Struct newValue = (Struct) result.value();
+
+      // the explicit null is preserved for both the copied and the target field
+      assertThat(newValue.getWithoutDefault("data")).isNull();
+      assertThat(newValue.getWithoutDefault("data_copy")).isNull();
+    }
+  }
 }
