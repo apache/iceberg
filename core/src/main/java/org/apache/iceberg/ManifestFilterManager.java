@@ -187,6 +187,18 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
     deleteFilePartitions.add(file.specId(), file.partition());
   }
 
+  /**
+   * Remove a file from the set of files to be deleted in the new snapshot.
+   *
+   * <p>Partition and manifest pruning metadata recorded by {@link #delete(ContentFile)} may retain
+   * the dropped file, which only widens manifest filtering.
+   */
+  void dropDelete(F file) {
+    Preconditions.checkNotNull(file, "Cannot drop delete for file: null");
+    invalidateFilteredCache();
+    deleteFiles.remove(file);
+  }
+
   /** Add a specific path to be deleted in the new snapshot. */
   void delete(CharSequence path) {
     Preconditions.checkNotNull(path, "Cannot delete file path: null");
