@@ -26,7 +26,6 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.rest.PlanStatus;
 import org.apache.iceberg.rest.credentials.Credential;
 
@@ -120,7 +119,7 @@ public class PlanTableScanResponse extends BaseScanTaskResponse {
     private PlanStatus planStatus;
     private String planId;
     private ErrorResponse errorResponse;
-    private final List<Credential> credentials = Lists.newArrayList();
+    private List<Credential> credentials = ImmutableList.of();
 
     /**
      * @deprecated since 1.11.0, visibility will be reduced in 1.12.0; use {@link
@@ -145,10 +144,9 @@ public class PlanTableScanResponse extends BaseScanTaskResponse {
     }
 
     public Builder withCredentials(List<Credential> newCredentials) {
-      Preconditions.checkArgument(null != newCredentials, "Invalid credentials list: null");
+      Preconditions.checkArgument(null != newCredentials, "Invalid credentials: null");
       Preconditions.checkArgument(!newCredentials.contains(null), "Invalid credential: null");
-      credentials.clear();
-      credentials.addAll(newCredentials);
+      this.credentials = ImmutableList.copyOf(newCredentials);
       return this;
     }
 
@@ -162,7 +160,7 @@ public class PlanTableScanResponse extends BaseScanTaskResponse {
           fileScanTasks(),
           deleteFiles(),
           specsById(),
-          ImmutableList.copyOf(credentials));
+          credentials);
     }
   }
 }

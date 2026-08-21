@@ -895,7 +895,7 @@ public class TestPlanTableScanResponseParser {
   void nullCredentials() {
     assertThatThrownBy(() -> PlanTableScanResponse.builder().withCredentials(null))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid credentials list: null");
+        .hasMessage("Invalid credentials: null");
 
     assertThatThrownBy(
             () ->

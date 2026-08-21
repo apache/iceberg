@@ -450,7 +450,7 @@ public class TestFetchPlanningResultResponseParser {
   void nullCredentials() {
     assertThatThrownBy(() -> FetchPlanningResultResponse.builder().withCredentials(null))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid credentials list: null");
+        .hasMessage("Invalid credentials: null");
 
     assertThatThrownBy(
             () ->
