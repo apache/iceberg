@@ -100,8 +100,8 @@ class HashKeyGenerator {
             k ->
                 getKeySelector(
                     tableIdent,
-                    effectiveSchema,
-                    MoreObjects.firstNonNull(tableSpec, dynamicRecord.spec()),
+                    dynamicRecord.schema(),
+                    dynamicRecord.spec(),
                     effectiveDistributionMode,
                     effectiveEqualityFields,
                     Math.min(dynamicRecord.writeParallelism(), maxWriteParallelism)));
@@ -343,8 +343,8 @@ class HashKeyGenerator {
       this.branch = branch;
       this.schemaId = tableSchemaId;
       this.specId = tableSpecId;
-      this.schema = tableSchemaId == null ? schema : null;
-      this.spec = tableSpecId == null ? spec : null;
+      this.schema = schema;
+      this.spec = spec;
       this.equalityFields = equalityFields;
       this.distributionMode = distributionMode;
       this.writeParallelism = writeParallelism;
