@@ -36,7 +36,7 @@ public class DynFields {
   /**
    * Convenience wrapper class around {@link java.lang.reflect.Field}.
    *
-   * <p>Allows callers to invoke the wrapped method with all Exceptions wrapped by RuntimeException,
+   * <p>Allows callers to access the wrapped field with all Exceptions wrapped by RuntimeException,
    * or with a single Exception catch block.
    */
   public static class UnboundField<T> {
@@ -76,12 +76,12 @@ public class DynFields {
     }
 
     /**
-     * Returns this method as a BoundMethod for the given receiver.
+     * Returns this field as a BoundField for the given target.
      *
      * @param target an Object on which to get or set this field
      * @return a {@link BoundField} for this field and the target
-     * @throws IllegalStateException if the method is static
-     * @throws IllegalArgumentException if the receiver's class is incompatible
+     * @throws IllegalStateException if the field is static
+     * @throws IllegalArgumentException if the target's class is incompatible
      */
     public BoundField<T> bind(Object target) {
       Preconditions.checkState(
@@ -99,7 +99,7 @@ public class DynFields {
      * Returns this field as a StaticField.
      *
      * @return a {@link StaticField} for this field
-     * @throws IllegalStateException if the method is not static
+     * @throws IllegalStateException if the field is not static
      */
     public StaticField<T> asStatic() {
       Preconditions.checkState(isStatic(), "Field %s is not static", name);
@@ -339,14 +339,14 @@ public class DynFields {
     }
 
     /**
-     * Returns the first valid implementation as a BoundMethod or throws a NoSuchMethodException if
+     * Returns the first valid implementation as a BoundField or throws a NoSuchFieldException if
      * there is none.
      *
      * @param target an Object on which to get and set the field
      * @param <T> Java class stored in the field
      * @return a {@link BoundField} with a valid implementation and target
-     * @throws IllegalStateException if the method is static
-     * @throws IllegalArgumentException if the receiver's class is incompatible
+     * @throws IllegalStateException if the field is static
+     * @throws IllegalArgumentException if the target's class is incompatible
      * @throws NoSuchFieldException if no implementation was found
      */
     public <T> BoundField<T> buildChecked(Object target) throws NoSuchFieldException {
@@ -374,14 +374,14 @@ public class DynFields {
     }
 
     /**
-     * Returns the first valid implementation as a BoundMethod or throws a RuntimeException if there
+     * Returns the first valid implementation as a BoundField or throws a RuntimeException if there
      * is none.
      *
      * @param target an Object on which to get and set the field
      * @param <T> Java class stored in the field
      * @return a {@link BoundField} with a valid implementation and target
-     * @throws IllegalStateException if the method is static
-     * @throws IllegalArgumentException if the receiver's class is incompatible
+     * @throws IllegalStateException if the field is static
+     * @throws IllegalArgumentException if the target's class is incompatible
      * @throws RuntimeException if no implementation was found
      */
     public <T> BoundField<T> build(Object target) {
@@ -394,7 +394,7 @@ public class DynFields {
      *
      * @param <T> Java class stored in the field
      * @return a {@link StaticField} with a valid implementation
-     * @throws IllegalStateException if the method is not static
+     * @throws IllegalStateException if the field is not static
      * @throws RuntimeException if no implementation was found
      */
     public <T> StaticField<T> buildStatic() {
