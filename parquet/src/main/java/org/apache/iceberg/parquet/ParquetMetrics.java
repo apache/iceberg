@@ -403,7 +403,7 @@ class ParquetMetrics {
             new FieldMetrics<>(fieldId, metadataCounts.valueCount(), metadataCounts.nullCount()));
       }
 
-      Set<String> fieldNames = Sets.newTreeSet();
+      Set<String> fieldNames = Sets.newTreeSet(Comparators.charSequences());
       for (ParquetVariantUtil.VariantMetrics result : results.subList(1, results.size())) {
         if (result.lowerBound() != null || result.upperBound() != null) {
           fieldNames.add(result.fieldName());
