@@ -405,17 +405,17 @@ SELECT * FROM prod.db.table$history;
 
 ### Metadata Log Entries
 
-To show table metadata log entries:
+To show table metadata log entries, including the table properties stored in each metadata file:
 
 ```sql
 SELECT * from prod.db.table$metadata_log_entries;
 ```
 
-| timestamp               | file                                                         | latest_snapshot_id | latest_schema_id | latest_sequence_number |
-| ----------------------- | ------------------------------------------------------------ | ------------------ | ---------------- | ---------------------- |
-| 2022-07-28 10:43:52.93  | s3://.../table/metadata/00000-9441e604-b3c2-498a-a45a-6320e8ab9006.metadata.json | null               | null             | null                   |
-| 2022-07-28 10:43:57.487 | s3://.../table/metadata/00001-f30823df-b745-4a0a-b293-7532e0c99986.metadata.json | 170260833677645300 | 0                | 1                      |
-| 2022-07-28 10:43:58.25  | s3://.../table/metadata/00002-2cc2837a-02dc-4687-acc1-b4d86ea486f4.metadata.json | 958906493976709774 | 0                | 2                      |
+| timestamp               | file                                                         | latest_snapshot_id | latest_schema_id | latest_sequence_number | properties                                                              |
+| ----------------------- | ------------------------------------------------------------ | ------------------ | ---------------- | ---------------------- | ----------------------------------------------------------------------- |
+| 2022-07-28 10:43:52.93  | s3://.../table/metadata/00000-9441e604-b3c2-498a-a45a-6320e8ab9006.metadata.json | null               | null             | null                   | {owner -> flink, write.parquet.compression-codec -> zstd}                |
+| 2022-07-28 10:43:57.487 | s3://.../table/metadata/00001-f30823df-b745-4a0a-b293-7532e0c99986.metadata.json | 170260833677645300 | 0                | 1                      | {key1 -> value1, owner -> flink, write.parquet.compression-codec -> zstd} |
+| 2022-07-28 10:43:58.25  | s3://.../table/metadata/00002-2cc2837a-02dc-4687-acc1-b4d86ea486f4.metadata.json | 958906493976709774 | 0                | 2                      | {key1 -> value1, owner -> flink, key2 -> value2, write.parquet.compression-codec -> zstd} |
 
 ### Snapshots
 
