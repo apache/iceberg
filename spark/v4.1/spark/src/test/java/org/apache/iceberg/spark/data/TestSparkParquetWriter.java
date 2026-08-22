@@ -31,6 +31,8 @@ import static org.mockito.Mockito.when;
 import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.Field;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.file.Path;
 import java.util.Iterator;
 import java.util.List;
@@ -40,7 +42,9 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.apache.iceberg.FieldMetrics;
 import org.apache.iceberg.Files;
+import org.apache.iceberg.Metrics;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.geospatial.GeospatialBound;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.parquet.Parquet;
@@ -48,6 +52,7 @@ import org.apache.iceberg.parquet.ParquetSchemaUtil;
 import org.apache.iceberg.parquet.ParquetValueWriter;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkSchemaUtil;
+import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.ColumnWriteStore;
@@ -153,30 +158,48 @@ public class TestSparkParquetWriter {
             optional(2, "geom", Types.GeometryType.crs84()),
             optional(3, "geog", Types.GeographyType.crs84()));
 
-    byte[] geomWkb = new byte[] {0x01, 0x02, 0x03};
-    byte[] geogWkb = new byte[] {0x04, 0x05, 0x06};
-    InternalRow row = new GenericInternalRow(3);
-    row.update(0, 1L);
+    byte[] firstGeomWkb = wkbPoint(30, 10);
+    byte[] secondGeomWkb = wkbPoint(-5, 40);
+    byte[] geogWkb = wkbPoint(12, 34);
+    InternalRow first = new GenericInternalRow(3);
+    first.update(0, 1L);
     // Spark's GeometryVal/GeographyVal wrap [SRID | WKB]; build them from the pure WKB.
-    row.update(1, STUtils.stGeomFromWKB(geomWkb));
-    row.update(2, STUtils.stGeogFromWKB(geogWkb));
-    // second row leaves the geo columns null
+    first.update(1, STUtils.stGeomFromWKB(firstGeomWkb));
+    first.update(2, STUtils.stGeogFromWKB(geogWkb));
+    InternalRow second = new GenericInternalRow(3);
+    second.update(0, 2L);
+    second.update(1, STUtils.stGeomFromWKB(secondGeomWkb));
+    // third row leaves the geo columns null
     InternalRow nulls = new GenericInternalRow(3);
-    nulls.update(0, 2L);
+    nulls.update(0, 3L);
 
     File testFile = File.createTempFile("junit", null, temp.toFile());
     assertThat(testFile.delete()).as("Delete should succeed").isTrue();
 
-    try (FileAppender<InternalRow> writer =
+    FileAppender<InternalRow> writer =
         Parquet.write(Files.localOutput(testFile))
             .schema(geoSchema)
             .createWriterFunc(
                 msgType ->
                     SparkParquetWriters.buildWriter(SparkSchemaUtil.convert(geoSchema), msgType))
-            .build()) {
-      writer.add(row);
+            .build();
+    try (writer) {
+      writer.add(first);
+      writer.add(second);
       writer.add(nulls);
     }
+
+    Metrics metrics = writer.metrics();
+    assertThat(metrics.lowerBounds()).containsKey(2).doesNotContainKey(3);
+    assertThat(metrics.upperBounds()).containsKey(2).doesNotContainKey(3);
+    GeospatialBound lowerBound =
+        (GeospatialBound)
+            Conversions.fromByteBuffer(Types.GeometryType.crs84(), metrics.lowerBounds().get(2));
+    GeospatialBound upperBound =
+        (GeospatialBound)
+            Conversions.fromByteBuffer(Types.GeometryType.crs84(), metrics.upperBounds().get(2));
+    assertThat(lowerBound).isEqualTo(GeospatialBound.createXY(-5, 10));
+    assertThat(upperBound).isEqualTo(GeospatialBound.createXY(30, 40));
 
     try (CloseableIterable<InternalRow> reader =
         Parquet.read(Files.localInput(testFile))
@@ -184,12 +207,38 @@ public class TestSparkParquetWriter {
             .createReaderFunc(type -> SparkParquetReaders.buildReader(geoSchema, type))
             .build()) {
       List<InternalRow> rows = Lists.newArrayList(reader);
-      assertThat(rows).hasSize(2);
-      assertThat(STUtils.stAsBinary(rows.get(0).getGeometry(1))).isEqualTo(geomWkb);
+      assertThat(rows).hasSize(3);
+      assertThat(STUtils.stAsBinary(rows.get(0).getGeometry(1))).isEqualTo(firstGeomWkb);
       assertThat(STUtils.stAsBinary(rows.get(0).getGeography(2))).isEqualTo(geogWkb);
-      assertThat(rows.get(1).isNullAt(1)).isTrue();
+      assertThat(STUtils.stAsBinary(rows.get(1).getGeometry(1))).isEqualTo(secondGeomWkb);
       assertThat(rows.get(1).isNullAt(2)).isTrue();
+      assertThat(rows.get(2).isNullAt(1)).isTrue();
+      assertThat(rows.get(2).isNullAt(2)).isTrue();
     }
+  }
+
+  private static byte[] wkbPoint(double xCoord, double yCoord) {
+    return ByteBuffer.allocate(21)
+        .order(ByteOrder.LITTLE_ENDIAN)
+        .put((byte) 1)
+        .putInt(1)
+        .putDouble(xCoord)
+        .putDouble(yCoord)
+        .array();
+  }
+
+  private static byte[] wkbLineString(double... coordinates) {
+    ByteBuffer buffer =
+        ByteBuffer.allocate(9 + (coordinates.length * Double.BYTES))
+            .order(ByteOrder.LITTLE_ENDIAN)
+            .put((byte) 1)
+            .putInt(2)
+            .putInt(coordinates.length / 2);
+    for (double coordinate : coordinates) {
+      buffer.putDouble(coordinate);
+    }
+
+    return buffer.array();
   }
 
   @Test
@@ -200,9 +249,9 @@ public class TestSparkParquetWriter {
             optional(2, "geom", Types.GeometryType.crs84()),
             optional(3, "geog", Types.GeographyType.crs84()));
 
-    // WKB payloads of 3 and 5 bytes for geometry (avg 4), 7 bytes for geography.
-    byte[] geomWkbSmall = new byte[] {0x01, 0x02, 0x03};
-    byte[] geomWkbLarge = new byte[] {0x01, 0x02, 0x03, 0x04, 0x05};
+    // WKB payloads of 21 and 41 bytes for geometry (avg 31), 7 bytes for geography.
+    byte[] geomWkbSmall = wkbPoint(30, 10);
+    byte[] geomWkbLarge = wkbLineString(-5, 40, 12, 34);
     byte[] geogWkb = new byte[] {0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a};
 
     InternalRow first = new GenericInternalRow(3);
@@ -237,7 +286,7 @@ public class TestSparkParquetWriter {
     FieldMetrics<?> geomMetrics = metricsById.get(geomId);
     assertThat(geomMetrics.valueCount()).isEqualTo(2);
     assertThat(geomMetrics.nullValueCount()).isZero();
-    assertThat(geomMetrics.avgValueSizeInBytes()).isEqualTo(4);
+    assertThat(geomMetrics.avgValueSizeInBytes()).isEqualTo(31);
 
     FieldMetrics<?> geogMetrics = metricsById.get(geogId);
     assertThat(geogMetrics.valueCount()).isEqualTo(2);

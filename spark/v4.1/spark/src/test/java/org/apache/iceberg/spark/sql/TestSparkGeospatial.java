@@ -27,6 +27,7 @@ import org.apache.iceberg.spark.TestBase;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -40,6 +41,7 @@ public class TestSparkGeospatial extends TestBase {
   private static final String GEOM_WKB = "01010000000000000000003e400000000000002440";
   private static final String GEOG_WKB = "01010000000000000000c051c00000000000004540";
   private static final String OTHER_WKB = "010100000000000000000059400000000000004940";
+  private static final String PARTIAL_NAN_POINT_WKB = "0101000000000000000000f03f000000000000f87f";
 
   @BeforeAll
   public static void setupCatalog() {
@@ -93,6 +95,42 @@ public class TestSparkGeospatial extends TestBase {
         sql(
             "SELECT id, hex(st_asbinary(geom)), hex(st_asbinary(geog)) FROM %s ORDER BY id",
             TABLE));
+  }
+
+  @Test
+  public void testPartialNaNGeometryReadWriteAndBounds() {
+    String partialNaNTable = CATALOG + ".default.geo_partial_nan";
+    sql("DROP TABLE IF EXISTS %s", partialNaNTable);
+
+    try {
+      sql(
+          "CREATE TABLE %s (id BIGINT, geom GEOMETRY(4326)) USING iceberg "
+              + "TBLPROPERTIES ('format-version'='3')",
+          partialNaNTable);
+      sql(
+          "INSERT INTO %s SELECT /*+ COALESCE(1) */ id, "
+              + "st_setsrid(st_geomfromwkb(wkb), 4326) "
+              + "FROM VALUES (1L, X'%s'), (2L, X'%s') AS v(id, wkb)",
+          partialNaNTable, PARTIAL_NAN_POINT_WKB, GEOM_WKB);
+
+      assertEquals(
+          "Partial-NaN and finite point WKB should round-trip through an Iceberg scan",
+          ImmutableList.of(
+              row(1L, PARTIAL_NAN_POINT_WKB.toUpperCase(Locale.ROOT)),
+              row(2L, GEOM_WKB.toUpperCase(Locale.ROOT))),
+          sql("SELECT id, hex(st_asbinary(geom)) FROM %s ORDER BY id", partialNaNTable));
+
+      // Iceberg bounds skip NaN independently by dimension, so POINT(1 NaN) widens only X.
+      assertEquals(
+          "File bounds should include the finite X component of the partial-NaN point",
+          ImmutableList.of(
+              row(2L, "000000000000F03F0000000000002440", "0000000000003E400000000000002440")),
+          sql(
+              "SELECT record_count, hex(lower_bounds[2]), hex(upper_bounds[2]) FROM %s.files",
+              partialNaNTable));
+    } finally {
+      sql("DROP TABLE IF EXISTS %s", partialNaNTable);
+    }
   }
 
   @ParameterizedTest(name = "mode = {0}, vectorized = {1}")
