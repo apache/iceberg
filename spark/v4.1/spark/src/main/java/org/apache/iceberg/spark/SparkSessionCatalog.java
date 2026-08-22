@@ -19,12 +19,14 @@
 package org.apache.iceberg.spark;
 
 import java.util.Map;
+import java.util.Set;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.spark.source.HasIcebergCatalog;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.analysis.NamespaceAlreadyExistsException;
@@ -37,6 +39,7 @@ import org.apache.spark.sql.catalyst.analysis.TableAlreadyExistsException;
 import org.apache.spark.sql.catalyst.analysis.ViewAlreadyExistsException;
 import org.apache.spark.sql.connector.catalog.CatalogExtension;
 import org.apache.spark.sql.connector.catalog.CatalogPlugin;
+import org.apache.spark.sql.connector.catalog.Column;
 import org.apache.spark.sql.connector.catalog.FunctionCatalog;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.NamespaceChange;
@@ -45,6 +48,7 @@ import org.apache.spark.sql.connector.catalog.StagingTableCatalog;
 import org.apache.spark.sql.connector.catalog.SupportsNamespaces;
 import org.apache.spark.sql.connector.catalog.Table;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
+import org.apache.spark.sql.connector.catalog.TableCatalogCapability;
 import org.apache.spark.sql.connector.catalog.TableChange;
 import org.apache.spark.sql.connector.catalog.View;
 import org.apache.spark.sql.connector.catalog.ViewCatalog;
@@ -65,6 +69,8 @@ public class SparkSessionCatalog<
         T extends TableCatalog & FunctionCatalog & SupportsNamespaces & ViewCatalog>
     extends BaseCatalog implements CatalogExtension {
   private static final String[] DEFAULT_NAMESPACE = new String[] {"default"};
+  private static final Set<TableCatalogCapability> CAPABILITIES =
+      ImmutableSet.of(TableCatalogCapability.SUPPORT_COLUMN_DEFAULT_VALUE);
 
   private String catalogName = null;
   private TableCatalog icebergCatalog = null;
@@ -94,6 +100,18 @@ public class SparkSessionCatalog<
   @Override
   public String[] defaultNamespace() {
     return DEFAULT_NAMESPACE;
+  }
+
+  @Override
+  public Set<TableCatalogCapability> capabilities() {
+    if (sessionCatalog == null) {
+      return CAPABILITIES;
+    }
+
+    return ImmutableSet.<TableCatalogCapability>builder()
+        .addAll(sessionCatalog.capabilities())
+        .add(TableCatalogCapability.SUPPORT_COLUMN_DEFAULT_VALUE)
+        .build();
   }
 
   @Override
@@ -195,6 +213,19 @@ public class SparkSessionCatalog<
   }
 
   @Override
+  public Table createTable(
+      Identifier ident, Column[] columns, Transform[] partitions, Map<String, String> properties)
+      throws TableAlreadyExistsException, NoSuchNamespaceException {
+    String provider = properties.get("provider");
+    if (useIceberg(provider)) {
+      return icebergCatalog.createTable(ident, columns, partitions, properties);
+    } else {
+      // delegate to the session catalog
+      return getSessionCatalog().createTable(ident, columns, partitions, properties);
+    }
+  }
+
+  @Override
   public StagedTable stageCreate(
       Identifier ident, StructType schema, Transform[] partitions, Map<String, String> properties)
       throws TableAlreadyExistsException, NoSuchNamespaceException {
@@ -212,6 +243,27 @@ public class SparkSessionCatalog<
     // create the table with the session catalog, then wrap it in a staged table that will delete to
     // roll back
     Table table = catalog.createTable(ident, schema, partitions, properties);
+    return new RollbackStagedTable(catalog, ident, table);
+  }
+
+  @Override
+  public StagedTable stageCreate(
+      Identifier ident, Column[] columns, Transform[] partitions, Map<String, String> properties)
+      throws TableAlreadyExistsException, NoSuchNamespaceException {
+    String provider = properties.get("provider");
+    TableCatalog catalog;
+    if (useIceberg(provider)) {
+      if (asStagingCatalog != null) {
+        return asStagingCatalog.stageCreate(ident, columns, partitions, properties);
+      }
+      catalog = icebergCatalog;
+    } else {
+      catalog = getSessionCatalog();
+    }
+
+    // create the table with the session catalog, then wrap it in a staged table that will delete to
+    // roll back
+    Table table = catalog.createTable(ident, columns, partitions, properties);
     return new RollbackStagedTable(catalog, ident, table);
   }
 
@@ -248,6 +300,38 @@ public class SparkSessionCatalog<
   }
 
   @Override
+  public StagedTable stageReplace(
+      Identifier ident, Column[] columns, Transform[] partitions, Map<String, String> properties)
+      throws NoSuchNamespaceException, NoSuchTableException {
+    String provider = properties.get("provider");
+    TableCatalog catalog;
+    if (useIceberg(provider)) {
+      if (asStagingCatalog != null) {
+        return asStagingCatalog.stageReplace(ident, columns, partitions, properties);
+      }
+      catalog = icebergCatalog;
+    } else {
+      catalog = getSessionCatalog();
+    }
+
+    // attempt to drop the table and fail if it doesn't exist
+    if (!catalog.dropTable(ident)) {
+      throw new NoSuchTableException(ident);
+    }
+
+    try {
+      // create the table with the session catalog, then wrap it in a staged table that will delete
+      // to roll back
+      Table table = catalog.createTable(ident, columns, partitions, properties);
+      return new RollbackStagedTable(catalog, ident, table);
+
+    } catch (TableAlreadyExistsException e) {
+      // the table was deleted, but now already exists again. retry the replace.
+      return stageReplace(ident, columns, partitions, properties);
+    }
+  }
+
+  @Override
   public StagedTable stageCreateOrReplace(
       Identifier ident, StructType schema, Transform[] partitions, Map<String, String> properties)
       throws NoSuchNamespaceException {
@@ -274,6 +358,36 @@ public class SparkSessionCatalog<
     } catch (TableAlreadyExistsException e) {
       // the table was deleted, but now already exists again. retry the replace.
       return stageCreateOrReplace(ident, schema, partitions, properties);
+    }
+  }
+
+  @Override
+  public StagedTable stageCreateOrReplace(
+      Identifier ident, Column[] columns, Transform[] partitions, Map<String, String> properties)
+      throws NoSuchNamespaceException {
+    String provider = properties.get("provider");
+    TableCatalog catalog;
+    if (useIceberg(provider)) {
+      if (asStagingCatalog != null) {
+        return asStagingCatalog.stageCreateOrReplace(ident, columns, partitions, properties);
+      }
+      catalog = icebergCatalog;
+    } else {
+      catalog = getSessionCatalog();
+    }
+
+    // drop the table if it exists
+    catalog.dropTable(ident);
+
+    try {
+      // create the table with the session catalog, then wrap it in a staged table that will delete
+      // to roll back
+      Table sessionCatalogTable = catalog.createTable(ident, columns, partitions, properties);
+      return new RollbackStagedTable(catalog, ident, sessionCatalogTable);
+
+    } catch (TableAlreadyExistsException e) {
+      // the table was deleted, but now already exists again. retry the replace.
+      return stageCreateOrReplace(ident, columns, partitions, properties);
     }
   }
 
