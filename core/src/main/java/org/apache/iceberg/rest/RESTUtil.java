@@ -143,9 +143,25 @@ public class RESTUtil {
   }
 
   /**
+   * Encodes a string for use as a single URL path segment.
+   *
+   * <p>Unlike {@link #encodeString(String)}, which encodes for application/x-www-form-urlencoded
+   * and represents a space as '+', this represents a space as %20. A '+' in the input is escaped to
+   * %2B, so the two cannot be confused.
+   *
+   * @param toEncode string to encode
+   * @return UTF-8 encoded string, suitable for use as a URL path segment
+   */
+  public static String encodePathSegment(String toEncode) {
+    Preconditions.checkArgument(toEncode != null, "Invalid string to encode: null");
+    return URLEncoder.encode(toEncode, StandardCharsets.UTF_8).replace("+", "%20");
+  }
+
+  /**
    * Decodes a URL-encoded string.
    *
-   * <p>See also {@link #encodeString(String)} for URL encoding.
+   * <p>See also {@link #encodeString(String)} for URL parameter encoding, or {@link
+   * #encodePathSegment(String)} for URL path segment encoding.
    *
    * @param encoded a string to decode
    * @return a decoded string
@@ -249,7 +265,7 @@ public class RESTUtil {
    * @param namespace namespace to encode
    * @param separator The namespace separator to be used for encoding. The separator will be used
    *     as-is and won't be UTF-8 encoded.
-   * @return UTF-8 encoded string representing the namespace, suitable for use as a URL parameter
+   * @return UTF-8 encoded string representing the namespace, suitable for use in a URL path
    */
   public static String encodeNamespace(Namespace namespace, String separator) {
     Preconditions.checkArgument(namespace != null, "Invalid namespace: null");
@@ -259,7 +275,7 @@ public class RESTUtil {
     String[] encodedLevels = new String[levels.length];
 
     for (int i = 0; i < levels.length; i++) {
-      encodedLevels[i] = encodeString(levels[i]);
+      encodedLevels[i] = encodePathSegment(levels[i]);
     }
 
     return Joiner.on(separator).join(encodedLevels);

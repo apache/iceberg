@@ -219,6 +219,81 @@ public class TestResourcePaths {
   }
 
   @Test
+  public void tablePathWithSpaceAndPlusInNames() {
+    TableIdentifier ident = TableIdentifier.of("sales report", "q1 results");
+    assertThat(withPrefix.table(ident))
+        .isEqualTo("v1/ws/catalog/namespaces/sales%20report/tables/q1%20results");
+    assertThat(withoutPrefix.table(ident))
+        .isEqualTo("v1/namespaces/sales%20report/tables/q1%20results");
+
+    TableIdentifier plusIdent = TableIdentifier.of("ns", "my+name with+spaces");
+    assertThat(withPrefix.table(plusIdent))
+        .isEqualTo("v1/ws/catalog/namespaces/ns/tables/my%2Bname%20with%2Bspaces");
+    assertThat(withoutPrefix.table(plusIdent))
+        .isEqualTo("v1/namespaces/ns/tables/my%2Bname%20with%2Bspaces");
+  }
+
+  @Test
+  public void namespaceRoutesWithSpace() {
+    Namespace ns = Namespace.of("sales report");
+    String encoded = "namespaces/sales%20report";
+
+    assertThat(withPrefix.namespace(ns)).isEqualTo("v1/ws/catalog/" + encoded);
+    assertThat(withoutPrefix.namespace(ns)).isEqualTo("v1/" + encoded);
+    assertThat(withPrefix.namespaceProperties(ns))
+        .isEqualTo("v1/ws/catalog/" + encoded + "/properties");
+    assertThat(withoutPrefix.namespaceProperties(ns)).isEqualTo("v1/" + encoded + "/properties");
+    assertThat(withPrefix.tables(ns)).isEqualTo("v1/ws/catalog/" + encoded + "/tables");
+    assertThat(withoutPrefix.tables(ns)).isEqualTo("v1/" + encoded + "/tables");
+    assertThat(withPrefix.register(ns)).isEqualTo("v1/ws/catalog/" + encoded + "/register");
+    assertThat(withoutPrefix.register(ns)).isEqualTo("v1/" + encoded + "/register");
+    assertThat(withPrefix.views(ns)).isEqualTo("v1/ws/catalog/" + encoded + "/views");
+    assertThat(withoutPrefix.views(ns)).isEqualTo("v1/" + encoded + "/views");
+    assertThat(withPrefix.registerView(ns))
+        .isEqualTo("v1/ws/catalog/" + encoded + "/register-view");
+    assertThat(withoutPrefix.registerView(ns)).isEqualTo("v1/" + encoded + "/register-view");
+  }
+
+  @Test
+  public void metricsAndSignPathsWithSpaceAndPlusInNames() {
+    TableIdentifier ident = TableIdentifier.of("sales report", "my+name with+spaces");
+    String encoded = "namespaces/sales%20report/tables/my%2Bname%20with%2Bspaces";
+    assertThat(withPrefix.metrics(ident)).isEqualTo("v1/ws/catalog/" + encoded + "/metrics");
+    assertThat(withoutPrefix.metrics(ident)).isEqualTo("v1/" + encoded + "/metrics");
+    assertThat(withPrefix.remoteSign(ident)).isEqualTo("v1/ws/catalog/" + encoded + "/sign");
+    assertThat(withoutPrefix.remoteSign(ident)).isEqualTo("v1/" + encoded + "/sign");
+  }
+
+  @Test
+  public void viewPathWithSpaceAndPlusInNames() {
+    TableIdentifier ident = TableIdentifier.of("sales report", "my+name with+spaces");
+    assertThat(withPrefix.view(ident))
+        .isEqualTo("v1/ws/catalog/namespaces/sales%20report/views/my%2Bname%20with%2Bspaces");
+    assertThat(withoutPrefix.view(ident))
+        .isEqualTo("v1/namespaces/sales%20report/views/my%2Bname%20with%2Bspaces");
+  }
+
+  @Test
+  public void planningAndTaskPathsWithSpaceAndPlusInNames() {
+    TableIdentifier ident = TableIdentifier.of("sales report", "q1 results");
+    assertThat(withPrefix.planTableScan(ident))
+        .isEqualTo("v1/ws/catalog/namespaces/sales%20report/tables/q1%20results/plan");
+    assertThat(withoutPrefix.planTableScan(ident))
+        .isEqualTo("v1/namespaces/sales%20report/tables/q1%20results/plan");
+
+    assertThat(withPrefix.plan(ident, "plan with+spaces"))
+        .isEqualTo(
+            "v1/ws/catalog/namespaces/sales%20report/tables/q1%20results/plan/plan%20with%2Bspaces");
+    assertThat(withoutPrefix.plan(ident, "plan with+spaces"))
+        .isEqualTo("v1/namespaces/sales%20report/tables/q1%20results/plan/plan%20with%2Bspaces");
+
+    assertThat(withPrefix.fetchScanTasks(ident))
+        .isEqualTo("v1/ws/catalog/namespaces/sales%20report/tables/q1%20results/tasks");
+    assertThat(withoutPrefix.fetchScanTasks(ident))
+        .isEqualTo("v1/namespaces/sales%20report/tables/q1%20results/tasks");
+  }
+
+  @Test
   public void testRegister() {
     Namespace ns = Namespace.of("ns");
     assertThat(withPrefix.register(ns)).isEqualTo("v1/ws/catalog/namespaces/ns/register");
@@ -319,10 +394,10 @@ public class TestResourcePaths {
     assertThat(withoutPrefix.plan(tableId, planId))
         .isEqualTo("v1/namespaces/test_namespace/tables/test_table/plan/plan-abc-123");
 
-    // The planId contains a space which needs to be encoded
+    // The planId contains a space
     String spaceSeparatedPlanId = "plan with spaces";
     // The expected encoded version of the planId
-    String encodedPlanId = "plan+with+spaces";
+    String encodedPlanId = "plan%20with%20spaces";
 
     assertThat(withPrefix.plan(tableId, spaceSeparatedPlanId))
         .isEqualTo(

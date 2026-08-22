@@ -88,7 +88,16 @@ class TestHTTPRequest {
                 // absolute path with trailing slash: should be preserved
                 .path("http://authserver.com/token/")
                 .build(),
-            URI.create("http://authserver.com/token/")));
+            URI.create("http://authserver.com/token/")),
+        Arguments.of(
+            ImmutableHTTPRequest.builder()
+                .baseUri(URI.create("http://localhost:8080"))
+                .method(HTTPRequest.HTTPMethod.GET)
+                // percent-escaped segments remain unchanged in the request URI
+                .path("v1/main%7Cwarehouse/namespaces/sales%20report/tables/q1%20results")
+                .build(),
+            URI.create(
+                "http://localhost:8080/v1/main%7Cwarehouse/namespaces/sales%20report/tables/q1%20results")));
   }
 
   @Test
