@@ -88,6 +88,10 @@ public class TestRESTUtil {
             String.format(
                 "dogs.and.cats%snamed%shank.or.james-westfall",
                 namespaceSeparator, namespaceSeparator),
+          },
+          new Object[] {
+            new String[] {"dogs with spaces", "named.hank"},
+            "dogs%20with%20spaces" + namespaceSeparator + "named.hank"
           }
         };
 
@@ -146,6 +150,18 @@ public class TestRESTUtil {
     String expected = "+%25%26%2B%C2%A3%E2%82%AC";
 
     assertThat(RESTUtil.encodeString(utf8)).isEqualTo(expected);
+  }
+
+  @Test
+  @SuppressWarnings("checkstyle:AvoidEscapedUnicodeCharacters")
+  public void testEncodePathSegment() {
+    // Path segments must be percent-encoded, not form-encoded: a space is %20, not '+'
+    String utf8 = "\u0020\u0025\u0026\u002B\u00A3\u20AC";
+    String expected = "%20%25%26%2B%C2%A3%E2%82%AC";
+    assertThat(RESTUtil.encodePathSegment(" ")).isEqualTo("%20");
+    assertThat(RESTUtil.encodePathSegment("my table")).isEqualTo("my%20table");
+    assertThat(RESTUtil.encodePathSegment("a/b")).isEqualTo("a%2Fb");
+    assertThat(RESTUtil.encodePathSegment(utf8)).isEqualTo(expected);
   }
 
   @Test
