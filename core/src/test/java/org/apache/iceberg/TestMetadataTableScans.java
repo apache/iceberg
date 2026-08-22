@@ -704,6 +704,25 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
   }
 
   @TestTemplate
+  public void testPartitionsTableDvCount() {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
+
+    table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
+    table.newRowDelta().addDeletes(FILE_A_DV).addDeletes(FILE_B_DV).commit();
+
+    Table partitionsTable = new PartitionsTable(table);
+    StaticTableScan scan = (StaticTableScan) partitionsTable.newScan();
+    List<PartitionsTable.Partition> partitions =
+        Lists.newArrayList(PartitionsTable.partitions(table, scan));
+
+    assertThat(partitions).hasSize(2);
+    for (PartitionsTable.Partition partition : partitions) {
+      assertThat(partition.dvCount()).isEqualTo(1);
+      assertThat(partition.posDeleteFileCount()).isEqualTo(0);
+    }
+  }
+
+  @TestTemplate
   public void partitionsTableScanNoStats() {
     table.newFastAppend().appendFile(FILE_WITH_STATS).commit();
 
