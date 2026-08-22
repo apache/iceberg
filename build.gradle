@@ -419,6 +419,10 @@ project(':iceberg-core') {
     }
     testImplementation libs.awaitility
 
+    compileOnly libs.opentelemetry.api
+    testImplementation libs.opentelemetry.sdk
+    testImplementation libs.opentelemetry.sdk.testing
+
     // Lock BouncyCastle versions to avoid version mismatches
     // when these dependencies are added transitively.
     // Required for TLS tests with MockServer.
