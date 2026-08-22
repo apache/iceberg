@@ -91,6 +91,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   private final ManifestMergeManager<DeleteFile> deleteMergeManager;
   private final ManifestFilterManager<DeleteFile> deleteFilterManager;
   private final AtomicInteger dvMergeAttempt = new AtomicInteger(0);
+  private final List<String> cachedMergedDVLocations = Lists.newArrayList();
 
   // update data
   private final Map<Integer, DataFileSet> newDataFilesBySpec = Maps.newHashMap();
@@ -1076,6 +1077,10 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   private void cleanUncommittedAppends(Set<ManifestFile> committed) {
     deleteUncommitted(cachedNewDataManifests, committed, true /* clear manifests */);
     deleteUncommitted(cachedNewDeleteManifests, committed, true /* clear manifests */);
+    if (cachedNewDeleteManifests.isEmpty()) {
+      cachedMergedDVLocations.forEach(this::deleteFile);
+      cachedMergedDVLocations.clear();
+    }
     // rewritten manifests are always owned by the table
     deleteUncommitted(rewrittenAppendManifests, committed, false);
 
@@ -1140,6 +1145,8 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
       // merge,
       // and the summary cannot be generated until after merging is complete.
       addedDeleteFilesSummary.clear();
+      cachedMergedDVLocations.forEach(this::deleteFile);
+      cachedMergedDVLocations.clear();
     }
 
     if (cachedNewDeleteManifests.isEmpty()) {
@@ -1183,12 +1190,22 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
                     String.format(
                         "merged-dvs-%s-%s", snapshotId(), dvMergeAttempt.incrementAndGet())));
 
-    return DVUtil.mergeAndWriteDVsIfRequired(
-        dvsByReferencedFile,
-        dvOutputLocation,
-        fileIO,
-        ops().current().specsById(),
-        ThreadPools.getDeleteWorkerPool());
+    List<DeleteFile> mergedDVs =
+        DVUtil.mergeAndWriteDVsIfRequired(
+            dvsByReferencedFile,
+            dvOutputLocation,
+            fileIO,
+            ops().current().specsById(),
+            ThreadPools.getDeleteWorkerPool());
+
+    // resolve the location through the FileIO so its scheme matches DeleteFile.location(),
+    // which may differ from the raw dvOutputLocation (e.g. stripping a "file:" URI scheme)
+    String puffinLocation = fileIO.newOutputFile(dvOutputLocation).location();
+    if (mergedDVs.stream().anyMatch(dv -> puffinLocation.equals(dv.location()))) {
+      cachedMergedDVLocations.add(puffinLocation);
+    }
+
+    return mergedDVs;
   }
 
   private class DataFileFilterManager extends ManifestFilterManager<DataFile> {
