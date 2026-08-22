@@ -81,6 +81,8 @@ project(":iceberg-flink:iceberg-flink-${flinkMajorVersion}") {
       exclude group: 'junit'
       exclude group: 'org.junit.vintage'
     }
+    // Flink test utils still require JUnit 4 classes at runtime until FLINK-25325 is fixed.
+    testRuntimeOnly libs.junit.v4
 
     testImplementation project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
@@ -184,7 +186,10 @@ project(":iceberg-flink:iceberg-flink-runtime-${flinkMajorVersion}") {
     integrationImplementation(libs.flink21.test.utils) {
       exclude group: "org.apache.curator", module: 'curator-test'
       exclude group: 'junit'
+      exclude group: 'org.junit.vintage'
     }
+    // Flink test utils still require JUnit 4 classes at runtime until FLINK-25325 is fixed.
+    integrationRuntimeOnly libs.junit.v4
 
     integrationImplementation libs.flink21.table.api.java.bridge
     integrationImplementation "org.apache.flink:flink-table-planner_${scalaVersion}:${libs.versions.flink21.get()}"
