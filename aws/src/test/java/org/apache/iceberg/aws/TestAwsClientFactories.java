@@ -40,6 +40,7 @@ import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.awscore.AwsClient;
+import software.amazon.awssdk.core.client.config.SdkAdvancedClientOption;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.retries.api.RetryStrategy;
 import software.amazon.awssdk.retries.internal.DefaultAdaptiveRetryStrategy;
@@ -173,6 +174,36 @@ public class TestAwsClientFactories {
     AwsClientFactory deserializedClientFactory =
         SerializationUtil.deserializeFromBytes(serializedFactoryBytes);
     assertThat(deserializedClientFactory).isInstanceOf(AssumeRoleAwsClientFactory.class);
+  }
+
+  @Test
+  public void testAssumeRoleAwsClientFactoryS3AppliesUserAgent() {
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(AwsProperties.CLIENT_FACTORY, AssumeRoleAwsClientFactory.class.getName());
+    properties.put(AwsProperties.CLIENT_ASSUME_ROLE_ARN, "arn::test");
+    properties.put(AwsProperties.CLIENT_ASSUME_ROLE_REGION, "us-east-1");
+    AwsClientFactory factory = AwsClientFactories.from(properties);
+
+    Optional<String> userAgentPrefix =
+        factory
+            .s3()
+            .serviceClientConfiguration()
+            .overrideConfiguration()
+            .advancedOption(SdkAdvancedClientOption.USER_AGENT_PREFIX);
+    assertThat(userAgentPrefix).isPresent();
+    assertThat(userAgentPrefix.get()).startsWith("s3fileio/");
+  }
+
+  @Test
+  public void testAssumeRoleAwsClientFactoryS3AppliesS3AccessGrants() {
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(AwsProperties.CLIENT_FACTORY, AssumeRoleAwsClientFactory.class.getName());
+    properties.put(AwsProperties.CLIENT_ASSUME_ROLE_ARN, "arn::test");
+    properties.put(AwsProperties.CLIENT_ASSUME_ROLE_REGION, "us-east-1");
+    properties.put(S3FileIOProperties.S3_ACCESS_GRANTS_ENABLED, "true");
+    AwsClientFactory factory = AwsClientFactories.from(properties);
+
+    assertThat(factory.s3()).isNotNull();
   }
 
   @ParameterizedTest
