@@ -211,6 +211,13 @@ public class TestResourcePaths {
   }
 
   @Test
+  public void testTableWithSpace() {
+    TableIdentifier ident = TableIdentifier.of("ns", "my table");
+    assertThat(withPrefix.table(ident)).isEqualTo("v1/ws/catalog/namespaces/ns/tables/my%20table");
+    assertThat(withoutPrefix.table(ident)).isEqualTo("v1/namespaces/ns/tables/my%20table");
+  }
+
+  @Test
   public void testTableWithMultipartNamespace() {
     TableIdentifier ident = TableIdentifier.of("n", "s", "table");
     assertThat(withPrefix.table(ident)).isEqualTo("v1/ws/catalog/namespaces/n%1Fs/tables/table");
@@ -318,10 +325,11 @@ public class TestResourcePaths {
     assertThat(withoutPrefix.plan(tableId, planId))
         .isEqualTo("v1/namespaces/test_namespace/tables/test_table/plan/plan-abc-123");
 
-    // The planId contains a space which needs to be encoded
+    // The planId contains a space which needs to be encoded as %20 (percent-encoding),
+    // not '+' (which is only valid for application/x-www-form-urlencoded bodies)
     String spaceSeparatedPlanId = "plan with spaces";
     // The expected encoded version of the planId
-    String encodedPlanId = "plan+with+spaces";
+    String encodedPlanId = "plan%20with%20spaces";
 
     assertThat(withPrefix.plan(tableId, spaceSeparatedPlanId))
         .isEqualTo(
