@@ -519,6 +519,7 @@ public class CatalogHandlers {
               TableMetadata.buildFrom(loadedMetadata)
                   .withMetadataLocation(loadedMetadata.metadataFileLocation())
                   .suppressHistoricalSnapshots()
+                  .discardChanges()
                   .build();
           break;
         default:
