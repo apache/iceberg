@@ -427,7 +427,8 @@ Iceberg can compact data files in parallel using Spark with the `rewriteDataFile
 |------|---------------|-------------|
 | `compression-factor` | 1.0 | The number of shuffle partitions and consequently the number of output files created by the Spark sort is based on the size of the input data files used in this file rewriter. Due to compression, the disk file sizes may not accurately represent the size of files in the output. This parameter lets the user adjust the file size used for estimating actual output data size. A factor greater than 1.0 would generate more files than we would expect based on the on-disk file size. A value less than 1.0 would create fewer files than we would expect based on the on-disk size. |
 | `shuffle-partitions-per-file` | 1 | Number of shuffle partitions to use for each output file. Iceberg will use a custom coalesce operation to stitch these sorted partitions back together into a single sorted file. |
-| `min-overlap-depth` | (none) | Selects files for rewrite when at least this many files of the same partition cover a common point of the table sort key, regardless of their size. Without it, files that are large enough are never rewritten even if their sort key ranges sit entirely on top of each other, so a sorted rewrite can report success without improving clustering. The overlap is measured on the table sort order from data file bounds only, as reported by [`compute_sort_order_stats`](#compute_sort_order_stats); truncated bounds make the measured depth an upper-bound estimate. Requesting this reads column bounds while planning, which increases the memory needed to plan the rewrite. Unset by default, which leaves selection unchanged. |
+| `report-only` | false | When `true`, reports per-partition sort-key overlap depth without rewriting anything, returning one row per partition instead of the single summary row (the output schema is unchanged; the overlap columns are null outside this mode). If `min-overlap-depth` is also set, `candidate_file_count` and `candidate_bytes` show the files a rewrite with that threshold would select on the overlap axis. Only data file metadata is read and no snapshot is committed. Reports on the table sort order, so it cannot be combined with `sort_order`, a `where` filter, or other strategies. |
+| `min-overlap-depth` | (none) | Selects files for rewrite when at least this many files of the same partition cover a common point of the table sort key, regardless of their size. Without it, files that are large enough are never rewritten even if their sort key ranges sit entirely on top of each other, so a sorted rewrite can report success without improving clustering. The overlap is measured on the table sort order from data file bounds only, as reported by the `report-only` mode; truncated bounds make the measured depth an upper-bound estimate. Requesting this reads column bounds while planning, which increases the memory needed to plan the rewrite. Unset by default, which leaves selection unchanged. |
 
 ##### Options for sort strategy with zorder sort_order
 
@@ -1034,44 +1035,6 @@ CALL catalog_name.system.compute_partition_stats(table => 'my_table', snapshot_i
 ```
 
 ## Sort Order Statistics
-
-### `compute_sort_order_stats`
-
-This procedure computes per-partition file overlap statistics on the table's sort order. For each
-partition it reports the *overlap depth*: the number of data files whose ranges on the first sort
-field cover a single point. A maximum overlap depth of 1 means the partition is perfectly
-clustered; values close to the file count mean the declared sort order has not materialized in the
-file layout (for example, when sort compaction never selects the files because they are all within
-the healthy size range).
-
-The computation reads only data file metadata (column bounds) — no data files are opened and
-nothing is committed to the table. Because column bounds may be truncated, the reported depth is an
-upper-bound estimate.
-
-The table must declare a sort order whose first field uses an order-preserving transform.
-
-| Argument Name | Required? | Type   | Description                                                              |
-|---------------|-----------|--------|--------------------------------------------------------------------------|
-| `table`       | ✔️        | string | Name of the table                                                        |
-| `snapshot_id` |           | long   | Id of the snapshot to analyze. Defaults to the current snapshot id       |
-
-#### Output
-
-| Output Name             | Type   | Description                                                               |
-|-------------------------|--------|---------------------------------------------------------------------------|
-| `partition`             | string | Partition path, or null for unpartitioned tables                          |
-| `spec_id`               | int    | Partition spec id                                                         |
-| `file_count`            | int    | Number of data files in the partition                                     |
-| `files_missing_bounds`  | int    | Files without bounds for the sort field, excluded from depth computation  |
-| `max_overlap_depth`     | int    | Maximum overlap depth, or null if no file has usable bounds               |
-| `avg_overlap_depth`     | double | Mean overlap depth over files with bounds                                 |
-
-#### Examples
-
-Report sort order overlap statistics for the current snapshot of table `my_table`
-```sql
-CALL catalog_name.system.compute_sort_order_stats('my_table');
-```
 
 ## Table Replication
 

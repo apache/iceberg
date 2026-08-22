@@ -95,7 +95,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
         row(10, 1),
         Arrays.copyOf(output.get(0), 2));
     // verify rewritten bytes separately
-    assertThat(output.get(0)).hasSize(5);
+    assertThat(output.get(0)).hasSize(11);
     assertThat(output.get(0)[2])
         .isInstanceOf(Long.class)
         .isEqualTo(Long.valueOf(snapshotSummary().get(SnapshotSummary.REMOVED_FILE_SIZE_PROP)));
@@ -174,7 +174,10 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
   public void testRewriteDataFilesInEmptyTable() {
     createTable();
     List<Object[]> output = sql("CALL %s.system.rewrite_data_files('%s')", catalogName, tableIdent);
-    assertEquals("Procedure output must match", ImmutableList.of(row(0, 0, 0L, 0, 0)), output);
+    assertEquals(
+        "Procedure output must match",
+        ImmutableList.of(row(0, 0, 0L, 0, 0, null, null, null, null, null, null)),
+        output);
   }
 
   @TestTemplate
@@ -192,7 +195,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
         row(10, 2),
         Arrays.copyOf(output.get(0), 2));
     // verify rewritten bytes separately
-    assertThat(output.get(0)).hasSize(5);
+    assertThat(output.get(0)).hasSize(11);
     assertThat(output.get(0)[2])
         .isInstanceOf(Long.class)
         .isEqualTo(Long.valueOf(snapshotSummary().get(SnapshotSummary.REMOVED_FILE_SIZE_PROP)));
@@ -262,7 +265,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
         row(10, 1),
         Arrays.copyOf(output.get(0), 2));
     // verify rewritten bytes separately
-    assertThat(output.get(0)).hasSize(5);
+    assertThat(output.get(0)).hasSize(11);
     assertThat(output.get(0)[2])
         .isInstanceOf(Long.class)
         .isEqualTo(Long.valueOf(snapshotSummary().get(SnapshotSummary.REMOVED_FILE_SIZE_PROP)));
@@ -286,7 +289,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
 
     assertEquals(
         "Action should rewrite 0 data files and add 0 data files",
-        ImmutableList.of(row(0, 0, 0L, 0, 0)),
+        ImmutableList.of(row(0, 0, 0L, 0, 0, null, null, null, null, null, null)),
         output);
 
     List<Object[]> actualRecords = currentData();
@@ -312,7 +315,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
         row(10, 1),
         Arrays.copyOf(output.get(0), 2));
     // verify rewritten bytes separately
-    assertThat(output.get(0)).hasSize(5);
+    assertThat(output.get(0)).hasSize(11);
     assertThat(output.get(0)[2])
         .isInstanceOf(Long.class)
         .isEqualTo(Long.valueOf(snapshotSummary().get(SnapshotSummary.REMOVED_FILE_SIZE_PROP)));
@@ -374,7 +377,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
         row(10, 1),
         Arrays.copyOf(output.get(0), 2));
     // verify rewritten bytes separately
-    assertThat(output.get(0)).hasSize(5);
+    assertThat(output.get(0)).hasSize(11);
     assertThat(output.get(0)[2])
         .isInstanceOf(Long.class)
         .isEqualTo(Long.valueOf(snapshotSummary().get(SnapshotSummary.REMOVED_FILE_SIZE_PROP)));
@@ -415,7 +418,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
         "Action should rewrite 10 data files and add 1 data files",
         row(10, 1),
         Arrays.copyOf(output.get(0), 2));
-    assertThat(output.get(0)).hasSize(5);
+    assertThat(output.get(0)).hasSize(11);
     assertThat(snapshotSummary())
         .containsEntry(SnapshotSummary.REMOVED_FILE_SIZE_PROP, String.valueOf(output.get(0)[2]));
     assertThat(sql("SELECT * FROM %s", tableName))
@@ -487,7 +490,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
         row(5, 1),
         Arrays.copyOf(output.get(0), 2));
     // verify rewritten bytes separately
-    assertThat(output.get(0)).hasSize(5);
+    assertThat(output.get(0)).hasSize(11);
     assertThat(output.get(0)[2])
         .isInstanceOf(Long.class)
         .isEqualTo(Long.valueOf(snapshotSummary().get(SnapshotSummary.REMOVED_FILE_SIZE_PROP)));
@@ -512,7 +515,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
         row(10, 1),
         Arrays.copyOf(output.get(0), 2));
     // verify rewritten bytes separately
-    assertThat(output.get(0)).hasSize(5);
+    assertThat(output.get(0)).hasSize(11);
     assertThat(output.get(0)[2])
         .isInstanceOf(Long.class)
         .isEqualTo(Long.valueOf(snapshotSummary().get(SnapshotSummary.REMOVED_FILE_SIZE_PROP)));
@@ -558,7 +561,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
         row(5, 1),
         Arrays.copyOf(output.get(0), 2));
     // verify rewritten bytes separately
-    assertThat(output.get(0)).hasSize(5);
+    assertThat(output.get(0)).hasSize(11);
     assertThat(output.get(0)[2])
         .isInstanceOf(Long.class)
         .isEqualTo(Long.valueOf(snapshotSummary().get(SnapshotSummary.REMOVED_FILE_SIZE_PROP)));
@@ -590,7 +593,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
         row(5, 1),
         row(output.get(0)[0], output.get(0)[1]));
     // verify rewritten bytes separately
-    assertThat(output.get(0)).hasSize(5);
+    assertThat(output.get(0)).hasSize(11);
     assertThat(output.get(0)[2])
         .isInstanceOf(Long.class)
         .isEqualTo(Long.valueOf(snapshotSummary().get(SnapshotSummary.REMOVED_FILE_SIZE_PROP)));
@@ -618,7 +621,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
         row(5, 1),
         Arrays.copyOf(output.get(0), 2));
     // verify rewritten bytes separately
-    assertThat(output.get(0)).hasSize(5);
+    assertThat(output.get(0)).hasSize(11);
     assertThat(output.get(0)[2])
         .isInstanceOf(Long.class)
         .isEqualTo(Long.valueOf(snapshotSummary().get(SnapshotSummary.REMOVED_FILE_SIZE_PROP)));
@@ -880,7 +883,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
         row(10, 1),
         Arrays.copyOf(output.get(0), 2));
     // verify rewritten bytes separately
-    assertThat(output.get(0)).hasSize(5);
+    assertThat(output.get(0)).hasSize(11);
     assertThat(output.get(0)[2])
         .isEqualTo(
             Long.valueOf(snapshotSummary(identifier).get(SnapshotSummary.REMOVED_FILE_SIZE_PROP)));
@@ -922,7 +925,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
         row(10, 1),
         Arrays.copyOf(output.get(0), 2));
     // verify rewritten bytes separately
-    assertThat(output.get(0)).hasSize(5);
+    assertThat(output.get(0)).hasSize(11);
     assertThat(output.get(0)[2])
         .isInstanceOf(Long.class)
         .isEqualTo(
@@ -965,7 +968,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
         row(10, 1),
         Arrays.copyOf(output.get(0), 2));
     // verify rewritten bytes separately
-    assertThat(output.get(0)).hasSize(5);
+    assertThat(output.get(0)).hasSize(11);
     assertThat(output.get(0)[2])
         .isInstanceOf(Long.class)
         .isEqualTo(
@@ -1004,7 +1007,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
         row(2, 1),
         Arrays.copyOf(output.get(0), 2));
     // verify rewritten bytes separately
-    assertThat(output.get(0)).hasSize(5);
+    assertThat(output.get(0)).hasSize(11);
     assertThat(output.get(0)[2])
         .isInstanceOf(Long.class)
         .isEqualTo(Long.valueOf(snapshotSummary().get(SnapshotSummary.REMOVED_FILE_SIZE_PROP)));
