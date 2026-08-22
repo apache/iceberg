@@ -1570,6 +1570,76 @@ public class TestRewriteDataFilesAction extends TestBase {
   }
 
   @TestTemplate
+  public void testSortSkipsOverlappingFilesWithoutMinOverlapDepth() {
+    Table table = createTable(20);
+    shouldHaveFiles(table, 20);
+    table.replaceSortOrder().asc("c2").commit();
+
+    // every file spans nearly the whole c2 range, so the layout is unsorted while each file sits
+    // inside the desired size range and is therefore invisible to size based selection
+    RewriteDataFiles.Result result = sortWithNeutralFileSizes(table).execute();
+
+    assertThat(result.rewriteResults()).as("Should not select any file group").isEmpty();
+    assertThat(result.rewrittenBytesCount()).isEqualTo(0);
+    shouldHaveSnapshots(table, 1);
+    shouldHaveFiles(table, 20);
+  }
+
+  @TestTemplate
+  public void testSortSelectsOverlappingFilesWithMinOverlapDepth() {
+    Table table = createTable(20);
+    shouldHaveFiles(table, 20);
+    table.replaceSortOrder().asc("c2").commit();
+
+    List<Object[]> originalData = currentData();
+    long dataSizeBefore = testDataSize(table);
+
+    RewriteDataFiles.Result result =
+        sortWithNeutralFileSizes(table)
+            .option(SparkShufflingDataRewritePlanner.MIN_OVERLAP_DEPTH, "2")
+            .execute();
+
+    assertThat(result.rewriteResults()).as("Should select the overlapping files").isNotEmpty();
+    assertThat(result.rewrittenBytesCount())
+        .as("Should rewrite the files sitting in the overlapping region")
+        .isEqualTo(dataSizeBefore);
+
+    assertEquals("We shouldn't have changed the data", originalData, currentData());
+    shouldHaveSnapshots(table, 2);
+    shouldHaveACleanCache(table);
+    shouldHaveLastCommitSorted(table, "c2");
+  }
+
+  @TestTemplate
+  public void testMinOverlapDepthRejectsInvalidValue() {
+    Table table = createTable(2);
+    table.replaceSortOrder().asc("c2").commit();
+
+    assertThatThrownBy(
+            () ->
+                basicRewrite(table)
+                    .sort()
+                    .option(SparkShufflingDataRewritePlanner.MIN_OVERLAP_DEPTH, "1")
+                    .execute())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("must be > 1");
+  }
+
+  /**
+   * A sort rewrite whose size thresholds accept every file as is, so that only the overlap axis can
+   * select files.
+   */
+  private RewriteDataFilesSparkAction sortWithNeutralFileSizes(Table table) {
+    int fileSize = averageFileSize(table);
+    return basicRewrite(table)
+        .sort()
+        .option(SizeBasedFileRewritePlanner.MIN_INPUT_FILES, "1")
+        .option(SizeBasedFileRewritePlanner.MIN_FILE_SIZE_BYTES, "1")
+        .option(SizeBasedFileRewritePlanner.MAX_FILE_SIZE_BYTES, Integer.toString(fileSize * 100))
+        .option(RewriteDataFiles.TARGET_FILE_SIZE_BYTES, Integer.toString(fileSize * 10));
+  }
+
+  @TestTemplate
   public void testSortAfterPartitionChange() throws IOException {
     Table table = createTable(20);
     shouldHaveFiles(table, 20);

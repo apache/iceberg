@@ -389,6 +389,13 @@ public class RewriteDataFilesSparkAction
         invalidKeys,
         runner.description());
 
+    // overlap is measured on the table sort order, which does not apply to a zorder rewrite
+    Preconditions.checkArgument(
+        !(runner instanceof SparkZOrderFileRewriteRunner
+            && options().containsKey(SparkShufflingDataRewritePlanner.MIN_OVERLAP_DEPTH)),
+        "Cannot use '%s' with zorder, it applies to the sort strategy only",
+        SparkShufflingDataRewritePlanner.MIN_OVERLAP_DEPTH);
+
     planner.init(options());
     runner.init(options());
 
