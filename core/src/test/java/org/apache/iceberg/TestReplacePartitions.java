@@ -670,6 +670,42 @@ public class TestReplacePartitions extends TestBase {
   }
 
   @TestTemplate
+  public void testConcurrentSuccessiveDVsReplaceConflict() {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
+
+    commit(table, table.newFastAppend().appendFile(FILE_A), branch);
+
+    TableMetadata base = readMetadata();
+    long baseId = latestSnapshot(base, branch).snapshotId();
+
+    DeleteFile dv1 = newDV(FILE_A);
+    commit(table, table.newRowDelta().addDeletes(dv1).validateFromSnapshot(baseId), branch);
+
+    long dvSnapshotId = latestSnapshot(readMetadata(), branch).snapshotId();
+
+    DeleteFile dv2 = newDV(FILE_A);
+    commit(
+        table,
+        table.newRowDelta().removeDeletes(dv1).addDeletes(dv2).validateFromSnapshot(dvSnapshotId),
+        branch);
+
+    assertThatThrownBy(
+            () ->
+                commit(
+                    table,
+                    table
+                        .newReplacePartitions()
+                        .validateFromSnapshot(baseId)
+                        .validateNoConflictingDeletes()
+                        .addFile(FILE_A),
+                    branch))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageStartingWith(
+            "Found new conflicting delete files that can apply to records matching [data_bucket=0]")
+        .hasMessageNotContaining("Can't index multiple DVs");
+  }
+
+  @TestTemplate
   public void testDeleteReplaceConflictNonPartitioned() {
     assumeThat(formatVersion).isEqualTo(2);
 

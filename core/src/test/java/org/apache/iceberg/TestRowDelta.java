@@ -1325,6 +1325,46 @@ public class TestRowDelta extends TestBase {
   }
 
   @TestTemplate
+  public void testConcurrentSuccessiveDVsReportedAsConflictNotCorruption() {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
+
+    commit(table, table.newAppend().appendFile(FILE_A).appendFile(FILE_B), branch);
+
+    Snapshot firstSnapshot = latestSnapshot(table, branch);
+
+    Expression conflictDetectionFilter = Expressions.alwaysTrue();
+
+    RowDelta rowDelta =
+        table
+            .newRowDelta()
+            .toBranch(branch)
+            .addDeletes(newDV(FILE_B))
+            .validateFromSnapshot(firstSnapshot.snapshotId())
+            .conflictDetectionFilter(conflictDetectionFilter)
+            .validateNoConflictingDeleteFiles();
+
+    DeleteFile dv1 = newDV(FILE_A);
+    commit(table, table.newRowDelta().addDeletes(dv1), branch);
+
+    Snapshot dvSnapshot = latestSnapshot(table, branch);
+
+    DeleteFile dv2 = newDV(FILE_A);
+    commit(
+        table,
+        table
+            .newRowDelta()
+            .removeDeletes(dv1)
+            .addDeletes(dv2)
+            .validateFromSnapshot(dvSnapshot.snapshotId()),
+        branch);
+
+    assertThatThrownBy(() -> commit(table, rowDelta, branch))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageStartingWith("Found new conflicting delete files")
+        .hasMessageNotContaining("Can't index multiple DVs");
+  }
+
+  @TestTemplate
   public void testConcurrentConflictingRowDeltaWithoutAppendValidation() {
     commit(table, table.newAppend().appendFile(FILE_A), branch);
 

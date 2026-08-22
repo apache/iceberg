@@ -813,4 +813,174 @@ public class TestRewriteFiles extends TestBase {
         files(fileADeletes(), fileBDeletes()),
         statuses(ManifestEntry.Status.DELETED, ManifestEntry.Status.EXISTING));
   }
+
+  @TestTemplate
+  public void testRewriteOfFileWithSuccessiveDVReplacementsRejectedAsConflict() {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
+
+    commit(table, table.newAppend().appendFile(FILE_A), branch);
+    Snapshot s0 = latestSnapshot(table, branch);
+
+    DeleteFile dv1 = newDV(FILE_A);
+    commit(table, table.newRowDelta().addDeletes(dv1), branch);
+    Snapshot s1 = latestSnapshot(table, branch);
+
+    DeleteFile dv2 = newDV(FILE_A);
+    commit(
+        table,
+        table
+            .newRowDelta()
+            .removeDeletes(dv1)
+            .addDeletes(dv2)
+            .validateFromSnapshot(s1.snapshotId()),
+        branch);
+    Snapshot s2 = latestSnapshot(table, branch);
+
+    DeleteFileIndex currentIndex =
+        DeleteFileIndex.builderFor(table.io(), s2.deleteManifests(table.io()))
+            .specsById(table.specs())
+            .build();
+    DeleteFile[] activeDVs = currentIndex.forDataFile(0, FILE_A);
+    assertThat(activeDVs)
+        .as("Current snapshot should have exactly one applicable DV for FILE_A")
+        .hasSize(1);
+    assertThat(activeDVs[0].location())
+        .as("The active DV should be the replacement DV2")
+        .isEqualTo(dv2.location());
+
+    assertThatThrownBy(
+            () ->
+                commit(
+                    table,
+                    table
+                        .newRewrite()
+                        .validateFromSnapshot(s0.snapshotId())
+                        .rewriteFiles(
+                            ImmutableSet.of(FILE_A),
+                            ImmutableSet.of(),
+                            ImmutableSet.of(FILE_B),
+                            ImmutableSet.of()),
+                    branch))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("Cannot commit, found new delete for replaced data file")
+        .hasMessageNotContaining("Can't index multiple DVs");
+  }
+
+  @TestTemplate
+  public void testRewriteOfUnrelatedFileSucceedsWithSuccessiveDVReplacements() {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
+
+    commit(table, table.newAppend().appendFile(FILE_A).appendFile(FILE_B), branch);
+    Snapshot s0 = latestSnapshot(table, branch);
+
+    DeleteFile dv1 = newDV(FILE_A);
+    commit(table, table.newRowDelta().addDeletes(dv1), branch);
+    Snapshot s1 = latestSnapshot(table, branch);
+
+    DeleteFile dv2 = newDV(FILE_A);
+    commit(
+        table,
+        table
+            .newRowDelta()
+            .removeDeletes(dv1)
+            .addDeletes(dv2)
+            .validateFromSnapshot(s1.snapshotId()),
+        branch);
+
+    commit(
+        table,
+        table
+            .newRewrite()
+            .validateFromSnapshot(s0.snapshotId())
+            .rewriteFiles(
+                ImmutableSet.of(FILE_B),
+                ImmutableSet.of(),
+                ImmutableSet.of(FILE_C),
+                ImmutableSet.of()),
+        branch);
+
+    assertThat(latestSnapshot(table, branch).operation()).isEqualTo(DataOperations.REPLACE);
+  }
+
+  /**
+   * The validation window only walks snapshots whose operation is in
+   * VALIDATE_ADDED_DELETE_FILES_OPERATIONS, which excludes "replace", so a DV removed by delete
+   * file compaction keeps a live entry in the window.
+   */
+  @TestTemplate
+  public void testRewriteOfUnrelatedFileSucceedsWhenDVRemovedByReplaceSnapshot() {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
+
+    commit(table, table.newAppend().appendFile(FILE_A).appendFile(FILE_B), branch);
+    Snapshot s0 = latestSnapshot(table, branch);
+
+    DeleteFile dv1 = newDV(FILE_A);
+    commit(table, table.newRowDelta().addDeletes(dv1), branch);
+
+    DeleteFile dv1prime = newDV(FILE_A);
+    commit(
+        table,
+        table
+            .newRewrite()
+            .rewriteFiles(
+                ImmutableSet.of(),
+                ImmutableSet.of(dv1),
+                ImmutableSet.of(),
+                ImmutableSet.of(dv1prime)),
+        branch);
+    Snapshot s2 = latestSnapshot(table, branch);
+    assertThat(s2.operation()).isEqualTo(DataOperations.REPLACE);
+
+    DeleteFile dv2 = newDV(FILE_A);
+    commit(
+        table,
+        table
+            .newRowDelta()
+            .removeDeletes(dv1prime)
+            .addDeletes(dv2)
+            .validateFromSnapshot(s2.snapshotId()),
+        branch);
+
+    commit(
+        table,
+        table
+            .newRewrite()
+            .validateFromSnapshot(s0.snapshotId())
+            .rewriteFiles(
+                ImmutableSet.of(FILE_B),
+                ImmutableSet.of(),
+                ImmutableSet.of(FILE_C),
+                ImmutableSet.of()),
+        branch);
+
+    assertThat(latestSnapshot(table, branch).operation()).isEqualTo(DataOperations.REPLACE);
+  }
+
+  /**
+   * Control case for {@link #testRewriteOfUnrelatedFileSucceedsWithSuccessiveDVReplacements()} with
+   * a single DV in the validation window instead of a succession.
+   */
+  @TestTemplate
+  public void testRewriteOfUnrelatedFileSucceedsWithSingleDV() {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
+
+    commit(table, table.newAppend().appendFile(FILE_A).appendFile(FILE_B), branch);
+    Snapshot s0 = latestSnapshot(table, branch);
+
+    commit(table, table.newRowDelta().addDeletes(newDV(FILE_A)), branch);
+
+    commit(
+        table,
+        table
+            .newRewrite()
+            .validateFromSnapshot(s0.snapshotId())
+            .rewriteFiles(
+                ImmutableSet.of(FILE_B),
+                ImmutableSet.of(),
+                ImmutableSet.of(FILE_C),
+                ImmutableSet.of()),
+        branch);
+
+    assertThat(latestSnapshot(table, branch).operation()).isEqualTo(DataOperations.REPLACE);
+  }
 }

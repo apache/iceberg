@@ -416,6 +416,7 @@ class DeleteFileIndex {
     private ExecutorService executorService = null;
     private ScanMetrics scanMetrics = ScanMetrics.noop();
     private boolean ignoreResiduals = false;
+    private boolean indexDVsAsPositionDeletes = false;
 
     Builder(FileIO io, Set<ManifestFile> deleteManifests) {
       this.io = io;
@@ -485,6 +486,24 @@ class DeleteFileIndex {
       return this;
     }
 
+    /**
+     * Indexes deletion vectors as file-scoped position deletes, allowing a data file to have more
+     * than one DV.
+     *
+     * <p>A data file has at most one live DV in a single snapshot, so by default {@link #build()}
+     * rejects a second DV for the same data file. That invariant does not hold across snapshots,
+     * and commit validation indexes delete manifests from every snapshot in the validation window,
+     * so it requires an index that accepts them.
+     *
+     * <p>The resulting index only answers whether deletes exist for a data file, not which deletes
+     * apply to it: {@code forDataFile} no longer suppresses partition-scoped position deletes when
+     * a DV is present. Scans must use the default so that corrupt live metadata is still detected.
+     */
+    Builder indexDVsAsPositionDeletes() {
+      this.indexDVsAsPositionDeletes = true;
+      return this;
+    }
+
     private Iterable<DeleteFile> filterDeleteFiles() {
       return Iterables.filter(deleteFiles, file -> file.dataSequenceNumber() > minSequenceNumber);
     }
@@ -541,7 +560,7 @@ class DeleteFileIndex {
       for (DeleteFile file : files) {
         switch (file.content()) {
           case POSITION_DELETES:
-            if (ContentFileUtil.isDV(file)) {
+            if (ContentFileUtil.isDV(file) && !indexDVsAsPositionDeletes) {
               add(dvByPath, file);
             } else {
               add(posDeletesByPath, posDeletesByPartition, file);

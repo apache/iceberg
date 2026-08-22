@@ -787,6 +787,25 @@ public abstract class DeleteFileIndexTestBase<
   }
 
   @TestTemplate
+  public void testMultipleDVsIndexedAsPositionDeletes() {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
+
+    DeleteFile dv1 = withDataSequenceNumber(1, newDV(FILE_A));
+    DeleteFile dv2 = withDataSequenceNumber(2, newDV(FILE_A));
+    List<DeleteFile> dvs = Arrays.asList(dv1, dv2);
+
+    DeleteFileIndex index =
+        DeleteFileIndex.builderFor(dvs)
+            .specsById(table.specs())
+            .indexDVsAsPositionDeletes()
+            .build();
+
+    assertThat(index.forDataFile(0, FILE_A))
+        .as("Both DVs should apply to FILE_A")
+        .containsExactly(dv1, dv2);
+  }
+
+  @TestTemplate
   public void testInvalidDVSequenceNumber() {
     assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
     DeleteFile dv = withDataSequenceNumber(1, newDV(FILE_A));
