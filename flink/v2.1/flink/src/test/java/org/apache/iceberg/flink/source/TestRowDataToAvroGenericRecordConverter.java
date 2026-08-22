@@ -26,9 +26,10 @@ import org.apache.iceberg.flink.DataGenerator;
 
 public class TestRowDataToAvroGenericRecordConverter extends AvroGenericRecordConverterBase {
   @Override
-  protected void testConverter(DataGenerator dataGenerator) {
+  protected void testConverter(DataGenerator dataGenerator, boolean legacyTimestampMapping) {
     RowDataToAvroGenericRecordConverter converter =
-        RowDataToAvroGenericRecordConverter.fromAvroSchema(dataGenerator.avroSchema());
+        RowDataToAvroGenericRecordConverter.fromAvroSchema(
+            dataGenerator.avroSchema(), legacyTimestampMapping);
     GenericRecord expected = dataGenerator.generateAvroGenericRecord();
     GenericRecord actual = converter.apply(dataGenerator.generateFlinkRowData());
     assertThat(actual).isEqualTo(expected);
