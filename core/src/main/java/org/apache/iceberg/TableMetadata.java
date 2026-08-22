@@ -757,6 +757,60 @@ public class TableMetadata implements Serializable {
         .build();
   }
 
+  /**
+   * Like {@link #buildReplacement}, but keeps the field IDs already assigned in {@code
+   * updatedSchema} rather than reassigning fresh ones by matching column names.
+   *
+   * <p>Use this when the replacement schema was built earlier against a different version of the
+   * table and may be committed on top of newer metadata. {@link #buildReplacement} would reassign
+   * field IDs by name against this (newer) schema, which can move a column to a different ID than
+   * the one its already-written data files use, making that data unreadable. Keeping the schema's
+   * existing IDs avoids that.
+   */
+  TableMetadata buildReplacementPreservingIds(
+      Schema updatedSchema,
+      PartitionSpec updatedPartitionSpec,
+      SortOrder updatedSortOrder,
+      String newLocation,
+      Map<String, String> updatedProperties,
+      int replacementFormatVersion) {
+    ValidationException.check(
+        formatVersion > 1 || PartitionSpec.hasSequentialIds(updatedPartitionSpec),
+        "Spec does not use sequential IDs that are required in v1: %s",
+        updatedPartitionSpec);
+
+    // keep the schema's field IDs as-is; only raise lastColumnId so it covers them
+    int preservedLastColumnId = Math.max(lastColumnId, updatedSchema.highestFieldId());
+
+    // rebuild the partition spec using the provided schema's ids and reassign partition field ids
+    // to align with existing partition specs in the table
+    PartitionSpec freshSpec =
+        reassignPartitionIds(
+            freshSpec(INITIAL_SPEC_ID, updatedSchema, updatedPartitionSpec),
+            new AtomicInteger(lastAssignedPartitionId)::incrementAndGet);
+
+    // rebuild the sort order using the provided schema's ids
+    SortOrder freshSortOrder =
+        freshSortOrder(INITIAL_SORT_ORDER_ID, updatedSchema, updatedSortOrder);
+
+    // check if there is format version override
+    int newFormatVersion =
+        Math.max(
+            replacementFormatVersion,
+            PropertyUtil.propertyAsInt(
+                updatedProperties, TableProperties.FORMAT_VERSION, formatVersion));
+
+    return new Builder(this)
+        .upgradeFormatVersion(newFormatVersion)
+        .removeRef(SnapshotRef.MAIN_BRANCH)
+        .setCurrentSchema(updatedSchema, preservedLastColumnId)
+        .setDefaultPartitionSpec(freshSpec)
+        .setDefaultSortOrder(freshSortOrder)
+        .setLocation(newLocation)
+        .setProperties(persistedProperties(updatedProperties))
+        .build();
+  }
+
   public TableMetadata updateLocation(String newLocation) {
     return new Builder(this).setLocation(newLocation).build();
   }
