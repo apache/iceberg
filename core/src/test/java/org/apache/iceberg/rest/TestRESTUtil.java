@@ -88,6 +88,12 @@ public class TestRESTUtil {
             String.format(
                 "dogs.and.cats%snamed%shank.or.james-westfall",
                 namespaceSeparator, namespaceSeparator),
+          },
+          new Object[] {new String[] {"sales report"}, "sales%20report"},
+          new Object[] {new String[] {"my+name with+spaces"}, "my%2Bname%20with%2Bspaces"},
+          new Object[] {
+            new String[] {"sales report", "monthly results"},
+            String.format("sales%%20report%smonthly%%20results", namespaceSeparator),
           }
         };
 
@@ -139,6 +145,28 @@ public class TestRESTUtil {
         .isThrownBy(
             () -> RESTUtil.decodeNamespace(null, RESTUtil.NAMESPACE_SEPARATOR_URLENCODED_UTF_8))
         .withMessage("Invalid namespace: null");
+  }
+
+  @Test
+  public void encodePathSegmentForPathUse() {
+    assertThat(RESTUtil.encodePathSegment("sales report")).isEqualTo("sales%20report");
+    assertThat(RESTUtil.encodePathSegment("a+b")).isEqualTo("a%2Bb");
+    assertThat(RESTUtil.encodePathSegment("my+name with+spaces"))
+        .isEqualTo("my%2Bname%20with%2Bspaces");
+    assertThat(RESTUtil.encodePathSegment("a/b")).isEqualTo("a%2Fb");
+
+    assertThatThrownBy(() -> RESTUtil.encodePathSegment(null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid string to encode: null");
+  }
+
+  @Test
+  public void legacyEncodedValuesStillDecode() {
+    Namespace singleLevel = Namespace.of("my namespace");
+    String legacyEncoded = "my+namespace";
+
+    assertThat(RESTUtil.decodeNamespace(legacyEncoded, "%1F")).isEqualTo(singleLevel);
+    assertThat(RESTUtil.decodeString("my%2Bname+with%2Bspaces")).isEqualTo("my+name with+spaces");
   }
 
   @Test
