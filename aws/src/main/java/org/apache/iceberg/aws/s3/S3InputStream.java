@@ -28,6 +28,7 @@ import java.net.SocketTimeoutException;
 import java.util.Arrays;
 import java.util.List;
 import javax.net.ssl.SSLException;
+import org.apache.iceberg.exceptions.ForbiddenException;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.io.FileIOMetricsContext;
 import org.apache.iceberg.io.IOUtil;
@@ -45,9 +46,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.core.sync.ResponseTransformer;
 import software.amazon.awssdk.http.Abortable;
+import software.amazon.awssdk.http.HttpStatusCode;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
+import software.amazon.awssdk.services.s3.model.S3Exception;
 
 class S3InputStream extends SeekableInputStream implements RangeReadable {
   private static final Logger LOG = LoggerFactory.getLogger(S3InputStream.class);
@@ -195,7 +198,22 @@ class S3InputStream extends SeekableInputStream implements RangeReadable {
 
     S3RequestUtil.configureEncryption(s3FileIOProperties, requestBuilder);
 
-    return s3.getObject(requestBuilder.build(), ResponseTransformer.toInputStream());
+    return openObject(requestBuilder.build());
+  }
+
+  private InputStream openObject(GetObjectRequest request) {
+    try {
+      return s3.getObject(request, ResponseTransformer.toInputStream());
+    } catch (NoSuchKeyException e) {
+      throw new NotFoundException(e, "Location does not exist: %s", location);
+    } catch (S3Exception e) {
+      if (e.statusCode() == HttpStatusCode.FORBIDDEN) {
+        throw new ForbiddenException(
+            e, "Failed to open input stream for location: %s: %s", location, e.getMessage());
+      }
+
+      throw e;
+    }
   }
 
   @Override
@@ -248,11 +266,7 @@ class S3InputStream extends SeekableInputStream implements RangeReadable {
 
     closeStream(closeQuietly);
 
-    try {
-      stream = s3.getObject(requestBuilder.build(), ResponseTransformer.toInputStream());
-    } catch (NoSuchKeyException e) {
-      throw new NotFoundException(e, "Location does not exist: %s", location);
-    }
+    stream = openObject(requestBuilder.build());
   }
 
   @VisibleForTesting
