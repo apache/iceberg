@@ -21,6 +21,7 @@ package org.apache.iceberg;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -154,5 +155,104 @@ public class TestSchemaParser extends DataTestBase {
         .isEqualTo(defaultValue.value());
     assertThat(serialized.findField("col_with_default").writeDefault())
         .isEqualTo(defaultValue.value());
+  }
+
+  @Test
+  void requiredUnknownFieldFailsWithFieldName() {
+    String json =
+        "{"
+            + "\"type\":\"struct\","
+            + "\"fields\":["
+            + "{"
+            + "\"id\":1,"
+            + "\"name\":\"mystery\","
+            + "\"required\":true,"
+            + "\"type\":\"unknown\""
+            + "}"
+            + "]"
+            + "}";
+
+    assertThatThrownBy(() -> SchemaParser.fromJson(json))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Unknown type field 'mystery' must be optional");
+  }
+
+  @Test
+  void requiredUnknownListElementFailsWithElementName() {
+    String json =
+        "{"
+            + "\"type\":\"struct\","
+            + "\"fields\":["
+            + "{"
+            + "\"id\":1,"
+            + "\"name\":\"items\","
+            + "\"required\":false,"
+            + "\"type\":{"
+            + "\"type\":\"list\","
+            + "\"element-id\":2,"
+            + "\"element\":\"unknown\","
+            + "\"element-required\":true"
+            + "}"
+            + "}"
+            + "]"
+            + "}";
+
+    assertThatThrownBy(() -> SchemaParser.fromJson(json))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Unknown type field 'items.element' must be optional");
+  }
+
+  @Test
+  void unknownMapKeyFailsWithKeyName() {
+    String json =
+        "{"
+            + "\"type\":\"struct\","
+            + "\"fields\":["
+            + "{"
+            + "\"id\":1,"
+            + "\"name\":\"properties\","
+            + "\"required\":false,"
+            + "\"type\":{"
+            + "\"type\":\"map\","
+            + "\"key-id\":2,"
+            + "\"key\":\"unknown\","
+            + "\"value-id\":3,"
+            + "\"value\":\"string\","
+            + "\"value-required\":false"
+            + "}"
+            + "}"
+            + "]"
+            + "}";
+
+    assertThatThrownBy(() -> SchemaParser.fromJson(json))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Unknown type field 'properties.key' must be optional");
+  }
+
+  @Test
+  void requiredUnknownMapValueFailsWithValueName() {
+    String json =
+        "{"
+            + "\"type\":\"struct\","
+            + "\"fields\":["
+            + "{"
+            + "\"id\":1,"
+            + "\"name\":\"properties\","
+            + "\"required\":false,"
+            + "\"type\":{"
+            + "\"type\":\"map\","
+            + "\"key-id\":2,"
+            + "\"key\":\"string\","
+            + "\"value-id\":3,"
+            + "\"value\":\"unknown\","
+            + "\"value-required\":true"
+            + "}"
+            + "}"
+            + "]"
+            + "}";
+
+    assertThatThrownBy(() -> SchemaParser.fromJson(json))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Unknown type field 'properties.value' must be optional");
   }
 }
