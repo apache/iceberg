@@ -69,6 +69,7 @@ jaxb-runtime = "2.3.9"
 jetty = "12.1.12"
 joda = "2.14.3"
 junit = "5.14.4"
+junit4 = "4.13.2"
 junit-platform = "1.14.4"
 junit-pioneer = "2.3.0"
 kafka = "3.9.2"
@@ -190,17 +191,14 @@ flink120-connector-test-utils = { module = "org.apache.flink:flink-connector-tes
 flink120-core = { module = "org.apache.flink:flink-core", version.ref = "flink120" }
 flink120-runtime = { module = "org.apache.flink:flink-runtime", version.ref = "flink120" }
 flink120-test-utils = { module = "org.apache.flink:flink-test-utils", version.ref = "flink120" }
-flink120-test-utilsjunit = { module = "org.apache.flink:flink-test-utils-junit", version.ref = "flink120" }
 flink20-connector-test-utils = { module = "org.apache.flink:flink-connector-test-utils", version.ref = "flink20" }
 flink20-core = { module = "org.apache.flink:flink-core", version.ref = "flink20" }
 flink20-runtime = { module = "org.apache.flink:flink-runtime", version.ref = "flink20" }
 flink20-test-utils = { module = "org.apache.flink:flink-test-utils", version.ref = "flink20" }
-flink20-test-utilsjunit = { module = "org.apache.flink:flink-test-utils-junit", version.ref = "flink20" }
 flink21-connector-test-utils = { module = "org.apache.flink:flink-connector-test-utils", version.ref = "flink21" }
 flink21-core = { module = "org.apache.flink:flink-core", version.ref = "flink21" }
 flink21-runtime = { module = "org.apache.flink:flink-runtime", version.ref = "flink21" }
 flink21-test-utils = { module = "org.apache.flink:flink-test-utils", version.ref = "flink21" }
-flink21-test-utilsjunit = { module = "org.apache.flink:flink-test-utils-junit", version.ref = "flink21" }
 guava-testlib = { module = "com.google.guava:guava-testlib", version.ref = "guava" }
 jakarta-el-api = { module = "jakarta.el:jakarta.el-api", version.ref = "jakarta-el-api" }
 jakarta-servlet = {module = "jakarta.servlet:jakarta.servlet-api", version.ref = "jakarta-servlet-api"}
@@ -211,6 +209,7 @@ joda-time = { module = "joda-time:joda-time", version.ref = "joda" }
 junit-jupiter = { module = "org.junit.jupiter:junit-jupiter", version.ref = "junit" }
 junit-jupiter-engine = { module = "org.junit.jupiter:junit-jupiter-engine", version.ref = "junit" }
 junit-pioneer = { module = "org.junit-pioneer:junit-pioneer", version.ref = "junit-pioneer" }
+junit-v4 = { module = "junit:junit", version.ref = "junit4" }
 junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher", version.ref = "junit-platform" }
 junit-suite-api = { module = "org.junit.platform:junit-platform-suite-api", version.ref = "junit-platform" }
 junit-suite-engine = { module = "org.junit.platform:junit-platform-suite-engine", version.ref = "junit-platform" }
