@@ -157,6 +157,23 @@ public class RESTUtil {
   }
 
   /**
+   * Encodes a string for use in a URL path segment, as opposed to query parameters or form data.
+   *
+   * <p>Unlike {@link #encodeString(String)}, which uses {@code application/x-www-form-urlencoded}
+   * encoding where a space becomes {@code +}, this method uses percent-encoding where a space
+   * becomes {@code %20}. This is the correct encoding for path segments in REST resource URLs.
+   *
+   * <p>{@link #decodeString(String)} should be used to decode.
+   *
+   * @param toEncode string to encode
+   * @return UTF-8 percent-encoded string, suitable for use as a URL path segment
+   */
+  public static String encodePathSegment(String toEncode) {
+    Preconditions.checkArgument(toEncode != null, "Invalid string to encode: null");
+    return URLEncoder.encode(toEncode, StandardCharsets.UTF_8).replace("+", "%20");
+  }
+
+  /**
    * Decodes a URL-encoded string.
    *
    * <p>See also {@link #encodeString(String)} for URL encoding.
@@ -293,7 +310,7 @@ public class RESTUtil {
     String[] encodedLevels = new String[levels.length];
 
     for (int i = 0; i < levels.length; i++) {
-      encodedLevels[i] = encodeString(levels[i]);
+      encodedLevels[i] = encodePathSegment(levels[i]);
     }
 
     return Joiner.on(separator).join(encodedLevels);
