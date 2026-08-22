@@ -70,15 +70,16 @@ project(":iceberg-flink:iceberg-flink-${flinkMajorVersion}") {
     implementation libs.datasketches
     implementation libs.roaringbitmap
 
-    testImplementation libs.flink120.connector.test.utils
+    testImplementation(libs.flink120.connector.test.utils) {
+      exclude group: 'junit'
+      exclude group: 'org.junit.vintage'
+    }
     testImplementation libs.flink120.core
     testImplementation libs.flink120.runtime
-    testImplementation(libs.flink120.test.utilsjunit) {
-      exclude group: 'junit'
-    }
     testImplementation(libs.flink120.test.utils) {
       exclude group: "org.apache.curator", module: 'curator-test'
       exclude group: 'junit'
+      exclude group: 'org.junit.vintage'
     }
 
     testImplementation project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
