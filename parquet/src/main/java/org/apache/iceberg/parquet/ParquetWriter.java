@@ -204,7 +204,9 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
   }
 
   private void checkSize() {
-    if (trackUncompressedSize) {
+    if (recordCount >= props.getRowGroupRowCountLimit()) {
+      flushRowGroup(false);
+    } else if (trackUncompressedSize) {
       if (rowGroupUncompressedSize >= targetRowGroupSize) {
         flushRowGroup(false);
       } else if (recordCount >= nextCheckRecordCount) {
