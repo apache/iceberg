@@ -65,6 +65,8 @@ public class SortOrderStatsHandler {
     private final int filesMissingBounds;
     private final Integer maxOverlapDepth;
     private final Double avgOverlapDepth;
+    private final Integer candidateFileCount;
+    private final Long candidateBytes;
 
     PartitionOverlapStats(
         StructLike partition,
@@ -72,13 +74,17 @@ public class SortOrderStatsHandler {
         int fileCount,
         int filesMissingBounds,
         Integer maxOverlapDepth,
-        Double avgOverlapDepth) {
+        Double avgOverlapDepth,
+        Integer candidateFileCount,
+        Long candidateBytes) {
       this.partition = partition;
       this.specId = specId;
       this.fileCount = fileCount;
       this.filesMissingBounds = filesMissingBounds;
       this.maxOverlapDepth = maxOverlapDepth;
       this.avgOverlapDepth = avgOverlapDepth;
+      this.candidateFileCount = candidateFileCount;
+      this.candidateBytes = candidateBytes;
     }
 
     public StructLike partition() {
@@ -115,6 +121,19 @@ public class SortOrderStatsHandler {
     public Double avgOverlapDepth() {
       return avgOverlapDepth;
     }
+
+    /**
+     * Number of files in regions where the overlap depth reaches the requested minimum, or null if
+     * no minimum depth was requested.
+     */
+    public Integer candidateFileCount() {
+      return candidateFileCount;
+    }
+
+    /** Total size of the candidate files, or null if no minimum depth was requested. */
+    public Long candidateBytes() {
+      return candidateBytes;
+    }
   }
 
   /**
@@ -135,7 +154,30 @@ public class SortOrderStatsHandler {
    * @return per-partition overlap statistics
    */
   public static List<PartitionOverlapStats> computeStats(Table table, Long snapshotId) {
+    return computeStats(table, snapshotId, null);
+  }
+
+  /**
+   * Computes per-partition overlap stats for the given snapshot, additionally reporting how many
+   * files (and bytes) sit in regions where the overlap depth reaches {@code minOverlapDepth}.
+   *
+   * <p>These are the files a sorted rewrite with {@code min-overlap-depth} set to the same value
+   * would select on the overlap axis, so the candidate columns show the cost of acting on a given
+   * threshold before any rewrite is run.
+   *
+   * @param table the table to analyze
+   * @param snapshotId the snapshot to analyze, or null for the current snapshot
+   * @param minOverlapDepth the depth at which files count as rewrite candidates (must be > 1), or
+   *     null to skip candidate reporting
+   * @return per-partition overlap statistics
+   */
+  public static List<PartitionOverlapStats> computeStats(
+      Table table, Long snapshotId, Integer minOverlapDepth) {
     Preconditions.checkArgument(table != null, "Invalid table: null");
+    Preconditions.checkArgument(
+        minOverlapDepth == null || minOverlapDepth > 1,
+        "Invalid minimum overlap depth: %s, must be > 1",
+        minOverlapDepth);
 
     int sourceId = sortSourceId(table.sortOrder(), table.name());
     Type.PrimitiveType boundType = table.schema().findType(sourceId).asPrimitiveType();
@@ -179,7 +221,13 @@ public class SortOrderStatsHandler {
       List<Range> ranges = entry.getValue();
       Integer missing = missingByPartition.get(specId, partition);
       results.add(
-          partitionStats(partition, specId, ranges, missing == null ? 0 : missing, comparator));
+          partitionStats(
+              partition,
+              specId,
+              ranges,
+              missing == null ? 0 : missing,
+              comparator,
+              minOverlapDepth));
     }
 
     return results;
@@ -238,12 +286,17 @@ public class SortOrderStatsHandler {
     }
 
     Comparator<Object> comparator = comparator(boundType);
-    Set<String> marked = Sets.newHashSet();
+    Set<Range> marked = Sets.newHashSet();
     for (List<Range> ranges : rangesByPartition.values()) {
       markOverlapping(ranges, comparator, minOverlapDepth, marked);
     }
 
-    return marked;
+    Set<String> locations = Sets.newHashSetWithExpectedSize(marked.size());
+    for (Range range : marked) {
+      locations.add(range.location);
+    }
+
+    return locations;
   }
 
   private static int sortSourceId(SortOrder sortOrder, String tableName) {
@@ -267,7 +320,7 @@ public class SortOrderStatsHandler {
    * minDepth}, using the same sweep line as the depth computation.
    */
   private static void markOverlapping(
-      List<Range> ranges, Comparator<Object> comparator, int minDepth, Set<String> marked) {
+      List<Range> ranges, Comparator<Object> comparator, int minDepth, Set<Range> marked) {
     if (ranges.size() < minDepth) {
       return;
     }
@@ -284,10 +337,7 @@ public class SortOrderStatsHandler {
         active += 1;
         pending.add(event.range);
         if (active >= minDepth) {
-          for (Range range : pending) {
-            marked.add(range.location);
-          }
-
+          marked.addAll(pending);
           pending.clear();
         }
       } else {
@@ -321,7 +371,7 @@ public class SortOrderStatsHandler {
       return null;
     }
 
-    return new Range(lower, upper, file.location());
+    return new Range(lower, upper, file.location(), file.fileSizeInBytes());
   }
 
   /**
@@ -352,10 +402,14 @@ public class SortOrderStatsHandler {
       int specId,
       List<Range> ranges,
       int missing,
-      Comparator<Object> comparator) {
+      Comparator<Object> comparator,
+      Integer minOverlapDepth) {
     int fileCount = ranges.size() + missing;
     if (ranges.isEmpty()) {
-      return new PartitionOverlapStats(partition, specId, fileCount, missing, null, null);
+      Integer candidates = minOverlapDepth == null ? null : 0;
+      Long candidateBytes = minOverlapDepth == null ? null : 0L;
+      return new PartitionOverlapStats(
+          partition, specId, fileCount, missing, null, null, candidates, candidateBytes);
     }
 
     List<Event> events = events(ranges, comparator);
@@ -382,18 +436,30 @@ public class SortOrderStatsHandler {
 
     double avgDepth = 1.0 + (2.0 * overlapPairs) / ranges.size();
 
-    return new PartitionOverlapStats(partition, specId, fileCount, missing, maxDepth, avgDepth);
+    Integer candidates = null;
+    Long candidateBytes = null;
+    if (minOverlapDepth != null) {
+      Set<Range> marked = Sets.newHashSet();
+      markOverlapping(ranges, comparator, minOverlapDepth, marked);
+      candidates = marked.size();
+      candidateBytes = marked.stream().mapToLong(range -> range.length).sum();
+    }
+
+    return new PartitionOverlapStats(
+        partition, specId, fileCount, missing, maxDepth, avgDepth, candidates, candidateBytes);
   }
 
   private static class Range {
     private final Object lower;
     private final Object upper;
     private final String location;
+    private final long length;
 
-    Range(Object lower, Object upper, String location) {
+    Range(Object lower, Object upper, String location, long length) {
       this.lower = lower;
       this.upper = upper;
       this.location = location;
+      this.length = length;
     }
   }
 
