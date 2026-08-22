@@ -293,6 +293,10 @@ public class IcebergSinkConfig extends AbstractConfig {
     } else {
       throw new ConfigException("Must specify table name(s)");
     }
+    checkState(
+        !(schemaForceOptional() && tablesDefaultIdColumns() != null),
+        "iceberg.tables.schema-force-optional and iceberg.tables.default-id-columns are incompatible: "
+            + "schema-force-optional marks every field optional, but identifier fields must be required");
   }
 
   private void checkState(boolean condition, String msg) {
