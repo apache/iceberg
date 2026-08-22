@@ -21,6 +21,7 @@ package org.apache.iceberg.rest;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -320,12 +321,19 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     checkNamespaceIsValid(ns);
     Map<String, String> queryParams = Maps.newHashMap();
     ImmutableList.Builder<TableIdentifier> tables = ImmutableList.builder();
+    Set<String> seenPageTokens = new HashSet<>();
     String pageToken = "";
     if (pageSize != null) {
       queryParams.put("pageSize", String.valueOf(pageSize));
     }
 
     do {
+      if (!seenPageTokens.add(pageToken)) {
+        throw new IllegalStateException(
+            String.format(
+                "REST catalog returned a duplicate page token '%s' while listing tables in %s; aborting to avoid an infinite loop",
+                pageToken, ns));
+      }
       queryParams.put("pageToken", pageToken);
       AuthSession contextualSession = authManager.contextualSession(context, catalogAuth);
       ListTablesResponse response =
@@ -783,12 +791,19 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     }
 
     ImmutableList.Builder<Namespace> namespaces = ImmutableList.builder();
+    Set<String> seenPageTokens = new HashSet<>();
     String pageToken = "";
     if (pageSize != null) {
       queryParams.put("pageSize", String.valueOf(pageSize));
     }
 
     do {
+      if (!seenPageTokens.add(pageToken)) {
+        throw new IllegalStateException(
+            String.format(
+                "REST catalog returned a duplicate page token '%s' while listing namespaces; aborting to avoid an infinite loop",
+                pageToken));
+      }
       queryParams.put("pageToken", pageToken);
       AuthSession contextualSession = authManager.contextualSession(context, catalogAuth);
       ListNamespacesResponse response =
@@ -1448,12 +1463,19 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     checkNamespaceIsValid(namespace);
     Map<String, String> queryParams = Maps.newHashMap();
     ImmutableList.Builder<TableIdentifier> views = ImmutableList.builder();
+    Set<String> seenPageTokens = new HashSet<>();
     String pageToken = "";
     if (pageSize != null) {
       queryParams.put("pageSize", String.valueOf(pageSize));
     }
 
     do {
+      if (!seenPageTokens.add(pageToken)) {
+        throw new IllegalStateException(
+            String.format(
+                "REST catalog returned a duplicate page token '%s' while listing views in %s; aborting to avoid an infinite loop",
+                pageToken, namespace));
+      }
       queryParams.put("pageToken", pageToken);
       AuthSession contextualSession = authManager.contextualSession(context, catalogAuth);
       ListTablesResponse response =
