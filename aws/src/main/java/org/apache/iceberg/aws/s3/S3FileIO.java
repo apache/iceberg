@@ -47,6 +47,7 @@ import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.StorageCredential;
 import org.apache.iceberg.io.SupportsRecoveryOperations;
 import org.apache.iceberg.io.SupportsStorageCredentials;
+import org.apache.iceberg.io.http.HttpUrlClient;
 import org.apache.iceberg.metrics.MetricsContext;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
@@ -88,8 +89,10 @@ import software.amazon.awssdk.services.s3.paginators.ListObjectVersionsIterable;
  * FileIO implementation backed by S3.
  *
  * <p>Locations used must follow the conventions for S3 URIs (e.g. s3://bucket/path...). URIs with
- * schemes s3a, s3n, https are also treated as s3 file paths. Using this FileIO with other schemes
- * will result in {@link org.apache.iceberg.exceptions.ValidationException}.
+ * schemes s3a, s3n are also treated as s3 file paths. HTTP(S) URL locations (e.g. a catalog-vended
+ * pre-signed URL) are read directly over HTTP(S) instead of through the native, credentialed S3
+ * client; see {@link #newInputFile(String)}. Using this FileIO with other schemes will result in
+ * {@link org.apache.iceberg.exceptions.ValidationException}.
  */
 public class S3FileIO
     implements CredentialSupplier,
@@ -100,6 +103,9 @@ public class S3FileIO
   private static final String DEFAULT_METRICS_IMPL =
       "org.apache.iceberg.hadoop.HadoopMetricsContext";
   private static final String ROOT_PREFIX = "s3";
+  // Default HTTP read chunk size for pre-signed URL reads, tuned for S3; overridable via the
+  // io.http.read.chunk-size-bytes property.
+  private static final int HTTP_READ_CHUNK_SIZE_BYTES_DEFAULT = 8 * 1024 * 1024; // 8 MB
   private static volatile ScheduledExecutorService executorService;
 
   private String credential = null;
@@ -108,6 +114,8 @@ public class S3FileIO
   private SerializableMap<String, String> properties = null;
   private MetricsContext metrics = MetricsContext.nullMetrics();
   private final AtomicBoolean isResourceClosed = new AtomicBoolean(false);
+  private transient volatile HttpUrlClient httpUrlClient;
+  private transient volatile Set<String> presignedReadAllowedHosts;
   private transient StackTraceElement[] createStack;
   // use modifiable collection for Kryo serde
   private volatile List<StorageCredential> storageCredentials = Lists.newArrayList();
@@ -149,11 +157,21 @@ public class S3FileIO
 
   @Override
   public InputFile newInputFile(String path) {
+    if (HttpUrlClient.isHttpUrl(path)) {
+      S3PresignedReadValidation.checkTrustedHttpsUrl(path, presignedReadAllowedHosts());
+      return httpUrlClient().newInputFile(path, metrics);
+    }
+
     return S3InputFile.fromLocation(path, clientForStoragePath(path), metrics);
   }
 
   @Override
   public InputFile newInputFile(String path, long length) {
+    if (HttpUrlClient.isHttpUrl(path)) {
+      S3PresignedReadValidation.checkTrustedHttpsUrl(path, presignedReadAllowedHosts());
+      return httpUrlClient().newInputFile(path, length, metrics);
+    }
+
     return S3InputFile.fromLocation(path, length, clientForStoragePath(path), metrics);
   }
 
@@ -501,6 +519,11 @@ public class S3FileIO
   @Override
   public void initialize(Map<String, String> props) {
     this.properties = SerializableMap.copyOf(props);
+    // reset so the next access rebuilds from the new properties
+    if (httpUrlClient != null) {
+      httpUrlClient.close();
+      this.httpUrlClient = null;
+    }
 
     this.createStack =
         PropertyUtil.propertyAsBoolean(properties, "init-creation-stacktrace", true)
@@ -546,7 +569,36 @@ public class S3FileIO
         refreshFuture.cancel(true);
         refreshFuture = null;
       }
+      if (httpUrlClient != null) {
+        httpUrlClient.close();
+        this.httpUrlClient = null;
+      }
     }
+  }
+
+  private HttpUrlClient httpUrlClient() {
+    if (httpUrlClient == null) {
+      synchronized (this) {
+        if (httpUrlClient == null) {
+          this.httpUrlClient = new HttpUrlClient(properties, HTTP_READ_CHUNK_SIZE_BYTES_DEFAULT);
+        }
+      }
+    }
+
+    return httpUrlClient;
+  }
+
+  private Set<String> presignedReadAllowedHosts() {
+    if (presignedReadAllowedHosts == null) {
+      synchronized (this) {
+        if (presignedReadAllowedHosts == null) {
+          this.presignedReadAllowedHosts =
+              new S3FileIOProperties(properties).presignedReadAllowedHosts();
+        }
+      }
+    }
+
+    return presignedReadAllowedHosts;
   }
 
   @SuppressWarnings({"checkstyle:NoFinalizer", "Finalize", "deprecation"})
