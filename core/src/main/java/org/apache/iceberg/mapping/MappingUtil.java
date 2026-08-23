@@ -149,9 +149,70 @@ public class MappingUtil {
         fields.add(removeReassignedNames(field, assignments));
       }
 
-      fields.addAll(newFields);
+      // merge reused ids rather than duplicating them because NameMapping requires unique ids
+      Map<Integer, MappedField> additionsById = Maps.newHashMap();
+      newFields.forEach(field -> additionsById.put(field.id(), field));
 
-      return MappedFields.of(fields);
+      List<MappedField> mergedFields = Lists.newArrayListWithExpectedSize(fields.size());
+      Set<Integer> mergedIds = Sets.newHashSet();
+      for (MappedField field : fields) {
+        MappedField addition = additionsById.get(field.id());
+        if (addition != null) {
+          mergedIds.add(field.id());
+          mergedFields.add(mergeMappedFields(field, addition));
+        } else {
+          mergedFields.add(field);
+        }
+      }
+
+      for (MappedField field : newFields) {
+        if (!mergedIds.contains(field.id())) {
+          mergedFields.add(field);
+        }
+      }
+
+      return MappedFields.of(mergedFields);
+    }
+
+    private MappedField mergeMappedFields(MappedField staleField, MappedField addedField) {
+      Set<String> names = Sets.newHashSet(staleField.names());
+      names.addAll(addedField.names());
+      MappedFields nestedMapping =
+          mergeNestedMappings(staleField.nestedMapping(), addedField.nestedMapping());
+      return MappedField.of(addedField.id(), names, nestedMapping);
+    }
+
+    private MappedFields mergeNestedMappings(MappedFields staleMapping, MappedFields addedMapping) {
+      if (staleMapping == null || staleMapping.fields().isEmpty()) {
+        return addedMapping;
+      }
+
+      if (addedMapping == null) {
+        return staleMapping;
+      }
+
+      Map<Integer, MappedField> addedById = Maps.newHashMap();
+      addedMapping.fields().forEach(field -> addedById.put(field.id(), field));
+
+      List<MappedField> mergedFields = Lists.newArrayList();
+      Set<Integer> mergedIds = Sets.newHashSet();
+      for (MappedField field : staleMapping.fields()) {
+        MappedField added = addedById.get(field.id());
+        if (added != null) {
+          mergedIds.add(field.id());
+          mergedFields.add(mergeMappedFields(field, added));
+        } else {
+          mergedFields.add(field);
+        }
+      }
+
+      for (MappedField field : addedMapping.fields()) {
+        if (!mergedIds.contains(field.id())) {
+          mergedFields.add(field);
+        }
+      }
+
+      return MappedFields.of(mergedFields);
     }
 
     private static MappedField removeReassignedNames(

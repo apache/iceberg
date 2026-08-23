@@ -247,6 +247,47 @@ Fast-forward the main branch to the head of `audit-branch`
 CALL catalog_name.system.fast_forward('my_table', 'main', 'audit-branch');
 ```
 
+## Schema management
+
+Many [maintenance actions](maintenance.md) can be performed using Iceberg stored procedures.
+
+### `undelete_column`
+
+Restore a previously dropped column under its original field ID so that data files written before
+the drop become readable again without rewriting them.
+
+!!! info
+    This procedure invalidates all cached Spark plans that reference the affected table.
+
+#### Usage
+
+| Argument Name | Required? | Type | Description |
+|---------------|-----------|------|-------------|
+| `table`       | ✔️  | string | Name of the table to update |
+| `column`      | ✔️  | string | Name of the dropped column to restore |
+
+#### Output
+
+| Output Name | Type | Description |
+| ------------|------|-------------|
+| `restored_field_id` | int | The original field ID assigned back to the restored column |
+| `applied_schema_id` | int | The schema ID produced by the restore |
+| `wrote_during_window` | boolean | Whether rows were written while the column was absent on the current snapshot lineage |
+
+#### Example
+
+Restore column `location` in table `db.sample`:
+
+```sql
+CALL catalog_name.system.undelete_column('db.sample', 'location');
+```
+
+`wrote_during_window` is conservative: it reports `true` whenever data was written while the column
+was absent on the table's current snapshot lineage, or when that lineage cannot prove otherwise,
+and only reports `false` when the table's latest snapshot predates the drop. Columns that were
+required when dropped can only be undeleted if no rows were written while they were absent on that
+lineage; the call fails otherwise.
+
 ## Metadata management
 
 Many [maintenance actions](maintenance.md) can be performed using Iceberg stored procedures.

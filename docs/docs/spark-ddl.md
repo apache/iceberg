@@ -356,6 +356,11 @@ ALTER TABLE prod.db.sample DROP COLUMN id;
 ALTER TABLE prod.db.sample DROP COLUMN point.z;
 ```
 
+!!! info
+    A dropped column can be restored under its original field ID with the
+    [`undelete_column`](spark-procedures.md#undelete_column) procedure, making data files written
+    before the drop readable again without rewriting them.
+
 !!! warning "Hive Catalog Limitation"
     When using a Hive catalog, dropping a non-last column may fail due to HMS positional schema
     validation. See the earlier Hive Catalog Limitation warning above for details and

@@ -565,6 +565,31 @@ public interface UpdateSchema extends PendingUpdate<Schema> {
   UpdateSchema deleteColumn(String name);
 
   /**
+   * Restore a dropped column under its original field ID so that data files written before the drop
+   * become readable again without rewriting them.
+   *
+   * <p>The restored column keeps its original type, doc, and default values. Requiredness is
+   * preserved only when no rows were written while the column was absent; otherwise the column is
+   * restored as optional, and restoring a previously required column throws if rows were written
+   * during that window. Lineage and requiredness are evaluated against the table's snapshots when
+   * this method is called, on the current branch only.
+   *
+   * <p>Names are resolved case-sensitively against the current schema and column history; an
+   * additional case-insensitive collision check always applies.
+   *
+   * @param name name of the column to restore
+   * @return this for method chaining
+   * @throws IllegalArgumentException If the name already exists and is not being dropped in this
+   *     update, collides ignoring case with an existing or added name, does not identify a deleted
+   *     column in table history, its original field ID is still assigned to an existing column, or
+   *     conflicts with other changes in this update
+   */
+  default UpdateSchema undeleteColumn(String name) {
+    throw new UnsupportedOperationException(
+        getClass().getName() + " does not implement undeleteColumn");
+  }
+
+  /**
    * Move a column from its current position to the start of the schema or its parent struct.
    *
    * @param name name of the column to move

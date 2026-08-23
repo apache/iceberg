@@ -44,6 +44,7 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.PropertyUtil;
+import org.apache.iceberg.util.SnapshotUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -199,6 +200,153 @@ class SchemaUpdate implements UpdateSchema {
     deletes.add(field.fieldId());
 
     return this;
+  }
+
+  @Override
+  public UpdateSchema undeleteColumn(String name) {
+    Types.NestedField currentField = findField(name);
+    Preconditions.checkArgument(
+        currentField == null || deletes.contains(currentField.fieldId()),
+        "Cannot undelete column: name already exists: %s",
+        name);
+
+    validateNoCaseCollision(name);
+
+    Types.NestedField historicalField =
+        base != null ? UndeleteUtils.findDeletedColumn(base.schemas(), name) : null;
+    Preconditions.checkArgument(
+        historicalField != null,
+        "Cannot undelete column: no deleted column with that name: %s",
+        name);
+
+    validateNoPendingUndelete(name, historicalField);
+
+    int parentId = resolveParentForRestore(name);
+
+    int containingIndex =
+        UndeleteUtils.newestContainingSnapshotIndex(base, historicalField.fieldId());
+    boolean preserveRequiredness = containingIndex == 0;
+    if (historicalField.isRequired() && !preserveRequiredness) {
+      throw new IllegalArgumentException(
+          unsafeRequiredRestoreMessage(name, historicalField.fieldId(), containingIndex));
+    }
+
+    // restore the original field ID so reads of data written before the delete keep resolving
+    Types.NestedField.Builder builder = Types.NestedField.from(historicalField);
+    if (!preserveRequiredness) {
+      builder.asOptional();
+    }
+    Types.NestedField restored = builder.build();
+
+    // the restore supersedes a pending delete of the same field
+    deletes.remove(Integer.valueOf(restored.fieldId()));
+
+    boolean inPlaceReplacement =
+        base != null && base.schema().findField(restored.fieldId()) != null;
+
+    addedNameToId.put(caseSensitivityAwareName(name), restored.fieldId());
+    if (parentId != TABLE_ROOT_ID) {
+      idToParent.put(restored.fieldId(), parentId);
+    }
+
+    updates.put(restored.fieldId(), restored);
+    // replacement, not addition: parentToAddedIds would append a duplicate of the live field
+    if (!inPlaceReplacement) {
+      parentToAddedIds.put(parentId, restored.fieldId());
+    }
+
+    return this;
+  }
+
+  private void validateNoCaseCollision(String name) {
+    Types.NestedField collision = schema.caseInsensitiveFindField(name);
+    if (collision != null && !deletes.contains(collision.fieldId())) {
+      throw new IllegalArgumentException(
+          String.format(
+              "Cannot undelete column: case-insensitive collision between %s and existing column: %s",
+              name, collision.name()));
+    }
+
+    for (String addedName : addedNameToId.keySet()) {
+      if (addedName.toLowerCase(Locale.ROOT).equals(name.toLowerCase(Locale.ROOT))) {
+        throw new IllegalArgumentException(
+            String.format(
+                "Cannot undelete column: case-insensitive collision between %s and existing column: %s",
+                name, addedName));
+      }
+    }
+  }
+
+  private void validateNoPendingUndelete(String name, Types.NestedField historicalField) {
+    Preconditions.checkArgument(
+        !addedNameToId.containsKey(caseSensitivityAwareName(name)),
+        "Cannot undelete column twice in one update: %s",
+        name);
+    Preconditions.checkArgument(
+        !addedNameToId.containsValue(historicalField.fieldId()),
+        "Cannot undelete column twice in one update: %s",
+        historicalField.name());
+
+    Types.NestedField liveField = base.schema().findField(historicalField.fieldId());
+    if (liveField != null && !deletes.contains(liveField.fieldId())) {
+      throw new IllegalArgumentException(
+          String.format(
+              "Cannot undelete column: field ID %s is still present as %s",
+              historicalField.fieldId(), liveField.name()));
+    }
+  }
+
+  private int resolveParentForRestore(String name) {
+    int parentId = TABLE_ROOT_ID;
+    int lastDot = name.lastIndexOf('.');
+    if (lastDot >= 0) {
+      String parentPath = name.substring(0, lastDot);
+      Types.NestedField parentField = findField(parentPath);
+      Preconditions.checkArgument(parentField != null, "Cannot find parent struct: %s", parentPath);
+      Preconditions.checkArgument(
+          parentField.type().isNestedType() && parentField.type().asNestedType().isStructType(),
+          "Cannot undelete into non-struct column: %s: %s",
+          parentPath,
+          parentField.type());
+      parentId = parentField.fieldId();
+
+      Integer ancestorId = parentId;
+      while (ancestorId != null) {
+        Preconditions.checkArgument(
+            !deletes.contains(ancestorId),
+            "Cannot undelete into a column that will be deleted: %s",
+            schema.findColumnName(ancestorId));
+        ancestorId = idToParent.get(ancestorId);
+      }
+    }
+
+    return parentId;
+  }
+
+  private String unsafeRequiredRestoreMessage(String name, int fieldId, int index) {
+    String reason;
+    if (index == UndeleteUtils.UNRESOLVABLE_LINEAGE) {
+      reason =
+          base.currentSnapshot() == null
+              ? "table has no snapshots"
+              : String.format(
+                  "cannot resolve schema for snapshot %s",
+                  UndeleteUtils.unresolvableAncestorId(base, fieldId));
+    } else if (index == UndeleteUtils.PRUNED_LINEAGE) {
+      reason = "snapshot lineage could not be verified";
+    } else {
+      long lastAbsentSnapshotId =
+          SnapshotUtil.ancestorIds(base.currentSnapshot(), base::snapshot).get(index - 1);
+      reason =
+          String.format(
+              "rows were written while the column was absent (last seen at snapshot %s)",
+              lastAbsentSnapshotId);
+    }
+
+    return String.format(
+        "Cannot undelete required column %s: %s. Only nullable columns or tables unchanged since "
+            + "the drop can be undeleted",
+        name, reason);
   }
 
   @Override
