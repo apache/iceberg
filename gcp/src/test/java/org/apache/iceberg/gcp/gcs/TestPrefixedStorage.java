@@ -21,12 +21,18 @@ package org.apache.iceberg.gcp.gcs;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.google.api.gax.retrying.RetrySettings;
 import com.google.cloud.gcs.analyticscore.client.GcsClientOptions;
 import com.google.cloud.gcs.analyticscore.client.GcsFileSystem;
 import com.google.cloud.gcs.analyticscore.client.GcsFileSystemOptions;
 import com.google.cloud.gcs.analyticscore.client.GcsReadOptions;
 import com.google.cloud.gcs.analyticscore.client.GcsWriteOptions;
 import com.google.cloud.http.HttpTransportOptions;
+import com.google.cloud.storage.BlobId;
+import com.google.cloud.storage.Storage;
+import com.google.cloud.storage.StorageException;
+import java.io.IOException;
+import java.net.ServerSocket;
 import java.util.Map;
 import org.apache.iceberg.EnvironmentContext;
 import org.apache.iceberg.gcp.GCPProperties;
@@ -104,6 +110,60 @@ public class TestPrefixedStorage {
         (HttpTransportOptions) storage.storage().getOptions().getTransportOptions();
     assertThat(transportOptions.getConnectTimeout()).isEqualTo(5000);
     assertThat(transportOptions.getReadTimeout()).isEqualTo(10000);
+  }
+
+  @Test
+  public void readTimeoutIsActuallyEnforced() throws IOException {
+    // Proves the configured timeout changes real request behavior, not just that the value is
+    // stored: the default read timeout is effectively unbounded (java.net.URLConnection blocks
+    // forever on read by default), so a server that accepts the connection and then never
+    // responds would hang indefinitely without this feature. With gcs.http.read-timeout-ms set,
+    // the request must fail quickly instead.
+    //
+    // The Storage client retries failed requests with backoff by default (observed: ~51s wall
+    // time for the unmodified client below, matching gax's default total retry timeout), which
+    // would swamp a single request's timeout and make this test both slow and a poor signal.
+    // maxAttempts(1) isolates the behavior of one HTTP attempt, which is what the configured
+    // timeout actually governs.
+    try (ServerSocket serverSocket = new ServerSocket(0)) {
+      int port = serverSocket.getLocalPort();
+      Thread unresponsiveServer =
+          new Thread(
+              () -> {
+                try {
+                  serverSocket.accept();
+                  // Accept the TCP connection but never write an HTTP response.
+                  Thread.sleep(30_000);
+                } catch (Exception e) {
+                  // Expected once the client gives up and closes the connection.
+                }
+              });
+      unresponsiveServer.setDaemon(true);
+      unresponsiveServer.start();
+
+      Map<String, String> properties =
+          ImmutableMap.of(
+              GCPProperties.GCS_PROJECT_ID, "myProject",
+              GCPProperties.GCS_NO_AUTH, "true",
+              GCPProperties.GCS_SERVICE_HOST, "http://localhost:" + port,
+              GCPProperties.GCS_HTTP_CONNECT_TIMEOUT, "2000",
+              GCPProperties.GCS_HTTP_READ_TIMEOUT, "500");
+      PrefixedStorage storage = new PrefixedStorage("gs://bucket", properties, null);
+      Storage singleAttemptClient =
+          storage.storage().getOptions().toBuilder()
+              .setRetrySettings(RetrySettings.newBuilder().setMaxAttempts(1).build())
+              .build()
+              .getService();
+
+      long start = System.nanoTime();
+      assertThatThrownBy(() -> singleAttemptClient.get(BlobId.of("bucket", "object")))
+          .isInstanceOf(StorageException.class);
+      long elapsedMs = (System.nanoTime() - start) / 1_000_000;
+
+      // Generous bound well below what an unbounded default read would take (the server never
+      // responds), confirming the configured 500ms timeout is what actually triggered failure.
+      assertThat(elapsedMs).isLessThan(10_000);
+    }
   }
 
   @Test
