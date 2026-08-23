@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.gcp;
 
+import static org.apache.iceberg.gcp.GCPProperties.GCS_HTTP_CONNECT_TIMEOUT;
+import static org.apache.iceberg.gcp.GCPProperties.GCS_HTTP_READ_TIMEOUT;
 import static org.apache.iceberg.gcp.GCPProperties.GCS_NO_AUTH;
 import static org.apache.iceberg.gcp.GCPProperties.GCS_OAUTH2_REFRESH_CREDENTIALS_ENABLED;
 import static org.apache.iceberg.gcp.GCPProperties.GCS_OAUTH2_REFRESH_CREDENTIALS_ENDPOINT;
@@ -76,5 +78,23 @@ public class TestGCPProperties {
         .isPresent()
         .get()
         .isEqualTo("/v1/credentials");
+  }
+
+  @Test
+  public void httpTimeoutsNotSetByDefault() {
+    GCPProperties gcpProperties = new GCPProperties(ImmutableMap.of());
+    assertThat(gcpProperties.httpConnectTimeoutMs()).isNotPresent();
+    assertThat(gcpProperties.httpReadTimeoutMs()).isNotPresent();
+  }
+
+  @Test
+  public void httpTimeoutsAreRead() {
+    GCPProperties gcpProperties =
+        new GCPProperties(
+            ImmutableMap.of(
+                GCS_HTTP_CONNECT_TIMEOUT, "5000",
+                GCS_HTTP_READ_TIMEOUT, "10000"));
+    assertThat(gcpProperties.httpConnectTimeoutMs()).isPresent().get().isEqualTo(5000);
+    assertThat(gcpProperties.httpReadTimeoutMs()).isPresent().get().isEqualTo(10000);
   }
 }

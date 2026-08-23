@@ -39,6 +39,12 @@ public class GCPProperties implements Serializable {
   public static final String GCS_CLIENT_LIB_TOKEN = "gcs.client-lib-token";
   public static final String GCS_SERVICE_HOST = "gcs.service.host";
 
+  /** Connect timeout, in milliseconds, for the underlying GCS HTTP client. */
+  public static final String GCS_HTTP_CONNECT_TIMEOUT = "gcs.http.connect-timeout-ms";
+
+  /** Read timeout, in milliseconds, for the underlying GCS HTTP client. */
+  public static final String GCS_HTTP_READ_TIMEOUT = "gcs.http.read-timeout-ms";
+
   // GCS Configuration Properties
   public static final String GCS_DECRYPTION_KEY = "gcs.decryption-key";
   public static final String GCS_ENCRYPTION_KEY = "gcs.encryption-key";
@@ -84,6 +90,8 @@ public class GCPProperties implements Serializable {
   private String projectId;
   private String clientLibToken;
   private String serviceHost;
+  private Integer gcsHttpConnectTimeoutMs;
+  private Integer gcsHttpReadTimeoutMs;
 
   private String gcsDecryptionKey;
   private String gcsEncryptionKey;
@@ -148,6 +156,14 @@ public class GCPProperties implements Serializable {
     projectId = properties.get(GCS_PROJECT_ID);
     clientLibToken = properties.get(GCS_CLIENT_LIB_TOKEN);
     serviceHost = properties.get(GCS_SERVICE_HOST);
+
+    if (properties.containsKey(GCS_HTTP_CONNECT_TIMEOUT)) {
+      gcsHttpConnectTimeoutMs = Integer.parseInt(properties.get(GCS_HTTP_CONNECT_TIMEOUT));
+    }
+
+    if (properties.containsKey(GCS_HTTP_READ_TIMEOUT)) {
+      gcsHttpReadTimeoutMs = Integer.parseInt(properties.get(GCS_HTTP_READ_TIMEOUT));
+    }
 
     gcsDecryptionKey = properties.get(GCS_DECRYPTION_KEY);
     gcsEncryptionKey = properties.get(GCS_ENCRYPTION_KEY);
@@ -225,6 +241,14 @@ public class GCPProperties implements Serializable {
 
   public Optional<String> serviceHost() {
     return Optional.ofNullable(serviceHost);
+  }
+
+  public Optional<Integer> httpConnectTimeoutMs() {
+    return Optional.ofNullable(gcsHttpConnectTimeoutMs);
+  }
+
+  public Optional<Integer> httpReadTimeoutMs() {
+    return Optional.ofNullable(gcsHttpReadTimeoutMs);
   }
 
   public Optional<String> userProject() {

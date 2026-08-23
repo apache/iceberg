@@ -26,6 +26,7 @@ import com.google.cloud.gcs.analyticscore.client.GcsFileSystem;
 import com.google.cloud.gcs.analyticscore.client.GcsFileSystemOptions;
 import com.google.cloud.gcs.analyticscore.client.GcsReadOptions;
 import com.google.cloud.gcs.analyticscore.client.GcsWriteOptions;
+import com.google.cloud.http.HttpTransportOptions;
 import java.util.Map;
 import org.apache.iceberg.EnvironmentContext;
 import org.apache.iceberg.gcp.GCPProperties;
@@ -73,6 +74,36 @@ public class TestPrefixedStorage {
 
     assertThat(storage.storage().getOptions().getUserAgent())
         .isEqualTo("gcsfileio/" + EnvironmentContext.get());
+  }
+
+  @Test
+  public void httpTimeoutsNotSetByDefault() {
+    Map<String, String> properties = ImmutableMap.of(GCPProperties.GCS_PROJECT_ID, "myProject");
+    PrefixedStorage storage = new PrefixedStorage("gs://bucket", properties, null);
+
+    assertThat(storage.storage().getOptions().getTransportOptions())
+        .isInstanceOf(HttpTransportOptions.class);
+    HttpTransportOptions transportOptions =
+        (HttpTransportOptions) storage.storage().getOptions().getTransportOptions();
+    assertThat(transportOptions.getConnectTimeout())
+        .isEqualTo(HttpTransportOptions.newBuilder().build().getConnectTimeout());
+    assertThat(transportOptions.getReadTimeout())
+        .isEqualTo(HttpTransportOptions.newBuilder().build().getReadTimeout());
+  }
+
+  @Test
+  public void httpTimeoutsAreWired() {
+    Map<String, String> properties =
+        ImmutableMap.of(
+            GCPProperties.GCS_PROJECT_ID, "myProject",
+            GCPProperties.GCS_HTTP_CONNECT_TIMEOUT, "5000",
+            GCPProperties.GCS_HTTP_READ_TIMEOUT, "10000");
+    PrefixedStorage storage = new PrefixedStorage("gs://bucket", properties, null);
+
+    HttpTransportOptions transportOptions =
+        (HttpTransportOptions) storage.storage().getOptions().getTransportOptions();
+    assertThat(transportOptions.getConnectTimeout()).isEqualTo(5000);
+    assertThat(transportOptions.getReadTimeout()).isEqualTo(10000);
   }
 
   @Test
