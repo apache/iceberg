@@ -36,6 +36,7 @@ public class TestViewProperties {
         .doesNotContain(ViewProperties.COMMENT);
 
     assertThatThrownBy(() -> ViewProperties.ICEBERG_MANAGED_PROPERTIES.add("new.managed.property"))
-        .isInstanceOf(UnsupportedOperationException.class);
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage(null);
   }
 }
