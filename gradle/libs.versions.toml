@@ -209,10 +209,10 @@ joda-time = { module = "joda-time:joda-time", version.ref = "joda" }
 junit-jupiter = { module = "org.junit.jupiter:junit-jupiter", version.ref = "junit" }
 junit-jupiter-engine = { module = "org.junit.jupiter:junit-jupiter-engine", version.ref = "junit" }
 junit-pioneer = { module = "org.junit-pioneer:junit-pioneer", version.ref = "junit-pioneer" }
-junit-v4 = { module = "junit:junit", version.ref = "junit4" }
 junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher", version.ref = "junit-platform" }
 junit-suite-api = { module = "org.junit.platform:junit-platform-suite-api", version.ref = "junit-platform" }
 junit-suite-engine = { module = "org.junit.platform:junit-platform-suite-engine", version.ref = "junit-platform" }
+junit-v4 = { module = "junit:junit", version.ref = "junit4" }
 kryo-shaded = { module = "com.esotericsoftware:kryo-shaded", version.ref = "kryo-shaded" }
 mockito-core = { module = "org.mockito:mockito-core", version.ref = "mockito" }
 mockito-inline = { module = "org.mockito:mockito-inline", version.ref = "mockito" }
