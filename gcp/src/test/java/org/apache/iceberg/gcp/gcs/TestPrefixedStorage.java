@@ -33,6 +33,7 @@ import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.StorageException;
 import java.io.IOException;
 import java.net.ServerSocket;
+import java.net.SocketTimeoutException;
 import java.util.Map;
 import org.apache.iceberg.EnvironmentContext;
 import org.apache.iceberg.gcp.GCPProperties;
@@ -156,8 +157,12 @@ public class TestPrefixedStorage {
               .getService();
 
       long start = System.nanoTime();
+      // The message confirms this is genuinely a read timeout (SocketTimeoutException), not a
+      // connect failure or some other error that happened to also be fast.
       assertThatThrownBy(() -> singleAttemptClient.get(BlobId.of("bucket", "object")))
-          .isInstanceOf(StorageException.class);
+          .isInstanceOf(StorageException.class)
+          .hasMessage("Read timed out")
+          .hasCauseInstanceOf(SocketTimeoutException.class);
       long elapsedMs = (System.nanoTime() - start) / 1_000_000;
 
       // Generous bound well below what an unbounded default read would take (the server never
