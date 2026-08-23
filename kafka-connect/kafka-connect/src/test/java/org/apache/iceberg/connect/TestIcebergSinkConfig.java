@@ -30,6 +30,22 @@ import org.junit.jupiter.api.Test;
 public class TestIcebergSinkConfig {
 
   @Test
+  public void testSchemaForceOptionalIncompatibleWithDefaultIdColumns() {
+    Map<String, String> props =
+        ImmutableMap.of(
+            "topics", "source-topic",
+            "iceberg.catalog.type", "rest",
+            "iceberg.tables", "db.landing",
+            "iceberg.tables.schema-force-optional", "true",
+            "iceberg.tables.default-id-columns", "id");
+    assertThatThrownBy(() -> new IcebergSinkConfig(props))
+        .isInstanceOf(ConfigException.class)
+        .hasMessageContaining("schema-force-optional")
+        .hasMessageContaining("default-id-columns")
+        .hasMessageContaining("incompatible");
+  }
+
+  @Test
   public void testGetVersion() {
     String version = IcebergSinkConfig.version();
     assertThat(version).isNotNull();
