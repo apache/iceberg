@@ -70,12 +70,13 @@ import org.slf4j.LoggerFactory;
  * <ol>
  *   <li>{@link #ensureIndexCurrent}: updates {@link #lastStagingSnapshotId} from main's history,
  *       bootstraps the worker index from main on first run, and reindexes when external commits
- *       (e.g. compaction) have advanced main past the currently-indexed snapshot.
+ *       (e.g. compaction) have advanced main past the currently-indexed snapshot. The index is also
+ *       rebuilt when the staging snapshot picked for this cycle is the one the previous cycle
+ *       planned, because that cycle did not commit and resolving its deletes consumed the matching
+ *       index entries.
  *   <li>{@link #processStagingSnapshot}: resolve the chosen staging snapshot's eq deletes against
  *       the (now-current) index, pass through any DV files, and index the snapshot's new data files
- *       for the next cycle. The index is rebuilt first when the chosen staging snapshot is the one
- *       the previous plan covered, because that cycle did not commit and resolving its deletes
- *       consumed the matching index entries.
+ *       for the next cycle.
  * </ol>
  *
  * Watermarks separate phases that gate the worker's keyed state. The contract is documented on
@@ -130,7 +131,7 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
   private transient Long lastMainSnapshotId;
   private transient Long lastStagingSnapshotId;
   private transient Long indexSnapshotId;
-  private transient Long indexGeneration;
+  private transient long indexGeneration;
   // Staging snapshot the last emitted plan covered, checkpointed so it survives a restore taken
   // mid-cycle. Selecting it again means that cycle never committed.
   private transient Long pendingStagingSnapshotId;
@@ -201,12 +202,14 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
             .getOperatorStateStore()
             .getListState(new ListStateDescriptor<>("indexGeneration", Types.LONG));
 
-    indexGeneration = null;
+    Long restoredGeneration = null;
     for (Long stateValue : indexGenerationState.get()) {
       Preconditions.checkState(
-          indexGeneration == null, "indexGeneration state should hold at most one value");
-      indexGeneration = stateValue;
+          restoredGeneration == null, "indexGeneration state should hold at most one value");
+      restoredGeneration = stateValue;
     }
+
+    indexGeneration = restoredGeneration != null ? restoredGeneration : 0L;
 
     eqFieldIdsState =
         context
@@ -244,9 +247,7 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
     }
 
     indexGenerationState.clear();
-    if (indexGeneration != null) {
-      indexGenerationState.add(indexGeneration);
-    }
+    indexGenerationState.add(indexGeneration);
 
     eqFieldIdsState.clear();
     for (int id : eqFieldIds) {
@@ -285,8 +286,6 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
       // its delete phase left the index without them. The cursor only advances once the committer's
       // marker is on the target branch, so picking the same staging snapshot again means that cycle
       // did not commit, and the target has not moved either, so nothing else rebuilds the index.
-      // This also covers a restore from a checkpoint taken mid-cycle, because the planned snapshot
-      // is part of the checkpointed state.
       if (!rebuilt
           && mainSnapshot != null
           && Objects.equals(pendingStagingSnapshotId, nextToProcess.snapshotId())) {
@@ -353,7 +352,7 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
    * rebuild while the target branch stands still.
    */
   private void rebuildIndex(Snapshot mainSnapshot, boolean evictStaleKeys) {
-    long generation = indexGeneration == null ? 1 : indexGeneration + 1;
+    long generation = indexGeneration + 1;
 
     if (evictStaleKeys) {
       output.collect(

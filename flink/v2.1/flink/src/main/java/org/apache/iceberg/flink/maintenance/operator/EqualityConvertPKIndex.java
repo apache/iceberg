@@ -153,7 +153,7 @@ public class EqualityConvertPKIndex
       Long storedGeneration = indexGeneration.value();
       if (!Objects.equals(storedGeneration, cmd.indexGeneration())) {
         LOG.info(
-            "Main sequence changed from {} to {} (snapshot {}), clearing state",
+            "Index generation changed from {} to {} (snapshot {}), clearing state",
             storedGeneration,
             cmd.indexGeneration(),
             cmd.mainSnapshotId());
