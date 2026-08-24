@@ -36,8 +36,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
  *
  * <ul>
  *   <li>{@code ChangelogScanTask} has no {@code rowId()} method — row lineage is not surfaced
- *       through the task API even though the underlying {@code DataFile} carries
- *       {@code firstRowId()}.
+ *       through the task API even though the underlying {@code DataFile} carries {@code
+ *       firstRowId()}.
  *   <li>{@code ChangelogUtil.changelogSchema()} only joins {@code CHANGE_TYPE}, {@code
  *       CHANGE_ORDINAL}, and {@code COMMIT_SNAPSHOT_ID} — {@code ROW_ID} and {@code
  *       LAST_UPDATED_SEQUENCE_NUMBER} are never included in the changelog schema.

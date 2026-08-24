@@ -42,11 +42,7 @@ public class ChangelogUtil {
   // _commit_snapshot_id] which matches this schema column order.
   private static final Schema CHANGELOG_METADATA_WITH_ROW_LINEAGE =
       new Schema(
-          ROW_ID,
-          LAST_UPDATED_SEQUENCE_NUMBER,
-          CHANGE_TYPE,
-          CHANGE_ORDINAL,
-          COMMIT_SNAPSHOT_ID);
+          ROW_ID, LAST_UPDATED_SEQUENCE_NUMBER, CHANGE_TYPE, CHANGE_ORDINAL, COMMIT_SNAPSHOT_ID);
 
   // Only the three constant-per-task columns are stripped by dropChangelogMetadata().
   // ROW_ID and LAST_UPDATED_SEQUENCE_NUMBER are computed per-row by the file reader
