@@ -105,8 +105,7 @@ class UndeleteProcedure extends BaseProcedure {
           // the restored field is never re-registered as an identifier automatically
           boolean wasIdentifier = false;
           if (deletedColumn != null) {
-            Schema winningSchema =
-                UndeleteUtils.findWinningSchema(current.schemas(), column);
+            Schema winningSchema = UndeleteUtils.findWinningSchema(current.schemas(), column);
             wasIdentifier =
                 winningSchema != null
                     && winningSchema.identifierFieldIds().contains(deletedColumn.fieldId());
