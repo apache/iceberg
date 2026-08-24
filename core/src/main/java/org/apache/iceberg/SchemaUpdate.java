@@ -19,6 +19,7 @@
 package org.apache.iceberg;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
@@ -266,25 +267,25 @@ class SchemaUpdate implements UpdateSchema {
     Types.StructType container =
         parentId == TABLE_ROOT_ID
             ? schema.asStruct()
-            : schema.findField(parentId).type().asStructType();
-    String parentPath = parentId == TABLE_ROOT_ID ? "" : schema.findColumnName(parentId);
+            : schema.findField(parentId).type().asNestedType().asStructType();
     String leaf = historicalField.name();
-    String targetPath = parentPath.isEmpty() ? leaf : parentPath + "." + leaf;
 
-    Types.NestedField existing = container.field(leaf);
-    if (existing != null && !deletes.contains(existing.fieldId())) {
-      throw new IllegalArgumentException(
-          String.format("Cannot undelete column: name already exists: %s", targetPath));
-    }
-
+    // siblings keep their effective names: pending renames and deletions apply before the restore
     for (Types.NestedField sibling : container.fields()) {
-      if (!deletes.contains(sibling.fieldId()) && sibling.name().equalsIgnoreCase(leaf)) {
-        throw new IllegalArgumentException(
-            String.format(
-                "Cannot undelete column: case-insensitive collision between %s and existing"
-                    + " column: %s",
-                targetPath, schema.findColumnName(sibling.fieldId())));
+      if (deletes.contains(sibling.fieldId())) {
+        continue;
       }
+
+      String effectiveName = effectiveSiblingName(sibling);
+      if (!effectiveName.equalsIgnoreCase(leaf)) {
+        continue;
+      }
+
+      throw new IllegalArgumentException(
+          String.format(
+              "Cannot undelete column: case-insensitive collision between %s and existing column:"
+                  + " %s",
+              siblingPath(parentId, leaf), siblingPath(parentId, effectiveName)));
     }
 
     for (int addedId : parentToAddedIds.get(parentId)) {
@@ -294,9 +295,23 @@ class SchemaUpdate implements UpdateSchema {
             String.format(
                 "Cannot undelete column: case-insensitive collision between %s and pending"
                     + " column: %s",
-                targetPath, pending.name()));
+                siblingPath(parentId, leaf), pending.name()));
       }
     }
+  }
+
+  private String effectiveSiblingName(Types.NestedField sibling) {
+    Types.NestedField updated = updates.get(sibling.fieldId());
+    return updated != null ? updated.name() : sibling.name();
+  }
+
+  private String siblingPath(int parentId, String leaf) {
+    if (parentId == TABLE_ROOT_ID) {
+      return leaf;
+    }
+
+    Types.NestedField parent = schema.findField(parentId);
+    return effectiveSiblingName(parent) + "." + leaf;
   }
 
   private void validateNoCaseCollision(String name) {
@@ -405,7 +420,7 @@ class SchemaUpdate implements UpdateSchema {
       current = idToParent.get(current);
     }
 
-    java.util.Collections.reverse(chain);
+    Collections.reverse(chain);
     return chain;
   }
 

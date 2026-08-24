@@ -142,36 +142,32 @@ public class MappingUtil {
       fieldsToAdd.forEach(field -> builder.put(field.name(), field.fieldId()));
       Map<String, Integer> assignments = builder.build();
 
-      // create a copy of fields that can be updated (append new fields, replace existing for
-      // reassignment)
-      List<MappedField> fields = Lists.newArrayList();
-      for (MappedField field : mapping.fields()) {
-        fields.add(removeReassignedNames(field, assignments));
-      }
-
-      // merge reused ids rather than duplicating them because NameMapping requires unique ids
+      // single pass: strip reassigned names and merge reused ids because NameMapping requires
+      // unique ids
       Map<Integer, MappedField> additionsById = Maps.newHashMap();
       newFields.forEach(field -> additionsById.put(field.id(), field));
 
-      List<MappedField> mergedFields = Lists.newArrayListWithExpectedSize(fields.size());
       Set<Integer> mergedIds = Sets.newHashSet();
-      for (MappedField field : fields) {
-        MappedField addition = additionsById.get(field.id());
+      List<MappedField> fields =
+          Lists.newArrayListWithExpectedSize(mapping.fields().size() + newFields.size());
+      for (MappedField field : mapping.fields()) {
+        MappedField stripped = removeReassignedNames(field, assignments);
+        MappedField addition = additionsById.get(stripped.id());
         if (addition != null) {
-          mergedIds.add(field.id());
-          mergedFields.add(mergeMappedFields(field, addition));
+          mergedIds.add(stripped.id());
+          fields.add(mergeMappedFields(stripped, addition));
         } else {
-          mergedFields.add(field);
+          fields.add(stripped);
         }
       }
 
       for (MappedField field : newFields) {
         if (!mergedIds.contains(field.id())) {
-          mergedFields.add(field);
+          fields.add(field);
         }
       }
 
-      return MappedFields.of(mergedFields);
+      return MappedFields.of(fields);
     }
 
     private MappedField mergeMappedFields(MappedField staleField, MappedField addedField) {

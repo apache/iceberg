@@ -451,6 +451,29 @@ public class TestSchemaUndelete extends TestBase {
   }
 
   @TestTemplate
+  public void undeleteUnderPendingSiblingRenameCollides() {
+    table
+        .updateSchema()
+        .addColumn(
+            "loc",
+            Types.StructType.of(
+                Types.NestedField.optional(1, "lat", Types.DoubleType.get()),
+                Types.NestedField.optional(2, "foo", Types.IntegerType.get())))
+        .commit();
+
+    table.updateSchema().deleteColumn("loc.lat").commit();
+    table.updateSchema().renameColumn("loc", "place").commit();
+
+    UpdateSchema update = table.updateSchema();
+    update.renameColumn("place.foo", "Lat");
+
+    assertThatThrownBy(() -> update.undeleteColumn("loc.lat"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("case-insensitive collision between place.lat")
+        .hasMessageContaining("place.Lat");
+  }
+
+  @TestTemplate
   public void undeleteLiveIdUnderRenamedNameRefuses() {
     int dataId = table.schema().findField("data").fieldId();
     table.updateSchema().renameColumn("data", "payload").commit();
