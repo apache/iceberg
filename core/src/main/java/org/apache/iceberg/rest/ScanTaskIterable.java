@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.rest;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
@@ -107,7 +106,17 @@ class ScanTaskIterable implements CloseableIterable<FileScanTask> {
   }
 
   @Override
-  public void close() throws IOException {}
+  public void close() {
+    shutdown.set(true);
+    LOG.info(
+        "ScanTaskIterable is closing. Clearing {} queued tasks, {} initial tasks, and {} plan tasks.",
+        taskQueue.size(),
+        initialFileScanTasks.size(),
+        planTasks.size());
+    taskQueue.clear();
+    initialFileScanTasks.clear();
+    planTasks.clear();
+  }
 
   private class PlanTaskWorker implements Runnable {
 
@@ -276,13 +285,7 @@ class ScanTaskIterable implements CloseableIterable<FileScanTask> {
 
     @Override
     public void close() {
-      shutdown.set(true);
-      LOG.info(
-          "ScanTasksIterator is closing. Clearing {} queued tasks and {} plan tasks.",
-          taskQueue.size(),
-          planTasks.size());
-      taskQueue.clear();
-      planTasks.clear();
+      ScanTaskIterable.this.close();
     }
   }
 }
