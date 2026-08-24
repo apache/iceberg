@@ -306,7 +306,6 @@ class SchemaUpdate implements UpdateSchema {
   }
 
   private String siblingPath(int parentId, String leaf) {
-    Map<Integer, Integer> committedParents = TypeUtil.indexParents(schema.asStruct());
     List<String> segments = Lists.newArrayList();
     Integer current = parentId != TABLE_ROOT_ID ? parentId : null;
     while (current != null) {
@@ -316,12 +315,10 @@ class SchemaUpdate implements UpdateSchema {
           updated != null
               ? updated.name()
               : committed != null ? committed.name() : String.valueOf(current));
-      Integer next =
-          idToParent.containsKey(current) ? idToParent.get(current) : committedParents.get(current);
-      current = next != null && next != TABLE_ROOT_ID ? next : null;
+      current = idToParent.get(current);
     }
 
-    java.util.Collections.reverse(segments);
+    Collections.reverse(segments);
     return segments.isEmpty() ? leaf : String.join(".", segments) + "." + leaf;
   }
 
