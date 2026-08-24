@@ -460,6 +460,14 @@ public class TypeUtil {
     return TypeUtil.visit(type, new AssignIds(getId));
   }
 
+  static Type assignedType(Type original, int newId, Type visited) {
+    if (original.isFileType()) {
+      return Types.FileType.of(newId);
+    }
+
+    return visited;
+  }
+
   public static Type find(Schema schema, Predicate<Type> predicate) {
     return visit(schema, new FindTypeVisitor(predicate));
   }
@@ -663,13 +671,22 @@ public class TypeUtil {
     int get(int oldId);
 
     /**
-     * Assigns a new ID, reserving the IDs that immediately follow it.
+     * Assigns a new ID and reserves the IDs that immediately follow it.
+     *
+     * <p>Implementations must override this method to assign IDs for types with derived field IDs.
      *
      * @param oldId an existing field ID
      * @param numReserved number of IDs after the new ID that must not be assigned
      * @return a new field ID
      */
     default int get(int oldId, int numReserved) {
+      if (numReserved > 0) {
+        throw new UnsupportedOperationException(
+            String.format(
+                "Cannot reserve %s IDs after %s: reserving IDs is not supported",
+                numReserved, oldId));
+      }
+
       return get(oldId);
     }
   }
@@ -707,7 +724,8 @@ public class TypeUtil {
 
     @Override
     public int get(int oldId, int numReserved) {
-      if (conflictingIds.contains(oldId)) {
+      // only the reserved IDs are checked because a field that is not conflicting keeps its ID
+      if (conflictingIds.contains(oldId) || !isRangeAvailable(oldId + 1, oldId + numReserved)) {
         return nextAvailableId(numReserved);
       } else {
         return oldId;
@@ -717,7 +735,7 @@ public class TypeUtil {
     private int nextAvailableId(int numReserved) {
       int candidateId = nextId.incrementAndGet();
 
-      while (!isAvailable(candidateId, numReserved)) {
+      while (!isRangeAvailable(candidateId, candidateId + numReserved)) {
         candidateId = nextId.incrementAndGet();
       }
 
@@ -726,8 +744,8 @@ public class TypeUtil {
       return candidateId;
     }
 
-    private boolean isAvailable(int candidateId, int numReserved) {
-      for (int id = candidateId; id <= candidateId + numReserved; id += 1) {
+    private boolean isRangeAvailable(int firstId, int lastId) {
+      for (int id = firstId; id <= lastId; id += 1) {
         if (allUsedIds.contains(id)) {
           return false;
         }

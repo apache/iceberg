@@ -68,14 +68,6 @@ class AssignFreshIds extends TypeUtil.CustomOrderSchemaVisitor<Type> {
     return null;
   }
 
-  private static Type typeFor(Type original, int newId, Type visited) {
-    if (original.isFileType()) {
-      return Types.FileType.of(newId);
-    }
-
-    return visited;
-  }
-
   private String name(int id) {
     if (visitingSchema != null) {
       return visitingSchema.findColumnName(id);
@@ -111,7 +103,7 @@ class AssignFreshIds extends TypeUtil.CustomOrderSchemaVisitor<Type> {
     for (int i = 0; i < length; i += 1) {
       Types.NestedField field = fields.get(i);
       int newId = newIds.get(i);
-      Type type = typeFor(field.type(), newId, types.next());
+      Type type = TypeUtil.assignedType(field.type(), newId, types.next());
       newFields.add(Types.NestedField.from(field).withId(newId).ofType(type).build());
     }
 
@@ -126,7 +118,7 @@ class AssignFreshIds extends TypeUtil.CustomOrderSchemaVisitor<Type> {
   @Override
   public Type list(Types.ListType list, Supplier<Type> future) {
     int newId = idFor(name(list.elementId()), list.elementType());
-    Type elementType = typeFor(list.elementType(), newId, future.get());
+    Type elementType = TypeUtil.assignedType(list.elementType(), newId, future.get());
     if (list.isElementOptional()) {
       return Types.ListType.ofOptional(newId, elementType);
     } else {
@@ -138,8 +130,8 @@ class AssignFreshIds extends TypeUtil.CustomOrderSchemaVisitor<Type> {
   public Type map(Types.MapType map, Supplier<Type> keyFuture, Supplier<Type> valueFuture) {
     int newKeyId = idFor(name(map.keyId()), map.keyType());
     int newValueId = idFor(name(map.valueId()), map.valueType());
-    Type keyType = typeFor(map.keyType(), newKeyId, keyFuture.get());
-    Type valueType = typeFor(map.valueType(), newValueId, valueFuture.get());
+    Type keyType = TypeUtil.assignedType(map.keyType(), newKeyId, keyFuture.get());
+    Type valueType = TypeUtil.assignedType(map.valueType(), newValueId, valueFuture.get());
     if (map.isValueOptional()) {
       return Types.MapType.ofOptional(newKeyId, newValueId, keyType, valueType);
     } else {

@@ -29,6 +29,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.junit.jupiter.api.Test;
 
@@ -206,6 +207,15 @@ class TestFileType {
   }
 
   @Test
+  void assignedIdsRejectAnAssignerThatCannotReserve() {
+    Schema schema = new Schema(optional(1, "photo", Types.FileType.of(1)));
+
+    assertThatThrownBy(() -> TypeUtil.assignIds(schema.asStruct(), oldId -> oldId + 10))
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage("Cannot reserve 6 IDs after 1: reserving IDs is not supported");
+  }
+
+  @Test
   void reassignedConflictingIdsReserveTheNestedIdBlock() {
     List<Types.NestedField> columns =
         ImmutableList.of(
@@ -222,6 +232,48 @@ class TestFileType {
     assertThat(photo.type()).isEqualTo(Types.FileType.of(9));
     assertThat(schema.findField("photo.uri").fieldId()).isEqualTo(10);
     assertThat(schema.findField("photo.inline").fieldId()).isEqualTo(15);
+  }
+
+  @Test
+  void reassignedConflictingIdsMoveAFileWhenTheNestedIdsAreInUse() {
+    List<Types.NestedField> columns =
+        ImmutableList.of(
+            required(1, "id", Types.LongType.get()), optional(2, "photo", Types.FileType.of(2)));
+
+    // 5 falls inside the derived block 3-8 even though the file's own id is not conflicting
+    Schema schema =
+        new Schema(columns, TypeUtil.reassignConflictingIds(ImmutableSet.of(), ImmutableSet.of(5)));
+
+    assertThat(schema.findField("id").fieldId()).isEqualTo(1);
+    assertThat(schema.findField("photo").type()).isEqualTo(Types.FileType.of(6));
+    assertThat(schema.findField("photo.uri").fieldId()).isEqualTo(7);
+    assertThat(schema.findField("photo.inline").fieldId()).isEqualTo(12);
+  }
+
+  @Test
+  void reassignedConflictingIdsKeepAFileWhenOnlyItsOwnIdIsInUse() {
+    List<Types.NestedField> columns = ImmutableList.of(optional(2, "photo", Types.FileType.of(2)));
+
+    Schema schema =
+        new Schema(columns, TypeUtil.reassignConflictingIds(ImmutableSet.of(), ImmutableSet.of(2)));
+
+    assertThat(schema.findField("photo").type()).isEqualTo(Types.FileType.of(2));
+    assertThat(schema.findField("photo.uri").fieldId()).isEqualTo(3);
+    assertThat(schema.findField("photo.inline").fieldId()).isEqualTo(8);
+  }
+
+  @Test
+  void reassignedConflictingIdsSkipBlocksThatOverlapUsedIds() {
+    List<Types.NestedField> columns = ImmutableList.of(optional(2, "photo", Types.FileType.of(2)));
+
+    Schema schema =
+        new Schema(
+            columns, TypeUtil.reassignConflictingIds(ImmutableSet.of(), ImmutableSet.of(3, 9)));
+
+    assertThat(schema.findField("photo").type()).isEqualTo(Types.FileType.of(10));
+    assertThat(schema.findField("photo.uri").fieldId()).isEqualTo(11);
+    assertThat(schema.findField("photo.inline").fieldId()).isEqualTo(16);
+    assertThat(TypeUtil.indexById(schema.asStruct()).keySet()).doesNotContain(3, 9);
   }
 
   @Test
@@ -292,5 +344,49 @@ class TestFileType {
     assertThat(asStruct.get(0)).contains("file cannot be read as a struct");
 
     assertThat(CheckCompatibility.readCompatibilityErrors(fileSchema, fileSchema)).isEmpty();
+  }
+
+  @Test
+  void reassignDocKeepsTheFileType() {
+    Schema schema = new Schema(optional(2, "photo", Types.FileType.of(2)));
+    Schema docs = new Schema(optional(2, "photo", Types.FileType.of(2), "image"));
+
+    Schema actual = TypeUtil.reassignDoc(schema, docs);
+
+    assertThat(actual.findField("photo").type()).isEqualTo(Types.FileType.of(2));
+    assertThat(actual.findField("photo").doc()).isEqualTo("image");
+  }
+
+  @Test
+  void projectKeepsTheFileTypeWhenAllNestedFieldsRemain() {
+    Schema schema =
+        new Schema(
+            required(1, "id", Types.LongType.get()), optional(2, "photo", Types.FileType.of(2)));
+
+    Schema projected = TypeUtil.project(schema, ImmutableSet.of(3, 4, 5, 6, 7, 8));
+
+    assertThat(projected.findField("photo").type()).isEqualTo(Types.FileType.of(2));
+  }
+
+  @Test
+  void projectDropsTheFileTypeWhenNestedFieldsArePruned() {
+    Schema schema = new Schema(optional(2, "photo", Types.FileType.of(2)));
+
+    Schema projected = TypeUtil.project(schema, ImmutableSet.of(3));
+
+    assertThat(projected.findField("photo").type().isFileType()).isFalse();
+    assertThat(projected.findField("photo").type().asStructType().fields())
+        .containsExactly(optional(3, "uri", Types.StringType.get()));
+  }
+
+  @Test
+  void replacingANestedFieldTypeDropsTheFileType() {
+    Schema schema = new Schema(optional(2, "photo", Types.FileType.of(2)));
+
+    Schema replaced =
+        TypeUtil.replaceFieldTypes(schema, ImmutableMap.of(3, Types.BinaryType.get()));
+
+    assertThat(replaced.findField("photo").type().isFileType()).isFalse();
+    assertThat(replaced.findField("photo.uri").type()).isEqualTo(Types.BinaryType.get());
   }
 }

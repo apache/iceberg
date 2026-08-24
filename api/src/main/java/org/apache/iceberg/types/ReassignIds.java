@@ -65,18 +65,15 @@ class ReassignIds extends TypeUtil.CustomOrderSchemaVisitor<Type> {
     throw new IllegalArgumentException("Field " + name + " not found in source schema");
   }
 
-  private static Type typeFor(Type original, int newId, Type visited) {
-    if (original.isFileType()) {
-      return Types.FileType.of(newId);
-    }
-
-    return visited;
-  }
-
   @Override
   public Type struct(Types.StructType struct, Iterable<Type> fieldTypes) {
     Preconditions.checkNotNull(sourceType, "Evaluation must start with a schema.");
     Preconditions.checkArgument(sourceType.isStructType(), "Not a struct: %s", sourceType);
+
+    if (struct.isFileType()) {
+      // nested fields are rebuilt from the id assigned to the field that holds this type
+      return struct;
+    }
 
     Types.StructType sourceStruct = sourceType.asStructType();
     List<Types.NestedField> fields = struct.fields();
@@ -87,7 +84,7 @@ class ReassignIds extends TypeUtil.CustomOrderSchemaVisitor<Type> {
     for (int i = 0; i < length; i += 1) {
       Types.NestedField field = fields.get(i);
       int fieldId = id(sourceStruct, field.name(), field.type());
-      Type type = typeFor(field.type(), fieldId, types.get(i));
+      Type type = TypeUtil.assignedType(field.type(), fieldId, types.get(i));
       newFields.add(Types.NestedField.from(field).withId(fieldId).ofType(type).build());
     }
 
@@ -129,7 +126,8 @@ class ReassignIds extends TypeUtil.CustomOrderSchemaVisitor<Type> {
 
     this.sourceType = sourceList.elementType();
     try {
-      Type elementType = typeFor(list.elementType(), sourceElementId, elementTypeFuture.get());
+      Type elementType =
+          TypeUtil.assignedType(list.elementType(), sourceElementId, elementTypeFuture.get());
       if (list.isElementOptional()) {
         return Types.ListType.ofOptional(sourceElementId, elementType);
       } else {
@@ -151,10 +149,10 @@ class ReassignIds extends TypeUtil.CustomOrderSchemaVisitor<Type> {
 
     try {
       this.sourceType = sourceMap.keyType();
-      Type keyType = typeFor(map.keyType(), sourceKeyId, keyTypeFuture.get());
+      Type keyType = TypeUtil.assignedType(map.keyType(), sourceKeyId, keyTypeFuture.get());
 
       this.sourceType = sourceMap.valueType();
-      Type valueType = typeFor(map.valueType(), sourceValueId, valueTypeFuture.get());
+      Type valueType = TypeUtil.assignedType(map.valueType(), sourceValueId, valueTypeFuture.get());
 
       if (map.isValueOptional()) {
         return Types.MapType.ofOptional(sourceKeyId, sourceValueId, keyType, valueType);
