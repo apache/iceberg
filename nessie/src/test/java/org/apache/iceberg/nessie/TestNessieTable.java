@@ -53,7 +53,6 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NotFoundException;
-import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
@@ -584,17 +583,26 @@ public class TestNessieTable extends BaseTestIceberg {
   }
 
   @Test
-  public void testGCDisabled() {
+  public void testGCDisabled() throws IOException {
     Table icebergTable = catalog.loadTable(TABLE_IDENTIFIER);
 
     assertThat(icebergTable.properties()).containsEntry(TableProperties.GC_ENABLED, "false");
 
-    assertThatThrownBy(
-            () ->
-                icebergTable.expireSnapshots().expireOlderThan(System.currentTimeMillis()).commit())
-        .isInstanceOf(ValidationException.class)
-        .hasMessage(
-            "Cannot expire snapshots: GC is disabled (deleting files may corrupt other tables)");
+    String fileLocation = addRecordsToFile(icebergTable, "file");
+    DataFile file = makeDataFile(icebergTable, fileLocation);
+    icebergTable.newAppend().appendFile(file).commit();
+
+    long expiredSnapshotId = icebergTable.currentSnapshot().snapshotId();
+    String manifestListLocation =
+        icebergTable.currentSnapshot().manifestListLocation().replace("file:", "");
+
+    icebergTable.newDelete().deleteFile(file).commit();
+    icebergTable.expireSnapshots().expireOlderThan(Long.MAX_VALUE).commit();
+
+    icebergTable.refresh();
+    assertThat(icebergTable.snapshot(expiredSnapshotId)).isNull();
+    assertThat(new File(fileLocation)).exists();
+    assertThat(new File(manifestListLocation)).exists();
   }
 
   @Test

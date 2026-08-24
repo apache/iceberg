@@ -170,8 +170,7 @@ public class TestExpireSnapshotsProcedure extends ExtensionsTestBase {
             "CALL %s.system.expire_snapshots('%s', TIMESTAMP '%s')",
             catalogName, tableIdent, currentTimestamp);
 
-    assertEquals(
-        "Should not delete files", ImmutableList.of(row(0L, 0L, 0L, 0L, 0L, 0L)), output);
+    assertEquals("Should not delete files", ImmutableList.of(row(0L, 0L, 0L, 0L, 0L, 0L)), output);
     table.refresh();
     assertThat(table.snapshots()).hasSize(1);
   }
