@@ -306,12 +306,23 @@ class SchemaUpdate implements UpdateSchema {
   }
 
   private String siblingPath(int parentId, String leaf) {
-    if (parentId == TABLE_ROOT_ID) {
-      return leaf;
+    Map<Integer, Integer> committedParents = TypeUtil.indexParents(schema.asStruct());
+    List<String> segments = Lists.newArrayList();
+    Integer current = parentId != TABLE_ROOT_ID ? parentId : null;
+    while (current != null) {
+      Types.NestedField committed = schema.findField(current);
+      Types.NestedField updated = updates.get(current);
+      segments.add(
+          updated != null
+              ? updated.name()
+              : committed != null ? committed.name() : String.valueOf(current));
+      Integer next =
+          idToParent.containsKey(current) ? idToParent.get(current) : committedParents.get(current);
+      current = next != null && next != TABLE_ROOT_ID ? next : null;
     }
 
-    Types.NestedField parent = schema.findField(parentId);
-    return effectiveSiblingName(parent) + "." + leaf;
+    java.util.Collections.reverse(segments);
+    return segments.isEmpty() ? leaf : String.join(".", segments) + "." + leaf;
   }
 
   private void validateNoCaseCollision(String name) {

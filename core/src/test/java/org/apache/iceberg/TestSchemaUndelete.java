@@ -157,6 +157,34 @@ public class TestSchemaUndelete extends TestBase {
   }
 
   @TestTemplate
+  public void undeleteUnderPendingTwoLevelRenameReportsFullPath() {
+    table
+        .updateSchema()
+        .addColumn(
+            "outer",
+            Types.StructType.of(
+                Types.NestedField.optional(
+                    1,
+                    "mid",
+                    Types.StructType.of(
+                        Types.NestedField.optional(2, "lat", Types.DoubleType.get()),
+                        Types.NestedField.optional(3, "lat2", Types.IntegerType.get())))))
+        .commit();
+
+    table.updateSchema().deleteColumn("outer.mid.lat").commit();
+
+    UpdateSchema update = table.updateSchema();
+    update.renameColumn("outer", "Outer");
+    update.renameColumn("outer.mid.lat2", "LAT");
+
+    assertThatThrownBy(() -> update.undeleteColumn("outer.mid.lat"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Cannot undelete column: case-insensitive collision between Outer.mid.lat and"
+                + " existing column: Outer.mid.LAT");
+  }
+
+  @TestTemplate
   public void undeleteParentRestoresWholeSubtree() {
     table
         .updateSchema()

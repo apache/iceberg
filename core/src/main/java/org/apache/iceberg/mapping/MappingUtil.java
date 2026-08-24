@@ -142,8 +142,7 @@ public class MappingUtil {
       fieldsToAdd.forEach(field -> builder.put(field.name(), field.fieldId()));
       Map<String, Integer> assignments = builder.build();
 
-      // single pass: strip reassigned names and merge reused ids because NameMapping requires
-      // unique ids
+      // single pass: strip reassigned names and merge reused ids (NameMapping requires unique ids)
       Map<Integer, MappedField> additionsById = Maps.newHashMap();
       newFields.forEach(field -> additionsById.put(field.id(), field));
 
