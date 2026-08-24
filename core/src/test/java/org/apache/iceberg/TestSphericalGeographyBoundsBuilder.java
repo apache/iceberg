@@ -30,6 +30,7 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
 class TestSphericalGeographyBoundsBuilder {
+  private static final double LATITUDE_TOLERANCE = 1e-9;
   private static final double LONGITUDE_TOLERANCE = 1e-9;
 
   @Test
@@ -161,6 +162,53 @@ class TestSphericalGeographyBoundsBuilder {
     assertThat(bounds.build()).isNull();
   }
 
+  @ParameterizedTest(name = "({0}, {1}) to ({2}, {3})")
+  @MethodSource("edgeBoundsCases")
+  void buildsBoundsForSphericalEdges(
+      double longitude1,
+      double latitude1,
+      double longitude2,
+      double latitude2,
+      BoundingBox expected) {
+    SphericalGeographyBoundsBuilder forward = new SphericalGeographyBoundsBuilder();
+    forward.addEdge(longitude1, latitude1, longitude2, latitude2);
+    assertBoundsCloseTo(forward.build(), expected);
+
+    SphericalGeographyBoundsBuilder reverse = new SphericalGeographyBoundsBuilder();
+    reverse.addEdge(longitude2, latitude2, longitude1, latitude1);
+    assertBoundsCloseTo(reverse.build(), expected);
+  }
+
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("lineBoundsCases")
+  void buildsBoundsForSphericalLines(String description, double[][] points, BoundingBox expected) {
+    SphericalGeographyBoundsBuilder bounds = new SphericalGeographyBoundsBuilder();
+    addLine(bounds, points);
+
+    assertBoundsCloseTo(bounds.build(), expected);
+  }
+
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("pointBoundsCases")
+  void buildsBoundsForPointSets(String description, double[][] points, BoundingBox expected) {
+    SphericalGeographyBoundsBuilder bounds = new SphericalGeographyBoundsBuilder();
+    for (double[] point : points) {
+      bounds.addPoint(point[0], point[1]);
+    }
+
+    assertBoundsCloseTo(bounds.build(), expected);
+  }
+
+  @Test
+  void mergesBoundsAcrossDisconnectedLines() {
+    SphericalGeographyBoundsBuilder bounds = new SphericalGeographyBoundsBuilder();
+    addLine(bounds, new double[][] {{180.0, 10.0}, {170.0, 10.0}});
+    addLine(bounds, new double[][] {{20.0, 10.0}, {-150.0, 10.0}, {-180.0, 10.0}});
+    addLine(bounds, new double[][] {{160.0, 0.0}, {40.0, 20.0}});
+
+    assertBoundsCloseTo(bounds.build(), box(40.0, 0.0, 20.0, 63.69752002440885));
+  }
+
   @Test
   void coversSampledPointsAlongRandomMinorArcs() {
     Random random = new Random(42L);
@@ -206,6 +254,200 @@ class TestSphericalGeographyBoundsBuilder {
         Arguments.of("NaN latitude", 0.0, Double.NaN),
         Arguments.of("infinite longitude", Double.POSITIVE_INFINITY, 0.0),
         Arguments.of("infinite latitude", 0.0, Double.NEGATIVE_INFINITY));
+  }
+
+  private static Stream<Arguments> lineBoundsCases() {
+    return Stream.of(
+        Arguments.of(
+            "ordinary polyline",
+            new double[][] {{1.0, 2.0}, {5.0, 6.0}, {-10.0, -7.0}},
+            box(-10.0, -7.0, 5.0, 6.0)),
+        Arguments.of(
+            "approaches positive antimeridian",
+            new double[][] {{180.0, 0.0}, {170.0, 0.0}},
+            box(170.0, 0.0, 180.0, 0.0)),
+        Arguments.of(
+            "crosses negative antimeridian",
+            new double[][] {{-180.0, 0.0}, {170.0, 0.0}},
+            box(170.0, 0.0, -180.0, 0.0)),
+        Arguments.of(
+            "latitude bulge near antimeridian",
+            new double[][] {{180.0, 10.0}, {170.0, 10.0}},
+            box(170.0, 10.0, 180.0, 10.037424049653)),
+        Arguments.of(
+            "narrow antimeridian crossing",
+            new double[][] {{-179.0, 10.0}, {179.0, 10.0}},
+            box(179.0, 10.0, -179.0, 10.001493527133333)),
+        Arguments.of(
+            "edges cover every longitude",
+            new double[][] {
+              {180.0, 10.0},
+              {170.0, 10.0},
+              {20.0, 10.0},
+              {-20.0, 10.0},
+              {-160.0, 10.0},
+              {-180.0, 10.0}
+            },
+            box(-180.0, 10.0, 180.0, 34.265634937025254)),
+        Arguments.of(
+            "wide non-wrapping line",
+            new double[][] {
+              {179.0, 10.0},
+              {170.0, 10.0},
+              {20.0, 10.0},
+              {-20.0, 10.0},
+              {-160.0, 10.0},
+              {-179.0, 10.0}
+            },
+            box(-179.0, 10.0, 179.0, 34.265634937025254)),
+        Arguments.of(
+            "line touches north pole",
+            new double[][] {{10.0, 20.0}, {10.0, 90.0}, {30.0, 20.0}},
+            box(10.0, 20.0, 30.0, 90.0)),
+        Arguments.of(
+            "line stays on north pole",
+            new double[][] {{20.0, 90.0}, {10.0, 90.0}, {30.0, 90.0}},
+            box(-180.0, 90.0, 180.0, 90.0)),
+        Arguments.of(
+            "line stays on south pole",
+            new double[][] {{20.0, -90.0}, {10.0, -90.0}, {30.0, -90.0}},
+            box(-180.0, -90.0, 180.0, -90.0)),
+        Arguments.of(
+            "edge connects opposite poles",
+            new double[][] {{30.0, 90.0}, {10.0, -90.0}},
+            box(-180.0, -90.0, 180.0, 90.0)),
+        Arguments.of(
+            "line visits both poles",
+            new double[][] {{10.0, 90.0}, {10.0, 0.0}, {10.0, -90.0}, {20.0, 0.0}, {20.0, 90.0}},
+            box(10.0, -90.0, 20.0, 90.0)));
+  }
+
+  private static Stream<Arguments> edgeBoundsCases() {
+    return Stream.concat(antimeridianEdgeBoundsCases(), latitudeEdgeBoundsCases());
+  }
+
+  private static Stream<Arguments> antimeridianEdgeBoundsCases() {
+    return Stream.of(
+        edgeCase(5.0, 10.0, 15.0, 10.0, 5.0, 10.0, 15.0, 10.03742404965304),
+        edgeCase(5.0, -10.0, 15.0, -10.0, 5.0, -10.037424049653, 15.0, -10.0),
+        edgeCase(5.0, 10.0, -179.0, 10.0, 5.0, 10.0, -179.0, 78.80444354002829),
+        edgeCase(5.0, 10.0, -175.1, 10.0, 5.0, 10.0, -175.1, 89.716447231812),
+        edgeCase(5.0, 10.0, 105.0, -10.0, 5.0, -10.0, 105.0, 10.0),
+        edgeCase(5.0, 10.0, 25.0, 10.0, 5.0, 10.0, 25.0, 10.15108272615629),
+        edgeCase(5.0, -10.0, 25.0, -10.0, 5.0, -10.15108272615629, 25.0, -10.0),
+        edgeCase(-170.0, 10.0, 160.0, 10.0, 160.0, 10.0, -170.0, 10.34527108067699),
+        edgeCase(-170.0, -10.0, 160.0, -10.0, 160.0, -10.34527108067699, -170.0, -10.0),
+        edgeCase(-180.0, 10.0, -170.0, 10.0, -180.0, 10.0, -170.0, 10.03742404965304),
+        edgeCase(180.0, 10.0, 170.0, 10.0, 170.0, 10.0, 180.0, 10.037424049653),
+        edgeCase(180.0, 10.0, 180.0, 5.0, -180.0, 5.0, -180.0, 10.0),
+        edgeCase(-180.0, 10.0, -180.0, 5.0, -180.0, 5.0, -180.0, 10.0),
+        edgeCase(10.0, 90.0, 20.0, 90.0, -180.0, 90.0, 180.0, 90.0),
+        edgeCase(10.0, -90.0, 20.0, -90.0, -180.0, -90.0, 180.0, -90.0));
+  }
+
+  private static Stream<Arguments> latitudeEdgeBoundsCases() {
+    return Stream.of(
+        edgeCase(10.0, 90.0, 20.0, -90.0, -180.0, -90.0, 180.0, 90.0),
+        edgeCase(10.0, 90.0, 10.0, -90.0, -180.0, -90.0, 180.0, 90.0),
+        edgeCase(10.0, -0.1, 100.0, 1.0, 10.0, -0.1, 100.0, 1.0),
+        edgeCase(10.0, -1.0, 100.0, 1.0, 10.0, -1.0, 100.0, 1.0),
+        edgeCase(10.0, 0.0, 120.0, 0.0, 10.0, 0.0, 120.0, 0.0),
+        edgeCase(10.0, 0.0, 120.0, 1.0, 10.0, 0.0, 120.0, 1.06416356550489),
+        edgeCase(10.0, 10.0, 20.0, 20.0, 10.0, 10.0, 20.0, 20.0),
+        edgeCase(10.0, 60.0, 70.0, 70.0, 10.0, 60.0, 70.0, 70.20558550568438),
+        edgeCase(10.0, 10.0, 80.0, 20.0, 10.0, 10.0, 80.0, 20.21005666515848),
+        edgeCase(5.0, 10.0, 105.0, 10.0, 5.0, 10.0, 105.0, 15.33981603316944),
+        edgeCase(5.0, 10.0, 175.0, 10.0, 5.0, 10.0, 175.0, 63.69752002440885),
+        edgeCase(10.0, 20.0, 10.0, 90.0, 10.0, 20.0, 10.0, 90.0),
+        edgeCase(10.0, 20.0, 10.0, -90.0, 10.0, -90.0, 10.0, 20.0),
+        edgeCase(10.0, -20.0, -10.0, 90.0, 10.0, -20.0, 10.0, 90.0),
+        edgeCase(10.0, -20.0, -10.0, -90.0, 10.0, -90.0, 10.0, -20.0));
+  }
+
+  private static Stream<Arguments> pointBoundsCases() {
+    return Stream.of(
+        Arguments.of(
+            "ordinary points",
+            new double[][] {{1.0, 2.0}, {5.0, 6.0}, {-10.0, -7.0}},
+            box(-10.0, -7.0, 5.0, 6.0)),
+        Arguments.of(
+            "points approach positive antimeridian",
+            new double[][] {{180.0, 0.0}, {170.0, 0.0}},
+            box(170.0, 0.0, 180.0, 0.0)),
+        Arguments.of(
+            "points cross negative antimeridian",
+            new double[][] {{-180.0, 0.0}, {170.0, 0.0}},
+            box(170.0, 0.0, -180.0, 0.0)),
+        Arguments.of(
+            "point set wraps around antimeridian",
+            new double[][] {
+              {180.0, 10.0}, {170.0, 10.0}, {20.0, 10.0}, {-160.0, 10.0}, {-180.0, 10.0}
+            },
+            box(20.0, 10.0, -160.0, 10.0)),
+        Arguments.of(
+            "point set excludes its largest circular gap",
+            new double[][] {
+              {179.0, 10.0},
+              {170.0, 10.0},
+              {20.0, 10.0},
+              {-20.0, 10.0},
+              {-160.0, 10.0},
+              {-179.0, 10.0}
+            },
+            box(170.0, 10.0, 20.0, 10.0)),
+        Arguments.of(
+            "points stay on north pole",
+            new double[][] {{20.0, 90.0}, {10.0, 90.0}, {30.0, 90.0}},
+            box(-180.0, 90.0, 180.0, 90.0)),
+        Arguments.of(
+            "points include both poles",
+            new double[][] {{10.0, 90.0}, {30.0, -90.0}},
+            box(-180.0, -90.0, 180.0, 90.0)),
+        Arguments.of(
+            "pole longitudes do not widen finite points",
+            new double[][] {{10.0, 90.0}, {10.0, 0.0}, {10.0, -90.0}, {20.0, 0.0}, {20.0, 90.0}},
+            box(10.0, -90.0, 20.0, 90.0)));
+  }
+
+  private static void addLine(SphericalGeographyBoundsBuilder bounds, double[][] points) {
+    if (points.length == 1) {
+      bounds.addPoint(points[0][0], points[0][1]);
+      return;
+    }
+
+    for (int index = 1; index < points.length; index += 1) {
+      double[] start = points[index - 1];
+      double[] end = points[index];
+      bounds.addEdge(start[0], start[1], end[0], end[1]);
+    }
+  }
+
+  private static void assertBoundsCloseTo(BoundingBox actual, BoundingBox expected) {
+    assertThat(actual).isNotNull();
+    assertThat(actual.min().x()).isEqualTo(expected.min().x());
+    assertThat(actual.max().x()).isEqualTo(expected.max().x());
+    assertThat(Math.abs(actual.min().y() - expected.min().y()))
+        .isLessThanOrEqualTo(LATITUDE_TOLERANCE);
+    assertThat(Math.abs(actual.max().y() - expected.max().y()))
+        .isLessThanOrEqualTo(LATITUDE_TOLERANCE);
+  }
+
+  private static Arguments edgeCase(
+      double longitude1,
+      double latitude1,
+      double longitude2,
+      double latitude2,
+      double west,
+      double south,
+      double east,
+      double north) {
+    return Arguments.of(
+        longitude1, latitude1, longitude2, latitude2, box(west, south, east, north));
+  }
+
+  private static BoundingBox box(double west, double south, double east, double north) {
+    return new BoundingBox(
+        GeospatialBound.createXY(west, south), GeospatialBound.createXY(east, north));
   }
 
   private static boolean longitudeIsContained(double longitude, BoundingBox box) {
