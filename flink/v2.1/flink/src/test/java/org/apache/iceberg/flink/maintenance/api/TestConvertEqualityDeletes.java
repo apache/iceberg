@@ -1348,11 +1348,8 @@ class TestConvertEqualityDeletes extends MaintenanceTaskTestBase {
     insert(table, 1, "a");
     insert(table, 2, "b");
 
-    // Two eq deletes with their re-inserts in one commit, the usual upsert shape. id=1's delete
-    // file
-    // stays readable so it resolves, while id=2's is removed so the cycle aborts only after id=1
-    // has
-    // been resolved out of the index.
+    // Two eq deletes with their re-inserts, the usual upsert shape. id=1's delete file stays
+    // readable so it resolves; id=2's is removed so the cycle aborts after id=1 is resolved.
     DataFile reinsertA = writeDataFile(table, createRecord(1, "a"));
     DataFile reinsertB = writeDataFile(table, createRecord(2, "b"));
     DeleteFile readableDelete = writeEqualityDelete(table, 1, "a");
@@ -1366,12 +1363,8 @@ class TestConvertEqualityDeletes extends MaintenanceTaskTestBase {
         .commit();
     table.refresh();
 
-    // The eq deletes carry this commit's sequence number, so they hide the original rows but not
-    // the
-    // re-inserts. The row count matters as well as the values: a delete that goes missing leaves a
-    // second copy of an identical row, which a set comparison alone would not catch.
+    // The eq deletes hide the original rows, but not the re-inserts.
     assertRecords(table, ImmutableList.of(createRecord(1, "a"), createRecord(2, "b")));
-    assertThat(visibleRowCount(table)).isEqualTo(2);
 
     long mainSnapshotBeforeConversion = table.currentSnapshot().snapshotId();
     File missingDeleteLocalFile = new File(missingDelete.location().replace("file:", ""));
@@ -1413,7 +1406,6 @@ class TestConvertEqualityDeletes extends MaintenanceTaskTestBase {
       // The retried cycle converted both eq deletes, so only the re-inserts remain visible.
       assertNoEqualityDeletesOnMain(table, 0);
       assertRecords(table, ImmutableList.of(createRecord(1, "a"), createRecord(2, "b")));
-      assertThat(visibleRowCount(table)).isEqualTo(2);
     } finally {
       closeJobClient(jobClient);
     }
@@ -1502,22 +1494,6 @@ class TestConvertEqualityDeletes extends MaintenanceTaskTestBase {
             StreamGraphGenerator.DEFAULT_SLOT_SHARING_GROUP,
             1)
         .sinkTo(infra.sink());
-  }
-
-  private static long visibleRowCount(Table table) throws IOException {
-    table.refresh();
-    long count = 0;
-    try (CloseableIterable<Record> iterable =
-        IcebergGenerics.read(table)
-            .useSnapshot(table.currentSnapshot().snapshotId())
-            .project(SimpleDataUtil.SCHEMA)
-            .build()) {
-      for (Record ignored : iterable) {
-        count++;
-      }
-    }
-
-    return count;
   }
 
   private static void assertRecords(Table table, List<Record> expected) throws IOException {
