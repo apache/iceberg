@@ -25,7 +25,9 @@ The organizations and projects below provide products, services, or integrations
 This non-exhaustive list is provided for convenience. Inclusion does not constitute endorsement,
 certification, affiliation, or sponsorship by the Apache Software Foundation or the Apache Iceberg project.
 
-The Apache Iceberg project does not verify claims made on linked third-party sites.
+PMC review determines only whether an entry satisfies the listing criteria below. The Apache Iceberg
+project does not verify or endorse linked projects or services, including their claims, quality,
+licensing, security, compatibility, or continued availability.
 
 ## Third-party projects and services
 
@@ -76,8 +78,10 @@ Listings are alphabetical and include one name and one external link. Links shou
 technical documentation or a relevant project or product page that demonstrates the relationship to
 Apache Iceberg.
 
-Listings do not include descriptions, logos, rankings, or paid placement. Requests to add or update a
-listing should be submitted as public pull requests and are reviewed under PMC oversight.
+Listings do not include descriptions, logos, rankings, or paid placement, and no entry is designated as
+preferred, official, or certified. Requests to add, update, or remove a listing should be submitted as
+public pull requests and are reviewed under PMC oversight.
 
-Listings may be removed if the link becomes unavailable or the linked organization or project does not
-comply with applicable ASF branding and trademark policies.
+Listings may be removed if the link becomes unavailable, the linked page no longer demonstrates a
+concrete Apache Iceberg connection, or the linked organization or project does not comply with applicable
+ASF branding and trademark policies.
