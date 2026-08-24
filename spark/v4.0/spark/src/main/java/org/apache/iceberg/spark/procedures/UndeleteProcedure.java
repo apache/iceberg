@@ -111,8 +111,7 @@ class UndeleteProcedure extends BaseProcedure {
           boolean wasIdentifier = false;
           if (deletedColumn != null) {
             Schema winningSchema =
-                UndeleteUtils.findWinningSchema(
-                    current.schemas(), column, deletedColumn.fieldId());
+                UndeleteUtils.findWinningSchema(current.schemas(), column, deletedColumn.fieldId());
             wasIdentifier =
                 winningSchema != null
                     && winningSchema.identifierFieldIds().contains(deletedColumn.fieldId());
