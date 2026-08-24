@@ -72,7 +72,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
 
   protected BufferAllocator rootAlloc;
 
-  protected int batchSize;
+  private int batchSize = DEFAULT_BATCH_SIZE;
   private FieldVector vec;
   private IntVector repetitionLevels;
   private Integer typeWidth;
@@ -93,6 +93,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
       boolean setArrowValidityVector) {
     this.icebergField = icebergField;
     this.columnDescriptor = desc;
+    this.batchSize = DEFAULT_BATCH_SIZE;
     this.rootAlloc = ra;
     this.vectorizedColumnIterator = new VectorizedColumnIterator(desc, "", setArrowValidityVector);
   }
@@ -103,7 +104,6 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
 
   protected VectorizedArrowReader(Types.NestedField icebergField) {
     this.icebergField = icebergField;
-    this.batchSize = DEFAULT_BATCH_SIZE;
     this.columnDescriptor = null;
     this.rootAlloc = null;
     this.vectorizedColumnIterator = null;
@@ -135,7 +135,9 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
   @Override
   public void setBatchSize(int batchSize) {
     this.batchSize = (batchSize == 0) ? DEFAULT_BATCH_SIZE : batchSize;
-    this.vectorizedColumnIterator.setBatchSize(batchSize);
+    if (vectorizedColumnIterator != null) {
+      vectorizedColumnIterator.setBatchSize(batchSize);
+    }
   }
 
   @Override
@@ -706,6 +708,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     private final boolean setArrowValidityVector;
     private long rowStart;
     private NullabilityHolder nulls;
+    private int batchSize = DEFAULT_BATCH_SIZE;
 
     PositionVectorReader(boolean setArrowValidityVector) {
       super(MetadataColumns.ROW_POSITION);
@@ -766,6 +769,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
 
     @Override
     public void setBatchSize(int batchSize) {
+      super.setBatchSize(batchSize);
       // resolve the batch size first: the vector and the nullability holder must be sized
       // consistently, otherwise a zero batch size pairs a full sized vector with an empty holder
       // and every null check on the returned holder fails
@@ -844,6 +848,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
 
     @Override
     public void setBatchSize(int batchSize) {
+      super.setBatchSize(batchSize);
       this.batchSize = (batchSize == 0) ? DEFAULT_BATCH_SIZE : batchSize;
       if (nulls == null || nulls.size() < this.batchSize) {
         this.nulls = newNullabilityHolder(this.batchSize);
@@ -948,6 +953,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
 
     @Override
     public void setBatchSize(int batchSize) {
+      super.setBatchSize(batchSize);
       this.batchSize = (batchSize == 0) ? DEFAULT_BATCH_SIZE : batchSize;
       if (nulls == null || nulls.size() < this.batchSize) {
         this.nulls = newNullabilityHolder(this.batchSize);

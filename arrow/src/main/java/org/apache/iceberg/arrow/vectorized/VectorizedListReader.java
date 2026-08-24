@@ -38,6 +38,7 @@ public class VectorizedListReader extends VectorizedArrowReader {
   private final boolean isElementRequired;
   private final ListVectorBuilder listBuilder;
   private long estimatedSize;
+  private int batchSize = DEFAULT_BATCH_SIZE;
 
   public VectorizedListReader(
       ColumnDescriptor desc,
@@ -79,6 +80,7 @@ public class VectorizedListReader extends VectorizedArrowReader {
 
   @Override
   public void setBatchSize(int batchSize) {
+    super.setBatchSize(batchSize);
     this.batchSize = (batchSize == 0) ? DEFAULT_BATCH_SIZE : batchSize;
     elementReader.setBatchSize(batchSize);
   }
