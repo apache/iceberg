@@ -2134,30 +2134,15 @@ public class TestViews extends ExtensionsTestBase {
   }
 
   @TestTemplate
-  public void readFromViewWithNarrowedSchemaUnderCompensation() throws NoSuchTableException {
+  public void readFromViewWithNarrowedSchemaUnderNoCast() throws NoSuchTableException {
     insertRows(3);
-    String viewName = viewName("compensatedSchemaView");
+    String viewName = viewName("noCastSchemaView");
     createViewWithNarrowedSchema(viewName);
 
     withSQLConf(
         ImmutableMap.of(
             SparkSQLProperties.VIEW_SCHEMA_BINDING_MODE,
-            SparkSQLProperties.VIEW_SCHEMA_MODE_COMPENSATION),
-        () ->
-            assertThat(sql("SELECT * FROM %s ORDER BY id", viewName))
-                .containsExactly(row(1L), row(2L), row(3L)));
-  }
-
-  @TestTemplate
-  public void readFromViewWithNarrowedSchemaUnderTypeEvolution() throws NoSuchTableException {
-    insertRows(3);
-    String viewName = viewName("typeEvolutionSchemaView");
-    createViewWithNarrowedSchema(viewName);
-
-    withSQLConf(
-        ImmutableMap.of(
-            SparkSQLProperties.VIEW_SCHEMA_BINDING_MODE,
-            SparkSQLProperties.VIEW_SCHEMA_MODE_TYPE_EVOLUTION),
+            SparkSQLProperties.VIEW_SCHEMA_MODE_NO_CAST),
         () -> {
           assertThat(spark.table(viewName).schema().fields()[0].dataType())
               .isEqualTo(DataTypes.DoubleType);
@@ -2165,20 +2150,6 @@ public class TestViews extends ExtensionsTestBase {
           assertThat(sql("SELECT * FROM %s ORDER BY id", viewName))
               .containsExactly(row(1.0d), row(2.0d), row(3.0d));
         });
-  }
-
-  @TestTemplate
-  public void schemaBindingModeAcceptsSparkSpelling() throws NoSuchTableException {
-    insertRows(3);
-    String viewName = viewName("sparkSpellingSchemaView");
-    createViewWithNarrowedSchema(viewName);
-
-    // Spark writes this mode as "TYPE EVOLUTION" in its WITH SCHEMA clause
-    withSQLConf(
-        ImmutableMap.of(SparkSQLProperties.VIEW_SCHEMA_BINDING_MODE, "type evolution"),
-        () ->
-            assertThat(spark.table(viewName).schema().fields()[0].dataType())
-                .isEqualTo(DataTypes.DoubleType));
   }
 
   @TestTemplate
