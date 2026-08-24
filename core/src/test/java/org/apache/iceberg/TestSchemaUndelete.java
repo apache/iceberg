@@ -81,7 +81,7 @@ public class TestSchemaUndelete extends TestBase {
 
     assertThatThrownBy(() -> update.undeleteColumn("x"))
         .hasMessage(
-            "Cannot undelete column: case-insensitive collision between x and existing "
+            "Cannot undelete column: case-insensitive collision between x and pending "
                 + "column: X");
   }
 
@@ -377,7 +377,7 @@ public class TestSchemaUndelete extends TestBase {
     // the pending-add collision guard runs before the double-undelete guard and rejects first
     assertThatThrownBy(() -> update.undeleteColumn("payload"))
         .hasMessage(
-            "Cannot undelete column: case-insensitive collision between payload and existing "
+            "Cannot undelete column: case-insensitive collision between payload and pending "
                 + "column: payload");
   }
 
@@ -405,8 +405,49 @@ public class TestSchemaUndelete extends TestBase {
 
     assertThatThrownBy(() -> update.undeleteColumn("payload"))
         .hasMessage(
-            "Cannot undelete column: case-insensitive collision between payload and existing "
+            "Cannot undelete column: case-insensitive collision between payload and pending "
                 + "column: payload");
+  }
+
+  @TestTemplate
+  public void undeleteUnderRenamedParentRestoresWithOriginalId() {
+    table
+        .updateSchema()
+        .addColumn(
+            "loc",
+            Types.StructType.of(Types.NestedField.optional(1, "lat", Types.DoubleType.get())))
+        .commit();
+
+    int latId = table.schema().findField("loc.lat").fieldId();
+
+    table.updateSchema().deleteColumn("loc.lat").commit();
+    table.updateSchema().renameColumn("loc", "place").commit();
+    table.updateSchema().undeleteColumn("loc.lat").commit();
+
+    Types.NestedField place = table.schema().findField("place");
+    assertThat(place.type().asStructType().field("lat").fieldId()).isEqualTo(latId);
+    assertThat(table.schema().findColumnName(latId)).isEqualTo("place.lat");
+  }
+
+  @TestTemplate
+  public void undeleteUnderRenamedParentCollidesWithPendingSibling() {
+    table
+        .updateSchema()
+        .addColumn(
+            "loc",
+            Types.StructType.of(Types.NestedField.optional(1, "lat", Types.DoubleType.get())))
+        .commit();
+
+    table.updateSchema().deleteColumn("loc.lat").commit();
+    table.updateSchema().renameColumn("loc", "place").commit();
+
+    UpdateSchema update = table.updateSchema();
+    update.addColumn("place", "Lat", Types.IntegerType.get());
+
+    assertThatThrownBy(() -> update.undeleteColumn("loc.lat"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("case-insensitive collision between place.lat")
+        .hasMessageContaining("Lat");
   }
 
   @TestTemplate

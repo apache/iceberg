@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -61,20 +62,17 @@ public final class UndeleteUtils {
   }
 
   /**
-   * Find the most recent historical schema whose definition of the deleted column carries exactly
-   * this field ID.
+   * Find the most recent historical schema containing the named deleted column.
    *
    * @param creationOrderSchemas table schemas in creation order, oldest first
    * @param name name of the deleted column
-   * @param fieldId the field ID returned by {@link #findDeletedColumn(List, String)}
-   * @return the newest schema containing the column under this field ID, or null
+   * @return the newest schema containing the column under this name, or null
    */
-  public static Schema findWinningSchema(
-      List<Schema> creationOrderSchemas, String name, int fieldId) {
+  public static Schema findWinningSchema(List<Schema> creationOrderSchemas, String name) {
     // schemas are in creation order, search newest first so the latest definition wins
     for (int index = creationOrderSchemas.size() - 1; index >= 0; index -= 1) {
       Types.NestedField candidate = findInSchema(creationOrderSchemas.get(index), name);
-      if (candidate != null && candidate.fieldId() == fieldId) {
+      if (candidate != null) {
         return creationOrderSchemas.get(index);
       }
     }
@@ -90,7 +88,7 @@ public final class UndeleteUtils {
    * @param fieldId the field whose ancestors to collect
    * @return parent IDs excluding the field itself, empty for top-level fields
    */
-  public static List<Integer> structAncestorIds(Schema schema, int fieldId) {
+  static List<Integer> structAncestorIds(Schema schema, int fieldId) {
     Map<Integer, Integer> idToParent = TypeUtil.indexParents(schema.asStruct());
     List<Integer> chain = Lists.newArrayList();
     Integer current = idToParent.get(fieldId);
@@ -99,7 +97,7 @@ public final class UndeleteUtils {
       current = idToParent.get(current);
     }
 
-    java.util.Collections.reverse(chain);
+    Collections.reverse(chain);
     return chain;
   }
 

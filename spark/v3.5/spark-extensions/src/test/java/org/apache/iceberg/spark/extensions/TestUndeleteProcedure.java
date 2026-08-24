@@ -186,6 +186,36 @@ public class TestUndeleteProcedure extends ExtensionsTestBase {
   }
 
   @TestTemplate
+  public void testUndeleteRestoresUnderRenamedParent() {
+    sql(
+        "CREATE TABLE %s (id bigint NOT NULL, loc struct<lat double>) USING iceberg "
+            + "TBLPROPERTIES ('format-version'='2')",
+        tableName);
+    sql("INSERT INTO TABLE %s VALUES (1, named_struct('lat', 42.0))", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    int latId = table.schema().findField("loc.lat").fieldId();
+
+    sql("ALTER TABLE %s DROP COLUMN loc.lat", tableName);
+    sql("ALTER TABLE %s RENAME COLUMN loc TO place", tableName);
+
+    List<Object[]> output =
+        sql("CALL %s.system.undelete_column('%s', 'loc.lat')", catalogName, tableIdent);
+
+    Table updated = validationCatalog.loadTable(tableIdent);
+    int restoredLatId = updated.schema().findField("place.lat").fieldId();
+    assertThat(restoredLatId).isEqualTo(latId);
+    assertEquals(
+        "Procedure output must locate the restored field by ID after a parent rename",
+        ImmutableList.of(row(latId, updated.schema().schemaId(), false, false)),
+        output);
+    assertEquals(
+        "Historical rows must be readable through the restored nested column",
+        ImmutableList.of(row(1L, 42.0)),
+        sql("SELECT id, place.lat FROM %s ORDER BY id", tableName));
+  }
+
+  @TestTemplate
   public void testUndeleteColumnReportsWasIdentifierTrue() {
     sql(
         "CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg "

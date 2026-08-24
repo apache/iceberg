@@ -110,8 +110,7 @@ class UndeleteProcedure extends BaseProcedure {
           // the restored field is never re-registered as an identifier automatically
           boolean wasIdentifier = false;
           if (deletedColumn != null) {
-            Schema winningSchema =
-                UndeleteUtils.findWinningSchema(current.schemas(), column, deletedColumn.fieldId());
+            Schema winningSchema = UndeleteUtils.findWinningSchema(current.schemas(), column);
             wasIdentifier =
                 winningSchema != null
                     && winningSchema.identifierFieldIds().contains(deletedColumn.fieldId());
@@ -123,8 +122,9 @@ class UndeleteProcedure extends BaseProcedure {
           InternalRow outputRow =
               newInternalRow(
                   Objects.requireNonNull(
-                          committedSchema.findField(column),
-                          "Cannot find undeleted column in committed schema: " + column)
+                          committedSchema.findField(deletedColumn.fieldId()),
+                          "Cannot find undeleted column in committed schema: "
+                              + deletedColumn.fieldId())
                       .fieldId(),
                   committedSchema.schemaId(),
                   wroteDuringWindow,
