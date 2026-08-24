@@ -130,8 +130,7 @@ public class TestSchemaUndelete extends TestBase {
     assertThatThrownBy(() -> table.updateSchema().undeleteColumn("loc.lat"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("its parent was recreated with a new field ID")
-        .hasMessageContaining(
-            "Undelete 'loc' instead if that parent's history still contains this field");
+        .hasMessageNotContaining("Undelete");
     assertThat(table.schema().findField("loc").fieldId()).isEqualTo(freshLocId);
     assertThat(table.schema().findField("loc").type().asStructType().field("lat")).isNull();
   }
@@ -190,13 +189,34 @@ public class TestSchemaUndelete extends TestBase {
                 Types.StructType.of(Types.NestedField.optional(7, "lat", Types.DoubleType.get()))))
         .commit();
     int pointsId = table.schema().findField("points").fieldId();
-    table.updateSchema().deleteColumn("points").commit();
+    table.updateSchema().deleteColumn("points.lat").commit();
 
     assertThatThrownBy(() -> table.updateSchema().undeleteColumn("points.lat"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Cannot undelete columns nested inside MAP types: points.lat")
         .hasMessageNotContaining("no deleted column with that name");
-    assertThat(table.schema().findField(pointsId)).isNull();
+    assertThat(table.schema().findField(pointsId)).isNotNull();
+  }
+
+  @TestTemplate
+  public void undeleteChildInsideListRefuses() {
+    table
+        .updateSchema()
+        .addColumn(
+            "readings",
+            Types.ListType.ofOptional(
+                5,
+                Types.StructType.of(
+                    Types.NestedField.optional(6, "value", Types.DoubleType.get()))))
+        .commit();
+    int readingsId = table.schema().findField("readings").fieldId();
+    table.updateSchema().deleteColumn("readings.value").commit();
+
+    assertThatThrownBy(() -> table.updateSchema().undeleteColumn("readings.value"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot undelete columns nested inside LIST types: readings.value")
+        .hasMessageNotContaining("no deleted column with that name");
+    assertThat(table.schema().findField(readingsId)).isNotNull();
   }
 
   @TestTemplate
@@ -273,19 +293,18 @@ public class TestSchemaUndelete extends TestBase {
   }
 
   @TestTemplate
-  public void undeleteRequiredWithWritesThrowsQuotingLastSeenSnapshot() {
+  public void undeleteRequiredWithWritesThrowsQuotingLastContainingSnapshot() {
     table.newFastAppend().appendFile(FILE_A).commit();
+    long lastContainingSnapshotId = table.currentSnapshot().snapshotId();
     table.updateSchema().deleteColumn("id").commit();
     table.newFastAppend().appendFile(FILE_B).commit();
 
-    long lastSeenSnapshotId = table.currentSnapshot().snapshotId();
-
     assertThatThrownBy(() -> table.updateSchema().undeleteColumn("id").commit())
         .hasMessage(
-            "Cannot undelete required column id: snapshots newer than its last appearance (snapshot "
-                + lastSeenSnapshotId
-                + ") may contain rows without values. Only nullable columns or tables unchanged "
-                + "since the drop can be undeleted");
+            "Cannot undelete required column id: snapshots newer than snapshot "
+                + lastContainingSnapshotId
+                + ", which was the last to contain the column, may contain rows without values."
+                + " Only nullable columns or tables unchanged since the drop can be undeleted");
   }
 
   @TestTemplate

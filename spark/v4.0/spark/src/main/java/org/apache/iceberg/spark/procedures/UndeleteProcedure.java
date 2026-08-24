@@ -108,9 +108,15 @@ class UndeleteProcedure extends BaseProcedure {
                   && UndeleteUtils.newestContainingSnapshotIndex(current, deletedColumn.fieldId())
                       != 0;
           // the restored field is never re-registered as an identifier automatically
-          boolean wasIdentifier =
-              current.schemas().stream()
-                  .anyMatch(schema -> schema.identifierFieldNames().contains(column));
+          boolean wasIdentifier = false;
+          if (deletedColumn != null) {
+            Schema winningSchema =
+                UndeleteUtils.findWinningSchema(
+                    current.schemas(), column, deletedColumn.fieldId());
+            wasIdentifier =
+                winningSchema != null
+                    && winningSchema.identifierFieldIds().contains(deletedColumn.fieldId());
+          }
 
           table.updateSchema().undeleteColumn(column).commit();
 

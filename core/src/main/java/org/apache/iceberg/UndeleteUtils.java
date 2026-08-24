@@ -60,6 +60,28 @@ public final class UndeleteUtils {
   }
 
   /**
+   * Find the most recent historical schema whose definition of the deleted column carries exactly
+   * this field ID.
+   *
+   * @param creationOrderSchemas table schemas in creation order, oldest first
+   * @param name name of the deleted column
+   * @param fieldId the field ID returned by {@link #findDeletedColumn(List, String)}
+   * @return the newest schema containing the column under this field ID, or null
+   */
+  public static Schema findWinningSchema(
+      List<Schema> creationOrderSchemas, String name, int fieldId) {
+    // schemas are in creation order, search newest first so the latest definition wins
+    for (int index = creationOrderSchemas.size() - 1; index >= 0; index -= 1) {
+      Types.NestedField candidate = findInSchema(creationOrderSchemas.get(index), name);
+      if (candidate != null && candidate.fieldId() == fieldId) {
+        return creationOrderSchemas.get(index);
+      }
+    }
+
+    return null;
+  }
+
+  /**
    * Walk snapshot ancestry of the current snapshot newest-first and return the index of the first
    * ancestor whose schema contains the field ID.
    *

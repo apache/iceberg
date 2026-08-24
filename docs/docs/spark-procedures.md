@@ -273,7 +273,7 @@ the drop become readable again without rewriting them.
 | ------------|------|-------------|
 | `restored_field_id` | int | The original field ID assigned back to the restored column |
 | `applied_schema_id` | int | The schema ID produced by the restore |
-| `wrote_during_window` | boolean | Conservative indicator: `true` when any snapshot on the current branch is newer than the column's last appearance, or when history cannot prove otherwise; `false` only when the latest snapshot still contains the column |
+| `wrote_during_window` | boolean | Conservative indicator: `true` when any snapshot on the current branch is newer than the column's last appearance, or when history cannot prove otherwise; `false` when the latest snapshot still contains the column, or when the table has no snapshots |
 | `was_identifier` | boolean | Whether the restored column was part of the table's identifier fields before it was dropped; identifiers are never restored automatically |
 
 #### Example
@@ -284,9 +284,9 @@ Restore column `location` in table `db.sample`:
 CALL catalog_name.system.undelete_column('db.sample', 'location');
 ```
 
-Columns that were required when dropped can only be undeleted if the table's latest snapshot still
-contains them; the call fails otherwise, because snapshots newer than the column's last appearance
-may contain rows without values.
+Columns that were required when dropped can only be undeleted if the table has no snapshots or its
+latest snapshot still contains them; the call fails otherwise, because snapshots newer than the
+column's last appearance may contain rows without values.
 
 ## Metadata management
 

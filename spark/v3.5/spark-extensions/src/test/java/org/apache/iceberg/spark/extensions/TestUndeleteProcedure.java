@@ -93,23 +93,24 @@ public class TestUndeleteProcedure extends ExtensionsTestBase {
     sql("CREATE TABLE %s (id bigint NOT NULL, req string NOT NULL) USING iceberg", tableName);
     sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
 
+    long lastContainingSnapshotId =
+        validationCatalog.loadTable(tableIdent).currentSnapshot().snapshotId();
+
     sql("ALTER TABLE %s DROP COLUMN req", tableName);
     sql("INSERT INTO TABLE %s VALUES (2)", tableName);
 
     Table table = validationCatalog.loadTable(tableIdent);
     int schemaIdAtCall = table.schema().schemaId();
     long snapshotIdAtCall = table.currentSnapshot().snapshotId();
-    long lastAbsentSnapshotId = snapshotIdAtCall;
 
     assertThatThrownBy(
             () -> sql("CALL %s.system.undelete_column('%s', 'req')", catalogName, tableIdent))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
-            "Cannot undelete required column req: snapshots newer than its last appearance "
-                + "(snapshot "
-                + lastAbsentSnapshotId
-                + ") may contain rows without values. Only nullable columns or tables unchanged "
-                + "since the drop can be undeleted");
+            "Cannot undelete required column req: snapshots newer than snapshot "
+                + lastContainingSnapshotId
+                + ", which was the last to contain the column, may contain rows without values."
+                + " Only nullable columns or tables unchanged since the drop can be undeleted");
 
     Table after = validationCatalog.loadTable(tableIdent);
     assertThat(after.schema().findField("req")).isNull();

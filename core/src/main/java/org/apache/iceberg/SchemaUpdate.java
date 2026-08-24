@@ -346,29 +346,21 @@ class SchemaUpdate implements UpdateSchema {
       return;
     }
 
-    List<Integer> historicalIds = null;
-    for (int i = base.schemas().size() - 1; i >= 0 && historicalIds == null; i -= 1) {
-      Schema candidate = base.schemas().get(i);
-      List<Integer> ancestorIds = structAncestorIds(candidate, parts);
-      if (ancestorIds != null && containsLeaf(candidate, parts, historicalField.fieldId())) {
-        historicalIds = ancestorIds;
-      }
-    }
-
+    Schema winningSchema =
+        UndeleteUtils.findWinningSchema(base.schemas(), name, historicalField.fieldId());
     Preconditions.checkArgument(
-        historicalIds != null,
+        winningSchema != null,
         "Cannot undelete column: no deleted column with that name: %s",
         name);
 
+    List<Integer> historicalIds = structAncestorIds(winningSchema, parts);
     List<Integer> currentIds = structAncestorIds(schema, parts);
     for (int depth = 0; depth < currentIds.size(); depth += 1) {
       Preconditions.checkArgument(
           currentIds.get(depth).equals(historicalIds.get(depth)),
           "Cannot undelete column %s: its parent was recreated with a new field ID, so data written"
-              + " under the previous parent is unreachable through it. Undelete '%s' instead if"
-              + " that parent's history still contains this field",
-          name,
-          parts.get(0));
+              + " under the previous parent is unreachable through it",
+          name);
     }
   }
 
@@ -392,19 +384,6 @@ class SchemaUpdate implements UpdateSchema {
     return ids;
   }
 
-  private static boolean containsLeaf(Schema schema, List<String> parts, int fieldId) {
-    Types.NestedField field = schema.findField(parts.get(0));
-    for (int depth = 1; field != null && depth < parts.size(); depth += 1) {
-      if (!field.type().isStructType()) {
-        return false;
-      }
-
-      field = field.type().asStructType().field(parts.get(depth));
-    }
-
-    return field != null && field.fieldId() == fieldId;
-  }
-
   private String unsafeRequiredRestoreMessage(String name, int fieldId, int index) {
     String reason;
     if (index == UndeleteUtils.UNRESOLVABLE_LINEAGE) {
@@ -415,13 +394,13 @@ class SchemaUpdate implements UpdateSchema {
     } else if (index == UndeleteUtils.PRUNED_LINEAGE) {
       reason = "snapshot lineage could not be verified";
     } else {
-      long lastAbsentSnapshotId =
-          SnapshotUtil.ancestorIds(base.currentSnapshot(), base::snapshot).get(index - 1);
+      long containingSnapshotId =
+          SnapshotUtil.ancestorIds(base.currentSnapshot(), base::snapshot).get(index);
       reason =
           String.format(
-              "snapshots newer than its last appearance (snapshot %s) may contain rows without "
-                  + "values",
-              lastAbsentSnapshotId);
+              "snapshots newer than snapshot %s, which was the last to contain the column, may "
+                  + "contain rows without values",
+              containingSnapshotId);
     }
 
     return String.format(
