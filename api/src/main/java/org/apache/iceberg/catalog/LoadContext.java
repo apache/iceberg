@@ -18,9 +18,9 @@
  */
 package org.apache.iceberg.catalog;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 /**
  * Context for loading a table or view.
@@ -37,7 +37,7 @@ public final class LoadContext {
   private LoadContext(Builder builder) {
     this.referencedBy =
         builder.referencedBy != null
-            ? Collections.unmodifiableList(new ArrayList<>(builder.referencedBy))
+            ? Collections.unmodifiableList(Lists.newArrayList(builder.referencedBy))
             : Collections.emptyList();
   }
 
