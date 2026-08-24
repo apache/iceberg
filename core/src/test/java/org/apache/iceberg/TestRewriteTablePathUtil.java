@@ -22,11 +22,22 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
+import java.io.File;
 import java.io.IOException;
+import java.util.List;
 import java.util.Set;
+import org.apache.iceberg.avro.Avro;
+import org.apache.iceberg.data.Record;
+import org.apache.iceberg.data.avro.DataWriter;
+import org.apache.iceberg.data.avro.PlannedDataReader;
+import org.apache.iceberg.deletes.PositionDelete;
+import org.apache.iceberg.deletes.PositionDeleteWriter;
+import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.DeleteSchemaUtil;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -446,6 +457,93 @@ public class TestRewriteTablePathUtil extends TestBase {
     }
 
     assertThat(seen).as("Both the live and deleted entries should be present").isEqualTo(2);
+  }
+
+  @Test
+  public void testRewritePositionDeleteWith2FieldReader() throws IOException {
+    File sourceFile =
+        new File(
+            FileFormat.AVRO.addExtension(
+                temp.resolve("source-pos-deletes-" + System.nanoTime()).toString()));
+    OutputFile sourceOutput = Files.localOutput(sourceFile);
+
+    String sourcePrefix = temp.toAbsolutePath().toString();
+    String targetPrefix = temp.resolve("target").toAbsolutePath().toString();
+    String dataFilePath = sourcePrefix + "/data/file.parquet";
+
+    try (PositionDeleteWriter<Void> writer =
+        Avro.writeDeletes(sourceOutput)
+            .createWriterFunc(DataWriter::create)
+            .overwrite()
+            .withSpec(PartitionSpec.unpartitioned())
+            .buildPositionWriter()) {
+      writer.write(PositionDelete.<Void>create().set(dataFilePath, 0L));
+    }
+
+    OutputFile targetOutput =
+        Files.localOutput(
+            FileFormat.AVRO.addExtension(
+                temp.resolve("target-pos-deletes-" + System.nanoTime()).toString()));
+
+    // Reader that projects only 2 fields (file_path + pos), simulating an impl that omits row data
+    RewriteTablePathUtil.PositionDeleteReaderWriter twoFieldReaderWriter =
+        new RewriteTablePathUtil.PositionDeleteReaderWriter() {
+          @Override
+          public CloseableIterable<Record> reader(
+              InputFile inputFile, FileFormat format, PartitionSpec spec) {
+            return Avro.read(inputFile)
+                .project(DeleteSchemaUtil.pathPosSchema())
+                .createResolvingReader(PlannedDataReader::create)
+                .build();
+          }
+
+          @Override
+          public PositionDeleteWriter<Record> writer(
+              OutputFile outputFile,
+              FileFormat format,
+              PartitionSpec spec,
+              StructLike partition,
+              Schema rowSchema)
+              throws IOException {
+            return Avro.writeDeletes(outputFile)
+                .createWriterFunc(DataWriter::create)
+                .overwrite()
+                .withSpec(spec)
+                .buildPositionWriter();
+          }
+        };
+
+    DeleteFile deleteFile =
+        FileMetadata.deleteFileBuilder(PartitionSpec.unpartitioned())
+            .ofPositionDeletes()
+            .withFormat(FileFormat.AVRO)
+            .withPath(sourceFile.getAbsolutePath())
+            .withFileSizeInBytes(sourceFile.length())
+            .withRecordCount(1)
+            .build();
+
+    RewriteTablePathUtil.rewritePositionDelete(
+        deleteFile,
+        targetOutput,
+        table.io(),
+        PartitionSpec.unpartitioned(),
+        sourcePrefix,
+        targetPrefix,
+        twoFieldReaderWriter);
+
+    List<Record> records = Lists.newArrayList();
+    try (CloseableIterable<Record> reader =
+        Avro.read(targetOutput.toInputFile())
+            .project(DeleteSchemaUtil.pathPosSchema())
+            .createResolvingReader(PlannedDataReader::create)
+            .build()) {
+      reader.forEach(records::add);
+    }
+
+    assertThat(records).hasSize(1);
+    Record record = records.get(0);
+    assertThat(record.get(0)).asString().startsWith(targetPrefix).endsWith("data/file.parquet");
+    assertThat(record.get(1)).isEqualTo(0L);
   }
 
   private ManifestFile deleteManifestWithLiveAndDeletedEntry(DeleteFile live, DeleteFile deleted)
