@@ -18,28 +18,28 @@
  */
 package org.apache.iceberg;
 
-import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import org.apache.iceberg.geospatial.BoundingBox;
 import org.apache.iceberg.geospatial.GeospatialBound;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
-/** Accumulates an XY bounding box for geography edges interpolated on a sphere. */
-class SphericalGeographyBounds {
+/** Builds an XY bounding box from geography points and minor great-circle edges on a sphere. */
+class SphericalGeographyBoundsBuilder {
   private static final double MIN_NORMAL_LENGTH = 1e-12;
   private static final double ARC_CONTAINMENT_TOLERANCE = 1e-12;
   private static final double LATITUDE_SCALING_FACTOR = 1.0000001;
 
-  private final List<LongitudeInterval> longitudeIntervals = new ArrayList<>();
+  private final List<LongitudeInterval> longitudeIntervals = Lists.newArrayList();
   private double minLatitude = Double.POSITIVE_INFINITY;
   private double maxLatitude = Double.NEGATIVE_INFINITY;
   private boolean hasCoordinates = false;
-  private boolean valid = true;
+  private boolean incomplete = false;
   private boolean fullLongitudeRange = false;
 
   void addPoint(double longitude, double latitude) {
     if (!coordinatesAreValid(longitude, latitude)) {
-      valid = false;
+      incomplete = true;
       return;
     }
 
@@ -57,7 +57,7 @@ class SphericalGeographyBounds {
   void addEdge(double longitude1, double latitude1, double longitude2, double latitude2) {
     if (!coordinatesAreValid(longitude1, latitude1)
         || !coordinatesAreValid(longitude2, latitude2)) {
-      valid = false;
+      incomplete = true;
       return;
     }
 
@@ -69,6 +69,16 @@ class SphericalGeographyBounds {
     includeLatitude(latitude1);
     includeLatitude(latitude2);
 
+    if (addEdgeWithPole(longitude1, latitude1, longitude2, latitude2)) {
+      return;
+    }
+
+    longitudeIntervals.add(minimumLongitudeInterval(longitude1, longitude2));
+    addInteriorLatitudeExtrema(longitude1, latitude1, longitude2, latitude2);
+  }
+
+  private boolean addEdgeWithPole(
+      double longitude1, double latitude1, double longitude2, double latitude2) {
     boolean firstIsPole = isPole(latitude1);
     boolean secondIsPole = isPole(latitude2);
     if (firstIsPole && secondIsPole) {
@@ -76,17 +86,20 @@ class SphericalGeographyBounds {
         includeFullWorld();
       }
 
-      return;
+      return true;
     } else if (firstIsPole) {
       longitudeIntervals.add(new LongitudeInterval(longitude2, longitude2));
-      return;
+      return true;
     } else if (secondIsPole) {
       longitudeIntervals.add(new LongitudeInterval(longitude1, longitude1));
-      return;
+      return true;
     }
 
-    longitudeIntervals.add(minimumLongitudeInterval(longitude1, longitude2));
+    return false;
+  }
 
+  private void addInteriorLatitudeExtrema(
+      double longitude1, double latitude1, double longitude2, double latitude2) {
     double[] point1 = toUnitVector(longitude1, latitude1);
     double[] point2 = toUnitVector(longitude2, latitude2);
     double[] normal = crossProduct(point1, point2);
@@ -130,16 +143,8 @@ class SphericalGeographyBounds {
     }
   }
 
-  boolean isValid() {
-    return valid;
-  }
-
-  boolean hasBounds() {
-    return valid && hasCoordinates;
-  }
-
   BoundingBox build() {
-    if (!hasBounds()) {
+    if (incomplete || !hasCoordinates) {
       return null;
     }
 
@@ -167,7 +172,7 @@ class SphericalGeographyBounds {
     }
 
     // The minimum covering circular interval is the complement of the largest uncovered gap.
-    List<LongitudeEvent> events = new ArrayList<>(2 * longitudeIntervals.size());
+    List<LongitudeEvent> events = Lists.newArrayListWithExpectedSize(2 * longitudeIntervals.size());
     for (LongitudeInterval interval : longitudeIntervals) {
       if (interval.west > interval.east) {
         events.add(new LongitudeEvent(-180.0, true));

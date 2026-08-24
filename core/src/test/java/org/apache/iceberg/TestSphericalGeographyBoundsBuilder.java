@@ -29,12 +29,12 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
-class TestSphericalGeographyBounds {
+class TestSphericalGeographyBoundsBuilder {
   private static final double LONGITUDE_TOLERANCE = 1e-9;
 
   @Test
   void capturesInteriorNorthernLatitudeExtremum() {
-    SphericalGeographyBounds bounds = new SphericalGeographyBounds();
+    SphericalGeographyBoundsBuilder bounds = new SphericalGeographyBoundsBuilder();
     bounds.addEdge(0.0, 60.0, 90.0, 60.0);
 
     BoundingBox box = bounds.build();
@@ -45,7 +45,7 @@ class TestSphericalGeographyBounds {
 
   @Test
   void capturesInteriorSouthernLatitudeExtremum() {
-    SphericalGeographyBounds bounds = new SphericalGeographyBounds();
+    SphericalGeographyBoundsBuilder bounds = new SphericalGeographyBoundsBuilder();
     bounds.addEdge(0.0, -60.0, 90.0, -60.0);
 
     BoundingBox box = bounds.build();
@@ -56,7 +56,7 @@ class TestSphericalGeographyBounds {
 
   @Test
   void doesNotExpandEndpointLatitude() {
-    SphericalGeographyBounds bounds = new SphericalGeographyBounds();
+    SphericalGeographyBoundsBuilder bounds = new SphericalGeographyBoundsBuilder();
     bounds.addEdge(20.0, 10.0, 20.0, 80.0);
 
     BoundingBox box = bounds.build();
@@ -66,7 +66,7 @@ class TestSphericalGeographyBounds {
 
   @Test
   void representsAntimeridianCrossingAsWrappedInterval() {
-    SphericalGeographyBounds bounds = new SphericalGeographyBounds();
+    SphericalGeographyBoundsBuilder bounds = new SphericalGeographyBoundsBuilder();
     bounds.addEdge(170.0, 5.0, -170.0, 8.0);
 
     BoundingBox box = bounds.build();
@@ -77,7 +77,7 @@ class TestSphericalGeographyBounds {
 
   @Test
   void mergesIntervalsRatherThanOnlyEndpoints() {
-    SphericalGeographyBounds bounds = new SphericalGeographyBounds();
+    SphericalGeographyBoundsBuilder bounds = new SphericalGeographyBoundsBuilder();
     bounds.addEdge(100.0, 0.0, -100.0, 0.0);
     bounds.addEdge(-10.0, 0.0, 10.0, 0.0);
 
@@ -90,7 +90,7 @@ class TestSphericalGeographyBounds {
 
   @Test
   void ignoresPoleLongitudeWhenFiniteLongitudeExists() {
-    SphericalGeographyBounds bounds = new SphericalGeographyBounds();
+    SphericalGeographyBoundsBuilder bounds = new SphericalGeographyBoundsBuilder();
     bounds.addPoint(-120.0, 90.0);
     bounds.addPoint(40.0, 10.0);
 
@@ -101,7 +101,7 @@ class TestSphericalGeographyBounds {
 
   @Test
   void usesFullLongitudeRangeForPoleOnlyBounds() {
-    SphericalGeographyBounds bounds = new SphericalGeographyBounds();
+    SphericalGeographyBoundsBuilder bounds = new SphericalGeographyBoundsBuilder();
     bounds.addPoint(10.0, 90.0);
     bounds.addPoint(-50.0, 90.0);
 
@@ -113,7 +113,7 @@ class TestSphericalGeographyBounds {
 
   @Test
   void usesFullWorldForOppositePoles() {
-    SphericalGeographyBounds bounds = new SphericalGeographyBounds();
+    SphericalGeographyBoundsBuilder bounds = new SphericalGeographyBoundsBuilder();
     bounds.addEdge(0.0, -90.0, 30.0, 90.0);
 
     assertThat(bounds.build())
@@ -124,7 +124,7 @@ class TestSphericalGeographyBounds {
 
   @Test
   void usesFullWorldForAntipodalEndpoints() {
-    SphericalGeographyBounds bounds = new SphericalGeographyBounds();
+    SphericalGeographyBoundsBuilder bounds = new SphericalGeographyBoundsBuilder();
     bounds.addEdge(0.0, 0.0, 180.0, 0.0);
 
     assertThat(bounds.build())
@@ -135,7 +135,7 @@ class TestSphericalGeographyBounds {
 
   @Test
   void treatsCoincidentEndpointsAsAPoint() {
-    SphericalGeographyBounds bounds = new SphericalGeographyBounds();
+    SphericalGeographyBoundsBuilder bounds = new SphericalGeographyBoundsBuilder();
     bounds.addEdge(12.0, 34.0, 12.0, 34.0);
 
     assertThat(bounds.build())
@@ -147,21 +147,17 @@ class TestSphericalGeographyBounds {
   @ParameterizedTest(name = "{0}")
   @MethodSource("invalidCoordinates")
   void invalidCoordinateSuppressesBounds(String description, double longitude, double latitude) {
-    SphericalGeographyBounds bounds = new SphericalGeographyBounds();
+    SphericalGeographyBoundsBuilder bounds = new SphericalGeographyBoundsBuilder();
     bounds.addPoint(0.0, 0.0);
     bounds.addPoint(longitude, latitude);
 
-    assertThat(bounds.isValid()).isFalse();
-    assertThat(bounds.hasBounds()).isFalse();
     assertThat(bounds.build()).isNull();
   }
 
   @Test
-  void emptyCollectorHasNoBounds() {
-    SphericalGeographyBounds bounds = new SphericalGeographyBounds();
+  void emptyBuilderHasNoBounds() {
+    SphericalGeographyBoundsBuilder bounds = new SphericalGeographyBoundsBuilder();
 
-    assertThat(bounds.isValid()).isTrue();
-    assertThat(bounds.hasBounds()).isFalse();
     assertThat(bounds.build()).isNull();
   }
 
@@ -181,7 +177,7 @@ class TestSphericalGeographyBounds {
         continue;
       }
 
-      SphericalGeographyBounds bounds = new SphericalGeographyBounds();
+      SphericalGeographyBoundsBuilder bounds = new SphericalGeographyBoundsBuilder();
       bounds.addEdge(longitude1, latitude1, longitude2, latitude2);
       BoundingBox box = bounds.build();
 
