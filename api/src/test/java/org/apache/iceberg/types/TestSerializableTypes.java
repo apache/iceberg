@@ -108,7 +108,7 @@ public class TestSerializableTypes {
 
     assertThat(copy).as("File serialization should be equal to starting type").isEqualTo(file);
     assertThat(copy.isFileType()).as("File serialization should preserve the file type").isTrue();
-    assertThat(copy.asFileType().fieldId()).isEqualTo(5);
+    assertThat(copy.asFileType().enclosingId()).isEqualTo(5);
   }
 
   @Test

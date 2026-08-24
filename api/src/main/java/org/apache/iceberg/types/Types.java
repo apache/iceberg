@@ -1170,29 +1170,30 @@ public class Types {
     private static final String CHECKSUM = "checksum";
     private static final String INLINE = "inline";
 
-    public static FileType of(int fieldId) {
-      return new FileType(fieldId);
+    public static FileType of(int enclosingId) {
+      return new FileType(enclosingId);
     }
 
-    private final int fieldId;
+    private final int enclosingId;
 
-    private FileType(int fieldId) {
-      super(nestedFields(fieldId));
-      this.fieldId = fieldId;
+    private FileType(int enclosingId) {
+      super(nestedFields(enclosingId));
+      this.enclosingId = enclosingId;
     }
 
-    private static List<NestedField> nestedFields(int fieldId) {
+    private static List<NestedField> nestedFields(int enclosingId) {
       return ImmutableList.of(
-          NestedField.optional(fieldId + 1, URI, StringType.get()),
-          NestedField.optional(fieldId + 2, OFFSET, LongType.get()),
-          NestedField.optional(fieldId + 3, SIZE, LongType.get()),
-          NestedField.optional(fieldId + 4, CONTENT_TYPE, StringType.get()),
-          NestedField.optional(fieldId + 5, CHECKSUM, StringType.get()),
-          NestedField.optional(fieldId + 6, INLINE, BinaryType.get()));
+          NestedField.optional(enclosingId + 1, URI, StringType.get()),
+          NestedField.optional(enclosingId + 2, OFFSET, LongType.get()),
+          NestedField.optional(enclosingId + 3, SIZE, LongType.get()),
+          NestedField.optional(enclosingId + 4, CONTENT_TYPE, StringType.get()),
+          NestedField.optional(enclosingId + 5, CHECKSUM, StringType.get()),
+          NestedField.optional(enclosingId + 6, INLINE, BinaryType.get()));
     }
 
-    public int fieldId() {
-      return fieldId;
+    /** Returns the ID of the field that holds this type. */
+    public int enclosingId() {
+      return enclosingId;
     }
 
     @Override
@@ -1218,12 +1219,12 @@ public class Types {
         return false;
       }
 
-      return fieldId == ((FileType) other).fieldId;
+      return enclosingId == ((FileType) other).enclosingId;
     }
 
     @Override
     public int hashCode() {
-      return Objects.hash(FileType.class, fieldId);
+      return Objects.hash(FileType.class, enclosingId);
     }
   }
 

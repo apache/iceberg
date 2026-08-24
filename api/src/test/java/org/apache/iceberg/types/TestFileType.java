@@ -34,7 +34,7 @@ class TestFileType {
   private static final Types.FileType FILE = Types.FileType.of(5);
 
   @Test
-  void nestedFieldsAreDerivedFromTheHoldingId() {
+  void nestedFieldsAreDerivedFromTheEnclosingId() {
     assertThat(FILE.fields())
         .containsExactly(
             optional(6, "uri", Types.StringType.get()),
@@ -43,7 +43,7 @@ class TestFileType {
             optional(9, "content_type", Types.StringType.get()),
             optional(10, "checksum", Types.StringType.get()),
             optional(11, "inline", Types.BinaryType.get()));
-    assertThat(FILE.fieldId()).isEqualTo(5);
+    assertThat(FILE.enclosingId()).isEqualTo(5);
     assertThat(Types.FileType.NUM_NESTED_FIELDS).isEqualTo(FILE.fields().size());
   }
 

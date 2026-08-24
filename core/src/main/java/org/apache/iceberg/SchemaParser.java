@@ -147,10 +147,10 @@ public class SchemaParser {
   private static void checkDerivedIds(Type type, int enclosingId) {
     if (type.isFileType()) {
       Preconditions.checkArgument(
-          type.asFileType().fieldId() == enclosingId,
+          type.asFileType().enclosingId() == enclosingId,
           "Invalid file type: nested field IDs are derived from %s, not %s",
           enclosingId,
-          type.asFileType().fieldId());
+          type.asFileType().enclosingId());
     }
   }
 
