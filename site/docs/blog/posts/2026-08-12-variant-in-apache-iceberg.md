@@ -81,7 +81,7 @@ The same Variant maps into every file format Iceberg supports: a Parquet `group`
 
 ### One column, many layouts
 
-A Variant's structure is not consistent across rows or files, but the column's Iceberg type is always `variant`, whatever shapes flow through it. Adding or removing a field inside the data changes only the bytes in each row.
+A Variant's structure is not consistent across rows or files, but the column's Iceberg type is always `variant`, whatever shapes flow through it. Adding or removing a field inside the data does not require an Iceberg schema change; it only changes the Variant values and, potentially, their per-file physical layout.
 
 That one logical column can be laid out differently in each data file. In Parquet, one file may store it unshredded as the `metadata` + `value` pair while another shreds its hot fields into dedicated typed columns. Both files carry the same Variant field ID, and a reader reconciles whichever layout it finds:
 
