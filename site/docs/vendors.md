@@ -74,10 +74,10 @@ licensing, security, compatibility, or continued availability.
 
 ## Listing policy
 
-Listings are alphabetical and include one name and one external link. They may also include a brief,
-factual sentence describing their relationship to Apache Iceberg. Descriptions should be supported by the
-linked page and written in neutral, non-promotional language. Links should point to current technical
-documentation or a relevant project or product page that demonstrates the relationship to Apache Iceberg.
+Listings are alphabetical and include one name and one external link. They may also include a brief
+sentence describing their relationship to Apache Iceberg. Descriptions should be written in neutral,
+non-promotional language. Links should point to current technical documentation or a relevant project or
+product page that demonstrates the relationship to Apache Iceberg.
 
 Listings do not include logos, rankings, paid placement, or designations such as preferred, official, or
 certified. The PMC may edit descriptions for clarity and consistency. Requests to add, update, or remove a
