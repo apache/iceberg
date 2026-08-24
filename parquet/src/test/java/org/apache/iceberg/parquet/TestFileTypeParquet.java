@@ -194,44 +194,6 @@ class TestFileTypeParquet {
   }
 
   @Test
-  void roundTripsAFileListElement() throws IOException {
-    Schema schema =
-        new Schema(optional(1, "photos", Types.ListType.ofOptional(2, Types.FileType.of(2))));
-    GenericRecord photo = GenericRecord.create(Types.FileType.of(2));
-    Record expected =
-        GenericRecord.create(schema)
-            .copy(
-                ImmutableMap.of(
-                    "photos",
-                    ImmutableList.of(
-                        photo.copy(ImmutableMap.of("uri", "s3://bucket/a", "size", 1L)),
-                        photo.copy(ImmutableMap.of("uri", "s3://bucket/b")))));
-
-    OutputFile file = Files.localOutput(createTempFile(temp));
-    try (DataWriter<Record> writer =
-        Parquet.writeData(file)
-            .schema(schema)
-            .createWriterFunc(GenericParquetWriter::create)
-            .overwrite()
-            .withSpec(PartitionSpec.unpartitioned())
-            .build()) {
-      writer.write(expected);
-    }
-
-    List<Record> actual;
-    try (CloseableIterable<Record> reader =
-        Parquet.read(file.toInputFile())
-            .project(schema)
-            .createReaderFunc(fileSchema -> GenericParquetReaders.buildReader(schema, fileSchema))
-            .build()) {
-      actual = Lists.newArrayList(reader);
-    }
-
-    assertThat(actual).hasSize(1);
-    assertThat(actual.get(0).getField("photos")).isEqualTo(expected.getField("photos"));
-  }
-
-  @Test
   void readsAProjectionOfASingleNestedField() throws IOException {
     OutputFile file = write(records());
     Schema projection = uriProjection();

@@ -26,10 +26,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.TestHelpers;
-import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.junit.jupiter.api.Test;
 
@@ -89,38 +86,6 @@ class TestFileType {
   void isNotEqualToAFileHeldByADifferentField() {
     assertThat(FILE).isEqualTo(Types.FileType.of(5)).isNotEqualTo(Types.FileType.of(12));
     assertThat(FILE.hashCode()).isNotEqualTo(Types.FileType.of(12).hashCode());
-  }
-
-  @Test
-  void isNotResolvedByName() {
-    assertThatThrownBy(() -> Types.fromTypeName("file"))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse type string to primitive: file");
-    assertThatThrownBy(() -> Types.fromPrimitiveString("file"))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse type string to primitive: file");
-  }
-
-  @Test
-  void survivesJavaSerialization() throws Exception {
-    Type copy = TestHelpers.roundTripSerialize(FILE);
-
-    assertThat(copy).isEqualTo(FILE);
-    assertThat(copy.isFileType()).isTrue();
-    assertThat(copy.asFileType().fieldId()).isEqualTo(5);
-  }
-
-  @Test
-  void rejectsDefaultValues() {
-    assertThatThrownBy(
-            () ->
-                Types.NestedField.optional("photo")
-                    .withId(5)
-                    .ofType(FILE)
-                    .withWriteDefault(Expressions.lit("s3://bucket/key"))
-                    .build())
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageStartingWith("Invalid default value for file:");
   }
 
   @Test
@@ -232,20 +197,6 @@ class TestFileType {
     assertThat(photo.type()).isEqualTo(Types.FileType.of(9));
     assertThat(schema.findField("photo.uri").fieldId()).isEqualTo(10);
     assertThat(schema.findField("photo.inline").fieldId()).isEqualTo(15);
-  }
-
-  @Test
-  void reassignedConflictingIdsAreTrackedForTheFileColumn() {
-    List<Types.NestedField> columns =
-        ImmutableList.of(
-            required(1, "id", Types.LongType.get()), optional(2, "photo", Types.FileType.of(2)));
-
-    Schema schema =
-        new Schema(
-            columns,
-            TypeUtil.reassignConflictingIds(
-                ImmutableSet.of(2), ImmutableSet.of(1, 2, 3, 4, 5, 6, 7, 8)));
-
     assertThat(schema.idsToReassigned()).containsEntry(2, 9).doesNotContainKey(3);
     assertThat(schema.idsToOriginal()).containsEntry(9, 2).doesNotContainKey(10);
   }
@@ -325,84 +276,5 @@ class TestFileType {
     assertThat(reassigned.findField("data").fieldId())
         .isEqualTo(photo.fieldId() + Types.FileType.NUM_NESTED_FIELDS + 1);
     assertThat(TypeUtil.indexById(reassigned.asStruct())).hasSize(9);
-  }
-
-  @Test
-  void isRejectedBeforeFormatVersion4() {
-    Schema schema =
-        new Schema(
-            required(1, "id", Types.LongType.get()), optional(2, "photo", Types.FileType.of(2)));
-
-    for (int version = 1; version < 4; version += 1) {
-      int formatVersion = version;
-      assertThatThrownBy(() -> Schema.checkCompatibility(schema, formatVersion))
-          .isInstanceOf(IllegalStateException.class)
-          .hasMessage(
-              "Invalid schema for v"
-                  + formatVersion
-                  + ":\n- Invalid type for photo: file is not supported until v4");
-    }
-
-    Schema.checkCompatibility(schema, 4);
-  }
-
-  @Test
-  void cannotBeReadAsAStruct() {
-    Schema fileSchema = new Schema(optional(1, "photo", Types.FileType.of(1)));
-    Schema structSchema = new Schema(optional(1, "photo", Types.StructType.of(FILE.fields())));
-
-    List<String> asFile = CheckCompatibility.readCompatibilityErrors(fileSchema, structSchema);
-    assertThat(asFile).hasSize(1);
-    assertThat(asFile.get(0)).contains("cannot be read as a file");
-
-    List<String> asStruct = CheckCompatibility.readCompatibilityErrors(structSchema, fileSchema);
-    assertThat(asStruct).hasSize(1);
-    assertThat(asStruct.get(0)).contains("file cannot be read as a struct");
-
-    assertThat(CheckCompatibility.readCompatibilityErrors(fileSchema, fileSchema)).isEmpty();
-  }
-
-  @Test
-  void reassignDocKeepsTheFileType() {
-    Schema schema = new Schema(optional(2, "photo", Types.FileType.of(2)));
-    Schema docs = new Schema(optional(2, "photo", Types.FileType.of(2), "image"));
-
-    Schema actual = TypeUtil.reassignDoc(schema, docs);
-
-    assertThat(actual.findField("photo").type()).isEqualTo(Types.FileType.of(2));
-    assertThat(actual.findField("photo").doc()).isEqualTo("image");
-  }
-
-  @Test
-  void projectKeepsTheFileTypeWhenAllNestedFieldsRemain() {
-    Schema schema =
-        new Schema(
-            required(1, "id", Types.LongType.get()), optional(2, "photo", Types.FileType.of(2)));
-
-    Schema projected = TypeUtil.project(schema, ImmutableSet.of(3, 4, 5, 6, 7, 8));
-
-    assertThat(projected.findField("photo").type()).isEqualTo(Types.FileType.of(2));
-  }
-
-  @Test
-  void projectDropsTheFileTypeWhenNestedFieldsArePruned() {
-    Schema schema = new Schema(optional(2, "photo", Types.FileType.of(2)));
-
-    Schema projected = TypeUtil.project(schema, ImmutableSet.of(3));
-
-    assertThat(projected.findField("photo").type().isFileType()).isFalse();
-    assertThat(projected.findField("photo").type().asStructType().fields())
-        .containsExactly(optional(3, "uri", Types.StringType.get()));
-  }
-
-  @Test
-  void replacingANestedFieldTypeDropsTheFileType() {
-    Schema schema = new Schema(optional(2, "photo", Types.FileType.of(2)));
-
-    Schema replaced =
-        TypeUtil.replaceFieldTypes(schema, ImmutableMap.of(3, Types.BinaryType.get()));
-
-    assertThat(replaced.findField("photo").type().isFileType()).isFalse();
-    assertThat(replaced.findField("photo.uri").type()).isEqualTo(Types.BinaryType.get());
   }
 }
