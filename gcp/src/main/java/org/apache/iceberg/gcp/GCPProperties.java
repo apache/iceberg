@@ -163,13 +163,9 @@ public class GCPProperties implements Serializable {
     clientLibToken = properties.get(GCS_CLIENT_LIB_TOKEN);
     serviceHost = properties.get(GCS_SERVICE_HOST);
 
-    if (properties.containsKey(GCS_HTTP_CONNECT_TIMEOUT)) {
-      gcsHttpConnectTimeoutMs = Integer.parseInt(properties.get(GCS_HTTP_CONNECT_TIMEOUT));
-    }
-
-    if (properties.containsKey(GCS_HTTP_READ_TIMEOUT)) {
-      gcsHttpReadTimeoutMs = Integer.parseInt(properties.get(GCS_HTTP_READ_TIMEOUT));
-    }
+    gcsHttpConnectTimeoutMs =
+        PropertyUtil.propertyAsNullableInt(properties, GCS_HTTP_CONNECT_TIMEOUT);
+    gcsHttpReadTimeoutMs = PropertyUtil.propertyAsNullableInt(properties, GCS_HTTP_READ_TIMEOUT);
 
     gcsDecryptionKey = properties.get(GCS_DECRYPTION_KEY);
     gcsEncryptionKey = properties.get(GCS_ENCRYPTION_KEY);

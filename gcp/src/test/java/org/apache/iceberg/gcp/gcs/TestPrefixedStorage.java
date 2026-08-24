@@ -115,17 +115,9 @@ public class TestPrefixedStorage {
 
   @Test
   void readTimeoutIsActuallyEnforced() throws IOException {
-    // Proves the configured timeout changes real request behavior, not just that the value is
-    // stored: the default read timeout is effectively unbounded (java.net.URLConnection blocks
-    // forever on read by default), so a server that accepts the connection and then never
-    // responds would hang indefinitely without this feature. With gcs.http.read-timeout-ms set,
-    // the request must fail quickly instead.
-    //
-    // The Storage client retries failed requests with backoff by default (observed: ~51s wall
-    // time for the unmodified client below, matching gax's default total retry timeout), which
-    // would swamp a single request's timeout and make this test both slow and a poor signal.
-    // maxAttempts(1) isolates the behavior of one HTTP attempt, which is what the configured
-    // timeout actually governs.
+    // A server that accepts the connection but never responds would hang the read indefinitely
+    // without the configured timeout. maxAttempts(1) isolates a single HTTP attempt, which is
+    // what the timeout governs, from the client's default retry policy.
     try (ServerSocket serverSocket = new ServerSocket(0)) {
       int port = serverSocket.getLocalPort();
       Thread unresponsiveServer =
@@ -133,10 +125,9 @@ public class TestPrefixedStorage {
               () -> {
                 try {
                   serverSocket.accept();
-                  // Accept the TCP connection but never write an HTTP response.
                   Thread.sleep(30_000);
                 } catch (Exception e) {
-                  // Expected once the client gives up and closes the connection.
+                  // expected once the client gives up and closes the connection
                 }
               });
       unresponsiveServer.setDaemon(true);
@@ -157,16 +148,12 @@ public class TestPrefixedStorage {
               .getService();
 
       long start = System.nanoTime();
-      // The message confirms this is genuinely a read timeout (SocketTimeoutException), not a
-      // connect failure or some other error that happened to also be fast.
       assertThatThrownBy(() -> singleAttemptClient.get(BlobId.of("bucket", "object")))
           .isInstanceOf(StorageException.class)
           .hasMessage("Read timed out")
           .hasCauseInstanceOf(SocketTimeoutException.class);
       long elapsedMs = (System.nanoTime() - start) / 1_000_000;
 
-      // Generous bound well below what an unbounded default read would take (the server never
-      // responds), confirming the configured 500ms timeout is what actually triggered failure.
       assertThat(elapsedMs).isLessThan(10_000);
     }
   }

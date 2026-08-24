@@ -94,7 +94,7 @@ public class TestGCPProperties {
             ImmutableMap.of(
                 GCS_HTTP_CONNECT_TIMEOUT, "5000",
                 GCS_HTTP_READ_TIMEOUT, "10000"));
-    assertThat(gcpProperties.httpConnectTimeoutMs()).isPresent().get().isEqualTo(5000);
-    assertThat(gcpProperties.httpReadTimeoutMs()).isPresent().get().isEqualTo(10000);
+    assertThat(gcpProperties.httpConnectTimeoutMs()).hasValue(5000);
+    assertThat(gcpProperties.httpReadTimeoutMs()).hasValue(10000);
   }
 }

@@ -75,13 +75,10 @@ class PrefixedStorage implements AutoCloseable {
             gcpProperties.clientLibToken().ifPresent(builder::setClientLibToken);
             gcpProperties.serviceHost().ifPresent(builder::setHost);
 
-            if (gcpProperties.httpConnectTimeoutMs().isPresent()
-                || gcpProperties.httpReadTimeoutMs().isPresent()) {
-              HttpTransportOptions.Builder transportBuilder = HttpTransportOptions.newBuilder();
-              gcpProperties.httpConnectTimeoutMs().ifPresent(transportBuilder::setConnectTimeout);
-              gcpProperties.httpReadTimeoutMs().ifPresent(transportBuilder::setReadTimeout);
-              builder.setTransportOptions(transportBuilder.build());
-            }
+            HttpTransportOptions.Builder transportBuilder = HttpTransportOptions.newBuilder();
+            gcpProperties.httpConnectTimeoutMs().ifPresent(transportBuilder::setConnectTimeout);
+            gcpProperties.httpReadTimeoutMs().ifPresent(transportBuilder::setReadTimeout);
+            builder.setTransportOptions(transportBuilder.build());
 
             Credentials credentials = credentials(gcpProperties);
             if (credentials != null) {
