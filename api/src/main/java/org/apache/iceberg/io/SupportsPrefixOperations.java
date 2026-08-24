@@ -38,9 +38,9 @@ public interface SupportsPrefixOperations extends FileIO {
   /**
    * Lists files and common prefixes under a prefix, grouped by a delimiter.
    *
-   * <p>A file is returned in {@link PrefixListing#files()} when the part of its location after
+   * <p>A file is returned in {@link PrefixListingPage#files()} when the part of its location after
    * {@code prefix} does not contain {@code delimiter}. When the remaining part contains the
-   * delimiter, the file is not returned directly. Instead, {@link PrefixListing#subPrefixes()}
+   * delimiter, the file is not returned directly. Instead, {@link PrefixListingPage#subPrefixes()}
    * contains the common prefix through the first occurrence of the delimiter. Common prefixes are
    * unique, include the delimiter, and are suitable for use in a subsequent listing operation.
    *
