@@ -2685,12 +2685,17 @@ public class TestSchemaUpdate {
   }
 
   @Test
-  void renameAndDeleteFileColumn() {
+  void renameFileColumn() {
     Schema renamed = fileUpdate().renameColumn("photo", "image").apply();
+
     assertThat(renamed.findField("image").type()).isEqualTo(Types.FileType.of(2));
     assertThat(renamed.findField("image.uri").fieldId()).isEqualTo(3);
+  }
 
+  @Test
+  void deleteFileColumn() {
     Schema deleted = fileUpdate().deleteColumn("photo").apply();
+
     assertThat(deleted.findField("photo")).isNull();
     assertThat(deleted.asStruct())
         .isEqualTo(

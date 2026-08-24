@@ -235,6 +235,22 @@ class TestFileType {
   }
 
   @Test
+  void reassignedConflictingIdsAreTrackedForTheFileColumn() {
+    List<Types.NestedField> columns =
+        ImmutableList.of(
+            required(1, "id", Types.LongType.get()), optional(2, "photo", Types.FileType.of(2)));
+
+    Schema schema =
+        new Schema(
+            columns,
+            TypeUtil.reassignConflictingIds(
+                ImmutableSet.of(2), ImmutableSet.of(1, 2, 3, 4, 5, 6, 7, 8)));
+
+    assertThat(schema.idsToReassigned()).containsEntry(2, 9).doesNotContainKey(3);
+    assertThat(schema.idsToOriginal()).containsEntry(9, 2).doesNotContainKey(10);
+  }
+
+  @Test
   void reassignedConflictingIdsMoveAFileWhenTheNestedIdsAreInUse() {
     List<Types.NestedField> columns =
         ImmutableList.of(

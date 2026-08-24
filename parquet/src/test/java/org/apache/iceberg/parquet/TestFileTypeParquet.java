@@ -78,6 +78,81 @@ class TestFileTypeParquet {
   }
 
   @Test
+  void convertsARequiredFileColumn() {
+    Schema schema = new Schema(required(2, "photo", Types.FileType.of(2)));
+
+    MessageType expected =
+        MessageTypeParser.parseMessageType(
+            "message table {"
+                + "  required group photo = 2 {"
+                + "    optional binary uri (STRING) = 3;"
+                + "    optional int64 offset = 4;"
+                + "    optional int64 size = 5;"
+                + "    optional binary content_type (STRING) = 6;"
+                + "    optional binary checksum (STRING) = 7;"
+                + "    optional binary inline = 8;"
+                + "  }"
+                + "}");
+
+    assertThat(ParquetSchemaUtil.convert(schema, "table")).isEqualTo(expected);
+  }
+
+  @Test
+  void convertsAFileListElement() {
+    Schema schema =
+        new Schema(optional(1, "photos", Types.ListType.ofOptional(2, Types.FileType.of(2))));
+
+    MessageType expected =
+        MessageTypeParser.parseMessageType(
+            "message table {"
+                + "  optional group photos (LIST) = 1 {"
+                + "    repeated group list {"
+                + "      optional group element = 2 {"
+                + "        optional binary uri (STRING) = 3;"
+                + "        optional int64 offset = 4;"
+                + "        optional int64 size = 5;"
+                + "        optional binary content_type (STRING) = 6;"
+                + "        optional binary checksum (STRING) = 7;"
+                + "        optional binary inline = 8;"
+                + "      }"
+                + "    }"
+                + "  }"
+                + "}");
+
+    assertThat(ParquetSchemaUtil.convert(schema, "table")).isEqualTo(expected);
+  }
+
+  @Test
+  void convertsAFileMapValue() {
+    Schema schema =
+        new Schema(
+            optional(
+                1,
+                "byName",
+                Types.MapType.ofOptional(2, 3, Types.StringType.get(), Types.FileType.of(3))));
+
+    MessageType expected =
+        MessageTypeParser.parseMessageType(
+            "message table {"
+                + "  optional group byName (MAP) = 1 {"
+                + "    repeated group key_value {"
+                + "      required binary key (STRING) = 2;"
+                + "      optional group value = 3 {"
+                + "        optional binary uri (STRING) = 4;"
+                + "        optional int64 offset = 5;"
+                + "        optional int64 size = 6;"
+                + "        optional binary content_type (STRING) = 7;"
+                + "        optional binary checksum (STRING) = 8;"
+                + "        optional binary inline = 9;"
+                + "      }"
+                + "    }"
+                + "  }"
+                + "}");
+
+    assertThat(ParquetSchemaUtil.convert(schema, "table")).isEqualTo(expected);
+  }
+
+  @Test
   void convertsBackToAPlainStructWithoutTheFileAnnotation() {
     Schema converted = ParquetSchemaUtil.convert(ParquetSchemaUtil.convert(SCHEMA, "table"));
 
@@ -116,6 +191,44 @@ class TestFileTypeParquet {
     assertThat(record(actual, 1).getField("uri")).isEqualTo("s3://bucket/partial");
     assertThat(record(actual, 1).getField("checksum")).isNull();
     assertThat(actual.get(2).getField("photo")).isNull();
+  }
+
+  @Test
+  void roundTripsAFileListElement() throws IOException {
+    Schema schema =
+        new Schema(optional(1, "photos", Types.ListType.ofOptional(2, Types.FileType.of(2))));
+    GenericRecord photo = GenericRecord.create(Types.FileType.of(2));
+    Record expected =
+        GenericRecord.create(schema)
+            .copy(
+                ImmutableMap.of(
+                    "photos",
+                    ImmutableList.of(
+                        photo.copy(ImmutableMap.of("uri", "s3://bucket/a", "size", 1L)),
+                        photo.copy(ImmutableMap.of("uri", "s3://bucket/b")))));
+
+    OutputFile file = Files.localOutput(createTempFile(temp));
+    try (DataWriter<Record> writer =
+        Parquet.writeData(file)
+            .schema(schema)
+            .createWriterFunc(GenericParquetWriter::create)
+            .overwrite()
+            .withSpec(PartitionSpec.unpartitioned())
+            .build()) {
+      writer.write(expected);
+    }
+
+    List<Record> actual;
+    try (CloseableIterable<Record> reader =
+        Parquet.read(file.toInputFile())
+            .project(schema)
+            .createReaderFunc(fileSchema -> GenericParquetReaders.buildReader(schema, fileSchema))
+            .build()) {
+      actual = Lists.newArrayList(reader);
+    }
+
+    assertThat(actual).hasSize(1);
+    assertThat(actual.get(0).getField("photos")).isEqualTo(expected.getField("photos"));
   }
 
   @Test

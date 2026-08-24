@@ -84,6 +84,21 @@ class TestFileTypeSchemaParser {
   }
 
   @Test
+  void roundTripsAsAMapKey() {
+    Schema schema =
+        new Schema(
+            optional(
+                1,
+                "byFile",
+                Types.MapType.ofOptional(2, 20, Types.FileType.of(2), Types.StringType.get())));
+
+    Schema parsed = SchemaParser.fromJson(SchemaParser.toJson(schema));
+
+    assertThat(parsed.asStruct()).isEqualTo(schema.asStruct());
+    assertThat(parsed.findField("byFile.key").type()).isEqualTo(Types.FileType.of(2));
+  }
+
+  @Test
   void acceptsAnyCaseAndWritesTheCanonicalName() {
     String json =
         "{\"type\":\"struct\",\"schema-id\":0,\"fields\":["
@@ -119,5 +134,33 @@ class TestFileTypeSchemaParser {
     assertThatThrownBy(() -> SchemaParser.toJson(schema))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid file type: nested field IDs are derived from 2, not 9");
+  }
+
+  @Test
+  void rejectsWritingUnderivedNestedIdsInAMapKey() {
+    Schema schema =
+        new Schema(
+            optional(
+                1,
+                "byFile",
+                Types.MapType.ofOptional(2, 20, Types.FileType.of(9), Types.StringType.get())));
+
+    assertThatThrownBy(() -> SchemaParser.toJson(schema))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid file type: nested field IDs are derived from 2, not 9");
+  }
+
+  @Test
+  void rejectsWritingUnderivedNestedIdsInAMapValue() {
+    Schema schema =
+        new Schema(
+            optional(
+                1,
+                "byName",
+                Types.MapType.ofOptional(2, 3, Types.StringType.get(), Types.FileType.of(9))));
+
+    assertThatThrownBy(() -> SchemaParser.toJson(schema))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid file type: nested field IDs are derived from 3, not 9");
   }
 }
