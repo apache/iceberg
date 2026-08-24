@@ -84,7 +84,7 @@ public class TestPrefixedStorage {
   }
 
   @Test
-  public void httpTimeoutsNotSetByDefault() {
+  void httpTimeoutsNotSetByDefault() {
     Map<String, String> properties = ImmutableMap.of(GCPProperties.GCS_PROJECT_ID, "myProject");
     PrefixedStorage storage = new PrefixedStorage("gs://bucket", properties, null);
 
@@ -99,7 +99,7 @@ public class TestPrefixedStorage {
   }
 
   @Test
-  public void httpTimeoutsAreWired() {
+  void httpTimeoutsAreWired() {
     Map<String, String> properties =
         ImmutableMap.of(
             GCPProperties.GCS_PROJECT_ID, "myProject",
@@ -114,7 +114,7 @@ public class TestPrefixedStorage {
   }
 
   @Test
-  public void readTimeoutIsActuallyEnforced() throws IOException {
+  void readTimeoutIsActuallyEnforced() throws IOException {
     // Proves the configured timeout changes real request behavior, not just that the value is
     // stored: the default read timeout is effectively unbounded (java.net.URLConnection blocks
     // forever on read by default), so a server that accepts the connection and then never

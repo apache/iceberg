@@ -81,14 +81,14 @@ public class TestGCPProperties {
   }
 
   @Test
-  public void httpTimeoutsNotSetByDefault() {
+  void httpTimeoutsNotSetByDefault() {
     GCPProperties gcpProperties = new GCPProperties(ImmutableMap.of());
     assertThat(gcpProperties.httpConnectTimeoutMs()).isNotPresent();
     assertThat(gcpProperties.httpReadTimeoutMs()).isNotPresent();
   }
 
   @Test
-  public void httpTimeoutsAreRead() {
+  void httpTimeoutsAreRead() {
     GCPProperties gcpProperties =
         new GCPProperties(
             ImmutableMap.of(
