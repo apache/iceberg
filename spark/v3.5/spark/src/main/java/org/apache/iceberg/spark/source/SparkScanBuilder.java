@@ -46,6 +46,17 @@ import org.apache.iceberg.expressions.BoundAggregate;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ExpressionUtil;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.expressions.NamedReference;
+import org.apache.iceberg.expressions.UnboundPredicate;
+import org.apache.iceberg.index.HashTransform;
+import org.apache.iceberg.index.IndexCatalog;
+import org.apache.iceberg.index.IndexIdentifier;
+import org.apache.iceberg.index.IndexMetadata;
+import org.apache.iceberg.index.IndexSnapshot;
+import org.apache.iceberg.index.LeafFileEntry;
+import org.apache.iceberg.index.LeafFileReader;
+import org.apache.iceberg.index.TrackingFileEntry;
+import org.apache.iceberg.index.TrackingFileReader;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.metrics.InMemoryMetricsReporter;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -54,6 +65,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkAggregates;
+import org.apache.iceberg.spark.SparkIndexCatalogs;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkSchemaUtil;
@@ -191,7 +203,121 @@ public class SparkScanBuilder
     this.filterExpressions = expressions;
     this.pushedPredicates = pushableFilters.toArray(new Predicate[0]);
 
+    tryPruneUsingScalarIndex();
+
     return postScanFilters.toArray(new Predicate[0]);
+  }
+
+  /**
+   * If a SCALAR index exists on a column referenced by an equality predicate in {@link
+   * #filterExpressions}, and it resolves the predicate's literal to exactly one source file,
+   * constrains the scan to that file by adding an {@code Expressions.equal(_file, ...)} filter.
+   *
+   * <p>Purely advisory: this never removes or weakens the predicates already pushed down, it only
+   * adds a further constraint when the index can resolve one. Any failure -- no index registered,
+   * a stale index snapshot, an unsupported predicate shape, an I/O error reading the tracking or
+   * leaf file -- falls back silently to normal planning, matching the design proposal's rule that
+   * the index must never be required for correctness, only used opportunistically for pruning.
+   *
+   * <p>This is a first pass: it prunes to the containing file, not to the exact row position
+   * within it (true row-position pushdown into the scan tasks is a further, not-yet-attempted
+   * refinement -- see the design proposal's Open Questions).
+   */
+  private void tryPruneUsingScalarIndex() {
+    if (filterExpressions == null || filterExpressions.isEmpty()) {
+      return;
+    }
+
+    IndexCatalog indexCatalog = SparkIndexCatalogs.get().catalogFor(table);
+
+    for (Expression expr : filterExpressions) {
+      if (expr.op() != Expression.Operation.EQ || !(expr instanceof UnboundPredicate)) {
+        continue;
+      }
+
+      UnboundPredicate<?> predicate = (UnboundPredicate<?>) expr;
+      if (!(predicate.term() instanceof NamedReference)) {
+        continue;
+      }
+
+      String columnName = ((NamedReference<?>) predicate.term()).name();
+      Types.NestedField keyField = schema.findField(columnName);
+      if (keyField == null) {
+        continue;
+      }
+
+      // Derived the same way BuildScalarIndexProcedure derives it (TableIdentifier.parse of the
+      // core Table's own name), not from the Spark catalog Identifier -- the two must produce an
+      // identical TableIdentifier or indexExists() below silently and permanently returns false.
+      IndexIdentifier indexIdent =
+          IndexIdentifier.of(
+              org.apache.iceberg.catalog.TableIdentifier.parse(table.name()), columnName + "_idx");
+
+      try {
+        if (!indexCatalog.indexExists(indexIdent)) {
+          continue;
+        }
+
+        IndexMetadata metadata = indexCatalog.loadIndex(indexIdent);
+        if (!metadata.keyColumnIds().contains(keyField.fieldId())
+            || table.currentSnapshot() == null) {
+          continue;
+        }
+
+        IndexSnapshot indexSnapshot =
+            metadata.snapshotForTableSnapshot(table.currentSnapshot().snapshotId());
+        if (indexSnapshot == null) {
+          // Index exists but is stale relative to the current table snapshot -- fall back rather
+          // than risk missing rows written since the index's last build. See Open Question 6.
+          continue;
+        }
+
+        Object literalValue = predicate.literal().value();
+        long targetTransformValue;
+        if ("HASH".equals(metadata.transformFunction())) {
+          int numBuckets =
+              Integer.parseInt(metadata.properties().getOrDefault("hash.num-buckets", "256"));
+          targetTransformValue = new HashTransform(numBuckets).apply(literalValue);
+        } else {
+          targetTransformValue = ((Number) literalValue).longValue();
+        }
+
+        List<TrackingFileEntry> candidateLeafFiles =
+            TrackingFileReader.readMatching(
+                table.io().newInputFile(indexSnapshot.trackingFile()),
+                targetTransformValue,
+                targetTransformValue);
+
+        List<LeafFileEntry> matches = Lists.newArrayList();
+        for (TrackingFileEntry leaf : candidateLeafFiles) {
+          matches.addAll(
+              LeafFileReader.readMatching(
+                  table.io().newInputFile(leaf.location()),
+                  keyField,
+                  Expressions.equal(columnName, literalValue)));
+        }
+
+        if (matches.size() == 1) {
+          String resolvedFilePath = matches.get(0).filePath();
+          List<Expression> updated = Lists.newArrayList(filterExpressions);
+          updated.add(Expressions.equal(MetadataColumns.FILE_PATH.name(), resolvedFilePath));
+          this.filterExpressions = updated;
+          LOG.info(
+              "SCALAR index on {} resolved {} = {} to exactly one file: {}",
+              columnName,
+              columnName,
+              literalValue,
+              resolvedFilePath);
+        }
+        // 0 matches (key not present) or >1 (e.g. duplicate keys) -- fall back to normal
+        // planning rather than guess; the equality predicate itself still gets applied downstream.
+      } catch (Exception e) {
+        LOG.warn(
+            "Failed to use SCALAR index on column {}, falling back to normal planning: {}",
+            columnName,
+            e.getMessage());
+      }
+    }
   }
 
   private boolean unpartitioned() {

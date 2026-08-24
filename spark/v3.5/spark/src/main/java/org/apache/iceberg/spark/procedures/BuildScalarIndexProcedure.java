@@ -217,7 +217,10 @@ class BuildScalarIndexProcedure extends BaseProcedure {
 
     IndexCatalog catalog = SparkIndexCatalogs.get().catalogFor(table);
     ScalarIndexCommitter committer = new ScalarIndexCommitter(catalog, io);
-    TableIdentifier icebergTableIdent = Spark3Util.identifierToTableIdentifier(tableIdent);
+    // Derived from the core Table's own name, not the Spark catalog Identifier -- must match
+    // exactly how SparkScanBuilder derives it on the read side, or indexExists() there silently
+    // and permanently returns false.
+    TableIdentifier icebergTableIdent = TableIdentifier.parse(table.name());
     IndexIdentifier indexIdent =
         IndexIdentifier.of(icebergTableIdent, keyColumnName + "_idx");
 
