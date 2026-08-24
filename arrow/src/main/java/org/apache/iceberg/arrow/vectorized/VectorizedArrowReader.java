@@ -66,11 +66,11 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
   private static final Integer UNKNOWN_WIDTH = null;
   private static final int AVERAGE_VARIABLE_WIDTH_RECORD_SIZE = 10;
 
-  protected final ColumnDescriptor columnDescriptor;
+  private final ColumnDescriptor columnDescriptor;
   private final VectorizedColumnIterator vectorizedColumnIterator;
-  protected final Types.NestedField icebergField;
+  private final Types.NestedField icebergField;
 
-  protected BufferAllocator rootAlloc;
+  private BufferAllocator rootAlloc;
 
   private int batchSize = DEFAULT_BATCH_SIZE;
   private FieldVector vec;
@@ -130,6 +130,10 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
 
   protected Types.NestedField icebergField() {
     return icebergField;
+  }
+
+  protected ColumnDescriptor columnDescriptor() {
+    return columnDescriptor;
   }
 
   @Override

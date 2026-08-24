@@ -71,7 +71,6 @@ public class VectorizedListReader extends VectorizedArrowReader {
     this.elementReader = element;
     this.repetitionLevel = repetitionLevel;
     this.definitionLevel = definitionLevel;
-    this.rootAlloc = rootAllocator;
     this.isElementRequired = isElementRequired;
     this.listBuilder =
         new ListVectorBuilder(
@@ -132,8 +131,9 @@ public class VectorizedListReader extends VectorizedArrowReader {
     elementReader.setRowGroupInfo(source, metadata);
     // Reset element iterator state for the new row group.
     elements.reset();
-    if (columnDescriptor != null) {
-      ColumnChunkMetaData chunkMetaData = metadata.get(ColumnPath.get(columnDescriptor.getPath()));
+    ColumnDescriptor descriptor = columnDescriptor();
+    if (descriptor != null) {
+      ColumnChunkMetaData chunkMetaData = metadata.get(ColumnPath.get(descriptor.getPath()));
       List<Long> repetitionLevelHistogram =
           chunkMetaData.getSizeStatistics().getRepetitionLevelHistogram();
       if (!repetitionLevelHistogram.isEmpty()) {
