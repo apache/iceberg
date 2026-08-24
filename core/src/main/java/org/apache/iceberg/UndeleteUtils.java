@@ -20,7 +20,8 @@ package org.apache.iceberg;
 
 import java.util.List;
 import java.util.Map;
-import org.apache.iceberg.relocated.com.google.common.base.Splitter;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.SnapshotUtil;
 
@@ -32,19 +33,19 @@ public final class UndeleteUtils {
   /** Sentinel index meaning ancestry cannot be resolved so containment cannot be verified. */
   public static final int UNRESOLVABLE_LINEAGE = Integer.MIN_VALUE;
 
-  private static final Splitter DOT = Splitter.on('.');
-
   private UndeleteUtils() {}
 
   /**
    * Find the most recent historical definition of a deleted column by name.
    *
-   * <p>Dotted names navigate structs level by level within each schema; undotted names match
-   * top-level fields only. Schemas are searched from newest to oldest.
+   * <p>Names resolve through each schema's name index, so both nested paths and names containing
+   * literal dots match. Undotted names match top-level fields only. Schemas are searched from
+   * newest to oldest.
    *
    * @param creationOrderSchemas table schemas in creation order, oldest first
    * @param name name of the deleted column
    * @return the newest definition of the column, or null if no schema contains it
+   * @throws IllegalArgumentException if the path crosses a list or map boundary
    */
   public static Types.NestedField findDeletedColumn(
       List<Schema> creationOrderSchemas, String name) {
@@ -79,6 +80,27 @@ public final class UndeleteUtils {
     }
 
     return null;
+  }
+
+  /**
+   * Return the ancestor field IDs of a field, ordered from the top-level parent down to its
+   * immediate parent.
+   *
+   * @param schema the schema containing the field
+   * @param fieldId the field whose ancestors to collect
+   * @return parent IDs excluding the field itself, empty for top-level fields
+   */
+  public static List<Integer> structAncestorIds(Schema schema, int fieldId) {
+    Map<Integer, Integer> idToParent = TypeUtil.indexParents(schema.asStruct());
+    List<Integer> chain = Lists.newArrayList();
+    Integer current = idToParent.get(fieldId);
+    while (current != null) {
+      chain.add(current);
+      current = idToParent.get(current);
+    }
+
+    java.util.Collections.reverse(chain);
+    return chain;
   }
 
   /**
@@ -152,19 +174,31 @@ public final class UndeleteUtils {
   }
 
   private static Types.NestedField findInSchema(Schema schema, String name) {
-    List<String> parts = DOT.splitToList(name);
-    // undotted names can only match top-level fields because nested names are indexed by path
-    Types.NestedField field = schema.findField(parts.get(0));
-    for (int depth = 1; field != null && depth < parts.size(); depth += 1) {
-      if (!field.type().isStructType()) {
-        throw new IllegalArgumentException(
-            String.format(
-                "Cannot undelete columns nested inside %s types: %s", field.type().typeId(), name));
-      }
-
-      field = field.type().asStructType().field(parts.get(depth));
+    Types.NestedField field = schema.findField(name);
+    if (field == null || !name.contains(".")) {
+      // undotted names can only match top-level fields because the index is keyed by full path
+      boolean topLevel =
+          field != null && schema.columns().stream().anyMatch(c -> c.fieldId() == field.fieldId());
+      return topLevel ? field : null;
     }
 
+    validateStructLineage(schema, field.fieldId(), name);
     return field;
+  }
+
+  private static void validateStructLineage(Schema schema, int fieldId, String name) {
+    Map<Integer, Integer> idToParent = TypeUtil.indexParents(schema.asStruct());
+    Integer parentId = idToParent.get(fieldId);
+    while (parentId != null) {
+      Types.NestedField parent = schema.findField(parentId);
+      if (parent == null || !parent.type().isStructType()) {
+        throw new IllegalArgumentException(
+            String.format(
+                "Cannot undelete columns nested inside %s types: %s",
+                parent == null ? "unknown" : parent.type().typeId(), name));
+      }
+
+      parentId = idToParent.get(parentId);
+    }
   }
 }

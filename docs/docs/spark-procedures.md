@@ -249,8 +249,6 @@ CALL catalog_name.system.fast_forward('my_table', 'main', 'audit-branch');
 
 ## Schema management
 
-Many [maintenance actions](maintenance.md) can be performed using Iceberg stored procedures.
-
 ### `undelete_column`
 
 Restore a previously dropped column under its original field ID so that data files written before

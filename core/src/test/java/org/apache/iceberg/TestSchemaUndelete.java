@@ -125,14 +125,35 @@ public class TestSchemaUndelete extends TestBase {
         .commit();
     int freshLocId = table.schema().findField("loc").fieldId();
 
-    // old files nest lat under the previous loc ID, so a restore under the fresh parent would read
-    // them as null; the parent itself can still be restored wholesale
+    // old files nest lat under the previous loc ID, so a fresh-parent restore would read null
     assertThatThrownBy(() -> table.updateSchema().undeleteColumn("loc.lat"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("its parent was recreated with a new field ID")
         .hasMessageNotContaining("Undelete");
     assertThat(table.schema().findField("loc").fieldId()).isEqualTo(freshLocId);
     assertThat(table.schema().findField("loc").type().asStructType().field("lat")).isNull();
+  }
+
+  @TestTemplate
+  public void undeleteChildWithLiteralDotInName() {
+    table
+        .updateSchema()
+        .addColumn(
+            "loc",
+            Types.StructType.of(Types.NestedField.optional(1, "lat.value", Types.DoubleType.get())))
+        .commit();
+
+    int locId = table.schema().findField("loc").fieldId();
+    int latValueId = table.schema().findField("loc.lat.value").fieldId();
+    assertThat(latValueId).isNotEqualTo(locId);
+
+    table.updateSchema().deleteColumn("loc.lat.value").commit();
+    table.updateSchema().undeleteColumn("loc.lat.value").commit();
+
+    Types.NestedField restored = table.schema().findField("loc.lat.value");
+    assertThat(restored.fieldId()).isEqualTo(latValueId);
+    assertThat(restored.name()).isEqualTo("lat.value");
+    assertThat(table.schema().findField("loc").fieldId()).isEqualTo(locId);
   }
 
   @TestTemplate

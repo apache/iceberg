@@ -32,7 +32,6 @@ import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -53,7 +52,6 @@ import org.slf4j.LoggerFactory;
 class SchemaUpdate implements UpdateSchema {
   private static final Logger LOG = LoggerFactory.getLogger(SchemaUpdate.class);
   private static final int TABLE_ROOT_ID = -1;
-  private static final Splitter DOT = Splitter.on('.');
 
   private final TableOperations ops;
   private final TableMetadata base;
@@ -223,8 +221,17 @@ class SchemaUpdate implements UpdateSchema {
 
     validateNoPendingUndelete(name, historicalField);
 
-    int parentId = resolveParentForRestore(name);
-    validateParentGenerations(name, historicalField);
+    Schema winningSchema =
+        base != null
+            ? UndeleteUtils.findWinningSchema(base.schemas(), name, historicalField.fieldId())
+            : null;
+    Preconditions.checkArgument(
+        winningSchema != null,
+        "Cannot undelete column: no deleted column with that name: %s",
+        name);
+
+    int parentId = resolveParentForRestore(winningSchema, name, historicalField);
+    validateParentGenerations(winningSchema, historicalField);
 
     int containingIndex =
         UndeleteUtils.newestContainingSnapshotIndex(base, historicalField.fieldId());
@@ -299,89 +306,53 @@ class SchemaUpdate implements UpdateSchema {
     }
   }
 
-  private int resolveParentForRestore(String name) {
-    int parentId = TABLE_ROOT_ID;
-    int lastDot = name.lastIndexOf('.');
-    if (lastDot >= 0) {
-      String parentPath = name.substring(0, lastDot);
-      List<String> parts = DOT.splitToList(parentPath);
-      Types.NestedField parentField = schema.findField(parts.get(0));
-      for (int depth = 1; depth < parts.size() && parentField != null; depth += 1) {
-        if (!parentField.type().isStructType()) {
-          throw new IllegalArgumentException(
-              String.format(
-                  "Cannot undelete columns nested inside %s types: %s",
-                  parentField.type().typeId(), name));
-        }
-
-        parentField = parentField.type().asStructType().field(parts.get(depth));
-      }
-
-      Preconditions.checkArgument(parentField != null, "Cannot find parent struct: %s", parentPath);
-      Preconditions.checkArgument(
-          parentField.type().isNestedType() && parentField.type().asNestedType().isStructType(),
-          "Cannot undelete into non-struct column: %s: %s",
-          parentPath,
-          parentField.type());
-      parentId = parentField.fieldId();
-
-      Integer ancestorId = parentId;
-      while (ancestorId != null) {
+  private int resolveParentForRestore(
+      Schema winningSchema, String name, Types.NestedField historicalField) {
+    List<Integer> ancestorIds =
+        UndeleteUtils.structAncestorIds(winningSchema, historicalField.fieldId());
+    for (int index = ancestorIds.size() - 1; index >= 0; index -= 1) {
+      int ancestorId = ancestorIds.get(index);
+      Types.NestedField currentParent = schema.findField(ancestorId);
+      if (currentParent == null) {
+        String historicalName = winningSchema.findColumnName(ancestorId);
         Preconditions.checkArgument(
-            !deletes.contains(ancestorId),
-            "Cannot undelete into a column that will be deleted: %s",
-            schema.findColumnName(ancestorId));
-        ancestorId = idToParent.get(ancestorId);
+            schema.findField(historicalName) == null,
+            "Cannot undelete column %s: its parent was recreated with a new field ID, so data"
+                + " written under the previous parent is unreachable through it",
+            name);
+        throw new IllegalArgumentException(
+            String.format("Cannot find parent struct: %s", historicalName));
       }
+
+      Preconditions.checkArgument(
+          currentParent.type().isNestedType() && currentParent.type().asNestedType().isStructType(),
+          "Cannot undelete into non-struct column: %s: %s",
+          schema.findColumnName(ancestorId),
+          currentParent.type());
     }
 
-    return parentId;
+    for (int ancestorId : ancestorIds) {
+      Preconditions.checkArgument(
+          !deletes.contains(ancestorId),
+          "Cannot undelete into a column that will be deleted: %s",
+          schema.findColumnName(ancestorId));
+    }
+
+    return ancestorIds.isEmpty() ? TABLE_ROOT_ID : ancestorIds.get(ancestorIds.size() - 1);
   }
 
-  // Parquet matches field IDs at every nesting level, so a child restored under a recreated parent
-  // would read as null over old files even though its own ID matches
-  private void validateParentGenerations(String name, Types.NestedField historicalField) {
-    List<String> parts = DOT.splitToList(name);
-    if (parts.size() <= 1) {
-      return;
-    }
-
-    Schema winningSchema =
-        UndeleteUtils.findWinningSchema(base.schemas(), name, historicalField.fieldId());
-    Preconditions.checkArgument(
-        winningSchema != null,
-        "Cannot undelete column: no deleted column with that name: %s",
-        name);
-
-    List<Integer> historicalIds = structAncestorIds(winningSchema, parts);
-    List<Integer> currentIds = structAncestorIds(schema, parts);
-    for (int depth = 0; depth < currentIds.size(); depth += 1) {
+  // Parquet matches IDs at every nesting level, so a recreated parent makes old values unreadable
+  private void validateParentGenerations(Schema winningSchema, Types.NestedField historicalField) {
+    List<Integer> historicalIds =
+        UndeleteUtils.structAncestorIds(winningSchema, historicalField.fieldId());
+    List<Integer> currentIds = UndeleteUtils.structAncestorIds(schema, historicalField.fieldId());
+    for (int depth = 0; depth < Math.min(currentIds.size(), historicalIds.size()); depth += 1) {
       Preconditions.checkArgument(
           currentIds.get(depth).equals(historicalIds.get(depth)),
           "Cannot undelete column %s: its parent was recreated with a new field ID, so data written"
               + " under the previous parent is unreachable through it",
-          name);
+          historicalField.name());
     }
-  }
-
-  private static List<Integer> structAncestorIds(Schema schema, List<String> parts) {
-    Types.NestedField field = schema.findField(parts.get(0));
-    if (field == null || !field.type().isStructType()) {
-      return null;
-    }
-
-    List<Integer> ids = Lists.newArrayList();
-    ids.add(field.fieldId());
-    for (int depth = 1; depth < parts.size() - 1; depth += 1) {
-      field = field.type().asStructType().field(parts.get(depth));
-      if (field == null || !field.type().isStructType()) {
-        return null;
-      }
-
-      ids.add(field.fieldId());
-    }
-
-    return ids;
   }
 
   private String unsafeRequiredRestoreMessage(String name, int fieldId, int index) {

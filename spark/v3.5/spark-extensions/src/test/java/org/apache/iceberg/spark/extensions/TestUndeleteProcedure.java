@@ -196,8 +196,7 @@ public class TestUndeleteProcedure extends ExtensionsTestBase {
     Table table = validationCatalog.loadTable(tableIdent);
     int originalFieldId = table.schema().findField("id").fieldId();
     table.updateSchema().setIdentifierFields("id").commit();
-    // clearing the identifier and dropping the column in one update keeps the pre-drop schema
-    // marked as an identifier, so the restore reports it
+    // the pre-drop schema keeps the identifier mark, so the restore reports it
     table.updateSchema().setIdentifierFields().deleteColumn("id").commit();
     // java-side commits bypass the spark catalog cache, sync it before the procedure runs
     spark.catalog().refreshTable(tableName);
