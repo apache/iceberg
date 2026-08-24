@@ -16,15 +16,25 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.aws.s3.signer;
+package org.apache.iceberg.spark.data;
 
-import org.apache.iceberg.rest.requests.RemoteSignRequest;
-import org.immutables.value.Value;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import org.apache.iceberg.variants.Variant;
+import org.apache.spark.unsafe.types.VariantVal;
 
-/**
- * @deprecated since 1.11.0, will be removed in 1.12.0; use {@link RemoteSignRequest} instead.
- */
-@Deprecated
-@Value.Immutable
-@SuppressWarnings("immutables:subtype")
-public interface S3SignRequest extends RemoteSignRequest {}
+final class SparkVariantTestUtil {
+  private SparkVariantTestUtil() {}
+
+  static VariantVal toVariantVal(Variant variant) {
+    byte[] metadataBytes = new byte[variant.metadata().sizeInBytes()];
+    ByteBuffer metadataBuffer = ByteBuffer.wrap(metadataBytes).order(ByteOrder.LITTLE_ENDIAN);
+    variant.metadata().writeTo(metadataBuffer, 0);
+
+    byte[] valueBytes = new byte[variant.value().sizeInBytes()];
+    ByteBuffer valueBuffer = ByteBuffer.wrap(valueBytes).order(ByteOrder.LITTLE_ENDIAN);
+    variant.value().writeTo(valueBuffer, 0);
+
+    return new VariantVal(valueBytes, metadataBytes);
+  }
+}

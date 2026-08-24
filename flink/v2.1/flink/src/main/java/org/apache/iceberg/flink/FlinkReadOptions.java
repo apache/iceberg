@@ -21,7 +21,6 @@ package org.apache.iceberg.flink;
 import java.util.concurrent.TimeUnit;
 import org.apache.flink.configuration.ConfigOption;
 import org.apache.flink.configuration.ConfigOptions;
-import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.flink.source.StreamingStartingStrategy;
 
 /** Flink source read options */
@@ -67,23 +66,19 @@ public class FlinkReadOptions {
   public static final ConfigOption<Long> END_SNAPSHOT_ID =
       ConfigOptions.key("end-snapshot-id").longType().defaultValue(null);
 
+  // No defaults for the split options: a declared default would mask the table property fallback
+  // in FlinkReadConf, which applies the default instead
   public static final String SPLIT_SIZE = "split-size";
   public static final ConfigOption<Long> SPLIT_SIZE_OPTION =
-      ConfigOptions.key(PREFIX + SPLIT_SIZE)
-          .longType()
-          .defaultValue(TableProperties.SPLIT_SIZE_DEFAULT);
+      ConfigOptions.key(PREFIX + SPLIT_SIZE).longType().noDefaultValue();
 
   public static final String SPLIT_LOOKBACK = "split-lookback";
   public static final ConfigOption<Integer> SPLIT_LOOKBACK_OPTION =
-      ConfigOptions.key(PREFIX + SPLIT_LOOKBACK)
-          .intType()
-          .defaultValue(TableProperties.SPLIT_LOOKBACK_DEFAULT);
+      ConfigOptions.key(PREFIX + SPLIT_LOOKBACK).intType().noDefaultValue();
 
   public static final String SPLIT_FILE_OPEN_COST = "split-file-open-cost";
   public static final ConfigOption<Long> SPLIT_FILE_OPEN_COST_OPTION =
-      ConfigOptions.key(PREFIX + SPLIT_FILE_OPEN_COST)
-          .longType()
-          .defaultValue(TableProperties.SPLIT_OPEN_FILE_COST_DEFAULT);
+      ConfigOptions.key(PREFIX + SPLIT_FILE_OPEN_COST).longType().noDefaultValue();
 
   public static final String STREAMING = "streaming";
   public static final ConfigOption<Boolean> STREAMING_OPTION =

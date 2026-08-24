@@ -122,19 +122,19 @@ class TestS3V4RestSignerClient {
         // No OAuth2 data
         Arguments.of(
             Map.of(
-                RESTCatalogProperties.SIGNER_URI,
+                CatalogProperties.URI,
                 "https://signer.com",
-                RESTCatalogProperties.SIGNER_ENDPOINT,
-                "v1/sign/s3"),
+                RESTCatalogProperties.REMOTE_SIGNING_ENDPOINT,
+                "v1/namespaces/ns1/tables/t1/sign"),
             "sign",
             null),
         // Token only
         Arguments.of(
             Map.of(
-                RESTCatalogProperties.SIGNER_URI,
+                CatalogProperties.URI,
                 "https://signer.com",
-                RESTCatalogProperties.SIGNER_ENDPOINT,
-                "v1/sign/s3",
+                RESTCatalogProperties.REMOTE_SIGNING_ENDPOINT,
+                "v1/namespaces/ns1/tables/t1/sign",
                 AuthProperties.AUTH_TYPE,
                 AuthProperties.AUTH_TYPE_OAUTH2,
                 OAuth2Properties.TOKEN,
@@ -144,10 +144,10 @@ class TestS3V4RestSignerClient {
         // Credential only: expect a token to be fetched
         Arguments.of(
             Map.of(
-                RESTCatalogProperties.SIGNER_URI,
+                CatalogProperties.URI,
                 "https://signer.com",
-                RESTCatalogProperties.SIGNER_ENDPOINT,
-                "v1/sign/s3",
+                RESTCatalogProperties.REMOTE_SIGNING_ENDPOINT,
+                "v1/namespaces/ns1/tables/t1/sign",
                 AuthProperties.AUTH_TYPE,
                 AuthProperties.AUTH_TYPE_OAUTH2,
                 OAuth2Properties.CREDENTIAL,
@@ -157,10 +157,10 @@ class TestS3V4RestSignerClient {
         // Token and credential: should use token as is, not fetch a new one
         Arguments.of(
             Map.of(
-                RESTCatalogProperties.SIGNER_URI,
+                CatalogProperties.URI,
                 "https://signer.com",
-                RESTCatalogProperties.SIGNER_ENDPOINT,
-                "v1/sign/s3",
+                RESTCatalogProperties.REMOTE_SIGNING_ENDPOINT,
+                "v1/namespaces/ns1/tables/t1/sign",
                 AuthProperties.AUTH_TYPE,
                 AuthProperties.AUTH_TYPE_OAUTH2,
                 OAuth2Properties.TOKEN,
@@ -172,10 +172,10 @@ class TestS3V4RestSignerClient {
         // Custom scope
         Arguments.of(
             Map.of(
-                RESTCatalogProperties.SIGNER_URI,
+                CatalogProperties.URI,
                 "https://signer.com",
-                RESTCatalogProperties.SIGNER_ENDPOINT,
-                "v1/sign/s3",
+                RESTCatalogProperties.REMOTE_SIGNING_ENDPOINT,
+                "v1/namespaces/ns1/tables/t1/sign",
                 AuthProperties.AUTH_TYPE,
                 AuthProperties.AUTH_TYPE_OAUTH2,
                 OAuth2Properties.CREDENTIAL,
@@ -204,11 +204,9 @@ class TestS3V4RestSignerClient {
         // Only legacy properties
         Arguments.of(
             Map.of(
-                CatalogProperties.URI,
-                "https://catalog.com",
-                S3V4RestSignerClient.S3_SIGNER_URI,
+                RESTCatalogProperties.SIGNER_URI,
                 "https://legacy-signer.com",
-                S3V4RestSignerClient.S3_SIGNER_ENDPOINT,
+                RESTCatalogProperties.SIGNER_ENDPOINT,
                 "v1/legacy/sign"),
             "https://legacy-signer.com",
             "https://legacy-signer.com/v1/legacy/sign"),
@@ -216,10 +214,8 @@ class TestS3V4RestSignerClient {
         Arguments.of(
             Map.of(
                 CatalogProperties.URI,
-                "https://catalog.com",
-                RESTCatalogProperties.SIGNER_URI,
                 "https://new-signer.com",
-                RESTCatalogProperties.SIGNER_ENDPOINT,
+                RESTCatalogProperties.REMOTE_SIGNING_ENDPOINT,
                 "v1/new/sign"),
             "https://new-signer.com",
             "https://new-signer.com/v1/new/sign"),
@@ -227,21 +223,14 @@ class TestS3V4RestSignerClient {
         Arguments.of(
             Map.of(
                 CatalogProperties.URI,
-                "https://catalog.com",
-                RESTCatalogProperties.SIGNER_URI,
                 "https://new-signer.com",
-                RESTCatalogProperties.SIGNER_ENDPOINT,
+                RESTCatalogProperties.REMOTE_SIGNING_ENDPOINT,
                 "v1/new/sign",
-                S3V4RestSignerClient.S3_SIGNER_URI,
+                RESTCatalogProperties.SIGNER_URI,
                 "https://legacy-signer.com",
-                S3V4RestSignerClient.S3_SIGNER_ENDPOINT,
+                RESTCatalogProperties.SIGNER_ENDPOINT,
                 "v1/legacy/sign"),
             "https://legacy-signer.com",
-            "https://legacy-signer.com/v1/legacy/sign"),
-        // No signer properties: the catalog URI and the deprecated default endpoint are used
-        Arguments.of(
-            Map.of(CatalogProperties.URI, "https://catalog.com"),
-            "https://catalog.com",
-            "https://catalog.com/" + S3V4RestSignerClient.S3_SIGNER_DEFAULT_ENDPOINT));
+            "https://legacy-signer.com/v1/legacy/sign"));
   }
 }

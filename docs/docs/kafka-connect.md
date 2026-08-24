@@ -40,6 +40,7 @@ The Apache Iceberg Sink Connector for Kafka Connect is a sink connector for writ
 * Multi-table fan-out
 * Automatic table creation and schema evolution
 * Field name mapping via Iceberg’s column mapping functionality
+* Variant shredding for Parquet writes via the `write.parquet.shred-variants` table property
 
 ## Installation
 

@@ -1,6 +1,6 @@
 ---
 date: 2026-07-21
-title: Apache Iceberg Rust 0.10.0 Release
+title: Apache Iceberg Rust 0.10 Release
 slug: apache-iceberg-rust-0.10.0-release
 authors:
   - iceberg-pmc
@@ -25,9 +25,9 @@ categories:
  - limitations under the License.
  -->
 
-The Apache Iceberg community is pleased to announce version 0.10.0 of [iceberg-rust](https://github.com/apache/iceberg-rust).
+The Apache Iceberg community is pleased to announce version 0.10 of [iceberg-rust](https://github.com/apache/iceberg-rust).
 
-This release covers development work from early March through early July 2026 and is the result of merging **254 PRs** from **40 contributors**. See the [changelog] for the complete list of changes.
+The 0.10.0 release covers development work from early March through early July 2026 and is the result of merging **254 PRs** from **40 contributors**. See the [changelog] for the complete list of changes.
 
 [changelog]: https://github.com/apache/iceberg-rust/releases/tag/v0.10.0
 
@@ -129,6 +129,10 @@ For a full list of dependency versions, the best resources to review are the Car
 - **Standalone compilation**: [CI verifies each crate compiles independently](https://github.com/apache/iceberg-rust/pull/2389)
 - **Security**: Pinned all third-party actions to Apache-approved SHAs; ASF allowlist check on every PR
 - **Performance**: [Disabled debuginfo and incremental compilation](https://github.com/apache/iceberg-rust/pull/2672) in CI; [Rust caches saved only from main](https://github.com/apache/iceberg-rust/pull/2669)
+
+## Patch Releases
+
+- [0.10.1](https://github.com/apache/iceberg-rust/releases/tag/v0.10.1) was released as the 0.10.0 release for pyiceberg-core was built on the wrong repository ref and was yanked. 0.10.1 only contains an update to [crossbeam-epoch](https://github.com/apache/iceberg-rust/pull/2911), and correctly publishes the PyPI pyiceberg-core package using the correct version of the source code. If you are depending on pyiceberg-core, you should not use 0.10.0 and instead use [0.10.1](https://pypi.org/project/pyiceberg-core/0.10.1/).
 
 ## What's Next
 

@@ -27,6 +27,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -309,5 +310,123 @@ public abstract class DataTableScanTestBase<
             .collect(Collectors.toList())
             .get(0);
     assertThat(deletes.get(0).manifestLocation()).isEqualTo(deleteManifest.path());
+  }
+
+  @TestTemplate
+  public void testPlanFilesPositionDeletePathReferenceWithPartitionMismatchFails() {
+    assumeThat(formatVersion).as("Requires V2 position deletes").isEqualTo(2);
+
+    table.newAppend().appendFile(FILE_A).commit();
+
+    // Position delete whose metadata partition (data_bucket=1) does not match FILE_A's
+    // partition (data_bucket=0), but whose path reference points to FILE_A.
+    DeleteFile posDeleteWrongPartition =
+        FileMetadata.deleteFileBuilder(table.spec())
+            .ofPositionDeletes()
+            .withPath("/path/to/pos-delete-wrong-partition-" + UUID.randomUUID() + ".parquet")
+            .withFileSizeInBytes(10)
+            .withPartitionPath("data_bucket=1")
+            .withRecordCount(1)
+            .withReferencedDataFile(FILE_A.location())
+            .build();
+
+    table.newRowDelta().addDeletes(posDeleteWrongPartition).commit();
+
+    assertThatThrownBy(() -> Lists.newArrayList(newScan().planFiles()))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining(
+            "Mismatched partition tuples (PartitionData{data_bucket=1},"
+                + " PartitionData{data_bucket=0})")
+        .hasMessageContaining(FILE_A.location())
+        .hasMessageContaining("metadata is corrupted");
+  }
+
+  @TestTemplate
+  public void testPlanFilesDeletionVectorPathReferenceWithPartitionMismatchFails() {
+    assumeThat(formatVersion).as("Requires V3 deletion vectors").isGreaterThanOrEqualTo(3);
+
+    table.newAppend().appendFile(FILE_A).commit();
+
+    // DV whose metadata partition (data_bucket=1) does not match FILE_A's partition
+    // (data_bucket=0), but whose path reference points to FILE_A.
+    DeleteFile dvWrongPartition =
+        FileMetadata.deleteFileBuilder(table.spec())
+            .ofPositionDeletes()
+            .withPath("/path/to/dv-wrong-partition-" + UUID.randomUUID() + ".puffin")
+            .withFileSizeInBytes(10)
+            .withPartitionPath("data_bucket=1")
+            .withRecordCount(1)
+            .withReferencedDataFile(FILE_A.location())
+            .withContentOffset(4)
+            .withContentSizeInBytes(6)
+            .build();
+
+    table.newRowDelta().addDeletes(dvWrongPartition).commit();
+
+    assertThatThrownBy(() -> Lists.newArrayList(newScan().planFiles()))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining(
+            "Mismatched partition tuples (PartitionData{data_bucket=1},"
+                + " PartitionData{data_bucket=0})")
+        .hasMessageContaining(FILE_A.location())
+        .hasMessageContaining("metadata is corrupted");
+  }
+
+  @TestTemplate
+  public void testPlanFilesPositionDeletePathReferenceWithSpecMismatchFails() {
+    assumeThat(formatVersion).as("Requires V2 position deletes").isEqualTo(2);
+
+    table.newAppend().appendFile(FILE_A).commit();
+
+    table.updateSpec().addField("id").commit();
+
+    // Position delete (spec ID 1) whose path reference points to FILE_A (spec ID 0).
+    DeleteFile positionDeleteWrongSpec =
+        FileMetadata.deleteFileBuilder(table.spec())
+            .ofPositionDeletes()
+            .withPath("/path/to/pos-delete-wrong-spec-" + UUID.randomUUID() + ".parquet")
+            .withFileSizeInBytes(10)
+            .withPartitionPath("data_bucket=0/id=1")
+            .withRecordCount(1)
+            .withReferencedDataFile(FILE_A.location())
+            .build();
+
+    table.newRowDelta().addDeletes(positionDeleteWrongSpec).commit();
+
+    assertThatThrownBy(() -> Lists.newArrayList(newScan().planFiles()))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("Mismatched partition specs (1, 0)")
+        .hasMessageContaining(FILE_A.location())
+        .hasMessageContaining("metadata is corrupted");
+  }
+
+  @TestTemplate
+  public void testPlanFilesDeletionVectorPathReferenceWithSpecMismatchFails() {
+    assumeThat(formatVersion).as("Requires V3 deletion vectors").isGreaterThanOrEqualTo(3);
+
+    table.newAppend().appendFile(FILE_A).commit();
+
+    table.updateSpec().addField("id").commit();
+
+    // DV (spec ID 1) whose path reference points to FILE_A (spec ID 0).
+    DeleteFile dvWrongSpec =
+        FileMetadata.deleteFileBuilder(table.spec())
+            .ofPositionDeletes()
+            .withPath("/path/to/dv-wrong-spec-" + UUID.randomUUID() + ".puffin")
+            .withFileSizeInBytes(10)
+            .withPartitionPath("data_bucket=0/id=1")
+            .withRecordCount(1)
+            .withReferencedDataFile(FILE_A.location())
+            .withContentOffset(4)
+            .withContentSizeInBytes(6)
+            .build();
+
+    table.newRowDelta().addDeletes(dvWrongSpec).commit();
+
+    assertThatThrownBy(() -> Lists.newArrayList(newScan().planFiles()))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("Mismatched partition specs (1, 0)")
+        .hasMessageContaining(FILE_A.location())
+        .hasMessageContaining("metadata is corrupted");
   }
 }

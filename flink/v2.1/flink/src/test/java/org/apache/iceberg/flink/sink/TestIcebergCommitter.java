@@ -93,12 +93,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 @ExtendWith(ParameterizedTestExtension.class)
 class TestIcebergCommitter extends TestBase {
-  private static final Logger LOG = LoggerFactory.getLogger(TestIcebergCommitter.class);
   public static final String OPERATOR_ID = "flink-sink";
   @TempDir File temporaryFolder;
 

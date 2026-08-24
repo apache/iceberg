@@ -16,15 +16,20 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.aws.s3.signer;
+package org.apache.iceberg.parquet;
 
-import org.apache.iceberg.rest.responses.RemoteSignResponse;
-import org.immutables.value.Value;
+import java.util.List;
+import org.apache.iceberg.variants.VariantValue;
 
-/**
- * @deprecated since 1.11.0, will be removed in 1.12.0; use {@link RemoteSignResponse} instead.
- */
-@Deprecated
-@Value.Immutable
-@SuppressWarnings("immutables:subtype")
-public interface S3SignResponse extends RemoteSignResponse {}
+/** Analyzer whose rows are already variant values, so no engine-specific extraction is needed. */
+class VariantValueShreddingAnalyzer extends VariantShreddingAnalyzer<VariantValue, Void> {
+  @Override
+  protected List<VariantValue> extractVariantValues(List<VariantValue> rows, int idx) {
+    return rows;
+  }
+
+  @Override
+  protected int resolveColumnIndex(Void engineSchema, String columnName) {
+    throw new UnsupportedOperationException("Not used when rows are variant values");
+  }
+}

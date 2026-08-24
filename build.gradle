@@ -28,7 +28,7 @@ buildscript {
   dependencies {
     classpath 'com.gradleup.shadow:shadow-gradle-plugin:8.3.11'
     classpath 'com.palantir.baseline:gradle-baseline-java:6.90.0'
-    classpath 'com.diffplug.spotless:spotless-plugin-gradle:8.8.0'
+    classpath 'com.diffplug.spotless:spotless-plugin-gradle:8.9.0'
     classpath 'gradle.plugin.org.inferred:gradle-processors:3.7.0'
     classpath 'me.champeau.jmh:jmh-gradle-plugin:0.7.3'
     classpath 'gradle.plugin.io.morethan.jmhreport:gradle-jmh-report:0.9.6'
@@ -895,9 +895,6 @@ project(':iceberg-orc') {
     api project(':iceberg-api')
     implementation project(':iceberg-common')
     implementation project(':iceberg-core')
-    implementation(libs.avro.avro) {
-      exclude group: 'org.tukaani' // xz compression is not supported
-    }
 
     implementation("${libs.orc.core.get().module}:${libs.versions.orc.get()}:nohive") {
       exclude group: 'org.apache.hadoop'
@@ -1076,6 +1073,12 @@ project(':iceberg-snowflake') {
 project(':iceberg-open-api') {
   apply plugin: 'java-test-fixtures'
   apply plugin: 'com.gradleup.shadow'
+
+  // There are no main sources, so drop the implicit test fixtures -> main component dependency that
+  // would otherwise put the disabled main JAR on consumers' classpaths
+  configurations.testFixturesApi.dependencies.removeIf {
+    it instanceof ProjectDependency && it.path == project.path
+  }
 
   build.dependsOn shadowJar
 

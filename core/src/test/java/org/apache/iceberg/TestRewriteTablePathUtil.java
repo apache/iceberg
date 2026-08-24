@@ -198,6 +198,95 @@ public class TestRewriteTablePathUtil extends TestBase {
   }
 
   @Test
+  public void testReplacePathsTreatsPrefixAsLiteral() {
+    // The '.' in the prefix is a literal character, not a regex wildcard; a location matching the
+    // prefix literally is rewritten to the target.
+    String sourcePrefix = "s3://bucket/warehouse.db/table";
+    String targetPrefix = "s3://bucket/restored.db/table";
+    TableMetadata metadata =
+        TableMetadata.newTableMetadata(
+            SCHEMA, PartitionSpec.unpartitioned(), sourcePrefix, ImmutableMap.of());
+
+    assertThat(RewriteTablePathUtil.replacePaths(metadata, sourcePrefix, targetPrefix).location())
+        .isEqualTo(targetPrefix);
+  }
+
+  @Test
+  public void testReplacePathsRejectsRegexOnlyPrefixMatch() {
+    // Read as a regex, "warehouse.db" would match "warehouseXdb" ('.' matches 'X'). As a literal
+    // prefix it must not, so a location that only matches under regex semantics is rejected.
+    String sourcePrefix = "s3://bucket/warehouse.db/table";
+    String targetPrefix = "s3://bucket/restored.db/table";
+    TableMetadata metadata =
+        TableMetadata.newTableMetadata(
+            SCHEMA,
+            PartitionSpec.unpartitioned(),
+            "s3://bucket/warehouseXdb/table",
+            ImmutableMap.of());
+
+    assertThatThrownBy(
+            () -> RewriteTablePathUtil.replacePaths(metadata, sourcePrefix, targetPrefix))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("does not start with");
+  }
+
+  @Test
+  public void testReplacePathsTargetWithDollarSign() {
+    // '$1' in the target is a literal path segment, not a regex replacement group reference
+    // (which previously threw IndexOutOfBoundsException: No group 1).
+    String sourcePrefix = "s3://bucket/db/table";
+    String targetPrefix = "s3://bucket/cost$1/table";
+    TableMetadata metadata =
+        TableMetadata.newTableMetadata(
+            SCHEMA, PartitionSpec.unpartitioned(), sourcePrefix, ImmutableMap.of());
+
+    assertThat(RewriteTablePathUtil.replacePaths(metadata, sourcePrefix, targetPrefix).location())
+        .isEqualTo(targetPrefix);
+  }
+
+  @Test
+  public void testReplacePathsSourceWithUnbalancedBracket() {
+    // An unbalanced '[' in the prefix would be an invalid regex (PatternSyntaxException); as a
+    // literal it matches itself.
+    String sourcePrefix = "s3://bucket/db/table[0";
+    String targetPrefix = "s3://bucket/db/restored";
+    TableMetadata metadata =
+        TableMetadata.newTableMetadata(
+            SCHEMA, PartitionSpec.unpartitioned(), sourcePrefix, ImmutableMap.of());
+
+    assertThat(RewriteTablePathUtil.replacePaths(metadata, sourcePrefix, targetPrefix).location())
+        .isEqualTo(targetPrefix);
+  }
+
+  @Test
+  public void testReplacePathsSourceWithCharacterClass() {
+    // '[0]' is a valid regex character class matching '0', so as a regex it silently missed the
+    // real directory "table[0]" (while matching an unrelated "table0"); as a literal prefix it
+    // must match "table[0]".
+    String sourcePrefix = "s3://bucket/db/table[0]";
+    String targetPrefix = "s3://bucket/db/restored";
+    TableMetadata metadata =
+        TableMetadata.newTableMetadata(
+            SCHEMA, PartitionSpec.unpartitioned(), sourcePrefix, ImmutableMap.of());
+
+    assertThat(RewriteTablePathUtil.replacePaths(metadata, sourcePrefix, targetPrefix).location())
+        .isEqualTo(targetPrefix);
+  }
+
+  @Test
+  public void testReplacePathsWithTrailingSeparatorInPrefix() {
+    // A source prefix with a trailing separator still matches the table location.
+    String location = "s3://bucket/warehouse/table";
+    TableMetadata metadata =
+        TableMetadata.newTableMetadata(
+            SCHEMA, PartitionSpec.unpartitioned(), location, ImmutableMap.of());
+
+    TableMetadata replaced =
+        RewriteTablePathUtil.replacePaths(metadata, location + "/", "s3://bucket/restored/table");
+    assertThat(replaced.location()).isEqualTo("s3://bucket/restored/table");
+  }
+
+  @Test
   public void testNewPathTableRename() {
     // Rename /tableX to /table (target is substring of source name)
     assertThat(RewriteTablePathUtil.newPath("/tableX/data/file.parquet", "/tableX", "/table"))

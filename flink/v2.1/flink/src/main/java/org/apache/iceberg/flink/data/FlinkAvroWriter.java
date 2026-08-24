@@ -111,6 +111,12 @@ public class FlinkAvroWriter implements MetricsAwareDatumWriter<RowData> {
     }
 
     @Override
+    public ValueWriter<?> variant(
+        LogicalType variant, ValueWriter<?> metadataWriter, ValueWriter<?> valueWriter) {
+      return FlinkValueWriters.variants();
+    }
+
+    @Override
     public ValueWriter<?> primitive(LogicalType type, Schema primitive) {
       org.apache.avro.LogicalType logicalType = primitive.getLogicalType();
       if (logicalType != null) {
