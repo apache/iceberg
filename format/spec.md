@@ -1417,7 +1417,7 @@ The rows in the delete file must be sorted by `file_path` then `pos` to optimize
 
 Equality delete files identify deleted rows in a collection of data files by one or more column values, and may optionally contain additional columns of the deleted row.
 
-Equality deletes are not an allowed entry type in v4 metadata, so new equality deletes must not be written to v4 tables. Equality deletes carried over from v2 or v3 remain in the delete manifests that already track them and must still be applied when reading. Converting them to [deletion vectors](#deletion-vectors) is a separate, optional maintenance action.
+Equality delete files must not be added to v4 tables. Equality deletes carried over from v2 or v3 remain in the delete manifests that already track them and readers must still apply them. Converting them to [deletion vectors](#deletion-vectors) is a separate, optional maintenance action.
 
 Equality delete files store any subset of a table's columns and use the table's field ids. The _delete columns_ are the columns of the delete file used to match data rows. Delete columns are identified by id in the delete file [metadata column `equality_ids`](#manifests). The column restrictions for columns used in equality delete files are the same as those for [identifier fields](#identifier-field-ids) with the exception that optional columns and columns nested under optional structs are allowed (if a parent struct column is null it implies the leaf column is null).
 
@@ -1918,9 +1918,8 @@ Reading v4 metadata:
 
 Row-level delete changes:
 
-* Equality deletes are not an allowed entry type in v4 metadata
-    * Writers must not write new equality deletes to v4 tables
-    * Readers must continue to apply equality deletes for v2 and v3 tables and for equality deletes carried over into upgraded v4 tables
+* Equality delete files must not be added to v4 tables
+* Readers must continue to apply equality deletes for v2 and v3 tables and for equality deletes carried over into upgraded v4 tables
 * Upgrading a v2 or v3 table to v4 is metadata-only and does not rewrite data or delete files
     * Equality deletes remain in the carried-over v2 or v3 delete manifests that already track them
     * Converting equality deletes to DVs is a separate, optional maintenance action
