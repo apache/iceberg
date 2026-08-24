@@ -65,15 +65,14 @@ import org.slf4j.LoggerFactory;
  * staging snapshot that hasn't been converted yet and emits {@link ReadCommand}s describing the
  * files its downstream readers and workers must process.
  *
- * <p>Each trigger runs two steps in order:
+ * <p>Each trigger runs three steps in order:
  *
  * <ol>
- *   <li>{@link #ensureIndexCurrent}: updates {@link #lastStagingSnapshotId} from main's history,
- *       bootstraps the worker index from main on first run, and reindexes when external commits
- *       (e.g. compaction) have advanced main past the currently-indexed snapshot. The index is also
- *       rebuilt when the staging snapshot picked for this cycle is the one the previous cycle
- *       planned, because that cycle did not commit and resolving its deletes consumed the matching
- *       index entries.
+ *   <li>{@link #refreshStagingCursor}: updates {@link #lastStagingSnapshotId} from the most recent
+ *       committer marker on the target branch.
+ *   <li>{@link #ensureIndexCurrent}: rebuilds the worker index from main when there is no index
+ *       yet, when external commits (e.g. compaction) have advanced main, or when the staging
+ *       snapshot picked for this cycle is the one the previous cycle planned.
  *   <li>{@link #processStagingSnapshot}: resolve the chosen staging snapshot's eq deletes against
  *       the (now-current) index, pass through any DV files, and index the snapshot's new data files
  *       for the next cycle.
@@ -271,25 +270,17 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
       Snapshot mainSnapshot = table.snapshot(targetBranch);
       currentMainSnapshotId = mainSnapshot != null ? mainSnapshot.snapshotId() : null;
 
-      boolean rebuilt = ensureIndexCurrent(mainSnapshot);
+      LastCommittedWork committedWork = refreshStagingCursor(mainSnapshot);
 
       Snapshot nextToProcess =
           nextUnprocessedStagingSnapshot(table.snapshot(stagingBranch), mainSnapshot);
+
+      ensureIndexCurrent(mainSnapshot, committedWork, nextToProcess);
 
       if (nextToProcess == null) {
         LOG.info("Nothing new to convert on staging branch '{}'.", stagingBranch);
         emitNoOpResult(triggerTs, currentMainSnapshotId);
         return;
-      }
-
-      // Resolving an eq delete consumes the index entries it matches, so a cycle that failed after
-      // its delete phase left the index without them. The cursor only advances once the committer's
-      // marker is on the target branch, so picking the same staging snapshot again means that cycle
-      // did not commit, and the target has not moved either, so nothing else rebuilds the index.
-      if (!rebuilt
-          && mainSnapshot != null
-          && Objects.equals(pendingStagingSnapshotId, nextToProcess.snapshotId())) {
-        rebuildIndex(mainSnapshot, true);
       }
 
       processStagingSnapshot(nextToProcess, triggerTs, currentMainSnapshotId);
@@ -302,43 +293,53 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
   }
 
   /**
-   * Brings the worker's index up to date with the current state of the target branch:
-   *
-   * <ul>
-   *   <li>Updates {@link #lastStagingSnapshotId} from the most recent committer marker on main.
-   *   <li>Bootstraps the index from main on the first trigger with a non-null main snapshot.
-   *   <li>Reindexes from main when external commits (e.g. compaction or direct writes) have
-   *       advanced main past the currently-indexed snapshot.
-   * </ul>
-   *
-   * <p>No-op when main hasn't moved since the last trigger. Otherwise the history walk is bounded
-   * to commits added since {@link #lastMainSnapshotId}.
-   *
-   * @return whether the index was rebuilt
+   * Updates {@link #lastStagingSnapshotId} from the most recent committer marker on the target
+   * branch. Returns the discovered work, or null when the target has not moved since the last
+   * trigger and the cursor therefore cannot have changed.
    */
-  private boolean ensureIndexCurrent(Snapshot mainSnapshot) {
+  private LastCommittedWork refreshStagingCursor(Snapshot mainSnapshot) {
     Long currentMainSnapshotId = mainSnapshot != null ? mainSnapshot.snapshotId() : null;
 
     if (Objects.equals(lastMainSnapshotId, currentMainSnapshotId)) {
-      return false;
+      return null;
     }
 
     LastCommittedWork info = discoverLastCommittedWork(mainSnapshot);
     updateLastStagingSnapshotId(info);
+    lastMainSnapshotId = currentMainSnapshotId;
+    return info;
+  }
 
-    boolean bootstrap = mainSnapshot != null && indexSnapshotId == null;
-    boolean reindex = indexSnapshotId != null && info.externalCommitCount() > 0;
-    if (bootstrap || reindex) {
+  /**
+   * Rebuilds the worker index when it is missing, when external commits have advanced the target
+   * branch, or when {@code nextToProcess} is the staging snapshot the previous plan covered.
+   * Resolving an eq delete consumes the index entries it matches, so a cycle that failed after its
+   * delete phase left the index without them; the cursor only advances once the committer's marker
+   * is on the target branch, so planning the same staging snapshot again means that cycle did not
+   * commit and nothing else has rebuilt the index.
+   */
+  private void ensureIndexCurrent(
+      Snapshot mainSnapshot, LastCommittedWork committedWork, Snapshot nextToProcess) {
+    if (mainSnapshot == null) {
+      return;
+    }
+
+    boolean bootstrap = indexSnapshotId == null;
+    boolean reindex =
+        !bootstrap && committedWork != null && committedWork.externalCommitCount() > 0;
+    boolean replan =
+        !bootstrap
+            && nextToProcess != null
+            && Objects.equals(pendingStagingSnapshotId, nextToProcess.snapshotId());
+
+    if (bootstrap || reindex || replan) {
       LOG.info(
           "{} worker index from main snapshot {} for field IDs {}.",
           bootstrap ? "Bootstrapping" : "Reindexing",
-          currentMainSnapshotId,
+          mainSnapshot.snapshotId(),
           eqFieldIds);
-      rebuildIndex(mainSnapshot, reindex);
+      rebuildIndex(mainSnapshot, !bootstrap);
     }
-
-    lastMainSnapshotId = currentMainSnapshotId;
-    return bootstrap || reindex;
   }
 
   /**
