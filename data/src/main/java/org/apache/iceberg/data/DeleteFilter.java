@@ -249,7 +249,8 @@ public abstract class DeleteFilter<T> {
   }
 
   private List<Predicate<T>> applySharedEqDeletes() {
-    final Set<StructLikeMap<Long>> deleteMaps = Sets.newIdentityHashSet();
+    final Multimap<Set<Integer>, StructLikeMap<Long>> deleteMaps =
+        Multimaps.newMultimap(Maps.newHashMap(), Sets::newIdentityHashSet);
     final Map<Set<Integer>, Schema> deleteSchemas = Maps.newHashMap();
     final List<Pair<DeleteFile, Schema>> newEqDeletes = Lists.newArrayList();
 
@@ -259,30 +260,29 @@ public abstract class DeleteFilter<T> {
           deleteSchemas.computeIfAbsent(ids, key -> TypeUtil.selectInIdOrder(requiredSchema, key));
 
       if (sharedEqDeletes.contains(delete)) {
-        StructLikeMap<Long> deleteMap = sharedEqDeletes.get(delete, ids);
-        if (deleteMaps.add(deleteMap)) {
-          isInDeleteSets.add(sharedEqDeleteFilter(deleteSchema, deleteMap));
-        }
+        deleteMaps.put(ids, sharedEqDeletes.get(delete, ids));
       } else {
         newEqDeletes.add(Pair.of(delete, deleteSchema));
       }
     }
 
-    if (newEqDeletes.isEmpty()) {
-      return isInDeleteSets;
+    if (!newEqDeletes.isEmpty()) {
+      for (Pair<DeleteFile, Iterable<StructLike>> loaded :
+          deleteLoader().loadEqualityDeletes(newEqDeletes)) {
+        DeleteFile delete = loaded.first();
+        Set<Integer> ids = Sets.newHashSet(delete.equalityFieldIds());
+        deleteMaps.put(
+            ids, sharedEqDeletes.merge(delete, ids, deleteSchemas.get(ids), loaded.second()));
+      }
     }
 
-    for (Pair<DeleteFile, Iterable<StructLike>> loaded :
-        deleteLoader().loadEqualityDeletes(newEqDeletes)) {
-      DeleteFile delete = loaded.first();
-      Set<Integer> ids = Sets.newHashSet(delete.equalityFieldIds());
-      Schema deleteSchema = deleteSchemas.get(ids);
-
-      StructLikeMap<Long> deleteMap =
-          sharedEqDeletes.merge(delete, ids, deleteSchema, loaded.second());
-      if (deleteMaps.add(deleteMap)) {
-        isInDeleteSets.add(sharedEqDeleteFilter(deleteSchema, deleteMap));
-      }
+    for (Map.Entry<Set<Integer>, Collection<StructLikeMap<Long>>> entry :
+        deleteMaps.asMap().entrySet()) {
+      Schema deleteSchema = deleteSchemas.get(entry.getKey());
+      isInDeleteSets.add(
+          entry.getValue().size() == 1
+              ? sharedEqDeleteFilter(deleteSchema, entry.getValue().iterator().next())
+              : sharedEqDeleteFilter(deleteSchema, entry.getValue()));
     }
 
     return isInDeleteSets;
@@ -294,6 +294,22 @@ public abstract class DeleteFilter<T> {
     return record -> {
       Long deleteSequenceNumber = deleteMap.get(projectRow.wrap(asStructLike(record)));
       return deleteSequenceNumber != null && deleteSequenceNumber > dataSequenceNumber;
+    };
+  }
+
+  private Predicate<T> sharedEqDeleteFilter(
+      Schema deleteSchema, Collection<StructLikeMap<Long>> deleteMaps) {
+    // a projection to select and reorder fields of the file schema to match the delete rows
+    StructProjection projectRow = StructProjection.create(requiredSchema, deleteSchema);
+    return record -> {
+      StructLike key = projectRow.wrap(asStructLike(record));
+      for (StructLikeMap<Long> deleteMap : deleteMaps) {
+        Long deleteSequenceNumber = deleteMap.get(key);
+        if (deleteSequenceNumber != null && deleteSequenceNumber > dataSequenceNumber) {
+          return true;
+        }
+      }
+      return false;
     };
   }
 
