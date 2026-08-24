@@ -190,7 +190,7 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
       Preconditions.checkArgument(tableLocation != null, "Invalid table location: null");
       this.file = file;
       this.specsById = specsById;
-      this.tableLocation = LocationUtil.stripTrailingSlash(tableLocation);
+      this.tableLocation = tableLocation;
       this.unionPartitionType = Partitioning.unionPartitionTypes(specsById.values());
       Schema base = TrackedFile.schema(unionPartitionType, Types.StructType.of());
       // the read schema carries row_position (via BASE_TYPE) so the reader can fill manifestPos
