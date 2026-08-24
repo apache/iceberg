@@ -1,5 +1,6 @@
 /**
- * Build a SCALAR HASH index on NYC Yellow Taxi data (medallion column).
+ * Build a SCALAR HASH index on NYC Yellow Taxi data (medallion column), and demonstrate a
+ * subsequent point lookup being pruned to fewer files.
  *
  * Run with spark-shell or spark-submit:
  *   spark-shell --packages org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:1.10.0 \
@@ -10,147 +11,66 @@
  *               -i scripts/build_scalar_index_taxi.scala
  *
  * Or paste directly into spark-shell.
+ *
+ * Unlike the version of this script that predates the real build_scalar_index procedure, this
+ * one does not hand-roll the build pipeline (compute buckets, sort, write Parquet, commit) --
+ * it calls the actual procedure via SQL, so it exercises the real code path rather than a
+ * parallel implementation that could drift from it. The old hand-rolled version also never
+ * computed `position`, so it only ever achieved file-level pruning, never the exact-row
+ * `(file, position)` pruning that's the actual point of a SCALAR index over a Bloom filter
+ * index; this version's build path does compute position correctly (see
+ * BuildScalarIndexProcedure), though the read-side demonstration below still only observes
+ * file-level pruning via input_file_name()/inputFiles(), since row-position-level pushdown into
+ * the scan itself is a documented, not-yet-attempted follow-up (see SparkScanBuilder's
+ * tryPruneUsingScalarIndex javadoc).
  */
 
 import org.apache.spark.sql.functions._
-import org.apache.spark.sql.expressions.Window
-import org.apache.iceberg.index._
-import org.apache.iceberg.catalog.{TableIdentifier, Namespace}
-import org.apache.iceberg.hadoop.HadoopFileIO
-import com.google.common.collect.ImmutableList
-import java.io.File
 
-// ── 1. Setup ──────────────────────────────────────────────────────────────────
+// ── 1. Setup ────────────────────────────────────────────────────────────────
 
-val TABLE_NAME    = "local.taxi.yellow_trips"
-val INDEX_LOCATION = "/tmp/iceberg-warehouse/taxi/yellow_trips/index/medallion_idx"
-val NUM_BUCKETS   = 256
-val KEY_COLUMN    = "medallion"
-val KEY_COLUMN_ID = 3  // Iceberg field id for medallion in the table schema
+val TABLE_NAME  = "local.taxi.yellow_trips"
+val KEY_COLUMN  = "medallion"
 
-// ── 2. Load source table ───────────────────────────────────────────────────────
+// ── 2. Look at the source table before indexing ──────────────────────────────
 
 println(s"Reading $TABLE_NAME ...")
 val taxiDf = spark.read.format("iceberg").load(TABLE_NAME)
-println(s"Total rows: ${taxiDf.count()}")
-println(s"Source files: approximately ${taxiDf.select(input_file_name()).distinct().count()}")
+val totalRows = taxiDf.count()
+val totalSourceFiles = taxiDf.select(input_file_name()).distinct().count()
+println(s"Total rows: $totalRows")
+println(s"Source files: $totalSourceFiles")
 
-// ── 3. Compute transform values and collect file metadata ─────────────────────
+// ── 3. Build the index via the real procedure ────────────────────────────────
 
-val transform = new HashTransform(NUM_BUCKETS)
-
-// Broadcast the transform to executors
-val numBuckets = NUM_BUCKETS
-val withTransform = taxiDf
-  .select(
-    col(KEY_COLUMN),
-    input_file_name().as("source_file_path")
-  )
-  // Compute hash bucket on the driver-broadcast numBuckets
-  .withColumn(
-    "transform_value",
-    (hash(col(KEY_COLUMN)) % numBuckets + numBuckets) % numBuckets
-  )
-
-println("Sample transform values:")
-withTransform.show(5)
-
-// ── 4. Write sorted leaf files (Parquet) ──────────────────────────────────────
-
-val leafOutputPath = s"$INDEX_LOCATION/data"
-println(s"Writing leaf files to $leafOutputPath ...")
-
-withTransform
-  .repartitionByRange(numBuckets / 64, col("transform_value"))  // ~4 leaf files
-  .sortWithinPartitions(col("transform_value"), col(KEY_COLUMN))
-  .write
-  .format("parquet")
-  .mode("overwrite")
-  .save(leafOutputPath)
-
-println("Leaf files written.")
-
-// ── 5. Collect leaf file metadata (path, count, size, bounds) ─────────────────
-
-val leafFiles = spark.read.parquet(leafOutputPath)
-  .select(
-    input_file_name().as("path"),
-    col("transform_value")
-  )
-  .groupBy("path")
-  .agg(
-    count("*").as("record_count"),
-    min("transform_value").as("tv_min"),
-    max("transform_value").as("tv_max")
-  )
-  .collect()
-  .map { row =>
-    val path     = row.getString(0)
-    val count    = row.getLong(1)
-    val tvMin    = row.getLong(2)
-    val tvMax    = row.getLong(3)
-    val sizeBytes = new File(path.replace("file:", "")).length()
-    new LeafFileMetadata(path, "parquet", count, sizeBytes, tvMin, tvMax)
-  }
-  .toList
-
-println(s"Leaf file count: ${leafFiles.size}")
-leafFiles.foreach { lf =>
-  println(s"  ${lf.path().split("/").last} | rows=${lf.recordCount()} " +
-    s"| buckets=[${lf.transformValueMin()}, ${lf.transformValueMax()}]")
-}
-
-// ── 6. Commit index via ScalarIndexCommitter ───────────────────────────────────
-
-val hadoopConf = spark.sparkContext.hadoopConfiguration
-val fileIO     = new HadoopFileIO(hadoopConf)
-val catalog    = new InMemoryIndexCatalog()  // swap for HadoopIndexCatalog in production
-val committer  = new ScalarIndexCommitter(catalog, fileIO)
-
-val tableIdent = TableIdentifier.of(Namespace.of("taxi"), "yellow_trips")
-val indexIdent = IndexIdentifier.of(tableIdent, "medallion_idx")
-
-// Get the current table snapshot id
-val icebergTable = spark.sessionState.catalogManager
-  .catalog("local")
-  .asInstanceOf[org.apache.iceberg.spark.SparkCatalog]
-  .loadTable(tableIdent.asInstanceOf[org.apache.iceberg.catalog.TableIdentifier])
-val tableSnapshotId = icebergTable.currentSnapshot().snapshotId()
-
-import scala.jdk.CollectionConverters._
-committer.commit(
-  indexIdent,
-  icebergTable.uuid(),
-  tableSnapshotId,
-  "SCALAR",
-  "HASH",
-  ImmutableList.of(KEY_COLUMN_ID),
-  ImmutableList.of(),
-  Map("hash.num-buckets" -> NUM_BUCKETS.toString).asJava,
-  INDEX_LOCATION,
-  leafFiles.asJava
+println(s"\nBuilding SCALAR HASH index on $KEY_COLUMN ...")
+val buildResult = spark.sql(
+  s"""CALL local.system.build_scalar_index(
+        table     => '$TABLE_NAME',
+        columns   => array('$KEY_COLUMN'),
+        transform => 'HASH',
+        options   => map('hash.num-buckets', '256')
+      )"""
 )
+buildResult.show(false)
 
-println(s"\n✅ Index committed: $indexIdent")
-val meta = catalog.loadIndex(indexIdent)
-println(s"   UUID:     ${meta.uuid()}")
-println(s"   Snapshot: ${meta.currentSnapshotId()}")
-println(s"   Tracking: ${meta.currentSnapshot().trackingFile()}")
+// ── 4. Point lookup before vs. after ──────────────────────────────────────────
 
-// ── 7. Simulate a planner lookup ──────────────────────────────────────────────
+// Pick a real medallion value from the table so the lookup actually matches a row, rather than
+// hardcoding a value that may not exist in whatever dataset is loaded.
+val sampleMedallion = taxiDf.select(KEY_COLUMN).limit(1).collect()(0).getString(0)
+println(s"\nLooking up $KEY_COLUMN = '$sampleMedallion' ...")
 
-val queryMedallion = "D7D598CD99978BD012A87A76A7C891B7"
-val queryBucket    = transform.apply(queryMedallion)
-println(s"\n🔍 Planning query: WHERE medallion = '$queryMedallion'")
-println(s"   Hash bucket: $queryBucket")
+val lookupDf = spark.sql(s"SELECT * FROM $TABLE_NAME WHERE $KEY_COLUMN = '$sampleMedallion'")
+val matchedRows = lookupDf.count()
+val filesReadForLookup = lookupDf.inputFiles.length
 
-val trackingPath = meta.currentSnapshot().trackingFile()
-val trackingFile = fileIO.newInputFile(trackingPath)
-val matchingLeafFiles = TrackingFileReader.readMatching(trackingFile, queryBucket, queryBucket)
+val unindexedComparisonDf = spark.sql(s"SELECT * FROM $TABLE_NAME WHERE id = -1")
+val filesReadWithoutIndexablePredicate = unindexedComparisonDf.inputFiles.length
 
-println(s"   Leaf files to scan: ${matchingLeafFiles.size()} (out of ${leafFiles.size} total)")
-matchingLeafFiles.forEach { entry =>
-  println(s"   → ${entry.location().split("/").last} | buckets=[${entry.transformValueLowerBound()},${entry.transformValueUpperBound()}]")
-}
-println(s"\n   Without index: scan all ${taxiDf.select(input_file_name()).distinct().count()} source files")
-println(s"   With index:    scan 1 leaf file → at most 1 source file")
+println(s"Rows matched: $matchedRows")
+println(s"Files read for the indexed lookup: $filesReadForLookup (out of $totalSourceFiles total)")
+println(
+  s"Files read for a predicate the index can't help with: $filesReadWithoutIndexablePredicate " +
+    s"(shown only as a rough point of comparison, not an apples-to-apples baseline)"
+)
