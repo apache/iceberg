@@ -115,11 +115,9 @@ public class TestPrefixedStorage {
 
   @Test
   void readTimeoutIsActuallyEnforced() throws IOException {
-    // A server that accepts the connection but never responds would hang the read indefinitely
-    // without the configured timeout. maxAttempts(1) isolates a single HTTP attempt, which is
-    // what the timeout governs, from the client's default retry policy.
     try (ServerSocket serverSocket = new ServerSocket(0)) {
       int port = serverSocket.getLocalPort();
+      // accepts the connection but never responds, so the read blocks until the timeout fires
       Thread unresponsiveServer =
           new Thread(
               () -> {
@@ -141,6 +139,7 @@ public class TestPrefixedStorage {
               GCPProperties.GCS_HTTP_CONNECT_TIMEOUT, "2000",
               GCPProperties.GCS_HTTP_READ_TIMEOUT, "500");
       PrefixedStorage storage = new PrefixedStorage("gs://bucket", properties, null);
+      // isolate a single attempt, since the timeout applies per attempt and not to the retry loop
       Storage singleAttemptClient =
           storage.storage().getOptions().toBuilder()
               .setRetrySettings(RetrySettings.newBuilder().setMaxAttempts(1).build())
