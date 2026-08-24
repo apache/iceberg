@@ -59,7 +59,7 @@ class ReassignIds extends TypeUtil.CustomOrderSchemaVisitor<Type> {
     }
 
     if (assignId != null) {
-      return assignId.get(type.isFileType() ? Types.FileType.NUM_NESTED_FIELDS : 0);
+      return type.isFileType() ? assignId.get(Types.FileType.NUM_NESTED_FIELDS) : assignId.get();
     }
 
     throw new IllegalArgumentException("Field " + name + " not found in source schema");

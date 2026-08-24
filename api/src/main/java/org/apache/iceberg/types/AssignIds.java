@@ -32,7 +32,7 @@ class AssignIds extends TypeUtil.CustomOrderSchemaVisitor<Type> {
   }
 
   private int idFor(int id, Type type) {
-    return getID.get(id, type.isFileType() ? Types.FileType.NUM_NESTED_FIELDS : 0);
+    return type.isFileType() ? getID.get(id, Types.FileType.NUM_NESTED_FIELDS) : getID.get(id);
   }
 
   @Override

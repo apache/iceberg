@@ -54,7 +54,7 @@ class AssignFreshIds extends TypeUtil.CustomOrderSchemaVisitor<Type> {
       return existingId;
     }
 
-    return nextId.get(type.isFileType() ? Types.FileType.NUM_NESTED_FIELDS : 0);
+    return type.isFileType() ? nextId.get(Types.FileType.NUM_NESTED_FIELDS) : nextId.get();
   }
 
   private Integer baseId(String fullName) {

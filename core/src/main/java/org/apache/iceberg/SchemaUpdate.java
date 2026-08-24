@@ -190,7 +190,9 @@ class SchemaUpdate implements UpdateSchema {
   }
 
   private int assignNewColumnId(Type type) {
-    return nextColumnId.get(type.isFileType() ? Types.FileType.NUM_NESTED_FIELDS : 0);
+    return type.isFileType()
+        ? nextColumnId.get(Types.FileType.NUM_NESTED_FIELDS)
+        : nextColumnId.get();
   }
 
   private Type assignedType(Type type, int fieldId) {
