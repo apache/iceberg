@@ -126,6 +126,12 @@ public class FlinkPlannedAvroReader implements DatumReader<RowData>, SupportsRow
     }
 
     @Override
+    public ValueReader<?> variant(
+        Type partner, ValueReader<?> metadataReader, ValueReader<?> valueReader) {
+      return FlinkValueReaders.variants();
+    }
+
+    @Override
     public ValueReader<?> primitive(Type partner, Schema primitive) {
       LogicalType logicalType = primitive.getLogicalType();
       if (logicalType != null) {

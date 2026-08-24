@@ -58,24 +58,6 @@ import org.slf4j.LoggerFactory;
 public class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
     implements SupportsNamespaces, Configurable<Object> {
 
-  /**
-   * @deprecated since 1.11.0, will be removed in 1.12.0; use {@link BigQueryProperties#PROJECT_ID}
-   *     instead.
-   */
-  @Deprecated public static final String PROJECT_ID = "gcp.bigquery.project-id";
-
-  /**
-   * @deprecated since 1.11.0, will be removed in 1.12.0; use {@link
-   *     BigQueryProperties#GCP_LOCATION} instead.
-   */
-  @Deprecated public static final String GCP_LOCATION = "gcp.bigquery.location";
-
-  /**
-   * @deprecated since 1.11.0, will be removed in 1.12.0; use {@link
-   *     BigQueryProperties#LIST_ALL_TABLES} instead.
-   */
-  @Deprecated public static final String LIST_ALL_TABLES = "gcp.bigquery.list-all-tables";
-
   private static final Logger LOG = LoggerFactory.getLogger(BigQueryMetastoreCatalog.class);
 
   private String catalogName;

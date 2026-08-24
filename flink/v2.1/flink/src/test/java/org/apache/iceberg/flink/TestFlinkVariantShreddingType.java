@@ -124,7 +124,7 @@ class TestFlinkVariantShreddingType extends CatalogTestBase {
   }
 
   @TestTemplate
-  public void testConsistentType() throws IOException {
+  public void testInconsistentTypeNotShredded() throws IOException {
     String values =
         """
             (1, parse_json('{"age": "25"}')),
@@ -133,18 +133,13 @@ class TestFlinkVariantShreddingType extends CatalogTestBase {
             """;
     sql("INSERT INTO %s VALUES %s", TABLE_NAME, values);
 
-    GroupType age =
-        field(
-            "age",
-            shreddedPrimitive(
-                PrimitiveType.PrimitiveTypeName.BINARY, LogicalTypeAnnotation.stringType()));
-    GroupType address = variant("address", 2, Type.Repetition.REQUIRED, objectFields(age));
+    GroupType address = variant("address", 2, Type.Repetition.REQUIRED);
     MessageType expectedSchema = parquetSchema(address);
     verifyParquetSchema(icebergTable, expectedSchema);
   }
 
   @TestTemplate
-  public void testPrimitiveType() throws IOException {
+  public void testMixedPrimitiveTypeAtRootNotShredded() throws IOException {
     String values =
         """
             (1, parse_json('123')),
@@ -153,13 +148,7 @@ class TestFlinkVariantShreddingType extends CatalogTestBase {
             """;
     sql("INSERT INTO %s VALUES %s", TABLE_NAME, values);
 
-    GroupType address =
-        variant(
-            "address",
-            2,
-            Type.Repetition.REQUIRED,
-            shreddedPrimitive(
-                PrimitiveType.PrimitiveTypeName.INT32, LogicalTypeAnnotation.intType(8, true)));
+    GroupType address = variant("address", 2, Type.Repetition.REQUIRED);
     MessageType expectedSchema = parquetSchema(address);
 
     assertThat(SimpleDataUtil.tableRecords(icebergTable)).hasSize(3);
@@ -167,7 +156,7 @@ class TestFlinkVariantShreddingType extends CatalogTestBase {
   }
 
   @TestTemplate
-  public void testPrimitiveDecimalType() throws IOException {
+  public void testMixedDecimalAndStringAtRootNotShredded() throws IOException {
     String values =
         """
             (1, parse_json('123.56')),
@@ -176,13 +165,7 @@ class TestFlinkVariantShreddingType extends CatalogTestBase {
             """;
     sql("INSERT INTO %s VALUES %s", TABLE_NAME, values);
 
-    GroupType address =
-        variant(
-            "address",
-            2,
-            Type.Repetition.REQUIRED,
-            shreddedPrimitive(
-                PrimitiveType.PrimitiveTypeName.INT32, LogicalTypeAnnotation.decimalType(2, 5)));
+    GroupType address = variant("address", 2, Type.Repetition.REQUIRED);
     MessageType expectedSchema = parquetSchema(address);
     assertThat(SimpleDataUtil.tableRecords(icebergTable)).hasSize(3);
     verifyParquetSchema(icebergTable, expectedSchema);
@@ -587,7 +570,7 @@ class TestFlinkVariantShreddingType extends CatalogTestBase {
   }
 
   @TestTemplate
-  public void testMixedTypeTieBreaking() throws IOException {
+  public void testMixedTypeFieldNotShredded() throws IOException {
     StringBuilder valuesBuilder = new StringBuilder();
     for (int i = 1; i <= 10; i++) {
       if (i > 1) {
@@ -617,13 +600,7 @@ class TestFlinkVariantShreddingType extends CatalogTestBase {
 
     sql("INSERT INTO %s VALUES %s", TABLE_NAME, valuesBuilder.toString());
 
-    // 5 ints + 5 strings is a tie so STRING wins (higher TIE_BREAK_PRIORITY)
-    GroupType val =
-        field(
-            "val",
-            shreddedPrimitive(
-                PrimitiveType.PrimitiveTypeName.BINARY, LogicalTypeAnnotation.stringType()));
-    GroupType address = variant("address", 2, Type.Repetition.REQUIRED, objectFields(val));
+    GroupType address = variant("address", 2, Type.Repetition.REQUIRED);
     MessageType expectedSchema = parquetSchema(address);
 
     verifyParquetSchema(icebergTable, expectedSchema);

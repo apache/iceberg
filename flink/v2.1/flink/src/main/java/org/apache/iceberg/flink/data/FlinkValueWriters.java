@@ -30,8 +30,12 @@ import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.StringData;
 import org.apache.flink.table.data.TimestampData;
 import org.apache.flink.table.types.logical.LogicalType;
+import org.apache.flink.types.variant.BinaryVariant;
+import org.apache.flink.types.variant.Variant;
 import org.apache.iceberg.avro.ValueWriter;
+import org.apache.iceberg.avro.ValueWriters;
 import org.apache.iceberg.flink.FlinkRowData;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.DecimalUtil;
 
@@ -41,6 +45,10 @@ public class FlinkValueWriters {
 
   static ValueWriter<StringData> strings() {
     return StringWriter.INSTANCE;
+  }
+
+  static ValueWriter<Variant> variants() {
+    return VariantWriter.INSTANCE;
   }
 
   static ValueWriter<Integer> timeMicros() {
@@ -155,6 +163,30 @@ public class FlinkValueWriters {
     @Override
     public void write(byte[] bytes, Encoder encoder) throws IOException {
       encoder.writeFixed(bytes);
+    }
+  }
+
+  /** Variant writer writes the metadata and value bytes of a Flink {@link BinaryVariant}. */
+  private static class VariantWriter implements ValueWriter<Variant> {
+    private static final VariantWriter INSTANCE = new VariantWriter();
+
+    private final ValueWriter<byte[]> metadataWriter;
+    private final ValueWriter<byte[]> valueWriter;
+
+    private VariantWriter() {
+      this.metadataWriter = ValueWriters.bytes();
+      this.valueWriter = ValueWriters.bytes();
+    }
+
+    @Override
+    public void write(Variant datum, Encoder encoder) throws IOException {
+      Preconditions.checkArgument(
+          datum instanceof BinaryVariant,
+          "Expected BinaryVariant but got: %s",
+          datum.getClass().getSimpleName());
+      BinaryVariant variant = (BinaryVariant) datum;
+      metadataWriter.write(variant.getMetadata(), encoder);
+      valueWriter.write(variant.getValue(), encoder);
     }
   }
 

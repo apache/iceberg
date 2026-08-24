@@ -47,7 +47,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.math.IntMath;
-import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
 import org.slf4j.Logger;
@@ -116,39 +115,6 @@ public class ManifestFiles {
     return CloseableIterable.transform(
         read(manifest, io, specsById).select(ImmutableList.of("file_path")).liveEntries(),
         entry -> entry.file().location());
-  }
-
-  /**
-   * Returns a {@link CloseableIterable} of file paths in the {@link ManifestFile}.
-   *
-   * @param manifest a ManifestFile
-   * @param io a FileIO
-   * @return a manifest reader
-   * @deprecated since 1.11.0, will be removed in 1.12.0; use {@link #readPaths(ManifestFile,
-   *     FileIO, Map)} instead.
-   */
-  @Deprecated
-  public static CloseableIterable<String> readPaths(ManifestFile manifest, FileIO io) {
-    return readPaths(manifest, io, null);
-  }
-
-  /**
-   * Returns a new {@link ManifestReader} for a {@link ManifestFile}.
-   *
-   * <p><em>Note:</em> Callers should use {@link ManifestFiles#read(ManifestFile, FileIO, Map)} to
-   * ensure the schema used by filters is the latest table schema. This should be used only when
-   * reading a manifest without filters.
-   *
-   * @param manifest a ManifestFile
-   * @param io a FileIO
-   * @return a manifest reader
-   * @deprecated since 1.11.0, will be removed in 1.12.0; use {@link #read(ManifestFile, FileIO,
-   *     Map)} instead. Reading partition specs from manifest file metadata will not be supported
-   *     for non-Avro manifest formats.
-   */
-  @Deprecated
-  public static ManifestReader<DataFile> read(ManifestFile manifest, FileIO io) {
-    return read(manifest, io, null);
   }
 
   /**
@@ -447,15 +413,6 @@ public class ManifestFiles {
     return AvroEncoderUtil.decode(manifestData);
   }
 
-  /**
-   * @deprecated since 1.11.0, will be removed in 1.12.0; use {@link #open(ManifestFile, FileIO,
-   *     Map)} instead.
-   */
-  @Deprecated
-  static ManifestReader<?> open(ManifestFile manifest, FileIO io) {
-    return open(manifest, io, null);
-  }
-
   static ManifestReader<?> open(
       ManifestFile manifest, FileIO io, Map<Integer, PartitionSpec> specsById) {
     switch (manifest.content()) {
@@ -631,24 +588,13 @@ public class ManifestFiles {
       Function<List<F>, List<ManifestFile>> writeFunc) {
     List<List<F>> groups = divide(files, parallelism);
 
-    // Pair each group with its index so results can be reassembled in input order.
-    List<Pair<Integer, List<F>>> groupsWithIndex = Lists.newArrayList();
-    for (int i = 0; i < groups.size(); i++) {
-      groupsWithIndex.add(Pair.of(i, groups.get(i)));
-    }
-
     AtomicReferenceArray<List<ManifestFile>> results = new AtomicReferenceArray<>(groups.size());
 
-    Tasks.foreach(groupsWithIndex)
+    Tasks.range(groups.size())
         .stopOnFailure()
         .throwFailureWhenFinished()
         .executeWith(writePool)
-        .run(
-            indexedGroup -> {
-              int index = indexedGroup.first();
-              List<F> group = indexedGroup.second();
-              results.set(index, writeFunc.apply(group));
-            });
+        .run(index -> results.set(index, writeFunc.apply(groups.get(index))));
 
     ImmutableList.Builder<ManifestFile> builder = ImmutableList.builder();
     for (int i = 0; i < results.length(); i++) {
