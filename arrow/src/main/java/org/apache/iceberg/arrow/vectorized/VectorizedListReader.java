@@ -101,6 +101,7 @@ public class VectorizedListReader extends VectorizedArrowReader {
             }
           }
         }
+
         listBuilder.openNewList(elementRepetitionLevel, elementDefinitionLevel);
       }
 
@@ -119,6 +120,7 @@ public class VectorizedListReader extends VectorizedArrowReader {
       // EOF exit: close the last opened list using the def level recorded when it was started.
       listBuilder.endCurrentList();
     }
+
     return listBuilder.build();
   }
 
@@ -133,15 +135,17 @@ public class VectorizedListReader extends VectorizedArrowReader {
       List<Long> repetitionLevelHistogram =
           chunkMetaData.getSizeStatistics().getRepetitionLevelHistogram();
       if (!repetitionLevelHistogram.isEmpty()) {
-        estimatedSize = 0;
+        this.estimatedSize = 0;
         // Values less than the repetition level signals start of a new list
         for (int i = 0; i < repetitionLevel; i++) {
-          estimatedSize += repetitionLevelHistogram.get(i);
+          this.estimatedSize += repetitionLevelHistogram.get(i);
         }
+
         return;
       }
     }
-    estimatedSize = batchSize;
+
+    this.estimatedSize = batchSize;
   }
 
   @Override
@@ -184,7 +188,7 @@ public class VectorizedListReader extends VectorizedArrowReader {
     void writeNextElement(ListVectorBuilder builder) {
       advance();
       builder.writeNonNullElement(currentBatch, currentOffset);
-      currentOffset++;
+      this.currentOffset++;
     }
 
     @Override
@@ -195,23 +199,24 @@ public class VectorizedListReader extends VectorizedArrowReader {
     @Override
     public <N> N nextNull() {
       advance();
-      currentOffset++;
+      this.currentOffset++;
       return null;
     }
 
     void reset() {
-      currentBatch = null;
-      currentOffset = 0;
-      currentBatchSize = 0;
+      this.currentBatch = null;
+      this.currentOffset = 0;
+      this.currentBatchSize = 0;
     }
 
     private void advance() {
       if (currentOffset < currentBatchSize) {
         return;
       }
-      currentBatch = elementReader.read(currentBatch, batchSize);
-      currentBatchSize = currentBatch.numValues();
-      currentOffset = 0;
+
+      this.currentBatch = elementReader.read(currentBatch, batchSize);
+      this.currentBatchSize = currentBatch.numValues();
+      this.currentOffset = 0;
     }
   }
 }

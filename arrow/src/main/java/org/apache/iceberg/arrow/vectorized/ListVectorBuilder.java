@@ -92,7 +92,7 @@ class ListVectorBuilder implements AutoCloseable {
    */
   void prepareBatch(int numRowsToRead, int estimatedSize) {
     if (nullabilityHolder == null || nullabilityHolder.size() < estimatedSize) {
-      nullabilityHolder = new NullabilityHolder(estimatedSize);
+      this.nullabilityHolder = new NullabilityHolder(estimatedSize);
     } else {
       nullabilityHolder.reset();
     }
@@ -100,23 +100,24 @@ class ListVectorBuilder implements AutoCloseable {
     if (listRepetitionLevels != null) {
       listRepetitionLevels.close();
     }
-    listRepetitionLevels = new IntVector("repetition_levels", allocator);
+
+    this.listRepetitionLevels = new IntVector("repetition_levels", allocator);
     listRepetitionLevels.allocateNew(estimatedSize);
 
     if (listVector != null) {
       listVector.setValueCount(0);
       listVector.getDataVector().setValueCount(0);
     } else {
-      listVector = ListVector.empty(icebergField.name(), allocator);
+      this.listVector = ListVector.empty(icebergField.name(), allocator);
       listVector.initializeChildrenFromFields(ArrowSchemaUtil.convert(icebergField).getChildren());
       listVector.setInitialCapacity(numRowsToRead);
       listVector.allocateNew();
     }
 
-    listIndex = -1;
-    listSize = 0;
-    listDefinitionLevel = -1;
-    elementIndex = 0;
+    this.listIndex = -1;
+    this.listSize = 0;
+    this.listDefinitionLevel = -1;
+    this.elementIndex = 0;
   }
 
   /**
@@ -124,17 +125,17 @@ class ListVectorBuilder implements AutoCloseable {
    * previously-open list was closed via {@link #endCurrentList()} first.
    */
   void openNewList(int elementRepetitionLevel, int elementDefinitionLevel) {
-    listDefinitionLevel = elementDefinitionLevel;
-    listIndex++;
-    listSize = 0;
+    this.listDefinitionLevel = elementDefinitionLevel;
+    this.listIndex++;
+    this.listSize = 0;
     listVector.startNewValue(listIndex);
     listRepetitionLevels.set(listIndex, elementRepetitionLevel);
   }
 
   public void writeNull() {
     listVector.getDataVector().setNull(elementIndex);
-    listSize++;
-    elementIndex++;
+    this.listSize++;
+    this.elementIndex++;
   }
 
   /**
@@ -153,10 +154,11 @@ class ListVectorBuilder implements AutoCloseable {
     FieldVector targetVector = listVector.getDataVector();
     if (!sourceBatch.isDictionaryEncoded()) {
       targetVector.copyFromSafe(sourceOffset, elementIndex, sourceBatch.vector());
-      listSize++;
-      elementIndex++;
+      this.listSize++;
+      this.elementIndex++;
       return;
     }
+
     IntVector dictIds = (IntVector) sourceBatch.vector();
     int dictId = dictIds.get(sourceOffset);
     Dictionary dictionary = sourceBatch.dictionary();
@@ -167,10 +169,12 @@ class ListVectorBuilder implements AutoCloseable {
       if (ts.getUnit() == LogicalTypeAnnotation.TimeUnit.MILLIS) {
         micros *= 1000;
       }
+
       // The child vector is always allocated as BigIntVector for Iceberg timestamp types.
       ((BigIntVector) targetVector).setSafe(elementIndex, micros);
       return;
     }
+
     switch (primitive.getPrimitiveTypeName()) {
       case INT32 ->
           ((IntVector) targetVector).setSafe(elementIndex, dictionary.decodeToInt(dictId));
@@ -202,8 +206,9 @@ class ListVectorBuilder implements AutoCloseable {
           throw new UnsupportedOperationException(
               "Unsupported dictionary-encoded element type: " + primitive);
     }
-    listSize++;
-    elementIndex++;
+
+    this.listSize++;
+    this.elementIndex++;
   }
 
   /**
@@ -217,6 +222,7 @@ class ListVectorBuilder implements AutoCloseable {
     if (listIndex < 0) {
       return false;
     }
+
     int nullThreshold = definitionLevel - (isElementRequired ? 1 : 2);
     if (!isListRequired && listDefinitionLevel < nullThreshold) {
       listVector.setNull(listIndex);
@@ -225,6 +231,7 @@ class ListVectorBuilder implements AutoCloseable {
       listVector.endValue(listIndex, listSize);
       nullabilityHolder.setNotNull(listIndex, nullThreshold);
     }
+
     return true;
   }
 
@@ -244,11 +251,12 @@ class ListVectorBuilder implements AutoCloseable {
   public void close() {
     if (listVector != null) {
       listVector.close();
-      listVector = null;
+      this.listVector = null;
     }
+
     if (listRepetitionLevels != null) {
       listRepetitionLevels.close();
-      listRepetitionLevels = null;
+      this.listRepetitionLevels = null;
     }
   }
 }
