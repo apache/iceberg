@@ -48,7 +48,7 @@ Without Variant, an Iceberg table has two ways to store data like this, and both
 - **JSON stored as a string.** This is flexible, but reading a single field means parsing the whole text. JSON's type system is also thin: a timestamp is just a string, and a number's precision is ambiguous.
 - **A rigid, flattened schema.** This is fast to query, but every new field is a schema migration, and sparse or one-off fields waste space.
 
-Variant is as flexible as JSON but encodes data as compact, typed binary. Values keep their native types: a timestamp stays a timestamp and a decimal stays an exact decimal, instead of collapsing to JSON's strings and numbers. No schema is declared up front, so documents of different shapes coexist in one column and a new field needs no migration.
+Variant is as flexible as JSON but encodes data as compact, typed binary. Values keep their native types: a timestamp stays a timestamp and a decimal stays an exact decimal, instead of collapsing to JSON's strings and numbers. The Iceberg schema declares the column as `variant`, but not the fields or types inside it, so values can differ in structure from row to row and adding a new field requires no table schema migration.
 
 ## Variant in Apache Iceberg
 
