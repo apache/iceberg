@@ -39,10 +39,16 @@ public class GCPProperties implements Serializable {
   public static final String GCS_CLIENT_LIB_TOKEN = "gcs.client-lib-token";
   public static final String GCS_SERVICE_HOST = "gcs.service.host";
 
-  /** Connect timeout, in milliseconds, for the underlying GCS HTTP client. */
+  /**
+   * Connect timeout, in milliseconds, for the underlying GCS HTTP client. Applies per HTTP attempt;
+   * the client's default retry policy may still result in longer overall call latency.
+   */
   public static final String GCS_HTTP_CONNECT_TIMEOUT = "gcs.http.connect-timeout-ms";
 
-  /** Read timeout, in milliseconds, for the underlying GCS HTTP client. */
+  /**
+   * Read timeout, in milliseconds, for the underlying GCS HTTP client. Applies per HTTP attempt;
+   * the client's default retry policy may still result in longer overall call latency.
+   */
   public static final String GCS_HTTP_READ_TIMEOUT = "gcs.http.read-timeout-ms";
 
   // GCS Configuration Properties
