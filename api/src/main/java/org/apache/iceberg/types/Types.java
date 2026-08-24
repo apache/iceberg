@@ -1159,7 +1159,7 @@ public class Types {
     }
   }
 
-  public static class FileType extends StructType {
+  public static final class FileType extends StructType {
     public static final String NAME = "file";
     public static final int NUM_NESTED_FIELDS = 6;
 

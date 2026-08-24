@@ -60,16 +60,15 @@ public class Schema implements Serializable {
 
   @VisibleForTesting static final int DEFAULT_VALUES_MIN_FORMAT_VERSION = 3;
 
-  @VisibleForTesting static final int FILE_TYPE_MIN_FORMAT_VERSION = 4;
-
   @VisibleForTesting
-  static final Map<Type.TypeID, Integer> MIN_FORMAT_VERSIONS =
+  static final Map<Class<? extends Type>, Integer> MIN_FORMAT_VERSIONS =
       ImmutableMap.of(
-          Type.TypeID.TIMESTAMP_NANO, 3,
-          Type.TypeID.VARIANT, 3,
-          Type.TypeID.UNKNOWN, 3,
-          Type.TypeID.GEOMETRY, 3,
-          Type.TypeID.GEOGRAPHY, 3);
+          Types.TimestampNanoType.class, 3,
+          Types.VariantType.class, 3,
+          Types.UnknownType.class, 3,
+          Types.GeometryType.class, 3,
+          Types.GeographyType.class, 3,
+          Types.FileType.class, 4);
 
   private final StructType struct;
   private final int schemaId;
@@ -608,13 +607,8 @@ public class Schema implements Serializable {
   }
 
   private static Integer minFormatVersion(Type type) {
-    // the file type reports STRUCT as its type ID so that it is handled as a struct everywhere it
-    // is not persisted, which means it cannot be gated through MIN_FORMAT_VERSIONS
-    if (type.isFileType()) {
-      return FILE_TYPE_MIN_FORMAT_VERSION;
-    }
-
-    return MIN_FORMAT_VERSIONS.get(type.typeId());
+    // types are keyed by class because the file type shares STRUCT as its type ID
+    return MIN_FORMAT_VERSIONS.get(type.getClass());
   }
 
   /**
