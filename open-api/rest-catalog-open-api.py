@@ -352,6 +352,11 @@ class Snapshot(BaseModel):
     )
     summary: Summary
     schema_id: int | None = Field(None, alias='schema-id')
+    key_id: str | None = Field(
+        None,
+        alias='key-id',
+        description="ID of the encryption key used to encrypt this snapshot's manifest list.",
+    )
 
 
 class SnapshotReference(BaseModel):

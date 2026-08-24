@@ -2990,6 +2990,9 @@ components:
             type: string
         schema-id:
           type: integer
+        key-id:
+          type: string
+          description: ID of the encryption key used to encrypt this snapshot's manifest list.
 
     SnapshotReference:
       type: object
