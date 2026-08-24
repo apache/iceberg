@@ -52,7 +52,7 @@ public class TestUndeleteProcedure extends ExtensionsTestBase {
     assertThat(updated.schema().findField("data").fieldId()).isEqualTo(originalFieldId);
     assertEquals(
         "Procedure output must match",
-        ImmutableList.of(row(originalFieldId, updated.schema().schemaId(), false)),
+        ImmutableList.of(row(originalFieldId, updated.schema().schemaId(), false, false)),
         output);
     assertEquals(
         "Historical rows must be readable through the restored column",

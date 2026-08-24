@@ -54,7 +54,7 @@ public class TestUndeleteProcedure extends ExtensionsTestBase {
     assertThat(updated.schema().findField("data").fieldId()).isEqualTo(originalFieldId);
     assertEquals(
         "Procedure output must match",
-        ImmutableList.of(row(originalFieldId, updated.schema().schemaId(), false)),
+        ImmutableList.of(row(originalFieldId, updated.schema().schemaId(), false, false)),
         output);
     assertEquals(
         "Historical rows must be readable through the restored column",
@@ -80,7 +80,7 @@ public class TestUndeleteProcedure extends ExtensionsTestBase {
     assertThat(updated.schema().findField("data").fieldId()).isEqualTo(originalFieldId);
     assertEquals(
         "Procedure output must report writes during the window",
-        ImmutableList.of(row(originalFieldId, updated.schema().schemaId(), true)),
+        ImmutableList.of(row(originalFieldId, updated.schema().schemaId(), true, false)),
         output);
     assertEquals(
         "Rows written after the drop must have null in the restored column",
@@ -105,10 +105,11 @@ public class TestUndeleteProcedure extends ExtensionsTestBase {
             () -> sql("CALL %s.system.undelete_column('%s', 'req')", catalogName, tableIdent))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
-            "Cannot undelete required column req: rows were written while the column was absent "
-                + "(last seen at snapshot "
+            "Cannot undelete required column req: snapshots newer than its last appearance "
+                + "(snapshot "
                 + lastAbsentSnapshotId
-                + "). Only nullable columns or tables unchanged since the drop can be undeleted");
+                + ") may contain rows without values. Only nullable columns or tables unchanged "
+                + "since the drop can be undeleted");
 
     Table after = validationCatalog.loadTable(tableIdent);
     assertThat(after.schema().findField("req")).isNull();
@@ -134,7 +135,7 @@ public class TestUndeleteProcedure extends ExtensionsTestBase {
     assertThat(updated.schema().findField("req").fieldId()).isEqualTo(originalFieldId);
     assertEquals(
         "Procedure output must match",
-        ImmutableList.of(row(originalFieldId, updated.schema().schemaId(), false)),
+        ImmutableList.of(row(originalFieldId, updated.schema().schemaId(), false, false)),
         output);
     assertEquals(
         "Historical rows must be readable through the restored column",
@@ -179,7 +180,7 @@ public class TestUndeleteProcedure extends ExtensionsTestBase {
     assertThat(updated.schema().findField("x").fieldId()).isEqualTo(intIncarnationId);
     assertEquals(
         "Procedure output must restore the latest incarnation's field id",
-        ImmutableList.of(row(intIncarnationId, updated.schema().schemaId(), true)),
+        ImmutableList.of(row(intIncarnationId, updated.schema().schemaId(), false, false)),
         output);
   }
 }

@@ -63,16 +63,19 @@ public final class UndeleteUtils {
    * Walk snapshot ancestry of the current snapshot newest-first and return the index of the first
    * ancestor whose schema contains the field ID.
    *
+   * <p>A table with no snapshots is provably unchanged and returns 0.
+   *
    * @param metadata table metadata
    * @param fieldId a field ID to look for
-   * @return 0 when the newest ancestor contains the field ID, greater than 0 when newer ancestors
-   *     do not contain it, {@code -1} when no ancestor contains it, or {@link Integer#MIN_VALUE}
-   *     when there is no current snapshot or an ancestor schema cannot be resolved
+   * @return 0 when the newest ancestor contains the field ID or the table has no snapshots, greater
+   *     than 0 when newer ancestors do not contain it, {@code -1} when no ancestor contains it, or
+   *     {@link Integer#MIN_VALUE} when an ancestor schema cannot be resolved
    */
   public static int newestContainingSnapshotIndex(TableMetadata metadata, int fieldId) {
     Snapshot currentSnapshot = metadata.currentSnapshot();
     if (currentSnapshot == null) {
-      return UNRESOLVABLE_LINEAGE;
+      // no snapshots means no rows were ever written, so nothing can contradict the history
+      return 0;
     }
 
     Map<Integer, Schema> schemasById = metadata.schemasById();
@@ -132,7 +135,9 @@ public final class UndeleteUtils {
     Types.NestedField field = schema.findField(parts.get(0));
     for (int depth = 1; field != null && depth < parts.size(); depth += 1) {
       if (!field.type().isStructType()) {
-        return null;
+        throw new IllegalArgumentException(
+            String.format(
+                "Cannot undelete columns nested inside %s types: %s", field.type().typeId(), name));
       }
 
       field = field.type().asStructType().field(parts.get(depth));

@@ -107,15 +107,13 @@ public class TestSchemaUndelete extends TestBase {
   }
 
   @TestTemplate
-  public void undeleteChildAfterParentDroppedAndReaddedLandsUnderCurrentParent() {
+  public void undeleteChildUnderRecreatedParentRefusesAcrossGenerations() {
     table
         .updateSchema()
         .addColumn(
             "loc",
             Types.StructType.of(Types.NestedField.optional(1, "lat", Types.DoubleType.get())))
         .commit();
-
-    int latId = table.schema().findField("loc.lat").fieldId();
 
     // drop the whole struct, then re-add a fresh parent carrying a different child
     table.updateSchema().deleteColumn("loc").commit();
@@ -127,14 +125,78 @@ public class TestSchemaUndelete extends TestBase {
         .commit();
     int freshLocId = table.schema().findField("loc").fieldId();
 
-    // the historical child must come back under the CURRENT parent, not the dead one (#15084)
-    table.updateSchema().undeleteColumn("loc.lat").commit();
+    // old files nest lat under the previous loc ID, so a restore under the fresh parent would read
+    // them as null; the parent itself can still be restored wholesale
+    assertThatThrownBy(() -> table.updateSchema().undeleteColumn("loc.lat"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("its parent was recreated with a new field ID")
+        .hasMessageContaining(
+            "Undelete 'loc' instead if that parent's history still contains this field");
+    assertThat(table.schema().findField("loc").fieldId()).isEqualTo(freshLocId);
+    assertThat(table.schema().findField("loc").type().asStructType().field("lat")).isNull();
+  }
+
+  @TestTemplate
+  public void undeleteParentRestoresWholeSubtree() {
+    table
+        .updateSchema()
+        .addColumn(
+            "loc",
+            Types.StructType.of(Types.NestedField.optional(1, "lat", Types.DoubleType.get())))
+        .commit();
+
+    int locId = table.schema().findField("loc").fieldId();
+    int latId = table.schema().findField("loc.lat").fieldId();
+
+    table.updateSchema().deleteColumn("loc").commit();
+    table.updateSchema().undeleteColumn("loc").commit();
 
     Types.NestedField loc = table.schema().findField("loc");
-    assertThat(loc.fieldId()).isEqualTo(freshLocId);
+    assertThat(loc.fieldId()).isEqualTo(locId);
     assertThat(loc.type().asStructType().field("lat").fieldId()).isEqualTo(latId);
-    assertThat(loc.type().asStructType().field("lon")).isNotNull();
-    assertThat(table.schema().findColumnName(latId)).isEqualTo("loc.lat");
+  }
+
+  @TestTemplate
+  public void undeleteParentRestoresItsLatestDefinition() {
+    table
+        .updateSchema()
+        .addColumn(
+            "loc",
+            Types.StructType.of(Types.NestedField.optional(1, "lat", Types.DoubleType.get())))
+        .commit();
+
+    int locId = table.schema().findField("loc").fieldId();
+
+    // the child was removed in an intermediate schema, so latest-wins returns the hollowed parent
+    table.updateSchema().deleteColumn("loc.lat").commit();
+    table.updateSchema().deleteColumn("loc").commit();
+    table.updateSchema().undeleteColumn("loc").commit();
+
+    Types.NestedField loc = table.schema().findField("loc");
+    assertThat(loc.fieldId()).isEqualTo(locId);
+    assertThat(loc.type().asStructType().field("lat")).isNull();
+  }
+
+  @TestTemplate
+  public void undeleteChildInsideMapRefuses() {
+    table
+        .updateSchema()
+        .addColumn(
+            "points",
+            Types.MapType.ofOptional(
+                5,
+                6,
+                Types.StringType.get(),
+                Types.StructType.of(Types.NestedField.optional(7, "lat", Types.DoubleType.get()))))
+        .commit();
+    int pointsId = table.schema().findField("points").fieldId();
+    table.updateSchema().deleteColumn("points").commit();
+
+    assertThatThrownBy(() -> table.updateSchema().undeleteColumn("points.lat"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot undelete columns nested inside MAP types: points.lat")
+        .hasMessageNotContaining("no deleted column with that name");
+    assertThat(table.schema().findField(pointsId)).isNull();
   }
 
   @TestTemplate
@@ -170,13 +232,13 @@ public class TestSchemaUndelete extends TestBase {
   }
 
   @TestTemplate
-  public void undeleteRequiredNoSnapshotsThrows() {
+  public void undeleteRequiredOnTableWithoutSnapshotsRestoresRequired() {
     table.updateSchema().deleteColumn("id").commit();
 
-    assertThatThrownBy(() -> table.updateSchema().undeleteColumn("id").commit())
-        .hasMessage(
-            "Cannot undelete required column id: table has no snapshots. Only nullable columns "
-                + "or tables unchanged since the drop can be undeleted");
+    table.updateSchema().undeleteColumn("id").commit();
+
+    Types.NestedField restored = table.schema().findField("id");
+    assertThat(restored.isRequired()).isTrue();
   }
 
   @TestTemplate
@@ -220,10 +282,10 @@ public class TestSchemaUndelete extends TestBase {
 
     assertThatThrownBy(() -> table.updateSchema().undeleteColumn("id").commit())
         .hasMessage(
-            "Cannot undelete required column id: rows were written while the column was absent "
-                + "(last seen at snapshot "
+            "Cannot undelete required column id: snapshots newer than its last appearance (snapshot "
                 + lastSeenSnapshotId
-                + "). Only nullable columns or tables unchanged since the drop can be undeleted");
+                + ") may contain rows without values. Only nullable columns or tables unchanged "
+                + "since the drop can be undeleted");
   }
 
   @TestTemplate

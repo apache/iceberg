@@ -63,7 +63,8 @@ class UndeleteProcedure extends BaseProcedure {
           new StructField[] {
             new StructField("restored_field_id", DataTypes.IntegerType, false, Metadata.empty()),
             new StructField("applied_schema_id", DataTypes.IntegerType, false, Metadata.empty()),
-            new StructField("wrote_during_window", DataTypes.BooleanType, false, Metadata.empty())
+            new StructField("wrote_during_window", DataTypes.BooleanType, false, Metadata.empty()),
+            new StructField("was_identifier", DataTypes.BooleanType, false, Metadata.empty())
           });
 
   public static ProcedureBuilder builder() {
@@ -106,6 +107,10 @@ class UndeleteProcedure extends BaseProcedure {
               deletedColumn != null
                   && UndeleteUtils.newestContainingSnapshotIndex(current, deletedColumn.fieldId())
                       != 0;
+          // the restored field is never re-registered as an identifier automatically
+          boolean wasIdentifier =
+              current.schemas().stream()
+                  .anyMatch(schema -> schema.identifierFieldNames().contains(column));
 
           table.updateSchema().undeleteColumn(column).commit();
 
@@ -117,7 +122,8 @@ class UndeleteProcedure extends BaseProcedure {
                           "Cannot find undeleted column in committed schema: " + column)
                       .fieldId(),
                   committedSchema.schemaId(),
-                  wroteDuringWindow);
+                  wroteDuringWindow,
+                  wasIdentifier);
           return asScanIterator(OUTPUT_TYPE, outputRow);
         });
   }

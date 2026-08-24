@@ -32,6 +32,7 @@ import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -52,6 +53,7 @@ import org.slf4j.LoggerFactory;
 class SchemaUpdate implements UpdateSchema {
   private static final Logger LOG = LoggerFactory.getLogger(SchemaUpdate.class);
   private static final int TABLE_ROOT_ID = -1;
+  private static final Splitter DOT = Splitter.on('.');
 
   private final TableOperations ops;
   private final TableMetadata base;
@@ -222,6 +224,7 @@ class SchemaUpdate implements UpdateSchema {
     validateNoPendingUndelete(name, historicalField);
 
     int parentId = resolveParentForRestore(name);
+    validateParentGenerations(name, historicalField);
 
     int containingIndex =
         UndeleteUtils.newestContainingSnapshotIndex(base, historicalField.fieldId());
@@ -301,7 +304,19 @@ class SchemaUpdate implements UpdateSchema {
     int lastDot = name.lastIndexOf('.');
     if (lastDot >= 0) {
       String parentPath = name.substring(0, lastDot);
-      Types.NestedField parentField = findField(parentPath);
+      List<String> parts = DOT.splitToList(parentPath);
+      Types.NestedField parentField = schema.findField(parts.get(0));
+      for (int depth = 1; depth < parts.size() && parentField != null; depth += 1) {
+        if (!parentField.type().isStructType()) {
+          throw new IllegalArgumentException(
+              String.format(
+                  "Cannot undelete columns nested inside %s types: %s",
+                  parentField.type().typeId(), name));
+        }
+
+        parentField = parentField.type().asStructType().field(parts.get(depth));
+      }
+
       Preconditions.checkArgument(parentField != null, "Cannot find parent struct: %s", parentPath);
       Preconditions.checkArgument(
           parentField.type().isNestedType() && parentField.type().asNestedType().isStructType(),
@@ -323,15 +338,80 @@ class SchemaUpdate implements UpdateSchema {
     return parentId;
   }
 
+  // Parquet matches field IDs at every nesting level, so a child restored under a recreated parent
+  // would read as null over old files even though its own ID matches
+  private void validateParentGenerations(String name, Types.NestedField historicalField) {
+    List<String> parts = DOT.splitToList(name);
+    if (parts.size() <= 1) {
+      return;
+    }
+
+    List<Integer> historicalIds = null;
+    for (int i = base.schemas().size() - 1; i >= 0 && historicalIds == null; i -= 1) {
+      Schema candidate = base.schemas().get(i);
+      List<Integer> ancestorIds = structAncestorIds(candidate, parts);
+      if (ancestorIds != null && containsLeaf(candidate, parts, historicalField.fieldId())) {
+        historicalIds = ancestorIds;
+      }
+    }
+
+    Preconditions.checkArgument(
+        historicalIds != null,
+        "Cannot undelete column: no deleted column with that name: %s",
+        name);
+
+    List<Integer> currentIds = structAncestorIds(schema, parts);
+    for (int depth = 0; depth < currentIds.size(); depth += 1) {
+      Preconditions.checkArgument(
+          currentIds.get(depth).equals(historicalIds.get(depth)),
+          "Cannot undelete column %s: its parent was recreated with a new field ID, so data written"
+              + " under the previous parent is unreachable through it. Undelete '%s' instead if"
+              + " that parent's history still contains this field",
+          name,
+          parts.get(0));
+    }
+  }
+
+  private static List<Integer> structAncestorIds(Schema schema, List<String> parts) {
+    Types.NestedField field = schema.findField(parts.get(0));
+    if (field == null || !field.type().isStructType()) {
+      return null;
+    }
+
+    List<Integer> ids = Lists.newArrayList();
+    ids.add(field.fieldId());
+    for (int depth = 1; depth < parts.size() - 1; depth += 1) {
+      field = field.type().asStructType().field(parts.get(depth));
+      if (field == null || !field.type().isStructType()) {
+        return null;
+      }
+
+      ids.add(field.fieldId());
+    }
+
+    return ids;
+  }
+
+  private static boolean containsLeaf(Schema schema, List<String> parts, int fieldId) {
+    Types.NestedField field = schema.findField(parts.get(0));
+    for (int depth = 1; field != null && depth < parts.size(); depth += 1) {
+      if (!field.type().isStructType()) {
+        return false;
+      }
+
+      field = field.type().asStructType().field(parts.get(depth));
+    }
+
+    return field != null && field.fieldId() == fieldId;
+  }
+
   private String unsafeRequiredRestoreMessage(String name, int fieldId, int index) {
     String reason;
     if (index == UndeleteUtils.UNRESOLVABLE_LINEAGE) {
       reason =
-          base.currentSnapshot() == null
-              ? "table has no snapshots"
-              : String.format(
-                  "cannot resolve schema for snapshot %s",
-                  UndeleteUtils.unresolvableAncestorId(base, fieldId));
+          String.format(
+              "cannot resolve schema for snapshot %s",
+              UndeleteUtils.unresolvableAncestorId(base, fieldId));
     } else if (index == UndeleteUtils.PRUNED_LINEAGE) {
       reason = "snapshot lineage could not be verified";
     } else {
@@ -339,7 +419,8 @@ class SchemaUpdate implements UpdateSchema {
           SnapshotUtil.ancestorIds(base.currentSnapshot(), base::snapshot).get(index - 1);
       reason =
           String.format(
-              "rows were written while the column was absent (last seen at snapshot %s)",
+              "snapshots newer than its last appearance (snapshot %s) may contain rows without "
+                  + "values",
               lastAbsentSnapshotId);
     }
 
