@@ -129,8 +129,7 @@ public final class NessieUtil {
     }
 
     // To prevent accidental deletion of files that are still referenced by other branches/tags,
-    // setting GC_ENABLED to 'false' is recommended, so that all Iceberg's gc operations like
-    // expire_snapshots, remove_orphan_files, drop_table with purge will fail with an error.
+    // setting GC_ENABLED to 'false' is recommended so Iceberg GC operations do not delete files.
     // `nessie-gc` CLI provides a reference-aware GC functionality for the expired/unreferenced
     // files.
     // Advanced users may still want to use the simpler Iceberg GC tools iff their Nessie Server

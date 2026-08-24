@@ -35,7 +35,6 @@ import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.actions.ExpireSnapshots;
 import org.apache.iceberg.actions.ImmutableExpireSnapshots;
-import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.SupportsBulkOperations;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -86,10 +85,6 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
     super(spark);
     this.table = table;
     this.ops = ((HasTableOperations) table).operations();
-
-    ValidationException.check(
-        PropertyUtil.propertyAsBoolean(table.properties(), GC_ENABLED, GC_ENABLED_DEFAULT),
-        "Cannot expire snapshots: GC is disabled (deleting files may corrupt other tables)");
   }
 
   @Override
@@ -174,6 +169,13 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
 
       // fetch valid files after expiration
       TableMetadata updatedMetadata = ops.refresh();
+      if (!PropertyUtil.propertyAsBoolean(
+          updatedMetadata.properties(), GC_ENABLED, GC_ENABLED_DEFAULT)) {
+        LOG.info("Skipping file cleanup for {} because GC is disabled", table.name());
+        this.expiredFileDS = spark().emptyDataset(FileInfo.ENCODER);
+        return expiredFileDS;
+      }
+
       Dataset<FileInfo> validFileDS = fileDS(updatedMetadata);
 
       // fetch files referenced by expired snapshots

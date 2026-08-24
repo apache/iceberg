@@ -40,7 +40,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import org.apache.iceberg.ManifestEntry.Status;
-import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.BulkDeletionFailureException;
 import org.apache.iceberg.io.FileIO;
@@ -968,13 +967,48 @@ public class TestRemoveSnapshots extends TestBase {
 
   @TestTemplate
   public void testExpireSnapshotsWhenGarbageCollectionDisabled() {
+    table.newAppend().appendFile(FILE_A).commit();
+    Snapshot firstSnapshot = table.currentSnapshot();
+    table.newDelete().deleteFile(FILE_A).commit();
+    Snapshot secondSnapshot = table.currentSnapshot();
+    table.newAppend().appendFile(FILE_B).commit();
+    Snapshot currentSnapshot = table.currentSnapshot();
+    long tAfterCommits = waitUntilAfter(currentSnapshot.timestampMillis());
+
     table.updateProperties().set(TableProperties.GC_ENABLED, "false").commit();
 
-    table.newAppend().appendFile(FILE_A).commit();
+    Set<String> deletedFiles = Sets.newHashSet();
+    removeSnapshots(table)
+        .expireOlderThan(tAfterCommits)
+        .cleanupLevel(ExpireSnapshots.CleanupLevel.ALL)
+        .deleteWith(deletedFiles::add)
+        .commit();
 
-    assertThatThrownBy(() -> table.expireSnapshots())
-        .isInstanceOf(ValidationException.class)
-        .hasMessageStartingWith("Cannot expire snapshots: GC is disabled");
+    assertThat(table.snapshot(firstSnapshot.snapshotId())).isNull();
+    assertThat(table.snapshot(secondSnapshot.snapshotId())).isNull();
+    assertThat(table.currentSnapshot()).isEqualTo(currentSnapshot);
+    assertThat(deletedFiles).isEmpty();
+  }
+
+  @TestTemplate
+  public void testDisableGarbageCollectionBeforeCommit() {
+    table.newAppend().appendFile(FILE_A).commit();
+    Snapshot firstSnapshot = table.currentSnapshot();
+    table.newAppend().appendFile(FILE_B).commit();
+    long tAfterCommits = waitUntilAfter(table.currentSnapshot().timestampMillis());
+
+    Set<String> deletedFiles = Sets.newHashSet();
+    ExpireSnapshots expireSnapshots =
+        removeSnapshots(table)
+            .expireOlderThan(tAfterCommits)
+            .cleanupLevel(ExpireSnapshots.CleanupLevel.ALL)
+            .deleteWith(deletedFiles::add);
+
+    table.updateProperties().set(TableProperties.GC_ENABLED, "false").commit();
+    expireSnapshots.commit();
+
+    assertThat(table.snapshot(firstSnapshot.snapshotId())).isNull();
+    assertThat(deletedFiles).isEmpty();
   }
 
   @TestTemplate

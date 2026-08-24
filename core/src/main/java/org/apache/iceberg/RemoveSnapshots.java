@@ -43,7 +43,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import org.apache.iceberg.exceptions.CommitFailedException;
-import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -84,9 +83,6 @@ class RemoveSnapshots implements ExpireSnapshots {
   RemoveSnapshots(TableOperations ops) {
     this.ops = ops;
     this.base = ops.current();
-    ValidationException.check(
-        PropertyUtil.propertyAsBoolean(base.properties(), GC_ENABLED, GC_ENABLED_DEFAULT),
-        "Cannot expire snapshots: GC is disabled (deleting files may corrupt other tables)");
 
     long defaultMaxSnapshotAgeMs =
         PropertyUtil.propertyAsLong(
@@ -371,12 +367,14 @@ class RemoveSnapshots implements ExpireSnapshots {
               TableMetadata updated = internalApply();
               ops.commit(base, updated);
             });
+
+    CleanupLevel effectiveCleanupLevel = effectiveCleanupLevel();
     LOG.info(
         "Committed snapshot changes and prepare to clean up files at level={}",
-        cleanupLevel.name());
+        effectiveCleanupLevel.name());
 
-    if (CleanupLevel.NONE != cleanupLevel && !base.snapshots().isEmpty()) {
-      cleanExpiredSnapshots();
+    if (CleanupLevel.NONE != effectiveCleanupLevel && !base.snapshots().isEmpty()) {
+      cleanExpiredSnapshots(effectiveCleanupLevel);
     }
   }
 
@@ -385,7 +383,13 @@ class RemoveSnapshots implements ExpireSnapshots {
     return this;
   }
 
-  private void cleanExpiredSnapshots() {
+  private CleanupLevel effectiveCleanupLevel() {
+    return PropertyUtil.propertyAsBoolean(base.properties(), GC_ENABLED, GC_ENABLED_DEFAULT)
+        ? cleanupLevel
+        : CleanupLevel.NONE;
+  }
+
+  private void cleanExpiredSnapshots(CleanupLevel effectiveCleanupLevel) {
     TableMetadata current = ops.refresh();
 
     if (Boolean.TRUE.equals(incrementalCleanup)) {
@@ -407,7 +411,7 @@ class RemoveSnapshots implements ExpireSnapshots {
             : new ReachableFileCleanup(
                 ops.io(), deleteExecutorService, planExecutorService(), deleteFunc);
 
-    cleanupStrategy.cleanFiles(base, current, cleanupLevel);
+    cleanupStrategy.cleanFiles(base, current, effectiveCleanupLevel);
   }
 
   private void validateCleanupCanBeIncremental(TableMetadata current) {

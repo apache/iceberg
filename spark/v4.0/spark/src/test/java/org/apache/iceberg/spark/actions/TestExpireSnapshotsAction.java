@@ -52,7 +52,6 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.actions.ExpireSnapshots;
-import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -452,14 +451,23 @@ public class TestExpireSnapshotsAction extends TestBase {
 
   @TestTemplate
   public void testExpireSnapshotsWithDisabledGarbageCollection() {
+    table.newFastAppend().appendFile(FILE_A).commit();
+    table.newOverwrite().deleteFile(FILE_A).addFile(FILE_B).commit();
+    table.newFastAppend().appendFile(FILE_C).commit();
+    long end = rightAfterSnapshot();
     table.updateProperties().set(TableProperties.GC_ENABLED, "false").commit();
 
-    table.newAppend().appendFile(FILE_A).commit();
+    Set<String> deletedFiles = Sets.newHashSet();
+    ExpireSnapshots.Result result =
+        SparkActions.get()
+            .expireSnapshots(table)
+            .expireOlderThan(end)
+            .deleteWith(deletedFiles::add)
+            .execute();
 
-    assertThatThrownBy(() -> SparkActions.get().expireSnapshots(table))
-        .isInstanceOf(ValidationException.class)
-        .hasMessage(
-            "Cannot expire snapshots: GC is disabled (deleting files may corrupt other tables)");
+    assertThat(table.snapshots()).hasSize(1);
+    assertThat(deletedFiles).isEmpty();
+    checkExpirationResults(0L, 0L, 0L, 0L, 0L, result);
   }
 
   @TestTemplate

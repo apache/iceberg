@@ -28,14 +28,40 @@ import org.apache.flink.streaming.util.OneInputStreamOperatorTestHarness;
 import org.apache.flink.streaming.util.ProcessFunctionTestHarnesses;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.flink.maintenance.api.TaskResult;
 import org.apache.iceberg.flink.maintenance.api.Trigger;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
 class TestExpireSnapshotsProcessor extends OperatorTestBase {
+  @Test
+  void testExpireWithGarbageCollectionDisabled() throws Exception {
+    Table table = createTable();
+    insert(table, 1, "a");
+    insert(table, 2, "b");
+    table.updateProperties().set(TableProperties.GC_ENABLED, "false").commit();
+
+    List<TaskResult> actual;
+    Queue<StreamRecord<String>> deletes;
+    try (OneInputStreamOperatorTestHarness<Trigger, TaskResult> testHarness =
+        ProcessFunctionTestHarnesses.forProcessFunction(
+            new ExpireSnapshotsProcessor(tableLoader(), 0L, 1, 10, false))) {
+      testHarness.open();
+      testHarness.processElement(Trigger.create(10, 11), System.currentTimeMillis());
+      deletes = testHarness.getSideOutput(ExpireSnapshotsProcessor.DELETE_STREAM);
+      actual = testHarness.extractOutputValues();
+    }
+
+    assertThat(actual).singleElement().extracting(TaskResult::success).isEqualTo(true);
+    table.refresh();
+    assertThat(table.snapshots()).hasSize(1);
+    assertThat(deletes).isNullOrEmpty();
+  }
+
   @ParameterizedTest
   @ValueSource(booleans = {true, false})
   void testExpire(boolean success) throws Exception {

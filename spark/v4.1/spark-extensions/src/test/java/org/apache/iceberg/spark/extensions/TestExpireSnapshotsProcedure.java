@@ -41,7 +41,6 @@ import org.apache.iceberg.PartitionStatisticsFile;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.StatisticsFile;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.puffin.Blob;
 import org.apache.iceberg.puffin.Puffin;
@@ -156,12 +155,23 @@ public class TestExpireSnapshotsProcedure extends ExtensionsTestBase {
   @TestTemplate
   public void testExpireSnapshotsGCDisabled() {
     sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
+    sql("INSERT INTO TABLE %s VALUES (2, 'b')", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    waitUntilAfter(table.currentSnapshot().timestampMillis());
+    Timestamp currentTimestamp = Timestamp.from(Instant.ofEpochMilli(System.currentTimeMillis()));
 
     sql("ALTER TABLE %s SET TBLPROPERTIES ('%s' 'false')", tableName, GC_ENABLED);
 
-    assertThatThrownBy(() -> sql("CALL %s.system.expire_snapshots('%s')", catalogName, tableIdent))
-        .isInstanceOf(ValidationException.class)
-        .hasMessageStartingWith("Cannot expire snapshots: GC is disabled");
+    List<Object[]> output =
+        sql(
+            "CALL %s.system.expire_snapshots('%s', TIMESTAMP '%s')",
+            catalogName, tableIdent, currentTimestamp);
+
+    assertEquals("Should not delete files", ImmutableList.of(row(0L, 0L, 0L, 0L, 0L, 0L)), output);
+    table.refresh();
+    assertThat(table.snapshots()).hasSize(1);
   }
 
   @TestTemplate

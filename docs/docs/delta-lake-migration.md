@@ -65,11 +65,11 @@ When inserts or overwrites run on the snapshot, new files are placed in the snap
 of the source Delta Lake Table. Users can also specify a different location for the snapshot table.
 
 !!! info
-    Because tables created by `snapshotDeltaLakeTable` are not the sole owners of their data files, they are prohibited from
-    actions like `expire_snapshots` which would physically delete data files. Iceberg deletes, which only effect metadata,
-    are still allowed. In addition, any operations which affect the original data files will disrupt the Snapshot's
-    integrity. DELETE statements executed against the original Delta Lake table will remove original data files and the
-    `snapshotDeltaLakeTable` table will no longer be able to access them.
+    Because tables created by `snapshotDeltaLakeTable` are not the sole owners of their data files, `gc.enabled` is set to
+    `false`. Snapshot expiration can remove old snapshots from table metadata but will not physically delete any files.
+    Iceberg deletes, which only affect metadata, are also allowed. Any operations which affect the original data files will
+    disrupt the Snapshot's integrity. DELETE statements executed against the original Delta Lake table will remove original
+    data files and the `snapshotDeltaLakeTable` table will no longer be able to access them.
 
 #### Usage
 | Required Input               | Configured By                                                                                                                                                                                             | Description                                                                     |
