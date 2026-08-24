@@ -83,6 +83,9 @@ Listings do not include logos, rankings, paid placement, or designations such as
 certified. The PMC may edit descriptions for clarity and consistency. Requests to add, update, or remove a
 listing should be submitted as public pull requests and are reviewed under PMC oversight.
 
+**Listed projects and services must respect the Apache Iceberg name and trademarks and comply with the
+[ASF Trademark Policy](https://www.apache.org/foundation/marks/).**
+
 Listings may be removed if the link becomes unavailable, the linked page no longer demonstrates a
 concrete Apache Iceberg connection, or the linked organization or project does not comply with applicable
 ASF branding and trademark policies.
