@@ -47,14 +47,10 @@ public class EagerInputFile implements InputFile {
     this.length = length;
   }
 
-  /**
-   * Returns an {@link EagerInputFile}, preserving Hadoop config if {@code delegate} is {@link
-   * HadoopConfigurable}.
-   */
+  /** Returns an InputFile that reads the entire file in a single request. */
   public static InputFile of(InputFile delegate, long length) {
     if (delegate instanceof HadoopConfigurable) {
-      return new EagerInputFileConfigurable(
-          delegate, length, ((HadoopConfigurable) delegate).getConf());
+      return new EagerInputFileConfigurable(delegate, length);
     }
     return new EagerInputFile(delegate, length);
   }
@@ -85,26 +81,31 @@ public class EagerInputFile implements InputFile {
     return new EagerInputStream(bytes);
   }
 
-  /** An {@link EagerInputFile} that carries the delegate's Hadoop configuration. */
+  /** An {@link EagerInputFile} that preserves the delegate's Hadoop configuration. */
   private static class EagerInputFileConfigurable extends EagerInputFile
       implements HadoopConfigurable {
 
-    private final Configuration conf;
+    private final HadoopConfigurable delegate;
 
-    EagerInputFileConfigurable(InputFile delegate, long length, Configuration conf) {
+    EagerInputFileConfigurable(InputFile delegate, long length) {
       super(delegate, length);
-      this.conf = conf;
+      Preconditions.checkArgument(
+          delegate instanceof HadoopConfigurable,
+          "Cannot create a Hadoop configurable eager input file from %s",
+          delegate.getClass().getName());
+      this.delegate = (HadoopConfigurable) delegate;
     }
 
     @Override
     public Configuration getConf() {
-      return conf;
+      return delegate.getConf();
     }
 
     @Override
     public void serializeConfWith(
         Function<Configuration, SerializableSupplier<Configuration>> confSerializer) {
-      // no-op: EagerInputFile is not serialized
+      throw new UnsupportedOperationException(
+          "Cannot serialize an eager input file: " + location());
     }
   }
 }

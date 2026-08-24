@@ -198,7 +198,7 @@ public class HadoopInputFile implements InputFile, NativelyEncryptedFile, Hadoop
   @Override
   public void serializeConfWith(
       Function<Configuration, SerializableSupplier<Configuration>> confSerializer) {
-    // no-op: HadoopInputFile is not serialized
+    throw new UnsupportedOperationException("Cannot serialize a Hadoop input file: " + location());
   }
 
   public FileSystem getFileSystem() {

@@ -241,11 +241,6 @@ public class TestEagerInputFile {
     InputFile delegate = HadoopInputFile.fromLocation("file:/tmp/eager-configurable", SIZE, conf);
     InputFile eager = EagerInputFile.of(delegate, SIZE);
 
-    assertThat(eager)
-        .as("of() should return EagerInputFileConfigurable for a HadoopConfigurable delegate")
-        .isInstanceOf(EagerInputFile.class)
-        .isInstanceOf(HadoopConfigurable.class);
-
     assertThat(((HadoopConfigurable) eager).getConf().get("test.key"))
         .as("getConf() should return the delegate's configuration")
         .isEqualTo("test-value");

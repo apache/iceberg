@@ -66,12 +66,12 @@ public class TestParquetEagerRead {
 
     // capture every stream the delegate opens so we can assert how the eager wrapper reads it
     InputFile delegate = Mockito.spy(outputFile.toInputFile());
-    List<SeekableInputStream> opened = Lists.newArrayList();
+    List<SeekableInputStream> openedStreams = Lists.newArrayList();
     Mockito.doAnswer(
             invocation -> {
               SeekableInputStream spy =
                   Mockito.spy((SeekableInputStream) invocation.callRealMethod());
-              opened.add(spy);
+              openedStreams.add(spy);
               return spy;
             })
         .when(delegate)
@@ -86,8 +86,8 @@ public class TestParquetEagerRead {
     }
 
     // a sub-threshold file is opened once and drained sequentially; positional reads hit the buffer
-    assertThat(opened).as("delegate should be opened exactly once").hasSize(1);
-    SeekableInputStream delegateStream = opened.get(0);
+    assertThat(openedStreams).as("delegate should be opened exactly once").hasSize(1);
+    SeekableInputStream delegateStream = openedStreams.get(0);
     Mockito.verify(delegateStream, Mockito.times(1))
         .read(Mockito.any(byte[].class), Mockito.anyInt(), Mockito.anyInt());
     Mockito.verify(delegateStream, Mockito.times(1)).close();
