@@ -55,6 +55,20 @@ public interface ViewSessionCatalog {
   View loadView(SessionCatalog.SessionContext context, TableIdentifier identifier);
 
   /**
+   * Load a view with additional load context.
+   *
+   * @param context session context
+   * @param identifier a view identifier
+   * @param loadContext the load context
+   * @return instance of {@link View} implementation referred by the identifier
+   * @throws NoSuchViewException if the view does not exist
+   */
+  default View loadView(
+      SessionCatalog.SessionContext context, TableIdentifier identifier, LoadContext loadContext) {
+    throw new UnsupportedOperationException("Contextual load is not supported");
+  }
+
+  /**
    * Check whether view exists.
    *
    * @param identifier a view identifier
