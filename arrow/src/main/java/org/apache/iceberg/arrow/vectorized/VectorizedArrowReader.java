@@ -155,17 +155,10 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
         vec.close();
         vec = null;
       }
-      if (repetitionLevels != null) {
-        repetitionLevels.close();
-        repetitionLevels = null;
-      }
 
       allocateFieldVector(dictEncoded);
       nullabilityHolder = new NullabilityHolder(batchSize);
-      if (columnDescriptor.getMaxRepetitionLevel() > 0) {
-        repetitionLevels = new IntVector("repetition_levels", rootAlloc);
-        repetitionLevels.allocateNew(batchSize);
-      }
+      allocateRepetitionLevels();
     } else {
       vec.setValueCount(0);
       nullabilityHolder.reset();
@@ -248,6 +241,18 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
         nullabilityHolder,
         icebergField,
         repetitionLevels);
+  }
+
+  private void allocateRepetitionLevels() {
+    if (repetitionLevels != null) {
+      repetitionLevels.close();
+      this.repetitionLevels = null;
+    }
+
+    if (columnDescriptor.getMaxRepetitionLevel() > 0) {
+      this.repetitionLevels = new IntVector("repetition_levels", rootAlloc);
+      repetitionLevels.allocateNew(batchSize);
+    }
   }
 
   private void allocateFieldVector(boolean dictionaryEncodedVector) {
