@@ -184,4 +184,92 @@ public class TestUndeleteProcedure extends ExtensionsTestBase {
         ImmutableList.of(row(intIncarnationId, updated.schema().schemaId(), false, false)),
         output);
   }
+
+  @TestTemplate
+  public void testUndeleteColumnReportsWasIdentifierTrue() {
+    sql(
+        "CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg "
+            + "TBLPROPERTIES ('format-version'='2')",
+        tableName);
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    int originalFieldId = table.schema().findField("id").fieldId();
+    table.updateSchema().setIdentifierFields("id").commit();
+    // clearing the identifier and dropping the column in one update keeps the pre-drop schema
+    // marked as an identifier, so the restore reports it
+    table.updateSchema().setIdentifierFields().deleteColumn("id").commit();
+    // java-side commits bypass the spark catalog cache, sync it before the procedure runs
+    spark.catalog().refreshTable(tableName);
+
+    List<Object[]> output =
+        sql("CALL %s.system.undelete_column('%s', 'id')", catalogName, tableIdent);
+
+    Table updated = validationCatalog.loadTable(tableIdent);
+    assertThat(updated.schema().findField("id").fieldId()).isEqualTo(originalFieldId);
+    assertThat(updated.schema().findField("id").isRequired()).isTrue();
+    assertThat(updated.schema().identifierFieldIds()).isEmpty();
+    assertEquals(
+        "Procedure output must report that the restored column was an identifier",
+        ImmutableList.of(row(originalFieldId, updated.schema().schemaId(), false, true)),
+        output);
+  }
+
+  @TestTemplate
+  public void testUndeleteColumnReportsWasIdentifierFalseAfterRemoval() {
+    sql(
+        "CREATE TABLE %s (pkey bigint NOT NULL, data string) USING iceberg "
+            + "TBLPROPERTIES ('format-version'='2')",
+        tableName);
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
+    sql("ALTER TABLE %s SET IDENTIFIER FIELDS pkey", tableName);
+    sql("ALTER TABLE %s DROP IDENTIFIER FIELDS pkey", tableName);
+    // an intervening change keeps the unmarked schema distinct once identifiers are dropped
+    sql("ALTER TABLE %s ADD COLUMN filler string", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    int originalFieldId = table.schema().findField("pkey").fieldId();
+
+    sql("ALTER TABLE %s DROP COLUMN pkey", tableName);
+
+    List<Object[]> output =
+        sql("CALL %s.system.undelete_column('%s', 'pkey')", catalogName, tableIdent);
+
+    Table updated = validationCatalog.loadTable(tableIdent);
+    assertThat(updated.schema().identifierFieldIds()).isEmpty();
+    assertEquals(
+        "Identifier status removed before the drop must not be reported",
+        ImmutableList.of(row(originalFieldId, updated.schema().schemaId(), false, false)),
+        output);
+  }
+
+  @TestTemplate
+  public void testUndeleteColumnWasIdentifierTiesToWinningIncarnation() {
+    sql(
+        "CREATE TABLE %s (x bigint NOT NULL, data string) USING iceberg "
+            + "TBLPROPERTIES ('format-version'='2')",
+        tableName);
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
+    sql("ALTER TABLE %s SET IDENTIFIER FIELDS x", tableName);
+    sql("ALTER TABLE %s DROP IDENTIFIER FIELDS x", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    int stringIncarnationId = table.schema().findField("x").fieldId();
+
+    sql("ALTER TABLE %s DROP COLUMN x", tableName);
+    sql("ALTER TABLE %s ADD COLUMN x int", tableName);
+    sql("ALTER TABLE %s DROP COLUMN x", tableName);
+
+    List<Object[]> output =
+        sql("CALL %s.system.undelete_column('%s', 'x')", catalogName, tableIdent);
+
+    Table updated = validationCatalog.loadTable(tableIdent);
+    int intIncarnationId = updated.schema().findField("x").fieldId();
+    assertThat(intIncarnationId).isNotEqualTo(stringIncarnationId);
+    // only the winning incarnation counts: an identifier mark on the older one is irrelevant
+    assertEquals(
+        "was_identifier must follow the restored incarnation's field id",
+        ImmutableList.of(row(intIncarnationId, updated.schema().schemaId(), true, false)),
+        output);
+  }
 }
