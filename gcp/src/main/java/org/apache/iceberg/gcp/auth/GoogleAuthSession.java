@@ -70,7 +70,6 @@ class GoogleAuthSession implements AuthSession {
                     HTTPHeaders.of(
                         HTTPHeaders.HTTPHeader.of(
                             "Authorization", "Bearer " + token.getTokenValue())));
-
         return newHeaders.equals(request.headers())
             ? request
             : ImmutableHTTPRequest.builder().from(request).headers(newHeaders).build();

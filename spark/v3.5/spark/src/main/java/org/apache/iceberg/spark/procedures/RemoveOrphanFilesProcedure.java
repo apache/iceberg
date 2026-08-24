@@ -74,7 +74,7 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
   // Stream results to avoid loading all orphan files in driver memory. Default is false.
   private static final ProcedureParameter STREAM_RESULTS_PARAM =
       optionalInParameter("stream_results", DataTypes.BooleanType);
-  // Depth of shallow driver-side walk used to discover seed prefixes for parallel prefix
+  // Depth of driver-side listing used to discover seed prefixes for parallel prefix
   // listing. Only applies when prefix_listing is true. Default is 0 (single seed).
   private static final ProcedureParameter PREFIX_LISTING_MAX_SEED_DEPTH_PARAM =
       optionalInParameter("prefix_listing_max_seed_depth", DataTypes.IntegerType);
