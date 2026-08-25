@@ -688,19 +688,25 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
   public void testPartitionsTableDvCount() {
     assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
 
-    table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
-    table.newRowDelta().addDeletes(FILE_A_DV).addDeletes(FILE_B_DV).commit();
+    // FILE_A and FILE_A2 are both in data_bucket=0; FILE_B is in data_bucket=1
+    table.newFastAppend().appendFile(FILE_A).appendFile(FILE_A2).appendFile(FILE_B).commit();
+    // Add two DVs to data_bucket=0 (recordCount=1 and recordCount=5) and one DV to data_bucket=1
+    // to confirm dv_count tracks file count, not record count
+    table.newRowDelta().addDeletes(FILE_A_DV).addDeletes(FILE_A2_DV).addDeletes(FILE_B_DV).commit();
 
     Table partitionsTable = new PartitionsTable(table);
     StaticTableScan scan = (StaticTableScan) partitionsTable.newScan();
     List<PartitionsTable.Partition> partitions =
         Lists.newArrayList(PartitionsTable.partitions(table, scan));
+    partitions.sort(Comparator.comparing(p -> p.partitionData().get(0, Integer.class)));
 
     assertThat(partitions).hasSize(2);
-    for (PartitionsTable.Partition partition : partitions) {
-      assertThat(partition.dvCount()).isEqualTo(1);
-      assertThat(partition.posDeleteFileCount()).isEqualTo(0);
-    }
+    // data_bucket=0 has two DVs (with different record counts) → dv_count=2, not the record sum
+    assertThat(partitions.get(0).dvCount()).isEqualTo(2);
+    assertThat(partitions.get(0).posDeleteFileCount()).isEqualTo(0);
+    // data_bucket=1 has one DV → dv_count=1
+    assertThat(partitions.get(1).dvCount()).isEqualTo(1);
+    assertThat(partitions.get(1).posDeleteFileCount()).isEqualTo(0);
   }
 
   @TestTemplate
