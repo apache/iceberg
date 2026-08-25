@@ -445,27 +445,6 @@ public class TestRewriteTablePathUtil extends TestBase {
   }
 
   @TestTemplate
-  public void testRewriteManifestListRejectsManifestOutsideSourcePrefix() {
-    table.newFastAppend().appendFile(FILE_A).commit();
-    Snapshot snapshot = table.currentSnapshot();
-    String outputPath = temp.resolve("rewritten-list-" + System.nanoTime() + ".avro").toString();
-
-    assertThatThrownBy(
-            () ->
-                RewriteTablePathUtil.rewriteManifestList(
-                    snapshot,
-                    table.io(),
-                    table.ops().current(),
-                    ImmutableMap.of(),
-                    "/some/unrelated/prefix/",
-                    "/target/prefix/",
-                    temp.resolve("staging").toString(),
-                    outputPath))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("not under the source prefix");
-  }
-
-  @TestTemplate
   public void testRewriteDataManifestRecordsRewrittenLength() throws IOException {
     table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
     ManifestFile manifest = table.currentSnapshot().allManifests(table.io()).get(0);

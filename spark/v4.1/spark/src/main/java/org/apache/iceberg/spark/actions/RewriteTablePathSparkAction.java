@@ -614,8 +614,7 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
                 sourcePrefix,
                 targetPrefix,
                 rewrittenDeleteFileSizes),
-            // Encoders.bean derives an empty schema here and would drop the copy plan and lengths
-            Encoders.javaSerialization(RewriteContentFileResult.class))
+            Encoders.bean(RewriteContentFileResult.class))
         // duplicates are expected here as the same data file can have different statuses
         // (e.g. added and deleted)
         .reduce((ReduceFunction<RewriteContentFileResult>) RewriteContentFileResult::append);
