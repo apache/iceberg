@@ -1208,13 +1208,13 @@ many statistics files associated with different table snapshots.
 Statistics files metadata within `statistics` table metadata field is a struct with the following fields:
 
 === "v1 - v4"
-    | v1 and v2  | v3         | v4         | Field name                      | Type                  | Description |
+    | v1         | v2 and v3  | v4         | Field name                      | Type                  | Description |
     | ---------- | ---------- | ---------- |---------------------------------|-----------------------|-------------|
     | _required_ | _required_ | _required_ | **`snapshot-id`**               | `long`                | ID of the Iceberg table's snapshot the statistics file is associated with. |
     | _required_ | _required_ | _required_ | **`statistics-path`**           | `string`              | Path of the statistics file. See [Puffin file format](puffin-spec.md). |
     | _required_ | _required_ | _required_ | **`file-size-in-bytes`**        | `long`                | Size of the statistics file. |
     | _required_ | _required_ | _required_ | **`file-footer-size-in-bytes`** | `long`                | Total size of the statistics file's footer (not the footer payload size). See [Puffin file format](puffin-spec.md) for footer definition. |
-    | _optional_ | _optional_ |            | ~~**`key-metadata`**~~          |                       | Base64-encoded implementation-specific key metadata for encryption. (**Deprecated**: use `key-id` instead) |
+    | _optional_ | _optional_ | _optional_ | **`key-metadata`**              | `string`              | Base64-encoded implementation-specific key metadata for encryption. (**Deprecated**: use `key-id` instead) |
     | _optional_ | _optional_ | _optional_ | **`key-id`**                    | `string`              | ID of the encryption key that encrypts the statistics file key metadata |
     | _required_ | _required_ | _required_ | **`blob-metadata`**             | `list<blob metadata>` (see below) | A list of the blob metadata for statistics contained in the file with structure described below. |
 
@@ -1239,13 +1239,13 @@ Partition statistics file must be registered in the table metadata file to be co
 
 `partition-statistics` field of table metadata is an optional list of structs with the following fields:
 
-=== "v1 - v3"
-    | v1         | v2         | v3         | Field name               | Type     | Description |
-    | ---------- | ---------- |------------|--------------------------|----------|-------------|
-    | _required_ | _required_ | _required_ | **`snapshot-id`**        | `long`   | ID of the Iceberg table's snapshot the partition statistics file is associated with. |
-    | _required_ | _required_ | _required_ | **`statistics-path`**    | `string` | Path of the partition statistics file. See [Partition statistics file](#partition-statistics-file). |
-    | _required_ | _required_ | _required_ | **`file-size-in-bytes`** | `long`   | Size of the partition statistics file. |
-    | _optional_ | _optional_ | _optional_ | **`key-id`**             | `string` | ID of the encryption key that encrypts the partition statistics file key metadata |
+=== "v1 - v4"
+    | v1         | v2         | v3         | v4         | Field name               | Type     | Description |
+    | ---------- | ---------- |------------|------------|--------------------------|----------|-------------|
+    | _required_ | _required_ | _required_ | _required_ | **`snapshot-id`**        | `long`   | ID of the Iceberg table's snapshot the partition statistics file is associated with. |
+    | _required_ | _required_ | _required_ | _required_ | **`statistics-path`**    | `string` | Path of the partition statistics file. See [Partition statistics file](#partition-statistics-file). |
+    | _required_ | _required_ | _required_ | _required_ | **`file-size-in-bytes`** | `long`   | Size of the partition statistics file. |
+    | _optional_ | _optional_ | _optional_ | _optional_ | **`key-id`**             | `string` | ID of the encryption key that encrypts the partition statistics file key metadata |
 
 ##### Partition Statistics File
 
