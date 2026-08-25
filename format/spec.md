@@ -1359,7 +1359,7 @@ There are different formats for encoding row-level deletes:
 
 * Deletion vectors (DVs) identify deleted rows within a single referenced data file by position in a bitmap
 * Position delete files identify deleted rows by file location and row position (**deprecated** in v3)
-* Equality delete files identify deleted rows by the value of one or more columns (**deprecated** in v4)
+* Equality delete files identify deleted rows by the value of one or more columns (**prohibited** in v4)
 
 Deletion vectors are a binary representation of deletes for a single data file that is more efficient at execution time than position delete files. Unlike equality or position delete files, there can be at most one deletion vector for a given data file in a snapshot. Writers must ensure that there is at most one deletion vector per data file and must merge new deletes with existing vectors or position delete files.
 When removing a data file, writers must also remove any deletion vector that applies to that data file from delete manifests. Writers are not required to rewrite Puffin files that contain the removed deletion vectors.
@@ -1417,7 +1417,7 @@ The rows in the delete file must be sorted by `file_path` then `pos` to optimize
 
 Equality delete files identify deleted rows in a collection of data files by one or more column values, and may optionally contain additional columns of the deleted row.
 
-Equality delete files must not be added to v4 tables. Equality deletes carried over from v2 or v3 remain in the delete manifests that already track them and readers must still apply them. Converting them to [deletion vectors](#deletion-vectors) is a separate, optional maintenance action.
+Equality delete files must not be added to v4 tables. Equality delete files referenced by metadata upgraded to v4 must still be applied. Moving entries covered by an equality delete to a v4 manifest requires applying the deletes and writing a new data file entry.
 
 Equality delete files store any subset of a table's columns and use the table's field ids. The _delete columns_ are the columns of the delete file used to match data rows. Delete columns are identified by id in the delete file [metadata column `equality_ids`](#manifests). The column restrictions for columns used in equality delete files are the same as those for [identifier fields](#identifier-field-ids) with the exception that optional columns and columns nested under optional structs are allowed (if a parent struct column is null it implies the leaf column is null).
 
@@ -1921,8 +1921,6 @@ Row-level delete changes:
 * Equality delete files must not be added to v4 tables
 * Readers must continue to apply equality deletes for v2 and v3 tables and for equality deletes carried over into upgraded v4 tables
 * Upgrading a v2 or v3 table to v4 is metadata-only and does not rewrite data or delete files
-    * Equality deletes remain in the carried-over v2 or v3 delete manifests that already track them
-    * Converting equality deletes to DVs is a separate, optional maintenance action
 
 ### Version 3
 
