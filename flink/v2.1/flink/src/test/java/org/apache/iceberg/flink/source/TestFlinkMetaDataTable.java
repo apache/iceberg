@@ -672,6 +672,23 @@ public class TestFlinkMetaDataTable extends CatalogTestBase {
   }
 
   @TestTemplate
+  public void testMetadataLogEntriesPropertyHistory() {
+    sql("ALTER TABLE %s SET ('key'='v0')", TABLE_NAME);
+    sql("INSERT INTO %s VALUES (5, 'c', 30)", TABLE_NAME);
+    sql("ALTER TABLE %s SET ('key'='v1')", TABLE_NAME);
+    sql("INSERT INTO %s VALUES (6, 'd', 40)", TABLE_NAME);
+
+    List<Row> propertyHistory =
+        sql(
+            "SELECT properties['key'] FROM %s$metadata_log_entries "
+                + "WHERE properties['key'] IN ('v0', 'v1')",
+            TABLE_NAME);
+    assertThat(propertyHistory)
+        .extracting(row -> row.getField(0))
+        .containsExactly("v0", "v0", "v1", "v1");
+  }
+
+  @TestTemplate
   public void testSnapshotReferencesMetatable() {
     Table table = validationCatalog.loadTable(TableIdentifier.of(icebergNamespace, TABLE_NAME));
 

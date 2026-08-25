@@ -700,6 +700,22 @@ public class TestMetadataTables extends ExtensionsTestBase {
   }
 
   @TestTemplate
+  public void testMetadataLogEntriesPropertyHistory() {
+    sql(
+        "CREATE TABLE %s (id bigint, data string) USING iceberg "
+            + "TBLPROPERTIES ('format-version'='%s', 'key'='v0')",
+        tableName, formatVersion);
+    sql("INSERT INTO %s VALUES (1, 'a')", tableName);
+    sql("ALTER TABLE %s SET TBLPROPERTIES ('key'='v1')", tableName);
+    sql("INSERT INTO %s VALUES (2, 'b')", tableName);
+
+    assertEquals(
+        "Metadata log entries should contain historical properties",
+        ImmutableList.of(row("v0"), row("v0"), row("v1"), row("v1")),
+        sql("SELECT properties['key'] FROM %s.metadata_log_entries", tableName));
+  }
+
+  @TestTemplate
   public void testFilesTableTimeTravelWithSchemaEvolution() throws Exception {
     // Create table and insert data
     sql(

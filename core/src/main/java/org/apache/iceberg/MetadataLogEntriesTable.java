@@ -29,6 +29,16 @@ import org.apache.iceberg.util.SnapshotUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+/**
+ * A {@link Table} implementation that exposes a table's metadata log as rows.
+ *
+ * <p>Each row represents a historical or current metadata file and includes the snapshot details
+ * and table properties recorded in that file. The current metadata is included as the latest row.
+ *
+ * <p>Queries that reference {@code properties} read each retained historical metadata file. These
+ * additional reads are skipped when {@code properties} is not referenced, and the already loaded
+ * current metadata is reused.
+ */
 public class MetadataLogEntriesTable extends BaseMetadataTable {
 
   private static final int PROPERTIES_FIELD_ID = 6;
@@ -89,7 +99,7 @@ public class MetadataLogEntriesTable extends BaseMetadataTable {
             MetadataLogEntriesTable.metadataLogEntryToRow(
                 metadataLogEntry,
                 table(),
-                tablePropertiesResolver(metadataLogEntry, io, current, skipPropertiesLoad)));
+                loadTableProperties(metadataLogEntry, io, current, skipPropertiesLoad)));
   }
 
   private class MetadataLogScan extends StaticTableScan {
@@ -144,7 +154,7 @@ public class MetadataLogEntriesTable extends BaseMetadataTable {
         properties);
   }
 
-  private static Map<String, String> tablePropertiesResolver(
+  private static Map<String, String> loadTableProperties(
       TableMetadata.MetadataLogEntry metadataLogEntry,
       FileIO io,
       TableMetadata current,

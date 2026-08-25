@@ -22,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -86,7 +87,12 @@ class TestMetadataLogEntriesTableProperties {
 
     assertThat(firstColumnValues(task)).containsExactly(initialProperties, updatedProperties);
     verify(io).newInputFile(previous.file());
-    verify(io).newInputFile(current.metadataFileLocation());
+    verify(
+            io,
+            times(1)
+                .description(
+                    "Current metadata should be reused rather than loading the file twice"))
+        .newInputFile(current.metadataFileLocation());
   }
 
   @Test
