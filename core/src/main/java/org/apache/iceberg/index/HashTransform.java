@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.index;
 
+import java.io.Serializable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
@@ -30,8 +31,13 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
  * <p>The transform value stored in leaf files is the bucket number (long).
  * The tracking file stores [bucketMin, bucketMax] per leaf file, enabling
  * the planner to identify which leaf files to scan for a given key.
+ *
+ * <p>Implements {@link Serializable} so it can be captured directly inside a Spark UDF closure
+ * (Spark's ClosureCleaner requires every captured object to be serializable, even for local,
+ * non-distributed execution) -- see {@code BuildScalarIndexProcedure}, the actual reason this is
+ * needed in practice.
  */
-public class HashTransform {
+public class HashTransform implements Serializable {
 
   private final int numBuckets;
 
