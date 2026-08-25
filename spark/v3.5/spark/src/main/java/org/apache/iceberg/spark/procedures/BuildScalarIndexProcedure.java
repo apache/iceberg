@@ -332,7 +332,7 @@ class BuildScalarIndexProcedure extends BaseProcedure {
 
   /** Per-partition leaf-file write result, passed back to the driver via {@code
    * Encoders.javaSerialization} since it needs no further Spark-side column operations. */
-  private static final class LeafFileWriteResult implements Serializable {
+  public static final class LeafFileWriteResult implements Serializable {
     private final String path;
     private final long recordCount;
     private final long sizeBytes;
