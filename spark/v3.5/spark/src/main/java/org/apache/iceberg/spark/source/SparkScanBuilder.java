@@ -117,6 +117,7 @@ public class SparkScanBuilder
   private List<Expression> filterExpressions = null;
   private Predicate[] pushedPredicates = NO_PREDICATES;
   private Integer limit = null;
+  private Set<String> scalarIndexResolvedFilePaths = null;
 
   SparkScanBuilder(
       SparkSession spark,
@@ -210,16 +211,23 @@ public class SparkScanBuilder
 
   /**
    * If a SCALAR index exists on a column referenced by an equality predicate in {@link
-   * #filterExpressions}, resolves the predicate's literal against the index's leaf files to
-   * determine which source file(s) contain a match.
+   * #filterExpressions}, resolves the predicate's literal against the index's leaf files and
+   * records the matching source file paths in {@link #scalarIndexResolvedFilePaths}, so {@link
+   * #buildBatchScan} can constrain the scan to just those files via {@link
+   * FileScanTaskFilteringScan}.
    *
-   * <p>Currently informational only: the resolved file path is logged but not yet enforced, since
-   * core Iceberg's {@code Scan}/{@code Expression}/{@code Binder} model has no concept of
-   * filtering by {@code _file} -- that is a Spark-only metadata column, not a real schema field.
-   * Actually constraining the scan to the resolved file would require decorating the core {@code
-   * Scan}'s {@code planFiles()}/{@code planTasks()} output at the task level, which is a bigger,
-   * not-yet-attempted follow-up (see the design proposal's Open Questions). Functional correctness
-   * never depends on this: the original predicate is still pushed down and applied normally.
+   * <p>Restricting the scan to files that could satisfy one AND'd predicate is always sound: any
+   * row satisfying the full pushed-down conjunction must also satisfy this predicate, so it must
+   * live in one of these files. The predicate itself is still pushed down and applied as a
+   * residual regardless, so a wrong or stale resolution here can only miss an optimization, never
+   * produce a wrong result -- except for the zero-match case (key confirmed absent), which is
+   * deliberately NOT pruned to zero files here: that would be a correctness-sensitive
+   * optimization (a bug would silently return wrong empty results, not just miss a speedup), left
+   * as a documented follow-up rather than attempted in this pass.
+   *
+   * <p>Only the first predicate that resolves against an existing index is used; combining
+   * resolutions from multiple SCALAR indexes on an AND'd query would need set intersection across
+   * indexes, which is not yet attempted.
    *
    * <p>Any failure -- no index registered, a stale index snapshot, an unsupported predicate shape,
    * an I/O error reading the tracking or leaf file -- falls back silently to normal planning,
@@ -299,22 +307,21 @@ public class SparkScanBuilder
                   Expressions.equal(columnName, literalValue)));
         }
 
-        if (matches.size() == 1) {
-          // Resolved to exactly one file, but this cannot be pushed into filterExpressions: that
-          // list is also bound against the table's real schema (see #pruneColumns and the eventual
-          // core Scan#filter call), and "_file" is a Spark-only metadata column with no equivalent
-          // in core Iceberg's Expression/Binder model. Enforcing this at the file-task level would
-          // require a Scan decorator around planFiles()/planTasks() -- a bigger follow-up, tracked
-          // as an open question in the design proposal. For now this is purely informational.
+        if (!matches.isEmpty()) {
+          Set<String> resolvedPaths =
+              matches.stream().map(LeafFileEntry::filePath).collect(Collectors.toSet());
+          this.scalarIndexResolvedFilePaths = resolvedPaths;
           LOG.info(
-              "SCALAR index on {} resolved {} = {} to exactly one file: {}",
+              "SCALAR index on {} resolved {} = {} to {} file(s): {}",
               columnName,
               columnName,
               literalValue,
-              matches.get(0).filePath());
+              resolvedPaths.size(),
+              resolvedPaths);
+          return;
         }
-        // 0 matches (key not present) or >1 (e.g. duplicate keys) -- fall back to normal
-        // planning rather than guess; the equality predicate itself still gets applied downstream.
+        // 0 matches (key not present) -- fall back to normal planning rather than prune to zero
+        // files; the equality predicate itself still gets applied downstream and yields no rows.
       } catch (Exception e) {
         LOG.warn(
             "Failed to use SCALAR index on column {}, falling back to normal planning: {}",
@@ -629,7 +636,15 @@ public class SparkScanBuilder
       scan = scan.useRef(tag);
     }
 
-    return configureSplitPlanning(scan);
+    BatchScan configured = configureSplitPlanning(scan);
+    if (scalarIndexResolvedFilePaths != null) {
+      // Scoped to the plain SELECT batch-scan path only -- incremental-append, changelog,
+      // merge-on-read, and copy-on-write scans have different correctness considerations (e.g.
+      // row-level operations may need to see files beyond ones matching a single equality
+      // predicate) and are intentionally left untouched by this optimization.
+      return new FileScanTaskFilteringScan(configured, scalarIndexResolvedFilePaths);
+    }
+    return configured;
   }
 
   private org.apache.iceberg.Scan buildIncrementalAppendScan(

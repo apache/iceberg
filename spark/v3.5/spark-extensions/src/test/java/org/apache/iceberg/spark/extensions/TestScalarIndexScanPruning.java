@@ -31,13 +31,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 /**
  * Verifies the read side of the SCALAR index: once {@code build_scalar_index} has populated an
  * index, a subsequent equality query on the indexed column should still return the correct row
- * (functional correctness, which never depends on pruning actually kicking in) and, separately,
- * should read fewer files than an equivalent query on an un-indexed column (pruning actually
- * happening). The second assertion is a best-effort check via {@code Dataset#inputFiles()} --
- * I could not verify against a real Spark runtime that this API reflects Iceberg's
- * SparkScanBuilder's final pruned file set rather than the pre-pruning candidate set, so if this
- * assertion turns out to be wrong about what inputFiles() reports, the functional-correctness
- * tests above it are the ones that actually matter for now.
+ * (functional correctness, which never depends on pruning actually kicking in), and separately,
+ * should read only the file(s) the index resolves via {@code FileScanTaskFilteringScan} (pruning
+ * actually happening, enforced). Pruning is checked via {@code Dataset#inputFiles()}, which
+ * reflects the scan's actual planned input partitions.
  */
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestScalarIndexScanPruning extends ExtensionsTestBase {
@@ -110,13 +107,32 @@ public class TestScalarIndexScanPruning extends ExtensionsTestBase {
     indexed.collect();
     int indexedFileCount = indexed.inputFiles().length;
 
-    Dataset<Row> unindexed = spark.sql(String.format("SELECT * FROM %s WHERE id = 2", tableName));
-    unindexed.collect();
-    int unindexedFileCount = unindexed.inputFiles().length;
+    // With 3 separate one-row data files and an exact match, the index-backed scan now actually
+    // enforces the resolved file set (see FileScanTaskFilteringScan), so this is exactly 1, not
+    // just an upper bound.
+    assertThat(indexedFileCount).isEqualTo(1);
+  }
 
-    // The index-backed query should read no more files than the un-indexed equivalent; with 3
-    // separate data files and an exact match, it should ideally read exactly 1. Kept as <=
-    // rather than == in case inputFiles() reflects something broader than the final pruned set.
-    assertThat(indexedFileCount).isLessThanOrEqualTo(unindexedFileCount);
+  @TestTemplate
+  public void testPrunesBeyondNativeMinMaxStats() {
+    // Each file's min/max range covers 'm' even though 'm' is only physically present in the
+    // third file -- Iceberg's own manifest-level stats pruning cannot exclude any of the first two
+    // files based on min/max alone, so this demonstrates the SCALAR index adding real pruning
+    // value, not just reproducing what native stats pruning would already achieve.
+    sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
+    sql("INSERT INTO TABLE %s VALUES (1, 'a'), (2, 'z')", tableName);
+    sql("INSERT INTO TABLE %s VALUES (3, 'b'), (4, 'y')", tableName);
+    sql("INSERT INTO TABLE %s VALUES (5, 'm')", tableName);
+
+    sql(
+        "CALL %s.system.build_scalar_index(table => '%s', columns => array('data'),"
+            + " transform => 'HASH')",
+        catalogName, tableIdent);
+
+    Dataset<Row> result = spark.sql(String.format("SELECT id, data FROM %s WHERE data = 'm'", tableName));
+    List<Row> rows = result.collectAsList();
+    assertThat(rows).hasSize(1);
+    assertThat(rows.get(0).getLong(0)).isEqualTo(5L);
+    assertThat(result.inputFiles().length).isEqualTo(1);
   }
 }
