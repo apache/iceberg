@@ -56,18 +56,10 @@ class SphericalGeographyBoundsBuilder {
   private final List<LongitudeInterval> longitudeIntervals = Lists.newArrayList();
   private double minLatitude = Double.POSITIVE_INFINITY;
   private double maxLatitude = Double.NEGATIVE_INFINITY;
-  private boolean hasCoordinates = false;
-  private boolean incomplete = false;
-  private boolean fullLongitudeRange = false;
+  private State state = State.EMPTY;
 
   void addPoint(double longitude, double latitude) {
-    if (!coordinatesAreValid(longitude, latitude)) {
-      incomplete = true;
-      return;
-    }
-
-    hasCoordinates = true;
-    if (fullLongitudeRange) {
+    if (!prepareToAccumulate(coordinatesAreValid(longitude, latitude))) {
       return;
     }
 
@@ -78,14 +70,8 @@ class SphericalGeographyBoundsBuilder {
   }
 
   void addEdge(double longitude1, double latitude1, double longitude2, double latitude2) {
-    if (!coordinatesAreValid(longitude1, latitude1)
-        || !coordinatesAreValid(longitude2, latitude2)) {
-      incomplete = true;
-      return;
-    }
-
-    hasCoordinates = true;
-    if (fullLongitudeRange) {
+    if (!prepareToAccumulate(
+        coordinatesAreValid(longitude1, latitude1) && coordinatesAreValid(longitude2, latitude2))) {
       return;
     }
 
@@ -166,7 +152,7 @@ class SphericalGeographyBoundsBuilder {
   }
 
   BoundingBox build() {
-    if (incomplete || !hasCoordinates) {
+    if (state == State.EMPTY || state == State.INVALID) {
       return null;
     }
 
@@ -185,11 +171,11 @@ class SphericalGeographyBoundsBuilder {
     minLatitude = -90.0;
     maxLatitude = 90.0;
     longitudeIntervals.clear();
-    fullLongitudeRange = true;
+    state = State.FULL_WORLD;
   }
 
   private LongitudeInterval longitudeBounds() {
-    if (fullLongitudeRange || longitudeIntervals.isEmpty()) {
+    if (state == State.FULL_WORLD || longitudeIntervals.isEmpty()) {
       return new LongitudeInterval(-180.0, 180.0);
     }
 
@@ -264,6 +250,20 @@ class SphericalGeographyBoundsBuilder {
         && latitude <= 90.0;
   }
 
+  private boolean prepareToAccumulate(boolean validCoordinates) {
+    if (!validCoordinates) {
+      state = State.INVALID;
+      return false;
+    }
+
+    if (state == State.INVALID || state == State.FULL_WORLD) {
+      return false;
+    }
+
+    state = State.ACTIVE;
+    return true;
+  }
+
   private static boolean isPole(double latitude) {
     return Math.abs(latitude) == 90.0;
   }
@@ -284,6 +284,13 @@ class SphericalGeographyBoundsBuilder {
 
   private static double clamp(double value, double min, double max) {
     return Math.max(min, Math.min(max, value));
+  }
+
+  private enum State {
+    EMPTY,
+    ACTIVE,
+    FULL_WORLD,
+    INVALID
   }
 
   private static class Vector3 {
