@@ -210,18 +210,20 @@ public class SparkScanBuilder
 
   /**
    * If a SCALAR index exists on a column referenced by an equality predicate in {@link
-   * #filterExpressions}, and it resolves the predicate's literal to exactly one source file,
-   * constrains the scan to that file by adding an {@code Expressions.equal(_file, ...)} filter.
+   * #filterExpressions}, resolves the predicate's literal against the index's leaf files to
+   * determine which source file(s) contain a match.
    *
-   * <p>Purely advisory: this never removes or weakens the predicates already pushed down, it only
-   * adds a further constraint when the index can resolve one. Any failure -- no index registered,
-   * a stale index snapshot, an unsupported predicate shape, an I/O error reading the tracking or
-   * leaf file -- falls back silently to normal planning, matching the design proposal's rule that
-   * the index must never be required for correctness, only used opportunistically for pruning.
+   * <p>Currently informational only: the resolved file path is logged but not yet enforced, since
+   * core Iceberg's {@code Scan}/{@code Expression}/{@code Binder} model has no concept of
+   * filtering by {@code _file} -- that is a Spark-only metadata column, not a real schema field.
+   * Actually constraining the scan to the resolved file would require decorating the core {@code
+   * Scan}'s {@code planFiles()}/{@code planTasks()} output at the task level, which is a bigger,
+   * not-yet-attempted follow-up (see the design proposal's Open Questions). Functional correctness
+   * never depends on this: the original predicate is still pushed down and applied normally.
    *
-   * <p>This is a first pass: it prunes to the containing file, not to the exact row position
-   * within it (true row-position pushdown into the scan tasks is a further, not-yet-attempted
-   * refinement -- see the design proposal's Open Questions).
+   * <p>Any failure -- no index registered, a stale index snapshot, an unsupported predicate shape,
+   * an I/O error reading the tracking or leaf file -- falls back silently to normal planning,
+   * matching the design proposal's rule that the index must never be required for correctness.
    */
   private void tryPruneUsingScalarIndex() {
     if (filterExpressions == null || filterExpressions.isEmpty()) {
@@ -298,16 +300,18 @@ public class SparkScanBuilder
         }
 
         if (matches.size() == 1) {
-          String resolvedFilePath = matches.get(0).filePath();
-          List<Expression> updated = Lists.newArrayList(filterExpressions);
-          updated.add(Expressions.equal(MetadataColumns.FILE_PATH.name(), resolvedFilePath));
-          this.filterExpressions = updated;
+          // Resolved to exactly one file, but this cannot be pushed into filterExpressions: that
+          // list is also bound against the table's real schema (see #pruneColumns and the eventual
+          // core Scan#filter call), and "_file" is a Spark-only metadata column with no equivalent
+          // in core Iceberg's Expression/Binder model. Enforcing this at the file-task level would
+          // require a Scan decorator around planFiles()/planTasks() -- a bigger follow-up, tracked
+          // as an open question in the design proposal. For now this is purely informational.
           LOG.info(
               "SCALAR index on {} resolved {} = {} to exactly one file: {}",
               columnName,
               columnName,
               literalValue,
-              resolvedFilePath);
+              matches.get(0).filePath());
         }
         // 0 matches (key not present) or >1 (e.g. duplicate keys) -- fall back to normal
         // planning rather than guess; the equality predicate itself still gets applied downstream.
