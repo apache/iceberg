@@ -32,6 +32,7 @@ import org.apache.iceberg.actions.ImmutableRemoveDanglingDeleteFiles;
 import org.apache.iceberg.actions.RemoveDanglingDeleteFiles;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.spark.JobGroupInfo;
 import org.apache.iceberg.util.DeleteFileSet;
 import org.apache.spark.sql.SparkSession;
@@ -47,6 +48,9 @@ class RemoveDanglingDeletesSparkAction
     implements RemoveDanglingDeleteFiles {
 
   private static final Logger LOG = LoggerFactory.getLogger(RemoveDanglingDeletesSparkAction.class);
+  private static final List<String> DELETE_COLUMNS =
+      ImmutableList.of("file_path", "content_offset", "content_size_in_bytes");
+
   private final Table table;
 
   protected RemoveDanglingDeletesSparkAction(SparkSession spark, Table table) {
@@ -68,8 +72,7 @@ class RemoveDanglingDeletesSparkAction
 
   Result doExecute() {
     RewriteFiles rewriteFiles = table.newRewrite();
-    DeleteFileSet danglingDeletes = DeleteFileSet.create();
-    danglingDeletes.addAll(findDanglingDeletes());
+    DeleteFileSet danglingDeletes = findDanglingDeletes();
 
     for (DeleteFile deleteFile : danglingDeletes) {
       LOG.debug("Removing dangling delete file {}", deleteFile.location());
@@ -93,7 +96,7 @@ class RemoveDanglingDeletesSparkAction
    *   <li>Collect all delete file entries skipping files from the previous step.
    * </ol>
    */
-  private List<DeleteFile> findDanglingDeletes() {
+  private DeleteFileSet findDanglingDeletes() {
     TableScan scan = table.newScan();
 
     DeleteFileSet deletes = DeleteFileSet.create();
@@ -108,7 +111,8 @@ class RemoveDanglingDeletesSparkAction
     DeleteFileSet danglingDeletes = DeleteFileSet.create();
     for (ManifestFile manifest : scan.snapshot().deleteManifests(table.io())) {
       try (ManifestReader<DeleteFile> reader =
-          ManifestFiles.readDeleteManifest(manifest, table.io(), table.specs())) {
+          ManifestFiles.readDeleteManifest(manifest, table.io(), table.specs())
+              .select(DELETE_COLUMNS)) {
         for (DeleteFile deleteFile : reader) {
           if (!deletes.contains(deleteFile)) {
             danglingDeletes.add(deleteFile);
@@ -119,6 +123,6 @@ class RemoveDanglingDeletesSparkAction
       }
     }
 
-    return danglingDeletes.stream().toList();
+    return danglingDeletes;
   }
 }
