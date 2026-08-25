@@ -35,12 +35,17 @@ import org.junit.platform.suite.api.SuiteDisplayName;
  */
 @Suite
 @SuiteDisplayName("Iceberg REST Compatibility Kit")
-@SelectClasses({RESTCompatibilityKitCatalogTests.class, RESTCompatibilityKitViewCatalogTests.class})
+@SelectClasses({
+  RESTCompatibilityKitCatalogTests.class,
+  RESTCompatibilityKitViewCatalogTests.class,
+  RESTCompatibilityKitReadRestrictionsTests.class
+})
 public class RESTCompatibilityKitSuite {
   static final String RCK_REQUIRES_NAMESPACE_CREATE = "rck.requires-namespace-create";
   static final String RCK_SUPPORTS_SERVERSIDE_RETRY = "rck.supports-serverside-retry";
   static final String RCK_OVERRIDES_REQUESTED_LOCATION = "rck.overrides-requested-location";
   static final String RCK_SUPPORTS_NAMES_WITH_DOT = "rck.supports-names-with-dot";
+  static final String RCK_SUPPORTS_READ_RESTRICTIONS = "rck.supports-read-restrictions";
 
   protected RESTCompatibilityKitSuite() {}
 }

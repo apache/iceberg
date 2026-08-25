@@ -23,7 +23,9 @@ import java.util.Map;
 import java.util.function.Consumer;
 import org.apache.iceberg.aws.s3.S3FileIOProperties;
 import org.apache.iceberg.azure.AzureProperties;
+import org.apache.iceberg.functions.MaskToFixedValue;
 import org.apache.iceberg.gcp.GCPProperties;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.rest.RESTCatalogServer.CatalogContext;
 import org.apache.iceberg.rest.credentials.Credential;
@@ -31,10 +33,13 @@ import org.apache.iceberg.rest.credentials.ImmutableCredential;
 import org.apache.iceberg.rest.responses.FetchPlanningResultResponse;
 import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.apache.iceberg.rest.responses.PlanTableScanResponse;
+import org.apache.iceberg.rest.restrictions.ReadRestrictions;
 import org.apache.iceberg.util.PropertyUtil;
 
 class RESTServerCatalogAdapter extends RESTCatalogAdapter {
   private static final String INCLUDE_CREDENTIALS = "include-credentials";
+  static final String READ_RESTRICTIONS_NAMESPACE = "rck.read-restrictions-namespace";
+  static final String READ_RESTRICTIONS_FIELD_ID = "rck.read-restrictions-field-id";
 
   private final CatalogContext catalogContext;
 
@@ -52,6 +57,13 @@ class RESTServerCatalogAdapter extends RESTCatalogAdapter {
       Class<T> responseType,
       Consumer<Map<String, String>> responseHeaders) {
     T restResponse = super.handleRequest(route, vars, httpRequest, responseType, responseHeaders);
+
+    if (restResponse instanceof LoadTableResponse response) {
+      LoadTableResponse modified = maybeInjectReadRestrictions(vars, response);
+      if (modified != null) {
+        restResponse = (T) modified;
+      }
+    }
 
     if (PropertyUtil.propertyAsBoolean(
         catalogContext.configuration(), INCLUDE_CREDENTIALS, false)) {
@@ -81,6 +93,32 @@ class RESTServerCatalogAdapter extends RESTCatalogAdapter {
     }
 
     return restResponse;
+  }
+
+  private LoadTableResponse maybeInjectReadRestrictions(
+      Map<String, String> vars, LoadTableResponse response) {
+    String restrictedNamespace = catalogContext.configuration().get(READ_RESTRICTIONS_NAMESPACE);
+    if (restrictedNamespace == null) {
+      return null;
+    }
+
+    String requestNamespace = vars.get("namespace");
+    if (requestNamespace == null || !requestNamespace.contains(restrictedNamespace)) {
+      return null;
+    }
+
+    int fieldId =
+        PropertyUtil.propertyAsInt(catalogContext.configuration(), READ_RESTRICTIONS_FIELD_ID, 2);
+
+    ReadRestrictions restrictions =
+        ReadRestrictions.of(null, ImmutableList.of(new MaskToFixedValue(fieldId)));
+
+    return LoadTableResponse.builder()
+        .withTableMetadata(response.tableMetadata())
+        .addAllConfig(response.config())
+        .addAllCredentials(response.credentials())
+        .withReadRestrictions(restrictions)
+        .build();
   }
 
   private void applyCredentials(

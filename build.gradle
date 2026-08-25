@@ -1084,6 +1084,7 @@ project(':iceberg-open-api') {
     testImplementation project(':iceberg-api')
     testImplementation project(':iceberg-core')
     testImplementation project(':iceberg-core').sourceSets.test.runtimeClasspath
+    testImplementation project(':iceberg-data')
     testImplementation(testFixtures(project(':iceberg-open-api')))
 
     testImplementation libs.junit.jupiter
