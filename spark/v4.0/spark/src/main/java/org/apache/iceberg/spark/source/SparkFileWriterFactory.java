@@ -64,7 +64,7 @@ class SparkFileWriterFactory extends RegistryBasedFileWriterFactory<InternalRow,
   private final Map<String, String> writeProperties;
 
   /**
-   * @deprecated This constructor is deprecated as of version 1.11.0 and will be removed in 1.12.0.
+   * @deprecated This constructor is deprecated as of version 1.11.0 and will be removed in 1.13.0.
    *     Position deletes that include row data are no longer supported. Use {@link
    *     #SparkFileWriterFactory(Table, FileFormat, Schema, StructType, SortOrder, FileFormat,
    *     int[], Schema, StructType, SortOrder, Map)} instead.
@@ -164,7 +164,7 @@ class SparkFileWriterFactory extends RegistryBasedFileWriterFactory<InternalRow,
     if (!useDeprecatedPositionDeleteWriter) {
       return super.newPositionDeleteWriter(file, spec, partition);
     } else {
-      LOG.warn("Position deletes with deleted rows are deprecated and will be removed in 1.12.0.");
+      LOG.warn("Position deletes with deleted rows are deprecated and will be removed in 1.13.0.");
       Map<String, String> properties = table == null ? ImmutableMap.of() : table.properties();
       MetricsConfig metricsConfig = MetricsConfig.forPositionDelete();
 
@@ -301,7 +301,7 @@ class SparkFileWriterFactory extends RegistryBasedFileWriterFactory<InternalRow,
     }
 
     /**
-     * @deprecated This method is deprecated as of version 1.11.0 and will be removed in 1.12.0.
+     * @deprecated This method is deprecated as of version 1.11.0 and will be removed in 1.13.0.
      *     Position deletes that include row data are no longer supported.
      */
     @Deprecated
@@ -311,7 +311,7 @@ class SparkFileWriterFactory extends RegistryBasedFileWriterFactory<InternalRow,
     }
 
     /**
-     * @deprecated This method is deprecated as of version 1.11.0 and will be removed in 1.12.0.
+     * @deprecated This method is deprecated as of version 1.11.0 and will be removed in 1.13.0.
      *     Position deletes that include row data are no longer supported.
      */
     @Deprecated

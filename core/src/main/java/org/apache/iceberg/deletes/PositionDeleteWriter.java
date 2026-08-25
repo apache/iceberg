@@ -63,7 +63,7 @@ public class PositionDeleteWriter<T> implements FileWriter<PositionDelete<T>, De
   /**
    * Creates a new position delete writer.
    *
-   * @deprecated since 1.11.0, will be updated in 1.12.0 to accept {@code
+   * @deprecated since 1.11.0, will be updated in 1.13.0 to accept {@code
    *     FileAppender<PositionDelete<T>>} instead of {@code FileAppender<? extends StructLike>}.
    */
   @Deprecated

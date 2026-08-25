@@ -911,7 +911,7 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
       return targetDataFileSize;
     }
 
-    /* @deprecated This method is deprecated as of version 1.11.0 and will be removed in 1.12.0.
+    /* @deprecated This method is deprecated as of version 1.11.0 and will be removed in 1.13.0.
      *     Position deletes that include row data are no longer supported.
      */
     StructType deleteSparkType() {

@@ -77,7 +77,11 @@ public interface PositionDeltaWriter<T> extends Closeable {
    * @param row a deleted row
    * @param spec a partition spec
    * @param partition a partition or null if the spec is unpartitioned
+   * @deprecated since 1.12.0, will be removed in 1.13.0; position deletes that include row data are
+   *     no longer supported. Use {@link #delete(CharSequence, long, PartitionSpec, StructLike)}
+   *     instead, which will become the method implementations override.
    */
+  @Deprecated
   void delete(CharSequence path, long pos, T row, PartitionSpec spec, StructLike partition);
 
   /**

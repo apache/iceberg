@@ -79,7 +79,7 @@ public class GenericFileWriterFactory extends RegistryBasedFileWriterFactory<Rec
   }
 
   /**
-   * @deprecated This constructor is deprecated as of version 1.11.0 and will be removed in 1.12.0.
+   * @deprecated This constructor is deprecated as of version 1.11.0 and will be removed in 1.13.0.
    *     Position deletes that include row data are no longer supported. Use {@link
    *     #GenericFileWriterFactory(Table, FileFormat, Schema, SortOrder, FileFormat, int[], Schema,
    *     SortOrder)} instead.
@@ -116,7 +116,7 @@ public class GenericFileWriterFactory extends RegistryBasedFileWriterFactory<Rec
   }
 
   /**
-   * @deprecated as of 1.11.0; it will be removed in 1.12.0
+   * @deprecated as of 1.11.0; it will be removed in 1.13.0
    */
   @Deprecated
   GenericFileWriterFactory(
@@ -152,7 +152,7 @@ public class GenericFileWriterFactory extends RegistryBasedFileWriterFactory<Rec
   }
 
   /**
-   * @deprecated Since 1.11.0, will be removed in 1.12.0. It won't be called starting in 1.11.0 as
+   * @deprecated Since 1.11.0, will be removed in 1.13.0. It won't be called starting in 1.11.0 as
    *     the configuration is done by the {@link FormatModelRegistry}.
    */
   @Deprecated
@@ -161,7 +161,7 @@ public class GenericFileWriterFactory extends RegistryBasedFileWriterFactory<Rec
   }
 
   /**
-   * @deprecated Since 1.11.0, will be removed in 1.12.0. It won't be called starting in 1.11.0 as
+   * @deprecated Since 1.11.0, will be removed in 1.13.0. It won't be called starting in 1.11.0 as
    *     the configuration is done by the {@link FormatModelRegistry}.
    */
   @Deprecated
@@ -170,7 +170,7 @@ public class GenericFileWriterFactory extends RegistryBasedFileWriterFactory<Rec
   }
 
   /**
-   * @deprecated Since 1.11.0, will be removed in 1.12.0. It won't be called starting in 1.11.0 as
+   * @deprecated Since 1.11.0, will be removed in 1.13.0. It won't be called starting in 1.11.0 as
    *     the configuration is done by the {@link FormatModelRegistry}.
    */
   @Deprecated
@@ -179,7 +179,7 @@ public class GenericFileWriterFactory extends RegistryBasedFileWriterFactory<Rec
   }
 
   /**
-   * @deprecated Since 1.11.0, will be removed in 1.12.0. It won't be called starting in 1.11.0 as
+   * @deprecated Since 1.11.0, will be removed in 1.13.0. It won't be called starting in 1.11.0 as
    *     the configuration is done by the {@link FormatModelRegistry}.
    */
   @Deprecated
@@ -188,7 +188,7 @@ public class GenericFileWriterFactory extends RegistryBasedFileWriterFactory<Rec
   }
 
   /**
-   * @deprecated Since 1.11.0, will be removed in 1.12.0. It won't be called starting in 1.11.0 as
+   * @deprecated Since 1.11.0, will be removed in 1.13.0. It won't be called starting in 1.11.0 as
    *     the configuration is done by the {@link FormatModelRegistry}.
    */
   @Deprecated
@@ -197,7 +197,7 @@ public class GenericFileWriterFactory extends RegistryBasedFileWriterFactory<Rec
   }
 
   /**
-   * @deprecated Since 1.11.0, will be removed in 1.12.0. It won't be called starting in 1.11.0 as
+   * @deprecated Since 1.11.0, will be removed in 1.13.0. It won't be called starting in 1.11.0 as
    *     the configuration is done by the {@link FormatModelRegistry}.
    */
   @Deprecated
@@ -206,7 +206,7 @@ public class GenericFileWriterFactory extends RegistryBasedFileWriterFactory<Rec
   }
 
   /**
-   * @deprecated Since 1.11.0, will be removed in 1.12.0. It won't be called starting in 1.11.0 as
+   * @deprecated Since 1.11.0, will be removed in 1.13.0. It won't be called starting in 1.11.0 as
    *     the configuration is done by the {@link FormatModelRegistry}.
    */
   @Deprecated
@@ -215,7 +215,7 @@ public class GenericFileWriterFactory extends RegistryBasedFileWriterFactory<Rec
   }
 
   /**
-   * @deprecated Since 1.11.0, will be removed in 1.12.0. It won't be called starting in 1.11.0 as
+   * @deprecated Since 1.11.0, will be removed in 1.13.0. It won't be called starting in 1.11.0 as
    *     the configuration is done by the {@link FormatModelRegistry}.
    */
   @Deprecated
@@ -224,7 +224,7 @@ public class GenericFileWriterFactory extends RegistryBasedFileWriterFactory<Rec
   }
 
   /**
-   * @deprecated Since 1.11.0, will be removed in 1.12.0. It won't be called starting in 1.11.0 as
+   * @deprecated Since 1.11.0, will be removed in 1.13.0. It won't be called starting in 1.11.0 as
    *     the configuration is done by the {@link FormatModelRegistry}.
    */
   @Deprecated
@@ -358,7 +358,7 @@ public class GenericFileWriterFactory extends RegistryBasedFileWriterFactory<Rec
     }
 
     /**
-     * @deprecated This method is deprecated as of version 1.11.0 and will be removed in 1.12.0.
+     * @deprecated This method is deprecated as of version 1.11.0 and will be removed in 1.13.0.
      *     Position deletes that include row data are no longer supported.
      */
     @Deprecated
