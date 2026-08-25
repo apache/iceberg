@@ -374,6 +374,10 @@ SELECT * from prod.db.table.metadata_log_entries;
 | 2022-07-28 10:43:57.487 | s3://.../table/metadata/00001-f30823df-b745-4a0a-b293-7532e0c99986.metadata.json | 170260833677645300 | 0 | 1 | {key1 -> value1, owner -> spark, write.parquet.compression-codec -> zstd} |
 | 2022-07-28 10:43:58.25 | s3://.../table/metadata/00002-2cc2837a-02dc-4687-acc1-b4d86ea486f4.metadata.json | 958906493976709774 | 0 | 2 | {key1 -> value1, owner -> spark, key2 -> value2, write.parquet.compression-codec -> zstd} |
 
+!!! note
+    Queries that select or filter on `properties` read each retained historical metadata file.
+    Queries that do not reference `properties` avoid these additional reads.
+
 ### Snapshots
 
 To show the valid snapshots for a table:
