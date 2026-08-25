@@ -240,7 +240,8 @@ class BuildScalarIndexProcedure extends BaseProcedure {
   private Column transformValueColumn(
       String upperTransform, Types.NestedField keyField, Map<String, String> options) {
     Type keyType = keyField.type();
-    String keyColumnName = keyField.name();
+    // References "__key", the alias buildAndCommit's earlier .select() gives the key column --
+    // by the time this runs, the original column name no longer exists in the DataFrame's schema.
 
     if ("HASH".equals(upperTransform)) {
       int numBuckets = Integer.parseInt(options.getOrDefault("hash.num-buckets", "256"));
@@ -264,13 +265,13 @@ class BuildScalarIndexProcedure extends BaseProcedure {
           throw new IllegalArgumentException(
               "HASH transform does not support key column type: " + keyType);
       }
-      return udf.apply(col(keyColumnName));
+      return udf.apply(col("__key"));
     } else if ("IDENTITY".equals(upperTransform)) {
       Preconditions.checkArgument(
           keyType.typeId() == Type.TypeID.LONG || keyType.typeId() == Type.TypeID.INTEGER,
           "IDENTITY transform requires a numeric (long or int) key column, got: %s",
           keyType);
-      return col(keyColumnName).cast(DataTypes.LongType);
+      return col("__key").cast(DataTypes.LongType);
     } else {
       throw new IllegalArgumentException(
           "Unsupported transform '" + upperTransform + "': expected HASH or IDENTITY");
