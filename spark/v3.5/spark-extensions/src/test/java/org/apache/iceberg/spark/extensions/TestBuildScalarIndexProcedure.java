@@ -27,6 +27,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.index.IndexCatalog;
 import org.apache.iceberg.index.IndexIdentifier;
 import org.apache.iceberg.index.IndexMetadata;
+import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkIndexCatalogs;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.TestTemplate;
@@ -41,7 +42,7 @@ public class TestBuildScalarIndexProcedure extends ExtensionsTestBase {
   }
 
   @TestTemplate
-  public void testBuildHashIndexOnStringColumn() {
+  public void testBuildHashIndexOnStringColumn() throws Exception {
     sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
     sql(
         "INSERT INTO TABLE %s VALUES (1, 'aaa'), (2, 'bbb'), (3, 'ccc'), (4, 'ddd'), (5, 'eee')",
@@ -60,12 +61,13 @@ public class TestBuildScalarIndexProcedure extends ExtensionsTestBase {
     assertThat((int) row[1]).isGreaterThan(0);
     assertThat((long) row[2]).isEqualTo(5L);
 
-    Table table = validationCatalog.loadTable(tableIdent);
+    // Loaded through the Spark catalog (matching how BuildScalarIndexProcedure and
+    // SparkScanBuilder both load it), not validationCatalog -- validationCatalog is a separate
+    // Catalog handle configured with its own catalog name, which table.name() embeds, so a table
+    // loaded through it produces a different TableIdentifier than one loaded through Spark for
+    // the same physical table.
+    Table table = Spark3Util.loadIcebergTable(spark, tableName);
     IndexCatalog indexCatalog = SparkIndexCatalogs.get().catalogFor(table);
-    // Must match how BuildScalarIndexProcedure derives its IndexIdentifier: from the core Table's
-    // own name (table.name()), not the Spark catalog Identifier -- SparkScanBuilder on the read
-    // side only has the core Table, so both sides need a source they can each compute
-    // independently, and table.name() is it.
     IndexIdentifier indexIdent =
         IndexIdentifier.of(
             org.apache.iceberg.catalog.TableIdentifier.parse(table.name()), "data_idx");
