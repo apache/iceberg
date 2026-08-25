@@ -26,14 +26,16 @@ import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.ManifestFiles;
 import org.apache.iceberg.ManifestReader;
 import org.apache.iceberg.RewriteFiles;
+import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableScan;
 import org.apache.iceberg.actions.ImmutableRemoveDanglingDeleteFiles;
 import org.apache.iceberg.actions.RemoveDanglingDeleteFiles;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.spark.JobGroupInfo;
 import org.apache.iceberg.util.DeleteFileSet;
 import org.apache.spark.sql.SparkSession;
 import org.slf4j.Logger;
@@ -52,6 +54,7 @@ class RemoveDanglingDeletesSparkAction
       ImmutableList.of("file_path", "content_offset", "content_size_in_bytes");
 
   private final Table table;
+  private String branch = SnapshotRef.MAIN_BRANCH;
 
   protected RemoveDanglingDeletesSparkAction(SparkSession spark, Table table) {
     super(spark);
@@ -63,16 +66,27 @@ class RemoveDanglingDeletesSparkAction
     return this;
   }
 
+  public RemoveDanglingDeletesSparkAction toBranch(String targetBranch) {
+    Preconditions.checkArgument(targetBranch != null, "Invalid branch name: null");
+    this.branch = targetBranch;
+    return this;
+  }
+
   @Override
   public Result execute() {
+    Preconditions.checkArgument(
+        table.snapshot(branch) != null,
+        "Cannot remove dangling delete files from branch %s: branch does not exist",
+        branch);
+
     String desc = String.format("Removing dangling delete files in %s", table.name());
-    JobGroupInfo info = newJobGroupInfo("REMOVE-DELETES", desc);
-    return withJobGroupInfo(info, this::doExecute);
+    return withJobGroupInfo(newJobGroupInfo("REMOVE-DELETES", desc), this::doExecute);
   }
 
   Result doExecute() {
-    RewriteFiles rewriteFiles = table.newRewrite();
-    DeleteFileSet danglingDeletes = findDanglingDeletes();
+    Snapshot snapshot = table.snapshot(branch);
+    RewriteFiles rewriteFiles = table.newRewrite().validateFromSnapshot(snapshot.snapshotId());
+    DeleteFileSet danglingDeletes = findDanglingDeletes(snapshot);
 
     for (DeleteFile deleteFile : danglingDeletes) {
       LOG.debug("Removing dangling delete file {}", deleteFile.location());
@@ -80,7 +94,7 @@ class RemoveDanglingDeletesSparkAction
     }
 
     if (!danglingDeletes.isEmpty()) {
-      commit(rewriteFiles);
+      commit(rewriteFiles.toBranch(branch));
     }
 
     return ImmutableRemoveDanglingDeleteFiles.Result.builder()
@@ -96,10 +110,9 @@ class RemoveDanglingDeletesSparkAction
    *   <li>Collect all delete file entries skipping files from the previous step.
    * </ol>
    */
-  private DeleteFileSet findDanglingDeletes() {
-    TableScan scan = table.newScan();
-
+  private DeleteFileSet findDanglingDeletes(Snapshot snapshot) {
     DeleteFileSet deletes = DeleteFileSet.create();
+    TableScan scan = table.newScan().useSnapshot(snapshot.snapshotId());
     try (CloseableIterable<FileScanTask> tasks = scan.planFiles()) {
       for (FileScanTask task : tasks) {
         deletes.addAll(task.deletes());
@@ -109,7 +122,7 @@ class RemoveDanglingDeletesSparkAction
     }
 
     DeleteFileSet danglingDeletes = DeleteFileSet.create();
-    for (ManifestFile manifest : scan.snapshot().deleteManifests(table.io())) {
+    for (ManifestFile manifest : snapshot.deleteManifests(table.io())) {
       try (ManifestReader<DeleteFile> reader =
           ManifestFiles.readDeleteManifest(manifest, table.io(), table.specs())
               .select(DELETE_COLUMNS)) {
