@@ -64,8 +64,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
-import org.apache.iceberg.types.Types;
-import org.apache.iceberg.util.StructLikeSet;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -1498,22 +1496,16 @@ class TestConvertEqualityDeletes extends MaintenanceTaskTestBase {
 
   private static void assertRecords(Table table, List<Record> expected) throws IOException {
     table.refresh();
-    Types.StructType type = SimpleDataUtil.SCHEMA.asStruct();
-
-    StructLikeSet expectedSet = StructLikeSet.create(type);
-    expectedSet.addAll(expected);
 
     try (CloseableIterable<Record> iterable =
         IcebergGenerics.read(table)
             .useSnapshot(table.currentSnapshot().snapshotId())
             .project(SimpleDataUtil.SCHEMA)
             .build()) {
-      StructLikeSet actualSet = StructLikeSet.create(type);
-      for (Record record : iterable) {
-        actualSet.add(record);
-      }
-
-      assertThat(actualSet).isEqualTo(expectedSet);
+      // rows from files with deletes applied carry an extra _pos field
+      assertThat(Lists.newArrayList(iterable))
+          .map(r -> createRecord((Integer) r.getField("id"), (String) r.getField("data")))
+          .containsExactlyInAnyOrderElementsOf(expected);
     }
   }
 
