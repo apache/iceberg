@@ -26,6 +26,12 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 /** Builds an XY bounding box from geography points and minor great-circle edges on a sphere. */
 class SphericalGeographyBoundsBuilder {
+  private static final double MIN_LONGITUDE = -180.0;
+  private static final double MAX_LONGITUDE = 180.0;
+  private static final double MIN_LATITUDE = -90.0;
+  private static final double MAX_LATITUDE = 90.0;
+  private static final double LONGITUDE_SPAN = MAX_LONGITUDE - MIN_LONGITUDE;
+
   // For unit endpoints, |point1 x point2| = sin(central angle). A tiny normal means
   // the endpoints are nearly coincident or antipodal, so normalizing the great-circle
   // plane is numerically unstable.
@@ -138,7 +144,8 @@ class SphericalGeographyBoundsBuilder {
     if (vertexLatitude > endpointMaxLatitude
         && isOnMinorArc(northVertex, point1, point2, unitNormal)) {
       // Expand a computed extremum so rounding cannot produce an under-covering bound.
-      maxLatitude = Math.max(maxLatitude, Math.min(LATITUDE_SCALING_FACTOR * vertexLatitude, 90.0));
+      maxLatitude =
+          Math.max(maxLatitude, Math.min(LATITUDE_SCALING_FACTOR * vertexLatitude, MAX_LATITUDE));
     }
 
     double endpointMinLatitude = Math.min(latitude1, latitude2);
@@ -147,7 +154,7 @@ class SphericalGeographyBoundsBuilder {
         && isOnMinorArc(southVertex, point1, point2, unitNormal)) {
       // Expand a computed extremum so rounding cannot produce an under-covering bound.
       minLatitude =
-          Math.min(minLatitude, Math.max(-LATITUDE_SCALING_FACTOR * vertexLatitude, -90.0));
+          Math.min(minLatitude, Math.max(-LATITUDE_SCALING_FACTOR * vertexLatitude, MIN_LATITUDE));
     }
   }
 
@@ -168,25 +175,25 @@ class SphericalGeographyBoundsBuilder {
   }
 
   private void includeFullWorld() {
-    minLatitude = -90.0;
-    maxLatitude = 90.0;
+    minLatitude = MIN_LATITUDE;
+    maxLatitude = MAX_LATITUDE;
     longitudeIntervals.clear();
     state = State.FULL_WORLD;
   }
 
   private LongitudeInterval longitudeBounds() {
     if (state == State.FULL_WORLD || longitudeIntervals.isEmpty()) {
-      return new LongitudeInterval(-180.0, 180.0);
+      return new LongitudeInterval(MIN_LONGITUDE, MAX_LONGITUDE);
     }
 
     // The minimum covering circular interval is the complement of the largest uncovered gap.
     List<LongitudeEvent> events = Lists.newArrayListWithExpectedSize(2 * longitudeIntervals.size());
     for (LongitudeInterval interval : longitudeIntervals) {
       if (interval.west > interval.east) {
-        events.add(new LongitudeEvent(-180.0, true));
+        events.add(new LongitudeEvent(MIN_LONGITUDE, true));
         events.add(new LongitudeEvent(interval.east, false));
         events.add(new LongitudeEvent(interval.west, true));
-        events.add(new LongitudeEvent(180.0, false));
+        events.add(new LongitudeEvent(MAX_LONGITUDE, false));
       } else {
         events.add(new LongitudeEvent(interval.west, true));
         events.add(new LongitudeEvent(interval.east, false));
@@ -219,7 +226,7 @@ class SphericalGeographyBoundsBuilder {
 
     double firstLongitude = events.get(0).longitude;
     double lastLongitude = events.get(events.size() - 1).longitude;
-    double antimeridianGap = 360.0 + firstLongitude - lastLongitude;
+    double antimeridianGap = LONGITUDE_SPAN + firstLongitude - lastLongitude;
     if (antimeridianGap >= largestGapEnd - largestGapStart) {
       return new LongitudeInterval(firstLongitude, lastLongitude);
     }
@@ -228,14 +235,14 @@ class SphericalGeographyBoundsBuilder {
   }
 
   private static LongitudeInterval minimumLongitudeInterval(double longitude1, double longitude2) {
-    if (Math.abs(longitude1) == 180.0 && Math.abs(longitude2) == 180.0) {
-      return new LongitudeInterval(-180.0, -180.0);
+    if (Math.abs(longitude1) == MAX_LONGITUDE && Math.abs(longitude2) == MAX_LONGITUDE) {
+      return new LongitudeInterval(MIN_LONGITUDE, MIN_LONGITUDE);
     }
 
     double west = Math.min(longitude1, longitude2);
     double east = Math.max(longitude1, longitude2);
     double directGap = east - west;
-    double antimeridianGap = 360.0 - directGap;
+    double antimeridianGap = LONGITUDE_SPAN - directGap;
     return antimeridianGap >= directGap
         ? new LongitudeInterval(west, east)
         : new LongitudeInterval(east, west);
@@ -244,10 +251,10 @@ class SphericalGeographyBoundsBuilder {
   private static boolean coordinatesAreValid(double longitude, double latitude) {
     return Double.isFinite(longitude)
         && Double.isFinite(latitude)
-        && longitude >= -180.0
-        && longitude <= 180.0
-        && latitude >= -90.0
-        && latitude <= 90.0;
+        && longitude >= MIN_LONGITUDE
+        && longitude <= MAX_LONGITUDE
+        && latitude >= MIN_LATITUDE
+        && latitude <= MAX_LATITUDE;
   }
 
   private boolean prepareToAccumulate(boolean validCoordinates) {
@@ -265,7 +272,7 @@ class SphericalGeographyBoundsBuilder {
   }
 
   private static boolean isPole(double latitude) {
-    return Math.abs(latitude) == 90.0;
+    return Math.abs(latitude) == MAX_LATITUDE;
   }
 
   private static boolean isOnMinorArc(
