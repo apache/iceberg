@@ -62,10 +62,13 @@ public class TestBuildScalarIndexProcedure extends ExtensionsTestBase {
 
     Table table = validationCatalog.loadTable(tableIdent);
     IndexCatalog indexCatalog = SparkIndexCatalogs.get().catalogFor(table);
+    // Must match how BuildScalarIndexProcedure derives its IndexIdentifier: from the core Table's
+    // own name (table.name()), not the Spark catalog Identifier -- SparkScanBuilder on the read
+    // side only has the core Table, so both sides need a source they can each compute
+    // independently, and table.name() is it.
     IndexIdentifier indexIdent =
         IndexIdentifier.of(
-            org.apache.iceberg.catalog.TableIdentifier.of(tableIdent.namespace(), tableIdent.name()),
-            "data_idx");
+            org.apache.iceberg.catalog.TableIdentifier.parse(table.name()), "data_idx");
     assertThat(indexCatalog.indexExists(indexIdent)).isTrue();
 
     IndexMetadata metadata = indexCatalog.loadIndex(indexIdent);
