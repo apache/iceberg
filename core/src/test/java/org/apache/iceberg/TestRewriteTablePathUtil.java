@@ -20,13 +20,18 @@ package org.apache.iceberg;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.entry;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.util.Pair;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -357,13 +362,15 @@ public class TestRewriteTablePathUtil extends TestBase {
     ManifestFile manifest =
         writeDeleteManifest(formatVersion, 1000L, FILE_A_DELETES, FILE_B_DELETES);
 
+    OutputFile output =
+        Files.localOutput(
+            FileFormat.AVRO.addExtension(
+                temp.resolve("junit" + System.nanoTime()).toFile().toString()));
     RewriteTablePathUtil.RewriteResult<DeleteFile> deleteFileRewriteResult =
         RewriteTablePathUtil.rewriteDeleteManifest(
             manifest,
             Set.of(1000L),
-            Files.localOutput(
-                FileFormat.AVRO.addExtension(
-                    temp.resolve("junit" + System.nanoTime()).toFile().toString())),
+            output,
             table.io(),
             formatVersion,
             table.specs(),
@@ -373,6 +380,9 @@ public class TestRewriteTablePathUtil extends TestBase {
             ImmutableMap.of());
 
     assertThat(deleteFileRewriteResult.toRewrite()).hasSize(2);
+    assertThat(deleteFileRewriteResult.rewrittenManifestLengths())
+        .as("recorded length should be keyed by source path and match the rewritten manifest")
+        .containsExactly(entry(manifest.path(), output.toInputFile().getLength()));
   }
 
   // A position delete entry that is not rewritten (e.g. a DELETED entry not copied to the target)
@@ -464,5 +474,101 @@ public class TestRewriteTablePathUtil extends TestBase {
     }
 
     return writer.toManifestFile();
+  }
+
+  @TestTemplate
+  public void testRewriteManifestListStampsMeasuredManifestLengths() throws IOException {
+    table.newFastAppend().appendFile(FILE_A).commit();
+    table.newFastAppend().appendFile(FILE_B).commit();
+    Snapshot snapshot = table.currentSnapshot();
+    List<ManifestFile> manifests = snapshot.allManifests(table.io());
+    assertThat(manifests).hasSize(2);
+    ManifestFile measured = manifests.get(0);
+    ManifestFile unmeasured = manifests.get(1);
+
+    String manifestPath = measured.path();
+    String sourcePrefix = manifestPath.substring(0, manifestPath.lastIndexOf("/metadata/"));
+    String targetPrefix = sourcePrefix + "/relocated";
+    String stagingDir = temp.resolve("staging").toString();
+    String outputPath = temp.resolve("rewritten-list-" + System.nanoTime() + ".avro").toString();
+
+    long rewrittenLength = measured.length() + 4242L;
+
+    RewriteTablePathUtil.RewriteResult<ManifestFile> result =
+        RewriteTablePathUtil.rewriteManifestList(
+            snapshot,
+            table.io(),
+            table.ops().current(),
+            ImmutableMap.of(measured.path(), rewrittenLength),
+            sourcePrefix,
+            targetPrefix,
+            stagingDir,
+            outputPath);
+
+    List<ManifestFile> rewritten = ManifestLists.read(table.io().newInputFile(outputPath));
+    assertThat(rewritten).hasSize(2);
+    Map<String, Long> lengthByPath =
+        rewritten.stream().collect(Collectors.toMap(ManifestFile::path, ManifestFile::length));
+
+    String measuredTargetPath =
+        RewriteTablePathUtil.newPath(measured.path(), sourcePrefix, targetPrefix);
+    String unmeasuredTargetPath =
+        RewriteTablePathUtil.newPath(unmeasured.path(), sourcePrefix, targetPrefix);
+    assertThat(lengthByPath)
+        .as("measured manifest should take the mapped length, keyed by its source path")
+        .containsEntry(measuredTargetPath, rewrittenLength);
+    assertThat(lengthByPath)
+        .as("unmeasured manifest should keep its source length")
+        .containsEntry(unmeasuredTargetPath, unmeasured.length());
+
+    assertThat(result.toRewrite())
+        .as("only manifests with a measured length should be rewritten")
+        .extracting(ManifestFile::path)
+        .containsExactly(measured.path());
+    assertThat(result.copyPlan())
+        .as("the copy plan should cover the staged copy of that manifest only")
+        .containsExactly(
+            Pair.of(
+                RewriteTablePathUtil.stagingPath(measured.path(), sourcePrefix, stagingDir),
+                measuredTargetPath));
+  }
+
+  @TestTemplate
+  public void testRewriteDataManifestRecordsRewrittenLength() throws IOException {
+    table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
+    ManifestFile manifest = table.currentSnapshot().allManifests(table.io()).get(0);
+
+    OutputFile output =
+        Files.localOutput(
+            FileFormat.AVRO.addExtension(
+                temp.resolve("junit" + System.nanoTime()).toFile().toString()));
+    RewriteTablePathUtil.RewriteResult<DataFile> result =
+        RewriteTablePathUtil.rewriteDataManifest(
+            manifest,
+            Set.of(table.currentSnapshot().snapshotId()),
+            output,
+            table.io(),
+            formatVersion,
+            table.specs(),
+            "/path/to/",
+            "/path/new/");
+
+    assertThat(result.rewrittenManifestLengths())
+        .as("recorded length should be keyed by source path and match the rewritten manifest")
+        .containsExactly(entry(manifest.path(), output.toInputFile().getLength()));
+  }
+
+  @Test
+  public void testRewriteResultAppendMergesManifestLengths() {
+    RewriteTablePathUtil.RewriteResult<DataFile> first = new RewriteTablePathUtil.RewriteResult<>();
+    first.addRewrittenManifestLength("/path/to/m1.avro", 10L);
+    RewriteTablePathUtil.RewriteResult<DataFile> second =
+        new RewriteTablePathUtil.RewriteResult<>();
+    second.addRewrittenManifestLength("/path/to/m2.avro", 20L);
+
+    assertThat(first.append(second).rewrittenManifestLengths())
+        .containsExactlyInAnyOrderEntriesOf(
+            ImmutableMap.of("/path/to/m1.avro", 10L, "/path/to/m2.avro", 20L));
+    assertThat(first.rewrittenManifestLengths()).isUnmodifiable();
   }
 }
