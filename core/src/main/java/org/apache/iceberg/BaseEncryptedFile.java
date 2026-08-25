@@ -23,13 +23,13 @@ import java.nio.ByteBuffer;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.encryption.EncryptionUtil;
 
-class BaseEncryptedFile implements EncryptedFile, Serializable {
+class BaseEncryptedFile implements FileWithEncryptedKey, Serializable {
   private final String location;
-  private final String encryptionKeyID;
+  private final String keyId;
 
   BaseEncryptedFile(String location, String encryptionKeyID) {
     this.location = location;
-    this.encryptionKeyID = encryptionKeyID;
+    this.keyId = encryptionKeyID;
   }
 
   @Override
@@ -38,8 +38,8 @@ class BaseEncryptedFile implements EncryptedFile, Serializable {
   }
 
   @Override
-  public String encryptionKeyID() {
-    return encryptionKeyID;
+  public String keyId() {
+    return keyId;
   }
 
   @Override

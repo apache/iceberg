@@ -220,7 +220,7 @@ public class TestManifestListEncryption {
             SNAPSHOT_FIRST_ROW_ID);
     writer.add(TEST_MANIFEST);
     writer.close();
-    EncryptedFile manifestListFile = writer.toManifestListFile();
+    FileWithEncryptedKey manifestListFile = writer.toManifestListFile();
 
     // First try to read without decryption
     assertThatThrownBy(() -> ManifestLists.read(outputFile.toInputFile()))

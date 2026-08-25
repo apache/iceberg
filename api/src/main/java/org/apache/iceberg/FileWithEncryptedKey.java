@@ -25,13 +25,13 @@ import org.apache.iceberg.encryption.EncryptionManager;
  * A file that may be encrypted. If it is encrypted, its encrypted key metadata is tracked in the
  * table metadata encryption keys and is referenced by a key ID.
  */
-public interface EncryptedFile {
+public interface FileWithEncryptedKey {
 
   /** Location of the file. */
   String location();
 
   /** Returns the encryption key ID for this file, or null if the file is not encrypted. */
-  String encryptionKeyID();
+  String keyId();
 
   /** Decrypt and return the file key metadata */
   ByteBuffer decryptKeyMetadata(EncryptionManager em);

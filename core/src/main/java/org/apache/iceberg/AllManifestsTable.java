@@ -165,7 +165,7 @@ public class AllManifestsTable extends BaseMetadataTable {
     private final FileIO io;
     private final Schema schema;
     private final Map<Integer, PartitionSpec> specs;
-    private final EncryptedFile manifestList;
+    private final FileWithEncryptedKey manifestList;
     private final Expression residual;
     private final long referenceSnapshotId;
     private DataFile lazyDataFile = null;
@@ -175,7 +175,7 @@ public class AllManifestsTable extends BaseMetadataTable {
         FileIO io,
         Schema schema,
         Map<Integer, PartitionSpec> specs,
-        EncryptedFile manifestList,
+        FileWithEncryptedKey manifestList,
         Expression residual,
         long referenceSnapshotId) {
       this.dataTableSchema = dataTableSchema;
@@ -276,7 +276,7 @@ public class AllManifestsTable extends BaseMetadataTable {
       return specs;
     }
 
-    EncryptedFile manifestList() {
+    FileWithEncryptedKey manifestList() {
       return manifestList;
     }
 

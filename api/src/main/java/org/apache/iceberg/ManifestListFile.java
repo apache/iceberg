@@ -21,7 +21,12 @@ package org.apache.iceberg;
 /**
  * A manifest list file that may be encrypted.
  *
- * @deprecated since 1.12.0. Will be removed in 2.0.0; use {@link EncryptedFile} instead.
+ * @deprecated since 1.12.0. Will be removed in 2.0.0; use {@link FileWithEncryptedKey} instead.
  */
 @Deprecated
-public interface ManifestListFile extends EncryptedFile {}
+public interface ManifestListFile extends FileWithEncryptedKey {
+  /** Returns the encryption key ID for this file, or null if the file is not encrypted. */
+  default String encryptionKeyID() {
+    return keyId();
+  }
+}

@@ -65,8 +65,8 @@ class AllManifestsTableTaskParser {
     generator.writeEndArray();
 
     generator.writeStringField(MANIFEST_LIST_LOCATION, task.manifestList().location());
-    if (task.manifestList().encryptionKeyID() != null) {
-      generator.writeStringField(MANIFEST_LIST_KEY_ID, task.manifestList().encryptionKeyID());
+    if (task.manifestList().keyId() != null) {
+      generator.writeStringField(MANIFEST_LIST_KEY_ID, task.manifestList().keyId());
     }
 
     generator.writeFieldName(RESIDUAL);
