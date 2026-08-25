@@ -220,7 +220,7 @@ class TestSphericalGeographyBoundsBuilder {
 
       double[] point1 = toUnitVector(longitude1, latitude1);
       double[] point2 = toUnitVector(longitude2, latitude2);
-      double centralAngle = Math.acos(clamp(dot(point1, point2), -1.0, 1.0));
+      double centralAngle = centralAngle(longitude1, latitude1, longitude2, latitude2);
       if (centralAngle > Math.toRadians(179.0)) {
         continue;
       }
@@ -475,7 +475,7 @@ class TestSphericalGeographyBoundsBuilder {
           scale1 * point1[1] + scale2 * point2[1],
           scale1 * point1[2] + scale2 * point2[2]
         };
-    double length = Math.sqrt(dot(result, result));
+    double length = Math.hypot(Math.hypot(result[0], result[1]), result[2]);
     return new double[] {result[0] / length, result[1] / length, result[2] / length};
   }
 
@@ -488,8 +488,21 @@ class TestSphericalGeographyBoundsBuilder {
     };
   }
 
-  private static double dot(double[] vector1, double[] vector2) {
-    return vector1[0] * vector2[0] + vector1[1] * vector2[1] + vector1[2] * vector2[2];
+  private static double centralAngle(
+      double longitude1, double latitude1, double longitude2, double latitude2) {
+    double longitudeDelta = Math.toRadians(longitude2 - longitude1);
+    double latitudeDelta = Math.toRadians(latitude2 - latitude1);
+    double latitude1Radians = Math.toRadians(latitude1);
+    double latitude2Radians = Math.toRadians(latitude2);
+    double sinHalfLatitudeDelta = Math.sin(latitudeDelta / 2.0);
+    double sinHalfLongitudeDelta = Math.sin(longitudeDelta / 2.0);
+    double haversine =
+        sinHalfLatitudeDelta * sinHalfLatitudeDelta
+            + Math.cos(latitude1Radians)
+                * Math.cos(latitude2Radians)
+                * sinHalfLongitudeDelta
+                * sinHalfLongitudeDelta;
+    return 2.0 * Math.asin(Math.sqrt(clamp(haversine, 0.0, 1.0)));
   }
 
   private static double normalizeLongitude(double longitude) {
