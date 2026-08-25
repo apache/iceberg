@@ -460,9 +460,10 @@ public class RewriteDataFilesSparkAction
   }
 
   private RewriteDataFiles.Result executeRemoveDanglingDeletes(
-      ImmutableRewriteDataFiles.Result result) {
-    RemoveDanglingDeletesSparkAction action = new RemoveDanglingDeletesSparkAction(spark(), table);
-    return result.withRemovedDeleteFilesCount(
-        result.removedDeleteFilesCount() + Iterables.size(action.execute().removedDeleteFiles()));
+      ImmutableRewriteDataFiles.Result rewriteResult) {
+    RemoveDanglingDeletesSparkAction.Result result =
+        new RemoveDanglingDeletesSparkAction(spark(), table).toBranch(branch).execute();
+    return rewriteResult.withRemovedDeleteFilesCount(
+        rewriteResult.removedDeleteFilesCount() + Iterables.size(result.removedDeleteFiles()));
   }
 }
