@@ -128,7 +128,7 @@ class SphericalGeographyBoundsBuilder {
     }
 
     Vector3 unitNormal = normal.scale(1.0 / normalLength);
-    double horizontalNormalLength = Math.hypot(unitNormal.x, unitNormal.y);
+    double horizontalNormalLength = Math.hypot(unitNormal.xComponent, unitNormal.yComponent);
     if (horizontalNormalLength == 0) {
       return;
     }
@@ -136,8 +136,8 @@ class SphericalGeographyBoundsBuilder {
     double vertexLatitude = Math.toDegrees(Math.asin(clamp(horizontalNormalLength, 0.0, 1.0)));
     Vector3 northVertex =
         new Vector3(
-            -unitNormal.z * unitNormal.x / horizontalNormalLength,
-            -unitNormal.z * unitNormal.y / horizontalNormalLength,
+            -unitNormal.zComponent * unitNormal.xComponent / horizontalNormalLength,
+            -unitNormal.zComponent * unitNormal.yComponent / horizontalNormalLength,
             horizontalNormalLength);
 
     double endpointMaxLatitude = Math.max(latitude1, latitude2);
@@ -301,23 +301,27 @@ class SphericalGeographyBoundsBuilder {
   }
 
   private static class Vector3 {
-    private final double x;
-    private final double y;
-    private final double z;
+    private final double xComponent;
+    private final double yComponent;
+    private final double zComponent;
 
-    private Vector3(double x, double y, double z) {
-      this.x = x;
-      this.y = y;
-      this.z = z;
+    private Vector3(double xComponent, double yComponent, double zComponent) {
+      this.xComponent = xComponent;
+      this.yComponent = yComponent;
+      this.zComponent = zComponent;
     }
 
     private Vector3 crossProduct(Vector3 other) {
       return new Vector3(
-          y * other.z - z * other.y, z * other.x - x * other.z, x * other.y - y * other.x);
+          yComponent * other.zComponent - zComponent * other.yComponent,
+          zComponent * other.xComponent - xComponent * other.zComponent,
+          xComponent * other.yComponent - yComponent * other.xComponent);
     }
 
     private double dotProduct(Vector3 other) {
-      return x * other.x + y * other.y + z * other.z;
+      return xComponent * other.xComponent
+          + yComponent * other.yComponent
+          + zComponent * other.zComponent;
     }
 
     private double length() {
@@ -325,7 +329,7 @@ class SphericalGeographyBoundsBuilder {
     }
 
     private Vector3 scale(double factor) {
-      return new Vector3(factor * x, factor * y, factor * z);
+      return new Vector3(factor * xComponent, factor * yComponent, factor * zComponent);
     }
   }
 
