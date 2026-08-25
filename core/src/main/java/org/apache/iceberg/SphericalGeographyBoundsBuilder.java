@@ -26,8 +26,31 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 /** Builds an XY bounding box from geography points and minor great-circle edges on a sphere. */
 class SphericalGeographyBoundsBuilder {
+  // For unit endpoints, |point1 x point2| = sin(central angle). A tiny normal means
+  // the endpoints are nearly coincident or antipodal, so normalizing the great-circle
+  // plane is numerically unstable.
   private static final double MIN_NORMAL_LENGTH = 1e-12;
+
+  // A point lies on the oriented minor arc when both exact side tests are nonnegative:
+  //
+  //   point1 -------- point -------- point2
+  //          (point1 x point) . normal >= 0
+  //          (point x point2) . normal >= 0
+  //
+  // Permit a small negative result introduced by floating-point rounding.
   private static final double ARC_CONTAINMENT_TOLERANCE = 1e-12;
+
+  // A minor great-circle arc can extend beyond both endpoint latitudes:
+  //
+  //             conservative north bound
+  //   ---------------------------------------------
+  //                         ^ margin
+  //                         * arc vertex
+  //                      .-' '-.
+  //            endpoint *       * endpoint
+  //
+  // The factor adds a relative 1e-7 margin away from the equator to avoid an
+  // under-covering bound; the result is then clamped to [-90, 90].
   private static final double LATITUDE_SCALING_FACTOR = 1.0000001;
 
   private final List<LongitudeInterval> longitudeIntervals = Lists.newArrayList();
