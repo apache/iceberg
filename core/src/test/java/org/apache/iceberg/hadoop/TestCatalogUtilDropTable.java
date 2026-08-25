@@ -200,7 +200,8 @@ public class TestCatalogUtilDropTable extends HadoopTableTestBase {
             invocation ->
                 wrapped.newInputFile(invocation.getArgument(0), invocation.getArgument(1)));
     Mockito.when(mockIO.newInputFile(Mockito.any(FileWithEncryptedKey.class)))
-        .thenAnswer(invocation -> wrapped.newInputFile((FileWithEncryptedKey) invocation.getArgument(0)));
+        .thenAnswer(
+            invocation -> wrapped.newInputFile((FileWithEncryptedKey) invocation.getArgument(0)));
     Mockito.when(mockIO.newInputFile(Mockito.any(ManifestFile.class)))
         .thenAnswer(invocation -> wrapped.newInputFile((ManifestFile) invocation.getArgument(0)));
     Mockito.when(mockIO.newInputFile(Mockito.any(DataFile.class)))
