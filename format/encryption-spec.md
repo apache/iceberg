@@ -20,7 +20,7 @@ title: "Encryption Spec"
 
 # Iceberg Encryption Spec
 
-This document specifies the standard encryption scheme for Apache Iceberg tables. It defines the interoperable, cross-implementation binary format for per-file encryption key material referenced by the `key_metadata` fields in the [table spec](spec.md), along with the key hierarchy used to manage those keys.
+This document specifies the standard encryption scheme for Apache Iceberg tables (v3 and above). It defines the interoperable, cross-implementation binary format for per-file encryption key material referenced by the `key_metadata` fields in the [table spec](spec.md), along with the key hierarchy used to manage those keys.
 
 Encrypted key material is tracked in two places:
 
