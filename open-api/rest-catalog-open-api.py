@@ -669,7 +669,7 @@ class MaskAlphanum(Action):
 
     """
 
-    action: Literal['mask-alphanum'] | None = None
+    action: Literal['mask-alphanum']
 
 
 class MaskToFixedValue(Action):
@@ -681,7 +681,7 @@ class MaskToFixedValue(Action):
 
     """
 
-    action: Literal['mask-to-fixed-value'] | None = None
+    action: Literal['mask-to-fixed-value']
 
 
 class ReplaceWithNull(Action):
@@ -691,7 +691,7 @@ class ReplaceWithNull(Action):
 
     """
 
-    action: Literal['replace-with-null'] | None = None
+    action: Literal['replace-with-null']
 
 
 class ShowFirst4(Action):
@@ -703,7 +703,7 @@ class ShowFirst4(Action):
 
     """
 
-    action: Literal['show-first-4'] | None = None
+    action: Literal['show-first-4']
 
 
 class ShowLast4(Action):
@@ -715,7 +715,7 @@ class ShowLast4(Action):
 
     """
 
-    action: Literal['show-last-4'] | None = None
+    action: Literal['show-last-4']
 
 
 class TruncateToYear(Action):
@@ -727,7 +727,7 @@ class TruncateToYear(Action):
 
     """
 
-    action: Literal['truncate-to-year'] | None = None
+    action: Literal['truncate-to-year']
 
 
 class TruncateToMonth(Action):
@@ -739,7 +739,7 @@ class TruncateToMonth(Action):
 
     """
 
-    action: Literal['truncate-to-month'] | None = None
+    action: Literal['truncate-to-month']
 
 
 class Sha256Global(Action):
@@ -765,7 +765,7 @@ class Sha256Global(Action):
 
     """
 
-    action: Literal['sha-256-global'] | None = None
+    action: Literal['sha-256-global']
 
 
 class Sha256QueryLocal(Action):
@@ -788,7 +788,7 @@ class Sha256QueryLocal(Action):
 
     """
 
-    action: Literal['sha-256-query-local'] | None = None
+    action: Literal['sha-256-query-local']
 
 
 class LoadCredentialsResponse(BaseModel):
