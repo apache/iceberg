@@ -167,6 +167,10 @@ class BuildScalarIndexProcedure extends BaseProcedure {
     Dataset<Row> sourceDf = spark().read().table(tableName);
 
     // Compute position before any shuffle, so it reflects physical file-scan order.
+    // row_number() returns IntegerType, not LongType -- cast explicitly so __position is
+    // genuinely a long column, matching LeafFileEntry.position()'s type. Reading an
+    // Integer-backed column via row.getAs() with an inferred Long type throws
+    // ClassCastException at runtime, not a compile error, so this must be fixed at the source.
     Dataset<Row> withPosition =
         sourceDf
             .select(
@@ -177,7 +181,8 @@ class BuildScalarIndexProcedure extends BaseProcedure {
                     .over(
                         Window.partitionBy("__source_file_path")
                             .orderBy(monotonically_increasing_id()))
-                    .minus(1));
+                    .minus(1)
+                    .cast(DataTypes.LongType));
 
     Dataset<Row> withTransform = withPosition.withColumn("__transform_value", transformValueCol);
 
