@@ -70,6 +70,9 @@ class SphericalGeographyBoundsBuilder {
     }
 
     includeLatitude(latitude);
+    // All meridians meet at a pole, so a vertex there has no single longitude that constrains
+    // the box; it contributes latitude only. A geography consisting solely of pole vertices
+    // leaves longitude unconstrained, which build() reports as the full range.
     if (!isPole(latitude)) {
       longitudeIntervals.add(new LongitudeInterval(longitude, longitude));
     }
@@ -235,10 +238,11 @@ class SphericalGeographyBoundsBuilder {
   }
 
   private static LongitudeInterval minimumLongitudeInterval(double longitude1, double longitude2) {
-    if (Math.abs(longitude1) == MAX_LONGITUDE && Math.abs(longitude2) == MAX_LONGITUDE) {
-      return new LongitudeInterval(MIN_LONGITUDE, MIN_LONGITUDE);
-    }
-
+    // A coordinate on the antimeridian is kept as given: +180 and -180 both name that meridian
+    // and are preserved rather than folded onto one sign, so the same coordinate yields the same
+    // interval whether it arrives as a point or a degenerate edge. The interval spans the shorter
+    // of the two arcs between the endpoints, wrapping past the antimeridian (west > east) when
+    // that arc is the shorter one.
     double west = Math.min(longitude1, longitude2);
     double east = Math.max(longitude1, longitude2);
     double directGap = east - west;
