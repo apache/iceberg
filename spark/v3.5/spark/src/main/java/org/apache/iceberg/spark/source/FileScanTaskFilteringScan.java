@@ -91,7 +91,7 @@ class FileScanTaskFilteringScan implements BatchScan {
       for (ScanTask task : tasks) {
         allTasks.add(task);
         if (task instanceof FileScanTask
-            && allowedFilePaths.contains(((FileScanTask) task).file().path().toString())) {
+            && allowedFilePaths.contains(((FileScanTask) task).file().location())) {
           matchedTasks.add(task);
         }
       }

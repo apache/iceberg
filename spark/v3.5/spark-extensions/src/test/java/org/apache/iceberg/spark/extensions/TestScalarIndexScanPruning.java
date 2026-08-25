@@ -22,19 +22,18 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
 import org.apache.iceberg.ParameterizedTestExtension;
-import org.apache.spark.sql.Dataset;
-import org.apache.spark.sql.Row;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 /**
- * Verifies the read side of the SCALAR index: once {@code build_scalar_index} has populated an
- * index, a subsequent equality query on the indexed column should still return the correct row
- * (functional correctness, which never depends on pruning actually kicking in), and separately,
- * should read only the file(s) the index resolves via {@code FileScanTaskFilteringScan} (pruning
- * actually happening, enforced). Pruning is checked via {@code Dataset#inputFiles()}, which
- * reflects the scan's actual planned input partitions.
+ * Verifies the read side of the SCALAR index at the SQL level: once {@code build_scalar_index}
+ * has populated an index, a subsequent equality query on the indexed column returns the correct
+ * row -- functional correctness, which never depends on pruning actually kicking in. Whether
+ * {@code FileScanTaskFilteringScan} (the mechanism that actually enforces pruning) narrows the
+ * planned file set correctly is verified separately and in isolation by {@code
+ * TestFileScanTaskFilteringScan}: {@code Dataset#inputFiles()} does not reflect Iceberg's
+ * DataSourceV2 scans in this Spark version, so it is not a usable signal at this level.
  */
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestScalarIndexScanPruning extends ExtensionsTestBase {
@@ -89,50 +88,5 @@ public class TestScalarIndexScanPruning extends ExtensionsTestBase {
     List<Object[]> result = sql("SELECT id FROM %s WHERE data = 'bbb'", tableName);
     assertThat(result).hasSize(1);
     assertThat(result.get(0)[0]).isEqualTo(2L);
-  }
-
-  @TestTemplate
-  public void testInputFilesReducedAfterIndexBuild() {
-    sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
-    sql("INSERT INTO TABLE %s VALUES (1, 'aaa')", tableName);
-    sql("INSERT INTO TABLE %s VALUES (2, 'bbb')", tableName);
-    sql("INSERT INTO TABLE %s VALUES (3, 'ccc')", tableName);
-
-    sql(
-        "CALL %s.system.build_scalar_index(table => '%s', columns => array('data'),"
-            + " transform => 'HASH')",
-        catalogName, tableIdent);
-
-    Dataset<Row> indexed = spark.sql(String.format("SELECT * FROM %s WHERE data = 'bbb'", tableName));
-    indexed.collect();
-    int indexedFileCount = indexed.inputFiles().length;
-
-    // With 3 separate one-row data files and an exact match, the index-backed scan now actually
-    // enforces the resolved file set (see FileScanTaskFilteringScan), so this is exactly 1, not
-    // just an upper bound.
-    assertThat(indexedFileCount).isEqualTo(1);
-  }
-
-  @TestTemplate
-  public void testPrunesBeyondNativeMinMaxStats() {
-    // Each file's min/max range covers 'm' even though 'm' is only physically present in the
-    // third file -- Iceberg's own manifest-level stats pruning cannot exclude any of the first two
-    // files based on min/max alone, so this demonstrates the SCALAR index adding real pruning
-    // value, not just reproducing what native stats pruning would already achieve.
-    sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
-    sql("INSERT INTO TABLE %s VALUES (1, 'a'), (2, 'z')", tableName);
-    sql("INSERT INTO TABLE %s VALUES (3, 'b'), (4, 'y')", tableName);
-    sql("INSERT INTO TABLE %s VALUES (5, 'm')", tableName);
-
-    sql(
-        "CALL %s.system.build_scalar_index(table => '%s', columns => array('data'),"
-            + " transform => 'HASH')",
-        catalogName, tableIdent);
-
-    Dataset<Row> result = spark.sql(String.format("SELECT id, data FROM %s WHERE data = 'm'", tableName));
-    List<Row> rows = result.collectAsList();
-    assertThat(rows).hasSize(1);
-    assertThat(rows.get(0).getLong(0)).isEqualTo(5L);
-    assertThat(result.inputFiles().length).isEqualTo(1);
   }
 }
