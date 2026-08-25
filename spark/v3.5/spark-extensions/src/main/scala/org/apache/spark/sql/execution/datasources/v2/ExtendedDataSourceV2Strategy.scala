@@ -41,7 +41,6 @@ import org.apache.spark.sql.catalyst.plans.logical.DropPartitionField
 import org.apache.spark.sql.catalyst.plans.logical.DropTag
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.catalyst.plans.logical.OrderAwareCoalesce
-import org.apache.spark.sql.catalyst.plans.logical.RefreshMaterializedViewStatement
 import org.apache.spark.sql.catalyst.plans.logical.RenameTable
 import org.apache.spark.sql.catalyst.plans.logical.ReplacePartitionField
 import org.apache.spark.sql.catalyst.plans.logical.SetIdentifierFields
@@ -150,35 +149,6 @@ case class ExtendedDataSourceV2Strategy(spark: SparkSession) extends Strategy wi
           allowExisting,
           replace,
           _,
-          Some(materializedViewOptions),
-          _) =>
-      CreateMaterializedViewExec(
-        catalog = viewCatalog,
-        ident = ident,
-        queryText = queryText,
-        columnAliases = columnAliases,
-        columnComments = columnComments,
-        queryColumnNames = queryColumnNames,
-        viewSchema = query.schema,
-        comment = comment,
-        properties = properties,
-        allowExisting = allowExisting,
-        replace = replace,
-        storageTableIdentifier = materializedViewOptions.storageTableIdentifier) :: Nil
-
-    case CreateIcebergView(
-          ResolvedIdentifier(viewCatalog: ViewCatalog, ident),
-          queryText,
-          query,
-          columnAliases,
-          columnComments,
-          queryColumnNames,
-          comment,
-          properties,
-          allowExisting,
-          replace,
-          _,
-          None,
           _) =>
       CreateV2ViewExec(
         catalog = viewCatalog,
@@ -210,9 +180,6 @@ case class ExtendedDataSourceV2Strategy(spark: SparkSession) extends Strategy wi
 
     case UnsetViewProperties(ResolvedV2View(catalog, ident), propertyKeys, ifExists) =>
       AlterV2ViewUnsetPropertiesExec(catalog, ident, propertyKeys, ifExists) :: Nil
-
-    case RefreshMaterializedViewStatement(catalog, ident) =>
-      RefreshMaterializedViewExec(catalog, ident) :: Nil
 
     case _ => Nil
   }

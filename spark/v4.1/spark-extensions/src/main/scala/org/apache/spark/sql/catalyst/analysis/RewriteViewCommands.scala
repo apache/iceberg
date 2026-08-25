@@ -40,11 +40,7 @@ import scala.collection.mutable
  * ResolveSessionCatalog exits early for some v2 View commands,
  * thus they are pre-substituted here and then handled in ResolveViews
  */
-case class RewriteViewCommands(
-    spark: SparkSession,
-    materializedViewOptions: Option[MaterializedViewOptions] = None)
-    extends Rule[LogicalPlan]
-    with LookupCatalog {
+case class RewriteViewCommands(spark: SparkSession) extends Rule[LogicalPlan] with LookupCatalog {
 
   import org.apache.spark.sql.connector.catalog.CatalogV2Implicits._
 
@@ -76,8 +72,7 @@ case class RewriteViewCommands(
         comment = comment,
         properties = properties,
         allowExisting = allowExisting,
-        replace = replace,
-        materializedViewOptions = materializedViewOptions)
+        replace = replace)
 
     case view @ ShowViews(CurrentNamespace, pattern, output) =>
       if (ViewUtil.isViewCatalog(catalogManager.currentCatalog)) {
@@ -213,5 +208,3 @@ case class RewriteViewCommands(
     tempFunctions.toSeq
   }
 }
-
-case class MaterializedViewOptions(storageTableIdentifier: Option[String])
