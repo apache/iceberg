@@ -226,7 +226,7 @@ class BuildScalarIndexProcedure extends BaseProcedure {
 
     committer.commit(
         indexIdent,
-        table.uuid(),
+        table.uuid().toString(),
         table.currentSnapshot().snapshotId(),
         "SCALAR",
         upperTransform,
