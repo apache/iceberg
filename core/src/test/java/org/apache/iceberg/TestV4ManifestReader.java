@@ -81,6 +81,23 @@ class TestV4ManifestReader {
   private static final List<FileFormat> MANIFEST_FORMATS =
       ImmutableList.of(FileFormat.AVRO, FileFormat.PARQUET);
 
+  private static final ColumnFile COLUMN_FILE_1 =
+      ColumnFileStruct.builder()
+          .formatVersion(FORMAT_VERSION_V4)
+          .fieldIds(List.of(1, 3))
+          .location("s3a://bucket/column_file_1.parquet")
+          .fileFormat(FileFormat.PARQUET)
+          .fileSizeInBytes(1024L)
+          .build();
+  private static final ColumnFile COLUMN_FILE_2 =
+      ColumnFileStruct.builder()
+          .formatVersion(FORMAT_VERSION_V4)
+          .fieldIds(List.of(2))
+          .location("s3a://bucket/column_file_2.parquet")
+          .fileFormat(FileFormat.PARQUET)
+          .fileSizeInBytes(512L)
+          .build();
+
   // a data file whose tracking carries every inheritable and change-tracking value set
   private static final TrackedFile FILE_WITH_FULL_TRACKING =
       new TrackedFileStruct(
@@ -93,7 +110,7 @@ class TestV4ManifestReader {
               8L, // first row id
               new byte[] {1, 2}, // deleted positions
               new byte[] {3, 4}, // replaced positions
-              null), // column files snapshot id
+              5L), // column files snapshot id
           FileContent.DATA,
           FORMAT_VERSION_V4,
           "s3://bucket/file.parquet",
@@ -109,7 +126,7 @@ class TestV4ManifestReader {
           null,
           null,
           null,
-          null);
+          ImmutableList.of(COLUMN_FILE_1, COLUMN_FILE_2));
 
   // shared data files: FILE_A is in partition id=1, FILE_B in partition id=2. Locations are stored
   // relative to the table location (the default), so the reader resolves them against the table
@@ -147,7 +164,7 @@ class TestV4ManifestReader {
             ByteBuffer.wrap(new byte[] {1, 2, 3}),
             ImmutableList.of(50L, 100L),
             null,
-            null);
+            ImmutableList.of(COLUMN_FILE_1, COLUMN_FILE_2));
 
     InputFile manifest = writeManifest(format, ID_PARTITION_TYPE, ImmutableList.of(file));
 
@@ -290,6 +307,7 @@ class TestV4ManifestReader {
       assertThat(actual.keyMetadata()).isNull();
       assertThat(actual.splitOffsets()).isNull();
       assertThat(actual.equalityIds()).isNull();
+      assertThat(actual.columnFiles()).isNull();
     }
   }
 
@@ -402,6 +420,7 @@ class TestV4ManifestReader {
       assertThat(actual.dvSnapshotId()).isNull();
       assertThat(actual.deletedPositions()).isNull();
       assertThat(actual.replacedPositions()).isNull();
+      assertThat(actual.latestColumnFileSnapshotId()).isNull();
     }
   }
 
@@ -426,6 +445,7 @@ class TestV4ManifestReader {
       assertThat(actual.dvSnapshotId()).isNull();
       assertThat(actual.deletedPositions()).isNull();
       assertThat(actual.replacedPositions()).isNull();
+      assertThat(actual.latestColumnFileSnapshotId()).isNull();
     }
   }
 
@@ -448,6 +468,7 @@ class TestV4ManifestReader {
       assertThat(actual.dvSnapshotId()).isEqualTo(7L);
       assertThat(actual.deletedPositions()).isEqualTo(ByteBuffer.wrap(new byte[] {1, 2}));
       assertThat(actual.replacedPositions()).isEqualTo(ByteBuffer.wrap(new byte[] {3, 4}));
+      assertThat(actual.latestColumnFileSnapshotId()).isEqualTo(5L);
     }
   }
 
@@ -467,6 +488,10 @@ class TestV4ManifestReader {
       assertThat(actual.fileFormat()).isEqualTo(FileFormat.PARQUET);
       assertThat(actual.recordCount()).isEqualTo(RECORD_COUNT);
       assertThat(actual.fileSizeInBytes()).isEqualTo(FILE_SIZE_IN_BYTES);
+      assertThat(actual.columnFiles())
+          .map(StructLike.class::cast)
+          .usingElementComparator(Comparators.forType(ColumnFile.schema()))
+          .containsExactly((StructLike) COLUMN_FILE_1, (StructLike) COLUMN_FILE_2);
     }
   }
 
@@ -772,6 +797,58 @@ class TestV4ManifestReader {
   public void resolvesLeafManifestLocation(FileFormat format) throws IOException {
     TrackedFile leaf = manifestRef(FileContent.DATA_MANIFEST, "metadata/leaf.avro");
     verifyLocationAfterWriteReadRoundTrip(format, leaf, resolved(leaf));
+  }
+
+  @ParameterizedTest
+  @FieldSource("MANIFEST_FORMATS")
+  public void resolvesColumnFileLocations(FileFormat format) throws IOException {
+    ColumnFile columnFile1 =
+        ColumnFileStruct.builder()
+            .formatVersion(FORMAT_VERSION_V4)
+            .fieldIds(List.of(1))
+            .location("data/col-1.parquet")
+            .fileFormat(FileFormat.PARQUET)
+            .fileSizeInBytes(FILE_SIZE_IN_BYTES)
+            .build();
+    ColumnFile columnFile2 =
+        ColumnFileStruct.builder()
+            .formatVersion(FORMAT_VERSION_V4)
+            .fieldIds(List.of(2))
+            .location("other/col-2.parquet")
+            .fileFormat(FileFormat.PARQUET)
+            .fileSizeInBytes(FILE_SIZE_IN_BYTES)
+            .build();
+    TrackedFile file =
+        new TrackedFileStruct(
+            addedTracking(),
+            FileContent.DATA,
+            FORMAT_VERSION_V4,
+            "s3://data/00000-0.parquet",
+            FileFormat.PARQUET,
+            RECORD_COUNT,
+            FILE_SIZE_IN_BYTES,
+            0, // spec_id
+            EMPTY_PARTITION_DATA,
+            null, // content_stats
+            null, // sort_order_id
+            null, // deletion_vector
+            null, // manifest_info
+            null, // key_metadata
+            null, // split_offsets
+            null, // equality_ids
+            ImmutableList.of(columnFile1, columnFile2));
+
+    InputFile manifest = writeManifest(format, EMPTY_PARTITION, ImmutableList.of(file));
+
+    try (V4ManifestReader reader =
+        V4ManifestReader.builder(manifest, UNPARTITIONED_SPECS, TABLE_LOCATION).build()) {
+      TrackedFile actual = Iterables.getOnlyElement(reader);
+      assertThat(actual.columnFiles())
+          .extracting(ColumnFile::location)
+          .containsExactly(
+              LocationUtil.resolveLocation(TABLE_LOCATION, "data/col-1.parquet"),
+              LocationUtil.resolveLocation(TABLE_LOCATION, "other/col-2.parquet"));
+    }
   }
 
   @ParameterizedTest

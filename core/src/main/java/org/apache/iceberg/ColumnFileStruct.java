@@ -112,6 +112,12 @@ class ColumnFileStruct extends SupportsIndexProjection implements ColumnFile, Se
     return location;
   }
 
+  // Package-private only so the manifest reader can store the location resolved against the
+  // table location; other callers must go through construction.
+  void setLocation(String newLocation) {
+    this.location = newLocation;
+  }
+
   @Override
   public FileFormat fileFormat() {
     return fileFormat;

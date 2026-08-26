@@ -20,6 +20,7 @@ package org.apache.iceberg;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.expressions.Evaluator;
@@ -134,6 +135,8 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
             .setCustomType(TrackedFile.TRACKING.fieldId(), TrackingStruct.class)
             .setCustomType(TrackedFile.DELETION_VECTOR.fieldId(), DeletionVectorStruct.class)
             .setCustomType(TrackedFile.MANIFEST_INFO.fieldId(), ManifestInfoStruct.class)
+            .setCustomType(
+                TrackedFile.COLUMN_FILES.type().asListType().elementId(), ColumnFileStruct.class)
             .setCustomType(TrackedFile.PARTITION_ID, PartitionData.class)
             .reuseContainers()
             .build();
@@ -162,6 +165,17 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
     if (dv != null && dv.location() != null) {
       ((DeletionVectorStruct) dv)
           .setLocation(LocationUtil.resolveLocation(tableLocation, dv.location()));
+    }
+
+    List<ColumnFile> columnFiles = copy.columnFiles();
+    if (columnFiles != null) {
+      for (ColumnFile columnFile : columnFiles) {
+        if (columnFile instanceof ColumnFileStruct columnFileStruct
+            && columnFile.location() != null) {
+          columnFileStruct.setLocation(
+              LocationUtil.resolveLocation(tableLocation, columnFile.location()));
+        }
+      }
     }
 
     return copy;
