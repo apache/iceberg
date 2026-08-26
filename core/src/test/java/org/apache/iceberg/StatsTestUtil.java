@@ -220,9 +220,11 @@ class StatsTestUtil {
       Mockito.when(stats.nanValueCount()).thenReturn(nanCount);
     }
 
-    if (avgValueSize != null) {
-      Mockito.when(stats.avgValueSizeInBytes()).thenReturn(avgValueSize);
-    }
+    // stub unconditionally: unlike the counts, avgValueSizeInBytes has no has*() gate, so
+    // ContentStatsBackedMap treats avgValueSizeInBytes() != null as the presence check. A Mockito
+    // mock defaults this method to 0, not null, so an absent stat must be stubbed to null here or
+    // it reads back as present with 0.
+    Mockito.when(stats.avgValueSizeInBytes()).thenReturn(avgValueSize);
 
     return stats;
   }
