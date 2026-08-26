@@ -23,6 +23,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TableMetadata;
@@ -34,6 +35,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 import software.amazon.awssdk.services.glue.model.Column;
@@ -217,6 +219,46 @@ public class TestIcebergToGlueConverter {
     assertThat(actualTableInput.storageDescriptor().columns())
         .as("Columns should match")
         .isEqualTo(expectedTableInput.storageDescriptor().columns());
+  }
+
+  @Test
+  void rendersAFileColumnAsAStruct() {
+    Types.FileType photo = Types.FileType.of(2);
+    Schema schema =
+        new Schema(
+            Types.NestedField.required(1, "x", Types.StringType.get()),
+            Types.NestedField.optional(2, "photo", photo));
+    TableMetadata tableMetadata =
+        TableMetadata.newTableMetadata(
+            schema,
+            PartitionSpec.unpartitioned(),
+            "s3://test",
+            ImmutableMap.of(TableProperties.FORMAT_VERSION, "4"));
+
+    TableInput.Builder builder = TableInput.builder();
+    IcebergToGlueConverter.setTableInputInformation(builder, tableMetadata);
+
+    String expected =
+        photo.fields().stream()
+            .map(field -> field.name() + ":" + glueTypeOf(field.type()))
+            .collect(Collectors.joining(",", "struct<", ">"));
+    assertThat(builder.build().storageDescriptor().columns())
+        .filteredOn(column -> "photo".equals(column.name()))
+        .extracting(Column::type)
+        .containsExactly(expected);
+  }
+
+  private static String glueTypeOf(Type type) {
+    switch (type.typeId()) {
+      case LONG:
+        return "bigint";
+      case STRING:
+        return "string";
+      case BINARY:
+        return "binary";
+      default:
+        throw new IllegalArgumentException("Unexpected file field type: " + type);
+    }
   }
 
   @Test

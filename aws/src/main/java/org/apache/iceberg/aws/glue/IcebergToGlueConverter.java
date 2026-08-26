@@ -43,6 +43,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.NestedField;
 import org.slf4j.Logger;
@@ -324,8 +325,9 @@ class IcebergToGlueConverter {
       case DECIMAL:
         final Types.DecimalType decimalType = (Types.DecimalType) type;
         return String.format("decimal(%s,%s)", decimalType.precision(), decimalType.scale());
+      case FILE:
       case STRUCT:
-        final Types.StructType structType = type.asStructType();
+        final Types.StructType structType = TypeUtil.asStructType(type);
         final String nameToType =
             structType.fields().stream()
                 .map(f -> String.format("%s:%s", f.name(), toTypeString(f.type())))
