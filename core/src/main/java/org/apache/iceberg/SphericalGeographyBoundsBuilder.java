@@ -24,7 +24,26 @@ import org.apache.iceberg.geospatial.BoundingBox;
 import org.apache.iceberg.geospatial.GeospatialBound;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
-/** Builds an XY bounding box from geography points and minor great-circle edges on a sphere. */
+/**
+ * Builds an XY bounding box from geography points and minor great-circle edges on a sphere.
+ *
+ * <p>Values are supplied already decoded, as points ({@link #addPoint}) and minor great-circle
+ * edges ({@link #addEdge}); this class does not parse WKB.
+ *
+ * <p>The contract a caller must reason about:
+ *
+ * <ul>
+ *   <li>{@link #build()} returns {@code null} for empty input.
+ *   <li>A single out-of-range coordinate turns bounds off permanently, so {@code build()} then
+ *       returns {@code null} for the whole file: a coordinate off the sphere has no meaning.
+ *   <li>An ambiguous antipodal edge, whose great-circle plane is undetermined, yields world bounds
+ *       ({@code [-180, 180]} x {@code [-90, 90]}) rather than a tighter box.
+ *   <li>The longitude interval may wrap across the antimeridian, so the box can have {@code west >
+ *       east}; a point then matches when its longitude is {@code >= west} OR {@code <= east}.
+ *   <li>Latitude extrema are deliberately widened by a small margin, so a bound is guaranteed to
+ *       cover its edge but is not tight.
+ * </ul>
+ */
 class SphericalGeographyBoundsBuilder {
   private static final double MIN_LONGITUDE = -180.0;
   private static final double MAX_LONGITUDE = 180.0;
