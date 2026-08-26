@@ -50,22 +50,12 @@ public abstract class SchemaWithPartnerVisitor<P, R> {
     switch (type.typeId()) {
       case STRUCT:
         Types.StructType struct = type.asNestedType().asStructType();
-        List<T> results = Lists.newArrayListWithExpectedSize(struct.fields().size());
-        for (Types.NestedField field : struct.fields()) {
-          P fieldPartner =
-              partner != null
-                  ? accessors.fieldPartner(partner, field.fieldId(), field.name())
-                  : null;
-          visitor.beforeField(field, fieldPartner);
-          T result;
-          try {
-            result = visit(field.type(), fieldPartner, visitor, accessors);
-          } finally {
-            visitor.afterField(field, fieldPartner);
-          }
-          results.add(visitor.field(field, fieldPartner, result));
-        }
-        return visitor.struct(struct, partner, results);
+        return visitor.struct(
+            struct, partner, visitFields(struct.fields(), partner, visitor, accessors));
+
+      case FILE:
+        Types.FileType file = type.asFileType();
+        return visitor.file(file, partner, visitFields(file.fields(), partner, visitor, accessors));
 
       case LIST:
         Types.ListType list = type.asNestedType().asListType();
@@ -113,6 +103,27 @@ public abstract class SchemaWithPartnerVisitor<P, R> {
       default:
         return visitor.primitive(type.asPrimitiveType(), partner);
     }
+  }
+
+  private static <P, T> List<T> visitFields(
+      List<Types.NestedField> fields,
+      P partner,
+      SchemaWithPartnerVisitor<P, T> visitor,
+      PartnerAccessors<P> accessors) {
+    List<T> results = Lists.newArrayListWithExpectedSize(fields.size());
+    for (Types.NestedField field : fields) {
+      P fieldPartner =
+          partner != null ? accessors.fieldPartner(partner, field.fieldId(), field.name()) : null;
+      visitor.beforeField(field, fieldPartner);
+      T result;
+      try {
+        result = visit(field.type(), fieldPartner, visitor, accessors);
+      } finally {
+        visitor.afterField(field, fieldPartner);
+      }
+      results.add(visitor.field(field, fieldPartner, result));
+    }
+    return results;
   }
 
   public void beforeField(Types.NestedField field, P partnerField) {}
@@ -165,6 +176,10 @@ public abstract class SchemaWithPartnerVisitor<P, R> {
 
   public R variant(Types.VariantType variant, P partner) {
     throw new UnsupportedOperationException("Unsupported type: variant");
+  }
+
+  public R file(Types.FileType file, P partner, List<R> fieldResults) {
+    throw new UnsupportedOperationException("Unsupported type: file");
   }
 
   public R primitive(Type.PrimitiveType primitive, P partner) {

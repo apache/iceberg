@@ -816,6 +816,10 @@ public class TypeUtil {
       throw new UnsupportedOperationException("Unsupported type: variant");
     }
 
+    public T file(Types.FileType file, List<T> fieldResults) {
+      throw new UnsupportedOperationException("Unsupported type: file");
+    }
+
     public T primitive(Type.PrimitiveType primitive) {
       return null;
     }
@@ -829,18 +833,11 @@ public class TypeUtil {
     switch (type.typeId()) {
       case STRUCT:
         Types.StructType struct = type.asNestedType().asStructType();
-        List<T> results = Lists.newArrayListWithExpectedSize(struct.fields().size());
-        for (Types.NestedField field : struct.fields()) {
-          visitor.beforeField(field);
-          T result;
-          try {
-            result = visit(field.type(), visitor);
-          } finally {
-            visitor.afterField(field);
-          }
-          results.add(visitor.field(field, result));
-        }
-        return visitor.struct(struct, results);
+        return visitor.struct(struct, visitFields(struct.fields(), visitor));
+
+      case FILE:
+        Types.FileType file = type.asFileType();
+        return visitor.file(file, visitFields(file.fields(), visitor));
 
       case LIST:
         Types.ListType list = type.asNestedType().asListType();
@@ -887,6 +884,21 @@ public class TypeUtil {
     }
   }
 
+  private static <T> List<T> visitFields(List<Types.NestedField> fields, SchemaVisitor<T> visitor) {
+    List<T> results = Lists.newArrayListWithExpectedSize(fields.size());
+    for (Types.NestedField field : fields) {
+      visitor.beforeField(field);
+      T result;
+      try {
+        result = visit(field.type(), visitor);
+      } finally {
+        visitor.afterField(field);
+      }
+      results.add(visitor.field(field, result));
+    }
+    return results;
+  }
+
   public static class CustomOrderSchemaVisitor<T> {
     public T schema(Schema schema, Supplier<T> structResult) {
       return null;
@@ -910,6 +922,10 @@ public class TypeUtil {
 
     public T variant(Types.VariantType variant) {
       throw new UnsupportedOperationException("Unsupported type: variant");
+    }
+
+    public T file(Types.FileType file, Iterable<T> fieldResults) {
+      throw new UnsupportedOperationException("Unsupported type: file");
     }
 
     public T primitive(Type.PrimitiveType primitive) {
@@ -969,13 +985,11 @@ public class TypeUtil {
     switch (type.typeId()) {
       case STRUCT:
         Types.StructType struct = type.asNestedType().asStructType();
-        List<VisitFieldFuture<T>> results =
-            Lists.newArrayListWithExpectedSize(struct.fields().size());
-        for (Types.NestedField field : struct.fields()) {
-          results.add(new VisitFieldFuture<>(field, visitor));
-        }
+        return visitor.struct(struct, fieldFutures(struct.fields(), visitor));
 
-        return visitor.struct(struct, Iterables.transform(results, VisitFieldFuture::get));
+      case FILE:
+        Types.FileType file = type.asFileType();
+        return visitor.file(file, fieldFutures(file.fields(), visitor));
 
       case LIST:
         Types.ListType list = type.asNestedType().asListType();
@@ -994,6 +1008,15 @@ public class TypeUtil {
       default:
         return visitor.primitive(type.asPrimitiveType());
     }
+  }
+
+  private static <T> Iterable<T> fieldFutures(
+      List<Types.NestedField> fields, CustomOrderSchemaVisitor<T> visitor) {
+    List<VisitFieldFuture<T>> results = Lists.newArrayListWithExpectedSize(fields.size());
+    for (Types.NestedField field : fields) {
+      results.add(new VisitFieldFuture<>(field, visitor));
+    }
+    return Iterables.transform(results, VisitFieldFuture::get);
   }
 
   static int decimalMaxPrecision(int numBytes) {

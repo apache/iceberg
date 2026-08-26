@@ -98,18 +98,27 @@ abstract class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
 
   @Override
   public Schema struct(Types.StructType struct, List<Schema> fieldSchemas) {
+    return recordFor(struct, struct, fieldSchemas);
+  }
+
+  @Override
+  public Schema file(Types.FileType file, List<Schema> fieldSchemas) {
+    return recordFor(file, file.asStruct(), fieldSchemas);
+  }
+
+  private Schema recordFor(Type type, Types.StructType structView, List<Schema> fieldSchemas) {
+    List<Types.NestedField> structFields = structView.fields();
     Integer fieldId = fieldIds.peek();
-    String recordName = namesFunction.apply(fieldId, struct);
+    String recordName = namesFunction.apply(fieldId, structView);
     if (recordName == null) {
       recordName = "r" + fieldId;
     }
 
-    Schema recordSchema = lookupSchema(struct, recordName);
+    Schema recordSchema = lookupSchema(type, recordName);
     if (recordSchema != null) {
       return recordSchema;
     }
 
-    List<Types.NestedField> structFields = struct.fields();
     List<Schema.Field> fields = Lists.newArrayListWithExpectedSize(fieldSchemas.size());
     for (int i = 0; i < structFields.size(); i += 1) {
       Types.NestedField structField = structFields.get(i);
@@ -131,7 +140,7 @@ abstract class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
 
     recordSchema = Schema.createRecord(recordName, null, null, false, fields);
 
-    cacheSchema(struct, recordName, recordSchema);
+    cacheSchema(type, recordName, recordSchema);
 
     return recordSchema;
   }

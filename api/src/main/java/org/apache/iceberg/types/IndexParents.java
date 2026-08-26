@@ -47,7 +47,16 @@ public class IndexParents extends TypeUtil.SchemaVisitor<Map<Integer, Integer>> 
   @Override
   public Map<Integer, Integer> struct(
       Types.StructType struct, List<Map<Integer, Integer>> fieldResults) {
-    for (Types.NestedField field : struct.fields()) {
+    return indexFields(struct.fields());
+  }
+
+  @Override
+  public Map<Integer, Integer> file(Types.FileType file, List<Map<Integer, Integer>> fieldResults) {
+    return indexFields(file.fields());
+  }
+
+  private Map<Integer, Integer> indexFields(List<Types.NestedField> fields) {
+    for (Types.NestedField field : fields) {
       Integer parentId = idStack.peek();
       if (parentId != null) {
         // fields in the root struct are not added

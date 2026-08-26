@@ -26,6 +26,7 @@ import static org.apache.iceberg.TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX
 
 import java.io.Serializable;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
@@ -183,7 +184,17 @@ public final class MetricsConfig implements Serializable {
 
           @Override
           public Set<Integer> struct(Types.StructType struct, Iterable<Set<Integer>> fieldResults) {
-            Iterator<Types.NestedField> fields = struct.fields().iterator();
+            return collectIds(struct.fields(), fieldResults);
+          }
+
+          @Override
+          public Set<Integer> file(Types.FileType file, Iterable<Set<Integer>> fieldResults) {
+            return collectIds(file.fields(), fieldResults);
+          }
+
+          private Set<Integer> collectIds(
+              List<Types.NestedField> structFields, Iterable<Set<Integer>> fieldResults) {
+            Iterator<Types.NestedField> fields = structFields.iterator();
             while (shouldContinue() && fields.hasNext()) {
               Types.NestedField field = fields.next();
               if (metricsEligible(field.type())) {

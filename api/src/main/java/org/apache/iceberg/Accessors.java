@@ -213,8 +213,18 @@ public class Accessors {
     @Override
     public Map<Integer, Accessor<StructLike>> struct(
         Types.StructType struct, List<Map<Integer, Accessor<StructLike>>> fieldResults) {
+      return buildAccessors(struct.fields(), fieldResults);
+    }
+
+    @Override
+    public Map<Integer, Accessor<StructLike>> file(
+        Types.FileType file, List<Map<Integer, Accessor<StructLike>>> fieldResults) {
+      return buildAccessors(file.fields(), fieldResults);
+    }
+
+    private Map<Integer, Accessor<StructLike>> buildAccessors(
+        List<Types.NestedField> fields, List<Map<Integer, Accessor<StructLike>>> fieldResults) {
       Map<Integer, Accessor<StructLike>> accessors = Maps.newHashMap();
-      List<Types.NestedField> fields = struct.fields();
       for (int i = 0; i < fieldResults.size(); i += 1) {
         Types.NestedField field = fields.get(i);
         Map<Integer, Accessor<StructLike>> result = fieldResults.get(i);

@@ -231,7 +231,7 @@ class TestFileTypeParquet {
 
   private static List<Record> records() {
     GenericRecord row = GenericRecord.create(SCHEMA);
-    GenericRecord photo = GenericRecord.create(Types.FileType.of(2));
+    GenericRecord photo = GenericRecord.create(Types.FileType.of(2).asStruct());
 
     return ImmutableList.of(
         row.copy(

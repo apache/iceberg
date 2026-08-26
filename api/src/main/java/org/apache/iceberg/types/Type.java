@@ -50,6 +50,7 @@ public interface Type extends Serializable {
     LIST(List.class),
     MAP(Map.class),
     VARIANT(Variant.class),
+    FILE(StructLike.class),
     UNKNOWN(Object.class);
 
     private final Class<?> javaClass;

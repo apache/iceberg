@@ -1028,7 +1028,7 @@ public class Types {
     private transient Map<String, NestedField> fieldsByLowerCaseName = null;
     private transient Map<Integer, NestedField> fieldsById = null;
 
-    StructType(List<NestedField> fields) {
+    private StructType(List<NestedField> fields) {
       Preconditions.checkNotNull(fields, "Field list cannot be null");
       this.fields = new NestedField[fields.size()];
       for (int i = 0; i < this.fields.length; i += 1) {
@@ -1106,10 +1106,6 @@ public class Types {
       }
 
       StructType that = (StructType) o;
-      if (isFileType() != that.isFileType()) {
-        return false;
-      }
-
       return Arrays.equals(fields, that.fields);
     }
 
@@ -1159,7 +1155,7 @@ public class Types {
     }
   }
 
-  public static final class FileType extends StructType {
+  public static final class FileType extends NestedType {
     public static final String NAME = "file";
     public static final int NUM_NESTED_FIELDS = 6;
 
@@ -1176,24 +1172,24 @@ public class Types {
 
     private final int enclosingId;
 
-    private FileType(int enclosingId) {
-      super(nestedFields(enclosingId));
-      this.enclosingId = enclosingId;
-    }
+    // lazy values
+    private transient List<NestedField> fieldList = null;
+    private transient Map<String, NestedField> fieldsByName = null;
+    private transient Map<String, NestedField> fieldsByLowerCaseName = null;
+    private transient Map<Integer, NestedField> fieldsById = null;
 
-    private static List<NestedField> nestedFields(int enclosingId) {
-      return ImmutableList.of(
-          NestedField.optional(enclosingId + 1, URI, StringType.get()),
-          NestedField.optional(enclosingId + 2, OFFSET, LongType.get()),
-          NestedField.optional(enclosingId + 3, SIZE, LongType.get()),
-          NestedField.optional(enclosingId + 4, CONTENT_TYPE, StringType.get()),
-          NestedField.optional(enclosingId + 5, CHECKSUM, StringType.get()),
-          NestedField.optional(enclosingId + 6, INLINE, BinaryType.get()));
+    private FileType(int enclosingId) {
+      this.enclosingId = enclosingId;
     }
 
     /** Returns the ID of the field that holds this type. */
     public int enclosingId() {
       return enclosingId;
+    }
+
+    @Override
+    public TypeID typeId() {
+      return TypeID.FILE;
     }
 
     @Override
@@ -1204,6 +1200,48 @@ public class Types {
     @Override
     public FileType asFileType() {
       return this;
+    }
+
+    @Override
+    public List<NestedField> fields() {
+      if (fieldList == null) {
+        this.fieldList =
+            ImmutableList.of(
+                NestedField.optional(enclosingId + 1, URI, StringType.get()),
+                NestedField.optional(enclosingId + 2, OFFSET, LongType.get()),
+                NestedField.optional(enclosingId + 3, SIZE, LongType.get()),
+                NestedField.optional(enclosingId + 4, CONTENT_TYPE, StringType.get()),
+                NestedField.optional(enclosingId + 5, CHECKSUM, StringType.get()),
+                NestedField.optional(enclosingId + 6, INLINE, BinaryType.get()));
+      }
+      return fieldList;
+    }
+
+    public NestedField field(String name) {
+      return lazyFieldsByName().get(name);
+    }
+
+    @Override
+    public NestedField field(int id) {
+      return lazyFieldsById().get(id);
+    }
+
+    public NestedField caseInsensitiveField(String name) {
+      return lazyFieldsByLowerCaseName().get(name.toLowerCase(Locale.ROOT));
+    }
+
+    @Override
+    public Type fieldType(String name) {
+      NestedField field = field(name);
+      if (field != null) {
+        return field.type();
+      }
+      return null;
+    }
+
+    /** Returns the nested fields of this type as a struct. */
+    public StructType asStruct() {
+      return StructType.of(fields());
     }
 
     @Override
@@ -1225,6 +1263,39 @@ public class Types {
     @Override
     public int hashCode() {
       return Objects.hash(FileType.class, enclosingId);
+    }
+
+    private Map<String, NestedField> lazyFieldsByName() {
+      if (fieldsByName == null) {
+        ImmutableMap.Builder<String, NestedField> builder = ImmutableMap.builder();
+        for (NestedField field : fields()) {
+          builder.put(field.name(), field);
+        }
+        this.fieldsByName = builder.build();
+      }
+      return fieldsByName;
+    }
+
+    private Map<String, NestedField> lazyFieldsByLowerCaseName() {
+      if (fieldsByLowerCaseName == null) {
+        ImmutableMap.Builder<String, NestedField> builder = ImmutableMap.builder();
+        for (NestedField field : fields()) {
+          builder.put(field.name().toLowerCase(Locale.ROOT), field);
+        }
+        this.fieldsByLowerCaseName = builder.build();
+      }
+      return fieldsByLowerCaseName;
+    }
+
+    private Map<Integer, NestedField> lazyFieldsById() {
+      if (fieldsById == null) {
+        ImmutableMap.Builder<Integer, NestedField> builder = ImmutableMap.builder();
+        for (NestedField field : fields()) {
+          builder.put(field.fieldId(), field);
+        }
+        this.fieldsById = builder.build();
+      }
+      return fieldsById;
     }
   }
 

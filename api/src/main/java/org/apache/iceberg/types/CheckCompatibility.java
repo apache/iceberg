@@ -131,13 +131,6 @@ public class CheckCompatibility extends TypeUtil.CustomOrderSchemaVisitor<List<S
       return ImmutableList.of(String.format(": %s cannot be read as a struct", currentType));
     }
 
-    // a file type has a closed set of nested fields, so it is not interchangeable with a struct
-    if (readStruct.isFileType() != currentType.isFileType()) {
-      return ImmutableList.of(
-          String.format(
-              ": %s cannot be read as a %s", typeName(currentType), typeName(readStruct)));
-    }
-
     List<String> errors = Lists.newArrayList();
 
     for (List<String> fieldErrors : fieldErrorLists) {
@@ -169,10 +162,6 @@ public class CheckCompatibility extends TypeUtil.CustomOrderSchemaVisitor<List<S
     }
 
     return ImmutableList.copyOf(errors);
-  }
-
-  private static String typeName(Type type) {
-    return type.isFileType() ? Types.FileType.NAME : "struct";
   }
 
   @Override
@@ -269,6 +258,16 @@ public class CheckCompatibility extends TypeUtil.CustomOrderSchemaVisitor<List<S
 
     // Currently promotion is not allowed to variant type
     return ImmutableList.of(String.format(": %s cannot be read as a %s", currentType, readVariant));
+  }
+
+  @Override
+  public List<String> file(Types.FileType readFile, Iterable<List<String>> fieldErrorLists) {
+    if (currentType.isFileType()) {
+      // the nested fields are derived from the enclosing id, so matching ids means matching fields
+      return NO_ERRORS;
+    }
+
+    return ImmutableList.of(String.format(": %s cannot be read as a %s", currentType, readFile));
   }
 
   @Override

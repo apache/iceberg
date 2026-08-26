@@ -92,7 +92,7 @@ public class TestSchema {
     return TEST_TYPES.stream()
         .flatMap(
             type ->
-                IntStream.range(1, MIN_FORMAT_VERSIONS.get(type.getClass()))
+                IntStream.range(1, MIN_FORMAT_VERSIONS.get(type.typeId()))
                     .mapToObj(unsupportedVersion -> Arguments.of(type, unsupportedVersion)));
   }
 
@@ -111,22 +111,22 @@ public class TestSchema {
                 + "- Invalid type for struct.struct_arr.deep: %s is not supported until v%s",
             unsupportedVersion,
             type,
-            MIN_FORMAT_VERSIONS.get(type.getClass()),
+            MIN_FORMAT_VERSIONS.get(type.typeId()),
             type,
-            MIN_FORMAT_VERSIONS.get(type.getClass()),
+            MIN_FORMAT_VERSIONS.get(type.typeId()),
             type,
-            MIN_FORMAT_VERSIONS.get(type.getClass()),
+            MIN_FORMAT_VERSIONS.get(type.typeId()),
             type,
-            MIN_FORMAT_VERSIONS.get(type.getClass()),
+            MIN_FORMAT_VERSIONS.get(type.typeId()),
             type,
-            MIN_FORMAT_VERSIONS.get(type.getClass()));
+            MIN_FORMAT_VERSIONS.get(type.typeId()));
   }
 
   private static Stream<Arguments> supportedTypes() {
     return TEST_TYPES.stream()
         .flatMap(
             type ->
-                IntStream.rangeClosed(MIN_FORMAT_VERSIONS.get(type.getClass()), MAX_FORMAT_VERSION)
+                IntStream.rangeClosed(MIN_FORMAT_VERSIONS.get(type.typeId()), MAX_FORMAT_VERSION)
                     .mapToObj(supportedVersion -> Arguments.of(type, supportedVersion)));
   }
 
@@ -166,15 +166,15 @@ public class TestSchema {
                 + "- Invalid type for struct.struct_arr.deep: %s is not supported until v%s",
             2,
             Types.UnknownType.get(),
-            MIN_FORMAT_VERSIONS.get(Types.UnknownType.class),
+            MIN_FORMAT_VERSIONS.get(Type.TypeID.UNKNOWN),
             Types.UnknownType.get(),
-            MIN_FORMAT_VERSIONS.get(Types.UnknownType.class),
+            MIN_FORMAT_VERSIONS.get(Type.TypeID.UNKNOWN),
             Types.UnknownType.get(),
-            MIN_FORMAT_VERSIONS.get(Types.UnknownType.class),
+            MIN_FORMAT_VERSIONS.get(Type.TypeID.UNKNOWN),
             Types.UnknownType.get(),
-            MIN_FORMAT_VERSIONS.get(Types.UnknownType.class),
+            MIN_FORMAT_VERSIONS.get(Type.TypeID.UNKNOWN),
             Types.UnknownType.get(),
-            MIN_FORMAT_VERSIONS.get(Types.UnknownType.class));
+            MIN_FORMAT_VERSIONS.get(Type.TypeID.UNKNOWN));
 
     assertThatCode(() -> Schema.checkCompatibility(schemaWithUnknown, 3))
         .doesNotThrowAnyException();
@@ -189,7 +189,7 @@ public class TestSchema {
             Types.NestedField.optional(2, "top", Types.FileType.of(2)),
             Types.NestedField.optional(
                 9, "arr", Types.ListType.ofOptional(10, Types.FileType.of(10))));
-    int minVersion = MIN_FORMAT_VERSIONS.get(Types.FileType.class);
+    int minVersion = MIN_FORMAT_VERSIONS.get(Type.TypeID.FILE);
 
     for (int version = 1; version < minVersion; version += 1) {
       int unsupportedVersion = version;

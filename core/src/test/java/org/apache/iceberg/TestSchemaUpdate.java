@@ -2605,7 +2605,7 @@ public class TestSchemaUpdate {
   void cannotAddColumnToFileColumn() {
     assertThatThrownBy(() -> fileUpdate().addColumn("photo", "extra", Types.StringType.get()))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot add to a file column: photo");
+        .hasMessage("Cannot add to non-struct column: photo: file");
   }
 
   @Test
@@ -2658,13 +2658,13 @@ public class TestSchemaUpdate {
   void cannotMoveFileNestedField() {
     assertThatThrownBy(() -> fileUpdate().moveFirst("photo.checksum"))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot move fields in a file column: photo.checksum");
+        .hasMessage("Cannot move fields in non-struct type: file");
     assertThatThrownBy(() -> fileUpdate().moveBefore("photo.checksum", "photo.uri"))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot move fields in a file column: photo.checksum");
+        .hasMessage("Cannot move fields in non-struct type: file");
     assertThatThrownBy(() -> fileUpdate().moveAfter("photo.uri", "photo.inline"))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot move fields in a file column: photo.uri");
+        .hasMessage("Cannot move fields in non-struct type: file");
   }
 
   @Test
@@ -2681,7 +2681,7 @@ public class TestSchemaUpdate {
 
     assertThatThrownBy(() -> fileUpdate().unionByNameWith(newSchema))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot add to a file column: photo");
+        .hasMessage("Cannot add to non-struct column: photo: file");
   }
 
   @Test

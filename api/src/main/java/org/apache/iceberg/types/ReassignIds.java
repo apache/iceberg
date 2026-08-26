@@ -70,11 +70,6 @@ class ReassignIds extends TypeUtil.CustomOrderSchemaVisitor<Type> {
     Preconditions.checkNotNull(sourceType, "Evaluation must start with a schema.");
     Preconditions.checkArgument(sourceType.isStructType(), "Not a struct: %s", sourceType);
 
-    if (struct.isFileType()) {
-      // nested fields are rebuilt from the id assigned to the field that holds this type
-      return struct;
-    }
-
     Types.StructType sourceStruct = sourceType.asStructType();
     List<Types.NestedField> fields = struct.fields();
     int length = fields.size();
@@ -168,6 +163,12 @@ class ReassignIds extends TypeUtil.CustomOrderSchemaVisitor<Type> {
   @Override
   public Type variant(Types.VariantType variant) {
     return variant;
+  }
+
+  @Override
+  public Type file(Types.FileType file, Iterable<Type> fieldTypes) {
+    // nested fields are rebuilt from the id assigned to the field that holds this type
+    return file;
   }
 
   @Override

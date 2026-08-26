@@ -61,14 +61,14 @@ public class Schema implements Serializable {
   @VisibleForTesting static final int DEFAULT_VALUES_MIN_FORMAT_VERSION = 3;
 
   @VisibleForTesting
-  static final Map<Class<? extends Type>, Integer> MIN_FORMAT_VERSIONS =
+  static final Map<Type.TypeID, Integer> MIN_FORMAT_VERSIONS =
       ImmutableMap.of(
-          Types.TimestampNanoType.class, 3,
-          Types.VariantType.class, 3,
-          Types.UnknownType.class, 3,
-          Types.GeometryType.class, 3,
-          Types.GeographyType.class, 3,
-          Types.FileType.class, 4);
+          Type.TypeID.TIMESTAMP_NANO, 3,
+          Type.TypeID.VARIANT, 3,
+          Type.TypeID.UNKNOWN, 3,
+          Type.TypeID.GEOMETRY, 3,
+          Type.TypeID.GEOGRAPHY, 3,
+          Type.TypeID.FILE, 4);
 
   private final StructType struct;
   private final int schemaId;
@@ -606,11 +606,6 @@ public class Schema implements Serializable {
     return newId;
   }
 
-  private static Integer minFormatVersion(Type type) {
-    // types are keyed by class because the file type shares STRUCT as its type ID
-    return MIN_FORMAT_VERSIONS.get(type.getClass());
-  }
-
   /**
    * Check the compatibility of the schema with a format version.
    *
@@ -626,7 +621,7 @@ public class Schema implements Serializable {
 
     // check each field's type and defaults
     for (NestedField field : schema.lazyIdToField().values()) {
-      Integer minFormatVersion = minFormatVersion(field.type());
+      Integer minFormatVersion = MIN_FORMAT_VERSIONS.get(field.type().typeId());
       if (minFormatVersion != null && formatVersion < minFormatVersion) {
         problems.put(
             field.fieldId(),

@@ -176,7 +176,7 @@ public class TypeToMessageType {
     // FileLogicalTypeAnnotation does not exist in parquet 1.17.1, so the group is written without
     // an annotation. Iceberg readers resolve the nested fields by field ID, so they read these
     // files correctly, but other readers see a plain group.
-    return struct(file, repetition, id, name);
+    return struct(file.asStruct(), repetition, id, name);
   }
 
   public Type variant(Type.Repetition repetition, int id, String originalName) {

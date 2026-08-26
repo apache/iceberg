@@ -83,7 +83,7 @@ public class UnionByNameVisitor extends SchemaWithPartnerVisitor<Integer, Boolea
     }
 
     List<Types.NestedField> fields = struct.fields();
-    Types.StructType partnerStruct = findFieldType(partnerId).asStructType();
+    Types.StructType partnerStruct = findFieldsByName(partnerId);
     IntStream.range(0, missingPositions.size())
         .forEach(
             pos -> {
@@ -101,6 +101,12 @@ public class UnionByNameVisitor extends SchemaWithPartnerVisitor<Integer, Boolea
             });
 
     return false;
+  }
+
+  @Override
+  public Boolean file(Types.FileType file, Integer partnerId, List<Boolean> missingPositions) {
+    // the nested fields of a file are derived, so there is nothing to union
+    return partnerId == null;
   }
 
   @Override
@@ -158,6 +164,11 @@ public class UnionByNameVisitor extends SchemaWithPartnerVisitor<Integer, Boolea
     } else {
       return partnerSchema.findField(fieldId).type();
     }
+  }
+
+  private Types.StructType findFieldsByName(int fieldId) {
+    Type type = findFieldType(fieldId);
+    return type.isFileType() ? type.asFileType().asStruct() : type.asStructType();
   }
 
   private void addColumn(int parentId, Types.NestedField field) {
@@ -230,7 +241,11 @@ public class UnionByNameVisitor extends SchemaWithPartnerVisitor<Integer, Boolea
       if (partnerFieldId == -1) {
         struct = partnerSchema.asStruct();
       } else {
-        struct = partnerSchema.findField(partnerFieldId).type().asStructType();
+        Type partnerType = partnerSchema.findField(partnerFieldId).type();
+        struct =
+            partnerType.isFileType()
+                ? partnerType.asFileType().asStruct()
+                : partnerType.asStructType();
       }
 
       Types.NestedField field =

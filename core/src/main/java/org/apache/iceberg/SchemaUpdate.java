@@ -139,8 +139,6 @@ class SchemaUpdate implements UpdateSchema {
           "Cannot add to non-struct column: %s: %s",
           parent,
           parentField.type());
-      Preconditions.checkArgument(
-          !parentField.type().isFileType(), "Cannot add to a file column: %s", parent);
       parentId = parentField.fieldId();
       Types.NestedField currentField = findField(parent + "." + name);
       Preconditions.checkArgument(
@@ -467,8 +465,6 @@ class SchemaUpdate implements UpdateSchema {
       Types.NestedField parent = schema.findField(parentId);
       Preconditions.checkArgument(
           parent.type().isStructType(), "Cannot move fields in non-struct type: %s", parent.type());
-      Preconditions.checkArgument(
-          !parent.type().isFileType(), "Cannot move fields in a file column: %s", name);
 
       if (move.type() == Move.MoveType.AFTER || move.type() == Move.MoveType.BEFORE) {
         Preconditions.checkArgument(
@@ -680,13 +676,24 @@ class SchemaUpdate implements UpdateSchema {
       }
 
       if (hasChange) {
-        Preconditions.checkArgument(
-            !struct.isFileType(), "Cannot change the nested fields of a file column: %s", struct);
         // TODO: What happens if there are no fields left?
         return Types.StructType.of(newFields);
       }
 
       return struct;
+    }
+
+    @Override
+    public Type file(Types.FileType file, List<Type> fieldResults) {
+      for (int i = 0; i < fieldResults.size(); i += 1) {
+        Types.NestedField field = file.fields().get(i);
+        Preconditions.checkArgument(
+            fieldResults.get(i) == field.type() && updates.get(field.fieldId()) == null,
+            "Cannot change the nested fields of a file column: %s",
+            file);
+      }
+
+      return file;
     }
 
     @Override

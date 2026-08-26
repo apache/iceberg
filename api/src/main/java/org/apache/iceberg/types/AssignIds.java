@@ -42,11 +42,6 @@ class AssignIds extends TypeUtil.CustomOrderSchemaVisitor<Type> {
 
   @Override
   public Type struct(Types.StructType struct, Iterable<Type> futures) {
-    if (struct.isFileType()) {
-      // nested fields are rebuilt from the new id assigned to the field that holds this type
-      return struct;
-    }
-
     List<Types.NestedField> fields = struct.fields();
     int length = struct.fields().size();
 
@@ -100,6 +95,12 @@ class AssignIds extends TypeUtil.CustomOrderSchemaVisitor<Type> {
   @Override
   public Type variant(Types.VariantType variant) {
     return variant;
+  }
+
+  @Override
+  public Type file(Types.FileType file, Iterable<Type> futures) {
+    // nested fields are rebuilt from the new id assigned to the field that holds this type
+    return file;
   }
 
   @Override
