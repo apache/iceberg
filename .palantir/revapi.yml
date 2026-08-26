@@ -535,6 +535,64 @@ acceptedBreaks:
       old: "class org.apache.iceberg.data.avro.DataReader<T extends java.lang.Object>"
       justification: "Removing deprecated DataReader and RawDecoder constructor scheduled\
         \ for removal in 1.12.0"
+    - code: "java.element.noLongerDeprecated"
+      old: "method B org.apache.iceberg.rest.responses.BaseScanTaskResponse.Builder<B\
+        \ extends org.apache.iceberg.rest.responses.BaseScanTaskResponse.Builder<B\
+        \ extends org.apache.iceberg.rest.responses.BaseScanTaskResponse.Builder<B,\
+        \ R extends org.apache.iceberg.rest.responses.BaseScanTaskResponse>, R>, R\
+        \ extends org.apache.iceberg.rest.responses.BaseScanTaskResponse>::withSpecsById(java.util.Map<java.lang.Integer,\
+        \ org.apache.iceberg.PartitionSpec>)"
+      new: "method B org.apache.iceberg.rest.responses.BaseScanTaskResponse.Builder<B\
+        \ extends org.apache.iceberg.rest.responses.BaseScanTaskResponse.Builder<B\
+        \ extends org.apache.iceberg.rest.responses.BaseScanTaskResponse.Builder<B,\
+        \ R extends org.apache.iceberg.rest.responses.BaseScanTaskResponse>, R>, R\
+        \ extends org.apache.iceberg.rest.responses.BaseScanTaskResponse>::withSpecsById(java.util.Map<java.lang.Integer,\
+        \ org.apache.iceberg.PartitionSpec>)"
+      justification: "Reducing visibility of scan-planning response internals deprecated\
+        \ in 1.11.0 for 1.12.0"
+    - code: "java.element.noLongerDeprecated"
+      old: "method java.util.List<org.apache.iceberg.DeleteFile> org.apache.iceberg.rest.responses.BaseScanTaskResponse.Builder<B\
+        \ extends org.apache.iceberg.rest.responses.BaseScanTaskResponse.Builder<B\
+        \ extends org.apache.iceberg.rest.responses.BaseScanTaskResponse.Builder<B,\
+        \ R extends org.apache.iceberg.rest.responses.BaseScanTaskResponse>, R>, R\
+        \ extends org.apache.iceberg.rest.responses.BaseScanTaskResponse>::deleteFiles()"
+      new: "method java.util.List<org.apache.iceberg.DeleteFile> org.apache.iceberg.rest.responses.BaseScanTaskResponse.Builder<B\
+        \ extends org.apache.iceberg.rest.responses.BaseScanTaskResponse.Builder<B\
+        \ extends org.apache.iceberg.rest.responses.BaseScanTaskResponse.Builder<B,\
+        \ R extends org.apache.iceberg.rest.responses.BaseScanTaskResponse>, R>, R\
+        \ extends org.apache.iceberg.rest.responses.BaseScanTaskResponse>::deleteFiles()"
+      justification: "Reducing visibility of scan-planning response internals deprecated\
+        \ in 1.11.0 for 1.12.0"
+    - code: "java.element.noLongerDeprecated"
+      old: "method java.util.Map<java.lang.Integer, org.apache.iceberg.PartitionSpec>\
+        \ org.apache.iceberg.rest.responses.BaseScanTaskResponse.Builder<B extends\
+        \ org.apache.iceberg.rest.responses.BaseScanTaskResponse.Builder<B extends\
+        \ org.apache.iceberg.rest.responses.BaseScanTaskResponse.Builder<B, R extends\
+        \ org.apache.iceberg.rest.responses.BaseScanTaskResponse>, R>, R extends org.apache.iceberg.rest.responses.BaseScanTaskResponse>::specsById()"
+      new: "method java.util.Map<java.lang.Integer, org.apache.iceberg.PartitionSpec>\
+        \ org.apache.iceberg.rest.responses.BaseScanTaskResponse.Builder<B extends\
+        \ org.apache.iceberg.rest.responses.BaseScanTaskResponse.Builder<B extends\
+        \ org.apache.iceberg.rest.responses.BaseScanTaskResponse.Builder<B, R extends\
+        \ org.apache.iceberg.rest.responses.BaseScanTaskResponse>, R>, R extends org.apache.iceberg.rest.responses.BaseScanTaskResponse>::specsById()"
+      justification: "Reducing visibility of scan-planning response internals deprecated\
+        \ in 1.11.0 for 1.12.0"
+    - code: "java.element.noLongerDeprecated"
+      old: "method java.util.Map<java.lang.Integer, org.apache.iceberg.PartitionSpec>\
+        \ org.apache.iceberg.rest.responses.BaseScanTaskResponse::specsById()"
+      new: "method java.util.Map<java.lang.Integer, org.apache.iceberg.PartitionSpec>\
+        \ org.apache.iceberg.rest.responses.BaseScanTaskResponse::specsById()"
+      justification: "Reducing visibility of scan-planning response internals deprecated\
+        \ in 1.11.0 for 1.12.0"
+    - code: "java.element.noLongerDeprecated"
+      old: "method void org.apache.iceberg.rest.requests.PlanTableScanRequest.Builder::<init>()"
+      new: "method void org.apache.iceberg.rest.requests.PlanTableScanRequest.Builder::<init>()"
+      justification: "Reducing visibility of scan-planning request internals deprecated\
+        \ in 1.11.0 for 1.12.0"
+    - code: "java.element.noLongerDeprecated"
+      old: "method void org.apache.iceberg.rest.responses.PlanTableScanResponse.Builder::<init>()"
+      new: "method void org.apache.iceberg.rest.responses.PlanTableScanResponse.Builder::<init>()"
+      justification: "Reducing visibility of scan-planning response internals deprecated\
+        \ in 1.11.0 for 1.12.0"
     - code: "java.field.removed"
       old: "field org.apache.iceberg.PartitionStatsHandler.DATA_FILE_COUNT"
       justification: "Removed deprecated functionality for partition stats"
@@ -649,6 +707,14 @@ acceptedBreaks:
         \ java.lang.String)"
       justification: "A manifest can only be rewritten together with its measured\
         \ length, which the set of manifest paths cannot carry"
+    - code: "java.method.removed"
+      old: "method B org.apache.iceberg.rest.responses.BaseScanTaskResponse.Builder<B\
+        \ extends org.apache.iceberg.rest.responses.BaseScanTaskResponse.Builder<B\
+        \ extends org.apache.iceberg.rest.responses.BaseScanTaskResponse.Builder<B,\
+        \ R extends org.apache.iceberg.rest.responses.BaseScanTaskResponse>, R>, R\
+        \ extends org.apache.iceberg.rest.responses.BaseScanTaskResponse>::withDeleteFiles(java.util.List<org.apache.iceberg.DeleteFile>)"
+      justification: "Reducing visibility of scan-planning response internals deprecated\
+        \ in 1.11.0 for 1.12.0"
     - code: "java.method.removed"
       old: "method boolean org.apache.iceberg.util.TableScanUtil::hasDeletes(org.apache.iceberg.CombinedScanTask)"
       justification: "Removed deprecated API scheduled for removal in 1.12.0"
@@ -786,6 +852,64 @@ acceptedBreaks:
     - code: "java.method.removed"
       old: "method void org.apache.iceberg.rest.ResourcePaths::<init>(java.lang.String)"
       justification: "Removed deprecated functionality scheduled for removal in 1.12.0"
+    - code: "java.method.visibilityReduced"
+      old: "method B org.apache.iceberg.rest.responses.BaseScanTaskResponse.Builder<B\
+        \ extends org.apache.iceberg.rest.responses.BaseScanTaskResponse.Builder<B\
+        \ extends org.apache.iceberg.rest.responses.BaseScanTaskResponse.Builder<B,\
+        \ R extends org.apache.iceberg.rest.responses.BaseScanTaskResponse>, R>, R\
+        \ extends org.apache.iceberg.rest.responses.BaseScanTaskResponse>::withSpecsById(java.util.Map<java.lang.Integer,\
+        \ org.apache.iceberg.PartitionSpec>)"
+      new: "method B org.apache.iceberg.rest.responses.BaseScanTaskResponse.Builder<B\
+        \ extends org.apache.iceberg.rest.responses.BaseScanTaskResponse.Builder<B\
+        \ extends org.apache.iceberg.rest.responses.BaseScanTaskResponse.Builder<B,\
+        \ R extends org.apache.iceberg.rest.responses.BaseScanTaskResponse>, R>, R\
+        \ extends org.apache.iceberg.rest.responses.BaseScanTaskResponse>::withSpecsById(java.util.Map<java.lang.Integer,\
+        \ org.apache.iceberg.PartitionSpec>)"
+      justification: "Reducing visibility of scan-planning response internals deprecated\
+        \ in 1.11.0 for 1.12.0"
+    - code: "java.method.visibilityReduced"
+      old: "method java.util.List<org.apache.iceberg.DeleteFile> org.apache.iceberg.rest.responses.BaseScanTaskResponse.Builder<B\
+        \ extends org.apache.iceberg.rest.responses.BaseScanTaskResponse.Builder<B\
+        \ extends org.apache.iceberg.rest.responses.BaseScanTaskResponse.Builder<B,\
+        \ R extends org.apache.iceberg.rest.responses.BaseScanTaskResponse>, R>, R\
+        \ extends org.apache.iceberg.rest.responses.BaseScanTaskResponse>::deleteFiles()"
+      new: "method java.util.List<org.apache.iceberg.DeleteFile> org.apache.iceberg.rest.responses.BaseScanTaskResponse.Builder<B\
+        \ extends org.apache.iceberg.rest.responses.BaseScanTaskResponse.Builder<B\
+        \ extends org.apache.iceberg.rest.responses.BaseScanTaskResponse.Builder<B,\
+        \ R extends org.apache.iceberg.rest.responses.BaseScanTaskResponse>, R>, R\
+        \ extends org.apache.iceberg.rest.responses.BaseScanTaskResponse>::deleteFiles()"
+      justification: "Reducing visibility of scan-planning response internals deprecated\
+        \ in 1.11.0 for 1.12.0"
+    - code: "java.method.visibilityReduced"
+      old: "method java.util.Map<java.lang.Integer, org.apache.iceberg.PartitionSpec>\
+        \ org.apache.iceberg.rest.responses.BaseScanTaskResponse.Builder<B extends\
+        \ org.apache.iceberg.rest.responses.BaseScanTaskResponse.Builder<B extends\
+        \ org.apache.iceberg.rest.responses.BaseScanTaskResponse.Builder<B, R extends\
+        \ org.apache.iceberg.rest.responses.BaseScanTaskResponse>, R>, R extends org.apache.iceberg.rest.responses.BaseScanTaskResponse>::specsById()"
+      new: "method java.util.Map<java.lang.Integer, org.apache.iceberg.PartitionSpec>\
+        \ org.apache.iceberg.rest.responses.BaseScanTaskResponse.Builder<B extends\
+        \ org.apache.iceberg.rest.responses.BaseScanTaskResponse.Builder<B extends\
+        \ org.apache.iceberg.rest.responses.BaseScanTaskResponse.Builder<B, R extends\
+        \ org.apache.iceberg.rest.responses.BaseScanTaskResponse>, R>, R extends org.apache.iceberg.rest.responses.BaseScanTaskResponse>::specsById()"
+      justification: "Reducing visibility of scan-planning response internals deprecated\
+        \ in 1.11.0 for 1.12.0"
+    - code: "java.method.visibilityReduced"
+      old: "method java.util.Map<java.lang.Integer, org.apache.iceberg.PartitionSpec>\
+        \ org.apache.iceberg.rest.responses.BaseScanTaskResponse::specsById()"
+      new: "method java.util.Map<java.lang.Integer, org.apache.iceberg.PartitionSpec>\
+        \ org.apache.iceberg.rest.responses.BaseScanTaskResponse::specsById()"
+      justification: "Reducing visibility of scan-planning response internals deprecated\
+        \ in 1.11.0 for 1.12.0"
+    - code: "java.method.visibilityReduced"
+      old: "method void org.apache.iceberg.rest.requests.PlanTableScanRequest.Builder::<init>()"
+      new: "method void org.apache.iceberg.rest.requests.PlanTableScanRequest.Builder::<init>()"
+      justification: "Reducing visibility of scan-planning request internals deprecated\
+        \ in 1.11.0 for 1.12.0"
+    - code: "java.method.visibilityReduced"
+      old: "method void org.apache.iceberg.rest.responses.PlanTableScanResponse.Builder::<init>()"
+      new: "method void org.apache.iceberg.rest.responses.PlanTableScanResponse.Builder::<init>()"
+      justification: "Reducing visibility of scan-planning response internals deprecated\
+        \ in 1.11.0 for 1.12.0"
     org.apache.iceberg:iceberg-data:
     - code: "java.class.removed"
       old: "class org.apache.iceberg.data.BaseFileWriterFactory<T extends java.lang.Object>"
