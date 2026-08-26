@@ -29,6 +29,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 
 /**
@@ -61,7 +62,7 @@ class BuildAvroProjection extends AvroCustomOrderSchemaVisitor<Schema, Schema.Fi
         "Cannot project non-struct: %s",
         current);
 
-    Types.StructType struct = current.asNestedType().asStructType();
+    Types.StructType struct = TypeUtil.asStructType(current);
 
     boolean hasChange = false;
     List<Schema.Field> fields = record.getFields();
@@ -132,7 +133,7 @@ class BuildAvroProjection extends AvroCustomOrderSchemaVisitor<Schema, Schema.Fi
 
   @Override
   public Schema.Field field(Schema.Field field, Supplier<Schema> fieldResult) {
-    Types.StructType struct = current.asNestedType().asStructType();
+    Types.StructType struct = TypeUtil.asStructType(current);
     int fieldId = AvroSchemaUtil.getFieldId(field);
     Types.NestedField expectedField = struct.field(fieldId);
 

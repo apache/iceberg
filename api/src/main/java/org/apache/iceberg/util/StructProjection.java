@@ -121,11 +121,16 @@ public class StructProjection implements StructLike {
           positionMap[pos] = i;
           switch (projectedField.type().typeId()) {
             case STRUCT:
+              // the data field may be a file when only some of its nested fields are projected
               nestedProjections[pos] =
                   new StructProjection(
-                      dataField.type().asStructType(),
+                      TypeUtil.asStructType(dataField.type()),
                       projectedField.type().asStructType(),
                       allowMissing);
+              break;
+            case FILE:
+              // a projected file is always complete, so its fields need no reordering
+              nestedProjections[pos] = null;
               break;
             case MAP:
               MapType projectedMap = projectedField.type().asMapType();

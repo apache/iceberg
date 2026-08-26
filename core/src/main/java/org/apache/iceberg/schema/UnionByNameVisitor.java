@@ -167,8 +167,7 @@ public class UnionByNameVisitor extends SchemaWithPartnerVisitor<Integer, Boolea
   }
 
   private Types.StructType findFieldsByName(int fieldId) {
-    Type type = findFieldType(fieldId);
-    return type.isFileType() ? type.asFileType().asStruct() : type.asStructType();
+    return TypeUtil.asStructType(findFieldType(fieldId));
   }
 
   private void addColumn(int parentId, Types.NestedField field) {
@@ -241,11 +240,7 @@ public class UnionByNameVisitor extends SchemaWithPartnerVisitor<Integer, Boolea
       if (partnerFieldId == -1) {
         struct = partnerSchema.asStruct();
       } else {
-        Type partnerType = partnerSchema.findField(partnerFieldId).type();
-        struct =
-            partnerType.isFileType()
-                ? partnerType.asFileType().asStruct()
-                : partnerType.asStructType();
+        struct = TypeUtil.asStructType(partnerSchema.findField(partnerFieldId).type());
       }
 
       Types.NestedField field =

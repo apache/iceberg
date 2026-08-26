@@ -19,6 +19,7 @@
 package org.apache.iceberg.avro;
 
 import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Pair;
 
@@ -55,7 +56,7 @@ public class AvroWithTypeByStructureVisitor<T> extends AvroWithPartnerByStructur
 
   @Override
   protected Pair<String, Type> fieldNameAndType(Type structType, int pos) {
-    Types.NestedField field = structType.asStructType().fields().get(pos);
+    Types.NestedField field = TypeUtil.asStructType(structType).fields().get(pos);
     return Pair.of(field.name(), field.type());
   }
 

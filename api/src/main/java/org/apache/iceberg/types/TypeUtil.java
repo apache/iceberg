@@ -72,6 +72,24 @@ public class TypeUtil {
     return new Schema(Collections.emptyList(), schema.getAliases());
   }
 
+  /**
+   * Returns a type's nested fields as a struct.
+   *
+   * <p>Unlike {@link Type#asStructType()}, this also accepts a file type and returns the struct of
+   * its derived nested fields. Use this where a file is stored and read as a group of its nested
+   * fields, such as in the Avro and Parquet layers.
+   *
+   * @param type a struct or file type
+   * @return the type's nested fields as a struct
+   */
+  public static Types.StructType asStructType(Type type) {
+    if (type.isFileType()) {
+      return type.asFileType().asStruct();
+    }
+
+    return type.asStructType();
+  }
+
   public static Types.StructType project(Types.StructType struct, Set<Integer> fieldIds) {
     Preconditions.checkNotNull(struct, "Struct cannot be null");
     Preconditions.checkNotNull(fieldIds, "Field ids cannot be null");

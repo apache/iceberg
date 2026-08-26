@@ -24,6 +24,7 @@ import org.apache.avro.Schema;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 
 public class AvroWithPartnerVisitor<P, R> {
@@ -46,7 +47,7 @@ public class AvroWithPartnerVisitor<P, R> {
 
     @Override
     public Type fieldPartner(Type partner, Integer fieldId, String name) {
-      Types.NestedField field = partner.asStructType().field(fieldId);
+      Types.NestedField field = TypeUtil.asStructType(partner).field(fieldId);
       return field != null ? field.type() : null;
     }
 

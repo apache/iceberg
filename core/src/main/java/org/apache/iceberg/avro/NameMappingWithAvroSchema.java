@@ -25,6 +25,7 @@ import org.apache.iceberg.mapping.MappedFields;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 
 public class NameMappingWithAvroSchema extends AvroWithTypeByStructureVisitor<MappedFields> {
@@ -34,7 +35,7 @@ public class NameMappingWithAvroSchema extends AvroWithTypeByStructureVisitor<Ma
     List<MappedField> fields = Lists.newArrayListWithExpectedSize(fieldResults.size());
 
     for (int i = 0; i < fieldResults.size(); i += 1) {
-      Types.NestedField field = struct.asStructType().fields().get(i);
+      Types.NestedField field = TypeUtil.asStructType(struct).fields().get(i);
       MappedFields result = fieldResults.get(i);
       fields.add(MappedField.of(field.fieldId(), field.name(), result));
     }
