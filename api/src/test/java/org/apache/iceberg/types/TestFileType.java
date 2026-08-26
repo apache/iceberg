@@ -48,6 +48,29 @@ class TestFileType {
   }
 
   @Test
+  void rejectsANegativeEnclosingId() {
+    assertThatThrownBy(() -> Types.FileType.of(-1))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid enclosing field ID: -1 < 0");
+  }
+
+  @Test
+  void rejectsAnEnclosingIdThatCannotReserveNestedIds() {
+    int lastEnclosingId = Integer.MAX_VALUE - Types.FileType.NUM_NESTED_FIELDS;
+
+    assertThat(Types.FileType.of(lastEnclosingId).fields())
+        .last()
+        .extracting(Types.NestedField::fieldId)
+        .isEqualTo(Integer.MAX_VALUE);
+
+    assertThatThrownBy(() -> Types.FileType.of(lastEnclosingId + 1))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Invalid enclosing field ID: %s > %s (cannot reserve %s nested field IDs)",
+            lastEnclosingId + 1, lastEnclosingId, Types.FileType.NUM_NESTED_FIELDS);
+  }
+
+  @Test
   void isHandledAsAStruct() {
     assertThat(FILE.typeId()).isEqualTo(Type.TypeID.STRUCT);
     assertThat(FILE.isStructType()).isTrue();
