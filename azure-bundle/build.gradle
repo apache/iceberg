@@ -42,6 +42,7 @@ project(":iceberg-azure-bundle") {
   shadowJar {
     archiveClassifier.set(null)
     zip64 true
+    mergeServiceFiles()
 
     // include the LICENSE and NOTICE files for the shaded Jar
     from(projectDir) {
