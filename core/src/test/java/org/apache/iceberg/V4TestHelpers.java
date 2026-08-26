@@ -19,6 +19,9 @@
 package org.apache.iceberg;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.util.List;
+import java.util.Set;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFile;
@@ -35,19 +38,28 @@ class V4TestHelpers {
   static final Tracking ADDED_TRACKING = TrackingBuilder.added(SNAPSHOT_ID).build();
 
   static TrackedFile dataFile(Tracking tracking, String location) {
-    return dataFile(tracking, location, null, null, null, null);
+    return dataFile(tracking, location, null, null, null, null, null);
   }
 
   static TrackedFile dataFile(String location, Integer specId, PartitionData partition) {
-    return dataFile(ADDED_TRACKING, location, specId, partition, null, null);
+    return dataFile(ADDED_TRACKING, location, specId, partition, null, null, null);
   }
 
   static TrackedFile dataFileWithStats(String location, ContentStats stats) {
-    return dataFile(ADDED_TRACKING, location, null, null, stats, null);
+    return dataFile(ADDED_TRACKING, location, null, null, stats, null, null);
   }
 
   static TrackedFile dataFileWithDV(String location, DeletionVector dv) {
-    return dataFile(ADDED_TRACKING, location, null, null, null, dv);
+    return dataFile(ADDED_TRACKING, location, null, null, null, dv, null);
+  }
+
+  static TrackedFile dataFileWithColumnFiles(String location, List<ColumnFile> columnFiles) {
+    return dataFile(ADDED_TRACKING, location, null, null, null, null, columnFiles);
+  }
+
+  static TrackedFile dataFileWithColumnFiles(
+      Tracking tracking, String location, List<ColumnFile> columnFiles) {
+    return dataFile(tracking, location, null, null, null, null, columnFiles);
   }
 
   private static TrackedFile dataFile(
@@ -56,7 +68,8 @@ class V4TestHelpers {
       Integer specId,
       PartitionData partition,
       ContentStats stats,
-      DeletionVector dv) {
+      DeletionVector dv,
+      List<ColumnFile> columnFiles) {
     return trackedFile(
         tracking,
         FileContent.DATA,
@@ -65,7 +78,8 @@ class V4TestHelpers {
         partition,
         stats,
         dv,
-        null /* manifestInfo */);
+        null /* manifestInfo */,
+        columnFiles);
   }
 
   static TrackedFile manifestRef(FileContent content, String location, ManifestInfo manifestInfo) {
@@ -82,7 +96,25 @@ class V4TestHelpers {
         null, // partition
         stats,
         null, // dv
-        manifestInfo);
+        manifestInfo,
+        null); // columnFiles
+  }
+
+  static TrackedFile manifestRefWithColumnFiles(
+      FileContent content,
+      String location,
+      ManifestInfo manifestInfo,
+      List<ColumnFile> columnFiles) {
+    return trackedFile(
+        ADDED_TRACKING,
+        content,
+        location,
+        null, // specId
+        null, // partition
+        null, // stats
+        null, // dv
+        manifestInfo,
+        columnFiles);
   }
 
   private static TrackedFile trackedFile(
@@ -93,7 +125,8 @@ class V4TestHelpers {
       PartitionData partition,
       ContentStats stats,
       DeletionVector dv,
-      ManifestInfo manifestInfo) {
+      ManifestInfo manifestInfo,
+      List<ColumnFile> columnFiles) {
     return new TrackedFileStruct(
         tracking,
         content,
@@ -109,7 +142,7 @@ class V4TestHelpers {
         manifestInfo,
         null, // keyMetadata
         null, // splitOffsets
-        null); // columnFiles
+        columnFiles);
   }
 
   static DeletionVector deletionVector(String location) {
@@ -124,6 +157,15 @@ class V4TestHelpers {
         .sizeInBytes(sizeInBytes)
         .cardinality(cardinality)
         .build();
+  }
+
+  static ColumnFile columnFile(String location, Set<Integer> fieldIds) {
+    return columnFile(location, fieldIds, null);
+  }
+
+  static ColumnFile columnFile(String location, Set<Integer> fieldIds, ByteBuffer keyMetadata) {
+    return new ColumnFileStruct(
+        location, fieldIds, FileFormat.fromFileName(location), FILE_SIZE_IN_BYTES, keyMetadata);
   }
 
   static PartitionData partition(PartitionSpec spec, Object... values) {
