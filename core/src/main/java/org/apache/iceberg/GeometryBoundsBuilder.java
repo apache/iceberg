@@ -92,6 +92,12 @@ class GeometryBoundsBuilder {
    */
   public void addValue(ByteBuffer wkb) {
     Preconditions.checkArgument(wkb != null, "Invalid WKB buffer: null");
+    // once a value cannot be bounded the box can never come back, so skip the walk for every
+    // remaining value in the file rather than parsing bytes whose bounds would be discarded
+    if (incomplete) {
+      return;
+    }
+
     ByteBuffer buffer = wkb.duplicate();
     try {
       parseGeometry(buffer, ANY_GEOMETRY, ANY_DIMENSION);
@@ -129,9 +135,10 @@ class GeometryBoundsBuilder {
     //   +-------+-----------------------+
     checkRemaining(buffer, Byte.BYTES + Integer.BYTES);
 
-    // each geometry sets its own byte order; restore the caller's order before returning so a
-    // sibling read after a nested geometry is not misread with the wrong endianness
-    ByteOrder callerOrder = buffer.order();
+    // each geometry carries its own byte order in its header. A nested geometry reads a single
+    // order byte and sets the order from it before any multi-byte read, and no WKB body carries
+    // data after its children, so the order left set here is never read across a sibling and does
+    // not need to be restored.
     byte order = buffer.get();
     if (order == 0) {
       buffer.order(ByteOrder.BIG_ENDIAN);
@@ -142,7 +149,6 @@ class GeometryBoundsBuilder {
     }
 
     parseGeometryBodyAndUpdateBound(buffer, expectedType, expectedDimension);
-    buffer.order(callerOrder);
   }
 
   private void parseGeometryBodyAndUpdateBound(
@@ -177,77 +183,48 @@ class GeometryBoundsBuilder {
 
     int numDimensions = numDimensions(dimensionGroup);
 
+    // checkWkb above already constrained geometryType to the seven OGC types, so no default arm
+    // is reachable here
     switch (geometryType) {
-      case TYPE_POINT:
-        readCoordinate(buffer, numDimensions);
-        break;
-      case TYPE_LINE_STRING:
-        readCoordinateSequence(buffer, numDimensions);
-        break;
-      case TYPE_POLYGON:
-        readPolygon(buffer, numDimensions);
-        break;
-      case TYPE_MULTI_POINT:
-        readCollection(buffer, TYPE_POINT, dimensionGroup);
-        break;
-      case TYPE_MULTI_LINE_STRING:
-        readCollection(buffer, TYPE_LINE_STRING, dimensionGroup);
-        break;
-      case TYPE_MULTI_POLYGON:
-        readCollection(buffer, TYPE_POLYGON, dimensionGroup);
-        break;
-      case TYPE_GEOMETRY_COLLECTION:
-        readCollection(buffer, ANY_GEOMETRY, dimensionGroup);
-        break;
-      default:
-        throw new InvalidWkbException("Invalid or unsupported WKB geometry type: " + typeCode);
+      case TYPE_POINT -> readCoordinate(buffer, numDimensions);
+      case TYPE_LINE_STRING -> readCoordinateSequence(buffer, numDimensions);
+      case TYPE_POLYGON -> readPolygon(buffer, numDimensions);
+      case TYPE_MULTI_POINT -> readCollection(buffer, TYPE_POINT, dimensionGroup);
+      case TYPE_MULTI_LINE_STRING -> readCollection(buffer, TYPE_LINE_STRING, dimensionGroup);
+      case TYPE_MULTI_POLYGON -> readCollection(buffer, TYPE_POLYGON, dimensionGroup);
+      case TYPE_GEOMETRY_COLLECTION -> readCollection(buffer, ANY_GEOMETRY, dimensionGroup);
     }
   }
 
   private static int numDimensions(int dimensionGroup) {
-    switch (dimensionGroup) {
-      case XY_GROUP:
-        return 2;
-      case XYZ_GROUP:
-      case XYM_GROUP:
-        return 3;
-      default: // XYZM_GROUP, the only remaining group the caller accepts
-        return 4;
-    }
+    return switch (dimensionGroup) {
+      case XY_GROUP -> 2;
+      case XYZ_GROUP, XYM_GROUP -> 3;
+        // XYZM_GROUP is the only remaining group the caller accepts
+      default -> 4;
+    };
   }
 
   private static String typeName(int geometryType) {
-    switch (geometryType) {
-      case TYPE_POINT:
-        return "Point";
-      case TYPE_LINE_STRING:
-        return "LineString";
-      case TYPE_POLYGON:
-        return "Polygon";
-      case TYPE_MULTI_POINT:
-        return "MultiPoint";
-      case TYPE_MULTI_LINE_STRING:
-        return "MultiLineString";
-      case TYPE_MULTI_POLYGON:
-        return "MultiPolygon";
-      case TYPE_GEOMETRY_COLLECTION:
-        return "GeometryCollection";
-      default:
-        return String.valueOf(geometryType);
-    }
+    return switch (geometryType) {
+      case TYPE_POINT -> "Point";
+      case TYPE_LINE_STRING -> "LineString";
+      case TYPE_POLYGON -> "Polygon";
+      case TYPE_MULTI_POINT -> "MultiPoint";
+      case TYPE_MULTI_LINE_STRING -> "MultiLineString";
+      case TYPE_MULTI_POLYGON -> "MultiPolygon";
+      case TYPE_GEOMETRY_COLLECTION -> "GeometryCollection";
+      default -> String.valueOf(geometryType);
+    };
   }
 
   private static String dimensionName(int dimensionGroup) {
-    switch (dimensionGroup) {
-      case XY_GROUP:
-        return "XY";
-      case XYZ_GROUP:
-        return "XYZ";
-      case XYM_GROUP:
-        return "XYM";
-      default:
-        return "XYZM";
-    }
+    return switch (dimensionGroup) {
+      case XY_GROUP -> "XY";
+      case XYZ_GROUP -> "XYZ";
+      case XYM_GROUP -> "XYM";
+      default -> "XYZM";
+    };
   }
 
   // a ring count, then that many rings, each a coordinate sequence:

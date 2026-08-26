@@ -152,6 +152,19 @@ class TestGeometryBoundsBuilder {
   }
 
   @Test
+  void unboundableValueBetweenGoodValuesSuppressesFileBounds() {
+    GeometryBoundsBuilder bounds = new GeometryBoundsBuilder();
+    // suppression is scoped to the whole file, not the offending value: a bad value between two
+    // good ones still drops the box, since bounds accumulated from only the others would no longer
+    // contain every object in the file and would prune it from queries it should match
+    bounds.addValue(ByteBuffer.wrap(wkb(point(1, 2))));
+    bounds.addValue(ByteBuffer.wrap(wkb(polygon(ring(0, 0, 1, 0, 0, 1, 1, 1))))); // ring not closed
+    bounds.addValue(ByteBuffer.wrap(wkb(point(3, 4))));
+
+    assertThat(bounds.build()).isNull();
+  }
+
+  @Test
   void bigEndianParentWithLittleEndianChild() {
     GeometryBoundsBuilder bounds = new GeometryBoundsBuilder();
     // a big-endian multi point holding a little-endian point, the reverse of the MULTIPOINT case
