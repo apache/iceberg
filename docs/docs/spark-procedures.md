@@ -841,6 +841,7 @@ Creates a view that contains the changes from a given table.
 | `net_changes`        |           | boolean             | Whether to output net changes (see below for more information). Defaults to false. It must be false when `compute_updates` is true.                                                                                                                  |
 | `compute_updates`    |           | boolean             | Whether to compute pre/post update images (see below for more information). Defaults to true if `identifer_columns` are provided; otherwise, defaults to false.                                                                                                       |
 | `identifier_columns` |           | array<string>       | The list of identifier columns to compute updates. If the argument `compute_updates` is set to true and `identifier_columns` are not provided, the table’s current identifier fields will be used.   |
+| `scd_type2`          |           | boolean             | Whether to produce a Slowly Changing Dimensions Type-2 view (see below for more information). Defaults to false. Requires identifier columns, forces `compute_updates` to true, and must not be combined with `net_changes`. |
 
 Here is a list of commonly used Spark read options:
 
@@ -962,6 +963,66 @@ as an `UPDATE_AFTER` image, resulting in the following pre/post update images:
 |-----|--------|--------------|
 | 3   | Robert | UPDATE_BEFORE|
 | 3   | Dan    | UPDATE_AFTER |
+
+#### SCD Type-2 View
+
+With `scd_type2 => true` the procedure turns the changelog into a Slowly Changing Dimensions Type-2 history, so that
+each row describes the period during which a version of a record was in effect. Three columns are added to the view:
+
+- `_valid_from`: the commit timestamp at which this version became active
+- `_valid_to`: the commit timestamp at which it was superseded, or `NULL` while it is still in effect
+- `_is_current`: `true` when the version is still in effect and was not deleted
+
+`UPDATE_BEFORE` rows are dropped, since the pre-update state of a row is an intermediate artifact rather than a version
+of the record. `DELETE` rows are kept with `_is_current = false`, so that hard deletes remain visible in the history.
+
+```sql
+CALL spark_catalog.system.create_changelog_view(
+  table => 'db.products',
+  changelog_view => 'products_history',
+  identifier_columns => array('product_id'),
+  scd_type2 => true
+);
+```
+
+| product_id | name       | _change_type | _valid_from         | _valid_to           | _is_current |
+|------------|------------|--------------|---------------------|---------------------|-------------|
+| 1          | Widget     | INSERT       | 2024-01-01 00:00:00 | 2024-02-01 00:00:00 | false       |
+| 1          | Widget Pro | UPDATE_AFTER | 2024-02-01 00:00:00 | NULL                | true        |
+
+#### Building a Long-Lived SCD Type-2 Table
+
+The view spans only the changes the changelog scan can still see, so its history is bounded by snapshot retention —
+`history.expire.max-snapshot-age-ms` defaults to 5 days, and expiring snapshots drops the corresponding changes from
+the view. For history that must outlive snapshot expiration, keep an SCD Type-2 table of your own and extend it
+incrementally, using the procedure to derive each batch of versions. Run it with an explicit start snapshot, close the
+version that was open in the target table, and append the new ones:
+
+```sql
+CALL spark_catalog.system.create_changelog_view(
+  table => 'db.products',
+  changelog_view => 'products_scd2_batch',
+  identifier_columns => array('product_id'),
+  scd_type2 => true,
+  options => map('start-snapshot-id', '<last processed snapshot id>')
+);
+
+MERGE INTO db.products_history t
+USING (
+  SELECT product_id, MIN(_valid_from) AS next_valid_from
+  FROM products_scd2_batch
+  GROUP BY product_id
+) s
+ON t.product_id = s.product_id AND t._is_current
+WHEN MATCHED THEN UPDATE SET t._valid_to = s.next_valid_from, t._is_current = false;
+
+INSERT INTO db.products_history
+SELECT product_id, name, _change_type, _valid_from, _valid_to, _is_current
+FROM products_scd2_batch;
+```
+
+Record the end snapshot of each run and pass it as the next run's `start-snapshot-id`, so that consecutive batches
+neither overlap nor leave gaps.
 
 ## Table Statistics
 
