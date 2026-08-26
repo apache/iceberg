@@ -220,7 +220,9 @@ class StatsTestUtil {
       Mockito.when(stats.nanValueCount()).thenReturn(nanCount);
     }
 
-    Mockito.when(stats.avgValueSizeInBytes()).thenReturn(avgValueSize);
+    if (avgValueSize != null) {
+      Mockito.when(stats.avgValueSizeInBytes()).thenReturn(avgValueSize);
+    }
 
     return stats;
   }
