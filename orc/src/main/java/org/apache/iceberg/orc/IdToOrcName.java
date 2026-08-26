@@ -107,6 +107,11 @@ class IdToOrcName extends TypeUtil.SchemaVisitor<Map<Integer, String>> {
   }
 
   @Override
+  public Map<Integer, String> file(Types.FileType file, List<Map<Integer, String>> fieldResults) {
+    return idToName;
+  }
+
+  @Override
   public Map<Integer, String> field(Types.NestedField field, Map<Integer, String> fieldResult) {
     addField(field.name(), field.fieldId());
     return idToName;
