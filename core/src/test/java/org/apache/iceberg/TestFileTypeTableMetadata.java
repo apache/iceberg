@@ -52,6 +52,34 @@ class TestFileTypeTableMetadata {
     assertThat(reparsed.schema().asStruct()).isEqualTo(SCHEMA.asStruct());
   }
 
+  @Test
+  void replacementRaisesALastColumnIdThatOmitsDerivedIds() {
+    TableMetadata metadata =
+        TableMetadata.newTableMetadata(
+            new Schema(required(1, "id", Types.LongType.get())),
+            PartitionSpec.unpartitioned(),
+            "file:/tmp/table",
+            ImmutableMap.of(TableProperties.FORMAT_VERSION, "4"));
+
+    // metadata written by a producer that counted only the IDs that appear in the schema JSON
+    TableMetadata undercounted =
+        TableMetadata.buildFrom(metadata)
+            .setCurrentSchema(SCHEMA, SCHEMA.findField("photo").fieldId())
+            .build();
+    assertThat(undercounted.lastColumnId()).isLessThan(SCHEMA.highestFieldId());
+
+    TableMetadata replacement =
+        undercounted.buildReplacement(
+            SCHEMA,
+            PartitionSpec.unpartitioned(),
+            SortOrder.unsorted(),
+            undercounted.location(),
+            ImmutableMap.of());
+
+    assertThat(replacement.schema().findField("photo").type()).isEqualTo(Types.FileType.of(2));
+    assertThat(replacement.lastColumnId()).isEqualTo(replacement.schema().highestFieldId());
+  }
+
   private static TableMetadata newTableMetadata(int formatVersion) {
     return TableMetadata.newTableMetadata(
         SCHEMA,
