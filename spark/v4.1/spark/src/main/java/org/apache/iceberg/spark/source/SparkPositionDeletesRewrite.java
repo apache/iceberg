@@ -45,6 +45,7 @@ import org.apache.iceberg.spark.PositionDeletesRewriteCoordinator;
 import org.apache.iceberg.spark.ScanTaskSetManager;
 import org.apache.iceberg.spark.SparkWriteConf;
 import org.apache.iceberg.spark.SparkWriteUtil;
+import org.apache.iceberg.spark.WriteDurations;
 import org.apache.iceberg.util.DeleteFileSet;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.broadcast.Broadcast;
@@ -86,6 +87,7 @@ public class SparkPositionDeletesRewrite implements Write {
   private final StructLike partition;
   private final Map<String, String> writeProperties;
   private InMemoryMetricsReporter metricsReporter;
+  private WriteDurations writeDurations = WriteDurations.EMPTY;
 
   /**
    * Constructs a {@link SparkPositionDeletesRewrite}.
@@ -136,7 +138,7 @@ public class SparkPositionDeletesRewrite implements Write {
 
   @Override
   public CustomTaskMetric[] reportDriverMetrics() {
-    return SparkWriteUtil.customTaskMetrics(metricsReporter);
+    return SparkWriteUtil.customTaskMetrics(metricsReporter, writeDurations);
   }
 
   @Override
@@ -183,14 +185,18 @@ public class SparkPositionDeletesRewrite implements Write {
 
     private List<DeleteFile> files(WriterCommitMessage[] messages) {
       List<DeleteFile> files = Lists.newArrayList();
+      // both commit and abort funnel through here, so this is where task write times are collected
+      WriteDurations durations = WriteDurations.EMPTY;
 
       for (WriterCommitMessage message : messages) {
         if (message != null) {
           DeleteTaskCommit taskCommit = (DeleteTaskCommit) message;
           files.addAll(Arrays.asList(taskCommit.files()));
+          durations = durations.combine(taskCommit.writeDurations());
         }
       }
 
+      SparkPositionDeletesRewrite.this.writeDurations = durations;
       return files;
     }
   }
@@ -323,6 +329,7 @@ public class SparkPositionDeletesRewrite implements Write {
    * assumption that all incoming deletes belong to the same partition.
    */
   private static class DeleteWriter implements DataWriter<InternalRow> {
+    private final WriteTimer timer = new WriteTimer();
     private final SparkFileWriterFactory writerFactoryWithRow;
     private final SparkFileWriterFactory writerFactoryWithoutRow;
     private final OutputFileFactory deleteFileFactory;
@@ -387,22 +394,25 @@ public class SparkPositionDeletesRewrite implements Write {
 
     @Override
     public void write(InternalRow record) {
-      String file = record.getString(fileOrdinal);
-      long position = record.getLong(positionOrdinal);
-      InternalRow row = record.getStruct(rowOrdinal, rowSize);
-      if (row != null) {
-        positionDelete.set(file, position, row);
-        lazyWriterWithRow().write(positionDelete, spec, partition);
-      } else {
-        positionDelete.set(file, position, null);
-        lazyWriterWithoutRow().write(positionDelete, spec, partition);
-      }
+      timer.timeWrite(
+          () -> {
+            String file = record.getString(fileOrdinal);
+            long position = record.getLong(positionOrdinal);
+            InternalRow row = record.getStruct(rowOrdinal, rowSize);
+            if (row != null) {
+              positionDelete.set(file, position, row);
+              lazyWriterWithRow().write(positionDelete, spec, partition);
+            } else {
+              positionDelete.set(file, position, null);
+              lazyWriterWithoutRow().write(positionDelete, spec, partition);
+            }
+          });
     }
 
     @Override
     public WriterCommitMessage commit() throws IOException {
       close();
-      return new DeleteTaskCommit(allDeleteFiles());
+      return new DeleteTaskCommit(allDeleteFiles(), timer.writeDurations());
     }
 
     @Override
@@ -414,12 +424,15 @@ public class SparkPositionDeletesRewrite implements Write {
     @Override
     public void close() throws IOException {
       if (!closed) {
-        if (writerWithRow != null) {
-          writerWithRow.close();
-        }
-        if (writerWithoutRow != null) {
-          writerWithoutRow.close();
-        }
+        timer.timeClose(
+            () -> {
+              if (writerWithRow != null) {
+                writerWithRow.close();
+              }
+              if (writerWithoutRow != null) {
+                writerWithoutRow.close();
+              }
+            });
         this.closed = true;
       }
     }
@@ -461,6 +474,7 @@ public class SparkPositionDeletesRewrite implements Write {
    * supports DVs.
    */
   private static class DVWriter implements DataWriter<InternalRow> {
+    private final WriteTimer timer = new WriteTimer();
     private final PositionDelete<InternalRow> positionDelete;
     private final FileIO io;
     private final PartitionSpec spec;
@@ -498,16 +512,19 @@ public class SparkPositionDeletesRewrite implements Write {
 
     @Override
     public void write(InternalRow record) {
-      String file = record.getString(fileOrdinal);
-      long position = record.getLong(positionOrdinal);
-      positionDelete.set(file, position, null);
-      dvWriter.write(positionDelete, spec, partition);
+      timer.timeWrite(
+          () -> {
+            String file = record.getString(fileOrdinal);
+            long position = record.getLong(positionOrdinal);
+            positionDelete.set(file, position, null);
+            dvWriter.write(positionDelete, spec, partition);
+          });
     }
 
     @Override
     public WriterCommitMessage commit() throws IOException {
       close();
-      return new DeleteTaskCommit(allDeleteFiles());
+      return new DeleteTaskCommit(allDeleteFiles(), timer.writeDurations());
     }
 
     @Override
@@ -519,9 +536,12 @@ public class SparkPositionDeletesRewrite implements Write {
     @Override
     public void close() throws IOException {
       if (!closed) {
-        if (null != dvWriter) {
-          dvWriter.close();
-        }
+        timer.timeClose(
+            () -> {
+              if (null != dvWriter) {
+                dvWriter.close();
+              }
+            });
         this.closed = true;
       }
     }
@@ -533,9 +553,15 @@ public class SparkPositionDeletesRewrite implements Write {
 
   public static class DeleteTaskCommit implements WriterCommitMessage {
     private final DeleteFile[] taskFiles;
+    private final WriteDurations writeDurations;
 
-    DeleteTaskCommit(List<DeleteFile> deleteFiles) {
+    DeleteTaskCommit(List<DeleteFile> deleteFiles, WriteDurations writeDurations) {
       this.taskFiles = deleteFiles.toArray(new DeleteFile[0]);
+      this.writeDurations = writeDurations;
+    }
+
+    WriteDurations writeDurations() {
+      return writeDurations;
     }
 
     DeleteFile[] files() {
