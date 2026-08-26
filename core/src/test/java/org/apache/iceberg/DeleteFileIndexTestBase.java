@@ -792,6 +792,8 @@ public abstract class DeleteFileIndexTestBase<
     DeleteFile dv = withDataSequenceNumber(1, newDV(FILE_A));
     List<DeleteFile> dvs = Collections.singletonList(dv);
     DeleteFileIndex index = DeleteFileIndex.builderFor(dvs).specsById(table.specs()).build();
-    assertThat(index.forDataFile(2, FILE_A)).isEmpty();
+    assertThatThrownBy(() -> index.forDataFile(2, FILE_A))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("must be greater than or equal to data file sequence number");
   }
 }

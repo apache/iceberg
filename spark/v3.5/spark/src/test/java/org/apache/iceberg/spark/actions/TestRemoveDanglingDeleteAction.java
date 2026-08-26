@@ -221,7 +221,7 @@ public class TestRemoveDanglingDeleteAction extends TestBase {
           .build();
   static final DeleteFile FILE_UNPARTITIONED_POS_DELETE =
       FileMetadata.deleteFileBuilder(PartitionSpec.unpartitioned())
-          .ofEqualityDeletes()
+          .ofPositionDeletes()
           .withPath("/path/to/data-unpartitioned-pos-deletes.parquet")
           .withFileSizeInBytes(10)
           .withRecordCount(1)
@@ -297,6 +297,10 @@ public class TestRemoveDanglingDeleteAction extends TestBase {
 
   @TestTemplate
   public void testPartitionedDeletesWithLesserSeqNo() {
+    // a DV with a lower sequence number than its referenced data file can only exist if
+    // metadata is corrupted: the spec requires writers to remove a DV synchronously when its
+    // referenced data file is removed, so this scenario only applies to v2 position deletes
+    assumeThat(formatVersion).isLessThan(3);
     setupPartitionedTable();
 
     // Add Data Files
@@ -353,8 +357,6 @@ public class TestRemoveDanglingDeleteAction extends TestBase {
 
     // All Delete files of the FILE A partition should be removed
     // because there are no data files in partition with a lesser sequence number.
-    // In version 3+, the DV file of FILE B2 should be removed
-    // because the DV file's sequence number is less than the data file's.
     // The second equality delete of FILE B should be removed
     // because there are no data files in partition with a lesser sequence number
     // and overlapping lower/upper bounds.
@@ -363,52 +365,29 @@ public class TestRemoveDanglingDeleteAction extends TestBase {
         StreamSupport.stream(result.removedDeleteFiles().spliterator(), false)
             .map(DeleteFile::location)
             .collect(Collectors.toSet());
-    if (formatVersion < 3) {
-      assertThat(removedDeleteFiles)
-          .as("Expected 5 delete files removed")
-          .hasSize(5)
-          .containsExactlyInAnyOrder(
-              fileADeletes.location(),
-              fileA2Deletes.location(),
-              FILE_A_EQ_DELETES.location(),
-              FILE_A2_EQ_DELETES.location(),
-              FILE_B2_EQ_DELETES.location());
-    } else {
-      assertThat(removedDeleteFiles)
-          .as("Expected 6 delete files removed")
-          .hasSize(6)
-          .containsExactlyInAnyOrder(
-              fileADeletes.location(),
-              fileA2Deletes.location(),
-              FILE_A_EQ_DELETES.location(),
-              FILE_A2_EQ_DELETES.location(),
-              fileB2Deletes.location(),
-              FILE_B2_EQ_DELETES.location());
-    }
+    assertThat(removedDeleteFiles)
+        .as("Expected 5 delete files removed")
+        .hasSize(5)
+        .containsExactlyInAnyOrder(
+            fileADeletes.location(),
+            fileA2Deletes.location(),
+            FILE_A_EQ_DELETES.location(),
+            FILE_A2_EQ_DELETES.location(),
+            FILE_B2_EQ_DELETES.location());
+
     List<Tuple2<Long, String>> actualAfter = liveEntries();
     List<Tuple2<Long, String>> expectedAfter =
-        formatVersion < 3
-            ? ImmutableList.of(
-                Tuple2.apply(1L, FILE_B.location()),
-                Tuple2.apply(1L, FILE_C.location()),
-                Tuple2.apply(1L, FILE_D.location()),
-                Tuple2.apply(2L, FILE_B_EQ_DELETES.location()),
-                Tuple2.apply(2L, fileBDeletes.location()),
-                Tuple2.apply(2L, fileB2Deletes.location()),
-                Tuple2.apply(3L, FILE_A2.location()),
-                Tuple2.apply(3L, FILE_B2.location()),
-                Tuple2.apply(3L, FILE_C2.location()),
-                Tuple2.apply(3L, FILE_D2.location()))
-            : ImmutableList.of(
-                Tuple2.apply(1L, FILE_B.location()),
-                Tuple2.apply(1L, FILE_C.location()),
-                Tuple2.apply(1L, FILE_D.location()),
-                Tuple2.apply(2L, FILE_B_EQ_DELETES.location()),
-                Tuple2.apply(2L, fileBDeletes.location()),
-                Tuple2.apply(3L, FILE_A2.location()),
-                Tuple2.apply(3L, FILE_B2.location()),
-                Tuple2.apply(3L, FILE_C2.location()),
-                Tuple2.apply(3L, FILE_D2.location()));
+        ImmutableList.of(
+            Tuple2.apply(1L, FILE_B.location()),
+            Tuple2.apply(1L, FILE_C.location()),
+            Tuple2.apply(1L, FILE_D.location()),
+            Tuple2.apply(2L, FILE_B_EQ_DELETES.location()),
+            Tuple2.apply(2L, fileBDeletes.location()),
+            Tuple2.apply(2L, fileB2Deletes.location()),
+            Tuple2.apply(3L, FILE_A2.location()),
+            Tuple2.apply(3L, FILE_B2.location()),
+            Tuple2.apply(3L, FILE_C2.location()),
+            Tuple2.apply(3L, FILE_D2.location()));
     assertThat(actualAfter).containsExactlyInAnyOrderElementsOf(expectedAfter);
   }
 
@@ -491,6 +470,10 @@ public class TestRemoveDanglingDeleteAction extends TestBase {
 
   @TestTemplate
   public void testUnpartitionedTable() {
+    // a DV with a lower sequence number than its referenced data file can only exist if
+    // metadata is corrupted: the spec requires writers to remove a DV synchronously when its
+    // referenced data file is removed, so this scenario only applies to v2 position deletes
+    assumeThat(formatVersion).isLessThan(3);
     setupUnpartitionedTable();
 
     DeleteFile posDelete = fileUnpartitionedDeletes();
