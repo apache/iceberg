@@ -23,15 +23,20 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.stream.Collectors;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.StructLike;
+import org.apache.iceberg.TestHelpers.Row;
 import org.apache.iceberg.types.Types;
+import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.StructType;
 import org.junit.jupiter.api.Test;
 
 class TestSparkFileType {
+  private static final byte[] BYTES = new byte[] {1, 2};
   private static final int PHOTO_ID = 2;
   private static final Types.FileType PHOTO = Types.FileType.of(PHOTO_ID);
   private static final Schema SCHEMA =
@@ -110,6 +115,19 @@ class TestSparkFileType {
 
     assertThat(SparkSchemaUtil.convert(SCHEMA, sparkType).asStruct())
         .isEqualTo(SCHEMA.select("id", "data").asStruct());
+  }
+
+  @Test
+  void convertsAFileValueToASparkRow() {
+    StructLike photo =
+        Row.of("s3://bucket/photo.png", 0L, 12L, "image/png", "d41d8cd9", ByteBuffer.wrap(BYTES));
+
+    InternalRow converted = (InternalRow) SparkUtil.internalToSpark(PHOTO, photo);
+
+    assertThat(converted.numFields()).isEqualTo(PHOTO.fields().size());
+    assertThat(converted.getUTF8String(0).toString()).isEqualTo("s3://bucket/photo.png");
+    assertThat(converted.getLong(2)).isEqualTo(12L);
+    assertThat(converted.getBinary(5)).isEqualTo(BYTES);
   }
 
   private static List<String> nestedFieldNames() {
