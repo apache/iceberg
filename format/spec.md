@@ -669,7 +669,7 @@ Three constraint types are defined:
 * `unique` -- the values of a set of fields must be distinct across all rows
 * `primary-key` -- the values of a set of fields must be distinct across all rows and must not be null
 
-Constraints are stored separately from schemas because a constraint may reference more than one field and because constraints and schemas evolve independently. Every constraint references the fields that it applies to by field ID, so a constraint continues to apply to the same columns after a column is renamed or reordered.
+Constraints are stored separately from schemas because the two evolve independently. Every constraint references the fields that it applies to by field ID, so a constraint continues to apply to the same columns after a column is renamed or reordered.
 
 A required field in a schema expresses `NOT NULL`. It is not represented as a constraint.
 
@@ -753,7 +753,7 @@ When a constraint becomes enforced, either by being added with `enforced` set to
 
 Only `validated` and `valid` state that a constraint holds. They are distinguished so that readers can tell whether that conclusion was reached by checking data or by relying on writers to enforce the constraint, and so that the most recent `validated` snapshot can be found if a constraint is later found to be `invalid`.
 
-Writers may commit to a table where a constraint is `invalid`. An enforced constraint requires that a writer not add rows that violate the constraint; it does not require a writer to repair existing violations. Returning a constraint to `validated` is a separate operation.
+Writers may commit to a table where a constraint is `invalid`. An enforced constraint requires that a writer not add rows that violate the constraint; it does not require a writer to repair existing violations.
 
 ### Manifests
 
