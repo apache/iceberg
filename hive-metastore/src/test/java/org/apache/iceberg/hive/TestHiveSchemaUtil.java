@@ -212,6 +212,38 @@ public class TestHiveSchemaUtil {
     assertThat(hiveSchema).containsExactly(new FieldSchema("variant_field", "unknown", null));
   }
 
+  @Test
+  void convertsAFileColumnToAHiveStruct() {
+    Schema schema = new Schema(optional(1, "photo", Types.FileType.of(1)));
+
+    assertThat(HiveSchemaUtil.convert(schema))
+        .containsExactly(
+            new FieldSchema(
+                "photo",
+                "struct<uri:string,offset:bigint,size:bigint,"
+                    + "content_type:string,checksum:string,inline:binary>",
+                null));
+  }
+
+  @Test
+  void convertsANestedFileColumnToAHiveStruct() {
+    Schema schema =
+        new Schema(
+            optional(1, "photos", Types.ListType.ofOptional(2, Types.FileType.of(2))),
+            optional(
+                9, "wrapper", Types.StructType.of(optional(10, "photo", Types.FileType.of(10)))));
+
+    List<FieldSchema> hiveSchema = HiveSchemaUtil.convert(schema);
+
+    String fileStruct =
+        "struct<uri:string,offset:bigint,size:bigint,"
+            + "content_type:string,checksum:string,inline:binary>";
+    assertThat(hiveSchema)
+        .containsExactly(
+            new FieldSchema("photos", String.format("array<%s>", fileStruct), null),
+            new FieldSchema("wrapper", String.format("struct<photo:%s>", fileStruct), null));
+  }
+
   protected List<FieldSchema> getSupportedFieldSchemas() {
     List<FieldSchema> fields = Lists.newArrayListWithCapacity(10);
     fields.add(new FieldSchema("c_float", serdeConstants.FLOAT_TYPE_NAME, "float comment"));
