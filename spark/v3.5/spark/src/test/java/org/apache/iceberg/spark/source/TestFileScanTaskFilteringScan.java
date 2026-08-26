@@ -22,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.io.File;
+import java.io.IOException;
 import org.apache.iceberg.BatchScan;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
@@ -84,7 +85,7 @@ public class TestFileScanTaskFilteringScan {
   }
 
   @Test
-  public void planFilesReturnsOnlyAllowedPaths() {
+  public void planFilesReturnsOnlyAllowedPaths() throws IOException {
     BatchScan scan = table.newBatchScan();
     FileScanTaskFilteringScan filtered =
         new FileScanTaskFilteringScan(scan, ImmutableSet.of(fileB.location()));
@@ -97,7 +98,7 @@ public class TestFileScanTaskFilteringScan {
   }
 
   @Test
-  public void planFilesMatchesMultipleAllowedPaths() {
+  public void planFilesMatchesMultipleAllowedPaths() throws IOException {
     BatchScan scan = table.newBatchScan();
     FileScanTaskFilteringScan filtered =
         new FileScanTaskFilteringScan(
@@ -111,7 +112,7 @@ public class TestFileScanTaskFilteringScan {
   }
 
   @Test
-  public void planFilesFallsBackToUnfilteredSetWhenNoPathsMatch() {
+  public void planFilesFallsBackToUnfilteredSetWhenNoPathsMatch() throws IOException {
     // Simulates a path-format mismatch between how the index recorded a path and how Iceberg
     // reports it here: none of the "allowed" paths correspond to any real candidate file, which
     // must never be interpreted as "prune everything to zero rows."
