@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.source;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
 import java.io.IOException;
@@ -45,10 +46,12 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.TestBase;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ByteBuffers;
+import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -131,6 +134,17 @@ class TestSparkFileTypeScan {
       assertThat(rows.get(i).getLong(0)).isEqualTo(expected.get(i).getField("id"));
       assertThat(rows.get(i).getString(1)).isEqualTo(expectedPhoto.getField("uri"));
     }
+  }
+
+  @Test
+  void rejectsWritingAFileColumn() throws IOException {
+    Table table = createTable("parquet");
+    Dataset<Row> df = spark.read().format("iceberg").load(table.location());
+
+    assertThatThrownBy(
+            () -> df.write().format("iceberg").mode("append").save(table.location()))
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage("Cannot write file column photo: Spark cannot express the file type");
   }
 
   private static Object sparkValue(Object value) {

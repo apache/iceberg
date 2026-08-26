@@ -21,6 +21,7 @@ package org.apache.iceberg.spark;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -73,6 +74,42 @@ class TestSparkFileType {
   void describesAFileColumnAsAStruct() {
     assertThat(Spark3Util.describe(PHOTO))
         .isEqualTo(Spark3Util.describe(Types.StructType.of(PHOTO.fields())));
+  }
+
+  @Test
+  void rejectsConvertingASparkTypeBackToAFileColumn() {
+    StructType sparkType = SparkSchemaUtil.convert(SCHEMA);
+
+    assertThatThrownBy(() -> SparkSchemaUtil.convert(SCHEMA, sparkType))
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage("Cannot write file column photo: Spark cannot express the file type");
+
+    assertThatThrownBy(() -> SparkSchemaUtil.convertWithFreshIds(SCHEMA, sparkType, true))
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage("Cannot write file column photo: Spark cannot express the file type");
+  }
+
+  @Test
+  void namesANestedFileColumnInTheWriteRejection() {
+    Schema schema =
+        new Schema(
+            required(1, "id", Types.LongType.get()),
+            optional(
+                2, "attachments", Types.StructType.of(optional(3, "photo", Types.FileType.of(3)))));
+
+    assertThatThrownBy(
+            () -> SparkSchemaUtil.convert(schema, SparkSchemaUtil.convert(schema), false))
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage(
+            "Cannot write file column attachments.photo: Spark cannot express the file type");
+  }
+
+  @Test
+  void convertsAWriteSchemaThatOmitsAFileColumn() {
+    StructType sparkType = SparkSchemaUtil.convert(SCHEMA.select("id", "data"));
+
+    assertThat(SparkSchemaUtil.convert(SCHEMA, sparkType).asStruct())
+        .isEqualTo(SCHEMA.select("id", "data").asStruct());
   }
 
   private static List<String> nestedFieldNames() {
