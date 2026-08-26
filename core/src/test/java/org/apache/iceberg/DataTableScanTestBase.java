@@ -27,6 +27,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -312,7 +313,7 @@ public abstract class DataTableScanTestBase<
   }
 
   @TestTemplate
-  public void testPlanFilesPositionDeletePathReferenceWithPartitionMismatch() {
+  public void testPlanFilesPositionDeletePathReferenceWithPartitionMismatchFails() {
     assumeThat(formatVersion).as("Requires V2 position deletes").isEqualTo(2);
 
     table.newAppend().appendFile(FILE_A).commit();
@@ -331,14 +332,17 @@ public abstract class DataTableScanTestBase<
 
     table.newRowDelta().addDeletes(posDeleteWrongPartition).commit();
 
-    List<T> scanTasks = Lists.newArrayList(newScan().planFiles());
-    assertThat(scanTasks).hasSize(1);
-    FileScanTask task = (FileScanTask) scanTasks.get(0);
-    assertThat(task.deletes()).isEmpty();
+    assertThatThrownBy(() -> Lists.newArrayList(newScan().planFiles()))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining(
+            "Mismatched partition tuples (PartitionData{data_bucket=1},"
+                + " PartitionData{data_bucket=0})")
+        .hasMessageContaining(FILE_A.location())
+        .hasMessageContaining("metadata is corrupted");
   }
 
   @TestTemplate
-  public void testPlanFilesDeletionVectorPathReferenceWithPartitionMismatch() {
+  public void testPlanFilesDeletionVectorPathReferenceWithPartitionMismatchFails() {
     assumeThat(formatVersion).as("Requires V3 deletion vectors").isGreaterThanOrEqualTo(3);
 
     table.newAppend().appendFile(FILE_A).commit();
@@ -359,14 +363,17 @@ public abstract class DataTableScanTestBase<
 
     table.newRowDelta().addDeletes(dvWrongPartition).commit();
 
-    List<T> scanTasks = Lists.newArrayList(newScan().planFiles());
-    assertThat(scanTasks).hasSize(1);
-    FileScanTask task = (FileScanTask) scanTasks.get(0);
-    assertThat(task.deletes()).isEmpty();
+    assertThatThrownBy(() -> Lists.newArrayList(newScan().planFiles()))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining(
+            "Mismatched partition tuples (PartitionData{data_bucket=1},"
+                + " PartitionData{data_bucket=0})")
+        .hasMessageContaining(FILE_A.location())
+        .hasMessageContaining("metadata is corrupted");
   }
 
   @TestTemplate
-  public void testPlanFilesPositionDeletePathReferenceWithSpecMismatch() {
+  public void testPlanFilesPositionDeletePathReferenceWithSpecMismatchFails() {
     assumeThat(formatVersion).as("Requires V2 position deletes").isEqualTo(2);
 
     table.newAppend().appendFile(FILE_A).commit();
@@ -386,14 +393,15 @@ public abstract class DataTableScanTestBase<
 
     table.newRowDelta().addDeletes(positionDeleteWrongSpec).commit();
 
-    List<T> scanTasks = Lists.newArrayList(newScan().planFiles());
-    assertThat(scanTasks).hasSize(1);
-    FileScanTask task = (FileScanTask) scanTasks.get(0);
-    assertThat(task.deletes()).isEmpty();
+    assertThatThrownBy(() -> Lists.newArrayList(newScan().planFiles()))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("Mismatched partition specs (1, 0)")
+        .hasMessageContaining(FILE_A.location())
+        .hasMessageContaining("metadata is corrupted");
   }
 
   @TestTemplate
-  public void testPlanFilesDeletionVectorPathReferenceWithSpecMismatch() {
+  public void testPlanFilesDeletionVectorPathReferenceWithSpecMismatchFails() {
     assumeThat(formatVersion).as("Requires V3 deletion vectors").isGreaterThanOrEqualTo(3);
 
     table.newAppend().appendFile(FILE_A).commit();
@@ -415,9 +423,10 @@ public abstract class DataTableScanTestBase<
 
     table.newRowDelta().addDeletes(dvWrongSpec).commit();
 
-    List<T> scanTasks = Lists.newArrayList(newScan().planFiles());
-    assertThat(scanTasks).hasSize(1);
-    FileScanTask task = (FileScanTask) scanTasks.get(0);
-    assertThat(task.deletes()).isEmpty();
+    assertThatThrownBy(() -> Lists.newArrayList(newScan().planFiles()))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("Mismatched partition specs (1, 0)")
+        .hasMessageContaining(FILE_A.location())
+        .hasMessageContaining("metadata is corrupted");
   }
 }
