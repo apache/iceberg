@@ -1429,16 +1429,13 @@ public class TestRewriteDataFilesAction extends TestBase {
             // Since we can have at most one commit per file group and there are only 10 file
             // groups, actual number of commits is 10
             .option(RewriteDataFiles.PARTIAL_PROGRESS_MAX_COMMITS, "20")
-            // Setting max-failed-commits to 1 to tolerate random commit failure
-            .option(RewriteDataFiles.PARTIAL_PROGRESS_MAX_FAILED_COMMITS, "1");
-    rewrite.execute();
+            .option(RewriteDataFiles.PARTIAL_PROGRESS_MAX_FAILED_COMMITS, "0");
+    Result result = rewrite.execute();
 
     List<Object[]> postRewriteData = currentData();
     assertEquals("We shouldn't have changed the data", originalData, postRewriteData);
-    assertThat(table.snapshots())
-        .as("Table did not have the expected number of snapshots")
-        // To tolerate 1 random commit failure
-        .hasSizeGreaterThanOrEqualTo(10);
+    assertThat(result.rewriteResults()).as("Should have 10 file groups").hasSize(10);
+    shouldHaveSnapshots(table, 11);
     shouldHaveNoOrphans(table);
     shouldHaveACleanCache(table);
   }

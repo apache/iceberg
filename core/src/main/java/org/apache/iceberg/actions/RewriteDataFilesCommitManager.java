@@ -150,11 +150,11 @@ public class RewriteDataFilesCommitManager {
   }
 
   /**
-   * An async service which allows for committing multiple file groups as their rewrites complete.
-   * The service also allows for partial-progress since commits can fail. Once the service has been
-   * closed no new file groups should not be offered.
+   * A service that commits file groups as rewrites complete. Commits are serialized and may run in
+   * the thread offering a file group. Failed commits permit partial progress. No groups may be
+   * offered after the service is closed.
    *
-   * @param rewritesPerCommit number of file groups to include in a commit
+   * @param rewritesPerCommit positive number of file groups to include in a commit
    * @return the service for handling commits
    */
   public CommitService service(int rewritesPerCommit) {
