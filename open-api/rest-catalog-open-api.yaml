@@ -134,7 +134,7 @@ paths:
           - POST /v1/{prefix}/transactions/commit
         "
       responses:
-        200:
+        '200':
           description: Server specified configuration values.
           content:
             application/json:
@@ -156,13 +156,13 @@ paths:
                   "GET /v1/{prefix}/namespaces/{namespace}/views/{view}"
                 ]
               }
-        400:
+        '400':
           $ref: '#/components/responses/BadRequestErrorResponse'
-        401:
+        '401':
           $ref: '#/components/responses/UnauthorizedResponse'
-        403:
+        '403':
           $ref: '#/components/responses/ForbiddenResponse'
-        404:
+        '404':
           description: Not Found - Warehouse provided in the `warehouse` query parameter is not found.
           content:
             application/json:
@@ -171,11 +171,11 @@ paths:
               examples:
                 NoSuchWarehouseExample:
                   $ref: '#/components/examples/NoSuchWarehouseError'
-        419:
+        '419':
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
-        503:
+        '503':
           $ref: '#/components/responses/ServiceUnavailableResponse'
-        5XX:
+        '5XX':
           $ref: '#/components/responses/ServerErrorResponse'
 
   /v1/oauth/tokens:
@@ -238,13 +238,13 @@ paths:
             schema:
               $ref: '#/components/schemas/OAuthTokenRequest'
       responses:
-        200:
+        '200':
           $ref: '#/components/responses/OAuthTokenResponse'
-        400:
+        '400':
           $ref: '#/components/responses/OAuthErrorResponse'
-        401:
+        '401':
           $ref: '#/components/responses/OAuthErrorResponse'
-        5XX:
+        '5XX':
           $ref: '#/components/responses/OAuthErrorResponse'
 
   /v1/{prefix}/namespaces:
@@ -281,15 +281,15 @@ paths:
             type: string
           example: "accounting%1Ftax"
       responses:
-        200:
+        '200':
           $ref: '#/components/responses/ListNamespacesResponse'
-        400:
+        '400':
           $ref: '#/components/responses/BadRequestErrorResponse'
-        401:
+        '401':
           $ref: '#/components/responses/UnauthorizedResponse'
-        403:
+        '403':
           $ref: '#/components/responses/ForbiddenResponse'
-        404:
+        '404':
           description: Not Found - Namespace provided in the `parent` query parameter is not found.
           content:
             application/json:
@@ -298,11 +298,11 @@ paths:
               examples:
                 NoSuchNamespaceExample:
                   $ref: '#/components/examples/NoSuchNamespaceError'
-        419:
+        '419':
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
-        503:
+        '503':
           $ref: '#/components/responses/ServiceUnavailableResponse'
-        5XX:
+        '5XX':
           $ref: '#/components/responses/ServerErrorResponse'
 
     post:
@@ -322,17 +322,17 @@ paths:
             schema:
               $ref: '#/components/schemas/CreateNamespaceRequest'
       responses:
-        200:
+        '200':
           $ref: '#/components/responses/CreateNamespaceResponse'
-        400:
+        '400':
           $ref: '#/components/responses/BadRequestErrorResponse'
-        401:
+        '401':
           $ref: '#/components/responses/UnauthorizedResponse'
-        403:
+        '403':
           $ref: '#/components/responses/ForbiddenResponse'
-        406:
+        '406':
           $ref: '#/components/responses/UnsupportedOperationResponse'
-        409:
+        '409':
           description: Conflict - The namespace already exists
           content:
             application/json:
@@ -341,11 +341,11 @@ paths:
               examples:
                 NamespaceAlreadyExists:
                   $ref: '#/components/examples/NamespaceAlreadyExistsError'
-        419:
+        '419':
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
-        503:
+        '503':
           $ref: '#/components/responses/ServiceUnavailableResponse'
-        5XX:
+        '5XX':
           $ref: '#/components/responses/ServerErrorResponse'
 
   /v1/{prefix}/namespaces/{namespace}:
@@ -360,15 +360,15 @@ paths:
       operationId: loadNamespaceMetadata
       description: Return all stored metadata properties for a given namespace
       responses:
-        200:
+        '200':
           $ref: '#/components/responses/GetNamespaceResponse'
-        400:
+        '400':
           $ref: '#/components/responses/BadRequestErrorResponse'
-        401:
+        '401':
           $ref: '#/components/responses/UnauthorizedResponse'
-        403:
+        '403':
           $ref: '#/components/responses/ForbiddenResponse'
-        404:
+        '404':
           description: Not Found - Namespace not found
           content:
             application/json:
@@ -377,11 +377,11 @@ paths:
               examples:
                 NoSuchNamespaceExample:
                   $ref: '#/components/examples/NoSuchNamespaceError'
-        419:
+        '419':
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
-        503:
+        '503':
           $ref: '#/components/responses/ServiceUnavailableResponse'
-        5XX:
+        '5XX':
           $ref: '#/components/responses/ServerErrorResponse'
 
     head:
@@ -392,15 +392,15 @@ paths:
       description:
         Check if a namespace exists. The response does not contain a body.
       responses:
-        204:
+        '204':
           description: Success, no content
-        400:
+        '400':
           $ref: '#/components/responses/BadRequestErrorResponse'
-        401:
+        '401':
           $ref: '#/components/responses/UnauthorizedResponse'
-        403:
+        '403':
           $ref: '#/components/responses/ForbiddenResponse'
-        404:
+        '404':
           description: Not Found - Namespace not found
           content:
             application/json:
@@ -409,11 +409,11 @@ paths:
               examples:
                 NoSuchNamespaceExample:
                   $ref: '#/components/examples/NoSuchNamespaceError'
-        419:
+        '419':
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
-        503:
+        '503':
           $ref: '#/components/responses/ServiceUnavailableResponse'
-        5XX:
+        '5XX':
           $ref: '#/components/responses/ServerErrorResponse'
 
     delete:
@@ -424,15 +424,15 @@ paths:
       parameters:
         - $ref: '#/components/parameters/idempotency-key'
       responses:
-        204:
+        '204':
           description: Success, no content
-        400:
+        '400':
           $ref: '#/components/responses/BadRequestErrorResponse'
-        401:
+        '401':
           $ref: '#/components/responses/UnauthorizedResponse'
-        403:
+        '403':
           $ref: '#/components/responses/ForbiddenResponse'
-        404:
+        '404':
           description: Not Found - Namespace to delete does not exist.
           content:
             application/json:
@@ -441,7 +441,7 @@ paths:
               examples:
                 NoSuchNamespaceExample:
                   $ref: '#/components/examples/NoSuchNamespaceError'
-        409:
+        '409':
           description: Not Empty - Namespace to delete is not empty.
           content:
             application/json:
@@ -450,11 +450,11 @@ paths:
               examples:
                 NamespaceNotEmptyExample:
                   $ref: '#/components/examples/NamespaceNotEmptyError'
-        419:
+        '419':
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
-        503:
+        '503':
           $ref: '#/components/responses/ServiceUnavailableResponse'
-        5XX:
+        '5XX':
           $ref: '#/components/responses/ServerErrorResponse'
 
   /v1/{prefix}/namespaces/{namespace}/properties:
@@ -487,15 +487,15 @@ paths:
               UpdateAndRemoveProperties:
                 $ref: '#/components/examples/UpdateAndRemoveNamespacePropertiesRequest'
       responses:
-        200:
+        '200':
           $ref: '#/components/responses/UpdateNamespacePropertiesResponse'
-        400:
+        '400':
           $ref: '#/components/responses/BadRequestErrorResponse'
-        401:
+        '401':
           $ref: '#/components/responses/UnauthorizedResponse'
-        403:
+        '403':
           $ref: '#/components/responses/ForbiddenResponse'
-        404:
+        '404':
           description: Not Found - Namespace not found
           content:
             application/json:
@@ -504,9 +504,9 @@ paths:
               examples:
                 NamespaceNotFound:
                   $ref: '#/components/examples/NoSuchNamespaceError'
-        406:
+        '406':
           $ref: '#/components/responses/UnsupportedOperationResponse'
-        422:
+        '422':
           description: Unprocessable Entity - A property key was included in both `removals` and `updates`
           content:
             application/json:
@@ -515,11 +515,11 @@ paths:
               examples:
                 UnprocessableEntityDuplicateKey:
                   $ref: '#/components/examples/UnprocessableEntityDuplicateKey'
-        419:
+        '419':
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
-        503:
+        '503':
           $ref: '#/components/responses/ServiceUnavailableResponse'
-        5XX:
+        '5XX':
           $ref: '#/components/responses/ServerErrorResponse'
 
   /v1/{prefix}/namespaces/{namespace}/tables:
@@ -537,15 +537,15 @@ paths:
         - $ref: '#/components/parameters/page-token'
         - $ref: '#/components/parameters/page-size'
       responses:
-        200:
+        '200':
           $ref: '#/components/responses/ListTablesResponse'
-        400:
+        '400':
           $ref: '#/components/responses/BadRequestErrorResponse'
-        401:
+        '401':
           $ref: '#/components/responses/UnauthorizedResponse'
-        403:
+        '403':
           $ref: '#/components/responses/ForbiddenResponse'
-        404:
+        '404':
           description: Not Found - The namespace specified does not exist
           content:
             application/json:
@@ -554,11 +554,11 @@ paths:
               examples:
                 NamespaceNotFound:
                   $ref: '#/components/examples/NoSuchNamespaceError'
-        419:
+        '419':
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
-        503:
+        '503':
           $ref: '#/components/responses/ServiceUnavailableResponse'
-        5XX:
+        '5XX':
           $ref: '#/components/responses/ServerErrorResponse'
 
     post:
@@ -589,15 +589,15 @@ paths:
             schema:
               $ref: '#/components/schemas/CreateTableRequest'
       responses:
-        200:
+        '200':
           $ref: '#/components/responses/CreateTableResponse'
-        400:
+        '400':
           $ref: '#/components/responses/BadRequestErrorResponse'
-        401:
+        '401':
           $ref: '#/components/responses/UnauthorizedResponse'
-        403:
+        '403':
           $ref: '#/components/responses/ForbiddenResponse'
-        404:
+        '404':
           description: Not Found - The namespace specified does not exist
           content:
             application/json:
@@ -606,7 +606,7 @@ paths:
               examples:
                 NamespaceNotFound:
                   $ref: '#/components/examples/NoSuchNamespaceError'
-        409:
+        '409':
           description: Conflict - The identifier already exists as a table or view
           content:
             application/json:
@@ -615,11 +615,11 @@ paths:
               examples:
                 TableAlreadyExists:
                   $ref: '#/components/examples/TableAlreadyExistsError'
-        419:
+        '419':
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
-        503:
+        '503':
           $ref: '#/components/responses/ServiceUnavailableResponse'
-        5XX:
+        '5XX':
           $ref: '#/components/responses/ServerErrorResponse'
 
   /v1/{prefix}/namespaces/{namespace}/functions:
@@ -637,15 +637,15 @@ paths:
         - $ref: '#/components/parameters/page-token'
         - $ref: '#/components/parameters/page-size'
       responses:
-        200:
+        '200':
           $ref: '#/components/responses/ListFunctionsResponse'
-        400:
+        '400':
           $ref: '#/components/responses/BadRequestErrorResponse'
-        401:
+        '401':
           $ref: '#/components/responses/UnauthorizedResponse'
-        403:
+        '403':
           $ref: '#/components/responses/ForbiddenResponse'
-        404:
+        '404':
           description: Not Found - The namespace specified does not exist
           content:
             application/json:
@@ -654,11 +654,11 @@ paths:
               examples:
                 NamespaceNotFound:
                   $ref: '#/components/examples/NoSuchNamespaceError'
-        419:
+        '419':
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
-        503:
+        '503':
           $ref: '#/components/responses/ServiceUnavailableResponse'
-        5XX:
+        '5XX':
           $ref: '#/components/responses/ServerErrorResponse'
 
   /v1/{prefix}/namespaces/{namespace}/functions/{function}:
@@ -678,15 +678,15 @@ paths:
 
       operationId: loadFunction
       responses:
-        200:
+        '200':
           $ref: '#/components/responses/LoadFunctionResponse'
-        400:
+        '400':
           $ref: '#/components/responses/BadRequestErrorResponse'
-        401:
+        '401':
           $ref: '#/components/responses/UnauthorizedResponse'
-        403:
+        '403':
           $ref: '#/components/responses/ForbiddenResponse'
-        404:
+        '404':
           description: Not Found - Function or namespace not found
           content:
             application/json:
@@ -697,11 +697,11 @@ paths:
                   $ref: '#/components/examples/NoSuchNamespaceError'
                 FunctionNotFound:
                   $ref: '#/components/examples/NoSuchFunctionError'
-        419:
+        '419':
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
-        503:
+        '503':
           $ref: '#/components/responses/ServiceUnavailableResponse'
-        5XX:
+        '5XX':
           $ref: '#/components/responses/ServerErrorResponse'
 
   /v1/{prefix}/namespaces/{namespace}/tables/{table}/plan:
@@ -762,15 +762,15 @@ paths:
             schema:
               $ref: '#/components/schemas/PlanTableScanRequest'
       responses:
-        200:
+        '200':
           $ref: '#/components/responses/PlanTableScanResponse'
-        400:
+        '400':
           $ref: '#/components/responses/BadRequestErrorResponse'
-        401:
+        '401':
           $ref: '#/components/responses/UnauthorizedResponse'
-        403:
+        '403':
           $ref: '#/components/responses/ForbiddenResponse'
-        404:
+        '404':
           description:
             Not Found
             - NoSuchTableException, the table does not exist
@@ -784,13 +784,13 @@ paths:
                   $ref: '#/components/examples/NoSuchTableError'
                 NamespaceDoesNotExist:
                   $ref: '#/components/examples/NoSuchNamespaceError'
-        406:
+        '406':
           $ref: '#/components/responses/UnsupportedOperationResponse'
-        419:
+        '419':
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
-        503:
+        '503':
           $ref: '#/components/responses/ServiceUnavailableResponse'
-        5XX:
+        '5XX':
           $ref: '#/components/responses/ServerErrorResponse'
 
   /v1/{prefix}/namespaces/{namespace}/tables/{table}/plan/{plan-id}:
@@ -827,15 +827,15 @@ paths:
         tasks (file scan tasks and plan tasks) and both may be included in the
         response. Tasks must not be included for any other response status.
       responses:
-        200:
+        '200':
           $ref: '#/components/responses/FetchPlanningResultResponse'
-        400:
+        '400':
           $ref: '#/components/responses/BadRequestErrorResponse'
-        401:
+        '401':
           $ref: '#/components/responses/UnauthorizedResponse'
-        403:
+        '403':
           $ref: '#/components/responses/ForbiddenResponse'
-        404:
+        '404':
           description:
             Not Found
             - NoSuchPlanIdException, the plan-id does not exist
@@ -852,11 +852,11 @@ paths:
                   $ref: '#/components/examples/NoSuchTableError'
                 NamespaceDoesNotExist:
                   $ref: '#/components/examples/NoSuchNamespaceError'
-        419:
+        '419':
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
-        503:
+        '503':
           $ref: '#/components/responses/ServiceUnavailableResponse'
-        5XX:
+        '5XX':
           $ref: '#/components/responses/ServerErrorResponse'
 
     delete:
@@ -883,15 +883,15 @@ paths:
         - A plan-id has produced a "failed" or "cancelled" status from
           planTableScan or fetchPlanningResult
       responses:
-        204:
+        '204':
           description: Success, no content
-        400:
+        '400':
           $ref: '#/components/responses/BadRequestErrorResponse'
-        401:
+        '401':
           $ref: '#/components/responses/UnauthorizedResponse'
-        403:
+        '403':
           $ref: '#/components/responses/ForbiddenResponse'
-        404:
+        '404':
           description:
             Not Found
             - NoSuchPlanIdException, the plan-id does not exist
@@ -908,11 +908,11 @@ paths:
                   $ref: '#/components/examples/NoSuchTableError'
                 NamespaceDoesNotExist:
                   $ref: '#/components/examples/NoSuchNamespaceError'
-        419:
+        '419':
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
-        503:
+        '503':
           $ref: '#/components/responses/ServiceUnavailableResponse'
-        5XX:
+        '5XX':
           $ref: '#/components/responses/ServerErrorResponse'
 
 
@@ -936,15 +936,15 @@ paths:
             schema:
               $ref: '#/components/schemas/FetchScanTasksRequest'
       responses:
-        200:
+        '200':
           $ref: '#/components/responses/FetchScanTasksResponse'
-        400:
+        '400':
           $ref: '#/components/responses/BadRequestErrorResponse'
-        401:
+        '401':
           $ref: '#/components/responses/UnauthorizedResponse'
-        403:
+        '403':
           $ref: '#/components/responses/ForbiddenResponse'
-        404:
+        '404':
           description:
             Not Found
             - NoSuchPlanTaskException, the plan-task does not exist
@@ -961,11 +961,11 @@ paths:
                   $ref: '#/components/examples/NoSuchTableError'
                 NamespaceDoesNotExist:
                   $ref: '#/components/examples/NoSuchNamespaceError'
-        419:
+        '419':
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
-        503:
+        '503':
           $ref: '#/components/responses/ServiceUnavailableResponse'
-        5XX:
+        '5XX':
           $ref: '#/components/responses/ServerErrorResponse'
 
   /v1/{prefix}/namespaces/{namespace}/register:
@@ -991,15 +991,15 @@ paths:
             schema:
               $ref: '#/components/schemas/RegisterTableRequest'
       responses:
-        200:
+        '200':
           $ref: '#/components/responses/LoadTableResponse'
-        400:
+        '400':
           $ref: '#/components/responses/BadRequestErrorResponse'
-        401:
+        '401':
           $ref: '#/components/responses/UnauthorizedResponse'
-        403:
+        '403':
           $ref: '#/components/responses/ForbiddenResponse'
-        404:
+        '404':
           description: Not Found - The namespace specified does not exist
           content:
             application/json:
@@ -1008,7 +1008,7 @@ paths:
               examples:
                 NamespaceNotFound:
                   $ref: '#/components/examples/NoSuchNamespaceError'
-        409:
+        '409':
           description: Conflict - The identifier already exists as a table or view
           content:
             application/json:
@@ -1017,11 +1017,11 @@ paths:
               examples:
                 TableAlreadyExists:
                   $ref: '#/components/examples/TableAlreadyExistsError'
-        419:
+        '419':
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
-        503:
+        '503':
           $ref: '#/components/responses/ServiceUnavailableResponse'
-        5XX:
+        '5XX':
           $ref: '#/components/responses/ServerErrorResponse'
 
   /v1/{prefix}/namespaces/{namespace}/tables/{table}:
@@ -1076,19 +1076,19 @@ paths:
             enum: [ all, refs ]
         - $ref: '#/components/parameters/referenced-by'
       responses:
-        200:
+        '200':
           $ref: '#/components/responses/LoadTableResponse'
-        304:
+        '304':
           description:
             Not Modified - Based on the content of the 'If-None-Match' header the table metadata has
             not changed since.
-        400:
+        '400':
           $ref: '#/components/responses/BadRequestErrorResponse'
-        401:
+        '401':
           $ref: '#/components/responses/UnauthorizedResponse'
-        403:
+        '403':
           $ref: '#/components/responses/ForbiddenResponse'
-        404:
+        '404':
           description:
             Not Found - NoSuchTableException, table to load does not exist
           content:
@@ -1098,11 +1098,11 @@ paths:
               examples:
                 TableToLoadDoesNotExist:
                   $ref: '#/components/examples/NoSuchTableError'
-        419:
+        '419':
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
-        503:
+        '503':
           $ref: '#/components/responses/ServiceUnavailableResponse'
-        5XX:
+        '5XX':
           $ref: '#/components/responses/ServerErrorResponse'
 
     post:
@@ -1139,15 +1139,15 @@ paths:
             schema:
               $ref: '#/components/schemas/CommitTableRequest'
       responses:
-        200:
+        '200':
           $ref: '#/components/responses/CommitTableResponse'
-        400:
+        '400':
           $ref: '#/components/responses/BadRequestErrorResponse'
-        401:
+        '401':
           $ref: '#/components/responses/UnauthorizedResponse'
-        403:
+        '403':
           $ref: '#/components/responses/ForbiddenResponse'
-        404:
+        '404':
           description:
             Not Found - NoSuchTableException, table to load does not exist
           content:
@@ -1157,16 +1157,16 @@ paths:
               examples:
                 TableToUpdateDoesNotExist:
                   $ref: '#/components/examples/NoSuchTableError'
-        409:
+        '409':
           description:
             Conflict - CommitFailedException, one or more requirements failed. The client may retry.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/IcebergErrorResponse'
-        419:
+        '419':
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
-        500:
+        '500':
           description:
             An unknown server-side problem occurred; the commit state is unknown.
           content:
@@ -1180,9 +1180,9 @@ paths:
                   "code": 500
                 }
               }
-        503:
+        '503':
           $ref: '#/components/responses/ServiceUnavailableResponse'
-        502:
+        '502':
           description:
             A gateway or proxy received an invalid response from the upstream server; the commit state is unknown.
           content:
@@ -1196,7 +1196,7 @@ paths:
                   "code": 502
                 }
               }
-        504:
+        '504':
           description:
             A server-side gateway timeout occurred; the commit state is unknown.
           content:
@@ -1210,7 +1210,7 @@ paths:
                   "code": 504
                 }
               }
-        5XX:
+        '5XX':
           description:
             A server-side problem that might not be addressable on the client.
           content:
@@ -1241,15 +1241,15 @@ paths:
             type: boolean
             default: false
       responses:
-        204:
+        '204':
           description: Success, no content
-        400:
+        '400':
           $ref: '#/components/responses/BadRequestErrorResponse'
-        401:
+        '401':
           $ref: '#/components/responses/UnauthorizedResponse'
-        403:
+        '403':
           $ref: '#/components/responses/ForbiddenResponse'
-        404:
+        '404':
           description:
             Not Found - NoSuchTableException, Table to drop does not exist
           content:
@@ -1259,11 +1259,11 @@ paths:
               examples:
                 TableToDeleteDoesNotExist:
                   $ref: '#/components/examples/NoSuchTableError'
-        419:
+        '419':
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
-        503:
+        '503':
           $ref: '#/components/responses/ServiceUnavailableResponse'
-        5XX:
+        '5XX':
           $ref: '#/components/responses/ServerErrorResponse'
 
     head:
@@ -1274,15 +1274,15 @@ paths:
       description:
         Check if a table exists within a given namespace. The response does not contain a body.
       responses:
-        204:
+        '204':
           description: Success, no content
-        400:
+        '400':
           $ref: '#/components/responses/BadRequestErrorResponse'
-        401:
+        '401':
           $ref: '#/components/responses/UnauthorizedResponse'
-        403:
+        '403':
           $ref: '#/components/responses/ForbiddenResponse'
-        404:
+        '404':
           description:
             Not Found - NoSuchTableException, Table not found
           content:
@@ -1292,11 +1292,11 @@ paths:
               examples:
                 TableToLoadDoesNotExist:
                   $ref: '#/components/examples/NoSuchTableError'
-        419:
+        '419':
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
-        503:
+        '503':
           $ref: '#/components/responses/ServiceUnavailableResponse'
-        5XX:
+        '5XX':
           $ref: '#/components/responses/ServerErrorResponse'
 
   /v1/{prefix}/namespaces/{namespace}/tables/{table}/unregister:
@@ -1324,15 +1324,15 @@ paths:
         commits that happened before the unregister operation. All attempted
         commits after the unregister operation in this catalog must fail.
       responses:
-        200:
+        '200':
           $ref: '#/components/responses/UnregisterTableResponse'
-        400:
+        '400':
           $ref: '#/components/responses/BadRequestErrorResponse'
-        401:
+        '401':
           $ref: '#/components/responses/UnauthorizedResponse'
-        403:
+        '403':
           $ref: '#/components/responses/ForbiddenResponse'
-        404:
+        '404':
           description:
             Not Found - NoSuchTableException, table to unregister does not exist
           content:
@@ -1342,11 +1342,11 @@ paths:
               examples:
                 TableToUnregisterDoesNotExist:
                   $ref: '#/components/examples/NoSuchTableError'
-        419:
+        '419':
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
-        503:
+        '503':
           $ref: '#/components/responses/ServiceUnavailableResponse'
-        5XX:
+        '5XX':
           $ref: '#/components/responses/ServerErrorResponse'
 
   /v1/{prefix}/namespaces/{namespace}/tables/{table}/credentials:
@@ -1370,15 +1370,15 @@ paths:
         - $ref: '#/components/parameters/referenced-by'
       description: Load vended credentials for a table from the catalog.
       responses:
-        200:
+        '200':
           $ref: '#/components/responses/LoadCredentialsResponse'
-        400:
+        '400':
           $ref: '#/components/responses/BadRequestErrorResponse'
-        401:
+        '401':
           $ref: '#/components/responses/UnauthorizedResponse'
-        403:
+        '403':
           $ref: '#/components/responses/ForbiddenResponse'
-        404:
+        '404':
           description:
             Not Found - NoSuchTableException, table to load credentials for does not exist
           content:
@@ -1388,11 +1388,11 @@ paths:
               examples:
                 TableToLoadDoesNotExist:
                   $ref: '#/components/examples/NoSuchTableError'
-        419:
+        '419':
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
-        503:
+        '503':
           $ref: '#/components/responses/ServiceUnavailableResponse'
-        5XX:
+        '5XX':
           $ref: '#/components/responses/ServerErrorResponse'
 
   /v1/{prefix}/namespaces/{namespace}/tables/{table}/sign:
@@ -1414,19 +1414,19 @@ paths:
               $ref: '#/components/schemas/RemoteSignRequest'
         required: true
       responses:
-        200:
+        '200':
           $ref: '#/components/responses/RemoteSignResponse'
-        400:
+        '400':
           $ref: '#/components/responses/BadRequestErrorResponse'
-        401:
+        '401':
           $ref: '#/components/responses/UnauthorizedResponse'
-        403:
+        '403':
           $ref: '#/components/responses/ForbiddenResponse'
-        419:
+        '419':
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
-        503:
+        '503':
           $ref: '#/components/responses/ServiceUnavailableResponse'
-        5XX:
+        '5XX':
           $ref: '#/components/responses/ServerErrorResponse'
 
   /v1/{prefix}/tables/rename:
@@ -1454,15 +1454,15 @@ paths:
                 $ref: '#/components/examples/RenameTableSameNamespace'
         required: true
       responses:
-        204:
+        '204':
           description: Success, no content
-        400:
+        '400':
           $ref: '#/components/responses/BadRequestErrorResponse'
-        401:
+        '401':
           $ref: '#/components/responses/UnauthorizedResponse'
-        403:
+        '403':
           $ref: '#/components/responses/ForbiddenResponse'
-        404:
+        '404':
           description:
             Not Found
             - NoSuchTableException, Table to rename does not exist
@@ -1476,9 +1476,9 @@ paths:
                   $ref: '#/components/examples/NoSuchTableError'
                 NamespaceToRenameToDoesNotExist:
                   $ref: '#/components/examples/NoSuchNamespaceError'
-        406:
+        '406':
           $ref: '#/components/responses/UnsupportedOperationResponse'
-        409:
+        '409':
           description: Conflict - The target identifier to rename to already exists as a table or view
           content:
             application/json:
@@ -1486,11 +1486,11 @@ paths:
                 $ref: '#/components/schemas/IcebergErrorResponse'
               example:
                 $ref: '#/components/examples/TableAlreadyExistsError'
-        419:
+        '419':
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
-        503:
+        '503':
           $ref: '#/components/responses/ServiceUnavailableResponse'
-        5XX:
+        '5XX':
           $ref: '#/components/responses/ServerErrorResponse'
 
   /v1/{prefix}/namespaces/{namespace}/tables/{table}/metrics:
@@ -1512,15 +1512,15 @@ paths:
               $ref: '#/components/schemas/ReportMetricsRequest'
         required: true
       responses:
-        204:
+        '204':
           description: Success, no content
-        400:
+        '400':
           $ref: '#/components/responses/BadRequestErrorResponse'
-        401:
+        '401':
           $ref: '#/components/responses/UnauthorizedResponse'
-        403:
+        '403':
           $ref: '#/components/responses/ForbiddenResponse'
-        404:
+        '404':
           description:
             Not Found - NoSuchTableException, table to load does not exist
           content:
@@ -1530,11 +1530,11 @@ paths:
               examples:
                 TableToLoadDoesNotExist:
                   $ref: '#/components/examples/NoSuchTableError'
-        419:
+        '419':
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
-        503:
+        '503':
           $ref: '#/components/responses/ServiceUnavailableResponse'
-        5XX:
+        '5XX':
           $ref: '#/components/responses/ServerErrorResponse'
 
   /v1/{prefix}/transactions/commit:
@@ -1568,15 +1568,15 @@ paths:
               $ref: '#/components/schemas/CommitTransactionRequest'
         required: true
       responses:
-        204:
+        '204':
           description: Success, no content
-        400:
+        '400':
           $ref: '#/components/responses/BadRequestErrorResponse'
-        401:
+        '401':
           $ref: '#/components/responses/UnauthorizedResponse'
-        403:
+        '403':
           $ref: '#/components/responses/ForbiddenResponse'
-        404:
+        '404':
           description:
             Not Found - NoSuchTableException, table to load does not exist
           content:
@@ -1586,16 +1586,16 @@ paths:
               examples:
                 TableToUpdateDoesNotExist:
                   $ref: '#/components/examples/NoSuchTableError'
-        409:
+        '409':
           description:
             Conflict - CommitFailedException, one or more requirements failed. The client may retry.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/IcebergErrorResponse'
-        419:
+        '419':
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
-        500:
+        '500':
           description:
             An unknown server-side problem occurred; the commit state is unknown.
           content:
@@ -1609,9 +1609,9 @@ paths:
                   "code": 500
                 }
               }
-        503:
+        '503':
           $ref: '#/components/responses/ServiceUnavailableResponse'
-        502:
+        '502':
           description:
             A gateway or proxy received an invalid response from the upstream server; the commit state is unknown.
           content:
@@ -1625,7 +1625,7 @@ paths:
                   "code": 502
                 }
               }
-        504:
+        '504':
           description:
             A server-side gateway timeout occurred; the commit state is unknown.
           content:
@@ -1639,7 +1639,7 @@ paths:
                   "code": 504
                 }
               }
-        5XX:
+        '5XX':
           description:
             A server-side problem that might not be addressable on the client.
           content:
@@ -1669,15 +1669,15 @@ paths:
         - $ref: '#/components/parameters/page-token'
         - $ref: '#/components/parameters/page-size'
       responses:
-        200:
+        '200':
           $ref: '#/components/responses/ListTablesResponse'
-        400:
+        '400':
           $ref: '#/components/responses/BadRequestErrorResponse'
-        401:
+        '401':
           $ref: '#/components/responses/UnauthorizedResponse'
-        403:
+        '403':
           $ref: '#/components/responses/ForbiddenResponse'
-        404:
+        '404':
           description: Not Found - The namespace specified does not exist
           content:
             application/json:
@@ -1686,11 +1686,11 @@ paths:
               examples:
                 NamespaceNotFound:
                   $ref: '#/components/examples/NoSuchNamespaceError'
-        419:
+        '419':
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
-        503:
+        '503':
           $ref: '#/components/responses/ServiceUnavailableResponse'
-        5XX:
+        '5XX':
           $ref: '#/components/responses/ServerErrorResponse'
 
     post:
@@ -1707,15 +1707,15 @@ paths:
             schema:
               $ref: '#/components/schemas/CreateViewRequest'
       responses:
-        200:
+        '200':
           $ref: '#/components/responses/LoadViewResponse'
-        400:
+        '400':
           $ref: '#/components/responses/BadRequestErrorResponse'
-        401:
+        '401':
           $ref: '#/components/responses/UnauthorizedResponse'
-        403:
+        '403':
           $ref: '#/components/responses/ForbiddenResponse'
-        404:
+        '404':
           description: Not Found - The namespace specified does not exist
           content:
             application/json:
@@ -1724,7 +1724,7 @@ paths:
               examples:
                 NamespaceNotFound:
                   $ref: '#/components/examples/NoSuchNamespaceError'
-        409:
+        '409':
           description: Conflict - The identifier already exists as a table or view
           content:
             application/json:
@@ -1733,11 +1733,11 @@ paths:
               examples:
                 ViewAlreadyExists:
                   $ref: '#/components/examples/ViewAlreadyExistsError'
-        419:
+        '419':
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
-        503:
+        '503':
           $ref: '#/components/responses/ServiceUnavailableResponse'
-        5XX:
+        '5XX':
           $ref: '#/components/responses/ServerErrorResponse'
 
   /v1/{prefix}/namespaces/{namespace}/views/{view}:
@@ -1769,15 +1769,15 @@ paths:
       parameters:
         - $ref: '#/components/parameters/referenced-by'
       responses:
-        200:
+        '200':
           $ref: '#/components/responses/LoadViewResponse'
-        400:
+        '400':
           $ref: '#/components/responses/BadRequestErrorResponse'
-        401:
+        '401':
           $ref: '#/components/responses/UnauthorizedResponse'
-        403:
+        '403':
           $ref: '#/components/responses/ForbiddenResponse'
-        404:
+        '404':
           description:
             Not Found - NoSuchViewException, view to load does not exist
           content:
@@ -1787,11 +1787,11 @@ paths:
               examples:
                 ViewToLoadDoesNotExist:
                   $ref: '#/components/examples/NoSuchViewError'
-        419:
+        '419':
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
-        503:
+        '503':
           $ref: '#/components/responses/ServiceUnavailableResponse'
-        5XX:
+        '5XX':
           $ref: '#/components/responses/ServerErrorResponse'
 
     post:
@@ -1810,15 +1810,15 @@ paths:
             schema:
               $ref: '#/components/schemas/CommitViewRequest'
       responses:
-        200:
+        '200':
           $ref: '#/components/responses/LoadViewResponse'
-        400:
+        '400':
           $ref: '#/components/responses/BadRequestErrorResponse'
-        401:
+        '401':
           $ref: '#/components/responses/UnauthorizedResponse'
-        403:
+        '403':
           $ref: '#/components/responses/ForbiddenResponse'
-        404:
+        '404':
           description:
             Not Found - NoSuchViewException, view to load does not exist
           content:
@@ -1828,16 +1828,16 @@ paths:
               examples:
                 ViewToUpdateDoesNotExist:
                   $ref: '#/components/examples/NoSuchViewError'
-        409:
+        '409':
           description:
             Conflict - CommitFailedException. The client may retry.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorModel'
-        419:
+        '419':
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
-        500:
+        '500':
           description:
             An unknown server-side problem occurred; the commit state is unknown.
           content:
@@ -1851,9 +1851,9 @@ paths:
                   "code": 500
                 }
               }
-        503:
+        '503':
           $ref: '#/components/responses/ServiceUnavailableResponse'
-        502:
+        '502':
           description:
             A gateway or proxy received an invalid response from the upstream server; the commit state is unknown.
           content:
@@ -1867,7 +1867,7 @@ paths:
                   "code": 502
                 }
               }
-        504:
+        '504':
           description:
             A server-side gateway timeout occurred; the commit state is unknown.
           content:
@@ -1881,7 +1881,7 @@ paths:
                   "code": 504
                 }
               }
-        5XX:
+        '5XX':
           description:
             A server-side problem that might not be addressable on the client.
           content:
@@ -1905,15 +1905,15 @@ paths:
       parameters:
         - $ref: '#/components/parameters/idempotency-key'
       responses:
-        204:
+        '204':
           description: Success, no content
-        400:
+        '400':
           $ref: '#/components/responses/BadRequestErrorResponse'
-        401:
+        '401':
           $ref: '#/components/responses/UnauthorizedResponse'
-        403:
+        '403':
           $ref: '#/components/responses/ForbiddenResponse'
-        404:
+        '404':
           description:
             Not Found - NoSuchViewException, view to drop does not exist
           content:
@@ -1923,11 +1923,11 @@ paths:
               examples:
                 ViewToDeleteDoesNotExist:
                   $ref: '#/components/examples/NoSuchViewError'
-        419:
+        '419':
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
-        503:
+        '503':
           $ref: '#/components/responses/ServiceUnavailableResponse'
-        5XX:
+        '5XX':
           $ref: '#/components/responses/ServerErrorResponse'
 
     head:
@@ -1938,19 +1938,19 @@ paths:
       description:
         Check if a view exists within a given namespace. This request does not return a response body.
       responses:
-        204:
+        '204':
           description: Success, no content
-        400:
+        '400':
           description: Bad Request
-        401:
+        '401':
           description: Unauthorized
-        404:
+        '404':
           description: Not Found
-        419:
+        '419':
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
-        503:
+        '503':
           $ref: '#/components/responses/ServiceUnavailableResponse'
-        5XX:
+        '5XX':
           $ref: '#/components/responses/ServerErrorResponse'
 
   /v1/{prefix}/views/rename:
@@ -1978,15 +1978,15 @@ paths:
                 $ref: '#/components/examples/RenameViewSameNamespace'
         required: true
       responses:
-        204:
+        '204':
           description: Success, no content
-        400:
+        '400':
           $ref: '#/components/responses/BadRequestErrorResponse'
-        401:
+        '401':
           $ref: '#/components/responses/UnauthorizedResponse'
-        403:
+        '403':
           $ref: '#/components/responses/ForbiddenResponse'
-        404:
+        '404':
           description:
             Not Found
             - NoSuchViewException, view to rename does not exist
@@ -2000,9 +2000,9 @@ paths:
                   $ref: '#/components/examples/NoSuchViewError'
                 NamespaceToRenameToDoesNotExist:
                   $ref: '#/components/examples/NoSuchNamespaceError'
-        406:
+        '406':
           $ref: '#/components/responses/UnsupportedOperationResponse'
-        409:
+        '409':
           description: Conflict - The target identifier to rename to already exists as a table or view
           content:
             application/json:
@@ -2010,11 +2010,11 @@ paths:
                 $ref: '#/components/schemas/ErrorModel'
               example:
                 $ref: '#/components/examples/ViewAlreadyExistsError'
-        419:
+        '419':
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
-        503:
+        '503':
           $ref: '#/components/responses/ServiceUnavailableResponse'
-        5XX:
+        '5XX':
           $ref: '#/components/responses/ServerErrorResponse'
 
   /v1/{prefix}/namespaces/{namespace}/register-view:
@@ -2039,15 +2039,15 @@ paths:
             schema:
               $ref: '#/components/schemas/RegisterViewRequest'
       responses:
-        200:
+        '200':
           $ref: '#/components/responses/LoadViewResponse'
-        400:
+        '400':
           $ref: '#/components/responses/BadRequestErrorResponse'
-        401:
+        '401':
           $ref: '#/components/responses/UnauthorizedResponse'
-        403:
+        '403':
           $ref: '#/components/responses/ForbiddenResponse'
-        404:
+        '404':
           description: Not Found - The namespace specified does not exist
           content:
             application/json:
@@ -2056,7 +2056,7 @@ paths:
               examples:
                 NamespaceNotFound:
                   $ref: '#/components/examples/NoSuchNamespaceError'
-        409:
+        '409':
           description: Conflict - The identifier already exists as a table or view
           content:
             application/json:
@@ -2065,11 +2065,11 @@ paths:
               examples:
                 ViewAlreadyExists:
                   $ref: '#/components/examples/ViewAlreadyExistsError'
-        419:
+        '419':
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
-        503:
+        '503':
           $ref: '#/components/responses/ServiceUnavailableResponse'
-        5XX:
+        '5XX':
           $ref: '#/components/responses/ServerErrorResponse'
 
 components:
