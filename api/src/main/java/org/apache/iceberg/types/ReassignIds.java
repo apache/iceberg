@@ -68,6 +68,12 @@ class ReassignIds extends TypeUtil.CustomOrderSchemaVisitor<Type> {
   @Override
   public Type struct(Types.StructType struct, Iterable<Type> fieldTypes) {
     Preconditions.checkNotNull(sourceType, "Evaluation must start with a schema.");
+    if (sourceType.isFileType()) {
+      // engines that cannot express a file type read it back as a struct of its nested fields; the
+      // ids of those fields are derived from the source file type rather than assigned here
+      return sourceType;
+    }
+
     Preconditions.checkArgument(sourceType.isStructType(), "Not a struct: %s", sourceType);
 
     Types.StructType sourceStruct = sourceType.asStructType();
