@@ -26,6 +26,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.schema.SchemaWithPartnerVisitor;
 import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 
 /**
@@ -94,11 +95,14 @@ public class CompareSchemasVisitor
 
     Type tableSchemaType =
         tableSchemaId == -1 ? tableSchema.asStruct() : tableSchema.findField(tableSchemaId).type();
-    if (!tableSchemaType.isStructType()) {
+    if (!tableSchemaType.isStructType() && !tableSchemaType.isFileType()) {
       return Result.SCHEMA_UPDATE_NEEDED;
     }
 
-    for (Types.NestedField tableField : tableSchemaType.asStructType().fields()) {
+    // Flink cannot express a file type, so an input struct is compared against the nested fields of
+    // a file partner
+    Types.StructType tableStruct = TypeUtil.asStructType(tableSchemaType);
+    for (Types.NestedField tableField : tableStruct.fields()) {
       if (getFieldFromStruct(tableField.name(), struct, caseSensitive) == null
           && (tableField.isRequired() || dropUnusedColumns)) {
         // If a field from the table schema does not exist in the input schema, then we won't visit
@@ -107,13 +111,13 @@ public class CompareSchemasVisitor
       }
     }
 
-    if (struct.fields().size() != tableSchemaType.asStructType().fields().size()) {
+    if (struct.fields().size() != tableStruct.fields().size()) {
       return Result.DATA_CONVERSION_NEEDED;
     }
 
     for (int i = 0; i < struct.fields().size(); ++i) {
       String fieldName = struct.fields().get(i).name();
-      String tableFieldName = tableSchemaType.asStructType().fields().get(i).name();
+      String tableFieldName = tableStruct.fields().get(i).name();
       if ((caseSensitive && !fieldName.equals(tableFieldName))
           || (!caseSensitive && !fieldName.equalsIgnoreCase(tableFieldName))) {
         return Result.DATA_CONVERSION_NEEDED;
@@ -121,6 +125,18 @@ public class CompareSchemasVisitor
     }
 
     return result;
+  }
+
+  @Override
+  public Result file(Types.FileType file, Integer tableSchemaId, List<Result> fields) {
+    if (tableSchemaId == null) {
+      return Result.SCHEMA_UPDATE_NEEDED;
+    }
+
+    // the nested fields of a file are derived, so a file partner always matches
+    return tableSchema.findField(tableSchemaId).type().isFileType()
+        ? Result.SAME
+        : Result.SCHEMA_UPDATE_NEEDED;
   }
 
   @Nullable
@@ -229,7 +245,7 @@ public class CompareSchemasVisitor
       if (tableSchemaFieldId == -1) {
         struct = tableSchema.asStruct();
       } else {
-        struct = tableSchema.findField(tableSchemaFieldId).type().asStructType();
+        struct = TypeUtil.asStructType(tableSchema.findField(tableSchemaFieldId).type());
       }
 
       Types.NestedField field = getFieldFromStruct(name, struct, caseSensitive);

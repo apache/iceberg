@@ -23,6 +23,7 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.types.Types.FileType;
 import org.apache.iceberg.types.Types.IntegerType;
 import org.apache.iceberg.types.Types.ListType;
 import org.apache.iceberg.types.Types.LongType;
@@ -38,6 +39,9 @@ class TestCompareSchemasVisitor {
 
   private static final boolean DROP_COLUMNS = true;
   private static final boolean PRESERVE_COLUMNS = false;
+
+  private static final Schema FILE_TABLE_SCHEMA =
+      new Schema(optional(1, "id", IntegerType.get()), optional(2, "photo", FileType.of(2)));
 
   @Test
   void testSchema() {
@@ -381,6 +385,40 @@ class TestCompareSchemasVisitor {
 
     assertThat(
             CompareSchemasVisitor.visit(dataSchema, tableSchema, CASE_SENSITIVE, PRESERVE_COLUMNS))
+        .isEqualTo(CompareSchemasVisitor.Result.DATA_CONVERSION_NEEDED);
+  }
+
+  @Test
+  void fileColumnMatchedByAStruct() {
+    Schema dataSchema =
+        new Schema(
+            optional(1, "id", IntegerType.get()),
+            optional(2, "photo", StructType.of(FileType.of(2).fields())));
+
+    assertThat(
+            CompareSchemasVisitor.visit(
+                dataSchema, FILE_TABLE_SCHEMA, CASE_SENSITIVE, PRESERVE_COLUMNS))
+        .isEqualTo(CompareSchemasVisitor.Result.SAME);
+  }
+
+  @Test
+  void fileColumnMatchedByAFile() {
+    assertThat(
+            CompareSchemasVisitor.visit(
+                FILE_TABLE_SCHEMA, FILE_TABLE_SCHEMA, CASE_SENSITIVE, PRESERVE_COLUMNS))
+        .isEqualTo(CompareSchemasVisitor.Result.SAME);
+  }
+
+  @Test
+  void fileColumnMatchedByAnUnrelatedStruct() {
+    Schema dataSchema =
+        new Schema(
+            optional(1, "id", IntegerType.get()),
+            optional(2, "photo", StructType.of(optional(3, "uri", StringType.get()))));
+
+    assertThat(
+            CompareSchemasVisitor.visit(
+                dataSchema, FILE_TABLE_SCHEMA, CASE_SENSITIVE, PRESERVE_COLUMNS))
         .isEqualTo(CompareSchemasVisitor.Result.DATA_CONVERSION_NEEDED);
   }
 }
