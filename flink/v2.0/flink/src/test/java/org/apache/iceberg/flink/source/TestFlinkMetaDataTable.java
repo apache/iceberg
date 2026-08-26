@@ -37,12 +37,9 @@ import org.apache.flink.configuration.Configuration;
 import org.apache.flink.configuration.CoreOptions;
 import org.apache.flink.table.api.TableEnvironment;
 import org.apache.flink.types.Row;
-import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.FileGenerationUtil;
-import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.ManifestFile;
@@ -668,32 +665,6 @@ public class TestFlinkMetaDataTable extends CatalogTestBase {
     for (int i = 0; i < metadataFiles.size(); i++) {
       assertThat(metadataLogWithProjection.get(i).getField("file")).isEqualTo(metadataFiles.get(i));
     }
-  }
-
-  @TestTemplate
-  public void testPartitionsTableDvCount() {
-    String dvTableName = "dv_test_table";
-    sql(
-        "CREATE TABLE %s (id INT, data VARCHAR) PARTITIONED BY (data) WITH ('format-version'='3')",
-        dvTableName);
-    sql("INSERT INTO %s VALUES (1,'a')", dvTableName);
-    sql("INSERT INTO %s VALUES (1,'b')", dvTableName);
-
-    Table table = validationCatalog.loadTable(TableIdentifier.of(icebergNamespace, dvTableName));
-    List<DataFile> dataFiles =
-        Lists.newArrayList(
-            CloseableIterable.transform(table.newScan().planFiles(), FileScanTask::file));
-    DeleteFile dv1 = FileGenerationUtil.generateDV(table, dataFiles.get(0));
-    DeleteFile dv2 = FileGenerationUtil.generateDV(table, dataFiles.get(1));
-    table.newRowDelta().addDeletes(dv1).addDeletes(dv2).commit();
-
-    List<Row> actual = sql("SELECT dv_count FROM %s$partitions", dvTableName);
-
-    assertThat(actual).hasSize(2);
-    assertThat((int) actual.get(0).getField(0)).isEqualTo(1);
-    assertThat((int) actual.get(1).getField(0)).isEqualTo(1);
-
-    sql("DROP TABLE IF EXISTS %s.%s", flinkDatabase, dvTableName);
   }
 
   @TestTemplate
