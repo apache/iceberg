@@ -21,25 +21,38 @@ package org.apache.iceberg.flink;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.nio.ByteBuffer;
+import java.nio.file.Path;
 import org.apache.flink.table.catalog.ResolvedSchema;
 import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.StringData;
 import org.apache.flink.table.types.logical.RowType;
+import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
+import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.flink.sink.RowDataTaskWriterFactory;
+import org.apache.iceberg.hadoop.HadoopTables;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 class TestFileTypeFlink {
+  private static final long TARGET_FILE_SIZE = 128 * 1024 * 1024;
   private static final Schema SCHEMA =
       new Schema(
           required(1, "id", Types.LongType.get()),
           optional(2, "photo", Types.FileType.of(2)),
           optional(9, "data", Types.StringType.get()));
+
+  @TempDir private Path temp;
 
   @Test
   void convertsAFileToARowOfItsNestedFields() {
@@ -87,6 +100,30 @@ class TestFileTypeFlink {
 
     assertThat(FlinkSchemaUtil.convert(SCHEMA, flinkSchema).asStruct())
         .isEqualTo(projected.asStruct());
+  }
+
+  @Test
+  void rejectsWritingAFileColumn() {
+    Table table =
+        new HadoopTables()
+            .create(
+                SCHEMA,
+                PartitionSpec.unpartitioned(),
+                ImmutableMap.of(TableProperties.FORMAT_VERSION, "4"),
+                temp.resolve("table").toUri().toString());
+
+    assertThatThrownBy(
+            () ->
+                new RowDataTaskWriterFactory(
+                    table,
+                    FlinkSchemaUtil.convert(SCHEMA),
+                    TARGET_FILE_SIZE,
+                    FileFormat.PARQUET,
+                    table.properties(),
+                    null,
+                    false))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Cannot write file columns from Flink: [photo]");
   }
 
   private static int position(Types.StructType struct, String name) {

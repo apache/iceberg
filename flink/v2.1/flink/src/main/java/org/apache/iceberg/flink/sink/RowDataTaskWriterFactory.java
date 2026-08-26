@@ -19,6 +19,7 @@
 package org.apache.iceberg.flink.sink;
 
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
@@ -38,8 +39,10 @@ import org.apache.iceberg.io.PartitionedFanoutWriter;
 import org.apache.iceberg.io.TaskWriter;
 import org.apache.iceberg.io.UnpartitionedWriter;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ArrayUtil;
 import org.apache.iceberg.util.SerializableSupplier;
 
@@ -105,6 +108,13 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
       boolean upsert,
       Schema schema,
       PartitionSpec spec) {
+    List<String> fileColumns = fileColumns(schema);
+    Preconditions.checkArgument(
+        fileColumns.isEmpty(),
+        "Cannot write file columns from Flink: %s. Flink has no type that carries file semantics, "
+            + "so a file column is read as a row of its nested fields and cannot be written back",
+        fileColumns);
+
     this.tableSupplier = tableSupplier;
 
     Table table;
@@ -241,6 +251,18 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
             useDv);
       }
     }
+  }
+
+  private static List<String> fileColumns(Schema schema) {
+    List<String> columns = Lists.newArrayList();
+    for (Map.Entry<Integer, Types.NestedField> entry :
+        TypeUtil.indexById(schema.asStruct()).entrySet()) {
+      if (entry.getValue().type().isFileType()) {
+        columns.add(schema.findColumnName(entry.getKey()));
+      }
+    }
+
+    return columns;
   }
 
   void refreshTable() {
