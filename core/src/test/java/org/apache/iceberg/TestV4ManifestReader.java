@@ -23,17 +23,21 @@ import static org.apache.iceberg.V4TestHelpers.FILE_SIZE_IN_BYTES;
 import static org.apache.iceberg.V4TestHelpers.FORMAT_VERSION_V4;
 import static org.apache.iceberg.V4TestHelpers.RECORD_COUNT;
 import static org.apache.iceberg.V4TestHelpers.SNAPSHOT_ID;
+import static org.apache.iceberg.V4TestHelpers.columnFile;
 import static org.apache.iceberg.V4TestHelpers.dataFile;
+import static org.apache.iceberg.V4TestHelpers.dataFileWithColumnFiles;
 import static org.apache.iceberg.V4TestHelpers.dataFileWithDV;
 import static org.apache.iceberg.V4TestHelpers.dataFileWithStats;
 import static org.apache.iceberg.V4TestHelpers.deletionVector;
 import static org.apache.iceberg.V4TestHelpers.manifestRef;
+import static org.apache.iceberg.V4TestHelpers.manifestRefWithColumnFiles;
 import static org.apache.iceberg.V4TestHelpers.manifestRefWithStats;
 import static org.apache.iceberg.V4TestHelpers.partition;
 import static org.apache.iceberg.V4TestHelpers.writeTrackedFiles;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.tuple;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -154,6 +158,19 @@ class TestV4ManifestReader {
 
   private static final InMemoryFileIO IO = new InMemoryFileIO();
 
+  private static final ColumnFile COLUMN_FILE_1 =
+      columnFile(
+          "s3a://bucket/column_file_1.parquet",
+          Set.of(1, 3),
+          ByteBuffer.wrap(new byte[] {1, 2, 3}));
+  private static final ColumnFile COLUMN_FILE_2 =
+      columnFile(
+          "s3a://bucket/column_file_2.parquet",
+          Set.of(2),
+          ByteBuffer.wrap(new byte[] {1, 2, 3, 4}));
+  private static final List<ColumnFile> COLUMN_FILES =
+      ImmutableList.of(COLUMN_FILE_1, COLUMN_FILE_2);
+
   @ParameterizedTest
   @FieldSource("MANIFEST_FORMATS")
   public void readDataFile(FileFormat format) throws IOException {
@@ -173,7 +190,7 @@ class TestV4ManifestReader {
             null, // manifest info
             ByteBuffer.wrap(new byte[] {1, 2, 3}), // key metadata
             ImmutableList.of(50L, 100L),
-            null); // column files
+            COLUMN_FILES);
 
     ManifestFile manifest = writeManifest(format, ID_PARTITIONED_TYPE, file);
 
@@ -204,7 +221,7 @@ class TestV4ManifestReader {
             null, // manifest info
             ByteBuffer.wrap(new byte[] {1, 2, 3}), // key metadata
             ImmutableList.of(50L, 100L),
-            null); // column files
+            COLUMN_FILES);
 
     ManifestFile manifest = writeManifest(format, ID_PARTITIONED_TYPE, file);
 
@@ -237,7 +254,7 @@ class TestV4ManifestReader {
             null, // manifest info
             ByteBuffer.wrap(new byte[] {1, 2, 3}), // key metadata
             ImmutableList.of(50L, 100L),
-            null); // column files
+            COLUMN_FILES);
 
     ManifestFile manifest = writeManifest(format, ID_PARTITIONED_TYPE, file);
 
@@ -272,7 +289,7 @@ class TestV4ManifestReader {
             MANIFEST_INFO,
             ByteBuffer.wrap(new byte[] {1, 2, 3}), // key metadata
             null, // split offsets
-            null); // column files
+            COLUMN_FILES);
 
     ManifestFile manifest = writeManifest(format, ID_PARTITIONED_TYPE, manifestRef);
 
@@ -564,6 +581,42 @@ class TestV4ManifestReader {
                 new TrackingStruct(
                     EntryStatus.ADDED, SNAPSHOT_ID, 500L, 500L, null, 5_100L, null, null),
                 "s3://bucket/table/file-b.parquet"));
+
+    assertThat(actual)
+        .usingComparatorForType(FILE_AND_TRACKING_COMPARATOR, TrackedFile.class)
+        .isEqualTo(expected);
+  }
+
+  @ParameterizedTest
+  @FieldSource("MANIFEST_FORMATS")
+  public void inheritanceModifiedDataSequenceNumber(FileFormat format) throws IOException {
+    TrackedFile withoutDataSeq =
+        dataFileWithColumnFiles(
+            new TrackingStruct(
+                EntryStatus.MODIFIED, SNAPSHOT_ID, null, 3L, 34L, 5_000L, null, null),
+            "s3://bucket/table/file-a.parquet",
+            COLUMN_FILES);
+
+    ManifestFile manifest =
+        writeManifest(format, UNPARTITIONED_TYPE, ImmutableList.of(withoutDataSeq));
+
+    when(manifest.firstRowId()).thenReturn(10_000L);
+    when(manifest.snapshotId()).thenReturn(34L);
+    when(manifest.sequenceNumber()).thenReturn(5L);
+
+    V4ManifestReader.Builder builder =
+        V4ManifestReader.builder(manifest, IO, TABLE_SCHEMA, ID_PARTITIONING_SPECS)
+            .metricsConfig(METRICS_CONFIG);
+    List<TrackedFile> actual = read(builder);
+
+    // inherits data sequence number
+    List<TrackedFile> expected =
+        List.of(
+            dataFileWithColumnFiles(
+                new TrackingStruct(
+                    EntryStatus.MODIFIED, SNAPSHOT_ID, 5L, 3L, 34L, 5_000L, null, null),
+                "s3://bucket/table/file-a.parquet",
+                COLUMN_FILES));
 
     assertThat(actual)
         .usingComparatorForType(FILE_AND_TRACKING_COMPARATOR, TrackedFile.class)
@@ -1268,6 +1321,33 @@ class TestV4ManifestReader {
 
   @ParameterizedTest
   @FieldSource("MANIFEST_FORMATS")
+  public void statsFilterWithColumnFilesProjection(FileFormat format) throws IOException {
+    // FILE_C has stats {id in [0, 99], data in [a, z]}, the file with column files has no stats
+    TrackedFile fileWithColumnFiles =
+        dataFileWithColumnFiles("s3://bucket/table/file-e.parquet", COLUMN_FILES);
+    ManifestFile manifest =
+        writeManifest(format, UNPARTITIONED_TYPE, ImmutableList.of(FILE_C, fileWithColumnFiles));
+
+    V4ManifestReader.Builder builder =
+        V4ManifestReader.builder(manifest, IO, TABLE_SCHEMA, UNPARTITIONED_SPECS)
+            .filter(Expressions.equal("id", 105)) // eliminates FILE_C
+            .metricsConfig(METRICS_CONFIG)
+            .select("location", "column_files.field_ids");
+
+    TrackedFile actual = readOne(builder);
+
+    assertThat(actual.location()).isEqualTo(fileWithColumnFiles.location());
+    assertThat(actual.columnFiles())
+        .extracting(ColumnFile::fieldIds)
+        .containsExactly(COLUMN_FILE_1.fieldIds(), COLUMN_FILE_2.fieldIds());
+    assertThat(actual.columnFiles())
+        .as("Unselected column file fields should not be projected")
+        .extracting(ColumnFile::location, ColumnFile::fileFormat, ColumnFile::keyMetadata)
+        .containsOnly(tuple(null, null, null));
+  }
+
+  @ParameterizedTest
+  @FieldSource("MANIFEST_FORMATS")
   public void statsFilterCaseSensitivity(FileFormat format) throws IOException {
     // FILE_C has stats {id in [0, 99], data in [a, z]}, FILE_D has no stats
     ManifestFile manifest =
@@ -1747,6 +1827,44 @@ class TestV4ManifestReader {
         .isEqualTo(
             unpartitionedDataFileWithDV(
                 "s3://other/abs.parquet", "s3://bucket/db/table/data/dv.puffin"));
+  }
+
+  @ParameterizedTest
+  @FieldSource("MANIFEST_FORMATS")
+  public void resolutionRelativeColumnFileLocation(FileFormat format) throws IOException {
+    ManifestFile manifest =
+        writeManifest(
+            format,
+            UNPARTITIONED_TYPE,
+            ImmutableList.of(
+                dataFileWithColumnFiles(
+                    "s3://other/abs.parquet",
+                    List.of(columnFile("data/column.parquet", Set.of(1)), COLUMN_FILE_2)),
+                manifestRefWithColumnFiles(
+                    FileContent.DATA_MANIFEST,
+                    "s3://other/leaf.avro",
+                    MANIFEST_INFO,
+                    List.of(columnFile("metadata/leaf-column.parquet", Set.of(1))))));
+
+    V4ManifestReader.Builder builder =
+        V4ManifestReader.builder(manifest, IO, TABLE_SCHEMA, UNPARTITIONED_SPECS)
+            .tableLocation("s3://bucket/db/table")
+            .metricsConfig(METRICS_CONFIG);
+
+    assertThat(read(builder))
+        .usingComparatorForType(FILE_COMPARATOR, TrackedFile.class)
+        .containsExactly(
+            dataFileWithColumnFiles(
+                "s3://other/abs.parquet",
+                List.of(
+                    columnFile("s3://bucket/db/table/data/column.parquet", Set.of(1)),
+                    COLUMN_FILE_2)),
+            manifestRefWithColumnFiles(
+                FileContent.DATA_MANIFEST,
+                "s3://other/leaf.avro",
+                MANIFEST_INFO,
+                List.of(
+                    columnFile("s3://bucket/db/table/metadata/leaf-column.parquet", Set.of(1)))));
   }
 
   @ParameterizedTest

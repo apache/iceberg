@@ -19,6 +19,7 @@
 package org.apache.iceberg;
 
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.expressions.Binder;
@@ -226,6 +227,8 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
             .setCustomType(TrackedFile.TRACKING.fieldId(), TrackingStruct.class)
             .setCustomType(TrackedFile.DELETION_VECTOR.fieldId(), DeletionVectorStruct.class)
             .setCustomType(TrackedFile.MANIFEST_INFO.fieldId(), ManifestInfoStruct.class)
+            .setCustomType(
+                TrackedFile.COLUMN_FILES.type().asListType().elementId(), ColumnFileStruct.class)
             .reuseContainers();
 
     Types.NestedField partitionField = readSchema.findField(TrackedFile.PARTITION_ID);
@@ -263,6 +266,16 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
     if (deletionVector != null && deletionVector.location() != null) {
       ((DeletionVectorStruct) deletionVector)
           .setLocation(LocationUtil.resolveLocation(tableLocation, deletionVector.location()));
+    }
+
+    List<ColumnFile> columnFiles = copy.columnFiles();
+    if (columnFiles != null) {
+      for (ColumnFile columnFile : columnFiles) {
+        if (columnFile.location() != null) {
+          ((ColumnFileStruct) columnFile)
+              .setLocation(LocationUtil.resolveLocation(tableLocation, columnFile.location()));
+        }
+      }
     }
 
     return copy;
