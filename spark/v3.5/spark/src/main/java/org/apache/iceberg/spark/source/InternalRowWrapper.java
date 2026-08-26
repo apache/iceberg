@@ -25,6 +25,7 @@ import java.util.stream.Stream;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.types.BinaryType;
@@ -100,7 +101,7 @@ class InternalRowWrapper implements StructLike {
     } else if (type instanceof StructType) {
       StructType structType = (StructType) type;
       InternalRowWrapper nestedWrapper =
-          new InternalRowWrapper(structType, icebergType.asStructType());
+          new InternalRowWrapper(structType, TypeUtil.asStructType(icebergType));
       return (row, pos) -> nestedWrapper.wrap(row.getStruct(pos, structType.size()));
     }
 
