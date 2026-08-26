@@ -360,11 +360,7 @@ public class TestCommitService extends TestBase {
     private final AtomicInteger maxConcurrentCommits = new AtomicInteger(0);
 
     TrackingCommitService(Table table) {
-      this(table, 1);
-    }
-
-    TrackingCommitService(Table table, int rewritesPerCommit) {
-      super(table, rewritesPerCommit, 10000);
+      super(table, 1, 10000);
     }
 
     @Override
