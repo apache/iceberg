@@ -74,6 +74,33 @@ public class TestFileScanTaskParser {
     assertFileScanTaskEquals(expected, deserializedTask, spec, caseSensitive);
   }
 
+  @Test
+  public void testSequenceNumbersPreserved() {
+    boolean caseSensitive = true;
+    PartitionSpec spec = TestBase.SPEC;
+    GenericDataFile dataFile = (GenericDataFile) TestBase.FILE_A.copy();
+    dataFile.setDataSequenceNumber(5L);
+    dataFile.setFileSequenceNumber(4L);
+    GenericDeleteFile deleteFile = (GenericDeleteFile) TestBase.FILE_A_DELETES.copy();
+    deleteFile.setDataSequenceNumber(6L);
+    deleteFile.setFileSequenceNumber(6L);
+
+    FileScanTask fileScanTask =
+        new BaseFileScanTask(
+            dataFile,
+            new DeleteFile[] {deleteFile},
+            SchemaParser.toJson(TestBase.SCHEMA),
+            PartitionSpecParser.toJson(spec),
+            ResidualEvaluator.of(spec, Expressions.equal("id", 1), caseSensitive));
+
+    FileScanTask deserializedTask =
+        ScanTaskParser.fromJson(ScanTaskParser.toJson(fileScanTask), caseSensitive);
+
+    assertFileScanTaskEquals(fileScanTask, deserializedTask, spec, caseSensitive);
+    assertThat(deserializedTask.file().dataSequenceNumber()).isEqualTo(5L);
+    assertThat(deserializedTask.deletes().get(0).dataSequenceNumber()).isEqualTo(6L);
+  }
+
   private FileScanTask createFileScanTask(PartitionSpec spec, boolean caseSensitive) {
     ResidualEvaluator residualEvaluator;
     if (spec.isUnpartitioned()) {

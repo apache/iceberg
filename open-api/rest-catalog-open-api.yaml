@@ -5222,6 +5222,20 @@ components:
           description: "List of splittable offsets"
         sort-order-id:
           type: integer
+        data-sequence-number:
+          type: integer
+          format: int64
+          description:
+            The data sequence number of the file, assigned when the file was added to the
+            table. Delete files apply only to data files with an equal or smaller data
+            sequence number, so this field is needed to correctly apply deletes when file
+            scan tasks are exchanged between services, such as in server-side scan planning
+            responses
+        file-sequence-number:
+          type: integer
+          format: int64
+          description:
+            The sequence number of the snapshot in which the file was added to the table
 
     DataFile:
       allOf:

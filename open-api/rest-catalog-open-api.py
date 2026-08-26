@@ -1101,6 +1101,16 @@ class ContentFile(BaseModel):
         None, alias='split-offsets', description='List of splittable offsets'
     )
     sort_order_id: int | None = Field(None, alias='sort-order-id')
+    data_sequence_number: int | None = Field(
+        None,
+        alias='data-sequence-number',
+        description='The data sequence number of the file, assigned when the file was added to the table. Delete files apply only to data files with an equal or smaller data sequence number, so this field is needed to correctly apply deletes when file scan tasks are exchanged between services, such as in server-side scan planning responses',
+    )
+    file_sequence_number: int | None = Field(
+        None,
+        alias='file-sequence-number',
+        description='The sequence number of the snapshot in which the file was added to the table',
+    )
 
 
 class PositionDeleteFile(ContentFile):

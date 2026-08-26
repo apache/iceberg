@@ -79,6 +79,38 @@ public class TestContentFileParser {
     assertContentFileEquals(dataFile, deserialized, spec);
   }
 
+  @Test
+  public void testDataFileSequenceNumbers() throws Exception {
+    PartitionSpec spec = PartitionSpec.unpartitioned();
+    GenericDataFile dataFile = (GenericDataFile) dataFileWithRequiredOnly(spec);
+    dataFile.setDataSequenceNumber(3L);
+    dataFile.setFileSequenceNumber(2L);
+
+    String jsonStr = ContentFileParser.toJson(dataFile, spec);
+    assertThat(jsonStr).contains("\"data-sequence-number\":3");
+    assertThat(jsonStr).contains("\"file-sequence-number\":2");
+
+    JsonNode jsonNode = JsonUtil.mapper().readTree(jsonStr);
+    ContentFile<?> deserialized = ContentFileParser.fromJson(jsonNode, Map.of(spec.specId(), spec));
+    assertContentFileEquals(dataFile, deserialized, spec);
+  }
+
+  @Test
+  public void testDeleteFileSequenceNumbers() throws Exception {
+    PartitionSpec spec = PartitionSpec.unpartitioned();
+    GenericDeleteFile deleteFile = (GenericDeleteFile) deleteFileWithRequiredOnly(spec);
+    deleteFile.setDataSequenceNumber(3L);
+    deleteFile.setFileSequenceNumber(2L);
+
+    String jsonStr = ContentFileParser.toJson(deleteFile, spec);
+    assertThat(jsonStr).contains("\"data-sequence-number\":3");
+    assertThat(jsonStr).contains("\"file-sequence-number\":2");
+
+    JsonNode jsonNode = JsonUtil.mapper().readTree(jsonStr);
+    ContentFile<?> deserialized = ContentFileParser.fromJson(jsonNode, Map.of(spec.specId(), spec));
+    assertContentFileEquals(deleteFile, deserialized, spec);
+  }
+
   @ParameterizedTest
   @MethodSource("provideSpecAndDataFile")
   public void testDataFile(PartitionSpec spec, DataFile dataFile, String expectedJson)
@@ -611,5 +643,7 @@ public class TestContentFileParser {
     assertThat(actual.splitOffsets()).isEqualTo(expected.splitOffsets());
     assertThat(actual.equalityFieldIds()).isEqualTo(expected.equalityFieldIds());
     assertThat(actual.sortOrderId()).isEqualTo(expected.sortOrderId());
+    assertThat(actual.dataSequenceNumber()).isEqualTo(expected.dataSequenceNumber());
+    assertThat(actual.fileSequenceNumber()).isEqualTo(expected.fileSequenceNumber());
   }
 }
