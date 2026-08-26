@@ -114,6 +114,17 @@ public class TestBase {
           .withContentOffset(4)
           .withContentSizeInBytes(6)
           .build();
+  static final DeleteFile FILE_A2_DV =
+      FileMetadata.deleteFileBuilder(SPEC)
+          .ofPositionDeletes()
+          .withPath("/path/to/data-a2-deletes.puffin")
+          .withFileSizeInBytes(10)
+          .withPartitionPath("data_bucket=0")
+          .withRecordCount(5)
+          .withReferencedDataFile(FILE_A2.location())
+          .withContentOffset(4)
+          .withContentSizeInBytes(6)
+          .build();
   // Equality delete files.
   static final DeleteFile FILE_A2_DELETES =
       FileMetadata.deleteFileBuilder(SPEC)
