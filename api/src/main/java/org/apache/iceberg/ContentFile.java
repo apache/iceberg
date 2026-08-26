@@ -100,8 +100,12 @@ public interface ContentFile<F> {
   Map<Integer, ByteBuffer> upperBounds();
 
   /**
-   * Returns if collected, map from column ID to its average non-null value size in bytes, null
-   * otherwise.
+   * Returns if collected, map from column ID to its average value size in memory (uncompressed) in
+   * bytes over non-null values, null otherwise.
+   *
+   * <p>This value is only observable before the file is written: it survives {@link #copy()} and
+   * Java serialization, but a v1-v3 manifest round trip drops it, since it has no position in the
+   * manifest schema.
    */
   default Map<Integer, Integer> avgValueSizes() {
     return null;

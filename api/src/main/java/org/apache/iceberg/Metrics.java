@@ -245,7 +245,8 @@ public class Metrics implements Serializable {
   }
 
   /**
-   * Get the average non-null value size in bytes for all fields where it was collected.
+   * Get the average value size in memory (uncompressed) in bytes over non-null values, for all
+   * fields where it was collected.
    *
    * @return a Map of fieldId to average value size in bytes
    */

@@ -177,7 +177,7 @@ class ParquetMetrics {
         nanValueCounts,
         lowerBounds,
         upperBounds,
-        avgValueSizes,
+        avgValueSizes.isEmpty() ? null : avgValueSizes,
         originalTypes);
   }
 
