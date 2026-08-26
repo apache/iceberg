@@ -23,6 +23,9 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
@@ -78,6 +81,51 @@ class TestFileTypeTableMetadata {
 
     assertThat(replacement.schema().findField("photo").type()).isEqualTo(Types.FileType.of(2));
     assertThat(replacement.lastColumnId()).isEqualTo(replacement.schema().highestFieldId());
+  }
+
+  @Test
+  void replacementReservesDerivedIdsWhenAColumnBecomesAFile() {
+    TableMetadata metadata =
+        TableMetadata.newTableMetadata(
+            new Schema(
+                required(1, "id", Types.LongType.get()),
+                optional(2, "photo", Types.StringType.get()),
+                optional(3, "data", Types.StringType.get())),
+            PartitionSpec.unpartitioned(),
+            "file:/tmp/table",
+            ImmutableMap.of(TableProperties.FORMAT_VERSION, "4"));
+
+    int requestedDataId = 2 + Types.FileType.NUM_NESTED_FIELDS + 1;
+    Schema updated =
+        new Schema(
+            required(1, "id", Types.LongType.get()),
+            optional(2, "photo", Types.FileType.of(2)),
+            optional(requestedDataId, "data", Types.StringType.get()));
+
+    TableMetadata replacement =
+        metadata.buildReplacement(
+            updated,
+            PartitionSpec.unpartitioned(),
+            SortOrder.unsorted(),
+            metadata.location(),
+            ImmutableMap.of());
+
+    Schema replaced = replacement.schema();
+    int photoId = replaced.findField("photo").fieldId();
+    int dataId = replaced.findField("data").fieldId();
+    List<Integer> derivedIds =
+        IntStream.rangeClosed(photoId + 1, photoId + Types.FileType.NUM_NESTED_FIELDS)
+            .boxed()
+            .collect(Collectors.toList());
+
+    assertThat(replaced.findField("photo").type()).isEqualTo(Types.FileType.of(photoId));
+    assertThat(photoId).isGreaterThan(metadata.lastColumnId());
+    assertThat(derivedIds)
+        .doesNotContain(dataId)
+        .contains(replaced.findField("photo.uri").fieldId());
+    assertThat(dataId).isEqualTo(metadata.schema().findField("data").fieldId());
+    assertThat(replaced.highestFieldId()).isEqualTo(photoId + Types.FileType.NUM_NESTED_FIELDS);
+    assertThat(replacement.lastColumnId()).isGreaterThanOrEqualTo(replaced.highestFieldId());
   }
 
   private static TableMetadata newTableMetadata(int formatVersion) {
