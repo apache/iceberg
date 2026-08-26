@@ -117,12 +117,12 @@ case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with Look
     val compensate = viewSchemaMode == SparkSQLProperties.VIEW_SCHEMA_MODE_COMPENSATION
     val aliases = view.schema.fields.zipWithIndex.map { case (expected, pos) =>
       val attr = GetColumnByOrdinal(pos, expected.dataType)
-      val coerced = if (compensate) {
+      val cast = if (compensate) {
         Cast(attr, expected.dataType, ansiEnabled = true)
       } else {
         UpCast(attr, expected.dataType)
       }
-      Alias(coerced, expected.name)(explicitMetadata = Some(expected.metadata))
+      Alias(cast, expected.name)(explicitMetadata = Some(expected.metadata))
     }.toIndexedSeq
 
     SubqueryAlias(nameParts, Project(aliases, rewritten))
