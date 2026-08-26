@@ -74,7 +74,19 @@ public class PruneColumnsWithoutReordering extends TypeUtil.CustomOrderSchemaVis
         struct, "Cannot prune null struct. Pruning must start with a schema.");
     Preconditions.checkArgument(current instanceof StructType, "Not a struct: %s", current);
 
-    List<Types.NestedField> fields = struct.fields();
+    return project(struct.fields(), fieldResults, struct);
+  }
+
+  @Override
+  public Type file(Types.FileType file, Iterable<Type> fieldResults) {
+    Preconditions.checkArgument(current instanceof StructType, "Not a struct: %s", current);
+
+    // a file projected to fewer than all of its nested fields is no longer a file
+    return project(file.fields(), fieldResults, file);
+  }
+
+  private Type project(
+      List<Types.NestedField> fields, Iterable<Type> fieldResults, Type unchangedResult) {
     List<Type> types = Lists.newArrayList(fieldResults);
 
     boolean changed = false;
@@ -103,7 +115,7 @@ public class PruneColumnsWithoutReordering extends TypeUtil.CustomOrderSchemaVis
       return Types.StructType.of(newFields);
     }
 
-    return struct;
+    return unchangedResult;
   }
 
   @Override
