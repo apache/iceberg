@@ -213,10 +213,13 @@ class TestSphericalGeographyBoundsBuilder {
   void coversSampledPointsAlongRandomMinorArcs() {
     Random random = new Random(42L);
     for (int edge = 0; edge < 2_000; edge += 1) {
+      // draw latitudes across the full range and separations up to a near-antimeridian span, so
+      // sampled arcs pass near and over the poles where longitude sweeps fastest; the central-angle
+      // guard below drops the near-antipodal edges whose minor arc is undetermined
       double longitude1 = random.nextDouble() * 360.0 - 180.0;
-      double latitude1 = random.nextDouble() * 140.0 - 70.0;
-      double longitude2 = normalizeLongitude(longitude1 + random.nextDouble() * 240.0 - 120.0);
-      double latitude2 = random.nextDouble() * 140.0 - 70.0;
+      double latitude1 = random.nextDouble() * 180.0 - 90.0;
+      double longitude2 = normalizeLongitude(longitude1 + random.nextDouble() * 360.0 - 180.0);
+      double latitude2 = random.nextDouble() * 180.0 - 90.0;
 
       double[] point1 = toUnitVector(longitude1, latitude1);
       double[] point2 = toUnitVector(longitude2, latitude2);
