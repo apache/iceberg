@@ -1417,7 +1417,7 @@ The rows in the delete file must be sorted by `file_path` then `pos` to optimize
 
 Equality delete files identify deleted rows in a collection of data files by one or more column values, and may optionally contain additional columns of the deleted row.
 
-Equality delete files must not be added to v4 tables. Equality delete files referenced by metadata upgraded to v4 must still be applied. Moving entries covered by an equality delete to a v4 manifest requires applying the deletes and writing a new data file entry.
+Equality delete files must not be added to v4 tables and v4 manifests must not reference equality delete files. Equality delete files referenced by v2 or v3 delete manifests must still be applied in a v4 table. Moving entries covered by an equality delete to a v4 manifest requires applying the deletes and writing a new data file entry.
 
 Equality delete files store any subset of a table's columns and use the table's field ids. The _delete columns_ are the columns of the delete file used to match data rows. Delete columns are identified by id in the delete file [metadata column `equality_ids`](#manifests). The column restrictions for columns used in equality delete files are the same as those for [identifier fields](#identifier-field-ids) with the exception that optional columns and columns nested under optional structs are allowed (if a parent struct column is null it implies the leaf column is null).
 
@@ -1918,7 +1918,7 @@ Reading v4 metadata:
 
 Row-level delete changes:
 
-* Equality delete files must not be added to v4 tables
+* Equality delete files must not be added to v4 tables and v4 manifests must not reference equality delete files
 * Readers must continue to apply equality deletes for v2 and v3 tables and for equality deletes carried over into upgraded v4 tables
 * Upgrading a v2 or v3 table to v4 is metadata-only and does not rewrite data or delete files
 
