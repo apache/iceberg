@@ -123,7 +123,7 @@ class TestFileType {
   }
 
   @Test
-  void freshIdsReuseBaseSchemaIdsWithoutReserving() {
+  void freshIdsReuseBaseSchemaIdsWhenTheBaseColumnIsAlsoAFile() {
     Schema base =
         new Schema(
             required(1, "id", Types.LongType.get()), optional(2, "photo", Types.FileType.of(2)));
@@ -138,7 +138,35 @@ class TestFileType {
     assertThat(assigned.findField("id").fieldId()).isEqualTo(1);
     assertThat(assigned.findField("photo").fieldId()).isEqualTo(2);
     assertThat(assigned.findField("photo.uri").fieldId()).isEqualTo(3);
+    assertThat(assigned.findField("photo.inline").fieldId()).isEqualTo(8);
     assertThat(assigned.findField("data").fieldId()).isEqualTo(9);
+  }
+
+  @Test
+  void freshIdsReserveANewBlockWhenABaseColumnBecomesAFile() {
+    Schema base =
+        new Schema(
+            required(1, "id", Types.LongType.get()),
+            optional(2, "photo", Types.StringType.get()),
+            optional(3, "data", Types.StringType.get()));
+    Schema updated =
+        new Schema(
+            required(11, "id", Types.LongType.get()),
+            optional(12, "photo", Types.FileType.of(12)),
+            optional(19, "data", Types.StringType.get()));
+
+    Schema assigned = TypeUtil.assignFreshIds(updated, base, new AtomicInteger(3)::incrementAndGet);
+
+    assertThat(assigned.findField("id").fieldId()).isEqualTo(1);
+    assertThat(assigned.findField("data").fieldId()).isEqualTo(3);
+
+    Types.NestedField photo = assigned.findField("photo");
+    assertThat(photo.type()).isEqualTo(Types.FileType.of(photo.fieldId()));
+    assertThat(assigned.findField("photo.uri").fieldId()).isEqualTo(photo.fieldId() + 1);
+    assertThat(assigned.highestFieldId())
+        .isEqualTo(photo.fieldId() + Types.FileType.NUM_NESTED_FIELDS);
+    assertThat(TypeUtil.indexById(assigned.asStruct()))
+        .hasSize(updated.columns().size() + Types.FileType.NUM_NESTED_FIELDS);
   }
 
   @Test
