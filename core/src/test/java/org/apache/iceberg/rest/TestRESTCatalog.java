@@ -1123,6 +1123,73 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             any());
   }
 
+  @Test
+  public void testTableSnapshotLoadingRefreshKeepsLazySupplier() {
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+
+    RESTCatalog catalog =
+        new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
+    catalog.initialize(
+        "test",
+        ImmutableMap.of(
+            CatalogProperties.URI,
+            "ignored",
+            CatalogProperties.FILE_IO_IMPL,
+            "org.apache.iceberg.inmemory.InMemoryFileIO",
+            // default loading to refs only
+            RESTCatalogProperties.SNAPSHOT_LOADING_MODE,
+            SnapshotMode.REFS.name()));
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(TABLE.namespace());
+    }
+
+    Table table = catalog.createTable(TABLE, SCHEMA);
+
+    for (int i = 0; i < 3; i++) {
+      table
+          .newFastAppend()
+          .appendFile(
+              DataFiles.builder(PartitionSpec.unpartitioned())
+                  .withPath(String.format("/path/to/data-%s.parquet", i))
+                  .withFileSizeInBytes(10)
+                  .withRecordCount(2)
+                  .build())
+          .commit();
+    }
+
+    Table refsTable = catalog.loadTable(TABLE);
+
+    // load in refs mode: only the retained ref snapshot is loaded eagerly
+    assertThat(((BaseTable) refsTable).operations().current())
+        .extracting("snapshots")
+        .asInstanceOf(InstanceOfAssertFactories.list(Snapshot.class))
+        .hasSize(1);
+
+    // advance the table so the metadata location changes, then refresh
+    table
+        .newFastAppend()
+        .appendFile(
+            DataFiles.builder(PartitionSpec.unpartitioned())
+                .withPath("/path/to/data-adv.parquet")
+                .withFileSizeInBytes(10)
+                .withRecordCount(2)
+                .build())
+        .commit();
+
+    // refresh must re-install the lazy snapshots supplier in refs mode
+    refsTable.refresh();
+
+    // still partial after refresh (refs mode) -- supplier must be re-installed
+    assertThat(((BaseTable) refsTable).operations().current())
+        .extracting("snapshots")
+        .asInstanceOf(InstanceOfAssertFactories.list(Snapshot.class))
+        .hasSize(1);
+
+    // resolving all snapshots must lazy-load the full history via the reinstalled supplier
+    assertThat(refsTable.snapshots()).hasSize(4);
+  }
+
   @ParameterizedTest
   @ValueSource(strings = {"1", "2"})
   public void testTableSnapshotLoadingWithDivergedBranches(String formatVersion) {
