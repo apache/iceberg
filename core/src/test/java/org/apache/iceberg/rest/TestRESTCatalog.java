@@ -2586,6 +2586,105 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   }
 
   @Test
+  public void listNamespacesFailsWhenServerRepeatsPageToken() {
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+    RESTCatalog catalog =
+        new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
+    catalog.initialize("test", ImmutableMap.of(RESTCatalogProperties.PAGE_SIZE, "10"));
+
+    Mockito.doAnswer(
+            invocation ->
+                ListNamespacesResponse.builder()
+                    .add(Namespace.of("ns0"))
+                    .nextPageToken("stuck")
+                    .build())
+        .when(adapter)
+        .execute(
+            matches(HTTPMethod.GET, RESOURCE_PATHS.namespaces()),
+            eq(ListNamespacesResponse.class),
+            any(),
+            any());
+
+    assertThatThrownBy(() -> catalog.listNamespaces())
+        .isInstanceOf(RESTException.class)
+        .hasMessageContaining("Detected repeated page token 'stuck'")
+        .hasMessageContaining("listNamespaces");
+  }
+
+  @Test
+  public void listNamespacesFailsWhenServerAlternatesPageTokens() {
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+    RESTCatalog catalog =
+        new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
+    catalog.initialize("test", ImmutableMap.of(RESTCatalogProperties.PAGE_SIZE, "10"));
+
+    // alternate between two tokens forever; a same-token-only guard would not catch this
+    AtomicBoolean flip = new AtomicBoolean(false);
+    Mockito.doAnswer(
+            invocation -> {
+              String next = flip.getAndSet(!flip.get()) ? "a" : "b";
+              return ListNamespacesResponse.builder()
+                  .add(Namespace.of("ns"))
+                  .nextPageToken(next)
+                  .build();
+            })
+        .when(adapter)
+        .execute(
+            matches(HTTPMethod.GET, RESOURCE_PATHS.namespaces()),
+            eq(ListNamespacesResponse.class),
+            any(),
+            any());
+
+    assertThatThrownBy(() -> catalog.listNamespaces())
+        .isInstanceOf(RESTException.class)
+        .hasMessageContaining("Detected repeated page token")
+        .hasMessageContaining("listNamespaces");
+  }
+
+  @Test
+  public void listTablesFailsWhenServerRepeatsPageToken() {
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+    RESTCatalog catalog =
+        new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
+    catalog.initialize("test", ImmutableMap.of(RESTCatalogProperties.PAGE_SIZE, "10"));
+
+    String namespaceName = "newdb";
+    Namespace namespace = Namespace.of(namespaceName);
+    catalog.createNamespace(namespace);
+
+    Mockito.doAnswer(
+            invocation ->
+                ListTablesResponse.builder()
+                    .add(TableIdentifier.of(namespace, "t0"))
+                    .nextPageToken("stuck")
+                    .build())
+        .when(adapter)
+        .execute(
+            matches(HTTPMethod.GET, RESOURCE_PATHS.tables(namespace)),
+            eq(ListTablesResponse.class),
+            any(),
+            any());
+
+    assertThatThrownBy(() -> catalog.listTables(namespace))
+        .isInstanceOf(RESTException.class)
+        .hasMessageContaining("Detected repeated page token 'stuck'")
+        .hasMessageContaining("listTables");
+  }
+
+  @Test
+  public void paginationTerminatesNormallyWhenServerReturnsNullToken() {
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+    RESTCatalog catalog =
+        new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
+    catalog.initialize("test", ImmutableMap.of(RESTCatalogProperties.PAGE_SIZE, "10"));
+
+    catalog.createNamespace(Namespace.of("only"));
+
+    // regression check: happy path with a single page (null next-page-token) still returns cleanly
+    assertThat(catalog.listNamespaces()).containsExactly(Namespace.of("only"));
+  }
+
+  @Test
   public void testCleanupUncommitedFilesForCleanableFailures() {
     RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
     RESTCatalog catalog = catalog(adapter);
