@@ -142,6 +142,6 @@ public class SparkSQLProperties {
   // Permits only widening casts
   public static final String VIEW_SCHEMA_MODE_BINDING = "BINDING";
 
-  // Applies no cast, so the view reports the types its SQL produces
-  public static final String VIEW_SCHEMA_MODE_NO_CAST = "NO_CAST";
+  // Permits any ANSI cast, which can truncate values or fail at runtime
+  public static final String VIEW_SCHEMA_MODE_COMPENSATION = "COMPENSATION";
 }

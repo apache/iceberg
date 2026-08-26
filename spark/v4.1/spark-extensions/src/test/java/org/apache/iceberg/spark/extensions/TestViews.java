@@ -2134,21 +2134,20 @@ public class TestViews extends ExtensionsTestBase {
   }
 
   @TestTemplate
-  public void readFromViewWithNarrowedSchemaUnderNoCast() throws NoSuchTableException {
+  public void readFromViewWithNarrowedSchemaUnderCompensation() throws NoSuchTableException {
     insertRows(3);
-    String viewName = viewName("noCastSchemaView");
+    String viewName = viewName("compensatedSchemaView");
     createViewWithNarrowedSchema(viewName);
 
     withSQLConf(
         ImmutableMap.of(
             SparkSQLProperties.VIEW_SCHEMA_BINDING_MODE,
-            SparkSQLProperties.VIEW_SCHEMA_MODE_NO_CAST),
+            SparkSQLProperties.VIEW_SCHEMA_MODE_COMPENSATION),
         () -> {
           assertThat(spark.table(viewName).schema().fields()[0].dataType())
-              .isEqualTo(DataTypes.DoubleType);
-          assertThat(spark.table(viewName).schema().fields()[0].name()).isEqualTo("id");
+              .isEqualTo(DataTypes.LongType);
           assertThat(sql("SELECT * FROM %s ORDER BY id", viewName))
-              .containsExactly(row(1.0d), row(2.0d), row(3.0d));
+              .containsExactly(row(1L), row(2L), row(3L));
         });
   }
 
