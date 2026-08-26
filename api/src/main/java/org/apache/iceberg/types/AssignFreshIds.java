@@ -49,20 +49,18 @@ class AssignFreshIds extends TypeUtil.CustomOrderSchemaVisitor<Type> {
   }
 
   private int idFor(String fullName, Type type) {
-    Integer existingId = baseId(fullName);
-    if (existingId != null) {
-      return existingId;
+    Types.NestedField existingField = baseField(fullName);
+    // a base ID can only be reused for a file if the base field already reserved the derived IDs
+    if (existingField != null && (!type.isFileType() || existingField.type().isFileType())) {
+      return existingField.fieldId();
     }
 
     return type.isFileType() ? nextId.get(Types.FileType.NUM_NESTED_FIELDS) : nextId.get();
   }
 
-  private Integer baseId(String fullName) {
+  private Types.NestedField baseField(String fullName) {
     if (baseSchema != null && fullName != null) {
-      Types.NestedField field = baseSchema.findField(fullName);
-      if (field != null) {
-        return field.fieldId();
-      }
+      return baseSchema.findField(fullName);
     }
 
     return null;
