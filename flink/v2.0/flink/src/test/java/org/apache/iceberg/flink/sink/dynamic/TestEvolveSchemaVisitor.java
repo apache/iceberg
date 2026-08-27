@@ -818,6 +818,51 @@ public class TestEvolveSchemaVisitor {
     assertThat(result.findField("id")).isNotNull();
   }
 
+  @Test
+  void fileColumnIsLeftAlone() {
+    Schema existingSchema =
+        new Schema(
+            optional(1, "id", IntegerType.get()), optional(2, "photo", Types.FileType.of(2)));
+    Schema targetSchema =
+        new Schema(
+            optional(1, "id", IntegerType.get()),
+            optional(2, "photo", StructType.of(Types.FileType.of(2).fields())),
+            optional(9, "data", StringType.get()));
+
+    UpdateSchema updateApi = loadUpdateApi(existingSchema);
+    EvolveSchemaVisitor.visit(
+        TABLE, updateApi, existingSchema, targetSchema, CASE_SENSITIVE, PRESERVE_COLUMNS);
+    Schema result = updateApi.apply();
+
+    assertThat(result.findField("photo").type()).isEqualTo(Types.FileType.of(2));
+    assertThat(result.findField("data")).isNotNull();
+  }
+
+  @Test
+  void fileColumnWithUnexpectedNestedFields() {
+    Schema existingSchema =
+        new Schema(
+            optional(1, "id", IntegerType.get()), optional(2, "photo", Types.FileType.of(2)));
+    Schema targetSchema =
+        new Schema(
+            optional(1, "id", IntegerType.get()),
+            optional(2, "photo", StructType.of(optional(3, "uri", StringType.get()))));
+
+    UpdateSchema updateApi = loadUpdateApi(existingSchema);
+
+    assertThatThrownBy(
+            () ->
+                EvolveSchemaVisitor.visit(
+                    TABLE,
+                    updateApi,
+                    existingSchema,
+                    targetSchema,
+                    CASE_SENSITIVE,
+                    PRESERVE_COLUMNS))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Cannot evolve the nested fields of a file column photo");
+  }
+
   private static UpdateSchema loadUpdateApi(Schema schema) {
     try {
       Constructor<?> constructor =

@@ -36,6 +36,7 @@ import org.apache.iceberg.flink.FlinkRowData;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 
 public class RowDataProjection implements RowData {
@@ -99,14 +100,18 @@ public class RowDataProjection implements RowData {
 
   private static RowData.FieldGetter createFieldGetter(
       RowType rowType, int position, Types.NestedField rowField, Types.NestedField projectField) {
+    // pruning a subset of a file's nested fields produces a struct, so a file row field also
+    // matches a struct project field
     Preconditions.checkArgument(
-        rowField.type().typeId() == projectField.type().typeId(),
+        rowField.type().typeId() == projectField.type().typeId()
+            || (rowField.type().isFileType() && projectField.type().isStructType()),
         "Different iceberg type between row field <%s> and project field <%s>",
         rowField,
         projectField);
 
     switch (projectField.type().typeId()) {
       case STRUCT:
+      case FILE:
         RowType nestedRowType = (RowType) rowType.getTypeAt(position);
         return row -> {
           // null nested struct value
@@ -116,7 +121,9 @@ public class RowDataProjection implements RowData {
 
           RowData nestedRow = row.getRow(position, nestedRowType.getFieldCount());
           return RowDataProjection.create(
-                  nestedRowType, rowField.type().asStructType(), projectField.type().asStructType())
+                  nestedRowType,
+                  TypeUtil.asStructType(rowField.type()),
+                  TypeUtil.asStructType(projectField.type()))
               .wrap(nestedRow);
         };
 

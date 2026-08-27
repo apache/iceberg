@@ -84,6 +84,14 @@ class TypeToFlinkType extends TypeUtil.SchemaVisitor<LogicalType> {
   }
 
   @Override
+  public LogicalType file(Types.FileType file, List<LogicalType> fieldResults) {
+    // Flink has no logical type with file semantics, so a file is erased into a row of its nested
+    // fields. FlinkTypeToType cannot recover the file type from that row, so the conversion back to
+    // Iceberg has to consult a reference schema.
+    return struct(file.asStruct(), fieldResults);
+  }
+
+  @Override
   public LogicalType primitive(Type.PrimitiveType primitive) {
     switch (primitive.typeId()) {
       case UNKNOWN:
