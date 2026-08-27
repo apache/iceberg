@@ -948,6 +948,9 @@ acceptedBreaks:
       new: "method void org.apache.iceberg.rest.responses.PlanTableScanResponse.Builder::<init>()"
       justification: "Reducing visibility of scan-planning response internals deprecated\
         \ in 1.11.0 for 1.12.0"
+    - code: "java.field.removed"
+      old: "field org.apache.iceberg.util.ThreadPools.WORKER_THREAD_POOL_SIZE_PROP"
+      justification: "Removing deprecated field scheduled for removal in 1.12.0"
     org.apache.iceberg:iceberg-data:
     - code: "java.class.removed"
       old: "class org.apache.iceberg.data.BaseFileWriterFactory<T extends java.lang.Object>"
