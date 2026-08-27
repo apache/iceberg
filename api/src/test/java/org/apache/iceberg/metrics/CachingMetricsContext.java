@@ -19,21 +19,13 @@
 package org.apache.iceberg.metrics;
 
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
-/**
- * A {@link MetricsContext} that returns the same {@link org.apache.iceberg.metrics.Counter} instance
- * for a given name, so that tests can observe the counters that the code under test increments.
- * {@link DefaultMetricsContext} allocates a fresh counter on every {@link #counter(String, Unit)}
- * call, which would otherwise hand the test and the code under test two independent counters.
- *
- * <p>The counter type is spelled out with its fully-qualified name because the inherited nested
- * {@link MetricsContext.Counter} type would otherwise shadow the top-level counter within this
- * package.
- */
+/** A {@link MetricsContext} that hands out the same counter per name so tests can read it back. */
 public class CachingMetricsContext extends DefaultMetricsContext {
-  private final Map<String, org.apache.iceberg.metrics.Counter> counters =
-      new ConcurrentHashMap<>();
+  // The counter type is fully qualified: the inherited nested MetricsContext.Counter would
+  // otherwise shadow the top-level org.apache.iceberg.metrics.Counter within this package.
+  private final Map<String, org.apache.iceberg.metrics.Counter> counters = Maps.newConcurrentMap();
 
   @Override
   public org.apache.iceberg.metrics.Counter counter(String name, Unit unit) {
