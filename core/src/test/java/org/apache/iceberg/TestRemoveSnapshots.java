@@ -68,8 +68,10 @@ public class TestRemoveSnapshots extends TestBase {
     return Arrays.asList(
         new Object[] {1, true},
         new Object[] {2, true},
+        new Object[] {3, true},
         new Object[] {1, false},
-        new Object[] {2, false});
+        new Object[] {2, false},
+        new Object[] {3, false});
   }
 
   private long waitUntilAfter(long timestampMillis) {
@@ -1038,25 +1040,32 @@ public class TestRemoveSnapshots extends TestBase {
 
   @TestTemplate
   public void testExpireWithDeleteFiles() {
-    assumeThat(formatVersion).as("Delete files only supported in V2 spec").isEqualTo(2);
+    // Standalone delete manifests exist in V2 (position-delete parquet files) and V3 (deletion
+    // vectors). V1 has no delete files and V4+ folds delete entries into the root manifest.
+    assumeThat(formatVersion)
+        .as("Standalone delete manifests only exist in V2 and V3 tables")
+        .isIn(2, 3);
+
+    DeleteFile fileADeletes = fileADeletes();
+    DeleteFile fileBDeletes = fileBDeletes();
 
     // Data Manifest => File_A
     table.newAppend().appendFile(FILE_A).commit();
     Snapshot firstSnapshot = table.currentSnapshot();
 
     // Data Manifest => FILE_A
-    // Delete Manifest => FILE_A_DELETES
-    table.newRowDelta().addDeletes(FILE_A_DELETES).commit();
+    // Delete Manifest => fileADeletes
+    table.newRowDelta().addDeletes(fileADeletes).commit();
     Snapshot secondSnapshot = table.currentSnapshot();
     assertThat(secondSnapshot.dataManifests(table.io())).hasSize(1);
     assertThat(secondSnapshot.deleteManifests(table.io())).hasSize(1);
 
-    // FILE_A and FILE_A_DELETES move into "DELETED" state
+    // FILE_A and fileADeletes move into "DELETED" state
     table
         .newRewrite()
         .rewriteFiles(
-            ImmutableSet.of(FILE_A), ImmutableSet.of(FILE_A_DELETES), // deleted
-            ImmutableSet.of(FILE_B), ImmutableSet.of(FILE_B_DELETES)) // added
+            ImmutableSet.of(FILE_A), ImmutableSet.of(fileADeletes), // deleted
+            ImmutableSet.of(FILE_B), ImmutableSet.of(fileBDeletes)) // added
         .validateFromSnapshot(secondSnapshot.snapshotId())
         .commit();
     Snapshot thirdSnapshot = table.currentSnapshot();
@@ -1081,7 +1090,7 @@ public class TestRemoveSnapshots extends TestBase {
         .isEqualTo(
             ImmutableSet.builder()
                 .add(FILE_A.location())
-                .add(FILE_A_DELETES.location())
+                .add(fileADeletes.location())
                 .add(firstSnapshot.manifestListLocation())
                 .add(secondSnapshot.manifestListLocation())
                 .add(thirdSnapshot.manifestListLocation())
