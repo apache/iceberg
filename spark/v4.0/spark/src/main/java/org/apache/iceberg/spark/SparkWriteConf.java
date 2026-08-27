@@ -496,6 +496,17 @@ public class SparkWriteConf {
   }
 
   public String branch() {
+    String optionBranch = confParser.stringConf().option(SparkWriteOptions.BRANCH).parseOptional();
+    ValidationException.check(
+        branch == null || optionBranch == null || optionBranch.equals(branch),
+        "Must not specify different branches in both table identifier and write option, "
+            + "got [%s] in identifier and [%s] in options",
+        branch,
+        optionBranch);
+    if (optionBranch != null) {
+      return optionBranch;
+    }
+
     if (wapEnabled()) {
       String wapId = wapId();
       String wapBranch =
