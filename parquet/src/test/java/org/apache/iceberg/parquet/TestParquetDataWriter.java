@@ -154,6 +154,7 @@ public class TestParquetDataWriter {
     assertThat(dataFile.copy().avgValueSizes()).isEqualTo(dataFile.avgValueSizes());
     assertThat(dataFile.copyWithStats(Set.of(2)).avgValueSizes())
         .containsOnly(Map.entry(2, geom.remaining()));
+    assertThat(dataFile.copyWithStats(Set.of(1)).avgValueSizes()).isNull();
     assertThat(dataFile.copyWithoutStats().avgValueSizes()).isNull();
 
     List<Record> writtenRecords;

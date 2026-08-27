@@ -220,7 +220,7 @@ abstract class BaseFile<F> extends SupportsIndexProjection
       this.nanValueCounts = copyMap(toCopy.nanValueCounts, requestedColumnIds);
       this.lowerBounds = copyByteBufferMap(toCopy.lowerBounds, requestedColumnIds);
       this.upperBounds = copyByteBufferMap(toCopy.upperBounds, requestedColumnIds);
-      this.avgValueSizes = copyMap(toCopy.avgValueSizes, requestedColumnIds);
+      this.avgValueSizes = copyAvgValueSizes(toCopy.avgValueSizes, requestedColumnIds);
     } else {
       this.columnSizes = null;
       this.valueCounts = null;
@@ -585,6 +585,12 @@ abstract class BaseFile<F> extends SupportsIndexProjection
 
   private static <K, V> Map<K, V> copyMap(Map<K, V> map, Set<K> keys) {
     return keys == null ? SerializableMap.copyOf(map) : SerializableMap.filteredCopyOf(map, keys);
+  }
+
+  private static Map<Integer, Integer> copyAvgValueSizes(
+      Map<Integer, Integer> map, Set<Integer> keys) {
+    Map<Integer, Integer> copy = copyMap(map, keys);
+    return copy == null || copy.isEmpty() ? null : copy;
   }
 
   private static Map<Integer, ByteBuffer> copyByteBufferMap(

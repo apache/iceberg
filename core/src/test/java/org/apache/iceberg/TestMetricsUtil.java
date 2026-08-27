@@ -52,6 +52,21 @@ class TestMetricsUtil {
     assertThat(copy.avgValueSizes()).isNull();
   }
 
+  @Test
+  void copyWithStatsReturnsNullAvgValueSizesWhenNoRequestedColumnMatches() {
+    DataFile file =
+        DataFiles.builder(PartitionSpec.unpartitioned())
+            .withPath("/path/to/data.parquet")
+            .withFileSizeInBytes(10)
+            .withRecordCount(1)
+            .withMetrics(metricsWithAvgValueSizes())
+            .build();
+
+    assertThat(file.copyWithStats(ImmutableSet.of(2)).avgValueSizes())
+        .isEqualTo(ImmutableMap.of(2, 20));
+    assertThat(file.copyWithStats(ImmutableSet.of(3)).avgValueSizes()).isNull();
+  }
+
   private static Metrics metricsWithAvgValueSizes() {
     return new Metrics(3L, null, null, null, null, null, null, ImmutableMap.of(1, 10, 2, 20), null);
   }

@@ -103,8 +103,8 @@ public interface ContentFile<F> {
    * Returns if collected, map from column ID to its average value size in memory (uncompressed) in
    * bytes over non-null values, null otherwise.
    *
-   * <p>This statistic is not persisted in manifests prior to v4, so it is generally only present
-   * on newly created or written files, and is null for files read back from such manifests.
+   * <p>This statistic is not persisted in manifests prior to v4, so it is generally only present on
+   * newly created or written files, and is null for files read back from such manifests.
    */
   default Map<Integer, Integer> avgValueSizes() {
     return null;
