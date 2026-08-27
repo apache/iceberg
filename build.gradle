@@ -287,6 +287,26 @@ subprojects {
       scalaCompileOptions.additionalParameters.add("-release:17")
     }
   }
+
+  plugins.withId('com.gradleup.shadow') {
+    tasks.named('shadowJar').configure { jar ->
+      // keep Iceberg's aggregated LICENSE/NOTICE at the jar root
+      jar.from(project.projectDir) {
+        include 'LICENSE'
+        include 'NOTICE'
+      }
+
+      // drop LICENSE/NOTICE that shaded dependencies put under META-INF/
+      jar.exclude 'META-INF/LICENSE*'
+      jar.exclude 'META-INF/NOTICE*'
+
+      // drop a second root LICENSE/NOTICE that came out of a dependency jar.
+      // entries copied from projectDir have a real File; archive entries do not,
+      // so `it.file in bundledNotices` keeps the Iceberg pair and drops the rest.
+      def bundledNotices = [project.file('LICENSE'), project.file('NOTICE')]
+      jar.exclude { it.relativePath.pathString in ['LICENSE', 'NOTICE'] && !(it.file in bundledNotices) }
+    }
+  }
 }
 
 project(':iceberg-bundled-guava') {
@@ -308,21 +328,6 @@ project(':iceberg-bundled-guava') {
     archiveClassifier.set(null)
     configurations = [project.configurations.compileClasspath]
     zip64 true
-
-    // include the LICENSE and NOTICE files for the shaded Jar
-    from(projectDir) {
-      include 'LICENSE'
-      include 'NOTICE'
-    }
-
-    // exclude dependency-provided LICENSE/NOTICE files in favor of the bundled Iceberg ones
-    exclude 'META-INF/LICENSE*'
-    exclude 'META-INF/NOTICE*'
-
-    // dependencies that ship a root LICENSE/NOTICE would place a second copy next to the
-    // bundled ones above, so drop every root copy that is not read from the project directory
-    def bundledNotices = [file('LICENSE'), file('NOTICE')]
-    exclude { it.relativePath.pathString in ['LICENSE', 'NOTICE'] && !(it.file in bundledNotices) }
 
     dependencies {
       exclude(dependency('org.slf4j:slf4j-api'))
@@ -1177,12 +1182,6 @@ project(':iceberg-open-api') {
     configurations = [project.configurations.testFixturesRuntimeClasspath]
     from sourceSets.testFixtures.output
     zip64 true
-
-    // include the LICENSE and NOTICE files for the runtime Jar
-    from(projectDir) {
-      include 'LICENSE'
-      include 'NOTICE'
-    }
 
     manifest {
       attributes 'Main-Class': 'org.apache.iceberg.rest.RESTCatalogServer'
