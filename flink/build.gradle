@@ -30,3 +30,11 @@ if (flinkVersions.contains("2.0")) {
 if (flinkVersions.contains("2.1")) {
   apply from: file("$projectDir/v2.1/build.gradle")
 }
+
+if (flinkVersions.contains("2.2")) {
+  apply from: file("$projectDir/v2.2/build.gradle")
+}
+
+if (flinkVersions.contains("2.3")) {
+  apply from: file("$projectDir/v2.3/build.gradle")
+}
