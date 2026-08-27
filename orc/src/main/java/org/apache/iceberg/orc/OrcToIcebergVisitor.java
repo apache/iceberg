@@ -52,6 +52,22 @@ class OrcToIcebergVisitor extends OrcSchemaVisitor<Optional<Types.NestedField>> 
   }
 
   @Override
+  public Optional<Types.NestedField> file(
+      TypeDescription file, List<String> names, List<Optional<Types.NestedField>> fields) {
+    boolean isOptional = ORCSchemaUtil.isOptional(file);
+
+    return ORCSchemaUtil.icebergID(file)
+        .map(
+            fieldId ->
+                Types.NestedField.builder()
+                    .withId(fieldId)
+                    .isOptional(isOptional)
+                    .withName(currentFieldName())
+                    .ofType(Types.FileType.of(fieldId))
+                    .build());
+  }
+
+  @Override
   public Optional<Types.NestedField> list(
       TypeDescription array, Optional<Types.NestedField> element) {
     boolean isOptional = ORCSchemaUtil.isOptional(array);

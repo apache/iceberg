@@ -44,6 +44,8 @@ public abstract class OrcSchemaVisitor<T> {
         String structType = schema.getAttributeValue(ORCSchemaUtil.ICEBERG_STRUCT_TYPE_ATTRIBUTE);
         if (ORCSchemaUtil.VARIANT.equalsIgnoreCase(structType)) {
           return visitVariant(schema, visitor);
+        } else if (ORCSchemaUtil.FILE.equalsIgnoreCase(structType)) {
+          return visitFile(schema, visitor);
         } else {
           return visitRecord(schema, visitor);
         }
@@ -113,6 +115,13 @@ public abstract class OrcSchemaVisitor<T> {
     List<String> names = record.getFieldNames();
 
     return visitor.record(record, names, visitFields(fields, names, visitor));
+  }
+
+  private static <T> T visitFile(TypeDescription file, OrcSchemaVisitor<T> visitor) {
+    List<TypeDescription> fields = file.getChildren();
+    List<String> names = file.getFieldNames();
+
+    return visitor.file(file, names, visitFields(fields, names, visitor));
   }
 
   private static <T> T visitVariant(TypeDescription variant, OrcSchemaVisitor<T> visitor) {
@@ -189,6 +198,16 @@ public abstract class OrcSchemaVisitor<T> {
 
   public T map(TypeDescription map, T key, T value) {
     return null;
+  }
+
+  /**
+   * Visits a file column, which is stored as an ORC struct of its nested fields.
+   *
+   * <p>The default handles the file as the struct of its nested fields. Override this to
+   * reconstruct a file column from those fields.
+   */
+  public T file(TypeDescription file, List<String> names, List<T> fields) {
+    return record(file, names, fields);
   }
 
   public T variant(TypeDescription variant, T metadata, T value) {

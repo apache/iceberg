@@ -37,6 +37,14 @@ class RemoveIds extends OrcSchemaVisitor<TypeDescription> {
   }
 
   @Override
+  public TypeDescription file(
+      TypeDescription file, List<String> names, List<TypeDescription> fields) {
+    TypeDescription struct = record(file, names, fields);
+    struct.setAttribute(ORCSchemaUtil.ICEBERG_STRUCT_TYPE_ATTRIBUTE, ORCSchemaUtil.FILE);
+    return struct;
+  }
+
+  @Override
   public TypeDescription list(TypeDescription array, TypeDescription element) {
     return TypeDescription.createList(element);
   }
