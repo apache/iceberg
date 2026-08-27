@@ -203,7 +203,9 @@
 
 --------------------------------------------------------------------------------
 
-This product bundles Apache Avro.
+This product bundles and includes code from Apache Avro.
+
+* Conversion in DecimalWriter is based on Avro's Conversions.DecimalConversion.
 
 Copyright: Copyright 2010-2019 The Apache Software Foundation
 Project URL: https://avro.apache.org/
@@ -307,7 +309,13 @@ License: BSD 2-Clause
 
 --------------------------------------------------------------------------------
 
-This product bundles Apache Parquet.
+This product bundles and includes code from Apache Parquet.
+
+* DynMethods.java
+* DynConstructors.java
+* IOUtil.java readFully
+* ByteBufferInputStream implementations
+* implementation of VectorizedByteStreamSplitValuesReader
 
 Copyright: 2014-2024 The Apache Software Foundation
 Project URL: https://parquet.apache.org/
@@ -930,6 +938,7 @@ License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2
 This product includes code from Delta Lake.
 
 * AssignmentAlignmentSupport is an independent development but UpdateExpressionsSupport in Delta was used as a reference.
+* RoaringPositionBitmap is a Java implementation of RoaringBitmapArray in Delta.
 
 Copyright: 2020 The Delta Lake Project Authors.
 Project URL: https://delta.io/

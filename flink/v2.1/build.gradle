@@ -229,12 +229,6 @@ project(":iceberg-flink:iceberg-flink-runtime-${flinkMajorVersion}") {
 
     zip64 true
 
-    // include the LICENSE and NOTICE files for the shaded Jar
-    from(projectDir) {
-      include 'LICENSE'
-      include 'NOTICE'
-    }
-
     // Relocate dependencies to avoid conflicts
     relocate 'org.apache.avro', 'org.apache.iceberg.shaded.org.apache.avro'
     relocate 'org.apache.parquet', 'org.apache.iceberg.shaded.org.apache.parquet'
