@@ -377,7 +377,7 @@ class TestFileType {
     Types.NestedField photo = schema.findField("photo");
     assertThat(data.fieldId()).isEqualTo(2);
     assertThat(photo.type()).isEqualTo(Types.FileType.of(photo.fieldId()));
-    assertThat(photo.type().asStructType().fields())
+    assertThat(photo.type().asFileType().fields())
         .extracting(Types.NestedField::fieldId)
         .doesNotContain(data.fieldId());
     assertThat(TypeUtil.indexById(schema.asStruct()))
