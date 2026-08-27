@@ -38,6 +38,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 
 public class TypeUtil {
 
@@ -716,6 +717,9 @@ public class TypeUtil {
    * IDs already in use by another schema. The function will reassign the provided IDs to new unused
    * IDs, while preserving other IDs.
    *
+   * <p>The returned function will not hand out an ID that it has already assigned or reserved,
+   * whether that ID was preserved or freshly assigned.
+   *
    * @param conflictingIds the set of conflicting field IDs that should be reassigned
    * @param allUsedIds the set of field IDs that are already in use and cannot be reused
    * @return a function that reassigns conflicting field IDs while preserving others
@@ -727,11 +731,13 @@ public class TypeUtil {
   private static class ReassignConflictingIds implements GetID {
     private final Set<Integer> conflictingIds;
     private final Set<Integer> allUsedIds;
+    private final Set<Integer> handedOutIds;
     private final AtomicInteger nextId;
 
     private ReassignConflictingIds(Set<Integer> conflictingIds, Set<Integer> allUsedIds) {
       this.conflictingIds = conflictingIds;
       this.allUsedIds = allUsedIds;
+      this.handedOutIds = Sets.newHashSet();
       this.nextId = new AtomicInteger();
     }
 
@@ -742,11 +748,14 @@ public class TypeUtil {
 
     @Override
     public int get(int oldId, int numReserved) {
-      // only the reserved IDs are checked because a field that is not conflicting keeps its ID
-      if (conflictingIds.contains(oldId) || !isRangeAvailable(oldId + 1, oldId + numReserved)) {
+      // a field that is not conflicting keeps its ID, so oldId itself is not checked against the
+      // caller's used IDs, only against the IDs this assigner has already handed out
+      if (conflictingIds.contains(oldId)
+          || handedOutIds.contains(oldId)
+          || !isRangeAvailable(oldId + 1, oldId + numReserved)) {
         return nextAvailableId(numReserved);
       } else {
-        return oldId;
+        return handOut(oldId, numReserved);
       }
     }
 
@@ -759,12 +768,20 @@ public class TypeUtil {
 
       nextId.addAndGet(numReserved);
 
-      return candidateId;
+      return handOut(candidateId, numReserved);
+    }
+
+    private int handOut(int firstId, int numReserved) {
+      for (int id = firstId; id <= firstId + numReserved; id += 1) {
+        handedOutIds.add(id);
+      }
+
+      return firstId;
     }
 
     private boolean isRangeAvailable(int firstId, int lastId) {
       for (int id = firstId; id <= lastId; id += 1) {
-        if (allUsedIds.contains(id)) {
+        if (allUsedIds.contains(id) || handedOutIds.contains(id)) {
           return false;
         }
       }
