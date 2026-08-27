@@ -171,6 +171,70 @@ public class TestAnalyticsCoreUtil {
     assertThat(readOperations.value()).isEqualTo(2);
   }
 
+  @Test
+  public void readVectoredSkipsZeroLengthRanges() throws IOException {
+    GcsFileSystem fileSystem = mock(GcsFileSystem.class);
+    GoogleCloudStorageInputStream gcsInputStream = mock(GoogleCloudStorageInputStream.class);
+    BlobId blobId = BlobId.of("mockbucket", "mockname");
+
+    CachingMetricsContext metrics = new CachingMetricsContext();
+    Counter readBytes = metrics.counter(FileIOMetricsContext.READ_BYTES, MetricsContext.Unit.BYTES);
+    Counter readOperations = metrics.counter(FileIOMetricsContext.READ_OPERATIONS);
+
+    SeekableInputStream stream;
+    try (MockedStatic<GoogleCloudStorageInputStream> mocked =
+        mockStatic(GoogleCloudStorageInputStream.class)) {
+      mocked
+          .when(() -> GoogleCloudStorageInputStream.create(eq(fileSystem), any(GcsItemId.class)))
+          .thenReturn(gcsInputStream);
+      stream = AnalyticsCoreUtil.newStream(fileSystem, blobId, null, metrics);
+    }
+
+    CompletableFuture<ByteBuffer> future1 = new CompletableFuture<>();
+    CompletableFuture<ByteBuffer> future2 = new CompletableFuture<>();
+    // a zero-length range must not count bytes or an operation
+    List<FileRange> ranges =
+        List.of(new FileRange(future1, 10L, 100), new FileRange(future2, 200L, 0));
+
+    ((RangeReadable) stream).readVectored(ranges, ByteBuffer::allocate);
+
+    assertThat(readBytes.value()).isEqualTo(100);
+    assertThat(readOperations.value()).isEqualTo(1);
+  }
+
+  @Test
+  public void readTailDoesNotCountAtEof() throws IOException {
+    GcsFileSystem fileSystem = mock(GcsFileSystem.class);
+    GoogleCloudStorageInputStream gcsInputStream = mock(GoogleCloudStorageInputStream.class);
+    BlobId blobId = BlobId.of("mockbucket", "mockname");
+    // a tail read of 8 bytes, then an empty/EOF tail read
+    when(gcsInputStream.readTail(any(byte[].class), anyInt(), anyInt()))
+        .thenReturn(8)
+        .thenReturn(-1);
+
+    CachingMetricsContext metrics = new CachingMetricsContext();
+    Counter readBytes = metrics.counter(FileIOMetricsContext.READ_BYTES, MetricsContext.Unit.BYTES);
+    Counter readOperations = metrics.counter(FileIOMetricsContext.READ_OPERATIONS);
+
+    SeekableInputStream stream;
+    try (MockedStatic<GoogleCloudStorageInputStream> mocked =
+        mockStatic(GoogleCloudStorageInputStream.class)) {
+      mocked
+          .when(() -> GoogleCloudStorageInputStream.create(eq(fileSystem), any(GcsItemId.class)))
+          .thenReturn(gcsInputStream);
+      stream = AnalyticsCoreUtil.newStream(fileSystem, blobId, null, metrics);
+    }
+
+    assertThat(((RangeReadable) stream).readTail(new byte[16], 0, 16)).isEqualTo(8);
+    assertThat(readBytes.value()).isEqualTo(8);
+    assertThat(readOperations.value()).isEqualTo(1);
+
+    // an empty/EOF tail read counts neither bytes nor an operation
+    assertThat(((RangeReadable) stream).readTail(new byte[16], 0, 16)).isEqualTo(-1);
+    assertThat(readBytes.value()).isEqualTo(8);
+    assertThat(readOperations.value()).isEqualTo(1);
+  }
+
   /**
    * A {@link MetricsContext} that returns the same {@link Counter} instance for a given name, so
    * that tests can observe the counters the stream under test increments. {@link

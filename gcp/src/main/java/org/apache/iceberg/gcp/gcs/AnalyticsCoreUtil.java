@@ -194,8 +194,8 @@ class AnalyticsCoreUtil {
       }
       if (bytesRead > 0) {
         readBytes.increment(bytesRead);
+        readOperations.increment();
       }
-      readOperations.increment();
       return bytesRead;
     }
 
@@ -223,8 +223,10 @@ class AnalyticsCoreUtil {
       // delegate throws below, but the bytes were already recorded); both are acceptable for a
       // metric where the magnitude is right and it lands where Spark can see it.
       for (FileRange range : ranges) {
-        readBytes.increment(range.length());
-        readOperations.increment();
+        if (range.length() > 0) {
+          readBytes.increment(range.length());
+          readOperations.increment();
+        }
       }
       try {
         stream.readVectored(objectRanges, allocate);
