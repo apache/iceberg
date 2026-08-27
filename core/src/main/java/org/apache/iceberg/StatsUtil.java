@@ -261,9 +261,26 @@ class StatsUtil {
 
   @VisibleForTesting
   static Types.StructType fieldStatsStruct(Type type, int baseId, MetricsModes.MetricsMode mode) {
-    if (null == mode || mode == MetricsModes.None.get() || type.isNestedType() || baseId < 0) {
+    if (null == mode || mode == MetricsModes.None.get() || baseId < 0) {
       return null;
     }
+
+    if (type.isStructType()) {
+      return Types.StructType.of(
+          optional(
+              baseId + VALUE_COUNT_OFFSET,
+              "value_count",
+              Types.LongType.get(),
+              "Number of values (including null)"),
+          optional(
+              baseId + NULL_VALUE_COUNT_OFFSET,
+              "null_value_count",
+              Types.LongType.get(),
+              "Number of null values"));
+    } else if (type.isNestedType()) {
+      return null;
+    }
+
 
     List<Types.NestedField> fields = Lists.newArrayList();
 
