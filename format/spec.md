@@ -666,7 +666,7 @@ Constraints are added in v4 and are not supported in v3 or earlier.
 Three constraint types are defined:
 
 * `check` -- every row must satisfy a predicate
-* `unique` -- the values of a set of fields must be distinct across all rows
+* `unique` -- the values of a set of fields must be distinct across all rows; a null value is not equal to any other null value, so more than one row may be null
 * `primary-key` -- the values of a set of fields must be distinct across all rows and must not be null
 
 Constraints are stored separately from schemas because the two evolve independently. Every constraint references the fields that it applies to by field ID, so a constraint continues to apply to the same columns after a column is renamed or reordered.
@@ -683,7 +683,7 @@ A constraint consists of the following fields:
 | _required_ | **`type`**                | `string`  | The constraint type: `check`, `unique`, or `primary-key` |
 | _required_ | **`name`**                | `string`  | A name for the constraint that is unique within the table. Names are for human consumption and must not be used to identify a constraint in metadata |
 | _required_ | **`enforced`**            | `boolean` | Whether writers must verify that the rows they add satisfy the constraint |
-| _required_ | **`timestamp-ms`**        | `long`    | Timestamp in milliseconds from the unix epoch when the constraint was created or last modified |
+| _required_ | **`timestamp-ms`**        | `long`    | Timestamp in milliseconds from the unix epoch when the constraint was created or last modified. The timestamp is informational and must not be used to determine whether a constraint applies to a snapshot or whether it holds |
 | _required_ | **`constraint-metadata`** | `struct`  | Defines what the constraint requires; its fields depend on the constraint `type` (see below) |
 
 `constraint-metadata` for a `check` constraint consists of:
@@ -722,14 +722,7 @@ To express SQL `CHECK` semantics for an optional field, the stored expression mu
 
 Enforcement and validation are separate properties. Whether writers must verify the rows that they add is a property of a constraint, tracked by `enforced`. Whether a table is known to satisfy a constraint is a property of a table's data, tracked per snapshot by `constraint-statuses`.
 
-A snapshot's `constraint-statuses` records the status of each constraint that was active when the snapshot was created. Each entry consists of:
-
-| Requirement | Field name          | Type     | Description |
-|-------------|---------------------|----------|-------------|
-| _required_ | **`constraint-id`** | `int`    | ID of the constraint that the status describes |
-| _required_ | **`status`**        | `string` | The status of the constraint for this snapshot |
-
-A status is one of:
+The status of a constraint for a snapshot is one of:
 
 | Status        | Description |
 |---------------|-------------|
@@ -738,18 +731,48 @@ A status is one of:
 | `invalid`     | The constraint was checked and at least one row in the snapshot violates it |
 | `unvalidated` | Whether the constraint holds for all rows in the snapshot is not known |
 
-A constraint that is not present in a snapshot's `constraint-statuses` was not active when the snapshot was created, and the snapshot makes no claim about it. This is the case for snapshots created before the constraint was added and for snapshots created after it was dropped.
+A snapshot's `constraint-statuses` consists of:
 
-Writers must record a status for every constraint that is active when a snapshot is created:
+| Requirement | Field name               | Type           | Description |
+|-------------|--------------------------|----------------|-------------|
+| _required_ | **`last-constraint-id`** | `int`          | The table's `last-constraint-id` when the snapshot was created |
+| _required_ | **`default-status`**     | `string`       | The status of every constraint that is not listed in `statuses` |
+| _optional_ | **`statuses`**           | `list<struct>` | Statuses for constraints whose status is not `default-status` |
 
-* `validated` must not be recorded unless the constraint was checked for every row in the snapshot
-* `valid` must not be recorded unless the constraint was enforced for the commit and the parent snapshot's status for the constraint is `validated` or `valid`
-* `invalid` must not be recorded unless a row in the snapshot is known to violate the constraint
-* `unvalidated` must be recorded when no other status can be recorded
+Each entry of `statuses` consists of:
 
-Enforcing a constraint for a commit is not sufficient to record `valid`. When the parent snapshot's status is not `validated` or `valid`, rows added by earlier commits were never checked, so the status is `unvalidated` even though the writer verified the rows that it added.
+| Requirement | Field name          | Type     | Description |
+|-------------|---------------------|----------|-------------|
+| _required_ | **`constraint-id`** | `int`    | ID of the constraint that the status describes |
+| _required_ | **`status`**        | `string` | The status of the constraint for this snapshot |
+
+`default-status` covers the constraints that share a status and `statuses` records only the constraints that differ from it, so the size of `constraint-statuses` does not grow with the number of constraints in a table. When every constraint has the same status, that status is recorded once, no matter how many constraints the table has.
+
+Readers must determine the status of a constraint for a snapshot as follows:
+
+1. If the snapshot has no `constraint-statuses`, the snapshot makes no claim about any constraint
+2. If the constraint's `constraint-id` is greater than the snapshot's `last-constraint-id`, the constraint did not exist when the snapshot was created and the snapshot makes no claim about it
+3. If the constraint is listed in `statuses`, its status is the listed status
+4. Otherwise, its status is `default-status`
+
+`last-constraint-id` is what makes a defaulted status safe. Without it, a `default-status` recorded before a constraint was added would apply to that constraint, and a reader could conclude that a constraint held for a snapshot created before the constraint existed.
+
+Writers must record `constraint-statuses` in every snapshot of a table that has constraints, must set `last-constraint-id` to the table's `last-constraint-id` when the snapshot is created, and must choose `default-status` and `statuses` so that every constraint resolves to a status that follows these rules:
+
+* A constraint must not resolve to `validated` unless it was checked for every row in the snapshot
+* A constraint must not resolve to `valid` unless it was enforced for the commit and the parent snapshot's status for the constraint is `validated` or `valid`
+* A constraint must not resolve to `invalid` unless a row in the snapshot is known to violate it
+* `unvalidated` is the status of a constraint that cannot resolve to any other status
+
+Writers should choose the `default-status` that produces the shortest `statuses` list.
+
+Enforcing a constraint for a commit is not sufficient to resolve to `valid`. When the parent snapshot's status is not `validated` or `valid`, rows added by earlier commits were never checked, so the status is `unvalidated` even though the writer verified the rows that it added.
 
 When a constraint becomes enforced, either by being added with `enforced` set to true or by `enforced` changing from false to true, writers should validate the table and record `validated`. A writer that does not validate records `unvalidated`, and the constraint remains `unvalidated` until a later validation records `validated`.
+
+A snapshot's `constraint-statuses` must not be modified after the snapshot is created. Recording a different status for a constraint requires a new snapshot. A snapshot that changes only constraint statuses may reuse its parent's manifest list.
+
+A constraint that a snapshot states holds may later be found not to hold for that snapshot, because `valid` relies on writers rather than on checking data. Writers should then commit a snapshot that records `invalid` and should expire the snapshots that state that the constraint holds, because queries against those snapshots would otherwise continue to rely on a constraint that does not hold.
 
 Only `validated` and `valid` state that a constraint holds. They are distinguished so that readers can tell whether that conclusion was reached by checking data or by relying on writers to enforce the constraint, and so that the most recent `validated` snapshot can be found if a constraint is later found to be `invalid`.
 
@@ -1076,7 +1099,7 @@ A snapshot consists of the following fields:
     | _required_ | **`first-row-id`**           | The first `_row_id` assigned to the first row in the first data file in the first manifest, see [Row Lineage](#row-lineage) |
     | _required_ | **`added-rows`**             | The upper bound of the number of rows with assigned row IDs, see [Row Lineage](#row-lineage) |
     | _optional_ | **`key-id`**                 | ID of the encryption key that encrypts the manifest list key metadata |
-    | _optional_ | **`constraint-statuses`**    | A list (optional) of constraint statuses for the snapshot, see [Constraint Validation](#constraint-validation) |
+    | _optional_ | **`constraint-statuses`**    | A struct (optional) that records the status of the table's constraints for the snapshot, see [Constraint Validation](#constraint-validation) |
 
 The snapshot summary's `operation` field is used by some operations, like snapshot expiration, to skip processing certain snapshots. Possible `operation` values are:
 
