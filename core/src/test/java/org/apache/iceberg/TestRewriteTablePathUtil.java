@@ -28,8 +28,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.apache.iceberg.data.GenericRecord;
+import org.apache.iceberg.data.Record;
+import org.apache.iceberg.deletes.PositionDeleteWriter;
+import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.DeleteSchemaUtil;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.util.Pair;
 import org.junit.jupiter.api.Test;
@@ -570,5 +576,59 @@ public class TestRewriteTablePathUtil extends TestBase {
         .containsExactlyInAnyOrderEntriesOf(
             ImmutableMap.of("/path/to/m1.avro", 10L, "/path/to/m2.avro", 20L));
     assertThat(first.rewrittenManifestLengths()).isUnmodifiable();
+  }
+
+  @Test
+  void rewritePositionDeleteRejectsRowData() {
+    // Simulates a position delete file written by 1.11 or earlier, which could carry the deleted
+    // row.
+    Schema posDeleteSchema = DeleteSchemaUtil.posDeleteReadSchema(SCHEMA);
+    GenericRecord deleteRecord = GenericRecord.create(posDeleteSchema);
+    deleteRecord.set(0, "/source/table/data/file.parquet");
+    deleteRecord.set(1, 0L);
+    deleteRecord.set(2, GenericRecord.create(SCHEMA));
+
+    DeleteFile deleteFile =
+        FileMetadata.deleteFileBuilder(PartitionSpec.unpartitioned())
+            .ofPositionDeletes()
+            .withPath("/source/table/data/deletes.parquet")
+            .withFileSizeInBytes(10)
+            .withRecordCount(1)
+            .build();
+
+    assertThatThrownBy(
+            () ->
+                RewriteTablePathUtil.rewritePositionDelete(
+                    deleteFile,
+                    Files.localOutput(java.io.File.createTempFile("junit", null, temp.toFile())),
+                    table.io(),
+                    PartitionSpec.unpartitioned(),
+                    "/source/table",
+                    "/target/table",
+                    new RowCarryingReaderWriter(deleteRecord)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot rewrite position delete file with row data for");
+  }
+
+  /** Returns one position delete record that carries row data, as 1.11 and earlier could write. */
+  private static class RowCarryingReaderWriter
+      implements RewriteTablePathUtil.PositionDeleteReaderWriter {
+    private final Record record;
+
+    RowCarryingReaderWriter(Record record) {
+      this.record = record;
+    }
+
+    @Override
+    public CloseableIterable<Record> reader(
+        InputFile inputFile, FileFormat format, PartitionSpec spec) {
+      return CloseableIterable.withNoopClose(ImmutableList.of(record));
+    }
+
+    @Override
+    public PositionDeleteWriter<Record> writer(
+        OutputFile outputFile, FileFormat format, PartitionSpec spec, StructLike partition) {
+      throw new AssertionError("Should not open a writer for a file that carries row data");
+    }
   }
 }

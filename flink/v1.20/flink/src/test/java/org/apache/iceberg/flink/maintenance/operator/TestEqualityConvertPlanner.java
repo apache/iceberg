@@ -1109,7 +1109,7 @@ class TestEqualityConvertPlanner extends OperatorTestBase {
     assertThat(file.delete()).isTrue();
 
     PositionDelete<Record> delete = PositionDelete.create();
-    delete.set(dataFilePath, position, null);
+    delete.set(dataFilePath, position);
     return FileHelpers.writePosDeleteFile(
         table,
         Files.localOutput(file),

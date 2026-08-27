@@ -695,6 +695,28 @@ acceptedBreaks:
       justification: "These interfaces were package-private in 1.11.0 and could not\
         \ be implemented outside the project. Promoting them to public reads as an\
         \ existing type gaining methods, not as a new type appearing."
+    - code: "java.method.noLongerDefault"
+      old: "method org.apache.iceberg.deletes.PositionDeleteWriter<org.apache.iceberg.data.Record>\
+        \ org.apache.iceberg.RewriteTablePathUtil.PositionDeleteReaderWriter::writer(org.apache.iceberg.io.OutputFile,\
+        \ org.apache.iceberg.FileFormat, org.apache.iceberg.PartitionSpec, org.apache.iceberg.StructLike)\
+        \ throws java.io.IOException"
+      new: "method org.apache.iceberg.deletes.PositionDeleteWriter<org.apache.iceberg.data.Record>\
+        \ org.apache.iceberg.RewriteTablePathUtil.PositionDeleteReaderWriter::writer(org.apache.iceberg.io.OutputFile,\
+        \ org.apache.iceberg.FileFormat, org.apache.iceberg.PartitionSpec, org.apache.iceberg.StructLike)\
+        \ throws java.io.IOException"
+      justification: "Removed deprecated position deletes with row data scheduled for\
+        \ removal in 1.12.0"
+    - code: "java.method.nowAbstract"
+      old: "method org.apache.iceberg.deletes.PositionDeleteWriter<org.apache.iceberg.data.Record>\
+        \ org.apache.iceberg.RewriteTablePathUtil.PositionDeleteReaderWriter::writer(org.apache.iceberg.io.OutputFile,\
+        \ org.apache.iceberg.FileFormat, org.apache.iceberg.PartitionSpec, org.apache.iceberg.StructLike)\
+        \ throws java.io.IOException"
+      new: "method org.apache.iceberg.deletes.PositionDeleteWriter<org.apache.iceberg.data.Record>\
+        \ org.apache.iceberg.RewriteTablePathUtil.PositionDeleteReaderWriter::writer(org.apache.iceberg.io.OutputFile,\
+        \ org.apache.iceberg.FileFormat, org.apache.iceberg.PartitionSpec, org.apache.iceberg.StructLike)\
+        \ throws java.io.IOException"
+      justification: "Removed deprecated position deletes with row data scheduled for\
+        \ removal in 1.12.0"
     - code: "java.method.parameterTypeChanged"
       old: "parameter org.apache.iceberg.RewriteTablePathUtil.RewriteResult<org.apache.iceberg.ManifestFile>\
         \ org.apache.iceberg.RewriteTablePathUtil::rewriteManifestList(org.apache.iceberg.Snapshot,\
@@ -715,6 +737,10 @@ acceptedBreaks:
         \ extends org.apache.iceberg.rest.responses.BaseScanTaskResponse>::withDeleteFiles(java.util.List<org.apache.iceberg.DeleteFile>)"
       justification: "Reducing visibility of scan-planning response internals deprecated\
         \ in 1.11.0 for 1.12.0"
+    - code: "java.method.removed"
+      old: "method R org.apache.iceberg.deletes.PositionDelete<R>::row()"
+      justification: "Removed deprecated position deletes with row data scheduled for\
+        \ removal in 1.12.0"
     - code: "java.method.removed"
       old: "method boolean org.apache.iceberg.util.TableScanUtil::hasDeletes(org.apache.iceberg.CombinedScanTask)"
       justification: "Removed deprecated API scheduled for removal in 1.12.0"
@@ -761,6 +787,18 @@ acceptedBreaks:
     - code: "java.method.removed"
       old: "method org.apache.iceberg.catalog.Namespace org.apache.iceberg.rest.RESTUtil::decodeNamespace(java.lang.String)"
       justification: "Removed deprecated functionality scheduled for removal in 1.12.0"
+    - code: "java.method.removed"
+      old: "method org.apache.iceberg.deletes.PositionDelete<R> org.apache.iceberg.deletes.PositionDelete<R>::set(java.lang.CharSequence,\
+        \ long, R)"
+      justification: "Removed deprecated position deletes with row data scheduled for\
+        \ removal in 1.12.0"
+    - code: "java.method.removed"
+      old: "method org.apache.iceberg.deletes.PositionDeleteWriter<org.apache.iceberg.data.Record>\
+        \ org.apache.iceberg.RewriteTablePathUtil.PositionDeleteReaderWriter::writer(org.apache.iceberg.io.OutputFile,\
+        \ org.apache.iceberg.FileFormat, org.apache.iceberg.PartitionSpec, org.apache.iceberg.StructLike,\
+        \ org.apache.iceberg.Schema) throws java.io.IOException"
+      justification: "Removed deprecated position deletes with row data scheduled for\
+        \ removal in 1.12.0"
     - code: "java.method.removed"
       old: "method org.apache.iceberg.io.CloseableIterable<java.lang.String> org.apache.iceberg.ManifestFiles::readPaths(org.apache.iceberg.ManifestFile,\
         \ org.apache.iceberg.io.FileIO)"
@@ -919,7 +957,54 @@ acceptedBreaks:
       old: "class org.apache.iceberg.data.GenericAppenderFactory"
       justification: "Removing deprecated GenericAppenderFactory and BaseFileWriterFactory\
         \ scheduled for removal in 1.12.0"
+    - code: "java.method.removed"
+      old: "method void org.apache.iceberg.data.GenericFileWriterFactory::configureDataWrite(org.apache.iceberg.avro.Avro.DataWriteBuilder)"
+      justification: "Removed deprecated position deletes with row data scheduled for\
+        \ removal in 1.12.0"
+    - code: "java.method.removed"
+      old: "method void org.apache.iceberg.data.GenericFileWriterFactory::configureDataWrite(org.apache.iceberg.orc.ORC.DataWriteBuilder)"
+      justification: "Removed deprecated position deletes with row data scheduled for\
+        \ removal in 1.12.0"
+    - code: "java.method.removed"
+      old: "method void org.apache.iceberg.data.GenericFileWriterFactory::configureDataWrite(org.apache.iceberg.parquet.Parquet.DataWriteBuilder)"
+      justification: "Removed deprecated position deletes with row data scheduled for\
+        \ removal in 1.12.0"
+    - code: "java.method.removed"
+      old: "method void org.apache.iceberg.data.GenericFileWriterFactory::configureEqualityDelete(org.apache.iceberg.avro.Avro.DeleteWriteBuilder)"
+      justification: "Removed deprecated position deletes with row data scheduled for\
+        \ removal in 1.12.0"
+    - code: "java.method.removed"
+      old: "method void org.apache.iceberg.data.GenericFileWriterFactory::configureEqualityDelete(org.apache.iceberg.orc.ORC.DeleteWriteBuilder)"
+      justification: "Removed deprecated position deletes with row data scheduled for\
+        \ removal in 1.12.0"
+    - code: "java.method.removed"
+      old: "method void org.apache.iceberg.data.GenericFileWriterFactory::configureEqualityDelete(org.apache.iceberg.parquet.Parquet.DeleteWriteBuilder)"
+      justification: "Removed deprecated position deletes with row data scheduled for\
+        \ removal in 1.12.0"
+    - code: "java.method.removed"
+      old: "method void org.apache.iceberg.data.GenericFileWriterFactory::configurePositionDelete(org.apache.iceberg.avro.Avro.DeleteWriteBuilder)"
+      justification: "Removed deprecated position deletes with row data scheduled for\
+        \ removal in 1.12.0"
+    - code: "java.method.removed"
+      old: "method void org.apache.iceberg.data.GenericFileWriterFactory::configurePositionDelete(org.apache.iceberg.orc.ORC.DeleteWriteBuilder)"
+      justification: "Removed deprecated position deletes with row data scheduled for\
+        \ removal in 1.12.0"
+    - code: "java.method.removed"
+      old: "method void org.apache.iceberg.data.GenericFileWriterFactory::configurePositionDelete(org.apache.iceberg.parquet.Parquet.DeleteWriteBuilder)"
+      justification: "Removed deprecated position deletes with row data scheduled for\
+        \ removal in 1.12.0"
+    org.apache.iceberg:iceberg-orc:
+    - code: "java.method.removed"
+      old: "method org.apache.iceberg.orc.ORC.DeleteWriteBuilder org.apache.iceberg.orc.ORC.DeleteWriteBuilder::transformPaths(java.util.function.Function<java.lang.CharSequence,\
+        \ ?>)"
+      justification: "Removed deprecated position deletes with row data scheduled for\
+        \ removal in 1.12.0"
     org.apache.iceberg:iceberg-parquet:
+    - code: "java.method.removed"
+      old: "method org.apache.iceberg.parquet.Parquet.DeleteWriteBuilder org.apache.iceberg.parquet.Parquet.DeleteWriteBuilder::transformPaths(java.util.function.Function<java.lang.CharSequence,\
+        \ ?>)"
+      justification: "Removed deprecated position deletes with row data scheduled for\
+        \ removal in 1.12.0"
     - code: "java.method.removed"
       old: "method org.apache.iceberg.parquet.ParquetValueReader<T> org.apache.iceberg.data.parquet.BaseParquetReaders<T>::createStructReader(java.util.List<org.apache.iceberg.parquet.ParquetValueReader<?>>,\
         \ org.apache.iceberg.types.Types.StructType) @ org.apache.iceberg.data.parquet.GenericParquetReaders"
