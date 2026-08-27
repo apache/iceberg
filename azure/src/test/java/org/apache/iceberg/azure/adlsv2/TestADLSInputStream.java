@@ -188,6 +188,35 @@ class TestADLSInputStream {
     }
   }
 
+  @Test
+  void testReadTailEmptyObjectDoesNotCountMetrics() throws IOException {
+    InputStream byteStream = new ByteArrayInputStream(new byte[0]);
+    PathProperties properties = mock(PathProperties.class);
+    when(properties.getFileSize()).thenReturn(0L);
+    InternalDataLakeFileOpenInputStreamResult openInputStreamResult =
+        new InternalDataLakeFileOpenInputStreamResult(byteStream, properties);
+    when(fileClient.openInputStream(any())).thenReturn(openInputStreamResult);
+
+    CachingMetricsContext metrics = new CachingMetricsContext();
+    Counter readBytes = metrics.counter(FileIOMetricsContext.READ_BYTES, MetricsContext.Unit.BYTES);
+    Counter readOperations = metrics.counter(FileIOMetricsContext.READ_OPERATIONS);
+
+    try (ADLSInputStream in =
+        new ADLSInputStream(
+            "abfs://container@account.dfs.core.windows.net/path/to/file",
+            fileClient,
+            0L,
+            mock(),
+            metrics)) {
+      int bytesRead = in.readTail(new byte[8], 0, 8);
+
+      // an empty object yields no bytes; a no-data read counts neither bytes nor an operation
+      assertThat(bytesRead).isEqualTo(0);
+      assertThat(readBytes.value()).isEqualTo(0);
+      assertThat(readOperations.value()).isEqualTo(0);
+    }
+  }
+
   /**
    * A {@link MetricsContext} that returns the same {@link Counter} instance for a given name, so
    * that tests can observe the counters the stream under test increments. {@link

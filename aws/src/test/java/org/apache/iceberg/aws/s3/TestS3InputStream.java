@@ -133,6 +133,26 @@ public final class TestS3InputStream {
     }
   }
 
+  @Test
+  void testReadTailEmptyObjectDoesNotCountMetrics() throws IOException {
+    when(s3Client.getObject(any(GetObjectRequest.class), any(ResponseTransformer.class)))
+        .thenReturn(new ByteArrayInputStream(new byte[0]));
+
+    CachingMetricsContext metrics = new CachingMetricsContext();
+    Counter readBytes = metrics.counter(FileIOMetricsContext.READ_BYTES, MetricsContext.Unit.BYTES);
+    Counter readOperations = metrics.counter(FileIOMetricsContext.READ_OPERATIONS);
+
+    try (S3InputStream in =
+        new S3InputStream(s3Client, mock(), new S3FileIOProperties(), metrics)) {
+      int bytesRead = in.readTail(new byte[8], 0, 8);
+
+      // an empty object yields no bytes; a no-data read counts neither bytes nor an operation
+      assertThat(bytesRead).isEqualTo(0);
+      assertThat(readBytes.value()).isEqualTo(0);
+      assertThat(readOperations.value()).isEqualTo(0);
+    }
+  }
+
   /**
    * A {@link MetricsContext} that returns the same {@link Counter} instance for a given name, so
    * that tests can observe the counters the stream under test increments. {@link
