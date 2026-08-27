@@ -370,6 +370,43 @@ class TestFileType {
   }
 
   @Test
+  void reassignedConflictingIdsDoNotHandOutAPreservedId() {
+    TypeUtil.GetID getId =
+        TypeUtil.reassignConflictingIds(ImmutableSet.of(9), ImmutableSet.of(1, 9));
+
+    int preservedId = getId.get(2);
+    int fileId = getId.get(9, Types.FileType.NUM_NESTED_FIELDS);
+
+    assertThat(preservedId).isEqualTo(2);
+    assertThat(fileId).isNotEqualTo(preservedId);
+    assertThat(Types.FileType.of(fileId).fields())
+        .extracting(Types.NestedField::fieldId)
+        .doesNotContain(preservedId);
+  }
+
+  @Test
+  void reassignedConflictingIdsKeepAPreservedIdOutOfANewFileBlock() {
+    List<Types.NestedField> columns =
+        ImmutableList.of(
+            optional(2, "data", Types.StringType.get()),
+            optional(9, "photo", Types.FileType.of(9)));
+
+    // the caller does not report the preserved id 2 as used, so only the assigner knows it is taken
+    Schema schema =
+        new Schema(columns, TypeUtil.reassignConflictingIds(ImmutableSet.of(9), ImmutableSet.of()));
+
+    Types.NestedField data = schema.findField("data");
+    Types.NestedField photo = schema.findField("photo");
+    assertThat(data.fieldId()).isEqualTo(2);
+    assertThat(photo.type()).isEqualTo(Types.FileType.of(photo.fieldId()));
+    assertThat(photo.type().asStructType().fields())
+        .extracting(Types.NestedField::fieldId)
+        .doesNotContain(data.fieldId());
+    assertThat(TypeUtil.indexById(schema.asStruct()))
+        .hasSize(columns.size() + Types.FileType.NUM_NESTED_FIELDS);
+  }
+
+  @Test
   void reassignedIdsComeFromTheSourceSchema() {
     Schema source =
         new Schema(
