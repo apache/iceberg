@@ -35,17 +35,15 @@ import com.google.cloud.storage.BlobId;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.IntFunction;
 import org.apache.iceberg.io.FileIOMetricsContext;
 import org.apache.iceberg.io.FileRange;
 import org.apache.iceberg.io.RangeReadable;
 import org.apache.iceberg.io.SeekableInputStream;
+import org.apache.iceberg.metrics.CachingMetricsContext;
 import org.apache.iceberg.metrics.Counter;
-import org.apache.iceberg.metrics.DefaultMetricsContext;
 import org.apache.iceberg.metrics.MetricsContext;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 
@@ -121,9 +119,9 @@ public class TestAnalyticsCoreUtil {
     // Statistics and never reach Spark's task input metrics (see AnalyticsCoreUtil#readVectored).
     // The tradeoff is a bounded over-count on short reads / failed ranges.
     //
-    // NOTE: this test uses DefaultMetricsContext (a plain LongAdder), which cannot verify the
-    // per-thread Statistics attribution that motivates counting synchronously; that correctness
-    // argument rests on the HadoopMetricsContext reasoning, not on this assertion.
+    // NOTE: this test uses a plain LongAdder-backed counter, which cannot verify the per-thread
+    // Statistics attribution that motivates counting synchronously; that correctness argument
+    // rests on the HadoopMetricsContext reasoning, not on this assertion.
     assertThat(readBytes.value()).isEqualTo(150);
     assertThat(readOperations.value()).isEqualTo(2);
 
@@ -233,20 +231,5 @@ public class TestAnalyticsCoreUtil {
     assertThat(((RangeReadable) stream).readTail(new byte[16], 0, 16)).isEqualTo(-1);
     assertThat(readBytes.value()).isEqualTo(8);
     assertThat(readOperations.value()).isEqualTo(1);
-  }
-
-  /**
-   * A {@link MetricsContext} that returns the same {@link Counter} instance for a given name, so
-   * that tests can observe the counters the stream under test increments. {@link
-   * DefaultMetricsContext} allocates a fresh counter on every {@code counter(...)} call.
-   */
-  private static class CachingMetricsContext extends DefaultMetricsContext {
-    private final Map<String, org.apache.iceberg.metrics.Counter> counters =
-        Maps.newConcurrentMap();
-
-    @Override
-    public org.apache.iceberg.metrics.Counter counter(String name, Unit unit) {
-      return counters.computeIfAbsent(name, ignored -> super.counter(name, unit));
-    }
   }
 }

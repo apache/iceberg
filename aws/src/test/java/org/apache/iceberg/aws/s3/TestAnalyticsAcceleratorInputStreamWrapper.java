@@ -25,12 +25,10 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
-import java.util.Map;
 import org.apache.iceberg.io.FileIOMetricsContext;
+import org.apache.iceberg.metrics.CachingMetricsContext;
 import org.apache.iceberg.metrics.Counter;
-import org.apache.iceberg.metrics.DefaultMetricsContext;
 import org.apache.iceberg.metrics.MetricsContext;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.jupiter.api.Test;
 import software.amazon.s3.analyticsaccelerator.S3SeekableInputStream;
 
@@ -69,21 +67,6 @@ public class TestAnalyticsAcceleratorInputStreamWrapper {
       assertThat(in.read(new byte[16], 0, 16)).isEqualTo(-1);
       assertThat(readBytes.value()).isEqualTo(9);
       assertThat(readOperations.value()).isEqualTo(2);
-    }
-  }
-
-  /**
-   * A {@link MetricsContext} that returns the same {@link Counter} instance for a given name, so
-   * that tests can observe the counters the stream under test increments. {@link
-   * DefaultMetricsContext} allocates a fresh counter on every {@code counter(...)} call.
-   */
-  private static class CachingMetricsContext extends DefaultMetricsContext {
-    private final Map<String, org.apache.iceberg.metrics.Counter> counters =
-        Maps.newConcurrentMap();
-
-    @Override
-    public org.apache.iceberg.metrics.Counter counter(String name, Unit unit) {
-      return counters.computeIfAbsent(name, ignored -> super.counter(name, unit));
     }
   }
 }
