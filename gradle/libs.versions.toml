@@ -49,7 +49,6 @@ errorprone-annotations = "2.50.0"
 failsafe = "3.3.2"
 findbugs-jsr305 = "3.0.2"
 flink120 = { strictly = "1.20.1"}
-flink20 = { strictly = "2.0.0"}
 flink22 = { strictly = "2.2.0"}
 flink23 = { strictly = "2.3.0"}
 google-libraries-bom = "26.86.0"
@@ -129,12 +128,6 @@ flink120-connector-files = { module = "org.apache.flink:flink-connector-files", 
 flink120-metrics-dropwizard = { module = "org.apache.flink:flink-metrics-dropwizard", version.ref = "flink120" }
 flink120-streaming-java = { module = "org.apache.flink:flink-streaming-java", version.ref = "flink120" }
 flink120-table-api-java-bridge = { module = "org.apache.flink:flink-table-api-java-bridge", version.ref = "flink120" }
-flink20-avro = { module = "org.apache.flink:flink-avro", version.ref = "flink20" }
-flink20-connector-base = { module = "org.apache.flink:flink-connector-base", version.ref = "flink20" }
-flink20-connector-files = { module = "org.apache.flink:flink-connector-files", version.ref = "flink20" }
-flink20-metrics-dropwizard = { module = "org.apache.flink:flink-metrics-dropwizard", version.ref = "flink20" }
-flink20-streaming-java = { module = "org.apache.flink:flink-streaming-java", version.ref = "flink20" }
-flink20-table-api-java-bridge = { module = "org.apache.flink:flink-table-api-java-bridge", version.ref = "flink20" }
 flink22-avro = { module = "org.apache.flink:flink-avro", version.ref = "flink22" }
 flink22-connector-base = { module = "org.apache.flink:flink-connector-base", version.ref = "flink22" }
 flink22-connector-files = { module = "org.apache.flink:flink-connector-files", version.ref = "flink22" }
@@ -198,11 +191,6 @@ flink120-core = { module = "org.apache.flink:flink-core", version.ref = "flink12
 flink120-runtime = { module = "org.apache.flink:flink-runtime", version.ref = "flink120" }
 flink120-test-utils = { module = "org.apache.flink:flink-test-utils", version.ref = "flink120" }
 flink120-test-utilsjunit = { module = "org.apache.flink:flink-test-utils-junit", version.ref = "flink120" }
-flink20-connector-test-utils = { module = "org.apache.flink:flink-connector-test-utils", version.ref = "flink20" }
-flink20-core = { module = "org.apache.flink:flink-core", version.ref = "flink20" }
-flink20-runtime = { module = "org.apache.flink:flink-runtime", version.ref = "flink20" }
-flink20-test-utils = { module = "org.apache.flink:flink-test-utils", version.ref = "flink20" }
-flink20-test-utilsjunit = { module = "org.apache.flink:flink-test-utils-junit", version.ref = "flink20" }
 flink22-connector-test-utils = { module = "org.apache.flink:flink-connector-test-utils", version.ref = "flink22" }
 flink22-core = { module = "org.apache.flink:flink-core", version.ref = "flink22" }
 flink22-runtime = { module = "org.apache.flink:flink-runtime", version.ref = "flink22" }

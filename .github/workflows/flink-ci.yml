@@ -87,7 +87,7 @@ jobs:
           # Pull requests run the baseline JDK only.
           - event_name: pull_request
             jvm: 21
-        flink: ['1.20', '2.0', '2.1']
+        flink: ['1.20', '2.2', '2.3']
     env:
       SPARK_LOCAL_IP: localhost
     steps:
