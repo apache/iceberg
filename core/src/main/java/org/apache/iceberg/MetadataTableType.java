@@ -19,6 +19,7 @@
 package org.apache.iceberg;
 
 import java.util.Locale;
+import org.apache.iceberg.catalog.TableIdentifier;
 
 public enum MetadataTableType {
   ENTRIES,
@@ -44,5 +45,17 @@ public enum MetadataTableType {
     } catch (IllegalArgumentException ignored) {
       return null;
     }
+  }
+
+  public static MetadataTableType from(TableIdentifier identifier) {
+    // An identifier only refers to a metadata table when its base table (the identifier without
+    // its last part) still has a namespace, which requires at least two namespace levels here.
+    // This lets a regular table reuse a metadata table name (e.g. "db.files") without being
+    // mistaken for the "files" metadata table of namespace "db".
+    if (identifier.namespace().levels().length >= 2) {
+      return from(identifier.name());
+    }
+
+    return null;
   }
 }

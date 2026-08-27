@@ -35,12 +35,15 @@ import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.iceberg.AppendFiles;
+import org.apache.iceberg.BaseMetadataTable;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.DataFile;
@@ -51,6 +54,7 @@ import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.FilesTable;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.HistoryEntry;
+import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.ReachableFileUtil;
 import org.apache.iceberg.ReplaceSortOrder;
@@ -93,6 +97,8 @@ import org.apache.iceberg.util.CharSequenceSet;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
@@ -1123,6 +1129,61 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     table.refresh();
 
     assertThat(table.name()).isEqualTo(catalog.name() + "." + metaIdent);
+  }
+
+  @ParameterizedTest
+  @MethodSource("metadataTableNamesAndNamespaces")
+  public void tableSharingMetadataTableName(Namespace namespace, MetadataTableType type) {
+    assumeThat(supportsNestedNamespaces() || namespace.levels().length < 2)
+        .as("Only valid for catalogs that support nested namespaces")
+        .isTrue();
+
+    C catalog = catalog();
+    String metadataName = type.name().toLowerCase(Locale.ROOT);
+    TableIdentifier identifier = TableIdentifier.of(namespace, metadataName);
+
+    if (requiresNamespaceCreate()) {
+      for (int level = 1; level <= namespace.levels().length; level++) {
+        Namespace parent = Namespace.of(Arrays.copyOf(namespace.levels(), level));
+        if (!catalog.namespaceExists(parent)) {
+          catalog.createNamespace(parent);
+        }
+      }
+    }
+
+    assertThat(catalog.tableExists(identifier)).as("Table should not exist").isFalse();
+
+    // the base table does not exist, so loading names the requested identifier rather than the
+    // namespace-derived base table
+    assertThatThrownBy(() -> catalog.loadTable(identifier))
+        .isInstanceOf(NoSuchTableException.class)
+        .hasMessageContaining(identifier.toString());
+
+    catalog.buildTable(identifier, SCHEMA).create();
+
+    Table table = catalog.loadTable(identifier);
+    assertThat(catalog.tableExists(identifier)).as("Table should exist").isTrue();
+    assertThat(table)
+        .as("Should load a regular table, not a metadata table")
+        .isInstanceOf(BaseTable.class);
+    assertThat(table.name()).isEqualTo(catalog.name() + "." + identifier);
+
+    // the metadata table of the new base table remains reachable
+    List<String> metadataLevels = Lists.newArrayList(namespace.levels());
+    metadataLevels.add(metadataName);
+    TableIdentifier metadataIdentifier =
+        TableIdentifier.of(Namespace.of(metadataLevels.toArray(new String[0])), metadataName);
+    Table metadataTable = catalog.loadTable(metadataIdentifier);
+    assertThat(metadataTable).isInstanceOf(BaseMetadataTable.class);
+    assertThat(metadataTable.name()).isEqualTo(catalog.name() + "." + metadataIdentifier);
+  }
+
+  private static Stream<Arguments> metadataTableNamesAndNamespaces() {
+    return Stream.of(Namespace.of("ns"), Namespace.of("ns1", "ns2"))
+        .flatMap(
+            namespace ->
+                Arrays.stream(MetadataTableType.values())
+                    .map(type -> Arguments.of(namespace, type)));
   }
 
   @Test
