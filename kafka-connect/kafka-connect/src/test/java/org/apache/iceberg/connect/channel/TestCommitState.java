@@ -26,8 +26,10 @@ import java.time.OffsetDateTime;
 import java.util.UUID;
 import org.apache.iceberg.connect.IcebergSinkConfig;
 import org.apache.iceberg.connect.events.DataComplete;
+import org.apache.iceberg.connect.events.DataWritten;
 import org.apache.iceberg.connect.events.Event;
 import org.apache.iceberg.connect.events.Payload;
+import org.apache.iceberg.connect.events.TableReference;
 import org.apache.iceberg.connect.events.TopicPartitionOffset;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.junit.jupiter.api.Test;
@@ -109,6 +111,39 @@ public class TestCommitState {
     // Only the current commit's payload counts toward readiness.
     assertThat(commitState.isCommitReady(1)).isTrue();
     assertThat(commitState.isCommitReady(2)).isFalse();
+  }
+
+  @Test
+  public void testResetDiscardsInFlightState() {
+    TopicPartitionOffset tp = mock(TopicPartitionOffset.class);
+    TableReference tableRef = mock(TableReference.class);
+
+    DataWritten response = mock(DataWritten.class);
+    when(response.tableReference()).thenReturn(tableRef);
+
+    CommitState commitState = new CommitState(mock(IcebergSinkConfig.class));
+    commitState.startNewCommit();
+
+    DataComplete ready = mock(DataComplete.class);
+    when(ready.commitId()).thenReturn(commitState.currentCommitId());
+    when(ready.assignments()).thenReturn(ImmutableList.of(tp, tp));
+
+    commitState.addResponse(wrapInEnvelope(response));
+    commitState.addReady(wrapInEnvelope(ready));
+
+    assertThat(commitState.isCommitInProgress()).isTrue();
+    assertThat(commitState.isCommitReady(2)).isTrue();
+    assertThat(commitState.tableCommitMap()).isNotEmpty();
+
+    commitState.reset();
+
+    // buffered responses, the current commit id, and the readiness counter are all cleared
+    assertThat(commitState.isCommitInProgress()).isFalse();
+    assertThat(commitState.tableCommitMap()).isEmpty();
+
+    // a subsequent commit starts from a clean readiness counter
+    commitState.startNewCommit();
+    assertThat(commitState.isCommitReady(1)).isFalse();
   }
 
   @Test
