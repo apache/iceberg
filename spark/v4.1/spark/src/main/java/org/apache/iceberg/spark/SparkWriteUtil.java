@@ -55,6 +55,8 @@ import org.apache.iceberg.spark.source.metrics.TotalEqualityDeletes;
 import org.apache.iceberg.spark.source.metrics.TotalFileSizeInBytes;
 import org.apache.iceberg.spark.source.metrics.TotalPositionalDeletes;
 import org.apache.iceberg.spark.source.metrics.TotalRecords;
+import org.apache.iceberg.spark.source.metrics.WriteCloseDuration;
+import org.apache.iceberg.spark.source.metrics.WriteDuration;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.SortOrderUtil;
 import org.apache.spark.sql.connector.distributions.Distribution;
@@ -310,12 +312,25 @@ public class SparkWriteUtil {
       new TotalEqualityDeletes(),
       new TotalFileSizeInBytes(),
       new TotalPositionalDeletes(),
-      new TotalRecords()
+      new TotalRecords(),
+      new WriteDuration(),
+      new WriteCloseDuration()
     };
   }
 
   public static CustomTaskMetric[] customTaskMetrics(InMemoryMetricsReporter metricsReporter) {
+    return customTaskMetrics(metricsReporter, WriteDurations.EMPTY);
+  }
+
+  /**
+   * Builds the driver-side metrics for a write, combining the commit report with the write times
+   * tasks reported back in their commit messages.
+   */
+  public static CustomTaskMetric[] customTaskMetrics(
+      InMemoryMetricsReporter metricsReporter, WriteDurations writeDurations) {
     List<CustomTaskMetric> metrics = Lists.newArrayList();
+    addValue(new WriteDuration(), writeDurations.writeNanos(), metrics);
+    addValue(new WriteCloseDuration(), writeDurations.closeNanos(), metrics);
     if (metricsReporter != null) {
       CommitReport commitReport = metricsReporter.commitReport();
       if (commitReport != null) {
@@ -346,6 +361,22 @@ public class SparkWriteUtil {
       }
     }
     return metrics.toArray(new CustomTaskMetric[0]);
+  }
+
+  private static void addValue(
+      CustomMetric metric, long value, List<CustomTaskMetric> taskMetrics) {
+    taskMetrics.add(
+        new CustomTaskMetric() {
+          @Override
+          public String name() {
+            return metric.name();
+          }
+
+          @Override
+          public long value() {
+            return value;
+          }
+        });
   }
 
   private static void addValue(

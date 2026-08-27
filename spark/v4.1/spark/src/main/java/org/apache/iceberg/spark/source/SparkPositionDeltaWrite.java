@@ -74,6 +74,7 @@ import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkWriteConf;
 import org.apache.iceberg.spark.SparkWriteRequirements;
 import org.apache.iceberg.spark.SparkWriteUtil;
+import org.apache.iceberg.spark.WriteDurations;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.CharSequenceSet;
 import org.apache.iceberg.util.DeleteFileSet;
@@ -124,6 +125,7 @@ class SparkPositionDeltaWrite extends BaseSparkWrite
   private final Map<String, String> writeProperties;
 
   private boolean cleanupOnAbort = false;
+  private WriteDurations writeDurations = WriteDurations.EMPTY;
   private InMemoryMetricsReporter metricsReporter;
 
   SparkPositionDeltaWrite(
@@ -195,7 +197,7 @@ class SparkPositionDeltaWrite extends BaseSparkWrite
 
   @Override
   public CustomTaskMetric[] reportDriverMetrics() {
-    return SparkWriteUtil.customTaskMetrics(metricsReporter);
+    return SparkWriteUtil.customTaskMetrics(metricsReporter, writeDurations);
   }
 
   private class PositionDeltaBatchWrite implements DeltaBatchWrite {
@@ -246,9 +248,11 @@ class SparkPositionDeltaWrite extends BaseSparkWrite
       int addedDataFilesCount = 0;
       int addedDeleteFilesCount = 0;
       int removedDeleteFilesCount = 0;
+      WriteDurations durations = WriteDurations.EMPTY;
 
       for (WriterCommitMessage message : messages) {
         DeltaTaskCommit taskCommit = (DeltaTaskCommit) message;
+        durations = durations.combine(taskCommit.writeDurations());
 
         for (DataFile dataFile : taskCommit.dataFiles()) {
           rowDelta.addRows(dataFile);
@@ -267,6 +271,8 @@ class SparkPositionDeltaWrite extends BaseSparkWrite
 
         referencedDataFiles.addAll(Arrays.asList(taskCommit.referencedDataFiles()));
       }
+
+      SparkPositionDeltaWrite.this.writeDurations = durations;
 
       // the scan may be null if the optimizer replaces it with an empty relation
       // no validation is needed in this case as the command is independent of the table state
@@ -381,19 +387,26 @@ class SparkPositionDeltaWrite extends BaseSparkWrite
     private final DeleteFile[] deleteFiles;
     private final DeleteFile[] rewrittenDeleteFiles;
     private final CharSequence[] referencedDataFiles;
+    private final WriteDurations writeDurations;
 
-    DeltaTaskCommit(WriteResult result) {
+    DeltaTaskCommit(WriteResult result, WriteDurations writeDurations) {
       this.dataFiles = result.dataFiles();
       this.deleteFiles = result.deleteFiles();
       this.referencedDataFiles = result.referencedDataFiles();
       this.rewrittenDeleteFiles = result.rewrittenDeleteFiles();
+      this.writeDurations = writeDurations;
     }
 
-    DeltaTaskCommit(DeleteWriteResult result) {
+    DeltaTaskCommit(DeleteWriteResult result, WriteDurations writeDurations) {
       this.dataFiles = new DataFile[0];
       this.deleteFiles = result.deleteFiles().toArray(new DeleteFile[0]);
       this.referencedDataFiles = result.referencedDataFiles().toArray(new CharSequence[0]);
       this.rewrittenDeleteFiles = result.rewrittenDeleteFiles().toArray(new DeleteFile[0]);
+      this.writeDurations = writeDurations;
+    }
+
+    WriteDurations writeDurations() {
+      return writeDurations;
     }
 
     DataFile[] dataFiles() {
@@ -495,6 +508,11 @@ class SparkPositionDeltaWrite extends BaseSparkWrite
   }
 
   private abstract static class BaseDeltaWriter implements DeltaWriter<InternalRow> {
+    private final WriteTimer timer = new WriteTimer();
+
+    protected WriteTimer timer() {
+      return timer;
+    }
 
     protected InternalRowWrapper initPartitionRowWrapper(Types.StructType partitionType) {
       StructType sparkPartitionType = (StructType) SparkSchemaUtil.convert(partitionType);
@@ -640,7 +658,7 @@ class SparkPositionDeltaWrite extends BaseSparkWrite
       String file = id.getString(fileOrdinal);
       long position = id.getLong(positionOrdinal);
       positionDelete.set(file, position);
-      delegate.write(positionDelete, spec, partitionProjection);
+      timer().timeWrite(() -> delegate.write(positionDelete, spec, partitionProjection));
     }
 
     @Override
@@ -660,7 +678,7 @@ class SparkPositionDeltaWrite extends BaseSparkWrite
       close();
 
       DeleteWriteResult result = delegate.result();
-      return new DeltaTaskCommit(result);
+      return new DeltaTaskCommit(result, timer().writeDurations());
     }
 
     @Override
@@ -674,7 +692,7 @@ class SparkPositionDeltaWrite extends BaseSparkWrite
     @Override
     public void close() throws IOException {
       if (!closed) {
-        delegate.close();
+        timer().timeClose(delegate::close);
         this.closed = true;
       }
     }
@@ -734,7 +752,7 @@ class SparkPositionDeltaWrite extends BaseSparkWrite
 
       String file = id.getString(fileOrdinal);
       long position = id.getLong(positionOrdinal);
-      delegate.delete(file, position, spec, partitionProjection);
+      timer().timeWrite(() -> delegate.delete(file, position, spec, partitionProjection));
     }
 
     @Override
@@ -742,7 +760,7 @@ class SparkPositionDeltaWrite extends BaseSparkWrite
       close();
 
       WriteResult result = delegate.result();
-      return new DeltaTaskCommit(result);
+      return new DeltaTaskCommit(result, timer().writeDurations());
     }
 
     @Override
@@ -763,7 +781,7 @@ class SparkPositionDeltaWrite extends BaseSparkWrite
     @Override
     public void close() throws IOException {
       if (!closed) {
-        delegate.close();
+        timer().timeClose(delegate::close);
         this.closed = true;
       }
     }
@@ -808,7 +826,7 @@ class SparkPositionDeltaWrite extends BaseSparkWrite
 
     @Override
     public void reinsert(InternalRow meta, InternalRow row) throws IOException {
-      delegate.insert(decorateWithRowLineage(meta, row), dataSpec, null);
+      timer().timeWrite(() -> delegate.insert(decorateWithRowLineage(meta, row), dataSpec, null));
     }
   }
 
@@ -852,8 +870,12 @@ class SparkPositionDeltaWrite extends BaseSparkWrite
 
     @Override
     public void reinsert(InternalRow meta, InternalRow row) throws IOException {
-      dataPartitionKey.partition(internalRowDataWrapper.wrap(row));
-      delegate.insert(decorateWithRowLineage(meta, row), dataSpec, dataPartitionKey);
+      timer()
+          .timeWrite(
+              () -> {
+                dataPartitionKey.partition(internalRowDataWrapper.wrap(row));
+                delegate.insert(decorateWithRowLineage(meta, row), dataSpec, dataPartitionKey);
+              });
     }
   }
 
