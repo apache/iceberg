@@ -331,7 +331,7 @@ public class TestMetricsRowGroupFilter {
 
   @TestTemplate
   public void testFloatWithNan() {
-    // NaN's should break Parquet's Min/Max stats we should be reading in all cases
+    // Parquet's IEEE 754 stats safely order NaN above finite values, while ORC remains conservative
     boolean shouldRead = shouldRead(greaterThan("some_nans", 1.0));
     assertThat(shouldRead).isTrue();
 
@@ -342,7 +342,7 @@ public class TestMetricsRowGroupFilter {
     assertThat(shouldRead).isTrue();
 
     shouldRead = shouldRead(lessThanOrEqual("some_nans", 1.0));
-    assertThat(shouldRead).isTrue();
+    assertThat(shouldRead).isEqualTo(format == FileFormat.ORC);
 
     shouldRead = shouldRead(equal("some_nans", 2.0));
     assertThat(shouldRead).isTrue();
@@ -362,7 +362,9 @@ public class TestMetricsRowGroupFilter {
     assertThat(shouldRead).as("Should read: column with some nans contains target value").isTrue();
 
     shouldRead = shouldRead(lessThanOrEqual("some_double_nans", 1.0));
-    assertThat(shouldRead).as("Should read: column with some nans contains target value").isTrue();
+    assertThat(shouldRead)
+        .as("Should use IEEE 754 Parquet stats and conservative ORC NaN stats")
+        .isEqualTo(format == FileFormat.ORC);
 
     shouldRead = shouldRead(equal("some_double_nans", 2.0));
     assertThat(shouldRead).as("Should read: column with some nans contains target value").isTrue();
