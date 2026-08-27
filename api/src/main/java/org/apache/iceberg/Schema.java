@@ -149,6 +149,8 @@ public class Schema implements Serializable {
     this.struct = StructType.of(finalColumns);
     this.aliasToId = aliases != null ? ImmutableBiMap.copyOf(aliases) : null;
 
+    validateFileFields(struct);
+
     // validate IdentifierField
     if (identifierFieldIds != null) {
       Map<Integer, Integer> idToParent = TypeUtil.indexParents(struct);
@@ -159,6 +161,58 @@ public class Schema implements Serializable {
         identifierFieldIds != null ? Ints.toArray(identifierFieldIds) : new int[0];
 
     this.highestFieldId = lazyIdToName().keySet().stream().mapToInt(i -> i).max().orElse(0);
+  }
+
+  /**
+   * Validates that every file column holds the block of derived field IDs that its type produces.
+   */
+  private static void validateFileFields(StructType struct) {
+    Map<Integer, String> namesById = Maps.newHashMap();
+    Map<Integer, String> fileNamesById = Maps.newHashMap();
+    indexFileFields(struct, null, namesById, fileNamesById);
+
+    fileNamesById.forEach(
+        (enclosingId, fileName) -> {
+          for (int offset = 1; offset <= Types.FileType.NUM_NESTED_FIELDS; offset += 1) {
+            String conflictingName = namesById.get(enclosingId + offset);
+            Preconditions.checkArgument(
+                conflictingName == null,
+                "Invalid file column %s: derived field ID %s is already used by %s",
+                fileName,
+                enclosingId + offset,
+                conflictingName);
+          }
+        });
+  }
+
+  private static void indexFileFields(
+      Type type,
+      String prefix,
+      Map<Integer, String> namesById,
+      Map<Integer, String> fileNamesById) {
+    if (!type.isNestedType()) {
+      return;
+    }
+
+    for (NestedField field : type.asNestedType().fields()) {
+      String name = prefix == null ? field.name() : prefix + "." + field.name();
+      namesById.putIfAbsent(field.fieldId(), name);
+
+      // a file's derived fields are not indexed, so any ID found in its reserved block is a
+      // different column
+      if (field.type().isFileType()) {
+        Types.FileType file = field.type().asFileType();
+        Preconditions.checkArgument(
+            file.enclosingId() == field.fieldId(),
+            "Invalid file column %s: nested field IDs are derived from %s, not %s",
+            name,
+            field.fieldId(),
+            file.enclosingId());
+        fileNamesById.put(field.fieldId(), name);
+      } else {
+        indexFileFields(field.type(), name, namesById, fileNamesById);
+      }
+    }
   }
 
   static void validateIdentifierField(
