@@ -1167,6 +1167,14 @@ public class Types {
     private static final String INLINE = "inline";
 
     public static FileType of(int enclosingId) {
+      Preconditions.checkArgument(
+          enclosingId >= 0, "Invalid enclosing field ID: %s < 0", enclosingId);
+      Preconditions.checkArgument(
+          enclosingId <= Integer.MAX_VALUE - NUM_NESTED_FIELDS,
+          "Invalid enclosing field ID: %s > %s (cannot reserve %s nested field IDs)",
+          enclosingId,
+          Integer.MAX_VALUE - NUM_NESTED_FIELDS,
+          NUM_NESTED_FIELDS);
       return new FileType(enclosingId);
     }
 
