@@ -37,6 +37,7 @@ import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.geospatial.GeospatialBound;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -276,15 +277,22 @@ public abstract class TestMetrics {
     first.setField("geog", wkbPoint(-5, 40));
     Record second = GenericRecord.create(schema);
     second.setField("id", 2L);
-    // both geo columns are left null
+    second.setField("geom", wkbPoint(-5, 40));
+    // geog on the second row is left null
 
     Metrics metrics = getMetrics(schema, first, second);
     assertThat(metrics.recordCount()).isEqualTo(2L);
 
-    // geometry and geography keep value/null counts but no bounds: lexicographic WKB min/max is not
-    // meaningful, so bounds are intentionally skipped (spatial bounds are a separate follow-up).
-    assertCounts(2, 2L, 1L, metrics);
-    assertBounds(2, Types.GeometryType.crs84(), null, null, metrics);
+    // geometry bounds are the XY bounding box of all values: min corner (-5, 10), max corner
+    // (30, 40). The null geography row leaves geography with value/null counts but no bounds
+    // (geography bounds are a separate follow-up).
+    assertCounts(2, 2L, 0L, metrics);
+    assertBounds(
+        2,
+        Types.GeometryType.crs84(),
+        GeospatialBound.createXY(-5, 10),
+        GeospatialBound.createXY(30, 40),
+        metrics);
     assertCounts(3, 2L, 1L, metrics);
     assertBounds(3, Types.GeographyType.crs84(), null, null, metrics);
   }
