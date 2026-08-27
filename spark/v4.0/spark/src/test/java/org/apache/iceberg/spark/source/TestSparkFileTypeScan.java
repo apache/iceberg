@@ -141,8 +141,7 @@ class TestSparkFileTypeScan {
     Table table = createTable("parquet");
     Dataset<Row> df = spark.read().format("iceberg").load(table.location());
 
-    assertThatThrownBy(
-            () -> df.write().format("iceberg").mode("append").save(table.location()))
+    assertThatThrownBy(() -> df.write().format("iceberg").mode("append").save(table.location()))
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessage("Cannot write file column photo: Spark cannot express the file type");
   }
