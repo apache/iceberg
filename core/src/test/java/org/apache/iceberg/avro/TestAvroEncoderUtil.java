@@ -28,6 +28,7 @@ import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericData;
 import org.apache.iceberg.data.DataTestBase;
 import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 
 public class TestAvroEncoderUtil extends DataTestBase {
@@ -81,5 +82,25 @@ public class TestAvroEncoderUtil extends DataTestBase {
     assertThatThrownBy(() -> AvroEncoderUtil.decode(new byte[] {(byte) 0x10, (byte) 0x20}))
         .isInstanceOf(IllegalStateException.class)
         .hasMessage("Unrecognized header bytes: 0x10 0x20");
+  }
+
+  @Test
+  public void decodeIgnoresClassNotInAllowlist() throws IOException {
+    Types.StructType icebergSchema =
+        Types.StructType.of(Types.NestedField.required(1, "value", Types.StringType.get()));
+    Schema avroSchema = AvroSchemaUtil.convert(icebergSchema, UnapprovedTestRecord.class.getName());
+
+    GenericData.Record datum = new GenericData.Record(avroSchema);
+    datum.put(0, "hello");
+    byte[] data = AvroEncoderUtil.encode(datum, avroSchema);
+
+    // UnapprovedTestRecord is a real, loadable class implementing IndexedRecord with a
+    // constructor shape GenericAvroReader would otherwise accept -- proving rejection here comes
+    // from the allowlist, not from ClassNotFoundException.
+    Object decoded = AvroEncoderUtil.decode(data);
+    assertThat(decoded)
+        .isInstanceOf(GenericData.Record.class)
+        .isNotInstanceOf(UnapprovedTestRecord.class);
+    assertThat(((GenericData.Record) decoded).get(0).toString()).isEqualTo("hello");
   }
 }
