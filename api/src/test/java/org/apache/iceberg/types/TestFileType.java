@@ -49,6 +49,104 @@ class TestFileType {
   }
 
   @Test
+  void rejectsANegativeEnclosingId() {
+    assertThatThrownBy(() -> Types.FileType.of(-1))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid enclosing field ID: -1 < 0");
+  }
+
+  @Test
+  void rejectsAnEnclosingIdThatCannotReserveNestedIds() {
+    int lastEnclosingId = Integer.MAX_VALUE - Types.FileType.NUM_NESTED_FIELDS;
+
+    assertThat(Types.FileType.of(lastEnclosingId).fields())
+        .last()
+        .extracting(Types.NestedField::fieldId)
+        .isEqualTo(Integer.MAX_VALUE);
+
+    assertThatThrownBy(() -> Types.FileType.of(lastEnclosingId + 1))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Invalid enclosing field ID: %s > %s (cannot reserve %s nested field IDs)",
+            lastEnclosingId + 1, lastEnclosingId, Types.FileType.NUM_NESTED_FIELDS);
+  }
+
+  @Test
+  void rejectsASchemaWhereAnotherColumnHoldsADerivedId() {
+    assertThatThrownBy(
+            () ->
+                new Schema(
+                    required(1, "id", Types.LongType.get()),
+                    optional(2, "photo", Types.FileType.of(2)),
+                    optional(3, "data", Types.StringType.get())))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid file column photo: derived field ID 3 is already used by data");
+  }
+
+  @Test
+  void rejectsASchemaWhereTheLastDerivedIdIsHeldByANestedColumn() {
+    int lastDerivedId = 2 + Types.FileType.NUM_NESTED_FIELDS;
+
+    assertThatThrownBy(
+            () ->
+                new Schema(
+                    optional(2, "photo", Types.FileType.of(2)),
+                    optional(
+                        20,
+                        "media",
+                        Types.StructType.of(
+                            optional(lastDerivedId, "caption", Types.StringType.get())))))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Invalid file column photo: derived field ID %s is already used by media.caption",
+            lastDerivedId);
+  }
+
+  @Test
+  void rejectsASchemaWhereAListElementFileOverlapsAnotherColumn() {
+    assertThatThrownBy(
+            () ->
+                new Schema(
+                    optional(1, "photos", Types.ListType.ofOptional(2, Types.FileType.of(2))),
+                    optional(4, "data", Types.StringType.get())))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Invalid file column photos.element: derived field ID 4 is already used by data");
+  }
+
+  @Test
+  void rejectsASchemaWhereTwoFileColumnsOverlap() {
+    assertThatThrownBy(
+            () ->
+                new Schema(
+                    optional(1, "photo", Types.FileType.of(1)),
+                    optional(2, "thumbnail", Types.FileType.of(2))))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid file column photo: derived field ID 2 is already used by thumbnail");
+  }
+
+  @Test
+  void rejectsASchemaWithUnderivedNestedIds() {
+    assertThatThrownBy(() -> new Schema(optional(5, "photo", Types.FileType.of(9))))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid file column photo: nested field IDs are derived from 5, not 9");
+  }
+
+  @Test
+  void rejectsASchemaWithUnderivedNestedIdsInAMap() {
+    assertThatThrownBy(
+            () ->
+                new Schema(
+                    optional(
+                        1,
+                        "byName",
+                        Types.MapType.ofOptional(
+                            2, 3, Types.StringType.get(), Types.FileType.of(9)))))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid file column byName.value: nested field IDs are derived from 3, not 9");
+  }
+
+  @Test
   void isItsOwnNestedType() {
     assertThat(FILE.typeId()).isEqualTo(Type.TypeID.FILE);
     assertThat(FILE.isNestedType()).isTrue();

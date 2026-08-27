@@ -88,7 +88,6 @@ public class SchemaParser {
       generator.writeStringField(NAME, field.name());
       generator.writeBooleanField(REQUIRED, field.isRequired());
       generator.writeFieldName(TYPE);
-      checkDerivedIds(field.type(), field.fieldId());
       toJson(field.type(), generator);
       if (field.doc() != null) {
         generator.writeStringField(DOC, field.doc());
@@ -118,7 +117,6 @@ public class SchemaParser {
 
     generator.writeNumberField(ELEMENT_ID, list.elementId());
     generator.writeFieldName(ELEMENT);
-    checkDerivedIds(list.elementType(), list.elementId());
     toJson(list.elementType(), generator);
     generator.writeBooleanField(ELEMENT_REQUIRED, !list.isElementOptional());
 
@@ -132,26 +130,14 @@ public class SchemaParser {
 
     generator.writeNumberField(KEY_ID, map.keyId());
     generator.writeFieldName(KEY);
-    checkDerivedIds(map.keyType(), map.keyId());
     toJson(map.keyType(), generator);
 
     generator.writeNumberField(VALUE_ID, map.valueId());
     generator.writeFieldName(VALUE);
-    checkDerivedIds(map.valueType(), map.valueId());
     toJson(map.valueType(), generator);
     generator.writeBooleanField(VALUE_REQUIRED, !map.isValueOptional());
 
     generator.writeEndObject();
-  }
-
-  private static void checkDerivedIds(Type type, int enclosingId) {
-    if (type.isFileType()) {
-      Preconditions.checkArgument(
-          type.asFileType().enclosingId() == enclosingId,
-          "Invalid file type: nested field IDs are derived from %s, not %s",
-          enclosingId,
-          type.asFileType().enclosingId());
-    }
   }
 
   static void toJson(Type type, JsonGenerator generator) throws IOException {
