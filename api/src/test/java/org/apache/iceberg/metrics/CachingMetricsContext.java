@@ -22,16 +22,21 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * A {@link MetricsContext} that returns the same {@link Counter} instance for a given name, so that
- * tests can observe the counters that the code under test increments. {@link DefaultMetricsContext}
- * allocates a fresh counter on every {@link #counter(String, Unit)} call, which would otherwise
- * hand the test and the code under test two independent counters.
+ * A {@link MetricsContext} that returns the same {@link org.apache.iceberg.metrics.Counter} instance
+ * for a given name, so that tests can observe the counters that the code under test increments.
+ * {@link DefaultMetricsContext} allocates a fresh counter on every {@link #counter(String, Unit)}
+ * call, which would otherwise hand the test and the code under test two independent counters.
+ *
+ * <p>The counter type is spelled out with its fully-qualified name because the inherited nested
+ * {@link MetricsContext.Counter} type would otherwise shadow the top-level counter within this
+ * package.
  */
 public class CachingMetricsContext extends DefaultMetricsContext {
-  private final Map<String, Counter> counters = new ConcurrentHashMap<>();
+  private final Map<String, org.apache.iceberg.metrics.Counter> counters =
+      new ConcurrentHashMap<>();
 
   @Override
-  public Counter counter(String name, Unit unit) {
+  public org.apache.iceberg.metrics.Counter counter(String name, Unit unit) {
     return counters.computeIfAbsent(name, ignored -> super.counter(name, unit));
   }
 }
