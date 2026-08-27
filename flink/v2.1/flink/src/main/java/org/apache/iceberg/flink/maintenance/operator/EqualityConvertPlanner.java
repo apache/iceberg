@@ -306,7 +306,6 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
 
     LastCommittedWork info = discoverLastCommittedWork(mainSnapshot);
     updateLastStagingSnapshotId(info);
-    lastMainSnapshotId = currentMainSnapshotId;
     return info;
   }
 
@@ -321,6 +320,7 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
   private void ensureIndexCurrent(
       Snapshot mainSnapshot, LastCommittedWork committedWork, Snapshot nextToProcess) {
     if (mainSnapshot == null) {
+      lastMainSnapshotId = null;
       return;
     }
 
@@ -340,6 +340,8 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
           eqFieldIds);
       rebuildIndex(mainSnapshot, !bootstrap);
     }
+
+    lastMainSnapshotId = mainSnapshot.snapshotId();
   }
 
   /**
