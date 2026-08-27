@@ -41,7 +41,10 @@ import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalog.Column;
+import org.apache.spark.sql.types.ArrayType;
 import org.apache.spark.sql.types.DataType;
+import org.apache.spark.sql.types.MapType;
+import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 
 /** Helper methods for working with Spark/Hive metadata. */
@@ -178,6 +181,7 @@ public class SparkSchemaUtil {
    * @throws IllegalArgumentException if the type cannot be converted or there are missing ids
    */
   public static Schema convert(Schema baseSchema, StructType sparkType, boolean caseSensitive) {
+    validateNoFileColumns(baseSchema.asStruct(), sparkType, null, caseSensitive);
     // convert to a type with fresh ids
     Types.StructType struct =
         SparkTypeVisitor.visit(sparkType, new SparkTypeToType(sparkType)).asStructType();
@@ -203,6 +207,7 @@ public class SparkSchemaUtil {
    */
   public static Schema convertWithFreshIds(
       Schema baseSchema, StructType sparkType, boolean caseSensitive) {
+    validateNoFileColumns(baseSchema.asStruct(), sparkType, null, caseSensitive);
     // convert to a type with fresh ids
     Types.StructType struct =
         SparkTypeVisitor.visit(sparkType, new SparkTypeToType(sparkType)).asStructType();
@@ -211,6 +216,61 @@ public class SparkSchemaUtil {
         TypeUtil.reassignOrRefreshIds(new Schema(struct.fields()), baseSchema, caseSensitive);
     // fix types that can't be represented in Spark (UUID and Fixed)
     return SparkFixupTypes.fixup(schema, baseSchema);
+  }
+
+  /**
+   * Rejects a Spark type that covers a file column of the base schema.
+   *
+   * <p>Spark has no type that can express a file, so a file column always converts back to a plain
+   * struct. Rejecting it here names the column, instead of failing during id reassignment or write
+   * validation with a message about a struct that is not a file.
+   */
+  private static void validateNoFileColumns(
+      Type baseType, DataType sparkType, String path, boolean caseSensitive) {
+    if (baseType.isFileType()) {
+      throw new UnsupportedOperationException(
+          String.format("Cannot write file column %s: Spark cannot express the file type", path));
+    }
+
+    if (baseType.isStructType() && sparkType instanceof StructType) {
+      Types.StructType baseStruct = baseType.asStructType();
+      for (StructField sparkField : ((StructType) sparkType).fields()) {
+        Types.NestedField baseField =
+            caseSensitive
+                ? baseStruct.field(sparkField.name())
+                : baseStruct.caseInsensitiveField(sparkField.name());
+        if (baseField != null) {
+          validateNoFileColumns(
+              baseField.type(),
+              sparkField.dataType(),
+              qualify(path, baseField.name()),
+              caseSensitive);
+        }
+      }
+
+    } else if (baseType.isListType() && sparkType instanceof ArrayType) {
+      validateNoFileColumns(
+          baseType.asListType().elementType(),
+          ((ArrayType) sparkType).elementType(),
+          qualify(path, "element"),
+          caseSensitive);
+
+    } else if (baseType.isMapType() && sparkType instanceof MapType) {
+      validateNoFileColumns(
+          baseType.asMapType().keyType(),
+          ((MapType) sparkType).keyType(),
+          qualify(path, "key"),
+          caseSensitive);
+      validateNoFileColumns(
+          baseType.asMapType().valueType(),
+          ((MapType) sparkType).valueType(),
+          qualify(path, "value"),
+          caseSensitive);
+    }
+  }
+
+  private static String qualify(String path, String name) {
+    return path == null ? name : path + "." + name;
   }
 
   /**

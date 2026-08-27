@@ -34,6 +34,7 @@ import org.apache.iceberg.avro.ValueReaders;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Pair;
 import org.apache.spark.sql.catalyst.InternalRow;
@@ -96,7 +97,7 @@ public class SparkPlannedAvroReader implements DatumReader<InternalRow>, Support
         return ValueReaders.skipStruct(fieldReaders);
       }
 
-      Types.StructType expected = partner.asStructType();
+      Types.StructType expected = TypeUtil.asStructType(partner);
       List<Pair<Integer, ValueReader<?>>> readPlan =
           ValueReaders.buildReadPlan(
               expected, record, fieldReaders, idToConstant, SparkUtil::internalToSpark);

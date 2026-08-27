@@ -39,6 +39,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.transforms.UnknownTransform;
 import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ByteBuffers;
 import org.apache.iceberg.util.Pair;
@@ -311,8 +312,9 @@ public class SparkUtil {
         return ByteBuffers.toByteArray((ByteBuffer) value);
       case BINARY:
         return ByteBuffers.toByteArray((ByteBuffer) value);
+      case FILE:
       case STRUCT:
-        Types.StructType structType = (Types.StructType) type;
+        Types.StructType structType = TypeUtil.asStructType(type);
 
         if (structType.fields().isEmpty()) {
           return new GenericInternalRow();

@@ -101,6 +101,11 @@ class TypeToSparkType extends TypeUtil.SchemaVisitor<DataType> {
   }
 
   @Override
+  public DataType file(Types.FileType file, List<DataType> fieldResults) {
+    return struct(file.asStruct(), fieldResults);
+  }
+
+  @Override
   public DataType field(Types.NestedField field, DataType fieldResult) {
     return fieldResult;
   }
