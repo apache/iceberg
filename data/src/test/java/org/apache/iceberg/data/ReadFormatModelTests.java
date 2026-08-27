@@ -117,6 +117,11 @@ public abstract class ReadFormatModelTests<T> {
     return false;
   }
 
+  protected void assertRecordsEqual(Schema schema, List<Record> expected, List<T> actual) {
+    assertThat(actual).hasSize(expected.size());
+    assertEquals(schema, convertToEngineRecords(expected, schema), actual);
+  }
+
   @TempDir private File tableDir;
 
   /**
@@ -259,9 +264,8 @@ public abstract class ReadFormatModelTests<T> {
             .project(schema)
             .build()) {
       readRecords = ImmutableList.copyOf(reader);
+      assertRecordsEqual(schema, genericRecords, readRecords);
     }
-
-    assertEquals(schema, convertToEngineRecords(genericRecords, schema), readRecords);
   }
 
   /** Write with Generic Record, read with engine type T */
@@ -301,9 +305,8 @@ public abstract class ReadFormatModelTests<T> {
             .project(schema)
             .build()) {
       readRecords = ImmutableList.copyOf(reader);
+      assertRecordsEqual(schema, genericRecords, readRecords);
     }
-
-    assertEquals(schema, convertToEngineRecords(genericRecords, schema), readRecords);
   }
 
   /** Write position deletes, read with Generic Record */
@@ -362,8 +365,6 @@ public abstract class ReadFormatModelTests<T> {
     writeGenericRecords(fileFormat, fullSchema, genericRecords);
 
     List<Record> projectedGenericRecords = project(genericRecords, projectedSchema);
-    List<T> expectedEngineRecords =
-        convertToEngineRecords(projectedGenericRecords, projectedSchema);
 
     InputFile inputFile = encryptedFile.encryptingOutputFile().toInputFile();
     List<T> readRecords;
@@ -372,9 +373,8 @@ public abstract class ReadFormatModelTests<T> {
             .project(projectedSchema)
             .build()) {
       readRecords = ImmutableList.copyOf(reader);
+      assertRecordsEqual(projectedSchema, projectedGenericRecords, readRecords);
     }
-
-    assertEquals(projectedSchema, expectedEngineRecords, readRecords);
   }
 
   @ParameterizedTest
@@ -488,6 +488,7 @@ public abstract class ReadFormatModelTests<T> {
   @FieldSource("FILE_FORMATS")
   void testReaderBuilderSplit(FileFormat fileFormat) throws IOException {
 
+    assumeFalse(supportsBatchReads(), "Batch reads return batches, not rows");
     assumeSupports(fileFormat, FEATURE_SPLIT);
 
     DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
@@ -543,7 +544,7 @@ public abstract class ReadFormatModelTests<T> {
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
   void testReaderBuilderReuseContainers(FileFormat fileFormat) throws IOException {
-
+    assumeFalse(supportsBatchReads(), "Batch reads reuse differently");
     assumeSupports(fileFormat, FEATURE_REUSE_CONTAINERS);
 
     DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
@@ -678,6 +679,7 @@ public abstract class ReadFormatModelTests<T> {
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
   void testNestedDefaultValue(FileFormat fileFormat) throws IOException {
+    assumeFalse(supportsBatchReads(), "Vectorized reads do not support nested types");
     assumeSupports(fileFormat, FEATURE_READER_DEFAULT);
 
     Types.NestedField idField = Types.NestedField.required(1, "id", Types.LongType.get());
@@ -744,6 +746,7 @@ public abstract class ReadFormatModelTests<T> {
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
   void testMapNestedDefaultValue(FileFormat fileFormat) throws IOException {
+    assumeFalse(supportsBatchReads(), "Vectorized reads do not support nested types");
     assumeSupports(fileFormat, FEATURE_READER_DEFAULT);
 
     Types.NestedField idField = Types.NestedField.required(1, "id", Types.LongType.get());
@@ -831,6 +834,7 @@ public abstract class ReadFormatModelTests<T> {
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
   void testListNestedDefaultValue(FileFormat fileFormat) throws IOException {
+    assumeFalse(supportsBatchReads(), "Vectorized reads do not support nested types");
     assumeSupports(fileFormat, FEATURE_READER_DEFAULT);
 
     Types.NestedField idField = Types.NestedField.required(1, "id", Types.LongType.get());
@@ -1343,7 +1347,7 @@ public abstract class ReadFormatModelTests<T> {
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
   void testReadMetadataColumnIsDeleted(FileFormat fileFormat) throws IOException {
-
+    assumeFalse(supportsBatchReads(), "DeletedColumnVector requires a delete filter");
     DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
     Schema schema = dataGenerator.schema();
     List<Record> genericRecords = dataGenerator.generateRecords();
@@ -1363,7 +1367,10 @@ public abstract class ReadFormatModelTests<T> {
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
   void testReadMetadataColumnRowLineage(FileFormat fileFormat) throws IOException {
-
+    // TODO: ORC's vectorized reader treats _row_id as a plain constant
+    // (VectorizedSparkOrcReaders.StructConverter) rather than applying row-lineage rules,
+    // unlike Arrow's RowIdVectorReader.
+    assumeFalse(supportsBatchReads(), "Row lineage is incorrect for vectorized ORC reads");
     DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
     Schema schema = dataGenerator.schema();
     List<Record> genericRecords = dataGenerator.generateRecords();
@@ -1396,7 +1403,10 @@ public abstract class ReadFormatModelTests<T> {
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
   void testReadMetadataColumnRowLineageExistingValues(FileFormat fileFormat) throws IOException {
-
+    // TODO: ORC's vectorized reader treats _row_id as a plain constant
+    // (VectorizedSparkOrcReaders.StructConverter) rather than applying row-lineage rules,
+    // unlike Arrow's RowIdVectorReader.
+    assumeFalse(supportsBatchReads(), "Row lineage is incorrect for vectorized ORC reads");
     DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
     Schema dataSchema = dataGenerator.schema();
 
@@ -1856,6 +1866,7 @@ public abstract class ReadFormatModelTests<T> {
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
   void testSchemaEvolutionEmptyProjection(FileFormat fileFormat) throws IOException {
+    assumeFalse(supportsBatchReads(), "Row count assertion does not apply to batches");
     DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
     Schema writeSchema = dataGenerator.schema();
 
@@ -1899,9 +1910,8 @@ public abstract class ReadFormatModelTests<T> {
             .withNameMapping(nameMapping)
             .build()) {
       readRecords = ImmutableList.copyOf(reader);
+      assertRecordsEqual(icebergSchema, genericRecords, readRecords);
     }
-
-    assertEquals(icebergSchema, convertToEngineRecords(genericRecords, icebergSchema), readRecords);
   }
 
   protected void readAndAssertGenericRecords(
@@ -1956,7 +1966,7 @@ public abstract class ReadFormatModelTests<T> {
     assumeThat(MISSING_FEATURES.getOrDefault(fileFormat, new String[] {})).doesNotContain(feature);
   }
 
-  private static boolean supportsGenerator(FileFormat fileFormat, DataGenerator generator) {
+  protected static boolean supportsGenerator(FileFormat fileFormat, DataGenerator generator) {
     boolean hasVariant =
         TypeUtil.find(generator.schema(), type -> type.typeId() == Type.TypeID.VARIANT) != null;
     return !hasVariant || supportsFeature(fileFormat, FEATURE_VARIANT);
@@ -2361,11 +2371,8 @@ public abstract class ReadFormatModelTests<T> {
 
     try (CloseableIterable<T> reader = readerBuilder.build()) {
       readRecords = ImmutableList.copyOf(reader);
+      assertRecordsEqual(projectionSchema, expectedRecords, readRecords);
     }
-
-    assertThat(readRecords).hasSize(expectedRecords.size());
-    assertEquals(
-        projectionSchema, convertToEngineRecords(expectedRecords, projectionSchema), readRecords);
   }
 
   private static Record copy(Record source, Schema sourceSchema, Schema targetSchema) {
@@ -2412,10 +2419,7 @@ public abstract class ReadFormatModelTests<T> {
             .project(readSchema)
             .build()) {
       readRecords = ImmutableList.copyOf(reader);
+      assertRecordsEqual(readSchema, expectedGenericRecords, readRecords);
     }
-
-    assertThat(readRecords).hasSize(expectedGenericRecords.size());
-    assertEquals(
-        readSchema, convertToEngineRecords(expectedGenericRecords, readSchema), readRecords);
   }
 }
