@@ -25,6 +25,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import org.apache.iceberg.dell.mock.ecs.EcsS3MockRule;
+import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
@@ -57,5 +58,16 @@ public class TestEcsInputFile {
           .as("The file content should be 0123456789")
           .isEqualTo("0123456789");
     }
+  }
+
+  @Test
+  public void knownLengthAvoidsMetadataRequest() {
+    String location = new EcsURI(rule.bucket(), rule.randomObjectName()).toString();
+    EcsFileIO fileIO = new EcsFileIO();
+    fileIO.initialize(rule.clientProperties());
+
+    InputFile inputFile = fileIO.newInputFile(location, 10L);
+
+    assertThat(inputFile.getLength()).as("File length should use the known value").isEqualTo(10L);
   }
 }
