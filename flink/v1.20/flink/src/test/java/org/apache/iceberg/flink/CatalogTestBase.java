@@ -33,11 +33,17 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.rest.RESTCatalog;
+import org.apache.iceberg.rest.RESTCatalogServer;
+import org.apache.iceberg.rest.RESTServerExtension;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.extension.RegisterExtension;
 import org.junit.jupiter.api.io.TempDir;
 
 @ExtendWith(ParameterizedTestExtension.class)
@@ -46,7 +52,8 @@ public abstract class CatalogTestBase extends TestBase {
   /** Catalog implementations that SQL test suites can run against. */
   public enum CatalogType {
     HIVE("testhive"),
-    HADOOP("testhadoop");
+    HADOOP("testhadoop"),
+    REST("testrest");
 
     private final String catalogNamePrefix;
 
@@ -65,6 +72,21 @@ public abstract class CatalogTestBase extends TestBase {
   @TempDir protected File hiveWarehouse;
   @TempDir protected File hadoopWarehouse;
 
+  @RegisterExtension
+  private static final RESTServerExtension REST_SERVER_EXTENSION =
+      new RESTServerExtension(
+          ImmutableMap.of(
+              RESTCatalogServer.REST_PORT,
+              RESTServerExtension.FREE_PORT,
+              // In-memory sqlite database by default is private to the connection that created
+              // it. If more than 1 jdbc connection backs the catalog, the connections can see
+              // different database states, so limit the backend JdbcCatalog to a single
+              // connection.
+              CatalogProperties.CLIENT_POOL_SIZE,
+              "1"));
+
+  protected static RESTCatalog restCatalog;
+
   @Parameter(index = 0)
   protected CatalogType catalogType;
 
@@ -79,6 +101,7 @@ public abstract class CatalogTestBase extends TestBase {
   protected String flinkDatabase;
   protected Namespace icebergNamespace;
   protected boolean isHadoopCatalog;
+  protected boolean isRestCatalog;
 
   @Parameters(name = "catalogType={0}, baseNamespace={1}")
   protected static List<Object[]> parameters() {
@@ -88,14 +111,23 @@ public abstract class CatalogTestBase extends TestBase {
         new Object[] {CatalogType.HADOOP, Namespace.of("l0", "l1")});
   }
 
+  @BeforeAll
+  public static void initRestCatalog() {
+    restCatalog = REST_SERVER_EXTENSION.client();
+  }
+
   @BeforeEach
   public void before() {
     this.catalogName = catalogType.catalogName(baseNamespace);
     this.isHadoopCatalog = catalogType == CatalogType.HADOOP;
-    this.validationCatalog =
-        isHadoopCatalog
-            ? new HadoopCatalog(hiveConf, "file:" + hadoopWarehouse.getPath())
-            : catalog;
+    this.isRestCatalog = catalogType == CatalogType.REST;
+    if (isHadoopCatalog) {
+      this.validationCatalog = new HadoopCatalog(hiveConf, "file:" + hadoopWarehouse.getPath());
+    } else if (isRestCatalog) {
+      this.validationCatalog = restCatalog;
+    } else {
+      this.validationCatalog = catalog;
+    }
     this.validationNamespaceCatalog = (SupportsNamespaces) validationCatalog;
 
     config.put("type", "iceberg");
@@ -104,6 +136,12 @@ public abstract class CatalogTestBase extends TestBase {
     }
     if (isHadoopCatalog) {
       config.put(FlinkCatalogFactory.ICEBERG_CATALOG_TYPE, "hadoop");
+    } else if (isRestCatalog) {
+      config.put(FlinkCatalogFactory.ICEBERG_CATALOG_TYPE, "rest");
+      config.put(CatalogProperties.URI, restCatalog.properties().get(CatalogProperties.URI));
+      // disable Flink-side catalog caching so validations that write directly through
+      // restCatalog observe fresh metadata
+      config.put(CatalogProperties.CACHE_ENABLED, "false");
     } else {
       config.put(FlinkCatalogFactory.ICEBERG_CATALOG_TYPE, "hive");
       config.put(CatalogProperties.URI, getURI(hiveConf));
