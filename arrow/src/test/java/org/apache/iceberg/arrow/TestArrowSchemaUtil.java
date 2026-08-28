@@ -59,6 +59,7 @@ public class TestArrowSchemaUtil {
   private static final String LIST_FIELD = "lt";
   private static final String MAP_FIELD = "mt";
   private static final String UUID_FIELD = "uu";
+  private static final String FILE_FIELD = "ft";
 
   @Test
   public void convertPrimitive() {
@@ -155,6 +156,23 @@ public class TestArrowSchemaUtil {
     assertThat(structField.getChildren()).hasSize(2);
     assertThat(structField.getChildren().get(0).getName()).isEqualTo("inner_string");
     assertThat(structField.getChildren().get(1).getName()).isEqualTo("inner_int");
+  }
+
+  @Test
+  void convertFile() {
+    Types.FileType file = Types.FileType.of(0);
+    Schema iceberg = new Schema(Types.NestedField.optional(0, FILE_FIELD, file));
+
+    Field converted = ArrowSchemaUtil.convert(iceberg).findField(FILE_FIELD);
+
+    assertThat(converted.getType().getTypeID()).isEqualTo(ArrowType.Struct.TYPE_TYPE);
+    assertThat(converted.getChildren()).hasSize(Types.FileType.NUM_NESTED_FIELDS);
+
+    // Arrow has no file type, so a file must convert exactly as the struct of its nested fields
+    Field structView =
+        ArrowSchemaUtil.convert(
+            Types.NestedField.optional(0, FILE_FIELD, StructType.of(file.fields())));
+    assertThat(converted).isEqualTo(structView);
   }
 
   @Test
