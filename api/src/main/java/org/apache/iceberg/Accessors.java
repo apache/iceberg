@@ -216,12 +216,6 @@ public class Accessors {
       return buildAccessors(struct.fields(), fieldResults);
     }
 
-    @Override
-    public Map<Integer, Accessor<StructLike>> file(
-        Types.FileType file, List<Map<Integer, Accessor<StructLike>>> fieldResults) {
-      return buildAccessors(file.fields(), fieldResults);
-    }
-
     private Map<Integer, Accessor<StructLike>> buildAccessors(
         List<Types.NestedField> fields, List<Map<Integer, Accessor<StructLike>>> fieldResults) {
       Map<Integer, Accessor<StructLike>> accessors = Maps.newHashMap();

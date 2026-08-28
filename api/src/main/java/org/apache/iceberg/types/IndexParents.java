@@ -50,11 +50,6 @@ public class IndexParents extends TypeUtil.SchemaVisitor<Map<Integer, Integer>> 
     return indexFields(struct.fields());
   }
 
-  @Override
-  public Map<Integer, Integer> file(Types.FileType file, List<Map<Integer, Integer>> fieldResults) {
-    return indexFields(file.fields());
-  }
-
   private Map<Integer, Integer> indexFields(List<Types.NestedField> fields) {
     for (Types.NestedField field : fields) {
       Integer parentId = idStack.peek();

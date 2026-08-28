@@ -851,8 +851,13 @@ public class TypeUtil {
       throw new UnsupportedOperationException("Unsupported type: variant");
     }
 
+    /**
+     * Handles a file type, by default as the struct of its nested fields.
+     *
+     * <p>Override this to distinguish a file from a struct.
+     */
     public T file(Types.FileType file, List<T> fieldResults) {
-      throw new UnsupportedOperationException("Unsupported type: file");
+      return struct(file.asStruct(), fieldResults);
     }
 
     public T primitive(Type.PrimitiveType primitive) {

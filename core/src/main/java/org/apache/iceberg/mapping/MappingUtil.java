@@ -279,11 +279,6 @@ public class MappingUtil {
       return mapFields(struct.fields(), fieldResults);
     }
 
-    @Override
-    public MappedFields file(Types.FileType file, List<MappedFields> fieldResults) {
-      return mapFields(file.fields(), fieldResults);
-    }
-
     private MappedFields mapFields(
         List<Types.NestedField> structFields, List<MappedFields> fieldResults) {
       List<MappedField> fields = Lists.newArrayListWithExpectedSize(fieldResults.size());

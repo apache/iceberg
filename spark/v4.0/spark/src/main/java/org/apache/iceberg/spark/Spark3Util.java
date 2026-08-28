@@ -563,12 +563,6 @@ public class Spark3Util {
     }
 
     @Override
-    public String file(Types.FileType file, List<String> fieldResults) {
-      // Spark has no file type, so a file is described as the struct of its nested fields
-      return struct(file.asStruct(), fieldResults);
-    }
-
-    @Override
     public String field(Types.NestedField field, String fieldResult) {
       return field.name() + ": " + fieldResult + (field.isRequired() ? " not null" : "");
     }
