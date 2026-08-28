@@ -22,12 +22,12 @@ import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.JsonUtil;
 
@@ -337,7 +337,7 @@ public class ContentFileParser {
         "Invalid JSON node for content stats: non-object (%s)",
         contentStats);
 
-    Map<Integer, Integer> avgValueSizes = new HashMap<>();
+    Map<Integer, Integer> avgValueSizes = Maps.newHashMap();
     Iterator<String> fieldIds = contentStats.fieldNames();
     while (fieldIds.hasNext()) {
       String fieldId = fieldIds.next();
