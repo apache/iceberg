@@ -43,12 +43,30 @@ import org.junit.jupiter.api.io.TempDir;
 @ExtendWith(ParameterizedTestExtension.class)
 public abstract class CatalogTestBase extends TestBase {
 
+  /** Catalog implementations that SQL test suites can run against. */
+  public enum CatalogType {
+    HIVE("testhive"),
+    HADOOP("testhadoop");
+
+    private final String catalogNamePrefix;
+
+    CatalogType(String catalogNamePrefix) {
+      this.catalogNamePrefix = catalogNamePrefix;
+    }
+
+    String catalogName(Namespace namespace) {
+      return namespace.isEmpty()
+          ? catalogNamePrefix
+          : catalogNamePrefix + "_" + Joiner.on('_').join(namespace.levels());
+    }
+  }
+
   protected static final String DATABASE = "db";
   @TempDir protected File hiveWarehouse;
   @TempDir protected File hadoopWarehouse;
 
   @Parameter(index = 0)
-  protected String catalogName;
+  protected CatalogType catalogType;
 
   @Parameter(index = 1)
   protected Namespace baseNamespace;
@@ -57,21 +75,23 @@ public abstract class CatalogTestBase extends TestBase {
   protected SupportsNamespaces validationNamespaceCatalog;
   protected Map<String, String> config = Maps.newHashMap();
 
+  protected String catalogName;
   protected String flinkDatabase;
   protected Namespace icebergNamespace;
   protected boolean isHadoopCatalog;
 
-  @Parameters(name = "catalogName={0}, baseNamespace={1}")
+  @Parameters(name = "catalogType={0}, baseNamespace={1}")
   protected static List<Object[]> parameters() {
     return Arrays.asList(
-        new Object[] {"testhive", Namespace.empty()},
-        new Object[] {"testhadoop", Namespace.empty()},
-        new Object[] {"testhadoop_basenamespace", Namespace.of("l0", "l1")});
+        new Object[] {CatalogType.HIVE, Namespace.empty()},
+        new Object[] {CatalogType.HADOOP, Namespace.empty()},
+        new Object[] {CatalogType.HADOOP, Namespace.of("l0", "l1")});
   }
 
   @BeforeEach
   public void before() {
-    this.isHadoopCatalog = catalogName.startsWith("testhadoop");
+    this.catalogName = catalogType.catalogName(baseNamespace);
+    this.isHadoopCatalog = catalogType == CatalogType.HADOOP;
     this.validationCatalog =
         isHadoopCatalog
             ? new HadoopCatalog(hiveConf, "file:" + hadoopWarehouse.getPath())
