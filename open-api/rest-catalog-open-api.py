@@ -1038,7 +1038,7 @@ class FieldStatistics(BaseModel):
     avg_value_size_in_bytes: int | None = Field(
         None,
         alias='avg-value-size-in-bytes',
-        description='Average value size in memory (uncompressed) in bytes over non-null values. Present only in v4 field statistics.',
+        description='Avg value size in memory (uncompressed) in bytes over non-null values to estimate memory consumption',
     )
 
 
@@ -1112,7 +1112,7 @@ class ContentFile(BaseModel):
     content_stats: dict[str, FieldStatistics] | None = Field(
         None,
         alias='content-stats',
-        description='v4 content_stats keyed by table field ID. Field statistics are nested structs, not metrics maps.',
+        description='Container struct for per-field metrics structs',
     )
 
 

@@ -5130,8 +5130,8 @@ components:
           type: integer
           format: int32
           description:
-            Average value size in memory (uncompressed) in bytes over non-null
-            values. Present only in v4 field statistics.
+            Avg value size in memory (uncompressed) in bytes over non-null
+            values to estimate memory consumption
       example:
         {
           "avg-value-size-in-bytes": 8
@@ -5240,9 +5240,7 @@ components:
           type: object
           additionalProperties:
             $ref: '#/components/schemas/FieldStatistics'
-          description:
-            v4 content_stats keyed by table field ID. Field statistics are
-            nested structs, not metrics maps.
+          description: Container struct for per-field metrics structs
 
     DataFile:
       allOf:
