@@ -23,8 +23,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 /** A {@link MetricsContext} that hands out the same counter per name so tests can read it back. */
 public class CachingMetricsContext extends DefaultMetricsContext {
-  // The counter type is fully qualified: the inherited nested MetricsContext.Counter would
-  // otherwise shadow the top-level org.apache.iceberg.metrics.Counter within this package.
   private final Map<String, org.apache.iceberg.metrics.Counter> counters = Maps.newConcurrentMap();
 
   @Override
