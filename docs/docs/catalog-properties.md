@@ -55,6 +55,11 @@ The following properties configure the behavior of the REST catalog client.
 | `rest-page-size`                      | null              | The page size to use when listing namespaces, tables, or other paginated resources.                                                                                                              |
 | `namespace-separator`                 | `%1F`             | The separator character used for namespace levels when communicating with the REST server.                                                                                                       |
 | `scan-planning-mode`                  | `CLIENT`          | Controls where scan planning is performed. Supported values: `CLIENT` (client-side planning), `SERVER` (server-side planning). Can be overridden per-table by the server in LoadTableResponse. |
+| `rest-scan-planning.poll-timeout-ms`  | `300000` (5 min)  | Maximum time in milliseconds to wait when polling for async server-side scan planning results.                                                                                                 |
+| `rest-scan-planning.poll-num-retries` | `10`              | Extra poll attempts after the first fetch of a submitted plan. `0` means a single fetch with no retries.                                                                                       |
+| `rest-scan-planning.poll-min-wait-ms` | `1000` (1s)       | Minimum backoff in milliseconds between poll attempts.                                                                                                                                         |
+| `rest-scan-planning.poll-max-wait-ms` | `60000` (1 min)   | Maximum backoff in milliseconds between poll attempts.                                                                                                                                         |
+| `rest-scan-planning.poll-scale-factor` | `2.0`            | Exponential backoff multiplier between poll attempts. Must be `>= 1.0`.                                                                                                                        |
 
 ### Table cache properties
 
