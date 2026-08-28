@@ -327,13 +327,13 @@ public class ContentFileParser {
   }
 
   private static Map<Integer, Integer> avgValueSizesFromJson(JsonNode jsonNode) {
-    if (!jsonNode.has(CONTENT_STATS)) {
+    if (!jsonNode.hasNonNull(CONTENT_STATS)) {
       return null;
     }
 
     JsonNode contentStats = jsonNode.get(CONTENT_STATS);
     Preconditions.checkArgument(
-        contentStats != null && contentStats.isObject(),
+        contentStats.isObject(),
         "Invalid JSON node for content stats: non-object (%s)",
         contentStats);
 
@@ -348,11 +348,20 @@ public class ContentFileParser {
           fieldStats);
       Integer avgValueSize = JsonUtil.getIntOrNull(AVG_VALUE_SIZE_IN_BYTES, fieldStats);
       if (avgValueSize != null) {
-        avgValueSizes.put(Integer.valueOf(fieldId), avgValueSize);
+        avgValueSizes.put(parseFieldId(fieldId), avgValueSize);
       }
     }
 
     return avgValueSizes.isEmpty() ? null : avgValueSizes;
+  }
+
+  private static int parseFieldId(String fieldId) {
+    try {
+      return Integer.parseInt(fieldId);
+    } catch (NumberFormatException e) {
+      throw new IllegalArgumentException(
+          String.format("Invalid field ID for content stats: %s", fieldId), e);
+    }
   }
 
   private static void partitionToJson(

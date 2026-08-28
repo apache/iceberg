@@ -80,6 +80,32 @@ public class TestContentFileParser {
     assertContentFileEquals(dataFile, deserialized, spec);
   }
 
+  @Test
+  void nullContentStatsIsAbsent() throws Exception {
+    String jsonStr =
+        "{\"spec-id\":0,\"content\":\"data\",\"file-path\":\"/path/to/data.parquet\","
+            + "\"file-format\":\"parquet\",\"partition\":[],\"file-size-in-bytes\":10,"
+            + "\"record-count\":1,\"content-stats\":null}";
+    JsonNode jsonNode = JsonUtil.mapper().readTree(jsonStr);
+    ContentFile<?> contentFile =
+        ContentFileParser.fromJson(jsonNode, Map.of(0, PartitionSpec.unpartitioned()));
+    assertThat(contentFile).isInstanceOf(DataFile.class);
+    assertThat(contentFile.avgValueSizes()).isNull();
+  }
+
+  @Test
+  void invalidContentStatsFieldId() throws Exception {
+    String jsonStr =
+        "{\"spec-id\":0,\"content\":\"data\",\"file-path\":\"/path/to/data.parquet\","
+            + "\"file-format\":\"parquet\",\"partition\":[],\"file-size-in-bytes\":10,"
+            + "\"record-count\":1,\"content-stats\":{\"abc\":{\"avg-value-size-in-bytes\":8}}}";
+    JsonNode jsonNode = JsonUtil.mapper().readTree(jsonStr);
+    assertThatThrownBy(
+            () -> ContentFileParser.fromJson(jsonNode, Map.of(0, PartitionSpec.unpartitioned())))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid field ID for content stats: abc");
+  }
+
   @ParameterizedTest
   @MethodSource("provideSpecAndDataFile")
   public void testDataFile(PartitionSpec spec, DataFile dataFile, String expectedJson)
