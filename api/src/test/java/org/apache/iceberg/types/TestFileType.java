@@ -428,6 +428,85 @@ class TestFileType {
   }
 
   @Test
+  void reassignedIdsAcceptAStructMatchingTheFileFields() {
+    Schema source =
+        new Schema(
+            required(1, "id", Types.LongType.get()), optional(2, "photo", Types.FileType.of(2)));
+    Schema asStruct =
+        new Schema(
+            required(11, "id", Types.LongType.get()),
+            optional(12, "photo", Types.StructType.of(Types.FileType.of(12).fields())));
+
+    Schema reassigned = TypeUtil.reassignIds(asStruct, source);
+
+    assertThat(reassigned.findField("photo").type()).isEqualTo(Types.FileType.of(2));
+  }
+
+  @Test
+  void reassignedIdsRejectAStructWithTheWrongFileFieldNames() {
+    Schema source =
+        new Schema(
+            required(1, "id", Types.LongType.get()), optional(2, "photo", Types.FileType.of(2)));
+    Schema wrongNames =
+        new Schema(
+            required(11, "id", Types.LongType.get()),
+            optional(
+                12,
+                "photo",
+                Types.StructType.of(
+                    optional(13, "url", Types.StringType.get()),
+                    optional(14, "offset", Types.LongType.get()),
+                    optional(15, "size", Types.LongType.get()),
+                    optional(16, "content_type", Types.StringType.get()),
+                    optional(17, "checksum", Types.StringType.get()),
+                    optional(18, "inline", Types.BinaryType.get()))));
+
+    assertThatThrownBy(() -> TypeUtil.reassignIds(wrongNames, source))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot read a file column as a struct: expected field uri, found url");
+  }
+
+  @Test
+  void reassignedIdsRejectAStructWithTheWrongFileFieldTypes() {
+    Schema source =
+        new Schema(
+            required(1, "id", Types.LongType.get()), optional(2, "photo", Types.FileType.of(2)));
+    Schema wrongTypes =
+        new Schema(
+            required(11, "id", Types.LongType.get()),
+            optional(
+                12,
+                "photo",
+                Types.StructType.of(
+                    optional(13, "uri", Types.StringType.get()),
+                    optional(14, "offset", Types.StringType.get()),
+                    optional(15, "size", Types.LongType.get()),
+                    optional(16, "content_type", Types.StringType.get()),
+                    optional(17, "checksum", Types.StringType.get()),
+                    optional(18, "inline", Types.BinaryType.get()))));
+
+    assertThatThrownBy(() -> TypeUtil.reassignIds(wrongTypes, source))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot read a file column as a struct: field offset must be long, not string");
+  }
+
+  @Test
+  void reassignedIdsRejectAStructWithTooFewFileFields() {
+    Schema source =
+        new Schema(
+            required(1, "id", Types.LongType.get()), optional(2, "photo", Types.FileType.of(2)));
+    Schema tooFew =
+        new Schema(
+            required(11, "id", Types.LongType.get()),
+            optional(
+                12, "photo", Types.StructType.of(optional(13, "uri", Types.StringType.get()))));
+
+    assertThatThrownBy(() -> TypeUtil.reassignIds(tooFew, source))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot read a file column as a struct: expected 6 fields, found 1");
+  }
+
+  @Test
   void refreshedIdsReserveTheNestedIdBlockForNewFileColumns() {
     Schema source = new Schema(required(1, "id", Types.LongType.get()));
     Schema unassigned =

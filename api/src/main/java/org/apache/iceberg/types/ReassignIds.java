@@ -65,12 +65,47 @@ class ReassignIds extends TypeUtil.CustomOrderSchemaVisitor<Type> {
     throw new IllegalArgumentException("Field " + name + " not found in source schema");
   }
 
+  /**
+   * Validates that a struct standing in for a file column holds exactly the file's nested fields.
+   *
+   * <p>The struct is discarded in favor of the file type, so a struct that does not match it would
+   * silently read the file's fields by the wrong name or position.
+   */
+  private void validateFileFields(Types.StructType struct, Types.FileType file) {
+    List<Types.NestedField> fileFields = file.fields();
+    List<Types.NestedField> fields = struct.fields();
+    Preconditions.checkArgument(
+        fields.size() == fileFields.size(),
+        "Cannot read a file column as a struct: expected %s fields, found %s",
+        fileFields.size(),
+        fields.size());
+
+    for (int i = 0; i < fields.size(); i += 1) {
+      Types.NestedField field = fields.get(i);
+      Types.NestedField fileField = fileFields.get(i);
+      Preconditions.checkArgument(
+          caseSensitive
+              ? field.name().equals(fileField.name())
+              : field.name().equalsIgnoreCase(fileField.name()),
+          "Cannot read a file column as a struct: expected field %s, found %s",
+          fileField.name(),
+          field.name());
+      Preconditions.checkArgument(
+          field.type().equals(fileField.type()),
+          "Cannot read a file column as a struct: field %s must be %s, not %s",
+          fileField.name(),
+          fileField.type(),
+          field.type());
+    }
+  }
+
   @Override
   public Type struct(Types.StructType struct, Iterable<Type> fieldTypes) {
     Preconditions.checkNotNull(sourceType, "Evaluation must start with a schema.");
     if (sourceType.isFileType()) {
       // engines that cannot express a file type read it back as a struct of its nested fields; the
       // ids of those fields are derived from the source file type rather than assigned here
+      validateFileFields(struct, sourceType.asFileType());
       return sourceType;
     }
 
