@@ -328,7 +328,7 @@ public class TestIcebergConnector extends TestBase {
   }
 
   private boolean isHiveCatalog() {
-    return "testhive".equalsIgnoreCase(catalogName);
+    return "hive".equals(properties.get("catalog-type"));
   }
 
   private boolean isDefaultDatabaseName() {
