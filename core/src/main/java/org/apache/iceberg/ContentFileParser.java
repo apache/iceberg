@@ -245,24 +245,17 @@ public class ContentFileParser {
       SingleValueParser.toJson(DataFile.UPPER_BOUNDS.type(), contentFile.upperBounds(), generator);
     }
 
-    contentStatsToJson(contentFile, generator);
-  }
+    if (contentFile.avgValueSizes() != null) {
+      generator.writeFieldName(CONTENT_STATS);
+      generator.writeStartObject();
+      for (Map.Entry<Integer, Integer> entry : contentFile.avgValueSizes().entrySet()) {
+        generator.writeObjectFieldStart(String.valueOf(entry.getKey()));
+        generator.writeNumberField(AVG_VALUE_SIZE_IN_BYTES, entry.getValue());
+        generator.writeEndObject();
+      }
 
-  private static void contentStatsToJson(ContentFile<?> contentFile, JsonGenerator generator)
-      throws IOException {
-    Map<Integer, Integer> avgValueSizes = contentFile.avgValueSizes();
-    if (avgValueSizes == null || avgValueSizes.isEmpty()) {
-      return;
-    }
-
-    generator.writeObjectFieldStart(CONTENT_STATS);
-    for (Map.Entry<Integer, Integer> entry : avgValueSizes.entrySet()) {
-      generator.writeObjectFieldStart(String.valueOf(entry.getKey()));
-      generator.writeNumberField(AVG_VALUE_SIZE_IN_BYTES, entry.getValue());
       generator.writeEndObject();
     }
-
-    generator.writeEndObject();
   }
 
   private static Metrics metricsFromJson(JsonNode jsonNode) {
@@ -312,7 +305,10 @@ public class ContentFileParser {
               SingleValueParser.fromJson(DataFile.UPPER_BOUNDS.type(), jsonNode.get(UPPER_BOUNDS));
     }
 
-    Map<Integer, Integer> avgValueSizes = avgValueSizesFromJson(jsonNode);
+    Map<Integer, Integer> avgValueSizes = null;
+    if (jsonNode.hasNonNull(CONTENT_STATS)) {
+      avgValueSizes = avgValueSizesFromJson(jsonNode.get(CONTENT_STATS));
+    }
 
     return new Metrics(
         recordCount,
@@ -326,12 +322,7 @@ public class ContentFileParser {
         null /* originalTypes */);
   }
 
-  private static Map<Integer, Integer> avgValueSizesFromJson(JsonNode jsonNode) {
-    if (!jsonNode.hasNonNull(CONTENT_STATS)) {
-      return null;
-    }
-
-    JsonNode contentStats = jsonNode.get(CONTENT_STATS);
+  private static Map<Integer, Integer> avgValueSizesFromJson(JsonNode contentStats) {
     Preconditions.checkArgument(
         contentStats.isObject(),
         "Invalid JSON node for content stats: non-object (%s)",
