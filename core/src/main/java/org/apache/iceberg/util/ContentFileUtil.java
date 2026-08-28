@@ -161,7 +161,6 @@ public class ContentFileUtil {
         file.lowerBounds() == null ? null : Maps.newHashMap(file.lowerBounds());
     Map<Integer, ByteBuffer> upperBounds =
         file.upperBounds() == null ? null : Maps.newHashMap(file.upperBounds());
-    Map<Integer, Integer> avgValueSizes = avgValueSizesWithoutPath(file);
     if (lowerBounds != null) {
       lowerBounds.remove(PATH_ID);
     }
@@ -177,7 +176,7 @@ public class ContentFileUtil {
         file.nanValueCounts(),
         lowerBounds == null ? null : Collections.unmodifiableMap(lowerBounds),
         upperBounds == null ? null : Collections.unmodifiableMap(upperBounds),
-        avgValueSizes,
+        file.avgValueSizes(),
         null /* originalTypes */);
   }
 
@@ -186,7 +185,6 @@ public class ContentFileUtil {
         file.lowerBounds() == null ? null : Maps.newHashMap(file.lowerBounds());
     Map<Integer, ByteBuffer> upperBounds =
         file.upperBounds() == null ? null : Maps.newHashMap(file.upperBounds());
-    Map<Integer, Integer> avgValueSizes = avgValueSizesWithoutPath(file);
     if (lowerBounds != null) {
       lowerBounds.put(PATH_ID, bound);
     }
@@ -202,17 +200,7 @@ public class ContentFileUtil {
         file.nanValueCounts(),
         lowerBounds == null ? null : Collections.unmodifiableMap(lowerBounds),
         upperBounds == null ? null : Collections.unmodifiableMap(upperBounds),
-        avgValueSizes,
+        file.avgValueSizes(),
         null /* originalTypes */);
-  }
-
-  private static Map<Integer, Integer> avgValueSizesWithoutPath(DeleteFile file) {
-    if (file.avgValueSizes() == null) {
-      return null;
-    }
-
-    Map<Integer, Integer> avgValueSizes = Maps.newHashMap(file.avgValueSizes());
-    avgValueSizes.remove(PATH_ID);
-    return avgValueSizes.isEmpty() ? null : Collections.unmodifiableMap(avgValueSizes);
   }
 }
