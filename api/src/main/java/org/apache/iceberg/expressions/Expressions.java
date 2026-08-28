@@ -319,13 +319,16 @@ public class Expressions {
   }
 
   /**
-   * Create a reference to a function by name, in the catalog of the referencing object.
+   * Create a reference to a function by identifier, in the catalog of the referencing object.
    *
-   * @param name a function name
+   * <p>Identifier parts are used as given and are never parsed or split. A part that contains dots
+   * is a single part, not a namespace followed by a function name.
+   *
+   * @param identifier namespace names followed by the function name
    * @return a function reference
    */
-  public static FunctionReference function(String name) {
-    return new FunctionReference(null, Lists.newArrayList(name));
+  public static FunctionReference function(String... identifier) {
+    return new FunctionReference(null, Lists.newArrayList(identifier));
   }
 
   /**
@@ -351,6 +354,9 @@ public class Expressions {
 
   /**
    * Create an expression that applies a function to zero or more arguments.
+   *
+   * <p>Each argument must be a value expression ({@link Term}), a predicate ({@link Expression}),
+   * or a constant. Constants are converted to {@link Literal}.
    *
    * @param function a function reference
    * @param arguments value expressions, predicates, or constants passed to the function

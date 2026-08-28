@@ -20,7 +20,6 @@ package org.apache.iceberg.expressions;
 
 import java.io.Serializable;
 import java.util.List;
-import java.util.Objects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
@@ -28,7 +27,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
  * Represents a function reference in an expression. A function reference identifies a function by
  * name, optionally qualified with a catalog.
  *
- * <p>Use {@link Expressions#function(String)} and its overloads to create instances.
+ * <p>Use {@link Expressions#function(String...)} and its overloads to create instances.
  */
 public class FunctionReference implements Serializable {
   private final String catalog;
@@ -54,28 +53,9 @@ public class FunctionReference implements Serializable {
     return identifier;
   }
 
-  /** Returns the last element of the identifier (the function name). */
+  /** Returns the name of the function, without the catalog or namespace. */
   public String name() {
     return identifier.get(identifier.size() - 1);
-  }
-
-  @Override
-  public boolean equals(Object o) {
-    if (this == o) {
-      return true;
-    }
-
-    if (!(o instanceof FunctionReference)) {
-      return false;
-    }
-
-    FunctionReference that = (FunctionReference) o;
-    return Objects.equals(catalog, that.catalog) && Objects.equals(identifier, that.identifier);
-  }
-
-  @Override
-  public int hashCode() {
-    return Objects.hash(catalog, identifier);
   }
 
   @Override

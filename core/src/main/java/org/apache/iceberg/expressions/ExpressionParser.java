@@ -27,6 +27,7 @@ import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -36,9 +37,11 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.SingleValueParser;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.transforms.Transforms;
+import org.apache.iceberg.transforms.UnknownTransform;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.JsonUtil;
@@ -67,6 +70,13 @@ public class ExpressionParser {
 
   private static final Pattern HAS_WIDTH = Pattern.compile("(\\w+)\\[(\\d+)]");
 
+  private static final String ICEBERG_FUNCTIONS = "iceberg_functions";
+  // the expressions spec defines partition transforms as functions, other than void
+  private static final String VOID = "void";
+  // bucket and truncate take the transform parameter as their first argument, so they cannot be
+  // resolved from a name alone
+  private static final Set<String> PARAMETERIZED_TRANSFORMS = ImmutableSet.of("bucket", "truncate");
+
   private ExpressionParser() {}
 
   public static String toJson(Expression expression) {
@@ -90,6 +100,10 @@ public class ExpressionParser {
       this.gen = gen;
     }
 
+    /**
+     * A convenience method to make code more readable by calling {@code toJson} instead of {@code
+     * get()}
+     */
     private void toJson(Supplier<Void> child) {
       child.get();
     }
@@ -221,6 +235,7 @@ public class ExpressionParser {
     }
 
     private void unboundLiteral(Object object) throws IOException {
+      // this handles each type supported in Literals.from
       if (object instanceof Integer) {
         SingleValueParser.toJson(Types.IntegerType.get(), object, gen);
       } else if (object instanceof Long) {
@@ -308,13 +323,13 @@ public class ExpressionParser {
 
       gen.writeArrayFieldStart(ARGUMENTS);
       for (Object arg : apply.arguments()) {
-        if (arg instanceof UnboundTerm) {
+        if (arg instanceof Term) {
           writeValueExpr((Term) arg);
         } else if (arg instanceof Expression) {
           ExpressionParser.toJson((Expression) arg, gen);
         } else {
           // remaining arguments are constants, written as bare literal values
-          unboundLiteral(arg);
+          unboundLiteral(((Literal<?>) arg).value());
         }
       }
       gen.writeEndArray();
@@ -361,6 +376,7 @@ public class ExpressionParser {
 
   static Expression fromJson(JsonNode json, Schema schema) {
     Preconditions.checkArgument(null != json, "Cannot parse expression from null object");
+    // check for constant expressions
     if (json.isBoolean()) {
       if (json.asBoolean()) {
         return Expressions.alwaysTrue();
@@ -464,6 +480,7 @@ public class ExpressionParser {
       case NOT_NULL:
       case IS_NAN:
       case NOT_NAN:
+        // unary predicates
         Preconditions.checkArgument(
             !node.has(VALUE), "Cannot parse %s predicate: has invalid value field", op);
         Preconditions.checkArgument(
@@ -477,6 +494,7 @@ public class ExpressionParser {
       case NOT_EQ:
       case STARTS_WITH:
       case NOT_STARTS_WITH:
+        // literal predicates
         Preconditions.checkArgument(
             node.has(VALUE), "Cannot parse %s predicate: missing value", op);
         Preconditions.checkArgument(
@@ -485,6 +503,7 @@ public class ExpressionParser {
         return Expressions.predicate(op, term, ImmutableList.of(value));
       case IN:
       case NOT_IN:
+        // literal set predicates
         Preconditions.checkArgument(
             node.has(VALUES), "Cannot parse %s predicate: missing values", op);
         Preconditions.checkArgument(
@@ -567,11 +586,77 @@ public class ExpressionParser {
 
     UnboundApply<T> apply = Expressions.apply(funcRef, arguments);
 
-    if (apply.isKnownTransform()) {
-      return apply.asTransform();
+    if (isTransformFunction(funcRef)) {
+      return transformFromApply(apply);
     }
 
     return apply;
+  }
+
+  /**
+   * Returns whether a function reference is an Iceberg partition transform.
+   *
+   * <p>The expressions spec defines Iceberg partition transforms as functions in the {@code
+   * iceberg_functions} catalog, other than {@code void}.
+   */
+  private static boolean isTransformFunction(FunctionReference function) {
+    if (function.catalog() != null && !function.catalog().equalsIgnoreCase(ICEBERG_FUNCTIONS)) {
+      return false;
+    }
+
+    String name = function.name().toLowerCase(Locale.ROOT);
+    if (VOID.equals(name)) {
+      return false;
+    } else if (PARAMETERIZED_TRANSFORMS.contains(name)) {
+      return true;
+    }
+
+    return !(Transforms.fromString(name) instanceof UnknownTransform);
+  }
+
+  /**
+   * Converts an apply expression that calls an Iceberg partition transform to an {@link
+   * UnboundTransform}.
+   *
+   * <p>Parameterized transforms are called as two-argument functions with the transform parameter
+   * first, like {@code bucket(16, ref)}.
+   */
+  @SuppressWarnings("unchecked")
+  private static <T> UnboundTerm<T> transformFromApply(UnboundApply<T> apply) {
+    FunctionReference function = apply.function();
+    String name = function.name().toLowerCase(Locale.ROOT);
+    boolean parameterized = PARAMETERIZED_TRANSFORMS.contains(name);
+
+    List<Object> arguments = apply.arguments();
+    int expectedArgs = parameterized ? 2 : 1;
+    Preconditions.checkArgument(
+        arguments.size() == expectedArgs,
+        "Cannot convert %s to a transform: expected %s argument(s), got %s",
+        function,
+        expectedArgs,
+        arguments.size());
+
+    String transform = name;
+    if (parameterized) {
+      Object parameter = arguments.get(0);
+      Preconditions.checkArgument(
+          parameter instanceof Literal && ((Literal<?>) parameter).value() instanceof Number,
+          "Cannot convert %s to a transform: first argument must be a number, got %s",
+          function,
+          parameter);
+      transform = name + "[" + ((Number) ((Literal<?>) parameter).value()).intValue() + "]";
+    }
+
+    Object valueArg = arguments.get(expectedArgs - 1);
+    Preconditions.checkArgument(
+        valueArg instanceof NamedReference,
+        "Cannot convert %s to a transform: last argument must be a reference, got %s",
+        function,
+        valueArg);
+
+    return (UnboundTerm<T>)
+        Expressions.transform(
+            ((NamedReference<?>) valueArg).name(), Transforms.fromString(transform));
   }
 
   private static Object parseApplyArgument(JsonNode node, Schema schema) {
@@ -642,6 +727,7 @@ public class ExpressionParser {
       return toValue.apply(value);
     }
 
+    // the node is a directly embedded literal value
     return toValue.apply(valueNode);
   }
 

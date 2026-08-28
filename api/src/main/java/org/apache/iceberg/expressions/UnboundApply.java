@@ -19,32 +19,17 @@
 package org.apache.iceberg.expressions;
 
 import java.util.List;
-import java.util.Locale;
-import java.util.Set;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.transforms.Transforms;
-import org.apache.iceberg.transforms.UnknownTransform;
 import org.apache.iceberg.types.Types;
 
 /**
  * Represents a function application expression. This is the general form for invoking functions on
- * value expressions. Known Iceberg partition transforms can be converted to {@link
- * UnboundTransform} via {@link #asTransform()}.
+ * value expressions.
  *
  * @param <T> the Java type of values produced by this expression
  */
 public class UnboundApply<T> implements UnboundTerm<T> {
-  // bucket and truncate take the transform parameter as their first argument, so they cannot be
-  // resolved from a name alone
-  private static final Set<String> PARAMETERIZED_TRANSFORMS = ImmutableSet.of("bucket", "truncate");
-
-  // the expressions spec defines partition transforms as functions, other than void
-  private static final String VOID = "void";
-
-  private static final String ICEBERG_FUNCTIONS_CATALOG = "iceberg_functions";
-
   private final FunctionReference function;
   private final List<Object> arguments;
 
@@ -52,95 +37,55 @@ public class UnboundApply<T> implements UnboundTerm<T> {
     Preconditions.checkArgument(function != null, "Invalid function: null");
     this.function = function;
     // not an immutable list so that Kryo can deserialize this class
-    this.arguments = arguments == null ? Lists.newArrayList() : Lists.newArrayList(arguments);
+    this.arguments =
+        arguments == null
+            ? Lists.newArrayList()
+            : Lists.newArrayList(Lists.transform(arguments, UnboundApply::toArgument));
+  }
+
+  /**
+   * Converts an argument to the type used to represent it, or throws if it cannot be an argument.
+   *
+   * <p>An argument is either a value expression or a predicate. Value expressions are {@link Term}
+   * (a reference or a nested apply) or a constant, which is converted to a {@link Literal}.
+   * Predicates are {@link Expression}.
+   */
+  private static Object toArgument(Object argument) {
+    Preconditions.checkArgument(argument != null, "Invalid function argument: null");
+    if (argument instanceof Term || argument instanceof Expression) {
+      return argument;
+    }
+
+    return Literals.from(argument);
   }
 
   public FunctionReference function() {
     return function;
   }
 
+  /**
+   * Returns the arguments passed to the function.
+   *
+   * <p>Each argument is a {@link Term} (a value expression), an {@link Expression} (a predicate),
+   * or a {@link Literal} (a constant value expression). Java has no union type, so the arguments
+   * are typed as {@link Object} and validated when this expression is created.
+   */
   public List<Object> arguments() {
     return arguments;
   }
 
-  public boolean isKnownTransform() {
-    String catalog = function.catalog();
-    if (catalog != null && !catalog.equalsIgnoreCase(ICEBERG_FUNCTIONS_CATALOG)) {
-      return false;
-    }
-
-    return isTransformName(function.name().toLowerCase(Locale.ROOT));
-  }
-
-  private static boolean isTransformName(String name) {
-    if (VOID.equals(name)) {
-      return false;
-    } else if (PARAMETERIZED_TRANSFORMS.contains(name)) {
-      return true;
-    }
-
-    return !(Transforms.fromString(name) instanceof UnknownTransform);
-  }
-
-  @SuppressWarnings({"unchecked", "rawtypes"})
-  public UnboundTransform asTransform() {
-    Preconditions.checkState(isKnownTransform(), "Not a known Iceberg transform: %s", function);
-
-    String transformName = function.name().toLowerCase(Locale.ROOT);
-    boolean parameterized = PARAMETERIZED_TRANSFORMS.contains(transformName);
-    int expectedArgs = parameterized ? 2 : 1;
-    Preconditions.checkArgument(
-        arguments.size() == expectedArgs,
-        "Cannot convert %s to a transform: expected %s argument(s), got %s",
-        function,
-        expectedArgs,
-        arguments.size());
-
-    String transformString = transformName;
-    if (parameterized) {
-      Object parameter = arguments.get(0);
-      Preconditions.checkArgument(
-          parameter instanceof Number,
-          "Cannot convert %s to a transform: first argument must be a number, got %s",
-          function,
-          parameter);
-      transformString = transformName + "[" + ((Number) parameter).intValue() + "]";
-    }
-
-    Object valueArg = arguments.get(expectedArgs - 1);
-    Preconditions.checkArgument(
-        valueArg instanceof NamedReference,
-        "Cannot convert %s to a transform: last argument must be a reference, got %s",
-        function,
-        valueArg);
-
-    return new UnboundTransform((NamedReference) valueArg, Transforms.fromString(transformString));
-  }
-
   @Override
-  @SuppressWarnings("unchecked")
   public NamedReference<T> ref() {
-    for (Object arg : arguments) {
-      if (arg instanceof NamedReference) {
-        return (NamedReference<T>) arg;
-      } else if (arg instanceof UnboundTerm) {
-        return (NamedReference<T>) ((UnboundTerm<?>) arg).ref();
-      }
-    }
-
+    // a function may be called with any number of references, so there is no single reference that
+    // this term produces values from
     throw new UnsupportedOperationException("Cannot determine reference for function: " + function);
   }
 
   @Override
   public BoundTerm<T> bind(Types.StructType struct, boolean caseSensitive) {
-    if (isKnownTransform()) {
-      return asTransform().bind(struct, caseSensitive);
-    }
-
-    throw new UnsupportedOperationException(
-        "Cannot bind unknown function: "
-            + function
-            + ". Only known Iceberg transforms are supported.");
+    // binding requires a function definition to determine the result type, and function definitions
+    // are not available in this API
+    throw new UnsupportedOperationException("Cannot bind function: " + function);
   }
 
   @Override

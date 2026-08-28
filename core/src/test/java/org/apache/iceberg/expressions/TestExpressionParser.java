@@ -920,7 +920,7 @@ public class TestExpressionParser {
             + "\"arguments\":[{\"type\":\"reference\",\"name\":\"ts\"},\"yyyy-MM-dd\"]}}";
     UnboundPredicate<?> parsed = (UnboundPredicate<?>) ExpressionParser.fromJson(json);
     UnboundApply<?> apply = (UnboundApply<?>) parsed.term();
-    assertThat(apply.arguments()).element(1).isEqualTo("yyyy-MM-dd");
+    assertThat(((Literal<?>) apply.arguments().get(1)).value()).isEqualTo("yyyy-MM-dd");
     assertThat(ExpressionParser.toJson(parsed)).isEqualTo(json);
   }
 
@@ -944,7 +944,22 @@ public class TestExpressionParser {
             + "\"arguments\":[{\"type\":\"reference\",\"name\":\"data\"}]}}";
     UnboundPredicate<?> parsed = (UnboundPredicate<?>) ExpressionParser.fromJson(json);
     assertThat(parsed.term()).isInstanceOf(UnboundApply.class);
-    assertThat(((UnboundApply<?>) parsed.term()).isKnownTransform()).isFalse();
+    assertThat(((UnboundApply<?>) parsed.term()).function().name()).isEqualTo("void");
+    assertThat(ExpressionParser.toJson(parsed)).isEqualTo(json);
+  }
+
+  @Test
+  public void testApplyWithBoundReferenceArgument() {
+    Schema schema = new Schema(Types.NestedField.required(1, "data", Types.StringType.get()));
+    UnboundApply<?> apply =
+        Expressions.apply(
+            Expressions.function("my_func"),
+            ImmutableList.of(Expressions.ref("data").bind(schema.asStruct(), false)));
+
+    assertThat(ExpressionParser.toJson(Expressions.notNull(apply)))
+        .isEqualTo(
+            "{\"type\":\"not-null\",\"child\":{\"type\":\"apply\",\"function\":\"my_func\","
+                + "\"arguments\":[{\"type\":\"reference\",\"id\":1}]}}");
   }
 
   @Test
