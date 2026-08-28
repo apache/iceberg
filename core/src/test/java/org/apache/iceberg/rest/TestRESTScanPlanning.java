@@ -1359,7 +1359,8 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
     // With 0 retries and a server that never completes, planFiles should fail after one attempt
     assertThatThrownBy(scan::planFiles)
         .isInstanceOf(RemotePlanTimeoutException.class)
-        .hasMessageContaining("did not complete within configured limits");
+        .hasMessageContaining("did not complete within configured limits")
+        .hasMessageContaining("maxRetries=0");
     assertThat(fetchAttempts).hasValue(1);
   }
 
