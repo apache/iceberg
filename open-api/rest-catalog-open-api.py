@@ -1034,6 +1034,15 @@ class CountMap(BaseModel):
     )
 
 
+class IntegerMap(BaseModel):
+    keys: list[IntegerTypeValue] | None = Field(
+        None, description='List of integer column ids for each corresponding value'
+    )
+    values: list[IntegerTypeValue] | None = Field(
+        None, description="List of integer values, matched to 'keys' by index"
+    )
+
+
 class PrimitiveTypeValue(
     RootModel[
         BooleanTypeValue
@@ -1101,6 +1110,11 @@ class ContentFile(BaseModel):
         None, alias='split-offsets', description='List of splittable offsets'
     )
     sort_order_id: int | None = Field(None, alias='sort-order-id')
+    avg_value_sizes: IntegerMap | None = Field(
+        None,
+        alias='avg-value-sizes',
+        description='Map of column id to average value size in memory (uncompressed) in bytes over non-null values',
+    )
 
 
 class PositionDeleteFile(ContentFile):

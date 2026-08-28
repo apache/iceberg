@@ -5123,6 +5123,25 @@ components:
           "values": [ 100, 200 ]
         }
 
+    IntegerMap:
+      type: object
+      properties:
+        keys:
+          type: array
+          items:
+            $ref: '#/components/schemas/IntegerTypeValue'
+          description: "List of integer column ids for each corresponding value"
+        values:
+          type: array
+          items:
+            $ref: '#/components/schemas/IntegerTypeValue'
+          description: "List of integer values, matched to 'keys' by index"
+      example:
+        {
+          "keys": [ 1, 2 ],
+          "values": [ 8, 16 ]
+        }
+
     ValueMap:
       type: object
       properties:
@@ -5222,6 +5241,12 @@ components:
           description: "List of splittable offsets"
         sort-order-id:
           type: integer
+        avg-value-sizes:
+          allOf:
+            - $ref: '#/components/schemas/IntegerMap'
+          description:
+            Map of column id to average value size in memory (uncompressed) in
+            bytes over non-null values
 
     DataFile:
       allOf:

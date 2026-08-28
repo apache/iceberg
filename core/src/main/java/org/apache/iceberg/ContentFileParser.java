@@ -43,6 +43,7 @@ public class ContentFileParser {
   private static final String NAN_VALUE_COUNTS = "nan-value-counts";
   private static final String LOWER_BOUNDS = "lower-bounds";
   private static final String UPPER_BOUNDS = "upper-bounds";
+  private static final String AVG_VALUE_SIZES = "avg-value-sizes";
   private static final String KEY_METADATA = "key-metadata";
   private static final String SPLIT_OFFSETS = "split-offsets";
   private static final String EQUALITY_IDS = "equality-ids";
@@ -54,6 +55,9 @@ public class ContentFileParser {
   private static final String CONTENT_DATA = "data";
   private static final String CONTENT_POSITION_DELETES = "position-deletes";
   private static final String CONTENT_EQUALITY_DELETES = "equality-deletes";
+  // JSON-only map type; avg value sizes are not a v1-v3 data_file Avro field.
+  private static final Types.MapType AVG_VALUE_SIZES_TYPE =
+      Types.MapType.ofRequired(1, 2, Types.IntegerType.get(), Types.IntegerType.get());
 
   private ContentFileParser() {}
 
@@ -240,6 +244,11 @@ public class ContentFileParser {
       generator.writeFieldName(UPPER_BOUNDS);
       SingleValueParser.toJson(DataFile.UPPER_BOUNDS.type(), contentFile.upperBounds(), generator);
     }
+
+    if (contentFile.avgValueSizes() != null) {
+      generator.writeFieldName(AVG_VALUE_SIZES);
+      SingleValueParser.toJson(AVG_VALUE_SIZES_TYPE, contentFile.avgValueSizes(), generator);
+    }
   }
 
   private static Metrics metricsFromJson(JsonNode jsonNode) {
@@ -289,6 +298,13 @@ public class ContentFileParser {
               SingleValueParser.fromJson(DataFile.UPPER_BOUNDS.type(), jsonNode.get(UPPER_BOUNDS));
     }
 
+    Map<Integer, Integer> avgValueSizes = null;
+    if (jsonNode.has(AVG_VALUE_SIZES)) {
+      avgValueSizes =
+          (Map<Integer, Integer>)
+              SingleValueParser.fromJson(AVG_VALUE_SIZES_TYPE, jsonNode.get(AVG_VALUE_SIZES));
+    }
+
     return new Metrics(
         recordCount,
         columnSizes,
@@ -296,7 +312,9 @@ public class ContentFileParser {
         nullValueCounts,
         nanValueCounts,
         lowerBounds,
-        upperBounds);
+        upperBounds,
+        avgValueSizes,
+        null /* originalTypes */);
   }
 
   private static void partitionToJson(

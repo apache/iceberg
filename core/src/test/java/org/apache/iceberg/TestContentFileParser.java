@@ -72,6 +72,7 @@ public class TestContentFileParser {
     // ensure nan counts are present and null counts are not emitted
     assertThat(jsonStr).contains("\"nan-value-counts\"");
     assertThat(jsonStr).doesNotContain("\"null-value-counts\"");
+    assertThat(jsonStr).doesNotContain("\"avg-value-sizes\"");
     JsonNode jsonNode = JsonUtil.mapper().readTree(jsonStr);
     ContentFile<?> deserialized =
         ContentFileParser.fromJson(jsonNode, Map.of(TestBase.SPEC.specId(), spec));
@@ -357,6 +358,7 @@ public class TestContentFileParser {
           + "\"nan-value-counts\":{\"keys\":[3,4],\"values\":[0,0]},"
           + "\"lower-bounds\":{\"keys\":[3,4],\"values\":[\"01000000\",\"02000000\"]},"
           + "\"upper-bounds\":{\"keys\":[3,4],\"values\":[\"05000000\",\"0A000000\"]},"
+          + "\"avg-value-sizes\":{\"keys\":[3,4],\"values\":[8,16]},"
           + "\"key-metadata\":\"00000000000000000000000000000000\","
           + "\"split-offsets\":[128,256],\"sort-order-id\":1}";
     } else {
@@ -368,6 +370,7 @@ public class TestContentFileParser {
           + "\"nan-value-counts\":{\"keys\":[3,4],\"values\":[0,0]},"
           + "\"lower-bounds\":{\"keys\":[3,4],\"values\":[\"01000000\",\"02000000\"]},"
           + "\"upper-bounds\":{\"keys\":[3,4],\"values\":[\"05000000\",\"0A000000\"]},"
+          + "\"avg-value-sizes\":{\"keys\":[3,4],\"values\":[8,16]},"
           + "\"key-metadata\":\"00000000000000000000000000000000\","
           + "\"split-offsets\":[128,256],\"sort-order-id\":1}";
     }
@@ -393,8 +396,9 @@ public class TestContentFileParser {
                         3,
                         Conversions.toByteBuffer(Types.IntegerType.get(), 5),
                         4,
-                        Conversions.toByteBuffer(Types.IntegerType.get(), 10)) // upperbounds
-                    ))
+                        Conversions.toByteBuffer(Types.IntegerType.get(), 10)), // upper bounds
+                    ImmutableMap.of(3, 8, 4, 16), // avg value sizes
+                    null /* originalTypes */))
             .withFileSizeInBytes(350)
             .withSplitOffsets(Arrays.asList(128L, 256L))
             .withEncryptionKeyMetadata(ByteBuffer.wrap(new byte[16]))
@@ -533,8 +537,9 @@ public class TestContentFileParser {
                 3,
                 Conversions.toByteBuffer(Types.IntegerType.get(), 5),
                 4,
-                Conversions.toByteBuffer(Types.IntegerType.get(), 10)) // upperbounds
-            );
+                Conversions.toByteBuffer(Types.IntegerType.get(), 10)), // upper bounds
+            ImmutableMap.of(3, 8, 4, 16), // avg value sizes
+            null /* originalTypes */);
 
     return new GenericDeleteFile(
         spec.specId(),
@@ -573,6 +578,7 @@ public class TestContentFileParser {
           + "\"nan-value-counts\":{\"keys\":[3,4],\"values\":[0,0]},"
           + "\"lower-bounds\":{\"keys\":[3,4],\"values\":[\"01000000\",\"02000000\"]},"
           + "\"upper-bounds\":{\"keys\":[3,4],\"values\":[\"05000000\",\"0A000000\"]},"
+          + "\"avg-value-sizes\":{\"keys\":[3,4],\"values\":[8,16]},"
           + "\"key-metadata\":\"00000000000000000000000000000000\","
           + "\"split-offsets\":[128],\"equality-ids\":[3],\"sort-order-id\":1}";
     } else {
@@ -584,6 +590,7 @@ public class TestContentFileParser {
           + "\"nan-value-counts\":{\"keys\":[3,4],\"values\":[0,0]},"
           + "\"lower-bounds\":{\"keys\":[3,4],\"values\":[\"01000000\",\"02000000\"]},"
           + "\"upper-bounds\":{\"keys\":[3,4],\"values\":[\"05000000\",\"0A000000\"]},"
+          + "\"avg-value-sizes\":{\"keys\":[3,4],\"values\":[8,16]},"
           + "\"key-metadata\":\"00000000000000000000000000000000\","
           + "\"split-offsets\":[128],\"equality-ids\":[3],\"sort-order-id\":1}";
     }
@@ -607,6 +614,7 @@ public class TestContentFileParser {
     assertThat(actual.nanValueCounts()).isEqualTo(expected.nanValueCounts());
     assertThat(actual.lowerBounds()).isEqualTo(expected.lowerBounds());
     assertThat(actual.upperBounds()).isEqualTo(expected.upperBounds());
+    assertThat(actual.avgValueSizes()).isEqualTo(expected.avgValueSizes());
     assertThat(actual.keyMetadata()).isEqualTo(expected.keyMetadata());
     assertThat(actual.splitOffsets()).isEqualTo(expected.splitOffsets());
     assertThat(actual.equalityFieldIds()).isEqualTo(expected.equalityFieldIds());
