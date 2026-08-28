@@ -607,6 +607,8 @@ project(':iceberg-aws') {
   // TODO delete once s3-signer-open-api.yaml is removed
   def s3SignerSpec = layout.projectDirectory.file("src/main/resources/s3-signer-open-api.yaml")
   tasks.register('validateS3SignerSpec', org.openapitools.generator.gradle.plugin.tasks.ValidateTask) {
+    description = 'Validates the S3 signer OpenAPI spec'
+    group = 'verification'
     inputSpec.set(s3SignerSpec)
     recommend.set(true)
   }
@@ -1174,6 +1176,8 @@ project(':iceberg-open-api') {
 
   def restCatalogSpec = layout.projectDirectory.file("rest-catalog-open-api.yaml")
   tasks.register('validateRESTCatalogSpec', org.openapitools.generator.gradle.plugin.tasks.ValidateTask) {
+    description = 'Validates the REST catalog OpenAPI spec'
+    group = 'verification'
     inputSpec.set(restCatalogSpec)
     recommend.set(true)
   }
