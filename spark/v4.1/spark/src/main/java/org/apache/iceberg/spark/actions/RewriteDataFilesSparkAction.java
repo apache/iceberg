@@ -82,10 +82,9 @@ public class RewriteDataFilesSparkAction
    *
    * <p>Defaults to false.
    */
-  public static final String EXECUTOR_CACHE_DELETE_FILES_ENABLED =
-      "executor-cache.delete-files.enabled";
+  public static final String CACHE_DELETE_FILES = "cache-delete-files";
 
-  public static final boolean EXECUTOR_CACHE_DELETE_FILES_ENABLED_DEFAULT = false;
+  public static final boolean CACHE_DELETE_FILES_DEFAULT = false;
 
   private static final Set<String> VALID_OPTIONS =
       ImmutableSet.of(
@@ -99,7 +98,7 @@ public class RewriteDataFilesSparkAction
           REWRITE_JOB_ORDER,
           OUTPUT_SPEC_ID,
           REMOVE_DANGLING_DELETES,
-          EXECUTOR_CACHE_DELETE_FILES_ENABLED,
+          CACHE_DELETE_FILES,
           BinPackRewriteFilePlanner.MAX_FILES_TO_REWRITE);
 
   private static final RewriteDataFilesSparkAction.Result EMPTY_RESULT =
@@ -439,10 +438,7 @@ public class RewriteDataFilesSparkAction
             options(), REMOVE_DANGLING_DELETES, REMOVE_DANGLING_DELETES_DEFAULT);
 
     boolean cacheDeleteFiles =
-        PropertyUtil.propertyAsBoolean(
-            options(),
-            EXECUTOR_CACHE_DELETE_FILES_ENABLED,
-            EXECUTOR_CACHE_DELETE_FILES_ENABLED_DEFAULT);
+        PropertyUtil.propertyAsBoolean(options(), CACHE_DELETE_FILES, CACHE_DELETE_FILES_DEFAULT);
     spark()
         .conf()
         .set(

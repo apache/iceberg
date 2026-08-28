@@ -219,7 +219,7 @@ public class TestSparkExecutorCache extends TestBaseWithCatalog {
   }
 
   @TestTemplate
-  void rewriteOpensDeletesPerDataFileByDefault() throws Exception {
+  void cacheDeleteFilesDisabledByDefault() throws Exception {
     List<DeleteFile> deleteFiles = createAndInitTable(TableProperties.DELETE_MODE, MERGE_ON_READ);
 
     RewriteDataFiles.Result result =
@@ -235,14 +235,14 @@ public class TestSparkExecutorCache extends TestBaseWithCatalog {
   }
 
   @TestTemplate
-  void rewriteOpensDeletesOnceWhenCacheEnabledByOption() throws Exception {
+  void cacheDeleteFilesEnabledByOption() throws Exception {
     List<DeleteFile> deleteFiles = createAndInitTable(TableProperties.DELETE_MODE, MERGE_ON_READ);
 
     RewriteDataFiles.Result result =
         SparkActions.get(spark)
             .rewriteDataFiles(Spark3Util.loadIcebergTable(spark, targetTableName))
             .option(SizeBasedFileRewritePlanner.REWRITE_ALL, "true")
-            .option(RewriteDataFilesSparkAction.EXECUTOR_CACHE_DELETE_FILES_ENABLED, "true")
+            .option(RewriteDataFilesSparkAction.CACHE_DELETE_FILES, "true")
             .execute();
 
     assertThat(result.rewrittenDataFilesCount()).isEqualTo(2);
