@@ -72,7 +72,7 @@ public class TestContentFileParser {
     // ensure nan counts are present and null counts are not emitted
     assertThat(jsonStr).contains("\"nan-value-counts\"");
     assertThat(jsonStr).doesNotContain("\"null-value-counts\"");
-    assertThat(jsonStr).doesNotContain("\"avg-value-sizes\"");
+    assertThat(jsonStr).doesNotContain("\"content-stats\"");
     JsonNode jsonNode = JsonUtil.mapper().readTree(jsonStr);
     ContentFile<?> deserialized =
         ContentFileParser.fromJson(jsonNode, Map.of(TestBase.SPEC.specId(), spec));
@@ -358,7 +358,7 @@ public class TestContentFileParser {
           + "\"nan-value-counts\":{\"keys\":[3,4],\"values\":[0,0]},"
           + "\"lower-bounds\":{\"keys\":[3,4],\"values\":[\"01000000\",\"02000000\"]},"
           + "\"upper-bounds\":{\"keys\":[3,4],\"values\":[\"05000000\",\"0A000000\"]},"
-          + "\"avg-value-sizes\":{\"keys\":[3,4],\"values\":[8,16]},"
+          + "\"content-stats\":{\"3\":{\"avg-value-size-in-bytes\":8},\"4\":{\"avg-value-size-in-bytes\":16}},"
           + "\"key-metadata\":\"00000000000000000000000000000000\","
           + "\"split-offsets\":[128,256],\"sort-order-id\":1}";
     } else {
@@ -370,7 +370,7 @@ public class TestContentFileParser {
           + "\"nan-value-counts\":{\"keys\":[3,4],\"values\":[0,0]},"
           + "\"lower-bounds\":{\"keys\":[3,4],\"values\":[\"01000000\",\"02000000\"]},"
           + "\"upper-bounds\":{\"keys\":[3,4],\"values\":[\"05000000\",\"0A000000\"]},"
-          + "\"avg-value-sizes\":{\"keys\":[3,4],\"values\":[8,16]},"
+          + "\"content-stats\":{\"3\":{\"avg-value-size-in-bytes\":8},\"4\":{\"avg-value-size-in-bytes\":16}},"
           + "\"key-metadata\":\"00000000000000000000000000000000\","
           + "\"split-offsets\":[128,256],\"sort-order-id\":1}";
     }
@@ -578,7 +578,7 @@ public class TestContentFileParser {
           + "\"nan-value-counts\":{\"keys\":[3,4],\"values\":[0,0]},"
           + "\"lower-bounds\":{\"keys\":[3,4],\"values\":[\"01000000\",\"02000000\"]},"
           + "\"upper-bounds\":{\"keys\":[3,4],\"values\":[\"05000000\",\"0A000000\"]},"
-          + "\"avg-value-sizes\":{\"keys\":[3,4],\"values\":[8,16]},"
+          + "\"content-stats\":{\"3\":{\"avg-value-size-in-bytes\":8},\"4\":{\"avg-value-size-in-bytes\":16}},"
           + "\"key-metadata\":\"00000000000000000000000000000000\","
           + "\"split-offsets\":[128],\"equality-ids\":[3],\"sort-order-id\":1}";
     } else {
@@ -590,7 +590,7 @@ public class TestContentFileParser {
           + "\"nan-value-counts\":{\"keys\":[3,4],\"values\":[0,0]},"
           + "\"lower-bounds\":{\"keys\":[3,4],\"values\":[\"01000000\",\"02000000\"]},"
           + "\"upper-bounds\":{\"keys\":[3,4],\"values\":[\"05000000\",\"0A000000\"]},"
-          + "\"avg-value-sizes\":{\"keys\":[3,4],\"values\":[8,16]},"
+          + "\"content-stats\":{\"3\":{\"avg-value-size-in-bytes\":8},\"4\":{\"avg-value-size-in-bytes\":16}},"
           + "\"key-metadata\":\"00000000000000000000000000000000\","
           + "\"split-offsets\":[128],\"equality-ids\":[3],\"sort-order-id\":1}";
     }

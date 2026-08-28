@@ -22,6 +22,8 @@ import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -43,7 +45,8 @@ public class ContentFileParser {
   private static final String NAN_VALUE_COUNTS = "nan-value-counts";
   private static final String LOWER_BOUNDS = "lower-bounds";
   private static final String UPPER_BOUNDS = "upper-bounds";
-  private static final String AVG_VALUE_SIZES = "avg-value-sizes";
+  private static final String CONTENT_STATS = "content-stats";
+  private static final String AVG_VALUE_SIZE_IN_BYTES = "avg-value-size-in-bytes";
   private static final String KEY_METADATA = "key-metadata";
   private static final String SPLIT_OFFSETS = "split-offsets";
   private static final String EQUALITY_IDS = "equality-ids";
@@ -55,9 +58,6 @@ public class ContentFileParser {
   private static final String CONTENT_DATA = "data";
   private static final String CONTENT_POSITION_DELETES = "position-deletes";
   private static final String CONTENT_EQUALITY_DELETES = "equality-deletes";
-  // JSON-only map type; avg value sizes are not a v1-v3 data_file Avro field.
-  private static final Types.MapType AVG_VALUE_SIZES_TYPE =
-      Types.MapType.ofRequired(1, 2, Types.IntegerType.get(), Types.IntegerType.get());
 
   private ContentFileParser() {}
 
@@ -245,10 +245,24 @@ public class ContentFileParser {
       SingleValueParser.toJson(DataFile.UPPER_BOUNDS.type(), contentFile.upperBounds(), generator);
     }
 
-    if (contentFile.avgValueSizes() != null) {
-      generator.writeFieldName(AVG_VALUE_SIZES);
-      SingleValueParser.toJson(AVG_VALUE_SIZES_TYPE, contentFile.avgValueSizes(), generator);
+    contentStatsToJson(contentFile, generator);
+  }
+
+  private static void contentStatsToJson(ContentFile<?> contentFile, JsonGenerator generator)
+      throws IOException {
+    Map<Integer, Integer> avgValueSizes = contentFile.avgValueSizes();
+    if (avgValueSizes == null || avgValueSizes.isEmpty()) {
+      return;
     }
+
+    generator.writeObjectFieldStart(CONTENT_STATS);
+    for (Map.Entry<Integer, Integer> entry : avgValueSizes.entrySet()) {
+      generator.writeObjectFieldStart(String.valueOf(entry.getKey()));
+      generator.writeNumberField(AVG_VALUE_SIZE_IN_BYTES, entry.getValue());
+      generator.writeEndObject();
+    }
+
+    generator.writeEndObject();
   }
 
   private static Metrics metricsFromJson(JsonNode jsonNode) {
@@ -298,12 +312,7 @@ public class ContentFileParser {
               SingleValueParser.fromJson(DataFile.UPPER_BOUNDS.type(), jsonNode.get(UPPER_BOUNDS));
     }
 
-    Map<Integer, Integer> avgValueSizes = null;
-    if (jsonNode.has(AVG_VALUE_SIZES)) {
-      avgValueSizes =
-          (Map<Integer, Integer>)
-              SingleValueParser.fromJson(AVG_VALUE_SIZES_TYPE, jsonNode.get(AVG_VALUE_SIZES));
-    }
+    Map<Integer, Integer> avgValueSizes = avgValueSizesFromJson(jsonNode);
 
     return new Metrics(
         recordCount,
@@ -315,6 +324,35 @@ public class ContentFileParser {
         upperBounds,
         avgValueSizes,
         null /* originalTypes */);
+  }
+
+  private static Map<Integer, Integer> avgValueSizesFromJson(JsonNode jsonNode) {
+    if (!jsonNode.has(CONTENT_STATS)) {
+      return null;
+    }
+
+    JsonNode contentStats = jsonNode.get(CONTENT_STATS);
+    Preconditions.checkArgument(
+        contentStats != null && contentStats.isObject(),
+        "Invalid JSON node for content stats: non-object (%s)",
+        contentStats);
+
+    Map<Integer, Integer> avgValueSizes = new HashMap<>();
+    Iterator<String> fieldIds = contentStats.fieldNames();
+    while (fieldIds.hasNext()) {
+      String fieldId = fieldIds.next();
+      JsonNode fieldStats = contentStats.get(fieldId);
+      Preconditions.checkArgument(
+          fieldStats != null && fieldStats.isObject(),
+          "Invalid JSON node for field statistics: non-object (%s)",
+          fieldStats);
+      Integer avgValueSize = JsonUtil.getIntOrNull(AVG_VALUE_SIZE_IN_BYTES, fieldStats);
+      if (avgValueSize != null) {
+        avgValueSizes.put(Integer.valueOf(fieldId), avgValueSize);
+      }
+    }
+
+    return avgValueSizes.isEmpty() ? null : avgValueSizes;
   }
 
   private static void partitionToJson(

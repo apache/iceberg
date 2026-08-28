@@ -1034,12 +1034,11 @@ class CountMap(BaseModel):
     )
 
 
-class IntegerMap(BaseModel):
-    keys: list[IntegerTypeValue] | None = Field(
-        None, description='List of integer column ids for each corresponding value'
-    )
-    values: list[IntegerTypeValue] | None = Field(
-        None, description="List of integer values, matched to 'keys' by index"
+class FieldStatistics(BaseModel):
+    avg_value_size_in_bytes: int | None = Field(
+        None,
+        alias='avg-value-size-in-bytes',
+        description='Average value size in memory (uncompressed) in bytes over non-null values. Present only in v4 field statistics.',
     )
 
 
@@ -1110,10 +1109,10 @@ class ContentFile(BaseModel):
         None, alias='split-offsets', description='List of splittable offsets'
     )
     sort_order_id: int | None = Field(None, alias='sort-order-id')
-    avg_value_sizes: IntegerMap | None = Field(
+    content_stats: dict[str, FieldStatistics] | None = Field(
         None,
-        alias='avg-value-sizes',
-        description='Map of column id to average value size in memory (uncompressed) in bytes over non-null values',
+        alias='content-stats',
+        description='v4 content_stats keyed by table field ID. Field statistics are nested structs, not metrics maps.',
     )
 
 

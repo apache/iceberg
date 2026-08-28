@@ -5123,23 +5123,18 @@ components:
           "values": [ 100, 200 ]
         }
 
-    IntegerMap:
+    FieldStatistics:
       type: object
       properties:
-        keys:
-          type: array
-          items:
-            $ref: '#/components/schemas/IntegerTypeValue'
-          description: "List of integer column ids for each corresponding value"
-        values:
-          type: array
-          items:
-            $ref: '#/components/schemas/IntegerTypeValue'
-          description: "List of integer values, matched to 'keys' by index"
+        avg-value-size-in-bytes:
+          type: integer
+          format: int32
+          description:
+            Average value size in memory (uncompressed) in bytes over non-null
+            values. Present only in v4 field statistics.
       example:
         {
-          "keys": [ 1, 2 ],
-          "values": [ 8, 16 ]
+          "avg-value-size-in-bytes": 8
         }
 
     ValueMap:
@@ -5241,12 +5236,13 @@ components:
           description: "List of splittable offsets"
         sort-order-id:
           type: integer
-        avg-value-sizes:
-          allOf:
-            - $ref: '#/components/schemas/IntegerMap'
+        content-stats:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/FieldStatistics'
           description:
-            Map of column id to average value size in memory (uncompressed) in
-            bytes over non-null values
+            v4 content_stats keyed by table field ID. Field statistics are
+            nested structs, not metrics maps.
 
     DataFile:
       allOf:
