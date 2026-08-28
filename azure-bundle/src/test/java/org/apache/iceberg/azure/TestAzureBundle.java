@@ -28,8 +28,8 @@ import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import org.junit.jupiter.api.Test;
 
-// this test ensures the azure bundle service registrations contain all entries across all bundled deps
-// for ContextAccessor specifically, we expect entries from reactor core and reactor netty
+// this test ensures the azure bundle service registrations contain all entries across all bundled
+// deps. For ContextAccessor specifically, we expect entries from reactor core and reactor netty
 class TestAzureBundle {
 
   @Test
@@ -38,7 +38,8 @@ class TestAzureBundle {
     assertThat(bundlePath).as("Azure bundle path").isNotNull();
 
     try (JarFile bundle = new JarFile(new File(bundlePath))) {
-      JarEntry serviceDescriptor = bundle.getJarEntry("META-INF/services/io.micrometer.context.ContextAccessor");
+      JarEntry serviceDescriptor =
+          bundle.getJarEntry("META-INF/services/io.micrometer.context.ContextAccessor");
       assertThat(serviceDescriptor).as("ContextAccessor service descriptor").isNotNull();
 
       try (InputStream input = bundle.getInputStream(serviceDescriptor)) {
