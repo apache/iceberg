@@ -30,6 +30,7 @@ import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
@@ -48,6 +49,19 @@ class TestFileTypeAvro {
 
     assertThat(AvroSchemaWithTypeVisitor.visit(SCHEMA, avroSchema, new FieldNameCollector()))
         .contains("uri", "offset", "size", "content_type", "checksum", "inline");
+  }
+
+  @Test
+  void buildsAnAvroProjectionForAFileColumn() {
+    org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(SCHEMA, "table");
+
+    org.apache.avro.Schema projected =
+        AvroSchemaUtil.buildAvroProjection(avroSchema, SCHEMA, ImmutableMap.of());
+
+    org.apache.avro.Schema photoSchema = projected.getField("photo").schema().getTypes().get(1);
+    assertThat(photoSchema.getFields())
+        .extracting(org.apache.avro.Schema.Field::name)
+        .containsExactly("uri", "offset", "size", "content_type", "checksum", "inline");
   }
 
   @Test

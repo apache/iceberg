@@ -58,9 +58,7 @@ class BuildAvroProjection extends AvroCustomOrderSchemaVisitor<Schema, Schema.Fi
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
   public Schema record(Schema record, List<String> names, Iterable<Schema.Field> schemaIterable) {
     Preconditions.checkArgument(
-        current.isNestedType() && current.asNestedType().isStructType(),
-        "Cannot project non-struct: %s",
-        current);
+        current.isStructType() || current.isFileType(), "Cannot project non-struct: %s", current);
 
     Types.StructType struct = TypeUtil.asStructType(current);
 
