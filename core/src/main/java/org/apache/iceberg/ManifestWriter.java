@@ -300,6 +300,7 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
             .meta("format-version", "4")
             .meta("content", "data")
             .set(writerProperties())
+            .set(TableProperties.AVRO_LOCAL_TIMESTAMP_ENABLED, "false")
             .overwrite()
             .build();
       } catch (IOException e) {
@@ -340,6 +341,7 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
             .meta("format-version", "4")
             .meta("content", "deletes")
             .set(writerProperties())
+            .set(TableProperties.AVRO_LOCAL_TIMESTAMP_ENABLED, "false")
             .overwrite()
             .build();
       } catch (IOException e) {
@@ -388,6 +390,7 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
             .meta("format-version", "3")
             .meta("content", "data")
             .set(writerProperties())
+            .set(TableProperties.AVRO_LOCAL_TIMESTAMP_ENABLED, "false")
             .overwrite()
             .build();
       } catch (IOException e) {
@@ -430,6 +433,7 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
             .meta("format-version", "3")
             .meta("content", "deletes")
             .set(writerProperties())
+            .set(TableProperties.AVRO_LOCAL_TIMESTAMP_ENABLED, "false")
             .overwrite()
             .build();
       } catch (IOException e) {
@@ -477,6 +481,7 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
             .meta("format-version", "2")
             .meta("content", "data")
             .set(writerProperties())
+            .set(TableProperties.AVRO_LOCAL_TIMESTAMP_ENABLED, "false")
             .overwrite()
             .build();
       } catch (IOException e) {
@@ -519,6 +524,7 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
             .meta("format-version", "2")
             .meta("content", "deletes")
             .set(writerProperties())
+            .set(TableProperties.AVRO_LOCAL_TIMESTAMP_ENABLED, "false")
             .overwrite()
             .build();
       } catch (IOException e) {
@@ -565,6 +571,7 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
             .meta("partition-spec-id", String.valueOf(spec.specId()))
             .meta("format-version", "1")
             .set(writerProperties())
+            .set(TableProperties.AVRO_LOCAL_TIMESTAMP_ENABLED, "false")
             .overwrite()
             .build();
       } catch (IOException e) {

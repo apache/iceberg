@@ -24,8 +24,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.BiFunction;
 import org.apache.avro.JsonProperties;
-import org.apache.avro.LogicalType;
-import org.apache.avro.LogicalTypes;
 import org.apache.avro.Schema;
 import org.apache.iceberg.mapping.MappedField;
 import org.apache.iceberg.mapping.NameMapping;
@@ -82,12 +80,20 @@ public class AvroSchemaUtil {
   }
 
   public static Type convert(Schema schema) {
-    return AvroSchemaVisitor.visit(schema, new SchemaToType(schema));
+    return convert(schema, false);
+  }
+
+  public static Type convert(Schema schema, boolean adjustToUtcDefault) {
+    return AvroSchemaVisitor.visit(schema, new SchemaToType(schema, adjustToUtcDefault));
   }
 
   public static org.apache.iceberg.Schema toIceberg(Schema schema) {
-    final List<Types.NestedField> fields = convert(schema).asNestedType().asStructType().fields();
-    return new org.apache.iceberg.Schema(fields);
+    return toIceberg(schema, false);
+  }
+
+  public static org.apache.iceberg.Schema toIceberg(Schema schema, boolean adjustToUtcDefault) {
+    Type type = convert(schema, adjustToUtcDefault);
+    return new org.apache.iceberg.Schema(type.asNestedType().asStructType().fields());
   }
 
   static boolean hasIds(Schema schema) {
@@ -139,28 +145,6 @@ public class AvroSchemaUtil {
     }
 
     return fileSchema;
-  }
-
-  public static boolean isTimestamptz(Schema schema) {
-    LogicalType logicalType = schema.getLogicalType();
-    if (logicalType instanceof LogicalTypes.TimestampMillis
-        || logicalType instanceof LogicalTypes.TimestampMicros
-        || logicalType instanceof LogicalTypes.TimestampNanos) {
-      // timestamptz is adjusted to UTC
-      Object value = schema.getObjectProp(ADJUST_TO_UTC_PROP);
-
-      if (value == null) {
-        // not all avro timestamp logical types will have the adjust_to_utc prop, default to
-        // timestamp without timezone
-        return false;
-      } else if (value instanceof Boolean) {
-        return (Boolean) value;
-      } else if (value instanceof String) {
-        return Boolean.parseBoolean((String) value);
-      }
-    }
-
-    return false;
   }
 
   public static boolean isOptional(Schema schema) {

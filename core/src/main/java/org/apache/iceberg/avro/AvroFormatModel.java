@@ -237,7 +237,7 @@ public class AvroFormatModel<D, S>
 
     @Override
     public ReadBuilder<D, S> set(String key, String value) {
-      // Configuration is not used for Avro reader creation
+      internal.set(key, value);
       return this;
     }
 

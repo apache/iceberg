@@ -107,10 +107,11 @@ class GenericDataFile extends BaseFile<DataFile> implements DataFile {
   @Override
   protected Schema getAvroSchema(Types.StructType partitionStruct) {
     Types.StructType type = DataFile.getType(partitionStruct);
-    return AvroSchemaUtil.convert(
-        type,
-        ImmutableMap.of(
-            type, GenericDataFile.class.getName(),
-            partitionStruct, PartitionData.class.getName()));
+    return AvroLegacyTimestamps.convert(
+        AvroSchemaUtil.convert(
+            type,
+            ImmutableMap.of(
+                type, GenericDataFile.class.getName(),
+                partitionStruct, PartitionData.class.getName())));
   }
 }

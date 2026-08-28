@@ -76,7 +76,7 @@ public class AvroSchemaConverter {
   @SuppressWarnings("unchecked")
   public static <T extends SpecificRecord> TypeInformation<Row> convertToTypeInfo(
       Class<T> avroClass) {
-    return convertToTypeInfo(avroClass, true);
+    return convertToTypeInfo(avroClass, false);
   }
 
   /**
@@ -93,7 +93,7 @@ public class AvroSchemaConverter {
     Preconditions.checkNotNull(avroClass, "Avro specific record class must not be null.");
     // determine schema to retrieve deterministic field order
     final Schema schema = SpecificData.get().getSchema(avroClass);
-    return (TypeInformation<Row>) convertToTypeInfo(schema, true);
+    return (TypeInformation<Row>) convertToTypeInfo(schema, legacyTimestampMapping);
   }
 
   /**
@@ -105,7 +105,7 @@ public class AvroSchemaConverter {
    */
   @SuppressWarnings("unchecked")
   public static <T> TypeInformation<T> convertToTypeInfo(String avroSchemaString) {
-    return convertToTypeInfo(avroSchemaString, true);
+    return convertToTypeInfo(avroSchemaString, false);
   }
 
   /**
@@ -244,7 +244,7 @@ public class AvroSchemaConverter {
    * @return data type matching the schema
    */
   public static DataType convertToDataType(String avroSchemaString) {
-    return convertToDataType(avroSchemaString, true);
+    return convertToDataType(avroSchemaString, false);
   }
 
   /**
@@ -401,7 +401,7 @@ public class AvroSchemaConverter {
    * @return Avro's {@link Schema} matching this logical type.
    */
   public static Schema convertToSchema(LogicalType schema) {
-    return convertToSchema(schema, true);
+    return convertToSchema(schema, false);
   }
 
   /**
@@ -430,7 +430,7 @@ public class AvroSchemaConverter {
    * @return Avro's {@link Schema} matching this logical type.
    */
   public static Schema convertToSchema(LogicalType logicalType, String rowName) {
-    return convertToSchema(logicalType, rowName, true);
+    return convertToSchema(logicalType, rowName, false);
   }
 
   /**
