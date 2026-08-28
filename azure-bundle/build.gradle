@@ -55,6 +55,13 @@ project(":iceberg-azure-bundle") {
     relocate 'com.fasterxml.jackson', 'org.apache.iceberg.azure.shaded.com.fasterxml.jackson'
   }
 
+  test {
+    useJUnitPlatform()
+    dependsOn shadowJar
+    inputs.file shadowJar.archiveFile
+    systemProperty 'azure.test.bundle.jar', shadowJar.archiveFile.get().asFile.absolutePath
+  }
+
   jar {
     enabled = false
   }
