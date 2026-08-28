@@ -1599,6 +1599,53 @@ public class TestRemoveSnapshots extends TestBase {
   }
 
   @TestTemplate
+  public void testReachableCleanupWithDeleteManifestFromRemovedBranch() {
+    // Regression test: ManifestFiles.readPaths previously required a DATA manifest and threw
+    // IllegalArgumentException on DELETE manifests. ReachableFileCleanup calls readPaths on every
+    // manifest reachable only through expired snapshots; when one was a DELETE manifest (as happens
+    // after a branch that added delete files is removed), the exception was logged and swallowed
+    // by the suppressFailureWhenFinished task loop, silently orphaning the referenced delete and
+    // DV files on object storage.
+    //
+    // Only V2 and V3 tables carry standalone delete manifests. V1 has no delete files and V4+
+    // unifies delete entries into the root manifest.
+    assumeThat(formatVersion)
+        .as("Standalone delete manifests only exist in V2 and V3 tables")
+        .isIn(2, 3);
+    assumeThat(incrementalCleanup)
+        .as("This test targets ReachableFileCleanup, not IncrementalFileCleanup")
+        .isFalse();
+
+    String branch = "delete-branch";
+
+    table.newAppend().appendFile(FILE_A).commit();
+    Snapshot mainAppend = table.currentSnapshot();
+
+    table.manageSnapshots().createBranch(branch, mainAppend.snapshotId()).commit();
+
+    table.newRowDelta().addDeletes(FILE_A_DELETES).toBranch(branch).commit();
+    Snapshot branchDelta = table.snapshot(branch);
+    assertThat(branchDelta.deleteManifests(table.io()))
+        .as("Branch tip should own a delete manifest referencing FILE_A_DELETES")
+        .hasSize(1);
+
+    // Remove the branch so its snapshots and manifests become expiration candidates.
+    table.manageSnapshots().removeBranch(branch).commit();
+
+    table.newAppend().appendFile(FILE_B).commit();
+    long tAfterCommits = waitUntilAfter(table.currentSnapshot().timestampMillis());
+
+    Set<String> deletedFiles = Sets.newHashSet();
+    removeSnapshots(table).expireOlderThan(tAfterCommits).deleteWith(deletedFiles::add).commit();
+
+    assertThat(deletedFiles)
+        .as(
+            "ReachableFileCleanup must enumerate DELETE manifests and delete the delete files "
+                + "they reference; otherwise DV and position-delete files are silently orphaned.")
+        .contains(FILE_A_DELETES.location());
+  }
+
+  @TestTemplate
   public void testRemoveFromTableWithBulkIO() {
     TestTables.TestBulkLocalFileIO spyFileIO = Mockito.spy(new TestTables.TestBulkLocalFileIO());
 
