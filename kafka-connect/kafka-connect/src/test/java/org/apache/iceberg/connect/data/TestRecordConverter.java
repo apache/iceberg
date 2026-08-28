@@ -63,6 +63,7 @@ import org.apache.iceberg.types.Types.BooleanType;
 import org.apache.iceberg.types.Types.DateType;
 import org.apache.iceberg.types.Types.DecimalType;
 import org.apache.iceberg.types.Types.DoubleType;
+import org.apache.iceberg.types.Types.FileType;
 import org.apache.iceberg.types.Types.FixedType;
 import org.apache.iceberg.types.Types.FloatType;
 import org.apache.iceberg.types.Types.IntegerType;
@@ -160,6 +161,11 @@ public class TestRecordConverter {
 
   private static final org.apache.iceberg.Schema VARIANT_SCHEMA =
       new org.apache.iceberg.Schema(NestedField.required(1, "v", VariantType.get()));
+
+  private static final org.apache.iceberg.Schema FILE_SCHEMA =
+      new org.apache.iceberg.Schema(
+          NestedField.required(1, "id", IntegerType.get()),
+          NestedField.optional(2, "photo", FileType.of(2)));
 
   private static final Schema CONNECT_SCHEMA =
       SchemaBuilder.struct()
@@ -959,6 +965,50 @@ public class TestRecordConverter {
     assertThat(consumer.addColumns()).isEmpty();
     assertThat(consumer.makeOptionals()).isEmpty();
     assertThat(consumer.updateTypes()).isEmpty();
+    assertThat(consumer.empty()).isTrue();
+  }
+
+  @Test
+  void convertsAFileValueToTheStructOfItsNestedFields() {
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(FILE_SCHEMA);
+    RecordConverter converter = new RecordConverter(table, config);
+
+    Record record =
+        converter.convert(
+            ImmutableMap.of(
+                "id", 1, "photo", ImmutableMap.of("uri", "s3://bucket/photo", "size", 1024L)));
+
+    Record photo = (Record) record.getField("photo");
+    assertThat(photo.struct()).isEqualTo(FileType.of(2).asStruct());
+    assertThat(photo.getField("uri")).isEqualTo("s3://bucket/photo");
+    assertThat(photo.getField("size")).isEqualTo(1024L);
+    assertThat(photo.getField("checksum")).isNull();
+  }
+
+  @Test
+  void doesNotEvolveTheSchemaUnderAFileColumn() {
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(FILE_SCHEMA);
+    RecordConverter converter = new RecordConverter(table, config);
+
+    Schema connectPhotoSchema =
+        SchemaBuilder.struct()
+            .optional()
+            .field("uri", Schema.OPTIONAL_STRING_SCHEMA)
+            .field("thumbprint", Schema.OPTIONAL_STRING_SCHEMA)
+            .build();
+    Schema connectSchema =
+        SchemaBuilder.struct()
+            .field("id", Schema.INT32_SCHEMA)
+            .field("photo", connectPhotoSchema)
+            .build();
+    Struct data = new Struct(connectSchema).put("id", 1).put("photo", null);
+
+    SchemaUpdate.Consumer consumer = new SchemaUpdate.Consumer();
+    Record result = converter.convert(data, consumer);
+
+    assertThat(result.getField("photo")).isNull();
     assertThat(consumer.empty()).isTrue();
   }
 

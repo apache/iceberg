@@ -80,6 +80,12 @@ public abstract class FixupTypes extends TypeUtil.CustomOrderSchemaVisitor<Type>
   }
 
   @Override
+  public Type file(Types.FileType file, Iterable<Type> fieldTypes) {
+    // the nested fields of a file are derived, so their types cannot be fixed up
+    return file;
+  }
+
+  @Override
   public Type field(Types.NestedField field, Supplier<Type> future) {
     Preconditions.checkArgument(sourceType.isStructType(), "Not a struct: %s", sourceType);
 

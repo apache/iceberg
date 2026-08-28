@@ -86,6 +86,21 @@ class FindTypeVisitor extends TypeUtil.SchemaVisitor<Type> {
   }
 
   @Override
+  public Type file(Types.FileType file, List<Type> fieldResults) {
+    if (predicate.test(file)) {
+      return file;
+    }
+
+    for (Type fieldType : fieldResults) {
+      if (fieldType != null) {
+        return fieldType;
+      }
+    }
+
+    return null;
+  }
+
+  @Override
   public Type primitive(Type.PrimitiveType primitive) {
     if (predicate.test(primitive)) {
       return primitive;

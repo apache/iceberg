@@ -20,6 +20,7 @@ package org.apache.iceberg.spark.data.vectorized;
 
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.types.DataType;
@@ -130,7 +131,7 @@ class ConstantColumnVector extends ColumnVector {
   }
 
   private Type childIcebergType(int ordinal) {
-    Types.StructType icebergTypeAsStruct = (Types.StructType) icebergType;
+    Types.StructType icebergTypeAsStruct = TypeUtil.asStructType(icebergType);
     return icebergTypeAsStruct.fields().get(ordinal).type();
   }
 

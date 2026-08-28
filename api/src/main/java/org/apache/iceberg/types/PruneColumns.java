@@ -52,7 +52,16 @@ class PruneColumns extends TypeUtil.SchemaVisitor<Type> {
 
   @Override
   public Type struct(Types.StructType struct, List<Type> fieldResults) {
-    List<Types.NestedField> fields = struct.fields();
+    return project(struct.fields(), fieldResults, struct);
+  }
+
+  @Override
+  public Type file(Types.FileType file, List<Type> fieldResults) {
+    return project(file.fields(), fieldResults, file);
+  }
+
+  private Type project(
+      List<Types.NestedField> fields, List<Type> fieldResults, Type unchangedResult) {
     List<Types.NestedField> selectedFields = Lists.newArrayListWithExpectedSize(fields.size());
     boolean sameTypes = true;
 
@@ -79,7 +88,7 @@ class PruneColumns extends TypeUtil.SchemaVisitor<Type> {
 
     if (!selectedFields.isEmpty()) {
       if (selectedFields.size() == fields.size() && sameTypes) {
-        return struct;
+        return unchangedResult;
       } else {
         return Types.StructType.of(selectedFields);
       }
@@ -95,6 +104,8 @@ class PruneColumns extends TypeUtil.SchemaVisitor<Type> {
         return field.type();
       } else if (field.type().isStructType()) {
         return projectSelectedStruct(fieldResult);
+      } else if (field.type().isFileType()) {
+        return projectSelectedFile(fieldResult);
       } else {
         Preconditions.checkArgument(
             !field.type().isNestedType(),
@@ -120,6 +131,8 @@ class PruneColumns extends TypeUtil.SchemaVisitor<Type> {
       } else if (list.elementType().isStructType()) {
         StructType projectedStruct = projectSelectedStruct(elementResult);
         return projectList(list, projectedStruct);
+      } else if (list.elementType().isFileType()) {
+        return projectList(list, projectSelectedFile(elementResult));
       } else {
         Preconditions.checkArgument(
             list.elementType().isPrimitiveType(),
@@ -142,6 +155,8 @@ class PruneColumns extends TypeUtil.SchemaVisitor<Type> {
       } else if (map.valueType().isStructType()) {
         Type projectedStruct = projectSelectedStruct(valueResult);
         return projectMap(map, projectedStruct);
+      } else if (map.valueType().isFileType()) {
+        return projectMap(map, projectSelectedFile(valueResult));
       } else {
         Preconditions.checkArgument(
             map.valueType().isPrimitiveType(),
@@ -167,6 +182,18 @@ class PruneColumns extends TypeUtil.SchemaVisitor<Type> {
   @Override
   public Type primitive(Type.PrimitiveType primitive) {
     return null;
+  }
+
+  /**
+   * Returns the projection of a selected file, which is a file when every nested field is projected
+   * and a struct when only some are.
+   */
+  private Type projectSelectedFile(Type projectedField) {
+    if (projectedField == null) {
+      // no nested fields were selected but the file was, return an empty struct
+      return Types.StructType.of();
+    }
+    return projectedField;
   }
 
   private ListType projectList(ListType list, Type elementResult) {

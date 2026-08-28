@@ -35,6 +35,7 @@ import org.apache.iceberg.avro.ValueReaders;
 import org.apache.iceberg.data.GenericDataUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Pair;
 
@@ -96,7 +97,7 @@ public class PlannedDataReader<T> implements DatumReader<T>, SupportsRowPosition
         return ValueReaders.skipStruct(fieldReaders);
       }
 
-      Types.StructType expected = partner.asStructType();
+      Types.StructType expected = TypeUtil.asStructType(partner);
       List<Pair<Integer, ValueReader<?>>> readPlan =
           ValueReaders.buildReadPlan(
               expected, record, fieldReaders, idToConstant, GenericDataUtil::internalToGeneric);

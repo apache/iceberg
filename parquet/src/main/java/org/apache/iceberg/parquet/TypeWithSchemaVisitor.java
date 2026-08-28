@@ -65,6 +65,9 @@ public class TypeWithSchemaVisitor<T> {
           || (iType != null && iType.isVariantType())) {
         // when Parquet has a VARIANT logical type, use it here
         return visitVariant(iType != null ? iType.asVariantType() : null, group, visitor);
+      } else if (iType != null && iType.isFileType()) {
+        Types.FileType file = iType.asFileType();
+        return visitor.file(file, group, visitFields(file.asStruct(), group, visitor));
       }
 
       Types.StructType struct = iType != null ? iType.asStructType() : null;
@@ -228,6 +231,16 @@ public class TypeWithSchemaVisitor<T> {
 
   public T struct(Types.StructType iStruct, GroupType struct, List<T> fields) {
     return null;
+  }
+
+  /**
+   * Visits a file column, which is stored as a group of its nested fields.
+   *
+   * <p>The default handles the file as the struct of its nested fields. Override this to
+   * reconstruct a file column from those fields.
+   */
+  public T file(Types.FileType iFile, GroupType file, List<T> fields) {
+    return struct(iFile != null ? iFile.asStruct() : null, file, fields);
   }
 
   public T list(Types.ListType iList, GroupType array, T element) {

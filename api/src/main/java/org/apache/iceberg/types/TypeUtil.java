@@ -72,6 +72,24 @@ public class TypeUtil {
     return new Schema(Collections.emptyList(), schema.getAliases());
   }
 
+  /**
+   * Returns a type's nested fields as a struct.
+   *
+   * <p>Unlike {@link Type#asStructType()}, this also accepts a file type and returns the struct of
+   * its derived nested fields. Use this where a file is stored and read as a group of its nested
+   * fields, such as in the Avro and Parquet layers.
+   *
+   * @param type a struct or file type
+   * @return the type's nested fields as a struct
+   */
+  public static Types.StructType asStructType(Type type) {
+    if (type.isFileType()) {
+      return type.asFileType().asStruct();
+    }
+
+    return type.asStructType();
+  }
+
   public static Types.StructType project(Types.StructType struct, Set<Integer> fieldIds) {
     Preconditions.checkNotNull(struct, "Struct cannot be null");
     Preconditions.checkNotNull(fieldIds, "Field ids cannot be null");
@@ -460,6 +478,14 @@ public class TypeUtil {
     return TypeUtil.visit(type, new AssignIds(getId));
   }
 
+  static Type assignedType(Type original, int newId, Type visited) {
+    if (original.isFileType()) {
+      return Types.FileType.of(newId);
+    }
+
+    return visited;
+  }
+
   public static Type find(Schema schema, Predicate<Type> predicate) {
     return visit(schema, new FindTypeVisitor(predicate));
   }
@@ -639,11 +665,48 @@ public class TypeUtil {
   /** Interface for passing a function that assigns column IDs. */
   public interface NextID {
     int get();
+
+    default int get(int numReserved) {
+      int id = get();
+      if (numReserved > 0) {
+        for (int offset = 1; offset <= numReserved; offset += 1) {
+          int reserved = get();
+          Preconditions.checkState(
+              reserved == id + offset,
+              "Cannot reserve %s IDs after %s: assigned %s",
+              numReserved,
+              id,
+              reserved);
+        }
+      }
+
+      return id;
+    }
   }
 
   /** Interface for passing a function that assigns column IDs from the previous Id. */
   public interface GetID {
     int get(int oldId);
+
+    /**
+     * Assigns a new ID and reserves the IDs that immediately follow it.
+     *
+     * <p>Implementations must override this method to assign IDs for types with derived field IDs.
+     *
+     * @param oldId an existing field ID
+     * @param numReserved number of IDs after the new ID that must not be assigned
+     * @return a new field ID
+     */
+    default int get(int oldId, int numReserved) {
+      if (numReserved > 0) {
+        throw new UnsupportedOperationException(
+            String.format(
+                "Cannot reserve %s IDs after %s: reserving IDs is not supported",
+                numReserved, oldId));
+      }
+
+      return get(oldId);
+    }
   }
 
   /**
@@ -674,21 +737,39 @@ public class TypeUtil {
 
     @Override
     public int get(int oldId) {
-      if (conflictingIds.contains(oldId)) {
-        return nextAvailableId();
+      return get(oldId, 0);
+    }
+
+    @Override
+    public int get(int oldId, int numReserved) {
+      // only the reserved IDs are checked because a field that is not conflicting keeps its ID
+      if (conflictingIds.contains(oldId) || !isRangeAvailable(oldId + 1, oldId + numReserved)) {
+        return nextAvailableId(numReserved);
       } else {
         return oldId;
       }
     }
 
-    private int nextAvailableId() {
+    private int nextAvailableId(int numReserved) {
       int candidateId = nextId.incrementAndGet();
 
-      while (allUsedIds.contains(candidateId)) {
+      while (!isRangeAvailable(candidateId, candidateId + numReserved)) {
         candidateId = nextId.incrementAndGet();
       }
 
+      nextId.addAndGet(numReserved);
+
       return candidateId;
+    }
+
+    private boolean isRangeAvailable(int firstId, int lastId) {
+      for (int id = firstId; id <= lastId; id += 1) {
+        if (allUsedIds.contains(id)) {
+          return false;
+        }
+      }
+
+      return true;
     }
   }
 
@@ -753,6 +834,10 @@ public class TypeUtil {
       throw new UnsupportedOperationException("Unsupported type: variant");
     }
 
+    public T file(Types.FileType file, List<T> fieldResults) {
+      throw new UnsupportedOperationException("Unsupported type: file");
+    }
+
     public T primitive(Type.PrimitiveType primitive) {
       return null;
     }
@@ -766,18 +851,11 @@ public class TypeUtil {
     switch (type.typeId()) {
       case STRUCT:
         Types.StructType struct = type.asNestedType().asStructType();
-        List<T> results = Lists.newArrayListWithExpectedSize(struct.fields().size());
-        for (Types.NestedField field : struct.fields()) {
-          visitor.beforeField(field);
-          T result;
-          try {
-            result = visit(field.type(), visitor);
-          } finally {
-            visitor.afterField(field);
-          }
-          results.add(visitor.field(field, result));
-        }
-        return visitor.struct(struct, results);
+        return visitor.struct(struct, visitFields(struct.fields(), visitor));
+
+      case FILE:
+        Types.FileType file = type.asFileType();
+        return visitor.file(file, visitFields(file.fields(), visitor));
 
       case LIST:
         Types.ListType list = type.asNestedType().asListType();
@@ -824,6 +902,21 @@ public class TypeUtil {
     }
   }
 
+  private static <T> List<T> visitFields(List<Types.NestedField> fields, SchemaVisitor<T> visitor) {
+    List<T> results = Lists.newArrayListWithExpectedSize(fields.size());
+    for (Types.NestedField field : fields) {
+      visitor.beforeField(field);
+      T result;
+      try {
+        result = visit(field.type(), visitor);
+      } finally {
+        visitor.afterField(field);
+      }
+      results.add(visitor.field(field, result));
+    }
+    return results;
+  }
+
   public static class CustomOrderSchemaVisitor<T> {
     public T schema(Schema schema, Supplier<T> structResult) {
       return null;
@@ -847,6 +940,10 @@ public class TypeUtil {
 
     public T variant(Types.VariantType variant) {
       throw new UnsupportedOperationException("Unsupported type: variant");
+    }
+
+    public T file(Types.FileType file, Iterable<T> fieldResults) {
+      throw new UnsupportedOperationException("Unsupported type: file");
     }
 
     public T primitive(Type.PrimitiveType primitive) {
@@ -906,13 +1003,11 @@ public class TypeUtil {
     switch (type.typeId()) {
       case STRUCT:
         Types.StructType struct = type.asNestedType().asStructType();
-        List<VisitFieldFuture<T>> results =
-            Lists.newArrayListWithExpectedSize(struct.fields().size());
-        for (Types.NestedField field : struct.fields()) {
-          results.add(new VisitFieldFuture<>(field, visitor));
-        }
+        return visitor.struct(struct, fieldFutures(struct.fields(), visitor));
 
-        return visitor.struct(struct, Iterables.transform(results, VisitFieldFuture::get));
+      case FILE:
+        Types.FileType file = type.asFileType();
+        return visitor.file(file, fieldFutures(file.fields(), visitor));
 
       case LIST:
         Types.ListType list = type.asNestedType().asListType();
@@ -931,6 +1026,15 @@ public class TypeUtil {
       default:
         return visitor.primitive(type.asPrimitiveType());
     }
+  }
+
+  private static <T> Iterable<T> fieldFutures(
+      List<Types.NestedField> fields, CustomOrderSchemaVisitor<T> visitor) {
+    List<VisitFieldFuture<T>> results = Lists.newArrayListWithExpectedSize(fields.size());
+    for (Types.NestedField field : fields) {
+      results.add(new VisitFieldFuture<>(field, visitor));
+    }
+    return Iterables.transform(results, VisitFieldFuture::get);
   }
 
   static int decimalMaxPrecision(int numBytes) {

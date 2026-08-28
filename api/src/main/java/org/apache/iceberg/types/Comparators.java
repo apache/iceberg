@@ -83,6 +83,8 @@ public class Comparators {
       return forType(type.asPrimitiveType());
     } else if (type.isStructType()) {
       return (Comparator<T>) forType(type.asStructType());
+    } else if (type.isFileType()) {
+      return (Comparator<T>) forType(type.asFileType().asStruct());
     } else if (type.isListType()) {
       return (Comparator<T>) forType(type.asListType());
     } else if (type.isMapType()) {

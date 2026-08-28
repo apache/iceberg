@@ -24,6 +24,7 @@ import org.apache.avro.Schema;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 
 public abstract class AvroSchemaWithTypeVisitor<T> {
@@ -35,7 +36,8 @@ public abstract class AvroSchemaWithTypeVisitor<T> {
   public static <T> T visit(Type iType, Schema schema, AvroSchemaWithTypeVisitor<T> visitor) {
     switch (schema.getType()) {
       case RECORD:
-        return visitRecord(iType != null ? iType.asStructType() : null, schema, visitor);
+        // a file is stored as a record of its nested fields
+        return visitRecord(iType != null ? TypeUtil.asStructType(iType) : null, schema, visitor);
 
       case UNION:
         return visitUnion(iType, schema, visitor);

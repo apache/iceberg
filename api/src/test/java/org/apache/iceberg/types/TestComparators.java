@@ -219,4 +219,18 @@ public class TestComparators {
         TestHelpers.Row.of(
             "a", TestHelpers.Row.of("b", 1), ImmutableList.of(1, 2), ImmutableMap.of("c", 4)));
   }
+
+  @Test
+  public void testFile() {
+    Comparator<StructLike> comparator =
+        Comparators.forType(
+            Types.StructType.of(Types.NestedField.optional(2, "photo", Types.FileType.of(2))));
+
+    assertComparesCorrectly(
+        comparator, TestHelpers.Row.of(photo("s3://a")), TestHelpers.Row.of(photo("s3://b")));
+  }
+
+  private static StructLike photo(String uri) {
+    return TestHelpers.Row.of(uri, 0L, 1L, "image/png", "abc", null);
+  }
 }

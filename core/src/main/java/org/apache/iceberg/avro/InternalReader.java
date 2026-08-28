@@ -31,6 +31,7 @@ import org.apache.iceberg.StructLike;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Pair;
 
@@ -116,7 +117,7 @@ public class InternalReader<T> implements DatumReader<T>, SupportsRowPosition, S
         return ValueReaders.skipStruct(fieldResults);
       }
 
-      Types.StructType expected = partner.second().asStructType();
+      Types.StructType expected = TypeUtil.asStructType(partner.second());
       List<Pair<Integer, ValueReader<?>>> readPlan =
           ValueReaders.buildReadPlan(expected, record, fieldResults, idToConstant);
 
@@ -243,7 +244,7 @@ public class InternalReader<T> implements DatumReader<T>, SupportsRowPosition, S
     @Override
     public Pair<Integer, Type> fieldPartner(
         Pair<Integer, Type> partner, Integer fieldId, String name) {
-      Types.NestedField field = partner.second().asStructType().field(fieldId);
+      Types.NestedField field = TypeUtil.asStructType(partner.second()).field(fieldId);
       return field != null ? Pair.of(field.fieldId(), field.type()) : null;
     }
 

@@ -208,6 +208,7 @@ public class PartitionData
           case STRUCT:
           case LIST:
           case MAP:
+          case FILE:
             throw new IllegalArgumentException("Unsupported type in partition data: " + type);
           case BINARY:
           case FIXED:

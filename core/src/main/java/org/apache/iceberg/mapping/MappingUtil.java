@@ -276,10 +276,20 @@ public class MappingUtil {
 
     @Override
     public MappedFields struct(Types.StructType struct, List<MappedFields> fieldResults) {
+      return mapFields(struct.fields(), fieldResults);
+    }
+
+    @Override
+    public MappedFields file(Types.FileType file, List<MappedFields> fieldResults) {
+      return mapFields(file.fields(), fieldResults);
+    }
+
+    private MappedFields mapFields(
+        List<Types.NestedField> structFields, List<MappedFields> fieldResults) {
       List<MappedField> fields = Lists.newArrayListWithExpectedSize(fieldResults.size());
 
       for (int i = 0; i < fieldResults.size(); i += 1) {
-        Types.NestedField field = struct.fields().get(i);
+        Types.NestedField field = structFields.get(i);
         MappedFields result = fieldResults.get(i);
         fields.add(MappedField.of(field.fieldId(), field.name(), result));
       }

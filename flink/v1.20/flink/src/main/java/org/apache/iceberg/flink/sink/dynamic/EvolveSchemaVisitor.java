@@ -109,8 +109,14 @@ public class EvolveSchemaVisitor extends SchemaWithPartnerVisitor<Integer, Boole
       return true;
     }
 
+    Type partnerType = findFieldType(partnerId);
+    if (partnerType.isFileType()) {
+      checkMatchesFile(partnerId, partnerType.asFileType(), struct);
+      return false;
+    }
+
     // Add, update and order fields in the struct
-    Types.StructType partnerStruct = findFieldType(partnerId).asStructType();
+    Types.StructType partnerStruct = partnerType.asStructType();
     String after = null;
     for (Types.NestedField targetField : struct.fields()) {
       Types.NestedField nestedField =
@@ -146,6 +152,20 @@ public class EvolveSchemaVisitor extends SchemaWithPartnerVisitor<Integer, Boole
         }
       }
     }
+
+    return false;
+  }
+
+  @Override
+  public Boolean file(Types.FileType file, Integer partnerId, List<Boolean> existingFields) {
+    if (partnerId == null) {
+      return true;
+    }
+
+    Preconditions.checkArgument(
+        findFieldType(partnerId).isFileType(),
+        "Cannot evolve column into a file column: %s",
+        existingSchema.findColumnName(partnerId));
 
     return false;
   }
@@ -192,6 +212,28 @@ public class EvolveSchemaVisitor extends SchemaWithPartnerVisitor<Integer, Boole
   @Override
   public Boolean primitive(Type.PrimitiveType primitive, Integer partnerId) {
     return partnerId == null;
+  }
+
+  /**
+   * Validates that an input struct matches the derived nested fields of a file column.
+   *
+   * <p>{@link UpdateSchema} rejects every change to those fields, so a mismatch cannot be evolved
+   * away and has to be reported instead of accumulated.
+   */
+  private void checkMatchesFile(int partnerId, Types.FileType partner, Types.StructType struct) {
+    boolean matches = partner.fields().size() == struct.fields().size();
+    for (int i = 0; matches && i < partner.fields().size(); i += 1) {
+      matches =
+          CompareSchemasVisitor.getFieldFromStruct(
+                  partner.fields().get(i).name(), struct, caseSensitive)
+              != null;
+    }
+
+    Preconditions.checkArgument(
+        matches,
+        "Cannot evolve the nested fields of a file column %s: %s",
+        existingSchema.findColumnName(partnerId),
+        struct);
   }
 
   private Type findFieldType(int fieldId) {

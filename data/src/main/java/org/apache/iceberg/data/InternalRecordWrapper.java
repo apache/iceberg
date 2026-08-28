@@ -70,6 +70,9 @@ public class InternalRecordWrapper implements StructLike {
       case STRUCT:
         InternalRecordWrapper wrapper = new InternalRecordWrapper(type.asStructType());
         return struct -> wrapper.wrap((StructLike) struct);
+      case FILE:
+        InternalRecordWrapper fileWrapper = new InternalRecordWrapper(type.asFileType().asStruct());
+        return file -> fileWrapper.wrap((StructLike) file);
       default:
     }
     return null;

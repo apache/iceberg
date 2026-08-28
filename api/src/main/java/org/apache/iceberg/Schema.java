@@ -67,7 +67,8 @@ public class Schema implements Serializable {
           Type.TypeID.VARIANT, 3,
           Type.TypeID.UNKNOWN, 3,
           Type.TypeID.GEOMETRY, 3,
-          Type.TypeID.GEOGRAPHY, 3);
+          Type.TypeID.GEOGRAPHY, 3,
+          Type.TypeID.FILE, 4);
 
   private final StructType struct;
   private final int schemaId;
@@ -578,18 +579,31 @@ public class Schema implements Serializable {
     if (getID == null) {
       return columns;
     }
-    Type res =
-        TypeUtil.assignIds(
-            StructType.of(columns),
-            oldId -> {
-              int newId = getID.get(oldId);
-              if (newId != oldId) {
-                idsToReassigned.put(oldId, newId);
-                idsToOriginal.put(newId, oldId);
-              }
-              return newId;
-            });
+
+    TypeUtil.GetID tracked =
+        new TypeUtil.GetID() {
+          @Override
+          public int get(int oldId) {
+            return track(oldId, getID.get(oldId));
+          }
+
+          @Override
+          public int get(int oldId, int numReserved) {
+            return track(oldId, getID.get(oldId, numReserved));
+          }
+        };
+
+    Type res = TypeUtil.assignIds(StructType.of(columns), tracked);
     return res.asStructType().fields();
+  }
+
+  private int track(int oldId, int newId) {
+    if (newId != oldId) {
+      idsToReassigned.put(oldId, newId);
+      idsToOriginal.put(newId, oldId);
+    }
+
+    return newId;
   }
 
   /**

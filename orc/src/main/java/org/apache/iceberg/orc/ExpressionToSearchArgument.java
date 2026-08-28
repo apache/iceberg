@@ -58,7 +58,13 @@ class ExpressionToSearchArgument
   // these Iceberg types
   private static final Set<TypeID> UNSUPPORTED_TYPES =
       ImmutableSet.of(
-          TypeID.BINARY, TypeID.FIXED, TypeID.UUID, TypeID.STRUCT, TypeID.MAP, TypeID.LIST);
+          TypeID.BINARY,
+          TypeID.FIXED,
+          TypeID.UUID,
+          TypeID.STRUCT,
+          TypeID.FILE,
+          TypeID.MAP,
+          TypeID.LIST);
 
   private final SearchArgument.Builder builder;
   private final Map<Integer, String> idToColumnName;

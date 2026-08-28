@@ -50,7 +50,7 @@ class ReassignIds extends TypeUtil.CustomOrderSchemaVisitor<Type> {
     }
   }
 
-  private int id(Types.StructType sourceStruct, String name) {
+  private int id(Types.StructType sourceStruct, String name, Type type) {
     Types.NestedField sourceField =
         caseSensitive ? sourceStruct.field(name) : sourceStruct.caseInsensitiveField(name);
 
@@ -59,7 +59,7 @@ class ReassignIds extends TypeUtil.CustomOrderSchemaVisitor<Type> {
     }
 
     if (assignId != null) {
-      return assignId.get();
+      return type.isFileType() ? assignId.get(Types.FileType.NUM_NESTED_FIELDS) : assignId.get();
     }
 
     throw new IllegalArgumentException("Field " + name + " not found in source schema");
@@ -68,6 +68,12 @@ class ReassignIds extends TypeUtil.CustomOrderSchemaVisitor<Type> {
   @Override
   public Type struct(Types.StructType struct, Iterable<Type> fieldTypes) {
     Preconditions.checkNotNull(sourceType, "Evaluation must start with a schema.");
+    if (sourceType.isFileType()) {
+      // engines that cannot express a file type read it back as a struct of its nested fields; the
+      // ids of those fields are derived from the source file type rather than assigned here
+      return sourceType;
+    }
+
     Preconditions.checkArgument(sourceType.isStructType(), "Not a struct: %s", sourceType);
 
     Types.StructType sourceStruct = sourceType.asStructType();
@@ -78,8 +84,9 @@ class ReassignIds extends TypeUtil.CustomOrderSchemaVisitor<Type> {
     List<Types.NestedField> newFields = Lists.newArrayListWithExpectedSize(length);
     for (int i = 0; i < length; i += 1) {
       Types.NestedField field = fields.get(i);
-      int fieldId = id(sourceStruct, field.name());
-      newFields.add(Types.NestedField.from(field).withId(fieldId).ofType(types.get(i)).build());
+      int fieldId = id(sourceStruct, field.name(), field.type());
+      Type type = TypeUtil.assignedType(field.type(), fieldId, types.get(i));
+      newFields.add(Types.NestedField.from(field).withId(fieldId).ofType(type).build());
     }
 
     return Types.StructType.of(newFields);
@@ -120,10 +127,12 @@ class ReassignIds extends TypeUtil.CustomOrderSchemaVisitor<Type> {
 
     this.sourceType = sourceList.elementType();
     try {
+      Type elementType =
+          TypeUtil.assignedType(list.elementType(), sourceElementId, elementTypeFuture.get());
       if (list.isElementOptional()) {
-        return Types.ListType.ofOptional(sourceElementId, elementTypeFuture.get());
+        return Types.ListType.ofOptional(sourceElementId, elementType);
       } else {
-        return Types.ListType.ofRequired(sourceElementId, elementTypeFuture.get());
+        return Types.ListType.ofRequired(sourceElementId, elementType);
       }
 
     } finally {
@@ -141,10 +150,10 @@ class ReassignIds extends TypeUtil.CustomOrderSchemaVisitor<Type> {
 
     try {
       this.sourceType = sourceMap.keyType();
-      Type keyType = keyTypeFuture.get();
+      Type keyType = TypeUtil.assignedType(map.keyType(), sourceKeyId, keyTypeFuture.get());
 
       this.sourceType = sourceMap.valueType();
-      Type valueType = valueTypeFuture.get();
+      Type valueType = TypeUtil.assignedType(map.valueType(), sourceValueId, valueTypeFuture.get());
 
       if (map.isValueOptional()) {
         return Types.MapType.ofOptional(sourceKeyId, sourceValueId, keyType, valueType);
@@ -160,6 +169,12 @@ class ReassignIds extends TypeUtil.CustomOrderSchemaVisitor<Type> {
   @Override
   public Type variant(Types.VariantType variant) {
     return variant;
+  }
+
+  @Override
+  public Type file(Types.FileType file, Iterable<Type> fieldTypes) {
+    // nested fields are rebuilt from the id assigned to the field that holds this type
+    return file;
   }
 
   @Override

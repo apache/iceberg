@@ -31,6 +31,7 @@ import org.apache.avro.io.Decoder;
 import org.apache.iceberg.common.DynClasses;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Pair;
 
@@ -112,7 +113,7 @@ public class GenericAvroReader<T>
         return ValueReaders.skipStruct(fieldResults);
       }
 
-      Types.StructType expected = partner.asStructType();
+      Types.StructType expected = TypeUtil.asStructType(partner);
       List<Pair<Integer, ValueReader<?>>> readPlan =
           ValueReaders.buildReadPlan(expected, record, fieldResults, idToConstant);
 

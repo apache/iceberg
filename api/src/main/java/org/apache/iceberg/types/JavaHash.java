@@ -31,6 +31,8 @@ public interface JavaHash<T> {
         return (JavaHash<T>) JavaHashes.strings();
       case STRUCT:
         return (JavaHash<T>) JavaHashes.struct(type.asStructType());
+      case FILE:
+        return (JavaHash<T>) JavaHashes.struct(type.asFileType().asStruct());
       case LIST:
         return (JavaHash<T>) JavaHashes.list(type.asListType());
       default:

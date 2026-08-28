@@ -63,6 +63,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Type.PrimitiveType;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types.DecimalType;
 import org.apache.iceberg.types.Types.ListType;
 import org.apache.iceberg.types.Types.MapType;
@@ -130,7 +131,9 @@ class RecordConverter {
     }
     switch (type.typeId()) {
       case STRUCT:
-        return convertStructValue(value, type.asStructType(), fieldId, schemaUpdateConsumer);
+      case FILE:
+        return convertStructValue(
+            value, TypeUtil.asStructType(type), fieldId, schemaUpdateConsumer);
       case LIST:
         return convertListValue(value, type.asListType(), schemaUpdateConsumer);
       case MAP:
@@ -323,7 +326,9 @@ class RecordConverter {
                   field.schema(), nestedField.type(), nestedField.fieldId(), schemaUpdateConsumer);
             }
           }
-        } else {
+        } else if (!tableType.isFileType()) {
+          // a file's nested fields are derived from the file column, so a file is skipped rather
+          // than reported as a mismatch
           logMismatchedType(recordSchema.type(), tableType);
         }
         break;

@@ -40,6 +40,8 @@ public abstract class OrcSchemaWithTypeVisitor<T> {
         String structType = schema.getAttributeValue(ORCSchemaUtil.ICEBERG_STRUCT_TYPE_ATTRIBUTE);
         if (ORCSchemaUtil.VARIANT.equalsIgnoreCase(structType)) {
           return visitVariant(iType != null ? iType.asVariantType() : null, schema, visitor);
+        } else if (ORCSchemaUtil.FILE.equalsIgnoreCase(structType)) {
+          return visitFile(iType != null ? iType.asFileType() : null, schema, visitor);
         } else {
           return visitRecord(iType != null ? iType.asStructType() : null, schema, visitor);
         }
@@ -69,15 +71,26 @@ public abstract class OrcSchemaWithTypeVisitor<T> {
 
   private static <T> T visitRecord(
       Types.StructType struct, TypeDescription record, OrcSchemaWithTypeVisitor<T> visitor) {
+    return visitor.record(
+        struct, record, record.getFieldNames(), visitFields(struct, record, visitor));
+  }
+
+  private static <T> T visitFile(
+      Types.FileType iFile, TypeDescription file, OrcSchemaWithTypeVisitor<T> visitor) {
+    Types.StructType struct = iFile != null ? iFile.asStruct() : null;
+    return visitor.file(iFile, file, file.getFieldNames(), visitFields(struct, file, visitor));
+  }
+
+  private static <T> List<T> visitFields(
+      Types.StructType struct, TypeDescription record, OrcSchemaWithTypeVisitor<T> visitor) {
     List<TypeDescription> fields = record.getChildren();
-    List<String> names = record.getFieldNames();
     List<T> results = Lists.newArrayListWithExpectedSize(fields.size());
     for (TypeDescription field : fields) {
       int fieldId = ORCSchemaUtil.fieldId(field);
       Types.NestedField iField = struct != null ? struct.field(fieldId) : null;
       results.add(visit(iField != null ? iField.type() : null, field, visitor));
     }
-    return visitor.record(struct, record, names, results);
+    return results;
   }
 
   private static <T> T visitVariant(
@@ -108,6 +121,16 @@ public abstract class OrcSchemaWithTypeVisitor<T> {
 
   public T map(Types.MapType iMap, TypeDescription map, T key, T value) {
     return null;
+  }
+
+  /**
+   * Visits a file column, which is stored as an ORC struct of its nested fields.
+   *
+   * <p>The default handles the file as the struct of its nested fields. Override this to
+   * reconstruct a file column from those fields.
+   */
+  public T file(Types.FileType iFile, TypeDescription file, List<String> names, List<T> fields) {
+    return record(iFile != null ? iFile.asStruct() : null, file, names, fields);
   }
 
   public T variant(Types.VariantType iVariant, TypeDescription variant, T metadata, T value) {

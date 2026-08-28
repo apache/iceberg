@@ -27,6 +27,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 
 abstract class FlinkSchemaVisitor<T> {
@@ -38,7 +39,8 @@ abstract class FlinkSchemaVisitor<T> {
   private static <T> T visit(LogicalType flinkType, Type iType, FlinkSchemaVisitor<T> visitor) {
     switch (iType.typeId()) {
       case STRUCT:
-        return visitRecord(flinkType, iType.asStructType(), visitor);
+      case FILE:
+        return visitRecord(flinkType, TypeUtil.asStructType(iType), visitor);
 
       case MAP:
         MapType mapType = (MapType) flinkType;

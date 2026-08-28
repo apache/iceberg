@@ -92,6 +92,8 @@ public final class ORCSchemaUtil {
   static final String VARIANT_METADATA = "metadata";
   static final String VARIANT_VALUE = "value";
 
+  static final String FILE = "FILE";
+
   /**
    * The name of the ORC {@link TypeDescription} attribute indicating the Iceberg timestamp unit.
    */
@@ -215,6 +217,17 @@ public final class ORCSchemaUtil {
         orcType.addField(VARIANT_VALUE, TypeDescription.createBinary());
         orcType.setAttribute(ICEBERG_STRUCT_TYPE_ATTRIBUTE, VARIANT);
         break;
+      case FILE:
+        {
+          orcType = TypeDescription.createStruct();
+          for (Types.NestedField field : TypeUtil.asStructType(type).fields()) {
+            orcType.addField(
+                field.name(), convert(field.fieldId(), field.type(), field.isRequired()));
+          }
+
+          orcType.setAttribute(ICEBERG_STRUCT_TYPE_ATTRIBUTE, FILE);
+          break;
+        }
       case STRUCT:
         {
           orcType = TypeDescription.createStruct();
@@ -329,26 +342,12 @@ public final class ORCSchemaUtil {
     switch (type.typeId()) {
       case STRUCT:
         orcType = TypeDescription.createStruct();
-        for (Types.NestedField nestedField : type.asStructType().fields()) {
-          // Using suffix _r to avoid potential underlying issues in ORC reader
-          // with reused column names between ORC and Iceberg;
-          // e.g. renaming column c -> d and adding new column d
-          String name =
-              Optional.ofNullable(mapping.get(nestedField.fieldId()))
-                  .map(OrcField::name)
-                  .orElseGet(() -> nestedField.name() + "_r" + nestedField.fieldId());
-          TypeDescription childType =
-              buildOrcProjection(
-                  root,
-                  nestedField.fieldId(),
-                  nestedField.type(),
-                  isRequired && nestedField.isRequired(),
-                  mapping);
-
-          if (childType != null) {
-            orcType.addField(name, childType);
-          }
-        }
+        addProjectedFields(orcType, root, type.asStructType(), isRequired, mapping);
+        break;
+      case FILE:
+        orcType = TypeDescription.createStruct();
+        addProjectedFields(orcType, root, TypeUtil.asStructType(type), isRequired, mapping);
+        orcType.setAttribute(ICEBERG_STRUCT_TYPE_ATTRIBUTE, FILE);
         break;
       case LIST:
         Types.ListType list = (Types.ListType) type;
@@ -420,6 +419,34 @@ public final class ORCSchemaUtil {
     }
 
     return orcType;
+  }
+
+  private static void addProjectedFields(
+      TypeDescription orcType,
+      Schema root,
+      Types.StructType struct,
+      boolean isRequired,
+      Map<Integer, OrcField> mapping) {
+    for (Types.NestedField nestedField : struct.fields()) {
+      // Using suffix _r to avoid potential underlying issues in ORC reader
+      // with reused column names between ORC and Iceberg;
+      // e.g. renaming column c -> d and adding new column d
+      String name =
+          Optional.ofNullable(mapping.get(nestedField.fieldId()))
+              .map(OrcField::name)
+              .orElseGet(() -> nestedField.name() + "_r" + nestedField.fieldId());
+      TypeDescription childType =
+          buildOrcProjection(
+              root,
+              nestedField.fieldId(),
+              nestedField.type(),
+              isRequired && nestedField.isRequired(),
+              mapping);
+
+      if (childType != null) {
+        orcType.addField(name, childType);
+      }
+    }
   }
 
   private static Map<Integer, OrcField> icebergToOrcMapping(String name, TypeDescription orcType) {

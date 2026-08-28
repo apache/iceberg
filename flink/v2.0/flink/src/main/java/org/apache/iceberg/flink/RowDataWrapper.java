@@ -30,6 +30,7 @@ import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.table.types.logical.TimestampType;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.iceberg.util.UUIDUtil;
@@ -150,7 +151,7 @@ public class RowDataWrapper implements StructLike {
 
       case ROW:
         RowType rowType = (RowType) logicalType;
-        Types.StructType structType = (Types.StructType) type;
+        Types.StructType structType = TypeUtil.asStructType(type);
 
         RowDataWrapper nestedWrapper = new RowDataWrapper(rowType, structType);
         return (row, pos) -> nestedWrapper.wrap(row.getRow(pos, rowType.getFieldCount()));

@@ -180,6 +180,8 @@ public class SingleValueParser {
         return mapFromJson(type, defaultValue);
       case STRUCT:
         return structFromJson(type, defaultValue);
+      case FILE:
+        return fromJson(type.asFileType().asStruct(), defaultValue);
       default:
         throw new UnsupportedOperationException(String.format("Type: %s is not supported", type));
     }
@@ -409,6 +411,9 @@ public class SingleValueParser {
           }
         }
         generator.writeEndObject();
+        break;
+      case FILE:
+        toJson(type.asFileType().asStruct(), defaultValue, generator);
         break;
       default:
         throw new UnsupportedOperationException(String.format("Type: %s is not supported", type));
