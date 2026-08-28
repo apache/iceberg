@@ -2246,12 +2246,27 @@ public class TestRewriteDataFilesAction extends TestBase {
   public void testExecutorCacheForDeleteFilesDisabled() {
     Table table = createTablePartitioned(1, 1);
     RewriteDataFilesSparkAction action = SparkActions.get(spark).rewriteDataFiles(table);
+    action.execute();
 
-    // The constructor should have set the configuration to false
     SparkReadConf readConf = new SparkReadConf(action.spark(), table);
     assertThat(readConf.cacheDeleteFilesOnExecutors())
         .as("Executor cache for delete files should be disabled in RewriteDataFilesSparkAction")
         .isFalse();
+  }
+
+  @TestTemplate
+  void executorCacheForDeleteFilesEnabledByOption() {
+    Table table = createTablePartitioned(1, 1);
+    RewriteDataFilesSparkAction action =
+        SparkActions.get(spark)
+            .rewriteDataFiles(table)
+            .option(RewriteDataFilesSparkAction.EXECUTOR_CACHE_DELETE_FILES_ENABLED, "true");
+    action.execute();
+
+    SparkReadConf readConf = new SparkReadConf(action.spark(), table);
+    assertThat(readConf.cacheDeleteFilesOnExecutors())
+        .as("Executor cache for delete files should be enabled when the option requests it")
+        .isTrue();
   }
 
   @TestTemplate
