@@ -22,11 +22,17 @@ import static org.apache.iceberg.CatalogUtil.ICEBERG_CATALOG_TYPE;
 import static org.apache.iceberg.CatalogUtil.ICEBERG_CATALOG_TYPE_BIGQUERY;
 import static org.apache.iceberg.gcp.bigquery.BigQueryProperties.PROJECT_ID;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.clearInvocations;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
+import com.google.api.services.bigquery.model.DatasetReference;
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.catalog.CatalogTests;
 import org.apache.iceberg.catalog.Namespace;
@@ -45,6 +51,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 public class TestBigQueryCatalog extends CatalogTests<BigQueryMetastoreCatalog> {
   @TempDir private File tempFolder;
   private BigQueryMetastoreCatalog catalog;
+  private FakeBigQueryMetastoreClient client;
 
   @BeforeEach
   public void before() throws Exception {
@@ -99,7 +106,7 @@ public class TestBigQueryCatalog extends CatalogTests<BigQueryMetastoreCatalog> 
       String catalogName, Map<String, String> additionalProperties) {
 
     String warehouseLocation = tempFolder.toPath().resolve("hive-warehouse").toString();
-    FakeBigQueryMetastoreClient fakeBigQueryClient = new FakeBigQueryMetastoreClient();
+    this.client = spy(new FakeBigQueryMetastoreClient());
 
     Map<String, String> properties =
         Map.of(
@@ -129,7 +136,7 @@ public class TestBigQueryCatalog extends CatalogTests<BigQueryMetastoreCatalog> 
             .build(),
         "project-id",
         "us-central1",
-        fakeBigQueryClient);
+        client);
 
     return tmpCatalog;
   }
@@ -207,5 +214,17 @@ public class TestBigQueryCatalog extends CatalogTests<BigQueryMetastoreCatalog> 
   public void testIsValidIdentifierWithEmptyNamespace() {
     assertThat(catalog.isValidIdentifier(TableIdentifier.of(Namespace.empty(), "table1")))
         .isFalse();
+  }
+
+  @Test
+  public void removePropertiesLoadsNamespaceOnce() {
+    Namespace namespace = Namespace.of("namespace");
+    catalog.createNamespace(namespace, ImmutableMap.of("key", "value"));
+    clearInvocations(client);
+
+    assertThat(catalog.removeProperties(namespace, Set.of("key"))).isTrue();
+
+    verify(client, times(1))
+        .load(new DatasetReference().setProjectId("project-id").setDatasetId("namespace"));
   }
 }

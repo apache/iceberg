@@ -249,15 +249,7 @@ public class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
 
   @Override
   public boolean removeProperties(Namespace namespace, Set<String> properties) {
-    if (!namespaceExists(namespace)) {
-      throw new NoSuchNamespaceException("Namespace does not exist: %s", namespace);
-    }
-
     Preconditions.checkNotNull(properties, "Invalid properties to remove: null");
-
-    if (properties.isEmpty()) {
-      return false;
-    }
 
     return client.removeParameters(toDatasetReference(namespace), properties);
   }
