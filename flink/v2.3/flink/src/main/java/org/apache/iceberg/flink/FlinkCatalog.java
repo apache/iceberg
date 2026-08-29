@@ -85,6 +85,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.view.SQLViewRepresentation;
+import org.apache.iceberg.view.UpdateViewProperties;
 import org.apache.iceberg.view.View;
 import org.apache.iceberg.view.ViewProperties;
 
@@ -110,6 +111,7 @@ public class FlinkCatalog extends AbstractCatalog {
   private final ViewCatalog asViewCatalog;
   private final Closeable closeable;
   private final boolean cacheEnabled;
+  private final boolean viewDialectStrict;
 
   public FlinkCatalog(
       String catalogName,
@@ -118,10 +120,29 @@ public class FlinkCatalog extends AbstractCatalog {
       CatalogLoader catalogLoader,
       boolean cacheEnabled,
       long cacheExpirationIntervalMs) {
+    this(
+        catalogName,
+        defaultDatabase,
+        baseNamespace,
+        catalogLoader,
+        cacheEnabled,
+        cacheExpirationIntervalMs,
+        FlinkCatalogFactory.VIEW_DIALECT_STRICT_DEFAULT);
+  }
+
+  public FlinkCatalog(
+      String catalogName,
+      String defaultDatabase,
+      Namespace baseNamespace,
+      CatalogLoader catalogLoader,
+      boolean cacheEnabled,
+      long cacheExpirationIntervalMs,
+      boolean viewDialectStrict) {
     super(catalogName, defaultDatabase);
     this.catalogLoader = catalogLoader;
     this.baseNamespace = baseNamespace;
     this.cacheEnabled = cacheEnabled;
+    this.viewDialectStrict = viewDialectStrict;
 
     Catalog originalCatalog = catalogLoader.loadCatalog();
     icebergCatalog =
@@ -597,6 +618,56 @@ public class FlinkCatalog extends AbstractCatalog {
     }
   }
 
+  private void alterIcebergView(
+      ObjectPath tablePath, ResolvedCatalogView newView, boolean ignoreIfNotExists)
+      throws TableNotExistException, CatalogException {
+    View view;
+    try {
+      view = asViewCatalog.loadView(toIdentifier(tablePath));
+    } catch (NoSuchViewException e) {
+      if (!ignoreIfNotExists) {
+        throw new TableNotExistException(getName(), tablePath, e);
+      }
+
+      return;
+    }
+
+    SQLViewRepresentation currentRepresentation = view.sqlFor(FLINK_DIALECT);
+    if (currentRepresentation == null
+        || !newView.getOriginalQuery().equals(currentRepresentation.sql())) {
+      // a new query becomes a new view version; the stored resolution context is preserved
+      view.replaceVersion()
+          .withQuery(FLINK_DIALECT, newView.getOriginalQuery())
+          .withSchema(FlinkSchemaUtil.convert(newView.getResolvedSchema()))
+          .withDefaultNamespace(view.currentVersion().defaultNamespace())
+          .commit();
+    }
+
+    // only set changed or added properties: Flink SQL cannot express a property removal
+    // (ALTER VIEW SET merges), and removing keys absent from the incoming options could
+    // strip properties that Flink did not carry over
+    Map<String, String> newProperties = Maps.newHashMap(newView.getOptions());
+    newProperties.remove(DEFAULT_CATALOG_OPTION);
+    newProperties.remove(DEFAULT_NAMESPACE_OPTION);
+    if (!StringUtils.isNullOrWhitespaceOnly(newView.getComment())) {
+      newProperties.put(ViewProperties.COMMENT, newView.getComment());
+    }
+
+    Map<String, String> currentProperties = view.properties();
+    UpdateViewProperties update = view.updateProperties();
+    boolean changed = false;
+    for (Map.Entry<String, String> entry : newProperties.entrySet()) {
+      if (!entry.getValue().equals(currentProperties.get(entry.getKey()))) {
+        update.set(entry.getKey(), entry.getValue());
+        changed = true;
+      }
+    }
+
+    if (changed) {
+      update.commit();
+    }
+  }
+
   private static void validateTableSchemaAndPartition(CatalogTable ct1, CatalogTable ct2) {
     if (!Objects.equals(ct1.getUnresolvedSchema(), ct2.getUnresolvedSchema())) {
       throw new UnsupportedOperationException(
@@ -632,8 +703,17 @@ public class FlinkCatalog extends AbstractCatalog {
   public void alterTable(ObjectPath tablePath, CatalogBaseTable newTable, boolean ignoreIfNotExists)
       throws CatalogException, TableNotExistException {
     if (newTable instanceof CatalogView) {
-      throw new UnsupportedOperationException(
-          "Altering a view is not supported yet for catalog: " + getName());
+      if (asViewCatalog == null) {
+        throw new UnsupportedOperationException(
+            "Altering a view is not supported by catalog: " + getName());
+      }
+
+      Preconditions.checkArgument(
+          newTable instanceof ResolvedCatalogView,
+          "Expected a ResolvedCatalogView but got: %s",
+          newTable.getClass().getName());
+      alterIcebergView(tablePath, (ResolvedCatalogView) newTable, ignoreIfNotExists);
+      return;
     }
 
     validateFlinkTable(newTable);
@@ -820,6 +900,12 @@ public class FlinkCatalog extends AbstractCatalog {
   private CatalogView toCatalogView(View view) {
     SQLViewRepresentation sqlRepresentation = view.sqlFor(FLINK_DIALECT);
     Preconditions.checkState(sqlRepresentation != null, "Cannot load SQL for view %s", view.name());
+    if (viewDialectStrict && !FLINK_DIALECT.equalsIgnoreCase(sqlRepresentation.dialect())) {
+      throw new UnsupportedOperationException(
+          String.format(
+              "View %s does not have a flink dialect representation and %s is enabled",
+              view.name(), FlinkCatalogFactory.VIEW_DIALECT_STRICT));
+    }
 
     ResolvedSchema resolvedSchema = FlinkSchemaUtil.toResolvedSchema(view.schema());
     org.apache.flink.table.api.Schema schema =
