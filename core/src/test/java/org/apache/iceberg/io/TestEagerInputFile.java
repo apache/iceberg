@@ -242,11 +242,13 @@ public class TestEagerInputFile {
     assertThatThrownBy(() -> EagerInputFile.of(new InMemoryInputFile(bytes), SIZE - 1).newStream())
         .as("File is longer than the recorded length")
         .isInstanceOf(RuntimeIOException.class)
+        .hasMessageContaining("Failed to fetch file")
         .hasRootCauseMessage("Did not reach the end of stream after reading 99 bytes");
 
     assertThatThrownBy(() -> EagerInputFile.of(new InMemoryInputFile(bytes), SIZE + 1).newStream())
         .as("File is shorter than the recorded length")
         .isInstanceOf(RuntimeIOException.class)
+        .hasMessageContaining("Failed to fetch file")
         .hasRootCauseMessage("Reached the end of stream with 1 bytes left to read");
   }
 
