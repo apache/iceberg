@@ -24,6 +24,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.io.EOFException;
 import java.util.Arrays;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.hadoop.HadoopConfigurable;
 import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.inmemory.InMemoryInputFile;
@@ -232,6 +233,21 @@ public class TestEagerInputFile {
           .isInstanceOf(EOFException.class)
           .hasMessageContaining("exceeds stream length");
     }
+  }
+
+  @Test
+  public void testStaleLengthThrows() {
+    byte[] bytes = makeBytes();
+
+    assertThatThrownBy(() -> EagerInputFile.of(new InMemoryInputFile(bytes), SIZE - 1).newStream())
+        .as("File is longer than the recorded length")
+        .isInstanceOf(RuntimeIOException.class)
+        .hasRootCauseMessage("Did not reach the end of stream after reading 99 bytes");
+
+    assertThatThrownBy(() -> EagerInputFile.of(new InMemoryInputFile(bytes), SIZE + 1).newStream())
+        .as("File is shorter than the recorded length")
+        .isInstanceOf(RuntimeIOException.class)
+        .hasRootCauseMessage("Reached the end of stream with 1 bytes left to read");
   }
 
   @Test

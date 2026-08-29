@@ -90,6 +90,8 @@ public class TestParquetEagerRead {
     SeekableInputStream delegateStream = openedStreams.get(0);
     Mockito.verify(delegateStream, Mockito.times(1))
         .read(Mockito.any(byte[].class), Mockito.anyInt(), Mockito.anyInt());
+    // reads from the same stream; no additional request
+    Mockito.verify(delegateStream, Mockito.times(1).description("end of stream check")).read();
     Mockito.verify(delegateStream, Mockito.times(1)).close();
     Mockito.verifyNoMoreInteractions(delegateStream);
   }
