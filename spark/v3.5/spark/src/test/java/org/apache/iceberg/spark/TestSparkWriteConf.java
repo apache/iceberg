@@ -115,6 +115,26 @@ public class TestSparkWriteConf extends TestBaseWithCatalog {
   }
 
   @TestTemplate
+  public void writeBranchOptionTakesPrecedenceOverWapBranch() {
+    Table table = validationCatalog.loadTable(tableIdent);
+    table.updateProperties().set(TableProperties.WRITE_AUDIT_PUBLISH_ENABLED, "true").commit();
+
+    withSQLConf(
+        ImmutableMap.of(SparkSQLProperties.WAP_BRANCH, "wapBranch"),
+        () -> {
+          // With WAP enabled and no write option, the session WAP branch is used.
+          SparkWriteConf wapConf = new SparkWriteConf(spark, table, null, ImmutableMap.of());
+          assertThat(wapConf.branch()).isEqualTo("wapBranch");
+
+          // The branch write option takes precedence over the session WAP branch.
+          SparkWriteConf optionConf =
+              new SparkWriteConf(
+                  spark, table, null, ImmutableMap.of(SparkWriteOptions.BRANCH, "branchA"));
+          assertThat(optionConf.branch()).isEqualTo("branchA");
+        });
+  }
+
+  @TestTemplate
   public void testOptionCaseInsensitive() {
     Table table = validationCatalog.loadTable(tableIdent);
     Map<String, String> options = ImmutableMap.of("option", "value");
