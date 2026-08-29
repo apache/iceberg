@@ -22,6 +22,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.configuration.ReadableConfig;
@@ -38,11 +39,14 @@ import org.apache.flink.table.connector.source.abilities.SupportsFilterPushDown;
 import org.apache.flink.table.connector.source.abilities.SupportsLimitPushDown;
 import org.apache.flink.table.connector.source.abilities.SupportsProjectionPushDown;
 import org.apache.flink.table.connector.source.abilities.SupportsSourceWatermark;
+import org.apache.flink.table.connector.source.abilities.SupportsStatisticReport;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.expressions.ResolvedExpression;
 import org.apache.flink.table.factories.FactoryUtil;
 import org.apache.flink.table.legacy.api.TableSchema;
+import org.apache.flink.table.plan.stats.TableStats;
 import org.apache.flink.table.types.DataType;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.flink.FlinkConfigOptions;
 import org.apache.iceberg.flink.FlinkFilters;
@@ -51,8 +55,11 @@ import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.source.assigner.SplitAssignerType;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.PropertyUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** Flink Iceberg table source. */
 @Internal
@@ -61,7 +68,23 @@ public class IcebergTableSource
         SupportsProjectionPushDown,
         SupportsFilterPushDown,
         SupportsLimitPushDown,
-        SupportsSourceWatermark {
+        SupportsSourceWatermark,
+        SupportsStatisticReport {
+
+  private static final Logger LOG = LoggerFactory.getLogger(IcebergTableSource.class);
+
+  // statistics are computed for the current table state only; these options change what is read
+  private static final Set<String> TIME_TRAVEL_OPTIONS =
+      ImmutableSet.of(
+          "snapshot-id",
+          "branch",
+          "tag",
+          "as-of-timestamp",
+          "start-snapshot-id",
+          "end-snapshot-id",
+          "start-tag",
+          "end-tag",
+          "start-snapshot-timestamp");
 
   private int[] projectedFields;
   private Long limit;
@@ -226,6 +249,30 @@ public class IcebergTableSource
             PropertyUtil.propertyAsNullableInt(properties, FactoryUtil.SOURCE_PARALLELISM.key()));
       }
     };
+  }
+
+  @Override
+  public TableStats reportStatistics() {
+    try {
+      if (!FlinkSource.isBounded(properties)) {
+        return TableStats.UNKNOWN;
+      }
+
+      if (TIME_TRAVEL_OPTIONS.stream().anyMatch(properties::containsKey)) {
+        return TableStats.UNKNOWN;
+      }
+
+      boolean columnStatsEnabled =
+          readableConfig.get(FlinkConfigOptions.TABLE_EXEC_ICEBERG_REPORT_COLUMN_STATISTICS);
+      try (TableLoader tableLoader = loader.clone()) {
+        tableLoader.open();
+        Table table = tableLoader.loadTable();
+        return FlinkTableStatistics.reportStatistics(table, filters, columnStatsEnabled);
+      }
+    } catch (Exception e) {
+      LOG.warn("Failed to report statistics for Iceberg table, returning unknown stats", e);
+      return TableStats.UNKNOWN;
+    }
   }
 
   @Override
