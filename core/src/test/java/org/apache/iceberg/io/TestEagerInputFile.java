@@ -236,7 +236,7 @@ public class TestEagerInputFile {
   }
 
   @Test
-  public void testStaleLengthThrows() {
+  public void testIncorrectLengthThrows() {  public void testIncorrectLengthThrows() {
     byte[] bytes = makeBytes();
 
     assertThatThrownBy(() -> EagerInputFile.of(new InMemoryInputFile(bytes), SIZE - 1).newStream())
