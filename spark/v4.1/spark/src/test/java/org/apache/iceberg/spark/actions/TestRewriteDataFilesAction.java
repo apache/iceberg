@@ -1625,6 +1625,51 @@ public class TestRewriteDataFilesAction extends TestBase {
         .hasMessageContaining("must be > 1");
   }
 
+  @TestTemplate
+  public void testMinOverlapDepthRejectsZOrder() {
+    Table table = createTable(2);
+    table.replaceSortOrder().asc("c2").commit();
+
+    assertThatThrownBy(
+            () ->
+                basicRewrite(table)
+                    .zOrder("c2", "c3")
+                    .option(SparkShufflingDataRewritePlanner.MIN_OVERLAP_DEPTH, "2")
+                    .execute())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("applies to the sort strategy only");
+  }
+
+  @TestTemplate
+  public void testMinOverlapDepthRejectsSortOrderOtherThanTableOrder() {
+    Table table = createTable(2);
+    table.replaceSortOrder().asc("c2").commit();
+
+    assertThatThrownBy(
+            () ->
+                basicRewrite(table)
+                    .sort(SortOrder.builderFor(table.schema()).asc("c3").build())
+                    .option(SparkShufflingDataRewritePlanner.MIN_OVERLAP_DEPTH, "2")
+                    .execute())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("other than the table sort order");
+  }
+
+  @TestTemplate
+  public void testMinOverlapDepthRejectsHilbert() {
+    Table table = createTable(2);
+    table.replaceSortOrder().asc("c2").commit();
+
+    assertThatThrownBy(
+            () ->
+                basicRewrite(table)
+                    .hilbert("c2", "c3")
+                    .option(SparkShufflingDataRewritePlanner.MIN_OVERLAP_DEPTH, "2")
+                    .execute())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("applies to the sort strategy only");
+  }
+
   /**
    * A sort rewrite whose size thresholds accept every file as is, so that only the overlap axis can
    * select files.

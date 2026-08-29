@@ -61,9 +61,11 @@ class SparkShufflingDataRewritePlanner extends BinPackRewriteFilePlanner {
    * this many files of the same partition are added to the rewrite, on top of the files selected by
    * size and by deletes.
    *
-   * <p>The overlap is measured on the table sort order using data file bounds only, as reported by
-   * the {@code compute_sort_order_stats} procedure. Because column bounds may be truncated, the
-   * measured depth is an upper-bound estimate. Unset by default, which leaves selection unchanged.
+   * <p>The overlap is measured on the first field of the table sort order using data file bounds
+   * only. Because column bounds may be truncated, the measured depth is an upper-bound estimate.
+   * When the first sort field has low cardinality, most files share the same bounds on it and the
+   * depth approaches the file count regardless of layout, so the option is not a useful signal for
+   * such tables. Unset by default, which leaves selection unchanged.
    */
   public static final String MIN_OVERLAP_DEPTH = "min-overlap-depth";
 
