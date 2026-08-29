@@ -39,6 +39,7 @@ import org.apache.flink.table.catalog.CatalogTable;
 import org.apache.flink.table.catalog.CatalogView;
 import org.apache.flink.table.catalog.ObjectPath;
 import org.apache.flink.table.catalog.ResolvedCatalogTable;
+import org.apache.flink.table.catalog.ResolvedCatalogView;
 import org.apache.flink.table.catalog.ResolvedSchema;
 import org.apache.flink.table.catalog.TableChange;
 import org.apache.flink.table.catalog.exceptions.CatalogException;
@@ -440,12 +441,21 @@ public class FlinkCatalog extends AbstractCatalog {
   @Override
   public void dropTable(ObjectPath tablePath, boolean ignoreIfNotExists)
       throws TableNotExistException, CatalogException {
+    TableIdentifier identifier = toIdentifier(tablePath);
+
+    boolean dropped;
     try {
-      icebergCatalog.dropTable(toIdentifier(tablePath));
+      dropped = icebergCatalog.dropTable(identifier);
     } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
-      if (!ignoreIfNotExists) {
-        throw new TableNotExistException(getName(), tablePath, e);
-      }
+      dropped = false;
+    }
+
+    if (!dropped && asViewCatalog != null) {
+      dropped = asViewCatalog.dropView(identifier);
+    }
+
+    if (!dropped && !ignoreIfNotExists) {
+      throw new TableNotExistException(getName(), tablePath);
     }
   }
 
@@ -457,6 +467,17 @@ public class FlinkCatalog extends AbstractCatalog {
           toIdentifier(tablePath),
           toIdentifier(new ObjectPath(tablePath.getDatabaseName(), newTableName)));
     } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
+      if (asViewCatalog != null) {
+        try {
+          asViewCatalog.renameView(
+              toIdentifier(tablePath),
+              toIdentifier(new ObjectPath(tablePath.getDatabaseName(), newTableName)));
+          return;
+        } catch (NoSuchViewException viewException) {
+          e.addSuppressed(viewException);
+        }
+      }
+
       if (!ignoreIfNotExists) {
         throw new TableNotExistException(getName(), tablePath, e);
       }
@@ -468,6 +489,20 @@ public class FlinkCatalog extends AbstractCatalog {
   @Override
   public void createTable(ObjectPath tablePath, CatalogBaseTable table, boolean ignoreIfExists)
       throws CatalogException, TableAlreadyExistException {
+    if (table instanceof CatalogView) {
+      if (asViewCatalog == null) {
+        throw new UnsupportedOperationException(
+            "Creating a view is not supported by catalog: " + getName());
+      }
+
+      Preconditions.checkArgument(
+          table instanceof ResolvedCatalogView,
+          "Expected a ResolvedCatalogView but got: %s",
+          table.getClass().getName());
+      createIcebergView(tablePath, (ResolvedCatalogView) table, ignoreIfExists);
+      return;
+    }
+
     // Creating Iceberg table using connector is allowed only when table is created using LIKE
     if (Objects.equals(
             table.getOptions().get(FlinkCreateTableOptions.CONNECTOR_PROPS_KEY),
@@ -529,6 +564,35 @@ public class FlinkCatalog extends AbstractCatalog {
         || FlinkCreateTableOptions.SRC_CATALOG_PROPS_KEY.equalsIgnoreCase(prop);
   }
 
+  private void createIcebergView(
+      ObjectPath tablePath, ResolvedCatalogView view, boolean ignoreIfExists)
+      throws CatalogException, TableAlreadyExistException {
+    Map<String, String> properties = Maps.newHashMap(view.getOptions());
+    properties.remove(DEFAULT_CATALOG_OPTION);
+    properties.remove(DEFAULT_NAMESPACE_OPTION);
+    if (!StringUtils.isNullOrWhitespaceOnly(view.getComment())) {
+      properties.put(ViewProperties.COMMENT, view.getComment());
+    }
+
+    try {
+      // the default catalog is intentionally left unset so that readers resolve it to the
+      // name this catalog is registered under (see toCatalogView)
+      asViewCatalog
+          .buildView(toIdentifier(tablePath))
+          .withSchema(FlinkSchemaUtil.convert(view.getResolvedSchema()))
+          .withDefaultNamespace(appendLevel(baseNamespace, tablePath.getDatabaseName()))
+          .withQuery(FLINK_DIALECT, view.getOriginalQuery())
+          .withProperties(properties)
+          .create();
+    } catch (AlreadyExistsException e) {
+      if (!ignoreIfExists) {
+        throw new TableAlreadyExistException(getName(), tablePath, e);
+      }
+    } catch (NoSuchNamespaceException e) {
+      throw new CatalogException("Database does not exist: " + tablePath.getDatabaseName(), e);
+    }
+  }
+
   private static void validateTableSchemaAndPartition(CatalogTable ct1, CatalogTable ct2) {
     if (!Objects.equals(ct1.getUnresolvedSchema(), ct2.getUnresolvedSchema())) {
       throw new UnsupportedOperationException(
@@ -563,6 +627,11 @@ public class FlinkCatalog extends AbstractCatalog {
   @Override
   public void alterTable(ObjectPath tablePath, CatalogBaseTable newTable, boolean ignoreIfNotExists)
       throws CatalogException, TableNotExistException {
+    if (newTable instanceof CatalogView) {
+      throw new UnsupportedOperationException(
+          "Altering a view is not supported yet for catalog: " + getName());
+    }
+
     validateFlinkTable(newTable);
 
     Table icebergTable;
@@ -625,6 +694,11 @@ public class FlinkCatalog extends AbstractCatalog {
       List<TableChange> tableChanges,
       boolean ignoreIfNotExists)
       throws TableNotExistException, CatalogException {
+    if (newTable instanceof CatalogView) {
+      throw new UnsupportedOperationException(
+          "Altering a view is not supported yet for catalog: " + getName());
+    }
+
     validateFlinkTable(newTable);
 
     Table icebergTable;

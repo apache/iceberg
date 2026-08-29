@@ -277,6 +277,91 @@ public class TestFlinkCatalogView extends CatalogTestBase {
   }
 
   @TestTemplate
+  public void testCreateViewViaSql() {
+    sql("CREATE VIEW %s AS SELECT id, data FROM %s", VIEW_NAME, TABLE_NAME);
+
+    assertSameElements(expectedRows(), sql("SELECT * FROM %s", VIEW_NAME));
+
+    View view = viewCatalog().loadView(TableIdentifier.of(icebergNamespace, VIEW_NAME));
+    // Flink hands the catalog its normalized (unparsed) SQL; references must stay unexpanded
+    assertThat(view.sqlFor("flink").sql())
+        .containsIgnoringCase(String.format("FROM `%s`", TABLE_NAME))
+        .doesNotContain(catalogName);
+    assertThat(view.currentVersion().defaultNamespace()).isEqualTo(icebergNamespace);
+    assertThat(view.currentVersion().defaultCatalog()).isNull();
+    assertThat(view.schema().columns())
+        .extracting(Types.NestedField::name)
+        .containsExactly("id", "data");
+    assertThat(view.properties())
+        .doesNotContainKey("default-catalog")
+        .doesNotContainKey("default-namespace");
+  }
+
+  @TestTemplate
+  public void testCreateViewWithCommentAndColumnList() {
+    sql(
+        "CREATE VIEW %s (view_id, view_data) COMMENT 'a view comment' AS SELECT id, data FROM %s",
+        VIEW_NAME, TABLE_NAME);
+
+    View view = viewCatalog().loadView(TableIdentifier.of(icebergNamespace, VIEW_NAME));
+    assertThat(view.properties()).containsEntry(ViewProperties.COMMENT, "a view comment");
+    assertThat(view.schema().columns())
+        .extracting(Types.NestedField::name)
+        .containsExactly("view_id", "view_data");
+  }
+
+  @TestTemplate
+  public void testCreateViewIfNotExists() {
+    sql("CREATE VIEW %s AS SELECT id, data FROM %s", VIEW_NAME, TABLE_NAME);
+    // IF NOT EXISTS is silent
+    sql("CREATE VIEW IF NOT EXISTS %s AS SELECT id FROM %s", VIEW_NAME, TABLE_NAME);
+    // without it, creation fails
+    assertThatThrownBy(() -> sql("CREATE VIEW %s AS SELECT id FROM %s", VIEW_NAME, TABLE_NAME))
+        .hasMessageContaining(VIEW_NAME);
+  }
+
+  @TestTemplate
+  public void testCreateViewOverExistingTableFails() {
+    assertThatThrownBy(() -> sql("CREATE VIEW %s AS SELECT id FROM %s", TABLE_NAME, TABLE_NAME))
+        .hasMessageContaining(TABLE_NAME);
+  }
+
+  @TestTemplate
+  public void testDropView() {
+    sql("CREATE VIEW %s AS SELECT id, data FROM %s", VIEW_NAME, TABLE_NAME);
+    assertThat(sql("SHOW VIEWS")).containsExactly(Row.of(VIEW_NAME));
+
+    sql("DROP VIEW %s", VIEW_NAME);
+    assertThat(sql("SHOW VIEWS")).isEmpty();
+    assertThat(viewCatalog().viewExists(TableIdentifier.of(icebergNamespace, VIEW_NAME))).isFalse();
+  }
+
+  @TestTemplate
+  public void testDropViewIfExists() {
+    sql("DROP VIEW IF EXISTS nonexistent_view");
+    assertThatThrownBy(() -> sql("DROP VIEW nonexistent_view"))
+        .hasMessageContaining("nonexistent_view");
+  }
+
+  @TestTemplate
+  public void testRenameView() {
+    sql("CREATE VIEW %s AS SELECT id, data FROM %s", VIEW_NAME, TABLE_NAME);
+    sql("ALTER VIEW %s RENAME TO renamed_view", VIEW_NAME);
+
+    assertThat(sql("SHOW VIEWS")).containsExactly(Row.of("renamed_view"));
+    assertSameElements(expectedRows(), sql("SELECT * FROM renamed_view"));
+  }
+
+  @TestTemplate
+  public void testAlterViewAsIsRejected() {
+    sql("CREATE VIEW %s AS SELECT id, data FROM %s", VIEW_NAME, TABLE_NAME);
+    assertThatThrownBy(() -> sql("ALTER VIEW %s AS SELECT id FROM %s", VIEW_NAME, TABLE_NAME))
+        .hasMessageContaining("Could not execute AlterTable")
+        .rootCause()
+        .hasMessageContaining("Altering a view is not supported");
+  }
+
+  @TestTemplate
   public void testGetViewViaCatalogApi() throws Exception {
     createView("flink", "SELECT id, data FROM test_table");
 
