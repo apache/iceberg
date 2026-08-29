@@ -229,7 +229,7 @@ class TestEqualityConvertReader extends OperatorTestBase {
     PartitionSpec spec = table.specs().get(dataFile.specId());
     List<Integer> fieldIds = Lists.newArrayList(1);
     long mainSnapshotId = 42L;
-    long mainSequenceNumber = 7L;
+    long indexGeneration = 7L;
     long dataSequenceNumber = 9L;
 
     try (OneInputStreamOperatorTestHarness<ReadCommand, IndexCommand> harness =
@@ -240,14 +240,14 @@ class TestEqualityConvertReader extends OperatorTestBase {
           ReadCommand.stagingDataFile(
               new FlinkAddedRowsScanTask(dataFile, spec),
               mainSnapshotId,
-              mainSequenceNumber,
+              indexGeneration,
               dataSequenceNumber);
       harness.processElement(cmd, 0);
 
       List<IndexCommand> output = harness.extractOutputValues();
       assertThat(output).hasSize(1);
       assertThat(output.get(0).mainSnapshotId()).isEqualTo(mainSnapshotId);
-      assertThat(output.get(0).mainSequenceNumber()).isEqualTo(mainSequenceNumber);
+      assertThat(output.get(0).indexGeneration()).isEqualTo(indexGeneration);
       assertThat(output.get(0).rowPosition().dataSequenceNumber()).isEqualTo(dataSequenceNumber);
     }
   }
