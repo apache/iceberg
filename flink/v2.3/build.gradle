@@ -70,16 +70,20 @@ project(":iceberg-flink:iceberg-flink-${flinkMajorVersion}") {
     implementation libs.datasketches
     implementation libs.roaringbitmap
 
-    testImplementation libs.flink23.connector.test.utils
+    testImplementation(libs.flink23.connector.test.utils) {
+      exclude group: 'junit'
+      exclude group: 'org.junit.vintage'
+    }
     testImplementation libs.flink23.core
     testImplementation libs.flink23.runtime
-    testImplementation(libs.flink23.test.utilsjunit) {
-      exclude group: 'junit'
-    }
     testImplementation(libs.flink23.test.utils) {
       exclude group: "org.apache.curator", module: 'curator-test'
       exclude group: 'junit'
+      exclude group: 'org.junit.vintage'
     }
+    // Flink test utils still require JUnit 4 classes at runtime until
+    // https://issues.apache.org/jira/browse/FLINK-25325 is fixed.
+    testRuntimeOnly libs.junit.v4
 
     testImplementation project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
@@ -184,7 +188,11 @@ project(":iceberg-flink:iceberg-flink-runtime-${flinkMajorVersion}") {
     integrationImplementation(libs.flink23.test.utils) {
       exclude group: "org.apache.curator", module: 'curator-test'
       exclude group: 'junit'
+      exclude group: 'org.junit.vintage'
     }
+    // Flink test utils still require JUnit 4 classes at runtime until
+    // https://issues.apache.org/jira/browse/FLINK-25325 is fixed.
+    integrationRuntimeOnly libs.junit.v4
 
     integrationImplementation libs.flink23.table.api.java.bridge
     integrationImplementation "org.apache.flink:flink-table-planner_${scalaVersion}:${libs.versions.flink23.get()}"

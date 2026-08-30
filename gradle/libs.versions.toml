@@ -210,7 +210,6 @@ flink23-connector-test-utils = { module = "org.apache.flink:flink-connector-test
 flink23-core = { module = "org.apache.flink:flink-core", version.ref = "flink23" }
 flink23-runtime = { module = "org.apache.flink:flink-runtime", version.ref = "flink23" }
 flink23-test-utils = { module = "org.apache.flink:flink-test-utils", version.ref = "flink23" }
-flink23-test-utilsjunit = { module = "org.apache.flink:flink-test-utils-junit", version.ref = "flink23" }
 guava-testlib = { module = "com.google.guava:guava-testlib", version.ref = "guava" }
 jakarta-el-api = { module = "jakarta.el:jakarta.el-api", version.ref = "jakarta-el-api" }
 jakarta-servlet = {module = "jakarta.servlet:jakarta.servlet-api", version.ref = "jakarta-servlet-api"}
