@@ -54,7 +54,7 @@ flink22 = { strictly = "2.2.0"}
 flink23 = { strictly = "2.3.0"}
 google-libraries-bom = "26.86.0"
 gcs-analytics-core = "1.5.0"
-guava = "33.6.0-jre"
+guava = "33.7.1-jre"
 hadoop3 = "3.4.3"
 httpcomponents-httpclient5 = "5.6.4"
 hive2 = { strictly = "2.3.10"} # see rich version usage explanation above
