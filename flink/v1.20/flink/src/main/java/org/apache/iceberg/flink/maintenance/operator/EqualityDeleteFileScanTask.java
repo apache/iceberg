@@ -29,10 +29,30 @@ import org.apache.iceberg.expressions.Expressions;
  * {@link ContentScanTask} for reading a single equality delete file standalone. The {@link
  * DeleteFile#equalityFieldIds()} on {@link #file()} carries the PK field IDs the worker resolves
  * against.
+ *
+ * <p>A plain class rather than a record so it round-trips through Flink's Kryo fallback on Flink
+ * 1.20, whose bundled Kryo 2.x cannot build a serializer for record classes.
  */
 @Internal
-record EqualityDeleteFileScanTask(DeleteFile file, PartitionSpec spec)
-    implements ContentScanTask<DeleteFile> {
+class EqualityDeleteFileScanTask implements ContentScanTask<DeleteFile> {
+
+  private final DeleteFile file;
+  private final PartitionSpec spec;
+
+  EqualityDeleteFileScanTask(DeleteFile file, PartitionSpec spec) {
+    this.file = file;
+    this.spec = spec;
+  }
+
+  @Override
+  public DeleteFile file() {
+    return file;
+  }
+
+  @Override
+  public PartitionSpec spec() {
+    return spec;
+  }
 
   @Override
   public long start() {

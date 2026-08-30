@@ -72,6 +72,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.rest.RESTCatalogProperties.ScanPlanningMode;
 import org.apache.iceberg.rest.RESTCatalogProperties.SnapshotMode;
 import org.apache.iceberg.rest.RESTTableCache.TableWithETag;
 import org.apache.iceberg.rest.auth.AuthManager;
@@ -117,12 +118,6 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     implements Configurable<Object>, Closeable {
   private static final Logger LOG = LoggerFactory.getLogger(RESTSessionCatalog.class);
   private static final String DEFAULT_FILE_IO_IMPL = "org.apache.iceberg.io.ResolvingFileIO";
-
-  /**
-   * @deprecated will be removed in 1.12.0. Use {@link
-   *     org.apache.iceberg.rest.RESTCatalogProperties#PAGE_SIZE} instead.
-   */
-  @Deprecated public static final String REST_PAGE_SIZE = "rest-page-size";
 
   // these default endpoints must not be updated in order to maintain backwards compatibility with
   // legacy servers
@@ -174,6 +169,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   private Set<Endpoint> endpoints;
   private Supplier<Map<String, String>> mutationHeaders = Map::of;
   private String namespaceSeparator = null;
+  private ScanPlanningMode clientScanPlanningMode = null;
 
   private RESTTableCache tableCache;
 
@@ -290,6 +286,10 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
             mergedProps,
             RESTCatalogProperties.NAMESPACE_SEPARATOR,
             RESTCatalogProperties.NAMESPACE_SEPARATOR_DEFAULT);
+
+    String scanPlanningModeConfig = mergedProps.get(RESTCatalogProperties.SCAN_PLANNING_MODE);
+    this.clientScanPlanningMode =
+        scanPlanningModeConfig == null ? null : ScanPlanningMode.fromString(scanPlanningModeConfig);
 
     this.tableCache = createTableCache(mergedProps);
     this.closeables.addCloseable(this.tableCache);
@@ -551,10 +551,17 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     }
 
     List<Credential> credentials = response.credentials();
+    RemoteSigningConfig remoteSigningConfig = response.remoteSigningConfig();
     RESTClient tableClient = client.withAuthSession(tableSession);
     Supplier<BaseTable> tableSupplier =
         createTableSupplier(
-            finalIdentifier, tableMetadata, context, tableClient, tableConf, credentials);
+            finalIdentifier,
+            tableMetadata,
+            context,
+            tableClient,
+            tableConf,
+            credentials,
+            remoteSigningConfig);
 
     String eTag = responseHeaders.getOrDefault(HttpHeaders.ETAG, null);
     if (eTag != null) {
@@ -574,7 +581,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       SessionContext context,
       RESTClient tableClient,
       Map<String, String> tableConf,
-      List<Credential> credentials) {
+      List<Credential> credentials,
+      RemoteSigningConfig remoteSigningConfig) {
     return () -> {
       RESTTableOperations ops =
           newTableOps(
@@ -582,7 +590,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
               paths.table(identifier),
               Map::of,
               mutationHeaders,
-              tableFileIO(context, tableConf, credentials),
+              tableFileIO(identifier, context, tableConf, credentials, remoteSigningConfig),
               tableMetadata,
               endpoints);
 
@@ -603,31 +611,34 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       TableIdentifier finalIdentifier,
       RESTClient restClient,
       Map<String, String> tableConf) {
-    // Get client-side and server-side scan planning modes
-    String planningModeClientConfig = properties().get(RESTCatalogProperties.SCAN_PLANNING_MODE);
     String planningModeServerConfig = tableConf.get(RESTCatalogProperties.SCAN_PLANNING_MODE);
+    ScanPlanningMode serverScanPlanningMode =
+        planningModeServerConfig == null
+            ? null
+            : ScanPlanningMode.fromString(planningModeServerConfig);
 
-    // Warn if client and server configs conflict; server config takes precedence
-    if (planningModeClientConfig != null
-        && planningModeServerConfig != null
-        && !planningModeClientConfig.equalsIgnoreCase(planningModeServerConfig)) {
+    // Warn if client and server configs conflict
+    if (clientScanPlanningMode != null
+        && serverScanPlanningMode != null
+        && clientScanPlanningMode != serverScanPlanningMode) {
       LOG.warn(
           "Scan planning mode mismatch for table {}: client config={}, server config={}. "
               + "Server config will take precedence.",
           finalIdentifier,
-          planningModeClientConfig,
+          clientScanPlanningMode.modeName(),
           planningModeServerConfig);
     }
 
-    // Determine effective mode: prefer server config if present, otherwise use client config
-    String effectiveModeConfig =
-        planningModeServerConfig != null ? planningModeServerConfig : planningModeClientConfig;
-    RESTCatalogProperties.ScanPlanningMode effectiveMode =
-        effectiveModeConfig != null
-            ? RESTCatalogProperties.ScanPlanningMode.fromString(effectiveModeConfig)
-            : RESTCatalogProperties.SCAN_PLANNING_MODE_DEFAULT;
+    // Determine effective mode: prefer server config if present, otherwise use client config,
+    // fall back to default if both are null
+    ScanPlanningMode effectiveMode = RESTCatalogProperties.SCAN_PLANNING_MODE_DEFAULT;
+    if (serverScanPlanningMode != null) {
+      effectiveMode = serverScanPlanningMode;
+    } else if (clientScanPlanningMode != null) {
+      effectiveMode = clientScanPlanningMode;
+    }
 
-    if (effectiveMode == RESTCatalogProperties.ScanPlanningMode.SERVER) {
+    if (effectiveMode == ScanPlanningMode.SERVER) {
       Preconditions.checkState(
           endpoints.contains(Endpoint.V1_SUBMIT_TABLE_SCAN_PLAN),
           "Server requires server-side scan planning for table %s but does not support endpoint %s",
@@ -725,7 +736,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
             paths.table(ident),
             Map::of,
             mutationHeaders,
-            tableFileIO(context, tableConf, response.credentials()),
+            tableFileIO(
+                ident, context, tableConf, response.credentials(), response.remoteSigningConfig()),
             response.tableMetadata(),
             endpoints);
 
@@ -994,7 +1006,12 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
               paths.table(ident),
               Map::of,
               mutationHeaders,
-              tableFileIO(context, tableConf, response.credentials()),
+              tableFileIO(
+                  ident,
+                  context,
+                  tableConf,
+                  response.credentials(),
+                  response.remoteSigningConfig()),
               response.tableMetadata(),
               endpoints);
 
@@ -1027,7 +1044,12 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
               paths.table(ident),
               Map::of,
               mutationHeaders,
-              tableFileIO(context, tableConf, response.credentials()),
+              tableFileIO(
+                  ident,
+                  context,
+                  tableConf,
+                  response.credentials(),
+                  response.remoteSigningConfig()),
               RESTTableOperations.UpdateType.CREATE,
               createChanges(meta),
               meta,
@@ -1092,7 +1114,12 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
               paths.table(ident),
               Map::of,
               mutationHeaders,
-              tableFileIO(context, tableConf, response.credentials()),
+              tableFileIO(
+                  ident,
+                  context,
+                  tableConf,
+                  response.credentials(),
+                  response.remoteSigningConfig()),
               RESTTableOperations.UpdateType.REPLACE,
               changes.build(),
               base,
@@ -1218,14 +1245,35 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   }
 
   private FileIO tableFileIO(
-      SessionContext context, Map<String, String> config, List<Credential> storageCredentials) {
-    if (config.isEmpty() && ioBuilder == null && storageCredentials.isEmpty()) {
-      return io; // reuse client and io since config/credentials are the same
+      TableIdentifier tableIdentifier,
+      SessionContext context,
+      Map<String, String> tableConf,
+      List<Credential> storageCredentials,
+      RemoteSigningConfig remoteSigningConfig) {
+
+    boolean canReuseCatalogIO =
+        tableConf.isEmpty()
+            && ioBuilder == null
+            && storageCredentials.isEmpty()
+            && remoteSigningConfig.isEmpty();
+
+    if (canReuseCatalogIO) {
+      return io;
     }
 
-    Map<String, String> fullConf = RESTUtil.merge(properties(), config);
+    ImmutableMap.Builder<String, String> fullConf =
+        ImmutableMap.<String, String>builder()
+            .putAll(properties())
+            .putAll(tableConf)
+            .put(RESTCatalogProperties.REMOTE_SIGNING_ENDPOINT, paths.remoteSign(tableIdentifier));
 
-    return newFileIO(context, fullConf, storageCredentials);
+    if (!remoteSigningConfig.isEmpty()) {
+      fullConf.put(
+          RESTCatalogProperties.REMOTE_SIGNING_CONFIG,
+          RemoteSigningConfigParser.toJson(remoteSigningConfig));
+    }
+
+    return newFileIO(context, fullConf.buildKeepingLast(), storageCredentials);
   }
 
   /**

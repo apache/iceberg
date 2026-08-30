@@ -40,6 +40,7 @@ The Apache Iceberg Sink Connector for Kafka Connect is a sink connector for writ
 * Multi-table fan-out
 * Automatic table creation and schema evolution
 * Field name mapping via Iceberg’s column mapping functionality
+* Variant shredding for Parquet writes via the `write.parquet.shred-variants` table property
 
 ## Installation
 
@@ -81,6 +82,7 @@ for exactly-once semantics. This requires Kafka 2.5 or later.
 | iceberg.control.commit.interval-ms         | Commit interval in msec, default is 300,000 (5 min)                                                              |
 | iceberg.control.commit.timeout-ms          | Commit timeout interval in msec, default is 30,000 (30 sec)                                                      |
 | iceberg.control.commit.threads             | Number of threads to use for commits, default is (`cores * 2`)                                                     |
+| iceberg.control.commit.max-consecutive-failures | Maximum number of consecutive commit failures before the coordinator terminates, default is `1`              |
 | iceberg.coordinator.transactional.prefix   | Prefix for the transactional id to use for the coordinator producer, default is to use no/empty prefix           |
 | iceberg.catalog                            | Name of the catalog, default is `iceberg`                                                                        |
 | iceberg.catalog.*                          | Properties passed through to Iceberg catalog initialization                                                      |

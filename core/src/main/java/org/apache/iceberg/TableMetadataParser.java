@@ -60,7 +60,7 @@ public class TableMetadataParser {
     public static Codec fromName(String codecName) {
       Preconditions.checkArgument(codecName != null, "Codec name is null");
       try {
-        return Codec.valueOf(codecName.toUpperCase(Locale.ENGLISH));
+        return Codec.valueOf(codecName.toUpperCase(Locale.ROOT));
       } catch (IllegalArgumentException e) {
         throw new IllegalArgumentException(String.format("Invalid codec name: %s", codecName), e);
       }

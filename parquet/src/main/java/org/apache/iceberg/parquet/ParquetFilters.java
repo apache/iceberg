@@ -248,7 +248,7 @@ class ParquetFilters {
 
     @Override
     public <R> R accept(Visitor<R> visitor) {
-      throw new UnsupportedOperationException("AlwaysTrue is a placeholder only");
+      throw new UnsupportedOperationException("AlwaysFalse is a placeholder only");
     }
   }
 }

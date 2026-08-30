@@ -23,11 +23,14 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import java.util.List;
+import java.util.Map;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.rest.ImmutableRemoteSigningConfig;
 import org.apache.iceberg.rest.credentials.ImmutableCredential;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
@@ -354,6 +357,82 @@ public class TestLoadTableResponseParser {
     // can't do an equality comparison because Schema doesn't implement equals/hashCode
     assertThat(LoadTableResponseParser.toJson(LoadTableResponseParser.fromJson(json), true))
         .isEqualTo(expectedJson);
+  }
+
+  @Test
+  public void roundTripSerdeWithRemoteSigningConfig() {
+    String uuid = "386b9f01-002b-4d8c-b77f-42c3fd3b7c9b";
+    TableMetadata metadata =
+        TableMetadata.buildFromEmpty()
+            .assignUUID(uuid)
+            .setLocation("location")
+            .setCurrentSchema(
+                new Schema(Types.NestedField.required(1, "x", Types.LongType.get())), 1)
+            .addPartitionSpec(PartitionSpec.unpartitioned())
+            .addSortOrder(SortOrder.unsorted())
+            .discardChanges()
+            .withMetadataLocation("metadata-location")
+            .build();
+
+    LoadTableResponse response =
+        LoadTableResponse.builder()
+            .withTableMetadata(metadata)
+            .withRemoteSigningConfig(
+                ImmutableRemoteSigningConfig.builder()
+                    .properties(Map.of("prop1", "val1"))
+                    .headers(
+                        Map.of(
+                            "Authorization",
+                            List.of("Bearer token123"),
+                            "X-Multi",
+                            List.of("a", "b")))
+                    .build())
+            .build();
+
+    String json = LoadTableResponseParser.toJson(response, true);
+    assertThat(json).contains("\"remote-signing-config\"");
+    assertThat(json).contains("\"prop1\" : \"val1\"");
+    assertThat(json).contains("\"Authorization\" : [ \"Bearer token123\" ]");
+    assertThat(json).contains("\"X-Multi\" : [ \"a\", \"b\" ]");
+
+    LoadTableResponse roundTripped = LoadTableResponseParser.fromJson(json);
+    assertThat(roundTripped.remoteSigningConfig()).isNotNull();
+    assertThat(roundTripped.remoteSigningConfig().properties()).hasSize(1);
+    assertThat(roundTripped.remoteSigningConfig().properties()).containsEntry("prop1", "val1");
+    assertThat(roundTripped.remoteSigningConfig().headers()).hasSize(2);
+    assertThat(roundTripped.remoteSigningConfig().headers())
+        .containsEntry("Authorization", List.of("Bearer token123"));
+    assertThat(roundTripped.remoteSigningConfig().headers())
+        .containsEntry("X-Multi", List.of("a", "b"));
+  }
+
+  @Test
+  public void roundTripSerdeWithEmptyRemoteSigningConfig() {
+    String uuid = "386b9f01-002b-4d8c-b77f-42c3fd3b7c9b";
+    TableMetadata metadata =
+        TableMetadata.buildFromEmpty()
+            .assignUUID(uuid)
+            .setLocation("location")
+            .setCurrentSchema(
+                new Schema(Types.NestedField.required(1, "x", Types.LongType.get())), 1)
+            .addPartitionSpec(PartitionSpec.unpartitioned())
+            .addSortOrder(SortOrder.unsorted())
+            .discardChanges()
+            .withMetadataLocation("metadata-location")
+            .build();
+
+    LoadTableResponse response =
+        LoadTableResponse.builder()
+            .withTableMetadata(metadata)
+            .withRemoteSigningConfig(ImmutableRemoteSigningConfig.builder().build())
+            .build();
+
+    String json = LoadTableResponseParser.toJson(response, true);
+    assertThat(json).doesNotContain("remote-signing-config");
+
+    LoadTableResponse roundTripped = LoadTableResponseParser.fromJson(json);
+    assertThat(roundTripped.remoteSigningConfig()).isNotNull();
+    assertThat(roundTripped.remoteSigningConfig().isEmpty()).isTrue();
   }
 
   @Test

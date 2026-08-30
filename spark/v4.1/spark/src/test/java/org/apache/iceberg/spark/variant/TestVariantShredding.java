@@ -110,7 +110,12 @@ public class TestVariantShredding extends CatalogTestBase {
   public void before() {
     super.before();
     validationCatalog.createTable(
-        tableIdent, SCHEMA, null, Map.of(TableProperties.FORMAT_VERSION, "3"));
+        tableIdent,
+        SCHEMA,
+        null,
+        Map.of(
+            TableProperties.FORMAT_VERSION, "3",
+            TableProperties.PARQUET_SHRED_VARIANTS, "true"));
   }
 
   @AfterEach
@@ -164,7 +169,7 @@ public class TestVariantShredding extends CatalogTestBase {
   }
 
   @TestTemplate
-  public void testInconsistentType() throws IOException {
+  public void testInconsistentTypeNotShredded() throws IOException {
     spark.conf().set(SparkSQLProperties.SHRED_VARIANTS, "true");
 
     String values =
@@ -175,12 +180,7 @@ public class TestVariantShredding extends CatalogTestBase {
             """;
     sql("INSERT INTO %s VALUES %s", tableName, values);
 
-    GroupType age =
-        field(
-            "age",
-            shreddedPrimitive(
-                PrimitiveType.PrimitiveTypeName.BINARY, LogicalTypeAnnotation.stringType()));
-    GroupType address = variant("address", 2, Type.Repetition.REQUIRED, objectFields(age));
+    GroupType address = variant("address", 2, Type.Repetition.REQUIRED);
     MessageType expectedSchema = parquetSchema(address);
 
     Table table = validationCatalog.loadTable(tableIdent);
@@ -213,20 +213,14 @@ public class TestVariantShredding extends CatalogTestBase {
   }
 
   @TestTemplate
-  public void testPrimitiveDecimalType() throws IOException {
+  public void testMixedPrimitiveTypesAtRootNotShredded() throws IOException {
     spark.conf().set(SparkSQLProperties.SHRED_VARIANTS, "true");
 
     String values =
         "(1, parse_json('123.56')), (2, parse_json('\"abc\"')), (3, parse_json('12.56'))";
     sql("INSERT INTO %s VALUES %s", tableName, values);
 
-    GroupType address =
-        variant(
-            "address",
-            2,
-            Type.Repetition.REQUIRED,
-            shreddedPrimitive(
-                PrimitiveType.PrimitiveTypeName.INT32, LogicalTypeAnnotation.decimalType(2, 5)));
+    GroupType address = variant("address", 2, Type.Repetition.REQUIRED);
     MessageType expectedSchema = parquetSchema(address);
 
     Table table = validationCatalog.loadTable(tableIdent);
@@ -554,7 +548,7 @@ public class TestVariantShredding extends CatalogTestBase {
         field(
             "value",
             optional(PrimitiveType.PrimitiveTypeName.FIXED_LEN_BYTE_ARRAY)
-                .length(16)
+                .length(9) // decimalRequiredBytes(21)
                 .as(LogicalTypeAnnotation.decimalType(6, 21))
                 .named("typed_value"));
     GroupType address = variant("address", 2, Type.Repetition.REQUIRED, objectFields(value));
@@ -780,7 +774,7 @@ public class TestVariantShredding extends CatalogTestBase {
   }
 
   @TestTemplate
-  public void testMixedTypeTieBreaking() throws IOException {
+  public void testMixedTypeFieldNotShredded() throws IOException {
     spark.conf().set(SparkSQLProperties.SHRED_VARIANTS, "true");
     spark.conf().set(SparkSQLProperties.VARIANT_INFERENCE_BUFFER_SIZE, "10");
 
@@ -797,19 +791,13 @@ public class TestVariantShredding extends CatalogTestBase {
     }
     sql("INSERT INTO %s VALUES %s", tableName, valuesBuilder.toString());
 
-    // 5 ints + 5 strings is a tie so STRING wins (higher TIE_BREAK_PRIORITY)
-    GroupType val =
-        field(
-            "val",
-            shreddedPrimitive(
-                PrimitiveType.PrimitiveTypeName.BINARY, LogicalTypeAnnotation.stringType()));
-    GroupType address = variant("address", 2, Type.Repetition.REQUIRED, objectFields(val));
+    GroupType address = variant("address", 2, Type.Repetition.REQUIRED);
     MessageType expectedSchema = parquetSchema(address);
 
     Table table = validationCatalog.loadTable(tableIdent);
     verifyParquetSchema(table, expectedSchema);
 
-    // Verify data round-trips correctly
+    // Verify data round-trips correctly through the residual value column
     List<Object[]> rows =
         sql("SELECT id, variant_get(address, '$.val', 'string') FROM %s ORDER BY id", tableName);
     assertThat(rows).hasSize(10);
@@ -992,6 +980,24 @@ public class TestVariantShredding extends CatalogTestBase {
     assertThat(rows.get(3)[1]).isEqualTo(new BigDecimal("123456.7800"));
     assertThat(rows.get(4)[1]).isEqualTo(new BigDecimal("1.2345"));
     assertThat(rows.get(5)[1]).isEqualTo(new BigDecimal("12.3000"));
+  }
+
+  @TestTemplate
+  public void testShreddedLargeIntegerVariantReadBack() {
+    // DECIMAL16 (20-digit integer, above Long.MAX_VALUE) shreds to a FIXED_LEN_BYTE_ARRAY
+    // typed_value whose declared length must equal what FixedDecimalWriter emits.
+    spark.conf().set(SparkSQLProperties.SHRED_VARIANTS, "true");
+
+    sql(
+        "INSERT INTO %s VALUES "
+            + "(1, parse_json('{\"v\":12345678901234567890}')), "
+            + "(2, parse_json('{\"v\":-12345678901234567890}'))",
+        tableName);
+
+    List<Object[]> values =
+        sql("SELECT variant_get(address, '$.v', 'decimal(38,0)') FROM %s ORDER BY id", tableName);
+    assertThat(values.get(0)[0]).isEqualTo(new BigDecimal("12345678901234567890"));
+    assertThat(values.get(1)[0]).isEqualTo(new BigDecimal("-12345678901234567890"));
   }
 
   private void verifyParquetSchema(Table table, MessageType expectedSchema) throws IOException {

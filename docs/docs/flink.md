@@ -29,7 +29,7 @@ Apache Iceberg supports both [Apache Flink](https://flink.apache.org/)'s DataStr
 | [SQL create database](flink-ddl.md#create-database) | ✔️    |                                                                                        |
 | [SQL create table](flink-ddl.md#create-table)                        | ✔️    |                                                                                        |
 | [SQL create table like](flink-ddl.md#create-table-like)              | ✔️    |                                                                                        |
-| [SQL alter table](flink-ddl.md#alter-table)                          | ✔️    | Only support altering table properties, column and partition changes are not supported |
+| [SQL alter table](flink-ddl.md#alter-table)                          | ✔️    | Support altering table properties and columns (add, drop, rename, modify); partition changes are not supported |
 | [SQL drop_table](flink-ddl.md#drop-table)                            | ✔️    |                                                                                        |
 | [SQL select](flink-queries.md#reading-with-sql)                         | ✔️    | Support both streaming and batch mode                                                  |
 | [SQL insert into](flink-writes.md#insert-into)                          | ✔️ ️  | Support both streaming and batch mode                                                  |
@@ -42,7 +42,7 @@ Apache Iceberg supports both [Apache Flink](https://flink.apache.org/)'s DataStr
 
 ## Preparation when using Flink SQL Client
 
-To create Iceberg table in Flink, it is recommended to use [Flink SQL Client](https://ci.apache.org/projects/flink/flink-docs-release-{{ flinkVersionMajor }}/dev/table/sqlClient.html) as it's easier for users to understand the concepts.
+To create Iceberg table in Flink, it is recommended to use [Flink SQL Client](https://nightlies.apache.org/flink/flink-docs-release-{{ flinkVersionMajor }}/docs/dev/table/sqlclient/) as it's easier for users to understand the concepts.
 
 Download Flink from the [Apache download page](https://flink.apache.org/downloads.html). Iceberg uses Scala 2.12 when compiling the Apache `iceberg-flink-runtime` jar, so it's recommended to use Flink {{ flinkVersionMajor }} bundled with Scala 2.12.
 
@@ -71,7 +71,7 @@ cd flink-${FLINK_VERSION}/
 ./bin/start-cluster.sh
 ```
 
-Start the Flink SQL client. There is a separate `flink-runtime` module in the Iceberg project to generate a bundled jar, which could be loaded by Flink SQL client directly. To build the `flink-runtime` bundled jar manually, build the `iceberg` project, and it will generate the jar under `<iceberg-root-dir>/flink-runtime/build/libs`. Or download the `flink-runtime` jar from the [Apache repository](https://repo.maven.apache.org/maven2/org/apache/iceberg/iceberg-flink-runtime-{{ flinkVersionMajor }}/{{ icebergVersion }}/).
+Start the Flink SQL client. There is a separate `flink-runtime` module in the Iceberg project to generate a bundled jar, which could be loaded by Flink SQL client directly. To build the `flink-runtime` bundled jar manually, build the `iceberg` project, and it will generate the jar under `<iceberg-root-dir>/flink/v{{ flinkVersionMajor }}/flink-runtime/build/libs`. Or download the `flink-runtime` jar from the [Apache repository](https://repo.maven.apache.org/maven2/org/apache/iceberg/iceberg-flink-runtime-{{ flinkVersionMajor }}/{{ icebergVersion }}/).
 
 ```bash
 # HADOOP_HOME is your hadoop root directory after unpack the binary package.
@@ -119,12 +119,12 @@ Install the Apache Flink dependency using `pip`:
 pip install apache-flink=={{ flinkVersion }}
 ```
 
-Provide a `file://` path to the `iceberg-flink-runtime` jar, which can be obtained by building the project and looking at `<iceberg-root-dir>/flink-runtime/build/libs`, or downloading it from the [Apache official repository](https://repo.maven.apache.org/maven2/org/apache/iceberg/iceberg-flink-runtime/). Third-party jars can be added to `pyflink` via:
+Provide a `file://` path to the `iceberg-flink-runtime` jar, which can be obtained by building the project and looking at `<iceberg-root-dir>/flink/v{{ flinkVersionMajor }}/flink-runtime/build/libs`, or downloading it from the [Apache official repository](https://repo.maven.apache.org/maven2/org/apache/iceberg/iceberg-flink-runtime-{{ flinkVersionMajor }}/). Third-party jars can be added to `pyflink` via:
 
 - `env.add_jars("file:///my/jar/path/connector.jar")`
 - `table_env.get_config().get_configuration().set_string("pipeline.jars", "file:///my/jar/path/connector.jar")`
 
-This is also mentioned in the official [docs](https://ci.apache.org/projects/flink/flink-docs-release-{{ flinkVersionMajor }}/docs/dev/python/dependency_management/). The example below uses `env.add_jars(..)`:
+This is also mentioned in the official [docs](https://nightlies.apache.org/flink/flink-docs-release-{{ flinkVersionMajor }}/docs/dev/python/dependency_management/). The example below uses `env.add_jars(..)`:
 
 ```python
 import os
@@ -173,7 +173,7 @@ Run a query:
 5 rows in set
 ```
 
-For more details, please refer to the [Python Table API](https://ci.apache.org/projects/flink/flink-docs-release-{{ flinkVersionMajor }}/docs/dev/python/table/intro_to_table_api/).
+For more details, please refer to the [Python Table API](https://nightlies.apache.org/flink/flink-docs-release-{{ flinkVersionMajor }}/docs/dev/python/table/intro_to_table_api/).
 
 ## Adding catalogs
 
@@ -349,8 +349,8 @@ Flink types are converted to Iceberg types according to the following table:
 | char                | string                     |               |
 | varchar             | string                     |               |
 | string              | string                     |               |
-| binary              | binary                     |               |
-| varbinary           | fixed                      |               |
+| binary              | fixed                      |               |
+| varbinary           | binary                     |               |
 | decimal             | decimal                    |               |
 | date                | date                       |               |
 | time                | time                       |               |

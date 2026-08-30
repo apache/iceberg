@@ -22,6 +22,7 @@ import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
 /** A file tracked by a manifest. */
@@ -35,9 +36,9 @@ interface TrackedFile {
           "content_type",
           Types.IntegerType.get(),
           "Type of content: 0=DATA, 2=EQUALITY_DELETES, 3=DATA_MANIFEST, 4=DELETE_MANIFEST");
-  Types.NestedField WRITER_FORMAT_VERSION =
+  Types.NestedField FORMAT_VERSION =
       Types.NestedField.required(
-          157, "writer_format_version", Types.IntegerType.get(), "Writer format version");
+          157, "format_version", Types.IntegerType.get(), "Format version of this file");
   Types.NestedField LOCATION =
       Types.NestedField.required(100, "location", Types.StringType.get(), "Location of the file");
   Types.NestedField FILE_FORMAT =
@@ -95,20 +96,29 @@ interface TrackedFile {
           Types.ListType.ofRequired(136, Types.IntegerType.get()),
           "Field ids used to determine row equality in equality delete files");
 
-  static Types.StructType schemaWithContentStats(
-      Types.StructType partitionType, Types.StructType contentStatsType) {
-    return Types.StructType.of(
+  /**
+   * Returns the schema for the given partition and content stats types.
+   *
+   * <p>The partition and content stats fields use {@link Types.UnknownType} when their types have
+   * no fields, so that they are not stored in manifest files.
+   */
+  static Schema schema(Types.StructType partitionType, Types.StructType contentStatsType) {
+    return new Schema(
         TRACKING,
         CONTENT_TYPE,
-        WRITER_FORMAT_VERSION,
+        FORMAT_VERSION,
         LOCATION,
         FILE_FORMAT,
         RECORD_COUNT,
         FILE_SIZE_IN_BYTES,
         SPEC_ID,
-        Types.NestedField.required(PARTITION_ID, PARTITION_NAME, partitionType, PARTITION_DOC),
         Types.NestedField.optional(
-            CONTENT_STATS_ID, CONTENT_STATS_NAME, contentStatsType, CONTENT_STATS_DOC),
+            PARTITION_ID, PARTITION_NAME, typeOrUnknown(partitionType), PARTITION_DOC),
+        Types.NestedField.optional(
+            CONTENT_STATS_ID,
+            CONTENT_STATS_NAME,
+            typeOrUnknown(contentStatsType),
+            CONTENT_STATS_DOC),
         SORT_ORDER_ID,
         DELETION_VECTOR,
         MANIFEST_INFO,
@@ -117,14 +127,18 @@ interface TrackedFile {
         EQUALITY_IDS);
   }
 
+  private static Type typeOrUnknown(Types.StructType structType) {
+    return structType.fields().isEmpty() ? Types.UnknownType.get() : structType;
+  }
+
   /** Returns the tracking information for this entry. */
   Tracking tracking();
 
   /** Returns the type of content stored by this entry. */
   FileContent contentType();
 
-  /** Returns the version of the writer that wrote this file */
-  int writerFormatVersion();
+  /** Returns the format version of this file. */
+  int formatVersion();
 
   /** Returns the location of the file. */
   String location();
@@ -141,7 +155,7 @@ interface TrackedFile {
   /** Returns the ID of the partition spec used to partition this file, or null. */
   Integer specId();
 
-  /** Returns partition for this file as a {@link StructLike}. */
+  /** Returns partition for this file as a {@link StructLike}, or null. */
   StructLike partition();
 
   /** Returns the content stats for this entry. */
@@ -172,6 +186,7 @@ interface TrackedFile {
    * Copies this tracked file with stats only for specific columns.
    *
    * @param requestedColumnIds table field IDs for which to keep stats
+   * @return a copy of this tracked file retaining stats only for the requested columns
    */
   TrackedFile copyWithStats(Set<Integer> requestedColumnIds);
 

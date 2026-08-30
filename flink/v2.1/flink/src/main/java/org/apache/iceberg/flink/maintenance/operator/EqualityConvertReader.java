@@ -115,17 +115,13 @@ public class EqualityConvertReader extends ProcessFunction<ReadCommand, IndexCom
         processDataFile(
             dataTask,
             cmd.mainSnapshotId(),
-            cmd.mainSequenceNumber(),
+            cmd.indexGeneration(),
             cmd.dataSequenceNumber(),
             cmd.staging(),
             out);
       } else if (task instanceof EqualityDeleteFileScanTask deleteTask) {
         processDeleteFile(
-            deleteTask,
-            cmd.mainSnapshotId(),
-            cmd.mainSequenceNumber(),
-            cmd.dataSequenceNumber(),
-            out);
+            deleteTask, cmd.mainSnapshotId(), cmd.indexGeneration(), cmd.dataSequenceNumber(), out);
       } else {
         throw new IllegalStateException(
             "Unexpected ContentScanTask type: " + task.getClass().getName());
@@ -140,7 +136,7 @@ public class EqualityConvertReader extends ProcessFunction<ReadCommand, IndexCom
   private void processDataFile(
       FileScanTask task,
       Long mainSnapshotId,
-      Long mainSequenceNumber,
+      Long indexGeneration,
       long dataSequenceNumber,
       boolean staging,
       Collector<IndexCommand> out)
@@ -151,7 +147,9 @@ public class EqualityConvertReader extends ProcessFunction<ReadCommand, IndexCom
 
     int specId = file.specId();
     StructLike partition = file.partition();
-    Types.StructType partitionType = table.specs().get(specId).partitionType();
+    // Use the planner-serialized task spec, not the reader's table, which is loaded once and may
+    // lack specs added after startup.
+    Types.StructType partitionType = task.spec().partitionType();
     byte[] partitionBytes = fieldSerializer.encodePartition(partition, partitionType);
 
     InputFile input = table.io().newInputFile(file.location());
@@ -167,12 +165,11 @@ public class EqualityConvertReader extends ProcessFunction<ReadCommand, IndexCom
           continue;
         }
 
-        SerializedEqualityValues key =
-            fieldSerializer.serializeKey(record, keySchema.asStruct(), specId);
+        SerializedEqualityValues key = fieldSerializer.serializeKey(record, keySchema.asStruct());
         out.collect(
             IndexCommand.addDataRow(
                 mainSnapshotId,
-                mainSequenceNumber,
+                indexGeneration,
                 key,
                 file.location(),
                 position,
@@ -187,24 +184,27 @@ public class EqualityConvertReader extends ProcessFunction<ReadCommand, IndexCom
   private void processDeleteFile(
       EqualityDeleteFileScanTask task,
       Long mainSnapshotId,
-      Long mainSequenceNumber,
+      Long indexGeneration,
       long dataSequenceNumber,
       Collector<IndexCommand> out)
       throws IOException {
     ContentFile<?> file = task.file();
 
     int specId = file.specId();
+    // An unpartitioned equality delete applies globally; a partitioned one applies only within its
+    // own spec. Use the planner-serialized task spec, not the reader's table, which is loaded once
+    // and may lack specs added after startup.
+    int deleteSpecId = task.spec().isUnpartitioned() ? IndexCommand.GLOBAL_DELETE_SPEC_ID : specId;
 
     InputFile input = table.io().newInputFile(file.location());
     ReadBuilder<Record, Schema> builder =
         FormatModelRegistry.readBuilder(file.format(), Record.class, input);
     try (CloseableIterable<Record> records = builder.project(keySchema).reuseContainers().build()) {
       for (Record record : records) {
-        SerializedEqualityValues key =
-            fieldSerializer.serializeKey(record, keySchema.asStruct(), specId);
+        SerializedEqualityValues key = fieldSerializer.serializeKey(record, keySchema.asStruct());
         out.collect(
             IndexCommand.resolveDelete(
-                mainSnapshotId, mainSequenceNumber, key, dataSequenceNumber));
+                mainSnapshotId, indexGeneration, key, dataSequenceNumber, deleteSpecId));
       }
     }
   }

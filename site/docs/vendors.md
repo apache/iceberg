@@ -65,6 +65,10 @@ the same copy of data using Spark and run analytics or AI with our
 [Machine Learning](https://www.cloudera.com/products/machine-learning.html) tools on private
 or any public cloud.
 
+### [Collate](https://www.getcollate.io/)
+
+Collate is an AI-native data catalog and governance platform built on [OpenMetadata](https://open-metadata.org/), the open-source (Apache 2.0) context layer. It brings together every Apache Iceberg table into a single source of governed context — with column-level lineage, data profiling, and no-code data quality tests — by connecting through the engines that already query Iceberg (e.g., Trino, Snowflake, BigQuery).
+
 ### [Confluent](https://confluent.io)
 
 [Confluent](https://www.confluent.io/) provides [Tableflow](https://www.confluent.io/product/tableflow/), a managed service for streaming data from Apache Kafka topics into Apache Iceberg tables. Tableflow automates schema evolution through Schema Registry integration and handles table maintenance tasks including compaction automatically.
@@ -122,7 +126,7 @@ Firebolt is also available as [Firebolt Core](https://docs.firebolt.io/firebolt-
 Learn more about querying Iceberg with Firebolt [here](https://www.firebolt.io/blog/querying-apache-iceberg-with-sub-second-performance).
 
 ### [Fivetran](https://www.fivetran.com)
-[Fivetran](https://www.fivetran.com), the global leader in data movement, is trusted by Enterprises to centralize data from SaaS applications and databases into cloud destinations, including [Managed Data Lakes](https://fivetran.com/docs/destinations/managed-data-lake-service). Fivetran Managed Data Lakes provides a fully managed Iceberg Data Lake for users. Users can connect any of the 700+ connections that Fivetran supports and write them directly into a Storage Location of their choice. Fivetran Managed Data Lake Service handles the ingestion and maintenance of their Iceberg tables and hosts a Iceberg Rest Complaint catalog endpoint for downstream consumption.
+[Fivetran](https://www.fivetran.com), the global leader in data movement, is trusted by Enterprises to centralize data from SaaS applications and databases into cloud destinations, including [Managed Data Lakes](https://fivetran.com/docs/managed-data-lake-service). Fivetran Managed Data Lakes provides a fully managed Iceberg Data Lake for users. Users can connect any of the 700+ connections that Fivetran supports and write them directly into a Storage Location of their choice. Fivetran Managed Data Lake Service handles the ingestion and maintenance of their Iceberg tables and hosts a Iceberg Rest Complaint catalog endpoint for downstream consumption.
 
 ### [Google Cloud](https://cloud.google.com)
 Google Cloud offers first class support for Apache Iceberg through BigLake to
@@ -148,6 +152,10 @@ IOMETE is a fully-managed ready to use, batteries included Data Platform. IOMETE
 
 ### [Microsoft OneLake](https://learn.microsoft.com/en-us/fabric/onelake/)
 [Microsoft OneLake](https://learn.microsoft.com/en-us/fabric/onelake/) is a single unified data lake that brings together your entire data estate into an open, secure foundation for analytics across the organization. Built into Microsoft Fabric, OneLake delivers two powerful APIs: the Tables API and the Files API. The [OneLake Tables API](https://aka.ms/onelakeircdocs) supports the Apache Iceberg REST Catalog (IRC) specification, making it simple to create, manage, and integrate Iceberg tables with existing tools and workflows. The OneLake Files API offers full Azure Data Lake Storage (ADLS) compatibility, enabling seamless file operations and interoperability with familiar ADLS tools. Together, these APIs make OneLake a truly open and interoperable data lake, delivering flexibility and connectivity for modern analytics and AI-driven pipelines.
+
+### [MinIO AIStor](https://www.min.io/product/aistor)
+
+[MinIO AIStor](https://www.min.io/product/aistor/structured-data-store) is a software-defined object store, deployable on-premises or in any cloud, that implements the Apache Iceberg REST Catalog specification inside the storage layer itself — tables need no Nessie, Hive Metastore, Glue, or relational database, and the same deployment serves S3 objects and Iceberg tables under one identity, policy, and encryption model. AIStor supports the V3 table format, including row lineage and deletion vectors, as well as views, table registration, multi-table atomic transactions, and optional server-side scan planning. Clients authenticate with SigV4 or the spec's OAuth2 client-credentials flow, and may request vended credentials to receive short-lived, table-scoped storage credentials instead of configuring their own. Built-in maintenance handles compaction, snapshot expiration, and unreferenced-file removal, and catalog metadata can be replicated to a second site for failover. Engines connect over the standard REST catalog protocol, including Apache Spark, Trino, PyIceberg, DuckDB, Starburst, Dremio, and PuppyGraph. Learn more in the [AIStor Tables documentation](https://docs.min.io/aistor/administration/aistor-tables/) and the [query engine guide](https://docs.min.io/aistor/developers/aistor-tables/connect-query-engines/).
 
 ### [Oracle](https://oracle.com/)
 
@@ -197,9 +205,21 @@ The Stackable Data Platform is completely open source, providing maximum portabi
 
 Starburst is a commercial offering for the [Trino query engine](https://trino.io). Trino is a distributed MPP SQL query engine that can query data in Iceberg at interactive speeds. Trino also enables you to join Iceberg tables with an [array of other systems](https://trino.io/docs/current/connector.html). Starburst offers both an [enterprise deployment](https://www.starburst.io/platform/starburst-enterprise/) and a [fully managed service](https://www.starburst.io/platform/starburst-galaxy/) to make managing and scaling Trino a flawless experience. Starburst also provides customer support and houses many of the original contributors to the open-source project that know Trino best. Learn more about [the Starburst Iceberg connector](https://docs.starburst.io/latest/connector/iceberg.html).
 
+### [StarTree](https://startree.ai/)
+
+StarTree is a real-time analytics platform that is able to deliver consistently fast, highly concurrent queries on data stored in Apache Iceberg. Built on the indexing capabilities of Apache Pinot, StarTree can precisely fetch page-level data from Parquet files, reducing unnecessary scanning and data transfer.
+
+This makes it practical and cost-effective to support [SLA-driven analytics on the lakehouse](https://startree.ai/resources/5-sla-driven-analytics-use-cases-now-possible-with-iceberg/). StarTree can power observability, customer-facing analytics, anomaly detection, and interactive business intelligence workloads without requiring data to be duplicated, pre-aggregated, or materialized into a separate serving system. StarTree is available as a managed cloud service or can be deployed within an [enterprise cloud environment](https://startree.ai/resources/byoc-beyond-the-checkbox/). Learn more in the [StarTree Docs]([https://docs.startree.ai/corecapabilities/external-table/overview).
+
 ### [StreamNative](https://streamnative.io)
 
 StreamNative provides a data streaming platform powered by [Ursa](https://streamnative.io/products/ursa), a Kafka‑compatible, leaderless, lakehouse‑native streaming engine. Ursa writes directly to Apache Iceberg tables on cloud object storage—removing the need for bespoke connectors—and automatically compacts and commits data, so it’s immediately queryable by engines such as Spark, Trino, and Flink. Learn more in the [Ursa VLDB paper](https://www.vldb.org/pvldb/vol18/p5184-guo.pdf).
+
+### [Teradata](https://www.teradata.com/)
+
+Teradata delivers enterprise-grade Open Table Format support for Apache Iceberg and Delta Lake with full freedom to choose storage, catalogs, and query engines, and no proprietary lock-in.
+
+Full OTF compatibility spans all major clouds, on-premises, and hybrid environments, backed by centralized security and governance. Teradata's AMPs, Cost-Based Optimizer, and Intelligent Workload Management deliver cross-lake-format, cross-catalog, and cross-deployment query performance at scale.
 
 ### [Tinybird](https://tinybird.co)
 
@@ -222,3 +242,9 @@ Learn more in the [Tinybird documentation](https://www.tinybird.co/docs/forward/
 [OLake](https://olake.io/) is an open-source ELT tool to facilitate the replication of databases into Apache Iceberg™ data lakehouses. It offers native integration with PostgreSQL, MySQL, MongoDB, Oracle, and Kafka, enabling real-time data ingestion without the need for intermediary layers like Debezium, Kafka or Spark. The platform's modular architecture supports full-load operations, continuous Change Data Capture (CDC), and incremental synchronization with bookmark/cursor column support, with resumable syncs and schema evolution handling. By employing a parallelized chunking strategy, OLake accelerates initial syncs, while CDC cursor preservation ensures that incremental updates capture all events.
 
 Learn more in the [OLake documentation](https://olake.io/docs) and explore the [Github repository](https://github.com/datazip-inc/olake).
+
+### [OptimaFlo](https://optimaflo.io)
+
+[OptimaFlo](https://optimaflo.io) is an AI data team that runs a company's data stack end to end, from raw ingestion to clean, query-ready tables, inside the customer's own AWS or GCP account (BYOC). Apache Iceberg is the storage layer for every table OptimaFlo manages, giving customers ACID transactions, schema evolution, and time travel, all under an Apache Polaris catalog. OptimaFlo's control plane never stores customer data; it only builds and runs the pipelines. Queries route across DuckDB or the customer's cloud warehouse depending on table size, and OptimaFlo's LLM agents generate the SQL that builds and maintains the Iceberg tables.
+
+Learn more about running Iceberg without a data team [here](https://optimaflo.io/blog/apache-iceberg-without-a-data-team).

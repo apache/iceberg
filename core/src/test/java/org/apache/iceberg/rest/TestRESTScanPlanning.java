@@ -62,7 +62,6 @@ import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.rest.credentials.Credential;
 import org.apache.iceberg.rest.credentials.ImmutableCredential;
 import org.apache.iceberg.rest.requests.PlanTableScanRequest;
 import org.apache.iceberg.rest.responses.ConfigResponse;
@@ -75,6 +74,7 @@ import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
@@ -1370,10 +1370,12 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
                     && planResp.planStatus() == PlanStatus.COMPLETED) {
                   return castResponse(
                       responseType,
-                      PlanTableScanResponse.builder()
+                      planResp.toBuilder()
                           .withPlanStatus(PlanStatus.FAILED)
                           .withErrorResponse(serverError)
-                          .withSpecsById(planResp.specsById())
+                          .withPlanId(null)
+                          .withFileScanTasks(null)
+                          .withPlanTasks(null)
                           .build());
                 }
                 if (response instanceof FetchPlanningResultResponse) {
@@ -1473,39 +1475,24 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
     if (response instanceof PlanTableScanResponse resp
         && PlanStatus.COMPLETED == resp.planStatus()) {
       return (T)
-          PlanTableScanResponse.builder()
-              .withPlanStatus(resp.planStatus())
-              .withPlanId(resp.planId())
-              .withPlanTasks(resp.planTasks())
-              .withFileScanTasks(resp.fileScanTasks())
+          resp.toBuilder()
               .withCredentials(
-                  ImmutableList.<Credential>builder()
-                      .addAll(resp.credentials())
-                      .add(
-                          ImmutableCredential.builder()
-                              .prefix("dummy")
-                              .putConfig("dummyKey", "dummyVal")
-                              .build())
-                      .build())
-              .withSpecsById(resp.specsById())
+                  ImmutableList.of(
+                      ImmutableCredential.builder()
+                          .prefix("dummy")
+                          .putConfig("dummyKey", "dummyVal")
+                          .build()))
               .build();
     } else if (response instanceof FetchPlanningResultResponse resp
         && PlanStatus.COMPLETED == resp.planStatus()) {
       return (T)
-          FetchPlanningResultResponse.builder()
-              .withPlanStatus(resp.planStatus())
-              .withFileScanTasks(resp.fileScanTasks())
-              .withPlanTasks(resp.planTasks())
-              .withSpecsById(resp.specsById())
+          resp.toBuilder()
               .withCredentials(
-                  ImmutableList.<Credential>builder()
-                      .addAll(resp.credentials())
-                      .add(
-                          ImmutableCredential.builder()
-                              .prefix("dummy")
-                              .putConfig("dummyKey", "dummyVal")
-                              .build())
-                      .build())
+                  ImmutableList.of(
+                      ImmutableCredential.builder()
+                          .prefix("dummy")
+                          .putConfig("dummyKey", "dummyVal")
+                          .build()))
               .build();
     }
 
@@ -1575,5 +1562,85 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
 
     assertThat(table).isNotInstanceOf(RESTTable.class);
     assertThat(table).isInstanceOf(BaseTable.class);
+  }
+
+  @Test
+  public void defaultPlanningModeWhenNoneSpecified() {
+    CatalogWithAdapter catalogWithAdapter = catalogWithModes(null, null);
+    catalogWithAdapter.catalog.createNamespace(NS);
+
+    Table table =
+        catalogWithAdapter
+            .catalog
+            .buildTable(TableIdentifier.of(NS, "default_mode_test"), SCHEMA)
+            .create();
+
+    assertThat(table).isNotInstanceOf(RESTTable.class).isInstanceOf(BaseTable.class);
+  }
+
+  @Test
+  public void invalidPlanningModeConfiguredForClient() {
+    assertThatThrownBy(
+            () ->
+                catalogWithModes(
+                    "invalid_mode", RESTCatalogProperties.ScanPlanningMode.CLIENT.modeName()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Invalid scan planning mode: invalid_mode");
+  }
+
+  @Test
+  public void invalidPlanningModeConfiguredForServer() {
+    CatalogWithAdapter catalogWithAdapter =
+        catalogWithModes(RESTCatalogProperties.ScanPlanningMode.CLIENT.modeName(), "invalid_mode");
+    catalogWithAdapter.catalog.createNamespace(NS);
+
+    assertThatThrownBy(
+            () ->
+                catalogWithAdapter
+                    .catalog
+                    .buildTable(TableIdentifier.of(NS, "invalid_server_mode_test"), SCHEMA)
+                    .create())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Invalid scan planning mode: invalid_mode");
+  }
+
+  @ParameterizedTest
+  @ValueSource(
+      strings = {"client", "CLIENT", "Client", "cLiEnT", "server", "SERVER", "Server", "sErVeR"})
+  public void planningModeWithDifferentCasesOnClient(String planningMode) {
+    CatalogWithAdapter catalogWithAdapter = catalogWithModes(planningMode, null);
+    catalogWithAdapter.catalog.createNamespace(NS);
+
+    Table table =
+        catalogWithAdapter
+            .catalog
+            .buildTable(TableIdentifier.of(NS, "client_case_test_" + planningMode), SCHEMA)
+            .create();
+
+    verifyTableTypeForPlanningMode(planningMode, table);
+  }
+
+  @ParameterizedTest
+  @ValueSource(
+      strings = {"client", "CLIENT", "Client", "cLiEnT", "server", "SERVER", "Server", "sErVeR"})
+  public void planningModeWithDifferentCasesOnServer(String serverMode) {
+    CatalogWithAdapter catalogWithAdapter = catalogWithModes(null, serverMode);
+    catalogWithAdapter.catalog.createNamespace(NS);
+
+    Table table =
+        catalogWithAdapter
+            .catalog
+            .buildTable(TableIdentifier.of(NS, "server_case_test_" + serverMode), SCHEMA)
+            .create();
+
+    verifyTableTypeForPlanningMode(serverMode, table);
+  }
+
+  private void verifyTableTypeForPlanningMode(String planingMode, Table table) {
+    if (planingMode.equalsIgnoreCase("client")) {
+      assertThat(table).isNotInstanceOf(RESTTable.class).isInstanceOf(BaseTable.class);
+    } else {
+      assertThat(table).isInstanceOf(RESTTable.class);
+    }
   }
 }

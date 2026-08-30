@@ -31,6 +31,9 @@ project(":iceberg-azure-bundle") {
 
   dependencies {
     implementation platform(libs.azuresdk.bom)
+    // Align the shaded Jackson to the project version; the Azure SDK BOM otherwise
+    // pulls in an older jackson-databind with known CVEs.
+    implementation platform(libs.jackson.bom)
     implementation "com.azure:azure-storage-file-datalake"
     implementation "com.azure:azure-security-keyvault-keys"
     implementation "com.azure:azure-identity"
@@ -39,12 +42,6 @@ project(":iceberg-azure-bundle") {
   shadowJar {
     archiveClassifier.set(null)
     zip64 true
-
-    // include the LICENSE and NOTICE files for the shaded Jar
-    from(projectDir) {
-      include 'LICENSE'
-      include 'NOTICE'
-    }
 
     // relocate Azure-specific versions
     relocate 'io.netty', 'org.apache.iceberg.azure.shaded.io.netty'

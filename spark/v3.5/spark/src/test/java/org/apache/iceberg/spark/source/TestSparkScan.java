@@ -36,6 +36,7 @@ import org.apache.iceberg.GenericStatisticsFile;
 import org.apache.iceberg.Parameter;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
+import org.apache.iceberg.ScanTask;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -142,6 +143,37 @@ public class TestSparkScan extends TestBaseWithCatalog {
     Statistics stats = scan.estimateStatistics();
 
     assertThat(stats.numRows().getAsLong()).isEqualTo(10000L);
+  }
+
+  @TestTemplate
+  public void testSessionSplitSizeSkipsAdaptiveSplitSizeAdjustment() {
+    sql("CREATE TABLE %s (id BIGINT) USING iceberg", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    long splitSize = TableProperties.SPLIT_SIZE_DEFAULT;
+    List<ScanTask> tasks = ImmutableList.of(scanTaskWithSize(16L * 1024 * 1024));
+
+    withSQLConf(
+        ImmutableMap.of(SQLConf.SHUFFLE_PARTITIONS().key(), "200"),
+        () -> {
+          SparkScan scan =
+              (SparkScan)
+                  new SparkScanBuilder(spark, table, CaseInsensitiveStringMap.empty()).build();
+          assertThat(scan.adjustSplitSize(tasks, splitSize)).isLessThan(splitSize);
+        });
+
+    withSQLConf(
+        ImmutableMap.of(
+            SQLConf.SHUFFLE_PARTITIONS().key(),
+            "200",
+            SparkSQLProperties.READ_SPLIT_SIZE,
+            String.valueOf(splitSize)),
+        () -> {
+          SparkScan scan =
+              (SparkScan)
+                  new SparkScanBuilder(spark, table, CaseInsensitiveStringMap.empty()).build();
+          assertThat(scan.adjustSplitSize(tasks, splitSize)).isEqualTo(splitSize);
+        });
   }
 
   @TestTemplate
@@ -1020,6 +1052,15 @@ public class TestSparkScan extends TestBaseWithCatalog {
     scan = builder.build().toBatch();
 
     assertThat(scan.planInputPartitions()).hasSize(4);
+  }
+
+  private ScanTask scanTaskWithSize(long sizeBytes) {
+    return new ScanTask() {
+      @Override
+      public long sizeBytes() {
+        return sizeBytes;
+      }
+    };
   }
 
   private SparkScanBuilder scanBuilder() throws Exception {

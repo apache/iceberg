@@ -33,6 +33,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.util.DeleteFileWrapper;
 import org.apache.iceberg.util.JsonUtil;
 
 public class TableScanResponseParser {
@@ -44,7 +45,7 @@ public class TableScanResponseParser {
 
   public static List<DeleteFile> parseDeleteFiles(
       JsonNode node, Map<Integer, PartitionSpec> specsById) {
-    if (node.has(DELETE_FILES)) {
+    if (node.hasNonNull(DELETE_FILES)) {
       JsonNode deleteFiles = JsonUtil.get(DELETE_FILES, node);
       Preconditions.checkArgument(
           deleteFiles.isArray(), "Cannot parse delete files from non-array: %s", deleteFiles);
@@ -65,7 +66,7 @@ public class TableScanResponseParser {
       List<DeleteFile> deleteFiles,
       Map<Integer, PartitionSpec> specsById,
       boolean caseSensitive) {
-    if (node.has(FILE_SCAN_TASKS)) {
+    if (node.hasNonNull(FILE_SCAN_TASKS)) {
       JsonNode scanTasks = JsonUtil.get(FILE_SCAN_TASKS, node);
       Preconditions.checkArgument(
           scanTasks.isArray(), "Cannot parse file scan tasks from non-array: %s", scanTasks);
@@ -99,15 +100,16 @@ public class TableScanResponseParser {
       Map<Integer, PartitionSpec> specsById,
       JsonGenerator gen)
       throws IOException {
-    Map<String, Integer> deleteFilePathToIndex = Maps.newHashMap();
+    // DeleteFileWrapper is required for uniqueness by location and content range
+    Map<DeleteFileWrapper, Integer> deleteFileToIndex = Maps.newHashMap();
     if (deleteFiles != null && !deleteFiles.isEmpty()) {
       Preconditions.checkArgument(
           specsById != null, "Cannot serialize response without specs by ID defined");
       gen.writeArrayFieldStart(DELETE_FILES);
       for (int i = 0; i < deleteFiles.size(); i++) {
         DeleteFile deleteFile = deleteFiles.get(i);
-        deleteFilePathToIndex.put(deleteFile.location(), i);
-        ContentFileParser.toJson(deleteFiles.get(i), specsById.get(deleteFile.specId()), gen);
+        deleteFileToIndex.put(DeleteFileWrapper.wrap(deleteFile), i);
+        ContentFileParser.toJson(deleteFile, specsById.get(deleteFile.specId()), gen);
       }
 
       gen.writeEndArray();
@@ -119,7 +121,12 @@ public class TableScanResponseParser {
         Set<Integer> deleteFileReferences = Sets.newHashSet();
         if (deleteFiles != null) {
           for (DeleteFile taskDelete : fileScanTask.deletes()) {
-            deleteFileReferences.add(deleteFilePathToIndex.get(taskDelete.location()));
+            Integer index = deleteFileToIndex.get(DeleteFileWrapper.wrap(taskDelete));
+            Preconditions.checkArgument(
+                index != null,
+                "Cannot serialize scan task with delete file missing from delete files: %s",
+                taskDelete.location());
+            deleteFileReferences.add(index);
           }
         }
 

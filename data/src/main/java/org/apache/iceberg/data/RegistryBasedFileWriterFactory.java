@@ -160,8 +160,7 @@ public abstract class RegistryBasedFileWriterFactory<T, S>
       EncryptedOutputFile file, PartitionSpec spec, StructLike partition) {
     EncryptionKeyMetadata keyMetadata = file.keyMetadata();
     Map<String, String> properties = table != null ? table.properties() : ImmutableMap.of();
-    MetricsConfig metricsConfig =
-        table != null ? MetricsConfig.forPositionDelete(table) : MetricsConfig.forPositionDelete();
+    MetricsConfig metricsConfig = MetricsConfig.forPositionDelete();
 
     try {
       FileWriterBuilder<PositionDeleteWriter<T>, ?> builder =

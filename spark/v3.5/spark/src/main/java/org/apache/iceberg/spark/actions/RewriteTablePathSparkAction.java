@@ -22,6 +22,7 @@ import java.io.BufferedWriter;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -31,15 +32,18 @@ import java.util.stream.Collectors;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.HasTableOperations;
+import org.apache.iceberg.ManifestContent;
 import org.apache.iceberg.ManifestFile;
+import org.apache.iceberg.ManifestFiles;
+import org.apache.iceberg.ManifestReader;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.PartitionStatisticsFile;
 import org.apache.iceberg.RewriteTablePathUtil;
 import org.apache.iceberg.RewriteTablePathUtil.PositionDeleteReaderWriter;
 import org.apache.iceberg.RewriteTablePathUtil.RewriteResult;
-import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.StaticTableOperations;
 import org.apache.iceberg.StatisticsFile;
@@ -50,11 +54,7 @@ import org.apache.iceberg.TableMetadata.MetadataLogEntry;
 import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.actions.ImmutableRewriteTablePath;
 import org.apache.iceberg.actions.RewriteTablePath;
-import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.data.Record;
-import org.apache.iceberg.data.avro.DataWriter;
-import org.apache.iceberg.data.orc.GenericOrcWriter;
-import org.apache.iceberg.data.parquet.GenericParquetWriter;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.encryption.EncryptedFiles;
 import org.apache.iceberg.exceptions.RuntimeIOException;
@@ -64,18 +64,17 @@ import org.apache.iceberg.io.DeleteSchemaUtil;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
-import org.apache.iceberg.orc.ORC;
-import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.JobGroupInfo;
 import org.apache.iceberg.spark.source.SerializableTableWithSize;
 import org.apache.iceberg.util.DeleteFileSet;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.Tasks;
-import org.apache.spark.api.java.function.ForeachFunction;
+import org.apache.spark.api.java.function.FlatMapFunction;
 import org.apache.spark.api.java.function.MapFunction;
 import org.apache.spark.api.java.function.ReduceFunction;
 import org.apache.spark.broadcast.Broadcast;
@@ -87,6 +86,7 @@ import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.functions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import scala.Tuple2;
 
 public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePath>
     implements RewriteTablePath {
@@ -271,8 +271,10 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
    *
    * <ul>
    *   <li>Rebuild version files to staging
-   *   <li>Rebuild manifest list files to staging
-   *   <li>Rebuild manifest to staging
+   *   <li>Read the manifest lists of all valid snapshots
+   *   <li>Rewrite referenced position delete files to staging
+   *   <li>Rebuild manifests to staging
+   *   <li>Rebuild manifest list files to staging, recording each rewritten manifest's length
    *   <li>Get all files needed to move
    * </ul>
    */
@@ -294,6 +296,34 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
     Set<Snapshot> validSnapshots =
         Sets.difference(snapshotSet(endMetadata), snapshotSet(startMetadata));
 
+    // read the manifest lists of all valid snapshots
+    Set<ManifestFile> manifestFiles = Sets.newConcurrentHashSet();
+    Tasks.foreach(validSnapshots)
+        .noRetry()
+        .throwFailureWhenFinished()
+        .executeWith(executorService)
+        .run(
+            snapshot ->
+                snapshot.allManifests(table.io()).stream()
+                    .filter(manifest -> manifestsToRewrite.contains(manifest.path()))
+                    .forEach(manifestFiles::add));
+
+    // rebuild position delete files
+    Set<ManifestFile> deleteManifests =
+        manifestFiles.stream()
+            .filter(manifest -> manifest.content() == ManifestContent.DELETES)
+            .collect(Collectors.toSet());
+    Set<DeleteFile> deleteFilesToRewrite = positionDeletesToRewrite(deleteManifests);
+    Map<String, Long> rewrittenDeleteFileSizes = rewritePositionDeletes(deleteFilesToRewrite);
+
+    // rebuild manifest files
+    RewriteContentFileResult rewriteManifestResult =
+        rewriteManifests(
+            deltaSnapshots,
+            endMetadata,
+            manifestFiles,
+            sparkContext().broadcast(rewrittenDeleteFileSizes));
+
     // rebuild manifest-list files
     Set<RewriteResult<ManifestFile>> manifestListResults = Sets.newConcurrentHashSet();
     Tasks.foreach(validSnapshots)
@@ -303,29 +333,17 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
         .run(
             snapshot ->
                 manifestListResults.add(
-                    rewriteManifestList(snapshot, endMetadata, manifestsToRewrite)));
+                    rewriteManifestList(
+                        snapshot, endMetadata, rewriteManifestResult.rewrittenManifestLengths())));
 
     RewriteResult<ManifestFile> rewriteManifestListResult = new RewriteResult<>();
     manifestListResults.forEach(rewriteManifestListResult::append);
 
-    // rebuild manifest files
-    Set<ManifestFile> metaFiles = rewriteManifestListResult.toRewrite();
-    RewriteContentFileResult rewriteManifestResult =
-        rewriteManifests(deltaSnapshots, endMetadata, metaFiles);
-
-    // rebuild position delete files
-    Set<DeleteFile> deleteFiles =
-        rewriteManifestResult.toRewrite().stream()
-            .filter(e -> e instanceof DeleteFile)
-            .map(e -> (DeleteFile) e)
-            .collect(Collectors.toCollection(DeleteFileSet::create));
-    rewritePositionDeletes(deleteFiles);
-
     ImmutableRewriteTablePath.Result.Builder builder =
         ImmutableRewriteTablePath.Result.builder()
             .stagingLocation(stagingDir)
-            .rewrittenDeleteFilePathsCount(deleteFiles.size())
-            .rewrittenManifestFilePathsCount(metaFiles.size())
+            .rewrittenDeleteFilePathsCount(deleteFilesToRewrite.size())
+            .rewrittenManifestFilePathsCount(manifestFiles.size())
             .latestVersion(RewriteTablePathUtil.fileName(endVersionName));
 
     if (!createFileList) {
@@ -481,12 +499,12 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
    *
    * @param snapshot snapshot represented by the manifest list
    * @param tableMetadata metadata of table
-   * @param manifestsToRewrite filter of manifests to rewrite.
+   * @param rewrittenManifestLengths byte length of each rewritten manifest, keyed by source path
    * @return a result including a copy plan for the manifests contained in the manifest list, as
    *     well as for the manifest list itself
    */
   private RewriteResult<ManifestFile> rewriteManifestList(
-      Snapshot snapshot, TableMetadata tableMetadata, Set<String> manifestsToRewrite) {
+      Snapshot snapshot, TableMetadata tableMetadata, Map<String, Long> rewrittenManifestLengths) {
     RewriteResult<ManifestFile> result = new RewriteResult<>();
 
     String path = snapshot.manifestListLocation();
@@ -496,7 +514,7 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
             snapshot,
             table.io(),
             tableMetadata,
-            manifestsToRewrite,
+            rewrittenManifestLengths,
             sourcePrefix,
             targetPrefix,
             stagingDir,
@@ -543,25 +561,31 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
     public RewriteContentFileResult append(RewriteResult<ContentFile<?>> r1) {
       this.copyPlan().addAll(r1.copyPlan());
       this.toRewrite().addAll(r1.toRewrite());
+      r1.rewrittenManifestLengths().forEach(this::addRewrittenManifestLength);
       return this;
     }
 
     public RewriteContentFileResult appendDataFile(RewriteResult<DataFile> r1) {
       this.copyPlan().addAll(r1.copyPlan());
       this.toRewrite().addAll(r1.toRewrite());
+      r1.rewrittenManifestLengths().forEach(this::addRewrittenManifestLength);
       return this;
     }
 
     public RewriteContentFileResult appendDeleteFile(RewriteResult<DeleteFile> r1) {
       this.copyPlan().addAll(r1.copyPlan());
       this.toRewrite().addAll(r1.toRewrite());
+      r1.rewrittenManifestLengths().forEach(this::addRewrittenManifestLength);
       return this;
     }
   }
 
   /** Rewrite manifest files in a distributed manner and return rewritten data files path pairs. */
   private RewriteContentFileResult rewriteManifests(
-      Set<Snapshot> deltaSnapshots, TableMetadata tableMetadata, Set<ManifestFile> toRewrite) {
+      Set<Snapshot> deltaSnapshots,
+      TableMetadata tableMetadata,
+      Set<ManifestFile> toRewrite,
+      Broadcast<Map<String, Long>> rewrittenDeleteFileSizes) {
     if (toRewrite.isEmpty()) {
       return new RewriteContentFileResult();
     }
@@ -581,7 +605,8 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
                 stagingDir,
                 tableMetadata.formatVersion(),
                 sourcePrefix,
-                targetPrefix),
+                targetPrefix,
+                rewrittenDeleteFileSizes),
             Encoders.bean(RewriteContentFileResult.class))
         // duplicates are expected here as the same data file can have different statuses
         // (e.g. added and deleted)
@@ -594,7 +619,8 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
       String stagingLocation,
       int format,
       String sourcePrefix,
-      String targetPrefix) {
+      String targetPrefix,
+      Broadcast<Map<String, Long>> rewrittenDeleteFileSizes) {
 
     return manifestFile -> {
       RewriteContentFileResult result = new RewriteContentFileResult();
@@ -619,7 +645,8 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
                   stagingLocation,
                   format,
                   sourcePrefix,
-                  targetPrefix));
+                  targetPrefix,
+                  rewrittenDeleteFileSizes));
           break;
         default:
           throw new UnsupportedOperationException(
@@ -665,7 +692,8 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
       String stagingLocation,
       int format,
       String sourcePrefix,
-      String targetPrefix) {
+      String targetPrefix,
+      Broadcast<Map<String, Long>> rewrittenDeleteFileSizes) {
     try {
       String stagingPath =
           RewriteTablePathUtil.stagingPath(manifestFile.path(), sourcePrefix, stagingLocation);
@@ -682,49 +710,97 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
           specsById,
           sourcePrefix,
           targetPrefix,
-          stagingLocation);
+          stagingLocation,
+          rewrittenDeleteFileSizes.value());
     } catch (IOException e) {
       throw new RuntimeIOException(e);
     }
   }
 
-  private void rewritePositionDeletes(Set<DeleteFile> toRewrite) {
-    if (toRewrite.isEmpty()) {
-      return;
+  /**
+   * Enumerate the distinct position delete files referenced by the given delete manifests. Deduped
+   * by identity (location, offset, size) so a file shared across manifests is counted once; the
+   * physical rewrite is further deduped by location in {@link #rewritePositionDeletes}.
+   */
+  private Set<DeleteFile> positionDeletesToRewrite(Set<ManifestFile> deleteManifests) {
+    if (deleteManifests.isEmpty()) {
+      return Collections.emptySet();
     }
+
+    Encoder<ManifestFile> manifestFileEncoder = Encoders.javaSerialization(ManifestFile.class);
+    Dataset<ManifestFile> manifestDS =
+        spark().createDataset(Lists.newArrayList(deleteManifests), manifestFileEncoder);
+    Encoder<DeleteFile> deleteFileEncoder = Encoders.javaSerialization(DeleteFile.class);
+
+    List<DeleteFile> referencedDeleteFiles =
+        manifestDS
+            .repartition(deleteManifests.size())
+            .flatMap(positionDeletesInManifest(tableBroadcast()), deleteFileEncoder)
+            .collectAsList();
+
+    return DeleteFileSet.of(referencedDeleteFiles);
+  }
+
+  private static FlatMapFunction<ManifestFile, DeleteFile> positionDeletesInManifest(
+      Broadcast<Table> tableArg) {
+    return manifestFile -> {
+      Table table = tableArg.getValue();
+      List<DeleteFile> deleteFiles = Lists.newArrayList();
+      try (ManifestReader<DeleteFile> reader =
+          ManifestFiles.readDeleteManifest(manifestFile, table.io(), table.specs())) {
+        for (DeleteFile deleteFile : reader) {
+          if (deleteFile.content() == FileContent.POSITION_DELETES) {
+            deleteFiles.add(deleteFile.copy());
+          }
+        }
+      }
+      return deleteFiles.iterator();
+    };
+  }
+
+  /**
+   * Rewrite the given position delete files in parallel, returning a map from each source delete
+   * file path to the size of its rewritten file. Physical files are deduped by location, so a
+   * Puffin file holding multiple DVs is rewritten once and its size keyed once.
+   */
+  private Map<String, Long> rewritePositionDeletes(Set<DeleteFile> toRewrite) {
+    if (toRewrite.isEmpty()) {
+      return Collections.emptyMap();
+    }
+
+    // Multiple DVs can share one Puffin file at different blob offsets; rewrite each physical file
+    // once. The measured size is keyed by location and applied to every referencing manifest entry.
+    Map<String, DeleteFile> byLocation = Maps.newHashMapWithExpectedSize(toRewrite.size());
+    for (DeleteFile deleteFile : toRewrite) {
+      byLocation.putIfAbsent(deleteFile.location(), deleteFile);
+    }
+    List<DeleteFile> physicalFiles = Lists.newArrayList(byLocation.values());
 
     Encoder<DeleteFile> deleteFileEncoder = Encoders.javaSerialization(DeleteFile.class);
-    Dataset<DeleteFile> deleteFileDs =
-        spark().createDataset(Lists.newArrayList(toRewrite), deleteFileEncoder);
+    Dataset<DeleteFile> deleteFileDS = spark().createDataset(physicalFiles, deleteFileEncoder);
 
     PositionDeleteReaderWriter posDeleteReaderWriter = new SparkPositionDeleteReaderWriter();
-    deleteFileDs
-        .repartition(toRewrite.size())
-        .foreach(
-            rewritePositionDelete(
-                tableBroadcast(), sourcePrefix, targetPrefix, stagingDir, posDeleteReaderWriter));
+    List<Tuple2<String, Long>> rewrittenSizes =
+        deleteFileDS
+            .repartition(physicalFiles.size())
+            .map(
+                rewritePositionDelete(
+                    tableBroadcast(),
+                    sourcePrefix,
+                    targetPrefix,
+                    stagingDir,
+                    posDeleteReaderWriter),
+                Encoders.tuple(Encoders.STRING(), Encoders.LONG()))
+            .collectAsList();
+
+    Map<String, Long> sizesBySourcePath = Maps.newHashMapWithExpectedSize(rewrittenSizes.size());
+    for (Tuple2<String, Long> entry : rewrittenSizes) {
+      sizesBySourcePath.put(entry._1(), entry._2());
+    }
+    return sizesBySourcePath;
   }
 
-  private static class SparkPositionDeleteReaderWriter implements PositionDeleteReaderWriter {
-    @Override
-    public CloseableIterable<Record> reader(
-        InputFile inputFile, FileFormat format, PartitionSpec spec) {
-      return positionDeletesReader(inputFile, format, spec);
-    }
-
-    @Override
-    public PositionDeleteWriter<Record> writer(
-        OutputFile outputFile,
-        FileFormat format,
-        PartitionSpec spec,
-        StructLike partition,
-        Schema rowSchema)
-        throws IOException {
-      return positionDeletesWriter(outputFile, format, spec, partition, rowSchema);
-    }
-  }
-
-  private ForeachFunction<DeleteFile> rewritePositionDelete(
+  private static MapFunction<DeleteFile, Tuple2<String, Long>> rewritePositionDelete(
       Broadcast<Table> tableArg,
       String sourcePrefixArg,
       String targetPrefixArg,
@@ -737,15 +813,32 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
               deleteFile.location(), sourcePrefixArg, stagingLocationArg);
       OutputFile outputFile = io.newOutputFile(newPath);
       PartitionSpec spec = tableArg.getValue().specs().get(deleteFile.specId());
-      RewriteTablePathUtil.rewritePositionDeleteFile(
-          deleteFile,
-          outputFile,
-          io,
-          spec,
-          sourcePrefixArg,
-          targetPrefixArg,
-          posDeleteReaderWriter);
+      long rewrittenLength =
+          RewriteTablePathUtil.rewritePositionDelete(
+              deleteFile,
+              outputFile,
+              io,
+              spec,
+              sourcePrefixArg,
+              targetPrefixArg,
+              posDeleteReaderWriter);
+      return new Tuple2<>(deleteFile.location(), rewrittenLength);
     };
+  }
+
+  private static class SparkPositionDeleteReaderWriter implements PositionDeleteReaderWriter {
+    @Override
+    public CloseableIterable<Record> reader(
+        InputFile inputFile, FileFormat format, PartitionSpec spec) {
+      return positionDeletesReader(inputFile, format, spec);
+    }
+
+    @Override
+    public PositionDeleteWriter<Record> writer(
+        OutputFile outputFile, FileFormat format, PartitionSpec spec, StructLike partition)
+        throws IOException {
+      return positionDeletesWriter(outputFile, format, spec, partition);
+    }
   }
 
   private static CloseableIterable<Record> positionDeletesReader(
@@ -757,44 +850,13 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
   }
 
   private static PositionDeleteWriter<Record> positionDeletesWriter(
-      OutputFile outputFile,
-      FileFormat format,
-      PartitionSpec spec,
-      StructLike partition,
-      Schema rowSchema)
+      OutputFile outputFile, FileFormat format, PartitionSpec spec, StructLike partition)
       throws IOException {
-    if (rowSchema == null) {
-      return FormatModelRegistry.<Record>positionDeleteWriteBuilder(
-              format, EncryptedFiles.plainAsEncryptedOutput(outputFile))
-          .partition(partition)
-          .spec(spec)
-          .build();
-    } else {
-      return switch (format) {
-        case AVRO ->
-            Avro.writeDeletes(outputFile)
-                .createWriterFunc(DataWriter::create)
-                .withPartition(partition)
-                .rowSchema(rowSchema)
-                .withSpec(spec)
-                .buildPositionWriter();
-        case PARQUET ->
-            Parquet.writeDeletes(outputFile)
-                .createWriterFunc(GenericParquetWriter::create)
-                .withPartition(partition)
-                .rowSchema(rowSchema)
-                .withSpec(spec)
-                .buildPositionWriter();
-        case ORC ->
-            ORC.writeDeletes(outputFile)
-                .createWriterFunc(GenericOrcWriter::buildWriter)
-                .withPartition(partition)
-                .rowSchema(rowSchema)
-                .withSpec(spec)
-                .buildPositionWriter();
-        default -> throw new UnsupportedOperationException("Unsupported file format: " + format);
-      };
-    }
+    return FormatModelRegistry.<Record>positionDeleteWriteBuilder(
+            format, EncryptedFiles.plainAsEncryptedOutput(outputFile))
+        .partition(partition)
+        .spec(spec)
+        .build();
   }
 
   private Set<Snapshot> snapshotSet(TableMetadata metadata) {

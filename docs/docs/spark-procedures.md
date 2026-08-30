@@ -389,7 +389,7 @@ Iceberg can compact data files in parallel using Spark with the `rewriteDataFile
 |---------------|-----------|------|-------------|
 | `table`       | ✔️  | string | Name of the table to update |
 | `strategy`    |    | string | Name of the strategy - binpack or sort. Defaults to binpack strategy |
-| `sort_order`  |    | string | For Zorder use a comma separated list of columns within zorder(). Example: zorder(c1,c2,c3). <br/>Else, Comma separated sort orders in the format (ColumnName SortDirection NullOrder). <br/>Where SortDirection can be ASC or DESC. NullOrder can be NULLS FIRST or NULLS LAST. <br/>Defaults to the table's sort order |
+| `sort_order`  |    | string | For Zorder use a comma separated list of columns within zorder(). Example: zorder(c1,c2,c3). <br/>For Hilbert use a comma separated list of columns within hilbert(). Example: hilbert(c1,c2,c3). <br/>Else, Comma separated sort orders in the format (ColumnName SortDirection NullOrder). <br/>Where SortDirection can be ASC or DESC. NullOrder can be NULLS FIRST or NULLS LAST. <br/>Defaults to the table's sort order |
 | `options`     | ️   | map<string, string> | Options to be used for actions|
 | `where`       | ️   | string | predicate as a string used for filtering the files. Note that all files that may contain data matching the filter will be selected for rewriting|
 
@@ -435,6 +435,16 @@ Iceberg can compact data files in parallel using Spark with the `rewriteDataFile
 | `var-length-contribution` | 8 | Number of bytes considered from an input column of a type with variable length (String, Binary) |
 | `max-output-size` | 2147483647 | Amount of bytes interleaved in the ZOrder algorithm |
 
+##### Options for sort strategy with hilbert sort_order
+
+The Hilbert sort order accepts the [general options](#general-options) and the
+[sort strategy options](#options-for-sort-strategy), but has no options of its own. Unlike ZOrder,
+every column contributes its full primitive width (8 bytes) to the Hilbert index, so
+`var-length-contribution` and `max-output-size` do not apply.
+
+Note that `hilbert()` and `zorder()` cannot be combined with each other, nor with plain column sort
+orders, in a single `sort_order`.
+
 #### Output
 
 | Output Name | Type | Description |
@@ -463,6 +473,12 @@ Rewrite the data files in table `db.sample` by zOrdering on column c1 and c2.
 Using the same defaults as bin-pack to determine which files to rewrite.
 ```sql
 CALL catalog_name.system.rewrite_data_files(table => 'db.sample', strategy => 'sort', sort_order => 'zorder(c1,c2)');
+```
+
+Rewrite the data files in table `db.sample` by clustering on a Hilbert curve over columns c1 and c2.
+Using the same defaults as bin-pack to determine which files to rewrite.
+```sql
+CALL catalog_name.system.rewrite_data_files(table => 'db.sample', strategy => 'sort', sort_order => 'hilbert(c1,c2)');
 ```
 
 Rewrite the data files in table `db.sample` using bin-pack strategy in any partition where at least two files need rewriting, and then remove any dangling delete files.

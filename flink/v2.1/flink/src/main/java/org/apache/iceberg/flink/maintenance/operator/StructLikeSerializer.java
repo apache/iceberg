@@ -36,8 +36,10 @@ import org.apache.iceberg.types.Types;
  * Serializer for {@link StructLike} tuples. Two entry points:
  *
  * <ul>
- *   <li>{@link #serializeKey} builds a Flink keyed-state key ({@link SerializedEqualityValues}),
- *       prefixed with the partition spec id so partition evolution keeps specs disjoint.
+ *   <li>{@link #serializeKey} builds a Flink keyed-state key ({@link SerializedEqualityValues})
+ *       from the equality values alone, so all rows with the same key co-locate on one shard
+ *       regardless of partition spec. Spec scoping of a delete is applied at resolve time, not in
+ *       the key.
  *   <li>{@link #encodePartition} / {@link #decodePartition} serialize partition tuples into bytes.
  * </ul>
  */
@@ -48,12 +50,9 @@ class StructLikeSerializer {
   private final ByteArrayOutputStream baos = new ByteArrayOutputStream();
   private final DataOutputStream dos = new DataOutputStream(baos);
 
-  public SerializedEqualityValues serializeKey(
-      StructLike key, Types.StructType keyType, int specId) {
+  public SerializedEqualityValues serializeKey(StructLike key, Types.StructType keyType) {
     baos.reset();
     try {
-      dos.writeInt(specId);
-
       List<Types.NestedField> fields = keyType.fields();
       dos.writeInt(fields.size());
       for (Types.NestedField field : fields) {
