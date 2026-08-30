@@ -281,7 +281,6 @@ class StatsUtil {
       return null;
     }
 
-
     List<Types.NestedField> fields = Lists.newArrayList();
 
     if (mode.hasBounds()) {
