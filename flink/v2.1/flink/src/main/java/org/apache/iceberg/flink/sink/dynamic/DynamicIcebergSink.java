@@ -154,22 +154,33 @@ public class DynamicIcebergSink
     DataStream<CommittableMessage<DynamicWriteResult>> allResults =
         writeResults.union(forwardWriteResults);
 
-    return allResults
-        .keyBy(
-            committable -> {
-              if (committable instanceof CommittableSummary) {
-                return "__summary";
-              } else {
-                CommittableWithLineage<DynamicWriteResult> result =
-                    (CommittableWithLineage<DynamicWriteResult>) committable;
-                return result.getCommittable().key().tableName();
-              }
-            })
-        .transform(
-            prefixIfNotNull(uidPrefix, sinkId + " Pre Commit"),
-            typeInformation,
-            new DynamicWriteResultAggregator(catalogLoader, cacheMaximumSize))
-        .uid(prefixIfNotNull(uidPrefix, "-pre-commit-topology"));
+    SingleOutputStreamOperator<CommittableMessage<DynamicCommittable>> preCommitTopology =
+        allResults
+            .keyBy(
+                committable -> {
+                  if (committable instanceof CommittableSummary) {
+                    return "__summary";
+                  } else {
+                    CommittableWithLineage<DynamicWriteResult> result =
+                        (CommittableWithLineage<DynamicWriteResult>) committable;
+                    return result.getCommittable().key().tableName();
+                  }
+                })
+            .transform(
+                prefixIfNotNull(uidPrefix, sinkId + " Pre Commit"),
+                typeInformation,
+                new DynamicWriteResultAggregator(catalogLoader, cacheMaximumSize))
+            .uid(prefixIfNotNull(uidPrefix, "-pre-commit-topology"));
+
+    FlinkWriteConf flinkWriteConf = new FlinkWriteConf(writeProperties, flinkConfig);
+    if (flinkWriteConf.committerParallelism() != null) {
+      preCommitTopology.setParallelism(flinkWriteConf.committerParallelism());
+    }
+    if (flinkWriteConf.committerMaxParallelism() != null) {
+      preCommitTopology.setMaxParallelism(flinkWriteConf.committerMaxParallelism());
+    }
+
+    return preCommitTopology;
   }
 
   @Override
@@ -307,6 +318,20 @@ public class DynamicIcebergSink
     public Builder<T> writeParallelism(int newWriteParallelism) {
       writeOptions.put(
           FlinkWriteOptions.WRITE_PARALLELISM.key(), Integer.toString(newWriteParallelism));
+      return this;
+    }
+
+    public Builder<T> committerParallelism(int newCommitterParallelism) {
+      writeOptions.put(
+          FlinkWriteOptions.COMMITTER_PARALLELISM.key(),
+          Integer.toString(newCommitterParallelism));
+      return this;
+    }
+
+    public Builder<T> committerMaxParallelism(int newCommitterMaxParallelism) {
+      writeOptions.put(
+          FlinkWriteOptions.COMMITTER_MAX_PARALLELISM.key(),
+          Integer.toString(newCommitterMaxParallelism));
       return this;
     }
 
