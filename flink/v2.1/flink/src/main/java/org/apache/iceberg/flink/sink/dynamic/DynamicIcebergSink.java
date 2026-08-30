@@ -323,8 +323,7 @@ public class DynamicIcebergSink
 
     public Builder<T> committerParallelism(int newCommitterParallelism) {
       writeOptions.put(
-          FlinkWriteOptions.COMMITTER_PARALLELISM.key(),
-          Integer.toString(newCommitterParallelism));
+          FlinkWriteOptions.COMMITTER_PARALLELISM.key(), Integer.toString(newCommitterParallelism));
       return this;
     }
 
