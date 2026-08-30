@@ -39,7 +39,12 @@ public class Months<T> extends TimeTransform<T> {
   @Override
   protected Transform<T, Integer> toEnum(Type type) {
     return (Transform<T, Integer>)
-        fromSourceType(type, Dates.MONTH, Timestamps.MICROS_TO_MONTH, Timestamps.NANOS_TO_MONTH);
+        fromSourceType(
+            type,
+            Dates.MONTH,
+            Timestamps.MICROS_TO_MONTH,
+            Timestamps.NANOS_TO_MONTH,
+            UUIDv7Timestamps.UUID_TO_MONTH);
   }
 
   @Override

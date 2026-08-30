@@ -26,7 +26,8 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.util.SerializableFunction;
 
 abstract class TimeTransform<S> implements Transform<S, Integer> {
-  protected static <R> R fromSourceType(Type type, R dateResult, R microsResult, R nanosResult) {
+  protected static <R> R fromSourceType(
+      Type type, R dateResult, R microsResult, R nanosResult, R uuidResult) {
     switch (type.typeId()) {
       case DATE:
         if (dateResult != null) {
@@ -37,6 +38,11 @@ abstract class TimeTransform<S> implements Transform<S, Integer> {
         return microsResult;
       case TIMESTAMP_NANO:
         return nanosResult;
+      case UUID:
+        if (uuidResult != null) {
+          return uuidResult;
+        }
+        break;
     }
 
     throw new IllegalArgumentException("Unsupported type: " + type);
@@ -66,6 +72,9 @@ abstract class TimeTransform<S> implements Transform<S, Integer> {
       return TransformUtil.satisfiesOrderOf(granularity(), ((Dates) other).granularity());
     } else if (other instanceof Timestamps) {
       return TransformUtil.satisfiesOrderOf(granularity(), ((Timestamps) other).granularity());
+    } else if (other instanceof UUIDv7Timestamps) {
+      return TransformUtil.satisfiesOrderOf(
+          granularity(), ((UUIDv7Timestamps) other).granularity());
     } else if (other instanceof TimeTransform) {
       return TransformUtil.satisfiesOrderOf(
           granularity(), ((TimeTransform<?>) other).granularity());
@@ -78,7 +87,8 @@ abstract class TimeTransform<S> implements Transform<S, Integer> {
   public boolean canTransform(Type type) {
     return type.typeId() == Type.TypeID.DATE
         || type.typeId() == Type.TypeID.TIMESTAMP
-        || type.typeId() == Type.TypeID.TIMESTAMP_NANO;
+        || type.typeId() == Type.TypeID.TIMESTAMP_NANO
+        || type.typeId() == Type.TypeID.UUID;
   }
 
   @Override
