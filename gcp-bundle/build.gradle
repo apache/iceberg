@@ -46,12 +46,6 @@ project(":iceberg-gcp-bundle") {
     archiveClassifier.set(null)
     zip64 true
 
-    // include the LICENSE and NOTICE files for the shaded Jar
-    from(projectDir) {
-      include 'LICENSE'
-      include 'NOTICE'
-    }
-
     // relocate GCP-specific versions
     relocate 'com.fasterxml.jackson', 'org.apache.iceberg.gcp.shaded.com.fasterxml.jackson'
     relocate 'com.google.common', 'org.apache.iceberg.gcp.shaded.com.google.common'

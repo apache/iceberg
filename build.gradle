@@ -287,6 +287,26 @@ subprojects {
       scalaCompileOptions.additionalParameters.add("-release:17")
     }
   }
+
+  plugins.withId('com.gradleup.shadow') {
+    tasks.named('shadowJar').configure { jar ->
+      // keep Iceberg's aggregated LICENSE/NOTICE at the jar root
+      jar.from(project.projectDir) {
+        include 'LICENSE'
+        include 'NOTICE'
+      }
+
+      // drop LICENSE/NOTICE that shaded dependencies put under META-INF/
+      jar.exclude 'META-INF/LICENSE*'
+      jar.exclude 'META-INF/NOTICE*'
+
+      // drop a second root LICENSE/NOTICE that came out of a dependency jar.
+      // entries copied from projectDir have a real File; archive entries do not,
+      // so `it.file in bundledNotices` keeps the Iceberg pair and drops the rest.
+      def bundledNotices = [project.file('LICENSE'), project.file('NOTICE')]
+      jar.exclude { it.relativePath.pathString in ['LICENSE', 'NOTICE'] && !(it.file in bundledNotices) }
+    }
+  }
 }
 
 project(':iceberg-bundled-guava') {
@@ -308,12 +328,6 @@ project(':iceberg-bundled-guava') {
     archiveClassifier.set(null)
     configurations = [project.configurations.compileClasspath]
     zip64 true
-
-    // include the LICENSE and NOTICE files for the shaded Jar
-    from(projectDir) {
-      include 'LICENSE'
-      include 'NOTICE'
-    }
 
     dependencies {
       exclude(dependency('org.slf4j:slf4j-api'))
@@ -593,6 +607,8 @@ project(':iceberg-aws') {
   // TODO delete once s3-signer-open-api.yaml is removed
   def s3SignerSpec = layout.projectDirectory.file("src/main/resources/s3-signer-open-api.yaml")
   tasks.register('validateS3SignerSpec', org.openapitools.generator.gradle.plugin.tasks.ValidateTask) {
+    description = 'Validates the S3 signer OpenAPI spec'
+    group = 'verification'
     inputSpec.set(s3SignerSpec)
     recommend.set(true)
   }
@@ -1160,6 +1176,8 @@ project(':iceberg-open-api') {
 
   def restCatalogSpec = layout.projectDirectory.file("rest-catalog-open-api.yaml")
   tasks.register('validateRESTCatalogSpec', org.openapitools.generator.gradle.plugin.tasks.ValidateTask) {
+    description = 'Validates the REST catalog OpenAPI spec'
+    group = 'verification'
     inputSpec.set(restCatalogSpec)
     recommend.set(true)
   }
@@ -1171,12 +1189,6 @@ project(':iceberg-open-api') {
     configurations = [project.configurations.testFixturesRuntimeClasspath]
     from sourceSets.testFixtures.output
     zip64 true
-
-    // include the LICENSE and NOTICE files for the runtime Jar
-    from(projectDir) {
-      include 'LICENSE'
-      include 'NOTICE'
-    }
 
     manifest {
       attributes 'Main-Class': 'org.apache.iceberg.rest.RESTCatalogServer'
