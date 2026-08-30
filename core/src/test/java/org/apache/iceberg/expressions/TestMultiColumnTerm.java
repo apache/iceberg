@@ -18,10 +18,26 @@
  */
 package org.apache.iceberg.expressions;
 
-import java.util.List;
+import static org.assertj.core.api.Assertions.assertThat;
 
-public class Zorder extends MultiColumnTerm {
-  public Zorder(List<NamedReference<?>> refs) {
-    super(refs);
+import java.util.List;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.junit.jupiter.api.Test;
+
+public class TestMultiColumnTerm {
+  @Test
+  public void zorderIsMultiColumnTerm() {
+    List<NamedReference<?>> refs = ImmutableList.of(Expressions.ref("a"), Expressions.ref("b"));
+    Zorder zorder = new Zorder(refs);
+    assertThat(zorder).isInstanceOf(MultiColumnTerm.class);
+    assertThat(zorder.refs()).containsExactlyElementsOf(refs);
+  }
+
+  @Test
+  public void hilbertIsMultiColumnTerm() {
+    List<NamedReference<?>> refs = ImmutableList.of(Expressions.ref("a"), Expressions.ref("b"));
+    Hilbert hilbert = new Hilbert(refs);
+    assertThat(hilbert).isInstanceOf(MultiColumnTerm.class);
+    assertThat(hilbert.refs()).containsExactlyElementsOf(refs);
   }
 }
