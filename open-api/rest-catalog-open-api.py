@@ -663,7 +663,7 @@ class MaskAlphanum(Action):
     - All other Unicode characters (including letters, whitespace, and any punctuation
       not listed above) are replaced with 'x'
 
-    For example: "prashant010696@gmail.com" -> "xxxxxxxxnnnnnn@xxxxx.xxx"
+    For example: "iceberg16112018@apache.org" -> "xxxxxxxnnnnnnnn@xxxxxx.xxx"
     NULL input is preserved (NULL -> NULL).
     Applicable to: string
 
@@ -697,7 +697,7 @@ class ReplaceWithNull(Action):
 class ShowFirst4(Action):
     """
     Preserves the first 4 Unicode code points of the column value and redacts the remainder using mask-alphanum rules (see MaskAlphanum for the exact character rules). Values with 4 or fewer Unicode code points are returned unchanged.
-    For example: "prashant010696@gmail.com" -> "prasxxxxnnnnnn@xxxxx.xxx"
+    For example: "iceberg16112018@apache.org" -> "icebxxxnnnnnnnn@xxxxxx.xxx"
     NULL input is preserved (NULL -> NULL).
     Applicable to: string
 
