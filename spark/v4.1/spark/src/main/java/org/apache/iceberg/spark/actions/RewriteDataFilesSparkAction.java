@@ -224,7 +224,8 @@ public class RewriteDataFilesSparkAction
     return result;
   }
 
-  private void init(long startingSnapshotId) {
+  @VisibleForTesting
+  void init(long startingSnapshotId) {
     this.planner =
         runner instanceof SparkShufflingFileRewriteRunner
             ? new SparkShufflingDataRewritePlanner(table, filter, startingSnapshotId, caseSensitive)

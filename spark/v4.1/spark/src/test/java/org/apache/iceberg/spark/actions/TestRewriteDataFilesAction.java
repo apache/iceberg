@@ -111,6 +111,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.spark.FileRewriteCoordinator;
 import org.apache.iceberg.spark.ScanTaskSetManager;
+import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.SparkWriteOptions;
@@ -2239,6 +2240,29 @@ public class TestRewriteDataFilesAction extends TestBase {
     shouldHaveFiles(table, 4);
     List<Object[]> actualRecordsWithLineage = currentDataWithLineage();
     assertEquals("Rows must match", expectedRecords, actualRecordsWithLineage);
+  }
+
+  @TestTemplate
+  void cacheDeleteFilesOnExecutorsDisabledByDefault() {
+    Table table = createTablePartitioned(1, 1);
+    RewriteDataFilesSparkAction action = SparkActions.get(spark).rewriteDataFiles(table);
+    action.init(0L);
+
+    SparkReadConf readConf = new SparkReadConf(action.spark(), table);
+    assertThat(readConf.cacheDeleteFilesOnExecutors()).isFalse();
+  }
+
+  @TestTemplate
+  void cacheDeleteFilesOnExecutorsEnabledByOption() {
+    Table table = createTablePartitioned(1, 1);
+    RewriteDataFilesSparkAction action =
+        SparkActions.get(spark)
+            .rewriteDataFiles(table)
+            .option(RewriteDataFilesSparkAction.CACHE_DELETE_FILES, "true");
+    action.init(0L);
+
+    SparkReadConf readConf = new SparkReadConf(action.spark(), table);
+    assertThat(readConf.cacheDeleteFilesOnExecutors()).isTrue();
   }
 
   @TestTemplate
