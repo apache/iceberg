@@ -160,8 +160,10 @@ abstract class Channel {
 
   void stop() {
     LOG.info("Channel stopping");
-    producer.close();
+    // Close the consumer first to prevent stale consumer in the consumer group if producer close
+    // hangs
     consumer.close();
+    producer.close();
     admin.close();
   }
 }
