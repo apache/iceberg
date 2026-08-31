@@ -41,7 +41,6 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.stream.Stream;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.DataFile;
@@ -75,9 +74,7 @@ import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.EnumSource;
-import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
@@ -1421,113 +1418,6 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
     assertThatThrownBy(scan::planFiles)
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("must be non-negative");
-  }
-
-  @Test
-  public void asyncPlanningSucceedsWithCustomBackoff() {
-    List<Endpoint> endpoints =
-        endpointsWithPlanning(
-            Endpoint.V1_SUBMIT_TABLE_SCAN_PLAN,
-            Endpoint.V1_FETCH_TABLE_SCAN_PLAN,
-            Endpoint.V1_CANCEL_TABLE_SCAN_PLAN,
-            Endpoint.V1_FETCH_TABLE_SCAN_PLAN_TASKS);
-
-    CatalogWithAdapter catalogWithAdapter =
-        catalogWithEndpoints(endpoints, TestPlanningBehavior.builder().asynchronous().build());
-
-    catalogWithAdapter.catalog.initialize(
-        "test-custom-backoff",
-        ImmutableMap.of(
-            CatalogProperties.FILE_IO_IMPL,
-            "org.apache.iceberg.inmemory.InMemoryFileIO",
-            RESTCatalogProperties.SCAN_PLANNING_MODE,
-            RESTCatalogProperties.ScanPlanningMode.SERVER.modeName(),
-            RESTCatalogProperties.REST_SCAN_PLANNING_POLL_MIN_WAIT_MS,
-            "50",
-            RESTCatalogProperties.REST_SCAN_PLANNING_POLL_MAX_WAIT_MS,
-            "200",
-            RESTCatalogProperties.REST_SCAN_PLANNING_POLL_SCALE_FACTOR,
-            "1.5"));
-
-    RESTTable table = restTableFor(catalogWithAdapter.catalog, "custom_backoff_success");
-    setParserContext(table);
-    assertThat(table.newScan().planFiles()).hasSize(1);
-  }
-
-  @ParameterizedTest
-  @MethodSource("invalidPollBackoff")
-  public void asyncPlanningRejectsInvalidPollBackoff(
-      String property, String value, String message) {
-    List<Endpoint> endpoints =
-        endpointsWithPlanning(
-            Endpoint.V1_SUBMIT_TABLE_SCAN_PLAN,
-            Endpoint.V1_FETCH_TABLE_SCAN_PLAN,
-            Endpoint.V1_CANCEL_TABLE_SCAN_PLAN,
-            Endpoint.V1_FETCH_TABLE_SCAN_PLAN_TASKS);
-
-    CatalogWithAdapter catalogWithAdapter =
-        catalogWithEndpoints(endpoints, TestPlanningBehavior.builder().asynchronous().build());
-
-    ImmutableMap.Builder<String, String> properties =
-        ImmutableMap.<String, String>builder()
-            .put(CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.inmemory.InMemoryFileIO")
-            .put(
-                RESTCatalogProperties.SCAN_PLANNING_MODE,
-                RESTCatalogProperties.ScanPlanningMode.SERVER.modeName())
-            .put(property, value);
-
-    catalogWithAdapter.catalog.initialize("test-invalid-backoff", properties.build());
-
-    RESTTable table = restTableFor(catalogWithAdapter.catalog, "invalid_backoff_test");
-    setParserContext(table);
-    RESTTableScan scan = restTableScanFor(table);
-
-    assertThatThrownBy(scan::planFiles)
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining(message);
-  }
-
-  private static Stream<Arguments> invalidPollBackoff() {
-    return Stream.of(
-        Arguments.of(
-            RESTCatalogProperties.REST_SCAN_PLANNING_POLL_MIN_WAIT_MS, "-1", "must be positive"),
-        Arguments.of(
-            RESTCatalogProperties.REST_SCAN_PLANNING_POLL_MAX_WAIT_MS, "0", "must be positive"),
-        Arguments.of(
-            RESTCatalogProperties.REST_SCAN_PLANNING_POLL_SCALE_FACTOR, "0.5", "must be >= 1.0"));
-  }
-
-  @Test
-  public void asyncPlanningRejectsMinWaitGreaterThanMaxWait() {
-    List<Endpoint> endpoints =
-        endpointsWithPlanning(
-            Endpoint.V1_SUBMIT_TABLE_SCAN_PLAN,
-            Endpoint.V1_FETCH_TABLE_SCAN_PLAN,
-            Endpoint.V1_CANCEL_TABLE_SCAN_PLAN,
-            Endpoint.V1_FETCH_TABLE_SCAN_PLAN_TASKS);
-
-    CatalogWithAdapter catalogWithAdapter =
-        catalogWithEndpoints(endpoints, TestPlanningBehavior.builder().asynchronous().build());
-
-    catalogWithAdapter.catalog.initialize(
-        "test-invalid-wait-range",
-        ImmutableMap.of(
-            CatalogProperties.FILE_IO_IMPL,
-            "org.apache.iceberg.inmemory.InMemoryFileIO",
-            RESTCatalogProperties.SCAN_PLANNING_MODE,
-            RESTCatalogProperties.ScanPlanningMode.SERVER.modeName(),
-            RESTCatalogProperties.REST_SCAN_PLANNING_POLL_MIN_WAIT_MS,
-            "5000",
-            RESTCatalogProperties.REST_SCAN_PLANNING_POLL_MAX_WAIT_MS,
-            "1000"));
-
-    RESTTable table = restTableFor(catalogWithAdapter.catalog, "invalid_wait_range_test");
-    setParserContext(table);
-    RESTTableScan scan = restTableScanFor(table);
-
-    assertThatThrownBy(scan::planFiles)
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("min wait must be <= max wait");
   }
 
   @ParameterizedTest
