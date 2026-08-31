@@ -138,7 +138,7 @@ public class RandomGenericData {
       // with
       // limited values("0","1","2"). It's impossible for us to request the generator to generate
       // more than 3 keys,
-      // otherwise we will get in a infinite loop in RandomDataGenerator#map.
+      // otherwise we will get in an infinite loop in RandomDataGenerator#map.
       return 3;
     }
 
