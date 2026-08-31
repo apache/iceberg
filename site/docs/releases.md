@@ -402,7 +402,7 @@ The 1.10.0 release contains bug fixes and new features. For full release notes v
     - 4.0: Add row lineage support using conditional nullification mechanism introduced in Spark 4.0 ([\#13310](https://github.com/apache/iceberg/pull/13310))
     - Use bulk deletion operation for deleting manifests when importing files from partitions ([\#13620](https://github.com/apache/iceberg/pull/13620))
     - Preserve row lineage on compaction ([\#13555](https://github.com/apache/iceberg/pull/13555))
-    - Refactor DeleteOrphanFilesSparkAction to to use common code from core ([\#13429](https://github.com/apache/iceberg/pull/13429))
+    - Refactor DeleteOrphanFilesSparkAction to use common code from core ([\#13429](https://github.com/apache/iceberg/pull/13429))
     - Add variant read support ([\#13219](https://github.com/apache/iceberg/pull/13219))
     - Add config to disable executor cache for deleting files  ([\#12893](https://github.com/apache/iceberg/pull/12893))
     - Accept custom partition order in RewriteManifest  ([\#12840](https://github.com/apache/iceberg/pull/12840))
@@ -542,7 +542,7 @@ the API. This is fixed in 1.9.1.
     - Netty to 4.2.0.Final
     - Nessie to 0.103.3
     - Parquet to 1.15.1 (Fixes CVE-2025-30065)
-    - Sqllite JDBC to 3.49.1.0
+    - SQLite JDBC to 3.49.1.0
     - Jackson to 2.18.3
     - downgraded AWS SDK to 2.29.52 ([\#12649](https://github.com/apache/iceberg/pull/12649))
 
@@ -630,7 +630,7 @@ The 1.8.0 release contains bug fixes and new features. For full release notes vi
     - Kafka to 3.9.0
     - Nessie to 0.102.2
     - ORC to 1.9.5
-    - Sqllite JDBC to 3.48.0.0
+    - SQLite JDBC to 3.48.0.0
     - Jackson to 2.18.2
 
 ### 1.7.2 release
@@ -706,7 +706,7 @@ The 1.7.0 release contains fixes, dependency updates, and new features. For full
     - ORC to 1.9.4
     - Roaring Bitmap to 1.3.0
     - Spring to 5.3.39
-    - Sqllite JDBC to 3.46.0.0
+    - SQLite JDBC to 3.46.0.0
     - Hadoop to 3.4.1
 * Core
     - Remove dangling deletes as part of RewriteDataFilesAction ([\#9724](https://github.com/apache/iceberg/pull/9724))
@@ -1165,7 +1165,7 @@ The 1.2.0 release adds a variety of new features and bug fixes.
 Here is an overview:
 
 * Core
-    - Added AES GCM encrpytion stream spec ([\#5432](https://github.com/apache/iceberg/pull/5432))
+    - Added AES GCM encryption stream spec ([\#5432](https://github.com/apache/iceberg/pull/5432))
     - Added support for Delta Lake to Iceberg table conversion ([\#6449](https://github.com/apache/iceberg/pull/6449), [\#6880](https://github.com/apache/iceberg/pull/6880))
     - Added support for `position_deletes` metadata table ([\#6365](https://github.com/apache/iceberg/pull/6365), [\#6716](https://github.com/apache/iceberg/pull/6716))
     - Added support for scan and commit metrics reporter that is pluggable through catalog ([\#6404](https://github.com/apache/iceberg/pull/6404), [\#6246](https://github.com/apache/iceberg/pull/6246), [\#6410](https://github.com/apache/iceberg/pull/6410))
