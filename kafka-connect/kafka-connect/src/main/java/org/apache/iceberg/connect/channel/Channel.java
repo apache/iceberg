@@ -53,6 +53,7 @@ abstract class Channel {
   private final Admin admin;
   private final Map<Integer, Long> controlTopicOffsets = Maps.newHashMap();
   private final String producerId;
+  private final Duration commitTimeout;
 
   Channel(
       String name,
@@ -70,6 +71,7 @@ abstract class Channel {
     this.admin = clientFactory.createAdmin();
 
     this.producerId = UUID.randomUUID().toString();
+    this.commitTimeout = Duration.ofMillis(config.commitTimeoutMs());
   }
 
   protected void send(Event event) {
@@ -161,9 +163,9 @@ abstract class Channel {
   void stop() {
     LOG.info("Channel stopping");
     // Close the consumer first to prevent stale consumer in the consumer group if producer close
-    // hangs
-    consumer.close();
-    producer.close();
-    admin.close();
+    // hangs + add timeouts
+    consumer.close(commitTimeout);
+    producer.close(commitTimeout);
+    admin.close(commitTimeout);
   }
 }
