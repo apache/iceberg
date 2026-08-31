@@ -53,6 +53,7 @@ import org.apache.iceberg.util.SortedMerge;
 import org.apache.spark.rdd.InputFileBlockHolder;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.ProjectingInternalRow;
+import org.apache.spark.sql.catalyst.expressions.UnsafeProjection;
 import org.apache.spark.sql.connector.metric.CustomTaskMetric;
 import org.apache.spark.sql.connector.read.PartitionReader;
 import org.apache.spark.sql.types.StructType;
@@ -75,6 +76,7 @@ class MergingSortedRowDataReader implements PartitionReader<InternalRow> {
   private final List<RowDataReader> fileReaders;
   // non-null only when sort key columns were added to the read schema beyond what Spark projected
   private final ProjectingInternalRow projectingRow;
+  private final UnsafeProjection deepCopyProjection;
   private InternalRow current;
   private FileBlock currentBlock;
 
@@ -120,6 +122,7 @@ class MergingSortedRowDataReader implements PartitionReader<InternalRow> {
     // SortOrderComparators can access every sort key field during the merge.
     Schema mergeReadSchema = mergeReadSchema(projection, sortOrder, table);
     this.projectingRow = buildProjectingRow(projection, mergeReadSchema);
+    this.deepCopyProjection = UnsafeProjection.create(SparkSchemaUtil.convert(mergeReadSchema));
 
     this.resources = new CloseableGroup();
     // The group holds one reader per file plus the merge. Avoid leaking resources when close()
@@ -162,10 +165,15 @@ class MergingSortedRowDataReader implements PartitionReader<InternalRow> {
   /**
    * Adapts a {@link RowDataReader} to a {@link CloseableIterable} for use with {@link SortedMerge}.
    *
-   * <p>Rows are copied on the way into the heap. {@link SortedMerge} advances an iterator before
-   * returning the value it just polled, so an uncopied row would be overwritten by the next read
-   * from the same file since Spark's Parquet and ORC readers reuse {@link InternalRow} containers.
-   * At most one row per file is held at a time, so the copy is bounded by the number of files.
+   * <p>Rows are deep-copied on the way into the heap. {@link SortedMerge} advances an iterator
+   * before returning the value it just polled, so an uncopied row would be overwritten by the next
+   * read from the same file since Spark's Parquet and ORC readers reuse {@link InternalRow}
+   * containers. Plain {@link InternalRow#copy()} is not enough here: for columns holding an array
+   * or map of structs, the reader reuses the same mutable struct instance for every element, so
+   * {@code copy()} only clones the outer container and still shares the element with the reused
+   * buffer. {@link #deepCopyProjection} flattens the row into a self-contained {@code UnsafeRow},
+   * fully detaching every nested element. At most one row per file is held at a time, so the cost
+   * is bounded by the number of files.
    */
   private CloseableIterable<TaggedRow> readerToIterable(RowDataReader reader, FileScanTask task) {
     FileBlock block = new FileBlock(task.file().location(), task.start(), task.length());
@@ -194,7 +202,8 @@ class MergingSortedRowDataReader implements PartitionReader<InternalRow> {
                   hasNext();
                 }
                 advanced = false;
-                return new TaggedRow(reader.get().copy(), block);
+                InternalRow deepCopy = deepCopyProjection.apply(reader.get()).copy();
+                return new TaggedRow(deepCopy, block);
               }
 
               @Override
