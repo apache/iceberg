@@ -32,8 +32,11 @@ import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.ReplacePartitions;
 import org.apache.iceberg.RowDelta;
+import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotAncestryValidator;
 import org.apache.iceberg.SnapshotUpdate;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
@@ -309,8 +312,30 @@ class IcebergCommitter implements Committer<IcebergCommittable> {
     operation.set(SinkUtil.OPERATOR_ID, operatorId);
     operation.toBranch(branch);
 
+    // Prevent duplicate commits: if a previous attempt for this checkpoint already reached the
+    // table (e.g. the commit succeeded on the catalog after the committer gave up and the request
+    // was redelivered on recovery), the base ancestry will already contain a snapshot with a
+    // max-committed-checkpoint-id >= this checkpoint. Validating inside the commit transaction
+    // closes the race window between the up-front getMaxCommittedCheckpointId() read and the
+    // commit itself. Mirrors DynamicCommitter's MaxCommittedCheckpointIdValidator (#14517).
+    operation.validateWith(
+        new MaxCommittedCheckpointIdValidator(checkpointId, newFlinkJobId, operatorId));
+
     long startNano = System.nanoTime();
-    operation.commit(); // abort is automatically called if this fails.
+    try {
+      operation.commit(); // abort is automatically called if this fails.
+    } catch (MaxCommittedCheckpointMismatchException e) {
+      LOG.info(
+          "Skipping commit operation {} because the {} branch of the {} table already contains changes for checkpoint {}."
+              + " This can occur when a failure prevents the committer from receiving confirmation of a"
+              + " successful commit, causing the Flink job to retry committing the same set of changes.",
+          description,
+          branch,
+          table.name(),
+          checkpointId,
+          e);
+      return;
+    }
     long durationMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNano);
     LOG.info(
         "Committed {} to table: {}, branch: {}, checkpointId {} in {} ms",
@@ -321,6 +346,49 @@ class IcebergCommitter implements Committer<IcebergCommittable> {
         durationMs);
     if (committerMetrics != null) {
       committerMetrics.commitDuration(durationMs);
+    }
+  }
+
+  private static class MaxCommittedCheckpointMismatchException extends ValidationException {
+    private MaxCommittedCheckpointMismatchException() {
+      super("Table already contains staged changes.");
+    }
+  }
+
+  private static class MaxCommittedCheckpointIdValidator implements SnapshotAncestryValidator {
+    private final long stagedCheckpointId;
+    private final String flinkJobId;
+    private final String flinkOperatorId;
+
+    private MaxCommittedCheckpointIdValidator(
+        long stagedCheckpointId, String flinkJobId, String flinkOperatorId) {
+      this.stagedCheckpointId = stagedCheckpointId;
+      this.flinkJobId = flinkJobId;
+      this.flinkOperatorId = flinkOperatorId;
+    }
+
+    @Override
+    public boolean validate(Iterable<Snapshot> baseSnapshots) {
+      long maxCommittedCheckpointId = SinkUtil.INITIAL_CHECKPOINT_ID;
+      for (Snapshot ancestor : baseSnapshots) {
+        Map<String, String> summary = ancestor.summary();
+        String snapshotFlinkJobId = summary.get(SinkUtil.FLINK_JOB_ID);
+        String snapshotOperatorId = summary.get(SinkUtil.OPERATOR_ID);
+        if (flinkJobId.equals(snapshotFlinkJobId)
+            && (snapshotOperatorId == null || snapshotOperatorId.equals(flinkOperatorId))) {
+          String value = summary.get(SinkUtil.MAX_COMMITTED_CHECKPOINT_ID);
+          if (value != null) {
+            maxCommittedCheckpointId = Long.parseLong(value);
+            break;
+          }
+        }
+      }
+
+      if (maxCommittedCheckpointId >= stagedCheckpointId) {
+        throw new MaxCommittedCheckpointMismatchException();
+      }
+
+      return true;
     }
   }
 
