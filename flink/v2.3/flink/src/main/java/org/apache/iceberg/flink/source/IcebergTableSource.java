@@ -18,11 +18,12 @@
  */
 package org.apache.iceberg.flink.source;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.configuration.ReadableConfig;
@@ -50,12 +51,12 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.flink.FlinkConfigOptions;
 import org.apache.iceberg.flink.FlinkFilters;
+import org.apache.iceberg.flink.FlinkReadConf;
 import org.apache.iceberg.flink.FlinkReadOptions;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.source.assigner.SplitAssignerType;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.PropertyUtil;
 import org.slf4j.Logger;
@@ -73,22 +74,10 @@ public class IcebergTableSource
 
   private static final Logger LOG = LoggerFactory.getLogger(IcebergTableSource.class);
 
-  // statistics are computed for the current table state only; these options change what is read
-  private static final Set<String> TIME_TRAVEL_OPTIONS =
-      ImmutableSet.of(
-          "snapshot-id",
-          "branch",
-          "tag",
-          "as-of-timestamp",
-          "start-snapshot-id",
-          "end-snapshot-id",
-          "start-tag",
-          "end-tag",
-          "start-snapshot-timestamp");
-
   private int[] projectedFields;
   private Long limit;
   private List<Expression> filters;
+  private Table table;
 
   private final TableLoader loader;
   private final ResolvedSchema schema;
@@ -105,6 +94,7 @@ public class IcebergTableSource
     this.limit = toCopy.limit;
     this.filters = toCopy.filters;
     this.readableConfig = toCopy.readableConfig;
+    this.table = toCopy.table;
   }
 
   public IcebergTableSource(
@@ -144,11 +134,26 @@ public class IcebergTableSource
     }
   }
 
+  /** Loads the table once; reused by statistics reporting and both datastream builders. */
+  private Table table() {
+    if (table == null) {
+      try (TableLoader tableLoader = loader.clone()) {
+        tableLoader.open();
+        this.table = tableLoader.loadTable();
+      } catch (IOException e) {
+        throw new UncheckedIOException("Failed to load table with loader: " + loader, e);
+      }
+    }
+
+    return table;
+  }
+
   @SuppressWarnings("deprecation")
   private DataStream<RowData> createDataStream(StreamExecutionEnvironment execEnv) {
     return FlinkSource.forRowData()
         .env(execEnv)
         .tableLoader(loader)
+        .table(table())
         .setAll(properties)
         .project(TableSchema.fromResolvedSchema(getProjectedSchema()))
         .limit(limit)
@@ -162,6 +167,7 @@ public class IcebergTableSource
         readableConfig.get(FlinkConfigOptions.TABLE_EXEC_SPLIT_ASSIGNER_TYPE);
     return IcebergSource.forRowData()
         .tableLoader(loader)
+        .table(table())
         .assignerFactory(assignerType.factory())
         .setAll(properties)
         .project(getProjectedSchema())
@@ -254,21 +260,12 @@ public class IcebergTableSource
   @Override
   public TableStats reportStatistics() {
     try {
-      if (!FlinkSource.isBounded(properties)) {
-        return TableStats.UNKNOWN;
-      }
-
-      if (TIME_TRAVEL_OPTIONS.stream().anyMatch(properties::containsKey)) {
-        return TableStats.UNKNOWN;
-      }
-
       boolean columnStatsEnabled =
           readableConfig.get(FlinkConfigOptions.TABLE_EXEC_ICEBERG_REPORT_COLUMN_STATISTICS);
-      try (TableLoader tableLoader = loader.clone()) {
-        tableLoader.open();
-        Table table = tableLoader.loadTable();
-        return FlinkTableStatistics.reportStatistics(table, filters, columnStatsEnabled);
-      }
+      Table loadedTable = table();
+      FlinkReadConf readConf = new FlinkReadConf(loadedTable, properties, readableConfig);
+      return FlinkTableStatistics.reportStatistics(
+          loadedTable, readConf, filters, columnStatsEnabled);
     } catch (Exception e) {
       LOG.warn("Failed to report statistics for Iceberg table, returning unknown stats", e);
       return TableStats.UNKNOWN;

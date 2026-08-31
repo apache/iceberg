@@ -22,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Map;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.table.api.DataTypes;
@@ -38,14 +39,17 @@ import org.apache.iceberg.GenericBlobMetadata;
 import org.apache.iceberg.GenericStatisticsFile;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.data.FileHelpers;
 import org.apache.iceberg.data.GenericAppenderHelper;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.flink.FlinkConfigOptions;
+import org.apache.iceberg.flink.FlinkReadConf;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.puffin.StandardBlobTypes;
@@ -92,6 +96,11 @@ public class TestFlinkTableStatistics {
     return record;
   }
 
+  private TableStats stats(List<Expression> filters, boolean columnStatsEnabled) {
+    FlinkReadConf readConf = new FlinkReadConf(table, ImmutableMap.of(), new Configuration());
+    return FlinkTableStatistics.reportStatistics(table, readConf, filters, columnStatsEnabled);
+  }
+
   /** Two files: ids 1-3 (one null data, one null score) and ids 4-5. */
   private void appendTwoFiles() throws Exception {
     appender.appendToTable(
@@ -101,23 +110,21 @@ public class TestFlinkTableStatistics {
 
   @Test
   public void testFreshTableReportsZeroRows() {
-    TableStats stats = FlinkTableStatistics.reportStatistics(table, ImmutableList.of(), false);
+    TableStats stats = stats(ImmutableList.of(), false);
     assertThat(stats.getRowCount()).isEqualTo(0L);
   }
 
   @Test
   public void testUnfilteredRowCountFromSnapshotSummary() throws Exception {
     appendTwoFiles();
-    TableStats stats = FlinkTableStatistics.reportStatistics(table, ImmutableList.of(), false);
+    TableStats stats = stats(ImmutableList.of(), false);
     assertThat(stats.getRowCount()).isEqualTo(5L);
   }
 
   @Test
   public void testFilteredRowCountFromPlannedFiles() throws Exception {
     appendTwoFiles();
-    TableStats stats =
-        FlinkTableStatistics.reportStatistics(
-            table, ImmutableList.of(Expressions.greaterThanOrEqual("id", 4)), false);
+    TableStats stats = stats(ImmutableList.of(Expressions.greaterThanOrEqual("id", 4)), false);
     // file with ids 1-3 is pruned by its column bounds
     assertThat(stats.getRowCount()).isEqualTo(2L);
   }
@@ -125,7 +132,7 @@ public class TestFlinkTableStatistics {
   @Test
   public void testColumnStatsFromManifests() throws Exception {
     appendTwoFiles();
-    TableStats stats = FlinkTableStatistics.reportStatistics(table, ImmutableList.of(), true);
+    TableStats stats = stats(ImmutableList.of(), true);
 
     assertThat(stats.getRowCount()).isEqualTo(5L);
     ColumnStats idStats = stats.getColumnStats().get("id");
@@ -148,7 +155,7 @@ public class TestFlinkTableStatistics {
   @Test
   public void testColumnStatsDisabled() throws Exception {
     appendTwoFiles();
-    TableStats stats = FlinkTableStatistics.reportStatistics(table, ImmutableList.of(), false);
+    TableStats stats = stats(ImmutableList.of(), false);
     assertThat(stats.getColumnStats()).isEmpty();
   }
 
@@ -156,7 +163,7 @@ public class TestFlinkTableStatistics {
   public void testMetricsModeNoneOmitsColumnStats() throws Exception {
     table.updateProperties().set(TableProperties.DEFAULT_WRITE_METRICS_MODE, "none").commit();
     appendTwoFiles();
-    TableStats stats = FlinkTableStatistics.reportStatistics(table, ImmutableList.of(), true);
+    TableStats stats = stats(ImmutableList.of(), true);
     // row count survives (recordCount is always present), column stats are absent
     assertThat(stats.getRowCount()).isEqualTo(5L);
     assertThat(stats.getColumnStats()).isEmpty();
@@ -175,7 +182,7 @@ public class TestFlinkTableStatistics {
             .first();
     table.newRowDelta().addDeletes(posDeletes).commit();
 
-    TableStats stats = FlinkTableStatistics.reportStatistics(table, ImmutableList.of(), true);
+    TableStats stats = stats(ImmutableList.of(), true);
     // overestimate: deleted row still counted (6, not 5) — documented estimate semantics
     assertThat(stats.getRowCount()).isEqualTo(6L);
   }
@@ -208,11 +215,69 @@ public class TestFlinkTableStatistics {
     assertThat(stats).isEqualTo(TableStats.UNKNOWN);
   }
 
+  /** First snapshot has 3 rows; a second append brings the table to 5. */
+  private Snapshot firstSnapshot() throws Exception {
+    appender.appendToTable(
+        ImmutableList.of(record(1, "a", 1.0), record(2, null, 2.5), record(3, "c", null)));
+    Snapshot snapshot = table.currentSnapshot();
+    Thread.sleep(2); // keep as-of-timestamp strictly between the two snapshots
+    appender.appendToTable(ImmutableList.of(record(4, "d", 4.0), record(5, "e", 5.0)));
+    return snapshot;
+  }
+
   @Test
-  public void testTimeTravelSourceReportsUnknown() throws Exception {
+  public void testSnapshotIdReportsStatsForThatSnapshot() throws Exception {
+    Snapshot first = firstSnapshot();
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put("snapshot-id", String.valueOf(first.snapshotId()));
+    TableStats stats = createTableSource(properties, new Configuration()).reportStatistics();
+    assertThat(stats.getRowCount()).isEqualTo(3L);
+    assertThat(stats.getColumnStats().get("id").getMax()).isEqualTo(3);
+  }
+
+  @Test
+  public void testTagReportsStatsForTaggedSnapshot() throws Exception {
+    Snapshot first = firstSnapshot();
+    table.manageSnapshots().createTag("v1", first.snapshotId()).commit();
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put("tag", "v1");
+    TableStats stats = createTableSource(properties, new Configuration()).reportStatistics();
+    assertThat(stats.getRowCount()).isEqualTo(3L);
+  }
+
+  @Test
+  public void testBranchReportsStatsForBranchHead() throws Exception {
+    Snapshot first = firstSnapshot();
+    table.manageSnapshots().createBranch("b1", first.snapshotId()).commit();
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put("branch", "b1");
+    TableStats stats = createTableSource(properties, new Configuration()).reportStatistics();
+    assertThat(stats.getRowCount()).isEqualTo(3L);
+  }
+
+  @Test
+  public void testAsOfTimestampReportsStatsForThatTime() throws Exception {
+    Snapshot first = firstSnapshot();
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put("as-of-timestamp", String.valueOf(first.timestampMillis()));
+    TableStats stats = createTableSource(properties, new Configuration()).reportStatistics();
+    assertThat(stats.getRowCount()).isEqualTo(3L);
+  }
+
+  @Test
+  public void testIncrementalReadReportsUnknown() throws Exception {
+    Snapshot first = firstSnapshot();
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put("start-snapshot-id", String.valueOf(first.snapshotId()));
+    TableStats stats = createTableSource(properties, new Configuration()).reportStatistics();
+    assertThat(stats).isEqualTo(TableStats.UNKNOWN);
+  }
+
+  @Test
+  public void testUnknownRefReportsUnknown() throws Exception {
     appendTwoFiles();
     Map<String, String> properties = Maps.newHashMap();
-    properties.put("snapshot-id", String.valueOf(table.currentSnapshot().snapshotId()));
+    properties.put("tag", "does-not-exist");
     TableStats stats = createTableSource(properties, new Configuration()).reportStatistics();
     assertThat(stats).isEqualTo(TableStats.UNKNOWN);
   }
@@ -246,7 +311,7 @@ public class TestFlinkTableStatistics {
                     ImmutableMap.of("ndv", "5"))));
     table.updateStatistics().setStatistics(statisticsFile).commit();
 
-    TableStats stats = FlinkTableStatistics.reportStatistics(table, ImmutableList.of(), true);
+    TableStats stats = stats(ImmutableList.of(), true);
     assertThat(stats.getColumnStats().get("id").getNdv()).isEqualTo(5L);
     // no blob for field 2 → no NDV, other stats still present
     assertThat(stats.getColumnStats().get("data").getNdv()).isNull();
@@ -270,9 +335,7 @@ public class TestFlinkTableStatistics {
 
     // filtered → planned-files path; the fake files have no column bounds, so they cannot
     // be pruned, and summing their record counts must hit the overflow sentinel guard
-    TableStats stats =
-        FlinkTableStatistics.reportStatistics(
-            table, ImmutableList.of(Expressions.greaterThanOrEqual("id", 0)), false);
+    TableStats stats = stats(ImmutableList.of(Expressions.greaterThanOrEqual("id", 0)), false);
     assertThat(stats).isEqualTo(TableStats.UNKNOWN);
   }
 }

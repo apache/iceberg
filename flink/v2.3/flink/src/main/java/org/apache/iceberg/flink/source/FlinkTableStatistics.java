@@ -41,6 +41,7 @@ import org.apache.iceberg.expressions.AggregateEvaluator;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.ManifestEvaluator;
+import org.apache.iceberg.flink.FlinkReadConf;
 import org.apache.iceberg.puffin.StandardBlobTypes;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -50,6 +51,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.PropertyUtil;
+import org.apache.iceberg.util.SnapshotUtil;
 
 /**
  * Computes Flink {@link TableStats} from Iceberg metadata only (snapshot summary and manifests).
@@ -85,10 +87,21 @@ class FlinkTableStatistics {
   private FlinkTableStatistics() {}
 
   static TableStats reportStatistics(
-      Table table, List<Expression> filters, boolean columnStatsEnabled) {
-    Snapshot snapshot = table.currentSnapshot();
+      Table table, FlinkReadConf readConf, List<Expression> filters, boolean columnStatsEnabled) {
+    if (readConf.streaming() || isIncrementalRead(readConf)) {
+      return TableStats.UNKNOWN;
+    }
+
+    boolean timeTravel =
+        readConf.snapshotId() != null
+            || readConf.tag() != null
+            || readConf.branch() != null
+            || readConf.asOfTimestamp() != null;
+    Snapshot snapshot = resolveSnapshot(table, readConf);
     if (snapshot == null) {
-      return new TableStats(0L);
+      // null means either an empty table (report 0 rows) or a time-travel reference
+      // that does not exist (report unknown; the scan will fail with a proper error)
+      return timeTravel ? TableStats.UNKNOWN : new TableStats(0L);
     }
 
     boolean filtered = filters != null && !filters.isEmpty();
@@ -102,6 +115,38 @@ class FlinkTableStatistics {
     }
 
     return statsFromManifests(table, snapshot, filters, filtered, columnStatsEnabled);
+  }
+
+  private static boolean isIncrementalRead(FlinkReadConf readConf) {
+    return readConf.startSnapshotId() != null
+        || readConf.startSnapshotTimestamp() != null
+        || readConf.startTag() != null
+        || readConf.endSnapshotId() != null
+        || readConf.endTag() != null;
+  }
+
+  private static Snapshot resolveSnapshot(Table table, FlinkReadConf readConf) {
+    if (readConf.snapshotId() != null) {
+      return table.snapshot(readConf.snapshotId());
+    }
+
+    if (readConf.tag() != null) {
+      return table.snapshot(readConf.tag());
+    }
+
+    if (readConf.branch() != null) {
+      return SnapshotUtil.latestSnapshot(table, readConf.branch());
+    }
+
+    if (readConf.asOfTimestamp() != null) {
+      try {
+        return table.snapshot(SnapshotUtil.snapshotIdAsOfTime(table, readConf.asOfTimestamp()));
+      } catch (IllegalArgumentException e) {
+        return null; // no snapshot as of that time
+      }
+    }
+
+    return table.currentSnapshot();
   }
 
   private static TableStats statsFromManifests(
@@ -149,16 +194,16 @@ class FlinkTableStatistics {
       }
     }
 
-    return new TableStats(rowCount, buildColumnStats(table, collectors));
+    return new TableStats(rowCount, buildColumnStats(table, snapshot, collectors));
   }
 
   private static Map<String, ColumnStats> buildColumnStats(
-      Table table, List<ColumnStatsCollector> collectors) {
+      Table table, Snapshot snapshot, List<ColumnStatsCollector> collectors) {
     if (collectors.isEmpty()) {
       return ImmutableMap.of();
     }
 
-    Map<Integer, Long> ndvs = ndvFromStatisticsFiles(table, table.currentSnapshot().snapshotId());
+    Map<Integer, Long> ndvs = ndvFromStatisticsFiles(table, snapshot.snapshotId());
     Map<String, ColumnStats> colStats = Maps.newHashMap();
     for (ColumnStatsCollector collector : collectors) {
       ColumnStats columnStats = collector.toColumnStats(ndvs.get(collector.fieldId()));

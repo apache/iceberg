@@ -142,9 +142,11 @@ counts may overestimate live rows.
 | table.exec.iceberg.report-column-statistics  | true    | Include column-level statistics (null counts, min/max, NDV) in addition to the row count. Column statistics require reading manifest metadata during planning; disable for very large tables if planning latency matters. |
 
 Statistics reporting can be disabled entirely with Flink's
-`table.optimizer.source.report-statistics-enabled` option. Streaming queries and reads
-using time-travel options (`snapshot-id`, `branch`, `tag`, `as-of-timestamp`, incremental
-start/end options) always report unknown statistics.
+`table.optimizer.source.report-statistics-enabled` option. Point-in-time reads
+(`snapshot-id`, `branch`, `tag`, `as-of-timestamp`) report statistics for the snapshot
+being read. Streaming queries and incremental reads (`start-snapshot-id`,
+`start-snapshot-timestamp`, `start-tag`, `end-snapshot-id`, `end-tag`) always report
+unknown statistics.
 
 ### Write options
 
