@@ -64,6 +64,11 @@ public interface AuthConfig {
     return OAuth2Properties.TOKEN_EXCHANGE_ENABLED_DEFAULT;
   }
 
+  @Value.Default
+  default boolean skipInheritedAuthHeaderInTokenRequest() {
+    return OAuth2Properties.SKIP_INHERITED_AUTH_HEADER_IN_TOKEN_REQUEST_DEFAULT;
+  }
+
   @Nullable
   @Value.Default
   default String oauth2ServerUri() {
@@ -94,6 +99,11 @@ public interface AuthConfig {
                 properties,
                 OAuth2Properties.TOKEN_EXCHANGE_ENABLED,
                 OAuth2Properties.TOKEN_EXCHANGE_ENABLED_DEFAULT))
+        .skipInheritedAuthHeaderInTokenRequest(
+            PropertyUtil.propertyAsBoolean(
+                properties,
+                OAuth2Properties.SKIP_INHERITED_AUTH_HEADER_IN_TOKEN_REQUEST,
+                OAuth2Properties.SKIP_INHERITED_AUTH_HEADER_IN_TOKEN_REQUEST_DEFAULT))
         .expiresAtMillis(expiresAtMillis(properties))
         .build();
   }
