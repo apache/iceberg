@@ -56,6 +56,7 @@ import org.apache.iceberg.view.ViewVersion;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
+import org.apache.spark.sql.catalyst.analysis.NoSuchNamespaceException;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.catalyst.catalog.SessionCatalog;
 import org.apache.spark.sql.types.DataTypes;
@@ -319,6 +320,8 @@ public class TestViews extends ExtensionsTestBase {
     assertThat(sql("SELECT * FROM %s", viewName))
         .hasSize(5)
         .containsExactlyInAnyOrderElementsOf(expected);
+
+    sql("DROP VIEW %s", viewName);
   }
 
   @TestTemplate
@@ -1311,6 +1314,8 @@ public class TestViews extends ExtensionsTestBase {
         .hasMessageContaining("Cannot create view %s.%s.%s", catalogName, NAMESPACE, viewName)
         .hasMessageContaining("that references temporary view:")
         .hasMessageContaining(tempView);
+
+    sql("DROP VIEW %s", tempView);
   }
 
   @TestTemplate
@@ -1513,6 +1518,20 @@ public class TestViews extends ExtensionsTestBase {
   }
 
   @TestTemplate
+  public void dropNamespaceCascade() {
+    sql("DROP NAMESPACE IF EXISTS ns CASCADE");
+    sql("CREATE NAMESPACE ns");
+    sql("CREATE VIEW ns.view AS SELECT id FROM %s", tableName);
+    sql("DESCRIBE NAMESPACE ns");
+
+    sql("DROP NAMESPACE ns CASCADE");
+
+    assertThatThrownBy(() -> sql("DESCRIBE NAMESPACE ns"))
+        .isInstanceOf(NoSuchNamespaceException.class)
+        .hasMessageContaining("cannot be found");
+  }
+
+  @TestTemplate
   public void showViewProperties() {
     String viewName = viewName("showViewProps");
 
@@ -1596,6 +1615,8 @@ public class TestViews extends ExtensionsTestBase {
     assertThat(sql("SHOW VIEWS")).contains(tempView);
 
     assertThat(sql("SHOW VIEWS IN default")).contains(tempView);
+
+    sql("DROP VIEW %s", tempViewForListing);
   }
 
   @TestTemplate
