@@ -573,7 +573,7 @@ acceptedBreaks:
       justification: "Removed deprecated functionality scheduled for removal in 1.12.0"
     - code: "java.field.removed"
       old: "field org.apache.iceberg.util.ThreadPools.WORKER_THREAD_POOL_SIZE_PROP"
-      justification: "Removing deprecated API scheduled for removal in 1.12.0"
+      justification: "Removed deprecated API scheduled for removal in 1.12.0"
     - code: "java.field.removedWithConstant"
       old: "field org.apache.iceberg.PartitionStatsHandler.PARTITION_FIELD_ID"
       justification: "Removed deprecated functionality for partition stats"
