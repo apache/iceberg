@@ -244,7 +244,7 @@ public class TestSparkCatalogOperations extends CatalogTestBase {
       assertThat(loaded.properties())
           .containsEntry(TableCatalog.PROP_TABLE_TYPE, TableSummary.VIEW_TABLE_TYPE);
       assertThat(loaded.sqlConfigs()).isEmpty();
-      assertThat(loaded.schemaMode()).isEqualTo("COMPENSATION");
+      assertThat(loaded.schemaMode()).isEqualTo("BINDING");
       assertThat(loaded.queryColumnNames()).isEmpty();
       assertThat(loaded.viewDependencies()).isNull();
     } finally {

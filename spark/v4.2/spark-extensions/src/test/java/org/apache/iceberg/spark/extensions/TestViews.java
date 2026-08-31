@@ -42,7 +42,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkCatalogConfig;
-import org.apache.iceberg.spark.SparkSQLProperties;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.source.HasIcebergCatalog;
 import org.apache.iceberg.spark.source.SimpleRecord;
@@ -152,7 +151,7 @@ public class TestViews extends ExtensionsTestBase {
   }
 
   @TestTemplate
-  public void readViewWithoutSparkPropertiesAfterTypePromotion()
+  public void readLegacyViewWithoutSchemaModeAfterTypePromotion()
       throws NoSuchTableException, NoSuchViewException {
     insertRows(3);
     String viewName = viewName("viewWithoutSparkProperties");
@@ -173,9 +172,11 @@ public class TestViews extends ExtensionsTestBase {
         ((org.apache.spark.sql.connector.catalog.ViewCatalog)
                 spark.sessionState().catalogManager().catalog(catalogName))
             .loadView(Identifier.of(NAMESPACE.levels(), viewName));
-    assertThat(sparkView.schemaMode()).isEqualTo("COMPENSATION");
-    assertThat(sql("SELECT id FROM %s", viewName))
-        .containsExactlyInAnyOrder(row(1), row(2), row(3));
+    assertThat(sparkView.schemaMode()).isEqualTo("BINDING");
+    assertThatThrownBy(() -> sql("SELECT id FROM %s", viewName))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining("Cannot up cast")
+        .hasMessageContaining("from \"BIGINT\" to \"INT\"");
   }
 
   @TestTemplate
@@ -2474,7 +2475,7 @@ public class TestViews extends ExtensionsTestBase {
   public void readFromViewWithNarrowedSchemaFailsUnderBinding() throws NoSuchTableException {
     insertRows(3);
     String viewName = viewName("narrowedSchemaView");
-    createViewWithNarrowedSchema(viewName);
+    createViewWithNarrowedSchema(viewName, "BINDING");
 
     assertThatThrownBy(() -> sql("SELECT * FROM %s", viewName))
         .isInstanceOf(AnalysisException.class)
@@ -2485,35 +2486,14 @@ public class TestViews extends ExtensionsTestBase {
   public void readFromViewWithNarrowedSchemaUnderCompensation() throws NoSuchTableException {
     insertRows(3);
     String viewName = viewName("compensatedSchemaView");
-    createViewWithNarrowedSchema(viewName);
+    createViewWithNarrowedSchema(viewName, "COMPENSATION");
 
-    withSQLConf(
-        ImmutableMap.of(
-            SparkSQLProperties.VIEW_SCHEMA_BINDING_MODE,
-            SparkSQLProperties.VIEW_SCHEMA_MODE_COMPENSATION),
-        () -> {
-          assertThat(spark.table(viewName).schema().fields()[0].dataType())
-              .isEqualTo(DataTypes.LongType);
-          assertThat(sql("SELECT * FROM %s ORDER BY id", viewName))
-              .containsExactly(row(1L), row(2L), row(3L));
-        });
+    assertThat(spark.table(viewName).schema().fields()[0].dataType()).isEqualTo(DataTypes.LongType);
+    assertThat(sql("SELECT * FROM %s ORDER BY id", viewName))
+        .containsExactly(row(1L), row(2L), row(3L));
   }
 
-  @TestTemplate
-  public void readFromViewWithInvalidSchemaBindingMode() throws NoSuchTableException {
-    insertRows(3);
-    String viewName = viewName("invalidModeSchemaView");
-    createViewWithNarrowedSchema(viewName);
-
-    withSQLConf(
-        ImmutableMap.of(SparkSQLProperties.VIEW_SCHEMA_BINDING_MODE, "evolution"),
-        () ->
-            assertThatThrownBy(() -> sql("SELECT * FROM %s", viewName))
-                .hasMessageContaining(
-                    "Invalid value for spark.sql.iceberg.view.schema-binding-mode: evolution"));
-  }
-
-  private void createViewWithNarrowedSchema(String viewName) {
+  private void createViewWithNarrowedSchema(String viewName, String schemaMode) {
     String storedSchemaSQL = String.format("SELECT CAST(id AS bigint) AS id FROM %s", tableName);
     String viewSQL = String.format("SELECT CAST(id AS double) AS id FROM %s", tableName);
 
@@ -2523,6 +2503,7 @@ public class TestViews extends ExtensionsTestBase {
         .withDefaultNamespace(NAMESPACE)
         .withDefaultCatalog(catalogName)
         .withSchema(schema(storedSchemaSQL))
+        .withProperty(SparkView.VIEW_SCHEMA_MODE, schemaMode)
         .create();
   }
 

@@ -44,7 +44,8 @@ import org.apache.spark.sql.connector.catalog.View;
  */
 public class SparkView {
 
-  private static final String DEFAULT_VIEW_SCHEMA_MODE = "COMPENSATION";
+  // Views created before Spark 4.2 have no persisted schema mode and used strict binding semantics.
+  private static final String LEGACY_VIEW_SCHEMA_MODE = "BINDING";
   private static final String EVOLUTION_VIEW_SCHEMA_MODE = "EVOLUTION";
   public static final String PROP_CREATE_ENGINE_VERSION = "create_engine_version";
   public static final String PROP_ENGINE_VERSION = "engine_version";
@@ -75,7 +76,7 @@ public class SparkView {
     Namespace defaultNamespace = icebergView.currentVersion().defaultNamespace();
     String defaultCatalog = icebergView.currentVersion().defaultCatalog();
     String schemaMode =
-        icebergView.properties().getOrDefault(VIEW_SCHEMA_MODE, DEFAULT_VIEW_SCHEMA_MODE);
+        icebergView.properties().getOrDefault(VIEW_SCHEMA_MODE, LEGACY_VIEW_SCHEMA_MODE);
 
     View.Builder builder =
         new View.Builder()
