@@ -26,8 +26,7 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.util.SerializableFunction;
 
 abstract class TimeTransform<S> implements Transform<S, Integer> {
-  protected static <R> R fromSourceType(
-      Type type, R dateResult, R microsResult, R nanosResult, R uuidResult) {
+  protected static <R> R fromSourceType(Type type, R dateResult, R microsResult, R nanosResult) {
     switch (type.typeId()) {
       case DATE:
         if (dateResult != null) {
@@ -38,11 +37,20 @@ abstract class TimeTransform<S> implements Transform<S, Integer> {
         return microsResult;
       case TIMESTAMP_NANO:
         return nanosResult;
-      case UUID:
-        if (uuidResult != null) {
-          return uuidResult;
-        }
-        break;
+    }
+
+    throw new IllegalArgumentException("Unsupported type: " + type);
+  }
+
+  // New overload, not a signature change — adds UUID support without an ABI break.
+  protected static <R> R fromSourceType(
+      Type type, R dateResult, R microsResult, R nanosResult, R uuidResult) {
+    if (type.typeId() == Type.TypeID.UUID) {
+      if (uuidResult != null) {
+        return uuidResult;
+      }
+    } else {
+      return fromSourceType(type, dateResult, microsResult, nanosResult);
     }
 
     throw new IllegalArgumentException("Unsupported type: " + type);
