@@ -79,6 +79,13 @@ public class IcebergSinkConfig extends AbstractConfig {
       "iceberg.tables.schema-force-optional";
   private static final String TABLES_SCHEMA_CASE_INSENSITIVE_PROP =
       "iceberg.tables.schema-case-insensitive";
+  private static final String TABLES_UPSERT_MODE_ENABLED_PROP =
+      "iceberg.tables.upsert-mode-enabled";
+  private static final String TABLES_CDC_FIELD_PROP = "iceberg.tables.cdc-field";
+  private static final String DEFAULT_CDC_FIELD = "_cdc.op";
+  private static final String TABLES_SOURCE_TIMEZONE_PROP = "iceberg.tables.source-timezone";
+  private static final String TABLES_STORE_NAIVE_TIMESTAMPS_PROP =
+      "iceberg.tables.store-naive-timestamps";
   private static final String CONTROL_TOPIC_PROP = "iceberg.control.topic";
   private static final String CONTROL_GROUP_ID_PREFIX_PROP = "iceberg.control.group-id-prefix";
   private static final String COMMIT_INTERVAL_MS_PROP = "iceberg.control.commit.interval-ms";
@@ -175,6 +182,37 @@ public class IcebergSinkConfig extends AbstractConfig {
         false,
         Importance.MEDIUM,
         "Set to true to add any missing record fields to the table schema, false otherwise");
+    configDef.define(
+        TABLES_UPSERT_MODE_ENABLED_PROP,
+        ConfigDef.Type.BOOLEAN,
+        false,
+        Importance.MEDIUM,
+        "Set to true to enable upsert mode, requires id-columns to be set");
+    configDef.define(
+        TABLES_CDC_FIELD_PROP,
+        ConfigDef.Type.STRING,
+        DEFAULT_CDC_FIELD,
+        Importance.MEDIUM,
+        "Dot-separated path to the CDC op field (I/U/D) in the record value, default _cdc.op");
+    configDef.define(
+        TABLES_SOURCE_TIMEZONE_PROP,
+        ConfigDef.Type.STRING,
+        null,
+        Importance.MEDIUM,
+        "IANA zone id (e.g. Africa/Cairo) that the source database uses for naive timestamp "
+            + "columns. When set, epoch-millis timestamps received from Debezium are "
+            + "reinterpreted: their wall-clock digits are relabeled as this zone and converted "
+            + "to the correct UTC instant before storing in Iceberg. Leave unset (default) to "
+            + "keep the raw value as received.");
+    configDef.define(
+        TABLES_STORE_NAIVE_TIMESTAMPS_PROP,
+        ConfigDef.Type.BOOLEAN,
+        false,
+        Importance.MEDIUM,
+        "When true, all timestamp-like columns are stored as Iceberg 'timestamp' (naive) rather "
+            + "than 'timestamptz'. Combined with iceberg.tables.source-timezone, the stored "
+            + "wall-clock digits are the source zone's local time (matches what the source "
+            + "database displays). Default false preserves 'timestamptz' storage.");
     configDef.define(
         CATALOG_NAME_PROP,
         ConfigDef.Type.STRING,
@@ -442,6 +480,23 @@ public class IcebergSinkConfig extends AbstractConfig {
 
   public boolean schemaForceOptional() {
     return getBoolean(TABLES_SCHEMA_FORCE_OPTIONAL_PROP);
+  }
+
+  public boolean upsertModeEnabled() {
+    return getBoolean(TABLES_UPSERT_MODE_ENABLED_PROP);
+  }
+
+  public String tablesCdcField() {
+    return getString(TABLES_CDC_FIELD_PROP);
+  }
+
+  public java.time.ZoneId sourceTimezone() {
+    String zone = getString(TABLES_SOURCE_TIMEZONE_PROP);
+    return zone == null || zone.isEmpty() ? null : java.time.ZoneId.of(zone);
+  }
+
+  public boolean storeNaiveTimestamps() {
+    return getBoolean(TABLES_STORE_NAIVE_TIMESTAMPS_PROP);
   }
 
   public boolean schemaCaseInsensitive() {

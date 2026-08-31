@@ -159,7 +159,20 @@ class RecordUtils {
             .build();
 
     TaskWriter<Record> writer;
-    if (table.spec().isUnpartitioned()) {
+    if (config.upsertModeEnabled()
+        && identifierFieldIds != null
+        && !identifierFieldIds.isEmpty()) {
+      writer =
+          new RecordDeltaWriter(
+              table.spec(),
+              format,
+              writerFactory,
+              fileFactory,
+              table.io(),
+              targetFileSize,
+              table.schema(),
+              identifierFieldIds);
+    } else if (table.spec().isUnpartitioned()) {
       writer =
           new UnpartitionedWriter<>(
               table.spec(), format, writerFactory, fileFactory, table.io(), targetFileSize);

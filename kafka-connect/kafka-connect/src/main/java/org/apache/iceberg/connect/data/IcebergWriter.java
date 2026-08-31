@@ -61,7 +61,11 @@ class IcebergWriter implements RecordWriter {
       // ignore tombstones...
       if (record.value() != null) {
         Record row = convertToRow(record);
-        writer.write(row);
+        if (config.upsertModeEnabled() && writer instanceof RecordDeltaWriter) {
+          routeDelta((RecordDeltaWriter) writer, row, record.value());
+        } else {
+          writer.write(row);
+        }
       }
     } catch (Exception e) {
       throw new DataException(
@@ -72,6 +76,30 @@ class IcebergWriter implements RecordWriter {
               record.kafkaPartition(),
               record.kafkaOffset()),
           e);
+    }
+  }
+
+  private void routeDelta(RecordDeltaWriter deltaWriter, Record row, Object recordValue)
+      throws java.io.IOException {
+    String opField = config.tablesCdcField();
+    Object opValue = opField == null ? null : RecordUtils.extractFromRecordValue(recordValue, opField);
+    String op = opValue == null ? "I" : opValue.toString().toUpperCase(Locale.ROOT);
+    switch (op) {
+      case "D":
+      case "DELETE":
+        deltaWriter.deleteRow(row);
+        break;
+      case "U":
+      case "UPDATE":
+        deltaWriter.updateRow(row);
+        break;
+      case "I":
+      case "INSERT":
+      case "C":
+      case "R":
+      default:
+        deltaWriter.insertRow(row);
+        break;
     }
   }
 

@@ -712,7 +712,8 @@ class RecordConverter {
   private OffsetDateTime convertOffsetDateTime(Object value) {
     if (value instanceof Number) {
       long millis = ((Number) value).longValue();
-      return DateTimeUtil.timestamptzFromMicros(millis * 1000);
+      long correctedMicros = correctForSourceTimezone(millis) * 1000;
+      return DateTimeUtil.timestamptzFromMicros(correctedMicros);
     } else if (value instanceof String) {
       return parseOffsetDateTime((String) value);
     } else if (value instanceof OffsetDateTime) {
@@ -720,10 +721,32 @@ class RecordConverter {
     } else if (value instanceof LocalDateTime) {
       return ((LocalDateTime) value).atOffset(ZoneOffset.UTC);
     } else if (value instanceof Date) {
-      return DateTimeUtil.timestamptzFromMicros(((Date) value).getTime() * 1000);
+      long correctedMicros = correctForSourceTimezone(((Date) value).getTime()) * 1000;
+      return DateTimeUtil.timestamptzFromMicros(correctedMicros);
     }
     throw new ConnectException(
         "Cannot convert timestamptz: " + value + ", type: " + value.getClass());
+  }
+
+  /**
+   * If {@code iceberg.tables.source-timezone} is set, treat the incoming epoch millis as if their
+   * wall-clock digits were originally in the configured zone (mislabeled as UTC by Debezium for
+   * naive DB types like SQL Server DATETIME2) and return the corrected UTC epoch millis.
+   *
+   * <p>Algorithm: recover the wall-clock digits by rendering the instant in UTC, relabel those
+   * digits as being in the source zone, then convert back to a true instant.
+   */
+  private long correctForSourceTimezone(long millis) {
+    java.time.ZoneId sourceZone = config.sourceTimezone();
+    if (sourceZone == null) {
+      return millis;
+    }
+    return Instant.ofEpochMilli(millis)
+        .atZone(ZoneOffset.UTC)
+        .toLocalDateTime()
+        .atZone(sourceZone)
+        .toInstant()
+        .toEpochMilli();
   }
 
   private OffsetDateTime parseOffsetDateTime(String str) {
@@ -740,7 +763,7 @@ class RecordConverter {
   private LocalDateTime convertLocalDateTime(Object value) {
     if (value instanceof Number) {
       long millis = ((Number) value).longValue();
-      return DateTimeUtil.timestampFromMicros(millis * 1000);
+      return millisToNaive(millis);
     } else if (value instanceof String) {
       return parseLocalDateTime((String) value);
     } else if (value instanceof LocalDateTime) {
@@ -748,10 +771,25 @@ class RecordConverter {
     } else if (value instanceof OffsetDateTime) {
       return ((OffsetDateTime) value).toLocalDateTime();
     } else if (value instanceof Date) {
-      return DateTimeUtil.timestampFromMicros(((Date) value).getTime() * 1000);
+      return millisToNaive(((Date) value).getTime());
     }
     throw new ConnectException(
         "Cannot convert timestamp: " + value + ", type: " + value.getClass());
+  }
+
+  /**
+   * Convert incoming epoch millis to a naive LocalDateTime. When {@code
+   * iceberg.tables.source-timezone} is set, the value is the source-zone wall-clock digits
+   * (matches the source database's display). Otherwise it is the UTC wall-clock (existing
+   * behavior).
+   */
+  private LocalDateTime millisToNaive(long millis) {
+    java.time.ZoneId sourceZone = config.sourceTimezone();
+    if (sourceZone == null) {
+      return DateTimeUtil.timestampFromMicros(millis * 1000);
+    }
+    long correctedMillis = correctForSourceTimezone(millis);
+    return Instant.ofEpochMilli(correctedMillis).atZone(sourceZone).toLocalDateTime();
   }
 
   private LocalDateTime parseLocalDateTime(String str) {

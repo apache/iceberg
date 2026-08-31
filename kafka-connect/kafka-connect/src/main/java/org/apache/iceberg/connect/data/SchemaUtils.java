@@ -249,7 +249,9 @@ class SchemaUtils {
           return IntegerType.get();
         case INT64:
           if (Timestamp.LOGICAL_NAME.equals(valueSchema.name())) {
-            return TimestampType.withZone();
+            return config.storeNaiveTimestamps()
+                ? TimestampType.withoutZone()
+                : TimestampType.withZone();
           }
           return LongType.get();
         case FLOAT32:
@@ -311,7 +313,9 @@ class SchemaUtils {
       } else if (value instanceof LocalTime) {
         return TimeType.get();
       } else if (value instanceof java.util.Date || value instanceof OffsetDateTime) {
-        return TimestampType.withZone();
+        return config.storeNaiveTimestamps()
+            ? TimestampType.withoutZone()
+            : TimestampType.withZone();
       } else if (value instanceof LocalDateTime) {
         return TimestampType.withoutZone();
       } else if (value instanceof List) {
