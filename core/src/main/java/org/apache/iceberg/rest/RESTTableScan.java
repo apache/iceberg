@@ -59,6 +59,9 @@ import org.slf4j.LoggerFactory;
 
 class RESTTableScan extends DataTableScan {
   private static final Logger LOG = LoggerFactory.getLogger(RESTTableScan.class);
+  private static final long MIN_SLEEP_MS = 1000; // Initial delay
+  private static final long MAX_SLEEP_MS = 60 * 1000; // Max backoff delay (1 minute)
+  private static final double SCALE_FACTOR = 2.0; // Exponential scale factor
   private static final String DEFAULT_FILE_IO_IMPL = "org.apache.iceberg.io.ResolvingFileIO";
   private static final Cache<RESTTableScan, FileIO> FILEIO_TRACKER =
       Caffeine.newBuilder()
@@ -263,48 +266,11 @@ class RESTTableScan extends DataTableScan {
         "Invalid value for %s: %s (must be non-negative)",
         RESTCatalogProperties.REST_SCAN_PLANNING_POLL_NUM_RETRIES,
         maxRetries);
-    long minWaitMs =
-        PropertyUtil.propertyAsLong(
-            catalogProperties,
-            RESTCatalogProperties.REST_SCAN_PLANNING_POLL_MIN_WAIT_MS,
-            RESTCatalogProperties.REST_SCAN_PLANNING_POLL_MIN_WAIT_MS_DEFAULT);
-    Preconditions.checkArgument(
-        minWaitMs > 0,
-        "Invalid value for %s: %s (must be positive)",
-        RESTCatalogProperties.REST_SCAN_PLANNING_POLL_MIN_WAIT_MS,
-        minWaitMs);
-    long maxWaitMs =
-        PropertyUtil.propertyAsLong(
-            catalogProperties,
-            RESTCatalogProperties.REST_SCAN_PLANNING_POLL_MAX_WAIT_MS,
-            RESTCatalogProperties.REST_SCAN_PLANNING_POLL_MAX_WAIT_MS_DEFAULT);
-    Preconditions.checkArgument(
-        maxWaitMs > 0,
-        "Invalid value for %s: %s (must be positive)",
-        RESTCatalogProperties.REST_SCAN_PLANNING_POLL_MAX_WAIT_MS,
-        maxWaitMs);
-    Preconditions.checkArgument(
-        maxWaitMs >= minWaitMs,
-        "Invalid values for %s (%s) and %s (%s): min wait must be <= max wait",
-        RESTCatalogProperties.REST_SCAN_PLANNING_POLL_MIN_WAIT_MS,
-        minWaitMs,
-        RESTCatalogProperties.REST_SCAN_PLANNING_POLL_MAX_WAIT_MS,
-        maxWaitMs);
-    double scaleFactor =
-        PropertyUtil.propertyAsDouble(
-            catalogProperties,
-            RESTCatalogProperties.REST_SCAN_PLANNING_POLL_SCALE_FACTOR,
-            RESTCatalogProperties.REST_SCAN_PLANNING_POLL_SCALE_FACTOR_DEFAULT);
-    Preconditions.checkArgument(
-        scaleFactor >= 1.0,
-        "Invalid value for %s: %s (must be >= 1.0)",
-        RESTCatalogProperties.REST_SCAN_PLANNING_POLL_SCALE_FACTOR,
-        scaleFactor);
 
     AtomicReference<FetchPlanningResultResponse> result = new AtomicReference<>();
     try {
       Tasks.foreach(planId)
-          .exponentialBackoff(minWaitMs, maxWaitMs, maxWaitTimeMs, scaleFactor)
+          .exponentialBackoff(MIN_SLEEP_MS, MAX_SLEEP_MS, maxWaitTimeMs, SCALE_FACTOR)
           .retry(maxRetries)
           .onlyRetryOn(NotCompleteException.class)
           .onFailure(
