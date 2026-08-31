@@ -45,17 +45,23 @@ class TestCharSequenceUtil {
   }
 
   @Test
-  void unequalPathsReturnsTrueWhenLastCharacterDiffers() {
-    // paths are compared from the end, so a trailing difference is found immediately
+  void unequalPathsReturnsTrueWhenTheFirstCharacterDiffers() {
+    // the sequences are the same length and differ only at the first character
+    assertThat(CharSequenceUtil.unequalPaths("a/data/file.parquet", "b/data/file.parquet"))
+        .isTrue();
+  }
+
+  @Test
+  void unequalPathsReturnsTrueWhenAMiddleCharacterDiffers() {
+    // the sequences are the same length and differ only at a character in the middle
     assertThat(CharSequenceUtil.unequalPaths("data/file-1.parquet", "data/file-2.parquet"))
         .isTrue();
   }
 
   @Test
-  void unequalPathsReturnsTrueWhenFirstCharacterDiffers() {
-    // forces the scan to walk all the way back to the first character before differing
-    assertThat(CharSequenceUtil.unequalPaths("a/data/file.parquet", "b/data/file.parquet"))
-        .isTrue();
+  void unequalPathsReturnsTrueWhenTheLastCharacterDiffers() {
+    // the sequences are the same length and differ only at the final character
+    assertThat(CharSequenceUtil.unequalPaths("data/part-00001", "data/part-00002")).isTrue();
   }
 
   @Test
