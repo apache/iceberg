@@ -402,6 +402,14 @@ public class TestCoordinator extends ChannelTestBase {
     long nextWatermark = healthyWatermark + 5;
     consumer.commitSync(ImmutableMap.of(ctl, new OffsetAndMetadata(nextWatermark)));
 
+    OffsetAndMetadata anotherCommittedOffsetAndMetadata =
+        consumer.committed(ImmutableSet.of(ctl)).get(ctl);
+    long anotherCommitted =
+        anotherCommittedOffsetAndMetadata == null ? 0L : anotherCommittedOffsetAndMetadata.offset();
+    assertThat(anotherCommitted)
+        .as("Precondition: another coordinator advanced the shared offset")
+        .isEqualTo(nextWatermark);
+
     long rewindWatermark = healthyWatermark + 3;
     coordinator.controlTopicOffsets().put(0, rewindWatermark);
     coordinator.commitConsumerOffsets();
@@ -413,7 +421,8 @@ public class TestCoordinator extends ChannelTestBase {
     assertThat(committed)
         .as(
             "Expected Limitation: commitConsumerOffsets will rewind offsets if local offset advances and another coordinator committed a higher offset")
-        .isEqualTo(rewindWatermark);
+        .isEqualTo(rewindWatermark)
+        .isLessThan(nextWatermark);
   }
 
   @Test
