@@ -249,7 +249,7 @@ Iceberg table support is organized in library modules:
 
 This project Iceberg also has modules for adding Iceberg support to processing engines and associated tooling:
 
-* `iceberg-spark` is an implementation of Spark's Datasource V2 API for Iceberg with submodules for each spark versions (use runtime jars for a shaded version)
+* `iceberg-spark` is an implementation of Spark's Datasource V2 API for Iceberg with submodules for each Spark version (use runtime jars for a shaded version)
 * `iceberg-flink` is an implementation of Flink's Table and DataStream API for Iceberg (use iceberg-flink-runtime for a shaded version)
 * `iceberg-mr` is an implementation of MapReduce and Hive InputFormats and SerDes for Iceberg (use iceberg-hive-runtime for a shaded version for use with Hive)
 * `iceberg-nessie` is a module used to integrate Iceberg table metadata history and operations with [Project Nessie](https://projectnessie.org/)
