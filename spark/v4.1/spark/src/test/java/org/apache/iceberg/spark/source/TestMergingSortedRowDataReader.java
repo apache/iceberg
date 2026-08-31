@@ -233,6 +233,70 @@ class TestMergingSortedRowDataReader extends TestBase {
   }
 
   @Test
+  void mergeWithArrayOfStructsDoesNotCorruptElements() throws IOException {
+    catalog.dropTable(TableIdentifier.of("default", "test_merging_reader"));
+
+    Types.StructType element = Types.StructType.of(required(4, "a", Types.IntegerType.get()));
+    Schema arrayOfStructs =
+        new Schema(
+            required(1, "id", Types.IntegerType.get()),
+            Types.NestedField.optional(2, "arr", Types.ListType.ofOptional(3, element)));
+
+    table =
+        catalog.createTable(
+            TableIdentifier.of("default", "test_merging_reader"), arrayOfStructs, SPEC);
+    table.replaceSortOrder().asc("id").commit();
+
+    // File1 = [(1,[a=10]), (3,[a=30])], File2 = [(2,[a=20])]. SortedMerge advances file1's reader
+    // before returning the row for id=1, so a shallow copy would let id=3's struct clobber id=1's.
+    DataFile file1 =
+        writeDataFile(
+            arrayOfStructsRecord(arrayOfStructs, element, 1, 10),
+            arrayOfStructsRecord(arrayOfStructs, element, 3, 30));
+    DataFile file2 = writeDataFile(arrayOfStructsRecord(arrayOfStructs, element, 2, 20));
+
+    table.newAppend().appendFile(file1).appendFile(file2).commit();
+
+    List<InternalRow> rows = readMerged(table);
+
+    assertThat(extractIds(rows)).containsExactly(1, 2, 3);
+    assertThat(rows.stream().map(row -> row.getArray(1).getStruct(0, 1).getInt(0)).toList())
+        .containsExactly(10, 20, 30);
+  }
+
+  @Test
+  void mergeWithMapOfStructsDoesNotCorruptElements() throws IOException {
+    catalog.dropTable(TableIdentifier.of("default", "test_merging_reader"));
+
+    Types.StructType element = Types.StructType.of(required(5, "a", Types.IntegerType.get()));
+    Schema mapOfStructs =
+        new Schema(
+            required(1, "id", Types.IntegerType.get()),
+            Types.NestedField.optional(
+                2, "m", Types.MapType.ofOptional(3, 4, Types.StringType.get(), element)));
+
+    table =
+        catalog.createTable(
+            TableIdentifier.of("default", "test_merging_reader"), mapOfStructs, SPEC);
+    table.replaceSortOrder().asc("id").commit();
+
+    DataFile file1 =
+        writeDataFile(
+            mapOfStructsRecord(mapOfStructs, element, 1, 10),
+            mapOfStructsRecord(mapOfStructs, element, 3, 30));
+    DataFile file2 = writeDataFile(mapOfStructsRecord(mapOfStructs, element, 2, 20));
+
+    table.newAppend().appendFile(file1).appendFile(file2).commit();
+
+    List<InternalRow> rows = readMerged(table);
+
+    assertThat(extractIds(rows)).containsExactly(1, 2, 3);
+    assertThat(
+            rows.stream().map(row -> row.getMap(1).valueArray().getStruct(0, 1).getInt(0)).toList())
+        .containsExactly(10, 20, 30);
+  }
+
+  @Test
   void mergeRejectsStaleSortOrderId() throws IOException {
     SortOrder oldSortOrder = table.sortOrder();
 
@@ -688,6 +752,26 @@ class TestMergingSortedRowDataReader extends TestBase {
     record.set(0, id);
     record.set(1, data);
     record.set(2, location);
+    return record;
+  }
+
+  private Record arrayOfStructsRecord(
+      Schema schema, Types.StructType element, int id, int elementValue) {
+    GenericRecord elementRecord = GenericRecord.create(element);
+    elementRecord.set(0, elementValue);
+    GenericRecord record = GenericRecord.create(schema);
+    record.set(0, id);
+    record.set(1, Lists.newArrayList(elementRecord));
+    return record;
+  }
+
+  private Record mapOfStructsRecord(
+      Schema schema, Types.StructType element, int id, int elementValue) {
+    GenericRecord elementRecord = GenericRecord.create(element);
+    elementRecord.set(0, elementValue);
+    GenericRecord record = GenericRecord.create(schema);
+    record.set(0, id);
+    record.set(1, Map.of("k", elementRecord));
     return record;
   }
 
