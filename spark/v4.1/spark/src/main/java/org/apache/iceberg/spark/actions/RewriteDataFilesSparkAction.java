@@ -72,10 +72,7 @@ public class RewriteDataFilesSparkAction
   private static final Logger LOG = LoggerFactory.getLogger(RewriteDataFilesSparkAction.class);
 
   /**
-   * Use the executor cache for delete files while rewriting.
-   *
-   * <p>Enable this when the same delete file applies to many data files, which is common with
-   * equality deletes.
+   * When true, the executor cache is used for delete files while rewriting.
    *
    * <p>This option sets {@link SparkSQLProperties#EXECUTOR_CACHE_DELETE_FILES_ENABLED} for the
    * rewrite, so any value configured for that property in the session is ignored.
