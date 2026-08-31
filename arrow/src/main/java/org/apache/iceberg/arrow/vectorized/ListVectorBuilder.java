@@ -41,14 +41,8 @@ import org.apache.parquet.schema.PrimitiveType;
  *
  * <p>Encapsulates allocation and per-list open/close semantics: {@link
  * ListVector#startNewValue(int)}, {@link ListVector#endValue(int, int)}, {@link
- * ListVector#setNull(int)}, plus the companion {@link IntVector} of list repetition levels and the
+ * ListVector#setNull(int)}, plus the companion list repetition levels ({@code int[]}) and the
  * {@link NullabilityHolder} that tracks list-level nullability for the batch.
- *
- * <p>Isolating this state gives us a clean seam to swap the per-row {@code startNewValue} / {@code
- * endValue} protocol for a bulk-fill implementation that writes the offsets buffer directly from
- * Parquet rep/def-level arrays.
- *
- * <p>Not thread-safe.
  */
 class ListVectorBuilder implements AutoCloseable {
 
@@ -59,7 +53,7 @@ class ListVectorBuilder implements AutoCloseable {
   private final boolean isElementRequired;
 
   private ListVector listVector;
-  private IntVector listRepetitionLevels;
+  private int[] listRepetitionLevels;
   private NullabilityHolder nullabilityHolder;
 
   // Per-batch state; reset by prepareBatch().
@@ -97,12 +91,9 @@ class ListVectorBuilder implements AutoCloseable {
       nullabilityHolder.reset();
     }
 
-    if (listRepetitionLevels != null) {
-      listRepetitionLevels.close();
+    if (listRepetitionLevels == null || listRepetitionLevels.length < estimatedSize) {
+      this.listRepetitionLevels = new int[estimatedSize];
     }
-
-    this.listRepetitionLevels = new IntVector("repetition_levels", allocator);
-    listRepetitionLevels.allocateNew(estimatedSize);
 
     if (listVector != null) {
       listVector.setValueCount(0);
@@ -129,7 +120,7 @@ class ListVectorBuilder implements AutoCloseable {
     this.listIndex++;
     this.listSize = 0;
     listVector.startNewValue(listIndex);
-    listRepetitionLevels.set(listIndex, elementRepetitionLevel);
+    listRepetitionLevels[listIndex] = elementRepetitionLevel;
   }
 
   public void writeNull() {
@@ -237,11 +228,9 @@ class ListVectorBuilder implements AutoCloseable {
 
   /**
    * Finalises the batch and returns the {@link VectorHolder} that wraps the built {@link
-   * ListVector}, its list-level {@link NullabilityHolder}, and the repetition-level {@link
-   * IntVector}.
+   * ListVector}, its list-level {@link NullabilityHolder}, and the repetition-level {@code int[]}.
    */
   VectorHolder build() {
-    listRepetitionLevels.setValueCount(listIndex + 1);
     listVector.setValueCount(listIndex + 1);
     return VectorHolder.vectorHolder(
         listVector, icebergField, nullabilityHolder, listRepetitionLevels);
@@ -254,9 +243,6 @@ class ListVectorBuilder implements AutoCloseable {
       this.listVector = null;
     }
 
-    if (listRepetitionLevels != null) {
-      listRepetitionLevels.close();
-      this.listRepetitionLevels = null;
-    }
+    this.listRepetitionLevels = null;
   }
 }

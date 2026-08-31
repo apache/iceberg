@@ -69,7 +69,7 @@ public class VectorizedColumnIterator extends BaseColumnIterator {
         FieldVector fieldVector,
         int typeWidth,
         NullabilityHolder holder,
-        IntVector repetitionLevels) {
+        int[] repetitionLevels) {
       int triplesReadSoFar = 0;
       while (triplesReadSoFar < batchSize && hasNext()) {
         advance();
@@ -93,7 +93,7 @@ public class VectorizedColumnIterator extends BaseColumnIterator {
         int numValsInVector,
         int typeWidth,
         NullabilityHolder holder,
-        IntVector repetitionLevels);
+        int[] repetitionLevels);
   }
 
   public class IntegerBatchReader extends BatchReader {
@@ -104,7 +104,7 @@ public class VectorizedColumnIterator extends BaseColumnIterator {
         final int numValsInVector,
         final int typeWidth,
         NullabilityHolder holder,
-        IntVector repetitionLevels) {
+        int[] repetitionLevels) {
       return vectorizedPageIterator
           .intPageReader()
           .nextBatch(
@@ -120,7 +120,7 @@ public class VectorizedColumnIterator extends BaseColumnIterator {
         final int numValsInVector,
         final int typeWidth,
         NullabilityHolder holder,
-        IntVector repetitionLevels) {
+        int[] repetitionLevels) {
       return vectorizedPageIterator.nextBatchDictionaryIds(
           (IntVector) vector, expectedBatchSize, numValsInVector, holder, repetitionLevels);
     }
@@ -134,7 +134,7 @@ public class VectorizedColumnIterator extends BaseColumnIterator {
         final int numValsInVector,
         final int typeWidth,
         NullabilityHolder holder,
-        IntVector repetitionLevels) {
+        int[] repetitionLevels) {
       return vectorizedPageIterator
           .longPageReader()
           .nextBatch(
@@ -150,7 +150,7 @@ public class VectorizedColumnIterator extends BaseColumnIterator {
         final int numValsInVector,
         final int typeWidth,
         NullabilityHolder holder,
-        IntVector repetitionLevels) {
+        int[] repetitionLevels) {
       return vectorizedPageIterator
           .timestampMillisPageReader()
           .nextBatch(
@@ -166,7 +166,7 @@ public class VectorizedColumnIterator extends BaseColumnIterator {
         final int numValsInVector,
         final int typeWidth,
         NullabilityHolder holder,
-        IntVector repetitionLevels) {
+        int[] repetitionLevels) {
       return vectorizedPageIterator
           .timestampInt96PageReader()
           .nextBatch(
@@ -182,7 +182,7 @@ public class VectorizedColumnIterator extends BaseColumnIterator {
         final int numValsInVector,
         final int typeWidth,
         NullabilityHolder holder,
-        IntVector repetitionLevels) {
+        int[] repetitionLevels) {
       return vectorizedPageIterator
           .floatPageReader()
           .nextBatch(
@@ -198,7 +198,7 @@ public class VectorizedColumnIterator extends BaseColumnIterator {
         final int numValsInVector,
         final int typeWidth,
         NullabilityHolder holder,
-        IntVector repetitionLevels) {
+        int[] repetitionLevels) {
       return vectorizedPageIterator
           .doublePageReader()
           .nextBatch(
@@ -214,7 +214,7 @@ public class VectorizedColumnIterator extends BaseColumnIterator {
         final int numValsInVector,
         final int typeWidth,
         NullabilityHolder holder,
-        IntVector repetitionLevels) {
+        int[] repetitionLevels) {
       return vectorizedPageIterator
           .fixedSizeBinaryPageReader()
           .nextBatch(
@@ -230,7 +230,7 @@ public class VectorizedColumnIterator extends BaseColumnIterator {
         final int numValsInVector,
         final int typeWidth,
         NullabilityHolder holder,
-        IntVector repetitionLevels) {
+        int[] repetitionLevels) {
       return vectorizedPageIterator
           .varWidthTypePageReader()
           .nextBatch(
@@ -246,7 +246,7 @@ public class VectorizedColumnIterator extends BaseColumnIterator {
         final int numValsInVector,
         final int typeWidth,
         NullabilityHolder holder,
-        IntVector repetitionLevels) {
+        int[] repetitionLevels) {
       return vectorizedPageIterator
           .booleanPageReader()
           .nextBatch(

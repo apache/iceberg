@@ -19,7 +19,6 @@
 package org.apache.iceberg.arrow.vectorized;
 
 import org.apache.arrow.vector.FieldVector;
-import org.apache.arrow.vector.IntVector;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Type;
@@ -38,7 +37,7 @@ public class VectorHolder {
   private final Dictionary dictionary;
   private final NullabilityHolder nullabilityHolder;
   private final Types.NestedField icebergField;
-  private final IntVector repetitionLevels;
+  private final int[] repetitionLevels;
 
   public VectorHolder(
       ColumnDescriptor columnDescriptor,
@@ -57,7 +56,7 @@ public class VectorHolder {
       Dictionary dictionary,
       NullabilityHolder holder,
       Types.NestedField icebergField,
-      IntVector repetitionLevels) {
+      int[] repetitionLevels) {
     // All the fields except dictionary and repetitionLevels are not nullable unless it is a dummy
     // holder
     Preconditions.checkNotNull(columnDescriptor, "ColumnDescriptor cannot be null");
@@ -97,7 +96,7 @@ public class VectorHolder {
       FieldVector vec,
       Types.NestedField field,
       NullabilityHolder nulls,
-      IntVector repetitionLevels) {
+      int[] repetitionLevels) {
     columnDescriptor = null;
     vector = vec;
     isDictionaryEncoded = false;
@@ -140,7 +139,7 @@ public class VectorHolder {
   }
 
   /** Returns the repetition levels for this vector, or null if not a repeated column. */
-  public IntVector repetitionLevels() {
+  public int[] repetitionLevels() {
     return repetitionLevels;
   }
 
@@ -206,7 +205,7 @@ public class VectorHolder {
       FieldVector vector,
       Types.NestedField icebergField,
       NullabilityHolder nulls,
-      IntVector repetitionLevels) {
+      int[] repetitionLevels) {
     return new VectorHolder(vector, icebergField, nulls, repetitionLevels);
   }
 

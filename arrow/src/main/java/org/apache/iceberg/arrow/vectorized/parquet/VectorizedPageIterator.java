@@ -172,17 +172,15 @@ public class VectorizedPageIterator extends BasePageIterator {
       final int expectedBatchSize,
       final int numValsInVector,
       NullabilityHolder holder,
-      IntVector repLevels) {
+      int[] repLevels) {
     final int actualBatchSize = getActualBatchSize(expectedBatchSize);
     if (actualBatchSize <= 0) {
       return 0;
     }
     if (repLevels != null) {
       for (int i = 0; i < actualBatchSize; i++) {
-        int repetitionLevel = nextRepetitionLevel();
-        repLevels.setSafe(numValsInVector + i, repetitionLevel);
+        repLevels[numValsInVector + i] = nextRepetitionLevel();
       }
-      repLevels.setValueCount(numValsInVector + actualBatchSize);
     }
     vectorizedDefinitionLevelReader
         .dictionaryIdReader()
@@ -206,7 +204,7 @@ public class VectorizedPageIterator extends BasePageIterator {
         int numValsInVector,
         int typeWidth,
         NullabilityHolder holder,
-        IntVector repLevels) {
+        int[] repLevels) {
       final int actualBatchSize = getActualBatchSize(expectedBatchSize);
       if (actualBatchSize <= 0) {
         return 0;
@@ -214,10 +212,8 @@ public class VectorizedPageIterator extends BasePageIterator {
       // TODO this can be batched
       if (repLevels != null) {
         for (int i = 0; i < actualBatchSize; i++) {
-          int repetitionLevel = nextRepetitionLevel();
-          repLevels.setSafe(numValsInVector + i, repetitionLevel);
+          repLevels[numValsInVector + i] = nextRepetitionLevel();
         }
-        repLevels.setValueCount(numValsInVector + actualBatchSize);
       }
       if (dictionaryDecodeMode == DictionaryDecodeMode.EAGER) {
         nextDictEncodedVal(vector, actualBatchSize, numValsInVector, typeWidth, holder);

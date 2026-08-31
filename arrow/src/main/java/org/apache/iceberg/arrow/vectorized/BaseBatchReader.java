@@ -56,9 +56,6 @@ public abstract class BaseBatchReader<T> implements VectorizedReader<T> {
         if (vectorHolders[i].vector() != null) {
           vectorHolders[i].vector().close();
         }
-        if (vectorHolders[i].repetitionLevels() != null) {
-          vectorHolders[i].repetitionLevels().close();
-        }
         vectorHolders[i] = null;
       }
     }

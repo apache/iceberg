@@ -178,7 +178,7 @@ public class VectorizedListReader extends VectorizedArrowReader {
     @Override
     public int currentRepetitionLevel() {
       advance();
-      return currentBatch.repetitionLevels().get(currentOffset);
+      return currentBatch.repetitionLevels()[currentOffset];
     }
 
     @Override

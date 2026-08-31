@@ -74,7 +74,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
 
   private int batchSize = DEFAULT_BATCH_SIZE;
   private FieldVector vec;
-  private IntVector repetitionLevels;
+  private int[] repetitionLevels;
   private Integer typeWidth;
   private ReadType readType;
   private NullabilityHolder nullabilityHolder;
@@ -162,9 +162,6 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     } else {
       vec.setValueCount(0);
       nullabilityHolder.reset();
-      if (repetitionLevels != null) {
-        repetitionLevels.setValueCount(0);
-      }
     }
     if (vectorizedColumnIterator.hasNext()) {
       if (dictEncoded) {
@@ -244,14 +241,12 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
   }
 
   private void allocateRepetitionLevels() {
-    if (repetitionLevels != null) {
-      repetitionLevels.close();
-      this.repetitionLevels = null;
-    }
-
     if (columnDescriptor.getMaxRepetitionLevel() > 0) {
-      this.repetitionLevels = new IntVector("repetition_levels", rootAlloc);
-      repetitionLevels.allocateNew(batchSize);
+      if (repetitionLevels == null || repetitionLevels.length < batchSize) {
+        this.repetitionLevels = new int[batchSize];
+      }
+    } else {
+      this.repetitionLevels = null;
     }
   }
 
@@ -428,9 +423,6 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
   public void close() {
     if (vec != null) {
       vec.close();
-    }
-    if (repetitionLevels != null) {
-      repetitionLevels.close();
     }
   }
 
