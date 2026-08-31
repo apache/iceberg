@@ -371,6 +371,16 @@ public class ParquetDictionaryRowGroupFilter {
     }
 
     @Override
+    public <T> Boolean contains(BoundReference<T> ref, Literal<T> lit) {
+      return ROWS_MIGHT_MATCH;
+    }
+
+    @Override
+    public <T> Boolean notContains(BoundReference<T> ref, Literal<T> lit) {
+      return ROWS_MIGHT_MATCH;
+    }
+
+    @Override
     public <T> Boolean startsWith(BoundReference<T> ref, Literal<T> lit) {
       int id = ref.fieldId();
 

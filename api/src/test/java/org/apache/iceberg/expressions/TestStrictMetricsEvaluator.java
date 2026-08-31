@@ -19,6 +19,7 @@
 package org.apache.iceberg.expressions;
 
 import static org.apache.iceberg.expressions.Expressions.and;
+import static org.apache.iceberg.expressions.Expressions.contains;
 import static org.apache.iceberg.expressions.Expressions.equal;
 import static org.apache.iceberg.expressions.Expressions.greaterThan;
 import static org.apache.iceberg.expressions.Expressions.greaterThanOrEqual;
@@ -28,6 +29,7 @@ import static org.apache.iceberg.expressions.Expressions.isNull;
 import static org.apache.iceberg.expressions.Expressions.lessThan;
 import static org.apache.iceberg.expressions.Expressions.lessThanOrEqual;
 import static org.apache.iceberg.expressions.Expressions.not;
+import static org.apache.iceberg.expressions.Expressions.notContains;
 import static org.apache.iceberg.expressions.Expressions.notEqual;
 import static org.apache.iceberg.expressions.Expressions.notIn;
 import static org.apache.iceberg.expressions.Expressions.notNaN;
@@ -823,6 +825,45 @@ public class TestStrictMetricsEvaluator {
   @Test
   void testStartsWithNoStats() {
     boolean shouldRead = new StrictMetricsEvaluator(SCHEMA, startsWith("required", "a")).eval(FILE);
+    assertThat(shouldRead).as("Should not match: no bounds available for column").isFalse();
+  }
+
+  @Test
+  void testContains() {
+    boolean shouldRead =
+        new StrictMetricsEvaluator(SCHEMA, contains("required", "ab")).eval(STRING_FILE);
+    assertThat(shouldRead).as("Should not match: contains cannot be evaluated strictly").isFalse();
+
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, contains("required", "a")).eval(STRING_FILE);
+    assertThat(shouldRead).as("Should not match: contains cannot be evaluated strictly").isFalse();
+
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, contains("required", "zzz")).eval(STRING_FILE);
+    assertThat(shouldRead).as("Should not match: contains cannot be evaluated strictly").isFalse();
+
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, contains("required", "a")).eval(FILE);
+    assertThat(shouldRead).as("Should not match: no bounds available for column").isFalse();
+  }
+
+  @Test
+  void testNotContains() {
+    boolean shouldRead =
+        new StrictMetricsEvaluator(SCHEMA, notContains("required", "aaa")).eval(STRING_FILE);
+    assertThat(shouldRead)
+        .as("Should not match: notContains cannot be evaluated strictly")
+        .isFalse();
+
+    shouldRead =
+        new StrictMetricsEvaluator(SCHEMA, notContains("required", "zzz")).eval(STRING_FILE);
+    assertThat(shouldRead)
+        .as("Should not match: notContains cannot be evaluated strictly")
+        .isFalse();
+
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, notContains("all_nulls", "a")).eval(FILE);
+    assertThat(shouldRead)
+        .as("Should not match: notContains cannot be evaluated strictly")
+        .isFalse();
+
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, notContains("required", "a")).eval(FILE);
     assertThat(shouldRead).as("Should not match: no bounds available for column").isFalse();
   }
 
