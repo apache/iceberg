@@ -181,6 +181,20 @@ public class CompareSchemasVisitor
     }
   }
 
+  @Override
+  public Result variant(Types.VariantType variant, Integer tableSchemaId) {
+    if (tableSchemaId == null) {
+      return Result.SCHEMA_UPDATE_NEEDED;
+    }
+
+    Type tableSchemaType = tableSchema.findField(tableSchemaId).type();
+    if (tableSchemaType.isVariantType()) {
+      return Result.SAME;
+    }
+
+    return Result.SCHEMA_UPDATE_NEEDED;
+  }
+
   /**
    * Whether {@link DataConverter} can convert input data of type {@code dataType} into the table's
    * {@code tableType}. Must stay in sync with the conversions {@link DataConverter#get} performs.
