@@ -77,7 +77,12 @@ public class EagerInputFile implements InputFile {
       IOUtil.readFully(src, bytes, 0, bytes.length);
       // reads from the already open stream; no additional request
       if (src.read() != -1) {
-        throw new IOException("Did not reach the end of stream after reading " + length + " bytes");
+        throw new IOException(
+            "Incorrect length provided for file "
+                + delegate.location()
+                + ", given a length of "
+                + length
+                + " and did not reach the end of stream");
       }
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to fetch file: %s", delegate.location());
@@ -95,7 +100,7 @@ public class EagerInputFile implements InputFile {
       super(delegate, length);
       Preconditions.checkArgument(
           delegate instanceof HadoopConfigurable,
-          "Cannot create a Hadoop configurable eager input file from %s",
+          "Cannot create Hadoop Configurable Eager Input File because %s does not implement HadoopConfigurable",
           delegate.getClass().getName());
       this.delegate = (HadoopConfigurable) delegate;
     }
