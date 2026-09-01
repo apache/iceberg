@@ -239,7 +239,7 @@ class TestS3V4RestSignerClient {
   }
 
   @Test
-  void testSignedComponentCachePerInstanceIsolation() throws Exception {
+  void doesNotReuseSignedComponentAcrossSignerClients() throws Exception {
     Map<String, String> properties1 =
         Map.of(
             CatalogProperties.URI,
