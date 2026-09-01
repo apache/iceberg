@@ -407,12 +407,14 @@ public abstract class S3V4RestSignerClient
     String token();
 
     static Key from(RemoteSignRequest request, S3V4RestSignerClient signerClient) {
+      String token = signerClient.token().get();
+      String credential = token != null ? null : signerClient.credential();
       return ImmutableKey.builder()
           .method(request.method())
           .region(request.region())
           .uri(request.uri().toString())
-          .credential(signerClient.credential())
-          .token(signerClient.token().get())
+          .credential(credential)
+          .token(token)
           .build();
     }
   }

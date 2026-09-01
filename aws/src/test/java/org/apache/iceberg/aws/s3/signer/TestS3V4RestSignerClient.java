@@ -22,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.InstanceOfAssertFactories.type;
 import static org.mockito.Mockito.when;
 
+import java.net.URI;
 import java.util.Map;
 import java.util.stream.Stream;
 import org.apache.iceberg.CatalogProperties;
@@ -31,10 +32,13 @@ import org.apache.iceberg.rest.auth.AuthProperties;
 import org.apache.iceberg.rest.auth.AuthSession;
 import org.apache.iceberg.rest.auth.OAuth2Properties;
 import org.apache.iceberg.rest.auth.OAuth2Util;
+import org.apache.iceberg.rest.requests.ImmutableRemoteSignRequest;
+import org.apache.iceberg.rest.requests.RemoteSignRequest;
 import org.apache.iceberg.rest.responses.OAuthTokenResponse;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -232,5 +236,43 @@ class TestS3V4RestSignerClient {
                 "v1/legacy/sign"),
             "https://legacy-signer.com",
             "https://legacy-signer.com/v1/legacy/sign"));
+  }
+
+  @Test
+  void testSignedComponentCacheKeyIsolation() throws Exception {
+    Map<String, String> properties1 =
+        Map.of(
+            CatalogProperties.URI,
+            "https://signer.com",
+            RESTCatalogProperties.REMOTE_SIGNING_ENDPOINT,
+            "v1/sign",
+            OAuth2Properties.CREDENTIAL,
+            "user1:secret1");
+    Map<String, String> properties2 =
+        Map.of(
+            CatalogProperties.URI,
+            "https://signer.com",
+            RESTCatalogProperties.REMOTE_SIGNING_ENDPOINT,
+            "v1/sign",
+            OAuth2Properties.CREDENTIAL,
+            "user2:secret2");
+
+    try (S3V4RestSignerClient client1 =
+            ImmutableS3V4RestSignerClient.builder().properties(properties1).build();
+        S3V4RestSignerClient client2 =
+            ImmutableS3V4RestSignerClient.builder().properties(properties2).build()) {
+      RemoteSignRequest request =
+          ImmutableRemoteSignRequest.builder()
+              .method("GET")
+              .region("us-east-1")
+              .uri(URI.create("https://bucket.s3.amazonaws.com/key"))
+              .provider(S3V4RestSignerClient.S3_PROVIDER)
+              .build();
+
+      S3V4RestSignerClient.Key key1 = S3V4RestSignerClient.Key.from(request, client1);
+      S3V4RestSignerClient.Key key2 = S3V4RestSignerClient.Key.from(request, client2);
+
+      assertThat(key1).isNotEqualTo(key2);
+    }
   }
 }
