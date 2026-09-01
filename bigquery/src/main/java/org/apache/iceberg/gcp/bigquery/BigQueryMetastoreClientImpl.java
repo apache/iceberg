@@ -588,24 +588,21 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
           bigqueryOptions.isOpenTelemetryTracingEnabled(),
           bigqueryOptions.getOpenTelemetryTracer());
     } catch (BigQueryRetryHelper.BigQueryRetryHelperException e) {
-      handleBigQueryRetryException(e);
-      throw new IllegalStateException(
-          "handleBigQueryRetryException must throw for BigQueryRetryHelperException", e);
+      throw asRuntimeException(e);
     }
   }
 
   /**
-   * Translates BigQueryRetryHelperException to the RuntimeException that caused the error. This
-   * method will always throw an exception.
+   * Unwraps a {@link BigQueryRetryHelper.BigQueryRetryHelperException} to the {@link
+   * RuntimeException} that caused it, wrapping a non-runtime cause in a new {@link RuntimeException}.
    */
-  private static void handleBigQueryRetryException(
+  private static RuntimeException asRuntimeException(
       BigQueryRetryHelper.BigQueryRetryHelperException retryException) {
     Throwable cause = retryException.getCause();
-    String message = retryException.getMessage();
     if (cause instanceof RuntimeException runtimeException) {
-      throw runtimeException;
-    } else {
-      throw new RuntimeException(message, cause);
+      return runtimeException;
     }
+
+    return new RuntimeException(retryException.getMessage(), cause);
   }
 }
