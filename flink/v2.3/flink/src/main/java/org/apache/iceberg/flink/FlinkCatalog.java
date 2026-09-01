@@ -647,8 +647,6 @@ public class FlinkCatalog extends AbstractCatalog {
     // (ALTER VIEW SET merges), and removing keys absent from the incoming options could
     // strip properties that Flink did not carry over
     Map<String, String> newProperties = Maps.newHashMap(newView.getOptions());
-    newProperties.remove(DEFAULT_CATALOG_OPTION);
-    newProperties.remove(DEFAULT_NAMESPACE_OPTION);
     if (!StringUtils.isNullOrWhitespaceOnly(newView.getComment())) {
       newProperties.put(ViewProperties.COMMENT, newView.getComment());
     }
