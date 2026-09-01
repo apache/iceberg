@@ -70,6 +70,19 @@ public class RewriteDataFilesSparkAction
     extends BaseSnapshotUpdateSparkAction<RewriteDataFilesSparkAction> implements RewriteDataFiles {
 
   private static final Logger LOG = LoggerFactory.getLogger(RewriteDataFilesSparkAction.class);
+
+  /**
+   * When true, the executor cache is used for delete files while rewriting.
+   *
+   * <p>This option sets {@link SparkSQLProperties#EXECUTOR_CACHE_DELETE_FILES_ENABLED} for the
+   * rewrite, so any value configured for that property in the session is ignored.
+   *
+   * <p>Defaults to false.
+   */
+  public static final String CACHE_DELETE_FILES = "cache-delete-files";
+
+  public static final boolean CACHE_DELETE_FILES_DEFAULT = false;
+
   private static final Set<String> VALID_OPTIONS =
       ImmutableSet.of(
           MAX_CONCURRENT_FILE_GROUP_REWRITES,
@@ -82,6 +95,7 @@ public class RewriteDataFilesSparkAction
           REWRITE_JOB_ORDER,
           OUTPUT_SPEC_ID,
           REMOVE_DANGLING_DELETES,
+          CACHE_DELETE_FILES,
           BinPackRewriteFilePlanner.MAX_FILES_TO_REWRITE);
 
   private static final RewriteDataFilesSparkAction.Result EMPTY_RESULT =
@@ -105,10 +119,6 @@ public class RewriteDataFilesSparkAction
     super(((org.apache.spark.sql.classic.SparkSession) spark).cloneSession());
     // Disable Adaptive Query Execution as this may change the output partitioning of our write
     spark().conf().set(SQLConf.ADAPTIVE_EXECUTION_ENABLED().key(), false);
-    // Disable executor cache for delete files as each partition is rewritten separately.
-    // Note: when compacting to a different target spec, data from multiple partitions
-    // may be grouped together, but caching is still disabled to avoid connection pool issues.
-    spark().conf().set(SparkSQLProperties.EXECUTOR_CACHE_DELETE_FILES_ENABLED, "false");
     this.caseSensitive = SparkUtil.caseSensitive(spark);
     this.table = table;
   }
@@ -211,7 +221,8 @@ public class RewriteDataFilesSparkAction
     return result;
   }
 
-  private void init(long startingSnapshotId) {
+  @VisibleForTesting
+  void init(long startingSnapshotId) {
     this.planner =
         runner instanceof SparkShufflingFileRewriteRunner
             ? new SparkShufflingDataRewritePlanner(table, filter, startingSnapshotId, caseSensitive)
@@ -423,6 +434,14 @@ public class RewriteDataFilesSparkAction
     removeDanglingDeletes =
         PropertyUtil.propertyAsBoolean(
             options(), REMOVE_DANGLING_DELETES, REMOVE_DANGLING_DELETES_DEFAULT);
+
+    boolean cacheDeleteFiles =
+        PropertyUtil.propertyAsBoolean(options(), CACHE_DELETE_FILES, CACHE_DELETE_FILES_DEFAULT);
+    spark()
+        .conf()
+        .set(
+            SparkSQLProperties.EXECUTOR_CACHE_DELETE_FILES_ENABLED,
+            String.valueOf(cacheDeleteFiles));
 
     Preconditions.checkArgument(
         maxConcurrentFileGroupRewrites >= 1,
