@@ -86,7 +86,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.view.SQLViewRepresentation;
 import org.apache.iceberg.view.View;
 import org.apache.iceberg.view.ViewProperties;
-import org.apache.iceberg.view.ViewVersion;
 
 /**
  * A Flink Catalog implementation that wraps an Iceberg {@link Catalog}.
@@ -102,8 +101,6 @@ import org.apache.iceberg.view.ViewVersion;
 @Internal
 public class FlinkCatalog extends AbstractCatalog {
   private static final String FLINK_DIALECT = "flink";
-  private static final String DEFAULT_CATALOG_OPTION = "default-catalog";
-  private static final String DEFAULT_NAMESPACE_OPTION = "default-namespace";
 
   private final CatalogLoader catalogLoader;
   private final Catalog icebergCatalog;
@@ -179,6 +176,12 @@ public class FlinkCatalog extends AbstractCatalog {
     } else {
       throw new IllegalArgumentException("Illegal table name:" + objectName);
     }
+  }
+
+  private boolean canBeView(ObjectPath tablePath) {
+    // the view catalog is only consulted for names that can denote a view: metadata-table
+    // syntax ("name$type") never does
+    return asViewCatalog != null && !tablePath.getObjectName().contains("$");
   }
 
   @Override
@@ -373,9 +376,7 @@ public class FlinkCatalog extends AbstractCatalog {
     try {
       table = loadIcebergTable(tablePath);
     } catch (TableNotExistException e) {
-      // metadata tables ("name$type") can never be views, and without a view catalog there is
-      // nothing else to look up
-      if (asViewCatalog == null || tablePath.getObjectName().contains("$")) {
+      if (!canBeView(tablePath)) {
         throw e;
       }
 
@@ -433,7 +434,7 @@ public class FlinkCatalog extends AbstractCatalog {
   public boolean tableExists(ObjectPath tablePath) throws CatalogException {
     TableIdentifier identifier = toIdentifier(tablePath);
     return icebergCatalog.tableExists(identifier)
-        || (asViewCatalog != null && asViewCatalog.viewExists(identifier));
+        || (canBeView(tablePath) && asViewCatalog.viewExists(identifier));
   }
 
   @Override
@@ -748,12 +749,6 @@ public class FlinkCatalog extends AbstractCatalog {
 
     Map<String, String> options = Maps.newHashMap(view.properties());
     String comment = options.remove(ViewProperties.COMMENT);
-
-    ViewVersion currentVersion = view.currentVersion();
-    String defaultCatalog =
-        currentVersion.defaultCatalog() != null ? currentVersion.defaultCatalog() : getName();
-    options.put(DEFAULT_CATALOG_OPTION, defaultCatalog);
-    options.put(DEFAULT_NAMESPACE_OPTION, currentVersion.defaultNamespace().toString());
 
     // both original and expanded query hold the stored SQL: Flink expands the query itself,
     // resolving unqualified references against the view's own catalog and database
