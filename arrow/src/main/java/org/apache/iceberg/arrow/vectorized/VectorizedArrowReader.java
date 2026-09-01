@@ -157,7 +157,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
       }
 
       allocateFieldVector(dictEncoded);
-      nullabilityHolder = new NullabilityHolder(batchSize);
+      this.nullabilityHolder = newNullabilityHolder(batchSize);
       allocateRepetitionLevels();
     } else {
       vec.setValueCount(0);
@@ -776,7 +776,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
       // and every null check on the returned holder fails
       this.batchSize = (batchSize == 0) ? DEFAULT_BATCH_SIZE : batchSize;
       if (nulls == null || nulls.size() < this.batchSize) {
-        this.nulls = newNullabilityHolder(this.batchSize);
+        this.nulls = new SimpleNullabilityHolder(this.batchSize);
       }
     }
 
@@ -852,7 +852,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
       super.setBatchSize(batchSize);
       this.batchSize = (batchSize == 0) ? DEFAULT_BATCH_SIZE : batchSize;
       if (nulls == null || nulls.size() < this.batchSize) {
-        this.nulls = newNullabilityHolder(this.batchSize);
+        this.nulls = new SimpleNullabilityHolder(this.batchSize);
       }
 
       // release the result vector when the batch grows, so the next read allocates one that fits
@@ -957,7 +957,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
       super.setBatchSize(batchSize);
       this.batchSize = (batchSize == 0) ? DEFAULT_BATCH_SIZE : batchSize;
       if (nulls == null || nulls.size() < this.batchSize) {
-        this.nulls = newNullabilityHolder(this.batchSize);
+        this.nulls = new SimpleNullabilityHolder(this.batchSize);
       }
 
       // release the result vector when the batch grows, so the next read allocates one that fits
@@ -1012,9 +1012,13 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     return vector;
   }
 
-  private static NullabilityHolder newNullabilityHolder(int size) {
-    NullabilityHolder nullabilityHolder = new NullabilityHolder(size);
-    return nullabilityHolder;
+  protected NullabilityHolder newNullabilityHolder(int size) {
+    int maxDefLevel = columnDescriptor.getMaxDefinitionLevel();
+    if (maxDefLevel <= 1) {
+      return new SimpleNullabilityHolder(size);
+    } else {
+      return new DefinitionLevelHolder(size, maxDefLevel);
+    }
   }
 
   /**

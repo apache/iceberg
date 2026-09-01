@@ -48,9 +48,8 @@ class ListVectorBuilder implements AutoCloseable {
 
   private final Types.NestedField icebergField;
   private final BufferAllocator allocator;
-  private final int definitionLevel;
   private final boolean isListRequired;
-  private final boolean isElementRequired;
+  private final int nullThreshold;
 
   private ListVector listVector;
   private int[] listRepetitionLevels;
@@ -70,9 +69,8 @@ class ListVectorBuilder implements AutoCloseable {
       boolean isElementRequired) {
     this.icebergField = icebergField;
     this.allocator = allocator;
-    this.definitionLevel = definitionLevel;
     this.isListRequired = isListRequired;
-    this.isElementRequired = isElementRequired;
+    this.nullThreshold = definitionLevel - (isElementRequired ? 1 : 2);
   }
 
   /**
@@ -86,7 +84,7 @@ class ListVectorBuilder implements AutoCloseable {
    */
   void prepareBatch(int numRowsToRead, int estimatedSize) {
     if (nullabilityHolder == null || nullabilityHolder.size() < estimatedSize) {
-      this.nullabilityHolder = new NullabilityHolder(estimatedSize);
+      this.nullabilityHolder = new DefinitionLevelHolder(estimatedSize, nullThreshold);
     } else {
       nullabilityHolder.reset();
     }
@@ -214,7 +212,6 @@ class ListVectorBuilder implements AutoCloseable {
       return false;
     }
 
-    int nullThreshold = definitionLevel - (isElementRequired ? 1 : 2);
     if (!isListRequired && listDefinitionLevel < nullThreshold) {
       listVector.setNull(listIndex);
       nullabilityHolder.setNull(listIndex, listDefinitionLevel);
