@@ -3861,10 +3861,6 @@ components:
           restriction (a filter expression or an action), it must fail the query
           and must not silently return raw, partial, or empty results.
 
-          A server must not return projections on both a nested-typed field
-          (struct, list, or map) and any field-id nested within it at any
-          depth. A reader that receives such a response must fail the query.
-
           A missing or empty ReadRestrictions object (no required-column-projections and no
           required-row-filter) imposes no restrictions.
       example:
@@ -3907,12 +3903,17 @@ components:
               in required-column-projections. If a duplicate field-id appears, the reader
               must fail the query.
 
-            4. A projection must not target a map's key field-id. Applying an action
-              to keys can produce duplicate or null keys, which readers silently
-              coalesce or reject, causing data loss.
+            4. A server must not return a projection that targets a map's key field-id;
+              a reader that receives one must fail the query. Applying an action to keys
+              can produce duplicate or null keys, which readers silently coalesce or
+              reject, causing data loss.
 
             5. A reader must enforce projections on the columns it is actually reading.
               Projections referencing columns that are not being read do not apply.
+
+            6. A server must not return projections on both a nested-typed field
+              (struct, list, or map) and any field-id nested within it at any depth.
+              A reader that receives such a response must fail the query.
           type: array
           items:
             $ref: '#/components/schemas/Action'
@@ -4007,15 +4008,15 @@ components:
         - uuid: 00000000-0000-0000-0000-000000000000
         - fixed(n): n zero bytes
         - binary: empty byte sequence
-        - variant: {}
+        - variant: an empty variant object
         - list: empty list []
         - map: empty map {}
         - struct: struct with each field set to its type-specific default (applied recursively)
 
         NULL input is also replaced with the type-specific fixed value; NULL is not preserved.
 
-        Applicable to: the types with a fixed value defined above. A catalog server
-        MUST NOT return mask-to-fixed-value for any other type.
+        Applicable to: the types with a fixed value defined above. A server must not
+        return mask-to-fixed-value for any other type.
       allOf:
         - $ref: '#/components/schemas/Action'
       properties:
@@ -4027,7 +4028,8 @@ components:
       description: >
         Replaces the column value with NULL. NULL input is preserved (NULL -> NULL).
 
-        Applicable to: all optional types. Applying to a required (non-nullable) column is invalid.
+        Applicable to: all optional types. A server must not return replace-with-null for
+        a required (non-nullable) field; a reader that receives one must fail the query.
       allOf:
         - $ref: '#/components/schemas/Action'
       properties:
