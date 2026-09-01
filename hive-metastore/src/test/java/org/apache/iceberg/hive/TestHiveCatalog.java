@@ -306,7 +306,7 @@ public class TestHiveCatalog extends CatalogTests<HiveCatalog> {
   }
 
   @Test
-  public void testConstructorWithConfAndProperties() {
+  void constructorWithConfAndProperties() {
     Configuration conf = new Configuration();
     conf.set("custom.caller.key", "custom-value");
     Map<String, String> properties = Maps.newHashMap();
