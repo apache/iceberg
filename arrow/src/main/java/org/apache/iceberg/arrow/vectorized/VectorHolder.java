@@ -93,10 +93,7 @@ public class VectorHolder {
   }
 
   private VectorHolder(
-      FieldVector vec,
-      Types.NestedField field,
-      NullabilityHolder nulls,
-      int[] repetitionLevels) {
+      FieldVector vec, Types.NestedField field, NullabilityHolder nulls, int[] repetitionLevels) {
     columnDescriptor = null;
     vector = vec;
     isDictionaryEncoded = false;

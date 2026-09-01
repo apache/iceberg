@@ -20,9 +20,7 @@ package org.apache.iceberg.arrow.vectorized;
 
 import java.util.Arrays;
 
-/**
- * {@link NullabilityHolder} implementation for optional top-level columns
- */
+/** {@link NullabilityHolder} implementation for optional top-level columns */
 public final class SimpleNullabilityHolder implements NullabilityHolder {
   private final byte[] isNull;
   private final byte[] nulls;

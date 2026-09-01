@@ -66,10 +66,7 @@ public class VectorizedColumnIterator extends BaseColumnIterator {
 
   public abstract class BatchReader {
     public void nextBatch(
-        FieldVector fieldVector,
-        int typeWidth,
-        NullabilityHolder holder,
-        int[] repetitionLevels) {
+        FieldVector fieldVector, int typeWidth, NullabilityHolder holder, int[] repetitionLevels) {
       int triplesReadSoFar = 0;
       while (triplesReadSoFar < batchSize && hasNext()) {
         advance();

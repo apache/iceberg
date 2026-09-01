@@ -20,9 +20,7 @@ package org.apache.iceberg.arrow.vectorized;
 
 import java.util.Arrays;
 
-/**
- * {@link NullabilityHolder} implementation that stores per-slot Parquet definition levels
- */
+/** {@link NullabilityHolder} implementation that stores per-slot Parquet definition levels */
 final class DefinitionLevelHolder implements NullabilityHolder {
   private final int[] definitionLevels;
   private final int nullThreshold;
