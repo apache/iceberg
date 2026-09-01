@@ -556,7 +556,8 @@ public class TestFlinkTableSource extends TableSourceTestBase {
 
   @TestTemplate
   public void testSqlParseNaN() {
-    String sqlEqual = String.format("SELECT * FROM %s WHERE d = CAST('NaN' AS DOUBLE) ", TABLE_NAME);
+    String sqlEqual =
+        String.format("SELECT * FROM %s WHERE d = CAST('NaN' AS DOUBLE) ", TABLE_NAME);
     String expectedFilterEqual = "is_nan(ref(name=\"d\"))";
 
     List<Row> resultEqual = sql(sqlEqual);
