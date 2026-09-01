@@ -239,7 +239,7 @@ class TestS3V4RestSignerClient {
   }
 
   @Test
-  void testSignedComponentCacheKeyIsolation() throws Exception {
+  void testSignedComponentCachePerInstanceIsolation() throws Exception {
     Map<String, String> properties1 =
         Map.of(
             CatalogProperties.URI,
@@ -261,18 +261,7 @@ class TestS3V4RestSignerClient {
             ImmutableS3V4RestSignerClient.builder().properties(properties1).build();
         S3V4RestSignerClient client2 =
             ImmutableS3V4RestSignerClient.builder().properties(properties2).build()) {
-      RemoteSignRequest request =
-          ImmutableRemoteSignRequest.builder()
-              .method("GET")
-              .region("us-east-1")
-              .uri(URI.create("https://bucket.s3.amazonaws.com/key"))
-              .provider(S3V4RestSignerClient.S3_PROVIDER)
-              .build();
-
-      S3V4RestSignerClient.Key key1 = S3V4RestSignerClient.Key.from(request, client1);
-      S3V4RestSignerClient.Key key2 = S3V4RestSignerClient.Key.from(request, client2);
-
-      assertThat(key1).isNotEqualTo(key2);
+      assertThat(client1.signedComponentCache()).isNotSameAs(client2.signedComponentCache());
     }
   }
 }
