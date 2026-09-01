@@ -95,11 +95,10 @@ Required and optional properties to include while using `oauth2` authentication
 | `resource`              | null              | Optional param to specify `resource`                                                                                                                                  |
 
 !!! warning
-    `credential` and `token` are secrets. Engines that surface their configuration can expose them: Spark
-    lists catalog options in the Environment tab of its UI and persists them to event logs. Spark's default
-    `spark.redaction.regex` matches `token` and `password`, but not `credential`, so on versions where
-    `credential` is not part of the default pattern, set it explicitly:
-    `spark.redaction.regex=(?i)secret|password|token|access[.]?key|credential`
+    `credential` and `token` are secrets. Engines may expose catalog configuration in their UIs and logs —
+    Spark, for example, lists it in the Environment tab and writes it to event logs. Confirm that your engine
+    redacts these values; for Spark, check that they are covered by `spark.redaction.regex` and add them to
+    the pattern if they are not.
 
 #### SigV4 auth properties
 Required and optional properties to include while using `sigv4` authentication
