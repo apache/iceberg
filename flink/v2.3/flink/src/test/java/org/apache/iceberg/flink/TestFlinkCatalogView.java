@@ -292,9 +292,6 @@ public class TestFlinkCatalogView extends CatalogTestBase {
     assertThat(view.schema().columns())
         .extracting(Types.NestedField::name)
         .containsExactly("id", "data");
-    assertThat(view.properties())
-        .doesNotContainKey("default-catalog")
-        .doesNotContainKey("default-namespace");
   }
 
   @TestTemplate

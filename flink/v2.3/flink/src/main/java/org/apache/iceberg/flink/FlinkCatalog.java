@@ -450,7 +450,7 @@ public class FlinkCatalog extends AbstractCatalog {
       dropped = false;
     }
 
-    if (!dropped && asViewCatalog != null) {
+    if (!dropped && canBeView(tablePath)) {
       dropped = asViewCatalog.dropView(identifier);
     }
 
@@ -467,7 +467,7 @@ public class FlinkCatalog extends AbstractCatalog {
           toIdentifier(tablePath),
           toIdentifier(new ObjectPath(tablePath.getDatabaseName(), newTableName)));
     } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
-      if (asViewCatalog != null) {
+      if (canBeView(tablePath)) {
         try {
           asViewCatalog.renameView(
               toIdentifier(tablePath),
@@ -568,8 +568,6 @@ public class FlinkCatalog extends AbstractCatalog {
       ObjectPath tablePath, ResolvedCatalogView view, boolean ignoreIfExists)
       throws CatalogException, TableAlreadyExistException {
     Map<String, String> properties = Maps.newHashMap(view.getOptions());
-    properties.remove(DEFAULT_CATALOG_OPTION);
-    properties.remove(DEFAULT_NAMESPACE_OPTION);
     if (!StringUtils.isNullOrWhitespaceOnly(view.getComment())) {
       properties.put(ViewProperties.COMMENT, view.getComment());
     }
