@@ -67,7 +67,8 @@ public class VendedCredentialsProvider implements AwsCredentialsProvider, SdkAut
             .cachedValueName(VendedCredentialsProvider.class.getName())
             .build();
     this.catalogEndpoint = properties.get(CatalogProperties.URI);
-    this.credentialsEndpoint = properties.get(URI);
+    this.credentialsEndpoint =
+        RESTUtil.resolveEndpoint(properties.get(CatalogProperties.URI), properties.get(URI));
     this.planId = properties.getOrDefault(RESTCatalogProperties.REST_SCAN_PLAN_ID, null);
   }
 

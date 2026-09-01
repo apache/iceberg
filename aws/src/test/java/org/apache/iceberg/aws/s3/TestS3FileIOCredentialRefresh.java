@@ -30,6 +30,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.TestHelpers;
+import org.apache.iceberg.aws.AwsClientProperties;
 import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.io.StorageCredential;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -145,8 +146,8 @@ public class TestS3FileIOCredentialRefresh {
         ImmutableMap.of(
             AwsProperties.CLIENT_FACTORY,
             StaticClientFactory.class.getName(),
-            VendedCredentialsProvider.URI,
-            CREDENTIALS_URI,
+            AwsClientProperties.REFRESH_CREDENTIALS_ENDPOINT,
+            "/credentials",
             CatalogProperties.URI,
             CATALOG_URI,
             "init-creation-stacktrace",
