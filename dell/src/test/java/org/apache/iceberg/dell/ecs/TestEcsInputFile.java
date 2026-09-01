@@ -19,13 +19,17 @@
 package org.apache.iceberg.dell.ecs;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyNoInteractions;
 
+import com.emc.object.s3.S3Client;
 import com.emc.object.s3.request.PutObjectRequest;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import org.apache.iceberg.dell.DellProperties;
 import org.apache.iceberg.dell.mock.ecs.EcsS3MockRule;
-import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.metrics.MetricsContext;
 import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
@@ -63,11 +67,12 @@ public class TestEcsInputFile {
   @Test
   public void knownLengthAvoidsMetadataRequest() {
     String location = new EcsURI(rule.bucket(), rule.randomObjectName()).toString();
-    EcsFileIO fileIO = new EcsFileIO();
-    fileIO.initialize(rule.clientProperties());
-
-    InputFile inputFile = fileIO.newInputFile(location, 10L);
+    S3Client client = mock(S3Client.class);
+    EcsInputFile inputFile =
+        EcsInputFile.fromLocation(
+            location, 10L, client, new DellProperties(), MetricsContext.nullMetrics());
 
     assertThat(inputFile.getLength()).as("File length should use the known value").isEqualTo(10L);
+    verifyNoInteractions(client);
   }
 }
