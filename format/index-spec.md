@@ -71,9 +71,14 @@ An index field has the following fields:
 
 Each index field must satisfy the following requirements:
 
-- `expr` must contain only ID references to fields in the source table schema. Named references must not be used.
+- `expr` must contain only ID references to fields in the source table schema or to
+  [metadata columns](spec.md#reserved-field-ids) that have a value for a row of a table snapshot. Named references must
+  not be used. The changelog metadata columns describe a change between two snapshots rather than a row of one snapshot,
+  so they must not be referenced.
 - `expr` must be deterministic and must produce the declared `data-type`.
 - `field-id` must be unique across both `materialized-fields` and `non-materialized-fields`.
+- `field-id` must be a field ID that a table schema may use, because the range schema is the schema of an Iceberg data
+  file. Reserved field IDs must not be used, even when `expr` references a metadata column.
 
 An expression that consists of a single field reference, or of an `identity` function applied to a single field
 reference, is an **identity expression** of the referenced source field. The `field-id` of an identity expression of a
@@ -154,8 +159,9 @@ The index metadata file stores the index definition and snapshot history.
 ### Index Snapshot
 
 An index snapshot is an immutable version of the index data generated from a specific source table snapshot. It
-references a complete set of index files and contains all data from the referenced table snapshot through the location
-of a single [tracking file](#tracking-file).
+references a complete set of index files through the location of a single [tracking file](#tracking-file).
+
+An index snapshot must index exactly the live rows of the referenced table snapshot.
 
 | Requirement | Field                    | Type               | Description                                                        |
 |-------------|--------------------------|--------------------|--------------------------------------------------------------------|
@@ -213,9 +219,10 @@ against the source-table snapshot they intend to read.
 
 ### Clustering and Ordering
 
-The cluster spec, together with the tie-break below, defines a total ordering over all index entries of an index
-snapshot. Entries must be clustered into non-overlapping ranges according to that ordering, and each range must be
-stored in a separate range file.
+The cluster spec defines an ordering over all index entries of an index snapshot. Entries must be partitioned into
+ranges of clustering key values that do not overlap, and each range must be stored in a separate range file. A range
+boundary must fall at a change in clustering key, so all entries that share a clustering key are stored in the same
+range file.
 
 Index entries are ordered by the [clustering key](#cluster-spec) produced for each indexed row. The key is compared by
 the fields in `cluster-spec` order: entries are compared by the value of the first field, and the next field is used
@@ -223,14 +230,10 @@ only when the preceding values compare as equal. Each field is ordered ascending
 
 Primitive values are compared using the rules defined in the
 [expressions specification](expressions-spec.md#comparisons), extended so that null and NaN values have a defined
-position in the total order:
+position in the ordering:
 
 - `null` values are ordered before all other values (nulls-first)
 - `NaN` values are ordered after all other `float` and `double` values
-
-Entries with equal clustering keys must be ordered by the location of the source row: by the `_file` metadata column,
-ascending, and then by the `_pos` metadata column, ascending. The source row location is always appended to the range
-schema.
 
 ### Tracking File
 
@@ -262,10 +265,8 @@ The `content_stats` structure stores field statistics following the [content sta
 table specification. Each stored struct derives its ID and metric types from the index field's `field-id` and
 `data-type` and contains the metrics supported for that type.
 
-Statistics are required for non-materialized fields and every materialized field in `cluster-spec`, optional for other
-materialized fields.
-
-Statistics must not be stored for the appended `file_path` (`2147483546`) and `pos` (`2147483545`) fields.
+Statistics are required for every field in `cluster-spec` and for every non-materialized field, and are optional for
+other materialized fields.
 
 ##### Group Max Value
 
@@ -275,8 +276,8 @@ clustering value.
 
 The `group_max_value` metrics, read in `cluster-spec` order, must be the exact clustering key of the last entry in the
 range file according to the [clustering order](#clustering-and-ordering). They must not be truncated or rounded.
-Readers use these keys as range file upper bounds. The lower bound is the clustering key of the preceding tracking file
-entry, so tracking file entries must be read in order.
+Readers use these keys as inclusive range file upper bounds. The clustering keys of a range file are strictly greater
+than the `group_max_value` key of the preceding tracking file entry, so tracking file entries must be read in order.
 
 ### Range Files
 
@@ -286,19 +287,13 @@ Range files must be standard Iceberg data files and may be stored using any Iceb
 Avro, or ORC.
 
 Each range file row contains the result of evaluating the [materialized fields](#materialized-fields) for one indexed
-row, followed by the location of that source row. Entries within a range file must be stored in the
-[clustering order](#clustering-and-ordering).
+row. Entries within a range file must be stored in the [clustering order](#clustering-and-ordering).
 
 #### Range Schema
 
 The range schema is constructed from `materialized-fields`. The result is a struct containing one field for each entry,
 with fields appearing in the same order as the list. Each field takes its ID from `field-id` and its type from
-`data-type`. The following required source row location fields are then appended:
-
-| Field ID   | Name      | Type   | Source metadata column |
-|------------|-----------|--------|------------------------|
-| 2147483546 | file_path | string | `_file` (`2147483646`) |
-| 2147483545 | pos       | long   | `_pos` (`2147483645`)  |
+`data-type`.
 
 Names of materialized fields in the range schema are generated by the writer and are not defined by this specification.
 Users of the index must not rely on them; readers must match range file columns by field ID.
@@ -336,10 +331,10 @@ reproduced.
 Each index field contains the expression that produces its value. Materialized field values are stored in range files,
 while non-materialized field values are represented only by tracking statistics. The cluster spec lists field IDs in
 comparison order without repeating their expressions. Engines match query expressions to index fields to determine
-whether the index applies and which materialized field contains a result. Because expressions reference only source
-table fields, each index field can be evaluated directly from a source row.
+whether the index applies and which materialized field contains a result. Because expressions reference only fields and
+metadata columns of the source table, each index field can be evaluated directly from a source row.
 
-### Total Clustering Order and Pruning
+### Clustering Order and Pruning
 
 Each field in the cluster spec determines part of the position of an entry, so its result type is limited to values
 that Iceberg can order. Primitives are ordered by the rules the expressions specification already defines.
@@ -347,8 +342,13 @@ Multi-component clustering keys are compared field by field, which is an extensi
 table specification. Structs, lists, and maps are excluded because Iceberg does not define ordering for lists and maps,
 and a struct is represented as separate index fields instead.
 
-Clustering keys alone do not have to be unique. Ordering entries with equal keys by the location of the source row makes
-the ordering total, because a source row is uniquely identified by its file path and position.
+Clustering keys do not have to be unique. Range boundaries fall only where the clustering key changes, so all entries
+that share a key are in one range file and a lookup resolves to a single range file. The cost is that a range file
+cannot hold fewer entries than a single clustering key produces, so a definition should end `cluster-spec` with a field
+of high cardinality to keep range files bounded.
+
+Because a range file holds every entry with a given clustering key, the order of those entries within the file has no
+effect on planning or on range file bounds, and the specification leaves it to the writer.
 
 The clustering order makes the index usable at two levels: range files can be pruned without being opened, and the
 entries of a range file that is opened can be located without reading all of it.
@@ -357,7 +357,8 @@ When available, lower and upper bounds support pruning on partial clustering key
 
 Range files hold non-overlapping clustering ranges, so the `group_max_value` statistics in the tracking file are enough
 to eliminate a range file. Only the upper bound of a range is stored, because clustered tracking file entries and
-non-overlapping ranges make the lower bound redundant: it is the upper bound of the preceding entry.
+non-overlapping ranges make the lower bound redundant: it is exclusive and equal to the upper bound of the preceding
+entry.
 
 Each component of the bound is stored in the field statistics of the clustered field. The cluster spec supplies the
 component order, including when a component is a non-materialized expression such as a bucket or Hilbert curve. The
@@ -393,14 +394,15 @@ Fields produced by identity expressions keep the field ID of the source column, 
 renames and makes the relationship between source and materialized fields explicit. Expressions still reference the
 source field IDs, so they are not rewritten when a column is renamed.
 
-Fields in `cluster-spec` must be primitive because clustering requires a defined total order. Other fields may use any
+That does not extend to metadata columns, whose names and IDs are fixed by the table specification, so there is no
+identity to preserve. Their IDs are also reserved: an Iceberg reader synthesizes `_pos` from the position of a row in
+the file it is reading, which is the range file rather than the source data file, so storing a range schema field under
+that ID would collide. An index field that references a metadata column therefore takes an ordinary field ID, and a
+reader recognizes it from its expression.
+
+Fields in `cluster-spec` must be primitive because clustering requires a defined order. Other fields may use any
 Iceberg type. A nested `data-type` includes IDs for the fields in its subtree, allowing a covering index to materialize
 lists, maps, or structs.
-
-The source row location is always appended to the range schema under the field IDs `file_path` (`2147483546`) and `pos`
-(`2147483545`), rather than under `_file` and `_pos`. The `_file` and `_pos` metadata columns describe where the row
-being read is physically stored, which for a range file row is the range file itself. The position delete columns are
-defined to record the location of a row in another file, which is exactly what a range file row carries.
 
 ### Atomic Commits
 
@@ -408,7 +410,54 @@ Index metadata is immutable and committed by an atomic swap, mirroring how Icebe
 the current metadata file to be unchanged is what prevents concurrent maintenance processes from silently overwriting
 each other and losing snapshots.
 
-## Appendix B: Example - Key Lookup Index
+## Appendix B: Recommendations
+
+### Recording the Source Row Location
+
+This specification does not define how an index entry points back to the row it was built from. The pointer is an
+ordinary materialized field, and tables identify a row in different ways. The definitions below cover the common cases.
+
+To identify an individual row, materialize expressions that reference the `_file` (`2147483646`) and `_pos`
+(`2147483645`) metadata columns. The index fields take ordinary field IDs, chosen by whoever defines the index:
+
+```
+{
+  ...
+  "materialized-fields" : [ {
+    "field-id" : 105,
+    "type" : "expr-value",
+    "data-type" : "string",
+    "expr" : { "type" : "reference", "id" : 2147483646 }
+  }, {
+    "field-id" : 106,
+    "type" : "expr-value",
+    "data-type" : "long",
+    "expr" : { "type" : "reference", "id" : 2147483645 }
+  } ],
+  ...
+}
+```
+
+Every entry then carries the data file and the row position of its source row, so a reader can fetch matching rows
+without scanning the table.
+
+For a table with row lineage, materializing `_row_id` (`2147483540`) identifies a row with a single field and keeps the
+pointer valid when a data file is rewritten, at the cost of resolving the row ID to a location when reading.
+
+An index that only has to eliminate data files can materialize `_file` alone. Recording statistics for a materialized
+`_file` field also lets index maintenance find the entries produced by a data file that has since been rewritten.
+
+An index that materializes none of these can still prune range files by clustering key, but it cannot return source
+rows.
+
+### Choosing a Cluster Spec
+
+A range file cannot hold fewer entries than a single clustering key produces, because a range boundary falls only where
+the clustering key changes. Clustering on a low-cardinality expression alone, such as `bucket(256, user_id)` on a large
+table, therefore forces very large range files. Ending `cluster-spec` with a high-cardinality field, as in
+`[ bucket(256, user_id), user_id ]`, keeps range files bounded.
+
+## Appendix C: Example - Key Lookup Index
 
 Imagine an `events` table that already has a single snapshot (source table snapshot `3055729675574597004`). To speed up
 point lookups on the `user_id` column, a key lookup index is created.
@@ -425,15 +474,19 @@ snapshot, writes the range files and a tracking file, and produces the first ind
 index snapshot. Range file boundaries follow the clustering, so a range file holds a contiguous range of buckets or a
 range of `user_id` values within a single bucket. The tracking file stores summary information and pruning statistics.
 
-The only materialized field is `user_id`, which keeps the field ID of the source column because it is an identity
-expression. The bucket is field `104`; it is evaluated for clustering and tracking statistics but is not materialized
-in range files. The source row location fields are appended after `user_id`, producing this range schema:
+The materialized fields are `user_id` and the source row location. `user_id` keeps the field ID of the source column
+because it is an identity expression, while the location fields reference metadata columns and so take ordinary field
+IDs. The bucket is field `104`; it is evaluated for clustering and tracking statistics but is not materialized in range
+files. The resulting range schema is:
 
-| Field ID   | Column    | Type   | Description                                                  |
-|------------|-----------|--------|--------------------------------------------------------------|
-| 1          | user_id   | long   | The indexed source column, keeping its source table field ID |
-| 2147483546 | file_path | string | The source data file that contains the row, from `_file`     |
-| 2147483545 | pos       | long   | The row position within the source data file, from `_pos`    |
+| Field ID | Column  | Type   | Description                                                  |
+|----------|---------|--------|--------------------------------------------------------------|
+| 1        | user_id | long   | The indexed source column, keeping its source table field ID |
+| 105      | file    | string | The source data file that contains the row, from `_file`     |
+| 106      | pos     | long   | The row position within that data file, from `_pos`          |
+
+The location fields are not part of the clustering key, so entries that fall in the same bucket with the same `user_id`
+are ordered by source location only because the writer chose to store them that way.
 
 The JSON metadata file is shown below.
 
@@ -452,6 +505,16 @@ s3://bucket/warehouse/default.db/events/index/bucket_index/metadata/00001-(uuid)
     "type" : "expr-value",
     "data-type" : "long",
     "expr" : { "type" : "reference", "id" : 1 }
+  }, {
+    "field-id" : 105,
+    "type" : "expr-value",
+    "data-type" : "string",
+    "expr" : { "type" : "reference", "id" : 2147483646 }
+  }, {
+    "field-id" : 106,
+    "type" : "expr-value",
+    "data-type" : "long",
+    "expr" : { "type" : "reference", "id" : 2147483645 }
   } ],
   "non-materialized-fields" : [ {
     "field-id" : 104,
@@ -482,9 +545,9 @@ files:
 | .../range-00001.parquet | parquet     | 3            | 1160               |
 | .../range-00002.parquet | parquet     | 2            | 1024               |
 
-Each entry also carries a `content_stats` struct. `file_path` and `pos` have no statistics, so it holds field statistics
-for the materialized `user_id` and the non-materialized bucket. Both fields participate in `cluster-spec`, so both stats
-structs include `group_max_value`:
+Each entry also carries a `content_stats` struct. The location fields are outside `cluster-spec`, so no statistics are
+stored for them and the struct holds field statistics for the materialized `user_id` and the non-materialized bucket.
+Both fields participate in `cluster-spec`, so both stats structs include `group_max_value`:
 
 ```
 146: required struct content_stats {
@@ -520,7 +583,7 @@ tracking file entry, so only the first range file is read.
 The rows of `range-00001.parquet` follow the range schema constructed from the materialized fields. They are stored in
 clustering order. The non-materialized bucket is shown here to make the complete clustering key visible:
 
-| user_id | file_path                       | pos | (clustering key) |
+| user_id | file                            | pos | (clustering key) |
 |---------|---------------------------------|-----|------------------|
 | 84721   | .../data/00000-0-(uuid).parquet | 14  | `{ 3, 84721 }`   |
 | 12094   | .../data/00001-0-(uuid).parquet | 3   | `{ 41, 12094 }`  |
@@ -574,7 +637,7 @@ same field bounds and the same `group_max_value` metrics, which produce the clus
 The rows of `range-00003.parquet` interleave the entries of the rewritten range file with the entries added for the new
 data file, keeping the clustering order:
 
-| user_id | file_path                       | pos | (clustering key) |
+| user_id | file                            | pos | (clustering key) |
 |---------|---------------------------------|-----|------------------|
 | 84721   | .../data/00000-0-(uuid).parquet | 14  | `{ 3, 84721 }`   |
 | 71004   | .../data/00002-0-(uuid).parquet | 5   | `{ 17, 71004 }`  |
