@@ -183,11 +183,6 @@ public class RESTUtil {
    * Decodes a URL path segment per RFC 3986. Unlike {@link #decodeString(String)}, this method does
    * <b>not</b> treat {@code +} as a space — it is left as a literal {@code +} character.
    *
-   * <p>Note: this method is introduced in this release but is not yet wired into server-side
-   * decoding paths (e.g. {@link #decodeNamespace(String, String)}). It will be adopted there in a
-   * future release, once updated clients that use {@link #encodePathSegment(String)} have been
-   * widely deployed.
-   *
    * <p>See also {@link #encodePathSegment(String)} for encoding.
    *
    * @param encoded a percent-encoded path segment
