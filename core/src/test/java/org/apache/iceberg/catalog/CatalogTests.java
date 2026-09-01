@@ -1149,20 +1149,26 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     Table table = catalog.loadTable(TBL);
     String metadataFileLocation =
         ((HasTableOperations) table).operations().current().metadataFileLocation();
-    Path renamedMetadataFile = tempDir.resolve("tmp.json");
-    renamedMetadataFile.toFile().deleteOnExit();
-    Files.writeString(renamedMetadataFile, "metadata");
-    Path metadataFilePath =
-        metadataFileLocation.startsWith("file:")
-            ? Paths.get(URI.create(metadataFileLocation))
-            : Paths.get(metadataFileLocation);
+    FileIO io = table.io();
+
+    // Read metadata content for later restoration
+    byte[] metadataBytes;
+    try (InputStream stream = io.newInputFile(metadataFileLocation).newStream()) {
+      metadataBytes = stream.readAllBytes();
+    }
+
+    // Delete the metadata file to simulate a missing file
+    io.deleteFile(metadataFileLocation);
+
     try {
-      Files.move(metadataFilePath, renamedMetadataFile, StandardCopyOption.REPLACE_EXISTING);
       assertThatThrownBy(() -> catalog.loadTable(TBL))
           .isInstanceOf(NotFoundException.class)
           .hasMessageContaining("Failed to open input stream for file: " + metadataFileLocation);
     } finally {
-      Files.move(renamedMetadataFile, metadataFilePath, StandardCopyOption.REPLACE_EXISTING);
+      // Restore the metadata file
+      try (OutputStream out = io.newOutputFile(metadataFileLocation).createOrOverwrite()) {
+        out.write(metadataBytes);
+      }
     }
   }
 
