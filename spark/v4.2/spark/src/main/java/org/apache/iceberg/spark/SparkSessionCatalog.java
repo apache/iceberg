@@ -150,7 +150,7 @@ public class SparkSessionCatalog<
       throws NoSuchNamespaceException, NoSuchTableException {
     Set<Identifier> viewIdentifiers = sessionViews(namespace);
     return Arrays.stream(getSessionCatalog().listTableSummaries(namespace))
-        .filter(summary -> !viewIdentifiers.contains(summary.identifier()))
+        .map(summary -> relationSummary(summary, viewIdentifiers))
         .filter(summary -> !isViewType(summary.tableType()))
         .toArray(TableSummary[]::new);
   }
@@ -161,13 +161,7 @@ public class SparkSessionCatalog<
     Set<Identifier> sessionViews = sessionViews(namespace);
     Map<Identifier, TableSummary> summaries = new LinkedHashMap<>();
     for (TableSummary summary : getSessionCatalog().listTableSummaries(namespace)) {
-      if (sessionViews.contains(summary.identifier()) || isViewType(summary.tableType())) {
-        summaries.put(
-            summary.identifier(),
-            TableSummary.of(summary.identifier(), TableSummary.VIEW_TABLE_TYPE));
-      } else {
-        summaries.put(summary.identifier(), summary);
-      }
+      summaries.put(summary.identifier(), relationSummary(summary, sessionViews));
     }
 
     for (Identifier identifier : sessionViews) {
@@ -179,6 +173,18 @@ public class SparkSessionCatalog<
     }
 
     return summaries.values().toArray(new TableSummary[0]);
+  }
+
+  private TableSummary relationSummary(
+      TableSummary summary, Set<Identifier> sessionViewIdentifiers) {
+    Identifier identifier = summary.identifier();
+    if (!sessionViewIdentifiers.contains(identifier) && !isViewType(summary.tableType())) {
+      return summary;
+    } else if (icebergCatalog.tableExists(identifier)) {
+      return TableSummary.of(identifier, TableSummary.EXTERNAL_TABLE_TYPE);
+    }
+
+    return TableSummary.of(identifier, TableSummary.VIEW_TABLE_TYPE);
   }
 
   private static boolean isViewType(String tableType) {
@@ -300,6 +306,13 @@ public class SparkSessionCatalog<
   public StagedTable stageCreateOrReplace(
       Identifier ident, StructType schema, Transform[] partitions, Map<String, String> properties)
       throws NoSuchNamespaceException {
+    try {
+      checkViewNotExists(ident);
+    } catch (TableAlreadyExistsException e) {
+      // StagingTableCatalog does not declare this checked exception for create-or-replace.
+      throw new RuntimeException(e);
+    }
+
     String provider = properties.get("provider");
     TableCatalog catalog;
     if (useIceberg(provider)) {
