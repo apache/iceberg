@@ -100,6 +100,7 @@ class TestTrackedFileAdapters {
             null,
             FIRST_ROW_ID,
             null,
+            null,
             null);
     tracking.setManifestLocation(MANIFEST_LOCATION);
     tracking.set(MANIFEST_POS_ORDINAL, MANIFEST_POS);
@@ -121,6 +122,7 @@ class TestTrackedFileAdapters {
             null,
             ByteBuffer.wrap(new byte[] {1, 2, 3}),
             ImmutableList.of(50L, 100L),
+            null,
             null);
 
     DataFile dataFile = TrackedFileAdapters.asDataFile(file, specsById(PARTITIONED_SPEC));
@@ -179,6 +181,7 @@ class TestTrackedFileAdapters {
             null,
             FIRST_ROW_ID,
             null,
+            null,
             null);
     tracking.setManifestLocation(MANIFEST_LOCATION);
     tracking.set(MANIFEST_POS_ORDINAL, MANIFEST_POS);
@@ -200,7 +203,8 @@ class TestTrackedFileAdapters {
             null,
             ByteBuffer.wrap(new byte[] {4, 5}),
             ImmutableList.of(200L),
-            ImmutableList.of(1, 2, 3));
+            ImmutableList.of(1, 2, 3),
+            null);
 
     DeleteFile deleteFile =
         TrackedFileAdapters.asEqualityDeleteFile(file, specsById(PARTITIONED_SPEC));
@@ -268,6 +272,7 @@ class TestTrackedFileAdapters {
             42L,
             FIRST_ROW_ID,
             null,
+            null,
             null);
     tracking.setManifestLocation(MANIFEST_LOCATION);
     tracking.set(MANIFEST_POS_ORDINAL, MANIFEST_POS);
@@ -286,6 +291,7 @@ class TestTrackedFileAdapters {
             null,
             null,
             dv,
+            null,
             null,
             null,
             null,
@@ -386,6 +392,7 @@ class TestTrackedFileAdapters {
             null,
             null,
             null,
+            null,
             null);
     assertNullTrackingFields(TrackedFileAdapters.asDVDeleteFile(fileWithDV, UNPARTITIONED));
   }
@@ -440,6 +447,7 @@ class TestTrackedFileAdapters {
             null,
             null,
             null,
+            null,
             null);
 
     assertThatThrownBy(() -> TrackedFileAdapters.asDataFile(file, ImmutableMap.of()))
@@ -459,6 +467,7 @@ class TestTrackedFileAdapters {
             0L,
             0L,
             PARTITIONED_SPEC_ID,
+            null,
             null,
             null,
             null,
@@ -513,6 +522,7 @@ class TestTrackedFileAdapters {
         FileFormat.PARQUET,
         1L,
         1L,
+        null,
         null,
         null,
         null,
