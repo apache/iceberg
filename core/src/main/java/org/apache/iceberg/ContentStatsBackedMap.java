@@ -22,6 +22,7 @@ import java.nio.ByteBuffer;
 import java.util.AbstractMap;
 import java.util.Map;
 import java.util.Set;
+import org.apache.iceberg.geospatial.GeospatialBound;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Type;
@@ -173,7 +174,39 @@ class ContentStatsBackedMap<V> extends AbstractMap<Integer, V> {
 
   private static ByteBuffer bound(FieldStats<?> fieldStats, Object bound, String boundFieldName) {
     Type boundType = fieldStats.type().fieldType(boundFieldName);
+    if (boundType == null) {
+      return null;
+    }
+
+    if (boundType.isStructType()) {
+      // geo bounds are bounding-box structs; convert to the spec's single-point encoding
+      return geoBound((StructLike) bound);
+    }
+
     // toByteBuffer returns null for a null bound
-    return boundType == null ? null : Conversions.toByteBuffer(boundType, bound);
+    return Conversions.toByteBuffer(boundType, bound);
+  }
+
+  /** Encodes a geo bounding-box struct (x, y, z, m) as the spec's single-point bound. */
+  private static ByteBuffer geoBound(StructLike bound) {
+    if (bound == null) {
+      return null;
+    }
+
+    // field order is fixed by the stats schema: x, y, z, m
+    double coordX = bound.get(0, Double.class);
+    double coordY = bound.get(1, Double.class);
+    Double coordZ = bound.get(2, Double.class);
+    Double coordM = bound.get(3, Double.class);
+
+    if (coordZ != null && coordM != null) {
+      return GeospatialBound.createXYZM(coordX, coordY, coordZ, coordM).toByteBuffer();
+    } else if (coordZ != null) {
+      return GeospatialBound.createXYZ(coordX, coordY, coordZ).toByteBuffer();
+    } else if (coordM != null) {
+      return GeospatialBound.createXYM(coordX, coordY, coordM).toByteBuffer();
+    } else {
+      return GeospatialBound.createXY(coordX, coordY).toByteBuffer();
+    }
   }
 }
