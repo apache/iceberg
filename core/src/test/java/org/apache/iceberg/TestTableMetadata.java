@@ -534,9 +534,7 @@ public class TestTableMetadata {
 
   private static String toJsonWithoutSpecAndSchemaList(TableMetadata metadata) {
     StringWriter writer = new StringWriter();
-    try {
-      JsonGenerator generator = JsonUtil.factory().createGenerator(writer);
-
+    try (JsonGenerator generator = JsonUtil.factory().createGenerator(writer)) {
       generator.writeStartObject(); // start table metadata object
 
       generator.writeNumberField(FORMAT_VERSION, 1);
@@ -566,8 +564,6 @@ public class TestTableMetadata {
       // skip the snapshot log
 
       generator.writeEndObject(); // end table metadata object
-
-      generator.flush();
     } catch (IOException e) {
       throw new UncheckedIOException(String.format("Failed to write json for: %s", metadata), e);
     }
