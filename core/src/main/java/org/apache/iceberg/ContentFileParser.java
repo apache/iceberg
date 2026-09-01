@@ -335,7 +335,8 @@ public class ContentFileParser {
       JsonNode fieldStats = contentStats.get(fieldId);
       Preconditions.checkArgument(
           fieldStats != null && fieldStats.isObject(),
-          "Invalid JSON node for field statistics: non-object (%s)",
+          "Cannot parse content stats for field %s from non-object: %s",
+          fieldId,
           fieldStats);
       Integer avgValueSize = JsonUtil.getIntOrNull(AVG_VALUE_SIZE_IN_BYTES, fieldStats);
       if (avgValueSize != null) {
