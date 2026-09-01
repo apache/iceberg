@@ -300,7 +300,7 @@ public abstract class S3V4RestSignerClient
             .provider(S3_PROVIDER)
             .build();
 
-    Key cacheKey = Key.from(remoteSigningRequest);
+    Key cacheKey = Key.from(remoteSigningRequest, this);
     SignedComponent cachedSignedComponent = SIGNED_COMPONENT_CACHE.getIfPresent(cacheKey);
     SignedComponent signedComponent;
 
@@ -400,11 +400,19 @@ public abstract class S3V4RestSignerClient
 
     String uri();
 
-    static Key from(RemoteSignRequest request) {
+    @Nullable
+    String credential();
+
+    @Nullable
+    String token();
+
+    static Key from(RemoteSignRequest request, S3V4RestSignerClient signerClient) {
       return ImmutableKey.builder()
           .method(request.method())
           .region(request.region())
           .uri(request.uri().toString())
+          .credential(signerClient.credential())
+          .token(signerClient.token().get())
           .build();
     }
   }
