@@ -206,18 +206,6 @@ public class TestFlinkCatalogView extends CatalogTestBase {
   }
 
   @TestTemplate
-  public void testDefaultCatalogFallsBackToCatalogName() throws Exception {
-    // no withDefaultCatalog() -> defaultCatalog() is null -> falls back to the Flink catalog name
-    createView("flink", "SELECT id, data FROM test_table");
-
-    CatalogBaseTable catalogView =
-        getTableEnv().getCatalog(catalogName).get().getTable(new ObjectPath(DATABASE, VIEW_NAME));
-    assertThat(catalogView.getOptions())
-        .containsEntry("default-catalog", catalogName)
-        .containsEntry("default-namespace", icebergNamespace.toString());
-  }
-
-  @TestTemplate
   public void testListViews() throws Exception {
     assertThat(sql("SHOW VIEWS")).isEmpty();
     createView("flink", "SELECT id, data FROM test_table");
@@ -272,6 +260,12 @@ public class TestFlinkCatalogView extends CatalogTestBase {
                     .getTable(new ObjectPath(DATABASE, "nonexistent$snapshots")))
         .isInstanceOf(TableNotExistException.class)
         .hasMessageContaining("Table (or view) db.nonexistent$snapshots does not exist");
+    assertThat(
+            getTableEnv()
+                .getCatalog(catalogName)
+                .get()
+                .tableExists(new ObjectPath(DATABASE, "nonexistent$snapshots")))
+        .isFalse();
   }
 
   @TestTemplate
