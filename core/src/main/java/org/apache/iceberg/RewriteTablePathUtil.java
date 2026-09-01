@@ -23,6 +23,7 @@ import java.io.Serializable;
 import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -47,6 +48,7 @@ import org.apache.iceberg.puffin.PuffinCompressionCodec;
 import org.apache.iceberg.puffin.PuffinReader;
 import org.apache.iceberg.puffin.PuffinWriter;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -74,12 +76,14 @@ public class RewriteTablePathUtil {
   public static class RewriteResult<T> implements Serializable {
     private final Set<T> toRewrite = Sets.newHashSet();
     private final Set<Pair<String, String>> copyPlan = Sets.newHashSet();
+    private final Map<String, Long> rewrittenManifestLengths = Maps.newHashMap();
 
     public RewriteResult() {}
 
     public RewriteResult<T> append(RewriteResult<T> r1) {
       toRewrite.addAll(r1.toRewrite);
       copyPlan.addAll(r1.copyPlan);
+      rewrittenManifestLengths.putAll(r1.rewrittenManifestLengths);
       return this;
     }
 
@@ -95,6 +99,16 @@ public class RewriteTablePathUtil {
     public Set<Pair<String, String>> copyPlan() {
       return copyPlan;
     }
+
+    /** Records the byte length of the manifest rewritten from the given source manifest path */
+    public void addRewrittenManifestLength(String sourceManifestPath, long length) {
+      rewrittenManifestLengths.put(sourceManifestPath, length);
+    }
+
+    /** Returns the byte length of each rewritten manifest, keyed by source manifest path */
+    public Map<String, Long> rewrittenManifestLengths() {
+      return Collections.unmodifiableMap(rewrittenManifestLengths);
+    }
   }
 
   /**
@@ -107,7 +121,7 @@ public class RewriteTablePathUtil {
    */
   public static TableMetadata replacePaths(
       TableMetadata metadata, String sourcePrefix, String targetPrefix) {
-    String newLocation = metadata.location().replaceFirst(sourcePrefix, targetPrefix);
+    String newLocation = newPath(metadata.location(), sourcePrefix, targetPrefix);
     List<Snapshot> newSnapshots = updatePathInSnapshots(metadata, sourcePrefix, targetPrefix);
     List<TableMetadata.MetadataLogEntry> metadataLogEntries =
         updatePathInMetadataLogs(metadata, sourcePrefix, targetPrefix);
@@ -254,7 +268,9 @@ public class RewriteTablePathUtil {
    * @param snapshot snapshot represented by the manifest list
    * @param io file io
    * @param tableMetadata metadata of table
-   * @param manifestsToRewrite a list of manifest files to filter for rewrite
+   * @param rewrittenManifestLengths byte length of each manifest rewritten by this run, keyed by
+   *     source manifest path. Only these manifests are rewritten; any other manifest in the
+   *     snapshot keeps the length recorded in the source table.
    * @param sourcePrefix source prefix that will be replaced
    * @param targetPrefix target prefix that will replace it
    * @param stagingDir staging directory
@@ -266,7 +282,7 @@ public class RewriteTablePathUtil {
       Snapshot snapshot,
       FileIO io,
       TableMetadata tableMetadata,
-      Set<String> manifestsToRewrite,
+      Map<String, Long> rewrittenManifestLengths,
       String sourcePrefix,
       String targetPrefix,
       String stagingDir,
@@ -282,6 +298,18 @@ public class RewriteTablePathUtil {
                 "Encountered manifest file %s not under the source prefix %s",
                 mf.path(),
                 sourcePrefix));
+
+    long carriedOver =
+        manifestFiles.stream()
+            .filter(mf -> !rewrittenManifestLengths.containsKey(mf.path()))
+            .count();
+    if (carriedOver > 0) {
+      LOG.info(
+          "{} of {} manifests in {} were not rewritten in this run and keep their source length",
+          carriedOver,
+          manifestFiles.size(),
+          snapshot.manifestListLocation());
+    }
 
     EncryptionManager encryptionManager =
         (io instanceof EncryptingFileIO)
@@ -301,9 +329,11 @@ public class RewriteTablePathUtil {
       for (ManifestFile file : manifestFiles) {
         ManifestFile newFile = file.copy();
         ((StructLike) newFile).set(0, newPath(newFile.path(), sourcePrefix, targetPrefix));
+        ((StructLike) newFile)
+            .set(1, rewrittenManifestLengths.getOrDefault(file.path(), file.length()));
         writer.add(newFile);
 
-        if (manifestsToRewrite.contains(file.path())) {
+        if (rewrittenManifestLengths.containsKey(file.path())) {
           result.toRewrite().add(file);
           result
               .copyPlan()
@@ -318,14 +348,12 @@ public class RewriteTablePathUtil {
   }
 
   private static List<ManifestFile> manifestFilesInSnapshot(FileIO io, Snapshot snapshot) {
-    String path = snapshot.manifestListLocation();
-    List<ManifestFile> manifestFiles = Lists.newArrayList();
     try {
-      manifestFiles = ManifestLists.read(io.newInputFile(path));
+      return snapshot.allManifests(io);
     } catch (RuntimeIOException e) {
-      LOG.warn("Failed to read manifest list {}", path, e);
+      LOG.warn("Failed to read manifest list {}", snapshot.manifestListLocation(), e);
+      return ImmutableList.of();
     }
-    return manifestFiles;
   }
 
   /**
@@ -339,7 +367,8 @@ public class RewriteTablePathUtil {
    * @param specsById map of partition specs by id
    * @param sourcePrefix source prefix that will be replaced
    * @param targetPrefix target prefix that will replace it
-   * @return a copy plan of content files in the manifest that was rewritten
+   * @return a copy plan of content files in the manifest that was rewritten, recording the
+   *     rewritten manifest's byte length
    */
   public static RewriteResult<DataFile> rewriteDataManifest(
       ManifestFile manifestFile,
@@ -352,16 +381,23 @@ public class RewriteTablePathUtil {
       String targetPrefix)
       throws IOException {
     PartitionSpec spec = specsById.get(manifestFile.partitionSpecId());
-    try (ManifestWriter<DataFile> writer =
-            ManifestFiles.write(format, spec, outputFile, manifestFile.snapshotId());
+    ManifestWriter<DataFile> writer =
+        ManifestFiles.write(format, spec, outputFile, manifestFile.snapshotId());
+    RewriteResult<DataFile> result;
+    try (writer;
         ManifestReader<DataFile> reader =
             ManifestFiles.read(manifestFile, io, specsById).select(Arrays.asList("*"))) {
-      return StreamSupport.stream(reader.entries().spliterator(), false)
-          .map(
-              entry ->
-                  writeDataFileEntry(entry, snapshotIds, spec, sourcePrefix, targetPrefix, writer))
-          .reduce(new RewriteResult<>(), RewriteResult::append);
+      result =
+          StreamSupport.stream(reader.entries().spliterator(), false)
+              .map(
+                  entry ->
+                      writeDataFileEntry(
+                          entry, snapshotIds, spec, sourcePrefix, targetPrefix, writer))
+              .reduce(new RewriteResult<>(), RewriteResult::append);
     }
+
+    result.addRewrittenManifestLength(manifestFile.path(), writer.length());
+    return result;
   }
 
   /**
@@ -427,7 +463,8 @@ public class RewriteTablePathUtil {
    * @param stagingLocation staging location for rewritten position delete files
    * @param rewrittenDeleteFileSizes map from source position delete file path to the actual size of
    *     the rewritten file; entries absent from the map keep their original size
-   * @return a copy plan of content files in the manifest that was rewritten
+   * @return a copy plan of content files in the manifest that was rewritten, recording the
+   *     rewritten manifest's byte length
    */
   public static RewriteResult<DeleteFile> rewriteDeleteManifest(
       ManifestFile manifestFile,
@@ -442,25 +479,31 @@ public class RewriteTablePathUtil {
       Map<String, Long> rewrittenDeleteFileSizes)
       throws IOException {
     PartitionSpec spec = specsById.get(manifestFile.partitionSpecId());
-    try (ManifestWriter<DeleteFile> writer =
-            ManifestFiles.writeDeleteManifest(format, spec, outputFile, manifestFile.snapshotId());
+    ManifestWriter<DeleteFile> writer =
+        ManifestFiles.writeDeleteManifest(format, spec, outputFile, manifestFile.snapshotId());
+    RewriteResult<DeleteFile> result;
+    try (writer;
         ManifestReader<DeleteFile> reader =
             ManifestFiles.readDeleteManifest(manifestFile, io, specsById)
                 .select(Arrays.asList("*"))) {
-      return StreamSupport.stream(reader.entries().spliterator(), false)
-          .map(
-              entry ->
-                  writeDeleteFileEntry(
-                      entry,
-                      snapshotIds,
-                      spec,
-                      sourcePrefix,
-                      targetPrefix,
-                      stagingLocation,
-                      writer,
-                      rewrittenDeleteFileSizes))
-          .reduce(new RewriteResult<>(), RewriteResult::append);
+      result =
+          StreamSupport.stream(reader.entries().spliterator(), false)
+              .map(
+                  entry ->
+                      writeDeleteFileEntry(
+                          entry,
+                          snapshotIds,
+                          spec,
+                          sourcePrefix,
+                          targetPrefix,
+                          stagingLocation,
+                          writer,
+                          rewrittenDeleteFileSizes))
+              .reduce(new RewriteResult<>(), RewriteResult::append);
     }
+
+    result.addRewrittenManifestLength(manifestFile.path(), writer.length());
+    return result;
   }
 
   private static RewriteResult<DataFile> writeDataFileEntry(
@@ -640,24 +683,8 @@ public class RewriteTablePathUtil {
   public interface PositionDeleteReaderWriter extends Serializable {
     CloseableIterable<Record> reader(InputFile inputFile, FileFormat format, PartitionSpec spec);
 
-    default PositionDeleteWriter<Record> writer(
-        OutputFile outputFile, FileFormat format, PartitionSpec spec, StructLike partition)
-        throws IOException {
-      return writer(outputFile, format, spec, partition, null);
-    }
-
-    /**
-     * @deprecated This method is deprecated as of version 1.11.0 and will be removed in 1.12.0.
-     *     Position deletes that include row data are no longer supported. Use {@link
-     *     #writer(OutputFile, FileFormat, PartitionSpec, StructLike)} instead.
-     */
-    @Deprecated
     PositionDeleteWriter<Record> writer(
-        OutputFile outputFile,
-        FileFormat format,
-        PartitionSpec spec,
-        StructLike partition,
-        Schema rowSchema)
+        OutputFile outputFile, FileFormat format, PartitionSpec spec, StructLike partition)
         throws IOException;
   }
 
@@ -732,24 +759,25 @@ public class RewriteTablePathUtil {
     try (CloseableIterable<Record> reader =
         posDeleteReaderWriter.reader(sourceFile, deleteFile.format(), spec)) {
       Record record = null;
-      Schema rowSchema = null;
       CloseableIterator<Record> recordIt = reader.iterator();
 
       if (recordIt.hasNext()) {
         record = recordIt.next();
-        rowSchema = record.get(2) != null ? spec.schema() : null;
       }
 
       if (record != null) {
+        checkNoRowData(record, path);
+
         try (PositionDeleteWriter<Record> writer =
             posDeleteReaderWriter.writer(
-                outputFile, deleteFile.format(), spec, deleteFile.partition(), rowSchema)) {
+                outputFile, deleteFile.format(), spec, deleteFile.partition())) {
 
           writer.write(newPositionDeleteRecord(record, sourcePrefix, targetPrefix));
 
           while (recordIt.hasNext()) {
             record = recordIt.next();
             if (record != null) {
+              checkNoRowData(record, path);
               writer.write(newPositionDeleteRecord(record, sourcePrefix, targetPrefix));
             }
           }
@@ -817,6 +845,13 @@ public class RewriteTablePathUtil {
     }
   }
 
+  private static void checkNoRowData(Record record, String deleteFilePath) {
+    Preconditions.checkArgument(
+        record.get(2) == null,
+        "Cannot rewrite position delete file with row data for %s",
+        deleteFilePath);
+  }
+
   private static PositionDelete newPositionDeleteRecord(
       Record record, String sourcePrefix, String targetPrefix) {
     PositionDelete delete = PositionDelete.create();
@@ -829,7 +864,7 @@ public class RewriteTablePathUtil {
               + oldPath);
     }
     String newPath = newPath(oldPath, sourcePrefix, targetPrefix);
-    delete.set(newPath, (Long) record.get(1), record.get(2));
+    delete.set(newPath, (Long) record.get(1));
     return delete;
   }
 

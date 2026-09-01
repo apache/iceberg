@@ -1301,6 +1301,57 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     assertThat(refsTable.history()).hasSize(numSnapshots);
   }
 
+  @Test
+  public void loadTablePropagatesRemoteSigningConfig() throws IOException {
+    RemoteSigningConfig signingConfig =
+        ImmutableRemoteSigningConfig.builder().putProperties("k", "v").build();
+
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+
+    // Inject signing config into load table responses
+    Mockito.doAnswer(
+            invocation -> {
+              LoadTableResponse response = (LoadTableResponse) invocation.callRealMethod();
+              return LoadTableResponse.builder()
+                  .withTableMetadata(response.tableMetadata())
+                  .addAllConfig(response.config())
+                  .withRemoteSigningConfig(signingConfig)
+                  .build();
+            })
+        .when(adapter)
+        .execute(
+            matches(HTTPMethod.GET, RESOURCE_PATHS.table(TABLE)),
+            eq(LoadTableResponse.class),
+            any(),
+            any());
+
+    RESTCatalog catalog =
+        new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
+    catalog.initialize(
+        "test",
+        ImmutableMap.of(
+            CatalogProperties.URI,
+            "ignored",
+            CatalogProperties.FILE_IO_IMPL,
+            "org.apache.iceberg.inmemory.InMemoryFileIO"));
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(TABLE.namespace());
+    }
+
+    catalog.createTable(TABLE, SCHEMA);
+
+    Table table = catalog.loadTable(TABLE);
+    FileIO io = table.io();
+
+    assertThat(io.properties())
+        .containsEntry(
+            RESTCatalogProperties.REMOTE_SIGNING_CONFIG,
+            RemoteSigningConfigParser.toJson(signingConfig));
+
+    catalog.close();
+  }
+
   @SuppressWarnings("MethodLength")
   public void testTableAuth(
       String catalogToken,

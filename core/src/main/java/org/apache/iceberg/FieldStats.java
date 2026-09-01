@@ -20,7 +20,7 @@ package org.apache.iceberg;
 
 import org.apache.iceberg.types.Types;
 
-interface FieldStats<T> {
+public interface FieldStats<T> {
   /** The field ID of the statistic */
   int fieldId();
 
@@ -63,7 +63,7 @@ interface FieldStats<T> {
 
   /**
    * The avg value size in memory (uncompressed) in bytes for variable-length types (string, binary,
-   * variant)
+   * variant, geometry, geography)
    */
   Integer avgValueSizeInBytes();
 
