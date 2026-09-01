@@ -26,6 +26,7 @@ import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.google.api.services.bigquery.model.DatasetReference;
 import java.io.File;
@@ -226,5 +227,16 @@ public class TestBigQueryCatalog extends CatalogTests<BigQueryMetastoreCatalog> 
 
     verify(client, times(1))
         .load(new DatasetReference().setProjectId("project-id").setDatasetId("namespace"));
+  }
+
+  @Test
+  public void removeEmptyPropertiesAvoidsClientRequest() {
+    Namespace namespace = Namespace.of("namespace");
+    catalog.createNamespace(namespace);
+    clearInvocations(client);
+
+    assertThat(catalog.removeProperties(namespace, Set.of())).isFalse();
+
+    verifyNoInteractions(client);
   }
 }
