@@ -80,7 +80,7 @@ conf.set("spark.sql.catalog.nessie.type", "nessie")
 conf.set("spark.sql.catalog.nessie", "org.apache.iceberg.spark.SparkCatalog")
 conf.set("spark.sql.extensions", "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions,org.projectnessie.spark.extensions.NessieSparkSessionExtensions")
 ```
-This is how it looks in Flink via the Python API (additional details can be found [here](flink.md#preparation-when-using-flinks-python-api)):
+This is how it looks in Flink via the Python API (additional details can be found [here](flink.md#flinks-python-api)):
 ```python
 import os
 from pyflink.datastream import StreamExecutionEnvironment
