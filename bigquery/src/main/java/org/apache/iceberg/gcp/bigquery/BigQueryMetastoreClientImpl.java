@@ -593,8 +593,8 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
   }
 
   /**
-   * Unwraps a {@link BigQueryRetryHelper.BigQueryRetryHelperException} to the {@link
-   * RuntimeException} that caused it, wrapping a non-runtime cause in a new {@link RuntimeException}.
+   * Returns the {@link RuntimeException} that caused the given retry exception, wrapping a
+   * non-runtime cause in a new {@link RuntimeException}.
    */
   private static RuntimeException asRuntimeException(
       BigQueryRetryHelper.BigQueryRetryHelperException retryException) {
