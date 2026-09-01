@@ -28,11 +28,11 @@ An index is recorded in an index metadata file that contains the index definitio
 index snapshot corresponds to a snapshot of the source table and references the index data for that state.
 
 Index metadata files and index data files are immutable. Every update writes a new metadata file and a new tracking
-file, may reuse existing leaf files, and is committed by an atomic swap of the index metadata file, as defined in
+file, may reuse existing range files, and is committed by an atomic swap of the index metadata file, as defined in
 [Commits and Concurrency](#commits-and-concurrency).
 
 The index data of a snapshot is organized as a [tracking file](#tracking-file) that lists a set of
-[leaf files](#leaf-files):
+[range files](#range-files):
 
 ```text
 Index Metadata
@@ -41,7 +41,7 @@ Index Metadata
             |
             +-- Tracking File
                     |
-                    +-- Leaf Data Files
+                    +-- Range Files
 ```
 
 ## Definitions
@@ -74,14 +74,14 @@ the expressions specification.
 
 ### Index Values
 
-The index values define the content of the index [leaf files](#leaf-files). `index-values` is a list of index value
-entries and each entry produces one field of the [leaf schema](#leaf-schema). Evaluating the list for one indexed row
-produces one leaf file row.
+The index values define the content of the index [range files](#range-files). `index-values` is a list of index value
+entries and each entry produces one field of the [range schema](#range-schema). Evaluating the list for one indexed row
+produces one range file row.
 
-| Requirement | Field      | Type            | Description                                                             |
-|-------------|------------|-----------------|-------------------------------------------------------------------------|
-| required    | field-id   | int             | Field ID of the [leaf schema](#leaf-schema) field produced by the entry |
-| required    | expression | JSON expression | Expression producing the value of the field                             |
+| Requirement | Field      | Type            | Description                                                               |
+|-------------|------------|-----------------|---------------------------------------------------------------------------|
+| required    | field-id   | int             | Field ID of the [range schema](#range-schema) field produced by the entry |
+| required    | expression | JSON expression | Expression producing the value of the field                               |
 
 In addition to the requirements in [Index Expressions](#index-expressions), the entries must satisfy:
 
@@ -92,9 +92,9 @@ In addition to the requirements in [Index Expressions](#index-expressions), the 
   (`file_path`).
 - The `field-id` of an identity expression of the `_pos` (`2147483645`) metadata column must be `2147483545` (`pos`).
 - The `field-id` of any other expression should not be the field ID of a source table field or of a metadata column, so
-  that leaf schema fields that carry a source table field ID can be recognized.
+  that range schema fields that carry a source table field ID can be recognized.
 
-The index values must allow a reader to identify the leaf file rows that match a lookup. For each
+The index values must allow a reader to identify the range file rows that match a lookup. For each
 [index keys](#index-keys) expression, the list must contain an identity expression for every source table field that the
 expression references, or, when the expression produces a distinct result for every distinct input, an entry whose
 expression is the index key expression. For example, an index keyed on `bucket(256, user_id)` must store `user_id`,
@@ -121,7 +121,7 @@ Examples of index keys, shown as SQL for readability:
 
 An index is defined by a source table, an index type, a list of index values, a list of index key expressions, and
 optional index properties. The definition is fixed when the index is created and must not change for the lifetime of
-the index, so leaf files remain readable through every index snapshot that references them. A different definition
+the index, so range files remain readable through every index snapshot that references them. A different definition
 requires a new index.
 
 A table may have multiple indexes of the same index type.
@@ -183,7 +183,7 @@ specific to the KMS provider.
 
 The `key-id` of an index snapshot must reference a `key-id` in the index metadata `encryption-keys` list. The
 `encrypted-key-metadata` of the referenced entry is the key metadata of the snapshot's tracking file, which in turn
-holds the key metadata of the leaf files.
+holds the key metadata of the range files.
 
 ## Commits and Concurrency
 
@@ -209,7 +209,7 @@ against the source-table snapshot they intend to read.
 
 The index keys, together with the tie-break below, define a total ordering over all index entries of an index snapshot.
 Entries must be organized into non-overlapping ranges according to that ordering, and each range must be stored in a
-separate leaf file, so leaf files inherit the ordering from the ranges they contain.
+separate range file, so range files inherit the ordering from the ranges they contain.
 
 Index entries are ordered by the [index key](#index-keys) produced for each indexed row. The key is compared by the
 index key expressions in list order: entries are compared by the result of the first expression, and the result of the
@@ -228,38 +228,38 @@ location is stored as an index value.
 
 ### Tracking File
 
-The tracking file contains metadata of all leaf files belonging to the index snapshot. It may be stored using any
+The tracking file contains metadata of all range files belonging to the index snapshot. It may be stored using any
 supported metadata file format.
 
 #### Tracking File Entry
 
-Each tracking file contains a collection of tracking file entries. A tracking file entry describes a single leaf file
+Each tracking file contains a collection of tracking file entries. A tracking file entry describes a single range file
 tracked by an index snapshot. The fields are the subset of the V4 [data file fields](spec.md#data-file-fields) that are
 relevant to planning queries against the index.
 
-Tracking file entries must be stored in the [index ordering](#ordering) of the leaf files they describe, which is the
+Tracking file entries must be stored in the [index ordering](#ordering) of the range files they describe, which is the
 ascending order of the index key upper bounds recorded in the [content statistics](#content-statistics).
 
-| Field ID | Name               | Type   | Requirement | Description                                                                                                                     |
-|----------|--------------------|--------|-------------|---------------------------------------------------------------------------------------------------------------------------------|
-| 100      | file_path          | string | required    | Full URI of the referenced leaf file.                                                                                           |
-| 101      | file_format        | string | required    | File format name, such as parquet, avro, or orc.                                                                                |
-| 103      | record_count       | long   | required    | Number of records contained in the referenced leaf file.                                                                        |
-| 104      | file_size_in_bytes | long   | required    | Total file size in bytes.                                                                                                       |
-| 146      | content_stats      | struct | required    | Column statistics on the index values and the index key upper bound of the referenced leaf file, used for planning and pruning. |
-| 131      | key_metadata       | binary | optional    | Implementation-specific key metadata, used for leaf file encryption.                                                            |
+| Field ID | Name               | Type   | Requirement | Description                                                                                                                      |
+|----------|--------------------|--------|-------------|----------------------------------------------------------------------------------------------------------------------------------|
+| 100      | file_path          | string | required    | Full URI of the referenced range file.                                                                                           |
+| 101      | file_format        | string | required    | File format name, such as parquet, avro, or orc.                                                                                 |
+| 103      | record_count       | long   | required    | Number of records contained in the referenced range file.                                                                        |
+| 104      | file_size_in_bytes | long   | required    | Total file size in bytes.                                                                                                        |
+| 146      | content_stats      | struct | required    | Column statistics on the index values and the index key upper bound of the referenced range file, used for planning and pruning. |
+| 131      | key_metadata       | binary | optional    | Implementation-specific key metadata, used for range file encryption.                                                            |
 
 #### Content Statistics
 
-The content statistics structure stored for each leaf file contains two complementary kinds of statistics:
+The content statistics structure stored for each range file contains two complementary kinds of statistics:
 
-- **Column statistics** for the index values: the lower and upper bound of each leaf schema field in the leaf file,
+- **Column statistics** for the index values: the lower and upper bound of each range schema field in the range file,
   following the [content stats](spec.md#content-stats) rules of the table specification. These are required and let
   engines prune on the index values even when searching for partial keys. Statistics must not be stored for the
   `file_path` (`2147483546`) and `pos` (`2147483545`) fields, which record the location of the source row and are not
-  used to prune leaf files.
-- **Index key upper bound** for the leaf file: the index key of the last entry in the leaf file according to the index
-  ordering. Engines that evaluate the index key expressions for a lookup value use these bounds to prune leaf files
+  used to prune range files.
+- **Index key upper bound** for the range file: the index key of the last entry in the range file according to the index
+  ordering. Engines that evaluate the index key expressions for a lookup value use these bounds to prune range files
   (see [Ordering](#ordering)).
 
 ##### Index Key Upper Bound
@@ -271,26 +271,26 @@ a null value means the key component is null. Field names are informational; rea
 
 IDs `9800` through `9999` are reserved for this struct.
 
-The stored value must be the exact index key of the last entry in the leaf file. It must not be truncated or rounded.
+The stored value must be the exact index key of the last entry in the range file. It must not be truncated or rounded.
 
-### Leaf Files
+### Range Files
 
-Leaf files contain the index values and represent the lowest level of the index hierarchy.
+Range files contain the index values and represent the lowest level of the index hierarchy.
 
-Leaf files must be standard Iceberg data files and may be stored using any Iceberg-supported data file format: Parquet,
+Range files must be standard Iceberg data files and may be stored using any Iceberg-supported data file format: Parquet,
 Avro, or ORC.
 
-Each leaf file row is the result of evaluating the [index values](#index-values) for one indexed row.
-Entries within a leaf file must be stored in the [index ordering](#ordering).
+Each range file row is the result of evaluating the [index values](#index-values) for one indexed row.
+Entries within a range file must be stored in the [index ordering](#ordering).
 
-#### Leaf Schema
+#### Range Schema
 
-The leaf schema is constructed from the [index values](#index-values). The result is a struct containing one field for
+The range schema is constructed from the [index values](#index-values). The result is a struct containing one field for
 each index value entry, with fields appearing in the same order as the entries. Each field takes its ID from the
 `field-id` of the corresponding entry and its type from the result type of that entry's expression.
 
-Field names in the leaf schema are generated by the writer and are not defined by this specification. Users of the
-index must not rely on them; readers must match leaf file columns by field ID.
+Field names in the range schema are generated by the writer and are not defined by this specification. Users of the
+index must not rely on them; readers must match range file columns by field ID.
 
 ## Future Extensions
 
@@ -324,7 +324,7 @@ time would place entries at positions that cannot be reproduced, invalidating th
 Index values and index keys are lists that generate the individual key and value components, and their order, part of
 the index definition, which is what engines need to match an index to a query and to compare index keys component by
 component. An engine matches the expressions of a query against the index expressions to decide whether the index
-applies and which leaf schema field holds a value.
+applies and which range schema field holds a value.
 
 ### Total Ordering and Pruning
 
@@ -337,40 +337,40 @@ key is expressed as separate index key expressions instead.
 Index keys alone do not have to be unique. Ordering entries with equal index keys by the location of the source row
 makes the ordering total, because a source row is uniquely identified by its file path and position.
 
-The ordering makes the index usable at two levels: leaf files can be pruned without being opened, and the entries of a
-leaf file that is opened can be located without reading all of it.
+The ordering makes the index usable at two levels: range files can be pruned without being opened, and the entries of a
+range file that is opened can be located without reading all of it.
 
-Leaf files hold non-overlapping ranges of the ordering, so the index key statistics in the tracking file are enough to
-eliminate a leaf file. Only the upper bound of a range is stored, because sorted entries in the tracking file and
+Range files hold non-overlapping ranges of the ordering, so the index key statistics in the tracking file are enough to
+eliminate a range file. Only the upper bound of a range is stored, because sorted entries in the tracking file and
 non-overlapping ranges make the lower bound redundant: it is the upper bound of the preceding entry. Storing one bound
 halves the size of the index key statistics.
 
 That bound is a key rather than a column value, so it is stored in a reserved struct of its own instead of through the
-column statistics of a leaf schema field. A key component may be produced by an expression that is not stored as an
+column statistics of a range schema field. A key component may be produced by an expression that is not stored as an
 index value, and the components have to be compared in list order. The reserved IDs are outside the range the table
 specification reserves for [column stats structs](spec.md#field-statistics), so both kinds of statistics fit in one
 `content_stats` struct.
 
-The bound has to be exact because readers derive the lower bound of a leaf file's range from the upper bound of the
-preceding entry. A bound rounded up would place that lower bound above entries the next leaf file actually contains, so
+The bound has to be exact because readers derive the lower bound of a range file's range from the upper bound of the
+preceding entry. A bound rounded up would place that lower bound above entries the next range file actually contains, so
 a lookup would prune to the wrong file and miss rows.
 
-Within a leaf file, the entries that match a lookup are contiguous, so a reader can locate them with the structures the
+Within a range file, the entries that match a lookup are contiguous, so a reader can locate them with the structures the
 file format provides for stored columns, such as Parquet page indexes, instead of examining every entry. Those
 structures work on a stored column that the ordering keeps sorted, which is a key stored as an index value, or a value
 the key is derived from by an order-preserving transformation: a file keyed on `day(ts)` is also sorted by a stored
 `ts` column. A key like `bucket(256, user_id)` leaves the stored `user_id` column unsorted, so unless the bucket is
 also stored as an index value, a reader has to evaluate the index key expressions over the entries of the file.
 
-### Leaf Schema Derivation
+### Range Schema Derivation
 
-The leaf schema is derived from the index values, so the index definition and the physical layout of the index cannot
+The range schema is derived from the index values, so the index definition and the physical layout of the index cannot
 drift apart and the schema does not have to be maintained as a second, redundant copy of the definition.
 
-Requiring the index values to identify the matching rows is what keeps a leaf file useful on its own. A transformation
+Requiring the index values to identify the matching rows is what keeps a range file useful on its own. A transformation
 that maps several values to the same result cannot distinguish the entries that share a key, so the values it is
 computed from have to be stored. Storing the key results as well is a performance choice, because those are what make a
-leaf file efficient to search, and an engine may decide not to use an index that does not store them.
+range file efficient to search, and an engine may decide not to use an index that does not store them.
 
 Field types are not stored in the definition. A field takes the result type of its expression, which is determined when
 the expression is bound to the source table schema, so the field follows the source column through type promotion. A
@@ -378,16 +378,16 @@ stored type would instead be fixed at index creation and go stale as soon as a s
 
 Fields produced by identity expressions keep the field ID of the source column, which keeps schema evolution, column
 renames, and type compatibility semantics consistent between the table and the index. It also allows the index key
-expressions, which reference source field IDs, to be evaluated against leaf file rows without remapping references,
+expressions, which reference source field IDs, to be evaluated against range file rows without remapping references,
 whenever the fields they reference are stored as index values.
 
-Index values are restricted to primitive result types, so one field ID per entry fully describes the leaf schema. A
+Index values are restricted to primitive result types, so one field ID per entry fully describes the range schema. A
 nested result type would also require IDs for every field of its subtree.
 
 The source row location is stored under the field IDs, `file_path` (`2147483546`) and `pos` (`2147483545`), rather than
 under `_file` and `_pos`. The `_file` and `_pos` metadata columns describe where the row being read is physically
-stored, which for a leaf file row is the leaf file itself. The position delete columns are defined to record the
-location of a row in another file, which is exactly what a leaf file row carries.
+stored, which for a range file row is the range file itself. The position delete columns are defined to record the
+location of a row in another file, which is exactly what a range file row carries.
 
 ### Atomic Commits
 
@@ -408,14 +408,14 @@ CREATE INDEX bucket_index
 
 This creates a `SCALAR` index on the `user_id` column that orders entries by the hash bucket of `user_id` and then
 by `user_id` itself. When the index is created, the engine (or a later index maintenance job) reads the current table
-snapshot, writes the leaf files and a tracking file, and produces the first index metadata file containing a single
-index snapshot. Leaf file boundaries are created based on the index keys, so a leaf file holds a contiguous range
+snapshot, writes the range files and a tracking file, and produces the first index metadata file containing a single
+index snapshot. Range file boundaries are created based on the index keys, so a range file holds a contiguous range
 of buckets or a range of `user_id` values within a single bucket. The tracking file stores summary information and
 pruning statistics.
 
-The index values produce each leaf file row from `user_id` and the reserved metadata columns that identify the source
+The index values produce each range file row from `user_id` and the reserved metadata columns that identify the source
 row. All three are identity expressions, so their field IDs are the field ID of the source column and the two reserved
-IDs, and the leaf schema is:
+IDs, and the range schema is:
 
 | Field ID   | Column    | Type   | Description                                                  |
 |------------|-----------|--------|--------------------------------------------------------------|
@@ -456,17 +456,17 @@ s3://bucket/warehouse/default.db/events/index/bucket_index/metadata/00001-(uuid)
 }
 ```
 
-The tracking file referenced by `index-data` lists the leaf files of this snapshot. It is stored in a metadata file
-format rather than JSON, so its entries are shown here as a table. In this example the index snapshot has two leaf
+The tracking file referenced by `index-data` lists the range files of this snapshot. It is stored in a metadata file
+format rather than JSON, so its entries are shown here as a table. In this example the index snapshot has two range
 files:
 
-| file_path              | file_format | record_count | file_size_in_bytes |
-|------------------------|-------------|--------------|--------------------|
-| .../leaf-00001.parquet | parquet     | 3            | 1160               |
-| .../leaf-00002.parquet | parquet     | 2            | 1024               |
+| file_path               | file_format | record_count | file_size_in_bytes |
+|-------------------------|-------------|--------------|--------------------|
+| .../range-00001.parquet | parquet     | 3            | 1160               |
+| .../range-00002.parquet | parquet     | 2            | 1024               |
 
 Each entry also carries a `content_stats` struct. `file_path` and `pos` have no statistics, so it holds the `user_id`
-bounds and the index key upper bound of each leaf file. The index keys are `bucket(256, user_id)` and `user_id`, so the
+bounds and the index key upper bound of each range file. The index keys are `bucket(256, user_id)` and `user_id`, so the
 upper bound struct is:
 
 ```
@@ -476,20 +476,20 @@ upper bound struct is:
 }
 ```
 
-| Statistic             | `leaf-00001.parquet`             | `leaf-00002.parquet`             |
-|-----------------------|----------------------------------|----------------------------------|
-| `user_id` bounds      | `12094` .. `84721`               | `3277` .. `99182`                |
-| index key upper bound | `{ bucket: 88, user_id: 55310 }` | `{ bucket: 209, user_id: 3277 }` |
+| Statistic             | `range-00001.parquet`             | `range-00002.parquet`             |
+|-----------------------|-----------------------------------|-----------------------------------|
+| `user_id` bounds      | `12094` .. `84721`                | `3277` .. `99182`                 |
+| index key upper bound | `{ bucket: 88, user_id: 55310 }`  | `{ bucket: 209, user_id: 3277 }`  |
 
 These statistics show why the index key upper bound is needed. The `user_id` bounds of the two files overlap, so the
-column statistics alone cannot eliminate either file. The index key ranges do not overlap: `leaf-00002.parquet` is the
-second entry of the tracking file, so its range starts after the upper bound of `leaf-00001.parquet`.
+column statistics alone cannot eliminate either file. The index key ranges do not overlap: `range-00002.parquet` is the
+second entry of the tracking file, so its range starts after the upper bound of `range-00001.parquet`.
 
 A lookup for `user_id = 55310` evaluates the index key expressions for that value, producing
-`{ bucket: 88, user_id: 55310 }`. That key is not greater than the upper bound of `leaf-00001.parquet`, the first entry
-of the tracking file, so only the first leaf file is read.
+`{ bucket: 88, user_id: 55310 }`. That key is not greater than the upper bound of `range-00001.parquet`, the first entry
+of the tracking file, so only the first range file is read.
 
-The rows of `leaf-00001.parquet` follow the leaf schema constructed from the index values, stored in the index
+The rows of `range-00001.parquet` follow the range schema constructed from the index values, stored in the index
 ordering. The index key of each row is not stored; it is shown here to make the ordering visible:
 
 | user_id | file_path                       | pos | (index key)     |
@@ -502,8 +502,8 @@ Reading the matched row gives the source data file and row position of the index
 `user_id = 55310` from the `events` table without scanning it.
 
 Later, new data is added to the `events` table, producing a new table snapshot (`5459876531255530170`). Index
-maintenance runs again and writes new leaf files for the added data, plus a new tracking file that references both the
-still-valid old leaf files and the new leaf files.
+maintenance runs again and writes new range files for the added data, plus a new tracking file that references both the
+still-valid old range files and the new range files.
 
 This produces a new index metadata file that completely replaces the previous one. The old index snapshot
 (`snapshot-id 1`) is kept alongside the new one (`snapshot-id 2`), so engines can still use the index against the older
@@ -529,21 +529,21 @@ s3://bucket/warehouse/default.db/events/index/bucket_index/metadata/00002-(uuid)
 }
 ```
 
-The new rows fall into buckets that lie inside the range already covered by `leaf-00001.parquet`. Because leaf files
-must hold non-overlapping ranges of the index ordering, maintenance rewrites that leaf file as `leaf-00003.parquet`
-with the merged entries. `leaf-00002.parquet` covers a disjoint range and is reused unchanged, so the tracking file of
+The new rows fall into buckets that lie inside the range already covered by `range-00001.parquet`. Because range files
+must hold non-overlapping ranges of the index ordering, maintenance rewrites that range file as `range-00003.parquet`
+with the merged entries. `range-00002.parquet` covers a disjoint range and is reused unchanged, so the tracking file of
 `snapshot-id 2` references it as well:
 
-| file_path              | file_format | record_count | file_size_in_bytes |
-|------------------------|-------------|--------------|--------------------|
-| .../leaf-00003.parquet | parquet     | 5            | 1480               |
-| .../leaf-00002.parquet | parquet     | 2            | 1024               |
+| file_path               | file_format | record_count | file_size_in_bytes |
+|-------------------------|-------------|--------------|--------------------|
+| .../range-00003.parquet | parquet     | 5            | 1480               |
+| .../range-00002.parquet | parquet     | 2            | 1024               |
 
-The merged entries fall inside the range that `leaf-00001.parquet` already covered, so `leaf-00003.parquet` keeps the
+The merged entries fall inside the range that `range-00001.parquet` already covered, so `range-00003.parquet` keeps the
 same `user_id` bounds, `12094` .. `84721`, and the same index key upper bound, `{ bucket: 88, user_id: 55310 }`. The
-entry for `leaf-00002.parquet` is copied from the previous tracking file.
+entry for `range-00002.parquet` is copied from the previous tracking file.
 
-The rows of `leaf-00003.parquet` interleave the entries of the rewritten leaf file with the entries added for the new
+The rows of `range-00003.parquet` interleave the entries of the rewritten range file with the entries added for the new
 data file, keeping the index ordering:
 
 | user_id | file_path                       | pos | (index key)     |
@@ -554,13 +554,13 @@ data file, keeping the index ordering:
 | 40318   | .../data/00002-0-(uuid).parquet | 22  | `{ 62, 40318 }` |
 | 55310   | .../data/00000-0-(uuid).parquet | 92  | `{ 88, 55310 }` |
 
-`leaf-00001.parquet` is no longer referenced by `snapshot-id 2`, but it is still referenced by `snapshot-id 1` and must
+`range-00001.parquet` is no longer referenced by `snapshot-id 2`, but it is still referenced by `snapshot-id 1` and must
 be retained while that snapshot exists.
 
 Eventually the older table snapshot is no longer needed, so maintenance drops the corresponding index snapshot
 (`snapshot-id 1`). It writes a new index metadata file that removes the snapshot from the `snapshots` list and replaces
 the previous metadata file. Maintenance then deletes the files referenced only by the removed snapshot: its tracking
-file, `tracking-00001-(uuid).parquet`, and `leaf-00001.parquet`. `leaf-00002.parquet` and `leaf-00003.parquet` are
+file, `tracking-00001-(uuid).parquet`, and `range-00001.parquet`. `range-00002.parquet` and `range-00003.parquet` are
 still referenced by `snapshot-id 2` and are retained. The index definition is again elided:
 
 ```
