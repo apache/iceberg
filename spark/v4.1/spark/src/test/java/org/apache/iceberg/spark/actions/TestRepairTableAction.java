@@ -33,8 +33,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
+import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.FileContent;
+import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.FileMetadata;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.ManifestFiles;
 import org.apache.iceberg.ManifestWriter;
@@ -96,7 +101,7 @@ public class TestRepairTableAction extends TestBase {
   public void testRepairEmptyTable() {
     Table table = createTable(PartitionSpec.unpartitioned());
 
-    RepairTable.Result result = SparkActions.get().repairTable(table).execute();
+    RepairTable.Result result = SparkActions.get().repairTable(table).repairFileMetrics().execute();
 
     assertThat(result.repairedManifests()).isEmpty();
     assertThat(result.repairedEntryCount()).isEqualTo(0);
@@ -109,7 +114,7 @@ public class TestRepairTableAction extends TestBase {
 
     Snapshot before = table.currentSnapshot();
 
-    RepairTable.Result result = SparkActions.get().repairTable(table).execute();
+    RepairTable.Result result = SparkActions.get().repairTable(table).repairFileMetrics().execute();
 
     assertThat(result.repairedManifests()).isEmpty();
     assertThat(result.repairedEntryCount()).isEqualTo(0);
@@ -118,6 +123,33 @@ public class TestRepairTableAction extends TestBase {
     assertThat(table.currentSnapshot().snapshotId())
         .as("should not commit a snapshot when nothing is repaired")
         .isEqualTo(before.snapshotId());
+  }
+
+  @TestTemplate
+  public void testNoRepairSelectedIsNoOp() throws IOException {
+    Table table = createTable(PartitionSpec.unpartitioned());
+    appendRecords(table, records(4));
+
+    DataFile original = onlyDataFile(table);
+    replaceManifestWithCorruptStats(table, original);
+
+    table.refresh();
+    Snapshot before = table.currentSnapshot();
+    DataFile corrupt = onlyDataFile(table);
+
+    // no repair was selected, so execute() must do nothing even though the stats are incorrect
+    RepairTable.Result result = SparkActions.get().repairTable(table).execute();
+
+    assertThat(result.repairedManifests()).isEmpty();
+    assertThat(result.repairedEntryCount()).isEqualTo(0);
+
+    table.refresh();
+    assertThat(table.currentSnapshot().snapshotId())
+        .as("a repair with nothing selected must not commit")
+        .isEqualTo(before.snapshotId());
+    assertThat(onlyDataFile(table).recordCount())
+        .as("a repair with nothing selected must leave the incorrect stats in place")
+        .isEqualTo(corrupt.recordCount());
   }
 
   @TestTemplate
@@ -131,7 +163,7 @@ public class TestRepairTableAction extends TestBase {
     // replace the manifest with one whose entry records a wrong record count and file size
     replaceManifestWithCorruptStats(table, original);
 
-    RepairTable.Result result = SparkActions.get().repairTable(table).execute();
+    RepairTable.Result result = SparkActions.get().repairTable(table).repairFileMetrics().execute();
 
     assertThat(result.repairedEntryCount()).isEqualTo(1);
     assertThat(result.repairedManifests()).hasSize(1);
@@ -157,7 +189,7 @@ public class TestRepairTableAction extends TestBase {
 
     replaceManifestWithCorruptStats(table, original);
 
-    SparkActions.get().repairTable(table).execute();
+    SparkActions.get().repairTable(table).repairFileMetrics().execute();
 
     table.refresh();
     assertThat(entryLineage())
@@ -177,7 +209,8 @@ public class TestRepairTableAction extends TestBase {
     Snapshot before = table.currentSnapshot();
     DataFile corrupt = onlyDataFile(table);
 
-    RepairTable.Result result = SparkActions.get().repairTable(table).dryRun().execute();
+    RepairTable.Result result =
+        SparkActions.get().repairTable(table).repairFileMetrics().dryRun().execute();
 
     assertThat(result.repairedEntryCount()).isEqualTo(1);
     assertThat(result.repairedManifests()).hasSize(1);
@@ -207,7 +240,7 @@ public class TestRepairTableAction extends TestBase {
     DataFile fileToCorrupt = readDataFiles(table, manifests.get(0)).get(0);
     corruptStats(table, manifests.get(0), fileToCorrupt.location());
 
-    RepairTable.Result result = SparkActions.get().repairTable(table).execute();
+    RepairTable.Result result = SparkActions.get().repairTable(table).repairFileMetrics().execute();
 
     assertThat(result.repairedManifests()).hasSize(1);
     assertThat(result.repairedEntryCount()).isEqualTo(1);
@@ -238,14 +271,14 @@ public class TestRepairTableAction extends TestBase {
 
     corruptStats(table, manifest, files.get(0).location());
 
-    RepairTable.Result result = SparkActions.get().repairTable(table).execute();
+    RepairTable.Result result = SparkActions.get().repairTable(table).repairFileMetrics().execute();
 
     assertThat(result.repairedEntryCount()).isEqualTo(1);
     assertThat(currentRows()).containsExactlyInAnyOrderElementsOf(expectedRows);
   }
 
   @TestTemplate
-  public void testRepairSkipsColumnMetricsWhenDisabled() throws IOException {
+  public void testRepairSkipsColumnMetricsByDefault() throws IOException {
     Table table = createTable(PartitionSpec.unpartitioned());
     appendRecords(table, records(4));
 
@@ -256,20 +289,76 @@ public class TestRepairTableAction extends TestBase {
     corruptStats(table, manifest, original.location(), false);
 
     RepairTable.Result skipped =
-        SparkActions.get()
-            .repairTable(table)
-            .option(RepairTableSparkAction.REPAIR_COLUMN_METRICS, "false")
-            .execute();
+        SparkActions.get().repairTable(table).repairFileMetrics().execute();
 
     assertThat(skipped.repairedEntryCount())
-        .as("column metrics must not be compared when disabled")
+        .as("column metrics must not be compared by default")
         .isEqualTo(0);
 
-    RepairTable.Result repaired = SparkActions.get().repairTable(table).execute();
+    RepairTable.Result repaired =
+        SparkActions.get()
+            .repairTable(table)
+            .repairFileMetrics()
+            .option(RepairTableSparkAction.REPAIR_COLUMN_METRICS, "true")
+            .execute();
 
     assertThat(repaired.repairedEntryCount())
-        .as("column metrics must be compared by default")
+        .as("column metrics are compared when enabled")
         .isEqualTo(1);
+  }
+
+  @TestTemplate
+  public void testRepairPreservesColumnStatsWhenColumnMetricsDisabled() throws IOException {
+    Table table = createTable(PartitionSpec.unpartitioned());
+    appendRecords(table, records(4));
+
+    DataFile original = onlyDataFile(table);
+
+    // the record count, file size and column stats of the entry are all wrong
+    ManifestFile manifest = table.currentSnapshot().dataManifests(table.io()).get(0);
+    corruptStats(table, manifest, original.location(), true);
+    DataFile corrupt = onlyDataFile(table);
+
+    // repair with column metrics disabled: the record count and file size are corrected, but the
+    // wrong column stats must be left untouched rather than replaced with the recomputed ones
+    RepairTable.Result result = SparkActions.get().repairTable(table).repairFileMetrics().execute();
+
+    assertThat(result.repairedEntryCount()).isEqualTo(1);
+
+    table.refresh();
+    DataFile repaired = onlyDataFile(table);
+    assertThat(repaired.recordCount())
+        .as("the record count must be repaired")
+        .isEqualTo(original.recordCount());
+    assertThat(repaired.fileSizeInBytes())
+        .as("the file size must be repaired")
+        .isEqualTo(original.fileSizeInBytes());
+    assertThat(repaired.valueCounts())
+        .as("the stored column stats must be kept, not replaced with recomputed ones")
+        .isEqualTo(corrupt.valueCounts());
+  }
+
+  @TestTemplate
+  public void testWithStatsPreservesEqualityFieldIds() {
+    // a rebuilt equality delete must keep its equality field ids, otherwise reading the table fails
+    // when the delete is applied. FileMetadata.Builder.copy(DeleteFile) does not carry them.
+    PartitionSpec spec = PartitionSpec.unpartitioned();
+    DeleteFile equalityDelete =
+        FileMetadata.deleteFileBuilder(spec)
+            .ofEqualityDeletes(2, 3)
+            .withPath(tableLocation + "/data/eq-delete.parquet")
+            .withFileSizeInBytes(1024)
+            .withFormat(FileFormat.PARQUET)
+            .withRecordCount(10)
+            .build();
+
+    Metrics recomputed = new Metrics(10L, null, null, null, null);
+    ContentFile<?> rebuilt = RepairMetrics.withStats(equalityDelete, spec, recomputed, 1024L);
+
+    assertThat(rebuilt.content()).isEqualTo(FileContent.EQUALITY_DELETES);
+    assertThat(((DeleteFile) rebuilt).equalityFieldIds())
+        .as("equality field ids must survive a rebuild")
+        .containsExactly(2, 3);
   }
 
   @TestTemplate
@@ -354,7 +443,7 @@ public class TestRepairTableAction extends TestBase {
     Table spyTable = spy(table);
     when(spyTable.rewriteManifests()).thenReturn(spyRewriteManifests);
 
-    assertThatThrownBy(() -> SparkActions.get().repairTable(spyTable).execute())
+    assertThatThrownBy(() -> SparkActions.get().repairTable(spyTable).repairFileMetrics().execute())
         .isInstanceOf(CommitFailedException.class)
         .hasMessage("Injected commit failure");
 
@@ -393,7 +482,7 @@ public class TestRepairTableAction extends TestBase {
     Table spyTable = spy(table);
     when(spyTable.rewriteManifests()).thenReturn(spyRewriteManifests);
 
-    assertThatThrownBy(() -> SparkActions.get().repairTable(spyTable).execute())
+    assertThatThrownBy(() -> SparkActions.get().repairTable(spyTable).repairFileMetrics().execute())
         .cause()
         .isInstanceOf(RuntimeException.class)
         .hasMessage("Datacenter on Fire");
@@ -420,7 +509,8 @@ public class TestRepairTableAction extends TestBase {
     replaceManifestWithCorruptStats(table, original);
     table.refresh();
 
-    RepairTable.Result result = SparkActions.get().repairTable(table).dryRun().execute();
+    RepairTable.Result result =
+        SparkActions.get().repairTable(table).repairFileMetrics().dryRun().execute();
 
     assertThat(result.repairedEntryCount()).isEqualTo(1);
     assertThat(repairedManifestPaths())
@@ -441,7 +531,7 @@ public class TestRepairTableAction extends TestBase {
               return table.rewriteManifests();
             });
 
-    return SparkActions.get().repairTable(spyTable).execute();
+    return SparkActions.get().repairTable(spyTable).repairFileMetrics().execute();
   }
 
   /**
@@ -489,7 +579,7 @@ public class TestRepairTableAction extends TestBase {
     // corrupt the stats of the entry that still belongs to the original, unpartitioned spec
     corruptStats(table, oldManifest, original.location());
 
-    SparkActions.get().repairTable(table).execute();
+    SparkActions.get().repairTable(table).repairFileMetrics().execute();
 
     table.refresh();
     DataFile repaired = onlyDataFile(table);

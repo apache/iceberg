@@ -21,16 +21,19 @@ package org.apache.iceberg.spark.actions;
 import static org.apache.iceberg.MetadataTableType.ENTRIES;
 
 import java.io.Serializable;
+import java.util.EnumMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.ManifestContent;
@@ -51,6 +54,7 @@ import org.apache.iceberg.actions.RepairTable;
 import org.apache.iceberg.exceptions.CleanableFailure;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.SupportsBulkOperations;
 import org.apache.iceberg.mapping.NameMapping;
@@ -90,12 +94,19 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
   public static final boolean USE_CACHING_DEFAULT = false;
 
   /**
-   * Whether to compare and repair column level statistics, which requires reading the footer of
-   * every file. When disabled, only record counts and file sizes are repaired.
+   * Whether to compare and repair column level statistics. When disabled, only record counts and
+   * file sizes are compared and repaired.
+   *
+   * <p>This is disabled by default. Recomputed column statistics reflect the current metrics config
+   * of the table, but the config a file was written under is not recorded, so a table whose config
+   * changed reports column statistics that legitimately differ from the recomputed ones. Repairing
+   * them in that case would overwrite correct statistics. Reading the footer of every candidate
+   * file happens regardless of this option; it only controls whether column statistics are
+   * compared.
    */
   public static final String REPAIR_COLUMN_METRICS = "repair-column-metrics";
 
-  public static final boolean REPAIR_COLUMN_METRICS_DEFAULT = true;
+  public static final boolean REPAIR_COLUMN_METRICS_DEFAULT = false;
 
   private static final Logger LOG = LoggerFactory.getLogger(RepairTableSparkAction.class);
 
@@ -113,6 +124,7 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
   private final boolean shouldStageManifests;
   private final String outputLocation;
 
+  private boolean repairFileMetrics = false;
   private boolean dryRun = false;
 
   RepairTableSparkAction(SparkSession spark, Table table) {
@@ -144,7 +156,7 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
 
   @Override
   public RepairTableSparkAction repairFileMetrics() {
-    // repairing entry stats is currently the only repair this action performs
+    this.repairFileMetrics = true;
     return this;
   }
 
@@ -162,6 +174,11 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
   }
 
   private RepairTable.Result doExecute() {
+    if (!repairFileMetrics) {
+      // no repair was selected through the configuration methods, so there is nothing to do
+      return EMPTY_RESULT;
+    }
+
     Snapshot currentSnapshot = table.currentSnapshot();
     if (currentSnapshot == null) {
       return EMPTY_RESULT;
@@ -182,10 +199,8 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
       return EMPTY_RESULT;
     }
 
-    if (dryRun) {
-      // the new manifests were written to determine what the repair would produce
-      deleteFiles(Iterables.transform(newManifests, ManifestFile::path));
-    } else {
+    // a dry run writes no manifests, so there is nothing to commit or clean up
+    if (!dryRun) {
       replaceManifests(repairedManifests, newManifests);
     }
 
@@ -237,7 +252,8 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
         df -> {
           // find the entries whose stats disagree with the files they refer to
           List<EntryVerdict> verdicts =
-              df.mapPartitions(newCheckStatsFunc(content), Encoders.bean(EntryVerdict.class))
+              df.mapPartitions(
+                      newCheckStatsFunc(content, specId), Encoders.bean(EntryVerdict.class))
                   .collectAsList();
 
           if (verdicts.isEmpty()) {
@@ -252,6 +268,11 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
               manifests.stream()
                   .filter(manifest -> manifestsToRewrite.contains(manifest.path()))
                   .collect(Collectors.toList());
+
+          // a dry run reports what would be repaired without writing any manifests
+          if (dryRun) {
+            return RepairedManifests.of(rewritten, ImmutableList.of(), repairedCount);
+          }
 
           Set<String> repairedPaths =
               verdicts.stream().map(EntryVerdict::getPath).collect(Collectors.toSet());
@@ -301,7 +322,7 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
     Types.StructType fileType = DataFile.getType(table.specs().get(specId).partitionType());
     ManifestWriterFactory writers = manifestWriters(specId);
     Broadcast<Set<String>> repaired = sparkContext().broadcast(repairedPaths);
-    RepairContext context = newRepairContext(content);
+    RepairContext context = newRepairContext(content, specId);
 
     WriteManifests<?> writeFunc =
         content == ManifestContent.DATA
@@ -315,17 +336,18 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
     return writeFunc.apply(entryDF.repartition(numManifests)).collectAsList();
   }
 
-  private CheckStats newCheckStatsFunc(ManifestContent content) {
-    return new CheckStats(newRepairContext(content));
+  private CheckStats newCheckStatsFunc(ManifestContent content, int specId) {
+    return new CheckStats(newRepairContext(content, specId));
   }
 
-  private RepairContext newRepairContext(ManifestContent content) {
+  private RepairContext newRepairContext(ManifestContent content, int specId) {
     boolean repairColumnMetrics =
         PropertyUtil.propertyAsBoolean(
             options(), REPAIR_COLUMN_METRICS, REPAIR_COLUMN_METRICS_DEFAULT);
     return new RepairContext(
         sparkContext().broadcast(SerializableTableWithSize.copyOf(table)),
         content,
+        specId,
         repairColumnMetrics);
   }
 
@@ -385,7 +407,7 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
         (long) (1.2 * targetManifestSizeBytes));
   }
 
-  private <T, U> U withReusableDS(Dataset<T> ds, java.util.function.Function<Dataset<T>, U> func) {
+  private <T, U> U withReusableDS(Dataset<T> ds, Function<Dataset<T>, U> func) {
     boolean useCaching =
         PropertyUtil.propertyAsBoolean(options(), USE_CACHING, USE_CACHING_DEFAULT);
     Dataset<T> reusableDS = useCaching ? ds.cache() : ds;
@@ -443,16 +465,21 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
   private static class RepairContext implements Serializable {
     private final Broadcast<Table> tableBroadcast;
     private final ManifestContent content;
+    private final int specId;
     private final boolean repairColumnMetrics;
 
-    private transient MetricsConfig lazyMetricsConfig = null;
+    private transient Map<FileContent, MetricsConfig> lazyMetricsConfigs = null;
     private transient NameMapping lazyNameMapping = null;
     private transient boolean nameMappingResolved = false;
 
     RepairContext(
-        Broadcast<Table> tableBroadcast, ManifestContent content, boolean repairColumnMetrics) {
+        Broadcast<Table> tableBroadcast,
+        ManifestContent content,
+        int specId,
+        boolean repairColumnMetrics) {
       this.tableBroadcast = tableBroadcast;
       this.content = content;
+      this.specId = specId;
       this.repairColumnMetrics = repairColumnMetrics;
     }
 
@@ -472,16 +499,22 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
       return repairColumnMetrics;
     }
 
-    PartitionSpec spec(int specId) {
-      return table().specs().get(specId);
+    PartitionSpec spec(int id) {
+      return table().specs().get(id);
     }
 
+    /**
+     * Returns the metrics config for the content type of the given file. A delete manifest can hold
+     * both position and equality deletes, whose configs differ, so the config is cached per content
+     * type rather than once for the whole manifest.
+     */
     MetricsConfig metricsConfig(ContentFile<?> file) {
-      if (lazyMetricsConfig == null) {
-        this.lazyMetricsConfig = RepairMetrics.metricsConfig(table(), file.content());
+      if (lazyMetricsConfigs == null) {
+        this.lazyMetricsConfigs = new EnumMap<>(FileContent.class);
       }
 
-      return lazyMetricsConfig;
+      return lazyMetricsConfigs.computeIfAbsent(
+          file.content(), fileContent -> RepairMetrics.metricsConfig(table(), fileContent));
     }
 
     NameMapping nameMapping() {
@@ -494,7 +527,7 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
     }
 
     SparkContentFile<?> newFileWrapper(Types.StructType combinedFileType, StructType sparkType) {
-      Types.StructType fileType = DataFile.getType(table().spec().partitionType());
+      Types.StructType fileType = DataFile.getType(spec(specId).partitionType());
       return content == ManifestContent.DATA
           ? new SparkDataFile(combinedFileType, fileType, sparkType)
           : new SparkDeleteFile(combinedFileType, fileType, sparkType);
@@ -541,16 +574,20 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
     @Override
     public Iterator<EntryVerdict> call(Iterator<Row> rows) {
       List<EntryVerdict> verdicts = Lists.newArrayList();
+      // the combined file type and the wrapper are identical for every row of the partition
+      Types.StructType combinedFileType =
+          DataFile.getType(Partitioning.partitionType(context.table()));
+      SparkContentFile<?> fileWrapper = null;
 
       while (rows.hasNext()) {
         Row row = rows.next();
         String manifest = row.getString(0);
         Row fileRow = row.getStruct(4);
-        StructType sparkType = (StructType) fileRow.schema();
-        Types.StructType combinedFileType =
-            DataFile.getType(Partitioning.partitionType(context.table()));
-        ContentFile<?> file =
-            (ContentFile<?>) context.newFileWrapper(combinedFileType, sparkType).wrap(fileRow);
+        if (fileWrapper == null) {
+          fileWrapper = context.newFileWrapper(combinedFileType, (StructType) fileRow.schema());
+        }
+
+        ContentFile<?> file = (ContentFile<?>) fileWrapper.wrap(fileRow);
 
         if (!RepairMetrics.supportsMetrics(file)) {
           continue;
@@ -559,7 +596,7 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
         String location = file.location().toString();
 
         try {
-          org.apache.iceberg.io.InputFile input = context.io().newInputFile(location);
+          InputFile input = context.io().newInputFile(location);
           long fileSizeInBytes = input.getLength();
           Metrics metrics =
               RepairMetrics.readMetrics(
@@ -701,11 +738,16 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
 
     /** Rebuilds the file with the statistics read from the file itself. */
     private ContentFile<?> repairStats(ContentFile<?> file) {
-      org.apache.iceberg.io.InputFile input = context.io().newInputFile(file.location());
+      InputFile input = context.io().newInputFile(file.location());
       long fileSizeInBytes = input.getLength();
       Metrics metrics =
           RepairMetrics.readMetrics(
               input, file, context.metricsConfig(file), context.nameMapping());
+      if (!context.repairColumnMetrics()) {
+        // only the record count and file size are being repaired, so keep the stored column stats
+        metrics = RepairMetrics.recordCountOnly(file, metrics);
+      }
+
       return RepairMetrics.withStats(file, context.spec(file.specId()), metrics, fileSizeInBytes);
     }
 

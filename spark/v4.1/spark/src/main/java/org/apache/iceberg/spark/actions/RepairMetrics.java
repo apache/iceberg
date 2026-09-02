@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.spark.actions;
 
+import static org.apache.iceberg.TableProperties.DEFAULT_NAME_MAPPING;
+
 import java.nio.ByteBuffer;
 import java.util.Map;
 import java.util.Objects;
@@ -53,8 +55,7 @@ class RepairMetrics {
 
   /** Returns the name mapping of the table, or null if the table does not define one. */
   static NameMapping nameMapping(Table table) {
-    String mapping =
-        table.properties().get(org.apache.iceberg.TableProperties.DEFAULT_NAME_MAPPING);
+    String mapping = table.properties().get(DEFAULT_NAME_MAPPING);
     return mapping != null ? NameMappingParser.fromJson(mapping) : null;
   }
 
@@ -140,13 +141,39 @@ class RepairMetrics {
           .withMetrics(metrics)
           .withFileSizeInBytes(fileSizeInBytes)
           .build();
-    } else {
-      return FileMetadata.deleteFileBuilder(spec)
-          .copy((DeleteFile) file)
-          .withMetrics(metrics)
-          .withFileSizeInBytes(fileSizeInBytes)
-          .build();
     }
+
+    DeleteFile delete = (DeleteFile) file;
+    FileMetadata.Builder builder =
+        FileMetadata.deleteFileBuilder(spec)
+            .copy(delete)
+            .withMetrics(metrics)
+            .withFileSizeInBytes(fileSizeInBytes);
+    if (delete.content() == FileContent.EQUALITY_DELETES) {
+      // copy(DeleteFile) drops the equality field ids, so they must be set again. Otherwise the
+      // rewritten entry keeps content EQUALITY_DELETES with null equality ids, which makes reads
+      // fail once the delete is applied.
+      builder.ofEqualityDeletes(
+          delete.equalityFieldIds().stream().mapToInt(Integer::intValue).toArray());
+    }
+
+    return builder.build();
+  }
+
+  /**
+   * Returns metrics carrying the recomputed record count but the column-level statistics stored for
+   * the file, used when column metrics are not being repaired so that a flagged entry has only its
+   * record count and file size corrected.
+   */
+  static Metrics recordCountOnly(ContentFile<?> file, Metrics recomputed) {
+    return new Metrics(
+        recomputed.recordCount(),
+        file.columnSizes(),
+        file.valueCounts(),
+        file.nullValueCounts(),
+        file.nanValueCounts(),
+        file.lowerBounds(),
+        file.upperBounds());
   }
 
   private static boolean countsMatch(Map<Integer, Long> stored, Map<Integer, Long> actual) {
