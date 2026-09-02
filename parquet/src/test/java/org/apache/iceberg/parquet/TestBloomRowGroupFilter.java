@@ -69,6 +69,7 @@ import org.apache.iceberg.types.Types.IntegerType;
 import org.apache.iceberg.types.Types.LongType;
 import org.apache.iceberg.types.Types.StringType;
 import org.apache.iceberg.types.Types.UUIDType;
+import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.parquet.column.values.bloomfilter.BloomFilter;
 import org.apache.parquet.hadoop.BloomFilterReader;
 import org.apache.parquet.hadoop.ParquetFileReader;
@@ -112,7 +113,9 @@ public class TestBloomRowGroupFilter {
           optional(25, "int_decimal", Types.DecimalType.of(8, 2)),
           optional(26, "long_decimal", Types.DecimalType.of(14, 2)),
           optional(27, "fixed_decimal", Types.DecimalType.of(31, 2)),
-          optional(28, "incompatible-name", Types.DecimalType.of(8, 2)));
+          optional(28, "incompatible-name", Types.DecimalType.of(8, 2)),
+          optional(29, "timestamp_nano", Types.TimestampNanoType.withoutZone()),
+          optional(30, "timestamptz_nano", Types.TimestampNanoType.withZone()));
 
   private static final Types.StructType UNDERSCORE_STRUCT_FIELD_TYPE =
       Types.StructType.of(Types.NestedField.required(16, "_int_field", IntegerType.get()));
@@ -144,7 +147,9 @@ public class TestBloomRowGroupFilter {
           optional(25, "_int_decimal", Types.DecimalType.of(8, 2)),
           optional(26, "_long_decimal", Types.DecimalType.of(14, 2)),
           optional(27, "_fixed_decimal", Types.DecimalType.of(31, 2)),
-          optional(28, "_incompatible-name", Types.DecimalType.of(8, 2)));
+          optional(28, "_incompatible-name", Types.DecimalType.of(8, 2)),
+          optional(29, "_timestamp_nano", Types.TimestampNanoType.withoutZone()),
+          optional(30, "_timestamptz_nano", Types.TimestampNanoType.withZone()));
 
   private static final String TOO_LONG_FOR_STATS;
 
@@ -221,6 +226,8 @@ public class TestBloomRowGroupFilter {
             .set(PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "_date", "true")
             .set(PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "_timestamp", "true")
             .set(PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "_timestamptz", "true")
+            .set(PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "_timestamp_nano", "true")
+            .set(PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "_timestamptz_nano", "true")
             .set(PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "_binary", "true")
             .set(PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "_int_decimal", "true")
             .set(PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "_long_decimal", "true")
@@ -257,6 +264,14 @@ public class TestBloomRowGroupFilter {
         builder.set("_date", INSTANT.plusSeconds(i * 86400).getEpochSecond());
         builder.set("_timestamp", INSTANT.plusSeconds(i * 86400).toEpochMilli());
         builder.set("_timestamptz", INSTANT.plusSeconds(i * 86400).toEpochMilli());
+        // store nanos so the written value matches the equal() literal, which assumes the
+        // predicate value is micros and converts it to nanos (see Literals.LongLiteral.to)
+        builder.set(
+            "_timestamp_nano",
+            DateTimeUtil.microsToNanos(INSTANT.plusSeconds(i * 86400).toEpochMilli()));
+        builder.set(
+            "_timestamptz_nano",
+            DateTimeUtil.microsToNanos(INSTANT.plusSeconds(i * 86400).toEpochMilli()));
         builder.set("_binary", RANDOM_BYTES.get(i));
         builder.set("_int_decimal", new BigDecimal(String.valueOf(77.77 + i)));
         builder.set("_long_decimal", new BigDecimal(String.valueOf(88.88 + i)));
@@ -861,6 +876,36 @@ public class TestBloomRowGroupFilter {
         assertThat(shouldRead).as("Should read: timestamptz within range").isTrue();
       } else {
         assertThat(shouldRead).as("Should not read: timestamptz outside range").isFalse();
+      }
+    }
+  }
+
+  @Test
+  public void testTimestampNanoEq() {
+    for (int i = -20; i < INT_VALUE_COUNT + 20; i++) {
+      Instant ins = INSTANT.plusSeconds(i * 86400);
+      boolean shouldRead =
+          new ParquetBloomRowGroupFilter(SCHEMA, equal("timestamp_nano", ins.toEpochMilli()))
+              .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
+      if (i >= 0 && i < INT_VALUE_COUNT) {
+        assertThat(shouldRead).as("Should read: timestamp_nano within range").isTrue();
+      } else {
+        assertThat(shouldRead).as("Should not read: timestamp_nano outside range").isFalse();
+      }
+    }
+  }
+
+  @Test
+  public void testTimestamptzNanoEq() {
+    for (int i = -20; i < INT_VALUE_COUNT + 20; i++) {
+      Instant ins = INSTANT.plusSeconds(i * 86400);
+      boolean shouldRead =
+          new ParquetBloomRowGroupFilter(SCHEMA, equal("timestamptz_nano", ins.toEpochMilli()))
+              .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
+      if (i >= 0 && i < INT_VALUE_COUNT) {
+        assertThat(shouldRead).as("Should read: timestamptz_nano within range").isTrue();
+      } else {
+        assertThat(shouldRead).as("Should not read: timestamptz_nano outside range").isFalse();
       }
     }
   }
