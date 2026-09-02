@@ -142,7 +142,8 @@ import org.mockito.Mockito;
 public class TestRewriteDataFilesAction extends TestBase {
 
   @TempDir private File tableDir;
-  private static final int SCALE = 400000;
+  private static final int SCALE = 400;
+  private static final int LARGE_SCALE = 400000;
 
   private static final HadoopTables TABLES = new HadoopTables(new Configuration());
   private static final Schema SCHEMA =
@@ -291,7 +292,7 @@ public class TestRewriteDataFilesAction extends TestBase {
   public void testBinPackAfterPartitionChange() {
     Table table = createTable();
 
-    writeRecords(20, SCALE, 20);
+    writeRecords(20, LARGE_SCALE, 20);
     table.refresh();
     shouldHaveFiles(table, 20);
     table.updateSpec().addField(Expressions.ref("c1")).commit();
@@ -936,7 +937,7 @@ public class TestRewriteDataFilesAction extends TestBase {
 
   @TestTemplate
   public void testBinPackSplitLargeFile() {
-    Table table = createTable(1);
+    Table table = createTable(1, LARGE_SCALE);
     shouldHaveFiles(table, 1);
 
     List<Object[]> expectedRecords = currentData();
@@ -963,12 +964,12 @@ public class TestRewriteDataFilesAction extends TestBase {
 
   @TestTemplate
   public void testBinPackCombineMixedFiles() {
-    Table table = createTable(1); // 400000
+    Table table = createTable(1, LARGE_SCALE); // 400000
     shouldHaveFiles(table, 1);
 
     // Add one more small file, and one large file
-    writeRecords(1, SCALE);
-    writeRecords(1, SCALE * 3);
+    writeRecords(1, LARGE_SCALE);
+    writeRecords(1, LARGE_SCALE * 3);
     table.refresh();
     shouldHaveFiles(table, 3);
 
@@ -1005,7 +1006,7 @@ public class TestRewriteDataFilesAction extends TestBase {
 
   @TestTemplate
   public void testBinPackCombineMediumFiles() {
-    Table table = createTable(4);
+    Table table = createTable(4, LARGE_SCALE);
     shouldHaveFiles(table, 4);
 
     List<Object[]> expectedRecords = currentData();
@@ -1487,6 +1488,26 @@ public class TestRewriteDataFilesAction extends TestBase {
   }
 
   @TestTemplate
+  public void testMaxFileGroupInputFilesOption() {
+    Table table = createTable(4);
+    shouldHaveFiles(table, 4);
+
+    List<Object[]> originalData = currentData();
+    long dataSizeBefore = testDataSize(table);
+
+    RewriteDataFiles.Result result =
+        basicRewrite(table)
+            .option(SizeBasedFileRewritePlanner.MAX_FILE_GROUP_INPUT_FILES, "2")
+            .execute();
+
+    assertThat(result.rewriteResults()).as("Action should rewrite file groups").isNotEmpty();
+    assertThat(result.rewrittenBytesCount()).isEqualTo(dataSizeBefore);
+
+    table.refresh();
+    assertEquals("Rows must match", originalData, currentData());
+  }
+
+  @TestTemplate
   public void testSortMultipleGroups() {
     Table table = createTable(20);
     shouldHaveFiles(table, 20);
@@ -1617,7 +1638,7 @@ public class TestRewriteDataFilesAction extends TestBase {
   public void testSortCustomSortOrderRequiresRepartition() throws IOException {
     int partitions = 4;
     Table table = createTable();
-    writeRecords(20, SCALE, partitions);
+    writeRecords(20, LARGE_SCALE, partitions);
     table.refresh();
     shouldHaveLastCommitUnsorted(table, "c3");
 
@@ -1684,7 +1705,7 @@ public class TestRewriteDataFilesAction extends TestBase {
 
   @TestTemplate
   public void testAutoSortShuffleOutput() throws IOException {
-    Table table = createTable(20);
+    Table table = createTable(20, LARGE_SCALE);
     shouldHaveLastCommitUnsorted(table, "c2");
     shouldHaveFiles(table, 20);
 
@@ -1776,7 +1797,7 @@ public class TestRewriteDataFilesAction extends TestBase {
   @TestTemplate
   public void testZOrderSort() {
     int originalFiles = 20;
-    Table table = createTable(originalFiles);
+    Table table = createTable(originalFiles, LARGE_SCALE);
     shouldHaveLastCommitUnsorted(table, "c2");
     shouldHaveFiles(table, originalFiles);
 
@@ -1793,6 +1814,84 @@ public class TestRewriteDataFilesAction extends TestBase {
     RewriteDataFiles.Result result =
         basicRewrite(table)
             .zOrder("c2", "c3")
+            .option(
+                SizeBasedFileRewritePlanner.MAX_FILE_SIZE_BYTES,
+                Integer.toString((averageFileSize(table) / 2) + 2))
+            // Divide files in 2
+            .option(
+                RewriteDataFiles.TARGET_FILE_SIZE_BYTES,
+                Integer.toString(averageFileSize(table) / 2))
+            .option(SizeBasedFileRewritePlanner.MIN_INPUT_FILES, "1")
+            .execute();
+
+    assertThat(result.rewriteResults()).as("Should have 1 fileGroups").hasSize(1);
+    assertThat(result.rewrittenBytesCount()).isEqualTo(dataSizeBefore);
+    assertThat(SnapshotChanges.builderFor(table).build().addedDataFiles())
+        .as("Should have written 40+ files")
+        .hasSizeGreaterThanOrEqualTo(40);
+
+    List<Object[]> postRewriteData = currentData();
+    assertEquals("We shouldn't have changed the data", originalData, postRewriteData);
+
+    shouldHaveSnapshots(table, 2);
+    shouldHaveACleanCache(table);
+
+    double filesScannedC2 = percentFilesRequired(table, "c2", "foo23");
+    double filesScannedC3 = percentFilesRequired(table, "c3", "bar21");
+    double filesScannedC2C3 =
+        percentFilesRequired(table, new String[] {"c2", "c3"}, new String[] {"foo23", "bar23"});
+
+    assertThat(originalFilesC2)
+        .as("Should have reduced the number of files required for c2")
+        .isGreaterThan(filesScannedC2);
+    assertThat(originalFilesC3)
+        .as("Should have reduced the number of files required for c3")
+        .isGreaterThan(filesScannedC3);
+    assertThat(originalFilesC2C3)
+        .as("Should have reduced the number of files required for c2,c3 predicate")
+        .isGreaterThan(filesScannedC2C3);
+  }
+
+  @TestTemplate
+  public void hilbertWithHColumnCollision() {
+    Schema schema =
+        new Schema(
+            optional(1, "c1", Types.IntegerType.get()),
+            optional(2, "c2", Types.StringType.get()),
+            optional(3, "ICEHVALUE", Types.StringType.get()));
+
+    Table table =
+        TABLES.create(
+            schema,
+            PartitionSpec.unpartitioned(),
+            ImmutableMap.of(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion)),
+            tableLocation);
+
+    assertThatThrownBy(() -> basicRewrite(table).hilbert("c1", "c2").execute())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot HILBERT because the table has a column named 'ICEHVALUE'");
+  }
+
+  @TestTemplate
+  public void hilbertSort() {
+    int originalFiles = 20;
+    Table table = createTable(originalFiles);
+    shouldHaveLastCommitUnsorted(table, "c2");
+    shouldHaveFiles(table, originalFiles);
+
+    List<Object[]> originalData = currentData();
+    double originalFilesC2 = percentFilesRequired(table, "c2", "foo23");
+    double originalFilesC3 = percentFilesRequired(table, "c3", "bar21");
+    double originalFilesC2C3 =
+        percentFilesRequired(table, new String[] {"c2", "c3"}, new String[] {"foo23", "bar23"});
+
+    assertThat(originalFilesC2).as("Should require all files to scan c2").isGreaterThan(0.99);
+    assertThat(originalFilesC3).as("Should require all files to scan c3").isGreaterThan(0.99);
+
+    long dataSizeBefore = testDataSize(table);
+    RewriteDataFiles.Result result =
+        basicRewrite(table)
+            .hilbert("c2", "c3")
             .option(
                 SizeBasedFileRewritePlanner.MAX_FILE_SIZE_BYTES,
                 Integer.toString((averageFileSize(table) / 2) + 2))
@@ -2144,15 +2243,26 @@ public class TestRewriteDataFilesAction extends TestBase {
   }
 
   @TestTemplate
-  public void testExecutorCacheForDeleteFilesDisabled() {
+  void cacheDeleteFilesOnExecutorsDisabledByDefault() {
     Table table = createTablePartitioned(1, 1);
     RewriteDataFilesSparkAction action = SparkActions.get(spark).rewriteDataFiles(table);
+    action.init(0L);
 
-    // The constructor should have set the configuration to false
     SparkReadConf readConf = new SparkReadConf(action.spark(), table);
-    assertThat(readConf.cacheDeleteFilesOnExecutors())
-        .as("Executor cache for delete files should be disabled in RewriteDataFilesSparkAction")
-        .isFalse();
+    assertThat(readConf.cacheDeleteFilesOnExecutors()).isFalse();
+  }
+
+  @TestTemplate
+  void cacheDeleteFilesOnExecutorsEnabledByOption() {
+    Table table = createTablePartitioned(1, 1);
+    RewriteDataFilesSparkAction action =
+        SparkActions.get(spark)
+            .rewriteDataFiles(table)
+            .option(RewriteDataFilesSparkAction.CACHE_DELETE_FILES, "true");
+    action.init(0L);
+
+    SparkReadConf readConf = new SparkReadConf(action.spark(), table);
+    assertThat(readConf.cacheDeleteFilesOnExecutors()).isTrue();
   }
 
   @TestTemplate
@@ -2398,8 +2508,12 @@ public class TestRewriteDataFilesAction extends TestBase {
    * @return the created table
    */
   protected Table createTable(int files) {
+    return createTable(files, SCALE);
+  }
+
+  protected Table createTable(int files, int numRecords) {
     Table table = createTable();
-    writeRecords(files, SCALE);
+    writeRecords(files, numRecords);
     table.refresh();
     return table;
   }
@@ -2546,7 +2660,7 @@ public class TestRewriteDataFilesAction extends TestBase {
               .newPositionDeleteWriter(encrypt(outputFile), table.spec(), partition);
 
       PositionDelete<Record> posDelete = PositionDelete.create();
-      posDeleteWriter.write(posDelete.set(path, rowPosition, null));
+      posDeleteWriter.write(posDelete.set(path, rowPosition));
       try {
         posDeleteWriter.close();
       } catch (IOException e) {
@@ -2590,7 +2704,7 @@ public class TestRewriteDataFilesAction extends TestBase {
       for (int position = file * positionsPerDeleteFile;
           position < (file + 1) * positionsPerDeleteFile;
           position++) {
-        posDeleteWriter.write(posDelete.set(path, position, null));
+        posDeleteWriter.write(posDelete.set(path, position));
       }
 
       try {

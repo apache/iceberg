@@ -43,12 +43,6 @@ project(":iceberg-azure-bundle") {
     archiveClassifier.set(null)
     zip64 true
 
-    // include the LICENSE and NOTICE files for the shaded Jar
-    from(projectDir) {
-      include 'LICENSE'
-      include 'NOTICE'
-    }
-
     // relocate Azure-specific versions
     relocate 'io.netty', 'org.apache.iceberg.azure.shaded.io.netty'
     relocate 'com.fasterxml.jackson', 'org.apache.iceberg.azure.shaded.com.fasterxml.jackson'

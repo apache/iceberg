@@ -94,20 +94,10 @@ public class SparkWriteConf {
   private final SparkConfParser confParser;
 
   public SparkWriteConf(SparkSession spark, Table table) {
-    this(spark, table, null, CaseInsensitiveStringMap.empty());
+    this(spark, table, CaseInsensitiveStringMap.empty());
   }
 
   public SparkWriteConf(SparkSession spark, Table table, CaseInsensitiveStringMap options) {
-    this(spark, table, null, options);
-  }
-
-  /**
-   * @deprecated since 1.11.0, will be removed in 1.12.0. Use {@link #SparkWriteConf(SparkSession,
-   *     Table, CaseInsensitiveStringMap)} instead.
-   */
-  @Deprecated
-  public SparkWriteConf(
-      SparkSession spark, Table table, String branch, CaseInsensitiveStringMap options) {
     this.spark = spark;
     this.table = table;
     this.sessionConf = spark.conf();

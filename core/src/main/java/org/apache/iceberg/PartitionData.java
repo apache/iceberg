@@ -22,16 +22,12 @@ import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Objects;
-import java.util.stream.Stream;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.IndexedRecord;
 import org.apache.avro.specific.SpecificData;
 import org.apache.avro.util.Utf8;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.hash.Hasher;
-import org.apache.iceberg.relocated.com.google.common.hash.Hashing;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
@@ -196,10 +192,8 @@ public class PartitionData
 
   @Override
   public int hashCode() {
-    Hasher hasher = Hashing.goodFastHash(32).newHasher();
-    Stream.of(data).map(Objects::hashCode).forEach(hasher::putInt);
-    partitionType.fields().stream().map(Objects::hashCode).forEach(hasher::putInt);
-    return hasher.hash().hashCode();
+    int result = partitionType.hashCode();
+    return 31 * result + Arrays.hashCode(data);
   }
 
   public static Object[] copyData(Types.StructType type, Object[] data) {

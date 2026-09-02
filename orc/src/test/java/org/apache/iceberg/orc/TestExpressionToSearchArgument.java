@@ -27,10 +27,12 @@ import static org.apache.iceberg.expressions.Expressions.isNaN;
 import static org.apache.iceberg.expressions.Expressions.isNull;
 import static org.apache.iceberg.expressions.Expressions.lessThan;
 import static org.apache.iceberg.expressions.Expressions.lessThanOrEqual;
+import static org.apache.iceberg.expressions.Expressions.nanos;
 import static org.apache.iceberg.expressions.Expressions.notEqual;
 import static org.apache.iceberg.expressions.Expressions.notIn;
 import static org.apache.iceberg.expressions.Expressions.notNaN;
 import static org.apache.iceberg.expressions.Expressions.notNull;
+import static org.apache.iceberg.expressions.Expressions.predicate;
 import static org.apache.iceberg.expressions.Expressions.year;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
@@ -48,6 +50,7 @@ import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.TimeZone;
 import java.util.UUID;
+import java.util.stream.Stream;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.Binder;
 import org.apache.iceberg.expressions.Expression;
@@ -61,6 +64,8 @@ import org.apache.orc.storage.ql.io.sarg.SearchArgument.TruthValue;
 import org.apache.orc.storage.ql.io.sarg.SearchArgumentFactory;
 import org.apache.orc.storage.serde2.io.HiveDecimalWritable;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 public class TestExpressionToSearchArgument {
 
@@ -491,5 +496,36 @@ public class TestExpressionToSearchArgument {
     SearchArgument actual =
         ExpressionToSearchArgument.convert(boundFilter, ORCSchemaUtil.convert(schema));
     assertThat(actual.toString()).isEqualTo(expected.toString());
+  }
+
+  @ParameterizedTest
+  @MethodSource("timestampNanoTypes")
+  void convertsTimestampNanoPredicates(Types.TimestampNanoType timestampType) {
+    Schema schema = new Schema(optional(1, "ts", timestampType));
+    Instant predicateValue = Instant.parse("2019-10-02T00:47:28.207366123Z");
+    long nanosFromEpoch = ChronoUnit.NANOS.between(Instant.EPOCH, predicateValue);
+
+    Expression expr =
+        and(notNull("ts"), predicate(Expression.Operation.EQ, "ts", nanos(nanosFromEpoch)));
+    Expression boundFilter = Binder.bind(schema.asStruct(), expr, true);
+
+    SearchArgument expected =
+        SearchArgumentFactory.newBuilder()
+            .startAnd()
+            .startNot()
+            .isNull("`ts`", Type.TIMESTAMP)
+            .end()
+            .equals("`ts`", Type.TIMESTAMP, Timestamp.from(predicateValue))
+            .end()
+            .build();
+
+    SearchArgument actual =
+        ExpressionToSearchArgument.convert(boundFilter, ORCSchemaUtil.convert(schema));
+
+    assertThat(actual.toString()).isEqualTo(expected.toString());
+  }
+
+  private static Stream<Types.TimestampNanoType> timestampNanoTypes() {
+    return Stream.of(Types.TimestampNanoType.withoutZone(), Types.TimestampNanoType.withZone());
   }
 }

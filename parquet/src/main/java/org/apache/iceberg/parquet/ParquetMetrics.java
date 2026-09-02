@@ -129,6 +129,7 @@ class ParquetMetrics {
     Map<Integer, Long> valueCounts = Maps.newHashMap();
     Map<Integer, Long> nullValueCounts = Maps.newHashMap();
     Map<Integer, Long> nanValueCounts = Maps.newHashMap();
+    Map<Integer, Integer> avgValueSizes = Maps.newHashMap();
     Map<Integer, ByteBuffer> lowerBounds = Maps.newHashMap();
     Map<Integer, ByteBuffer> upperBounds = Maps.newHashMap();
     Map<Integer, org.apache.iceberg.types.Type> originalTypes = Maps.newHashMap();
@@ -149,6 +150,10 @@ class ParquetMetrics {
 
       if (metrics.nanValueCount() >= 0) {
         nanValueCounts.put(id, metrics.nanValueCount());
+      }
+
+      if (metrics.avgValueSizeInBytes() != null) {
+        avgValueSizes.put(id, metrics.avgValueSizeInBytes());
       }
 
       if (metrics.lowerBound() != null) {
@@ -172,6 +177,7 @@ class ParquetMetrics {
         nanValueCounts,
         lowerBounds,
         upperBounds,
+        avgValueSizes.isEmpty() ? null : avgValueSizes,
         originalTypes);
   }
 
@@ -390,7 +396,8 @@ class ParquetMetrics {
 
       List<ParquetVariantUtil.VariantMetrics> results =
           Lists.newArrayList(
-              ParquetVariantVisitor.visit(variant, new MetricsVariantVisitor(currentPath())));
+              ParquetVariantVisitor.visit(
+                  variant, new MetricsVariantVisitor(currentPath(), truncateLength(mode))));
 
       if (results.isEmpty()) {
         return ImmutableList.of();
@@ -442,9 +449,11 @@ class ParquetMetrics {
         extends ParquetVariantVisitor<Iterable<ParquetVariantUtil.VariantMetrics>> {
       private final Deque<String> fieldNames = Lists.newLinkedList();
       private final String[] basePath;
+      private final int truncateLength;
 
-      private MetricsVariantVisitor(String[] basePath) {
+      private MetricsVariantVisitor(String[] basePath, int truncateLength) {
         this.basePath = basePath;
+        this.truncateLength = truncateLength;
       }
 
       @Override
@@ -624,10 +633,11 @@ class ParquetMetrics {
           return null;
         }
 
-        if (lowerBound != null && upperBound != null) {
+        if (lowerBound != null && upperBound != null && truncateLength > 0) {
           VariantValue lower = Variants.of(variantType, lowerBound);
           VariantValue upper = Variants.of(variantType, upperBound);
-          return new ParquetVariantUtil.VariantMetrics(valueCount, nullCount, lower, upper);
+          return new ParquetVariantUtil.VariantMetrics(
+              valueCount, nullCount, lower, upper, truncateLength);
         } else {
           return new ParquetVariantUtil.VariantMetrics(valueCount, nullCount);
         }

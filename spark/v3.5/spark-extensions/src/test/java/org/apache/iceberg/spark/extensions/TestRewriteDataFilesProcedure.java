@@ -628,7 +628,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
     sql(
         "CALL %s.system.rewrite_data_files(table => '%s'," + " where => 'c2 like \"%s\"')",
         catalogName, tableIdent, "car%");
-    // TODO: Enable when org.apache.iceberg.spark.SparkFilters have implementations for
+    // TODO: Enable when org.apache.iceberg.spark.SparkV2Filters has implementations for
     // StringEndsWith & StringContains
     // StringEndsWith
     // sql("CALL %s.system.rewrite_data_files(table => '%s'," +

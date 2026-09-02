@@ -53,6 +53,15 @@ public class FetchScanTasksResponse extends BaseScanTaskResponse {
     return new Builder();
   }
 
+  /**
+   * Returns a new builder pre-populated with the given partition specs map. Required for server
+   * responses that serialize {@code fileScanTasks} or {@code deleteFiles}; the specs are used only
+   * to serialize partition data and are never written to the response payload.
+   */
+  public static Builder builder(Map<Integer, PartitionSpec> specsById) {
+    return new Builder().withSpecsById(specsById);
+  }
+
   public static class Builder
       extends BaseScanTaskResponse.Builder<Builder, FetchScanTasksResponse> {
     private Builder() {}

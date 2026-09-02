@@ -32,10 +32,13 @@ Iceberg tables support table properties to configure table behavior, like the de
 | read.split.metadata-target-size   | 33554432 (32 MB)   | Target size when combining metadata input splits       |
 | read.split.planning-lookback      | 10                 | Number of bins to consider when combining input splits |
 | read.split.open-file-cost         | 4194304 (4 MB)     | The estimated cost to open a file, used as a minimum weight when combining splits. |
+| read.split.adaptive-size.enabled  | true               | Controls whether the split size is adjusted adaptively to the scan size and available parallelism when no explicit split size is set |
 | read.parquet.vectorization.enabled| true               | Controls whether Parquet vectorized reads are used     |
 | read.parquet.vectorization.batch-size| 5000            | The batch size for parquet vectorized reads            |
 | read.orc.vectorization.enabled    | false              | Controls whether orc vectorized reads are used         |
 | read.orc.vectorization.batch-size | 5000               | The batch size for orc vectorized reads                |
+| read.data-planning-mode           | auto               | Mode used to plan data manifests: auto, local, or distributed |
+| read.delete-planning-mode         | auto               | Mode used to plan delete manifests: auto, local, or distributed |
 
 ### Write properties
 
@@ -51,8 +54,8 @@ Iceberg tables support table properties to configure table behavior, like the de
 | write.parquet.dict-size-bytes                       | 2097152 (2 MB)              | Parquet dictionary page size                                                                                                                                                                                                                       |
 | write.parquet.compression-codec                     | zstd                        | Parquet compression codec: zstd, brotli, lz4, gzip, snappy, uncompressed                                                                                                                                                                           |
 | write.parquet.compression-level                     | null                        | Parquet compression level                                                                                                                                                                                                                          |
-| write.parquet.shred-variants                        | false                       | When true, variant columns are written with shredded Parquet encoding for improved query performance                                                                                                                                               |
-| write.parquet.variant-inference-buffer-size         | 100                         | Number of rows to buffer for schema inference when variant shredding is enabled                                                                                                                                                                    |
+| write.parquet.shred-variants                        | false                       | When true, variant columns are written with shredded Parquet encoding for improved query performance. Each data file infers its shredded layout independently from its own buffered rows, so files in the same snapshot may shred different fields |
+| write.parquet.variant-inference-buffer-size         | 100                         | Number of rows to buffer for schema inference when variant shredding is enabled. Larger values sample more rows for a more representative layout at the cost of memory |
 | write.parquet.bloom-filter-enabled.column.col1      | (not set)                   | Hint to parquet to write a bloom filter for the column: 'col1'                                                                                                                                                                                     |
 | write.parquet.bloom-filter-max-bytes                | 1048576 (1 MB)              | The maximum number of bytes for a bloom filter bitset                                                                                                                                                                                              |
 | write.parquet.bloom-filter-fpp.column.col1          | 0.01                        | The false positive probability for a bloom filter applied to 'col1' (must > 0.0 and < 1.0)                                                                                                                                                         |

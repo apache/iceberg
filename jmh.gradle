@@ -30,12 +30,16 @@ if (flinkVersions.contains("1.20")) {
   jmhProjects.add(project(":iceberg-flink:iceberg-flink-1.20"))
 }
 
-if (flinkVersions.contains("2.0")) {
-  jmhProjects.add(project(":iceberg-flink:iceberg-flink-2.0"))
-}
-
 if (flinkVersions.contains("2.1")) {
     jmhProjects.add(project(":iceberg-flink:iceberg-flink-2.1"))
+}
+
+if (flinkVersions.contains("2.2")) {
+    jmhProjects.add(project(":iceberg-flink:iceberg-flink-2.2"))
+}
+
+if (flinkVersions.contains("2.3")) {
+    jmhProjects.add(project(":iceberg-flink:iceberg-flink-2.3"))
 }
 
 if (sparkVersions.contains("3.5")) {
