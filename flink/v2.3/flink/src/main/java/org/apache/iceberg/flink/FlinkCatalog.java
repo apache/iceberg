@@ -475,6 +475,11 @@ public class FlinkCatalog extends AbstractCatalog {
           return;
         } catch (NoSuchViewException viewException) {
           e.addSuppressed(viewException);
+        } catch (AlreadyExistsException alreadyExistsException) {
+          throw new TableAlreadyExistException(
+              getName(),
+              new ObjectPath(tablePath.getDatabaseName(), newTableName),
+              alreadyExistsException);
         }
       }
 
@@ -482,7 +487,8 @@ public class FlinkCatalog extends AbstractCatalog {
         throw new TableNotExistException(getName(), tablePath, e);
       }
     } catch (AlreadyExistsException e) {
-      throw new TableAlreadyExistException(getName(), tablePath, e);
+      throw new TableAlreadyExistException(
+          getName(), new ObjectPath(tablePath.getDatabaseName(), newTableName), e);
     }
   }
 
