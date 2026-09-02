@@ -20,6 +20,7 @@ package org.apache.iceberg.flink;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
@@ -104,25 +105,64 @@ class TestFlinkVariantType extends CatalogTestBase {
         .appendToTable(builder.build());
     icebergTable.refresh();
 
-    List<GenericRowData> genericRowData = Lists.newArrayList();
-    try (CloseableIterable<CombinedScanTask> combinedScanTasks =
-        icebergTable.newScan().planTasks()) {
-      for (CombinedScanTask combinedScanTask : combinedScanTasks) {
-        try (DataIterator<RowData> dataIterator =
-            ReaderUtil.createDataIterator(
-                combinedScanTask, icebergTable.schema(), icebergTable.schema())) {
-          while (dataIterator.hasNext()) {
-            GenericRowData rowData = (GenericRowData) dataIterator.next();
-            genericRowData.add(rowData);
-          }
-        }
-      }
-    }
+    List<GenericRowData> genericRowData = readRowData(icebergTable);
 
     assertThat(genericRowData).hasSize(1);
     assertThat(genericRowData.get(0).getField(1)).isInstanceOf(BinaryVariant.class);
     BinaryVariant binaryVariant = (BinaryVariant) genericRowData.get(0).getField(1);
     assertThat(binaryVariant.getField("name").getString()).isEqualTo("John Doe");
     assertThat(binaryVariant.getField("age").getByte()).isEqualTo((byte) 30);
+  }
+
+  @TestTemplate
+  public void testReadMultipleVariantColumns() throws Exception {
+    String multiTable = "multi_variant_table";
+    sql(
+        "CREATE TABLE %s (id int, v1 variant, v2 variant) "
+            + "with ('write.format.default'='%s','format-version'='3')",
+        multiTable, FileFormat.PARQUET.name());
+    Table table = validationCatalog.loadTable(TableIdentifier.of(icebergNamespace, multiTable));
+
+    VariantMetadata metadata = Variants.metadata("name", "city");
+    ShreddedObject value1 = Variants.object(metadata);
+    value1.put("name", Variants.of("Alice"));
+    ShreddedObject value2 = Variants.object(metadata);
+    value2.put("city", Variants.of("Seattle"));
+
+    new GenericAppenderHelper(table, FileFormat.PARQUET, warehouseDir)
+        .appendToTable(
+            ImmutableList.of(
+                GenericRecord.create(table.schema())
+                    .copy(
+                        "id", 1,
+                        "v1", Variant.of(metadata, value1),
+                        "v2", Variant.of(metadata, value2))));
+    table.refresh();
+
+    List<GenericRowData> rows = readRowData(table);
+    assertThat(rows).hasSize(1);
+    assertThat(rows.get(0).getField(1)).isInstanceOf(BinaryVariant.class);
+    assertThat(rows.get(0).getField(2)).isInstanceOf(BinaryVariant.class);
+    assertThat(((BinaryVariant) rows.get(0).getField(1)).getField("name").getString())
+        .isEqualTo("Alice");
+    assertThat(((BinaryVariant) rows.get(0).getField(2)).getField("city").getString())
+        .isEqualTo("Seattle");
+
+    sql("DROP TABLE %s", multiTable);
+  }
+
+  private List<GenericRowData> readRowData(Table table) throws IOException {
+    List<GenericRowData> rows = Lists.newArrayList();
+    try (CloseableIterable<CombinedScanTask> tasks = table.newScan().planTasks()) {
+      for (CombinedScanTask task : tasks) {
+        try (DataIterator<RowData> iter =
+            ReaderUtil.createDataIterator(task, table.schema(), table.schema())) {
+          while (iter.hasNext()) {
+            rows.add((GenericRowData) iter.next());
+          }
+        }
+      }
+    }
+    return rows;
   }
 }
