@@ -612,4 +612,58 @@ public class TestContentFileParser {
     assertThat(actual.equalityFieldIds()).isEqualTo(expected.equalityFieldIds());
     assertThat(actual.sortOrderId()).isEqualTo(expected.sortOrderId());
   }
+
+  @Test
+  void partitionSerializationWithDroppedSourceColumn() throws Exception {
+    // Reproduce the scenario from Issue #17324:
+    // A data file was written with a partition spec that includes column "c",
+    // but "c" has since been dropped from the table schema.
+    Schema fullSchema =
+        new Schema(
+            Types.NestedField.required(1, "a", Types.StringType.get()),
+            Types.NestedField.required(2, "b", Types.BooleanType.get()),
+            Types.NestedField.required(3, "c", Types.DateType.get()),
+            Types.NestedField.required(4, "d", Types.IntegerType.get()));
+
+    PartitionSpec originalSpec =
+        PartitionSpec.builderFor(fullSchema).identity("a").identity("c").build();
+
+    PartitionData partitionData = new PartitionData(originalSpec.partitionType());
+    partitionData.set(0, "test");
+    // DATE type is stored as days since epoch
+    partitionData.set(1, 4888);
+
+    DataFile dataFile =
+        DataFiles.builder(originalSpec)
+            .withPath("/path/to/data.parquet")
+            .withFileSizeInBytes(10)
+            .withRecordCount(1)
+            .withPartition(partitionData)
+            .build();
+
+    // Simulate schema evolution: column "c" is dropped
+    Schema evolvedSchema =
+        new Schema(
+            Types.NestedField.required(1, "a", Types.StringType.get()),
+            Types.NestedField.required(2, "b", Types.BooleanType.get()),
+            Types.NestedField.required(4, "d", Types.IntegerType.get()));
+
+    // Re-bind the spec to the evolved schema (as done for historical specs)
+    PartitionSpec evolvedSpec = originalSpec.toUnbound().bind(evolvedSchema, true);
+
+    // Serialization must produce valid JSON instead of throwing mid-stream
+    String json = ContentFileParser.toJson(dataFile, evolvedSpec);
+    assertThat(json).contains("\"partition\":");
+    // The dropped column value is serialized as its string representation
+    assertThat(json).contains("\"partition\":[\"test\",\"4888\"]");
+
+    // Verify round-trip deserialization
+    JsonNode jsonNode = JsonUtil.mapper().readTree(json);
+    ContentFile<?> parsed =
+        ContentFileParser.fromJson(jsonNode, Map.of(evolvedSpec.specId(), evolvedSpec));
+    assertThat(parsed).isInstanceOf(DataFile.class);
+    assertThat(parsed.partition().get(0, String.class)).isEqualTo("test");
+    // The dropped column value is preserved as a string
+    assertThat(parsed.partition().get(1, String.class)).isEqualTo("4888");
+  }
 }

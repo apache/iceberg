@@ -180,6 +180,10 @@ public class SingleValueParser {
         return mapFromJson(type, defaultValue);
       case STRUCT:
         return structFromJson(type, defaultValue);
+      case UNKNOWN:
+        Preconditions.checkArgument(
+            defaultValue.isTextual(), "Cannot parse default as a %s value: %s", type, defaultValue);
+        return defaultValue.textValue();
       default:
         throw new UnsupportedOperationException(String.format("Type: %s is not supported", type));
     }
@@ -409,6 +413,9 @@ public class SingleValueParser {
           }
         }
         generator.writeEndObject();
+        break;
+      case UNKNOWN:
+        generator.writeString(String.valueOf(defaultValue));
         break;
       default:
         throw new UnsupportedOperationException(String.format("Type: %s is not supported", type));
