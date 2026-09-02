@@ -2395,8 +2395,9 @@ components:
         Clients must interpret either `null` or missing response value of `next-page-token` as
         the end of the listing results.
 
-      type: string
-      nullable: true
+      type:
+        - string
+        - "null"
 
     TableIdentifier:
       type: object
@@ -2408,7 +2409,6 @@ components:
           $ref: '#/components/schemas/Namespace'
         name:
           type: string
-          nullable: false
 
     CatalogObjectIdentifier:
       description:
@@ -3724,9 +3724,10 @@ components:
         ref:
           type: string
         snapshot-id:
-          type: integer
+          type:
+            - integer
+            - "null"
           format: int64
-          nullable: true
 
     AssertLastAssignedFieldId:
       description:
@@ -3902,9 +3903,10 @@ components:
         - metadata
       properties:
         metadata-location:
-          type: string
+          type:
+            - string
+            - "null"
           description: May be null if the table is staged as part of a transaction
-          nullable: true
         metadata:
           $ref: '#/components/schemas/TableMetadata'
         config:
@@ -4581,16 +4583,17 @@ components:
         namespace:
           $ref: '#/components/schemas/Namespace'
         properties:
-          type: object
+          anyOf:
+            - type: object
+              additionalProperties:
+                type: string
+            - type: "null"
           description:
             Properties stored on the namespace, if supported by the server.
             If the server does not support namespace properties, it should return null for this field.
             If namespace properties are supported, but none are set, it should return an empty object.
-          additionalProperties:
-            type: string
           example: { "owner": "Ralph", 'transient_lastDdlTime': '1452120468' }
           default: { }
-          nullable: true
 
     ListTablesResponse:
       type: object
@@ -4919,14 +4922,15 @@ components:
           items:
             type: string
         missing:
-          type: array
+          type:
+            - array
+            - "null"
           items:
             type: string
           description:
             List of properties requested for removal that were not found
             in the namespace's properties. Represents a partial success response.
             Server's do not need to implement this.
-          nullable: true
 
     CommitTableResponse:
       type: object
