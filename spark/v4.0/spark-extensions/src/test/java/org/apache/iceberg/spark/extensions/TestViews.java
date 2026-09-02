@@ -2001,6 +2001,33 @@ public class TestViews extends ExtensionsTestBase {
   }
 
   @TestTemplate
+  public void replacingViewWithDialectAppendAllowed() {
+    String viewName = viewName("trinoView");
+    String sql = String.format("SELECT id FROM %s", tableName);
+
+    ViewCatalog viewCatalog = viewCatalog();
+
+    viewCatalog
+        .buildView(TableIdentifier.of(NAMESPACE, viewName))
+        .withQuery("trino", sql)
+        .withDefaultNamespace(NAMESPACE)
+        .withDefaultCatalog(catalogName)
+        .withSchema(schema(sql))
+        .create();
+
+    // appending the spark dialect should retain the trino dialect
+    sql(
+        "CREATE OR REPLACE VIEW %s TBLPROPERTIES ('%s'='true') AS SELECT id FROM %s",
+        viewName, ViewProperties.REPLACE_APPEND_DIALECT_ALLOWED, tableName);
+
+    View view = viewCatalog.loadView(TableIdentifier.of(NAMESPACE, viewName));
+    assertThat(view.currentVersion().representations())
+        .containsExactly(
+            ImmutableSQLViewRepresentation.builder().dialect("spark").sql(sql).build(),
+            ImmutableSQLViewRepresentation.builder().dialect("trino").sql(sql).build());
+  }
+
+  @TestTemplate
   public void createViewWithRecursiveCycle() {
     String viewOne = viewName("viewOne");
     String viewTwo = viewName("viewTwo");

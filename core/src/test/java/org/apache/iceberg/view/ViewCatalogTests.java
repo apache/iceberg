@@ -1390,6 +1390,102 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
   }
 
   @Test
+  public void replaceViewVersionAppendsDialect() {
+    TableIdentifier identifier = TableIdentifier.of("ns", "view");
+
+    if (requiresNamespaceCreate()) {
+      catalog().createNamespace(identifier.namespace());
+    }
+
+    assertThat(catalog().viewExists(identifier)).as("View should not exist").isFalse();
+
+    SQLViewRepresentation trino =
+        ImmutableSQLViewRepresentation.builder()
+            .sql("select * from ns.tbl")
+            .dialect("trino")
+            .build();
+
+    SQLViewRepresentation spark =
+        ImmutableSQLViewRepresentation.builder()
+            .sql("select count(*) from ns.tbl")
+            .dialect("spark")
+            .build();
+
+    View view =
+        catalog()
+            .buildView(identifier)
+            .withSchema(SCHEMA)
+            .withDefaultNamespace(identifier.namespace())
+            .withQuery(trino.dialect(), trino.sql())
+            .withProperty(ViewProperties.REPLACE_APPEND_DIALECT_ALLOWED, "true")
+            .create();
+
+    assertThat(view.currentVersion().representations()).containsExactly(trino);
+
+    // replacing the version with a different dialect retains trino
+    view.replaceVersion()
+        .withSchema(SCHEMA)
+        .withDefaultNamespace(identifier.namespace())
+        .withQuery(spark.dialect(), spark.sql())
+        .commit();
+
+    View updatedView = catalog().loadView(identifier);
+    assertThat(updatedView.currentVersion().representations()).containsExactly(spark, trino);
+    assertThat(updatedView.sqlFor("trino")).isEqualTo(trino);
+    assertThat(updatedView.sqlFor("spark")).isEqualTo(spark);
+
+    assertThat(catalog().dropView(identifier)).isTrue();
+    assertThat(catalog().viewExists(identifier)).as("View should not exist").isFalse();
+  }
+
+  @ParameterizedTest(name = "appendDialect with .createOrReplace() = {arguments}")
+  @ValueSource(booleans = {false, true})
+  public void replaceViewAppendsDialect(boolean useCreateOrReplace) {
+    TableIdentifier identifier = TableIdentifier.of("ns", "view");
+
+    if (requiresNamespaceCreate()) {
+      catalog().createNamespace(identifier.namespace());
+    }
+
+    assertThat(catalog().viewExists(identifier)).as("View should not exist").isFalse();
+
+    SQLViewRepresentation trino =
+        ImmutableSQLViewRepresentation.builder()
+            .sql("select * from ns.tbl")
+            .dialect("trino")
+            .build();
+
+    SQLViewRepresentation spark =
+        ImmutableSQLViewRepresentation.builder()
+            .sql("select count(*) from ns.tbl")
+            .dialect("spark")
+            .build();
+
+    catalog()
+        .buildView(identifier)
+        .withSchema(SCHEMA)
+        .withDefaultNamespace(identifier.namespace())
+        .withQuery(trino.dialect(), trino.sql())
+        .create();
+
+    // enabling appending as part of the replace operation retains trino
+    ViewBuilder viewBuilder =
+        catalog()
+            .buildView(identifier)
+            .withSchema(OTHER_SCHEMA)
+            .withDefaultNamespace(identifier.namespace())
+            .withQuery(spark.dialect(), spark.sql())
+            .withProperty(ViewProperties.REPLACE_APPEND_DIALECT_ALLOWED, "true");
+    View replacedView = useCreateOrReplace ? viewBuilder.createOrReplace() : viewBuilder.replace();
+
+    assertThat(replacedView.currentVersion().representations()).containsExactly(spark, trino);
+    assertThat(replacedView.schema().asStruct()).isEqualTo(OTHER_SCHEMA.asStruct());
+
+    assertThat(catalog().dropView(identifier)).isTrue();
+    assertThat(catalog().viewExists(identifier)).as("View should not exist").isFalse();
+  }
+
+  @Test
   public void replaceViewVersionErrorCases() {
     TableIdentifier identifier = TableIdentifier.of("ns", "view");
 
