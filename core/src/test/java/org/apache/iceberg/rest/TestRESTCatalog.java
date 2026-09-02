@@ -20,6 +20,7 @@ package org.apache.iceberg.rest;
 
 import static org.apache.iceberg.rest.RequestMatcher.containsHeaders;
 import static org.apache.iceberg.rest.RequestMatcher.matches;
+import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -30,6 +31,7 @@ import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -70,6 +72,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TestCatalogUtil;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.UpdatePartitionSpec;
@@ -439,6 +442,30 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   }
 
   /* RESTCatalog specific tests */
+
+  @Test
+  public void testCreateV2TableWithVariantColumnFailsClientSide() {
+    if (requiresNamespaceCreate()) {
+      restCatalog.createNamespace(TBL.namespace());
+    }
+
+    Schema variantSchema =
+        new Schema(
+            required(1, "id", Types.LongType.get()), optional(2, "data", Types.VariantType.get()));
+
+    assertThatThrownBy(
+            () ->
+                restCatalog
+                    .buildTable(TBL, variantSchema)
+                    .withProperty(TableProperties.FORMAT_VERSION, "2")
+                    .create())
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("variant is not supported until v3");
+
+    verify(adapterForRESTServer, never())
+        .execute(
+            matches(HTTPMethod.POST, RESOURCE_PATHS.tables(TBL.namespace())), any(), any(), any());
+  }
 
   @Test
   public void testConfigRoute() throws IOException {
