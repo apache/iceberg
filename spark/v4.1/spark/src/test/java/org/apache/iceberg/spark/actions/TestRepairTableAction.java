@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.actions;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assumptions.assumeThat;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.spy;
@@ -40,6 +41,7 @@ import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileMetadata;
+import org.apache.iceberg.Files;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.ManifestFiles;
 import org.apache.iceberg.ManifestWriter;
@@ -53,16 +55,21 @@ import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.actions.RepairTable;
+import org.apache.iceberg.data.FileHelpers;
+import org.apache.iceberg.data.GenericRecord;
+import org.apache.iceberg.data.Record;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.HadoopTables;
+import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.TestBase;
 import org.apache.iceberg.spark.source.ThreeColumnRecord;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.Pair;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.junit.jupiter.api.BeforeEach;
@@ -334,8 +341,14 @@ public class TestRepairTableAction extends TestBase {
         .as("the file size must be repaired")
         .isEqualTo(original.fileSizeInBytes());
     assertThat(repaired.valueCounts())
-        .as("the stored column stats must be kept, not replaced with recomputed ones")
+        .as("value counts must be kept, not replaced with recomputed ones")
         .isEqualTo(corrupt.valueCounts());
+    assertThat(repaired.nullValueCounts())
+        .as("null value counts must be kept, not replaced with recomputed ones")
+        .isEqualTo(corrupt.nullValueCounts());
+    assertThat(repaired.columnSizes())
+        .as("column sizes must be kept, not replaced with recomputed ones")
+        .isEqualTo(corrupt.columnSizes());
   }
 
   @TestTemplate
@@ -359,6 +372,154 @@ public class TestRepairTableAction extends TestBase {
     assertThat(((DeleteFile) rebuilt).equalityFieldIds())
         .as("equality field ids must survive a rebuild")
         .containsExactly(2, 3);
+  }
+
+  @TestTemplate
+  public void testRepairEqualityDeleteStats() throws IOException {
+    assumeThat(formatVersion)
+        .as("delete files require format version 2 or higher")
+        .isGreaterThanOrEqualTo(2);
+    Table table = createTable(PartitionSpec.unpartitioned());
+    appendRecords(table, records(4));
+
+    // write a real equality delete file, whose statistics on disk are correct, then commit an entry
+    // for it that records the wrong statistics, mimicking a writer that recorded them incorrectly
+    DeleteFile delete = writeEqDeletes(table, "c1", 0);
+    DeleteFile corruptEntry =
+        FileMetadata.deleteFileBuilder(table.spec())
+            .copy(delete)
+            .ofEqualityDeletes(
+                delete.equalityFieldIds().stream().mapToInt(Integer::intValue).toArray())
+            .withRecordCount(delete.recordCount() + 100)
+            .withFileSizeInBytes(delete.fileSizeInBytes() + 4096)
+            .build();
+    table.newRowDelta().addDeletes(corruptEntry).commit();
+    table.refresh();
+
+    RepairTable.Result result = SparkActions.get().repairTable(table).repairFileMetrics().execute();
+
+    assertThat(result.repairedEntryCount()).isEqualTo(1);
+
+    table.refresh();
+    DeleteFile repaired = onlyDeleteFile(table);
+    assertThat(repaired.recordCount())
+        .as("the record count must be repaired")
+        .isEqualTo(delete.recordCount());
+    assertThat(repaired.fileSizeInBytes())
+        .as("the file size must be repaired")
+        .isEqualTo(delete.fileSizeInBytes());
+    assertThat(repaired.content()).isEqualTo(FileContent.EQUALITY_DELETES);
+    assertThat(repaired.equalityFieldIds())
+        .as("equality field ids must survive the repair")
+        .isEqualTo(delete.equalityFieldIds());
+  }
+
+  @TestTemplate
+  public void testRepairPositionDeleteStats() throws IOException {
+    assumeThat(formatVersion)
+        .as("position deletes are written as parquet files in format version 2")
+        .isEqualTo(2);
+    Table table = createTable(PartitionSpec.unpartitioned());
+    appendRecords(table, records(4));
+    DataFile dataFile = onlyDataFile(table);
+
+    DeleteFile delete =
+        writePosDeletes(table, Lists.newArrayList(Pair.of(dataFile.location(), 0L)));
+    DeleteFile corruptEntry =
+        FileMetadata.deleteFileBuilder(table.spec())
+            .copy(delete)
+            .withRecordCount(delete.recordCount() + 100)
+            .withFileSizeInBytes(delete.fileSizeInBytes() + 4096)
+            .build();
+    table.newRowDelta().addDeletes(corruptEntry).commit();
+    table.refresh();
+
+    RepairTable.Result result = SparkActions.get().repairTable(table).repairFileMetrics().execute();
+
+    assertThat(result.repairedEntryCount()).isEqualTo(1);
+
+    table.refresh();
+    DeleteFile repaired = onlyDeleteFile(table);
+    assertThat(repaired.recordCount())
+        .as("the record count must be repaired")
+        .isEqualTo(delete.recordCount());
+    assertThat(repaired.fileSizeInBytes())
+        .as("the file size must be repaired")
+        .isEqualTo(delete.fileSizeInBytes());
+    assertThat(repaired.content()).isEqualTo(FileContent.POSITION_DELETES);
+  }
+
+  @TestTemplate
+  public void testRepairDeleteManifestHoldingBothDeleteTypes() throws IOException {
+    assumeThat(formatVersion)
+        .as("position deletes are written as parquet files in format version 2")
+        .isEqualTo(2);
+    Table table = createTable(PartitionSpec.unpartitioned());
+    appendRecords(table, records(4));
+    DataFile dataFile = onlyDataFile(table);
+
+    DeleteFile posDelete =
+        writePosDeletes(table, Lists.newArrayList(Pair.of(dataFile.location(), 0L)));
+    DeleteFile eqDelete = writeEqDeletes(table, "c1", 1);
+
+    // commit both deletes together so they share a single delete manifest, whose entries then have
+    // two different content types and therefore two different metrics configs
+    DeleteFile posEntry =
+        FileMetadata.deleteFileBuilder(table.spec())
+            .copy(posDelete)
+            .withRecordCount(posDelete.recordCount() + 100)
+            .withFileSizeInBytes(posDelete.fileSizeInBytes() + 4096)
+            .build();
+    DeleteFile eqEntry =
+        FileMetadata.deleteFileBuilder(table.spec())
+            .copy(eqDelete)
+            .ofEqualityDeletes(
+                eqDelete.equalityFieldIds().stream().mapToInt(Integer::intValue).toArray())
+            .withRecordCount(eqDelete.recordCount() + 100)
+            .withFileSizeInBytes(eqDelete.fileSizeInBytes() + 4096)
+            .build();
+    table.newRowDelta().addDeletes(posEntry).addDeletes(eqEntry).commit();
+    table.refresh();
+    assertThat(table.currentSnapshot().deleteManifests(table.io()))
+        .as("both deletes must land in a single manifest for this to exercise mixed content")
+        .hasSize(1);
+
+    // enable column metrics so the metrics config actually matters: the equality delete must be
+    // repaired under the table's config, not the position delete's, which is what keying the config
+    // by content type ensures
+    RepairTable.Result result =
+        SparkActions.get()
+            .repairTable(table)
+            .repairFileMetrics()
+            .option(RepairTableSparkAction.REPAIR_COLUMN_METRICS, "true")
+            .execute();
+
+    assertThat(result.repairedEntryCount()).isEqualTo(2);
+
+    table.refresh();
+    Map<String, DeleteFile> repairedByPath = Maps.newHashMap();
+    for (DeleteFile file :
+        readDeleteFiles(table, table.currentSnapshot().deleteManifests(table.io()).get(0))) {
+      repairedByPath.put(file.location(), file);
+    }
+
+    DeleteFile repairedPos = repairedByPath.get(posDelete.location());
+    assertThat(repairedPos.content()).isEqualTo(FileContent.POSITION_DELETES);
+    assertThat(repairedPos.recordCount()).isEqualTo(posDelete.recordCount());
+    assertThat(repairedPos.fileSizeInBytes()).isEqualTo(posDelete.fileSizeInBytes());
+
+    DeleteFile repairedEq = repairedByPath.get(eqDelete.location());
+    assertThat(repairedEq.content()).isEqualTo(FileContent.EQUALITY_DELETES);
+    assertThat(repairedEq.recordCount()).isEqualTo(eqDelete.recordCount());
+    assertThat(repairedEq.fileSizeInBytes()).isEqualTo(eqDelete.fileSizeInBytes());
+    assertThat(repairedEq.equalityFieldIds())
+        .as("equality field ids must survive the repair of a mixed manifest")
+        .isEqualTo(eqDelete.equalityFieldIds());
+    // the equality delete's column stats must be recomputed under the table's config; had the
+    // position delete's config been used for it, the value counts would differ from the file
+    assertThat(repairedEq.valueCounts())
+        .as("equality delete column stats must be recomputed under its own metrics config")
+        .isEqualTo(eqDelete.valueCounts());
   }
 
   @TestTemplate
@@ -656,6 +817,45 @@ public class TestRepairTableAction extends TestBase {
     }
 
     return files;
+  }
+
+  private DeleteFile onlyDeleteFile(Table table) throws IOException {
+    table.refresh();
+    List<ManifestFile> manifests = table.currentSnapshot().deleteManifests(table.io());
+    assertThat(manifests).hasSize(1);
+    List<DeleteFile> files = readDeleteFiles(table, manifests.get(0));
+    assertThat(files).hasSize(1);
+    return files.get(0);
+  }
+
+  private List<DeleteFile> readDeleteFiles(Table table, ManifestFile manifest) throws IOException {
+    List<DeleteFile> files = Lists.newArrayList();
+    try (org.apache.iceberg.io.CloseableIterable<DeleteFile> reader =
+        ManifestFiles.readDeleteManifest(manifest, table.io(), table.specs())) {
+      reader.forEach(file -> files.add(file.copy()));
+    }
+
+    return files;
+  }
+
+  private DeleteFile writeEqDeletes(Table table, String key, Object... values) throws IOException {
+    Schema deleteSchema = table.schema().select(key);
+    Record template = GenericRecord.create(deleteSchema);
+    List<Record> deletes = Lists.newArrayList();
+    for (Object value : values) {
+      deletes.add(template.copy(key, value));
+    }
+
+    OutputFile output =
+        Files.localOutput(File.createTempFile("eq-deletes", ".parquet", temp.toFile()));
+    return FileHelpers.writeDeleteFile(table, output, null, deletes, deleteSchema);
+  }
+
+  private DeleteFile writePosDeletes(Table table, List<Pair<CharSequence, Long>> deletes)
+      throws IOException {
+    OutputFile output =
+        Files.localOutput(File.createTempFile("pos-deletes", ".parquet", temp.toFile()));
+    return FileHelpers.writeDeleteFile(table, output, null, deletes, formatVersion).first();
   }
 
   private void replaceManifestWithCorruptStats(Table table, DataFile file) throws IOException {
