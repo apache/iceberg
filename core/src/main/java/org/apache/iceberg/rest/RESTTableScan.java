@@ -52,6 +52,7 @@ import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.rest.responses.FetchPlanningResultResponse;
 import org.apache.iceberg.rest.responses.PlanTableScanResponse;
 import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.util.BackoffStrategies;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
 import org.slf4j.Logger;
@@ -261,7 +262,9 @@ class RESTTableScan extends DataTableScan {
     AtomicReference<FetchPlanningResultResponse> result = new AtomicReference<>();
     try {
       Tasks.foreach(planId)
-          .exponentialBackoff(MIN_SLEEP_MS, MAX_SLEEP_MS, maxWaitTimeMs, SCALE_FACTOR)
+          .totalTimeoutMs(maxWaitTimeMs)
+          .backoffStrategy(
+              BackoffStrategies.from(catalogProperties, MIN_SLEEP_MS, MAX_SLEEP_MS, SCALE_FACTOR))
           .retry(MAX_RETRIES)
           .onlyRetryOn(NotCompleteException.class)
           .onFailure(
