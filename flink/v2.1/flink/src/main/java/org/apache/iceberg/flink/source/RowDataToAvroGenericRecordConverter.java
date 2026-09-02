@@ -42,8 +42,9 @@ public class RowDataToAvroGenericRecordConverter implements Function<RowData, Ge
   private final RowDataToAvroConverters.RowDataToAvroConverter converter;
   private final Schema avroSchema;
 
-  private RowDataToAvroGenericRecordConverter(RowType rowType, Schema avroSchema) {
-    this.converter = RowDataToAvroConverters.createConverter(rowType);
+  private RowDataToAvroGenericRecordConverter(
+      RowType rowType, Schema avroSchema, boolean legacyTimestampMapping) {
+    this.converter = RowDataToAvroConverters.createConverter(rowType, legacyTimestampMapping);
     this.avroSchema = avroSchema;
   }
 
@@ -52,19 +53,30 @@ public class RowDataToAvroGenericRecordConverter implements Function<RowData, Ge
     return (GenericRecord) converter.convert(avroSchema, rowData);
   }
 
-  /** Create a converter based on Iceberg schema */
   public static RowDataToAvroGenericRecordConverter fromIcebergSchema(
       String tableName, org.apache.iceberg.Schema icebergSchema) {
+    return fromIcebergSchema(tableName, icebergSchema, true);
+  }
+
+  /** Create a converter based on Iceberg schema */
+  public static RowDataToAvroGenericRecordConverter fromIcebergSchema(
+      String tableName, org.apache.iceberg.Schema icebergSchema, boolean legacyTimestampMapping) {
     RowType rowType = FlinkSchemaUtil.convert(icebergSchema);
-    Schema avroSchema = AvroSchemaUtil.convert(icebergSchema, tableName);
-    return new RowDataToAvroGenericRecordConverter(rowType, avroSchema);
+    Schema avroSchema = AvroSchemaUtil.convert(icebergSchema, tableName, legacyTimestampMapping);
+    return new RowDataToAvroGenericRecordConverter(rowType, avroSchema, legacyTimestampMapping);
+  }
+
+  public static RowDataToAvroGenericRecordConverter fromAvroSchema(Schema avroSchema) {
+    return fromAvroSchema(avroSchema, true);
   }
 
   /** Create a mapper based on Avro schema */
-  public static RowDataToAvroGenericRecordConverter fromAvroSchema(Schema avroSchema) {
-    DataType dataType = AvroSchemaConverter.convertToDataType(avroSchema.toString());
+  public static RowDataToAvroGenericRecordConverter fromAvroSchema(
+      Schema avroSchema, boolean legacyTimestampMapping) {
+    DataType dataType =
+        AvroSchemaConverter.convertToDataType(avroSchema.toString(), legacyTimestampMapping);
     LogicalType logicalType = TypeConversions.fromDataToLogicalType(dataType);
     RowType rowType = RowType.of(logicalType.getChildren().toArray(new LogicalType[0]));
-    return new RowDataToAvroGenericRecordConverter(rowType, avroSchema);
+    return new RowDataToAvroGenericRecordConverter(rowType, avroSchema, legacyTimestampMapping);
   }
 }
