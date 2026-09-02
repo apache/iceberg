@@ -18,16 +18,15 @@
  */
 package org.apache.iceberg.catalog;
 
-import java.util.Collections;
 import java.util.List;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 
 /**
- * Context for loading a table or view.
+ * Caller-supplied details about a load request, such as the chain of views that reference the table
+ * or view being loaded.
  *
- * <p>This object carries additional context that a catalog server may use to make authorization,
- * credential-scoping, and auditing decisions. It is designed to evolve with new fields as the
- * catalog protocol grows.
+ * <p>A catalog may use these fields to make authorization, credential-scoping, and auditing
+ * decisions. All fields are optional; {@link #empty()} carries none.
  */
 public final class LoadContext {
   private static final LoadContext EMPTY = builder().build();
@@ -37,17 +36,15 @@ public final class LoadContext {
   private LoadContext(Builder builder) {
     this.referencedBy =
         builder.referencedBy != null
-            ? Collections.unmodifiableList(Lists.newArrayList(builder.referencedBy))
-            : Collections.emptyList();
+            ? ImmutableList.copyOf(builder.referencedBy)
+            : ImmutableList.of();
   }
 
   /**
-   * Returns the ordered list of view identifiers that form the reference chain, from outermost to
-   * innermost.
+   * Returns the view identifiers that form the reference chain, outermost first.
    *
-   * <p>When a table or view is loaded as part of resolving a view definition, the chain of
-   * referencing views can be passed to the catalog. For example, if view A references view B which
-   * references table C, then loading C would have {@code referencedBy = [A, B]}.
+   * <p>For example, if view A references view B which references table C, loading C would have
+   * {@code referencedBy = [A, B]}.
    *
    * @return an unmodifiable list of referencing view identifiers, or an empty list if none
    */

@@ -223,16 +223,18 @@ public interface SessionCatalog {
   Table loadTable(SessionContext context, TableIdentifier ident);
 
   /**
-   * Load a table with additional load context.
+   * Load a table, passing the context it is being loaded with.
+   *
+   * <p>The default implementation ignores the context.
    *
    * @param context session context
    * @param ident a table identifier
-   * @param loadContext the load context
+   * @param loadContext context for this load
    * @return instance of {@link Table} implementation referred by {@code ident}
    * @throws NoSuchTableException if the table does not exist
    */
   default Table loadTable(SessionContext context, TableIdentifier ident, LoadContext loadContext) {
-    throw new UnsupportedOperationException("Contextual load is not supported");
+    return loadTable(context, ident);
   }
 
   /**
