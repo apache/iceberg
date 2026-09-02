@@ -556,7 +556,7 @@ public class TestRepairTableAction extends TestBase {
     appendRecords(table, records(4));
 
     DataFile original = onlyDataFile(table);
-    replaceManifestWithCorruptStats(table, original);
+    replaceManifestWithCorruptRecordCount(table, original);
 
     table.refresh();
     List<Object[]> rowsBeforeRepair = currentRows();
@@ -589,7 +589,7 @@ public class TestRepairTableAction extends TestBase {
     appendRecords(table, records(4));
 
     DataFile original = onlyDataFile(table);
-    replaceManifestWithCorruptStats(table, original);
+    replaceManifestWithCorruptRecordCount(table, original);
     table.refresh();
 
     List<Object[]> rowsBeforeRepair = currentRows();
@@ -864,6 +864,17 @@ public class TestRepairTableAction extends TestBase {
   }
 
   /**
+   * Corrupts the record count of the given file's entry while leaving its file size accurate. The
+   * table therefore stays readable by a scan even while the corruption is unrepaired, which lets a
+   * test that expects the repair to fail still read the table back afterwards.
+   */
+  private void replaceManifestWithCorruptRecordCount(Table table, DataFile file)
+      throws IOException {
+    ManifestFile manifest = table.currentSnapshot().dataManifests(table.io()).get(0);
+    corruptStats(table, manifest, file.location(), true, false);
+  }
+
+  /**
    * Rewrites a manifest so that the entry of the given file records an incorrect record count, file
    * size and column statistics, mimicking a writer that recorded them incorrectly.
    *
@@ -884,6 +895,22 @@ public class TestRepairTableAction extends TestBase {
   private void corruptStats(
       Table table, ManifestFile manifest, String location, boolean corruptCounts)
       throws IOException {
+    corruptStats(table, manifest, location, corruptCounts, corruptCounts);
+  }
+
+  /**
+   * Rewrites a manifest, corrupting the statistics of the entry of the given file. The record count
+   * (along with the column statistics) and the file size are corrupted independently, so that a
+   * caller can leave the file size accurate and keep the file readable by a scan while its other
+   * statistics are wrong.
+   */
+  private void corruptStats(
+      Table table,
+      ManifestFile manifest,
+      String location,
+      boolean corruptCounts,
+      boolean corruptSize)
+      throws IOException {
     File manifestFile = File.createTempFile("corrupt-manifest", ".avro", temp.toFile());
     assertThat(manifestFile.delete()).isTrue();
     PartitionSpec spec = table.specs().get(manifest.partitionSpecId());
@@ -902,7 +929,9 @@ public class TestRepairTableAction extends TestBase {
     try {
       for (DataFile file : readDataFiles(table, manifest)) {
         DataFile toWrite =
-            file.location().equals(location) ? corrupt(spec, file, corruptCounts) : file.copy();
+            file.location().equals(location)
+                ? corrupt(spec, file, corruptCounts, corruptSize)
+                : file.copy();
         Row lineage = lineageByPath.get(file.location());
         writer.existing(
             toWrite,
@@ -918,7 +947,8 @@ public class TestRepairTableAction extends TestBase {
     table.refresh();
   }
 
-  private DataFile corrupt(PartitionSpec spec, DataFile file, boolean corruptCounts) {
+  private DataFile corrupt(
+      PartitionSpec spec, DataFile file, boolean corruptCounts, boolean corruptSize) {
     DataFiles.Builder builder =
         DataFiles.builder(spec)
             .copy(file)
@@ -932,7 +962,7 @@ public class TestRepairTableAction extends TestBase {
                     Maps.newHashMap()));
 
     return builder
-        .withFileSizeInBytes(corruptCounts ? file.fileSizeInBytes() + 4096 : file.fileSizeInBytes())
+        .withFileSizeInBytes(corruptSize ? file.fileSizeInBytes() + 4096 : file.fileSizeInBytes())
         .build();
   }
 }
