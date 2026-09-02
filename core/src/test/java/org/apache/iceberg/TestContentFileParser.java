@@ -271,6 +271,69 @@ public class TestContentFileParser {
     assertThat(serializedStr).contains("\"content\":\"" + expectedJsonContent + "\"");
   }
 
+  @Test
+  public void testSequenceNumberRoundTrip() throws Exception {
+    PartitionSpec spec = PartitionSpec.unpartitioned();
+    String jsonStr =
+        "{\"spec-id\":0,\"content\":\"data\",\"file-path\":\"/path/to/data.parquet\","
+            + "\"file-format\":\"parquet\",\"partition\":[],\"file-size-in-bytes\":10,"
+            + "\"record-count\":1,\"data-sequence-number\":5,\"file-sequence-number\":7}";
+
+    JsonNode jsonNode = JsonUtil.mapper().readTree(jsonStr);
+    ContentFile<?> deserialized =
+        ContentFileParser.fromJson(jsonNode, Map.of(0, spec));
+    assertThat(deserialized).isInstanceOf(DataFile.class);
+    assertThat(deserialized.dataSequenceNumber()).isEqualTo(5L);
+    assertThat(deserialized.fileSequenceNumber()).isEqualTo(7L);
+
+    String reSerialized = ContentFileParser.toJson(deserialized, spec);
+    assertThat(reSerialized).contains("\"data-sequence-number\":5");
+    assertThat(reSerialized).contains("\"file-sequence-number\":7");
+
+    // Verify round-trip
+    ContentFile<?> reParsed =
+        ContentFileParser.fromJson(
+            JsonUtil.mapper().readTree(reSerialized), Map.of(0, spec));
+    assertThat(reParsed.dataSequenceNumber()).isEqualTo(5L);
+    assertThat(reParsed.fileSequenceNumber()).isEqualTo(7L);
+  }
+
+  @Test
+  public void testSequenceNumberDefaultsToNull() throws Exception {
+    // JSON without sequence numbers should deserialize to null (not 0)
+    PartitionSpec spec = PartitionSpec.unpartitioned();
+    String jsonStr =
+        "{\"spec-id\":0,\"content\":\"data\",\"file-path\":\"/path/to/data.parquet\","
+            + "\"file-format\":\"parquet\",\"partition\":[],\"file-size-in-bytes\":10,"
+            + "\"record-count\":1}";
+
+    JsonNode jsonNode = JsonUtil.mapper().readTree(jsonStr);
+    ContentFile<?> deserialized =
+        ContentFileParser.fromJson(jsonNode, Map.of(0, spec));
+    assertThat(deserialized.dataSequenceNumber()).isNull();
+    assertThat(deserialized.fileSequenceNumber()).isNull();
+  }
+
+  @Test
+  public void testSequenceNumberForDeleteFile() throws Exception {
+    PartitionSpec spec = PartitionSpec.unpartitioned();
+    String jsonStr =
+        "{\"spec-id\":0,\"content\":\"position-deletes\",\"file-path\":\"/path/to/delete.parquet\","
+            + "\"file-format\":\"parquet\",\"partition\":[],\"file-size-in-bytes\":1234,"
+            + "\"record-count\":10,\"data-sequence-number\":3,\"file-sequence-number\":4}";
+
+    JsonNode jsonNode = JsonUtil.mapper().readTree(jsonStr);
+    ContentFile<?> deserialized =
+        ContentFileParser.fromJson(jsonNode, Map.of(0, spec));
+    assertThat(deserialized).isInstanceOf(DeleteFile.class);
+    assertThat(deserialized.dataSequenceNumber()).isEqualTo(3L);
+    assertThat(deserialized.fileSequenceNumber()).isEqualTo(4L);
+
+    String reSerialized = ContentFileParser.toJson(deserialized, spec);
+    assertThat(reSerialized).contains("\"data-sequence-number\":3");
+    assertThat(reSerialized).contains("\"file-sequence-number\":4");
+  }
+
   private static Stream<Arguments> enumContentTypeCases() {
     return Stream.of(
         Arguments.of(FileContent.DATA, "data"),

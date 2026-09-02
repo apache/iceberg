@@ -5222,6 +5222,17 @@ components:
           description: "List of splittable offsets"
         sort-order-id:
           type: integer
+        data-sequence-number:
+          type: integer
+          format: int64
+          description:
+            "The data sequence number of the file, used to determine which delete
+            files apply to it during reads (see the Iceberg spec)"
+        file-sequence-number:
+          type: integer
+          format: int64
+          description:
+            "The sequence number of the snapshot in which the underlying file was added"
 
     DataFile:
       allOf:
