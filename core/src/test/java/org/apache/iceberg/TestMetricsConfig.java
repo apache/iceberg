@@ -22,13 +22,99 @@ import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.io.File;
+import java.io.IOException;
 import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 public class TestMetricsConfig {
+
+  @TempDir private File temp;
+
+  private static final int ID = 1;
+  private static final int EVENT_TIME = 2;
+  private static final int CATEGORY = 3;
+  private static final int DATA = 4;
+
+  private static final Schema PARTITIONED_SCHEMA =
+      new Schema(
+          required(ID, "id", Types.IntegerType.get()),
+          optional(EVENT_TIME, "event_time", Types.TimestampType.withoutZone()),
+          optional(CATEGORY, "category", Types.StringType.get()),
+          optional(DATA, "data", Types.StringType.get()));
+
+  @Test
+  public void testIdentityPartitionColumnFull() throws IOException {
+    PartitionSpec spec = PartitionSpec.builderFor(PARTITIONED_SCHEMA).identity("category").build();
+    Table table =
+        TestTables.create(temp, "identity", PARTITIONED_SCHEMA, spec, 4, ImmutableMap.of());
+
+    assertThat(MetricsConfig.forTable(table).columnMode(CATEGORY))
+        .isEqualTo(MetricsModes.Full.get());
+  }
+
+  @Test
+  public void testPartitionColumnCannotBeDisabled() throws IOException {
+    PartitionSpec spec = PartitionSpec.builderFor(PARTITIONED_SCHEMA).identity("category").build();
+    Map<String, String> props =
+        ImmutableMap.of(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "category", "none");
+    Table table = TestTables.create(temp, "identity-override", PARTITIONED_SCHEMA, spec, 4, props);
+
+    assertThat(MetricsConfig.forTable(table).columnMode(CATEGORY))
+        .as("column config should not be able to disable metrics for a partition column")
+        .isEqualTo(MetricsModes.Full.get());
+  }
+
+  @Test
+  public void testBucketPartitionColumnIgnored() throws IOException {
+    PartitionSpec spec = PartitionSpec.builderFor(PARTITIONED_SCHEMA).bucket("category", 4).build();
+    Table table =
+        TestTables.create(temp, "bucket-v4", PARTITIONED_SCHEMA, spec, 4, ImmutableMap.of());
+
+    assertThat(MetricsConfig.forTable(table).columnMode(CATEGORY))
+        .isEqualTo(MetricsModes.Truncate.withLength(16));
+  }
+
+  @Test
+  public void testPartitionSpecIgnoredBeforeV4() throws IOException {
+    PartitionSpec spec = PartitionSpec.builderFor(PARTITIONED_SCHEMA).identity("category").build();
+    Table table =
+        TestTables.create(temp, "identity-v3", PARTITIONED_SCHEMA, spec, 3, ImmutableMap.of());
+
+    assertThat(MetricsConfig.forTable(table).columnMode(CATEGORY))
+        .isEqualTo(MetricsModes.Truncate.withLength(16));
+  }
+
+  @Test
+  public void testColumnModeAndFieldIdsFromPartitionSpec() throws IOException {
+    PartitionSpec spec =
+        PartitionSpec.builderFor(PARTITIONED_SCHEMA).day("event_time").identity("category").build();
+    Table table =
+        TestTables.create(temp, "day-and-identity", PARTITIONED_SCHEMA, spec, 4, ImmutableMap.of());
+
+    MetricsConfig config = MetricsConfig.forTable(table);
+
+    assertThat(config.metricsFieldIds())
+        .as("Should track field ids for partition and non-partition columns")
+        .containsExactlyInAnyOrder(ID, EVENT_TIME, CATEGORY, DATA);
+
+    assertThat(config.columnMode(EVENT_TIME))
+        .as("day partition source column should get full metrics")
+        .isEqualTo(MetricsModes.Full.get());
+    assertThat(config.columnMode(CATEGORY))
+        .as("identity partition source column should get full metrics")
+        .isEqualTo(MetricsModes.Full.get());
+    assertThat(config.columnMode(ID))
+        .as("non-partition column should keep the default mode")
+        .isEqualTo(MetricsModes.Truncate.withLength(16));
+    assertThat(config.columnMode(DATA))
+        .as("non-partition column should keep the default mode")
+        .isEqualTo(MetricsModes.Truncate.withLength(16));
+  }
 
   @Test
   public void testNestedStruct() {
