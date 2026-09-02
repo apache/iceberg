@@ -74,13 +74,13 @@ public class Schema implements Serializable {
   private final int[] identifierFieldIds;
   private final int highestFieldId;
 
-  private transient BiMap<String, Integer> aliasToId = null;
-  private transient Map<Integer, NestedField> idToField = null;
-  private transient Map<String, Integer> nameToId = null;
-  private transient Map<String, Integer> lowerCaseNameToId = null;
-  private transient Map<Integer, Accessor<StructLike>> idToAccessor = null;
-  private transient Map<Integer, String> idToName = null;
-  private transient Set<Integer> identifierFieldIdSet = null;
+  private transient volatile BiMap<String, Integer> aliasToId = null;
+  private transient volatile Map<Integer, NestedField> idToField = null;
+  private transient volatile Map<String, Integer> nameToId = null;
+  private transient volatile Map<String, Integer> lowerCaseNameToId = null;
+  private transient volatile Map<Integer, Accessor<StructLike>> idToAccessor = null;
+  private transient volatile Map<Integer, String> idToName = null;
+  private transient volatile Set<Integer> identifierFieldIdSet = null;
   private final transient Map<Integer, Integer> idsToReassigned;
   private final transient Map<Integer, Integer> idsToOriginal;
 
@@ -214,42 +214,66 @@ public class Schema implements Serializable {
 
   private Map<Integer, NestedField> lazyIdToField() {
     if (idToField == null) {
-      this.idToField = TypeUtil.indexById(struct);
+      synchronized (this) {
+        if (idToField == null) {
+          this.idToField = TypeUtil.indexById(struct);
+        }
+      }
     }
     return idToField;
   }
 
   private Map<String, Integer> lazyNameToId() {
     if (nameToId == null) {
-      this.nameToId = ImmutableMap.copyOf(TypeUtil.indexByName(struct));
+      synchronized (this) {
+        if (nameToId == null) {
+          this.nameToId = ImmutableMap.copyOf(TypeUtil.indexByName(struct));
+        }
+      }
     }
     return nameToId;
   }
 
   private Map<Integer, String> lazyIdToName() {
     if (idToName == null) {
-      this.idToName = ImmutableMap.copyOf(TypeUtil.indexNameById(struct));
+      synchronized (this) {
+        if (idToName == null) {
+          this.idToName = ImmutableMap.copyOf(TypeUtil.indexNameById(struct));
+        }
+      }
     }
     return idToName;
   }
 
   private Map<String, Integer> lazyLowerCaseNameToId() {
     if (lowerCaseNameToId == null) {
-      this.lowerCaseNameToId = ImmutableMap.copyOf(TypeUtil.indexByLowerCaseName(struct));
+      synchronized (this) {
+        if (lowerCaseNameToId == null) {
+          this.lowerCaseNameToId = ImmutableMap.copyOf(TypeUtil.indexByLowerCaseName(struct));
+        }
+      }
     }
     return lowerCaseNameToId;
   }
 
   private Map<Integer, Accessor<StructLike>> lazyIdToAccessor() {
     if (idToAccessor == null) {
-      idToAccessor = Accessors.forSchema(this);
+      synchronized (this) {
+        if (idToAccessor == null) {
+          idToAccessor = Accessors.forSchema(this);
+        }
+      }
     }
     return idToAccessor;
   }
 
   private Set<Integer> lazyIdentifierFieldIdSet() {
     if (identifierFieldIdSet == null) {
-      identifierFieldIdSet = ImmutableSet.copyOf(Ints.asList(identifierFieldIds));
+      synchronized (this) {
+        if (identifierFieldIdSet == null) {
+          identifierFieldIdSet = ImmutableSet.copyOf(Ints.asList(identifierFieldIds));
+        }
+      }
     }
     return identifierFieldIdSet;
   }
