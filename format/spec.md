@@ -666,7 +666,7 @@ Constraints are added in v4 and are not supported in v3 or earlier.
 Three constraint types are defined:
 
 * `check` -- every row must satisfy a predicate
-* `unique` -- the values of a set of fields must be distinct across all rows; a null value is not equal to any other null value, so more than one row may be null
+* `unique` -- the non-null values of a set of fields must be distinct across all rows; more than one row may have a null value
 * `primary-key` -- the values of a set of fields must be distinct across all rows and must not be null
 
 Constraints are stored separately from schemas because the two evolve independently. Every constraint references the fields that it applies to by field ID, so a constraint continues to apply to the same columns after a column is renamed or reordered.
@@ -684,27 +684,22 @@ A constraint consists of the following fields:
 | _required_ | **`name`**                | `string`  | A name for the constraint that is unique within the table. Names are for human consumption and must not be used to identify a constraint in metadata |
 | _required_ | **`enforced`**            | `boolean` | Whether writers must verify that the rows they add satisfy the constraint |
 | _required_ | **`timestamp-ms`**        | `long`    | Timestamp in milliseconds from the unix epoch when the constraint was created or last modified. The timestamp is informational and must not be used to determine whether a constraint applies to a snapshot or whether it holds |
-| _required_ | **`constraint-metadata`** | `struct`  | Defines what the constraint requires; its fields depend on the constraint `type` (see below) |
+| _optional_ | **`expression`**          | `expression` | The predicate that every row must satisfy, see [Check Constraint Expressions](#check-constraint-expressions). Required for a `check` constraint and must not be set for other types |
+| _optional_ | **`field-ids`**           | `list<int>`  | The list of field IDs that the constraint applies to. Required for a `unique` or `primary-key` constraint and must not be set for a `check` constraint |
 
-`constraint-metadata` for a `check` constraint consists of:
-
-| Requirement | Field name       | Type         | Description |
-|-------------|------------------|--------------|-------------|
-| _required_ | **`expression`** | `expression` | A predicate that every row must satisfy, see [Check Constraint Expressions](#check-constraint-expressions) |
-
-`constraint-metadata` for a `unique` or `primary-key` constraint consists of:
-
-| Requirement | Field name      | Type        | Description |
-|-------------|-----------------|-------------|-------------|
-| _required_ | **`field-ids`** | `list<int>` | A list of field IDs that the constraint applies to |
-
-Each type carries only the metadata that it requires: a `check` constraint must not declare `field-ids` and a `unique` or `primary-key` constraint must not declare an `expression`. This keeps a single source of truth for the fields that a constraint references.
+The fields that define what a constraint requires are embedded directly in the constraint based on its `type`. Each type carries only the metadata that it requires: a `check` constraint has an `expression` and must not declare `field-ids`, and a `unique` or `primary-key` constraint has `field-ids` and must not declare an `expression`. This keeps a single source of truth for the fields that a constraint references.
 
 The `field-ids` of a `unique` or `primary-key` constraint must reference primitive fields that are either top-level fields or nested in required structs, and must not reference fields within a `list` or a `map`. These are the same restrictions that apply to [identifier fields](#identifier-field-ids).
 
 When a constraint is `enforced`, writers must verify that the rows they add satisfy the constraint and must fail the write if they do not. A writer that cannot verify an enforced constraint must reject writes to the table rather than add rows that have not been verified. When a constraint is not enforced, writers are not required to verify the rows they add.
 
 Whether to trust a constraint that is not enforced is left to engines and is not tracked in table metadata.
+
+A table may have at most one `primary-key` constraint. A key that spans several fields is expressed as a single `primary-key` constraint over multiple `field-ids`.
+
+A `primary-key` constraint replaces [identifier field IDs](#identifier-field-ids), which express the same concept: a set of fields that identifies a row, without a uniqueness guarantee. When a table is upgraded to v4, its `identifier-field-ids` are rewritten as a `primary-key` constraint that is not enforced. Identifier field IDs are not used in v4.
+
+Only a constraint's `name` and `enforced` fields may be changed in place. Changing the `expression` of a `check` constraint or the `field-ids` of a `unique` or `primary-key` constraint changes what the constraint requires, so it must be done by removing the constraint and adding a new one with a new `constraint-id`, so that statuses recorded for the old definition are not read as applying to the new one.
 
 Constraint IDs are assigned from the table's `last-constraint-id`, which is treated as 0 when it is not present. Writers must assign a new constraint an ID that is higher than the table's current `last-constraint-id` and must update `last-constraint-id` to the highest assigned ID. Constraint IDs must not be reused after the constraint that used an ID is removed, because retained snapshots may still reference the removed ID. Readers must not assume that every `constraint-id` referenced by a snapshot is present in `constraints`.
 
@@ -731,42 +726,33 @@ The status of a constraint for a snapshot is one of:
 | `invalid`     | The constraint was checked and at least one row in the snapshot violates it |
 | `unvalidated` | Whether the constraint holds for all rows in the snapshot is not known |
 
-A snapshot's `constraint-statuses` consists of:
+A snapshot's `constraint-statuses` records, for each status, the IDs of the constraints that have that status for the snapshot:
 
-| Requirement | Field name               | Type           | Description |
-|-------------|--------------------------|----------------|-------------|
-| _required_ | **`last-constraint-id`** | `int`          | The table's `last-constraint-id` when the snapshot was created |
-| _required_ | **`default-status`**     | `string`       | The status of every constraint that is not listed in `statuses` |
-| _optional_ | **`statuses`**           | `list<struct>` | Statuses for constraints whose status is not `default-status` |
+| Requirement | Field name        | Type        | Description |
+|-------------|-------------------|-------------|-------------|
+| _optional_ | **`validated`**   | `list<int>` | IDs of constraints that are `validated` for the snapshot |
+| _optional_ | **`valid`**       | `list<int>` | IDs of constraints that are `valid` for the snapshot |
+| _optional_ | **`invalid`**     | `list<int>` | IDs of constraints that are `invalid` for the snapshot |
+| _optional_ | **`unvalidated`** | `list<int>` | IDs of constraints that are `unvalidated` for the snapshot |
 
-Each entry of `statuses` consists of:
+Each list contains the `constraint-id` of every constraint that has that status for the snapshot. A `constraint-id` must appear in at most one list. A list with no constraints may be omitted. A constraint whose ID is not present in any list makes no claim for the snapshot and is treated as `unvalidated`.
 
-| Requirement | Field name          | Type     | Description |
-|-------------|---------------------|----------|-------------|
-| _required_ | **`constraint-id`** | `int`    | ID of the constraint that the status describes |
-| _required_ | **`status`**        | `string` | The status of the constraint for this snapshot |
-
-`default-status` covers the constraints that share a status and `statuses` records only the constraints that differ from it, so the size of `constraint-statuses` does not grow with the number of constraints in a table. When every constraint has the same status, that status is recorded once, no matter how many constraints the table has.
+This is an explicit representation: each constraint's status is recorded independently, so the size of `constraint-statuses` grows with the number of constraints in a table. This keeps the encoding simple; more compact representations may be added in a later version if it becomes a problem.
 
 Readers must determine the status of a constraint for a snapshot as follows:
 
 1. If the snapshot has no `constraint-statuses`, the snapshot makes no claim about any constraint
-2. If the constraint's `constraint-id` is greater than the snapshot's `last-constraint-id`, the constraint did not exist when the snapshot was created and the snapshot makes no claim about it
-3. If the constraint is listed in `statuses`, its status is the listed status
-4. Otherwise, its status is `default-status`
+2. If the constraint's `constraint-id` is listed in `validated`, `valid`, `invalid`, or `unvalidated`, that is its status
+3. Otherwise, the snapshot makes no claim about the constraint and its status is treated as `unvalidated`
 
-`last-constraint-id` is what makes a defaulted status safe. Without it, a `default-status` recorded before a constraint was added would apply to that constraint, and a reader could conclude that a constraint held for a snapshot created before the constraint existed.
+Writers must record `constraint-statuses` in every snapshot of a table that has constraints, and must place each constraint's ID in the list for a status that follows these rules:
 
-Writers must record `constraint-statuses` in every snapshot of a table that has constraints, must set `last-constraint-id` to the table's `last-constraint-id` when the snapshot is created, and must choose `default-status` and `statuses` so that every constraint resolves to a status that follows these rules:
+* A constraint must not be listed as `validated` unless it was checked for every row in the snapshot
+* A constraint must not be listed as `valid` unless it was enforced for the commit and the parent snapshot's status for the constraint is `validated` or `valid`
+* A constraint must not be listed as `invalid` unless a row in the snapshot is known to violate it
+* `unvalidated` is the status of a constraint that cannot be listed in any other status
 
-* A constraint must not resolve to `validated` unless it was checked for every row in the snapshot
-* A constraint must not resolve to `valid` unless it was enforced for the commit and the parent snapshot's status for the constraint is `validated` or `valid`
-* A constraint must not resolve to `invalid` unless a row in the snapshot is known to violate it
-* `unvalidated` is the status of a constraint that cannot resolve to any other status
-
-Writers should choose the `default-status` that produces the shortest `statuses` list.
-
-Enforcing a constraint for a commit is not sufficient to resolve to `valid`. When the parent snapshot's status is not `validated` or `valid`, rows added by earlier commits were never checked, so the status is `unvalidated` even though the writer verified the rows that it added.
+Enforcing a constraint for a commit is not sufficient to list it as `valid`. When the parent snapshot's status is not `validated` or `valid`, rows added by earlier commits were never checked, so the status is `unvalidated` even though the writer verified the rows that it added.
 
 When a constraint becomes enforced, either by being added with `enforced` set to true or by `enforced` changing from false to true, writers should validate the table and record `validated`. A writer that does not validate records `unvalidated`, and the constraint remains `unvalidated` until a later validation records `validated`.
 
@@ -1929,7 +1915,7 @@ A metadata JSON file may be compressed with [GZIP](https://datatracker.ietf.org/
 |**`last-partition-id`**|`JSON int`|`1000`|
 |**`properties`**|`JSON object: {`<br />&nbsp;&nbsp;`"<key>": "<val>",`<br />&nbsp;&nbsp;`...`<br />`}`|`{`<br />&nbsp;&nbsp;`"write.format.default": "avro",`<br />&nbsp;&nbsp;`"commit.retry.num-retries": "4"`<br />`}`|
 |**`current-snapshot-id`**|`JSON long`|`3051729675574597004`|
-|**`snapshots`**|`JSON list of objects: [ {`<br />&nbsp;&nbsp;`"snapshot-id": <id>,`<br />&nbsp;&nbsp;`"timestamp-ms": <timestamp-in-ms>,`<br />&nbsp;&nbsp;`"summary": {`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"operation": <operation>,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`... },`<br />&nbsp;&nbsp;`"manifest-list": "<location>",`<br />&nbsp;&nbsp;`"schema-id": "<id>"`<br />&nbsp;&nbsp;`},`<br />&nbsp;&nbsp;`...`<br />`]`|`[ {`<br />&nbsp;&nbsp;`"snapshot-id": 3051729675574597004,`<br />&nbsp;&nbsp;`"timestamp-ms": 1515100955770,`<br />&nbsp;&nbsp;`"summary": {`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"operation": "append"`<br />&nbsp;&nbsp;`},`<br />&nbsp;&nbsp;`"manifest-list": "s3://b/wh/.../s1.avro"`<br />&nbsp;&nbsp;`"schema-id": 0`<br />`} ]`|
+|**`snapshots`**|`JSON list of objects: [ {`<br />&nbsp;&nbsp;`"snapshot-id": <id>,`<br />&nbsp;&nbsp;`"timestamp-ms": <timestamp-in-ms>,`<br />&nbsp;&nbsp;`"summary": {`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"operation": <operation>,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`... },`<br />&nbsp;&nbsp;`"manifest-list": "<location>",`<br />&nbsp;&nbsp;`"schema-id": "<id>",`<br />&nbsp;&nbsp;`"constraint-statuses": {`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"validated": [ ... ],`<br />&nbsp;&nbsp;&nbsp;&nbsp;`... }`<br />&nbsp;&nbsp;`},`<br />&nbsp;&nbsp;`...`<br />`]`|`[ {`<br />&nbsp;&nbsp;`"snapshot-id": 3051729675574597004,`<br />&nbsp;&nbsp;`"timestamp-ms": 1515100955770,`<br />&nbsp;&nbsp;`"summary": {`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"operation": "append"`<br />&nbsp;&nbsp;`},`<br />&nbsp;&nbsp;`"manifest-list": "s3://b/wh/.../s1.avro"`<br />&nbsp;&nbsp;`"schema-id": 0,`<br />&nbsp;&nbsp;`"constraint-statuses": {`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"validated": [1],`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"unvalidated": [2]`<br />&nbsp;&nbsp;`}`<br />`} ]`|
 |**`snapshot-log`**|`JSON list of objects: [`<br />&nbsp;&nbsp;`{`<br />&nbsp;&nbsp;`"snapshot-id": ,`<br />&nbsp;&nbsp;`"timestamp-ms":`<br />&nbsp;&nbsp;`},`<br />&nbsp;&nbsp;`...`<br />`]`|`[ {`<br />&nbsp;&nbsp;`"snapshot-id": 30517296...,`<br />&nbsp;&nbsp;`"timestamp-ms": 1515100...`<br />`} ]`|
 |**`metadata-log`**|`JSON list of objects: [`<br />&nbsp;&nbsp;`{`<br />&nbsp;&nbsp;`"metadata-file": ,`<br />&nbsp;&nbsp;`"timestamp-ms":`<br />&nbsp;&nbsp;`},`<br />&nbsp;&nbsp;`...`<br />`]`|`[ {`<br />&nbsp;&nbsp;`"metadata-file": "s3://bucket/.../v1.json",`<br />&nbsp;&nbsp;`"timestamp-ms": 1515100...`<br />`} ]` |
 |**`sort-orders`**|`JSON sort orders (list of sort field object)`|`See above`|
@@ -1937,7 +1923,7 @@ A metadata JSON file may be compressed with [GZIP](https://datatracker.ietf.org/
 |**`refs`**|`JSON map with string key and object value:`<br />`{`<br />&nbsp;&nbsp;`"<name>": {`<br />&nbsp;&nbsp;`"snapshot-id": <id>,`<br />&nbsp;&nbsp;`"type": <type>,`<br />&nbsp;&nbsp;`"max-ref-age-ms": <long>,`<br />&nbsp;&nbsp;`...`<br />&nbsp;&nbsp;`}`<br />&nbsp;&nbsp;`...`<br />`}`|`{`<br />&nbsp;&nbsp;`"test": {`<br />&nbsp;&nbsp;`"snapshot-id": 123456789000,`<br />&nbsp;&nbsp;`"type": "tag",`<br />&nbsp;&nbsp;`"max-ref-age-ms": 10000000`<br />&nbsp;&nbsp;`}`<br />`}`|
 |**`encryption-keys`**|`JSON list of encryption key objects`|`[ {"key-id": "5f819b", "key-metadata": "aWNlYmVyZwo="} ]`|
 |**`last-constraint-id`**|`JSON int`|`2`|
-|**`constraints`**|`JSON list of objects: [ {`<br />&nbsp;&nbsp;`"constraint-id": <id>,`<br />&nbsp;&nbsp;`"type": <type>,`<br />&nbsp;&nbsp;`"name": "<name>",`<br />&nbsp;&nbsp;`"enforced": <boolean>,`<br />&nbsp;&nbsp;`"timestamp-ms": <timestamp-in-ms>,`<br />&nbsp;&nbsp;`"constraint-metadata": { ... }`<br />&nbsp;&nbsp;`},`<br />&nbsp;&nbsp;`...`<br />`]`|`[ {`<br />&nbsp;&nbsp;`"constraint-id": 1,`<br />&nbsp;&nbsp;`"type": "primary-key",`<br />&nbsp;&nbsp;`"name": "pk_sales",`<br />&nbsp;&nbsp;`"enforced": false,`<br />&nbsp;&nbsp;`"timestamp-ms": 1515100955770,`<br />&nbsp;&nbsp;`"constraint-metadata": {`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"field-ids": [1]`<br />&nbsp;&nbsp;`}`<br />`} ]`|
+|**`constraints`**|`JSON list of objects: [ {`<br />&nbsp;&nbsp;`"constraint-id": <id>,`<br />&nbsp;&nbsp;`"type": "check",`<br />&nbsp;&nbsp;`"name": "<name>",`<br />&nbsp;&nbsp;`"enforced": <boolean>,`<br />&nbsp;&nbsp;`"timestamp-ms": <timestamp-in-ms>,`<br />&nbsp;&nbsp;`"expression": { ... }`<br />`}, {`<br />&nbsp;&nbsp;`"constraint-id": <id>,`<br />&nbsp;&nbsp;`"type": "primary-key",`<br />&nbsp;&nbsp;`"name": "<name>",`<br />&nbsp;&nbsp;`"enforced": <boolean>,`<br />&nbsp;&nbsp;`"timestamp-ms": <timestamp-in-ms>,`<br />&nbsp;&nbsp;`"field-ids": [ ... ]`<br />`},`<br />&nbsp;&nbsp;`...`<br />`]`|`[ {`<br />&nbsp;&nbsp;`"constraint-id": 1,`<br />&nbsp;&nbsp;`"type": "check",`<br />&nbsp;&nbsp;`"name": "chk_amount",`<br />&nbsp;&nbsp;`"enforced": true,`<br />&nbsp;&nbsp;`"timestamp-ms": 1515100955770,`<br />&nbsp;&nbsp;`"expression": { ... }`<br />`}, {`<br />&nbsp;&nbsp;`"constraint-id": 2,`<br />&nbsp;&nbsp;`"type": "primary-key",`<br />&nbsp;&nbsp;`"name": "pk_sales",`<br />&nbsp;&nbsp;`"enforced": false,`<br />&nbsp;&nbsp;`"timestamp-ms": 1515100955770,`<br />&nbsp;&nbsp;`"field-ids": [1]`<br />`} ]`|
 
 ### Name Mapping Serialization
 
@@ -2060,7 +2046,7 @@ Constraints are added in v4:
 * [Constraints](#constraints) must not be added to v3 or earlier tables
 * Table metadata may contain `constraints` and `last-constraint-id`
 * Snapshots may contain `constraint-statuses`
-* Upgrading a v2 or v3 table to v4 does not add constraints; a table upgraded to v4 has no constraints until they are added
+* Upgrading a v2 or v3 table to v4 rewrites the table's `identifier-field-ids` as a `primary-key` constraint that is not enforced; a table with no identifier fields has no constraints until they are added
 
 ### Version 3
 
