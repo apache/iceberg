@@ -44,6 +44,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import org.apache.arrow.memory.BufferAllocator;
+import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.vector.BigIntVector;
 import org.apache.arrow.vector.BitVector;
 import org.apache.arrow.vector.DateDayVector;
@@ -78,15 +80,16 @@ import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TableScan;
-import org.apache.iceberg.arrow.ArrowAllocation;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.hadoop.HadoopTables;
+import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.parquet.Parquet;
+import org.apache.iceberg.parquet.TypeWithSchemaVisitor;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
@@ -393,39 +396,36 @@ public class TestArrowReader {
 
   @Test
   public void testReleasesDecodedVectorsWhenDictEncodedBatchIsMaterialized() throws Exception {
-    Table table = createDictEncodedTable();
-    long allocatedBefore = ArrowAllocation.rootAllocator().getAllocatedMemory();
-
     int rowsRead = 0;
-    try (VectorizedTableScanIterable reader =
-        new VectorizedTableScanIterable(table.newScan(), 1024, false)) {
-      for (ColumnarBatch batch : reader) {
-        VectorSchemaRoot root = batch.createVectorSchemaRootFromVectors();
-        // repeated calls must return the cached decoded vector
-        assertThat(batch.column(0).getArrowVector()).isSameAs(batch.column(0).getArrowVector());
-        rowsRead += root.getRowCount();
-      }
-    }
 
-    assertThat(rowsRead).isEqualTo(NUM_DICT_ENCODED_ROWS);
-    assertThat(ArrowAllocation.rootAllocator().getAllocatedMemory() - allocatedBefore).isZero();
+    try (RootAllocator allocator = new RootAllocator(Long.MAX_VALUE)) {
+      try (CloseableIterable<ColumnarBatch> batches = dictEncodedBatches(allocator)) {
+        for (ColumnarBatch batch : batches) {
+          VectorSchemaRoot root = batch.createVectorSchemaRootFromVectors();
+          // repeated calls must return the cached decoded vector
+          assertThat(batch.column(0).getArrowVector()).isSameAs(batch.column(0).getArrowVector());
+          rowsRead += root.getRowCount();
+        }
+      }
+
+      assertThat(rowsRead).isEqualTo(NUM_DICT_ENCODED_ROWS);
+      assertThat(allocator.getAllocatedMemory()).isZero();
+    }
   }
 
   @Test
   public void testReleasesMemoryWhenDictEncodedBatchIsNotMaterialized() throws Exception {
-    Table table = createDictEncodedTable();
-    long allocatedBefore = ArrowAllocation.rootAllocator().getAllocatedMemory();
-
     int rowsRead = 0;
-    try (VectorizedTableScanIterable reader =
-        new VectorizedTableScanIterable(table.newScan(), 1024, false)) {
-      for (ColumnarBatch batch : reader) {
-        rowsRead += batch.numRows();
+    try (RootAllocator allocator = new RootAllocator(Long.MAX_VALUE)) {
+      try (CloseableIterable<ColumnarBatch> batches = dictEncodedBatches(allocator)) {
+        for (ColumnarBatch batch : batches) {
+          rowsRead += batch.numRows();
+        }
       }
-    }
 
-    assertThat(rowsRead).isEqualTo(NUM_DICT_ENCODED_ROWS);
-    assertThat(ArrowAllocation.rootAllocator().getAllocatedMemory() - allocatedBefore).isZero();
+      assertThat(rowsRead).isEqualTo(NUM_DICT_ENCODED_ROWS);
+      assertThat(allocator.getAllocatedMemory()).isZero();
+    }
   }
 
   /**
@@ -1536,39 +1536,42 @@ public class TestArrowReader {
     return records;
   }
 
-  private Table createDictEncodedTable() throws Exception {
-    tables = new HadoopTables();
+  private CloseableIterable<ColumnarBatch> dictEncodedBatches(BufferAllocator allocator)
+      throws IOException {
     Schema schema = new Schema(Types.NestedField.required(1, "s", Types.StringType.get()));
-    Table table = tables.create(schema, tableLocation);
 
-    MessageType parquetSchema =
-        new MessageType(
-            "test",
-            primitive(PrimitiveType.PrimitiveTypeName.BINARY, Type.Repetition.REQUIRED)
-                .as(LogicalTypeAnnotation.stringType())
-                .id(1)
-                .named("s"));
-
-    File testFile = new File(tempDir, "dict-encoded.parquet");
-    try (ParquetWriter<Group> writer =
-        ExampleParquetWriter.builder(new Path(testFile.toURI())).withType(parquetSchema).build()) {
-      SimpleGroupFactory factory = new SimpleGroupFactory(parquetSchema);
-      for (int i = 0; i < NUM_DICT_ENCODED_ROWS; i++) {
-        // few distinct values, so Parquet dictionary encodes the column
-        writer.write(factory.newGroup().append("s", "v" + (i % 4)));
-      }
+    GenericRecord record = GenericRecord.create(schema);
+    List<Record> records = Lists.newArrayListWithExpectedSize(NUM_DICT_ENCODED_ROWS);
+    for (int i = 0; i < NUM_DICT_ENCODED_ROWS; i++) {
+      // few distinct values, so Parquet dictionary encodes the column
+      records.add(record.copy(ImmutableMap.of("s", "v" + (i % 4))));
     }
 
-    DataFile dataFile =
-        DataFiles.builder(PartitionSpec.unpartitioned())
-            .withPath(testFile.getAbsolutePath())
-            .withFileSizeInBytes(testFile.length())
-            .withFormat(FileFormat.PARQUET)
-            .withRecordCount(NUM_DICT_ENCODED_ROWS)
-            .build();
+    File file = new File(tempDir, "dict-encoded.parquet");
+    try (FileAppender<Record> appender =
+        Parquet.write(Files.localOutput(file))
+            .schema(schema)
+            .createWriterFunc(GenericParquetWriter::create)
+            .build()) {
+      appender.addAll(records);
+    }
 
-    table.newAppend().appendFile(dataFile).commit();
-    return table;
+    return Parquet.read(localInput(file))
+        .project(schema)
+        .recordsPerBatch(1024)
+        .createBatchedReaderFunc(
+            fileSchema ->
+                TypeWithSchemaVisitor.visit(
+                    schema.asStruct(),
+                    fileSchema,
+                    new VectorizedReaderBuilder(
+                        schema,
+                        fileSchema,
+                        false,
+                        ImmutableMap.of(),
+                        ArrowBatchReader::new,
+                        allocator)))
+        .build();
   }
 
   private DataFile writeParquetFile(Table table, List<GenericRecord> records) throws IOException {
