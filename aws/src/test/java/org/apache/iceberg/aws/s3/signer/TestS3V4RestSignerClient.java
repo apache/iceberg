@@ -22,7 +22,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.InstanceOfAssertFactories.type;
 import static org.mockito.Mockito.when;
 
-import java.net.URI;
 import java.util.Map;
 import java.util.stream.Stream;
 import org.apache.iceberg.CatalogProperties;
@@ -32,8 +31,6 @@ import org.apache.iceberg.rest.auth.AuthProperties;
 import org.apache.iceberg.rest.auth.AuthSession;
 import org.apache.iceberg.rest.auth.OAuth2Properties;
 import org.apache.iceberg.rest.auth.OAuth2Util;
-import org.apache.iceberg.rest.requests.ImmutableRemoteSignRequest;
-import org.apache.iceberg.rest.requests.RemoteSignRequest;
 import org.apache.iceberg.rest.responses.OAuthTokenResponse;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
