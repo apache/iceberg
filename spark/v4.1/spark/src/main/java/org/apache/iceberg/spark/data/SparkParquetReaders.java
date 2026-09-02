@@ -408,7 +408,9 @@ public class SparkParquetReaders {
     @Override
     @SuppressWarnings("ByteBufferBackingArray")
     public UTF8String read(UTF8String ignored) {
-      return UTF8String.fromString(UUIDUtil.convert(column.nextBinary().toByteBuffer()).toString());
+      // a fresh array is required because UTF8String.fromBytes wraps it without copying
+      return UTF8String.fromBytes(
+          UUIDUtil.convertToStringBytes(column.nextBinary().toByteBuffer(), null));
     }
   }
 
