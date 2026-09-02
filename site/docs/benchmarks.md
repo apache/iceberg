@@ -44,7 +44,7 @@ GitHub-hosted runners have limited and shared resources, so treat these results 
 JMH writes human-readable output to `build/reports/jmh/human-readable-output.txt` and JSON output to `build/reports/jmh/results.json` by default. Override them with `-PjmhOutputPath=<path>` and `-PjmhJsonOutputPath=<path>` if needed. You can share the JSON output with others and view it in the [JMH Visualizer](https://jmh.morethan.io/).
 
 Core and data benchmarks can be run directly. Spark and Flink benchmarks use versioned Gradle modules.
-Spark `4.1` benchmarks use `2.13` module names, while older Spark modules follow the configured `scalaVersion`.
+Spark `4.0` and `4.1` benchmarks use `2.13` module names, while Spark `3.5` modules follow the configured `scalaVersion`.
 
 ### Command templates
 
@@ -71,7 +71,7 @@ Run benchmarks in the default Spark extensions module:
   -PjmhIncludeRegex=<BenchmarkName>
 ```
 
-To use another supported Spark version, set the version properties and update the module name accordingly. For example:
+To use Spark `3.5`, set the Spark and Scala version properties and update the module name accordingly. For example:
 
 ```bash
 ./gradlew -DsparkVersions=3.5 -DscalaVersion=2.12 \
