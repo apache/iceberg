@@ -691,6 +691,8 @@ The fields that define what a constraint requires are embedded directly in the c
 
 The `field-ids` of a `unique` or `primary-key` constraint must reference primitive fields that are either top-level fields or nested in required structs, and must not reference fields within a `list` or a `map`. These are the same restrictions that apply to [identifier fields](#identifier-field-ids).
 
+A field referenced by a constraint must not be dropped. A writer must reject a schema change that removes a field referenced by a `check` constraint's `expression` or by a `unique` or `primary-key` constraint's `field-ids` unless the constraint is removed in the same change.
+
 When a constraint is `enforced`, writers must verify that the rows they add satisfy the constraint and must fail the write if they do not. A writer that cannot verify an enforced constraint must reject writes to the table rather than add rows that have not been verified. When a constraint is not enforced, writers are not required to verify the rows they add.
 
 Whether to trust a constraint that is not enforced is left to engines and is not tracked in table metadata.
@@ -707,7 +709,7 @@ Constraint IDs are assigned from the table's `last-constraint-id`, which is trea
 
 The `expression` of a `check` constraint is serialized as described in the [Iceberg expressions spec](expressions-spec.md) and must use ID references so that it remains bound to the same fields when columns are renamed or reordered.
 
-A check expression must be a deterministic predicate over a single row. Expressions that depend on more than one row, such as aggregates and window functions, and expressions that depend on another table, such as subqueries, must not be used.
+A check expression is evaluated for each row over the values of that row. Expressions that depend on more than one row, such as aggregates and window functions, and expressions that depend on another table, such as subqueries, must not be used.
 
 Iceberg predicates use two-valued logic: a predicate always produces true or false and never produces null, so a comparison with a null operand produces false. This differs from SQL `CHECK`, where a row satisfies a constraint unless the predicate produces false and a null value therefore satisfies the constraint.
 
