@@ -21,6 +21,7 @@ package org.apache.iceberg.gcp.auth;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
@@ -39,6 +40,11 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.Collections;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.rest.RESTClient;
@@ -219,6 +225,42 @@ public class TestGoogleAuthManager {
     authManager.catalogSession(restClient, Collections.emptyMap());
 
     mockedStaticCredentials.verify(GoogleCredentials::getApplicationDefault, times(1));
+  }
+
+  @Test
+  public void concurrentInitialization() throws Exception {
+    int numThreads = 10;
+    ExecutorService executorService = Executors.newFixedThreadPool(numThreads);
+    CountDownLatch startLatch = new CountDownLatch(1);
+    CountDownLatch finishLatch = new CountDownLatch(numThreads);
+
+    GoogleAuthManager spyManager = spy(authManager);
+    doReturn(credentials)
+        .when(spyManager)
+        .loadCredentials(anyBoolean(), any(), anyBoolean(), any(), any());
+
+    AtomicInteger successfulInitializations = new AtomicInteger(0);
+    for (int i = 0; i < numThreads; i++) {
+      executorService.submit(
+          () -> {
+            try {
+              startLatch.await();
+              spyManager.catalogSession(restClient, Collections.emptyMap());
+              successfulInitializations.incrementAndGet();
+            } catch (Exception e) {
+              // ignore
+            } finally {
+              finishLatch.countDown();
+            }
+          });
+    }
+
+    startLatch.countDown();
+    finishLatch.await(10, TimeUnit.SECONDS);
+    executorService.shutdown();
+
+    assertThat(successfulInitializations.get()).isEqualTo(numThreads);
+    verify(spyManager, times(1)).loadCredentials(anyBoolean(), any(), anyBoolean(), any(), any());
   }
 
   @Test
