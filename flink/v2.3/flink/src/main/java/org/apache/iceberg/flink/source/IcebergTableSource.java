@@ -77,8 +77,8 @@ public class IcebergTableSource
   private int[] projectedFields;
   private Long limit;
   private List<Expression> filters;
-  private Table table;
 
+  private final Table table;
   private final TableLoader loader;
   private final ResolvedSchema schema;
   private final Map<String, String> properties;
@@ -122,6 +122,13 @@ public class IcebergTableSource
     this.limit = limit;
     this.filters = filters;
     this.readableConfig = readableConfig;
+
+    try (TableLoader clonedLoader = loader.clone()) {
+      clonedLoader.open();
+      this.table = clonedLoader.loadTable();
+    } catch (IOException e) {
+      throw new UncheckedIOException("Failed to load table with loader: " + loader, e);
+    }
   }
 
   @Override
@@ -134,26 +141,12 @@ public class IcebergTableSource
     }
   }
 
-  /** Loads the table once; reused by statistics reporting and both datastream builders. */
-  private Table table() {
-    if (table == null) {
-      try (TableLoader tableLoader = loader.clone()) {
-        tableLoader.open();
-        this.table = tableLoader.loadTable();
-      } catch (IOException e) {
-        throw new UncheckedIOException("Failed to load table with loader: " + loader, e);
-      }
-    }
-
-    return table;
-  }
-
   @SuppressWarnings("deprecation")
   private DataStream<RowData> createDataStream(StreamExecutionEnvironment execEnv) {
     return FlinkSource.forRowData()
         .env(execEnv)
         .tableLoader(loader)
-        .table(table())
+        .table(table)
         .setAll(properties)
         .project(TableSchema.fromResolvedSchema(getProjectedSchema()))
         .limit(limit)
@@ -167,7 +160,7 @@ public class IcebergTableSource
         readableConfig.get(FlinkConfigOptions.TABLE_EXEC_SPLIT_ASSIGNER_TYPE);
     return IcebergSource.forRowData()
         .tableLoader(loader)
-        .table(table())
+        .table(table)
         .assignerFactory(assignerType.factory())
         .setAll(properties)
         .project(getProjectedSchema())
@@ -262,10 +255,8 @@ public class IcebergTableSource
     try {
       boolean columnStatsEnabled =
           readableConfig.get(FlinkConfigOptions.TABLE_EXEC_ICEBERG_REPORT_COLUMN_STATISTICS);
-      Table loadedTable = table();
-      FlinkReadConf readConf = new FlinkReadConf(loadedTable, properties, readableConfig);
-      return FlinkTableStatistics.reportStatistics(
-          loadedTable, readConf, filters, columnStatsEnabled);
+      FlinkReadConf readConf = new FlinkReadConf(table, properties, readableConfig);
+      return FlinkTableStatistics.reportStatistics(table, readConf, filters, columnStatsEnabled);
     } catch (Exception e) {
       LOG.warn("Failed to report statistics for Iceberg table, returning unknown stats", e);
       return TableStats.UNKNOWN;
