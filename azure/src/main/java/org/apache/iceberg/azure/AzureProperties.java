@@ -88,6 +88,17 @@ public class AzureProperties implements Serializable {
   /** Controls whether vended credentials should be refreshed or not. Defaults to true. */
   public static final String ADLS_REFRESH_CREDENTIALS_ENABLED = "adls.refresh-credentials-enabled";
 
+  /**
+   * Determines whether the stack trace of the call site is captured when an ADLS input or output
+   * stream is created. The captured stack is only used to report the creation site if a stream is
+   * garbage collected without being closed. Capturing it is relatively expensive, so it can be
+   * disabled to avoid the cost on the per-file stream creation path. ResolvingFileIO sets this to
+   * {@code false} for the FileIO it delegates to, because it already tracks that creation stack.
+   */
+  public static final String CREATE_STACK_TRACE_ENABLED = "init-creation-stacktrace";
+
+  public static final boolean CREATE_STACK_TRACE_ENABLED_DEFAULT = true;
+
   private Map<String, String> adlsSasTokens = Collections.emptyMap();
   private Map<String, String> adlsConnectionStrings = Collections.emptyMap();
   private Map.Entry<String, String> namedKeyCreds;
@@ -99,6 +110,7 @@ public class AzureProperties implements Serializable {
   private Map<String, String> allProperties = Collections.emptyMap();
   private String keyWrapAlgorithm;
   private String keyVaultUrl;
+  private boolean createStackTraceEnabled = CREATE_STACK_TRACE_ENABLED_DEFAULT;
 
   public AzureProperties() {}
 
@@ -130,6 +142,9 @@ public class AzureProperties implements Serializable {
             properties.get(ADLS_REFRESH_CREDENTIALS_ENDPOINT));
     this.adlsRefreshCredentialsEnabled =
         PropertyUtil.propertyAsBoolean(properties, ADLS_REFRESH_CREDENTIALS_ENABLED, true);
+    this.createStackTraceEnabled =
+        PropertyUtil.propertyAsBoolean(
+            properties, CREATE_STACK_TRACE_ENABLED, CREATE_STACK_TRACE_ENABLED_DEFAULT);
     this.token = properties.get(ADLS_TOKEN);
     this.allProperties = SerializableMap.copyOf(properties);
     if (properties.containsKey(AZURE_KEYVAULT_URL)) {
@@ -147,6 +162,10 @@ public class AzureProperties implements Serializable {
 
   public Optional<Long> adlsWriteBlockSize() {
     return Optional.ofNullable(adlsWriteBlockSize);
+  }
+
+  public boolean isCreateStackTraceEnabled() {
+    return createStackTraceEnabled;
   }
 
   public Optional<VendedAdlsCredentialProvider> vendedAdlsCredentialProvider() {
