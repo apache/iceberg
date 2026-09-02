@@ -737,7 +737,7 @@ Notes:
 
     | Field id | Name | Type | Required | Description |
     |----------|------|------|----------|-------------|
-    | 134 | **`content_type`** | `int` (0: DATA, 3: DATA_MANIFEST, 4: DELETE_MANIFEST) | *required* | Type of content stored in the entry. Content types 3 and 4 are only valid in root manifests. |
+    | 134 | **`content_type`** | `int` (0: DATA, 3: DATA_MANIFEST, 4: DELETE_MANIFEST) | *required* | Type of content stored in the entry. Value 1 (POSITION_DELETES) and value 2 (EQUALITY DELETES) are omitted (see below). Content types 3 and 4 are only valid in root manifests. |
     | 157 | **`format_version`** | `int` (0: PRE-V4, 4: V4) | *required* | Writer format version. v4 writers must produce `format_version` 4. |
     | 100 | **`location`** | `string` | *required* | Location of the file or manifest. |
     | 101 | **`file_format`** | `string` | *required* | String file format name: `avro`, `orc`, `parquet`, or `puffin` |
@@ -753,9 +753,7 @@ Notes:
     | 148 | **`deletion_vector`** | `deletion_vector` struct | *optional* | Row-level deletion vector for a data file. |
     | 158 | **`column_files`** | `list<159: column_file>` | *optional* | Column update files associated with this entry. |
 
-    Value 1 (POSITION_DELETES) is not used in v4. Writers must not produce `content_type` 1.
-
-    Writers must not produce `content_type` 2 (EQUALITY DELETES) in v4.
+    Writers must not produce `content_type` 1 (POSITION_DELETES) or `content_type` 2 (EQUALITY DELETES) in v4.
 
     v4 leaf manifests must only contain entries with `content_type` 0 (DATA). A root manifest may reference v1-v3 manifests; v1-v3 leaf manifest references must have `format_version` set to 0.
 
