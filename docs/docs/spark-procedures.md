@@ -259,7 +259,6 @@ and their files which are no longer needed.
 
 This procedure will remove old snapshots and data files which are uniquely required by those old snapshots. This means
 the `expire_snapshots` procedure will never remove files which are still required by a non-expired snapshot.
-When `gc.enabled` is `false`, the procedure removes old snapshots from table metadata without deleting any files.
 
 #### Usage
 
@@ -593,11 +592,11 @@ When inserts or overwrites run on the snapshot, new files are placed in the snap
 When finished testing a snapshot table, clean it up by running `DROP TABLE`.
 
 !!! info
-    Because tables created by `snapshot` are not the sole owners of their data files, `gc.enabled` is set to `false`.
-    Snapshot expiration can remove old snapshots from table metadata but will not physically delete any files. Iceberg
-    deletes, which only affect metadata, are also allowed. Any operations which affect the original data files will disrupt
-    the Snapshot's integrity. DELETE statements executed against the original Hive table will remove original data files
-    and the `snapshot` table will no longer be able to access them.
+    Because tables created by `snapshot` are not the sole owners of their data files, they are prohibited from
+    actions like `expire_snapshots` which would physically delete data files. Iceberg deletes, which only effect metadata,
+    are still allowed. In addition, any operations which affect the original data files will disrupt the Snapshot's
+    integrity. DELETE statements executed against the original Hive table will remove original data files and the
+    `snapshot` table will no longer be able to access them.
 
 See [`migrate`](#migrate) to replace an existing table with an Iceberg table.
 

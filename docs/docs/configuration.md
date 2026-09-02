@@ -134,7 +134,7 @@ See the [Encryption](encryption.md) document for additional details.
 | history.expire.max-snapshot-age-ms | 432000000 (5 days) | Default max age of snapshots to keep on the table and all of its branches while expiring snapshots |
 | history.expire.min-snapshots-to-keep | 1                | Default min number of snapshots to keep on the table and all of its branches while expiring snapshots |
 | history.expire.max-ref-age-ms      | `Long.MAX_VALUE` (forever) | For snapshot references except the `main` branch, default max age of snapshot references to keep while expiring snapshots. The `main` branch never expires. |
-| gc.enabled                         | true             | Controls whether garbage collection may delete files. If false, snapshot expiration removes snapshot metadata without deleting files. |
+| gc.enabled                         | true             | Allows garbage collection operations such as expiring snapshots and removing orphan files. When false, the Java `ExpireSnapshots` API can still expire snapshots with cleanup level `NONE`, which removes snapshot metadata without deleting any files. Engine actions and procedures, such as Spark's `expire_snapshots`, always fail while it is false. |
 
 ### Reserved table properties
 Reserved table properties are only used to control behaviors when creating or updating a table.

@@ -40,6 +40,7 @@ import org.apache.avro.generic.GenericRecordBuilder;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.ExpireSnapshots;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.Schema;
@@ -53,6 +54,7 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NotFoundException;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
@@ -597,7 +599,18 @@ public class TestNessieTable extends BaseTestIceberg {
         icebergTable.currentSnapshot().manifestListLocation().replace("file:", "");
 
     icebergTable.newDelete().deleteFile(file).commit();
-    icebergTable.expireSnapshots().expireOlderThan(Long.MAX_VALUE).commit();
+
+    assertThatThrownBy(
+            () ->
+                icebergTable.expireSnapshots().expireOlderThan(System.currentTimeMillis()).commit())
+        .isInstanceOf(ValidationException.class)
+        .hasMessageStartingWith("Cannot expire snapshots with cleanup level ALL: GC is disabled");
+
+    icebergTable
+        .expireSnapshots()
+        .expireOlderThan(Long.MAX_VALUE)
+        .cleanupLevel(ExpireSnapshots.CleanupLevel.NONE)
+        .commit();
 
     icebergTable.refresh();
     assertThat(icebergTable.snapshot(expiredSnapshotId)).isNull();

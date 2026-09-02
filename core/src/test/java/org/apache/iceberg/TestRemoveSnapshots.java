@@ -40,6 +40,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import org.apache.iceberg.ManifestEntry.Status;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.BulkDeletionFailureException;
 import org.apache.iceberg.io.FileIO;
@@ -969,6 +970,36 @@ public class TestRemoveSnapshots extends TestBase {
   public void testExpireSnapshotsWhenGarbageCollectionDisabled() {
     table.newAppend().appendFile(FILE_A).commit();
     Snapshot firstSnapshot = table.currentSnapshot();
+    table.newAppend().appendFile(FILE_B).commit();
+    long tAfterCommits = waitUntilAfter(table.currentSnapshot().timestampMillis());
+
+    table.updateProperties().set(TableProperties.GC_ENABLED, "false").commit();
+
+    assertThatThrownBy(() -> removeSnapshots(table).expireOlderThan(tAfterCommits).commit())
+        .isInstanceOf(ValidationException.class)
+        .hasMessageStartingWith("Cannot expire snapshots with cleanup level ALL: GC is disabled");
+
+    assertThatThrownBy(
+            () ->
+                removeSnapshots(table)
+                    .expireOlderThan(tAfterCommits)
+                    .cleanupLevel(ExpireSnapshots.CleanupLevel.METADATA_ONLY)
+                    .commit())
+        .isInstanceOf(ValidationException.class)
+        .hasMessageStartingWith(
+            "Cannot expire snapshots with cleanup level METADATA_ONLY: GC is disabled");
+
+    // apply() deletes nothing, so it is not blocked by GC being disabled
+    assertThat(removeSnapshots(table).expireOlderThan(tAfterCommits).apply())
+        .containsExactly(firstSnapshot);
+
+    assertThat(table.snapshot(firstSnapshot.snapshotId())).isNotNull();
+  }
+
+  @TestTemplate
+  public void testExpireSnapshotsWithoutCleanupWhenGarbageCollectionDisabled() {
+    table.newAppend().appendFile(FILE_A).commit();
+    Snapshot firstSnapshot = table.currentSnapshot();
     table.newDelete().deleteFile(FILE_A).commit();
     Snapshot secondSnapshot = table.currentSnapshot();
     table.newAppend().appendFile(FILE_B).commit();
@@ -980,7 +1011,7 @@ public class TestRemoveSnapshots extends TestBase {
     Set<String> deletedFiles = Sets.newHashSet();
     removeSnapshots(table)
         .expireOlderThan(tAfterCommits)
-        .cleanupLevel(ExpireSnapshots.CleanupLevel.ALL)
+        .cleanupLevel(ExpireSnapshots.CleanupLevel.NONE)
         .deleteWith(deletedFiles::add)
         .commit();
 
@@ -1002,6 +1033,30 @@ public class TestRemoveSnapshots extends TestBase {
         removeSnapshots(table)
             .expireOlderThan(tAfterCommits)
             .cleanupLevel(ExpireSnapshots.CleanupLevel.ALL)
+            .deleteWith(deletedFiles::add);
+
+    table.updateProperties().set(TableProperties.GC_ENABLED, "false").commit();
+
+    assertThatThrownBy(expireSnapshots::commit)
+        .isInstanceOf(ValidationException.class)
+        .hasMessageStartingWith("Cannot expire snapshots with cleanup level ALL: GC is disabled");
+
+    assertThat(table.snapshot(firstSnapshot.snapshotId())).isNotNull();
+    assertThat(deletedFiles).isEmpty();
+  }
+
+  @TestTemplate
+  public void testDisableGarbageCollectionBeforeCommitWithoutCleanup() {
+    table.newAppend().appendFile(FILE_A).commit();
+    Snapshot firstSnapshot = table.currentSnapshot();
+    table.newAppend().appendFile(FILE_B).commit();
+    long tAfterCommits = waitUntilAfter(table.currentSnapshot().timestampMillis());
+
+    Set<String> deletedFiles = Sets.newHashSet();
+    ExpireSnapshots expireSnapshots =
+        removeSnapshots(table)
+            .expireOlderThan(tAfterCommits)
+            .cleanupLevel(ExpireSnapshots.CleanupLevel.NONE)
             .deleteWith(deletedFiles::add);
 
     table.updateProperties().set(TableProperties.GC_ENABLED, "false").commit();
