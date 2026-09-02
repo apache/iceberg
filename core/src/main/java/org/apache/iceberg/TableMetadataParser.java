@@ -39,6 +39,7 @@ import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.io.PositionOutputStream;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -125,13 +126,32 @@ public class TableMetadataParser {
 
   public static void internalWrite(
       TableMetadata metadata, OutputFile outputFile, boolean overwrite) {
+    writeMetadata(metadata, outputFile, overwrite);
+  }
+
+  public static long writeAndReturnLength(TableMetadata metadata, OutputFile outputFile) {
+    return writeMetadata(metadata, outputFile, false);
+  }
+
+  public static long overwriteAndReturnLength(TableMetadata metadata, OutputFile outputFile) {
+    return writeMetadata(metadata, outputFile, true);
+  }
+
+  private static long writeMetadata(
+      TableMetadata metadata, OutputFile outputFile, boolean overwrite) {
     boolean isGzip = Codec.fromFileName(outputFile.location()) == Codec.GZIP;
-    OutputStream stream = overwrite ? outputFile.createOrOverwrite() : outputFile.create();
-    try (OutputStream ou = isGzip ? new GZIPOutputStream(stream) : stream;
-        OutputStreamWriter writer = new OutputStreamWriter(ou, StandardCharsets.UTF_8)) {
-      JsonGenerator generator = JsonUtil.factory().createGenerator(writer);
-      toJson(metadata, generator);
-      generator.flush();
+    PositionOutputStream stream = overwrite ? outputFile.createOrOverwrite() : outputFile.create();
+    try {
+      try (OutputStream ou = isGzip ? new GZIPOutputStream(stream) : stream;
+          OutputStreamWriter writer = new OutputStreamWriter(ou, StandardCharsets.UTF_8)) {
+        JsonGenerator generator = JsonUtil.factory().createGenerator(writer);
+        toJson(metadata, generator);
+        generator.flush();
+      }
+
+      // gzip and encrypting streams write trailing bytes when closed, so the stored length is
+      // only final once the stream above has been closed
+      return stream.storedLength();
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to write json to file: %s", outputFile.location());
     }
