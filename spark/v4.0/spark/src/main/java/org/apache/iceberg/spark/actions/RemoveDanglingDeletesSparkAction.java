@@ -31,10 +31,12 @@ class RemoveDanglingDeletesSparkAction
     extends BaseSnapshotUpdateSparkAction<RemoveDanglingDeletesSparkAction>
     implements RemoveDanglingDeleteFiles {
 
+  private final Table table;
   private final RemoveDanglingDeleteFilesAction action;
 
   protected RemoveDanglingDeletesSparkAction(SparkSession spark, Table table) {
     super(spark);
+    this.table = table;
     this.action = new RemoveDanglingDeleteFilesAction(table);
   }
 
@@ -50,9 +52,8 @@ class RemoveDanglingDeletesSparkAction
 
   @Override
   public Result execute() {
-    action.init();
     commitSummary().forEach(action::set);
-    String desc = String.format("Removing dangling delete files in %s", action.table().name());
+    String desc = String.format("Removing dangling delete files in %s", table.name());
     return withJobGroupInfo(newJobGroupInfo("REMOVE-DELETES", desc), action::execute);
   }
 }

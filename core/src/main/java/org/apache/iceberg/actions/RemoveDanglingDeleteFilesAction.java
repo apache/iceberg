@@ -48,7 +48,6 @@ public class RemoveDanglingDeleteFilesAction
 
   private final Table table;
   private String branch = SnapshotRef.MAIN_BRANCH;
-  private Snapshot snapshot;
 
   public RemoveDanglingDeleteFilesAction(Table table) {
     this.table = table;
@@ -60,7 +59,7 @@ public class RemoveDanglingDeleteFilesAction
   }
 
   @Override
-  public Table table() {
+  protected Table table() {
     return table;
   }
 
@@ -70,20 +69,13 @@ public class RemoveDanglingDeleteFilesAction
     return this;
   }
 
-  public RemoveDanglingDeleteFilesAction init() {
-    this.snapshot = table.snapshot(branch);
+  @Override
+  public Result execute() {
+    Snapshot snapshot = table.snapshot(branch);
     Preconditions.checkArgument(
         snapshot != null,
         "Cannot remove dangling delete files from branch %s: branch does not exist",
         branch);
-    return this;
-  }
-
-  @Override
-  public Result execute() {
-    if (snapshot == null) {
-      init();
-    }
 
     RewriteFiles rewriteFiles = table.newRewrite().validateFromSnapshot(snapshot.snapshotId());
     DeleteFileSet danglingDeletes = findDanglingDeletes(table, snapshot);
