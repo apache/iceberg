@@ -48,15 +48,22 @@ class AssignFreshIds extends TypeUtil.CustomOrderSchemaVisitor<Type> {
     this.nextId = nextId;
   }
 
-  private int idFor(String fullName) {
-    if (baseSchema != null && fullName != null) {
-      Types.NestedField field = baseSchema.findField(fullName);
-      if (field != null) {
-        return field.fieldId();
-      }
+  private int idFor(String fullName, Type type) {
+    Types.NestedField existingField = baseField(fullName);
+    // a base ID can only be reused for a file if the base field already reserved the derived IDs
+    if (existingField != null && (!type.isFileType() || existingField.type().isFileType())) {
+      return existingField.fieldId();
     }
 
-    return nextId.get();
+    return type.isFileType() ? nextId.get(Types.FileType.NUM_NESTED_FIELDS) : nextId.get();
+  }
+
+  private Types.NestedField baseField(String fullName) {
+    if (baseSchema != null && fullName != null) {
+      return baseSchema.findField(fullName);
+    }
+
+    return null;
   }
 
   private String name(int id) {
@@ -74,21 +81,28 @@ class AssignFreshIds extends TypeUtil.CustomOrderSchemaVisitor<Type> {
 
   @Override
   public Type struct(Types.StructType struct, Iterable<Type> futures) {
+    if (struct.isFileType()) {
+      // nested fields are rebuilt from the new id assigned to the field that holds this type
+      return struct;
+    }
+
     List<Types.NestedField> fields = struct.fields();
     int length = struct.fields().size();
 
     // assign IDs for this struct's fields first
     List<Integer> newIds = Lists.newArrayListWithExpectedSize(length);
     for (int i = 0; i < length; i += 1) {
-      newIds.add(idFor(name(fields.get(i).fieldId())));
+      Types.NestedField field = fields.get(i);
+      newIds.add(idFor(name(field.fieldId()), field.type()));
     }
 
     List<Types.NestedField> newFields = Lists.newArrayListWithExpectedSize(length);
     Iterator<Type> types = futures.iterator();
     for (int i = 0; i < length; i += 1) {
       Types.NestedField field = fields.get(i);
-      Type type = types.next();
-      newFields.add(Types.NestedField.from(field).withId(newIds.get(i)).ofType(type).build());
+      int newId = newIds.get(i);
+      Type type = TypeUtil.assignedType(field.type(), newId, types.next());
+      newFields.add(Types.NestedField.from(field).withId(newId).ofType(type).build());
     }
 
     return Types.StructType.of(newFields);
@@ -101,22 +115,25 @@ class AssignFreshIds extends TypeUtil.CustomOrderSchemaVisitor<Type> {
 
   @Override
   public Type list(Types.ListType list, Supplier<Type> future) {
-    int newId = idFor(name(list.elementId()));
+    int newId = idFor(name(list.elementId()), list.elementType());
+    Type elementType = TypeUtil.assignedType(list.elementType(), newId, future.get());
     if (list.isElementOptional()) {
-      return Types.ListType.ofOptional(newId, future.get());
+      return Types.ListType.ofOptional(newId, elementType);
     } else {
-      return Types.ListType.ofRequired(newId, future.get());
+      return Types.ListType.ofRequired(newId, elementType);
     }
   }
 
   @Override
   public Type map(Types.MapType map, Supplier<Type> keyFuture, Supplier<Type> valueFuture) {
-    int newKeyId = idFor(name(map.keyId()));
-    int newValueId = idFor(name(map.valueId()));
+    int newKeyId = idFor(name(map.keyId()), map.keyType());
+    int newValueId = idFor(name(map.valueId()), map.valueType());
+    Type keyType = TypeUtil.assignedType(map.keyType(), newKeyId, keyFuture.get());
+    Type valueType = TypeUtil.assignedType(map.valueType(), newValueId, valueFuture.get());
     if (map.isValueOptional()) {
-      return Types.MapType.ofOptional(newKeyId, newValueId, keyFuture.get(), valueFuture.get());
+      return Types.MapType.ofOptional(newKeyId, newValueId, keyType, valueType);
     } else {
-      return Types.MapType.ofRequired(newKeyId, newValueId, keyFuture.get(), valueFuture.get());
+      return Types.MapType.ofRequired(newKeyId, newValueId, keyType, valueType);
     }
   }
 

@@ -82,6 +82,8 @@ nessie = "0.108.4"
 netty-buffer = "4.2.17.Final"
 object-client-bundle = "3.3.2"
 orc = "1.9.9"
+# TODO: bump to a release that provides FileLogicalTypeAnnotation so that the Iceberg file type can
+# be written with the Parquet FILE annotation (apache/parquet-java#3608)
 parquet = "1.17.1"
 roaringbitmap = "1.6.20"
 scala-collection-compat = "2.14.0"

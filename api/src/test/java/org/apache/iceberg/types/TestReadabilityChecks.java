@@ -287,6 +287,27 @@ public class TestReadabilityChecks {
   }
 
   @Test
+  void incompatibleFileAndStruct() {
+    Schema fileSchema = new Schema(optional(1, "photo", Types.FileType.of(1)));
+    Schema structSchema =
+        new Schema(optional(1, "photo", Types.StructType.of(Types.FileType.of(1).fields())));
+
+    List<String> asFile = CheckCompatibility.readCompatibilityErrors(fileSchema, structSchema);
+    assertThat(asFile).hasSize(1);
+    assertThat(asFile.get(0))
+        .as("Should complain that a struct cannot be read as a file")
+        .contains("cannot be read as a file");
+
+    List<String> asStruct = CheckCompatibility.readCompatibilityErrors(structSchema, fileSchema);
+    assertThat(asStruct).hasSize(1);
+    assertThat(asStruct.get(0))
+        .as("Should complain that a file cannot be read as a struct")
+        .contains("file cannot be read as a struct");
+
+    assertThat(CheckCompatibility.readCompatibilityErrors(fileSchema, fileSchema)).isEmpty();
+  }
+
+  @Test
   public void testMultipleErrors() {
     // required field is optional and cannot be promoted to the read type
     Schema write =
