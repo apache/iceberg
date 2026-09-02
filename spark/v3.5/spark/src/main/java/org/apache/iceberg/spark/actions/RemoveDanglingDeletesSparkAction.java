@@ -18,19 +18,10 @@
  */
 package org.apache.iceberg.spark.actions;
 
-import org.apache.iceberg.DeleteFile;
-import org.apache.iceberg.RewriteFiles;
-import org.apache.iceberg.Snapshot;
-import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.actions.ImmutableRemoveDanglingDeleteFiles;
 import org.apache.iceberg.actions.RemoveDanglingDeleteFiles;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.util.DanglingDeleteFileUtil;
-import org.apache.iceberg.util.DeleteFileSet;
+import org.apache.iceberg.actions.RemoveDanglingDeleteFilesAction;
 import org.apache.spark.sql.SparkSession;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * An action that removes dangling delete files from the current snapshot. A delete file is dangling
@@ -40,14 +31,11 @@ class RemoveDanglingDeletesSparkAction
     extends BaseSnapshotUpdateSparkAction<RemoveDanglingDeletesSparkAction>
     implements RemoveDanglingDeleteFiles {
 
-  private static final Logger LOG = LoggerFactory.getLogger(RemoveDanglingDeletesSparkAction.class);
-
-  private final Table table;
-  private String branch = SnapshotRef.MAIN_BRANCH;
+  private final RemoveDanglingDeleteFilesAction action;
 
   protected RemoveDanglingDeletesSparkAction(SparkSession spark, Table table) {
     super(spark);
-    this.table = table;
+    this.action = new RemoveDanglingDeleteFilesAction(table);
   }
 
   @Override
@@ -56,38 +44,15 @@ class RemoveDanglingDeletesSparkAction
   }
 
   public RemoveDanglingDeletesSparkAction toBranch(String targetBranch) {
-    Preconditions.checkArgument(targetBranch != null, "Invalid branch name: null");
-    this.branch = targetBranch;
+    action.toBranch(targetBranch);
     return this;
   }
 
   @Override
   public Result execute() {
-    Preconditions.checkArgument(
-        table.snapshot(branch) != null,
-        "Cannot remove dangling delete files from branch %s: branch does not exist",
-        branch);
-
-    String desc = String.format("Removing dangling delete files in %s", table.name());
-    return withJobGroupInfo(newJobGroupInfo("REMOVE-DELETES", desc), this::doExecute);
-  }
-
-  Result doExecute() {
-    Snapshot snapshot = table.snapshot(branch);
-    RewriteFiles rewriteFiles = table.newRewrite().validateFromSnapshot(snapshot.snapshotId());
-    DeleteFileSet danglingDeletes = DanglingDeleteFileUtil.findDanglingDeletes(table, snapshot);
-
-    for (DeleteFile deleteFile : danglingDeletes) {
-      LOG.debug("Removing dangling delete file {}", deleteFile.location());
-      rewriteFiles.deleteFile(deleteFile);
-    }
-
-    if (!danglingDeletes.isEmpty()) {
-      commit(rewriteFiles.toBranch(branch));
-    }
-
-    return ImmutableRemoveDanglingDeleteFiles.Result.builder()
-        .removedDeleteFiles(danglingDeletes)
-        .build();
+    action.init();
+    commitSummary().forEach(action::set);
+    String desc = String.format("Removing dangling delete files in %s", action.table().name());
+    return withJobGroupInfo(newJobGroupInfo("REMOVE-DELETES", desc), action::execute);
   }
 }
