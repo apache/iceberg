@@ -93,7 +93,7 @@ and `category` column sorted in descending order with nulls first:
 Table sampleTable = ...;
 sampleTable.replaceSortOrder()
    .asc("id", NullOrder.NULLS_LAST)
-   .dec("category", NullOrder.NULL_FIRST)
+   .desc("category", NullOrder.NULLS_FIRST)
    .commit();
 ```
 
