@@ -71,21 +71,16 @@ An index field has the following fields:
 
 Each index field must satisfy the following requirements:
 
-- `expr` must contain only ID references to fields in the source table schema or to
-  [metadata columns](spec.md#reserved-field-ids) that have a value for a row of a table snapshot. Named references must
-  not be used. The changelog metadata columns describe a change between two snapshots rather than a row of one snapshot,
-  so they must not be referenced.
+- `expr` must contain only ID references to source table fields or
+  [metadata columns](spec.md#reserved-field-ids). Named references, changelog and delete file metadata columns must not
+  be used.
 - `expr` must be deterministic and must produce the declared `data-type`.
 - `field-id` must be unique across both `materialized-fields` and `non-materialized-fields`.
-- `field-id` must be a field ID that a table schema may use, because the range schema is the schema of an Iceberg data
-  file. Reserved field IDs must not be used, even when `expr` references a metadata column.
+- `field-id` must be a regular column ID, not a [reserved field ID](spec.md#reserved-field-ids).
 
 An expression that consists of a single field reference, or of an `identity` function applied to a single field
 reference, is an **identity expression** of the referenced source field. The `field-id` of an identity expression of a
 source table field must be the field ID of that field.
-
-The `field-id` of any other expression should not be the field ID of a source table field, so fields that carry a source
-table field ID can be recognized.
 
 Expressions are serialized using the [JSON serialization](expressions-spec.md#appendix-b-json-serialization) defined by
 the expressions specification.
@@ -93,22 +88,19 @@ the expressions specification.
 ### Materialized Fields
 
 `materialized-fields` is a list of index fields whose values are stored in the [range files](#range-files). The list
-must not be empty. Evaluating the list for one indexed row produces one range file row. Materialized fields in
-`cluster-spec` must also be represented in the [content statistics](#content-statistics).
+must not be empty. Evaluating the list for one indexed row produces one range file row.
 
 The materialized fields must allow a reader to identify matching range file rows. For each field in the
 [cluster spec](#cluster-spec), the list must contain an identity expression for every source table field that the
-cluster field expression references, or, when that expression produces a distinct result for every distinct input, the
-cluster field itself may be materialized. For example, clustering on `bucket(256, user_id)` requires materializing
-`user_id`, because rows with different `user_id` values can share a bucket, while clustering on `user_id` may
-materialize the cluster field itself.
+cluster field expression references. For example, clustering on `bucket(256, user_id)` requires materializing
+`user_id`, because rows with different `user_id` values can share a bucket.
 
 ### Non-Materialized Fields
 
 `non-materialized-fields` is a list of index fields whose row values are not stored in range files. Their values are
-stored only as field statistics in tracking file entries. A non-materialized field is useful for a clustering
-expression, such as `bucket(256, user_id)` or a Hilbert curve over several source fields, when its row-level values do
-not need to be duplicated in range files.
+stored only as field statistics in tracking file entries. This suits a clustering expression whose result is as large
+as its source, such as `lower(name)` over a materialized `name`, where storing the result would nearly double the
+stored bytes and a reader can recompute it from `name` while searching.
 
 ### Cluster Spec
 
@@ -117,15 +109,8 @@ referenced fields, in list order, form the clustering key of an indexed row and 
 index, as defined in [Clustering and Ordering](#clustering-and-ordering). The list must not be empty. Every referenced
 field must have a primitive `data-type`.
 
-For example, assume that `user_id` is field `1`, `bucket(2147483647, user_id)` is field `103`,
-`bucket(256, user_id)` is field `104`, and `hilbert(x, y)` is field `105`:
-
-| Cluster spec | Referenced field expressions            | Clustering                                         |
-|--------------|-----------------------------------------|----------------------------------------------------|
-| `[ 1 ]`      | `[ user_id ]`                           | By the source column values                        |
-| `[ 103 ]`    | `[ bucket(2147483647, user_id) ]`       | By the hash bucket of the source column            |
-| `[ 104, 1 ]` | `[ bucket(256, user_id), user_id ]`     | By hash bucket, then by the source column values   |
-| `[ 105 ]`    | `[ hilbert(x, y) ]`                     | By position on a Hilbert curve over two dimensions |
+For example, a cluster spec of `[ 104, 1 ]`, where field `104` is `bucket(256, user_id)` and field `1` is `user_id`,
+clusters entries by hash bucket and then by user ID.
 
 ### Index Definition
 
@@ -142,19 +127,20 @@ The index metadata file stores the index definition and snapshot history.
 
 ### Index Metadata File
 
-| Requirement | Field                   | Type                 | Description                                                                                        |
-|-------------|-------------------------|----------------------|----------------------------------------------------------------------------------------------------|
-| required    | format-version          | int                  | Index format version; must be `1`                                                                  |
-| required    | uuid                    | string               | Stable UUID assigned at creation                                                                   |
-| required    | table-uuid              | string               | UUID of the indexed table                                                                          |
-| required    | location                | string               | Index root location                                                                                |
-| required    | type                    | string               | Logical index type                                                                                 |
-| required    | materialized-fields     | list<index-field>    | Fields stored in range files, see [Materialized Fields](#materialized-fields)                      |
-| required    | non-materialized-fields | list<index-field>    | Fields stored only in tracking statistics, see [Non-Materialized Fields](#non-materialized-fields) |
-| required    | cluster-spec            | list<int>            | Field IDs that define clustering, see [Cluster Spec](#cluster-spec)                                |
-| optional    | properties              | map<string,string>   | Index properties applicable for every snapshot                                                     |
-| required    | snapshots               | list<index-snapshot> | Index snapshots                                                                                    |
-| optional    | encryption-keys         | list<encryption-key> | Encryption keys used by the index, see [Encryption Keys](#encryption-keys)                         |
+| Requirement | Field                   | Type                     | Description                                                                                        |
+|-------------|-------------------------|--------------------------|----------------------------------------------------------------------------------------------------|
+| required    | format-version          | int                      | Index format version; must be `1`                                                                  |
+| required    | uuid                    | string                   | Stable UUID assigned at creation                                                                   |
+| required    | table-uuid              | string                   | UUID of the indexed table                                                                          |
+| required    | location                | string                   | Index root location                                                                                |
+| required    | type                    | string                   | Logical index type                                                                                 |
+| required    | materialized-fields     | list<index-field>        | Fields stored in range files, see [Materialized Fields](#materialized-fields)                      |
+| required    | non-materialized-fields | list<index-field>        | Fields stored only in tracking statistics, see [Non-Materialized Fields](#non-materialized-fields) |
+| required    | cluster-spec            | list<int>                | Field IDs that define clustering, see [Cluster Spec](#cluster-spec)                                |
+| optional    | properties              | map<string,string>       | Index properties applicable for every snapshot                                                     |
+| required    | snapshots               | list<index-snapshot>     | Index snapshots                                                                                    |
+| optional    | metadata-log            | list<metadata-log-entry> | Previous index metadata files, see [Metadata Log](#metadata-log)                                   |
+| optional    | encryption-keys         | list<encryption-key>     | Encryption keys used by the index, see [Encryption Keys](#encryption-keys)                         |
 
 ### Index Snapshot
 
@@ -174,6 +160,16 @@ An index snapshot must index exactly the live rows of the referenced table snaps
 
 Each `snapshot-id` and each `source-table-snapshot-id` must be unique within the `snapshots` list, so a source table
 snapshot has at most one index snapshot and engines locate index data by matching `source-table-snapshot-id`.
+
+### Metadata Log
+
+`metadata-log` records the index metadata files that preceded the current one. A commit should append an entry for the
+metadata file it replaces. An index may be configured to keep a fixed-size log and drop the oldest entries on commit.
+
+| Requirement | Field         | Type   | Description                                         |
+|-------------|---------------|--------|-----------------------------------------------------|
+| required    | metadata-file | string | Location of the index metadata file                 |
+| required    | timestamp-ms  | long   | Time the metadata file was replaced by a newer file |
 
 ### Encryption Keys
 
@@ -266,7 +262,8 @@ table specification. Each stored struct derives its ID and metric types from the
 `data-type` and contains the metrics supported for that type.
 
 Statistics are required for every field in `cluster-spec` and for every non-materialized field, and are optional for
-other materialized fields.
+other materialized fields. A non-materialized field has no values in the range file, so its statistics describe the
+rows that the range file indexes rather than values stored in it.
 
 ##### Group Max Value
 
@@ -287,7 +284,8 @@ Range files must be standard Iceberg data files and may be stored using any Iceb
 Avro, or ORC.
 
 Each range file row contains the result of evaluating the [materialized fields](#materialized-fields) for one indexed
-row. Entries within a range file must be stored in the [clustering order](#clustering-and-ordering).
+row. Entries within a range file must be stored in the [clustering order](#clustering-and-ordering). Entries that share
+a clustering key may be stored in any order.
 
 #### Range Schema
 
@@ -311,15 +309,15 @@ by `cluster-spec`.
 ### Goals
 
 This specification defines a portable metadata format for indexes and a common storage architecture for index data, so
-that an index written by one engine can be read by another. Indexes are operated independently of source table
-metadata, which allows them to be built and maintained without rewriting the table. The index type and the index
-expressions together form a framework in which new kinds of indexes can be defined without changing this specification.
+that an index written by one engine can be read by another. Index metadata is stored and committed separately from
+source table metadata, which allows an index to be built and maintained without rewriting the table. The index type and
+the index expressions together form a framework in which new kinds of indexes can be defined without changing this
+specification.
 
 Iceberg standardizes the index lifecycle, snapshot relationship, and the minimum metadata needed for safe cross-engine
 use. Beyond that minimum, engines remain free to ignore unsupported indexes, use exact snapshot matches only, or
-implement more advanced stale-index and incremental-query logic. The index type exists to support this choice: it tells
-an engine what class of queries an index can accelerate, so the engine can decide whether the index applies to a query
-without understanding how the index was built.
+implement more advanced stale-index and incremental-query logic. The index type is a first filter: it identifies the
+class of index, so an engine can skip a type it does not implement without inspecting the definition.
 
 ### Expression-based Definitions
 
@@ -343,17 +341,14 @@ table specification. Structs, lists, and maps are excluded because Iceberg does 
 and a struct is represented as separate index fields instead.
 
 Clustering keys do not have to be unique. Range boundaries fall only where the clustering key changes, so all entries
-that share a key are in one range file and a lookup resolves to a single range file. The cost is that a range file
-cannot hold fewer entries than a single clustering key produces, so a definition should end `cluster-spec` with a field
-of high cardinality to keep range files bounded.
-
-Because a range file holds every entry with a given clustering key, the order of those entries within the file has no
-effect on planning or on range file bounds, and the specification leaves it to the writer.
+that share a key are in one range file and a lookup resolves to a single range file. Because a range file holds every
+entry with a given clustering key, the order of those entries within the file has no effect on planning or on range
+file bounds, and the specification leaves it to the writer. The cost is that a range file cannot hold fewer entries
+than a single clustering key produces, so a definition should end `cluster-spec` with a field of high cardinality to
+keep range files bounded.
 
 The clustering order makes the index usable at two levels: range files can be pruned without being opened, and the
 entries of a range file that is opened can be located without reading all of it.
-
-When available, lower and upper bounds support pruning on partial clustering keys and fields outside the cluster spec.
 
 Range files hold non-overlapping clustering ranges, so the `group_max_value` statistics in the tracking file are enough
 to eliminate a range file. Only the upper bound of a range is stored, because clustered tracking file entries and
@@ -369,6 +364,8 @@ The bound has to be exact because readers derive the lower bound of a range file
 preceding entry. A bound rounded up would place that lower bound above entries the next range file actually contains, so
 a lookup would prune to the wrong file and miss rows.
 
+When available, lower and upper bounds support pruning on partial clustering keys and fields outside the cluster spec.
+
 Within a range file, the entries that match a lookup are contiguous, so a reader can locate them with the structures the
 file format provides for stored columns, such as Parquet page indexes, instead of examining every entry. Those
 structures work on a materialized field that clustering keeps sorted, or a value from which the clustering expression
@@ -381,28 +378,26 @@ reader may need to evaluate the clustering expression over range file rows.
 The range schema is derived from the materialized fields, so the index definition and the physical layout of the index
 cannot drift apart and the schema does not have to be maintained as a second, redundant copy of the definition.
 
-Requiring materialized fields to identify matching rows is what keeps a range file useful on its own. A transformation
-that maps several values to the same result cannot distinguish the entries that share a clustering value, so its source
-values have to be materialized. Materializing the transformed result as well is a performance choice, because a reader
-can search it directly.
+Requiring materialized fields to identify matching rows is what keeps a range file useful on its own. A clustering value
+alone cannot distinguish the entries that share it, so the source values behind each cluster field have to be
+materialized. Materializing the transformed result as well is a performance choice, because a reader can search it
+directly.
 
 The declared `data-type` fixes the physical and statistics types for the lifetime of the index. It also allows a reader
 to construct those schemas without binding expressions against a possibly evolved source schema. A source schema
-change that makes an expression incompatible with its declared type requires a new index definition.
+change that makes an expression incompatible with its declared type requires a new index definition. Fields outside
+`cluster-spec` may use any Iceberg type, and a nested `data-type` includes IDs for the fields in its subtree, allowing
+a covering index to materialize lists, maps, or structs.
 
 Fields produced by identity expressions keep the field ID of the source column, which preserves column identity through
 renames and makes the relationship between source and materialized fields explicit. Expressions still reference the
 source field IDs, so they are not rewritten when a column is renamed.
 
 That does not extend to metadata columns, whose names and IDs are fixed by the table specification, so there is no
-identity to preserve. Their IDs are also reserved: an Iceberg reader synthesizes `_pos` from the position of a row in
-the file it is reading, which is the range file rather than the source data file, so storing a range schema field under
-that ID would collide. An index field that references a metadata column therefore takes an ordinary field ID, and a
-reader recognizes it from its expression.
-
-Fields in `cluster-spec` must be primitive because clustering requires a defined order. Other fields may use any
-Iceberg type. A nested `data-type` includes IDs for the fields in its subtree, allowing a covering index to materialize
-lists, maps, or structs.
+identity to preserve. The range schema is the schema of an Iceberg data file, and metadata column IDs are reserved. For
+example, an Iceberg reader synthesizes `_pos` from the position of a row in the file it is reading, which is the range
+file rather than the source data file, so storing a range schema field under that ID would collide. An index field that
+references a metadata column therefore takes an ordinary field ID, and a reader recognizes it from its expression.
 
 ### Atomic Commits
 
@@ -410,17 +405,26 @@ Index metadata is immutable and committed by an atomic swap, mirroring how Icebe
 the current metadata file to be unchanged is what prevents concurrent maintenance processes from silently overwriting
 each other and losing snapshots.
 
+### Reclaiming Index Files
+
+The metadata log keeps the history of index metadata files, as the table specification does for tables. A snapshot
+removed by a commit is still listed in the metadata file that the commit replaced, so index maintenance can read the
+logged files to find snapshots the current metadata no longer references. Each entry records when its file was
+replaced, which starts the grace period after which readers that began from that file are expected to have finished and
+the files of the removed snapshot can be deleted.
+
 ## Appendix B: Recommendations
 
 ### Recording the Source Row Location
 
-This specification does not define how an index entry points back to the row it was built from. The pointer is an
-ordinary materialized field, and tables identify a row in different ways. The definitions below cover the common cases.
+This specification does not define how an index entry points back to the row it was built from. The pointer is one or
+more ordinary materialized fields, and indexes could identify a row in different ways. The options below cover the
+common cases.
 
 To identify an individual row, materialize expressions that reference the `_file` (`2147483646`) and `_pos`
 (`2147483645`) metadata columns. The index fields take ordinary field IDs, chosen by whoever defines the index:
 
-```
+```json
 {
   ...
   "materialized-fields" : [ {
@@ -472,7 +476,8 @@ This creates a `SCALAR` index on the `user_id` column that clusters entries by t
 `user_id` itself. When the index is created, the engine (or a later index maintenance job) reads the current table
 snapshot, writes the range files and a tracking file, and produces the first index metadata file containing a single
 index snapshot. Range file boundaries follow the clustering, so a range file holds a contiguous range of buckets or a
-range of `user_id` values within a single bucket. The tracking file stores summary information and pruning statistics.
+range of `user_id` values within a single bucket. The tracking file describes each range file with its location,
+format, record count, and size, together with the statistics used for pruning.
 
 The materialized fields are `user_id` and the source row location. `user_id` keeps the field ID of the source column
 because it is an identity expression, while the location fields reference metadata columns and so take ordinary field
@@ -564,12 +569,12 @@ Both fields participate in `cluster-spec`, so both stats structs include `group_
 }
 ```
 
-| Statistic                   | `range-00001.parquet` | `range-00002.parquet` |
-|-----------------------------|-----------------------|-----------------------|
-| `user_id` bounds            | `12094` .. `84721`    | `3277` .. `99182`     |
-| bucket bounds               | `3` .. `88`           | `120` .. `209`        |
-| bucket `group_max_value`    | `88`                  | `209`                 |
-| `user_id` `group_max_value` | `55310`               | `3277`                |
+| Range file            | Field     | `lower_bound` | `upper_bound` | `group_max_value` |
+|-----------------------|-----------|---------------|---------------|-------------------|
+| `range-00001.parquet` | bucket    | `3`           | `88`          | `88`              |
+| `range-00001.parquet` | `user_id` | `12094`       | `84721`       | `55310`           |
+| `range-00002.parquet` | bucket    | `120`         | `209`         | `209`             |
+| `range-00002.parquet` | `user_id` | `3277`        | `99182`       | `3277`            |
 
 The `group_max_value` metrics form the clustering upper bounds `{ bucket: 88, user_id: 55310 }` and
 `{ bucket: 209, user_id: 3277 }` when read in `cluster-spec` order. The `user_id` bounds of the two files overlap, so
@@ -603,7 +608,7 @@ table snapshot. The index definition is unchanged, so it is elided from the new 
 ```
 s3://bucket/warehouse/default.db/events/index/bucket_index/metadata/00002-(uuid).metadata.json
 ```
-```
+```json
 {
   ...
   "snapshots" : [ {
@@ -616,6 +621,10 @@ s3://bucket/warehouse/default.db/events/index/bucket_index/metadata/00002-(uuid)
     "source-table-snapshot-id" : 5459876531255530170,
     "timestamp-ms" : 1573518981593,
     "index-data" : "s3://bucket/warehouse/default.db/events/index/bucket_index/metadata/tracking-00002-(uuid).parquet"
+  } ],
+  "metadata-log" : [ {
+    "metadata-file" : "s3://bucket/warehouse/default.db/events/index/bucket_index/metadata/00001-(uuid).metadata.json",
+    "timestamp-ms" : 1573518981593
   } ]
 }
 ```
@@ -657,7 +666,7 @@ still referenced by `snapshot-id 2` and are retained. The index definition is ag
 ```
 s3://bucket/warehouse/default.db/events/index/bucket_index/metadata/00003-(uuid).metadata.json
 ```
-```
+```json
 {
   ...
   "snapshots" : [ {
@@ -665,6 +674,13 @@ s3://bucket/warehouse/default.db/events/index/bucket_index/metadata/00003-(uuid)
     "source-table-snapshot-id" : 5459876531255530170,
     "timestamp-ms" : 1573518981593,
     "index-data" : "s3://bucket/warehouse/default.db/events/index/bucket_index/metadata/tracking-00002-(uuid).parquet"
+  } ],
+  "metadata-log" : [ {
+    "metadata-file" : "s3://bucket/warehouse/default.db/events/index/bucket_index/metadata/00001-(uuid).metadata.json",
+    "timestamp-ms" : 1573518981593
+  }, {
+    "metadata-file" : "s3://bucket/warehouse/default.db/events/index/bucket_index/metadata/00002-(uuid).metadata.json",
+    "timestamp-ms" : 1573519505104
   } ]
 }
 ```
