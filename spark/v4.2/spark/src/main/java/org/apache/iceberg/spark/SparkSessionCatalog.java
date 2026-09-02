@@ -28,6 +28,7 @@ import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.source.HasIcebergCatalog;
@@ -149,8 +150,9 @@ public class SparkSessionCatalog<
   public TableSummary[] listTableSummaries(String[] namespace)
       throws NoSuchNamespaceException, NoSuchTableException {
     Set<Identifier> viewIdentifiers = sessionViews(namespace);
+    Set<Identifier> icebergTableIdentifiers = icebergTables(namespace);
     return Arrays.stream(getSessionCatalog().listTableSummaries(namespace))
-        .map(summary -> relationSummary(summary, viewIdentifiers))
+        .map(summary -> relationSummary(summary, viewIdentifiers, icebergTableIdentifiers))
         .filter(summary -> !isViewType(summary.tableType()))
         .toArray(TableSummary[]::new);
   }
@@ -159,9 +161,10 @@ public class SparkSessionCatalog<
   public TableSummary[] listRelationSummaries(String[] namespace)
       throws NoSuchNamespaceException, NoSuchTableException {
     Set<Identifier> sessionViews = sessionViews(namespace);
+    Set<Identifier> icebergTables = icebergTables(namespace);
     Map<Identifier, TableSummary> summaries = new LinkedHashMap<>();
     for (TableSummary summary : getSessionCatalog().listTableSummaries(namespace)) {
-      summaries.put(summary.identifier(), relationSummary(summary, sessionViews));
+      summaries.put(summary.identifier(), relationSummary(summary, sessionViews, icebergTables));
     }
 
     for (Identifier identifier : sessionViews) {
@@ -176,11 +179,13 @@ public class SparkSessionCatalog<
   }
 
   private TableSummary relationSummary(
-      TableSummary summary, Set<Identifier> sessionViewIdentifiers) {
+      TableSummary summary,
+      Set<Identifier> sessionViewIdentifiers,
+      Set<Identifier> icebergTableIdentifiers) {
     Identifier identifier = summary.identifier();
     if (!sessionViewIdentifiers.contains(identifier) && !isViewType(summary.tableType())) {
       return summary;
-    } else if (icebergCatalog.tableExists(identifier)) {
+    } else if (icebergTableIdentifiers.contains(identifier)) {
       return TableSummary.of(identifier, TableSummary.EXTERNAL_TABLE_TYPE);
     }
 
@@ -306,11 +311,10 @@ public class SparkSessionCatalog<
   public StagedTable stageCreateOrReplace(
       Identifier ident, StructType schema, Transform[] partitions, Map<String, String> properties)
       throws NoSuchNamespaceException {
-    try {
-      checkViewNotExists(ident);
-    } catch (TableAlreadyExistsException e) {
-      // StagingTableCatalog does not declare this checked exception for create-or-replace.
-      throw new RuntimeException(e);
+    if (viewExists(ident)) {
+      // StagingTableCatalog does not declare a checked collision exception for create-or-replace.
+      throw new AlreadyExistsException(
+          "Cannot create or replace table %s: a view with the same name already exists", ident);
     }
 
     String provider = properties.get("provider");
@@ -537,6 +541,19 @@ public class SparkSessionCatalog<
     }
 
     return views;
+  }
+
+  private Set<Identifier> icebergTables(String[] namespace) throws NoSuchTableException {
+    Set<Identifier> tables = Sets.newHashSet();
+    try {
+      for (TableSummary summary : icebergCatalog.listTableSummaries(namespace)) {
+        tables.add(summary.identifier());
+      }
+    } catch (NoSuchNamespaceException e) {
+      // The session catalog owns namespaces, so a valid namespace may not exist in Iceberg.
+    }
+
+    return tables;
   }
 
   @Override

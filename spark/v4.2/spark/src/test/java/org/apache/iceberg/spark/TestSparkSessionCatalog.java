@@ -24,11 +24,13 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.withSettings;
 
 import java.util.Collections;
+import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.spark.sql.catalyst.analysis.NoSuchNamespaceException;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.catalyst.analysis.NoSuchViewException;
@@ -162,6 +164,8 @@ public class TestSparkSessionCatalog extends TestBase {
     ViewCatalog icebergViewCatalog = (ViewCatalog) icebergCatalog;
     when(icebergViewCatalog.listViews(namespace))
         .thenThrow(new NoSuchNamespaceException(namespace));
+    when(icebergCatalog.listTableSummaries(namespace))
+        .thenThrow(new NoSuchNamespaceException(namespace));
 
     SparkSessionCatalog<?> catalog = catalogWithViews(icebergCatalog, sessionCatalog);
 
@@ -248,6 +252,7 @@ public class TestSparkSessionCatalog extends TestBase {
     TableCatalog icebergCatalog =
         mock(TableCatalog.class, withSettings().extraInterfaces(ViewCatalog.class));
     ViewCatalog icebergViewCatalog = (ViewCatalog) icebergCatalog;
+    when(icebergCatalog.listTableSummaries(namespace)).thenReturn(new TableSummary[0]);
     when(icebergViewCatalog.listViews(namespace))
         .thenReturn(new Identifier[] {sharedViewIdent, icebergViewIdent});
 
@@ -258,14 +263,17 @@ public class TestSparkSessionCatalog extends TestBase {
     assertThat(catalog.listTableSummaries(namespace))
         .extracting(TableSummary::identifier)
         .containsExactly(tableIdent);
-    assertThat(catalog.listRelationSummaries(namespace))
+    TableSummary[] relationSummaries = catalog.listRelationSummaries(namespace);
+    assertThat(relationSummaries)
         .extracting(TableSummary::identifier)
         .containsExactlyInAnyOrder(tableIdent, sharedViewIdent, sessionViewIdent, icebergViewIdent);
-    assertThat(catalog.listRelationSummaries(namespace))
+    assertThat(relationSummaries)
         .filteredOn(summary -> summary.identifier().equals(sharedViewIdent))
         .singleElement()
         .extracting(TableSummary::tableType)
         .isEqualTo(TableSummary.VIEW_TABLE_TYPE);
+    verify(icebergCatalog, times(2)).listTableSummaries(namespace);
+    verify(icebergCatalog, never()).tableExists(any());
     verify(sessionViewCatalog, never()).loadView(any());
     verify(icebergViewCatalog, never()).loadView(any());
   }
@@ -284,6 +292,7 @@ public class TestSparkSessionCatalog extends TestBase {
     when(sessionCatalog.loadTable(ident)).thenReturn(table);
 
     TableCatalog icebergCatalog = icebergCatalogWithViews();
+    when(icebergCatalog.listTableSummaries(namespace)).thenReturn(new TableSummary[0]);
     when(((ViewCatalog) icebergCatalog).listViews(namespace)).thenReturn(new Identifier[] {ident});
     when(icebergCatalog.loadTable(ident)).thenThrow(new NoSuchTableException(ident));
 
@@ -314,7 +323,8 @@ public class TestSparkSessionCatalog extends TestBase {
 
     TableCatalog icebergCatalog = icebergCatalogWithViews();
     when(((ViewCatalog) icebergCatalog).listViews(namespace)).thenReturn(new Identifier[0]);
-    when(icebergCatalog.tableExists(ident)).thenReturn(true);
+    when(icebergCatalog.listTableSummaries(namespace))
+        .thenReturn(new TableSummary[] {TableSummary.of(ident, TableSummary.EXTERNAL_TABLE_TYPE)});
     when(icebergCatalog.loadTable(ident)).thenReturn(table);
 
     SparkSessionCatalog<?> catalog = catalogWithViews(icebergCatalog, sessionCatalog);
@@ -328,6 +338,8 @@ public class TestSparkSessionCatalog extends TestBase {
         .extracting(TableSummary::tableType)
         .isEqualTo(TableSummary.EXTERNAL_TABLE_TYPE);
     assertThat(catalog.loadRelation(ident)).isSameAs(table);
+    verify(icebergCatalog, times(2)).listTableSummaries(namespace);
+    verify(icebergCatalog, never()).tableExists(any());
   }
 
   @Test
@@ -351,9 +363,9 @@ public class TestSparkSessionCatalog extends TestBase {
             () ->
                 catalog.stageCreateOrReplace(
                     ident, schema, partitions, Collections.singletonMap("provider", "parquet")))
-        .isInstanceOf(RuntimeException.class)
-        .hasCauseInstanceOf(TableAlreadyExistsException.class)
-        .hasMessageContaining(ident.name());
+        .isInstanceOf(AlreadyExistsException.class)
+        .hasMessage(
+            "Cannot create or replace table %s: a view with the same name already exists", ident);
   }
 
   @Test
