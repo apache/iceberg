@@ -58,6 +58,24 @@ public class TestViewMetadata {
         .build();
   }
 
+  private ViewVersion newViewVersion(ViewRepresentation... representations) {
+    return ImmutableViewVersion.builder()
+        .versionId(1)
+        .schemaId(0)
+        .timestampMillis(System.currentTimeMillis())
+        .defaultNamespace(Namespace.empty())
+        .addRepresentations(representations)
+        .build();
+  }
+
+  private ViewMetadata newViewMetadata(Schema schema, ViewRepresentation... representations) {
+    return ViewMetadata.builder()
+        .setLocation("custom-location")
+        .addSchema(schema)
+        .setCurrentVersion(newViewVersion(representations), schema)
+        .build();
+  }
+
   @Test
   public void testExpiration() {
     // purposely use versions and timestamps that do not match to check that version ID is used
@@ -1234,10 +1252,9 @@ public class TestViewMetadata {
                     .setCurrentVersionId(trinoOnly.versionId())
                     .build())
         .isInstanceOf(IllegalStateException.class)
-        .hasMessage(
-            "Cannot replace view due to loss of view dialects (replace.drop-dialect.allowed=false):\n"
-                + "Previous dialects: [trino, spark]\n"
-                + "New dialects: [trino]");
+        .hasMessageStartingWith(
+            "Cannot replace view due to loss of view dialects (replace.drop-dialect.allowed=false):")
+        .hasMessageContaining("New dialects: [trino]");
   }
 
   @Test
@@ -1293,6 +1310,200 @@ public class TestViewMetadata {
             "Cannot replace view due to loss of view dialects (replace.drop-dialect.allowed=false):\n"
                 + "Previous dialects: [trino]\n"
                 + "New dialects: [spark]");
+  }
+
+  @Test
+  public void appendingDialectIsDisabledByDefault() {
+    Schema schema = new Schema(Types.NestedField.required(1, "x", Types.LongType.get()));
+    ViewRepresentation spark =
+        ImmutableSQLViewRepresentation.builder().dialect("spark").sql("select * from tbl").build();
+    ViewRepresentation trino =
+        ImmutableSQLViewRepresentation.builder().dialect("trino").sql("select * from tbl").build();
+
+    ViewMetadata metadata = newViewMetadata(schema, spark);
+
+    ViewMetadata updated =
+        ViewMetadata.buildFrom(metadata)
+            .setProperties(ImmutableMap.of(ViewProperties.REPLACE_DROP_DIALECT_ALLOWED, "true"))
+            .setCurrentVersion(newViewVersion(trino), schema)
+            .build();
+
+    assertThat(updated.currentVersion().representations()).containsExactly(trino);
+  }
+
+  @Test
+  public void appendingDialectRetainsPreviousDialect() {
+    Schema schema = new Schema(Types.NestedField.required(1, "x", Types.LongType.get()));
+    ViewRepresentation spark =
+        ImmutableSQLViewRepresentation.builder().dialect("spark").sql("select * from tbl").build();
+    ViewRepresentation trino =
+        ImmutableSQLViewRepresentation.builder().dialect("trino").sql("select * from tbl").build();
+
+    ViewMetadata metadata = newViewMetadata(schema, spark);
+
+    // replacing spark with trino retains spark, so dropping a dialect never comes into play
+    ViewMetadata updated =
+        ViewMetadata.buildFrom(metadata)
+            .setProperties(ImmutableMap.of(ViewProperties.REPLACE_APPEND_DIALECT_ALLOWED, "true"))
+            .setCurrentVersion(newViewVersion(trino), schema)
+            .build();
+
+    assertThat(updated.currentVersion().representations()).containsExactly(trino, spark);
+  }
+
+  @Test
+  public void appendingDialectPrefersTheNewRepresentation() {
+    Schema schema = new Schema(Types.NestedField.required(1, "x", Types.LongType.get()));
+    ViewRepresentation spark =
+        ImmutableSQLViewRepresentation.builder().dialect("spark").sql("select * from tbl").build();
+    ViewRepresentation trino =
+        ImmutableSQLViewRepresentation.builder().dialect("trino").sql("select * from tbl").build();
+    ViewRepresentation updatedSpark =
+        ImmutableSQLViewRepresentation.builder()
+            .dialect("SPARK")
+            .sql("select count(*) from tbl")
+            .build();
+
+    ViewMetadata metadata = newViewMetadata(schema, spark, trino);
+
+    // the dialect comparison is case-insensitive, so spark is replaced rather than appended
+    ViewMetadata updated =
+        ViewMetadata.buildFrom(metadata)
+            .setProperties(ImmutableMap.of(ViewProperties.REPLACE_APPEND_DIALECT_ALLOWED, "true"))
+            .setCurrentVersion(newViewVersion(updatedSpark), schema)
+            .build();
+
+    assertThat(updated.currentVersion().representations()).containsExactly(updatedSpark, trino);
+  }
+
+  @Test
+  public void appendingDialectIgnoresNonSQLRepresentations() {
+    Schema schema = new Schema(Types.NestedField.required(1, "x", Types.LongType.get()));
+    ViewRepresentation spark =
+        ImmutableSQLViewRepresentation.builder().dialect("spark").sql("select * from tbl").build();
+    ViewRepresentation unknown =
+        ImmutableUnknownViewRepresentation.builder().type("unknown-representation").build();
+    ViewRepresentation trino =
+        ImmutableSQLViewRepresentation.builder().dialect("trino").sql("select * from tbl").build();
+
+    ViewMetadata metadata = newViewMetadata(schema, spark, unknown);
+
+    ViewMetadata updated =
+        ViewMetadata.buildFrom(metadata)
+            .setProperties(ImmutableMap.of(ViewProperties.REPLACE_APPEND_DIALECT_ALLOWED, "true"))
+            .setCurrentVersion(newViewVersion(trino), schema)
+            .build();
+
+    assertThat(updated.currentVersion().representations()).containsExactly(trino, spark);
+  }
+
+  @Test
+  public void appendingDialectIsNoOpWithoutAPreviousVersion() {
+    Schema schema = new Schema(Types.NestedField.required(1, "x", Types.LongType.get()));
+    ViewRepresentation spark =
+        ImmutableSQLViewRepresentation.builder().dialect("spark").sql("select * from tbl").build();
+
+    ViewMetadata metadata =
+        ViewMetadata.builder()
+            .setLocation("custom-location")
+            .setProperties(ImmutableMap.of(ViewProperties.REPLACE_APPEND_DIALECT_ALLOWED, "true"))
+            .addSchema(schema)
+            .setCurrentVersion(newViewVersion(spark), schema)
+            .build();
+
+    assertThat(metadata.currentVersion().representations()).containsExactly(spark);
+  }
+
+  @Test
+  public void cannotAllowDroppingAndAppendingDialectsAtTheSameTime() {
+    Schema schema = new Schema(Types.NestedField.required(1, "x", Types.LongType.get()));
+    ViewRepresentation spark =
+        ImmutableSQLViewRepresentation.builder().dialect("spark").sql("select * from tbl").build();
+    ViewRepresentation trino =
+        ImmutableSQLViewRepresentation.builder().dialect("trino").sql("select * from tbl").build();
+
+    Map<String, String> conflicting =
+        ImmutableMap.of(
+            ViewProperties.REPLACE_DROP_DIALECT_ALLOWED, "true",
+            ViewProperties.REPLACE_APPEND_DIALECT_ALLOWED, "true");
+
+    assertThatThrownBy(
+            () ->
+                ViewMetadata.builder()
+                    .setLocation("custom-location")
+                    .setProperties(conflicting)
+                    .addSchema(schema)
+                    .setCurrentVersion(newViewVersion(spark), schema)
+                    .build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Cannot set both replace.drop-dialect.allowed and replace.append-dialect.allowed to true");
+
+    ViewMetadata metadata = newViewMetadata(schema, spark);
+
+    assertThatThrownBy(
+            () ->
+                ViewMetadata.buildFrom(metadata)
+                    .setProperties(conflicting)
+                    .setCurrentVersion(newViewVersion(trino), schema)
+                    .build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Cannot set both replace.drop-dialect.allowed and replace.append-dialect.allowed to true");
+
+    // removing one of them resolves the conflict
+    ViewMetadata updated =
+        ViewMetadata.buildFrom(metadata)
+            .setProperties(conflicting)
+            .removeProperties(ImmutableSet.of(ViewProperties.REPLACE_DROP_DIALECT_ALLOWED))
+            .setCurrentVersion(newViewVersion(trino), schema)
+            .build();
+
+    assertThat(updated.currentVersion().representations()).containsExactly(trino, spark);
+  }
+
+  @Test
+  public void appendingDialectAllowedAndThenDisallowed() {
+    Schema schema = new Schema(Types.NestedField.required(1, "x", Types.LongType.get()));
+    ViewRepresentation spark =
+        ImmutableSQLViewRepresentation.builder().dialect("spark").sql("select * from tbl").build();
+    ViewRepresentation trino =
+        ImmutableSQLViewRepresentation.builder().dialect("trino").sql("select * from tbl").build();
+
+    ViewMetadata metadata = newViewMetadata(schema, spark);
+
+    ViewMetadata updated =
+        ViewMetadata.buildFrom(metadata)
+            .setProperties(ImmutableMap.of(ViewProperties.REPLACE_APPEND_DIALECT_ALLOWED, "true"))
+            .setCurrentVersion(newViewVersion(trino), schema)
+            .build();
+
+    assertThat(updated.currentVersion().representations()).containsExactly(trino, spark);
+
+    // dropping spark requires disabling appending and allowing the drop
+    assertThatThrownBy(
+            () ->
+                ViewMetadata.buildFrom(updated)
+                    .setProperties(
+                        ImmutableMap.of(ViewProperties.REPLACE_APPEND_DIALECT_ALLOWED, "false"))
+                    .setCurrentVersion(newViewVersion(trino), schema)
+                    .build())
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage(
+            "Cannot replace view due to loss of view dialects (replace.drop-dialect.allowed=false):\n"
+                + "Previous dialects: [trino, spark]\n"
+                + "New dialects: [trino]");
+
+    ViewMetadata sparkDropped =
+        ViewMetadata.buildFrom(updated)
+            .setProperties(
+                ImmutableMap.of(
+                    ViewProperties.REPLACE_APPEND_DIALECT_ALLOWED, "false",
+                    ViewProperties.REPLACE_DROP_DIALECT_ALLOWED, "true"))
+            .setCurrentVersion(newViewVersion(trino), schema)
+            .build();
+
+    assertThat(sparkDropped.currentVersion().representations()).containsExactly(trino);
   }
 
   @Test
