@@ -335,6 +335,45 @@ class TestTrackedFileAdapters {
   }
 
   @Test
+  void dataFileExposesColocatedDeletionVector() {
+    DeletionVector dv = deletionVector();
+    TrackedFileStruct file =
+        new TrackedFileStruct(
+            null,
+            FileContent.DATA,
+            FORMAT_VERSION_V4,
+            DATA_FILE_LOCATION,
+            FileFormat.PARQUET,
+            100L,
+            1024L,
+            null,
+            null,
+            null,
+            null,
+            dv,
+            null,
+            null,
+            null,
+            null);
+
+    DeleteFile dvFile = TrackedFileAdapters.asDataFile(file, UNPARTITIONED).deletionVector();
+
+    assertThat(dvFile.content()).isEqualTo(FileContent.POSITION_DELETES);
+    assertThat(dvFile.format()).isEqualTo(FileFormat.PUFFIN);
+    assertThat(dvFile.location()).isEqualTo(dv.location());
+    assertThat(dvFile.recordCount()).isEqualTo(dv.cardinality());
+    assertThat(dvFile.referencedDataFile()).isEqualTo(DATA_FILE_LOCATION);
+  }
+
+  @Test
+  void dataFileWithoutDeletionVectorReturnsNull() {
+    DataFile dataFile =
+        TrackedFileAdapters.asDataFile(dummyTrackedFile(FileContent.DATA), UNPARTITIONED);
+
+    assertThat(dataFile.deletionVector()).isNull();
+  }
+
+  @Test
   void nullContentStatsReturnsNullStats() {
     TrackedFileStruct file = dummyTrackedFile(FileContent.DATA);
 

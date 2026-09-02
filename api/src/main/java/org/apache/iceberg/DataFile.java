@@ -164,4 +164,9 @@ public interface DataFile extends ContentFile<DataFile> {
   default List<Integer> equalityFieldIds() {
     return null;
   }
+
+  /** Returns the deletion vector co-located with this data file, or null if there is none. */
+  default DeleteFile deletionVector() {
+    return null;
+  }
 }
