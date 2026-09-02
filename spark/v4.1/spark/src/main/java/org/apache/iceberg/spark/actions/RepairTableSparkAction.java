@@ -25,7 +25,6 @@ import java.util.EnumMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -76,9 +75,11 @@ import org.apache.spark.sql.Encoder;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.functions;
 import org.apache.spark.sql.types.StructType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import scala.Tuple2;
 
 /**
  * An action that repairs incorrect statistics in the manifests of a table.
@@ -250,41 +251,72 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
     return withReusableDS(
         entryDF,
         df -> {
-          // find the entries whose stats disagree with the files they refer to
-          List<EntryVerdict> verdicts =
+          // the entries whose stats disagree with the files they refer to, as (manifest, path).
+          // cached because it is small, one row per incorrect entry, and is read by several actions
+          // below, whereas recomputing it would re-read every file.
+          Dataset<Row> verdicts =
               df.mapPartitions(
-                      newCheckStatsFunc(content, specId), Encoders.bean(EntryVerdict.class))
-                  .collectAsList();
+                      newCheckStatsFunc(content, specId),
+                      Encoders.tuple(Encoders.STRING(), Encoders.STRING()))
+                  .toDF("manifest", "path")
+                  .cache();
 
-          if (verdicts.isEmpty()) {
-            return RepairedManifests.empty();
+          try {
+            List<String> manifestsToRewrite =
+                verdicts.select("manifest").distinct().as(Encoders.STRING()).collectAsList();
+
+            if (manifestsToRewrite.isEmpty()) {
+              return RepairedManifests.empty();
+            }
+
+            long repairedCount = verdicts.count();
+            List<ManifestFile> rewritten =
+                manifests.stream()
+                    .filter(manifest -> manifestsToRewrite.contains(manifest.path()))
+                    .collect(Collectors.toList());
+
+            // a dry run reports what would be repaired without writing any manifests
+            if (dryRun) {
+              return RepairedManifests.of(rewritten, ImmutableList.of(), repairedCount);
+            }
+
+            // mark every entry of the affected manifests with whether its stats need repair by
+            // joining on the file path, so the unbounded per file set stays distributed rather than
+            // being collected to the driver and broadcast back out
+            Dataset<Row> entriesToRewrite =
+                df.filter(df.col("manifest").isin(manifestsToRewrite.toArray()));
+            Dataset<Row> markedEntries = markEntriesToRepair(entriesToRewrite, verdicts);
+            List<ManifestFile> written =
+                writeManifests(content, specId, markedEntries, rewritten.size());
+
+            return RepairedManifests.of(rewritten, written, repairedCount);
+          } finally {
+            verdicts.unpersist(false);
           }
-
-          long repairedCount = verdicts.size();
-
-          Set<String> manifestsToRewrite =
-              verdicts.stream().map(EntryVerdict::getManifest).collect(Collectors.toSet());
-          List<ManifestFile> rewritten =
-              manifests.stream()
-                  .filter(manifest -> manifestsToRewrite.contains(manifest.path()))
-                  .collect(Collectors.toList());
-
-          // a dry run reports what would be repaired without writing any manifests
-          if (dryRun) {
-            return RepairedManifests.of(rewritten, ImmutableList.of(), repairedCount);
-          }
-
-          Set<String> repairedPaths =
-              verdicts.stream().map(EntryVerdict::getPath).collect(Collectors.toSet());
-
-          // rewrite every entry of the affected manifests, repairing the incorrect ones
-          Dataset<Row> entriesToRewrite =
-              df.filter(df.col("manifest").isin(manifestsToRewrite.toArray()));
-          List<ManifestFile> written =
-              writeManifests(content, specId, entriesToRewrite, rewritten.size(), repairedPaths);
-
-          return RepairedManifests.of(rewritten, written, repairedCount);
         });
+  }
+
+  /**
+   * Marks every entry with a boolean {@code repair} column that is true when the entry's file has
+   * incorrect statistics, by left joining the entries against the verdicts on the file path.
+   */
+  private Dataset<Row> markEntriesToRepair(Dataset<Row> entries, Dataset<Row> verdicts) {
+    Dataset<Row> repairedPaths =
+        verdicts.select(verdicts.col("path").as("repaired_path")).distinct();
+    return entries
+        .join(
+            repairedPaths,
+            entries.col("data_file.file_path").equalTo(repairedPaths.col("repaired_path")),
+            "left")
+        .withColumn("repair", functions.col("repaired_path").isNotNull())
+        .drop("repaired_path")
+        .select(
+            "manifest",
+            "snapshot_id",
+            "sequence_number",
+            "file_sequence_number",
+            "data_file",
+            "repair");
   }
 
   /**
@@ -312,28 +344,24 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
   }
 
   private List<ManifestFile> writeManifests(
-      ManifestContent content,
-      int specId,
-      Dataset<Row> entryDF,
-      int numManifests,
-      Set<String> repairedPaths) {
+      ManifestContent content, int specId, Dataset<Row> entryDF, int numManifests) {
     StructType sparkType = (StructType) entryDF.schema().apply("data_file").dataType();
     Types.StructType combinedFileType = DataFile.getType(Partitioning.partitionType(table));
     Types.StructType fileType = DataFile.getType(table.specs().get(specId).partitionType());
     ManifestWriterFactory writers = manifestWriters(specId);
-    Broadcast<Set<String>> repaired = sparkContext().broadcast(repairedPaths);
     RepairContext context = newRepairContext(content, specId);
 
     WriteManifests<?> writeFunc =
         content == ManifestContent.DATA
-            ? new WriteDataManifests(
-                writers, combinedFileType, fileType, sparkType, repaired, context)
-            : new WriteDeleteManifests(
-                writers, combinedFileType, fileType, sparkType, repaired, context);
+            ? new WriteDataManifests(writers, combinedFileType, fileType, sparkType, context)
+            : new WriteDeleteManifests(writers, combinedFileType, fileType, sparkType, context);
 
-    // write about as many manifests as are being replaced, so repairing does not change the
-    // manifest layout of the table
-    return writeFunc.apply(entryDF.repartition(numManifests)).collectAsList();
+    // repartition by manifest so the entries of each manifest are written together and the layout
+    // of the table is preserved, rather than scattered round robin as a plain repartition(n) would.
+    // this produces about as many manifests as are being replaced.
+    return writeFunc
+        .apply(entryDF.repartition(numManifests, entryDF.col("manifest")))
+        .collectAsList();
   }
 
   private CheckStats newCheckStatsFunc(ManifestContent content, int specId) {
@@ -534,37 +562,11 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
     }
   }
 
-  /** A manifest entry whose statistics disagree with the file it refers to. */
-  public static class EntryVerdict implements Serializable {
-    private String manifest;
-    private String path;
-
-    public EntryVerdict() {}
-
-    EntryVerdict(String manifest, String path) {
-      this.manifest = manifest;
-      this.path = path;
-    }
-
-    public String getManifest() {
-      return manifest;
-    }
-
-    public void setManifest(String manifest) {
-      this.manifest = manifest;
-    }
-
-    public String getPath() {
-      return path;
-    }
-
-    public void setPath(String path) {
-      this.path = path;
-    }
-  }
-
-  /** Compares the statistics of every entry against the file the entry refers to. */
-  private static class CheckStats implements MapPartitionsFunction<Row, EntryVerdict> {
+  /**
+   * Compares the statistics of every entry against the file the entry refers to, emitting the
+   * manifest path and file path of each entry whose statistics are incorrect.
+   */
+  private static class CheckStats implements MapPartitionsFunction<Row, Tuple2<String, String>> {
     private final RepairContext context;
 
     CheckStats(RepairContext context) {
@@ -572,8 +574,8 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
     }
 
     @Override
-    public Iterator<EntryVerdict> call(Iterator<Row> rows) {
-      List<EntryVerdict> verdicts = Lists.newArrayList();
+    public Iterator<Tuple2<String, String>> call(Iterator<Row> rows) {
+      List<Tuple2<String, String>> verdicts = Lists.newArrayList();
       // the combined file type and the wrapper are identical for every row of the partition
       Types.StructType combinedFileType =
           DataFile.getType(Partitioning.partitionType(context.table()));
@@ -604,7 +606,7 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
 
           if (RepairMetrics.statsAreIncorrect(
               file, metrics, fileSizeInBytes, context.repairColumnMetrics())) {
-            verdicts.add(new EntryVerdict(manifest, location));
+            verdicts.add(new Tuple2<>(manifest, location));
           }
         } catch (Exception e) {
           // the stats of a file that cannot be read are left alone, as whether they are
@@ -623,9 +625,8 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
         Types.StructType combinedFileType,
         Types.StructType fileType,
         StructType sparkFileType,
-        Broadcast<Set<String>> repairedPaths,
         RepairContext context) {
-      super(writers, combinedFileType, fileType, sparkFileType, repairedPaths, context);
+      super(writers, combinedFileType, fileType, sparkFileType, context);
     }
 
     @Override
@@ -645,9 +646,8 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
         Types.StructType combinedFileType,
         Types.StructType fileType,
         StructType sparkFileType,
-        Broadcast<Set<String>> repairedPaths,
         RepairContext context) {
-      super(writers, combinedFileType, fileType, sparkFileType, repairedPaths, context);
+      super(writers, combinedFileType, fileType, sparkFileType, context);
     }
 
     @Override
@@ -679,7 +679,6 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
     private final Types.StructType combinedFileType;
     private final Types.StructType fileType;
     private final StructType sparkFileType;
-    private final Broadcast<Set<String>> repairedPaths;
     private final RepairContext context;
 
     WriteManifests(
@@ -687,13 +686,11 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
         Types.StructType combinedFileType,
         Types.StructType fileType,
         StructType sparkFileType,
-        Broadcast<Set<String>> repairedPaths,
         RepairContext context) {
       this.writers = writers;
       this.combinedFileType = combinedFileType;
       this.fileType = fileType;
       this.sparkFileType = sparkFileType;
-      this.repairedPaths = repairedPaths;
       this.context = context;
     }
 
@@ -710,7 +707,6 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
     public Iterator<ManifestFile> call(Iterator<Row> rows) throws Exception {
       SparkContentFile<F> fileWrapper = newFileWrapper();
       RollingManifestWriter<F> writer = newManifestWriter();
-      Set<String> repaired = repairedPaths.value();
 
       try {
         while (rows.hasNext()) {
@@ -719,11 +715,10 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
           long sequenceNumber = row.getLong(2);
           Long fileSequenceNumber = row.isNullAt(3) ? null : row.getLong(3);
           Row fileRow = row.getStruct(4);
+          boolean repair = row.getBoolean(5);
 
           F file = fileWrapper.wrap(fileRow);
-          String location = file.location().toString();
-
-          if (repaired.contains(location)) {
+          if (repair) {
             file = (F) repairStats(file);
           }
 

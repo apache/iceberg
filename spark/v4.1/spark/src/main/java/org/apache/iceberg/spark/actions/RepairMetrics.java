@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.actions;
 import static org.apache.iceberg.TableProperties.DEFAULT_NAME_MAPPING;
 
 import java.nio.ByteBuffer;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import org.apache.iceberg.ContentFile;
@@ -149,12 +150,14 @@ class RepairMetrics {
             .copy(delete)
             .withMetrics(metrics)
             .withFileSizeInBytes(fileSizeInBytes);
-    if (delete.content() == FileContent.EQUALITY_DELETES) {
+    List<Integer> equalityFieldIds = delete.equalityFieldIds();
+    if (delete.content() == FileContent.EQUALITY_DELETES
+        && equalityFieldIds != null
+        && !equalityFieldIds.isEmpty()) {
       // copy(DeleteFile) drops the equality field ids, so they must be set again. Otherwise the
       // rewritten entry keeps content EQUALITY_DELETES with null equality ids, which makes reads
-      // fail once the delete is applied.
-      builder.ofEqualityDeletes(
-          delete.equalityFieldIds().stream().mapToInt(Integer::intValue).toArray());
+      // fail once the delete is applied. An entry that already lacks them is carried through as is.
+      builder.ofEqualityDeletes(equalityFieldIds.stream().mapToInt(Integer::intValue).toArray());
     }
 
     return builder.build();
