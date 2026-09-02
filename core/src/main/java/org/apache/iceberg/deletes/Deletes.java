@@ -152,7 +152,7 @@ public class Deletes {
       for (T delete : deletes) {
         CharSequence filePath = (CharSequence) FILENAME_ACCESSOR.get(delete);
         long position = (long) POSITION_ACCESSOR.get(delete);
-        if (lastFilePath == null || !lastFilePath.equals(filePath)) {
+        if (lastFilePath == null || !lastFilePath.contentEquals(filePath)) {
           lastFilePath = filePath.toString();
           index = indexes.computeIfAbsent(filePath, key -> new BitmapPositionDeleteIndex(file));
         }
