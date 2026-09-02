@@ -21,7 +21,9 @@ title: "Benchmarks"
 ## Available Benchmarks and how to run them
 
 Benchmarks are located under `<module>/src/jmh`. It is generally better to run only the benchmarks you are investigating instead of the full suite.
-Also note that JMH benchmarks run in the same JVM as the system under test, so results may vary between runs.
+Iceberg benchmarks use JMH forks to run measurements in a new JVM for isolation and reproducibility.
+Other work on the same host can still compete for CPU, memory, or I/O and produce inconsistent results.
+Run benchmarks on an otherwise idle host, or preferably a dedicated benchmark host, for more reliable comparisons.
 
 ## Running Benchmarks on GitHub
 
@@ -29,6 +31,8 @@ It is possible to run one or more benchmarks via the **JMH Benchmarks** GitHub A
 
 * The repository name to run against, such as `apache/iceberg` or `<user>/iceberg`
 * The branch name to benchmark, such as `main` or `my-feature-branch`
+* The Spark version to use, such as `4.1` (default: `4.1`)
+* The Scala version to use, such as `2.13` (default: `2.13`)
 * A comma-separated list of double-quoted benchmark names, such as `"IcebergSourceFlatParquetDataReadBenchmark", "IcebergSourceFlatParquetDataFilterBenchmark", "IcebergSourceNestedListParquetDataWriteBenchmark"`
 
 Benchmark results will be uploaded once **all** benchmarks are done.
@@ -38,12 +42,6 @@ GitHub-hosted runners have limited and shared resources, so treat these results 
 ## Running Benchmarks locally
 
 JMH writes human-readable output to `build/reports/jmh/human-readable-output.txt` and JSON output to `build/reports/jmh/results.json` by default. Override them with `-PjmhOutputPath=<path>` and `-PjmhJsonOutputPath=<path>` if needed. You can share the JSON output with others and view it in the [JMH Visualizer](https://jmh.morethan.io/).
-
-The default versions in this repository are:
-
-* Spark `4.1`
-* Flink `2.1`
-* Scala `2.12`
 
 Core and data benchmarks can be run directly. Spark and Flink benchmarks use versioned Gradle modules.
 Spark `4.1` benchmarks use `2.13` module names, while older Spark modules follow the configured `scalaVersion`.
@@ -86,15 +84,15 @@ To use another supported Spark version, set the version properties and update th
 Run benchmarks in the default Flink module:
 
 ```bash
-./gradlew :iceberg-flink:iceberg-flink-2.1:jmh \
+./gradlew :iceberg-flink:iceberg-flink-2.3:jmh \
   -PjmhIncludeRegex=<BenchmarkName>
 ```
 
 To use another supported Flink version, set the version property and update the module name. For example:
 
 ```bash
-./gradlew -DflinkVersions=2.0 \
-  :iceberg-flink:iceberg-flink-2.0:jmh \
+./gradlew -DflinkVersions=2.2 \
+  :iceberg-flink:iceberg-flink-2.2:jmh \
   -PjmhIncludeRegex=MapRangePartitionerBenchmark
 ```
 
@@ -109,13 +107,14 @@ Run benchmarks in this group with:
 | Benchmark | Description |
 | --- | --- |
 | `AppendBenchmark` | Append data files to a table. |
-| `ManifestReadBenchmark` | Read table manifests. |
-| `ManifestWriteBenchmark` | Write table manifests. |
+| `ManifestBenchmark` | Read and write table manifests. |
+| `ManifestCompressionBenchmark` | Read and write manifests with different compression codecs. |
 | `MetricsConfigBenchmark` | Evaluate metrics configuration lookups. |
 | `ReplaceDeleteFilesBenchmark` | Replace delete files during a commit. |
 | `RewriteDataFilesBenchmark` | Rewrite data files in table maintenance flows. |
 | `RoaringPositionBitmapBenchmark` | Measure roaring bitmap operations used for position deletes. |
 | `CountersBenchmark` | Measure metrics counter updates. |
+| `HilbertByteUtilsBenchmark` | Measure Hilbert-curve byte utility operations. |
 | `ZOrderByteUtilsBenchmark` | Measure Z-order byte utility operations. |
 
 ### Data benchmarks
@@ -128,6 +127,7 @@ Run benchmarks in this group with:
 
 | Benchmark | Description |
 | --- | --- |
+| `DeleteFilterBenchmark` | Apply position and equality deletes to records. |
 | `GenericOrcReaderBenchmark` | Read ORC data through the generic Iceberg reader. |
 | `GenericParquetReaderBenchmark` | Read Parquet data through the generic Iceberg reader. |
 | `PartitionStatsHandlerBenchmark` | Read and write partition statistics metadata. |
@@ -144,6 +144,7 @@ Run benchmarks in this group with:
 | Benchmark | Description |
 | --- | --- |
 | `DeleteOrphanFilesBenchmark` | Execute the delete-orphan-files action. |
+| `IcebergDataCompactionBenchmark` | Rewrite data files during compaction. |
 | `IcebergSortCompactionBenchmark` | Execute sort-based compaction. |
 
 ### Spark Parquet reader and writer benchmarks
@@ -219,7 +220,7 @@ Run benchmarks in this group with:
 Run benchmarks in this group with:
 
 ```bash
-./gradlew :iceberg-flink:iceberg-flink-2.1:jmh \
+./gradlew :iceberg-flink:iceberg-flink-2.3:jmh \
   -PjmhIncludeRegex=<BenchmarkName>
 ```
 
