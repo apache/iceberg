@@ -26,6 +26,7 @@ import java.util.List;
 import org.apache.flink.table.catalog.CatalogBaseTable;
 import org.apache.flink.table.catalog.CatalogView;
 import org.apache.flink.table.catalog.ObjectPath;
+import org.apache.flink.table.catalog.exceptions.TableAlreadyExistException;
 import org.apache.flink.table.catalog.exceptions.TableNotExistException;
 import org.apache.flink.types.Row;
 import org.apache.iceberg.Schema;
@@ -347,6 +348,23 @@ public class TestFlinkCatalogView extends CatalogTestBase {
 
     assertThat(sql("SHOW VIEWS")).containsExactly(Row.of("renamed_view"));
     assertSameElements(expectedRows(), sql("SELECT * FROM renamed_view"));
+  }
+
+  @TestTemplate
+  public void testRenameViewToExistingObjectFails() {
+    sql("CREATE VIEW %s AS SELECT id, data FROM %s", VIEW_NAME, TABLE_NAME);
+    viewCatalog()
+        .buildView(TableIdentifier.of(icebergNamespace, "second_view"))
+        .withSchema(VIEW_SCHEMA)
+        .withDefaultNamespace(icebergNamespace)
+        .withQuery("flink", "SELECT id FROM test_table")
+        .create();
+
+    assertThatThrownBy(() -> sql("ALTER VIEW %s RENAME TO second_view", VIEW_NAME))
+        .hasMessageContaining("Could not execute ALTER VIEW")
+        .cause()
+        .isInstanceOf(TableAlreadyExistException.class)
+        .hasMessageContaining("second_view");
   }
 
   @TestTemplate
