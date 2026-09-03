@@ -158,8 +158,8 @@ An index snapshot must index exactly the live rows of the referenced table snaps
 | optional    | properties               | map<string,string> | Snapshot properties specific to this snapshot                      |
 | optional    | key-id                   | string             | ID of the encryption key that holds the tracking file key metadata |
 
-Each `snapshot-id` and each `source-table-snapshot-id` must be unique within the `snapshots` list, so a source table
-snapshot has at most one index snapshot and engines locate index data by matching `source-table-snapshot-id`.
+Each `snapshot-id` must be unique within the `snapshots` list. Engines locate index data by matching
+`source-table-snapshot-id`.
 
 ### Metadata Log
 
