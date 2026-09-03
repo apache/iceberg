@@ -356,13 +356,7 @@ class TestTrackedFileAdapters {
             null,
             null);
 
-    DeleteFile dvFile = TrackedFileAdapters.asDataFile(file, UNPARTITIONED).deletionVector();
-
-    assertThat(dvFile.content()).isEqualTo(FileContent.POSITION_DELETES);
-    assertThat(dvFile.format()).isEqualTo(FileFormat.PUFFIN);
-    assertThat(dvFile.location()).isEqualTo(dv.location());
-    assertThat(dvFile.recordCount()).isEqualTo(dv.cardinality());
-    assertThat(dvFile.referencedDataFile()).isEqualTo(DATA_FILE_LOCATION);
+    assertThat(TrackedFileAdapters.asDataFile(file, UNPARTITIONED).deletionVector()).isSameAs(dv);
   }
 
   @Test

@@ -165,8 +165,13 @@ public interface DataFile extends ContentFile<DataFile> {
     return null;
   }
 
-  /** Returns the deletion vector co-located with this data file, or null if there is none. */
-  default DeleteFile deletionVector() {
+  /**
+   * Returns the deletion vector co-located or tracked with this data file, or null if there isn't
+   * one.
+   *
+   * <p>A delete manifest can contain a deletion vector even if this co-located DV is null.
+   */
+  default DeletionVector deletionVector() {
     return null;
   }
 }

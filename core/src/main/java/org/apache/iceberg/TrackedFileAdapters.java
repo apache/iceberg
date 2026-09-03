@@ -215,8 +215,8 @@ class TrackedFileAdapters {
     }
 
     @Override
-    public DeleteFile deletionVector() {
-      return file().deletionVector() != null ? new TrackedDVDeleteFile(file(), spec()) : null;
+    public DeletionVector deletionVector() {
+      return file().deletionVector();
     }
 
     @Override
