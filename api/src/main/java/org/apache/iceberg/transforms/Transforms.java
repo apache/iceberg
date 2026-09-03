@@ -43,11 +43,13 @@ public class Transforms {
    *
    * <p>Recognized transforms are {@code identity}, {@code year}, {@code month}, {@code day}, {@code
    * hour}, {@code void}, and the width-parameterized {@code truncate[N]} and {@code bucket[N]} (for
-   * example, {@code truncate[16]} or {@code bucket[8]}). Any other value is parsed as an unknown
-   * transform.
+   * example, {@code truncate[16]} or {@code bucket[8]}). Any value that is not one of these forms
+   * produces an {@link UnknownTransform}.
    *
    * @param transform a transform string, such as {@code "day"} or {@code "bucket[16]"}
    * @return the parsed transform
+   * @throws IllegalArgumentException if a width-parameterized transform has an invalid parameter,
+   *     such as a non-positive {@code truncate} width or {@code bucket} count
    */
   public static Transform<?, ?> fromString(String transform) {
     Matcher widthMatcher = HAS_WIDTH.matcher(transform);
