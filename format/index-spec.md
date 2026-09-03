@@ -35,9 +35,6 @@ engine can build an index, maintain it, and use it to plan queries against the t
 
 ## Overview
 
-An index accelerates retrieval of rows from an Iceberg table without scanning the entire dataset. Indexes are optional.
-Engines may create, maintain, consume, or ignore them.
-
 An index is recorded in an index metadata file that contains the index definition and a set of index snapshots. Each
 index snapshot corresponds to a snapshot of the source table and references the index data for that state.
 
@@ -98,10 +95,8 @@ index type must ignore the index and read the source table directly; it must not
 
 #### Index Fields
 
-An index is defined by materialized and non-materialized fields. Each index field is produced by evaluating an
-[Iceberg value expression](expressions-spec.md#value-expressions) for an indexed row of the source table.
-
-An index field has the following fields:
+Each index field is produced by evaluating an [Iceberg value expression](expressions-spec.md#value-expressions) for an
+indexed row of the source table. An index field has the following fields:
 
 | Requirement | Field name    | Type              | Description                                                  |
 |-------------|---------------|-------------------|--------------------------------------------------------------|
@@ -321,8 +316,8 @@ The following metrics are required:
 | Non-materialized field   | `lower_bound`, `upper_bound`                    |
 | Other materialized field | None                                            |
 
-All other metrics are optional. A non-materialized field has no values in the range file, so its statistics describe the
-rows that the range file indexes rather than values stored in it.
+All other metrics are optional. Statistics for a non-materialized field describe the rows that the range file indexes,
+not values stored in it.
 
 ###### Group Max Value
 
@@ -336,8 +331,6 @@ Readers use these keys as inclusive range file upper bounds. The clustering keys
 than the `group_max_value` key of the preceding tracking file entry, so tracking file entries must be read in order.
 
 #### Range Files
-
-Range files contain the materialized fields and represent the lowest level of the index hierarchy.
 
 Range files must be valid Iceberg data files stored in Parquet, Avro, or ORC, following the
 [format-specific requirements](spec.md#appendix-a-format-specific-requirements) of the table specification. Those
@@ -393,26 +386,17 @@ and a struct is represented as separate index fields instead.
 Clustering keys do not have to be unique. Range boundaries fall only where the clustering key changes, so all entries
 that share a key are in one range file and a lookup resolves to a single range file. Because a range file holds every
 entry with a given clustering key, the order of those entries within the file has no effect on planning or on range
-file bounds, and the specification leaves it to the writer. The cost is that a range file cannot hold fewer entries
-than a single clustering key produces, so a definition should end `cluster-spec` with a field of high cardinality to
-keep range files bounded.
+file bounds, and the specification leaves it to the writer.
 
 The clustering order makes the index usable at two levels: range files can be pruned without being opened, and the
 entries of a range file that is opened can be located without reading all of it.
 
 Range files hold non-overlapping clustering ranges, so the `group_max_value` statistics in the tracking file are enough
-to eliminate a range file. Only the upper bound of a range is stored, because clustered tracking file entries and
-non-overlapping ranges make the lower bound redundant: it is exclusive and equal to the upper bound of the preceding
-entry.
-
-Each component of the bound is stored in the field statistics of the clustered field. The cluster spec supplies the
-component order, including when a component is a non-materialized expression such as a bucket or Hilbert curve. The
-`group_max_value` is distinct from `upper_bound`: it is the field value from the last row in clustering order, not
-necessarily the greatest value of that field in the range file.
-
-The bound has to be exact because readers derive the lower bound of a range file's range from the upper bound of the
-preceding entry. A bound rounded up would place that lower bound above entries the next range file actually contains, so
-a lookup would prune to the wrong file and miss rows.
+to eliminate a range file. Only the upper bound of a range is stored: clustered tracking file entries make the lower
+bound redundant, because it is exclusive and equal to the upper bound of the preceding entry. Each component of the
+bound is stored in the field statistics of the clustered field, and the cluster spec supplies the component order. The
+bound has to be exact, because a bound rounded up would place the next range file's lower bound above entries that file
+actually contains, so a lookup would prune to the wrong file and miss rows.
 
 Ordinary lower and upper bounds are required for clustered and non-materialized fields because they support pruning on
 partial clustering keys, which the `group_max_value` keys alone cannot do. Bounds for other materialized fields are
@@ -480,28 +464,9 @@ more ordinary materialized fields, and indexes could identify a row in different
 common cases.
 
 To identify an individual row, materialize expressions that reference the `_file` (`2147483646`) and `_pos`
-(`2147483645`) metadata columns. The index fields take ordinary field IDs, chosen by whoever defines the index:
-
-```json
-{
-  ...
-  "materialized-fields" : [ {
-    "field-id" : 105,
-    "type" : "expr-value",
-    "data-type" : "string",
-    "expr" : { "type" : "reference", "id" : 2147483646 }
-  }, {
-    "field-id" : 106,
-    "type" : "expr-value",
-    "data-type" : "long",
-    "expr" : { "type" : "reference", "id" : 2147483645 }
-  } ],
-  ...
-}
-```
-
-Every entry then carries the data file and the row position of its source row, so a reader can fetch matching rows
-without scanning the table.
+(`2147483645`) metadata columns, as shown in [Appendix C](#appendix-c-example---key-lookup-index). The index fields take
+ordinary field IDs, chosen by whoever defines the index. Every entry then carries the data file and the row position of
+its source row, so a reader can fetch matching rows without scanning the table.
 
 For a table with row lineage, materializing `_row_id` (`2147483540`) identifies a row with a single field and keeps the
 pointer valid when a data file is rewritten, at the cost of resolving the row ID to a location when reading.
