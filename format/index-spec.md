@@ -213,7 +213,9 @@ use any of the matching index snapshots.
 #### Metadata Log
 
 `metadata-log` records the index metadata files that preceded the current one. A commit should append an entry for the
-metadata file it replaces.
+metadata file it replaces. The number of entries to retain is controlled by the index property
+`write.metadata.previous-versions-max`, and a commit drops the oldest entries beyond that limit. When
+`write.metadata.delete-after-commit.enabled` is true, a commit also deletes the dropped metadata files.
 
 | Requirement | Field name      | Type     | Description                                                     |
 |-------------|-----------------|----------|-----------------------------------------------------------------|
@@ -457,9 +459,9 @@ each other and losing snapshots.
 
 ### Reclaiming Index Files
 
-The metadata log keeps the history of index metadata files, as the table specification does for tables. A snapshot
-removed by a commit is still listed in the metadata file that the commit replaced, so index maintenance can read the
-logged files to find snapshots the current metadata no longer references.
+The `snapshots` list of the current index metadata file is the only root for reachability. A tracking file or range file
+is live because a listed index snapshot references it. A commit that removes an index snapshot should delete the files
+that only that snapshot referenced.
 
 ### Future Extensions
 
