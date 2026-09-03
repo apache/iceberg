@@ -45,6 +45,7 @@ public class BasicTLSConfigurer implements TLSConfigurer {
   public static final String TLS_KEYSTORE_PATH = "rest.client.tls.keystore.path";
   public static final String TLS_KEYSTORE_PASSWORD = "rest.client.tls.keystore.password";
   public static final String TLS_KEYSTORE_TYPE = "rest.client.tls.keystore.type";
+  public static final String TLS_KEYSTORE_KEY_PASSWORD = "rest.client.tls.keystore.key-password";
   public static final String TLS_TRUSTSTORE_PATH = "rest.client.tls.truststore.path";
   public static final String TLS_TRUSTSTORE_PASSWORD = "rest.client.tls.truststore.password";
   public static final String TLS_TRUSTSTORE_TYPE = "rest.client.tls.truststore.type";
@@ -65,6 +66,8 @@ public class BasicTLSConfigurer implements TLSConfigurer {
     String keystorePath = properties.get(TLS_KEYSTORE_PATH);
     String keystorePassword = properties.get(TLS_KEYSTORE_PASSWORD);
     String keystoreType = properties.getOrDefault(TLS_KEYSTORE_TYPE, DEFAULT_KEYSTORE_TYPE);
+    // the private key may be protected by a password of its own; fall back to the keystore password
+    String keyPassword = properties.getOrDefault(TLS_KEYSTORE_KEY_PASSWORD, keystorePassword);
     String truststorePath = properties.get(TLS_TRUSTSTORE_PATH);
     String truststorePassword = properties.get(TLS_TRUSTSTORE_PASSWORD);
     String truststoreType = properties.getOrDefault(TLS_TRUSTSTORE_TYPE, DEFAULT_KEYSTORE_TYPE);
@@ -86,7 +89,7 @@ public class BasicTLSConfigurer implements TLSConfigurer {
         KeyStore keyStore = loadKeyStore(keystorePath, keystorePasswordChars, keystoreType);
         KeyManagerFactory keyManagerFactory =
             KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
-        keyManagerFactory.init(keyStore, keystorePasswordChars);
+        keyManagerFactory.init(keyStore, keyPassword != null ? keyPassword.toCharArray() : null);
         keyManagers = keyManagerFactory.getKeyManagers();
       }
 

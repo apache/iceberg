@@ -22,11 +22,24 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.FileOutputStream;
+import java.math.BigInteger;
 import java.nio.file.Path;
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
 import java.security.KeyStore;
+import java.security.UnrecoverableKeyException;
+import java.security.cert.Certificate;
+import java.security.cert.X509Certificate;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.Date;
 import java.util.Map;
 import javax.net.ssl.SSLContext;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.bouncycastle.asn1.x500.X500Name;
+import org.bouncycastle.cert.jcajce.JcaX509CertificateConverter;
+import org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder;
+import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -139,6 +152,54 @@ public class TestBasicTLSConfigurer {
   }
 
   @Test
+  public void testBasicTLSConfigurerWithDistinctKeyPassword() throws Exception {
+    Path keystorePath = createKeyStoreWithKeyEntry("keystore.jks", "storepass", "keypass");
+
+    BasicTLSConfigurer configurer = new BasicTLSConfigurer();
+    configurer.initialize(
+        ImmutableMap.of(
+            BasicTLSConfigurer.TLS_KEYSTORE_PATH, keystorePath.toString(),
+            BasicTLSConfigurer.TLS_KEYSTORE_PASSWORD, "storepass",
+            BasicTLSConfigurer.TLS_KEYSTORE_KEY_PASSWORD, "keypass"));
+
+    assertThat(configurer.sslContext()).isNotNull();
+  }
+
+  @Test
+  public void testBasicTLSConfigurerWithDistinctKeyPasswordMissing() throws Exception {
+    Path keystorePath = createKeyStoreWithKeyEntry("keystore.jks", "storepass", "keypass");
+
+    BasicTLSConfigurer configurer = new BasicTLSConfigurer();
+    Map<String, String> properties =
+        ImmutableMap.of(
+            BasicTLSConfigurer.TLS_KEYSTORE_PATH,
+            keystorePath.toString(),
+            BasicTLSConfigurer.TLS_KEYSTORE_PASSWORD,
+            "storepass");
+
+    // without the key password the keystore password is used, which cannot unlock the private key
+    assertThatThrownBy(() -> configurer.initialize(properties))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("Failed to create SSL context")
+        .hasRootCauseInstanceOf(UnrecoverableKeyException.class);
+  }
+
+  @Test
+  public void testBasicTLSConfigurerKeyPasswordDefaultsToKeystorePassword() throws Exception {
+    Path keystorePath = createKeyStoreWithKeyEntry("keystore.jks", "samepass", "samepass");
+
+    BasicTLSConfigurer configurer = new BasicTLSConfigurer();
+    configurer.initialize(
+        ImmutableMap.of(
+            BasicTLSConfigurer.TLS_KEYSTORE_PATH,
+            keystorePath.toString(),
+            BasicTLSConfigurer.TLS_KEYSTORE_PASSWORD,
+            "samepass"));
+
+    assertThat(configurer.sslContext()).isNotNull();
+  }
+
+  @Test
   public void testBasicTLSConfigurerWithInvalidKeystorePath() {
     BasicTLSConfigurer configurer = new BasicTLSConfigurer();
     Map<String, String> properties =
@@ -149,6 +210,44 @@ public class TestBasicTLSConfigurer {
     assertThatThrownBy(() -> configurer.initialize(properties))
         .isInstanceOf(IllegalStateException.class)
         .hasMessageContaining("Keystore file does not exist");
+  }
+
+  /**
+   * Creates a keystore holding a self-signed key entry, where the private key is protected by a
+   * password that may differ from the keystore password.
+   */
+  private Path createKeyStoreWithKeyEntry(String filename, String storePassword, String keyPassword)
+      throws Exception {
+    KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("RSA");
+    keyPairGenerator.initialize(2048);
+    KeyPair keyPair = keyPairGenerator.generateKeyPair();
+
+    X500Name subject = new X500Name("CN=iceberg-test");
+    Instant now = Instant.now();
+    X509Certificate certificate =
+        new JcaX509CertificateConverter()
+            .getCertificate(
+                new JcaX509v3CertificateBuilder(
+                        subject,
+                        BigInteger.ONE,
+                        Date.from(now),
+                        Date.from(now.plus(1, ChronoUnit.DAYS)),
+                        subject,
+                        keyPair.getPublic())
+                    .build(
+                        new JcaContentSignerBuilder("SHA256withRSA").build(keyPair.getPrivate())));
+
+    KeyStore keyStore = KeyStore.getInstance("JKS");
+    keyStore.load(null, storePassword.toCharArray());
+    keyStore.setKeyEntry(
+        "client", keyPair.getPrivate(), keyPassword.toCharArray(), new Certificate[] {certificate});
+
+    Path keystorePath = tempDir.resolve(filename);
+    try (FileOutputStream fos = new FileOutputStream(keystorePath.toFile())) {
+      keyStore.store(fos, storePassword.toCharArray());
+    }
+
+    return keystorePath;
   }
 
   /** Creates a temporary keystore file for testing purposes. */
