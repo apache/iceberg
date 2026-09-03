@@ -31,6 +31,7 @@ import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.aws.s3.S3FileIOProperties;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -421,6 +422,65 @@ public class TestGlueCatalog {
 
     glueCatalog.renameTable(TableIdentifier.of("db", "t"), TableIdentifier.of("db", "x_renamed"));
     assertThat(counter.get()).isEqualTo(0);
+  }
+
+  private void setupRenameTableMocks() {
+    Map<String, String> parameters = Maps.newHashMap();
+    parameters.put(
+        BaseMetastoreTableOperations.TABLE_TYPE_PROP,
+        BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE);
+
+    Mockito.doReturn(
+            GetTableResponse.builder()
+                .table(Table.builder().databaseName("db").name("t").parameters(parameters).build())
+                .build())
+        .when(glue)
+        .getTable(Mockito.any(GetTableRequest.class));
+    Mockito.doReturn(
+            GetDatabaseResponse.builder().database(Database.builder().name("db").build()).build())
+        .when(glue)
+        .getDatabase(Mockito.any(GetDatabaseRequest.class));
+  }
+
+  @Test
+  public void testRenameTableDestinationAlreadyExists() {
+    setupRenameTableMocks();
+    Mockito.doThrow(
+            software.amazon.awssdk.services.glue.model.AlreadyExistsException.builder()
+                .message("Table already exists")
+                .build())
+        .when(glue)
+        .createTable(Mockito.any(CreateTableRequest.class));
+
+    assertThatThrownBy(
+            () ->
+                glueCatalog.renameTable(
+                    TableIdentifier.of("db", "t"), TableIdentifier.of("db", "t_renamed")))
+        .isInstanceOf(AlreadyExistsException.class)
+        .hasMessageContaining("table already exists");
+  }
+
+  @Test
+  public void testRenameTableRollbackFailure() {
+    setupRenameTableMocks();
+    Mockito.doReturn(CreateTableResponse.builder().build())
+        .when(glue)
+        .createTable(Mockito.any(CreateTableRequest.class));
+
+    RuntimeException dropFailure = new RuntimeException("drop failed");
+    RuntimeException rollbackFailure = new RuntimeException("rollback failed");
+    Mockito.doThrow(dropFailure)
+        .doThrow(rollbackFailure)
+        .when(glue)
+        .deleteTable(Mockito.any(DeleteTableRequest.class));
+
+    assertThatThrownBy(
+            () ->
+                glueCatalog.renameTable(
+                    TableIdentifier.of("db", "t"), TableIdentifier.of("db", "t_renamed")))
+        .isSameAs(dropFailure)
+        .satisfies(
+            ex -> assertThat(ex.getSuppressed()).hasSize(1).allMatch(s -> s == rollbackFailure));
   }
 
   @Test
