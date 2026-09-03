@@ -194,6 +194,7 @@ public class ViewMetadataParser {
                 isGzip ? new GZIPOutputStream(stream) : stream, StandardCharsets.UTF_8);
         JsonGenerator generator = JsonUtil.factory().createGenerator(writer)) {
       toJson(metadata, generator);
+      generator.flush();
     } catch (IOException e) {
       throw new UncheckedIOException(
           String.format("Failed to write json to file: %s", outputFile.location()), e);

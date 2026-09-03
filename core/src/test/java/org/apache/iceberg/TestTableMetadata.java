@@ -564,6 +564,8 @@ public class TestTableMetadata {
       // skip the snapshot log
 
       generator.writeEndObject(); // end table metadata object
+
+      generator.flush();
     } catch (IOException e) {
       throw new UncheckedIOException(String.format("Failed to write json for: %s", metadata), e);
     }

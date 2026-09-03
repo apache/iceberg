@@ -131,6 +131,7 @@ public class TableMetadataParser {
         OutputStreamWriter writer = new OutputStreamWriter(ou, StandardCharsets.UTF_8);
         JsonGenerator generator = JsonUtil.factory().createGenerator(writer)) {
       toJson(metadata, generator);
+      generator.flush();
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to write json to file: %s", outputFile.location());
     }

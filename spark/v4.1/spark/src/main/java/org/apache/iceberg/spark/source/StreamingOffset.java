@@ -93,6 +93,8 @@ class StreamingOffset extends Offset {
       generator.writeNumberField(POSITION, position);
       generator.writeBooleanField(SCAN_ALL_FILES, scanAllFiles);
       generator.writeEndObject();
+      generator.flush();
+
     } catch (IOException e) {
       throw new UncheckedIOException("Failed to write StreamingOffset to json", e);
     }
