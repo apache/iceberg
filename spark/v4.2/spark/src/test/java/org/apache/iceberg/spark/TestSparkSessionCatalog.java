@@ -279,6 +279,41 @@ public class TestSparkSessionCatalog extends TestBase {
   }
 
   @Test
+  public void relationSummariesIgnoreFalsePositiveIcebergTableListing()
+      throws NoSuchNamespaceException, NoSuchTableException {
+    String[] namespace = new String[] {"default"};
+    Identifier viewIdent = Identifier.of(namespace, "view");
+    Identifier unrelatedTableIdent = Identifier.of(namespace, "unrelated_table");
+
+    TableCatalog sessionCatalog = sessionCatalogWithViews();
+    when(((ViewCatalog) sessionCatalog).listViews(namespace))
+        .thenReturn(new Identifier[] {viewIdent});
+    when(sessionCatalog.listTableSummaries(namespace))
+        .thenReturn(new TableSummary[] {TableSummary.of(viewIdent, TableSummary.VIEW_TABLE_TYPE)});
+
+    TableCatalog icebergCatalog = icebergCatalogWithViews();
+    when(((ViewCatalog) icebergCatalog).listViews(namespace)).thenReturn(new Identifier[0]);
+    when(icebergCatalog.listTableSummaries(namespace))
+        .thenReturn(
+            new TableSummary[] {
+              TableSummary.of(viewIdent, TableSummary.EXTERNAL_TABLE_TYPE),
+              TableSummary.of(unrelatedTableIdent, TableSummary.EXTERNAL_TABLE_TYPE)
+            });
+    when(icebergCatalog.tableExists(viewIdent)).thenReturn(false);
+
+    SparkSessionCatalog<?> catalog = catalogWithViews(icebergCatalog, sessionCatalog);
+
+    assertThat(catalog.listTableSummaries(namespace)).isEmpty();
+    assertThat(catalog.listRelationSummaries(namespace))
+        .singleElement()
+        .extracting(TableSummary::tableType)
+        .isEqualTo(TableSummary.VIEW_TABLE_TYPE);
+    verify(icebergCatalog, times(2)).listTableSummaries(namespace);
+    verify(icebergCatalog, times(2)).tableExists(viewIdent);
+    verify(icebergCatalog, never()).tableExists(unrelatedTableIdent);
+  }
+
+  @Test
   public void relationSummariesPreserveSessionTableForCrossCatalogCollision()
       throws NoSuchNamespaceException, NoSuchTableException {
     String[] namespace = new String[] {"default"};
@@ -307,6 +342,8 @@ public class TestSparkSessionCatalog extends TestBase {
         .extracting(TableSummary::tableType)
         .isEqualTo(TableSummary.EXTERNAL_TABLE_TYPE);
     assertThat(catalog.loadRelation(ident)).isSameAs(table);
+    verify(icebergCatalog, never()).listTableSummaries(namespace);
+    verify(icebergCatalog, never()).tableExists(any());
   }
 
   @Test
@@ -325,6 +362,7 @@ public class TestSparkSessionCatalog extends TestBase {
     when(((ViewCatalog) icebergCatalog).listViews(namespace)).thenReturn(new Identifier[0]);
     when(icebergCatalog.listTableSummaries(namespace))
         .thenReturn(new TableSummary[] {TableSummary.of(ident, TableSummary.EXTERNAL_TABLE_TYPE)});
+    when(icebergCatalog.tableExists(ident)).thenReturn(true);
     when(icebergCatalog.loadTable(ident)).thenReturn(table);
 
     SparkSessionCatalog<?> catalog = catalogWithViews(icebergCatalog, sessionCatalog);
@@ -339,7 +377,7 @@ public class TestSparkSessionCatalog extends TestBase {
         .isEqualTo(TableSummary.EXTERNAL_TABLE_TYPE);
     assertThat(catalog.loadRelation(ident)).isSameAs(table);
     verify(icebergCatalog, times(2)).listTableSummaries(namespace);
-    verify(icebergCatalog, never()).tableExists(any());
+    verify(icebergCatalog, times(2)).tableExists(ident);
   }
 
   @Test

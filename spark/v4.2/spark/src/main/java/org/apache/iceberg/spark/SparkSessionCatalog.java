@@ -150,7 +150,7 @@ public class SparkSessionCatalog<
   public TableSummary[] listTableSummaries(String[] namespace)
       throws NoSuchNamespaceException, NoSuchTableException {
     Set<Identifier> viewIdentifiers = sessionViews(namespace);
-    Set<Identifier> icebergTableIdentifiers = icebergTables(namespace);
+    Set<Identifier> icebergTableIdentifiers = icebergTables(namespace, viewIdentifiers);
     return Arrays.stream(getSessionCatalog().listTableSummaries(namespace))
         .map(summary -> relationSummary(summary, viewIdentifiers, icebergTableIdentifiers))
         .filter(summary -> !isViewType(summary.tableType()))
@@ -161,7 +161,7 @@ public class SparkSessionCatalog<
   public TableSummary[] listRelationSummaries(String[] namespace)
       throws NoSuchNamespaceException, NoSuchTableException {
     Set<Identifier> sessionViews = sessionViews(namespace);
-    Set<Identifier> icebergTables = icebergTables(namespace);
+    Set<Identifier> icebergTables = icebergTables(namespace, sessionViews);
     Map<Identifier, TableSummary> summaries = new LinkedHashMap<>();
     for (TableSummary summary : getSessionCatalog().listTableSummaries(namespace)) {
       summaries.put(summary.identifier(), relationSummary(summary, sessionViews, icebergTables));
@@ -543,16 +543,24 @@ public class SparkSessionCatalog<
     return views;
   }
 
-  private Set<Identifier> icebergTables(String[] namespace) throws NoSuchTableException {
+  private Set<Identifier> icebergTables(String[] namespace, Set<Identifier> sessionViews)
+      throws NoSuchTableException {
     Set<Identifier> tables = Sets.newHashSet();
+    if (sessionViews.isEmpty()) {
+      return tables;
+    }
+
     try {
       for (TableSummary summary : icebergCatalog.listTableSummaries(namespace)) {
-        tables.add(summary.identifier());
+        if (sessionViews.contains(summary.identifier())) {
+          tables.add(summary.identifier());
+        }
       }
     } catch (NoSuchNamespaceException e) {
       // The session catalog owns namespaces, so a valid namespace may not exist in Iceberg.
     }
 
+    tables.removeIf(identifier -> !icebergCatalog.tableExists(identifier));
     return tables;
   }
 
