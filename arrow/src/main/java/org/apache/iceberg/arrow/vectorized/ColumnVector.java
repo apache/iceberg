@@ -67,13 +67,21 @@ public class ColumnVector implements AutoCloseable {
     return vectorHolder.vector();
   }
 
+  private FieldVector arrowVector;
+
   /**
    * Decodes a dict-encoded vector and returns the actual arrow vector.
+   * The decoded vector is cached per batch so that repeated calls within
+   * the same batch do not leak memory. The cached vector is released in
+   * {@link #close()}.
    *
    * @return instance of {@link FieldVector}
    */
   public FieldVector getArrowVector() {
-    return DictEncodedArrowConverter.toArrowVector(vectorHolder, accessor);
+    if (arrowVector == null) {
+      arrowVector = DictEncodedArrowConverter.toArrowVector(vectorHolder, accessor);
+    }
+    return arrowVector;
   }
 
   public boolean hasNull() {
@@ -86,6 +94,10 @@ public class ColumnVector implements AutoCloseable {
 
   @Override
   public void close() {
+    if (arrowVector != null) {
+      arrowVector.close();
+      arrowVector = null;
+    }
     accessor.close();
   }
 
