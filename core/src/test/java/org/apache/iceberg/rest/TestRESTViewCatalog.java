@@ -20,6 +20,7 @@ package org.apache.iceberg.rest;
 
 import static org.apache.iceberg.rest.RequestMatcher.matches;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.times;
@@ -45,6 +46,7 @@ import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SessionCatalog;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.exceptions.RESTException;
 import org.apache.iceberg.inmemory.InMemoryCatalog;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -237,6 +239,36 @@ public class TestRESTViewCatalog extends ViewCatalogTests<RESTCatalog> {
             any(),
             eq(ListTablesResponse.class),
             any());
+  }
+
+  @Test
+  public void listViewsFailsWhenServerRepeatsPageToken() {
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+    RESTCatalog catalog =
+        new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
+    catalog.initialize("test", ImmutableMap.of(RESTCatalogProperties.PAGE_SIZE, "10"));
+
+    String namespaceName = "newdb";
+    Namespace namespace = Namespace.of(namespaceName);
+    catalog().createNamespace(namespace);
+
+    Mockito.doAnswer(
+            invocation ->
+                ListTablesResponse.builder()
+                    .add(TableIdentifier.of(namespace, "v0"))
+                    .nextPageToken("stuck")
+                    .build())
+        .when(adapter)
+        .execute(
+            matches(HTTPMethod.GET, String.format("v1/namespaces/%s/views", namespaceName)),
+            eq(ListTablesResponse.class),
+            any(),
+            any());
+
+    assertThatThrownBy(() -> catalog.listViews(namespace))
+        .isInstanceOf(RESTException.class)
+        .hasMessageContaining("Detected repeated page token 'stuck'")
+        .hasMessageContaining("listViews");
   }
 
   @Test
