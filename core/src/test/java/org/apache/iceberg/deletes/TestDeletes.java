@@ -51,10 +51,11 @@ public class TestDeletes {
     assertThat(collect(indexes.get(PATH_B))).containsExactlyInAnyOrder(1L, 2L);
   }
 
+  @Test
   public void testToPositionIndexesWithInterleavedPaths() {
     List<StructLike> positionDeletes =
         Lists.newArrayList(
-            Row.of(PATH_A, 0L), Row.of(PATH_B, 1L), Row.of(PATH_A, 5L), Row.of(PATH_B, 1L));
+            Row.of(PATH_A, 0L), Row.of(PATH_B, 1L), Row.of(PATH_A, 5L), Row.of(PATH_B, 2L));
 
     CharSequenceMap<PositionDeleteIndex> indexes =
         Deletes.toPositionIndexes(CloseableIterable.withNoopClose(positionDeletes), null);
