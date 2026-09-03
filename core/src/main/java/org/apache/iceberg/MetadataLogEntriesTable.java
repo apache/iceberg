@@ -20,19 +20,28 @@ package org.apache.iceberg;
 
 import java.util.List;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
-import org.apache.iceberg.util.SnapshotUtil;
 
 public class MetadataLogEntriesTable extends BaseMetadataTable {
+
+  private static final Types.NestedField LATEST_SNAPSHOT_ID =
+      Types.NestedField.optional(3, "latest_snapshot_id", Types.LongType.get());
+
+  private static final Types.NestedField LATEST_SCHEMA_ID =
+      Types.NestedField.optional(4, "latest_schema_id", Types.IntegerType.get());
+
+  private static final Types.NestedField LATEST_SEQUENCE_NUMBER =
+      Types.NestedField.optional(5, "latest_sequence_number", Types.LongType.get());
 
   private static final Schema METADATA_LOG_ENTRIES_SCHEMA =
       new Schema(
           Types.NestedField.required(1, "timestamp", Types.TimestampType.withZone()),
           Types.NestedField.required(2, "file", Types.StringType.get()),
-          Types.NestedField.optional(3, "latest_snapshot_id", Types.LongType.get()),
-          Types.NestedField.optional(4, "latest_schema_id", Types.IntegerType.get()),
-          Types.NestedField.optional(5, "latest_sequence_number", Types.LongType.get()));
+          LATEST_SNAPSHOT_ID,
+          LATEST_SCHEMA_ID,
+          LATEST_SEQUENCE_NUMBER);
 
   MetadataLogEntriesTable(Table table) {
     this(table, table.name() + ".metadata_log_entries");
@@ -59,18 +68,46 @@ public class MetadataLogEntriesTable extends BaseMetadataTable {
 
   private DataTask task(TableScan scan) {
     TableMetadata current = table().operations().current();
+
     List<TableMetadata.MetadataLogEntry> metadataLogEntries =
         Lists.newArrayList(current.previousFiles().listIterator());
+
     metadataLogEntries.add(
         new TableMetadata.MetadataLogEntry(
             current.lastUpdatedMillis(), current.metadataFileLocation()));
+
+    Schema projectedSchema = scan.schema();
+    boolean shouldLoadSnapshotDetails =
+        projectedSchema.findField(LATEST_SNAPSHOT_ID.fieldId()) != null
+            || projectedSchema.findField(LATEST_SCHEMA_ID.fieldId()) != null
+            || projectedSchema.findField(LATEST_SEQUENCE_NUMBER.fieldId()) != null;
+
     return StaticDataTask.of(
         table().io().newInputFile(current.metadataFileLocation()),
         schema(),
-        scan.schema(),
+        projectedSchema,
         metadataLogEntries,
         metadataLogEntry ->
-            MetadataLogEntriesTable.metadataLogEntryToRow(metadataLogEntry, table()));
+            metadataLogEntryToRow(metadataLogEntry, current, shouldLoadSnapshotDetails));
+  }
+
+  private Snapshot latestSnapshotForEntry(
+      TableMetadata.MetadataLogEntry metadataLogEntry, TableMetadata current) {
+    // Resolve snapshot details from the metadata file represented by this entry because snapshots
+    // may have been removed from the current table history after snapshot expiration.
+    TableMetadata metadata =
+        metadataLogEntry.file().equals(current.metadataFileLocation())
+            ? current
+            : TableMetadataParser.read(table().io(), metadataLogEntry.file());
+
+    List<HistoryEntry> snapshotLog = metadata.snapshotLog();
+    if (snapshotLog.isEmpty()) {
+      // The initial table metadata does not contain a snapshot.
+      return null;
+    }
+
+    HistoryEntry latestEntry = Iterables.getLast(snapshotLog);
+    return metadata.snapshot(latestEntry.snapshotId());
   }
 
   private class MetadataLogScan extends StaticTableScan {
@@ -102,22 +139,17 @@ public class MetadataLogEntriesTable extends BaseMetadataTable {
     }
   }
 
-  private static StaticDataTask.Row metadataLogEntryToRow(
-      TableMetadata.MetadataLogEntry metadataLogEntry, Table table) {
-    Long latestSnapshotId = null;
-    Snapshot latestSnapshot = null;
-    try {
-      latestSnapshotId = SnapshotUtil.snapshotIdAsOfTime(table, metadataLogEntry.timestampMillis());
-      latestSnapshot = table.snapshot(latestSnapshotId);
-    } catch (IllegalArgumentException ignored) {
-      // implies this metadata file was created at table creation
-    }
+  private StaticDataTask.Row metadataLogEntryToRow(
+      TableMetadata.MetadataLogEntry metadataLogEntry,
+      TableMetadata current,
+      boolean shouldLoadSnapshotDetails) {
+    Snapshot latestSnapshot =
+        shouldLoadSnapshotDetails ? latestSnapshotForEntry(metadataLogEntry, current) : null;
 
     return StaticDataTask.Row.of(
         metadataLogEntry.timestampMillis() * 1000,
         metadataLogEntry.file(),
-        // latest snapshot in this file corresponding to the log entry
-        latestSnapshotId,
+        latestSnapshot != null ? latestSnapshot.snapshotId() : null,
         latestSnapshot != null ? latestSnapshot.schemaId() : null,
         latestSnapshot != null ? latestSnapshot.sequenceNumber() : null);
   }
