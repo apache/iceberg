@@ -93,6 +93,9 @@ The index type defines the logical category of an index and the class of queries
 | `SCALAR` | Defined by this specification     | Accelerates point lookups on clustered fields, and range filters when the clustering expressions are order preserving |
 | `VECTOR` | Reserved for future specification | Accelerates similarity search over vector embeddings                                                                  |
 
+Writers must write `type` in upper case. Readers must match it case-insensitively. A reader that does not implement an
+index type must ignore the index and read the source table directly; it must not fail.
+
 #### Index Fields
 
 An index is defined by materialized and non-materialized fields. Each index field is produced by evaluating an
@@ -110,8 +113,9 @@ An index field has the following fields:
 Each index field must satisfy the following requirements:
 
 - `expr` must contain only ID references to source table fields or
-  [metadata columns](spec.md#reserved-field-ids). Named references, changelog and delete file metadata columns must not
-  be used.
+  [metadata columns](spec.md#reserved-field-ids). Named references must not be used. The `_deleted`, `_change_type`,
+  `_change_ordinal`, and `_commit_snapshot_id` metadata columns must not be referenced, and neither must the
+  `file_path`, `pos`, and `row` columns of delete files.
 - `expr` must be deterministic and must produce the declared `data-type`.
 - `field-id` must be unique across both `materialized-fields` and `non-materialized-fields`.
 - `field-id` must be a regular column ID, not a [reserved field ID](spec.md#reserved-field-ids).
@@ -168,19 +172,22 @@ The index metadata file has the following fields:
 | _required_  | `last-updated-ms`         | `long`                     | Timestamp when the index was last updated (ms from epoch) [1]                                      |
 | _required_  | `type`                    | `string`                   | Logical index type                                                                                 |
 | _required_  | `materialized-fields`     | `list<index-field>`        | Fields stored in range files, see [Materialized Fields](#materialized-fields)                      |
-| _required_  | `non-materialized-fields` | `list<index-field>`        | Fields stored only in tracking statistics, see [Non-Materialized Fields](#non-materialized-fields) |
+| _optional_  | `non-materialized-fields` | `list<index-field>`        | Fields stored only in tracking statistics, see [Non-Materialized Fields](#non-materialized-fields) |
 | _required_  | `cluster-spec`            | `list<int>`                | Field IDs that define clustering, see [Cluster Spec](#cluster-spec)                                |
 | _optional_  | `properties`              | `map<string, string>`      | Index properties applicable for every snapshot                                                     |
-| _required_  | `snapshots`               | `list<index-snapshot>`     | Index snapshots                                                                                    |
+| _optional_  | `snapshots`               | `list<index-snapshot>`     | Index snapshots [2]                                                                                |
 | _optional_  | `metadata-log`            | `list<metadata-log-entry>` | Previous index metadata files, see [Metadata Log](#metadata-log)                                   |
 | _optional_  | `encryption-keys`         | `list<encryption-key>`     | Encryption keys used by the index, see [Encryption Keys](#encryption-keys)                         |
+
+A missing optional list must be read as an empty list.
 
 Notes:
 
 1. Each index metadata file should update `last-updated-ms` just before writing.
-2. Index names are not stored in index metadata. It is the catalog's responsibility to map index names to metadata file
+2. An index that has not been built yet has no snapshots.
+3. Index names are not stored in index metadata. It is the catalog's responsibility to map index names to metadata file
    locations.
-3. How the indexes of a table are discovered is out of scope for this specification and is defined by the catalog
+4. How the indexes of a table are discovered is out of scope for this specification and is defined by the catalog
    specification.
 
 #### Index Snapshot
@@ -206,7 +213,7 @@ use any of the matching index snapshots.
 #### Metadata Log
 
 `metadata-log` records the index metadata files that preceded the current one. A commit should append an entry for the
-metadata file it replaces. An index may be configured to keep a fixed-size log and drop the oldest entries on commit.
+metadata file it replaces.
 
 | Requirement | Field name      | Type     | Description                                                     |
 |-------------|-----------------|----------|-----------------------------------------------------------------|
@@ -257,14 +264,14 @@ against the source-table snapshot they intend to read.
 
 #### Clustering and Ordering
 
-The cluster spec defines an ordering over all index entries of an index snapshot. Entries must be partitioned into
+The cluster spec defines an ordering over all index entries of an index snapshot. Index entries must be partitioned into
 ranges of clustering key values that do not overlap, and each range must be stored in a separate range file. A range
-boundary must fall at a change in clustering key, so all entries that share a clustering key are stored in the same
-range file.
+boundary must fall at a change in clustering key, so all index entries that share a clustering key are stored in the
+same range file.
 
 Index entries are ordered by the [clustering key](#cluster-spec) produced for each indexed row. The key is compared by
-the fields in `cluster-spec` order: entries are compared by the value of the first field, and the next field is used
-only when the preceding values compare as equal. Each field is ordered ascending.
+the fields in `cluster-spec` order: index entries are compared by the value of the first field, and the next field is
+used only when the preceding values compare as equal. Each field is ordered ascending.
 
 Primitive values are compared using the rules defined in the
 [expressions specification](expressions-spec.md#comparisons), extended so that null and NaN values have a defined
@@ -304,8 +311,15 @@ The `content_stats` structure stores field statistics following the [content sta
 table specification. Each stored struct derives its ID and metric types from the index field's `field-id` and
 `data-type` and contains the metrics supported for that type.
 
-Statistics are required for every field in `cluster-spec` and for every non-materialized field, and are optional for
-other materialized fields. A non-materialized field has no values in the range file, so its statistics describe the
+The following metrics are required:
+
+| Index field              | Required metrics                                |
+|--------------------------|-------------------------------------------------|
+| Field in `cluster-spec`  | `lower_bound`, `upper_bound`, `group_max_value` |
+| Non-materialized field   | `lower_bound`, `upper_bound`                    |
+| Other materialized field | None                                            |
+
+All other metrics are optional. A non-materialized field has no values in the range file, so its statistics describe the
 rows that the range file indexes rather than values stored in it.
 
 ###### Group Max Value
@@ -314,8 +328,8 @@ The field statistics struct for each field in `cluster-spec` must contain a `gro
 the field's stats `base-id`. It has the index field's `data-type` and is optional so that it can represent a null
 clustering value. Unlike other metrics, a null `group_max_value` is a null clustering value, not an unknown statistic.
 
-The `group_max_value` metrics, read in `cluster-spec` order, must be the exact clustering key of the last entry in the
-range file according to the [clustering order](#clustering-and-ordering). They must not be truncated or rounded.
+The `group_max_value` metrics, read in `cluster-spec` order, must be the exact clustering key of the last index entry in
+the range file according to the [clustering order](#clustering-and-ordering). They must not be truncated or rounded.
 Readers use these keys as inclusive range file upper bounds. The clustering keys of a range file are strictly greater
 than the `group_max_value` key of the preceding tracking file entry, so tracking file entries must be read in order.
 
@@ -323,18 +337,19 @@ than the `group_max_value` key of the preceding tracking file entry, so tracking
 
 Range files contain the materialized fields and represent the lowest level of the index hierarchy.
 
-Range files must be standard Iceberg data files and may be stored using any Iceberg-supported data file format: Parquet,
-Avro, or ORC.
+Range files must be valid Iceberg data files stored in Parquet, Avro, or ORC, following the
+[format-specific requirements](spec.md#appendix-a-format-specific-requirements) of the table specification. Those
+requirements define how each type is encoded and where a column's field ID is recorded in the file.
 
-Each range file row contains the result of evaluating the [materialized fields](#materialized-fields) for one indexed
-row. Entries within a range file must be stored in the [clustering order](#clustering-and-ordering). Entries that share
-a clustering key may be stored in any order.
+Each range file row is one index entry and contains the result of evaluating the
+[materialized fields](#materialized-fields) for one indexed row. Index entries within a range file must be stored in the
+[clustering order](#clustering-and-ordering). Index entries that share a clustering key may be stored in any order.
 
 ##### Range Schema
 
-The range schema is constructed from `materialized-fields`. The result is a struct containing one field for each entry,
-with fields appearing in the same order as the list. Each field takes its ID from `field-id` and its type from
-`data-type`.
+The range schema is constructed from `materialized-fields`. The result is a struct containing one field for each index
+field in the list, with fields appearing in the same order as the list. Each field takes its ID from `field-id` and its
+type from `data-type`.
 
 Names of materialized fields in the range schema are generated by the writer and are not defined by this specification.
 Users of the index must not rely on them; readers must match range file columns by field ID.
@@ -366,6 +381,12 @@ while non-materialized field values are represented only by tracking statistics.
 comparison order without repeating their expressions. Engines match query expressions to index fields to determine
 whether the index applies and which materialized field contains a result. Because expressions reference only fields and
 metadata columns of the source table, each index field can be evaluated directly from a source row.
+
+That is also why only some metadata columns can be referenced. An index snapshot indexes the live rows of a single
+table snapshot, so a row has one position and one file, and the value of a column such as `_deleted` is fixed for every
+indexed row. The changelog columns describe a row's change between two snapshots rather than a value within one, and
+the delete file columns describe a delete file record rather than a source row, so neither can be evaluated from the
+row an index entry is built from.
 
 ### Clustering Order and Pruning
 
@@ -399,7 +420,9 @@ The bound has to be exact because readers derive the lower bound of a range file
 preceding entry. A bound rounded up would place that lower bound above entries the next range file actually contains, so
 a lookup would prune to the wrong file and miss rows.
 
-When available, lower and upper bounds support pruning on partial clustering keys and fields outside the cluster spec.
+Ordinary lower and upper bounds are required for clustered and non-materialized fields because they support pruning on
+partial clustering keys, which the `group_max_value` keys alone cannot do. Bounds for other materialized fields are
+optional and, when present, extend pruning to fields outside the cluster spec.
 
 Within a range file, the entries that match a lookup are contiguous, so a reader can locate them with the structures the
 file format provides for stored columns, such as Parquet page indexes, instead of examining every entry. Those
@@ -576,17 +599,18 @@ s3://bucket/warehouse/default.db/events/index/bucket_index/metadata/00001-(uuid)
 ```
 
 The tracking file at `tracking-file` lists the range files of this snapshot. It is stored in a metadata file
-format rather than JSON, so its entries are shown here as a table. In this example the index snapshot has two range
-files:
+format rather than JSON, so its tracking file entries are shown here as a table. In this example the index snapshot has
+two range files:
 
 | file_path               | file_format | record_count | file_size_in_bytes |
 |-------------------------|-------------|--------------|--------------------|
 | .../range-00001.parquet | parquet     | 3            | 1160               |
 | .../range-00002.parquet | parquet     | 2            | 1024               |
 
-Each entry also carries a `content_stats` struct. The location fields are outside `cluster-spec`, so no statistics are
-stored for them and the struct holds field statistics for the materialized `user_id` and the non-materialized bucket.
-Both fields participate in `cluster-spec`, so both stats structs include `group_max_value`:
+Each tracking file entry also carries a `content_stats` struct. The location fields are materialized fields outside
+`cluster-spec`, so no statistics are required for them and this writer stores none. The struct holds field statistics
+for the materialized `user_id` and the non-materialized bucket. Both fields participate in `cluster-spec`, so both
+stats structs include `group_max_value`:
 
 ```
 146: required struct content_stats {
