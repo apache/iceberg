@@ -82,6 +82,44 @@ public class TestBasicTLSConfigurer {
     configurer.initialize(properties);
 
     assertThat(configurer.sslContext().getProtocol()).isEqualTo("TLSv1.3");
+    // the context algorithm alone would still leave TLSv1.2 enabled, so the protocol must also be
+    // pinned through supportedProtocols
+    assertThat(configurer.sslContext().getDefaultSSLParameters().getProtocols())
+        .contains("TLSv1.2");
+    assertThat(configurer.supportedProtocols()).containsExactly("TLSv1.3");
+  }
+
+  @Test
+  public void testBasicTLSConfigurerWithoutProtocolOrCipherSuites() {
+    BasicTLSConfigurer configurer = new BasicTLSConfigurer();
+    configurer.initialize(ImmutableMap.of());
+
+    // null defers to the JSSE defaults
+    assertThat(configurer.supportedProtocols()).isNull();
+    assertThat(configurer.supportedCipherSuites()).isNull();
+  }
+
+  @Test
+  public void testBasicTLSConfigurerWithCipherSuites() {
+    BasicTLSConfigurer configurer = new BasicTLSConfigurer();
+    configurer.initialize(
+        ImmutableMap.of(
+            BasicTLSConfigurer.TLS_CIPHER_SUITES,
+            "TLS_AES_256_GCM_SHA384, TLS_AES_128_GCM_SHA256"));
+
+    assertThat(configurer.supportedCipherSuites())
+        .containsExactly("TLS_AES_256_GCM_SHA384", "TLS_AES_128_GCM_SHA256");
+  }
+
+  @Test
+  public void testBasicTLSConfigurerWithBlankCipherSuites() {
+    BasicTLSConfigurer configurer = new BasicTLSConfigurer();
+
+    assertThatThrownBy(
+            () ->
+                configurer.initialize(ImmutableMap.of(BasicTLSConfigurer.TLS_CIPHER_SUITES, " ,")))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("must not be blank");
   }
 
   @Test

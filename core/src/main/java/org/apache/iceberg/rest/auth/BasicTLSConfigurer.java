@@ -28,6 +28,7 @@ import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.UnrecoverableKeyException;
 import java.security.cert.CertificateException;
+import java.util.List;
 import java.util.Map;
 import javax.net.ssl.KeyManager;
 import javax.net.ssl.KeyManagerFactory;
@@ -35,6 +36,7 @@ import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.TrustManagerFactory;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
 
 /** A TLS configurer that supports custom keystore and truststore configuration. */
@@ -47,11 +49,16 @@ public class BasicTLSConfigurer implements TLSConfigurer {
   public static final String TLS_TRUSTSTORE_PASSWORD = "rest.client.tls.truststore.password";
   public static final String TLS_TRUSTSTORE_TYPE = "rest.client.tls.truststore.type";
   public static final String TLS_PROTOCOL = "rest.client.tls.protocol";
+  public static final String TLS_CIPHER_SUITES = "rest.client.tls.cipher-suites";
 
   private static final String DEFAULT_KEYSTORE_TYPE = "JKS";
   private static final String DEFAULT_TLS_PROTOCOL = "TLS";
+  private static final Splitter CIPHER_SUITE_SPLITTER =
+      Splitter.on(',').trimResults().omitEmptyStrings();
 
   private SSLContext sslContext;
+  private String[] supportedProtocols;
+  private String[] supportedCipherSuites;
 
   @Override
   public void initialize(Map<String, String> properties) {
@@ -61,7 +68,15 @@ public class BasicTLSConfigurer implements TLSConfigurer {
     String truststorePath = properties.get(TLS_TRUSTSTORE_PATH);
     String truststorePassword = properties.get(TLS_TRUSTSTORE_PASSWORD);
     String truststoreType = properties.getOrDefault(TLS_TRUSTSTORE_TYPE, DEFAULT_KEYSTORE_TYPE);
-    String protocol = properties.getOrDefault(TLS_PROTOCOL, DEFAULT_TLS_PROTOCOL);
+    String protocol = properties.get(TLS_PROTOCOL);
+    String cipherSuites = properties.get(TLS_CIPHER_SUITES);
+
+    // An explicitly configured protocol is also pinned as the only enabled protocol. Passing it to
+    // SSLContext.getInstance alone is not enough: JSSE treats the context algorithm as a minimum,
+    // so SSLContext.getInstance("TLSv1.3") still leaves TLSv1.2 enabled on the socket.
+    this.supportedProtocols =
+        Strings.isNullOrEmpty(protocol) ? null : new String[] {protocol.trim()};
+    this.supportedCipherSuites = parseCipherSuites(cipherSuites);
 
     try {
       KeyManager[] keyManagers = null;
@@ -89,7 +104,9 @@ public class BasicTLSConfigurer implements TLSConfigurer {
       if (keyManagers == null && trustManagers == null) {
         this.sslContext = SSLContext.getDefault();
       } else {
-        SSLContext context = SSLContext.getInstance(protocol);
+        SSLContext context =
+            SSLContext.getInstance(
+                Strings.isNullOrEmpty(protocol) ? DEFAULT_TLS_PROTOCOL : protocol.trim());
         context.init(keyManagers, trustManagers, null);
         this.sslContext = context;
       }
@@ -107,14 +124,27 @@ public class BasicTLSConfigurer implements TLSConfigurer {
     return sslContext;
   }
 
+  /** Returns the configured protocol as the only enabled one, or null to use the JSSE defaults. */
   @Override
   public String[] supportedProtocols() {
-    return null;
+    return supportedProtocols == null ? null : supportedProtocols.clone();
   }
 
+  /** Returns the configured cipher suites, or null to use the JSSE defaults. */
   @Override
   public String[] supportedCipherSuites() {
-    return null;
+    return supportedCipherSuites == null ? null : supportedCipherSuites.clone();
+  }
+
+  private static String[] parseCipherSuites(String cipherSuites) {
+    if (Strings.isNullOrEmpty(cipherSuites)) {
+      return null;
+    }
+
+    List<String> suites = CIPHER_SUITE_SPLITTER.splitToList(cipherSuites);
+    Preconditions.checkArgument(
+        !suites.isEmpty(), "Invalid cipher suites: %s must not be blank", TLS_CIPHER_SUITES);
+    return suites.toArray(new String[0]);
   }
 
   private KeyStore loadKeyStore(String path, char[] password, String type) {
