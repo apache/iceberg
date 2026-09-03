@@ -83,7 +83,8 @@ reference, is an **identity expression** of the referenced source field. The `fi
 source table field must be the field ID of that field.
 
 Expressions are serialized using the [JSON serialization](expressions-spec.md#appendix-b-json-serialization) defined by
-the expressions specification.
+the expressions specification. Types are serialized using the [type serialization](spec.md#schemas) defined by the table
+specification.
 
 ### Materialized Fields
 
@@ -123,7 +124,7 @@ A table may have multiple indexes of the same index type.
 
 ## Index Metadata
 
-The index metadata file stores the index definition and snapshot history.
+The index metadata file stores the index definition and snapshot history. It is encoded as JSON.
 
 ### Index Metadata File
 
@@ -133,6 +134,7 @@ The index metadata file stores the index definition and snapshot history.
 | required    | uuid                    | string                   | Stable UUID assigned at creation                                                                   |
 | required    | table-uuid              | string                   | UUID of the indexed table                                                                          |
 | required    | location                | string                   | Index root location                                                                                |
+| required    | last-updated-ms         | long                     | Timestamp in milliseconds from the unix epoch when the index was last updated [1]                  |
 | required    | type                    | string                   | Logical index type                                                                                 |
 | required    | materialized-fields     | list<index-field>        | Fields stored in range files, see [Materialized Fields](#materialized-fields)                      |
 | required    | non-materialized-fields | list<index-field>        | Fields stored only in tracking statistics, see [Non-Materialized Fields](#non-materialized-fields) |
@@ -142,6 +144,10 @@ The index metadata file stores the index definition and snapshot history.
 | optional    | metadata-log            | list<metadata-log-entry> | Previous index metadata files, see [Metadata Log](#metadata-log)                                   |
 | optional    | encryption-keys         | list<encryption-key>     | Encryption keys used by the index, see [Encryption Keys](#encryption-keys)                         |
 
+Notes:
+
+1. Each index metadata file should update `last-updated-ms` just before writing.
+
 ### Index Snapshot
 
 An index snapshot is an immutable version of the index data generated from a specific source table snapshot. It
@@ -149,27 +155,28 @@ references a complete set of index files through the location of a single [track
 
 An index snapshot must index exactly the live rows of the referenced table snapshot.
 
-| Requirement | Field                    | Type               | Description                                                        |
-|-------------|--------------------------|--------------------|--------------------------------------------------------------------|
-| required    | snapshot-id              | long               | Index snapshot identifier                                          |
-| required    | source-table-snapshot-id | long               | Source table snapshot                                              |
-| required    | timestamp-ms             | long               | Snapshot creation timestamp                                        |
-| required    | index-data               | string             | Location of the tracking file                                      |
-| optional    | properties               | map<string,string> | Snapshot properties specific to this snapshot                      |
-| optional    | key-id                   | string             | ID of the encryption key that holds the tracking file key metadata |
+| Requirement | Field                    | Type               | Description                                                                 |
+|-------------|--------------------------|--------------------|-----------------------------------------------------------------------------|
+| required    | snapshot-id              | long               | Index snapshot identifier                                                   |
+| required    | source-table-snapshot-id | long               | Source table snapshot                                                       |
+| required    | timestamp-ms             | long               | Timestamp in milliseconds from the unix epoch when the snapshot was created |
+| required    | index-data               | string             | Location of the tracking file                                               |
+| optional    | properties               | map<string,string> | Snapshot properties specific to this snapshot                               |
+| optional    | key-id                   | string             | ID of the encryption key that holds the tracking file key metadata          |
 
 Each `snapshot-id` must be unique within the `snapshots` list. Engines locate index data by matching
-`source-table-snapshot-id`.
+`source-table-snapshot-id`. More than one index snapshot may reference the same source table snapshot, and an engine may
+use any of the matching index snapshots.
 
 ### Metadata Log
 
 `metadata-log` records the index metadata files that preceded the current one. A commit should append an entry for the
 metadata file it replaces. An index may be configured to keep a fixed-size log and drop the oldest entries on commit.
 
-| Requirement | Field         | Type   | Description                                         |
-|-------------|---------------|--------|-----------------------------------------------------|
-| required    | metadata-file | string | Location of the index metadata file                 |
-| required    | timestamp-ms  | long   | Time the metadata file was replaced by a newer file |
+| Requirement | Field         | Type   | Description                                                     |
+|-------------|---------------|--------|-----------------------------------------------------------------|
+| required    | metadata-file | string | Location of the index metadata file                             |
+| required    | timestamp-ms  | long   | `last-updated-ms` of the index metadata file at `metadata-file` |
 
 ### Encryption Keys
 
@@ -229,7 +236,8 @@ Primitive values are compared using the rules defined in the
 position in the ordering:
 
 - `null` values are ordered before all other values (nulls-first)
-- `NaN` values are ordered after all other `float` and `double` values
+- `float` and `double` values are ordered `-NaN` < `-Infinity` < `-value` < `-0.0` < `0.0` < `value` < `Infinity` <
+  `NaN`, as defined by [sorting](spec.md#sorting) in the table specification
 
 ### Tracking File
 
@@ -269,7 +277,7 @@ rows that the range file indexes rather than values stored in it.
 
 The field statistics struct for each field in `cluster-spec` must contain a `group_max_value` metric at offset `8` from
 the field's stats `base-id`. It has the index field's `data-type` and is optional so that it can represent a null
-clustering value.
+clustering value. Unlike other metrics, a null `group_max_value` is a null clustering value, not an unknown statistic.
 
 The `group_max_value` metrics, read in `cluster-spec` order, must be the exact clustering key of the last entry in the
 range file according to the [clustering order](#clustering-and-ordering). They must not be truncated or rounded.
@@ -409,9 +417,7 @@ each other and losing snapshots.
 
 The metadata log keeps the history of index metadata files, as the table specification does for tables. A snapshot
 removed by a commit is still listed in the metadata file that the commit replaced, so index maintenance can read the
-logged files to find snapshots the current metadata no longer references. Each entry records when its file was
-replaced, which starts the grace period after which readers that began from that file are expected to have finished and
-the files of the removed snapshot can be deleted.
+logged files to find snapshots the current metadata no longer references.
 
 ## Appendix B: Recommendations
 
@@ -504,6 +510,7 @@ s3://bucket/warehouse/default.db/events/index/bucket_index/metadata/00001-(uuid)
   "uuid" : "9c12d441-03fe-4693-9a96-a0705ddf69c1",
   "table-uuid" : "fb072c92-a02b-11e9-ae9c-1bb7bc9eca94",
   "location" : "s3://bucket/warehouse/default.db/events/index/bucket_index",
+  "last-updated-ms" : 1573518431292,
   "type" : "SCALAR",
   "materialized-fields" : [ {
     "field-id" : 1,
@@ -611,6 +618,7 @@ s3://bucket/warehouse/default.db/events/index/bucket_index/metadata/00002-(uuid)
 ```json
 {
   ...
+  "last-updated-ms" : 1573518981593,
   "snapshots" : [ {
     "snapshot-id" : 1,
     "source-table-snapshot-id" : 3055729675574597004,
@@ -624,7 +632,7 @@ s3://bucket/warehouse/default.db/events/index/bucket_index/metadata/00002-(uuid)
   } ],
   "metadata-log" : [ {
     "metadata-file" : "s3://bucket/warehouse/default.db/events/index/bucket_index/metadata/00001-(uuid).metadata.json",
-    "timestamp-ms" : 1573518981593
+    "timestamp-ms" : 1573518431292
   } ]
 }
 ```
@@ -669,6 +677,7 @@ s3://bucket/warehouse/default.db/events/index/bucket_index/metadata/00003-(uuid)
 ```json
 {
   ...
+  "last-updated-ms" : 1573519505104,
   "snapshots" : [ {
     "snapshot-id" : 2,
     "source-table-snapshot-id" : 5459876531255530170,
@@ -677,10 +686,10 @@ s3://bucket/warehouse/default.db/events/index/bucket_index/metadata/00003-(uuid)
   } ],
   "metadata-log" : [ {
     "metadata-file" : "s3://bucket/warehouse/default.db/events/index/bucket_index/metadata/00001-(uuid).metadata.json",
-    "timestamp-ms" : 1573518981593
+    "timestamp-ms" : 1573518431292
   }, {
     "metadata-file" : "s3://bucket/warehouse/default.db/events/index/bucket_index/metadata/00002-(uuid).metadata.json",
-    "timestamp-ms" : 1573519505104
+    "timestamp-ms" : 1573518981593
   } ]
 }
 ```

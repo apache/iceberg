@@ -825,6 +825,7 @@ Each stats struct holds statistics for one table field. It may contain the follo
 | _optional_  | 5      | `null_value_count`        | `long`                    | optional fields                               | Number of null values in the column |
 | _optional_  | 6      | `nan_value_count`         | `long`                    | `float`, `double`                             | Number of NaN values in the column |
 | _optional_  | 7      | `avg_value_size_in_bytes` | `int`                     | `string`, `binary`, `variant`, `geometry`, `geography` | Avg value size in memory (uncompressed) in bytes over non-null values to estimate memory consumption |
+|             | 8      | `group_max_value`         | Field type                | index cluster fields                          | Value of the field in the last row in [clustering order](index-spec.md#clustering-and-ordering); not necessarily the greatest value |
 
 For example, stats for a `required` `int` field named `id` with field-id `2` are stored using:
 
