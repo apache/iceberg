@@ -433,7 +433,7 @@ You can enable maintenance and configure locks using SQL before executing writes
 
 ```sql
 -- Enable Iceberg V2 Sink and maintenance tasks
-SET 'table.exec.iceberg.use.v2.sink' = 'true';
+SET 'table.exec.iceberg.use-v2-sink' = 'true';
 SET 'flink-maintenance.rewrite.enabled' = 'true';
 SET 'flink-maintenance.expire-snapshots.enabled' = 'true';
 SET 'flink-maintenance.delete-orphan-files.enabled' = 'true';
@@ -453,7 +453,7 @@ SET 'flink-maintenance.delete-orphan-files.min-age-seconds' = '259200';
 SET 'flink-maintenance.lock.type' = 'jdbc';
 SET 'flink-maintenance.lock.lock-id' = 'catalog.db.table';
 SET 'flink-maintenance.lock.jdbc.uri' = 'jdbc:postgresql://localhost:5432/iceberg';
-SET 'flink-maintenance.lock.jdbc.init-lock-tables' = 'true';
+SET 'flink-maintenance.lock.jdbc.init-lock-table' = 'true';
 
 -- Now run writes; maintenance will be scheduled post-commit
 INSERT INTO db.tbl SELECT ...;
@@ -480,7 +480,7 @@ CREATE TABLE db.tbl (
   'flink-maintenance.lock.type' = 'jdbc',
   'flink-maintenance.lock.lock-id' = 'catalog.db.table',
   'flink-maintenance.lock.jdbc.uri' = 'jdbc:postgresql://localhost:5432/iceberg',
-  'flink-maintenance.lock.jdbc.init-lock-tables' = 'true'
+  'flink-maintenance.lock.jdbc.init-lock-table' = 'true'
 );
 ```
 
@@ -554,7 +554,7 @@ These keys are used in SQL (SET or table WITH options) and are applicable when w
 | `flink-maintenance.lock.type` | Set to `jdbc` |  |
 | `flink-maintenance.lock.lock-id` | Unique lock ID per table |  |
 | `flink-maintenance.lock.jdbc.uri` | JDBC URI |  |
-| `flink-maintenance.lock.jdbc.init-lock-tables` | Auto-create lock table | `false` |
+| `flink-maintenance.lock.jdbc.init-lock-table` | Auto-create lock table | `false` |
 
 - ZooKeeper
 
