@@ -31,7 +31,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.azure.core.http.rest.PagedIterable;
+import com.azure.core.http.rest.PagedResponse;
 import com.azure.core.http.rest.Response;
+import com.azure.core.util.IterableStream;
 import com.azure.storage.blob.models.BlobStorageException;
 import com.azure.storage.file.datalake.DataLakeFileClient;
 import com.azure.storage.file.datalake.DataLakeFileSystemClient;
@@ -49,6 +51,8 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.FileInfo;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.io.PrefixListing;
+import org.apache.iceberg.io.PrefixListingPage;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.Test;
@@ -169,11 +173,46 @@ public class TestADLSFileIO extends AzuriteTestBase {
 
     // assert that only files were returned and not directories
     FileInfo fileInfo = result.next();
-    assertThat(fileInfo.location()).isEqualTo("dir/file");
+    assertThat(fileInfo.location())
+        .isEqualTo("abfs://container@account.dfs.core.windows.net/dir/file");
     assertThat(fileInfo.size()).isEqualTo(123L);
     assertThat(fileInfo.createdAtMillis()).isEqualTo(now.toInstant().toEpochMilli());
 
     assertThat(result.hasNext()).isFalse();
+  }
+
+  /** Azurite does not support ADLSv2 directory operations yet so use mocks here. */
+  @SuppressWarnings("unchecked")
+  @Test
+  void listPrefixWithDelimiter() {
+    String prefix = "abfs://container@account.dfs.core.windows.net/dir";
+    OffsetDateTime now = OffsetDateTime.now();
+    PathItem dir =
+        new PathItem("tag", now, 0L, "group", true, "dir/sub", "owner", "permissions", now, null);
+    PathItem file =
+        new PathItem(
+            "tag", now, 123L, "group", false, "dir/file", "owner", "permissions", now, null);
+
+    PagedIterable<PathItem> response = mock(PagedIterable.class);
+    PagedResponse<PathItem> pageResponse = mock(PagedResponse.class);
+    when(pageResponse.getElements()).thenReturn(new IterableStream<>(ImmutableList.of(dir, file)));
+    when(response.iterableByPage())
+        .thenReturn(new IterableStream<>(ImmutableList.of(pageResponse)));
+
+    DataLakeFileSystemClient client = mock(DataLakeFileSystemClient.class);
+    when(client.listPaths(any(), any())).thenReturn(response);
+
+    ADLSFileIO io = spy(new ADLSFileIO());
+    io.initialize(ImmutableMap.of());
+    doReturn(client).when(io).client(any(ADLSLocation.class));
+
+    PrefixListing listing = io.listPrefix(prefix, "/");
+    PrefixListingPage page = listing.pages().iterator().next();
+    assertThat(page.files())
+        .extracting(FileInfo::location)
+        .containsExactly("abfs://container@account.dfs.core.windows.net/dir/file");
+    assertThat(page.subPrefixes())
+        .containsExactly("abfs://container@account.dfs.core.windows.net/dir/sub/");
   }
 
   /** Azurite does not support ADLSv2 directory operations yet so use mocks here. */
