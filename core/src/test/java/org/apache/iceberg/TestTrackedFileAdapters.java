@@ -98,6 +98,7 @@ class TestTrackedFileAdapters {
     tracking.setManifestLocation(MANIFEST_LOCATION);
     tracking.set(MANIFEST_POS_ORDINAL, MANIFEST_POS);
 
+    DeletionVector dv = deletionVector();
     TrackedFile file =
         new TrackedFileStruct(
             tracking,
@@ -111,7 +112,7 @@ class TestTrackedFileAdapters {
             PARTITION,
             CONTENT_STATS,
             3,
-            null,
+            dv,
             null,
             ByteBuffer.wrap(new byte[] {1, 2, 3}),
             ImmutableList.of(50L, 100L),
@@ -134,6 +135,7 @@ class TestTrackedFileAdapters {
     assertThat(dataFile.keyMetadata()).isEqualTo(ByteBuffer.wrap(new byte[] {1, 2, 3}));
     assertThat(dataFile.splitOffsets()).containsExactly(50L, 100L);
     assertThat(dataFile.manifestLocation()).isEqualTo(MANIFEST_LOCATION);
+    assertThat(dataFile.deletionVector()).isSameAs(dv);
     assertThat(dataFile.equalityFieldIds()).isNull();
     assertThat(dataFile.columnSizes()).isNull();
     assertThat(dataFile.valueCounts()).containsOnly(Map.entry(1, 100L), Map.entry(2, 100L));
@@ -332,31 +334,6 @@ class TestTrackedFileAdapters {
     assertThatThrownBy(() -> TrackedFileAdapters.asDVDeleteFile(file, UNPARTITIONED))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot create DV delete file: no deletion vector");
-  }
-
-  @Test
-  void dataFileExposesColocatedDeletionVector() {
-    DeletionVector dv = deletionVector();
-    TrackedFileStruct file =
-        new TrackedFileStruct(
-            null,
-            FileContent.DATA,
-            FORMAT_VERSION_V4,
-            DATA_FILE_LOCATION,
-            FileFormat.PARQUET,
-            100L,
-            1024L,
-            null,
-            null,
-            null,
-            null,
-            dv,
-            null,
-            null,
-            null,
-            null);
-
-    assertThat(TrackedFileAdapters.asDataFile(file, UNPARTITIONED).deletionVector()).isSameAs(dv);
   }
 
   @Test
