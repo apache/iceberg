@@ -19,10 +19,16 @@
 package org.apache.iceberg;
 
 import com.fasterxml.jackson.core.JsonGenerator;
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.core.JsonToken;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.NoSuchElementException;
+import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
@@ -54,6 +60,7 @@ public class SnapshotParser {
   private static final String FIRST_ROW_ID = "first-row-id";
   private static final String ADDED_ROWS = "added-rows";
   private static final String KEY_ID = "key-id";
+  private static final String SNAPSHOTS = "snapshots";
 
   static void toJson(Snapshot snapshot, JsonGenerator generator) throws IOException {
     generator.writeStartObject();
@@ -209,6 +216,134 @@ public class SnapshotParser {
 
   public static Snapshot fromJson(String json) {
     return JsonUtil.parse(json, SnapshotParser::fromJson);
+  }
+
+  /**
+   * Streams snapshots from a table metadata JSON file one at a time.
+   *
+   * <p>{@link TableMetadataParser} reads the whole document into memory and materializes every
+   * entry of the {@code snapshots} array. For tables with very large snapshot histories that can
+   * dominate heap usage even when only a few snapshots are needed. This method walks the document
+   * with a streaming parser and holds only one {@link Snapshot} in memory at a time.
+   *
+   * <p>The returned iterable opens a fresh stream on each iteration and must be closed by the
+   * caller. It yields an empty iterable if the file has no {@code snapshots} array.
+   */
+  public static CloseableIterable<Snapshot> fromJson(InputFile file) {
+    Preconditions.checkArgument(file != null, "Invalid metadata file: null");
+    return new CloseableIterable<Snapshot>() {
+      @Override
+      public CloseableIterator<Snapshot> iterator() {
+        return new SnapshotIterator(file);
+      }
+
+      @Override
+      public void close() {}
+    };
+  }
+
+  private static class SnapshotIterator implements CloseableIterator<Snapshot> {
+    private final JsonParser parser;
+    private Snapshot next;
+    private boolean closed;
+
+    private SnapshotIterator(InputFile file) {
+      SeekableInputStream input = file.newStream();
+      JsonParser jsonParser;
+      try {
+        jsonParser = JsonUtil.factory().createParser(input);
+        jsonParser.setCodec(JsonUtil.mapper());
+      } catch (IOException e) {
+        try {
+          input.close();
+        } catch (IOException ignored) {
+          // suppress so the original failure is reported
+        }
+        throw new UncheckedIOException("Failed to open metadata file: " + file.location(), e);
+      }
+
+      this.parser = jsonParser;
+      if (!seekToSnapshots(parser)) {
+        close();
+      }
+    }
+
+    @Override
+    public boolean hasNext() {
+      if (closed) {
+        return false;
+      }
+
+      if (next == null) {
+        next = advance();
+        if (next == null) {
+          close();
+          return false;
+        }
+      }
+
+      return true;
+    }
+
+    @Override
+    public Snapshot next() {
+      if (!hasNext()) {
+        throw new NoSuchElementException();
+      }
+
+      Snapshot result = next;
+      this.next = null;
+      return result;
+    }
+
+    @Override
+    public void close() {
+      if (!closed) {
+        this.closed = true;
+        try {
+          parser.close();
+        } catch (IOException e) {
+          throw new UncheckedIOException("Failed to close metadata parser", e);
+        }
+      }
+    }
+
+    private Snapshot advance() {
+      try {
+        if (parser.nextToken() == JsonToken.START_OBJECT) {
+          JsonNode node = parser.readValueAsTree();
+          return fromJson(node);
+        }
+
+        // END_ARRAY or end of input: no more snapshots
+        return null;
+      } catch (IOException e) {
+        throw new UncheckedIOException("Failed to read snapshot from table metadata", e);
+      }
+    }
+
+    /** Advances the parser to the start of the {@code snapshots} array, if present. */
+    private static boolean seekToSnapshots(JsonParser parser) {
+      try {
+        if (parser.nextToken() != JsonToken.START_OBJECT) {
+          return false;
+        }
+
+        while (parser.nextToken() == JsonToken.FIELD_NAME) {
+          String field = parser.currentName();
+          parser.nextToken();
+          if (SNAPSHOTS.equals(field)) {
+            return parser.currentToken() == JsonToken.START_ARRAY;
+          }
+
+          parser.skipChildren();
+        }
+
+        return false;
+      } catch (IOException e) {
+        throw new UncheckedIOException("Failed to read table metadata", e);
+      }
+    }
   }
 
   /**
