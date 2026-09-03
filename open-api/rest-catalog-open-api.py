@@ -643,6 +643,154 @@ class StorageCredential(BaseModel):
     config: dict[str, str]
 
 
+class Action(BaseModel):
+    action: str
+    field_id: int = Field(
+        ..., alias='field-id', description='Field ID of the column being projected.'
+    )
+
+
+class MaskAlphanum(Action):
+    """
+    Redacts the column value using the following rules to transform Unicode code points:
+    - Digits (U+0030–U+0039, 0-9) are replaced with 'n' - The following punctuation characters are kept as-is:
+        U+0028 '('  LEFT PARENTHESIS
+        U+0029 ')'  RIGHT PARENTHESIS
+        U+002C ','  COMMA
+        U+002E '.'  FULL STOP
+        U+002D '-'  HYPHEN-MINUS
+        U+0040 '@'  COMMERCIAL AT
+    - All other Unicode characters (including letters, whitespace, and any punctuation
+      not listed above) are replaced with 'x'
+
+    For example: "iceberg16112018@apache.org" -> "xxxxxxxnnnnnnnn@xxxxxx.xxx"
+    NULL input is preserved (NULL -> NULL).
+    Applicable to: string
+
+    """
+
+    action: Literal['mask-alphanum']
+
+
+class MaskToFixedValue(Action):
+    """
+    Replaces the column value with a type-specific fixed value. Readers must use exactly the values listed below to ensure consistency across implementations.
+    Fixed values by type: - boolean: false - int: 0 - long: 0 - float: 0.0 - double: 0.0 - decimal(p, s): 0 (the unscaled value is 0) - string: "XXXXXXXX" - date: 1970-01-01 - time: 00:00:00 - timestamp: 1970-01-01T00:00:00 - timestamptz: 1970-01-01T00:00:00+00:00 - timestamp_ns: 1970-01-01T00:00:00.000000000 - timestamptz_ns: 1970-01-01T00:00:00.000000000+00:00 - uuid: 00000000-0000-0000-0000-000000000000 - fixed(n): n zero bytes - binary: empty byte sequence - variant: an empty variant object - list: empty list [] - map: empty map {} - struct: struct with each field set to its type-specific default (applied recursively)
+    NULL input is also replaced with the type-specific fixed value; NULL is not preserved.
+    Applicable to: the types with a fixed value defined above. A server must not return mask-to-fixed-value for any other type.
+
+    """
+
+    action: Literal['mask-to-fixed-value']
+
+
+class ReplaceWithNull(Action):
+    """
+    Replaces the column value with NULL. NULL input is preserved (NULL -> NULL).
+    Applicable to: all optional types. A server must not return replace-with-null for a required (non-nullable) field; a reader that receives one must fail the query.
+
+    """
+
+    action: Literal['replace-with-null']
+
+
+class ShowFirst4(Action):
+    """
+    Preserves the first 4 Unicode code points of the column value and redacts the remainder using mask-alphanum rules (see MaskAlphanum for the exact character rules). Values with 4 or fewer Unicode code points are returned unchanged.
+    For example: "iceberg16112018@apache.org" -> "icebxxxnnnnnnnn@xxxxxx.xxx"
+    NULL input is preserved (NULL -> NULL).
+    Applicable to: string
+
+    """
+
+    action: Literal['show-first-4']
+
+
+class ShowLast4(Action):
+    """
+    Redacts all Unicode code points except the last 4 using mask-alphanum rules (see MaskAlphanum for the exact character rules). Values with 4 or fewer Unicode code points are returned unchanged.
+    For example: "4111-1111-1111-4444" -> "nnnn-nnnn-nnnn-4444"
+    NULL input is preserved (NULL -> NULL).
+    Applicable to: string
+
+    """
+
+    action: Literal['show-last-4']
+
+
+class TruncateToYear(Action):
+    """
+    Truncates the column value to year precision, setting month, day, and time components to their minimum values. The output type matches the input type.
+    For example: 2024-07-15 -> 2024-01-01 For timestamptz and timestamptz_ns, truncation is performed in UTC.
+    NULL input is preserved (NULL -> NULL).
+    Applicable to: date, timestamp, timestamptz, timestamp_ns, timestamptz_ns
+
+    """
+
+    action: Literal['truncate-to-year']
+
+
+class TruncateToMonth(Action):
+    """
+    Truncates the column value to year and month precision, setting day and time components to their minimum values. The output type matches the input type.
+    For example: 2024-07-15 -> 2024-07-01 For timestamptz and timestamptz_ns, truncation is performed in UTC.
+    NULL input is preserved (NULL -> NULL).
+    Applicable to: date, timestamp, timestamptz, timestamp_ns, timestamptz_ns
+
+    """
+
+    action: Literal['truncate-to-month']
+
+
+class Sha256Global(Action):
+    """
+    Applies SHA-256. Deterministic across all queries
+    and readers: the same input always produces the same output.
+
+    Input-to-bytes encoding by type:
+    - string: UTF-8 encoded bytes
+    - int: 4 bytes, little-endian
+    - long: 8 bytes, little-endian
+    - binary: raw bytes as-is
+
+    Output encoding by type:
+    - string: 64-character lowercase hexadecimal string
+    - int: first 4 bytes of the digest, read as a little-endian int
+    - long: first 8 bytes of the digest, read as a little-endian long
+    - binary: the full 32-byte raw SHA-256 digest
+
+    NULL input is preserved (NULL -> NULL).
+
+    Applicable to: string, int, long, binary
+
+    """
+
+    action: Literal['sha-256-global']
+
+
+class Sha256QueryLocal(Action):
+    """
+    Applies SHA-256 with a per-query random salt, making the output non-deterministic
+    across queries while remaining consistent within a single query. The definition
+    of a query is left to the implementation.
+
+    The reader must generate a cryptographically random salt of at least 16 bytes for each query.
+
+    For each column value, the reader must encode the value to bytes using
+    sha-256-global's input rules, prepend the per-query salt, and compute
+    SHA-256 over the result.
+
+    Output encoding follows the same rules as sha-256-global.
+
+    NULL input is preserved (NULL -> NULL).
+
+    Applicable to: string, int, long, binary
+
+    """
+
+    action: Literal['sha-256-query-local']
+
+
 class LoadCredentialsResponse(BaseModel):
     storage_credentials: list[StorageCredential] = Field(
         ..., alias='storage-credentials'
@@ -1703,6 +1851,39 @@ class AddSchemaUpdate(BaseUpdate):
     )
 
 
+class ReadRestrictions(BaseModel):
+    """
+    Read restrictions for a table.
+    A reader evaluates the row filter against original, untransformed column values, then applies required-column-projections to the surviving rows. Each action must produce a value of the same type as the input column. If a reader that supports read-restrictions cannot apply any returned restriction (a filter expression or an action), it must fail the query and must not silently return raw, partial, or empty results.
+    A missing or empty ReadRestrictions object (no required-column-projections and no required-row-filter) imposes no restrictions.
+
+    """
+
+    required_column_projections: (
+        list[
+            MaskAlphanum
+            | MaskToFixedValue
+            | ReplaceWithNull
+            | ShowFirst4
+            | ShowLast4
+            | TruncateToYear
+            | TruncateToMonth
+            | Sha256Global
+            | Sha256QueryLocal
+        ]
+        | None
+    ) = Field(
+        None,
+        alias='required-column-projections',
+        description='A list of columns that require specific actions to be applied when reading. A server must not return an action for a column whose type is not listed in that action\'s "Applicable to" set. If absent or empty, no required actions apply; columns not listed are not subject to any required action.\n1. For each column listed, the reader must apply the specified action before\n  returning values for that column.\n\n2. The reader must replace all output references to the column with the result\n  of the action, presenting the result under the original field-id. For\n  example, if the action for field-id `9` is mask-alphanum, the reader must\n  return the masked value as field-id `9` in the query output.\n\n3. A server must not return more than one projection for the same field-id\n  in required-column-projections. If a duplicate field-id appears, the reader\n  must fail the query.\n\n4. A server must not return a projection that targets a map\'s key field-id;\n  a reader that receives one must fail the query. Applying an action to keys\n  can produce duplicate or null keys, which readers silently coalesce or\n  reject, causing data loss.\n\n5. A reader must enforce projections on the columns it is actually reading.\n  Projections referencing columns that are not being read do not apply.\n\n6. A server must not return projections on both a nested-typed field\n  (struct, list, or map) and any field-id nested within it at any depth.\n  A reader that receives such a response must fail the query.\n',
+    )
+    required_row_filter: Predicate | None = Field(
+        None,
+        alias='required-row-filter',
+        description='An expression that limits which rows the reader may return.\n1. The expression must evaluate to a boolean (TRUE or FALSE; Iceberg predicates\n  never produce NULL). A reader must discard any row for which the filter\n  evaluates to FALSE, and no information derived from discarded rows may be\n  included in the query result.\n\n2. If this property is absent, null, or always true then no mandatory filtering is required.\n3. Column references within the expression must use field IDs (IdReference),\n  not column names. This ensures the filter remains valid across column renames,\n  consistent with required-column-projections which also reference columns by field-id.\n',
+    )
+
+
 class LoadTableResult(BaseModel):
     """
     Result used when a table is successfully loaded.
@@ -1766,6 +1947,7 @@ class LoadTableResult(BaseModel):
     remote_signing_config: RemoteSigningConfig | None = Field(
         None, alias='remote-signing-config'
     )
+    read_restrictions: ReadRestrictions | None = Field(None, alias='read-restrictions')
 
 
 class ScanTasks(BaseModel):
@@ -2297,6 +2479,7 @@ Apply.model_rebuild()
 TableMetadata.model_rebuild()
 ViewMetadata.model_rebuild()
 AddSchemaUpdate.model_rebuild()
+ReadRestrictions.model_rebuild()
 ScanTasks.model_rebuild()
 CommitTableRequest.model_rebuild()
 CommitViewRequest.model_rebuild()
