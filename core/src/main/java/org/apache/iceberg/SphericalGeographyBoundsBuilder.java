@@ -1,0 +1,359 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+package org.apache.iceberg;
+
+import java.util.Comparator;
+import java.util.List;
+import org.apache.iceberg.geospatial.BoundingBox;
+import org.apache.iceberg.geospatial.GeospatialBound;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+
+/** Builds an XY bounding box from geography points and minor great-circle edges on a sphere. */
+class SphericalGeographyBoundsBuilder {
+  private static final double MIN_LONGITUDE = -180.0;
+  private static final double MAX_LONGITUDE = 180.0;
+  private static final double MIN_LATITUDE = -90.0;
+  private static final double MAX_LATITUDE = 90.0;
+  private static final double LONGITUDE_SPAN = MAX_LONGITUDE - MIN_LONGITUDE;
+
+  // For unit endpoints, |point1 x point2| = sin(central angle). A tiny normal means
+  // the endpoints are nearly coincident or antipodal, so normalizing the great-circle
+  // plane is numerically unstable.
+  private static final double MIN_NORMAL_LENGTH = 1e-12;
+
+  // A point lies on the oriented minor arc when both exact side tests are nonnegative:
+  //
+  //   point1 -------- point -------- point2
+  //          (point1 x point) . normal >= 0
+  //          (point x point2) . normal >= 0
+  //
+  // Permit a small negative result introduced by floating-point rounding.
+  private static final double ARC_CONTAINMENT_TOLERANCE = 1e-12;
+
+  // A minor great-circle arc can extend beyond both endpoint latitudes:
+  //
+  //             conservative north bound
+  //   ---------------------------------------------
+  //                         ^ margin
+  //                         * arc vertex
+  //                      .-' '-.
+  //            endpoint *       * endpoint
+  //
+  // The factor adds a relative 1e-7 margin away from the equator to avoid an
+  // under-covering bound; the result is then clamped to [-90, 90].
+  private static final double LATITUDE_SCALING_FACTOR = 1.0000001;
+
+  private final List<LongitudeInterval> longitudeIntervals = Lists.newArrayList();
+  private double minLatitude = Double.POSITIVE_INFINITY;
+  private double maxLatitude = Double.NEGATIVE_INFINITY;
+  private State state = State.EMPTY;
+
+  void addPoint(double longitude, double latitude) {
+    if (!prepareToAccumulate(coordinatesAreValid(longitude, latitude))) {
+      return;
+    }
+
+    includeLatitude(latitude);
+    // All meridians meet at a pole, so a vertex there has no single longitude that constrains
+    // the box; it contributes latitude only. A geography consisting solely of pole vertices
+    // leaves longitude unconstrained, which build() reports as the full range.
+    if (!isPole(latitude)) {
+      longitudeIntervals.add(new LongitudeInterval(longitude, longitude));
+    }
+  }
+
+  void addEdge(double longitude1, double latitude1, double longitude2, double latitude2) {
+    if (!prepareToAccumulate(
+        coordinatesAreValid(longitude1, latitude1) && coordinatesAreValid(longitude2, latitude2))) {
+      return;
+    }
+
+    includeLatitude(latitude1);
+    includeLatitude(latitude2);
+
+    if (addEdgeWithPole(longitude1, latitude1, longitude2, latitude2)) {
+      return;
+    }
+
+    longitudeIntervals.add(minimumLongitudeInterval(longitude1, longitude2));
+    addInteriorLatitudeExtrema(longitude1, latitude1, longitude2, latitude2);
+  }
+
+  private boolean addEdgeWithPole(
+      double longitude1, double latitude1, double longitude2, double latitude2) {
+    boolean firstIsPole = isPole(latitude1);
+    boolean secondIsPole = isPole(latitude2);
+    if (firstIsPole && secondIsPole) {
+      if (latitude1 != latitude2) {
+        includeFullWorld();
+      }
+
+      return true;
+    } else if (firstIsPole) {
+      longitudeIntervals.add(new LongitudeInterval(longitude2, longitude2));
+      return true;
+    } else if (secondIsPole) {
+      longitudeIntervals.add(new LongitudeInterval(longitude1, longitude1));
+      return true;
+    }
+
+    return false;
+  }
+
+  private void addInteriorLatitudeExtrema(
+      double longitude1, double latitude1, double longitude2, double latitude2) {
+    Vector3 point1 = toUnitVector(longitude1, latitude1);
+    Vector3 point2 = toUnitVector(longitude2, latitude2);
+    Vector3 normal = point1.crossProduct(point2);
+    double normalLength = normal.length();
+    if (normalLength <= MIN_NORMAL_LENGTH) {
+      if (point1.dotProduct(point2) < 0) {
+        includeFullWorld();
+      }
+
+      return;
+    }
+
+    Vector3 unitNormal = normal.scale(1.0 / normalLength);
+    double horizontalNormalLength = Math.hypot(unitNormal.xComponent, unitNormal.yComponent);
+    if (horizontalNormalLength == 0) {
+      return;
+    }
+
+    double vertexLatitude = Math.toDegrees(Math.asin(clamp(horizontalNormalLength, 0.0, 1.0)));
+    Vector3 northVertex =
+        new Vector3(
+            -unitNormal.zComponent * unitNormal.xComponent / horizontalNormalLength,
+            -unitNormal.zComponent * unitNormal.yComponent / horizontalNormalLength,
+            horizontalNormalLength);
+
+    double endpointMaxLatitude = Math.max(latitude1, latitude2);
+    if (vertexLatitude > endpointMaxLatitude
+        && isOnMinorArc(northVertex, point1, point2, unitNormal)) {
+      // Expand a computed extremum so rounding cannot produce an under-covering bound.
+      maxLatitude =
+          Math.max(maxLatitude, Math.min(LATITUDE_SCALING_FACTOR * vertexLatitude, MAX_LATITUDE));
+    }
+
+    double endpointMinLatitude = Math.min(latitude1, latitude2);
+    Vector3 southVertex = northVertex.scale(-1.0);
+    if (-vertexLatitude < endpointMinLatitude
+        && isOnMinorArc(southVertex, point1, point2, unitNormal)) {
+      // Expand a computed extremum so rounding cannot produce an under-covering bound.
+      minLatitude =
+          Math.min(minLatitude, Math.max(-LATITUDE_SCALING_FACTOR * vertexLatitude, MIN_LATITUDE));
+    }
+  }
+
+  BoundingBox build() {
+    if (state == State.EMPTY || state == State.INVALID) {
+      return null;
+    }
+
+    LongitudeInterval longitudeBounds = longitudeBounds();
+    return new BoundingBox(
+        GeospatialBound.createXY(longitudeBounds.west, minLatitude),
+        GeospatialBound.createXY(longitudeBounds.east, maxLatitude));
+  }
+
+  private void includeLatitude(double latitude) {
+    minLatitude = Math.min(minLatitude, latitude);
+    maxLatitude = Math.max(maxLatitude, latitude);
+  }
+
+  private void includeFullWorld() {
+    minLatitude = MIN_LATITUDE;
+    maxLatitude = MAX_LATITUDE;
+    longitudeIntervals.clear();
+    state = State.FULL_WORLD;
+  }
+
+  private LongitudeInterval longitudeBounds() {
+    if (state == State.FULL_WORLD || longitudeIntervals.isEmpty()) {
+      return new LongitudeInterval(MIN_LONGITUDE, MAX_LONGITUDE);
+    }
+
+    // The minimum covering circular interval is the complement of the largest uncovered gap.
+    List<LongitudeEvent> events = Lists.newArrayListWithExpectedSize(2 * longitudeIntervals.size());
+    for (LongitudeInterval interval : longitudeIntervals) {
+      if (interval.west > interval.east) {
+        events.add(new LongitudeEvent(MIN_LONGITUDE, true));
+        events.add(new LongitudeEvent(interval.east, false));
+        events.add(new LongitudeEvent(interval.west, true));
+        events.add(new LongitudeEvent(MAX_LONGITUDE, false));
+      } else {
+        events.add(new LongitudeEvent(interval.west, true));
+        events.add(new LongitudeEvent(interval.east, false));
+      }
+    }
+
+    events.sort(
+        Comparator.comparingDouble((LongitudeEvent event) -> event.longitude)
+            .thenComparing(event -> !event.start));
+
+    double largestGapStart = 0.0;
+    double largestGapEnd = -1.0;
+    int overlapCount = 0;
+    for (int i = 0; i < events.size(); i += 1) {
+      LongitudeEvent event = events.get(i);
+      if (event.start) {
+        if (overlapCount == 0 && i > 0) {
+          double gapStart = events.get(i - 1).longitude;
+          if (event.longitude - gapStart > largestGapEnd - largestGapStart) {
+            largestGapStart = gapStart;
+            largestGapEnd = event.longitude;
+          }
+        }
+
+        overlapCount += 1;
+      } else {
+        overlapCount -= 1;
+      }
+    }
+
+    double firstLongitude = events.get(0).longitude;
+    double lastLongitude = events.get(events.size() - 1).longitude;
+    double antimeridianGap = LONGITUDE_SPAN + firstLongitude - lastLongitude;
+    if (antimeridianGap >= largestGapEnd - largestGapStart) {
+      return new LongitudeInterval(firstLongitude, lastLongitude);
+    }
+
+    return new LongitudeInterval(largestGapEnd, largestGapStart);
+  }
+
+  private static LongitudeInterval minimumLongitudeInterval(double longitude1, double longitude2) {
+    // A coordinate on the antimeridian is kept as given: +180 and -180 both name that meridian
+    // and are preserved rather than folded onto one sign, so the same coordinate yields the same
+    // interval whether it arrives as a point or a degenerate edge. The interval spans the shorter
+    // of the two arcs between the endpoints, wrapping past the antimeridian (west > east) when
+    // that arc is the shorter one.
+    double west = Math.min(longitude1, longitude2);
+    double east = Math.max(longitude1, longitude2);
+    double directGap = east - west;
+    double antimeridianGap = LONGITUDE_SPAN - directGap;
+    return antimeridianGap >= directGap
+        ? new LongitudeInterval(west, east)
+        : new LongitudeInterval(east, west);
+  }
+
+  private static boolean coordinatesAreValid(double longitude, double latitude) {
+    return Double.isFinite(longitude)
+        && Double.isFinite(latitude)
+        && longitude >= MIN_LONGITUDE
+        && longitude <= MAX_LONGITUDE
+        && latitude >= MIN_LATITUDE
+        && latitude <= MAX_LATITUDE;
+  }
+
+  private boolean prepareToAccumulate(boolean validCoordinates) {
+    if (!validCoordinates) {
+      state = State.INVALID;
+      return false;
+    }
+
+    if (state == State.INVALID || state == State.FULL_WORLD) {
+      return false;
+    }
+
+    state = State.ACTIVE;
+    return true;
+  }
+
+  private static boolean isPole(double latitude) {
+    return Math.abs(latitude) == MAX_LATITUDE;
+  }
+
+  private static boolean isOnMinorArc(
+      Vector3 point, Vector3 point1, Vector3 point2, Vector3 unitNormal) {
+    return point1.crossProduct(point).dotProduct(unitNormal) >= -ARC_CONTAINMENT_TOLERANCE
+        && point.crossProduct(point2).dotProduct(unitNormal) >= -ARC_CONTAINMENT_TOLERANCE;
+  }
+
+  private static Vector3 toUnitVector(double longitudeDegrees, double latitudeDegrees) {
+    double longitude = Math.toRadians(longitudeDegrees);
+    double latitude = Math.toRadians(latitudeDegrees);
+    double cosLatitude = Math.cos(latitude);
+    return new Vector3(
+        cosLatitude * Math.cos(longitude), cosLatitude * Math.sin(longitude), Math.sin(latitude));
+  }
+
+  private static double clamp(double value, double min, double max) {
+    return Math.max(min, Math.min(max, value));
+  }
+
+  private enum State {
+    EMPTY,
+    ACTIVE,
+    FULL_WORLD,
+    INVALID
+  }
+
+  private static class Vector3 {
+    private final double xComponent;
+    private final double yComponent;
+    private final double zComponent;
+
+    private Vector3(double xComponent, double yComponent, double zComponent) {
+      this.xComponent = xComponent;
+      this.yComponent = yComponent;
+      this.zComponent = zComponent;
+    }
+
+    private Vector3 crossProduct(Vector3 other) {
+      return new Vector3(
+          yComponent * other.zComponent - zComponent * other.yComponent,
+          zComponent * other.xComponent - xComponent * other.zComponent,
+          xComponent * other.yComponent - yComponent * other.xComponent);
+    }
+
+    private double dotProduct(Vector3 other) {
+      return xComponent * other.xComponent
+          + yComponent * other.yComponent
+          + zComponent * other.zComponent;
+    }
+
+    private double length() {
+      return Math.sqrt(dotProduct(this));
+    }
+
+    private Vector3 scale(double factor) {
+      return new Vector3(factor * xComponent, factor * yComponent, factor * zComponent);
+    }
+  }
+
+  private static class LongitudeInterval {
+    private final double west;
+    private final double east;
+
+    private LongitudeInterval(double west, double east) {
+      this.west = west;
+      this.east = east;
+    }
+  }
+
+  private static class LongitudeEvent {
+    private final double longitude;
+    private final boolean start;
+
+    private LongitudeEvent(double longitude, boolean start) {
+      this.longitude = longitude;
+      this.start = start;
+    }
+  }
+}
