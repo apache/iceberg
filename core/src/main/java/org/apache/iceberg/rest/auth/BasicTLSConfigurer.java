@@ -46,9 +46,10 @@ public class BasicTLSConfigurer implements TLSConfigurer {
   public static final String TLS_TRUSTSTORE_PATH = "rest.client.tls.truststore.path";
   public static final String TLS_TRUSTSTORE_PASSWORD = "rest.client.tls.truststore.password";
   public static final String TLS_TRUSTSTORE_TYPE = "rest.client.tls.truststore.type";
+  public static final String TLS_PROTOCOL = "rest.client.tls.protocol";
 
   private static final String DEFAULT_KEYSTORE_TYPE = "JKS";
-  private static final String DEFAULT_SSL_PROTOCOL = "TLS";
+  private static final String DEFAULT_TLS_PROTOCOL = "TLS";
 
   private SSLContext sslContext;
 
@@ -60,10 +61,9 @@ public class BasicTLSConfigurer implements TLSConfigurer {
     String truststorePath = properties.get(TLS_TRUSTSTORE_PATH);
     String truststorePassword = properties.get(TLS_TRUSTSTORE_PASSWORD);
     String truststoreType = properties.getOrDefault(TLS_TRUSTSTORE_TYPE, DEFAULT_KEYSTORE_TYPE);
+    String protocol = properties.getOrDefault(TLS_PROTOCOL, DEFAULT_TLS_PROTOCOL);
 
     try {
-      SSLContext context = SSLContext.getInstance(DEFAULT_SSL_PROTOCOL);
-
       KeyManager[] keyManagers = null;
       if (!Strings.isNullOrEmpty(keystorePath)) {
         char[] keystorePasswordChars =
@@ -89,6 +89,7 @@ public class BasicTLSConfigurer implements TLSConfigurer {
       if (keyManagers == null && trustManagers == null) {
         this.sslContext = SSLContext.getDefault();
       } else {
+        SSLContext context = SSLContext.getInstance(protocol);
         context.init(keyManagers, trustManagers, null);
         this.sslContext = context;
       }

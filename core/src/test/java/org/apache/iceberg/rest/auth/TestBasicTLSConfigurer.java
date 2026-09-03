@@ -69,6 +69,38 @@ public class TestBasicTLSConfigurer {
   }
 
   @Test
+  public void testBasicTLSConfigurerWithCustomProtocol() throws Exception {
+    Path keystorePath = createTempKeyStore("keystore.jks", "keypass");
+
+    BasicTLSConfigurer configurer = new BasicTLSConfigurer();
+    Map<String, String> properties =
+        ImmutableMap.of(
+            BasicTLSConfigurer.TLS_KEYSTORE_PATH, keystorePath.toString(),
+            BasicTLSConfigurer.TLS_KEYSTORE_PASSWORD, "keypass",
+            BasicTLSConfigurer.TLS_PROTOCOL, "TLSv1.3");
+
+    configurer.initialize(properties);
+
+    assertThat(configurer.sslContext().getProtocol()).isEqualTo("TLSv1.3");
+  }
+
+  @Test
+  public void testBasicTLSConfigurerWithUnsupportedProtocol() throws Exception {
+    Path keystorePath = createTempKeyStore("keystore.jks", "keypass");
+
+    BasicTLSConfigurer configurer = new BasicTLSConfigurer();
+    Map<String, String> properties =
+        ImmutableMap.of(
+            BasicTLSConfigurer.TLS_KEYSTORE_PATH, keystorePath.toString(),
+            BasicTLSConfigurer.TLS_KEYSTORE_PASSWORD, "keypass",
+            BasicTLSConfigurer.TLS_PROTOCOL, "NotATLSProtocol");
+
+    assertThatThrownBy(() -> configurer.initialize(properties))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("Failed to create SSL context");
+  }
+
+  @Test
   public void testBasicTLSConfigurerWithInvalidKeystorePath() {
     BasicTLSConfigurer configurer = new BasicTLSConfigurer();
     Map<String, String> properties =
