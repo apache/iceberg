@@ -37,7 +37,7 @@ The following properties can be set globally and are not limited to a specific c
 | Property                     | Required | Values                     | Description                                                                                                                                                                      |
 | ---------------------------- |----------| -------------------------- |----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | type                         | ✔️       | iceberg                    | Must be `iceberg`.                                                                                                                                                               |
-| catalog-type                 |          | `hive`, `hadoop`, `rest`, `glue`, `jdbc` or `nessie` | The underlying Iceberg catalog implementation, `HiveCatalog`, `HadoopCatalog`, `RESTCatalog`, `GlueCatalog`, `JdbcCatalog`, `NessieCatalog` or left unset if using a custom catalog implementation via catalog-impl|
+| catalog-type                 |          | `hive`, `hadoop` or `rest` | The underlying Iceberg catalog implementation, `HiveCatalog`, `HadoopCatalog` or `RESTCatalog`. Must be left unset when using a custom catalog implementation via `catalog-impl`, for example the AWS Glue, JDBC or Nessie catalogs.|
 | catalog-impl                 |          |                            | The fully-qualified class name of a custom catalog implementation. Must be set if `catalog-type` is unset.                                                                       |
 | property-version             |          |                            | Version number to describe the property version. This property can be used for backwards compatibility in case the property format changes. The current property version is `1`. |
 | cache-enabled                |          | `true` or `false`          | Whether to enable catalog cache, default value is `true`.                                                                                                                        |
@@ -159,9 +159,15 @@ INSERT INTO tableName /*+ OPTIONS('upsert-enabled'='true') */
 | compression-level                       | Table write.(fileformat).compression-level | Overrides this table's compression level for Parquet and Avro tables for this write                                                             |
 | compression-strategy                    | Table write.orc.compression-strategy       | Overrides this table's compression strategy for ORC tables for this write                                                                       |
 | write-parallelism                       | Upstream operator parallelism              | Overrides the writer parallelism                                                                                                                |
+| branch                                  | main                                       | Branch to write to                                                                                                                              |
+| table-refresh-interval                  | null (disabled)                            | Interval at which the writers refresh the table metadata, so that long-running jobs pick up changes such as updated table properties. Experimental. |
 | uid-suffix                              | As per table property                      | Overrides the uid suffix used in the underlying IcebergSink for this table                                                                      |
 | shred-variants                          | Table write.parquet.shred-variants         | Overrides this table's shred variants for this write |
 | variant-inference-buffer-size           | Table write.parquet.variant-inference-buffer-size | Overrides this table's variant inference buffer size for this write |
+| flink-maintenance.rewrite.enabled       | false                                      | Run data file compaction after successful commits. Only used by `IcebergSink`, see [post-commit table maintenance](flink-maintenance.md#icebergsink-with-post-commit-integration). |
+| flink-maintenance.expire-snapshots.enabled | false                                   | Expire old snapshots after successful commits. Only used by `IcebergSink`, see [post-commit table maintenance](flink-maintenance.md#icebergsink-with-post-commit-integration). |
+| flink-maintenance.delete-orphan-files.enabled | false                                | Delete orphan files after successful commits. Only used by `IcebergSink`, see [post-commit table maintenance](flink-maintenance.md#icebergsink-with-post-commit-integration). |
+| flink-maintenance.convert-equality-deletes.enabled | false                           | Convert equality deletes to deletion vectors after successful commits. Only used by `IcebergSink`, see [post-commit table maintenance](flink-maintenance.md#icebergsink-with-post-commit-integration). |
 
 #### Range distribution statistics type
 
@@ -201,3 +207,26 @@ they are.
 This is only applicable to [`StatisticsType.Map`](../../javadoc/{{ icebergVersion }}/org/apache/iceberg/flink/sink/shuffle/StatisticsType.html#Map) for low-cardinality scenario. For [`StatisticsType.Sketch`](../../javadoc/{{ icebergVersion }}/org/apache/iceberg/flink/sink/shuffle/StatisticsType.html#Sketch) high-cardinality sort columns, they are usually not used as
 partition columns. Otherwise, too many partitions and small files may be generated during
 write. Sketch range partitioner simply splits high-cardinality keys into ordered ranges.
+
+### Execution options
+
+Iceberg also provides a set of `table.exec.iceberg.*` options that are read from the Flink
+configuration instead of per-job read or write options. In SQL they are set on the session:
+
+```sql
+SET 'table.exec.iceberg.infer-source-parallelism' = 'false';
+```
+
+When using the DataStream API, they can be set in the `Configuration` passed to the source or sink
+builder.
+
+| Flink configuration                              | Default                              | Description                                                                                                                                                                                                              |
+|--------------------------------------------------|--------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| table.exec.iceberg.infer-source-parallelism      | true                                 | If true, the source parallelism for batch reads is inferred from the number of scan splits, capped by `table.exec.iceberg.infer-source-parallelism.max` and by the query limit if one is set. If false, the source parallelism is taken from the Flink configuration. Streaming reads never infer parallelism. |
+| table.exec.iceberg.infer-source-parallelism.max  | 100                                  | Maximum inferred parallelism for the source operator.                                                                                                                                                                    |
+| table.exec.iceberg.expose-split-locality-info    | none                                 | Whether to expose split host information to use Flink's locality-aware split assigner. If unset, locality information is exposed automatically when the table's storage can provide block locations (for example HDFS).  |
+| table.exec.iceberg.fetch-batch-record-count      | 2048                                 | Target number of records per fetch batch in the Iceberg source reader.                                                                                                                                                   |
+| table.exec.iceberg.worker-pool-size              | max(2, available cpu)    | Size of the worker pool used to plan or scan manifests. Defaults to the shared Iceberg worker pool size, which is controlled by the `iceberg.worker.num-threads` system property.                                         |
+| table.exec.iceberg.split-assigner-type           | simple                               | Split assigner type that determines how splits are assigned to readers. Currently the only type is `simple`, which doesn't provide any guarantee on order or locality.                                                    |
+| table.exec.iceberg.use-flip27-source             | true                                 | Use the [FLIP-27](https://cwiki.apache.org/confluence/spaces/FLINK/pages/95653746/FLIP-27+Refactor+Source+Interface) based `IcebergSource` implementation. Set to false to fall back to the deprecated `FlinkSource`.                                                                                                          |
+| table.exec.iceberg.use-v2-sink                   | false                                | Use the SinkV2 based `IcebergSink` implementation, see [Sink V2 based implementation](flink-writes.md#sink-v2-based-implementation).                                                                                      |
