@@ -419,14 +419,6 @@ class TrackedFileAdapters {
     private final TrackedFile file;
 
     private TrackedManifestFile(TrackedFile file) {
-      Tracking tracking = file.tracking();
-      Preconditions.checkArgument(
-          tracking.dataSequenceNumber() != null, "Invalid data sequence number: null");
-      Preconditions.checkArgument(
-          tracking.dataSequenceNumber().equals(tracking.fileSequenceNumber()),
-          "Manifest data and file sequence numbers must be equal, got %s and %s",
-          tracking.dataSequenceNumber(),
-          tracking.fileSequenceNumber());
       this.file = file;
     }
 

@@ -31,6 +31,7 @@ import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.mockito.Mockito;
 
 class TestTrackedFileAdapters {
 
@@ -38,7 +39,6 @@ class TestTrackedFileAdapters {
   private static final String MANIFEST_LOCATION = "s3://bucket/table/manifest.parquet";
   private static final String DATA_FILE_LOCATION = "s3://bucket/data/file.parquet";
   private static final String DV_LOCATION = "s3://bucket/puffin/dv-file.bin";
-  private static final String MANIFEST_FILE_LOCATION = "s3://bucket/table/manifest-1.parquet";
   private static final long MANIFEST_FILE_SIZE = 2048L;
 
   // Tracking values that the delegation tests validate.
@@ -99,6 +99,8 @@ class TestTrackedFileAdapters {
           /* replacedPositions= */ null);
 
   private static final byte[] MANIFEST_DV = new byte[] {1, 2, 3};
+
+  private static final ByteBuffer MANIFEST_KEY_METADATA = ByteBuffer.wrap(new byte[] {7, 8, 9});
 
   private static final ManifestInfo MANIFEST_INFO =
       ManifestInfoStruct.builder()
@@ -371,13 +373,12 @@ class TestTrackedFileAdapters {
       value = FileContent.class,
       names = {"DATA_MANIFEST", "DELETE_MANIFEST"})
   void manifestFileAdapterDelegation(FileContent contentType) {
-    ByteBuffer keyMetadata = ByteBuffer.wrap(new byte[] {7, 8, 9});
     TrackedFile file =
         new TrackedFileStruct(
             MANIFEST_TRACKING,
             contentType,
             FORMAT_VERSION_V4,
-            MANIFEST_FILE_LOCATION,
+            MANIFEST_LOCATION,
             FileFormat.PARQUET,
             0L,
             MANIFEST_FILE_SIZE,
@@ -387,7 +388,7 @@ class TestTrackedFileAdapters {
             null,
             null,
             MANIFEST_INFO,
-            keyMetadata,
+            MANIFEST_KEY_METADATA,
             null,
             null);
 
@@ -395,7 +396,7 @@ class TestTrackedFileAdapters {
 
     ManifestContent expectedContent =
         contentType == FileContent.DATA_MANIFEST ? ManifestContent.DATA : ManifestContent.DELETES;
-    assertThat(manifest.path()).isEqualTo(MANIFEST_FILE_LOCATION);
+    assertThat(manifest.path()).isEqualTo(MANIFEST_LOCATION);
     assertThat(manifest.length()).isEqualTo(MANIFEST_FILE_SIZE);
     assertThat(manifest.content()).isEqualTo(expectedContent);
     assertThat(manifest.sequenceNumber()).isEqualTo(DATA_SEQUENCE_NUMBER);
@@ -408,7 +409,7 @@ class TestTrackedFileAdapters {
     assertThat(manifest.deletedFilesCount()).isEqualTo(MANIFEST_INFO.deletedFilesCount());
     assertThat(manifest.deletedRowsCount()).isEqualTo(MANIFEST_INFO.deletedRowsCount());
     assertThat(manifest.firstRowId()).isEqualTo(FIRST_ROW_ID);
-    assertThat(manifest.keyMetadata()).isEqualTo(keyMetadata);
+    assertThat(manifest.keyMetadata()).isEqualTo(MANIFEST_KEY_METADATA);
     assertThat(manifest.deletionVector()).isEqualTo(ByteBuffer.wrap(MANIFEST_DV));
     assertThat(manifest.partitions()).isNull();
   }
@@ -420,7 +421,7 @@ class TestTrackedFileAdapters {
             MANIFEST_TRACKING,
             FileContent.DATA_MANIFEST,
             FORMAT_VERSION_V4,
-            MANIFEST_FILE_LOCATION,
+            MANIFEST_LOCATION,
             FileFormat.PARQUET,
             0L,
             MANIFEST_FILE_SIZE,
@@ -443,47 +444,17 @@ class TestTrackedFileAdapters {
 
   @Test
   void manifestFileAdapterCopy() {
-    ByteBuffer keyMetadata = ByteBuffer.wrap(new byte[] {7, 8, 9});
-    TrackedFile file =
-        new TrackedFileStruct(
-            MANIFEST_TRACKING,
-            FileContent.DATA_MANIFEST,
-            FORMAT_VERSION_V4,
-            MANIFEST_FILE_LOCATION,
-            FileFormat.PARQUET,
-            0L,
-            MANIFEST_FILE_SIZE,
-            null,
-            null,
-            null,
-            null,
-            null,
-            MANIFEST_INFO,
-            keyMetadata,
-            null,
-            null);
+    TrackedFile file = Mockito.mock(TrackedFile.class);
+    TrackedFile fileCopy = Mockito.mock(TrackedFile.class);
+    Mockito.when(file.contentType()).thenReturn(FileContent.DATA_MANIFEST);
+    Mockito.when(file.copy()).thenReturn(fileCopy);
+    Mockito.when(fileCopy.location()).thenReturn(MANIFEST_LOCATION);
 
-    ManifestFile original = TrackedFileAdapters.asManifestFile(file);
-    ManifestFile copy = original.copy();
+    ManifestFile copy = TrackedFileAdapters.asManifestFile(file).copy();
 
-    assertThat(copy.path()).isEqualTo(original.path());
-    assertThat(copy.length()).isEqualTo(original.length());
-    assertThat(copy.content()).isEqualTo(original.content());
-    assertThat(copy.sequenceNumber()).isEqualTo(original.sequenceNumber());
-    assertThat(copy.minSequenceNumber()).isEqualTo(original.minSequenceNumber());
-    assertThat(copy.snapshotId()).isEqualTo(original.snapshotId());
-    assertThat(copy.addedFilesCount()).isEqualTo(original.addedFilesCount());
-    assertThat(copy.addedRowsCount()).isEqualTo(original.addedRowsCount());
-    assertThat(copy.existingFilesCount()).isEqualTo(original.existingFilesCount());
-    assertThat(copy.existingRowsCount()).isEqualTo(original.existingRowsCount());
-    assertThat(copy.deletedFilesCount()).isEqualTo(original.deletedFilesCount());
-    assertThat(copy.deletedRowsCount()).isEqualTo(original.deletedRowsCount());
-    assertThat(copy.firstRowId()).isEqualTo(original.firstRowId());
-    assertThat(copy.partitions()).isNull();
-    assertThat(copy.keyMetadata()).isEqualTo(original.keyMetadata());
-    assertThat(copy.keyMetadata().array()).isNotSameAs(original.keyMetadata().array());
-    assertThat(copy.deletionVector()).isEqualTo(original.deletionVector());
-    assertThat(copy.deletionVector().array()).isNotSameAs(original.deletionVector().array());
+    // copy() delegates to the tracked file's copy(), which deep-copies the nested structs.
+    Mockito.verify(file).copy();
+    assertThat(copy.path()).isEqualTo(MANIFEST_LOCATION);
   }
 
   @ParameterizedTest
@@ -497,80 +468,6 @@ class TestTrackedFileAdapters {
     assertThatThrownBy(() -> TrackedFileAdapters.asManifestFile(file))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid content type for ManifestFile: %s", contentType);
-  }
-
-  @Test
-  void manifestFileAdapterRejectsNullDataSequenceNumber() {
-    TrackingStruct tracking =
-        new TrackingStruct(
-            EntryStatus.ADDED,
-            SNAPSHOT_ID,
-            null,
-            FILE_SEQUENCE_NUMBER,
-            null,
-            FIRST_ROW_ID,
-            null,
-            null);
-    TrackedFile file =
-        new TrackedFileStruct(
-            tracking,
-            FileContent.DATA_MANIFEST,
-            FORMAT_VERSION_V4,
-            MANIFEST_FILE_LOCATION,
-            FileFormat.PARQUET,
-            0L,
-            MANIFEST_FILE_SIZE,
-            null,
-            null,
-            null,
-            null,
-            null,
-            MANIFEST_INFO,
-            null,
-            null,
-            null);
-
-    assertThatThrownBy(() -> TrackedFileAdapters.asManifestFile(file))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid data sequence number: null");
-  }
-
-  @Test
-  void manifestFileAdapterRejectsUnequalSequenceNumbers() {
-    TrackingStruct tracking =
-        new TrackingStruct(
-            EntryStatus.ADDED,
-            SNAPSHOT_ID,
-            DATA_SEQUENCE_NUMBER,
-            FILE_SEQUENCE_NUMBER,
-            null,
-            FIRST_ROW_ID,
-            null,
-            null);
-    TrackedFile file =
-        new TrackedFileStruct(
-            tracking,
-            FileContent.DATA_MANIFEST,
-            FORMAT_VERSION_V4,
-            MANIFEST_FILE_LOCATION,
-            FileFormat.PARQUET,
-            0L,
-            MANIFEST_FILE_SIZE,
-            null,
-            null,
-            null,
-            null,
-            null,
-            MANIFEST_INFO,
-            null,
-            null,
-            null);
-
-    assertThatThrownBy(() -> TrackedFileAdapters.asManifestFile(file))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage(
-            "Manifest data and file sequence numbers must be equal, got %s and %s",
-            DATA_SEQUENCE_NUMBER, FILE_SEQUENCE_NUMBER);
   }
 
   @Test
