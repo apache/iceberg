@@ -1629,4 +1629,53 @@ public class TestMergeAppend extends TestBase {
         .containsEntry(SnapshotSummary.REPLACED_MANIFESTS_COUNT, "0")
         .containsEntry(SnapshotSummary.KEPT_MANIFESTS_COUNT, "0");
   }
+
+  @TestTemplate
+  public void testAutoFlushManifestsSurviveCommitRetry() {
+    table.updateProperties().set(TableProperties.MANIFEST_MIN_DATA_FILES_TO_FLUSH, "3").commit();
+    table.ops().failCommits(1);
+
+    List<DataFile> dataFiles = Lists.newArrayList();
+    for (int i = 0; i < 7; i++) {
+      dataFiles.add(newDataFile("data_bucket=0"));
+    }
+
+    MergeAppend append = new MergeAppend("test", table.ops());
+    dataFiles.forEach(append::appendFile);
+    Snapshot snapshot = commit(table, append, branch);
+
+    List<ManifestFile> manifests = snapshot.dataManifests(table.io());
+    // 2 flushed manifests (3 files each) + 1 for the remaining file
+    assertThat(manifests).hasSize(3);
+
+    long snapshotId = snapshot.snapshotId();
+
+    validateManifest(
+        manifests.get(0),
+        dataSeqsRepeat(1L, 3),
+        fileSeqsRepeat(1L, 3),
+        idsRepeat(snapshotId, 3),
+        dataFiles.subList(0, 3).iterator(),
+        statusesRepeat(Status.ADDED, 3));
+
+    validateManifest(
+        manifests.get(1),
+        dataSeqsRepeat(1L, 3),
+        fileSeqsRepeat(1L, 3),
+        idsRepeat(snapshotId, 3),
+        dataFiles.subList(3, 6).iterator(),
+        statusesRepeat(Status.ADDED, 3));
+
+    validateManifest(
+        manifests.get(2),
+        dataSeqsRepeat(1L, 1),
+        fileSeqsRepeat(1L, 1),
+        idsRepeat(snapshotId, 1),
+        dataFiles.subList(6, 7).iterator(),
+        statusesRepeat(Status.ADDED, 1));
+
+    assertThat(snapshot.summary())
+        .containsEntry(SnapshotSummary.ADDED_FILES_PROP, "7")
+        .containsEntry(SnapshotSummary.TOTAL_DATA_FILES_PROP, "7");
+  }
 }
