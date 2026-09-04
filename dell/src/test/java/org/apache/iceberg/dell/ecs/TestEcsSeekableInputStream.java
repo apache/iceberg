@@ -19,6 +19,7 @@
 package org.apache.iceberg.dell.ecs;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.emc.object.s3.request.PutObjectRequest;
 import java.io.IOException;
@@ -88,6 +89,24 @@ public class TestEcsSeekableInputStream {
       assertThat(new String(buffer, StandardCharsets.UTF_8))
           .as("The first 3 bytes should be 012")
           .isEqualTo("012");
+    }
+  }
+
+  @Test
+  void seekRejectsNegativePositionWithoutChangingState() throws IOException {
+    String objectName = rule.randomObjectName();
+    rule.client()
+        .putObject(new PutObjectRequest(rule.bucket(), objectName, "0123456789".getBytes()));
+
+    try (EcsSeekableInputStream input =
+        new EcsSeekableInputStream(
+            rule.client(), new EcsURI(rule.bucket(), objectName), MetricsContext.nullMetrics())) {
+      input.seek(2);
+      assertThatThrownBy(() -> input.seek(-1))
+          .isInstanceOf(IllegalArgumentException.class)
+          .hasMessage("Position is negative: -1");
+      assertThat(input.getPos()).isEqualTo(2);
+      assertThat(input.read()).isEqualTo('2');
     }
   }
 }

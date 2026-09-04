@@ -27,6 +27,7 @@ import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.metrics.Counter;
 import org.apache.iceberg.metrics.MetricsContext;
 import org.apache.iceberg.metrics.MetricsContext.Unit;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
  * A {@link SeekableInputStream} implementation that warp {@link S3Client#readObjectStream(String,
@@ -69,6 +70,7 @@ class EcsSeekableInputStream extends SeekableInputStream {
 
   @Override
   public void seek(long inputNewPos) {
+    Preconditions.checkArgument(inputNewPos >= 0, "Position is negative: %s", inputNewPos);
     if (pos == inputNewPos) {
       return;
     }
