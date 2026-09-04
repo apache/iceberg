@@ -102,6 +102,14 @@ class CommitState {
     commitBuffer.clear();
   }
 
+  int commitBufferSize() {
+    return commitBuffer.size();
+  }
+
+  int readyBufferSize() {
+    return readyBuffer.size();
+  }
+
   boolean isCommitTimedOut() {
     if (!isCommitInProgress()) {
       return false;
