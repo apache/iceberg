@@ -211,7 +211,7 @@ public interface ManifestFile {
   }
 
   /** Returns the manifest deletion vector, or null if absent. */
-  default ByteBuffer deletionVector() {
+  default ByteBuffer manifestDeletionVector() {
     return null;
   }
 

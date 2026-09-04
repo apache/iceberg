@@ -446,7 +446,7 @@ class TrackedFileAdapters {
         case DELETE_MANIFEST:
           return ManifestContent.DELETES;
         default:
-          throw new IllegalStateException(
+          throw new UnsupportedOperationException(
               "Unsupported content type for manifests: " + file.contentType());
       }
     }
@@ -512,7 +512,7 @@ class TrackedFileAdapters {
     }
 
     @Override
-    public ByteBuffer deletionVector() {
+    public ByteBuffer manifestDeletionVector() {
       return file.manifestInfo().dv();
     }
 

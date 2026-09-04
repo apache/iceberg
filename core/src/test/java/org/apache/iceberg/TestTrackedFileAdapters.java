@@ -93,10 +93,10 @@ class TestTrackedFileAdapters {
           // data and file sequence numbers must be equal
           DATA_SEQUENCE_NUMBER,
           DATA_SEQUENCE_NUMBER,
-          /* dvSnapshotId= */ null,
+          null, // dvSnapshotId
           FIRST_ROW_ID,
-          /* deletedPositions= */ null,
-          /* replacedPositions= */ null);
+          null, // deletedPositions
+          null); // replacedPositions
 
   private static final byte[] MANIFEST_DV = new byte[] {1, 2, 3};
 
@@ -380,17 +380,17 @@ class TestTrackedFileAdapters {
             FORMAT_VERSION_V4,
             MANIFEST_LOCATION,
             FileFormat.PARQUET,
-            0L,
+            10L, // recordCount
             MANIFEST_FILE_SIZE,
-            null,
-            null,
-            null,
-            null,
-            null,
+            null, // specId
+            null, // partition
+            null, // contentStats
+            null, // sortOrderId
+            null, // deletionVector
             MANIFEST_INFO,
             MANIFEST_KEY_METADATA,
-            null,
-            null);
+            null, // splitOffsets
+            null); // equalityIds
 
     ManifestFile manifest = TrackedFileAdapters.asManifestFile(file);
 
@@ -410,33 +410,8 @@ class TestTrackedFileAdapters {
     assertThat(manifest.deletedRowsCount()).isEqualTo(MANIFEST_INFO.deletedRowsCount());
     assertThat(manifest.firstRowId()).isEqualTo(FIRST_ROW_ID);
     assertThat(manifest.keyMetadata()).isEqualTo(MANIFEST_KEY_METADATA);
-    assertThat(manifest.deletionVector()).isEqualTo(ByteBuffer.wrap(MANIFEST_DV));
+    assertThat(manifest.manifestDeletionVector()).isEqualTo(ByteBuffer.wrap(MANIFEST_DV));
     assertThat(manifest.partitions()).isNull();
-  }
-
-  @Test
-  void manifestFileAdapterPartitionSpecIdUnsupported() {
-    TrackedFile file =
-        new TrackedFileStruct(
-            MANIFEST_TRACKING,
-            FileContent.DATA_MANIFEST,
-            FORMAT_VERSION_V4,
-            MANIFEST_LOCATION,
-            FileFormat.PARQUET,
-            0L,
-            MANIFEST_FILE_SIZE,
-            null,
-            null,
-            null,
-            null,
-            null,
-            MANIFEST_INFO,
-            null,
-            null,
-            null);
-
-    ManifestFile manifest = TrackedFileAdapters.asManifestFile(file);
-
     assertThatThrownBy(manifest::partitionSpecId)
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessage("v4 manifests are not bound to a single partition spec");
