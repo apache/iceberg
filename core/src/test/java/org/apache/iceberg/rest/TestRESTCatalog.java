@@ -76,6 +76,7 @@ import org.apache.iceberg.UpdatePartitionSpec;
 import org.apache.iceberg.UpdateSchema;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.CatalogTests;
+import org.apache.iceberg.catalog.LoadContext;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SessionCatalog;
 import org.apache.iceberg.catalog.TableCommit;
@@ -4073,6 +4074,111 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
         ImmutableMap.of(
             CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.inmemory.InMemoryFileIO"));
     return catalog;
+  }
+
+  @Test
+  public void loadTableWithReferencedByQueryParam() {
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+    RESTCatalog catalog =
+        new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
+    catalog.initialize("test", ImmutableMap.of());
+
+    Namespace ns = Namespace.of("ns");
+    catalog.createNamespace(ns);
+
+    TableIdentifier tableIdent = TableIdentifier.of(ns, "test_table");
+    catalog.createTable(tableIdent, SCHEMA);
+
+    Mockito.clearInvocations(adapter);
+
+    List<TableIdentifier> viewChain = ImmutableList.of(TableIdentifier.of(ns, "outer_view"));
+    LoadContext loadContext = LoadContext.builder().referencedBy(viewChain).build();
+
+    catalog.loadTable(tableIdent, loadContext);
+
+    // The test adapter uses %2E as the namespace separator
+    Mockito.verify(adapter)
+        .execute(
+            matches(
+                HTTPMethod.GET,
+                "v1/namespaces/ns/tables/test_table",
+                Map.of(),
+                ImmutableMap.of(
+                    RESTCatalogProperties.SNAPSHOTS_QUERY_PARAMETER,
+                    "all",
+                    RESTCatalogProperties.REFERENCED_BY_QUERY_PARAMETER,
+                    "ns%2Eouter_view")),
+            eq(LoadTableResponse.class),
+            any(),
+            any());
+  }
+
+  @Test
+  public void loadTableWithoutContextHasNoReferencedByParam() {
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+    RESTCatalog catalog =
+        new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
+    catalog.initialize("test", ImmutableMap.of());
+
+    Namespace ns = Namespace.of("ns");
+    catalog.createNamespace(ns);
+
+    TableIdentifier tableIdent = TableIdentifier.of(ns, "test_table");
+    catalog.createTable(tableIdent, SCHEMA);
+
+    Mockito.clearInvocations(adapter);
+
+    catalog.loadTable(tableIdent);
+
+    Mockito.verify(adapter)
+        .execute(
+            matches(
+                HTTPMethod.GET,
+                "v1/namespaces/ns/tables/test_table",
+                Map.of(),
+                ImmutableMap.of(RESTCatalogProperties.SNAPSHOTS_QUERY_PARAMETER, "all")),
+            eq(LoadTableResponse.class),
+            any(),
+            any());
+  }
+
+  @Test
+  public void loadTableWithNestedViewChainReferencedBy() {
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+    RESTCatalog catalog =
+        new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
+    catalog.initialize("test", ImmutableMap.of());
+
+    Namespace ns = Namespace.of("ns");
+    catalog.createNamespace(ns);
+
+    TableIdentifier tableIdent = TableIdentifier.of(ns, "test_table");
+    catalog.createTable(tableIdent, SCHEMA);
+
+    Mockito.clearInvocations(adapter);
+
+    List<TableIdentifier> viewChain =
+        ImmutableList.of(
+            TableIdentifier.of(ns, "outer_view"), TableIdentifier.of(ns, "inner_view"));
+    LoadContext loadContext = LoadContext.builder().referencedBy(viewChain).build();
+
+    catalog.loadTable(tableIdent, loadContext);
+
+    // The test adapter uses %2E as the namespace separator
+    Mockito.verify(adapter)
+        .execute(
+            matches(
+                HTTPMethod.GET,
+                "v1/namespaces/ns/tables/test_table",
+                Map.of(),
+                ImmutableMap.of(
+                    RESTCatalogProperties.SNAPSHOTS_QUERY_PARAMETER,
+                    "all",
+                    RESTCatalogProperties.REFERENCED_BY_QUERY_PARAMETER,
+                    "ns%2Eouter_view,ns%2Einner_view")),
+            eq(LoadTableResponse.class),
+            any(),
+            any());
   }
 
   private static List<HTTPRequest> allRequests(RESTCatalogAdapter adapter) {
