@@ -38,15 +38,20 @@ info:
     this protocol. The recommended format is defined by the `User-Agent`
     parameter in the components section of this document.
 
-    Client identification is informational only:
+    Client identification is advisory:
 
-    - Servers MUST NOT reject a request because the header is absent or
-      malformed.
-    - Servers MUST NOT use its value for authentication, authorization, or any
-      trust decision. The value is client-asserted and trivially spoofed.
-    - It is NOT a capability negotiation mechanism. Clients do not advertise
+    - Servers MUST NOT reject a request only because the header is absent,
+      incomplete, or malformed. Clients that do not send it remain fully
+      functional.
+    - The value is client-asserted and can be spoofed, so servers MUST NOT use
+      it for authentication or authorization.
+    - It is not a capability negotiation mechanism: clients do not advertise
       the protocol features they support through this header, and servers do
-      not change response semantics based on it.
+      not use it to select features or vary response content.
+    - Servers MAY refuse specific operations for client versions known to be
+      incompatible or unsafe, for example a library version known to emit
+      corrupt statistics. This is a coarse, defensive safeguard, not an
+      access-control or capability-negotiation mechanism.
 servers:
   - url: "{scheme}://{host}/{basePath}"
     description: Server URL when the port can be inferred from the scheme
@@ -2185,51 +2190,54 @@ components:
       name: User-Agent
       in: header
       description: >
-        Recommended header for a client to identify itself to the catalog. It
-        follows the standard HTTP `User-Agent` grammar (RFC 7231, Section
-        5.5.3): a whitespace-separated list of `product/version` tokens,
-        optionally followed by a parenthesized comment.
+        Header for a client to identify itself to the catalog. It follows the
+        standard HTTP `User-Agent` grammar (RFC 7231, Section 5.5.3): a
+        whitespace-separated list of `product/version` tokens, optionally
+        followed by a parenthesized comment.
 
 
-        Tokens SHOULD be ordered from the outermost component to the innermost,
+        Clients SHOULD send this header. When it is sent, the Iceberg client
+        library token MUST be present so that a server can always identify the
+        library and its version: use `iceberg-java`, `pyiceberg`,
+        `iceberg-rust`, or `iceberg-go`. A client not built on an Iceberg
+        library uses its own product token in that position. The remaining
+        tokens SHOULD be ordered from the outermost component to the innermost,
         so the most specific caller appears first: the engine or application,
-        then any integration or connector, then the Iceberg client library,
-        then the language runtime. The Iceberg client library token is the one
-        component every client can supply and SHOULD always be present.
-        Recommended library tokens are `iceberg-java`, `pyiceberg`,
-        `iceberg-rust`, and `iceberg-go`.
+        then any integration or connector, then the Iceberg library, then the
+        language runtime.
 
 
-        The trailing parenthesized comment is an open extension point for
-        additional, lower-value context such as build identifiers, the HTTP
-        library, or the operating system, given as bare tokens or `key=value`
-        pairs separated by `; `. Servers SHOULD treat the comment as free-form
-        and MUST NOT depend on its contents.
+        The optional trailing comment, enclosed in parentheses as defined by
+        the RFC, carries lower-value context such as build identifiers, the
+        HTTP library, the language runtime, or the operating system. Everything
+        inside the parentheses is a free-form comment rather than a
+        `product/version` token; servers SHOULD treat it as opaque and MUST NOT
+        depend on its contents.
 
 
         Examples:
 
 
-        `pyiceberg/0.11.0 (cpython/3.11.4)` — a client library used directly.
+        `pyiceberg/0.11.0 (cpython 3.11.4)` — a client library used directly.
 
 
-        `Trino/438 iceberg-java/1.9.0 (jvm/17.0.9)` — an engine embedding the
+        `Trino/438 iceberg-java/1.9.0 (jvm 17.0.9)` — an engine embedding the
         Iceberg Java library.
 
 
-        `Spark/4.0.0 iceberg-spark/1.9.0 iceberg-java/1.9.0 (scala/2.13.16)` —
+        `Spark/4.0.0 iceberg-spark/1.9.0 iceberg-java/1.9.0 (scala 2.13.16)` —
         an engine with a connector layer on top of the library.
 
 
-        This header is optional and informational; see "Client Identification"
-        in the API description for the rules that apply to all client-identity
-        headers. Servers MUST NOT reject a request based on its presence,
-        absence, or contents.
+        The header is advisory: a server MUST NOT reject a request only because
+        it is absent, incomplete, or malformed. See "Client Identification" in
+        the API description for the full rules that apply to client-identity
+        headers.
 
       required: false
       schema:
         type: string
-      example: "Trino/438 iceberg-java/1.9.0 (jvm/17.0.9)"
+      example: "Trino/438 iceberg-java/1.9.0 (jvm 17.0.9)"
 
     page-token:
       name: pageToken
