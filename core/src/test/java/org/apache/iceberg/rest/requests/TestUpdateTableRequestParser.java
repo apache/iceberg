@@ -23,8 +23,11 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import org.apache.iceberg.MetadataUpdate;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.UpdateRequirement;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 
 public class TestUpdateTableRequestParser {
@@ -193,6 +196,24 @@ public class TestUpdateTableRequestParser {
     // don't implement equals/hashcode
     assertThat(UpdateTableRequestParser.toJson(UpdateTableRequestParser.fromJson(json), true))
         .isEqualTo(expectedJson);
+  }
+
+  @Test
+  public void serializeAddSchemaWithoutDeprecatedLastColumnId() {
+    Schema schemaAfterDroppingHighestId =
+        new Schema(Types.NestedField.required(1, "id", Types.LongType.get()));
+    UpdateTableRequest request =
+        UpdateTableRequest.create(
+            TableIdentifier.of("ns1", "table1"),
+            ImmutableList.of(new UpdateRequirement.AssertLastAssignedFieldId(2)),
+            ImmutableList.of(new MetadataUpdate.AddSchema(schemaAfterDroppingHighestId)));
+
+    String json = UpdateTableRequestParser.toJson(request, true);
+
+    assertThat(json).contains("\"action\" : \"add-schema\"");
+    assertThat(json).contains("\"type\" : \"assert-last-assigned-field-id\"");
+    assertThat(json).contains("\"last-assigned-field-id\" : 2");
+    assertThat(json).doesNotContain("last-column-id");
   }
 
   @Test
