@@ -21,6 +21,7 @@ package org.apache.iceberg.jdbc;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
+import java.sql.SQLRecoverableException;
 import java.sql.SQLTransientException;
 import java.util.Arrays;
 import java.util.Map;
@@ -106,9 +107,11 @@ public class JdbcClientPool extends ClientPoolImpl<Connection, SQLException> {
     }
   }
 
+  // Recovery from SQLRecoverableException requires a new connection, which reconnect() provides.
   @Override
   protected boolean isConnectionException(Exception e) {
     return super.isConnectionException(e)
+        || e instanceof SQLRecoverableException
         || (e instanceof SQLException
             && retryableStatusCodes.contains(((SQLException) e).getSQLState()));
   }
