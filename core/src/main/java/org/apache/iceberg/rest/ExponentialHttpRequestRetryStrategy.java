@@ -74,7 +74,10 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
  *   <li>SC_REQUEST_TIMEOUT (408)
  * </ul>
  *
- * Most code and behavior is taken from {@link
+ * Requests carrying an {@code Idempotency-Key} header are treated as retry-safe for these codes
+ * even when the HTTP method is not idempotent.
+ *
+ * <p>Most code and behavior is taken from {@link
  * org.apache.hc.client5.http.impl.DefaultHttpRequestRetryStrategy}, with minor modifications to
  * {@link #getRetryInterval(HttpResponse, int, HttpContext)} to achieve exponential backoff.
  */
@@ -130,8 +133,10 @@ class ExponentialHttpRequestRetryStrategy implements HttpRequestRetryStrategy {
       return false;
     }
 
-    // Retry if the request is considered idempotent
-    return Method.isIdempotent(request.getMethod());
+    // Retry if the request is idempotent, or carries an Idempotency-Key (server guarantees safe
+    // retry)
+    return Method.isIdempotent(request.getMethod())
+        || request.containsHeader(RESTUtil.IDEMPOTENCY_KEY_HEADER);
   }
 
   @Override
@@ -189,8 +194,10 @@ class ExponentialHttpRequestRetryStrategy implements HttpRequestRetryStrategy {
       return false;
     }
 
-    // Check if the request is idempotent
-    return Method.isIdempotent(request.getMethod())
-        && idempotentRetriableCodes.contains(responseCode);
+    // Check if the request is idempotent or carries an Idempotency-Key
+    boolean retrySafe =
+        Method.isIdempotent(request.getMethod())
+            || request.containsHeader(RESTUtil.IDEMPOTENCY_KEY_HEADER);
+    return retrySafe && idempotentRetriableCodes.contains(responseCode);
   }
 }
