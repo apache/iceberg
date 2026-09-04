@@ -259,7 +259,7 @@ class RecordConverter {
                     hasSchemaUpdates = true;
                   }
                 }
-                Object recordFieldValue = struct.get(recordField);
+                Object recordFieldValue = fieldValue(struct, recordField);
                 if (recordFieldValue == null && schemaUpdateConsumer != null && !hasSchemaUpdates) {
                   evolveSchemaFromConnectSchema(
                       recordField.schema(),
@@ -360,6 +360,18 @@ class RecordConverter {
       org.apache.kafka.connect.data.Schema.Type recordSchemaType, Type tableType) {
     LOG.warn(
         "Record schema of type {} does not match table of type {}", recordSchemaType, tableType);
+  }
+
+  /**
+   * Reads a struct field value. {@link Struct#get(Field)} substitutes the schema default value when
+   * the stored value is null, which turns an explicit null into the default; whether that
+   * substitution happens is controlled by the {@code iceberg.tables.replace-null-with-default}
+   * setting.
+   */
+  private Object fieldValue(Struct struct, Field field) {
+    return config.replaceNullWithDefault()
+        ? struct.get(field)
+        : struct.getWithoutDefault(field.name());
   }
 
   private NestedField lookupStructField(String fieldName, StructType schema, int structFieldId) {
@@ -591,7 +603,7 @@ class RecordConverter {
    * null, scalar values, and empty maps, lists, or structs. Map keys must be strings; non-string
    * keys cause IllegalArgumentException.
    */
-  private static Set<String> collectFieldNames(Object value) {
+  private Set<String> collectFieldNames(Object value) {
     if (value == null) {
       return Collections.emptySet();
     }
@@ -628,7 +640,7 @@ class RecordConverter {
       fields.forEach(
           field -> {
             names.add(field.name());
-            names.addAll(collectFieldNames(struct.get(field)));
+            names.addAll(collectFieldNames(fieldValue(struct, field)));
           });
       return names;
     }
@@ -639,7 +651,7 @@ class RecordConverter {
    * Recursively converts a Java object to a VariantValue using the given shared metadata for all
    * nested maps. Handles primitives, List (array), and Map (object); map keys become field names.
    */
-  private static VariantValue objectToVariantValue(
+  private VariantValue objectToVariantValue(
       Object value, VariantMetadata metadata, org.apache.kafka.connect.data.Schema schema) {
     if (value == null) {
       return Variants.ofNull();
@@ -663,7 +675,9 @@ class RecordConverter {
     if (value instanceof Struct struct) {
       ShreddedObject object = Variants.object(metadata);
       for (Field field : struct.schema().fields()) {
-        object.put(field.name(), objectToVariantValue(struct.get(field), metadata, field.schema()));
+        object.put(
+            field.name(),
+            objectToVariantValue(fieldValue(struct, field), metadata, field.schema()));
       }
       return object;
     }
@@ -671,7 +685,7 @@ class RecordConverter {
   }
 
   /** Converts a Map to VariantValue; throw IllegalArgumentException if the key is not a string. */
-  private static VariantValue mapToVariantValue(
+  private VariantValue mapToVariantValue(
       Map<?, ?> map, VariantMetadata metadata, org.apache.kafka.connect.data.Schema schema) {
     ShreddedObject object = Variants.object(metadata);
     org.apache.kafka.connect.data.Schema mapValueSchema =

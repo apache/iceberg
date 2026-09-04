@@ -79,6 +79,8 @@ public class IcebergSinkConfig extends AbstractConfig {
       "iceberg.tables.schema-force-optional";
   private static final String TABLES_SCHEMA_CASE_INSENSITIVE_PROP =
       "iceberg.tables.schema-case-insensitive";
+  private static final String TABLES_REPLACE_NULL_WITH_DEFAULT_PROP =
+      "iceberg.tables.replace-null-with-default";
   private static final String CONTROL_TOPIC_PROP = "iceberg.control.topic";
   private static final String CONTROL_GROUP_ID_PREFIX_PROP = "iceberg.control.group-id-prefix";
   private static final String COMMIT_INTERVAL_MS_PROP = "iceberg.control.commit.interval-ms";
@@ -179,6 +181,12 @@ public class IcebergSinkConfig extends AbstractConfig {
         false,
         Importance.MEDIUM,
         "Set to true to add any missing record fields to the table schema, false otherwise");
+    configDef.define(
+        TABLES_REPLACE_NULL_WITH_DEFAULT_PROP,
+        ConfigDef.Type.BOOLEAN,
+        true,
+        Importance.MEDIUM,
+        "Set to false to preserve explicit null values instead of replacing them with the record schema default value, true otherwise");
     configDef.define(
         CATALOG_NAME_PROP,
         ConfigDef.Type.STRING,
@@ -461,6 +469,10 @@ public class IcebergSinkConfig extends AbstractConfig {
 
   public boolean schemaCaseInsensitive() {
     return getBoolean(TABLES_SCHEMA_CASE_INSENSITIVE_PROP);
+  }
+
+  public boolean replaceNullWithDefault() {
+    return getBoolean(TABLES_REPLACE_NULL_WITH_DEFAULT_PROP);
   }
 
   public JsonConverter jsonConverter() {
