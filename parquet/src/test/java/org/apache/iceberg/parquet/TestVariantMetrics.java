@@ -480,12 +480,21 @@ public class TestVariantMetrics {
     assertThat(metrics.nullValueCounts()).isEqualTo(Map.of(1, 0L, 2, 0L));
     assertThat(metrics.nanValueCounts()).isEqualTo(Map.of());
 
-    assertThat(metrics.lowerBounds())
-        .isEqualTo(Map.of(1, Conversions.toByteBuffer(Type.TypeID.LONG, 0L)));
-    assertThat(metrics.upperBounds())
-        .isEqualTo(Map.of(1, Conversions.toByteBuffer(Type.TypeID.LONG, 1L)));
+    // NaN is ignored when computing the shredded value bounds, so both bounds are the float value
+    assertThat(metrics.lowerBounds().get(1))
+        .isEqualTo(Conversions.toByteBuffer(Type.TypeID.LONG, 0L));
+    assertThat(metrics.lowerBounds().get(2))
+        .extracting(b -> Variant.from(b).value().asObject().get(ROOT_FIELD))
+        .isEqualTo(Variants.of(1.0F));
+    assertThat(metrics.upperBounds().get(1))
+        .isEqualTo(Conversions.toByteBuffer(Type.TypeID.LONG, 1L));
+    assertThat(metrics.upperBounds().get(2))
+        .extracting(b -> Variant.from(b).value().asObject().get(ROOT_FIELD))
+        .isEqualTo(Variants.of(1.0F));
 
-    assertThat(metrics).extracting("originalTypes").isEqualTo(Map.of(1, Types.LongType.get()));
+    assertThat(metrics)
+        .extracting("originalTypes")
+        .isEqualTo(Map.of(1, Types.LongType.get(), 2, Types.VariantType.get()));
   }
 
   @Test
@@ -502,12 +511,21 @@ public class TestVariantMetrics {
     assertThat(metrics.nullValueCounts()).isEqualTo(Map.of(1, 0L, 2, 0L));
     assertThat(metrics.nanValueCounts()).isEqualTo(Map.of());
 
-    assertThat(metrics.lowerBounds())
-        .isEqualTo(Map.of(1, Conversions.toByteBuffer(Type.TypeID.LONG, 0L)));
-    assertThat(metrics.upperBounds())
-        .isEqualTo(Map.of(1, Conversions.toByteBuffer(Type.TypeID.LONG, 1L)));
+    // NaN is ignored when computing the shredded value bounds, so both bounds are the double value
+    assertThat(metrics.lowerBounds().get(1))
+        .isEqualTo(Conversions.toByteBuffer(Type.TypeID.LONG, 0L));
+    assertThat(metrics.lowerBounds().get(2))
+        .extracting(b -> Variant.from(b).value().asObject().get(ROOT_FIELD))
+        .isEqualTo(Variants.of(1.0D));
+    assertThat(metrics.upperBounds().get(1))
+        .isEqualTo(Conversions.toByteBuffer(Type.TypeID.LONG, 1L));
+    assertThat(metrics.upperBounds().get(2))
+        .extracting(b -> Variant.from(b).value().asObject().get(ROOT_FIELD))
+        .isEqualTo(Variants.of(1.0D));
 
-    assertThat(metrics).extracting("originalTypes").isEqualTo(Map.of(1, Types.LongType.get()));
+    assertThat(metrics)
+        .extracting("originalTypes")
+        .isEqualTo(Map.of(1, Types.LongType.get(), 2, Types.VariantType.get()));
   }
 
   @Test
