@@ -114,6 +114,42 @@ public class TestBase {
           .withContentOffset(4)
           .withContentSizeInBytes(6)
           .build();
+  static final DeleteFile FILE_A2_DV =
+      FileMetadata.deleteFileBuilder(SPEC)
+          .ofPositionDeletes()
+          .withPath("/path/to/data-a2-deletes.puffin")
+          .withFileSizeInBytes(10)
+          .withPartitionPath("data_bucket=0")
+          .withRecordCount(5)
+          .withReferencedDataFile(FILE_A2.location())
+          .withContentOffset(4)
+          .withContentSizeInBytes(6)
+          .build();
+  // Two DVs packed into a single Puffin file (same path, different content offsets), each
+  // referencing a different data file in data_bucket=0. Used to verify that multiple DVs in one
+  // Puffin file are each counted once.
+  static final DeleteFile FILE_A_SHARED_DV =
+      FileMetadata.deleteFileBuilder(SPEC)
+          .ofPositionDeletes()
+          .withPath("/path/to/data-a-shared-deletes.puffin")
+          .withFileSizeInBytes(20)
+          .withPartitionPath("data_bucket=0")
+          .withRecordCount(1)
+          .withReferencedDataFile(FILE_A.location())
+          .withContentOffset(4)
+          .withContentSizeInBytes(6)
+          .build();
+  static final DeleteFile FILE_A2_SHARED_DV =
+      FileMetadata.deleteFileBuilder(SPEC)
+          .ofPositionDeletes()
+          .withPath("/path/to/data-a-shared-deletes.puffin")
+          .withFileSizeInBytes(20)
+          .withPartitionPath("data_bucket=0")
+          .withRecordCount(1)
+          .withReferencedDataFile(FILE_A2.location())
+          .withContentOffset(10)
+          .withContentSizeInBytes(6)
+          .build();
   // Equality delete files.
   static final DeleteFile FILE_A2_DELETES =
       FileMetadata.deleteFileBuilder(SPEC)
