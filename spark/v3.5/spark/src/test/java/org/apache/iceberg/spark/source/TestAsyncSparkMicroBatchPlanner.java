@@ -32,8 +32,7 @@ class TestAsyncSparkMicroBatchPlanner {
 
   @Test
   void initialPreloadStopsWhenEitherLimitIsReached() {
-    assertThat(
-            AsyncSparkMicroBatchPlanner.shouldContinueInitialPreload(1L, 100L, 100_000L, 100L))
+    assertThat(AsyncSparkMicroBatchPlanner.shouldContinueInitialPreload(1L, 100L, 100_000L, 100L))
         .isFalse();
     assertThat(
             AsyncSparkMicroBatchPlanner.shouldContinueInitialPreload(100_000L, 1L, 100_000L, 100L))
