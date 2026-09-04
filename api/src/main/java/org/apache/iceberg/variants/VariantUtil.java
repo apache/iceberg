@@ -99,13 +99,13 @@ class VariantUtil {
     }
   }
 
-  static <T extends Comparable<T>> int find(int size, T key, Function<Integer, T> resolve) {
+  static int find(int size, String key, Function<Integer, String> resolve) {
     int low = 0;
     int high = size - 1;
     while (low <= high) {
       int mid = (low + high) >>> 1;
-      T value = resolve.apply(mid);
-      int cmp = key.compareTo(value);
+      String value = resolve.apply(mid);
+      int cmp = VariantMetadata.FIELD_NAME_ORDER.compare(key, value);
       if (cmp == 0) {
         return mid;
       } else if (cmp < 0) {
