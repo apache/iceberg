@@ -291,10 +291,10 @@ public class FlinkFilters {
   }
 
   /**
-   * Coerces a literal value to the type targeted by an explicit CAST. Only floating point
-   * targets are supported, since that is the standard SQL idiom for expressing NaN/Infinity
-   * literals; any other target type is left unconverted so the filter is safely skipped for
-   * pushdown rather than risk a mis-coerced predicate.
+   * Coerces a literal value to the type targeted by an explicit CAST. Only floating point targets
+   * are supported, since that is the standard SQL idiom for expressing NaN/Infinity literals; any
+   * other target type is left unconverted so the filter is safely skipped for pushdown rather than
+   * risk a mis-coerced predicate.
    */
   private static Optional<Object> coerceCastLiteral(Object value, LogicalType targetType) {
     switch (targetType.getTypeRoot()) {
