@@ -709,21 +709,21 @@ In v1-v3, manifest entries are described by the `manifest_entry` struct. In v4, 
     |            | _optional_ | **`4  file_sequence_number`** | `long`                                                    | File sequence number indicating when the file was added. Inherited when null and status is 1 (added). |
     | _required_ | _required_ | **`2  data_file`**            | `data_file` `struct` (see below)                          | File path, partition tuple, metrics, ... |
 
-    The manifest entry fields are used to keep track of the snapshot in which files were added or logically deleted. The `data_file` struct, defined below, is nested inside the manifest entry so that it can be easily passed to job planning without the manifest entry fields.
+The manifest entry fields are used to keep track of the snapshot in which files were added or logically deleted. The `data_file` struct, defined below, is nested inside the manifest entry so that it can be easily passed to job planning without the manifest entry fields.
 
-    When a file is added to the dataset, its manifest entry should store the snapshot ID in which the file was added and set status to 1 (added).
+When a file is added to the dataset, its manifest entry should store the snapshot ID in which the file was added and set status to 1 (added).
 
-    When a file is replaced or deleted from the dataset, its manifest entry fields store the snapshot ID in which the file was deleted and status 2 (deleted). The file may be deleted from the file system when the snapshot in which it was deleted is garbage collected, assuming that older snapshots have also been garbage collected [1].
+When a file is replaced or deleted from the dataset, its manifest entry fields store the snapshot ID in which the file was deleted and status 2 (deleted). The file may be deleted from the file system when the snapshot in which it was deleted is garbage collected, assuming that older snapshots have also been garbage collected [1].
 
-    Iceberg v2 adds data and file sequence numbers to the entry and makes the snapshot ID optional. Values for these fields are inherited from manifest metadata when `null`. That is, if the field is `null` for an entry, then the entry must inherit its value from the manifest file's metadata, stored in the manifest list.
-    The `sequence_number` field represents the data sequence number and must never change after a file is added to the dataset. The data sequence number represents a relative age of the file content and should be used for planning which delete files apply to a data file.
-    The `file_sequence_number` field represents the sequence number of the snapshot that added the file and must also remain unchanged upon assigning at commit. The file sequence number can't be used for pruning delete files as the data within the file may have an older data sequence number.
-    The data and file sequence numbers are inherited only if the entry status is 1 (added). If the entry status is 0 (existing) or 2 (deleted), the entry must include both sequence numbers explicitly.
+Iceberg v2 adds data and file sequence numbers to the entry and makes the snapshot ID optional. Values for these fields are inherited from manifest metadata when `null`. That is, if the field is `null` for an entry, then the entry must inherit its value from the manifest file's metadata, stored in the manifest list.
+The `sequence_number` field represents the data sequence number and must never change after a file is added to the dataset. The data sequence number represents a relative age of the file content and should be used for planning which delete files apply to a data file.
+The `file_sequence_number` field represents the sequence number of the snapshot that added the file and must also remain unchanged upon assigning at commit. The file sequence number can't be used for pruning delete files as the data within the file may have an older data sequence number.
+The data and file sequence numbers are inherited only if the entry status is 1 (added). If the entry status is 0 (existing) or 2 (deleted), the entry must include both sequence numbers explicitly.
 
-    Notes:
+Notes:
 
-    1. Technically, data files can be deleted when the last snapshot that contains the file as "live" data is garbage collected. But this is harder to detect and requires finding the diff of multiple snapshots. It is easier to track what files are deleted in a snapshot and delete them when that snapshot expires.  It is not recommended to add a deleted file back to a table. Adding a deleted file can lead to edge cases where incremental deletes can break table snapshots.
-    2. Manifest list files are required in v2, so that the `sequence_number` and `snapshot_id` to inherit are always available.
+1. Technically, data files can be deleted when the last snapshot that contains the file as "live" data is garbage collected. But this is harder to detect and requires finding the diff of multiple snapshots. It is easier to track what files are deleted in a snapshot and delete them when that snapshot expires.  It is not recommended to add a deleted file back to a table. Adding a deleted file can lead to edge cases where incremental deletes can break table snapshots.
+2. Manifest list files are required in v2, so that the `sequence_number` and `snapshot_id` to inherit are always available.
 
 === "v4"
     **Content Entries**
@@ -772,8 +772,8 @@ In v1-v3, manifest entries are described by the `manifest_entry` struct. In v4, 
     | 3 | **`sequence_number`** | `long` | *optional* | Data sequence number of the file. Inherited when null and status is 1 (ADDED). Must equal `file_sequence_number` if `content_type` is 3 or 4. Optional for leaf manifests, required for root. |
     | 4 | **`file_sequence_number`** | `long` | *optional* | File sequence number indicating when the file was added. Inherited when null and status is ADDED. Must equal `sequence_number` if `content_type` is 3 or 4. |
     | 142 | **`first_row_id`** | `long` | *optional* | The `_row_id` for the first row in the data file if `content_type` is 0. If `content_type` is 3, this is the starting `_row_id` to assign to rows added by ADDED data files. See [First Row ID Inheritance](#first-row-id-inheritance). |
-    | 6 | **`deleted_positions`** | `binary` | *optional* | Mumbling bitmap of positions in the referenced leaf manifest that were deleted in this snapshot. |
-    | 7 | **`replaced_positions`** | `binary` | *optional* | Mumbling bitmap of positions in the referenced leaf manifest that were replaced in this snapshot. |
+    | 6 | **`deleted_positions`** | `binary` | *optional* | Positions deleted in the referenced leaf manifest this snapshot. See [Manifest Deletion Vectors](#manifest-deletion-vectors). |
+    | 7 | **`replaced_positions`** | `binary` | *optional* | Positions replaced in the referenced leaf manifest this snapshot. See [Manifest Deletion Vectors](#manifest-deletion-vectors). |
 
     **`deletion_vector` struct (field 148)**
 
@@ -800,7 +800,7 @@ In v1-v3, manifest entries are described by the `manifest_entry` struct. In v4, 
     | 521 | **`replaced_rows_count`** | `long` | *required* | Total number of rows in REPLACED entries. |
     | 525 | **`modified_rows_count`** | `long` | *required* | Total number of rows in MODIFIED entries. |
     | 516 | **`min_sequence_number`** | `long` | *required* | Minimum data sequence number of all live entries in the manifest. |
-    | 522 | **`dv`** | `binary` | *optional* | Mumbling bitmap of entry positions in the manifest that are not live in the current snapshot. |
+    | 522 | **`dv`** | `binary` | *optional* | Positions in the referenced leaf manifest that are not live. See [Manifest Deletion Vectors](#manifest-deletion-vectors). |
     | 523 | **`dv_cardinality`** | `long` | *optional* | Cardinality of the manifest deletion vector. Must be set when `dv` is non-null; must be null otherwise. |
 
     **`column_file` struct (element 159 of `column_files`, field 158)**
@@ -817,9 +817,9 @@ In v1-v3, manifest entries are described by the `manifest_entry` struct. In v4, 
 
     When a file is added to the dataset, its content entry must set status to ADDED (1) and store the snapshot ID in which the file was added.
 
-    When a data file's deletion vector or column files are updated, the writer must record two content entries for the file in the snapshot: a REPLACED (3) entry for the prior version and a MODIFIED (4) entry for the new, live version. Both entries store the snapshot ID of the update. A MODIFIED data file entry must always have a corresponding REPLACED entry.
+    When a data file's deletion vector or column files are updated, the writer must record two content entries for the file in the snapshot: a REPLACED (3) entry for the prior version and a MODIFIED (4) entry for the new, live version. Every MODIFIED data file entry must have a corresponding REPLACED entry.
 
-    When a leaf manifest's `dv` is updated, its content entry must set status to MODIFIED (4) and store the snapshot ID of the update.
+    Each entry otherwise carries forward the prior version's `tracking`: the REPLACED entry sets `snapshot_id` to the snapshot in which the file was replaced, while the MODIFIED entry records the change in `dv_snapshot_id` and/or `latest_column_file_snapshot_id` (defined below).
 
     When a deletion vector is added or changed for a data file or a leaf manifest, the MODIFIED entry's `dv_snapshot_id` must be set to the snapshot ID of that change.
 
@@ -843,7 +843,7 @@ The `data_file` struct consists of the following fields:
     | _required_ |            |            | ~~**`105 block_size_in_bytes`**~~ | `long`                                                                      | **Deprecated. Always write a default in v1. Do not write in v2 or v3.** |
     | _optional_ |            |            | ~~**`106  file_ordinal`**~~       | `int`                                                                       | **Deprecated. Do not write.** |
     | _optional_ |            |            | ~~**`107  sort_columns`**~~       | `list<112: int>`                                                            | **Deprecated. Do not write.** |
-    | _optional_ | _optional_ | _optional_ | **`108  column_sizes`**           | `map<117: int, 118: long>`                                                  | Map from column id to the total size on disk of all regions that store the column. Leave null for row-oriented formats (Avro) |
+    | _optional_ | _optional_ | _optional_ | **`108  column_sizes`**           | `map<117: int, 118: long>`                                                  | Map from column id to the total size on disk of all regions that store the column. **Does not include bytes necessary to read other columns, like footers.** Leave null for row-oriented formats (Avro) |
     | _optional_ | _optional_ | _optional_ | **`109  value_counts`**           | `map<119: int, 120: long>`                                                  | Map from column id to number of values in the column (including null and NaN values) |
     | _optional_ | _optional_ | _optional_ | **`110  null_value_counts`**      | `map<121: int, 122: long>`                                                  | Map from column id to number of null values in the column |
     | _optional_ | _optional_ | _optional_ | **`137  nan_value_counts`**       | `map<138: int, 139: long>`                                                  | Map from column id to number of NaN values in the column |
@@ -1154,7 +1154,7 @@ Manifest list files store `manifest_file`, a struct with the following fields:
     | _optional_ | _required_ | _required_ | **`512 added_rows_count`**          | `long`                                      | Number of rows in all of files in the manifest that have status `ADDED`, when `null` this is assumed to be non-zero |
     | _optional_ | _required_ | _required_ | **`513 existing_rows_count`**       | `long`                                      | Number of rows in all of files in the manifest that have status `EXISTING`, when `null` this is assumed to be non-zero |
     | _optional_ | _required_ | _required_ | **`514 deleted_rows_count`**        | `long`                                      | Number of rows in all of files in the manifest that have status `DELETED`, when `null` this is assumed to be non-zero |
-    | _optional_ | _optional_ | _optional_ | **`507 partitions`**                | `list<508: field_summary>`                  | A list of field summaries for each partition field in the spec. Each field in the list corresponds to a field in the manifest file’s partition spec. |
+    | _optional_ | _optional_ | _optional_ | **`507 partitions`**                | `list<508: field_summary>` **(see below)**  | A list of field summaries for each partition field in the spec. Each field in the list corresponds to a field in the manifest file’s partition spec. |
     | _optional_ | _optional_ | _optional_ | **`519 key_metadata`**              | `binary`                                    | Implementation-specific key metadata for encryption |
     |            |            | _optional_ | **`520 first_row_id`**              | `long`                                      | The starting `_row_id` to assign to rows added by `ADDED` data files [First Row ID Assignment](#first-row-id-assignment) |
 
@@ -1220,6 +1220,12 @@ In general, deletes are applied only to data files that are older and in the sam
 * Equality delete files stored with an unpartitioned spec are applied as global deletes. Otherwise, delete files do not apply to files in other partitions.
 * Position deletes (vectors and files) must be applied to data files from the same commit, when the data and delete file data sequence numbers are equal. This allows deleting rows that were added in the same commit.
 
+#### Scan Planning in v4
+
+A scan reads the live entries of the root manifest and, for each live leaf manifest it references, the live entries within that manifest. An entry is not live if its status is DELETED (2) or REPLACED (3). A leaf-manifest entry is also not live if its position is set in the referencing root manifest entry's `manifest_info.dv` (see [Manifest Deletion Vectors](#manifest-deletion-vectors)).
+
+A data file's deletion vector is colocated on its content entry and applies to that data file directly. The scope rules above are used only for deletion vectors and delete files tracked by referenced v1–v3 manifests.
+
 Notes:
 
 1. An alternative, *strict projection*, creates a partition predicate that will match a file if all of the rows in the file must match the scan predicate. These projections are used to calculate the residual predicates for each file in a scan.
@@ -1283,11 +1289,11 @@ Table metadata consists of the following fields:
     | _required_ |            |            | **`schema`**                | The table’s current schema. (**Deprecated**: use `schemas` and `current-schema-id` instead) |
     | _optional_ | _required_ | _required_ | **`schemas`**               | A list of schemas, stored as objects with `schema-id`. |
     | _optional_ | _required_ | _required_ | **`current-schema-id`**     | ID of the table’s current schema. |
-    | _required_ |            |            | **`partition-spec`**        | The table’s current partition spec, stored as only fields. (**Deprecated**: use `partition-specs` and `default-spec-id` instead) |
+    | _required_ |            |            | **`partition-spec`**        | The table’s current partition spec, stored as only fields. (**Deprecated**: use `partition-specs` and `default-spec-id` instead) Note that this is used by writers to partition data, but is not used when reading because reads use the specs stored in manifest files. |
     | _optional_ | _required_ | _required_ | **`partition-specs`**       | A list of partition specs, stored as full partition spec objects. |
     | _optional_ | _required_ | _required_ | **`default-spec-id`**       | ID of the "current" spec that writers should use by default. |
     | _optional_ | _required_ | _required_ | **`last-partition-id`**     | An integer; the highest assigned partition field ID across all partition specs for the table. This is used to ensure partition fields are always assigned an unused ID when evolving specs. |
-    | _optional_ | _optional_ | _optional_ | **`properties`**            | A string to string map of table properties. This is used to control settings that affect reading and writing and is not intended to be used for arbitrary metadata. |
+    | _optional_ | _optional_ | _optional_ | **`properties`**            | A string to string map of table properties. This is used to control settings that affect reading and writing and is not intended to be used for arbitrary metadata. For example, `commit.retry.num-retries` is used to control the number of commit retries. |
     | _optional_ | _optional_ | _optional_ | **`current-snapshot-id`**   | `long` ID of the current table snapshot; must be the same as the current ID of the `main` branch in `refs`. |
     | _optional_ | _optional_ | _optional_ | **`snapshots`**             | A list of valid snapshots. Valid snapshots are snapshots for which all data files exist in the file system. A data file must not be deleted from the file system until the last snapshot in which it was listed is garbage collected. |
     | _optional_ | _optional_ | _optional_ | **`snapshot-log`**          | A list (optional) of timestamp and snapshot ID pairs that encodes changes to the current snapshot for the table. Each time the current-snapshot-id is changed, a new entry should be added with the last-updated-ms and the new current-snapshot-id. When snapshots are expired from the list of valid snapshots, all entries before a snapshot that has expired should be removed. |
@@ -1299,6 +1305,35 @@ Table metadata consists of the following fields:
     | _optional_ | _optional_ | _optional_ | **`partition-statistics`**  | A list (optional) of [partition statistics](#partition-statistics). |
     |            |            | _required_ | **`next-row-id`**           | A `long` higher than all assigned row IDs; the next snapshot’s `first-row-id`. See [Row Lineage](#row-lineage). |
     |            |            | _optional_ | **`encryption-keys`**       | A list (optional) of [encryption keys](#encryption-keys) used for table encryption. |
+
+=== "v4"
+    | v4         | Field                       | Description |
+    |------------|-----------------------------|-------------|
+    | _required_ | **`format-version`**        | An integer version number for the format. Implementations must throw an exception if a table's version is higher than the supported version. |
+    | _required_ | **`table-uuid`**            | A UUID that identifies the table, generated when the table is created. Implementations must throw an exception if a table's UUID does not match the expected UUID after refreshing metadata. |
+    | _optional_ | **`location`**              | The table's base location. This is used by writers to determine where to store data files, manifest files, and table metadata files. Must be an absolute path when present. See [Table Locations](#table-location-specification). |
+    | _required_ | **`last-sequence-number`**  | The table's highest assigned sequence number, a monotonically increasing long that tracks the order of snapshots in a table. |
+    | _required_ | **`last-updated-ms`**       | Timestamp in milliseconds from the unix epoch when the table was last updated. Each table metadata file should update this field just before writing. |
+    | _required_ | **`last-column-id`**        | An integer; the highest assigned column ID for the table. This is used to ensure columns are always assigned an unused ID when evolving schemas. |
+    |            | **`schema`**                | The table’s current schema. (**Deprecated**: use `schemas` and `current-schema-id` instead) |
+    | _required_ | **`schemas`**               | A list of schemas, stored as objects with `schema-id`. |
+    | _required_ | **`current-schema-id`**     | ID of the table's current schema. |
+    |            | **`partition-spec`**        | The table’s current partition spec, stored as only fields. Note that this is used by writers to partition data, but is not used when reading because reads use the specs stored in manifest files. (**Deprecated**: use `partition-specs` and `default-spec-id` instead) |
+    | _required_ | **`partition-specs`**       | A list of partition specs, stored as full partition spec objects. |
+    | _required_ | **`default-spec-id`**       | ID of the "current" spec that writers should use by default. |
+    | _required_ | **`last-partition-id`**     | An integer; the highest assigned partition field ID across all partition specs for the table. This is used to ensure partition fields are always assigned an unused ID when evolving specs. |
+    | _optional_ | **`properties`**            | A string to string map of table properties. This is used to control settings that affect reading and writing and is not intended to be used for arbitrary metadata. For example, `commit.retry.num-retries` is used to control the number of commit retries. |
+    | _optional_ | **`current-snapshot-id`**   | `long` ID of the current table snapshot; must be the same as the current ID of the `main` branch in `refs`. |
+    | _optional_ | **`snapshots`**             | A list of valid snapshots. Valid snapshots are snapshots for which all data files exist in the file system. A data file must not be deleted from the file system until the last snapshot in which it was listed is garbage collected. |
+    | _optional_ | **`snapshot-log`**          | A list (optional) of timestamp and snapshot ID pairs that encodes changes to the current snapshot for the table. Each time the current-snapshot-id is changed, a new entry should be added with the last-updated-ms and the new current-snapshot-id. When snapshots are expired from the list of valid snapshots, all entries before a snapshot that has expired should be removed. |
+    | _optional_ | **`metadata-log`**          | A list (optional) of timestamp and metadata file location pairs that encodes changes to the previous metadata files for the table. Each time a new metadata file is created, a new entry of the previous metadata file location should be added to the list. Tables can be configured to remove oldest metadata log entries and keep a fixed-size log of the most recent entries after a commit. |
+    | _required_ | **`sort-orders`**           | A list of sort orders, stored as full sort order objects. |
+    | _required_ | **`default-sort-order-id`** | Default sort order id of the table. Note that this could be used by writers, but is not used when reading because reads use the specs stored in manifest files. |
+    | _optional_ | **`refs`**                  | A map of snapshot references. The map keys are the unique snapshot reference names in the table, and the map values are snapshot reference objects. There is always a `main` branch reference pointing to the `current-snapshot-id` even if the `refs` map is null. |
+    | _optional_ | **`statistics`**            | A list (optional) of [table statistics](#table-statistics). |
+    | _optional_ | **`partition-statistics`**  | A list (optional) of [partition statistics](#partition-statistics). |
+    | _required_ | **`next-row-id`**           | A `long` higher than all assigned row IDs; the next snapshot's `first-row-id`. See [Row Lineage](#row-lineage). |
+    | _optional_ | **`encryption-keys`**       | A list (optional) of [encryption keys](#encryption-keys) used for table encryption. |
 
 For serialization details, see Appendix C.
 
@@ -1322,7 +1357,7 @@ Statistics files metadata within `statistics` table metadata field is a struct w
     | _required_ | _required_ | **`file-size-in-bytes`**        | `long`                | Size of the statistics file. |
     | _required_ | _required_ | **`file-footer-size-in-bytes`** | `long`                | Total size of the statistics file's footer (not the footer payload size). See [Puffin file format](puffin-spec.md) for footer definition. |
     | _optional_ | _optional_ | **`key-metadata`**              |                       | Base64-encoded implementation-specific key metadata for encryption. |
-    | _required_ | _required_ | **`blob-metadata`**             | `list<blob metadata>` | A list of the blob metadata for statistics contained in the file with structure described below. |
+    | _required_ | _required_ | **`blob-metadata`**             | `list<blob metadata>` (see below) | A list of the blob metadata for statistics contained in the file with structure described below. |
 
 Blob metadata is a struct with the following fields:
 
@@ -1489,6 +1524,20 @@ Delete manifests track deletion vectors individually by the containing file loca
 At most one deletion vector is allowed per data file in a snapshot. If a DV is written for a data file, it must replace all previously written position delete files so that when a DV is present, readers can safely ignore matching position delete files.
 
 [puffin-spec]: https://iceberg.apache.org/puffin-spec/
+
+#### Manifest Deletion Vectors
+
+A manifest deletion vector marks entries in a leaf manifest as not live by encoding their positions in a bitmap. A set bit at position P indicates that the entry at position P in the referenced leaf manifest is not live.
+
+Manifest deletion vectors are encoded using the [Mumbling bitmap spec][mumbling-spec] and stored inline on the root manifest entry that references the leaf manifest. The snapshot in which the vector last changed is recorded in `tracking.dv_snapshot_id`; the three bitmaps are:
+
+* `manifest_info.dv`: every position not live as of that snapshot. `manifest_info.dv_cardinality` is its cardinality.
+* `tracking.deleted_positions`: the positions deleted in that snapshot.
+* `tracking.replaced_positions`: the positions replaced in that snapshot.
+
+`deleted_positions` and `replaced_positions` are disjoint.
+
+[mumbling-spec]: https://iceberg.apache.org/mumbling-spec/
 
 #### Position Delete Files
 
