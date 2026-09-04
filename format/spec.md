@@ -817,9 +817,9 @@ Notes:
 
     When a file is added to the dataset, its content entry must set status to ADDED (1) and store the snapshot ID in which the file was added.
 
-    When a data file's deletion vector or column files are updated, the writer must record two content entries for the file in the snapshot: a REPLACED (3) entry for the prior version and a MODIFIED (4) entry for the new, live version. Every MODIFIED data file entry must have a corresponding REPLACED entry.
+    When a data file's deletion vector or column files are updated, the writer records a MODIFIED (4) entry for the live version and marks the prior version as replaced, either with a REPLACED (3) entry or in a [manifest deletion vector](#manifest-deletion-vectors).
 
-    Each entry otherwise carries forward the prior version's `tracking`: the REPLACED entry sets `snapshot_id` to the snapshot in which the file was replaced, while the MODIFIED entry records the change in `dv_snapshot_id` and/or `latest_column_file_snapshot_id` (defined below).
+    The MODIFIED entry carries forward the prior version's `tracking` and records the change in `dv_snapshot_id` and/or `latest_column_file_snapshot_id` (defined below). A REPLACED entry, when written, carries forward the prior version's `tracking` and sets `snapshot_id` to the snapshot in which the file was replaced.
 
     When a deletion vector is added or changed for a data file or a leaf manifest, the MODIFIED entry's `dv_snapshot_id` must be set to the snapshot ID of that change.
 
