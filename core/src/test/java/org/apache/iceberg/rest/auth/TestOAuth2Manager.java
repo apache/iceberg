@@ -20,6 +20,7 @@ package org.apache.iceberg.rest.auth;
 
 import static java.util.Map.entry;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.InstanceOfAssertFactories.type;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyMap;
@@ -28,6 +29,9 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.when;
 
 import com.github.benmanes.caffeine.cache.Ticker;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.util.Map;
 import org.apache.iceberg.catalog.SessionCatalog;
@@ -36,6 +40,7 @@ import org.apache.iceberg.rest.RESTClient;
 import org.apache.iceberg.rest.responses.OAuthTokenResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.mockito.Mockito;
 
 class TestOAuth2Manager {
@@ -536,6 +541,61 @@ class TestOAuth2Manager {
             eq(Map.of()),
             any());
     Mockito.verifyNoMoreInteractions(client);
+  }
+
+  @Test
+  void initSessionTokenPathProvided(@TempDir Path tempDir) throws IOException {
+    Path tokenFile = tempDir.resolve("token");
+    Files.writeString(tokenFile, "file-token");
+    Map<String, String> properties = Map.of(OAuth2Properties.TOKEN_PATH, tokenFile.toString());
+    try (OAuth2Manager manager = new OAuth2Manager("test");
+        OAuth2Util.AuthSession session = manager.initSession(client, properties)) {
+      assertThat(session.headers()).containsOnly(entry("Authorization", "Bearer file-token"));
+    }
+    Mockito.verifyNoInteractions(client);
+  }
+
+  @Test
+  void catalogSessionTokenPathProvided(@TempDir Path tempDir) throws IOException {
+    Path tokenFile = tempDir.resolve("token");
+    Files.writeString(tokenFile, "file-token");
+    Map<String, String> properties = Map.of(OAuth2Properties.TOKEN_PATH, tokenFile.toString());
+    try (OAuth2Manager manager = new OAuth2Manager("test");
+        OAuth2Util.AuthSession catalogSession = manager.catalogSession(client, properties)) {
+      assertThat(catalogSession.headers())
+          .containsOnly(entry("Authorization", "Bearer file-token"));
+    }
+    Mockito.verify(client).withAuthSession(any());
+    Mockito.verifyNoMoreInteractions(client);
+  }
+
+  @Test
+  void standaloneTableSessionTokenPathProvided(@TempDir Path tempDir) throws IOException {
+    Path tokenFile = tempDir.resolve("token");
+    Files.writeString(tokenFile, "file-token");
+    Map<String, String> tableProperties = Map.of(OAuth2Properties.TOKEN_PATH, tokenFile.toString());
+    try (OAuth2Manager manager = new OAuth2Manager("test");
+        OAuth2Util.AuthSession tableSession =
+            (OAuth2Util.AuthSession) manager.tableSession(client, tableProperties)) {
+      assertThat(tableSession.headers()).containsOnly(entry("Authorization", "Bearer file-token"));
+      assertThat(manager)
+          .extracting("sessionCache")
+          .asInstanceOf(type(AuthSessionCache.class))
+          .as("should create session cache for table with token path")
+          .satisfies(cache -> assertThat(cache.sessionCache().asMap()).hasSize(1));
+    }
+    Mockito.verify(client).withAuthSession(any());
+    Mockito.verifyNoMoreInteractions(client);
+  }
+
+  @Test
+  void tokenAndTokenPathAreMutuallyExclusive() {
+    Map<String, String> properties =
+        Map.of(OAuth2Properties.TOKEN, "test", OAuth2Properties.TOKEN_PATH, "/some/path");
+    assertThatThrownBy(() -> AuthConfig.fromProperties(properties))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining(OAuth2Properties.TOKEN)
+        .hasMessageContaining(OAuth2Properties.TOKEN_PATH);
   }
 
   @Test
