@@ -266,10 +266,20 @@ public interface ViewMetadata extends Serializable {
       return this;
     }
 
+    /**
+     * Sets the given view version as the current version.
+     *
+     * <p>When {@link ViewProperties#REPLACE_APPEND_DIALECT_ALLOWED} is enabled, SQL dialects of the
+     * previous current version that aren't part of the given version are appended to it. Properties
+     * must therefore be set on this builder before calling this method.
+     */
     public Builder setCurrentVersion(ViewVersion version, Schema schema) {
       int newSchemaId = addSchemaInternal(schema);
       ViewVersion newVersion =
-          ImmutableViewVersion.builder().from(version).schemaId(newSchemaId).build();
+          ImmutableViewVersion.builder()
+              .from(appendDialects(version))
+              .schemaId(newSchemaId)
+              .build();
       return setCurrentVersionId(addVersionInternal(newVersion));
     }
 
@@ -450,11 +460,19 @@ public interface ViewMetadata extends Serializable {
         history.add(historyEntry);
       }
 
-      if (null != previousViewVersion
-          && !PropertyUtil.propertyAsBoolean(
+      boolean dropDialectAllowed =
+          PropertyUtil.propertyAsBoolean(
               properties,
               ViewProperties.REPLACE_DROP_DIALECT_ALLOWED,
-              ViewProperties.REPLACE_DROP_DIALECT_ALLOWED_DEFAULT)) {
+              ViewProperties.REPLACE_DROP_DIALECT_ALLOWED_DEFAULT);
+
+      Preconditions.checkArgument(
+          !dropDialectAllowed || !appendDialectAllowed(),
+          "Cannot set both %s and %s to true",
+          ViewProperties.REPLACE_DROP_DIALECT_ALLOWED,
+          ViewProperties.REPLACE_APPEND_DIALECT_ALLOWED);
+
+      if (null != previousViewVersion && !dropDialectAllowed) {
         checkIfDialectIsDropped(previousViewVersion, versionsById.get(currentVersionId));
       }
 
@@ -551,6 +569,38 @@ public interface ViewMetadata extends Serializable {
 
     private <U extends MetadataUpdate> Stream<U> changes(Class<U> updateClass) {
       return changes.stream().filter(updateClass::isInstance).map(updateClass::cast);
+    }
+
+    /**
+     * Appends the SQL representations of the previous current version whose dialect isn't part of
+     * the given version, so that a replace operation doesn't drop those dialects. Representations
+     * of the given version are kept first, so that resolving a SQL for an unknown dialect prefers
+     * the SQL of the replace operation.
+     *
+     * @param version the view version that is replacing the current version
+     * @return the given view version with the retained SQL representations appended
+     */
+    private ViewVersion appendDialects(ViewVersion version) {
+      if (null == previousViewVersion || !appendDialectAllowed()) {
+        return version;
+      }
+
+      Set<String> replacedDialects = sqlDialectsFor(version);
+      List<ViewRepresentation> retained =
+          previousViewVersion.representations().stream()
+              .filter(SQLViewRepresentation.class::isInstance)
+              .map(SQLViewRepresentation.class::cast)
+              .filter(sql -> !replacedDialects.contains(sql.dialect().toLowerCase(Locale.ROOT)))
+              .collect(Collectors.toList());
+
+      return ImmutableViewVersion.builder().from(version).addAllRepresentations(retained).build();
+    }
+
+    private boolean appendDialectAllowed() {
+      return PropertyUtil.propertyAsBoolean(
+          properties,
+          ViewProperties.REPLACE_APPEND_DIALECT_ALLOWED,
+          ViewProperties.REPLACE_APPEND_DIALECT_ALLOWED_DEFAULT);
     }
 
     private void checkIfDialectIsDropped(ViewVersion previous, ViewVersion current) {

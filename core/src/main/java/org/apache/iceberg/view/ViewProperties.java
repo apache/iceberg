@@ -32,5 +32,8 @@ public class ViewProperties {
   public static final String REPLACE_DROP_DIALECT_ALLOWED = "replace.drop-dialect.allowed";
   public static final boolean REPLACE_DROP_DIALECT_ALLOWED_DEFAULT = false;
 
+  public static final String REPLACE_APPEND_DIALECT_ALLOWED = "replace.append-dialect.allowed";
+  public static final boolean REPLACE_APPEND_DIALECT_ALLOWED_DEFAULT = false;
+
   private ViewProperties() {}
 }
