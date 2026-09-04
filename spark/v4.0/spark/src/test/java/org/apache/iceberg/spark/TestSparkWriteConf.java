@@ -59,6 +59,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.UpdateProperties;
 import org.apache.iceberg.deletes.DeleteGranularity;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.spark.sql.internal.SQLConf;
@@ -84,6 +85,55 @@ public class TestSparkWriteConf extends TestBaseWithCatalog {
   @AfterEach
   public void after() {
     sql("DROP TABLE IF EXISTS %s", tableName);
+  }
+
+  @TestTemplate
+  public void writeBranchOption() {
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    SparkWriteConf branchFromOption =
+        new SparkWriteConf(
+            spark, table, null, ImmutableMap.of(SparkWriteOptions.BRANCH, "branchA"));
+    assertThat(branchFromOption.branch()).isEqualTo("branchA");
+
+    SparkWriteConf matchingIdentifierAndOption =
+        new SparkWriteConf(
+            spark, table, "branchA", ImmutableMap.of(SparkWriteOptions.BRANCH, "branchA"));
+    assertThat(matchingIdentifierAndOption.branch()).isEqualTo("branchA");
+  }
+
+  @TestTemplate
+  public void writeBranchOptionConflictsWithIdentifier() {
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    SparkWriteConf conflicting =
+        new SparkWriteConf(
+            spark, table, "branchB", ImmutableMap.of(SparkWriteOptions.BRANCH, "branchA"));
+
+    assertThatThrownBy(conflicting::branch)
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining(
+            "Must not specify different branches in both table identifier and write option");
+  }
+
+  @TestTemplate
+  public void writeBranchOptionTakesPrecedenceOverWapBranch() {
+    Table table = validationCatalog.loadTable(tableIdent);
+    table.updateProperties().set(TableProperties.WRITE_AUDIT_PUBLISH_ENABLED, "true").commit();
+
+    withSQLConf(
+        ImmutableMap.of(SparkSQLProperties.WAP_BRANCH, "wapBranch"),
+        () -> {
+          // With WAP enabled and no write option, the session WAP branch is used.
+          SparkWriteConf wapConf = new SparkWriteConf(spark, table, null, ImmutableMap.of());
+          assertThat(wapConf.branch()).isEqualTo("wapBranch");
+
+          // The branch write option takes precedence over the session WAP branch.
+          SparkWriteConf optionConf =
+              new SparkWriteConf(
+                  spark, table, null, ImmutableMap.of(SparkWriteOptions.BRANCH, "branchA"));
+          assertThat(optionConf.branch()).isEqualTo("branchA");
+        });
   }
 
   @TestTemplate
