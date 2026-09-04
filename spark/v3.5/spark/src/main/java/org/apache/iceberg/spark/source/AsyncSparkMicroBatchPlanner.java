@@ -479,7 +479,8 @@ class AsyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner implements 
 
     // Continue loading more snapshots within safety limits
     if (current != null) {
-      while ((queuedRowCount.get() < targetRows || queuedFileCount.get() < targetFiles)
+      while (shouldContinueInitialPreload(
+              queuedRowCount.get(), queuedFileCount.get(), targetRows, targetFiles)
           && current.snapshotId() != preloadEndSnapshot.snapshotId()) {
         current = nextValidSnapshot(current);
         if (current != null) {
@@ -490,6 +491,11 @@ class AsyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner implements 
         }
       }
     }
+  }
+
+  static boolean shouldContinueInitialPreload(
+      long queuedRows, long queuedFiles, long targetRows, long targetFiles) {
+    return queuedRows < targetRows && queuedFiles < targetFiles;
   }
 
   private Snapshot initialPreloadEndSnapshot() {
