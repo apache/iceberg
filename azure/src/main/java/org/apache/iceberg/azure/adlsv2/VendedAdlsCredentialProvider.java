@@ -173,10 +173,14 @@ public class VendedAdlsCredentialProvider implements Serializable, AutoCloseable
     return httpClient()
         .get(
             credentialsEndpoint,
-            null != planId ? Map.of("planId", planId) : null,
+            credentialsQueryParams(),
             LoadCredentialsResponse.class,
             Map.of(),
             ErrorHandlers.defaultErrorHandler());
+  }
+
+  private Map<String, String> credentialsQueryParams() {
+    return RESTUtil.credentialsQueryParams(planId, properties);
   }
 
   private void checkCredential(Credential credential, String property) {

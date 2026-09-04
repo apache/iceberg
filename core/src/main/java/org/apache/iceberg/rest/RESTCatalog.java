@@ -30,6 +30,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.catalog.Catalog;
+import org.apache.iceberg.catalog.LoadContext;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SessionCatalog;
 import org.apache.iceberg.catalog.SupportsNamespaces;
@@ -122,6 +123,11 @@ public class RESTCatalog
   @Override
   public Table loadTable(TableIdentifier ident) {
     return delegate.loadTable(ident);
+  }
+
+  @Override
+  public Table loadTable(TableIdentifier identifier, LoadContext loadContext) {
+    return sessionCatalog.loadTable(context, identifier, loadContext);
   }
 
   @Override
@@ -309,6 +315,11 @@ public class RESTCatalog
   @Override
   public View loadView(TableIdentifier identifier) {
     return viewSessionCatalog.loadView(identifier);
+  }
+
+  @Override
+  public View loadView(TableIdentifier identifier, LoadContext loadContext) {
+    return sessionCatalog.loadView(context, identifier, loadContext);
   }
 
   @Override
