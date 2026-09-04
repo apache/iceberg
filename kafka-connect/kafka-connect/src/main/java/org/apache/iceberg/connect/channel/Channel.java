@@ -52,6 +52,7 @@ abstract class Channel {
   private final SinkTaskContext context;
   private final Admin admin;
   private final Map<Integer, Long> controlTopicOffsets = Maps.newHashMap();
+  private final Map<Integer, Long> committedOffsets = Maps.newHashMap();
   private final String producerId;
 
   Channel(
@@ -142,13 +143,35 @@ abstract class Channel {
     return controlTopicOffsets;
   }
 
+  /**
+   * Commit consumer offsets. Only commits offsets if it has not committed offsets before or the
+   * value is greater than the cached offset.
+   *
+   * <p>Note: there is a risk that two parallel coordinators may overwrite each other's offsets, to
+   * be fixed in a follow-up PR.
+   */
   protected void commitConsumerOffsets() {
     Map<TopicPartition, OffsetAndMetadata> offsetsToCommit = Maps.newHashMap();
-    controlTopicOffsets()
-        .forEach(
-            (k, v) ->
-                offsetsToCommit.put(new TopicPartition(controlTopic, k), new OffsetAndMetadata(v)));
-    consumer.commitSync(offsetsToCommit);
+    controlTopicOffsets.forEach(
+        (partition, offsetToCommit) -> {
+          Long lastCommittedOffset = committedOffsets.get(partition);
+          if (lastCommittedOffset == null || offsetToCommit > lastCommittedOffset) {
+            TopicPartition tp = new TopicPartition(controlTopic, partition);
+            offsetsToCommit.put(tp, new OffsetAndMetadata(offsetToCommit));
+          }
+        });
+    if (!offsetsToCommit.isEmpty()) {
+      LOG.debug("Committing consumer offsets: {}", offsetsToCommit);
+      consumer.commitSync(offsetsToCommit);
+      offsetsToCommit.forEach(
+          (topicPartition, metadata) ->
+              committedOffsets.put(topicPartition.partition(), metadata.offset()));
+    } else {
+      LOG.debug(
+          "Skipping consumer offset commit; local offsets {} are less than or equal to committed offsets {}",
+          controlTopicOffsets,
+          committedOffsets);
+    }
   }
 
   void start() {
