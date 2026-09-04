@@ -57,6 +57,7 @@ gcs-analytics-core = "1.5.0"
 guava = "33.7.1-jre"
 hadoop3 = "3.4.3"
 httpcomponents-httpclient5 = "5.6.4"
+httpcomponents-httpcore5 = "5.4.3"
 hive2 = { strictly = "2.3.10"} # see rich version usage explanation above
 immutables-value = "2.12.2"
 jackson-annotations = "2.22"
@@ -159,6 +160,8 @@ hive2-exec = { module = "org.apache.hive:hive-exec", version.ref = "hive2" }
 hive2-metastore = { module = "org.apache.hive:hive-metastore", version.ref = "hive2" }
 hive2-service = { module = "org.apache.hive:hive-service", version.ref = "hive2" }
 httpcomponents-httpclient5 = { module = "org.apache.httpcomponents.client5:httpclient5", version.ref = "httpcomponents-httpclient5" }
+httpcomponents-httpcore5 = { module = "org.apache.httpcomponents.core5:httpcore5", version.ref = "httpcomponents-httpcore5" }
+httpcomponents-httpcore5h2 = { module = "org.apache.httpcomponents.core5:httpcore5-h2", version.ref = "httpcomponents-httpcore5" }
 immutables-value = { module = "org.immutables:value", version.ref = "immutables-value" }
 jackson-bom = { module = "com.fasterxml.jackson:jackson-bom", version.ref = "jackson-bom" }
 jackson-core = { module = "com.fasterxml.jackson.core:jackson-core", version.ref = "jackson-bom" }
