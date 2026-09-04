@@ -43,6 +43,8 @@ import org.apache.spark.sql.catalyst.analysis.TableAlreadyExistsException;
 import org.apache.spark.sql.catalyst.analysis.ViewAlreadyExistsException;
 import org.apache.spark.sql.connector.catalog.CatalogExtension;
 import org.apache.spark.sql.connector.catalog.CatalogPlugin;
+import org.apache.spark.sql.connector.catalog.Changelog;
+import org.apache.spark.sql.connector.catalog.ChangelogContext;
 import org.apache.spark.sql.connector.catalog.FunctionCatalog;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.NamespaceChange;
@@ -221,6 +223,17 @@ public class SparkSessionCatalog<
       return icebergCatalog.loadTable(ident, timestamp);
     } catch (NoSuchTableException e) {
       return getSessionCatalog().loadTable(ident, timestamp);
+    }
+  }
+
+  @Override
+  public Changelog loadChangelog(
+      Identifier ident, ChangelogContext context, CaseInsensitiveStringMap options)
+      throws NoSuchTableException {
+    try {
+      return icebergCatalog.loadChangelog(ident, context, options);
+    } catch (NoSuchTableException e) {
+      return getSessionCatalog().loadChangelog(ident, context, options);
     }
   }
 
