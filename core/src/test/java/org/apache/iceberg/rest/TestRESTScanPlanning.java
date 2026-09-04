@@ -38,6 +38,7 @@ import com.fasterxml.jackson.databind.ObjectReader;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import org.apache.iceberg.BaseTable;
@@ -1282,6 +1283,141 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
     assertThatThrownBy(scan::planFiles)
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("must be positive");
+  }
+
+  @Test
+  public void asyncPlanningRespectsConfigurablePollRetries() {
+    // Create an adapter that always returns SUBMITTED (never completes)
+    List<Endpoint> endpoints =
+        endpointsWithPlanning(
+            Endpoint.V1_SUBMIT_TABLE_SCAN_PLAN,
+            Endpoint.V1_FETCH_TABLE_SCAN_PLAN,
+            Endpoint.V1_CANCEL_TABLE_SCAN_PLAN,
+            Endpoint.V1_FETCH_TABLE_SCAN_PLAN_TASKS);
+
+    AtomicInteger fetchAttempts = new AtomicInteger();
+    RESTCatalogAdapter adapter =
+        Mockito.spy(
+            new RESTCatalogAdapter(backendCatalog) {
+              @Override
+              public <T extends RESTResponse> T execute(
+                  HTTPRequest request,
+                  Class<T> responseType,
+                  Consumer<ErrorResponse> errorHandler,
+                  Consumer<Map<String, String>> responseHeaders,
+                  ParserContext parserContext) {
+                if (ResourcePaths.config().equals(request.path())) {
+                  return castResponse(
+                      responseType, ConfigResponse.builder().withEndpoints(endpoints).build());
+                }
+                T response =
+                    super.execute(
+                        request, responseType, errorHandler, responseHeaders, parserContext);
+                if (response instanceof LoadTableResponse) {
+                  return castResponse(
+                      responseType,
+                      withPlanningMode(
+                          (LoadTableResponse) response,
+                          RESTCatalogProperties.ScanPlanningMode.SERVER.modeName()));
+                }
+
+                // Override fetch responses to always return SUBMITTED so the poll never completes
+                if (response instanceof FetchPlanningResultResponse) {
+                  fetchAttempts.incrementAndGet();
+                  return castResponse(
+                      responseType,
+                      FetchPlanningResultResponse.builder()
+                          .withPlanStatus(PlanStatus.SUBMITTED)
+                          .build());
+                }
+
+                return response;
+              }
+            });
+
+    adapter.setPlanningBehavior(TestPlanningBehavior.builder().asynchronous().build());
+
+    RESTCatalog catalog =
+        new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
+    catalog.initialize(
+        "test-poll-retries",
+        ImmutableMap.of(
+            CatalogProperties.FILE_IO_IMPL,
+            "org.apache.iceberg.inmemory.InMemoryFileIO",
+            RESTCatalogProperties.SCAN_PLANNING_MODE,
+            RESTCatalogProperties.ScanPlanningMode.SERVER.modeName(),
+            RESTCatalogProperties.REST_SCAN_PLANNING_POLL_NUM_RETRIES,
+            "0"));
+
+    RESTTable table = restTableFor(catalog, "poll_retries_test");
+    setParserContext(table);
+    RESTTableScan scan = restTableScanFor(table);
+
+    // With 0 retries and a server that never completes, planFiles should fail after one attempt
+    assertThatThrownBy(scan::planFiles)
+        .isInstanceOf(RemotePlanTimeoutException.class)
+        .hasMessageContaining("did not complete within configured limits")
+        .hasMessageContaining("maxRetries=0");
+    assertThat(fetchAttempts).hasValue(1);
+  }
+
+  @Test
+  public void asyncPlanningSucceedsWithCustomRetries() {
+    List<Endpoint> endpoints =
+        endpointsWithPlanning(
+            Endpoint.V1_SUBMIT_TABLE_SCAN_PLAN,
+            Endpoint.V1_FETCH_TABLE_SCAN_PLAN,
+            Endpoint.V1_CANCEL_TABLE_SCAN_PLAN,
+            Endpoint.V1_FETCH_TABLE_SCAN_PLAN_TASKS);
+
+    CatalogWithAdapter catalogWithAdapter =
+        catalogWithEndpoints(endpoints, TestPlanningBehavior.builder().asynchronous().build());
+
+    catalogWithAdapter.catalog.initialize(
+        "test-custom-retries",
+        ImmutableMap.of(
+            CatalogProperties.FILE_IO_IMPL,
+            "org.apache.iceberg.inmemory.InMemoryFileIO",
+            RESTCatalogProperties.SCAN_PLANNING_MODE,
+            RESTCatalogProperties.ScanPlanningMode.SERVER.modeName(),
+            RESTCatalogProperties.REST_SCAN_PLANNING_POLL_NUM_RETRIES,
+            "25"));
+
+    RESTTable table = restTableFor(catalogWithAdapter.catalog, "custom_retries_success");
+    setParserContext(table);
+    assertThat(table.newScan().planFiles()).hasSize(1);
+  }
+
+  @Test
+  public void asyncPlanningRejectsInvalidRetries() {
+    List<Endpoint> endpoints =
+        endpointsWithPlanning(
+            Endpoint.V1_SUBMIT_TABLE_SCAN_PLAN,
+            Endpoint.V1_FETCH_TABLE_SCAN_PLAN,
+            Endpoint.V1_CANCEL_TABLE_SCAN_PLAN,
+            Endpoint.V1_FETCH_TABLE_SCAN_PLAN_TASKS);
+
+    CatalogWithAdapter catalogWithAdapter =
+        catalogWithEndpoints(endpoints, TestPlanningBehavior.builder().asynchronous().build());
+
+    // re-initialize with an invalid retry count
+    catalogWithAdapter.catalog.initialize(
+        "test-invalid-retries",
+        ImmutableMap.of(
+            CatalogProperties.FILE_IO_IMPL,
+            "org.apache.iceberg.inmemory.InMemoryFileIO",
+            RESTCatalogProperties.SCAN_PLANNING_MODE,
+            RESTCatalogProperties.ScanPlanningMode.SERVER.modeName(),
+            RESTCatalogProperties.REST_SCAN_PLANNING_POLL_NUM_RETRIES,
+            "-1"));
+
+    RESTTable table = restTableFor(catalogWithAdapter.catalog, "invalid_retries_test");
+    setParserContext(table);
+    RESTTableScan scan = restTableScanFor(table);
+
+    assertThatThrownBy(scan::planFiles)
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("must be non-negative");
   }
 
   @ParameterizedTest

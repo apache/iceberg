@@ -55,6 +55,8 @@ The following properties configure the behavior of the REST catalog client.
 | `rest-page-size`                      | null              | The page size to use when listing namespaces, tables, or other paginated resources.                                                                                                              |
 | `namespace-separator`                 | `%1F`             | The separator character used for namespace levels when communicating with the REST server.                                                                                                       |
 | `scan-planning-mode`                  | `CLIENT`          | Controls where scan planning is performed. Supported values: `CLIENT` (client-side planning), `SERVER` (server-side planning). Can be overridden per-table by the server in LoadTableResponse. |
+| `rest-scan-planning.poll-timeout-ms`  | `300000` (5 min)  | Maximum time in milliseconds to wait when polling for async server-side scan planning results.                                                                                                 |
+| `rest-scan-planning.poll-num-retries` | `10`              | Extra poll attempts after the first fetch of a submitted plan. `0` means a single fetch with no retries.                                                                                       |
 
 ### Table cache properties
 
