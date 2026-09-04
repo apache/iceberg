@@ -31,6 +31,16 @@ import org.junit.jupiter.api.Test;
 class TestAsyncSparkMicroBatchPlanner {
 
   @Test
+  void initialPreloadStopsWhenEitherLimitIsReached() {
+    assertThat(
+            AsyncSparkMicroBatchPlanner.shouldContinueInitialPreload(1L, 100L, 100_000L, 100L))
+        .isFalse();
+    assertThat(
+            AsyncSparkMicroBatchPlanner.shouldContinueInitialPreload(100_000L, 1L, 100_000L, 100L))
+        .isFalse();
+  }
+
+  @Test
   void reachedAvailableNowCapReturnsTrueOnlyForExactCapSnapshot() {
     Snapshot capSnapshot = mockSnapshot(10L);
     Snapshot laterSnapshotWithHigherId = mockSnapshot(20L);
