@@ -48,7 +48,7 @@ public class TestMetricsConfig {
           optional(DATA, "data", Types.StringType.get()));
 
   @Test
-  public void testIdentityPartitionColumnFull() throws IOException {
+  public void testIdentityPartitionColumnFullInV4() throws IOException {
     PartitionSpec spec = PartitionSpec.builderFor(PARTITIONED_SCHEMA).identity("category").build();
     Table table =
         TestTables.create(temp, "identity", PARTITIONED_SCHEMA, spec, 4, ImmutableMap.of());
@@ -58,7 +58,7 @@ public class TestMetricsConfig {
   }
 
   @Test
-  public void testPartitionColumnCannotBeDisabled() throws IOException {
+  public void testPartitionColumnCannotBeDisabledInV4() throws IOException {
     PartitionSpec spec = PartitionSpec.builderFor(PARTITIONED_SCHEMA).identity("category").build();
     Map<String, String> props =
         ImmutableMap.of(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "category", "none");
@@ -70,7 +70,7 @@ public class TestMetricsConfig {
   }
 
   @Test
-  public void testBucketPartitionColumnIgnored() throws IOException {
+  public void testBucketPartitionColumnIgnoredInV4() throws IOException {
     PartitionSpec spec = PartitionSpec.builderFor(PARTITIONED_SCHEMA).bucket("category", 4).build();
     Table table =
         TestTables.create(temp, "bucket-v4", PARTITIONED_SCHEMA, spec, 4, ImmutableMap.of());
@@ -90,7 +90,7 @@ public class TestMetricsConfig {
   }
 
   @Test
-  public void testColumnModeAndFieldIdsFromPartitionSpec() throws IOException {
+  public void testColumnModeAndFieldIdsFromPartitionSpecInV4() throws IOException {
     PartitionSpec spec =
         PartitionSpec.builderFor(PARTITIONED_SCHEMA).day("event_time").identity("category").build();
     Table table =
