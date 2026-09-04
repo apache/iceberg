@@ -123,5 +123,6 @@ nav:
     - View spec: view-spec.md
     - Puffin spec: puffin-spec.md
     - AES GCM Stream spec: gcm-stream-spec.md
+    - Encryption spec: encryption-spec.md
     - UDF spec: udf-spec.md
     - Implementation status: status.md
