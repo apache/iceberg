@@ -20,7 +20,6 @@ package org.apache.iceberg.aws.lakeformation;
 
 import java.time.Instant;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
@@ -29,6 +28,7 @@ import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.PropertyUtil;
 import software.amazon.awssdk.auth.credentials.AwsCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
@@ -63,7 +63,7 @@ public class LakeFormationAwsClientFactory extends AssumeRoleAwsClientFactory {
   public static final String LF_AUTHORIZED_CALLER = "LakeFormationAuthorizedCaller";
   private static final long CREDENTIAL_PREFETCH_SECONDS = 60L;
   private static final ConcurrentMap<CredentialCacheKey, CredentialCacheEntry> CREDENTIAL_CACHES =
-      new ConcurrentHashMap<>();
+      Maps.newConcurrentMap();
 
   private String dbName;
   private String tableName;
@@ -75,22 +75,22 @@ public class LakeFormationAwsClientFactory extends AssumeRoleAwsClientFactory {
   public LakeFormationAwsClientFactory() {}
 
   @Override
-  public void initialize(Map<String, String> catalogProperties) {
-    super.initialize(catalogProperties);
-    this.catalogProperties = ImmutableMap.copyOf(catalogProperties);
+  public void initialize(Map<String, String> properties) {
+    super.initialize(properties);
+    this.catalogProperties = ImmutableMap.copyOf(properties);
     Preconditions.checkArgument(
         awsProperties().stsClientAssumeRoleTags().stream()
             .anyMatch(t -> LF_AUTHORIZED_CALLER.equals(t.key())),
         "STS assume role session tag %s must be set using %s to use LakeFormation client factory",
         LF_AUTHORIZED_CALLER,
         AwsProperties.CLIENT_ASSUME_ROLE_TAGS_PREFIX);
-    this.dbName = catalogProperties.get(AwsProperties.LAKE_FORMATION_DB_NAME);
-    this.tableName = catalogProperties.get(AwsProperties.LAKE_FORMATION_TABLE_NAME);
-    this.glueCatalogId = catalogProperties.get(AwsProperties.GLUE_CATALOG_ID);
-    this.glueAccountId = catalogProperties.get(AwsProperties.GLUE_ACCOUNT_ID);
+    this.dbName = properties.get(AwsProperties.LAKE_FORMATION_DB_NAME);
+    this.tableName = properties.get(AwsProperties.LAKE_FORMATION_TABLE_NAME);
+    this.glueCatalogId = properties.get(AwsProperties.GLUE_CATALOG_ID);
+    this.glueAccountId = properties.get(AwsProperties.GLUE_ACCOUNT_ID);
     long credentialCacheExpirationSeconds =
         PropertyUtil.propertyAsLong(
-            catalogProperties,
+            properties,
             AwsProperties.LAKE_FORMATION_CREDENTIAL_CACHE_EXPIRATION_SECONDS,
             AwsProperties.LAKE_FORMATION_CREDENTIAL_CACHE_EXPIRATION_SECONDS_DEFAULT);
     Preconditions.checkArgument(
