@@ -22,6 +22,7 @@ import static org.apache.iceberg.TableProperties.GC_ENABLED;
 import static org.apache.iceberg.TableProperties.GC_ENABLED_DEFAULT;
 
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -36,6 +37,8 @@ import org.apache.iceberg.EnvironmentContext;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.SortField;
+import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
@@ -44,6 +47,7 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.catalog.ViewCatalog;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -82,6 +86,7 @@ import org.apache.spark.sql.connector.catalog.TableChange;
 import org.apache.spark.sql.connector.catalog.TableChange.ColumnChange;
 import org.apache.spark.sql.connector.catalog.TableChange.RemoveProperty;
 import org.apache.spark.sql.connector.catalog.TableChange.SetProperty;
+import org.apache.spark.sql.connector.catalog.TableInfo;
 import org.apache.spark.sql.connector.catalog.TableSummary;
 import org.apache.spark.sql.connector.catalog.View;
 import org.apache.spark.sql.connector.expressions.Transform;
@@ -206,11 +211,45 @@ public class SparkCatalog extends BaseCatalog {
       Identifier ident, StructType schema, Transform[] transforms, Map<String, String> properties)
       throws TableAlreadyExistsException {
     Schema icebergSchema = SparkSchemaUtil.convert(schema);
+    return createTable(ident, icebergSchema, transforms, properties, SortOrder.unsorted());
+  }
+
+  @Override
+  public Table createTableLike(Identifier ident, TableInfo tableInfo, Table sourceTable)
+      throws TableAlreadyExistsException, NoSuchNamespaceException {
+    // Spark intentionally excludes the source table's properties from tableInfo and leaves it to
+    // the connector to decide which to clone via sourceTable. Clone the source Iceberg table's
+    // properties and sort order, then let user-specified LIKE options (in tableInfo) take
+    // precedence.
+    Schema icebergSchema = SparkSchemaUtil.convert(tableInfo.schema());
+    Map<String, String> properties = new HashMap<>();
+    SortOrder sortOrder = SortOrder.unsorted();
+
+    if (sourceTable instanceof SparkTable) {
+      org.apache.iceberg.Table sourceIcebergTable = ((SparkTable) sourceTable).table();
+      properties.putAll(sourceIcebergTable.properties());
+      sortOrder =
+          copySortOrder(sourceIcebergTable.schema(), icebergSchema, sourceIcebergTable.sortOrder());
+    }
+
+    properties.putAll(tableInfo.properties());
+
+    return createTable(ident, icebergSchema, tableInfo.partitions(), properties, sortOrder);
+  }
+
+  private Table createTable(
+      Identifier ident,
+      Schema icebergSchema,
+      Transform[] transforms,
+      Map<String, String> properties,
+      SortOrder sortOrder)
+      throws TableAlreadyExistsException {
     try {
       Catalog.TableBuilder builder = newBuilder(ident, icebergSchema);
       org.apache.iceberg.Table icebergTable =
           builder
               .withPartitionSpec(Spark3Util.toPartitionSpec(icebergSchema, transforms))
+              .withSortOrder(sortOrder)
               .withLocation(properties.get("location"))
               .withProperties(Spark3Util.rebuildCreateProperties(properties))
               .create();
@@ -218,6 +257,24 @@ public class SparkCatalog extends BaseCatalog {
     } catch (AlreadyExistsException e) {
       throw new TableAlreadyExistsException(ident);
     }
+  }
+
+  private static SortOrder copySortOrder(
+      Schema sourceSchema, Schema targetSchema, SortOrder sourceSortOrder) {
+    if (sourceSortOrder.isUnsorted()) {
+      return SortOrder.unsorted();
+    }
+
+    SortOrder.Builder builder = SortOrder.builderFor(targetSchema);
+    for (SortField field : sourceSortOrder.fields()) {
+      String sourceName = sourceSchema.findColumnName(field.sourceId());
+      builder.sortBy(
+          Expressions.transform(sourceName, field.transform()),
+          field.direction(),
+          field.nullOrder());
+    }
+
+    return builder.build();
   }
 
   @Override
