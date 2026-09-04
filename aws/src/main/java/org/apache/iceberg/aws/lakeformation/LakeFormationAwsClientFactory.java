@@ -27,7 +27,6 @@ import org.apache.iceberg.aws.AssumeRoleAwsClientFactory;
 import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.PropertyUtil;
 import software.amazon.awssdk.auth.credentials.AwsCredentials;
@@ -77,7 +76,7 @@ public class LakeFormationAwsClientFactory extends AssumeRoleAwsClientFactory {
   @Override
   public void initialize(Map<String, String> properties) {
     super.initialize(properties);
-    this.catalogProperties = ImmutableMap.copyOf(properties);
+    this.catalogProperties = Maps.newHashMap(properties);
     Preconditions.checkArgument(
         awsProperties().stsClientAssumeRoleTags().stream()
             .anyMatch(t -> LF_AUTHORIZED_CALLER.equals(t.key())),
@@ -193,7 +192,7 @@ public class LakeFormationAwsClientFactory extends AssumeRoleAwsClientFactory {
       long idleTimeoutMs,
       Supplier<LakeFormationClient> clientSupplier) {
     return new CachedLakeFormationCredentialsProvider(
-        new CredentialCacheKey(tableArn, ImmutableMap.copyOf(properties)),
+        new CredentialCacheKey(tableArn, Maps.newHashMap(properties)),
         idleTimeoutMs,
         clientSupplier);
   }
