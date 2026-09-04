@@ -522,8 +522,28 @@ class TrackedFileAdapters {
     }
 
     @Override
-    public ByteBuffer manifestDeletionVector() {
-      return file.manifestInfo().dv();
+    public ManifestBitmap manifestDeletionVector() {
+      ByteBuffer dv = file.manifestInfo().dv();
+      if (dv == null) {
+        return null;
+      }
+
+      return new ManifestBitmap() {
+        @Override
+        public int cardinality() {
+          throw new UnsupportedOperationException("Bitmap decoding has not been implemented");
+        }
+
+        @Override
+        public boolean isSet(int position) {
+          throw new UnsupportedOperationException("Bitmap decoding has not been implemented");
+        }
+
+        @Override
+        public ByteBuffer buffer() {
+          return dv;
+        }
+      };
     }
 
     @Override

@@ -98,9 +98,8 @@ class TestTrackedFileAdapters {
       new TrackingStruct(
           EntryStatus.ADDED,
           SNAPSHOT_ID,
-          // data and file sequence numbers must be equal
           DATA_SEQUENCE_NUMBER,
-          DATA_SEQUENCE_NUMBER,
+          FILE_SEQUENCE_NUMBER,
           null, // dvSnapshotId
           FIRST_ROW_ID,
           null, // deletedPositions
@@ -426,7 +425,7 @@ class TestTrackedFileAdapters {
     assertThat(manifest.deletedRowsCount()).isEqualTo(MANIFEST_INFO.deletedRowsCount());
     assertThat(manifest.firstRowId()).isEqualTo(FIRST_ROW_ID);
     assertThat(manifest.keyMetadata()).isEqualTo(MANIFEST_KEY_METADATA);
-    assertThat(manifest.manifestDeletionVector()).isEqualTo(ByteBuffer.wrap(MANIFEST_DV));
+    assertThat(manifest.manifestDeletionVector().buffer()).isEqualTo(ByteBuffer.wrap(MANIFEST_DV));
     assertThat(manifest.partitions()).isNull();
     assertThatThrownBy(manifest::partitionSpecId)
         .isInstanceOf(UnsupportedOperationException.class)
