@@ -5446,6 +5446,20 @@ components:
           "values": [ 100, 200 ]
         }
 
+    FieldStatistics:
+      type: object
+      properties:
+        avg-value-size-in-bytes:
+          type: integer
+          format: int32
+          description:
+            Avg value size in memory (uncompressed) in bytes over non-null
+            values to estimate memory consumption
+      example:
+        {
+          "avg-value-size-in-bytes": 8
+        }
+
     ValueMap:
       type: object
       properties:
@@ -5545,6 +5559,11 @@ components:
           description: "List of splittable offsets"
         sort-order-id:
           type: integer
+        content-stats:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/FieldStatistics'
+          description: Container struct for per-field metrics structs
 
     DataFile:
       allOf:
