@@ -20,6 +20,7 @@ package org.apache.iceberg.flink.source;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.logical.RowType;
@@ -28,6 +29,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.data.DeleteFilter;
 import org.apache.iceberg.encryption.InputFilesDecryptor;
+import org.apache.iceberg.expressions.Binder;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
@@ -41,6 +43,8 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.mapping.NameMappingParser;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.PartitionUtil;
 
 @Internal
@@ -48,6 +52,7 @@ public class RowDataFileScanTaskReader implements FileScanTaskReader<RowData> {
 
   private final Schema tableSchema;
   private final Schema projectedSchema;
+  private final Schema filterReadSchema;
   private final String nameMapping;
   private final boolean caseSensitive;
   private final FlinkSourceFilter rowFilter;
@@ -64,10 +69,12 @@ public class RowDataFileScanTaskReader implements FileScanTaskReader<RowData> {
     this.caseSensitive = caseSensitive;
 
     if (filters != null && !filters.isEmpty()) {
+      this.filterReadSchema = filterReadSchema(projectedSchema, filters);
       Expression combinedExpression =
           filters.stream().reduce(Expressions.alwaysTrue(), Expressions::and);
-      this.rowFilter = new FlinkSourceFilter(projectedSchema, combinedExpression, caseSensitive);
+      this.rowFilter = new FlinkSourceFilter(filterReadSchema, combinedExpression, caseSensitive);
     } else {
+      this.filterReadSchema = projectedSchema;
       this.rowFilter = null;
     }
   }
@@ -77,12 +84,13 @@ public class RowDataFileScanTaskReader implements FileScanTaskReader<RowData> {
       FileScanTask task, InputFilesDecryptor inputFilesDecryptor) {
     Map<Integer, ?> idToConstant = PartitionUtil.constantsMap(task, RowDataUtil::convertConstant);
     FlinkDeleteFilter deletes =
-        new FlinkDeleteFilter(task, tableSchema, projectedSchema, inputFilesDecryptor);
+        new FlinkDeleteFilter(task, tableSchema, filterReadSchema, inputFilesDecryptor);
     CloseableIterable<RowData> iterable =
         deletes.filter(
             newIterable(task, deletes.requiredSchema(), idToConstant, inputFilesDecryptor));
 
-    // Project the RowData to remove the extra meta columns.
+    // Project the RowData to remove the extra columns that are only needed for filtering or
+    // deletes (the row filter runs against the wider required schema before this projection).
     if (!projectedSchema.sameSchema(deletes.requiredSchema())) {
       RowDataProjection rowDataProjection =
           RowDataProjection.create(
@@ -127,6 +135,19 @@ public class RowDataFileScanTaskReader implements FileScanTaskReader<RowData> {
       return CloseableIterable.filter(iter, rowFilter::filter);
     }
     return iter;
+  }
+
+  private Schema filterReadSchema(Schema projected, List<Expression> filters) {
+    Set<Integer> filterFieldIds =
+        Binder.boundReferences(tableSchema.asStruct(), filters, caseSensitive);
+    Set<Integer> projectedIds = TypeUtil.getProjectedIds(projected);
+    if (projectedIds.containsAll(filterFieldIds)) {
+      return projected;
+    }
+
+    Set<Integer> requiredIds = Sets.newHashSet(projectedIds);
+    requiredIds.addAll(filterFieldIds);
+    return TypeUtil.select(tableSchema, requiredIds);
   }
 
   private static class FlinkDeleteFilter extends DeleteFilter<RowData> {
