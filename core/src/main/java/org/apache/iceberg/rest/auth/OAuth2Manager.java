@@ -160,7 +160,8 @@ public class OAuth2Manager implements AuthManager {
   @Override
   public AuthSession tableSession(RESTClient sharedClient, Map<String, String> properties) {
     AuthConfig config = AuthConfig.fromProperties(properties);
-    Map<String, String> headers = OAuth2Util.authHeaders(config.token());
+    Map<String, String> headers =
+        RESTUtil.merge(RESTUtil.configHeaders(properties), OAuth2Util.authHeaders(config.token()));
     OAuth2Util.AuthSession parent = new OAuth2Util.AuthSession(headers, config);
 
     keepRefreshed = config.keepRefreshed();
