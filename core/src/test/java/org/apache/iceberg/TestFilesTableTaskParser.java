@@ -38,19 +38,19 @@ public class TestFilesTableTaskParser {
   @Test
   public void nullCheck() throws Exception {
     StringWriter writer = new StringWriter();
-    JsonGenerator generator = JsonUtil.factory().createGenerator(writer);
+    try (JsonGenerator generator = JsonUtil.factory().createGenerator(writer)) {
+      assertThatThrownBy(() -> FilesTableTaskParser.toJson(null, generator))
+          .isInstanceOf(IllegalArgumentException.class)
+          .hasMessage("Invalid files task: null");
 
-    assertThatThrownBy(() -> FilesTableTaskParser.toJson(null, generator))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid files task: null");
+      assertThatThrownBy(() -> FilesTableTaskParser.toJson(createTask(), null))
+          .isInstanceOf(IllegalArgumentException.class)
+          .hasMessage("Invalid JSON generator: null");
 
-    assertThatThrownBy(() -> FilesTableTaskParser.toJson(createTask(), null))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid JSON generator: null");
-
-    assertThatThrownBy(() -> FilesTableTaskParser.fromJson(null))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid JSON node for files task: null");
+      assertThatThrownBy(() -> FilesTableTaskParser.fromJson(null))
+          .isInstanceOf(IllegalArgumentException.class)
+          .hasMessage("Invalid JSON node for files task: null");
+    }
   }
 
   @Test

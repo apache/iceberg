@@ -121,15 +121,6 @@ if (flinkVersions.contains("1.20")) {
   project(":iceberg-flink:flink-runtime-1.20").name = "iceberg-flink-runtime-1.20"
 }
 
-if (flinkVersions.contains("2.0")) {
-  include ":iceberg-flink:flink-2.0"
-  include ":iceberg-flink:flink-runtime-2.0"
-  project(":iceberg-flink:flink-2.0").projectDir = file('flink/v2.0/flink')
-  project(":iceberg-flink:flink-2.0").name = "iceberg-flink-2.0"
-  project(":iceberg-flink:flink-runtime-2.0").projectDir = file('flink/v2.0/flink-runtime')
-  project(":iceberg-flink:flink-runtime-2.0").name = "iceberg-flink-runtime-2.0"
-}
-
 if (flinkVersions.contains("2.1")) {
   include ":iceberg-flink:flink-2.1"
   include ":iceberg-flink:flink-runtime-2.1"
@@ -137,6 +128,24 @@ if (flinkVersions.contains("2.1")) {
   project(":iceberg-flink:flink-2.1").name = "iceberg-flink-2.1"
   project(":iceberg-flink:flink-runtime-2.1").projectDir = file('flink/v2.1/flink-runtime')
   project(":iceberg-flink:flink-runtime-2.1").name = "iceberg-flink-runtime-2.1"
+}
+
+if (flinkVersions.contains("2.2")) {
+  include ":iceberg-flink:flink-2.2"
+  include ":iceberg-flink:flink-runtime-2.2"
+  project(":iceberg-flink:flink-2.2").projectDir = file('flink/v2.2/flink')
+  project(":iceberg-flink:flink-2.2").name = "iceberg-flink-2.2"
+  project(":iceberg-flink:flink-runtime-2.2").projectDir = file('flink/v2.2/flink-runtime')
+  project(":iceberg-flink:flink-runtime-2.2").name = "iceberg-flink-runtime-2.2"
+}
+
+if (flinkVersions.contains("2.3")) {
+  include ":iceberg-flink:flink-2.3"
+  include ":iceberg-flink:flink-runtime-2.3"
+  project(":iceberg-flink:flink-2.3").projectDir = file('flink/v2.3/flink')
+  project(":iceberg-flink:flink-2.3").name = "iceberg-flink-2.3"
+  project(":iceberg-flink:flink-runtime-2.3").projectDir = file('flink/v2.3/flink-runtime')
+  project(":iceberg-flink:flink-runtime-2.3").name = "iceberg-flink-runtime-2.3"
 }
 
 if (sparkVersions.contains("3.5")) {
@@ -164,15 +173,27 @@ if (sparkVersions.contains("4.0")) {
 }
 
 if (sparkVersions.contains("4.1")) {
-    include ":iceberg-spark:spark-4.1_2.13"
-    include ":iceberg-spark:spark-extensions-4.1_2.13"
-    include ":iceberg-spark:spark-runtime-4.1_2.13"
-    project(":iceberg-spark:spark-4.1_2.13").projectDir = file('spark/v4.1/spark')
-    project(":iceberg-spark:spark-4.1_2.13").name = "iceberg-spark-4.1_2.13"
-    project(":iceberg-spark:spark-extensions-4.1_2.13").projectDir = file('spark/v4.1/spark-extensions')
-    project(":iceberg-spark:spark-extensions-4.1_2.13").name = "iceberg-spark-extensions-4.1_2.13"
-    project(":iceberg-spark:spark-runtime-4.1_2.13").projectDir = file('spark/v4.1/spark-runtime')
-    project(":iceberg-spark:spark-runtime-4.1_2.13").name = "iceberg-spark-runtime-4.1_2.13"
+  include ":iceberg-spark:spark-4.1_2.13"
+  include ":iceberg-spark:spark-extensions-4.1_2.13"
+  include ":iceberg-spark:spark-runtime-4.1_2.13"
+  project(":iceberg-spark:spark-4.1_2.13").projectDir = file('spark/v4.1/spark')
+  project(":iceberg-spark:spark-4.1_2.13").name = "iceberg-spark-4.1_2.13"
+  project(":iceberg-spark:spark-extensions-4.1_2.13").projectDir = file('spark/v4.1/spark-extensions')
+  project(":iceberg-spark:spark-extensions-4.1_2.13").name = "iceberg-spark-extensions-4.1_2.13"
+  project(":iceberg-spark:spark-runtime-4.1_2.13").projectDir = file('spark/v4.1/spark-runtime')
+  project(":iceberg-spark:spark-runtime-4.1_2.13").name = "iceberg-spark-runtime-4.1_2.13"
+}
+
+if (sparkVersions.contains("4.2")) {
+  include ":iceberg-spark:spark-4.2_2.13"
+  include ":iceberg-spark:spark-extensions-4.2_2.13"
+  include ":iceberg-spark:spark-runtime-4.2_2.13"
+  project(":iceberg-spark:spark-4.2_2.13").projectDir = file('spark/v4.2/spark')
+  project(":iceberg-spark:spark-4.2_2.13").name = "iceberg-spark-4.2_2.13"
+  project(":iceberg-spark:spark-extensions-4.2_2.13").projectDir = file('spark/v4.2/spark-extensions')
+  project(":iceberg-spark:spark-extensions-4.2_2.13").name = "iceberg-spark-extensions-4.2_2.13"
+  project(":iceberg-spark:spark-runtime-4.2_2.13").projectDir = file('spark/v4.2/spark-runtime')
+  project(":iceberg-spark:spark-runtime-4.2_2.13").name = "iceberg-spark-runtime-4.2_2.13"
 }
 
 if (kafkaVersions.contains("3")) {

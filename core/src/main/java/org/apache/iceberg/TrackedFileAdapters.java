@@ -197,6 +197,11 @@ class TrackedFileAdapters {
     }
 
     @Override
+    public Map<Integer, Integer> avgValueSizes() {
+      return ContentStatsBackedMap.avgValueSizes(file().contentStats());
+    }
+
+    @Override
     public Map<Integer, ByteBuffer> lowerBounds() {
       return ContentStatsBackedMap.lowerBounds(file().contentStats());
     }
@@ -221,6 +226,11 @@ class TrackedFileAdapters {
     @Override
     public Long firstRowId() {
       return tracking() != null ? tracking().firstRowId() : null;
+    }
+
+    @Override
+    public DeletionVector deletionVector() {
+      return file().deletionVector();
     }
 
     @Override

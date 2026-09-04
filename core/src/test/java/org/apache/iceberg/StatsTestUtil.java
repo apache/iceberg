@@ -187,6 +187,19 @@ class StatsTestUtil {
       Long valueCount,
       Long nullCount,
       Long nanCount) {
+    return mockFieldStats(type, id, lower, upper, valueCount, nullCount, nanCount, null);
+  }
+
+  @SuppressWarnings("unchecked")
+  static FieldStats<Object> mockFieldStats(
+      Types.StructType type,
+      int id,
+      Object lower,
+      Object upper,
+      Long valueCount,
+      Long nullCount,
+      Long nanCount,
+      Integer avgValueSize) {
     FieldStats<Object> stats = Mockito.mock(FieldStats.class);
     Mockito.when(stats.fieldId()).thenReturn(id);
     Mockito.when(stats.type()).thenReturn(type);
@@ -206,6 +219,12 @@ class StatsTestUtil {
     if (nanCount != null) {
       Mockito.when(stats.nanValueCount()).thenReturn(nanCount);
     }
+
+    // stub unconditionally: unlike the counts, avgValueSizeInBytes has no has*() gate, so
+    // ContentStatsBackedMap treats avgValueSizeInBytes() != null as the presence check. A Mockito
+    // mock defaults this method to 0, not null, so an absent stat must be stubbed to null here or
+    // it reads back as present with 0.
+    Mockito.when(stats.avgValueSizeInBytes()).thenReturn(avgValueSize);
 
     return stats;
   }

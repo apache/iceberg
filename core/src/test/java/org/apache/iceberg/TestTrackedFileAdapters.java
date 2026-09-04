@@ -21,6 +21,8 @@ package org.apache.iceberg;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import java.nio.ByteBuffer;
 import java.util.Map;
@@ -69,21 +71,27 @@ class TestTrackedFileAdapters {
 
   private static final Schema TABLE_SCHEMA =
       new Schema(
-          optional(1, "id", Types.IntegerType.get()), optional(2, "score", Types.FloatType.get()));
+          optional(1, "id", Types.IntegerType.get()),
+          optional(2, "score", Types.FloatType.get()),
+          optional(3, "geom", Types.GeometryType.crs84()));
   private static final Types.StructType CONTENT_STATS_TYPE =
-      StatsUtil.statsReadSchema(TABLE_SCHEMA, ImmutableList.of(1, 2));
+      StatsUtil.statsReadSchema(TABLE_SCHEMA, ImmutableList.of(1, 2, 3));
   private static final FieldStats<?> ID_STATS =
       StatsTestUtil.mockFieldStats(
           CONTENT_STATS_TYPE.fieldType("id").asStructType(), 1, 1, 1000, 100L, 5L, null);
   private static final FieldStats<?> SCORE_STATS =
       StatsTestUtil.mockFieldStats(
           CONTENT_STATS_TYPE.fieldType("score").asStructType(), 2, 1.0f, 100.0f, 100L, 10L, 3L);
+  private static final FieldStats<?> GEOM_STATS =
+      StatsTestUtil.mockFieldStats(
+          CONTENT_STATS_TYPE.fieldType("geom").asStructType(), 3, null, null, 100L, 20L, null, 12);
   private static final ContentStatsStruct CONTENT_STATS =
       new ContentStatsStruct(CONTENT_STATS_TYPE);
 
   static {
     CONTENT_STATS.setStats(1, ID_STATS);
     CONTENT_STATS.setStats(2, SCORE_STATS);
+    CONTENT_STATS.setStats(3, GEOM_STATS);
   }
 
   private static final Tracking MANIFEST_TRACKING =
@@ -132,6 +140,7 @@ class TestTrackedFileAdapters {
     tracking.setManifestLocation(MANIFEST_LOCATION);
     tracking.set(MANIFEST_POS_ORDINAL, MANIFEST_POS);
 
+    DeletionVector dv = mock(DeletionVector.class);
     TrackedFile file =
         new TrackedFileStruct(
             tracking,
@@ -145,7 +154,7 @@ class TestTrackedFileAdapters {
             PARTITION,
             CONTENT_STATS,
             3,
-            null,
+            dv,
             null,
             ByteBuffer.wrap(new byte[] {1, 2, 3}),
             ImmutableList.of(50L, 100L),
@@ -168,11 +177,15 @@ class TestTrackedFileAdapters {
     assertThat(dataFile.keyMetadata()).isEqualTo(ByteBuffer.wrap(new byte[] {1, 2, 3}));
     assertThat(dataFile.splitOffsets()).containsExactly(50L, 100L);
     assertThat(dataFile.manifestLocation()).isEqualTo(MANIFEST_LOCATION);
+    assertThat(dataFile.deletionVector()).isSameAs(dv);
     assertThat(dataFile.equalityFieldIds()).isNull();
     assertThat(dataFile.columnSizes()).isNull();
-    assertThat(dataFile.valueCounts()).containsOnly(Map.entry(1, 100L), Map.entry(2, 100L));
-    assertThat(dataFile.nullValueCounts()).containsOnly(Map.entry(1, 5L), Map.entry(2, 10L));
+    assertThat(dataFile.valueCounts())
+        .containsOnly(Map.entry(1, 100L), Map.entry(2, 100L), Map.entry(3, 100L));
+    assertThat(dataFile.nullValueCounts())
+        .containsOnly(Map.entry(1, 5L), Map.entry(2, 10L), Map.entry(3, 20L));
     assertThat(dataFile.nanValueCounts()).containsOnly(Map.entry(2, 3L));
+    assertThat(dataFile.avgValueSizes()).containsOnly(Map.entry(3, 12));
     assertThat(dataFile.lowerBounds())
         .containsOnly(
             Map.entry(1, Conversions.toByteBuffer(Types.IntegerType.get(), 1)),
@@ -247,9 +260,12 @@ class TestTrackedFileAdapters {
     assertThat(deleteFile.manifestLocation()).isEqualTo(MANIFEST_LOCATION);
     assertThat(deleteFile.equalityFieldIds()).containsExactly(1, 2, 3);
     assertThat(deleteFile.columnSizes()).isNull();
-    assertThat(deleteFile.valueCounts()).containsOnly(Map.entry(1, 100L), Map.entry(2, 100L));
-    assertThat(deleteFile.nullValueCounts()).containsOnly(Map.entry(1, 5L), Map.entry(2, 10L));
+    assertThat(deleteFile.valueCounts())
+        .containsOnly(Map.entry(1, 100L), Map.entry(2, 100L), Map.entry(3, 100L));
+    assertThat(deleteFile.nullValueCounts())
+        .containsOnly(Map.entry(1, 5L), Map.entry(2, 10L), Map.entry(3, 20L));
     assertThat(deleteFile.nanValueCounts()).containsOnly(Map.entry(2, 3L));
+    assertThat(deleteFile.avgValueSizes()).containsOnly(Map.entry(3, 12));
     assertThat(deleteFile.lowerBounds())
         .containsOnly(
             Map.entry(1, Conversions.toByteBuffer(Types.IntegerType.get(), 1)),
@@ -443,6 +459,16 @@ class TestTrackedFileAdapters {
     assertThatThrownBy(() -> TrackedFileAdapters.asManifestFile(file))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid content type for ManifestFile: %s", contentType);
+  }
+
+  @Test
+  void dataFileWithoutDeletionVectorReturnsNull() {
+    TrackedFile fileWithoutDv = mock(TrackedFile.class);
+    when(fileWithoutDv.contentType()).thenReturn(FileContent.DATA);
+    when(fileWithoutDv.deletionVector()).thenReturn(null);
+
+    assertThat(TrackedFileAdapters.asDataFile(fileWithoutDv, UNPARTITIONED).deletionVector())
+        .isNull();
   }
 
   @Test
