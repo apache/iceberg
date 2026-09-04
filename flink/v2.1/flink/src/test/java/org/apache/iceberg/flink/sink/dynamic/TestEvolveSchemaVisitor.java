@@ -104,6 +104,30 @@ public class TestEvolveSchemaVisitor {
   }
 
   @Test
+  public void testAddTopLevelVariant() {
+    Schema targetSchema =
+        new Schema(
+            optional(1, "id", Types.IntegerType.get()),
+            optional(2, "payload", Types.VariantType.get()));
+    UpdateSchema updateApi = loadUpdateApi(new Schema());
+    EvolveSchemaVisitor.visit(
+        TABLE, updateApi, new Schema(), targetSchema, CASE_SENSITIVE, PRESERVE_COLUMNS);
+    assertThat(targetSchema.asStruct()).isEqualTo(updateApi.apply().asStruct());
+  }
+
+  @Test
+  public void testExistingVariantFieldIsUnchanged() {
+    Schema existingSchema =
+        new Schema(
+            optional(1, "id", Types.IntegerType.get()),
+            optional(2, "payload", Types.VariantType.get()));
+    UpdateSchema updateApi = loadUpdateApi(existingSchema);
+    EvolveSchemaVisitor.visit(
+        TABLE, updateApi, existingSchema, existingSchema, CASE_SENSITIVE, PRESERVE_COLUMNS);
+    assertThat(existingSchema.asStruct()).isEqualTo(updateApi.apply().asStruct());
+  }
+
+  @Test
   public void testMakeTopLevelPrimitivesOptional() {
     Schema existingSchema = new Schema(primitiveFields(0, primitiveTypes(), false));
     assertThat(existingSchema.columns().stream().allMatch(Types.NestedField::isRequired)).isTrue();
