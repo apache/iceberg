@@ -5545,6 +5545,14 @@ components:
           description: "List of splittable offsets"
         sort-order-id:
           type: integer
+        data-sequence-number:
+          type: integer
+          format: int64
+          description: The data sequence number of the file
+        file-sequence-number:
+          type: integer
+          format: int64
+          description: The file sequence number of the file
 
     DataFile:
       allOf:
