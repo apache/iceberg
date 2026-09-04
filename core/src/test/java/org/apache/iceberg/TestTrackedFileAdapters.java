@@ -21,6 +21,8 @@ package org.apache.iceberg;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import java.nio.ByteBuffer;
 import java.util.Map;
@@ -98,7 +100,7 @@ class TestTrackedFileAdapters {
     tracking.setManifestLocation(MANIFEST_LOCATION);
     tracking.set(MANIFEST_POS_ORDINAL, MANIFEST_POS);
 
-    DeletionVector dv = deletionVector();
+    DeletionVector dv = mock(DeletionVector.class);
     TrackedFile file =
         new TrackedFileStruct(
             tracking,
@@ -338,10 +340,12 @@ class TestTrackedFileAdapters {
 
   @Test
   void dataFileWithoutDeletionVectorReturnsNull() {
-    DataFile dataFile =
-        TrackedFileAdapters.asDataFile(dummyTrackedFile(FileContent.DATA), UNPARTITIONED);
+    TrackedFile fileWithoutDv = mock(TrackedFile.class);
+    when(fileWithoutDv.contentType()).thenReturn(FileContent.DATA);
+    when(fileWithoutDv.deletionVector()).thenReturn(null);
 
-    assertThat(dataFile.deletionVector()).isNull();
+    assertThat(TrackedFileAdapters.asDataFile(fileWithoutDv, UNPARTITIONED).deletionVector())
+        .isNull();
   }
 
   @Test
