@@ -127,11 +127,15 @@ public class TestGCSInputStream {
     try (SeekableInputStream in =
         new GCSInputStream(storage, uri, null, gcpProperties, MetricsContext.nullMetrics())) {
       byte[] buffer = new byte[4];
-      assertThatThrownBy(() -> in.read(buffer, 2, 3)).isInstanceOf(IndexOutOfBoundsException.class);
+      assertThatThrownBy(() -> in.read(buffer, 2, 3))
+          .isInstanceOf(IndexOutOfBoundsException.class)
+          .hasMessageContaining("end index (5)");
       assertThatThrownBy(() -> in.read(buffer, -1, 1))
-          .isInstanceOf(IndexOutOfBoundsException.class);
+          .isInstanceOf(IndexOutOfBoundsException.class)
+          .hasMessageContaining("start index (-1)");
       assertThatThrownBy(() -> in.read(buffer, 0, -1))
-          .isInstanceOf(IndexOutOfBoundsException.class);
+          .isInstanceOf(IndexOutOfBoundsException.class)
+          .hasMessageContaining("end index (-1)");
     }
   }
 
