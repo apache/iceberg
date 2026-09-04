@@ -220,6 +220,11 @@ class TrackedFileAdapters {
     }
 
     @Override
+    public DeletionVector deletionVector() {
+      return file().deletionVector();
+    }
+
+    @Override
     public DataFile copy() {
       return new TrackedDataFile(file().copy(), spec());
     }

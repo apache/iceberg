@@ -27,7 +27,7 @@ import org.apache.iceberg.types.Types;
  * <p>Tracks where a DV blob can be read. The DV blob follows the format defined by the
  * deletion-vector-v1 blob type in the Puffin spec.
  */
-interface DeletionVector {
+public interface DeletionVector {
   Types.NestedField LOCATION =
       Types.NestedField.required(
           155, "location", Types.StringType.get(), "Location of the file containing the DV");
