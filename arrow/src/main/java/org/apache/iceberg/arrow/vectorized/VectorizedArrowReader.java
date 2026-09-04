@@ -20,6 +20,7 @@ package org.apache.iceberg.arrow.vectorized;
 
 import java.util.Map;
 import java.util.Optional;
+import java.util.PrimitiveIterator;
 import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.BigIntVector;
@@ -675,6 +676,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
         ArrowSchemaUtil.convert(MetadataColumns.ROW_POSITION);
     private final boolean setArrowValidityVector;
     private long rowStart;
+    private PrimitiveIterator.OfLong rowIndexes;
     private int batchSize;
     private NullabilityHolder nulls;
 
@@ -694,8 +696,17 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
       }
 
       ArrowBuf dataBuffer = vec.getDataBuffer();
-      for (int i = 0; i < numValsToRead; i += 1) {
-        dataBuffer.setLong((long) i * Long.BYTES, rowStart + i);
+
+      if (rowIndexes != null) {
+        for (int i = 0; i < numValsToRead; i += 1) {
+          dataBuffer.setLong((long) i * Long.BYTES, rowStart + rowIndexes.nextLong());
+        }
+      } else {
+        for (int i = 0; i < numValsToRead; i += 1) {
+          dataBuffer.setLong((long) i * Long.BYTES, rowStart + i);
+        }
+
+        rowStart += numValsToRead;
       }
 
       if (setArrowValidityVector) {
@@ -705,7 +716,6 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
         }
       }
 
-      rowStart += numValsToRead;
       vec.setValueCount(numValsToRead);
 
       return new VectorHolder.PositionVectorHolder(vec, MetadataColumns.ROW_POSITION, nulls);
@@ -728,6 +738,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
                   () ->
                       new IllegalArgumentException(
                           "PageReadStore does not contain row index offset"));
+      this.rowIndexes = source.getRowIndexes().orElse(null);
     }
 
     @Override
