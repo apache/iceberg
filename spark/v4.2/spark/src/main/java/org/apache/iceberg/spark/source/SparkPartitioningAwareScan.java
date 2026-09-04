@@ -34,6 +34,7 @@ import org.apache.iceberg.Scan;
 import org.apache.iceberg.ScanTask;
 import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expression;
@@ -46,9 +47,13 @@ import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.StructLikeSet;
+import org.apache.iceberg.util.StructProjection;
 import org.apache.iceberg.util.TableScanUtil;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.connector.expressions.NamedReference;
+import org.apache.spark.sql.connector.expressions.PartitionFieldReference;
 import org.apache.spark.sql.connector.expressions.Transform;
+import org.apache.spark.sql.connector.expressions.filter.PartitionPredicate;
 import org.apache.spark.sql.connector.read.SupportsReportPartitioning;
 import org.apache.spark.sql.connector.read.partitioning.KeyGroupedPartitioning;
 import org.apache.spark.sql.connector.read.partitioning.Partitioning;
@@ -63,6 +68,9 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
 
   private final Scan<?, ? extends ScanTask, ? extends ScanTaskGroup<?>> scan;
   private final boolean preserveDataGrouping;
+  private final List<PartitionPredicate> partitionPredicates;
+  private final List<PartitionField> partitionPredicateFields;
+  private final StructType partitionPredicateType;
 
   private Set<PartitionSpec> specs = null; // lazy cache of scanned specs
   private List<T> tasks = null; // lazy cache of uncombined tasks
@@ -78,6 +86,7 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
       SparkReadConf readConf,
       Schema projection,
       List<Expression> filters,
+      List<PartitionPredicate> partitionPredicates,
       Supplier<ScanReport> scanReportSupplier) {
     super(
         spark,
@@ -91,6 +100,9 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
 
     this.scan = scan;
     this.preserveDataGrouping = readConf.preserveDataGrouping();
+    this.partitionPredicates = Lists.newArrayList(partitionPredicates);
+    this.partitionPredicateFields = activePartitionFields(table.spec());
+    this.partitionPredicateType = activePartitionType(table.spec());
 
     if (scan == null) {
       this.specs = Collections.emptySet();
@@ -181,6 +193,8 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
     if (tasks == null) {
       try (CloseableIterable<? extends ScanTask> taskIterable = scan.planFiles()) {
         List<T> plannedTasks = Lists.newArrayList();
+        Map<Integer, PartitionPredicateEvaluator> evaluatorsBySpecId = Maps.newHashMap();
+        int numPlannedTasks = 0;
 
         for (ScanTask task : taskIterable) {
           ValidationException.check(
@@ -189,10 +203,25 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
               taskJavaClass().getName(),
               task.getClass().getName());
 
-          plannedTasks.add(taskJavaClass().cast(task));
+          T partitionTask = taskJavaClass().cast(task);
+          numPlannedTasks += 1;
+
+          if (partitionPredicates.isEmpty()
+              || matchesPartitionPredicates(partitionTask, evaluatorsBySpecId)) {
+            plannedTasks.add(partitionTask);
+          }
         }
 
         this.tasks = plannedTasks;
+
+        if (plannedTasks.size() < numPlannedTasks) {
+          LOG.info(
+              "{} of {} task(s) for table {} matched {} opaque Spark partition predicate(s)",
+              plannedTasks.size(),
+              numPlannedTasks,
+              table().name(),
+              partitionPredicates.size());
+        }
       } catch (IOException e) {
         throw new UncheckedIOException("Failed to close scan: " + scan, e);
       }
@@ -229,7 +258,8 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
         StructLikeSet plannedGroupingKeys = collectGroupingKeys(plannedTaskGroups);
 
         LOG.debug(
-            "Planned {} task group(s) with {} grouping key type and {} unique grouping key(s) for table {}",
+            "Planned {} task group(s) with {} grouping key type and {} unique grouping key(s) for"
+                + " table {}",
             plannedTaskGroups.size(),
             groupingKeyType(),
             plannedGroupingKeys.size(),
@@ -263,5 +293,99 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
     return groupingKeyType().fields().stream()
         .map(NestedField::name)
         .collect(Collectors.joining(", "));
+  }
+
+  protected List<PartitionPredicate> partitionPredicates() {
+    return partitionPredicates;
+  }
+
+  private boolean matchesPartitionPredicates(
+      T task, Map<Integer, PartitionPredicateEvaluator> evaluatorsBySpecId) {
+    PartitionPredicateEvaluator evaluator =
+        evaluatorsBySpecId.computeIfAbsent(
+            task.spec().specId(), ignored -> new PartitionPredicateEvaluator(task.spec()));
+    return evaluator.eval(task.partition());
+  }
+
+  private List<PartitionField> activePartitionFields(PartitionSpec spec) {
+    return spec.fields().stream()
+        .filter(field -> !field.transform().isVoid())
+        .collect(Collectors.toList());
+  }
+
+  private StructType activePartitionType(PartitionSpec spec) {
+    List<NestedField> activeFields = Lists.newArrayList();
+    List<NestedField> partitionTypeFields = spec.partitionType().fields();
+
+    for (int pos = 0; pos < spec.fields().size(); pos += 1) {
+      if (!spec.fields().get(pos).transform().isVoid()) {
+        activeFields.add(partitionTypeFields.get(pos));
+      }
+    }
+
+    return StructType.of(activeFields);
+  }
+
+  private class PartitionPredicateEvaluator {
+    private final StructProjection partitionProjection;
+    private final StructInternalRow partitionKey;
+    private final boolean[] evaluablePredicates;
+
+    private PartitionPredicateEvaluator(PartitionSpec spec) {
+      this.partitionProjection =
+          StructProjection.createAllowMissing(spec.partitionType(), partitionPredicateType);
+      this.partitionKey = new StructInternalRow(partitionPredicateType);
+      this.evaluablePredicates = findEvaluablePredicates(spec);
+    }
+
+    private boolean eval(StructLike partition) {
+      partitionKey.setStruct(partitionProjection.wrap(partition));
+
+      for (int pos = 0; pos < partitionPredicates.size(); pos += 1) {
+        if (evaluablePredicates[pos] && !partitionPredicates.get(pos).eval(partitionKey)) {
+          return false;
+        }
+      }
+
+      return true;
+    }
+
+    private boolean[] findEvaluablePredicates(PartitionSpec spec) {
+      Map<Integer, PartitionField> fieldsById = Maps.newHashMap();
+      for (PartitionField field : spec.fields()) {
+        if (!field.transform().isVoid()) {
+          fieldsById.put(field.fieldId(), field);
+        }
+      }
+
+      boolean[] result = new boolean[partitionPredicates.size()];
+      for (int pos = 0; pos < partitionPredicates.size(); pos += 1) {
+        result[pos] = canEvaluatePredicate(partitionPredicates.get(pos), fieldsById);
+      }
+
+      return result;
+    }
+
+    private boolean canEvaluatePredicate(
+        PartitionPredicate predicate, Map<Integer, PartitionField> fieldsById) {
+      for (NamedReference reference : predicate.references()) {
+        if (!(reference instanceof PartitionFieldReference partitionReference)) {
+          return false;
+        }
+
+        int ordinal = partitionReference.ordinal();
+        if (ordinal < 0 || ordinal >= partitionPredicateFields.size()) {
+          return false;
+        }
+
+        PartitionField currentField = partitionPredicateFields.get(ordinal);
+        PartitionField specField = fieldsById.get(currentField.fieldId());
+        if (specField == null || !specField.transform().equals(currentField.transform())) {
+          return false;
+        }
+      }
+
+      return true;
+    }
   }
 }

@@ -44,6 +44,7 @@ import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.TypeUtil.GetID;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.connector.expressions.filter.PartitionPredicate;
 import org.apache.spark.sql.connector.expressions.filter.Predicate;
 import org.apache.spark.sql.connector.read.ScanBuilder;
 import org.apache.spark.sql.types.StructField;
@@ -62,8 +63,6 @@ import org.slf4j.LoggerFactory;
 abstract class BaseSparkScanBuilder implements ScanBuilder {
 
   private static final Logger LOG = LoggerFactory.getLogger(BaseSparkScanBuilder.class);
-  private static final Predicate[] NO_PREDICATES = new Predicate[0];
-
   private final SparkSession spark;
   private final Table table;
   private final Schema schema;
@@ -71,10 +70,11 @@ abstract class BaseSparkScanBuilder implements ScanBuilder {
   private final boolean caseSensitive;
   private final Set<String> metaFieldNames = Sets.newLinkedHashSet();
   private final InMemoryMetricsReporter metricsReporter = new InMemoryMetricsReporter();
+  private final List<PartitionPredicate> partitionPredicates = Lists.newArrayList();
+  private final List<Predicate> pushedPredicates = Lists.newArrayList();
 
   private Schema projection;
   private List<Expression> filters = Lists.newArrayList();
-  private Predicate[] pushedPredicates = NO_PREDICATES;
   private Integer limit = null;
 
   protected BaseSparkScanBuilder(
@@ -119,6 +119,10 @@ abstract class BaseSparkScanBuilder implements ScanBuilder {
     return filters.stream().reduce(Expressions.alwaysTrue(), Expressions::and);
   }
 
+  protected List<PartitionPredicate> partitionPredicates() {
+    return partitionPredicates;
+  }
+
   protected InMemoryMetricsReporter metricsReporter() {
     return metricsReporter;
   }
@@ -156,6 +160,16 @@ abstract class BaseSparkScanBuilder implements ScanBuilder {
     List<Predicate> postScanPredicates = Lists.newArrayListWithExpectedSize(predicates.length);
 
     for (Predicate predicate : predicates) {
+      if (predicate instanceof PartitionPredicate partitionPredicate) {
+        partitionPredicates.add(partitionPredicate);
+        pushablePredicates.add(predicate);
+
+        // TODO: Currently, all partition predicates are returned to Spark for re-evaluation.
+        // Optimize by returning only predicates that cannot be evaluated against all scanned specs.
+        postScanPredicates.add(predicate);
+        continue;
+      }
+
       try {
         Expression expr = SparkV2Filters.convert(predicate);
 
@@ -178,15 +192,15 @@ abstract class BaseSparkScanBuilder implements ScanBuilder {
       }
     }
 
-    this.filters = expressions;
-    this.pushedPredicates = pushablePredicates.toArray(new Predicate[0]);
+    this.filters.addAll(expressions);
+    this.pushedPredicates.addAll(pushablePredicates);
 
     return postScanPredicates.toArray(new Predicate[0]);
   }
 
   // logic necessary for SupportsPushDownV2Filters
   public Predicate[] pushedPredicates() {
-    return pushedPredicates;
+    return pushedPredicates.toArray(new Predicate[0]);
   }
 
   // logic necessary for SupportsPushDownLimit

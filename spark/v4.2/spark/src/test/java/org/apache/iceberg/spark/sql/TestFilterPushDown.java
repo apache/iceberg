@@ -28,11 +28,13 @@ import java.nio.ByteOrder;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
+import java.util.Locale;
 import org.apache.iceberg.Parameter;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PlanningMode;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.spark.SparkCatalogConfig;
@@ -43,10 +45,13 @@ import org.apache.iceberg.variants.ShreddedObject;
 import org.apache.iceberg.variants.VariantMetadata;
 import org.apache.iceberg.variants.Variants;
 import org.apache.spark.sql.execution.SparkPlan;
+import org.apache.spark.sql.execution.datasources.v2.BatchScanExec;
+import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.unsafe.types.VariantVal;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
+import scala.collection.JavaConverters;
 
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestFilterPushDown extends TestBaseWithCatalog {
@@ -93,7 +98,8 @@ public class TestFilterPushDown extends TestBaseWithCatalog {
     checkFilters(
         "dep = 'd1' AND salary > 100.03" /* query predicate */,
         "isnotnull(salary) AND (salary > 100.03)" /* Spark post scan filter */,
-        "dep IS NOT NULL, salary IS NOT NULL, dep = 'd1', salary > 100.03" /* Iceberg scan filters */,
+        "dep IS NOT NULL, salary IS NOT NULL, dep = 'd1', salary >"
+            + " 100.03" /* Iceberg scan filters */,
         ImmutableList.of(row(2, new BigDecimal("100.05"), "d1")));
   }
 
@@ -207,6 +213,127 @@ public class TestFilterPushDown extends TestBaseWithCatalog {
         "EndsWith(dep, d5) AND id IN (1,5)" /* Spark post scan filter */,
         "dep IS NOT NULL, id IN (1, 5)" /* Iceberg scan filters */,
         ImmutableList.of(row(5, 500, "d5")));
+  }
+
+  @TestTemplate
+  public void partitionPredicatePushdownWithUDF() {
+    sql("CREATE TABLE %s (id INT, dep STRING) USING iceberg PARTITIONED BY (dep)", tableName);
+    configurePlanningMode(planningMode);
+
+    setSmallSplitSize();
+    sql("INSERT INTO %s VALUES (1, 'd1')", tableName);
+    sql("INSERT INTO %s VALUES (2, 'd2')", tableName);
+    sql("INSERT INTO %s VALUES (3, 'd3')", tableName);
+
+    spark
+        .udf()
+        .register(
+            "is_d2", (String value) -> value != null && value.equals("d2"), DataTypes.BooleanType);
+
+    SparkPlan plan =
+        executeAndKeepPlan(
+            () ->
+                assertEquals(
+                    "Rows must match",
+                    ImmutableList.of(row(2, "d2")),
+                    sql("SELECT * FROM %s WHERE is_d2(dep)", tableName)));
+
+    assertInputPartitions(plan, 1);
+  }
+
+  @TestTemplate
+  public void partitionPredicatePushdownWithUnsupportedV2Filter() {
+    sql("CREATE TABLE %s (id INT, dep STRING) USING iceberg PARTITIONED BY (dep)", tableName);
+    configurePlanningMode(planningMode);
+
+    setSmallSplitSize();
+    sql("INSERT INTO %s VALUES (1, 'd1')", tableName);
+    sql("INSERT INTO %s VALUES (2, 'd2')", tableName);
+    sql("INSERT INTO %s VALUES (3, 'd3')", tableName);
+
+    SparkPlan plan =
+        executeAndKeepPlan(
+            () ->
+                assertEquals(
+                    "Rows must match",
+                    ImmutableList.of(row(2, "d2")),
+                    sql("SELECT * FROM %s WHERE dep LIKE '%%2'", tableName)));
+
+    assertInputPartitions(plan, 1);
+  }
+
+  @TestTemplate
+  public void partitionPredicatePushdownForNonFirstFields() {
+    sql(
+        "CREATE TABLE %s (p0 STRING, p1 STRING, p2 STRING, data STRING) "
+            + "USING iceberg PARTITIONED BY (p0, p1, p2)",
+        tableName);
+    configurePlanningMode(planningMode);
+
+    setSmallSplitSize();
+    sql("INSERT INTO %s VALUES ('a', 'x', '1', 'd1')", tableName);
+    sql("INSERT INTO %s VALUES ('a', 'y', '1', 'd2')", tableName);
+    sql("INSERT INTO %s VALUES ('a', 'x', '2', 'd3')", tableName);
+    sql("INSERT INTO %s VALUES ('b', 'x', '1', 'd4')", tableName);
+
+    SparkPlan nonFirstFieldPlan =
+        executeAndKeepPlan(
+            () ->
+                assertThat(sql("SELECT * FROM %s WHERE p1 LIKE '%%x'", tableName))
+                    .as("Rows must match")
+                    .containsExactlyInAnyOrder(
+                        row("a", "x", "1", "d1"),
+                        row("a", "x", "2", "d3"),
+                        row("b", "x", "1", "d4")));
+    assertInputPartitions(nonFirstFieldPlan, 3);
+
+    spark
+        .udf()
+        .register(
+            "concat_partition_fields",
+            (String left, String right) -> left == null || right == null ? null : left + right,
+            DataTypes.StringType);
+
+    SparkPlan multipleFieldsPlan =
+        executeAndKeepPlan(
+            () ->
+                assertThat(
+                        sql(
+                            "SELECT * FROM %s WHERE concat_partition_fields(p1, p2) = 'x1'",
+                            tableName))
+                    .as("Rows must match")
+                    .containsExactlyInAnyOrder(row("a", "x", "1", "d1"), row("b", "x", "1", "d4")));
+    assertInputPartitions(multipleFieldsPlan, 2);
+  }
+
+  @TestTemplate
+  public void partitionPredicatePushdownForNestedField() {
+    sql(
+        "CREATE TABLE %s (s STRUCT<tz: STRING, x: INT>, data STRING) "
+            + "USING iceberg PARTITIONED BY (s.tz)",
+        tableName);
+    configurePlanningMode(planningMode);
+
+    setSmallSplitSize();
+    sql("INSERT INTO %s VALUES (named_struct('tz', 'LA', 'x', 1), 'a')", tableName);
+    sql("INSERT INTO %s VALUES (named_struct('tz', 'NY', 'x', 2), 'b')", tableName);
+
+    spark
+        .udf()
+        .register(
+            "uppercase_tz",
+            (String value) -> value != null ? value.toUpperCase(Locale.ROOT) : null,
+            DataTypes.StringType);
+
+    SparkPlan plan =
+        executeAndKeepPlan(
+            () ->
+                assertEquals(
+                    "Rows must match",
+                    ImmutableList.of(row(row("LA", 1), "a")),
+                    sql("SELECT * FROM %s WHERE uppercase_tz(s.tz) = 'LA'", tableName)));
+
+    assertInputPartitions(plan, 1);
   }
 
   @TestTemplate
@@ -607,7 +734,8 @@ public class TestFilterPushDown extends TestBaseWithCatalog {
         () -> {
           checkFilters(
               "try_variant_get(data, '$.num', 'int') IS NOT NULL",
-              "isnotnull(data) AND isnotnull(try_variant_get(data, $.num, IntegerType, false, Some(UTC)))",
+              "isnotnull(data) AND isnotnull(try_variant_get(data, $.num, IntegerType, false,"
+                  + " Some(UTC)))",
               "data IS NOT NULL",
               ImmutableList.of(
                   row(1L, toSparkVariantRow("foo", 25)),
@@ -622,13 +750,15 @@ public class TestFilterPushDown extends TestBaseWithCatalog {
 
           checkFilters(
               "try_variant_get(data, '$.num', 'int') > 30",
-              "isnotnull(data) AND (try_variant_get(data, $.num, IntegerType, false, Some(UTC)) > 30)",
+              "isnotnull(data) AND (try_variant_get(data, $.num, IntegerType, false, Some(UTC)) >"
+                  + " 30)",
               "data IS NOT NULL",
               ImmutableList.of(row(3L, toSparkVariantRow("baz", 35))));
 
           checkFilters(
               "try_variant_get(data, '$.num', 'int') = 30",
-              "isnotnull(data) AND (try_variant_get(data, $.num, IntegerType, false, Some(UTC)) = 30)",
+              "isnotnull(data) AND (try_variant_get(data, $.num, IntegerType, false, Some(UTC)) ="
+                  + " 30)",
               "data IS NOT NULL",
               ImmutableList.of(row(2L, toSparkVariantRow("bar", 30))));
 
@@ -641,7 +771,8 @@ public class TestFilterPushDown extends TestBaseWithCatalog {
 
           checkFilters(
               "try_variant_get(data, '$.num', 'int') != 25",
-              "isnotnull(data) AND NOT (try_variant_get(data, $.num, IntegerType, false, Some(UTC)) = 25)",
+              "isnotnull(data) AND NOT (try_variant_get(data, $.num, IntegerType, false, Some(UTC))"
+                  + " = 25)",
               "data IS NOT NULL",
               ImmutableList.of(
                   row(2L, toSparkVariantRow("bar", 30)), row(3L, toSparkVariantRow("baz", 35))));
@@ -729,6 +860,18 @@ public class TestFilterPushDown extends TestBaseWithCatalog {
       String predicate, String icebergFilters, List<Object[]> expectedRows) {
 
     checkFilters(predicate, null, icebergFilters, expectedRows);
+  }
+
+  private void setSmallSplitSize() {
+    Table table = validationCatalog.loadTable(tableIdent);
+    table.updateProperties().set(TableProperties.SPLIT_SIZE, "2048").commit();
+  }
+
+  private void assertInputPartitions(SparkPlan plan, int expectedNumPartitions) {
+    List<SparkPlan> leaves = JavaConverters.seqAsJavaListConverter(plan.collectLeaves()).asJava();
+    assertThat(leaves).singleElement().isInstanceOf(BatchScanExec.class);
+    BatchScanExec scan = (BatchScanExec) leaves.get(0);
+    assertThat(scan.inputPartitions().size()).isEqualTo(expectedNumPartitions);
   }
 
   private void checkFilters(
