@@ -65,6 +65,14 @@ import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
 
 class ParquetMetrics {
+  /**
+   * Sentinel for a null count that could not be determined. Parquet's {@link
+   * Statistics#getNumNulls()} returns -1 when {@code null_count} is missing from the footer, so the
+   * count must be reported as unknown rather than summed. {@link FieldMetrics} uses negative counts
+   * to mean unknown.
+   */
+  private static final long UNKNOWN_NULL_COUNT = -1L;
+
   private ParquetMetrics() {}
 
   static Iterable<FieldMetrics<?>> fieldMetrics(
@@ -321,7 +329,7 @@ class ParquetMetrics {
           return null;
         }
 
-        nullCount += stats.getNumNulls();
+        nullCount = addNullCount(nullCount, stats);
         valueCount += column.getValueCount();
       }
 
@@ -350,7 +358,7 @@ class ParquetMetrics {
           return null;
         }
 
-        nullCount += stats.getNumNulls();
+        nullCount = addNullCount(nullCount, stats);
         valueCount += column.getValueCount();
 
         if (stats.hasNonNullValue()) {
@@ -585,7 +593,12 @@ class ParquetMetrics {
           }
 
           valueCount += column.getValueCount();
-          nullCount += hasOnlyNullVariants ? column.getValueCount() : stats.getNumNulls();
+          if (hasOnlyNullVariants) {
+            // every value is a null variant, so the count does not depend on footer null counts
+            nullCount = addKnownNullCount(nullCount, column.getValueCount());
+          } else {
+            nullCount = addNullCount(nullCount, stats);
+          }
         }
 
         return new ParquetVariantUtil.VariantMetrics(valueCount, nullCount);
@@ -613,7 +626,7 @@ class ParquetMetrics {
             return null;
           }
 
-          nullCount += stats.getNumNulls();
+          nullCount = addNullCount(nullCount, stats);
           valueCount += column.getValueCount();
 
           if (stats.hasNonNullValue()) {
@@ -643,6 +656,35 @@ class ParquetMetrics {
         }
       }
     }
+  }
+
+  /**
+   * Adds a column chunk's null count to a running total, propagating unknown.
+   *
+   * <p>A chunk that is missing {@code null_count} makes the total unknown because the nulls in that
+   * chunk cannot be counted. Note this is not caught by {@link Statistics#isEmpty()}, which is
+   * false whenever min/max are present.
+   */
+  private static long addNullCount(long nullCount, Statistics<?> stats) {
+    if (!stats.isNumNullsSet()) {
+      // the count is missing from the footer, so getNumNulls would return -1
+      return UNKNOWN_NULL_COUNT;
+    }
+
+    return addKnownNullCount(nullCount, stats.getNumNulls());
+  }
+
+  /**
+   * Adds a known null count to a running total, which may already be unknown because an earlier
+   * chunk was missing its count. Keeping the total unknown makes the result independent of the
+   * order in which chunks are visited.
+   */
+  private static long addKnownNullCount(long nullCount, long numNulls) {
+    if (nullCount == UNKNOWN_NULL_COUNT) {
+      return UNKNOWN_NULL_COUNT;
+    }
+
+    return nullCount + numNulls;
   }
 
   private static int truncateLength(MetricsModes.MetricsMode mode) {

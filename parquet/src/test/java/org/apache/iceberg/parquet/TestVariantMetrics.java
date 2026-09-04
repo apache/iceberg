@@ -28,6 +28,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Stream;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.Metrics;
 import org.apache.iceberg.MetricsConfig;
@@ -40,6 +41,7 @@ import org.apache.iceberg.inmemory.InMemoryOutputFile;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
@@ -55,8 +57,13 @@ import org.apache.iceberg.variants.VariantTestUtil;
 import org.apache.iceberg.variants.VariantValue;
 import org.apache.iceberg.variants.Variants;
 import org.apache.parquet.column.ParquetProperties;
+import org.apache.parquet.column.statistics.Statistics;
+import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.ParquetFileWriter;
+import org.apache.parquet.hadoop.metadata.BlockMetaData;
+import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
+import org.apache.parquet.hadoop.metadata.ParquetMetadata;
 import org.apache.parquet.schema.MessageType;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -437,6 +444,122 @@ public class TestVariantMetrics {
     assertThat(metrics.valueCounts()).containsKey(2);
     assertThat(metrics.lowerBounds()).doesNotContainKey(2);
     assertThat(metrics.upperBounds()).doesNotContainKey(2);
+  }
+
+  @Test
+  public void testMissingNullCountAcrossRowGroups() throws IOException {
+    // A variant column chunk may omit null_count in its footer statistics, which Parquet reports
+    // as -1. When one row group is missing the count and another has it, the total must be
+    // reported as unknown rather than summing the -1 into a lower count.
+    ParquetMetadata footer =
+        footer(Variant.of(EMPTY, Variants.of(1)), null, null); // 1 value, 2 nulls
+
+    // build a two row group footer: the first as written, the second with null_count removed
+    // from the variant sub columns
+    BlockMetaData withCount = footer.getBlocks().get(0);
+    BlockMetaData withoutCount = dropVariantNullCounts(footer.getBlocks().get(0));
+    ParquetMetadata twoRowGroups =
+        new ParquetMetadata(footer.getFileMetaData(), Lists.newArrayList(withCount, withoutCount));
+
+    Metrics metrics =
+        ParquetUtil.footerMetrics(twoRowGroups, Stream.empty(), MetricsConfig.getDefault());
+
+    // the variant column (id 2) null count is unknown because one row group did not report it
+    assertThat(metrics.nullValueCounts()).doesNotContainKey(2);
+    assertThat(metrics.valueCounts()).containsEntry(2, 6L);
+  }
+
+  @Test
+  public void testShreddedNullVariantsWithMissingNullCount() throws IOException {
+    // For a shredded column where the values are either shredded into typed_value or are null
+    // variants, the value column holds only null variants. That count comes from the value count,
+    // not the footer null count, so shredded bounds are still trusted even when a row group omits
+    // null_count.
+    VariantValue value = Variants.of(1234);
+    ParquetMetadata footer =
+        footer(
+            (id, name) -> ParquetVariantUtil.toParquetSchema(value),
+            Variant.of(EMPTY, value),
+            Variant.of(EMPTY, Variants.ofNull()));
+
+    BlockMetaData withCount = footer.getBlocks().get(0);
+    BlockMetaData withoutCount = dropVariantNullCounts(footer.getBlocks().get(0));
+    ParquetMetadata twoRowGroups =
+        new ParquetMetadata(footer.getFileMetaData(), Lists.newArrayList(withCount, withoutCount));
+
+    Metrics metrics =
+        ParquetUtil.footerMetrics(twoRowGroups, Stream.empty(), MetricsConfig.getDefault());
+
+    // the shredded bounds survive: the all-null value column does not depend on footer null counts
+    assertThat(metrics.lowerBounds().get(2))
+        .extracting(b -> Variant.from(b).value().asObject().get(ROOT_FIELD))
+        .isEqualTo(value);
+    assertThat(metrics.upperBounds().get(2))
+        .extracting(b -> Variant.from(b).value().asObject().get(ROOT_FIELD))
+        .isEqualTo(value);
+  }
+
+  /** Rebuilds a row group with null_count removed from the variant column's statistics. */
+  private static BlockMetaData dropVariantNullCounts(BlockMetaData block) {
+    BlockMetaData result = new BlockMetaData();
+    result.setRowCount(block.getRowCount());
+    result.setTotalByteSize(block.getTotalByteSize());
+
+    for (ColumnChunkMetaData column : block.getColumns()) {
+      Statistics<?> stats = column.getStatistics();
+      if (column.getPath().toDotString().startsWith("var")) {
+        Statistics.Builder builder = Statistics.getBuilderForReading(column.getPrimitiveType());
+        if (stats.hasNonNullValue()) {
+          builder.withMin(stats.getMinBytes()).withMax(stats.getMaxBytes());
+        }
+
+        stats = builder.build(); // built without withNumNulls, so getNumNulls returns -1
+      }
+
+      result.addColumn(
+          ColumnChunkMetaData.get(
+              column.getPath(),
+              column.getPrimitiveType(),
+              column.getCodec(),
+              column.getEncodingStats(),
+              column.getEncodings(),
+              stats,
+              column.getFirstDataPageOffset(),
+              column.getDictionaryPageOffset(),
+              column.getValueCount(),
+              column.getTotalSize(),
+              column.getTotalUncompressedSize()));
+    }
+
+    return result;
+  }
+
+  private ParquetMetadata footer(Variant... variants) throws IOException {
+    return footer(null, variants);
+  }
+
+  private ParquetMetadata footer(VariantShreddingFunction shredding, Variant... variants)
+      throws IOException {
+    InMemoryOutputFile out = new InMemoryOutputFile();
+    GenericRecord record = GenericRecord.create(SCHEMA);
+
+    FileAppender<Record> writer =
+        Parquet.write(out)
+            .schema(SCHEMA)
+            .variantShreddingFunc(shredding)
+            .createWriterFunc(fileSchema -> InternalWriter.create(SCHEMA.asStruct(), fileSchema))
+            .build();
+    try (writer) {
+      for (int id = 0; id < variants.length; id += 1) {
+        record.setField("id", (long) id);
+        record.setField("var", variants[id]);
+        writer.add(record);
+      }
+    }
+
+    try (ParquetFileReader reader = ParquetFileReader.open(ParquetIO.file(out.toInputFile()))) {
+      return reader.getFooter();
+    }
   }
 
   @Test
