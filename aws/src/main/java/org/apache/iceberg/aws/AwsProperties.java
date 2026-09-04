@@ -183,22 +183,12 @@ public class AwsProperties implements Serializable {
   public static final String LAKE_FORMATION_DB_NAME = "lakeformation.db-name";
 
   /**
-   * If set to {@code false}, LakeFormation vended credentials are fetched on every S3/KMS client
-   * call instead of being cached. Caching is enabled by default to prevent {@code
-   * LakeFormationException: Rate exceeded} errors at high executor counts.
+   * The number of seconds Lake Formation credential providers are retained after their last use.
    */
-  public static final String LAKE_FORMATION_CACHE_ENABLED = "lakeformation.cache.enabled";
+  public static final String LAKE_FORMATION_CREDENTIAL_CACHE_EXPIRATION_SECONDS =
+      "lakeformation.credential-cache.expiration-seconds";
 
-  public static final boolean LAKE_FORMATION_CACHE_ENABLED_DEFAULT = true;
-
-  /**
-   * Milliseconds before credential expiry at which the credential cache is proactively refreshed.
-   * Only applies when {@link #LAKE_FORMATION_CACHE_ENABLED} is {@code true}.
-   */
-  public static final String LAKE_FORMATION_CACHE_REFRESH_LEAD_TIME_MS =
-      "lakeformation.cache.refresh-lead-time-ms";
-
-  public static final long LAKE_FORMATION_CACHE_REFRESH_LEAD_TIME_MS_DEFAULT = 60_000L;
+  public static final long LAKE_FORMATION_CREDENTIAL_CACHE_EXPIRATION_SECONDS_DEFAULT = 60L;
 
   /** Region to be used by the SigV4 protocol for signing requests. */
   public static final String REST_SIGNER_REGION = "rest.signing-region";
