@@ -24,7 +24,6 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.time.Duration;
 import java.time.OffsetDateTime;
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -56,12 +55,12 @@ import org.apache.iceberg.connect.events.StartCommit;
 import org.apache.iceberg.connect.events.TableReference;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.ThreadFactoryBuilder;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.Tasks;
-import org.apache.kafka.clients.admin.MemberDescription;
 import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.sink.SinkTaskContext;
 import org.slf4j.Logger;
@@ -90,7 +89,7 @@ class Coordinator extends Channel {
   Coordinator(
       Catalog catalog,
       IcebergSinkConfig config,
-      Collection<MemberDescription> members,
+      int totalPartitionCount,
       KafkaClientFactory clientFactory,
       SinkTaskContext context) {
     // pass consumer group ID to which we commit low watermark offsets
@@ -98,8 +97,7 @@ class Coordinator extends Channel {
 
     this.catalog = catalog;
     this.config = config;
-    this.totalPartitionCount =
-        members.stream().mapToInt(desc -> desc.assignment().topicPartitions().size()).sum();
+    this.totalPartitionCount = totalPartitionCount;
     this.snapshotOffsetsProp =
         String.format(
             "kafka.connect.offsets.%s.%s", config.controlTopic(), config.connectGroupId());
@@ -168,8 +166,8 @@ class Coordinator extends Channel {
         return;
       }
 
-      if (!(e instanceof CommitFailedException)) {
-        // CommitStateUnknownException, ValidationException, ForbiddenException,
+      if (!isRetryable(e)) {
+        // CommitStateUnknownException, ValidationException, ForbiddenException, ProducerFenced,
         // NPE, anything else -- not retryable, terminate immediately
         throw e;
       }
@@ -193,6 +191,13 @@ class Coordinator extends Channel {
     } finally {
       commitState.endCurrentCommit();
     }
+  }
+
+  @VisibleForTesting
+  static boolean isRetryable(RuntimeException exception) {
+    return exception instanceof CommitFailedException
+        || exception instanceof org.apache.kafka.clients.consumer.CommitFailedException
+        || exception instanceof org.apache.kafka.common.errors.RebalanceInProgressException;
   }
 
   private void doCommit(boolean partialCommit) {
@@ -277,7 +282,7 @@ class Coordinator extends Channel {
                   return minOffset == null || envelope.offset() >= minOffset;
                 })
             .map(envelope -> (DataWritten) envelope.event().payload())
-            .collect(Collectors.toList());
+            .toList();
 
     List<DataFile> dataFiles =
         payloads.stream()
@@ -285,7 +290,7 @@ class Coordinator extends Channel {
             .flatMap(payload -> payload.dataFiles().stream())
             .filter(dataFile -> dataFile.recordCount() > 0)
             .filter(distinctByKey(ContentFile::location))
-            .collect(Collectors.toList());
+            .toList();
 
     List<DeleteFile> deleteFiles =
         payloads.stream()
@@ -293,7 +298,7 @@ class Coordinator extends Channel {
             .flatMap(payload -> payload.deleteFiles().stream())
             .filter(deleteFile -> deleteFile.recordCount() > 0)
             .filter(distinctByKey(ContentFile::location))
-            .collect(Collectors.toList());
+            .toList();
 
     if (terminated) {
       throw new ConnectException(
@@ -437,6 +442,7 @@ class Coordinator extends Channel {
         throw new ConnectException("Timed out waiting for coordinator shutdown");
       }
     } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
       throw new ConnectException("Interrupted while waiting for coordinator shutdown", e);
     }
   }
