@@ -21,8 +21,11 @@ package org.apache.iceberg.spark.actions;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
+import java.net.URI;
 import java.util.stream.StreamSupport;
+import org.apache.hadoop.fs.RawLocalFileSystem;
 import org.apache.iceberg.actions.DeleteOrphanFiles;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.spark.SparkCatalog;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkSessionCatalog;
@@ -190,10 +193,117 @@ public class TestRemoveOrphanFilesAction3 extends TestRemoveOrphanFilesAction {
     assertThat(results.orphanFilesCount()).as("trash file should be removed").isEqualTo(1L);
   }
 
+  @TestTemplate
+  public void catalogHadoopConfOverridesApplyToListing() throws Exception {
+    spark.conf().set("spark.sql.catalog.overridecat", "org.apache.iceberg.spark.SparkCatalog");
+    spark.conf().set("spark.sql.catalog.overridecat.type", "hadoop");
+    spark.conf().set("spark.sql.catalog.overridecat.warehouse", tableLocation);
+    // registered for this catalog alone, so the location below resolves only when the catalog's
+    // Hadoop overrides reach the listing
+    spark
+        .conf()
+        .set(
+            String.format(
+                "spark.sql.catalog.overridecat.hadoop.fs.%s.impl", CatalogScopedFileSystem.SCHEME),
+            CatalogScopedFileSystem.class.getName());
+    SparkCatalog cat = (SparkCatalog) spark.sessionState().catalogManager().catalog("overridecat");
+
+    String[] database = {"default"};
+    Identifier id = Identifier.of(database, randomName("table"));
+    Transform[] transforms = {};
+    cat.createTable(id, SparkSchemaUtil.convert(SCHEMA), transforms, properties);
+    SparkTable table = (SparkTable) cat.loadTable(id);
+
+    sql("INSERT INTO overridecat.default.%s VALUES (1,1,1)", id.name());
+
+    String location = table.table().location().replaceFirst("file:", "");
+    String trashFile = randomName("/data/trashfile");
+    new File(location + trashFile).createNewFile();
+
+    DeleteOrphanFiles.Result results =
+        SparkActions.get()
+            .deleteOrphanFiles(table.table())
+            .location(CatalogScopedFileSystem.SCHEME + "://" + location)
+            .equalSchemes(ImmutableMap.of(CatalogScopedFileSystem.SCHEME, "file"))
+            .deleteWith(file -> {})
+            .olderThan(System.currentTimeMillis() + 1000)
+            .execute();
+
+    assertThat(StreamSupport.stream(results.orphanFileLocations().spliterator(), false))
+        .as("trash file should be found")
+        .anyMatch(file -> file.endsWith(trashFile));
+    assertThat(results.orphanFilesCount()).as("only the trash file is an orphan").isEqualTo(1L);
+  }
+
+  @TestTemplate
+  public void sessionCatalogHadoopConfOverridesApplyToListing() throws Exception {
+    spark
+        .conf()
+        .set("spark.sql.catalog.spark_catalog", "org.apache.iceberg.spark.SparkSessionCatalog");
+    spark.conf().set("spark.sql.catalog.spark_catalog.type", "hadoop");
+    spark.conf().set("spark.sql.catalog.spark_catalog.warehouse", tableLocation);
+    spark
+        .conf()
+        .set(
+            String.format(
+                "spark.sql.catalog.spark_catalog.hadoop.fs.%s.impl",
+                CatalogScopedFileSystem.SCHEME),
+            CatalogScopedFileSystem.class.getName());
+    SparkSessionCatalog cat =
+        (SparkSessionCatalog) spark.sessionState().catalogManager().v2SessionCatalog();
+
+    String[] database = {"default"};
+    Identifier id = Identifier.of(database, randomName("table"));
+    Transform[] transforms = {};
+    cat.createTable(id, SparkSchemaUtil.convert(SCHEMA), transforms, properties);
+    SparkTable table = (SparkTable) cat.loadTable(id);
+
+    sql("INSERT INTO default.%s VALUES (1,1,1)", id.name());
+
+    String location = table.table().location().replaceFirst("file:", "");
+    String trashFile = randomName("/data/trashfile");
+    new File(location + trashFile).createNewFile();
+
+    DeleteOrphanFiles.Result results =
+        SparkActions.get()
+            .deleteOrphanFiles(table.table())
+            .location(CatalogScopedFileSystem.SCHEME + "://" + location)
+            .equalSchemes(ImmutableMap.of(CatalogScopedFileSystem.SCHEME, "file"))
+            .deleteWith(file -> {})
+            .olderThan(System.currentTimeMillis() + 1000)
+            .execute();
+
+    assertThat(StreamSupport.stream(results.orphanFileLocations().spliterator(), false))
+        .as("trash file should be found")
+        .anyMatch(file -> file.endsWith(trashFile));
+    assertThat(results.orphanFilesCount()).as("only the trash file is an orphan").isEqualTo(1L);
+  }
+
   @AfterEach
   public void resetSparkSessionCatalog() {
     spark.conf().unset("spark.sql.catalog.spark_catalog");
     spark.conf().unset("spark.sql.catalog.spark_catalog.type");
     spark.conf().unset("spark.sql.catalog.spark_catalog.warehouse");
+    spark
+        .conf()
+        .unset(
+            String.format(
+                "spark.sql.catalog.spark_catalog.hadoop.fs.%s.impl",
+                CatalogScopedFileSystem.SCHEME));
+  }
+
+  /** Local file system reachable only under its own scheme, to tell the two configs apart. */
+  public static class CatalogScopedFileSystem extends RawLocalFileSystem {
+    static final String SCHEME = "catalogscopedfs";
+
+    @Override
+    public URI getUri() {
+      return URI.create(SCHEME + ":///");
+    }
+
+    @Override
+    public String getScheme() {
+      return SCHEME;
+    }
   }
 }

@@ -320,6 +320,8 @@ Used to remove files which are not referenced in any metadata files of an Iceber
 | `prefix_mismatch_mode` |    | string | Action behavior when location prefixes (schemes/authorities) mismatch: <ul><li>ERROR - throw an exception. (default) </li><li>IGNORE - no action.</li><li>DELETE - delete files.</li></ul> |  
 | `prefix_listing` |    | boolean   | When true, use prefix-based file listing via the `SupportsPrefixOperations` interface. The Table FileIO implementation must support `SupportsPrefixOperations` when this flag is enabled (defaults to false) |
 
+Unless `prefix_listing` is enabled, files are listed through the Hadoop `FileSystem` API, configured from the Spark session and the [catalog specific Hadoop configuration](spark-configuration.md#using-catalog-specific-hadoop-configuration-values) of the catalog that owns the table. A catalog that reaches its storage with credentials other than the cluster's can be given the same credentials for the listing with `spark.sql.catalog.(catalog-name).hadoop.fs.s3a.*`.
+
 #### Output
 
 | Output Name | Type | Description |

@@ -32,6 +32,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -51,6 +52,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.JobGroupInfo;
+import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.util.FileSystemWalker;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.PropertyUtil;
@@ -136,7 +138,7 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
   DeleteOrphanFilesSparkAction(SparkSession spark, Table table) {
     super(spark);
 
-    this.hadoopConf = new SerializableConfiguration(spark.sessionState().newHadoopConf());
+    this.hadoopConf = new SerializableConfiguration(hadoopConfForTable(spark, table));
     this.listingParallelism = spark.sessionState().conf().parallelPartitionDiscoveryParallelism();
     this.table = table;
     this.location = table.location();
@@ -144,6 +146,28 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
     ValidationException.check(
         PropertyUtil.propertyAsBoolean(table.properties(), GC_ENABLED, GC_ENABLED_DEFAULT),
         "Cannot delete orphan files: GC is disabled (deleting files may corrupt other tables)");
+  }
+
+  /**
+   * Resolves the Hadoop configuration for listing the table location: the session configuration
+   * plus the {@code spark.sql.catalog.<name>.hadoop.*} overrides of the catalog that owns the
+   * table.
+   *
+   * <p>Catalog tables are named {@code catalog.namespace.table}, where the catalog part is the
+   * Spark catalog name. The overrides are applied only when that part names a registered Spark
+   * catalog; path-based tables and unknown names fall back to the session configuration.
+   */
+  private static Configuration hadoopConfForTable(SparkSession spark, Table table) {
+    String name = table.name();
+    int dot = name.indexOf('.');
+    if (dot > 0 && !name.contains("/") && !name.contains(":")) {
+      String catalogName = name.substring(0, dot);
+      if (spark.sessionState().catalogManager().isCatalogRegistered(catalogName)) {
+        return SparkUtil.hadoopConfCatalogOverrides(spark, catalogName);
+      }
+    }
+
+    return spark.sessionState().newHadoopConf();
   }
 
   @Override
