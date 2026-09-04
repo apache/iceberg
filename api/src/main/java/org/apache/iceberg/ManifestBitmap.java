@@ -20,7 +20,7 @@ package org.apache.iceberg;
 
 import java.nio.ByteBuffer;
 
-/** A small bitmap that is serialized inline in a metadata file. */
+/** A bitmap that is serialized inline in a metadata file. */
 public interface ManifestBitmap {
   /** Number of bits set in this bitmap. */
   int cardinality();
