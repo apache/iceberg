@@ -53,6 +53,17 @@ INSERT INTO prod.db.table VALUES (1, 'a'), (2, 'b')
 INSERT INTO prod.db.table SELECT ...
 ```
 
+#### Snapshot summary
+
+After an `INSERT INTO` commit, the [snapshot summary](../../spec.md#optional-snapshot-summary-fields) may include the following field. The value is the string form of a non-negative count. The field is omitted when the value is unknown (e.g., not reported by Spark).
+
+!!! info
+    Only available in Spark 4.2 and higher.
+
+| Field                                | Description             |
+|--------------------------------------|-------------------------|
+| **`spark.insert.num-inserted-rows`** | Number of rows inserted |
+
 ### `MERGE INTO`
 
 Spark supports `MERGE INTO` queries that can express row-level updates.
@@ -196,6 +207,18 @@ WHERE EXISTS (SELECT oid FROM prod.db.returned_orders WHERE t1.oid = oid)
 
 If the delete filter matches entire partitions of the table, Iceberg will perform a metadata-only delete. If the filter matches individual rows of a table, then Iceberg will rewrite only the affected data files.
 
+#### Snapshot summary
+
+After a `DELETE FROM` commit, the [snapshot summary](../../spec.md#optional-snapshot-summary-fields) may include the following fields. Each value is the string form of a non-negative count. A field is omitted when the value is unknown (e.g., not reported by Spark).
+
+!!! info
+    Only available in Spark 4.2 and higher.
+
+| Field                               | Description                                                                              |
+|-------------------------------------|------------------------------------------------------------------------------------------|
+| **`spark.delete.num-deleted-rows`** | Number of rows deleted                                                                   |
+| **`spark.delete.num-copied-rows`**  | Number of unmodified rows copied (rewritten in copy-on-write mode; `0` in merge-on-read) |
+
 ### `UPDATE`
 
 Update queries accept a filter to match rows to update.
@@ -215,6 +238,18 @@ WHERE EXISTS (SELECT oid FROM prod.db.returned_orders WHERE t1.oid = oid)
 ```
 
 For more complex row-level updates based on incoming data, see the section on `MERGE INTO`.
+
+#### Snapshot summary
+
+After an `UPDATE` commit, the [snapshot summary](../../spec.md#optional-snapshot-summary-fields) may include the following fields. Each value is the string form of a non-negative count. A field is omitted when the value is unknown (e.g., not reported by Spark).
+
+!!! info
+    Only available in Spark 4.2 and higher.
+
+| Field                               | Description                                                                              |
+|-------------------------------------|------------------------------------------------------------------------------------------|
+| **`spark.update.num-updated-rows`** | Number of rows updated                                                                   |
+| **`spark.update.num-copied-rows`**  | Number of unmodified rows copied (rewritten in copy-on-write mode; `0` in merge-on-read) |
 
 ## Writing to Branches
 
