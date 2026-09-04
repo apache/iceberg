@@ -169,7 +169,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   private CloseableGroup closeables = null;
   private Set<Endpoint> endpoints;
   private Supplier<Map<String, String>> mutationHeaders = Map::of;
-  private String namespaceSeparator = RESTUtil.NAMESPACE_SEPARATOR_URLENCODED_UTF_8;
+  private String namespaceSeparator = null;
   private ScanPlanningMode clientScanPlanningMode = null;
 
   private RESTTableCache tableCache;
@@ -439,16 +439,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       SessionContext context,
       TableIdentifier identifier,
       SnapshotMode mode,
-      Map<String, String> headers,
-      Consumer<Map<String, String>> responseHeaders) {
-    return loadInternal(context, identifier, mode, List.of(), headers, responseHeaders);
-  }
-
-  private LoadTableResponse loadInternal(
-      SessionContext context,
-      TableIdentifier identifier,
-      SnapshotMode mode,
-      List<TableIdentifier> referencedBy,
+      LoadContext loadContext,
       Map<String, String> headers,
       Consumer<Map<String, String>> responseHeaders) {
     Endpoint.check(endpoints, Endpoint.V1_LOAD_TABLE);
@@ -457,40 +448,20 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
         .withAuthSession(contextualSession)
         .get(
             paths.table(identifier),
-            paramsForLoadTable(mode, referencedBy),
+            RESTUtil.merge(
+                snapshotModeToParam(mode),
+                referencedByParam(
+                    loadContext, RESTCatalogProperties.REFERENCED_BY_QUERY_PARAMETER)),
             LoadTableResponse.class,
             headers,
             ErrorHandlers.tableErrorHandler(),
             responseHeaders);
   }
 
-  @VisibleForTesting
-  Map<String, String> paramsForLoadTable(SnapshotMode mode, List<TableIdentifier> referencedBy) {
-    Map<String, String> params = Maps.newHashMap(snapshotModeToParam(mode));
-    params.putAll(RESTUtil.referencedByToQueryParam(referencedBy, namespaceSeparator));
-    return params;
-  }
-
-  @VisibleForTesting
-  Map<String, String> referencedByToQueryParam(List<TableIdentifier> referencedBy) {
-    return RESTUtil.referencedByToQueryParam(referencedBy, namespaceSeparator);
-  }
-
-  /**
-   * Injects the pre-encoded referenced-by value into config properties so that credential providers
-   * can extract it and pass it as a query parameter to the loadCredentials endpoint.
-   */
-  private Map<String, String> injectReferencedBy(
-      Map<String, String> config, List<TableIdentifier> referencedBy) {
-    Map<String, String> referencedByParam =
-        RESTUtil.referencedByToQueryParam(referencedBy, namespaceSeparator);
-    if (referencedByParam.isEmpty()) {
-      return config;
-    }
-
-    Map<String, String> merged = Maps.newHashMap(config);
-    merged.putAll(referencedByParam);
-    return merged;
+  /** Keys the encoded chain as either the wire query parameter or the internal client property. */
+  private Map<String, String> referencedByParam(LoadContext loadContext, String key) {
+    String encoded = RESTUtil.encodeReferencedBy(loadContext.referencedBy(), namespaceSeparator);
+    return encoded == null ? Map.of() : Map.of(key, encoded);
   }
 
   @Override
@@ -501,7 +472,6 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   @Override
   public Table loadTable(
       SessionContext context, TableIdentifier identifier, LoadContext loadContext) {
-    List<TableIdentifier> referencedBy = loadContext.referencedBy();
     Endpoint.check(
         endpoints,
         Endpoint.V1_LOAD_TABLE,
@@ -525,7 +495,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
               context,
               identifier,
               snapshotMode,
-              referencedBy,
+              loadContext,
               headersForLoadTable(cachedTable),
               responseHeaders::putAll);
 
@@ -552,7 +522,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
                   context,
                   baseIdent,
                   snapshotMode,
-                  referencedBy,
+                  loadContext,
                   headersForLoadTable(cachedTable),
                   responseHeaders::putAll);
 
@@ -577,7 +547,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     }
 
     TableIdentifier finalIdentifier = loadedIdent;
-    Map<String, String> tableConf = injectReferencedBy(response.config(), referencedBy);
+    Map<String, String> tableConf = response.config();
     AuthSession contextualSession = authManager.contextualSession(context, catalogAuth);
     AuthSession tableSession =
         authManager.tableSession(finalIdentifier, tableConf, contextualSession);
@@ -594,7 +564,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
                               context,
                               finalIdentifier,
                               SnapshotMode.ALL,
-                              referencedBy,
+                              loadContext,
                               Map.of(),
                               h -> {})
                           .tableMetadata()
@@ -615,6 +585,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
             context,
             tableClient,
             tableConf,
+            loadContext,
             credentials,
             remoteSigningConfig);
 
@@ -636,6 +607,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       SessionContext context,
       RESTClient tableClient,
       Map<String, String> tableConf,
+      LoadContext loadContext,
       List<Credential> credentials,
       RemoteSigningConfig remoteSigningConfig) {
     return () -> {
@@ -645,7 +617,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
               paths.table(identifier),
               Map::of,
               mutationHeaders,
-              tableFileIO(identifier, context, tableConf, credentials, remoteSigningConfig),
+              tableFileIO(
+                  identifier, context, tableConf, loadContext, credentials, remoteSigningConfig),
               tableMetadata,
               endpoints);
 
@@ -792,7 +765,12 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
             Map::of,
             mutationHeaders,
             tableFileIO(
-                ident, context, tableConf, response.credentials(), response.remoteSigningConfig()),
+                ident,
+                context,
+                tableConf,
+                LoadContext.empty(),
+                response.credentials(),
+                response.remoteSigningConfig()),
             response.tableMetadata(),
             endpoints);
 
@@ -1065,6 +1043,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
                   ident,
                   context,
                   tableConf,
+                  LoadContext.empty(),
                   response.credentials(),
                   response.remoteSigningConfig()),
               response.tableMetadata(),
@@ -1103,6 +1082,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
                   ident,
                   context,
                   tableConf,
+                  LoadContext.empty(),
                   response.credentials(),
                   response.remoteSigningConfig()),
               RESTTableOperations.UpdateType.CREATE,
@@ -1123,7 +1103,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
         throw new AlreadyExistsException("View with same name already exists: %s", ident);
       }
 
-      LoadTableResponse response = loadInternal(context, ident, snapshotMode, Map.of(), h -> {});
+      LoadTableResponse response =
+          loadInternal(context, ident, snapshotMode, LoadContext.empty(), Map.of(), h -> {});
 
       String fullName = fullTableName(ident);
 
@@ -1173,6 +1154,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
                   ident,
                   context,
                   tableConf,
+                  LoadContext.empty(),
                   response.credentials(),
                   response.remoteSigningConfig()),
               RESTTableOperations.UpdateType.REPLACE,
@@ -1303,6 +1285,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       TableIdentifier tableIdentifier,
       SessionContext context,
       Map<String, String> tableConf,
+      LoadContext loadContext,
       List<Credential> storageCredentials,
       RemoteSigningConfig remoteSigningConfig) {
 
@@ -1320,6 +1303,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
         ImmutableMap.<String, String>builder()
             .putAll(properties())
             .putAll(tableConf)
+            .putAll(referencedByParam(loadContext, RESTCatalogProperties.REST_REFERENCED_BY))
             .put(RESTCatalogProperties.REMOTE_SIGNING_ENDPOINT, paths.remoteSign(tableIdentifier));
 
     if (!remoteSigningConfig.isEmpty()) {
@@ -1554,7 +1538,6 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   @Override
   public View loadView(
       SessionContext context, TableIdentifier identifier, LoadContext loadContext) {
-    List<TableIdentifier> referencedBy = loadContext.referencedBy();
     Endpoint.check(
         endpoints,
         Endpoint.V1_LOAD_VIEW,
@@ -1571,12 +1554,12 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
             .withAuthSession(contextualSession)
             .get(
                 paths.view(identifier),
-                referencedByToQueryParam(referencedBy),
+                referencedByParam(loadContext, RESTCatalogProperties.REFERENCED_BY_QUERY_PARAMETER),
                 LoadViewResponse.class,
                 Map.of(),
                 ErrorHandlers.viewErrorHandler());
 
-    Map<String, String> tableConf = injectReferencedBy(response.config(), referencedBy);
+    Map<String, String> tableConf = response.config();
     AuthSession tableSession = authManager.tableSession(identifier, tableConf, contextualSession);
     ViewMetadata metadata = response.metadata();
 

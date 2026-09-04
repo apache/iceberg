@@ -127,7 +127,7 @@ public class RESTCatalog
 
   @Override
   public Table loadTable(TableIdentifier identifier, LoadContext loadContext) {
-    return sessionCatalog.loadTable(context, identifier, loadContext);
+    return delegate.loadTable(identifier, loadContext);
   }
 
   @Override
@@ -319,7 +319,7 @@ public class RESTCatalog
 
   @Override
   public View loadView(TableIdentifier identifier, LoadContext loadContext) {
-    return sessionCatalog.loadView(context, identifier, loadContext);
+    return viewSessionCatalog.loadView(identifier, loadContext);
   }
 
   @Override

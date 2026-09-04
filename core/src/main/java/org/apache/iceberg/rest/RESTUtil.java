@@ -21,9 +21,11 @@ package org.apache.iceberg.rest;
 import java.net.URLDecoder;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.hc.core5.net.PercentCodec;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -33,7 +35,6 @@ import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.UUIDUtil;
 
@@ -441,58 +442,44 @@ public class RESTUtil {
     return ImmutableMap.of(IDEMPOTENCY_KEY_HEADER, UUIDUtil.generateUuidV7().toString());
   }
 
-  /**
-   * Builds query parameters for credential endpoints, including planId and referenced-by if
-   * present.
-   *
-   * @param planId the scan plan ID, or null if not set
-   * @param properties configuration properties that may contain a referenced-by value
-   * @return a map of query parameters, or null if no parameters are needed
-   */
-  public static Map<String, String> credentialsQueryParams(
-      String planId, Map<String, String> properties) {
-    Map<String, String> queryParams = Maps.newHashMap();
+  /** Query parameters for the loadCredentials endpoint, from client-side request context. */
+  public static Map<String, String> credentialsQueryParams(Map<String, String> properties) {
+    ImmutableMap.Builder<String, String> queryParams = ImmutableMap.builder();
+    String planId = properties.get(RESTCatalogProperties.REST_SCAN_PLAN_ID);
     if (planId != null) {
       queryParams.put(RESTCatalogProperties.PLAN_ID_QUERY_PARAMETER, planId);
     }
 
-    String referencedBy = properties.get(RESTCatalogProperties.REFERENCED_BY_QUERY_PARAMETER);
+    String referencedBy = properties.get(RESTCatalogProperties.REST_REFERENCED_BY);
     if (referencedBy != null) {
       queryParams.put(RESTCatalogProperties.REFERENCED_BY_QUERY_PARAMETER, referencedBy);
     }
 
-    return queryParams.isEmpty() ? null : queryParams;
+    return queryParams.build();
   }
 
   /**
-   * Encode a view identifier chain as a referenced-by query parameter.
+   * Encodes a view chain (outermost first) as the {@code referenced-by} value.
    *
-   * <p>The returned value is the wire-form: each level and the view name are URL-encoded, joined by
-   * the (URL-encoded) namespace separator, and entries are joined by a literal comma matching the
-   * {@code referenced-by} OpenAPI definition. The HTTP layer must pass this value through verbatim
-   * (no further URL-encoding) so the comma chain delimiter and {@code %1F} separators survive on
-   * the wire.
-   *
-   * @param referencedBy ordered list of view identifiers from outermost to innermost
-   * @param namespaceSeparator the URL-encoded namespace separator (e.g. {@code %1F})
-   * @return a map with the referenced-by query parameter, or an empty map if no chain is present
+   * <p>Within an entry, the namespace levels and the view name are encoded like the {@code parent}
+   * query parameter, as the spec requires, and joined by the namespace separator as-is; entries are
+   * joined by a literal comma. The result is already percent-encoded and must reach the wire
+   * verbatim, see {@link HTTPRequest#requestUri()}.
    */
-  public static Map<String, String> referencedByToQueryParam(
-      List<TableIdentifier> referencedBy, String namespaceSeparator) {
+  static String encodeReferencedBy(List<TableIdentifier> referencedBy, String namespaceSeparator) {
     if (referencedBy == null || referencedBy.isEmpty()) {
-      return Map.of();
+      return null;
     }
 
-    List<String> entries =
-        referencedBy.stream()
-            .map(
-                ident ->
-                    encodeNamespace(ident.namespace(), namespaceSeparator)
-                        + namespaceSeparator
-                        + encodeString(ident.name()))
-            .collect(Collectors.toList());
+    Preconditions.checkArgument(
+        !Strings.isNullOrEmpty(namespaceSeparator), "Invalid separator: null or empty");
 
-    return ImmutableMap.of(
-        RESTCatalogProperties.REFERENCED_BY_QUERY_PARAMETER, Joiner.on(",").join(entries));
+    return referencedBy.stream()
+        .map(
+            ident ->
+                Stream.concat(Arrays.stream(ident.namespace().levels()), Stream.of(ident.name()))
+                    .map(level -> PercentCodec.encode(level, StandardCharsets.UTF_8))
+                    .collect(Collectors.joining(namespaceSeparator)))
+        .collect(Collectors.joining(","));
   }
 }
