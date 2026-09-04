@@ -556,12 +556,16 @@ public class TestFlinkTableSource extends TableSourceTestBase {
 
   @TestTemplate
   public void testSqlParseNaN() {
+    sql("INSERT INTO %s VALUES (4, 'nan_row', CAST('NaN' AS DOUBLE))", TABLE_NAME);
+    this.scanEventCount = 0;
+    this.lastScanEvent = null;
+
     String sqlEqual =
         String.format("SELECT * FROM %s WHERE d = CAST('NaN' AS DOUBLE) ", TABLE_NAME);
     String expectedFilterEqual = "is_nan(ref(name=\"d\"))";
 
     List<Row> resultEqual = sql(sqlEqual);
-    assertThat(resultEqual).isEmpty();
+    assertThat(resultEqual).hasSize(1).first().isEqualTo(Row.of(4, "nan_row", Double.NaN));
     assertThat(lastScanEvent.filter())
         .as("Should contain the pushed down NaN filter")
         .asString()
@@ -572,7 +576,9 @@ public class TestFlinkTableSource extends TableSourceTestBase {
     String expectedFilterNotEqual = "not_nan(ref(name=\"d\"))";
 
     List<Row> resultNotEqual = sql(sqlNotEqual);
-    assertThat(resultNotEqual).hasSize(3);
+    List<Row> expectedNotEqual =
+        Lists.newArrayList(Row.of(1, "iceberg", 10.0), Row.of(2, "b", 20.0), Row.of(3, null, 30.0));
+    assertSameElements(expectedNotEqual, resultNotEqual);
     assertThat(lastScanEvent.filter())
         .as("Should contain the pushed down not-NaN filter")
         .asString()
