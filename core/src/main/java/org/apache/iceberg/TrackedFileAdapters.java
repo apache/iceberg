@@ -23,9 +23,19 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.StructProjection;
 
-/** Adapts {@link TrackedFile} entries to the {@link DataFile} and {@link DeleteFile} APIs. */
+/**
+ * Adapts between the {@link TrackedFile} row and the {@link DataFile} / {@link DeleteFile} / {@link
+ * ManifestFile} APIs in both directions.
+ */
 class TrackedFileAdapters {
+
+  private static final int TRACKED_FILE_FIELD_COUNT =
+      TrackedFile.schema(Types.StructType.of(), Types.StructType.of()).asStruct().fields().size();
+
+  private static final int MANIFEST_INFO_FIELD_COUNT = ManifestInfo.schema().fields().size();
 
   private TrackedFileAdapters() {}
 
@@ -51,6 +61,49 @@ class TrackedFileAdapters {
         "Invalid content type for equality delete file: %s",
         file.contentType());
     return new TrackedEqualityDeleteFile(file, resolveSpec(file, specsById));
+  }
+
+  /**
+   * Returns a reusable wrapper that presents a {@link DataFile} as a {@link TrackedFile} row.
+   *
+   * @param formatVersion the target table's format version (must be 4+)
+   * @param tableSchema table schema used to build {@link ContentStats} from the file's stats
+   * @param metricsConfig metrics config used to prune the content stats schema
+   * @param partitionType target partition struct type; use one spec's partition type for a
+   *     single-spec manifest, or the union across live specs for a multi-spec manifest
+   */
+  static DataTrackedFile forDataFile(
+      int formatVersion,
+      Schema tableSchema,
+      MetricsConfig metricsConfig,
+      Types.StructType partitionType) {
+    return new DataTrackedFile(formatVersion, tableSchema, metricsConfig, partitionType);
+  }
+
+  /**
+   * Returns a reusable wrapper that presents an equality {@link DeleteFile} as a {@link
+   * TrackedFile} row.
+   *
+   * @param formatVersion the target table's format version (must be 4+)
+   * @param tableSchema table schema used to build {@link ContentStats} from the file's stats
+   * @param metricsConfig metrics config used to prune the content stats schema
+   * @param partitionType target partition struct type; use one spec's partition type for a
+   *     single-spec manifest, or the union across live specs for a multi-spec manifest
+   */
+  static EqualityDeleteTrackedFile forEqualityDeleteFile(
+      int formatVersion,
+      Schema tableSchema,
+      MetricsConfig metricsConfig,
+      Types.StructType partitionType) {
+    return new EqualityDeleteTrackedFile(formatVersion, tableSchema, metricsConfig, partitionType);
+  }
+
+  /**
+   * Returns a reusable wrapper that presents a {@link ManifestFile} as a {@link TrackedFile} leaf
+   * manifest row.
+   */
+  static ManifestTrackedFile forManifestReference() {
+    return new ManifestTrackedFile();
   }
 
   /** Shared base for all tracked file adapters. */
@@ -410,6 +463,508 @@ class TrackedFileAdapters {
     }
   }
 
+  /** Shared base for content-file (DATA / EQUALITY_DELETES) write-direction wrappers. */
+  abstract static class ContentTrackedFile<F extends ContentFile<F>>
+      implements TrackedFile, StructLike {
+    private final int formatVersion;
+    private final Types.StructType partitionType;
+    private final MapBackedContentStats statsWrapper;
+
+    private Tracking tracking;
+    private F file;
+    private StructProjection partition;
+    private ContentStats stats;
+
+    ContentTrackedFile(
+        int formatVersion,
+        Schema tableSchema,
+        MetricsConfig metricsConfig,
+        Types.StructType partitionType) {
+      Preconditions.checkArgument(
+          formatVersion >= TableMetadata.MIN_FORMAT_VERSION_ADAPTIVE_MANIFEST_TREE,
+          "Invalid format version for adaptive manifest tree: %s (must be >= %s)",
+          formatVersion,
+          TableMetadata.MIN_FORMAT_VERSION_ADAPTIVE_MANIFEST_TREE);
+      Preconditions.checkArgument(tableSchema != null, "Invalid table schema: null");
+      Preconditions.checkArgument(metricsConfig != null, "Invalid metrics config: null");
+      Preconditions.checkArgument(partitionType != null, "Invalid partition type: null");
+      this.formatVersion = formatVersion;
+      this.partitionType = partitionType;
+      this.statsWrapper = new MapBackedContentStats(tableSchema, metricsConfig);
+    }
+
+    void wrapWithTracking(F newFile, Tracking newTracking) {
+      Preconditions.checkArgument(newFile != null, "Invalid file: null");
+      Preconditions.checkArgument(newTracking != null, "Invalid tracking: null");
+      validateContent(newFile);
+
+      this.file = newFile;
+      this.partition = projectPartition(newFile, partitionType);
+      this.stats = statsWrapper.wrap(newFile);
+      this.tracking = newTracking;
+    }
+
+    /** Content-type-specific validation of the wrapped file. */
+    abstract void validateContent(F newFile);
+
+    protected F file() {
+      return file;
+    }
+
+    @Override
+    public Tracking tracking() {
+      return tracking;
+    }
+
+    @Override
+    public int formatVersion() {
+      return formatVersion;
+    }
+
+    @Override
+    public String location() {
+      return file.location();
+    }
+
+    @Override
+    public FileFormat fileFormat() {
+      return file.format();
+    }
+
+    @Override
+    public long recordCount() {
+      return file.recordCount();
+    }
+
+    @Override
+    public long fileSizeInBytes() {
+      return file.fileSizeInBytes();
+    }
+
+    @Override
+    public Integer specId() {
+      return file.specId();
+    }
+
+    @Override
+    public StructLike partition() {
+      return partition;
+    }
+
+    @Override
+    public ContentStats contentStats() {
+      return stats;
+    }
+
+    @Override
+    public Integer sortOrderId() {
+      return null;
+    }
+
+    @Override
+    public DeletionVector deletionVector() {
+      return null;
+    }
+
+    @Override
+    public ManifestInfo manifestInfo() {
+      return null;
+    }
+
+    @Override
+    public ByteBuffer keyMetadata() {
+      return file.keyMetadata();
+    }
+
+    @Override
+    public List<Long> splitOffsets() {
+      return file.splitOffsets();
+    }
+
+    @Override
+    public List<Integer> equalityIds() {
+      return null;
+    }
+
+    @Override
+    public TrackedFile copy() {
+      throw new UnsupportedOperationException(
+          "Reusable content-file wrapper does not support copy(); materialize via a writer instead");
+    }
+
+    @Override
+    public TrackedFile copyWithStats(Set<Integer> requestedColumnIds) {
+      throw new UnsupportedOperationException(
+          "Reusable content-file wrapper does not support copyWithStats()");
+    }
+
+    @Override
+    public int size() {
+      return TRACKED_FILE_FIELD_COUNT;
+    }
+
+    @Override
+    public <T> T get(int pos, Class<T> javaClass) {
+      return javaClass.cast(TrackedFileStruct.getByPos(this, pos));
+    }
+
+    @Override
+    public <T> void set(int pos, T value) {
+      throw new UnsupportedOperationException(
+          "Reusable content-file wrapper does not support set()");
+    }
+  }
+
+  /** Wraps a {@link DataFile} as a {@link TrackedFile} row. */
+  static class DataTrackedFile extends ContentTrackedFile<DataFile> {
+    DataTrackedFile(
+        int formatVersion,
+        Schema tableSchema,
+        MetricsConfig metricsConfig,
+        Types.StructType partitionType) {
+      super(formatVersion, tableSchema, metricsConfig, partitionType);
+    }
+
+    /** Re-points this wrapper at {@code newFile} in place. */
+    public DataTrackedFile wrap(DataFile newFile, Tracking tracking) {
+      wrapWithTracking(newFile, tracking);
+      return this;
+    }
+
+    @Override
+    void validateContent(DataFile newFile) {
+      Preconditions.checkArgument(
+          newFile.content() == FileContent.DATA,
+          "Invalid content for data file: %s",
+          newFile.content());
+    }
+
+    @Override
+    public FileContent contentType() {
+      return FileContent.DATA;
+    }
+
+    @Override
+    public Integer sortOrderId() {
+      return file().sortOrderId();
+    }
+  }
+
+  /** Wraps an equality {@link DeleteFile} as a {@link TrackedFile} row. */
+  static class EqualityDeleteTrackedFile extends ContentTrackedFile<DeleteFile> {
+    EqualityDeleteTrackedFile(
+        int formatVersion,
+        Schema tableSchema,
+        MetricsConfig metricsConfig,
+        Types.StructType partitionType) {
+      super(formatVersion, tableSchema, metricsConfig, partitionType);
+    }
+
+    /** Re-points this wrapper at {@code newFile} in place. */
+    public EqualityDeleteTrackedFile wrap(DeleteFile newFile, Tracking tracking) {
+      wrapWithTracking(newFile, tracking);
+      return this;
+    }
+
+    @Override
+    void validateContent(DeleteFile newFile) {
+      Preconditions.checkArgument(
+          newFile.content() == FileContent.EQUALITY_DELETES,
+          "Invalid content for delete file: %s",
+          newFile.content());
+    }
+
+    @Override
+    public FileContent contentType() {
+      return FileContent.EQUALITY_DELETES;
+    }
+
+    @Override
+    public List<Integer> equalityIds() {
+      return file().equalityFieldIds();
+    }
+  }
+
+  /** Wraps a {@link ManifestFile} as a v4+ leaf manifest row. */
+  static class ManifestTrackedFile implements TrackedFile, StructLike {
+    private final WrappedManifestInfo manifestInfo = new WrappedManifestInfo();
+    private Tracking tracking;
+    private ManifestFile manifest;
+    private long recordCount;
+    private FileContent contentType;
+
+    ManifestTrackedFile() {}
+
+    /**
+     * Re-points this wrapper at {@code newManifest} in place.
+     *
+     * @param newManifest manifest file being referenced; must carry an assigned {@code
+     *     sequence_number} and {@code min_sequence_number}
+     * @param status entry status for the reference
+     * @param firstRowId first-row-id resolved by the caller for a DATA manifest reference, or null
+     *     for a DELETE manifest reference
+     */
+    public ManifestTrackedFile wrap(ManifestFile newManifest, EntryStatus status, Long firstRowId) {
+      Preconditions.checkArgument(newManifest != null, "Invalid manifest file: null");
+      Preconditions.checkArgument(status != null, "Invalid status: null");
+      int formatVersion = newManifest.formatVersion();
+      Preconditions.checkArgument(
+          formatVersion == ManifestFile.LEGACY_FORMAT_VERSION
+              || formatVersion >= TableMetadata.MIN_FORMAT_VERSION_ADAPTIVE_MANIFEST_TREE,
+          "Invalid manifest format_version: %s (must be %s for pre-v4 or >= %s for v4+)",
+          formatVersion,
+          ManifestFile.LEGACY_FORMAT_VERSION,
+          TableMetadata.MIN_FORMAT_VERSION_ADAPTIVE_MANIFEST_TREE);
+      Long manifestSnapshotId = newManifest.snapshotId();
+      Preconditions.checkArgument(manifestSnapshotId != null, "Invalid manifest snapshot id: null");
+      long manifestSeq = newManifest.sequenceNumber();
+      Preconditions.checkArgument(
+          manifestSeq != ManifestWriter.UNASSIGNED_SEQ,
+          "Invalid manifest reference %s: sequence_number is unassigned",
+          newManifest.path());
+      Preconditions.checkArgument(
+          newManifest.minSequenceNumber() != ManifestWriter.UNASSIGNED_SEQ,
+          "Invalid manifest reference %s: min_sequence_number is unassigned",
+          newManifest.path());
+      Preconditions.checkArgument(
+          firstRowId == null || newManifest.content() == ManifestContent.DATA,
+          "firstRowId is only valid for DATA manifests, but content is %s",
+          newManifest.content());
+
+      this.manifest = newManifest;
+      this.contentType =
+          newManifest.content() == ManifestContent.DATA
+              ? FileContent.DATA_MANIFEST
+              : FileContent.DELETE_MANIFEST;
+      this.recordCount = resolveRecordCount(newManifest);
+      this.tracking =
+          new TrackingStruct(
+              status, manifestSnapshotId, manifestSeq, manifestSeq, null, firstRowId, null, null);
+      this.manifestInfo.wrap(newManifest);
+      return this;
+    }
+
+    @Override
+    public Tracking tracking() {
+      return tracking;
+    }
+
+    @Override
+    public FileContent contentType() {
+      return contentType;
+    }
+
+    @Override
+    public int formatVersion() {
+      return manifest.formatVersion();
+    }
+
+    @Override
+    public String location() {
+      return manifest.path();
+    }
+
+    @Override
+    public FileFormat fileFormat() {
+      return FileFormat.fromFileName(manifest.path());
+    }
+
+    @Override
+    public long recordCount() {
+      return recordCount;
+    }
+
+    @Override
+    public long fileSizeInBytes() {
+      return manifest.length();
+    }
+
+    @Override
+    public Integer specId() {
+      return manifest.partitionSpecId();
+    }
+
+    @Override
+    public StructLike partition() {
+      return null;
+    }
+
+    @Override
+    public ContentStats contentStats() {
+      return null;
+    }
+
+    @Override
+    public Integer sortOrderId() {
+      return null;
+    }
+
+    @Override
+    public DeletionVector deletionVector() {
+      return null;
+    }
+
+    @Override
+    public ManifestInfo manifestInfo() {
+      return manifestInfo;
+    }
+
+    @Override
+    public ByteBuffer keyMetadata() {
+      return manifest.keyMetadata();
+    }
+
+    @Override
+    public List<Long> splitOffsets() {
+      return null;
+    }
+
+    @Override
+    public List<Integer> equalityIds() {
+      return null;
+    }
+
+    @Override
+    public TrackedFile copy() {
+      throw new UnsupportedOperationException(
+          "Reusable manifest-reference wrapper does not support copy()");
+    }
+
+    @Override
+    public TrackedFile copyWithStats(Set<Integer> requestedColumnIds) {
+      throw new UnsupportedOperationException(
+          "Reusable manifest-reference wrapper does not support copyWithStats()");
+    }
+
+    @Override
+    public int size() {
+      return TRACKED_FILE_FIELD_COUNT;
+    }
+
+    @Override
+    public <T> T get(int pos, Class<T> javaClass) {
+      return javaClass.cast(TrackedFileStruct.getByPos(this, pos));
+    }
+
+    @Override
+    public <T> void set(int pos, T value) {
+      throw new UnsupportedOperationException(
+          "Reusable manifest-reference wrapper does not support set()");
+    }
+  }
+
+  /** Reusable {@link ManifestInfo} view over a {@link ManifestFile}'s counts. */
+  private static class WrappedManifestInfo implements ManifestInfo, StructLike {
+    private ManifestFile manifest;
+
+    void wrap(ManifestFile newManifest) {
+      this.manifest = newManifest;
+    }
+
+    @Override
+    public int addedFilesCount() {
+      return zeroIfNull(manifest.addedFilesCount());
+    }
+
+    @Override
+    public int existingFilesCount() {
+      return zeroIfNull(manifest.existingFilesCount());
+    }
+
+    @Override
+    public int deletedFilesCount() {
+      return zeroIfNull(manifest.deletedFilesCount());
+    }
+
+    // TODO: GenericManifestFile doesn't yet plumb REPLACED aggregates, so replacedFilesCount() and
+    // replacedRowsCount() resolve to 0 today. Wire the aggregation from leaf-manifest writers up to
+    // the manifest_list entry in a follow-up.
+    @Override
+    public int replacedFilesCount() {
+      return zeroIfNull(manifest.replacedFilesCount());
+    }
+
+    @Override
+    public long addedRowsCount() {
+      return zeroIfNull(manifest.addedRowsCount());
+    }
+
+    @Override
+    public long existingRowsCount() {
+      return zeroIfNull(manifest.existingRowsCount());
+    }
+
+    @Override
+    public long deletedRowsCount() {
+      return zeroIfNull(manifest.deletedRowsCount());
+    }
+
+    @Override
+    public long replacedRowsCount() {
+      return zeroIfNull(manifest.replacedRowsCount());
+    }
+
+    @Override
+    public long minSequenceNumber() {
+      return manifest.minSequenceNumber();
+    }
+
+    @Override
+    public ByteBuffer dv() {
+      return null;
+    }
+
+    @Override
+    public Long dvCardinality() {
+      return null;
+    }
+
+    @Override
+    public ManifestInfo copy() {
+      throw new UnsupportedOperationException(
+          "Reusable manifest-info wrapper does not support copy()");
+    }
+
+    @Override
+    public int size() {
+      return MANIFEST_INFO_FIELD_COUNT;
+    }
+
+    @Override
+    public <T> T get(int pos, Class<T> javaClass) {
+      Object value =
+          switch (pos) {
+            case 0 -> addedFilesCount();
+            case 1 -> existingFilesCount();
+            case 2 -> deletedFilesCount();
+            case 3 -> replacedFilesCount();
+            case 4 -> addedRowsCount();
+            case 5 -> existingRowsCount();
+            case 6 -> deletedRowsCount();
+            case 7 -> replacedRowsCount();
+            case 8 -> minSequenceNumber();
+            case 9 -> dv();
+            case 10 -> dvCardinality();
+            default -> throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
+          };
+      return javaClass.cast(value);
+    }
+
+    @Override
+    public <T> void set(int pos, T value) {
+      throw new UnsupportedOperationException(
+          "Reusable manifest-info wrapper does not support set()");
+    }
+
+    private static int zeroIfNull(Integer value) {
+      return value != null ? value : 0;
+    }
+
+    private static long zeroIfNull(Long value) {
+      return value != null ? value : 0L;
+    }
+  }
+
   private static PartitionSpec resolveSpec(
       TrackedFile file, Map<Integer, PartitionSpec> specsById) {
     Integer specId = file.specId();
@@ -429,5 +984,57 @@ class TrackedFileAdapters {
 
     throw new IllegalArgumentException(
         "Cannot find unpartitioned spec in specs: " + specsById.keySet());
+  }
+
+  /**
+   * Projects the file's per-spec partition tuple into the target partition schema by field ID.
+   * Fields present in the target but not in the file's spec land as null.
+   */
+  private static StructProjection projectPartition(
+      ContentFile<?> file, Types.StructType partitionType) {
+    StructLike partition = file.partition();
+    Types.StructType sourceType;
+    if (partition instanceof PartitionData) {
+      sourceType = ((PartitionData) partition).getPartitionType();
+    } else if (partition == null || partition.size() == 0) {
+      sourceType = Types.StructType.of();
+    } else {
+      throw new IllegalArgumentException(
+          String.format(
+              "Cannot project partition for %s: partition type is unavailable for %s",
+              file.location(), partition));
+    }
+
+    return StructProjection.createAllowMissing(sourceType, partitionType).wrap(partition);
+  }
+
+  /**
+   * Resolves record_count for a manifest-reference row. v4+ manifests carry a persisted
+   * record_count; pre-v4 manifests sum the per-status file counts.
+   */
+  private static long resolveRecordCount(ManifestFile manifest) {
+    if (manifest.formatVersion() >= TableMetadata.MIN_FORMAT_VERSION_ADAPTIVE_MANIFEST_TREE) {
+      Long persisted = manifest.recordCount();
+      Preconditions.checkArgument(
+          persisted != null,
+          "Invalid v4 manifest reference for %s: record_count must be set by the writer",
+          manifest.path());
+      return persisted;
+    }
+
+    long total = 0L;
+    if (manifest.addedFilesCount() != null) {
+      total += manifest.addedFilesCount();
+    }
+
+    if (manifest.existingFilesCount() != null) {
+      total += manifest.existingFilesCount();
+    }
+
+    if (manifest.deletedFilesCount() != null) {
+      total += manifest.deletedFilesCount();
+    }
+
+    return total;
   }
 }
