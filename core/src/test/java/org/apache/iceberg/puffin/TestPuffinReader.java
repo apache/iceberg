@@ -28,6 +28,7 @@ import static org.apache.iceberg.relocated.com.google.common.collect.ImmutableMa
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.util.List;
 import java.util.Map;
 import javax.annotation.Nullable;
 import org.apache.iceberg.inmemory.InMemoryInputFile;
@@ -153,5 +154,79 @@ public class TestPuffinReader {
       assertThat(reader.fileMetadata().properties())
           .isEqualTo(ImmutableMap.of("created-by", "Test 1234"));
     }
+  }
+
+  @Test
+  void coalescesContiguousBlobsAndSplitsOnGaps() {
+    BlobMetadata blobA = blob("a", 0, 10);
+    BlobMetadata blobB = blob("b", 10, 8);
+    BlobMetadata blobC = blob("c", 15, 10); // overlaps blobB: same read
+    BlobMetadata blobD = blob("d", 100, 4); // gap: separate read
+
+    List<List<BlobMetadata>> groups =
+        PuffinReader.coalesce(ImmutableList.of(blobA, blobB, blobC, blobD), Long.MAX_VALUE);
+
+    assertThat(groups).hasSize(2);
+    assertThat(groups.get(0)).containsExactly(blobA, blobB, blobC);
+    assertThat(groups.get(1)).containsExactly(blobD);
+  }
+
+  @Test
+  void splitsContiguousRunThatExceedsMaxReadSize() {
+    BlobMetadata blobA = blob("a", 0, 10);
+    BlobMetadata blobB = blob("b", 10, 10);
+    BlobMetadata blobC = blob("c", 20, 10); // would exceed the 25-byte cap: separate read
+
+    List<List<BlobMetadata>> groups =
+        PuffinReader.coalesce(ImmutableList.of(blobA, blobB, blobC), 25);
+
+    assertThat(groups).hasSize(2);
+    assertThat(groups.get(0)).containsExactly(blobA, blobB);
+    assertThat(groups.get(1)).containsExactly(blobC);
+  }
+
+  @Test
+  void keepsBlobLargerThanMaxReadSizeInItsOwnGroup() {
+    BlobMetadata big = blob("big", 0, 100); // exceeds the cap on its own
+    BlobMetadata next = blob("next", 100, 10);
+
+    List<List<BlobMetadata>> groups = PuffinReader.coalesce(ImmutableList.of(big, next), 25);
+
+    assertThat(groups).hasSize(2);
+    assertThat(groups.get(0)).containsExactly(big);
+    assertThat(groups.get(1)).containsExactly(next);
+  }
+
+  @Test
+  void readAllReadsFarApartBlobsInSeparateRegions() throws Exception {
+    byte[] first = "first blob".getBytes(UTF_8);
+    byte[] second = "second blob far away".getBytes(UTF_8);
+    int secondOffset = 2_000_000; // far from the first blob: separate read
+
+    // build the raw layout directly; the writer always packs blobs contiguously
+    byte[] bytes = new byte[secondOffset + second.length];
+    System.arraycopy(first, 0, bytes, 0, first.length);
+    System.arraycopy(second, 0, bytes, secondOffset, second.length);
+
+    BlobMetadata firstBlob = blob("first", 0, first.length);
+    BlobMetadata secondBlob = blob("second", secondOffset, second.length);
+
+    InMemoryInputFile inputFile = new InMemoryInputFile(bytes);
+    try (PuffinReader reader = Puffin.read(inputFile).withFileSize(bytes.length).build()) {
+      Map<BlobMetadata, byte[]> read =
+          Streams.stream(reader.readAll(ImmutableList.of(firstBlob, secondBlob)))
+              .collect(toImmutableMap(Pair::first, pair -> ByteBuffers.toByteArray(pair.second())));
+
+      assertThat(read)
+          .as("read")
+          .containsOnlyKeys(firstBlob, secondBlob)
+          .containsEntry(firstBlob, first)
+          .containsEntry(secondBlob, second);
+    }
+  }
+
+  private static BlobMetadata blob(String type, long offset, long length) {
+    return new BlobMetadata(
+        type, ImmutableList.of(1), 1L, 1L, offset, length, null, ImmutableMap.of());
   }
 }
