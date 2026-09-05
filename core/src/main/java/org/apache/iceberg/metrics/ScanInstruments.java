@@ -22,6 +22,7 @@ import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.api.metrics.DoubleHistogram;
 import io.opentelemetry.api.metrics.LongCounter;
 import io.opentelemetry.api.metrics.Meter;
+import java.time.Duration;
 
 /** OpenTelemetry instruments for {@link ScanReport} metrics, keyed by {@link ScanMetricsResult}. */
 final class ScanInstruments {
@@ -106,8 +107,7 @@ final class ScanInstruments {
 
   void record(ScanMetricsResult metrics, Attributes attrs) {
     if (metrics.totalPlanningDuration() != null) {
-      planningDuration.record(
-          (double) metrics.totalPlanningDuration().totalDuration().toMillis(), attrs);
+      planningDuration.record(millis(metrics.totalPlanningDuration().totalDuration()), attrs);
     }
 
     recordCounter(resultDataFiles, metrics.resultDataFiles(), attrs);
@@ -139,6 +139,10 @@ final class ScanInstruments {
   private static DoubleHistogram histogram(
       Meter meter, String name, String description, String unit) {
     return meter.histogramBuilder(name).setDescription(description).setUnit(unit).build();
+  }
+
+  private static double millis(Duration duration) {
+    return duration.toNanos() / 1_000_000.0;
   }
 
   private static void recordCounter(LongCounter counter, CounterResult result, Attributes attrs) {

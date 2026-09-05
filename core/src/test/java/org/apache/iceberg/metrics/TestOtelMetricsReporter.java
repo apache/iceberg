@@ -137,6 +137,58 @@ public class TestOtelMetricsReporter {
   }
 
   @Test
+  public void testTotalsReportLatestValueNotSum() {
+    reporter.report(commitReportWithTotalDataFiles(15));
+    reporter.report(commitReportWithTotalDataFiles(17));
+
+    Collection<MetricData> metrics = metricReader.collectAllMetrics();
+
+    // Totals describe the table after the commit, so the second report replaces the first rather
+    // than adding to it: 15 followed by 17 must read 17, never 32.
+    assertGaugeValue(metrics, "iceberg.commit.data_files.total", 17);
+    // Per-commit deltas keep accumulating
+    assertSumValue(metrics, "iceberg.commit.data_files.added", 10);
+  }
+
+  @Test
+  public void testSubMillisecondDurationsKeepTheirPrecision() {
+    reporter.report(
+        ImmutableCommitReport.builder()
+            .tableName("test_db.test_table")
+            .snapshotId(43L)
+            .sequenceNumber(1L)
+            .operation("append")
+            .commitMetrics(
+                ImmutableCommitMetricsResult.builder()
+                    .totalDuration(
+                        TimerResult.of(TimeUnit.NANOSECONDS, Duration.ofNanos(500_000), 1))
+                    .build())
+            .metadata(ImmutableMap.of())
+            .build());
+
+    Collection<MetricData> metrics = metricReader.collectAllMetrics();
+
+    // 500 microseconds is 0.5 ms; truncating to whole milliseconds would report 0
+    assertHistogramValue(metrics, "iceberg.commit.duration", 0.5);
+  }
+
+  private static CommitReport commitReportWithTotalDataFiles(long total) {
+    return ImmutableCommitReport.builder()
+        .tableName("test_db.test_table")
+        .snapshotId(43L)
+        .sequenceNumber(1L)
+        .operation("append")
+        .commitMetrics(
+            ImmutableCommitMetricsResult.builder()
+                .totalDuration(TimerResult.of(TimeUnit.NANOSECONDS, Duration.ofMillis(200), 1))
+                .addedDataFiles(CounterResult.of(Unit.COUNT, 5))
+                .totalDataFiles(CounterResult.of(Unit.COUNT, total))
+                .build())
+        .metadata(ImmutableMap.of())
+        .build();
+  }
+
+  @Test
   public void testCommitReportMetrics() {
     CommitReport commitReport =
         ImmutableCommitReport.builder()
@@ -219,7 +271,7 @@ public class TestOtelMetricsReporter {
     assertSumValue(metrics, "iceberg.commit.attempts", 1);
     assertSumValue(metrics, "iceberg.commit.data_files.added", 5);
     assertSumValue(metrics, "iceberg.commit.data_files.removed", 2);
-    assertSumValue(metrics, "iceberg.commit.data_files.total", 15);
+    assertGaugeValue(metrics, "iceberg.commit.data_files.total", 15);
     assertSumValue(metrics, "iceberg.commit.delete_files.added", 3);
     assertSumValue(metrics, "iceberg.commit.delete_files.equality.added", 1);
     assertSumValue(metrics, "iceberg.commit.delete_files.positional.added", 2);
@@ -228,19 +280,19 @@ public class TestOtelMetricsReporter {
     assertSumValue(metrics, "iceberg.commit.delete_files.equality.removed", 0);
     assertSumValue(metrics, "iceberg.commit.delete_files.positional.removed", 1);
     assertSumValue(metrics, "iceberg.commit.dvs.removed", 0);
-    assertSumValue(metrics, "iceberg.commit.delete_files.total", 8);
+    assertGaugeValue(metrics, "iceberg.commit.delete_files.total", 8);
     assertSumValue(metrics, "iceberg.commit.records.added", 1000);
     assertSumValue(metrics, "iceberg.commit.records.removed", 50);
-    assertSumValue(metrics, "iceberg.commit.records.total", 5000);
+    assertGaugeValue(metrics, "iceberg.commit.records.total", 5000);
     assertSumValue(metrics, "iceberg.commit.file_size.added_bytes", 512000);
     assertSumValue(metrics, "iceberg.commit.file_size.removed_bytes", 10000);
-    assertSumValue(metrics, "iceberg.commit.file_size.total_bytes", 2000000);
+    assertGaugeValue(metrics, "iceberg.commit.file_size.total_bytes", 2000000);
     assertSumValue(metrics, "iceberg.commit.positional_deletes.added", 100);
     assertSumValue(metrics, "iceberg.commit.positional_deletes.removed", 20);
-    assertSumValue(metrics, "iceberg.commit.positional_deletes.total", 300);
+    assertGaugeValue(metrics, "iceberg.commit.positional_deletes.total", 300);
     assertSumValue(metrics, "iceberg.commit.equality_deletes.added", 50);
     assertSumValue(metrics, "iceberg.commit.equality_deletes.removed", 10);
-    assertSumValue(metrics, "iceberg.commit.equality_deletes.total", 150);
+    assertGaugeValue(metrics, "iceberg.commit.equality_deletes.total", 150);
     assertSumValue(metrics, "iceberg.commit.manifests.created", 3);
     assertSumValue(metrics, "iceberg.commit.manifests.replaced", 2);
     assertSumValue(metrics, "iceberg.commit.manifests.kept", 7);
@@ -597,16 +649,43 @@ public class TestOtelMetricsReporter {
 
   private static void assertSumValue(
       Collection<MetricData> metrics, String name, long expectedValue) {
-    MetricData metric =
-        metrics.stream()
-            .filter(m -> m.getName().equals(name))
-            .findFirst()
-            .orElseThrow(() -> new AssertionError("Metric not found: " + name));
+    MetricData metric = metric(metrics, name);
 
     long actualSum =
         metric.getLongSumData().getPoints().stream().mapToLong(LongPointData::getValue).sum();
     assertThat(actualSum)
         .as("Expected sum of '%s' to be %d", name, expectedValue)
         .isEqualTo(expectedValue);
+  }
+
+  private static void assertGaugeValue(
+      Collection<MetricData> metrics, String name, long expectedValue) {
+    MetricData metric = metric(metrics, name);
+
+    assertThat(metric.getLongGaugeData().getPoints())
+        .as("Expected a single point for gauge '%s'", name)
+        .hasSize(1);
+    assertThat(metric.getLongGaugeData().getPoints().iterator().next().getValue())
+        .as("Expected gauge '%s' to be %d", name, expectedValue)
+        .isEqualTo(expectedValue);
+  }
+
+  private static void assertHistogramValue(
+      Collection<MetricData> metrics, String name, double expectedValue) {
+    MetricData metric = metric(metrics, name);
+
+    assertThat(metric.getHistogramData().getPoints())
+        .as("Expected a single point for histogram '%s'", name)
+        .hasSize(1);
+    assertThat(metric.getHistogramData().getPoints().iterator().next().getSum())
+        .as("Expected histogram '%s' to record %f", name, expectedValue)
+        .isEqualTo(expectedValue);
+  }
+
+  private static MetricData metric(Collection<MetricData> metrics, String name) {
+    return metrics.stream()
+        .filter(m -> m.getName().equals(name))
+        .findFirst()
+        .orElseThrow(() -> new AssertionError("Metric not found: " + name));
   }
 }

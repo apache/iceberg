@@ -132,7 +132,7 @@ The host application is therefore responsible for:
 
 1. Adding the OpenTelemetry **API**, **SDK**, and a **metric exporter** matching the target backend to the runtime classpath. Iceberg core compiles against `opentelemetry-api` only; it does not bundle the SDK or any exporter.
 2. Building and registering an `OpenTelemetrySdk`, either via the [OpenTelemetry Java agent](https://opentelemetry.io/docs/zero-code/java/agent/) (which auto-instruments the SDK at JVM startup) or programmatically with `OpenTelemetrySdk.builder()...buildAndRegisterGlobal()`.
-3. Configuring the exporter's endpoint, credentials, batching, retry, and resource attributes — typically via the [standard OpenTelemetry environment variables](https://opentelemetry.io/docs/specs/otel/configuration/sdk-environment-variables/) (`OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_SERVICE_NAME`, `OTEL_EXPORTER_OTLP_HEADERS`, ...).
+3. Configuring the exporter's endpoint, credentials, batching, retry, and resource attributes. The [standard OpenTelemetry environment variables](https://opentelemetry.io/docs/specs/otel/configuration/sdk-environment-variables/) (`OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_SERVICE_NAME`, `OTEL_EXPORTER_OTLP_HEADERS`, ...) are read by the Java agent and by the `opentelemetry-sdk-extension-autoconfigure` module; a plain `OpenTelemetrySdk.builder()` does not consult them, so an SDK built by hand has to set the exporter's configuration explicitly.
 
 Because the host owns the SDK, Iceberg has no reporter-specific catalog properties for endpoint, protocol, headers, intervals, or resource attributes. The catalog only needs to know the reporter class, which can be specified via:
 
@@ -344,7 +344,7 @@ The reporter maps every field from [`ScanMetricsResult`](https://github.com/apac
 | `iceberg.commit.attempts` | sum | | `attempts()` |
 | `iceberg.commit.data_files.added` | sum | | `addedDataFiles()` |
 | `iceberg.commit.data_files.removed` | sum | | `removedDataFiles()` |
-| `iceberg.commit.data_files.total` | sum | | `totalDataFiles()` |
+| `iceberg.commit.data_files.total` | gauge | | `totalDataFiles()` |
 | `iceberg.commit.delete_files.added` | sum | | `addedDeleteFiles()` |
 | `iceberg.commit.delete_files.equality.added` | sum | | `addedEqualityDeleteFiles()` |
 | `iceberg.commit.delete_files.positional.added` | sum | | `addedPositionalDeleteFiles()` |
@@ -353,23 +353,25 @@ The reporter maps every field from [`ScanMetricsResult`](https://github.com/apac
 | `iceberg.commit.delete_files.equality.removed` | sum | | `removedEqualityDeleteFiles()` |
 | `iceberg.commit.delete_files.positional.removed` | sum | | `removedPositionalDeleteFiles()` |
 | `iceberg.commit.dvs.removed` | sum | | `removedDVs()` |
-| `iceberg.commit.delete_files.total` | sum | | `totalDeleteFiles()` |
+| `iceberg.commit.delete_files.total` | gauge | | `totalDeleteFiles()` |
 | `iceberg.commit.records.added` | sum | | `addedRecords()` |
 | `iceberg.commit.records.removed` | sum | | `removedRecords()` |
-| `iceberg.commit.records.total` | sum | | `totalRecords()` |
+| `iceberg.commit.records.total` | gauge | | `totalRecords()` |
 | `iceberg.commit.file_size.added_bytes` | sum | By | `addedFilesSizeInBytes()` |
 | `iceberg.commit.file_size.removed_bytes` | sum | By | `removedFilesSizeInBytes()` |
-| `iceberg.commit.file_size.total_bytes` | sum | By | `totalFilesSizeInBytes()` |
+| `iceberg.commit.file_size.total_bytes` | gauge | By | `totalFilesSizeInBytes()` |
 | `iceberg.commit.positional_deletes.added` | sum | | `addedPositionalDeletes()` |
 | `iceberg.commit.positional_deletes.removed` | sum | | `removedPositionalDeletes()` |
-| `iceberg.commit.positional_deletes.total` | sum | | `totalPositionalDeletes()` |
+| `iceberg.commit.positional_deletes.total` | gauge | | `totalPositionalDeletes()` |
 | `iceberg.commit.equality_deletes.added` | sum | | `addedEqualityDeletes()` |
 | `iceberg.commit.equality_deletes.removed` | sum | | `removedEqualityDeletes()` |
-| `iceberg.commit.equality_deletes.total` | sum | | `totalEqualityDeletes()` |
+| `iceberg.commit.equality_deletes.total` | gauge | | `totalEqualityDeletes()` |
 | `iceberg.commit.manifests.created` | sum | | `manifestsCreated()` |
 | `iceberg.commit.manifests.replaced` | sum | | `manifestsReplaced()` |
 | `iceberg.commit.manifests.kept` | sum | | `manifestsKept()` |
 | `iceberg.commit.manifest_entries.processed` | sum | | `manifestEntriesProcessed()` |
+
+The `*.total` commit metrics describe the table after the commit rather than what the commit changed, so they are gauges: each report replaces the previous value. Adding successive snapshots together would produce a number that never described the table. The `added`/`removed` metrics are the per-commit deltas and accumulate as sums.
 
 The default attribute set is described in the [Attribute set](#attribute-set) section above.
 

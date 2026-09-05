@@ -21,7 +21,9 @@ package org.apache.iceberg.metrics;
 import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.api.metrics.DoubleHistogram;
 import io.opentelemetry.api.metrics.LongCounter;
+import io.opentelemetry.api.metrics.LongGauge;
 import io.opentelemetry.api.metrics.Meter;
+import java.time.Duration;
 
 /**
  * OpenTelemetry instruments for {@link CommitReport} metrics, keyed by {@link CommitMetricsResult}.
@@ -31,7 +33,7 @@ final class CommitInstruments {
   private final LongCounter attempts;
   private final LongCounter addedDataFiles;
   private final LongCounter removedDataFiles;
-  private final LongCounter totalDataFiles;
+  private final LongGauge totalDataFiles;
   private final LongCounter addedDeleteFiles;
   private final LongCounter addedEqualityDeleteFiles;
   private final LongCounter addedPositionalDeleteFiles;
@@ -40,19 +42,19 @@ final class CommitInstruments {
   private final LongCounter removedEqualityDeleteFiles;
   private final LongCounter removedPositionalDeleteFiles;
   private final LongCounter removedDVs;
-  private final LongCounter totalDeleteFiles;
+  private final LongGauge totalDeleteFiles;
   private final LongCounter addedRecords;
   private final LongCounter removedRecords;
-  private final LongCounter totalRecords;
+  private final LongGauge totalRecords;
   private final LongCounter addedFileSizeBytes;
   private final LongCounter removedFileSizeBytes;
-  private final LongCounter totalFileSizeBytes;
+  private final LongGauge totalFileSizeBytes;
   private final LongCounter addedPositionalDeletes;
   private final LongCounter removedPositionalDeletes;
-  private final LongCounter totalPositionalDeletes;
+  private final LongGauge totalPositionalDeletes;
   private final LongCounter addedEqualityDeletes;
   private final LongCounter removedEqualityDeletes;
-  private final LongCounter totalEqualityDeletes;
+  private final LongGauge totalEqualityDeletes;
   private final LongCounter manifestsCreated;
   private final LongCounter manifestsReplaced;
   private final LongCounter manifestsKept;
@@ -67,8 +69,7 @@ final class CommitInstruments {
         counter(
             meter, "iceberg.commit.data_files.removed", "Number of data files removed by commit");
     totalDataFiles =
-        counter(
-            meter, "iceberg.commit.data_files.total", "Total number of data files after commit");
+        gauge(meter, "iceberg.commit.data_files.total", "Total number of data files after commit");
     addedDeleteFiles =
         counter(
             meter, "iceberg.commit.delete_files.added", "Number of delete files added by commit");
@@ -103,7 +104,7 @@ final class CommitInstruments {
         counter(
             meter, "iceberg.commit.dvs.removed", "Number of deletion vectors removed by commit");
     totalDeleteFiles =
-        counter(
+        gauge(
             meter,
             "iceberg.commit.delete_files.total",
             "Total number of delete files after commit");
@@ -112,7 +113,7 @@ final class CommitInstruments {
     removedRecords =
         counter(meter, "iceberg.commit.records.removed", "Number of records removed by commit");
     totalRecords =
-        counter(meter, "iceberg.commit.records.total", "Total number of records after commit");
+        gauge(meter, "iceberg.commit.records.total", "Total number of records after commit");
     addedFileSizeBytes =
         counter(
             meter,
@@ -126,7 +127,7 @@ final class CommitInstruments {
             "Total size of data files removed by commit",
             "By");
     totalFileSizeBytes =
-        counter(
+        gauge(
             meter,
             "iceberg.commit.file_size.total_bytes",
             "Total size of all data files after commit",
@@ -142,7 +143,7 @@ final class CommitInstruments {
             "iceberg.commit.positional_deletes.removed",
             "Number of positional deletes removed by commit");
     totalPositionalDeletes =
-        counter(
+        gauge(
             meter,
             "iceberg.commit.positional_deletes.total",
             "Total number of positional deletes after commit");
@@ -157,7 +158,7 @@ final class CommitInstruments {
             "iceberg.commit.equality_deletes.removed",
             "Number of equality deletes removed by commit");
     totalEqualityDeletes =
-        counter(
+        gauge(
             meter,
             "iceberg.commit.equality_deletes.total",
             "Total number of equality deletes after commit");
@@ -181,13 +182,13 @@ final class CommitInstruments {
 
   void record(CommitMetricsResult metrics, Attributes attrs) {
     if (metrics.totalDuration() != null) {
-      duration.record((double) metrics.totalDuration().totalDuration().toMillis(), attrs);
+      duration.record(millis(metrics.totalDuration().totalDuration()), attrs);
     }
 
     recordCounter(attempts, metrics.attempts(), attrs);
     recordCounter(addedDataFiles, metrics.addedDataFiles(), attrs);
     recordCounter(removedDataFiles, metrics.removedDataFiles(), attrs);
-    recordCounter(totalDataFiles, metrics.totalDataFiles(), attrs);
+    recordGauge(totalDataFiles, metrics.totalDataFiles(), attrs);
     recordCounter(addedDeleteFiles, metrics.addedDeleteFiles(), attrs);
     recordCounter(addedEqualityDeleteFiles, metrics.addedEqualityDeleteFiles(), attrs);
     recordCounter(addedPositionalDeleteFiles, metrics.addedPositionalDeleteFiles(), attrs);
@@ -196,19 +197,19 @@ final class CommitInstruments {
     recordCounter(removedEqualityDeleteFiles, metrics.removedEqualityDeleteFiles(), attrs);
     recordCounter(removedPositionalDeleteFiles, metrics.removedPositionalDeleteFiles(), attrs);
     recordCounter(removedDVs, metrics.removedDVs(), attrs);
-    recordCounter(totalDeleteFiles, metrics.totalDeleteFiles(), attrs);
+    recordGauge(totalDeleteFiles, metrics.totalDeleteFiles(), attrs);
     recordCounter(addedRecords, metrics.addedRecords(), attrs);
     recordCounter(removedRecords, metrics.removedRecords(), attrs);
-    recordCounter(totalRecords, metrics.totalRecords(), attrs);
+    recordGauge(totalRecords, metrics.totalRecords(), attrs);
     recordCounter(addedFileSizeBytes, metrics.addedFilesSizeInBytes(), attrs);
     recordCounter(removedFileSizeBytes, metrics.removedFilesSizeInBytes(), attrs);
-    recordCounter(totalFileSizeBytes, metrics.totalFilesSizeInBytes(), attrs);
+    recordGauge(totalFileSizeBytes, metrics.totalFilesSizeInBytes(), attrs);
     recordCounter(addedPositionalDeletes, metrics.addedPositionalDeletes(), attrs);
     recordCounter(removedPositionalDeletes, metrics.removedPositionalDeletes(), attrs);
-    recordCounter(totalPositionalDeletes, metrics.totalPositionalDeletes(), attrs);
+    recordGauge(totalPositionalDeletes, metrics.totalPositionalDeletes(), attrs);
     recordCounter(addedEqualityDeletes, metrics.addedEqualityDeletes(), attrs);
     recordCounter(removedEqualityDeletes, metrics.removedEqualityDeletes(), attrs);
-    recordCounter(totalEqualityDeletes, metrics.totalEqualityDeletes(), attrs);
+    recordGauge(totalEqualityDeletes, metrics.totalEqualityDeletes(), attrs);
     recordCounter(manifestsCreated, metrics.manifestsCreated(), attrs);
     recordCounter(manifestsReplaced, metrics.manifestsReplaced(), attrs);
     recordCounter(manifestsKept, metrics.manifestsKept(), attrs);
@@ -228,9 +229,32 @@ final class CommitInstruments {
     return meter.histogramBuilder(name).setDescription(description).setUnit(unit).build();
   }
 
+  private static LongGauge gauge(Meter meter, String name, String description) {
+    return meter.gaugeBuilder(name).ofLongs().setDescription(description).build();
+  }
+
+  private static LongGauge gauge(Meter meter, String name, String description, String unit) {
+    return meter.gaugeBuilder(name).ofLongs().setDescription(description).setUnit(unit).build();
+  }
+
   private static void recordCounter(LongCounter counter, CounterResult result, Attributes attrs) {
     if (result != null) {
       counter.add(result.value(), attrs);
     }
+  }
+
+  /**
+   * Table-wide totals reported after a commit describe the state of the table, not what the commit
+   * changed, so they are set rather than accumulated: adding successive snapshots together would
+   * produce a number that never described the table.
+   */
+  private static void recordGauge(LongGauge gauge, CounterResult result, Attributes attrs) {
+    if (result != null) {
+      gauge.set(result.value(), attrs);
+    }
+  }
+
+  private static double millis(Duration duration) {
+    return duration.toNanos() / 1_000_000.0;
   }
 }
