@@ -34,6 +34,63 @@ public class CatalogProperties {
   public static final String METRICS_REPORTER_IMPL = "metrics-reporter-impl";
 
   /**
+   * Comma-separated list of Java regexes applied to {@code tableName()} of {@link
+   * org.apache.iceberg.metrics.ScanReport} and {@link org.apache.iceberg.metrics.CommitReport}.
+   * When set, only reports whose table name matches at least one pattern are forwarded to the
+   * configured {@link org.apache.iceberg.metrics.MetricsReporter}.
+   *
+   * <p>Each pattern is matched against the entire table name rather than any substring of it, so
+   * {@code prod\..*} matches {@code prod.db.table} but not {@code production.db.table}. Empty
+   * values are treated as not set.
+   */
+  public static final String METRICS_REPORTER_TABLE_NAME_INCLUDE =
+      "metrics-reporter.table-name.include";
+
+  /**
+   * Comma-separated list of Java regexes applied to {@code tableName()} of {@link
+   * org.apache.iceberg.metrics.ScanReport} and {@link org.apache.iceberg.metrics.CommitReport}.
+   * When set, reports whose table name matches any pattern are dropped before reaching the
+   * configured {@link org.apache.iceberg.metrics.MetricsReporter}. An exclude match wins over an
+   * include match.
+   *
+   * <p>Each pattern is matched against the entire table name rather than any substring of it. Empty
+   * values are treated as not set.
+   */
+  public static final String METRICS_REPORTER_TABLE_NAME_EXCLUDE =
+      "metrics-reporter.table-name.exclude";
+
+  /**
+   * Comma-separated list of Java regexes applied to the namespace of the table a {@link
+   * org.apache.iceberg.metrics.ScanReport} or {@link org.apache.iceberg.metrics.CommitReport} was
+   * produced for. When set, only reports for tables whose namespace matches at least one pattern
+   * are forwarded to the configured {@link org.apache.iceberg.metrics.MetricsReporter}.
+   *
+   * <p>The namespace is the dot-joined form of the table's namespace levels, with the catalog name
+   * removed, so {@code db} matches a table reported as {@code prod.db.table} in a catalog named
+   * {@code prod}. Filtering on the namespace is less prone to unintended matches than filtering on
+   * the table name, because a namespace is part of the table's identity rather than a naming
+   * convention.
+   *
+   * <p>Each pattern is matched against the entire namespace rather than any substring of it. Empty
+   * values are treated as not set.
+   */
+  public static final String METRICS_REPORTER_NAMESPACE_INCLUDE =
+      "metrics-reporter.namespace.include";
+
+  /**
+   * Comma-separated list of Java regexes applied to the namespace of the table a {@link
+   * org.apache.iceberg.metrics.ScanReport} or {@link org.apache.iceberg.metrics.CommitReport} was
+   * produced for. When set, reports for tables whose namespace matches any pattern are dropped
+   * before reaching the configured {@link org.apache.iceberg.metrics.MetricsReporter}. An exclude
+   * match wins over an include match.
+   *
+   * <p>Each pattern is matched against the entire namespace rather than any substring of it. Empty
+   * values are treated as not set.
+   */
+  public static final String METRICS_REPORTER_NAMESPACE_EXCLUDE =
+      "metrics-reporter.namespace.exclude";
+
+  /**
    * Controls whether the catalog will cache table entries upon load.
    *
    * <p>If {@link #CACHE_EXPIRATION_INTERVAL_MS} is set to zero, this value will be ignored and the
