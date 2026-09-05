@@ -255,5 +255,4 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
       planner = null;
     }
   }
-
 }

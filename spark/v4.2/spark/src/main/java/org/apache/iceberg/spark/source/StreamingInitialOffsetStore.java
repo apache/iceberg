@@ -41,9 +41,7 @@ class StreamingInitialOffsetStore {
   private final Supplier<StreamingOffset> offsetSupplier;
 
   StreamingInitialOffsetStore(
-      String checkpointLocation,
-      Configuration conf,
-      Supplier<StreamingOffset> offsetSupplier) {
+      String checkpointLocation, Configuration conf, Supplier<StreamingOffset> offsetSupplier) {
     this.io = new HadoopFileIO(conf);
     this.initialOffsetLocation = SLASH.join(checkpointLocation, "offsets/0");
     this.offsetSupplier = offsetSupplier;
