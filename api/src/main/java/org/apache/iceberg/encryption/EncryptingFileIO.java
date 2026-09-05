@@ -28,6 +28,7 @@ import java.util.Map;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.FileWithEncryptedKey;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.ManifestListFile;
 import org.apache.iceberg.io.BulkDeletionFailureException;
@@ -130,6 +131,11 @@ public class EncryptingFileIO implements FileIO, Serializable {
     }
   }
 
+  /**
+   * @deprecated since 1.12.0. Will be removed in 2.0.0; use {@link
+   *     #newInputFile(FileWithEncryptedKey)} instead.
+   */
+  @Deprecated
   @Override
   public InputFile newInputFile(ManifestListFile manifestList) {
     if (manifestList.encryptionKeyID() != null) {
@@ -137,6 +143,16 @@ public class EncryptingFileIO implements FileIO, Serializable {
       return newDecryptingInputFile(manifestList.location(), keyMetadata);
     } else {
       return newInputFile(manifestList.location());
+    }
+  }
+
+  @Override
+  public InputFile newInputFile(FileWithEncryptedKey file) {
+    if (file.keyId() != null) {
+      ByteBuffer keyMetadata = file.decryptKeyMetadata(em);
+      return newDecryptingInputFile(file.location(), keyMetadata);
+    } else {
+      return newInputFile(file.location());
     }
   }
 

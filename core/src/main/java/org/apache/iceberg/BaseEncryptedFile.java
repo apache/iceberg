@@ -18,15 +18,32 @@
  */
 package org.apache.iceberg;
 
-/**
- * A manifest list file that may be encrypted.
- *
- * @deprecated since 1.12.0. Will be removed in 2.0.0; use {@link FileWithEncryptedKey} instead.
- */
-@Deprecated
-public interface ManifestListFile extends FileWithEncryptedKey {
-  /** Returns the encryption key ID for this file, or null if the file is not encrypted. */
-  default String encryptionKeyID() {
-    return keyId();
+import java.io.Serializable;
+import java.nio.ByteBuffer;
+import org.apache.iceberg.encryption.EncryptionManager;
+import org.apache.iceberg.encryption.EncryptionUtil;
+
+class BaseEncryptedFile implements FileWithEncryptedKey, Serializable {
+  private final String location;
+  private final String keyId;
+
+  BaseEncryptedFile(String location, String encryptionKeyID) {
+    this.location = location;
+    this.keyId = encryptionKeyID;
+  }
+
+  @Override
+  public String location() {
+    return location;
+  }
+
+  @Override
+  public String keyId() {
+    return keyId;
+  }
+
+  @Override
+  public ByteBuffer decryptKeyMetadata(EncryptionManager em) {
+    return EncryptionUtil.decryptKeyMetadata(this, em);
   }
 }

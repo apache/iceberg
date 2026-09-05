@@ -25,6 +25,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.FileWithEncryptedKey;
 import org.apache.iceberg.ManifestListFile;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.common.DynConstructors;
@@ -140,19 +141,36 @@ public class EncryptionUtil {
    * @param manifestList a ManifestListFile
    * @param em the table's EncryptionManager
    * @return a decrypted key metadata buffer
+   * @deprecated since 1.12.0. Will be removed in 2.0.0; use {@link
+   *     #decryptKeyMetadata(FileWithEncryptedKey, EncryptionManager)} instead.
    */
+  @Deprecated
   public static ByteBuffer decryptManifestListKeyMetadata(
       ManifestListFile manifestList, EncryptionManager em) {
+    return decryptKeyMetadata(manifestList.encryptionKeyID(), em);
+  }
+
+  /**
+   * Decrypt the key metadata of an encryptable file.
+   *
+   * @param file a FileWithEncryptedKey
+   * @param em the table's EncryptionManager
+   * @return a decrypted key metadata buffer
+   */
+  public static ByteBuffer decryptKeyMetadata(FileWithEncryptedKey file, EncryptionManager em) {
+    return decryptKeyMetadata(file.keyId(), em);
+  }
+
+  private static ByteBuffer decryptKeyMetadata(String encryptionKeyId, EncryptionManager em) {
     Preconditions.checkState(
         em instanceof StandardEncryptionManager,
         "Snapshot key metadata encryption requires a StandardEncryptionManager");
     StandardEncryptionManager sem = (StandardEncryptionManager) em;
-    String manifestListKeyId = manifestList.encryptionKeyID();
     Map<String, EncryptedKey> encryptionKeys = sem.encryptionKeys();
-    EncryptedKey manifestListKey = encryptionKeys.get(manifestListKeyId);
-    ByteBuffer encryptedKeyMetadata = manifestListKey.encryptedKeyMetadata();
-    String keyEncryptionKeyID = manifestListKey.encryptedById();
-    ByteBuffer keyEncryptionKey = sem.encryptedByKey(manifestListKeyId);
+    EncryptedKey encryptionKey = encryptionKeys.get(encryptionKeyId);
+    ByteBuffer encryptedKeyMetadata = encryptionKey.encryptedKeyMetadata();
+    String keyEncryptionKeyID = encryptionKey.encryptedById();
+    ByteBuffer keyEncryptionKey = sem.encryptedByKey(encryptionKeyId);
     String keyEncryptionKeyTimestamp =
         encryptionKeys
             .get(keyEncryptionKeyID)

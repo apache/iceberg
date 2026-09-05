@@ -31,11 +31,11 @@ import java.util.stream.Collectors;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.FileWithEncryptedKey;
 import org.apache.iceberg.GenericBlobMetadata;
 import org.apache.iceberg.GenericStatisticsFile;
 import org.apache.iceberg.ImmutableGenericPartitionStatisticsFile;
 import org.apache.iceberg.ManifestFile;
-import org.apache.iceberg.ManifestListFile;
 import org.apache.iceberg.PartitionStatisticsFile;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotChanges;
@@ -199,9 +199,9 @@ public class TestCatalogUtilDropTable extends HadoopTableTestBase {
         .thenAnswer(
             invocation ->
                 wrapped.newInputFile(invocation.getArgument(0), invocation.getArgument(1)));
-    Mockito.when(mockIO.newInputFile(Mockito.any(ManifestListFile.class)))
+    Mockito.when(mockIO.newInputFile(Mockito.any(FileWithEncryptedKey.class)))
         .thenAnswer(
-            invocation -> wrapped.newInputFile((ManifestListFile) invocation.getArgument(0)));
+            invocation -> wrapped.newInputFile((FileWithEncryptedKey) invocation.getArgument(0)));
     Mockito.when(mockIO.newInputFile(Mockito.any(ManifestFile.class)))
         .thenAnswer(invocation -> wrapped.newInputFile((ManifestFile) invocation.getArgument(0)));
     Mockito.when(mockIO.newInputFile(Mockito.any(DataFile.class)))
