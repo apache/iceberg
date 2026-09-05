@@ -45,6 +45,10 @@ public class RemoveDanglingDeleteFilesAction
   private static final Logger LOG = LoggerFactory.getLogger(RemoveDanglingDeleteFilesAction.class);
   private static final List<String> DELETE_COLUMNS =
       ImmutableList.of("file_path", "content_offset", "content_size_in_bytes");
+  private static final Result EMPTY_RESULT =
+      ImmutableRemoveDanglingDeleteFiles.Result.builder()
+          .removedDeleteFiles(DeleteFileSet.create())
+          .build();
 
   private final Table table;
   private String branch = SnapshotRef.MAIN_BRANCH;
@@ -72,22 +76,26 @@ public class RemoveDanglingDeleteFilesAction
   @Override
   public Result execute() {
     Snapshot snapshot = table.snapshot(branch);
-    Preconditions.checkArgument(
-        snapshot != null,
-        "Cannot remove dangling delete files from branch %s: branch does not exist",
-        branch);
+    if (snapshot == null) {
+      Preconditions.checkArgument(
+          branch.equals(SnapshotRef.MAIN_BRANCH),
+          "Cannot remove dangling delete files from branch %s: branch does not exist",
+          branch);
+      return EMPTY_RESULT;
+    }
+
+    DeleteFileSet danglingDeletes = findDanglingDeletes(table, snapshot);
+    if (danglingDeletes.isEmpty()) {
+      return EMPTY_RESULT;
+    }
 
     RewriteFiles rewriteFiles = table.newRewrite().validateFromSnapshot(snapshot.snapshotId());
-    DeleteFileSet danglingDeletes = findDanglingDeletes(table, snapshot);
-
     for (DeleteFile deleteFile : danglingDeletes) {
       LOG.debug("Removing dangling delete file {}", deleteFile.location());
       rewriteFiles.deleteFile(deleteFile);
     }
 
-    if (!danglingDeletes.isEmpty()) {
-      commit(rewriteFiles.toBranch(branch));
-    }
+    commit(rewriteFiles.toBranch(branch));
 
     return ImmutableRemoveDanglingDeleteFiles.Result.builder()
         .removedDeleteFiles(danglingDeletes)
