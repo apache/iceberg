@@ -36,6 +36,8 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
+import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.aws.AwsClientProperties;
 import org.apache.iceberg.aws.S3FileIOAwsClientFactories;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.io.BulkDeletionFailureException;
@@ -59,6 +61,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Multimaps;
 import org.apache.iceberg.relocated.com.google.common.collect.SetMultimap;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
+import org.apache.iceberg.rest.RESTUtil;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SerializableMap;
 import org.apache.iceberg.util.SerializableSupplier;
@@ -461,7 +464,14 @@ public class S3FileIO
       return;
     }
 
-    try (VendedCredentialsProvider provider = VendedCredentialsProvider.create(properties)) {
+    Map<String, String> refreshProperties = Maps.newHashMap(properties);
+    refreshProperties.putIfAbsent(
+        VendedCredentialsProvider.URI,
+        RESTUtil.resolveEndpoint(
+            properties.get(CatalogProperties.URI),
+            properties.get(AwsClientProperties.REFRESH_CREDENTIALS_ENDPOINT)));
+
+    try (VendedCredentialsProvider provider = VendedCredentialsProvider.create(refreshProperties)) {
       List<StorageCredential> refreshed =
           provider.fetchCredentials().credentials().stream()
               .filter(c -> c.prefix().startsWith(ROOT_PREFIX))
