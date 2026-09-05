@@ -329,7 +329,7 @@ public class TestFlinkMetaDataTable extends CatalogTestBase {
     List<GenericData.Record> expectedFiles =
         Stream.concat(expectedDataFiles.stream(), expectedDeleteFiles.stream())
             .collect(Collectors.toList());
-    assertThat(expectedFiles).as("Should have 3 files manifest entriess").hasSize(3);
+    assertThat(expectedFiles).as("Should have 3 files manifest entries").hasSize(3);
     TestHelpers.assertEquals(filesTableSchema, expectedFiles.get(0), actualFiles.get(0));
     TestHelpers.assertEquals(filesTableSchema, expectedFiles.get(1), actualFiles.get(1));
   }

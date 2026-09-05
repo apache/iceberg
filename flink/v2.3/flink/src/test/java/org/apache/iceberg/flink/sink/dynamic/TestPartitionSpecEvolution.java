@@ -49,7 +49,7 @@ public class TestPartitionSpecEvolution {
             Types.NestedField.required(1, "data", Types.StringType.get()));
 
     PartitionSpec spec1 = PartitionSpec.builderFor(schema).bucket("id", 10).build();
-    // Same spec als spec1 but different number of buckets
+    // Same spec as spec1 but different number of buckets
     PartitionSpec spec2 = PartitionSpec.builderFor(schema).bucket("id", 23).build();
 
     assertThat(PartitionSpecEvolution.checkCompatibility(spec1, spec2)).isFalse();
@@ -85,7 +85,7 @@ public class TestPartitionSpecEvolution {
             Types.NestedField.required(1, "id", Types.IntegerType.get()),
             Types.NestedField.required(2, "data", Types.StringType.get()));
 
-    // Same spec als spec1 but bound to a different schema
+    // Same spec as spec1 but bound to a different schema
     PartitionSpec spec2 = PartitionSpec.builderFor(schema2).bucket("id", 10).build();
 
     // Compatible because the source names match
