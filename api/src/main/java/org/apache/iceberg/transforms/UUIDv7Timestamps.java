@@ -53,6 +53,14 @@ enum UUIDv7Timestamps implements Transform<UUID, Integer> {
       if (uuid == null) {
         return null;
       }
+
+      int version = (int) ((uuid.getMostSignificantBits() >>> 12) & 0xF);
+      Preconditions.checkArgument(
+          version == 7,
+          "Cannot derive a timestamp from UUID %s: expected version 7 (UUIDv7), found version %s",
+          uuid,
+          version);
+
       long unixMillis = uuid.getMostSignificantBits() >>> VERSION_AND_RAND_A_BITS;
       long micros = unixMillis * DateTimeUtil.MICROS_PER_MILLIS;
       switch (granularity) {
@@ -118,8 +126,7 @@ enum UUIDv7Timestamps implements Transform<UUID, Integer> {
     } else if (other instanceof Timestamps) {
       return TransformUtil.satisfiesOrderOf(granularity, ((Timestamps) other).granularity());
     } else if (other instanceof UUIDv7Timestamps) {
-      return TransformUtil.satisfiesOrderOf(
-          granularity, ((UUIDv7Timestamps) other).granularity());
+      return TransformUtil.satisfiesOrderOf(granularity, ((UUIDv7Timestamps) other).granularity());
     } else if (other instanceof TimeTransform) {
       return TransformUtil.satisfiesOrderOf(granularity, ((TimeTransform<?>) other).granularity());
     }
