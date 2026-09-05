@@ -32,6 +32,7 @@ import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.parquet.ParquetReadOptions;
+import org.apache.parquet.filter2.compat.FilterCompat;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
@@ -55,9 +56,35 @@ class ReadConf<T> {
   private final long totalValues;
   private final boolean reuseContainers;
   private final Integer batchSize;
+  private final boolean pageIndexFilteringEnabled;
 
   // List of column chunk metadata for each row group
   private final List<Map<ColumnPath, ColumnChunkMetaData>> columnChunkMetaDataForRowGroups;
+
+  ReadConf(
+      InputFile file,
+      ParquetReadOptions options,
+      Schema expectedSchema,
+      Expression filter,
+      Function<MessageType, ParquetValueReader<?>> readerFunc,
+      Function<MessageType, VectorizedReader<?>> batchedReaderFunc,
+      NameMapping nameMapping,
+      boolean reuseContainers,
+      boolean caseSensitive,
+      Integer bSize) {
+    this(
+        file,
+        options,
+        expectedSchema,
+        filter,
+        readerFunc,
+        batchedReaderFunc,
+        nameMapping,
+        reuseContainers,
+        caseSensitive,
+        bSize,
+        false);
+  }
 
   @SuppressWarnings("unchecked")
   ReadConf(
@@ -70,11 +97,25 @@ class ReadConf<T> {
       NameMapping nameMapping,
       boolean reuseContainers,
       boolean caseSensitive,
-      Integer bSize) {
+      Integer bSize,
+      boolean pageIndexFilteringEnabled) {
+
     this.file = file;
-    this.options = options;
-    this.reader = newReader(file, options);
-    MessageType fileSchema = reader.getFileMetaData().getSchema();
+    this.pageIndexFilteringEnabled = pageIndexFilteringEnabled;
+
+    /*
+     * POC:
+     *
+     * We need the physical Parquet schema before converting the Iceberg
+     * expression to a Parquet predicate because ParquetFilters resolves
+     * predicate columns through Schema.idToAlias(fieldId).
+     *
+     * Open once to discover the file schema. When page-index filtering is
+     * enabled, the reader is reopened below with the final filter options.
+     */
+    ParquetFileReader initialReader = newReader(file, options);
+
+    MessageType fileSchema = initialReader.getFileMetaData().getSchema();
 
     MessageType typeWithIds;
     if (ParquetSchemaUtil.hasIds(fileSchema)) {
@@ -88,6 +129,62 @@ class ReadConf<T> {
       this.projection = ParquetSchemaUtil.pruneColumnsFallback(fileSchema, expectedSchema);
     }
 
+    ParquetReadOptions effectiveOptions = options;
+    if (pageIndexFilteringEnabled && filter != null) {
+      /*
+       * Convert the physical Parquet schema to an Iceberg Schema containing
+       * aliases such as:
+       *
+       *   field ID 1 -> "id"
+       *
+       * ParquetFilters requires these aliases to construct Parquet column
+       * predicates.
+       */
+      Schema parquetFileSchema = ParquetSchemaUtil.convert(typeWithIds);
+
+      /*
+       * Bind the Iceberg expression against the logical expected schema,
+       * while using the physical aliases discovered from this Parquet file.
+       *
+       * For example:
+       *
+       *   logical field:
+       *     field ID 1 -> customer_id
+       *
+       *   physical Parquet path:
+       *     field ID 1 -> id
+       */
+      Schema filterSchema = new Schema(expectedSchema.columns(), parquetFileSchema.getAliases());
+
+      FilterCompat.Filter parquetFilter =
+          ParquetFilters.convert(filterSchema, filter, caseSensitive);
+
+      effectiveOptions =
+          ParquetReadOptions.builder(options.getConfiguration())
+              .copy(options)
+              /*
+               * Iceberg continues to own row-group pruning.
+               * parquet-java is used only for page-index pruning in this POC.
+               */
+              .useStatsFilter(false)
+              .useDictionaryFilter(false)
+              .useBloomFilter(false)
+              .useRecordFilter(false)
+              .useColumnIndexFilter(true)
+              .withRecordFilter(parquetFilter)
+              .build();
+      closeReader(initialReader, file);
+      this.reader = newReader(file, effectiveOptions);
+    } else {
+      /*
+       * No page-index POC filtering: reuse the reader that was already opened.
+       */
+      this.reader = initialReader;
+    }
+    this.options = effectiveOptions;
+    /*
+     * From this point onward, use the final reader.
+     */
     this.rowGroups = reader.getRowGroups();
     this.shouldSkip = new boolean[rowGroups.size()];
 
@@ -144,6 +241,7 @@ class ReadConf<T> {
     this.batchSize = toCopy.batchSize;
     this.vectorizedModel = toCopy.vectorizedModel;
     this.columnChunkMetaDataForRowGroups = toCopy.columnChunkMetaDataForRowGroups;
+    this.pageIndexFilteringEnabled = toCopy.pageIndexFilteringEnabled;
   }
 
   ParquetFileReader reader() {
@@ -185,6 +283,10 @@ class ReadConf<T> {
     return columnChunkMetaDataForRowGroups;
   }
 
+  boolean pageIndexFilteringEnabled() {
+    return pageIndexFilteringEnabled;
+  }
+
   ReadConf<T> copy() {
     return new ReadConf<>(this);
   }
@@ -194,6 +296,14 @@ class ReadConf<T> {
       return ParquetFileReader.open(ParquetIO.file(file), options);
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to open Parquet file: %s", file.location());
+    }
+  }
+
+  private static void closeReader(ParquetFileReader reader, InputFile file) {
+    try {
+      reader.close();
+    } catch (IOException e) {
+      throw new RuntimeIOException(e, "Failed to close Parquet file: %s", file.location());
     }
   }
 

@@ -46,6 +46,7 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
   private final boolean reuseContainers;
   private final boolean caseSensitive;
   private final NameMapping nameMapping;
+  private final boolean pageIndexFilteringEnabled;
 
   public ParquetReader(
       InputFile input,
@@ -56,15 +57,38 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
       Expression filter,
       boolean reuseContainers,
       boolean caseSensitive) {
+    this(
+        input,
+        expectedSchema,
+        options,
+        readerFunc,
+        nameMapping,
+        filter,
+        reuseContainers,
+        caseSensitive,
+        false);
+  }
+
+  ParquetReader(
+      InputFile input,
+      Schema expectedSchema,
+      ParquetReadOptions options,
+      Function<MessageType, ParquetValueReader<?>> readerFunc,
+      NameMapping nameMapping,
+      Expression filter,
+      boolean reuseContainers,
+      boolean caseSensitive,
+      boolean pageIndexFilteringEnabled) {
+
     this.input = input;
     this.expectedSchema = expectedSchema;
     this.options = options;
     this.readerFunc = readerFunc;
-    // replace alwaysTrue with null to avoid extra work evaluating a trivial filter
     this.filter = filter == Expressions.alwaysTrue() ? null : filter;
     this.reuseContainers = reuseContainers;
     this.caseSensitive = caseSensitive;
     this.nameMapping = nameMapping;
+    this.pageIndexFilteringEnabled = pageIndexFilteringEnabled;
   }
 
   private ReadConf<T> conf = null;
@@ -82,7 +106,8 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
               nameMapping,
               reuseContainers,
               caseSensitive,
-              null);
+              null,
+              pageIndexFilteringEnabled);
       this.conf = readConf.copy();
       return readConf;
     }
@@ -104,11 +129,15 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
     private final ParquetValueReader<T> model;
     private final long totalValues;
     private final boolean reuseContainers;
+    private final boolean pageIndexFilteringEnabled;
 
     private int nextRowGroup = 0;
     private long nextRowGroupStart = 0;
     private long valuesRead = 0;
     private T last = null;
+
+    private long currentGroupRemaining = 0L;
+    private boolean finished = false;
 
     FileIterator(ReadConf<T> conf) {
       this.reader = conf.reader();
@@ -116,16 +145,76 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
       this.model = conf.model();
       this.totalValues = conf.totalValues();
       this.reuseContainers = conf.reuseContainers();
+      this.pageIndexFilteringEnabled = conf.pageIndexFilteringEnabled();
     }
 
     @Override
     public boolean hasNext() {
-      return valuesRead < totalValues;
+      if (!pageIndexFilteringEnabled) {
+        return valuesRead < totalValues;
+      }
+      if (currentGroupRemaining > 0) {
+        return true;
+      }
+      if (finished) {
+        return false;
+      }
+      return advanceFiltered();
+    }
+
+    private boolean advanceFiltered() {
+      while (nextRowGroup < shouldSkip.length) {
+        int rowGroupIndex = nextRowGroup;
+        nextRowGroup += 1;
+
+        if (shouldSkip[rowGroupIndex]) {
+          continue;
+        }
+
+        PageReadStore pages;
+
+        try {
+          pages = reader.readFilteredRowGroup(rowGroupIndex);
+        } catch (IOException e) {
+          throw new RuntimeIOException(e);
+        }
+
+        // Page Index may eliminate every page in this row group.
+        if (pages == null || pages.getRowCount() == 0L) {
+          continue;
+        }
+
+        currentGroupRemaining = pages.getRowCount();
+
+        model.setPageSource(pages);
+
+        return true;
+      }
+
+      finished = true;
+      return false;
     }
 
     @Override
     public T next() {
       try {
+        if (pageIndexFilteringEnabled) {
+          if (!hasNext()) {
+            throw new java.util.NoSuchElementException();
+          }
+
+          if (reuseContainers) {
+            this.last = model.read(last);
+          } else {
+            this.last = model.read(null);
+          }
+
+          currentGroupRemaining -= 1L;
+          valuesRead += 1L;
+
+          return last;
+        }
+
         if (valuesRead >= nextRowGroupStart) {
           advance();
         }
