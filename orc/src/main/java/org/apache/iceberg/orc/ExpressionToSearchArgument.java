@@ -254,6 +254,16 @@ class ExpressionToSearchArgument
   }
 
   @Override
+  public <T> Action contains(Bound<T> expr, Literal<T> lit) {
+    return () -> this.builder.literal(TruthValue.YES_NO_NULL);
+  }
+
+  @Override
+  public <T> Action notContains(Bound<T> expr, Literal<T> lit) {
+    return () -> this.builder.literal(TruthValue.YES_NO_NULL);
+  }
+
+  @Override
   public <T> Action startsWith(Bound<T> expr, Literal<T> lit) {
     // Cannot push down STARTS_WITH operator to ORC, so return TruthValue.YES_NO_NULL which
     // signifies
