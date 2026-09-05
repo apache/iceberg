@@ -27,6 +27,7 @@ import org.apache.iceberg.spark.TestBaseWithCatalog;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
+import org.apache.spark.sql.connector.read.streaming.ReadLimit;
 import org.apache.spark.sql.streaming.StreamingQuery;
 import org.apache.spark.sql.streaming.Trigger;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
@@ -145,6 +146,9 @@ class TestSparkChangelog extends TestBaseWithCatalog {
 
     StreamingOffset latestOffset = (StreamingOffset) stream.latestOffset();
     assertThat(latestOffset.snapshotId()).isEqualTo(availableSnapshotId);
+    assertThat(latestOffset.position()).isZero();
+    assertThat(stream.latestOffset(stream.initialOffset(), ReadLimit.allAvailable()))
+        .isEqualTo(latestOffset);
     stream.stop();
   }
 
