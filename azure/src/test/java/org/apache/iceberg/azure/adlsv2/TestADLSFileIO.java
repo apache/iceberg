@@ -25,10 +25,14 @@ import static org.mockito.Mockito.when;
 import com.azure.storage.file.datalake.DataLakeFileClient;
 import com.azure.storage.file.datalake.DataLakeFileSystemClient;
 import java.io.IOException;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.TestHelpers;
+import org.apache.iceberg.azure.AzureProperties;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.io.StorageCredential;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.util.SerializableFunction;
 import org.junit.jupiter.api.Test;
@@ -245,6 +249,76 @@ public class TestADLSFileIO {
 
     assertThat(supplierInvocationCount.get()).isEqualTo(3);
     assertThat(client4).isSameAs(mockClient3);
+  }
+
+  @Test
+  public void setCredentialsRefreshesClients() {
+    AtomicInteger supplierInvocationCount = new AtomicInteger(0);
+
+    SerializableFunction<ADLSLocation, DataLakeFileSystemClient> supplier =
+        location -> {
+          supplierInvocationCount.incrementAndGet();
+          return mock(DataLakeFileSystemClient.class);
+        };
+
+    ADLSFileIO fileIO = new ADLSFileIO(supplier);
+
+    StorageCredential initialCredential =
+        StorageCredential.create(
+            "abfss://container@account.dfs.core.windows.net/dir",
+            ImmutableMap.of(
+                AzureProperties.ADLS_SAS_TOKEN_PREFIX + "account",
+                "initialSasToken",
+                AzureProperties.ADLS_SAS_TOKEN_EXPIRES_AT_MS_PREFIX + "account",
+                "1000"));
+
+    fileIO.setCredentials(ImmutableList.of(initialCredential));
+
+    DataLakeFileSystemClient initialClient =
+        fileIO.client("abfss://container@account.dfs.core.windows.net/path");
+    assertThat(supplierInvocationCount.get()).isEqualTo(1);
+
+    StorageCredential refreshedCredential =
+        StorageCredential.create(
+            "abfss://container@account.dfs.core.windows.net/dir",
+            ImmutableMap.of(
+                AzureProperties.ADLS_SAS_TOKEN_PREFIX + "account",
+                "refreshedSasToken",
+                AzureProperties.ADLS_SAS_TOKEN_EXPIRES_AT_MS_PREFIX + "account",
+                "2000"));
+
+    fileIO.setCredentials(ImmutableList.of(refreshedCredential));
+
+    DataLakeFileSystemClient refreshedClient =
+        fileIO.client("abfss://container@account.dfs.core.windows.net/path");
+    assertThat(supplierInvocationCount.get()).isEqualTo(2);
+    assertThat(refreshedClient).isNotSameAs(initialClient);
+
+    List<StorageCredential> credentials = fileIO.credentials();
+    assertThat(credentials).hasSize(1);
+    assertThat(credentials.get(0).config())
+        .containsEntry(AzureProperties.ADLS_SAS_TOKEN_PREFIX + "account", "refreshedSasToken")
+        .containsEntry(AzureProperties.ADLS_SAS_TOKEN_EXPIRES_AT_MS_PREFIX + "account", "2000");
+  }
+
+  @Test
+  public void noExceptionWhenClientCalledWithoutCredentials() {
+    DataLakeFileSystemClient mockClient = mock(DataLakeFileSystemClient.class);
+    AtomicInteger supplierInvocationCount = new AtomicInteger(0);
+
+    SerializableFunction<ADLSLocation, DataLakeFileSystemClient> supplier =
+        location -> {
+          supplierInvocationCount.incrementAndGet();
+          return mockClient;
+        };
+
+    ADLSFileIO fileIO = new ADLSFileIO(supplier);
+
+    DataLakeFileSystemClient client =
+        fileIO.client("abfss://container@account.dfs.core.windows.net/path");
+
+    assertThat(client).isSameAs(mockClient);
+    assertThat(supplierInvocationCount.get()).isEqualTo(1);
   }
 
   @Test
