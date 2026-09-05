@@ -27,7 +27,7 @@ import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.RewriteDataFiles;
 import org.apache.iceberg.expressions.Expression;
-import org.apache.iceberg.expressions.Hilbert;
+import org.apache.iceberg.expressions.MultiColumnTerm;
 import org.apache.iceberg.expressions.NamedReference;
 import org.apache.iceberg.expressions.Zorder;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -158,17 +158,16 @@ class RewriteDataFilesProcedure extends BaseProcedure {
 
   private RewriteDataFilesSparkAction checkAndApplyStrategy(
       RewriteDataFilesSparkAction action, String strategy, String sortOrderString, Schema schema) {
-    List<Zorder> zOrderTerms = Lists.newArrayList();
-    List<Hilbert> hilbertTerms = Lists.newArrayList();
+    List<MultiColumnTerm> curveTerms = Lists.newArrayList();
     List<ExtendedParser.RawOrderField> sortOrderFields = Lists.newArrayList();
     if (sortOrderString != null) {
-      parseSortOrder(sortOrderString, zOrderTerms, hilbertTerms, sortOrderFields);
+      parseSortOrder(sortOrderString, curveTerms, sortOrderFields);
     }
 
     // caller of this function ensures that between strategy and sortOrder, at least one of them is
     // not null.
     if (strategy == null || strategy.equalsIgnoreCase("sort")) {
-      return applySortStrategy(action, zOrderTerms, hilbertTerms, sortOrderFields, schema);
+      return applySortStrategy(action, curveTerms, sortOrderFields, schema);
     }
     if (strategy.equalsIgnoreCase("binpack")) {
       RewriteDataFilesSparkAction binPackAction = action.binPack();
@@ -186,27 +185,24 @@ class RewriteDataFilesProcedure extends BaseProcedure {
 
   private void parseSortOrder(
       String sortOrderString,
-      List<Zorder> zOrderTerms,
-      List<Hilbert> hilbertTerms,
+      List<MultiColumnTerm> curveTerms,
       List<ExtendedParser.RawOrderField> sortOrderFields) {
     ExtendedParser.parseSortOrder(spark(), sortOrderString)
         .forEach(
             field -> {
-              if (field.term() instanceof Zorder) {
-                zOrderTerms.add((Zorder) field.term());
-              } else if (field.term() instanceof Hilbert) {
-                hilbertTerms.add((Hilbert) field.term());
+              if (field.term() instanceof MultiColumnTerm) {
+                curveTerms.add((MultiColumnTerm) field.term());
               } else {
                 sortOrderFields.add(field);
               }
             });
 
-    if (!zOrderTerms.isEmpty() && !hilbertTerms.isEmpty()) {
+    if (curveTerms.stream().map(Object::getClass).distinct().count() > 1) {
       throw new IllegalArgumentException(
           "Cannot mix Zorder and Hilbert sort expressions: " + sortOrderString);
     }
 
-    if ((!zOrderTerms.isEmpty() || !hilbertTerms.isEmpty()) && !sortOrderFields.isEmpty()) {
+    if (!curveTerms.isEmpty() && !sortOrderFields.isEmpty()) {
       throw new IllegalArgumentException(
           "Cannot mix identity sort columns and a Zorder or Hilbert sort expression: "
               + sortOrderString);
@@ -215,21 +211,17 @@ class RewriteDataFilesProcedure extends BaseProcedure {
 
   private RewriteDataFilesSparkAction applySortStrategy(
       RewriteDataFilesSparkAction action,
-      List<Zorder> zOrderTerms,
-      List<Hilbert> hilbertTerms,
+      List<MultiColumnTerm> curveTerms,
       List<ExtendedParser.RawOrderField> sortOrderFields,
       Schema schema) {
-    if (!zOrderTerms.isEmpty()) {
+    if (!curveTerms.isEmpty()) {
       String[] columnNames =
-          zOrderTerms.stream()
-              .flatMap(zOrder -> zOrder.refs().stream().map(NamedReference::name))
+          curveTerms.stream()
+              .flatMap(term -> term.refs().stream().map(NamedReference::name))
               .toArray(String[]::new);
-      return action.zOrder(columnNames);
-    } else if (!hilbertTerms.isEmpty()) {
-      String[] columnNames =
-          hilbertTerms.stream()
-              .flatMap(hilbert -> hilbert.refs().stream().map(NamedReference::name))
-              .toArray(String[]::new);
+      if (curveTerms.get(0) instanceof Zorder) {
+        return action.zOrder(columnNames);
+      }
       return action.hilbert(columnNames);
     } else if (!sortOrderFields.isEmpty()) {
       return action.sort(buildSortOrder(sortOrderFields, schema));
