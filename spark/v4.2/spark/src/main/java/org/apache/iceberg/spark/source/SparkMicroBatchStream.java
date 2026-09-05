@@ -18,28 +18,16 @@
  */
 package org.apache.iceberg.spark.source;
 
-import java.io.BufferedWriter;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.io.OutputStreamWriter;
-import java.io.UncheckedIOException;
-import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.function.Supplier;
-import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
-import org.apache.iceberg.io.InputFile;
-import org.apache.iceberg.io.OutputFile;
-import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkReadConf;
@@ -57,7 +45,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerAvailableNow {
-  private static final Joiner SLASH = Joiner.on("/");
   private static final Logger LOG = LoggerFactory.getLogger(SparkMicroBatchStream.class);
   private static final Types.StructType EMPTY_GROUPING_KEY_TYPE = Types.StructType.of();
 
@@ -103,9 +90,14 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
     this.maxRecordsPerMicroBatch = readConf.maxRecordsPerMicroBatch();
     this.cacheDeleteFilesOnExecutors = readConf.cacheDeleteFilesOnExecutors();
 
-    InitialOffsetStore initialOffsetStore =
-        new InitialOffsetStore(
-            table, checkpointLocation, fromTimestamp, sparkContext.hadoopConfiguration());
+    StreamingInitialOffsetStore initialOffsetStore =
+        new StreamingInitialOffsetStore(
+            checkpointLocation,
+            sparkContext.hadoopConfiguration(),
+            () -> {
+              table.refresh();
+              return MicroBatchUtils.determineStartingOffset(table, fromTimestamp);
+            });
     this.initialOffset = initialOffsetStore.initialOffset();
   }
 
@@ -264,54 +256,4 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
     }
   }
 
-  private static class InitialOffsetStore {
-    private final Table table;
-    private final FileIO io;
-    private final String initialOffsetLocation;
-    private final long fromTimestamp;
-
-    InitialOffsetStore(
-        Table table, String checkpointLocation, long fromTimestamp, Configuration conf) {
-      this.table = table;
-      this.io = new HadoopFileIO(conf);
-      this.initialOffsetLocation = SLASH.join(checkpointLocation, "offsets/0");
-      this.fromTimestamp = fromTimestamp;
-    }
-
-    public StreamingOffset initialOffset() {
-      InputFile inputFile = io.newInputFile(initialOffsetLocation);
-      if (inputFile.exists()) {
-        return readOffset(inputFile);
-      }
-
-      table.refresh();
-      StreamingOffset offset = MicroBatchUtils.determineStartingOffset(table, fromTimestamp);
-
-      OutputFile outputFile = io.newOutputFile(initialOffsetLocation);
-      writeOffset(offset, outputFile);
-
-      return offset;
-    }
-
-    private void writeOffset(StreamingOffset offset, OutputFile file) {
-      try (OutputStream outputStream = file.create()) {
-        BufferedWriter writer =
-            new BufferedWriter(new OutputStreamWriter(outputStream, StandardCharsets.UTF_8));
-        writer.write(offset.json());
-        writer.flush();
-      } catch (IOException ioException) {
-        throw new UncheckedIOException(
-            String.format("Failed writing offset to: %s", initialOffsetLocation), ioException);
-      }
-    }
-
-    private StreamingOffset readOffset(InputFile file) {
-      try (InputStream in = file.newStream()) {
-        return StreamingOffset.fromJson(in);
-      } catch (IOException ioException) {
-        throw new UncheckedIOException(
-            String.format("Failed reading offset from: %s", initialOffsetLocation), ioException);
-      }
-    }
-  }
 }

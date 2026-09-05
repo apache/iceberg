@@ -22,11 +22,14 @@ import static org.apache.iceberg.TestHelpers.row;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import org.apache.iceberg.Table;
+import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.TestBaseWithCatalog;
+import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.streaming.StreamingQuery;
 import org.apache.spark.sql.streaming.Trigger;
+import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.TestTemplate;
 
@@ -118,6 +121,33 @@ class TestSparkChangelog extends TestBaseWithCatalog {
         .containsExactly(
             row(1L, "a", "update_preimage", updateVersion),
             row(1L, "updated", "update_postimage", updateVersion));
+  }
+
+  @TestTemplate
+  void availableNowPinsLatestSnapshot() {
+    sql(
+        "CREATE TABLE %s (id bigint, data string) USING iceberg "
+            + "TBLPROPERTIES ('format-version'='3')",
+        tableName);
+    sql("INSERT INTO %s VALUES (1, 'a')", tableName);
+    Table table = validationCatalog.loadTable(tableIdent);
+    long availableSnapshotId = table.currentSnapshot().snapshotId();
+    SparkReadConf readConf =
+        new SparkReadConf(spark, table, CaseInsensitiveStringMap.empty());
+    SparkChangelogMicroBatchStream stream =
+        new SparkChangelogMicroBatchStream(
+            JavaSparkContext.fromSparkContext(spark.sparkContext()),
+            table,
+            readConf,
+            SparkChangelogTable.cdcDataSchema(table),
+            temp.resolve("cdc-available-now").toString());
+
+    stream.prepareForTriggerAvailableNow();
+    sql("INSERT INTO %s VALUES (2, 'b')", tableName);
+
+    StreamingOffset latestOffset = (StreamingOffset) stream.latestOffset();
+    assertThat(latestOffset.snapshotId()).isEqualTo(availableSnapshotId);
+    stream.stop();
   }
 
   @TestTemplate

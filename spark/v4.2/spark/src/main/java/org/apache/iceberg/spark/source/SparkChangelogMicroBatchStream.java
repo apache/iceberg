@@ -41,6 +41,7 @@ import org.apache.spark.sql.connector.read.InputPartition;
 import org.apache.spark.sql.connector.read.PartitionReaderFactory;
 import org.apache.spark.sql.connector.read.streaming.MicroBatchStream;
 import org.apache.spark.sql.connector.read.streaming.Offset;
+import org.apache.spark.sql.connector.read.streaming.SupportsTriggerAvailableNow;
 
 /**
  * A minimal changelog stream that advances at Iceberg snapshot boundaries.
@@ -48,7 +49,8 @@ import org.apache.spark.sql.connector.read.streaming.Offset;
  * <p>Each planned range contains complete snapshots, ensuring that all rows from a commit remain in
  * the same Spark micro-batch.
  */
-class SparkChangelogMicroBatchStream implements MicroBatchStream {
+class SparkChangelogMicroBatchStream
+    implements MicroBatchStream, SupportsTriggerAvailableNow {
 
   private static final Types.StructType EMPTY_GROUPING_KEY_TYPE = Types.StructType.of();
 
@@ -57,6 +59,7 @@ class SparkChangelogMicroBatchStream implements MicroBatchStream {
   private final SparkReadConf readConf;
   private final Schema projection;
   private final StreamingOffset initialOffset;
+  private StreamingOffset lastOffsetForTriggerAvailableNow = null;
 
   SparkChangelogMicroBatchStream(
       JavaSparkContext sparkContext,
@@ -68,14 +71,24 @@ class SparkChangelogMicroBatchStream implements MicroBatchStream {
     this.table = table;
     this.readConf = readConf;
     this.projection = projection;
-    this.initialOffset =
+    StreamingOffset configuredInitialOffset =
         readConf.startSnapshotId() != null
             ? new StreamingOffset(readConf.startSnapshotId(), 0, false)
             : StreamingOffset.START_OFFSET;
+    this.initialOffset =
+        new StreamingInitialOffsetStore(
+                checkpointLocation,
+                sparkContext.hadoopConfiguration(),
+                () -> configuredInitialOffset)
+            .initialOffset();
   }
 
   @Override
   public Offset latestOffset() {
+    if (lastOffsetForTriggerAvailableNow != null) {
+      return lastOffsetForTriggerAvailableNow;
+    }
+
     table.refresh();
     Snapshot latest = table.currentSnapshot();
     Long configuredEndSnapshotId = readConf.endSnapshotId();
@@ -100,6 +113,19 @@ class SparkChangelogMicroBatchStream implements MicroBatchStream {
     if (endOffset.equals(StreamingOffset.START_OFFSET) || startOffset.equals(endOffset)) {
       return new InputPartition[0];
     }
+
+    table.refresh();
+    if (!startOffset.equals(StreamingOffset.START_OFFSET)) {
+      Preconditions.checkState(
+          table.snapshot(startOffset.snapshotId()) != null,
+          "Cannot load changelog start offset at expired or removed snapshot: %s",
+          startOffset.snapshotId());
+    }
+
+    Preconditions.checkState(
+        table.snapshot(endOffset.snapshotId()) != null,
+        "Cannot load changelog end offset at expired or removed snapshot: %s",
+        endOffset.snapshotId());
 
     IncrementalChangelogScan scan =
         table
@@ -160,4 +186,9 @@ class SparkChangelogMicroBatchStream implements MicroBatchStream {
 
   @Override
   public void stop() {}
+
+  @Override
+  public void prepareForTriggerAvailableNow() {
+    this.lastOffsetForTriggerAvailableNow = (StreamingOffset) latestOffset();
+  }
 }
