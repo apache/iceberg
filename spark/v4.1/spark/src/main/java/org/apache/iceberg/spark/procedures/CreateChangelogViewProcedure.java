@@ -43,7 +43,7 @@ import org.apache.spark.sql.Column;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
-import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.api.java.UDF1;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.OrderUtils;
 import org.apache.spark.sql.connector.catalog.Identifier;
@@ -51,6 +51,7 @@ import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.apache.spark.sql.connector.catalog.procedures.BoundProcedure;
 import org.apache.spark.sql.connector.catalog.procedures.ProcedureParameter;
 import org.apache.spark.sql.connector.read.Scan;
+import org.apache.spark.sql.expressions.UserDefinedFunction;
 import org.apache.spark.sql.expressions.Window;
 import org.apache.spark.sql.expressions.WindowSpec;
 import org.apache.spark.sql.functions;
@@ -125,9 +126,9 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
         SCD_TYPE2_PARAM,
       };
 
-  public static final String VALID_FROM_COL = "_valid_from";
-  public static final String VALID_TO_COL = "_valid_to";
-  public static final String IS_CURRENT_COL = "_is_current";
+  private static final String VALID_FROM_COL = "_valid_from";
+  private static final String VALID_TO_COL = "_valid_to";
+  private static final String IS_CURRENT_COL = "_is_current";
 
   private static final StructType OUTPUT_TYPE =
       new StructType(
@@ -218,6 +219,15 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
   }
 
   private Dataset<Row> computeScdType2(String[] identifierColumns, Dataset<Row> df, Table table) {
+    // withColumn replaces a column of the same name, so a table already carrying one of the
+    // generated names would lose it from the view without any warning
+    for (String generated : new String[] {VALID_FROM_COL, VALID_TO_COL, IS_CURRENT_COL}) {
+      Preconditions.checkArgument(
+          !Arrays.asList(df.columns()).contains(generated),
+          "Cannot generate an SCD Type 2 view: table already has a column named %s",
+          generated);
+    }
+
     // Step 1: compute update images (UPDATE_BEFORE / UPDATE_AFTER)
     Dataset<Row> withUpdates = computeUpdateImages(identifierColumns, df);
 
@@ -233,24 +243,23 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
       snapshotTimestamps.put(snapshot.snapshotId(), snapshot.timestampMillis());
     }
 
-    // Step 4: resolve _valid_from via a UDF
-    SparkSession spark = spark();
-    spark
-        .udf()
-        .register(
-            "__iceberg_snapshot_timestamp",
-            (Long snapshotId) -> {
-              Long tsMs = snapshotTimestamps.get(snapshotId);
-              return tsMs != null ? new Timestamp(tsMs) : null;
-            },
+    // Step 4: resolve _valid_from via a UDF. It is applied directly rather than registered by name,
+    // so concurrent calls of this procedure cannot overwrite each other's snapshot timestamps and
+    // no
+    // function of that name is left behind in the session.
+    UserDefinedFunction snapshotTimestamp =
+        functions.udf(
+            (UDF1<Long, Timestamp>)
+                snapshotId -> {
+                  Long tsMs = snapshotTimestamps.get(snapshotId);
+                  return tsMs != null ? new Timestamp(tsMs) : null;
+                },
             DataTypes.TimestampType);
 
     String snapshotIdCol = MetadataColumns.COMMIT_SNAPSHOT_ID.name();
     Dataset<Row> dfWithValidFrom =
         withoutUpdateBefore.withColumn(
-            VALID_FROM_COL,
-            functions.callUDF(
-                "__iceberg_snapshot_timestamp", withoutUpdateBefore.col(snapshotIdCol)));
+            VALID_FROM_COL, snapshotTimestamp.apply(withoutUpdateBefore.col(snapshotIdCol)));
 
     // Step 5: compute _valid_to = LEAD(_valid_from) OVER (PARTITION BY id_cols ORDER BY
     // _change_ordinal)

@@ -31,7 +31,6 @@ import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.spark.SparkReadOptions;
-import org.apache.iceberg.spark.procedures.CreateChangelogViewProcedure;
 import org.apache.spark.sql.types.StructField;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.TestTemplate;
@@ -758,9 +757,7 @@ public class TestCreateChangelogViewProcedure extends ExtensionsTestBase {
 
     String viewName = (String) returns.get(0)[0];
     List<Object[]> currentRows =
-        sql(
-            "SELECT id FROM %s WHERE %s = true ORDER BY id",
-            viewName, CreateChangelogViewProcedure.IS_CURRENT_COL);
+        sql("SELECT id FROM %s WHERE %s = true ORDER BY id", viewName, "_is_current");
 
     // id=1's UPDATE_AFTER row should be current; id=2's INSERT row should also be current
     assertThat(currentRows).hasSize(2);
@@ -845,8 +842,24 @@ public class TestCreateChangelogViewProcedure extends ExtensionsTestBase {
             "_change_type",
             "_change_ordinal",
             "_commit_snapshot_id",
-            CreateChangelogViewProcedure.VALID_FROM_COL,
-            CreateChangelogViewProcedure.VALID_TO_COL,
-            CreateChangelogViewProcedure.IS_CURRENT_COL);
+            "_valid_from",
+            "_valid_to",
+            "_is_current");
+  }
+
+  @TestTemplate
+  public void testScdType2RejectsCollidingColumnName() {
+    sql("CREATE TABLE %s (id INT NOT NULL, data STRING) USING iceberg", tableName);
+    sql("ALTER TABLE %s SET IDENTIFIER FIELDS id", tableName);
+    sql("ALTER TABLE %s ADD COLUMN _valid_from timestamp", tableName);
+    sql("INSERT INTO %s VALUES (1, 'a', null)", tableName);
+
+    assertThatThrownBy(
+            () ->
+                sql(
+                    "CALL %s.system.create_changelog_view(table => '%s', scd_type2 => true)",
+                    catalogName, tableName))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("table already has a column named _valid_from");
   }
 }
