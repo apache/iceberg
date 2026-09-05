@@ -51,8 +51,15 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
  *
  * <p>{@link MetricsReport} subtypes other than {@link ScanReport} and {@link CommitReport} are
  * forwarded without filtering, since they do not identify a table.
+ *
+ * <p>Reports carry the table name as a single flattened string, so the namespace is recovered by
+ * dropping the catalog prefix and the last dot-separated element. A table name that itself contains
+ * a dot is therefore attributed to a namespace one level deeper than it belongs to; filter on the
+ * table-name level for those.
  */
 public class FilteringMetricsReporter implements MetricsReporter {
+
+  private static final List<String> SEPARATORS = ImmutableList.of(".", "/");
 
   private final MetricsReporter delegate;
   private final String catalogName;
@@ -131,7 +138,7 @@ public class FilteringMetricsReporter implements MetricsReporter {
     }
 
     ImmutableList.Builder<Pattern> patterns = ImmutableList.builder();
-    for (String pattern : value.split(",", -1)) {
+    for (String pattern : splitPatterns(value)) {
       String trimmed = pattern.trim();
       if (trimmed.isEmpty()) {
         continue;
@@ -146,6 +153,46 @@ public class FilteringMetricsReporter implements MetricsReporter {
     }
 
     return patterns.build();
+  }
+
+  /**
+   * Splits a comma-separated list of regular expressions, ignoring commas that belong to a pattern
+   * rather than separating two of them: bounded quantifiers such as {@code x{1,3}} and character
+   * classes such as {@code [,;]} both contain commas that are part of the regex.
+   */
+  private static List<String> splitPatterns(String value) {
+    ImmutableList.Builder<String> parts = ImmutableList.builder();
+    StringBuilder current = new StringBuilder();
+    int braceDepth = 0;
+    boolean inCharClass = false;
+    boolean escaped = false;
+
+    for (char c : value.toCharArray()) {
+      if (escaped) {
+        escaped = false;
+      } else if (c == '\\') {
+        escaped = true;
+      } else if (inCharClass) {
+        if (c == ']') {
+          inCharClass = false;
+        }
+      } else if (c == '[') {
+        inCharClass = true;
+      } else if (c == '{') {
+        braceDepth++;
+      } else if (c == '}') {
+        braceDepth = Math.max(0, braceDepth - 1);
+      } else if (c == ',' && braceDepth == 0) {
+        parts.add(current.toString());
+        current.setLength(0);
+        continue;
+      }
+
+      current.append(c);
+    }
+
+    parts.add(current.toString());
+    return parts.build();
   }
 
   @Override
@@ -195,19 +242,22 @@ public class FilteringMetricsReporter implements MetricsReporter {
    * expected catalog prefix.
    */
   private String namespace(String tableName) {
-    String prefix;
-    if (catalogName.contains("/") || catalogName.contains(":")) {
-      // URI-like catalog names are joined with /, as in thrift://host:port/db.table
-      prefix = catalogName.endsWith("/") ? catalogName : catalogName + "/";
-    } else {
-      prefix = catalogName + ".";
+    // CatalogUtil#fullTableName joins a URI-like catalog name with / and any other name with .,
+    // while RESTSessionCatalog always joins with ., so accept either rather than deciding from the
+    // catalog name which one the report must have used.
+    String withoutCatalog = null;
+    for (String separator : SEPARATORS) {
+      String prefix = catalogName.endsWith(separator) ? catalogName : catalogName + separator;
+      if (tableName.startsWith(prefix)) {
+        withoutCatalog = tableName.substring(prefix.length());
+        break;
+      }
     }
 
-    if (!tableName.startsWith(prefix)) {
+    if (withoutCatalog == null) {
       return null;
     }
 
-    String withoutCatalog = tableName.substring(prefix.length());
     int lastDot = withoutCatalog.lastIndexOf('.');
     return lastDot < 0 ? "" : withoutCatalog.substring(0, lastDot);
   }
