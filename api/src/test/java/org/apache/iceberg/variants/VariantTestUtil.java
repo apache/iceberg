@@ -100,6 +100,58 @@ public class VariantTestUtil {
     assertThat(VariantUtil.sizeOf(actual.asPrimitive().sizeInBytes())).isEqualTo(offsetSize);
   }
 
+  /**
+   * Computes the serialized size in bytes of a variant value without allocating an output buffer.
+   *
+   * <p>Pre-serialized values report the size of their backing buffer. Primitives derive their size
+   * from the physical type (and the encoded byte length for {@code STRING} / {@code BINARY}).
+   * Arrays are computed recursively from their elements. Non-serialized objects delegate to {@link
+   * VariantValue#sizeInBytes()} because determining the field id size requires the object's own
+   * metadata, which is not exposed on the {@link VariantObject} interface.
+   */
+  static int sizeInBytes(VariantValue value) {
+    if (value instanceof Serialized) {
+      return ((Serialized) value).buffer().remaining();
+    }
+
+    return switch (value.type()) {
+      case NULL, BOOLEAN_TRUE, BOOLEAN_FALSE -> 1;
+      case INT8 -> 2;
+      case INT16 -> 3;
+      case INT32, DATE, FLOAT -> 5;
+      case INT64, DOUBLE, TIMESTAMPTZ, TIMESTAMPNTZ, TIMESTAMPTZ_NANOS, TIMESTAMPNTZ_NANOS, TIME ->
+          9;
+      case DECIMAL4 -> 6;
+      case DECIMAL8 -> 10;
+      case DECIMAL16 -> 18;
+      case UUID -> 17;
+      case STRING -> stringSizeInBytes((String) value.asPrimitive().get());
+      case BINARY -> 5 + ((ByteBuffer) value.asPrimitive().get()).remaining();
+      case ARRAY -> arraySizeInBytes(value.asArray());
+      case OBJECT -> value.sizeInBytes();
+    };
+  }
+
+  private static int stringSizeInBytes(String value) {
+    int utf8Length = value.getBytes(StandardCharsets.UTF_8).length;
+    return (utf8Length <= MAX_SHORT_STRING_LENGTH) ? 1 + utf8Length : 5 + utf8Length;
+  }
+
+  private static int arraySizeInBytes(VariantArray array) {
+    int numElements = array.numElements();
+    int dataSize = 0;
+    for (int i = 0; i < numElements; i += 1) {
+      dataSize += sizeInBytes(array.get(i));
+    }
+
+    int numElementsSize = (numElements > 0xFF) ? 4 : 1;
+    int offsetSize = VariantUtil.sizeOf(dataSize);
+    return 1 /* header */
+        + numElementsSize
+        + (1 + numElements) * offsetSize /* offset list size */
+        + dataSize;
+  }
+
   private static byte primitiveHeader(int primitiveType) {
     return (byte) (primitiveType << 2);
   }
@@ -217,7 +269,7 @@ public class VariantTestUtil {
 
     int dataSize = 0;
     for (Map.Entry<String, VariantValue> field : data.entrySet()) {
-      dataSize += field.getValue().sizeInBytes();
+      dataSize += sizeInBytes(field.getValue());
     }
 
     // field ID size is the size needed to store the largest field ID in the data
@@ -270,8 +322,7 @@ public class VariantTestUtil {
 
     int dataSize = 0;
     for (VariantValue value : values) {
-      // TODO: produce size for every variant without serializing
-      dataSize += value.sizeInBytes();
+      dataSize += sizeInBytes(value);
     }
 
     // offset size is the size needed to store the length of the data section
