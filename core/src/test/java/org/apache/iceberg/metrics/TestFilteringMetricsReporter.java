@@ -339,6 +339,58 @@ public class TestFilteringMetricsReporter {
   }
 
   @Test
+  public void namespaceFilterHandlesUriStyleCatalogNamesJoinedWithADot() {
+    CapturingMetricsReporter delegate = new CapturingMetricsReporter();
+    MetricsReporter wrapped =
+        FilteringMetricsReporter.wrap(
+            delegate,
+            "thrift://localhost:9083",
+            ImmutableMap.of(CatalogProperties.METRICS_REPORTER_NAMESPACE_INCLUDE, "db"));
+
+    // RESTSessionCatalog joins the catalog name with a dot even when it looks like a URI
+    ScanReport report = newScanReport("thrift://localhost:9083.db.orders");
+    wrapped.report(report);
+    wrapped.report(newScanReport("thrift://localhost:9083.other.orders"));
+
+    assertThat(delegate.reports).containsExactly(report);
+  }
+
+  @Test
+  public void patternsMayContainBoundedQuantifiers() {
+    CapturingMetricsReporter delegate = new CapturingMetricsReporter();
+    MetricsReporter wrapped =
+        FilteringMetricsReporter.wrap(
+            delegate,
+            null,
+            ImmutableMap.of(
+                CatalogProperties.METRICS_REPORTER_TABLE_NAME_INCLUDE,
+                "prod_db\\.table_[0-9]{1,3}, prod_db\\.orders"));
+
+    ScanReport shard = newScanReport("prod_db.table_42");
+    wrapped.report(shard);
+    wrapped.report(SCAN_PROD);
+    wrapped.report(newScanReport("prod_db.table_1234"));
+
+    assertThat(delegate.reports).containsExactly(shard, SCAN_PROD);
+  }
+
+  @Test
+  public void patternsMayContainCharacterClassesWithCommas() {
+    CapturingMetricsReporter delegate = new CapturingMetricsReporter();
+    MetricsReporter wrapped =
+        FilteringMetricsReporter.wrap(
+            delegate,
+            null,
+            ImmutableMap.of(
+                CatalogProperties.METRICS_REPORTER_TABLE_NAME_EXCLUDE, "prod_db\\.[a-z,]+"));
+
+    wrapped.report(SCAN_PROD);
+    wrapped.report(SCAN_DEV);
+
+    assertThat(delegate.reports).containsExactly(SCAN_DEV);
+  }
+
+  @Test
   public void namespaceFilterDropsReportsWithoutExpectedCatalogPrefix() {
     CapturingMetricsReporter delegate = new CapturingMetricsReporter();
     MetricsReporter wrapped =
