@@ -244,7 +244,7 @@ public class TestRemoveDanglingDeleteFilesAction {
   }
 
   private String tableLocation = null;
-  private Table table;
+  protected Table table;
 
   @BeforeEach
   public void before() throws Exception {
@@ -296,6 +296,10 @@ public class TestRemoveDanglingDeleteFilesAction {
         : FILE_UNPARTITIONED_POS_DELETE;
   }
 
+  protected RemoveDanglingDeleteFiles removeDanglingDeleteFiles() {
+    return new RemoveDanglingDeleteFilesAction(table);
+  }
+
   @TestTemplate
   public void testPartitionedDeletesWithLesserSeqNo() {
     // a DV with a lower sequence number than its referenced data file can only exist if
@@ -333,7 +337,7 @@ public class TestRemoveDanglingDeleteFilesAction {
         .appendFile(FILE_D2)
         .commit();
 
-    RemoveDanglingDeleteFiles.Result result = new RemoveDanglingDeleteFilesAction(table).execute();
+    RemoveDanglingDeleteFiles.Result result = removeDanglingDeleteFiles().execute();
 
     // All Delete files of the FILE A partition should be removed
     // because there are no data files in partition with a lesser sequence number.
@@ -397,7 +401,7 @@ public class TestRemoveDanglingDeleteFilesAction {
         .addDeletes(FILE_B2_EQ_DELETES)
         .commit();
 
-    RemoveDanglingDeleteFiles.Result result = new RemoveDanglingDeleteFilesAction(table).execute();
+    RemoveDanglingDeleteFiles.Result result = removeDanglingDeleteFiles().execute();
 
     // Eq Delete files of the FILE B partition should be removed
     // because there are no data files in partition with a lesser sequence number
@@ -440,7 +444,7 @@ public class TestRemoveDanglingDeleteFilesAction {
     table.newRowDelta().addDeletes(posDelete).addDeletes(FILE_UNPARTITIONED_EQ_DELETE).commit();
     table.newAppend().appendFile(FILE_UNPARTITIONED).commit();
 
-    RemoveDanglingDeleteFiles.Result result = new RemoveDanglingDeleteFilesAction(table).execute();
+    RemoveDanglingDeleteFiles.Result result = removeDanglingDeleteFiles().execute();
     Set<CharSequence> removed =
         StreamSupport.stream(result.removedDeleteFiles().spliterator(), false)
             .map(DeleteFile::location)
@@ -471,7 +475,7 @@ public class TestRemoveDanglingDeleteFilesAction {
         .addDeletes(fileB2Deletes)
         .commit();
 
-    RemoveDanglingDeleteFiles.Result result = new RemoveDanglingDeleteFilesAction(table).execute();
+    RemoveDanglingDeleteFiles.Result result = removeDanglingDeleteFiles().execute();
 
     // DVs of FILE B should be removed because they don't point to valid data files
     Set<CharSequence> removedDeleteFiles =

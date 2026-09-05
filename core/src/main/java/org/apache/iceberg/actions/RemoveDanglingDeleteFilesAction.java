@@ -19,6 +19,7 @@
 package org.apache.iceberg.actions;
 
 import java.io.IOException;
+import java.util.function.Function;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.ManifestFile;
@@ -47,10 +48,18 @@ public class RemoveDanglingDeleteFilesAction
           .build();
 
   private final Table table;
+  private final Function<Snapshot, DeleteFileSet> findDanglingDeletes;
   private String branch = SnapshotRef.MAIN_BRANCH;
 
   public RemoveDanglingDeleteFilesAction(Table table) {
     this.table = table;
+    this.findDanglingDeletes = this::findDanglingDeletes;
+  }
+
+  public RemoveDanglingDeleteFilesAction(
+      Table table, Function<Snapshot, DeleteFileSet> findDanglingDeletes) {
+    this.table = table;
+    this.findDanglingDeletes = findDanglingDeletes;
   }
 
   @Override
@@ -80,7 +89,7 @@ public class RemoveDanglingDeleteFilesAction
       return EMPTY_RESULT;
     }
 
-    DeleteFileSet danglingDeletes = findDanglingDeletes(table, snapshot);
+    DeleteFileSet danglingDeletes = findDanglingDeletes.apply(snapshot);
     if (danglingDeletes.isEmpty()) {
       return EMPTY_RESULT;
     }
@@ -106,7 +115,7 @@ public class RemoveDanglingDeleteFilesAction
    *   <li>Collect all delete file entries skipping files from the previous step.
    * </ol>
    */
-  private static DeleteFileSet findDanglingDeletes(Table table, Snapshot snapshot) {
+  private DeleteFileSet findDanglingDeletes(Snapshot snapshot) {
     DeleteFileSet referencedDeletes = DeleteFileSet.create();
     TableScan scan = table.newScan().useSnapshot(snapshot.snapshotId());
     try (CloseableIterable<FileScanTask> tasks = scan.planFiles()) {
