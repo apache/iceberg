@@ -166,6 +166,9 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     private final HTTPHeaders contextHeaders;
     private final java.util.concurrent.ConcurrentMap<String, RuntimeException>
         simulateFailureOnFirstSuccessByKey = new java.util.concurrent.ConcurrentHashMap<>();
+    // Records the Idempotency-Key value seen on every mutation request, in arrival order.
+    private final List<String> observedMutationIdempotencyKeys =
+        new java.util.concurrent.CopyOnWriteArrayList<>();
 
     HeaderValidatingAdapter(
         Catalog catalog, HTTPHeaders catalogHeaders, HTTPHeaders contextHeaders) {
@@ -192,6 +195,11 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
           key,
           new CommitStateUnknownException(
               new RuntimeException("simulated transient 503 after success")));
+    }
+
+    /** Returns all Idempotency-Key values observed on mutation requests, in arrival order. */
+    public List<String> observedMutationIdempotencyKeys() {
+      return observedMutationIdempotencyKeys;
     }
 
     @Override
@@ -233,13 +241,16 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
               handleRequest(
                   routeAndVars.first(), vars.build(), request, responseType, responseHeaders);
 
-          // For tests: simulate a transient 503 after the first successful mutation for a key.
+          // For tests: record observed keys and simulate transient failures for keyed mutations.
           Optional<HTTPHeaders.HTTPHeader> keyHeader =
               request.headers().firstEntry(RESTUtil.IDEMPOTENCY_KEY_HEADER);
           boolean isMutation =
               request.method() == HTTPMethod.POST || request.method() == HTTPMethod.DELETE;
           if (isMutation && keyHeader.isPresent()) {
             String key = keyHeader.get().value();
+            // Record every Idempotency-Key seen on a mutation (including retries) so tests can
+            // assert that all transport attempts carry the identical key.
+            observedMutationIdempotencyKeys.add(key);
             RuntimeException failure = simulateFailureOnFirstSuccessByKey.remove(key);
             if (failure != null) {
               throw failure;
@@ -3477,30 +3488,49 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     IdempotentEnv env = idempotentEnv(key, ns, "t_idemp");
     CreateTableRequest req = createReq(env.ident);
 
-    // First attempt: server finalizes success but responds 503
-    assertThatThrownBy(
-            () ->
-                env.http.post(
-                    ResourcePaths.forCatalogProperties(ImmutableMap.of()).tables(ns),
-                    req,
-                    LoadTableResponse.class,
-                    env.headers,
-                    ErrorHandlers.tableErrorHandler()))
-        .isInstanceOf(RuntimeException.class)
-        .hasMessageContaining("simulated transient 503");
-
-    // Verify request shape (method, path, headers including Idempotency-Key)
-    verifyCreatePost(ns, env.headers);
-
-    // Retry with same key: server should replay 200 OK
-    LoadTableResponse replay =
+    // The client auto-retries the keyed POST on 503; the server replays the finalized 200, so
+    // the call succeeds transparently without the caller needing to retry manually.
+    LoadTableResponse response =
         env.http.post(
             ResourcePaths.forCatalogProperties(ImmutableMap.of()).tables(ns),
             req,
             LoadTableResponse.class,
             env.headers,
             ErrorHandlers.tableErrorHandler());
-    assertThat(replay).isNotNull();
+    assertThat(response).isNotNull();
+
+    // Verify request shape (method, path, headers including Idempotency-Key)
+    verifyCreatePost(ns, env.headers);
+  }
+
+  @Test
+  public void testIdempotentCreateRetryCarriesSameKey() {
+    // Pin the invariant: when the client auto-retries a keyed POST (503-then-200), every transport
+    // attempt must carry the identical Idempotency-Key so the server can replay the cached result.
+    String key = "idemp-same-key-retry";
+    adapterForRESTServer.simulate503OnFirstSuccessForKey(key);
+    Namespace ns = Namespace.of("ns_samekey");
+    IdempotentEnv env = idempotentEnv(key, ns, "t_samekey");
+    CreateTableRequest req = createReq(env.ident);
+
+    // Trigger the 503-then-200 retry cycle; the call must succeed transparently.
+    LoadTableResponse response =
+        env.http.post(
+            ResourcePaths.forCatalogProperties(ImmutableMap.of()).tables(ns),
+            req,
+            LoadTableResponse.class,
+            env.headers,
+            ErrorHandlers.tableErrorHandler());
+    assertThat(response).isNotNull();
+
+    // The adapter must have observed the Idempotency-Key on exactly 2 transport attempts
+    // (initial attempt + one auto-retry) and both values must be identical.
+    List<String> observedKeys =
+        adapterForRESTServer.observedMutationIdempotencyKeys().stream()
+            .filter(k -> k.equals(key))
+            .collect(Collectors.toList());
+    assertThat(observedKeys).hasSize(2);
+    assertThat(observedKeys.get(0)).isNotNull().isEqualTo(observedKeys.get(1));
   }
 
   @Test

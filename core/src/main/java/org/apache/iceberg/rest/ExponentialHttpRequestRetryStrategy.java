@@ -194,7 +194,8 @@ class ExponentialHttpRequestRetryStrategy implements HttpRequestRetryStrategy {
       return false;
     }
 
-    // Check if the request is idempotent or carries an Idempotency-Key
+    // A request is retry-safe if its HTTP method is idempotent or it carries an Idempotency-Key
+    // header (which lets the server replay a finalized result on retry).
     boolean retrySafe =
         Method.isIdempotent(request.getMethod())
             || request.containsHeader(RESTUtil.IDEMPOTENCY_KEY_HEADER);
