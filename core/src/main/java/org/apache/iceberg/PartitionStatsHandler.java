@@ -33,7 +33,6 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
-import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.OutputFile;
@@ -42,10 +41,10 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Types.StructType;
-import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.PartitionMap;
 import org.apache.iceberg.util.PartitionUtil;
 import org.apache.iceberg.util.SnapshotUtil;
+import org.apache.iceberg.util.StructLikeMap;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
 import org.slf4j.Logger;
@@ -182,12 +181,11 @@ public class PartitionStatsHandler {
 
   private static Collection<PartitionStatistics> computeAndMergeStatsIncremental(
       Table table, Snapshot snapshot, long lastSnapshotWithStats) {
-    PartitionMap<PartitionStatistics> statsMap = PartitionMap.create(table.specs());
+    StructType partitionType = Partitioning.partitionType(table);
+    StructLikeMap<PartitionStatistics> statsMap = StructLikeMap.create(partitionType);
     try (CloseableIterable<PartitionStatistics> oldStats =
         table.newPartitionStatisticsScan().useSnapshot(lastSnapshotWithStats).scan()) {
-      oldStats.forEach(
-          partitionStats ->
-              statsMap.put(partitionStats.specId(), partitionStats.partition(), partitionStats));
+      oldStats.forEach(partitionStats -> statsMap.put(partitionStats.partition(), partitionStats));
     } catch (Exception exception) {
       throw new InvalidStatsFileException(exception);
     }
@@ -196,27 +194,18 @@ public class PartitionStatsHandler {
     PartitionMap<PartitionStatistics> incrementalStatsMap =
         computeStatsDiff(table, table.snapshot(lastSnapshotWithStats), snapshot);
 
-    // convert PartitionData into GenericRecord and merge stats
-    incrementalStatsMap.forEach(
-        (key, value) ->
-            statsMap.merge(
-                Pair.of(key.first(), partitionDataToRecord((PartitionData) key.second())),
-                value,
-                (existingEntry, newEntry) -> {
-                  appendStats(existingEntry, newEntry);
-                  return existingEntry;
-                }));
-
-    return statsMap.values();
-  }
-
-  private static GenericRecord partitionDataToRecord(PartitionData data) {
-    GenericRecord record = GenericRecord.create(data.getPartitionType());
-    for (int index = 0; index < record.size(); index++) {
-      record.set(index, data.get(index));
+    // merge stats from the incremental compute into the base stats
+    for (PartitionStatistics newStats : incrementalStatsMap.values()) {
+      statsMap.merge(
+          newStats.partition(),
+          newStats,
+          (existingEntry, newEntry) -> {
+            appendStats(existingEntry, newEntry);
+            return existingEntry;
+          });
     }
 
-    return record;
+    return statsMap.values();
   }
 
   @VisibleForTesting
@@ -468,8 +457,6 @@ public class PartitionStatsHandler {
   @VisibleForTesting
   static void appendStats(PartitionStatistics targetStats, PartitionStatistics inputStats) {
     Preconditions.checkArgument(targetStats.specId() != null, "Invalid spec ID: null");
-    Preconditions.checkArgument(
-        targetStats.specId().equals(inputStats.specId()), "Spec IDs must match");
 
     // This is expected to be called on the compute/write path where we use full schemas, hence
     // these members can't be null.
