@@ -58,6 +58,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
+import org.apache.iceberg.data.parquet.InternalReader;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
@@ -73,6 +74,8 @@ import org.apache.iceberg.types.Types.IntegerType;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.RandomUtil;
 import org.apache.iceberg.variants.Variant;
+import org.apache.iceberg.variants.VariantTestUtil;
+import org.apache.iceberg.variants.Variants;
 import org.apache.parquet.avro.AvroParquetWriter;
 import org.apache.parquet.column.Encoding;
 import org.apache.parquet.column.statistics.Statistics;
@@ -600,6 +603,31 @@ public class TestParquet {
     assertThatThrownBy(() -> ParquetAvroWriter.buildWriter(schema))
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessage("Avro writer does not support variant types");
+  }
+
+  @Test
+  void writesVariantWithDefaultAvroWriter() throws IOException {
+    Schema schema = new Schema(required(1, "v", Types.VariantType.get()));
+    GenericData.Record record =
+        new GenericData.Record(AvroSchemaUtil.convert(schema.asStruct(), "table"));
+    Variant expected = Variant.of(Variants.emptyMetadata(), Variants.of(34));
+    record.put("v", expected);
+
+    File file = createTempFile(temp);
+    try (FileAppender<GenericData.Record> writer =
+        Parquet.write(Files.localOutput(file)).schema(schema).build()) {
+      writer.add(record);
+    }
+
+    try (CloseableIterable<Record> rows =
+        Parquet.read(Files.localInput(file))
+            .project(schema)
+            .createReaderFunc(fileSchema -> InternalReader.create(schema, fileSchema))
+            .build()) {
+      Variant actual = (Variant) getOnlyElement(rows).get(0);
+      VariantTestUtil.assertEqual(expected.metadata(), actual.metadata());
+      VariantTestUtil.assertEqual(expected.value(), actual.value());
+    }
   }
 
   @Test
