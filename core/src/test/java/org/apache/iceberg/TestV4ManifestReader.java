@@ -381,6 +381,19 @@ class TestV4ManifestReader {
             "Cannot use forScanPlanning() with select(Collection<String>) or project(Schema)");
   }
 
+  @Test
+  public void manifestDeletionVectorIsUnsupported() {
+    InputFile manifest = fileIO.newInputFile(tempDir.resolve("manifest.avro").toString());
+
+    assertThatThrownBy(
+            () ->
+                V4ManifestReader.builder(manifest, UNPARTITIONED_SPECS, TABLE_LOCATION)
+                    .manifestDv(ByteBuffer.wrap(new byte[] {1, 2, 3}))
+                    .build())
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage("Cannot apply manifest deletion vector: " + manifest.location());
+  }
+
   @ParameterizedTest
   @FieldSource("MANIFEST_FORMATS")
   public void projectionPreservesNarrowTrackingProjection(FileFormat format) throws IOException {

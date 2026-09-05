@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg;
 
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Map;
@@ -185,6 +186,7 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
     private Collection<String> columns = null;
     private Schema requestedProjection = null;
     private ScanMetrics scanMetrics = ScanMetrics.noop();
+    private ByteBuffer manifestDv = null;
 
     private Builder(InputFile file, Map<Integer, PartitionSpec> specsById, String tableLocation) {
       Preconditions.checkArgument(tableLocation != null, "Invalid table location: null");
@@ -258,7 +260,18 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
       return this;
     }
 
+    /** Sets the deletion vector that marks manifest entries deleted by position. */
+    Builder manifestDv(ByteBuffer dv) {
+      this.manifestDv = dv;
+      return this;
+    }
+
     V4ManifestReader build() {
+      if (manifestDv != null) {
+        throw new UnsupportedOperationException(
+            "Cannot apply manifest deletion vector: " + file.location());
+      }
+
       Map<Integer, Pair<Evaluator, StructProjection>> partitionFilters = Maps.newHashMap();
       if (rowFilter != Expressions.alwaysTrue() && !unionPartitionType.fields().isEmpty()) {
         for (PartitionSpec spec : specsById.values()) {
