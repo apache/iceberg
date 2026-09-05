@@ -19,7 +19,6 @@
 package org.apache.iceberg.actions;
 
 import java.io.IOException;
-import java.util.List;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.ManifestFile;
@@ -33,7 +32,6 @@ import org.apache.iceberg.TableScan;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.util.DeleteFileSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -43,8 +41,6 @@ public class RemoveDanglingDeleteFilesAction
     implements RemoveDanglingDeleteFiles {
 
   private static final Logger LOG = LoggerFactory.getLogger(RemoveDanglingDeleteFilesAction.class);
-  private static final List<String> DELETE_COLUMNS =
-      ImmutableList.of("file_path", "content_offset", "content_size_in_bytes");
   private static final Result EMPTY_RESULT =
       ImmutableRemoveDanglingDeleteFiles.Result.builder()
           .removedDeleteFiles(DeleteFileSet.create())
@@ -111,11 +107,13 @@ public class RemoveDanglingDeleteFilesAction
    * </ol>
    */
   private static DeleteFileSet findDanglingDeletes(Table table, Snapshot snapshot) {
-    DeleteFileSet deletes = DeleteFileSet.create();
+    DeleteFileSet referencedDeletes = DeleteFileSet.create();
     TableScan scan = table.newScan().useSnapshot(snapshot.snapshotId());
     try (CloseableIterable<FileScanTask> tasks = scan.planFiles()) {
       for (FileScanTask task : tasks) {
-        deletes.addAll(task.deletes());
+        for (DeleteFile deleteFile : task.deletes()) {
+          referencedDeletes.add(deleteFile.copyWithoutStats());
+        }
       }
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to scan: %s", scan);
@@ -124,11 +122,10 @@ public class RemoveDanglingDeleteFilesAction
     DeleteFileSet danglingDeletes = DeleteFileSet.create();
     for (ManifestFile manifest : snapshot.deleteManifests(table.io())) {
       try (ManifestReader<DeleteFile> reader =
-          ManifestFiles.readDeleteManifest(manifest, table.io(), table.specs())
-              .select(DELETE_COLUMNS)) {
+          ManifestFiles.readDeleteManifest(manifest, table.io(), table.specs())) {
         for (DeleteFile deleteFile : reader) {
-          if (!deletes.contains(deleteFile)) {
-            danglingDeletes.add(deleteFile);
+          if (!referencedDeletes.contains(deleteFile)) {
+            danglingDeletes.add(deleteFile.copyWithoutStats());
           }
         }
       } catch (IOException e) {
