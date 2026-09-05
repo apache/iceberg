@@ -37,7 +37,7 @@ import org.apache.iceberg.util.SerializableFunction;
 import org.apache.iceberg.variants.Variant;
 
 /** Returns a spec-defined fixed value for the column's type. */
-public final class MaskToFixedValue extends IcebergFunction.BaseFunction<Object, Object> {
+public final class MaskToFixedValue extends BaseFunction<Object, Object> {
 
   private static final Integer INT_DEFAULT = 0;
   private static final Long LONG_DEFAULT = 0L;
@@ -61,13 +61,15 @@ public final class MaskToFixedValue extends IcebergFunction.BaseFunction<Object,
           ByteBuffer.wrap(new byte[] {0x01, 0x00, 0x00, 0x02, 0x00, 0x00})
               .order(ByteOrder.LITTLE_ENDIAN));
 
-  public MaskToFixedValue(int fieldId) {
+  static final String NAME = "mask-to-fixed-value";
+
+  MaskToFixedValue(int fieldId) {
     super(fieldId);
   }
 
   @Override
   public String name() {
-    return MASK_TO_FIXED_VALUE;
+    return NAME;
   }
 
   @Override

@@ -18,39 +18,41 @@
  */
 package org.apache.iceberg.functions;
 
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.types.Type;
-import org.apache.iceberg.util.SerializableFunction;
+import java.util.Objects;
 
-/** Truncates date or timestamp values to the first instant of their year. */
-public final class TruncateToYear extends BaseFunction<Object, Object> {
-  static final String NAME = "truncate-to-year";
+/** Base for all concrete {@link IcebergFunction} implementations; holds the field id. */
+abstract class BaseFunction<S, T> implements IcebergFunction<S, T> {
+  private final int fieldId;
 
-  TruncateToYear(int fieldId) {
-    super(fieldId);
+  BaseFunction(int fieldId) {
+    this.fieldId = fieldId;
   }
 
   @Override
-  public String name() {
-    return NAME;
+  public final int fieldId() {
+    return fieldId;
   }
 
   @Override
-  public boolean canBind(Type type) {
-    switch (type.typeId()) {
-      case DATE:
-      case TIMESTAMP:
-      case TIMESTAMP_NANO:
-        return true;
-      default:
-        return false;
+  public boolean equals(Object o) {
+    if (this == o) {
+      return true;
     }
+    if (o == null || getClass() != o.getClass()) {
+      return false;
+    }
+    IcebergFunction<?, ?> other = (IcebergFunction<?, ?>) o;
+    // name() is a constant per class except in UnknownFunction, whose instances differ by name.
+    return fieldId == other.fieldId() && name().equals(other.name());
   }
 
   @Override
-  public SerializableFunction<Object, Object> bind(Type type) {
-    Preconditions.checkArgument(
-        canBind(type), "truncate-to-year is not supported for type: %s", type);
-    return TruncateTemporal.forType(TruncateTemporal.Unit.YEAR, type);
+  public int hashCode() {
+    return Objects.hash(name(), fieldId);
+  }
+
+  @Override
+  public String toString() {
+    return name() + "(" + fieldId + ")";
   }
 }

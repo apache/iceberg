@@ -28,10 +28,10 @@ import org.apache.iceberg.util.SerializableFunction;
  * (engine-side rules) must fail closed when they encounter this — silent skipping would leak
  * unmasked data.
  */
-public final class UnknownFunction extends IcebergFunction.BaseFunction<Object, Object> {
+public final class UnknownFunction extends BaseFunction<Object, Object> {
   private final String functionName;
 
-  public UnknownFunction(int fieldId, String functionName) {
+  UnknownFunction(int fieldId, String functionName) {
     super(fieldId);
     Preconditions.checkArgument(functionName != null, "Invalid function name: null");
     this.functionName = functionName;

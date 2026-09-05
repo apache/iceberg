@@ -28,14 +28,16 @@ import org.apache.iceberg.util.SerializableFunction;
  * validate that the target field is optional before binding; this function cannot check nullability
  * because {@link org.apache.iceberg.types.Type} does not carry the field's required/optional flag.
  */
-public final class ReplaceWithNull extends IcebergFunction.BaseFunction<Object, Object> {
-  public ReplaceWithNull(int fieldId) {
+public final class ReplaceWithNull extends BaseFunction<Object, Object> {
+  static final String NAME = "replace-with-null";
+
+  ReplaceWithNull(int fieldId) {
     super(fieldId);
   }
 
   @Override
   public String name() {
-    return REPLACE_WITH_NULL;
+    return NAME;
   }
 
   @Override

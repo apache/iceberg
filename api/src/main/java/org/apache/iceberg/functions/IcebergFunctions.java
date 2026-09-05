@@ -18,24 +18,81 @@
  */
 package org.apache.iceberg.functions;
 
-import org.apache.iceberg.util.SerializableFunction;
-
-/** Package-private helpers shared by {@link IcebergFunction} implementations. */
-final class IcebergFunctions {
-
+/** Factory for the {@link IcebergFunction} implementations defined by the REST spec. */
+public class IcebergFunctions {
   private IcebergFunctions() {}
 
   /**
-   * Base for masking functions where null input must pass through as null unchanged (spec: "For all
-   * actions, if the input column value is NULL, the output MUST be NULL."). Subclasses implement
-   * {@link #applyNonNull(Object)} and don't have to repeat the guard.
+   * Returns the function with the given name, or an {@link UnknownFunction} if the name is not
+   * recognized.
    */
-  abstract static class NullSafeFunction<S, T> implements SerializableFunction<S, T> {
-    @Override
-    public final T apply(S value) {
-      return value == null ? null : applyNonNull(value);
+  public static IcebergFunction<?, ?> fromString(String function, int fieldId) {
+    switch (function) {
+      case MaskAlphanum.NAME:
+        return maskAlphanum(fieldId);
+      case MaskToFixedValue.NAME:
+        return maskToFixedValue(fieldId);
+      case ReplaceWithNull.NAME:
+        return replaceWithNull(fieldId);
+      case ShowFirst4.NAME:
+        return showFirst4(fieldId);
+      case ShowLast4.NAME:
+        return showLast4(fieldId);
+      case TruncateToYear.NAME:
+        return truncateToYear(fieldId);
+      case TruncateToMonth.NAME:
+        return truncateToMonth(fieldId);
+      case Sha256Global.NAME:
+        return sha256Global(fieldId);
+      case Sha256QueryLocal.NAME:
+        return sha256QueryLocal(fieldId);
+      default:
+        return new UnknownFunction(fieldId, function);
     }
+  }
 
-    protected abstract T applyNonNull(S value);
+  /** Returns a {@code mask-alphanum} {@link IcebergFunction} for string types. */
+  public static IcebergFunction<String, String> maskAlphanum(int fieldId) {
+    return new MaskAlphanum(fieldId);
+  }
+
+  /** Returns a {@code mask-to-fixed-value} {@link IcebergFunction}. */
+  public static IcebergFunction<Object, Object> maskToFixedValue(int fieldId) {
+    return new MaskToFixedValue(fieldId);
+  }
+
+  /** Returns a {@code replace-with-null} {@link IcebergFunction} for any type. */
+  public static IcebergFunction<Object, Object> replaceWithNull(int fieldId) {
+    return new ReplaceWithNull(fieldId);
+  }
+
+  /** Returns a {@code show-first-4} {@link IcebergFunction} for string types. */
+  public static IcebergFunction<String, String> showFirst4(int fieldId) {
+    return new ShowFirst4(fieldId);
+  }
+
+  /** Returns a {@code show-last-4} {@link IcebergFunction} for string types. */
+  public static IcebergFunction<String, String> showLast4(int fieldId) {
+    return new ShowLast4(fieldId);
+  }
+
+  /** Returns a {@code truncate-to-year} {@link IcebergFunction} for date and timestamp types. */
+  public static IcebergFunction<Object, Object> truncateToYear(int fieldId) {
+    return new TruncateToYear(fieldId);
+  }
+
+  /** Returns a {@code truncate-to-month} {@link IcebergFunction} for date and timestamp types. */
+  public static IcebergFunction<Object, Object> truncateToMonth(int fieldId) {
+    return new TruncateToMonth(fieldId);
+  }
+
+  /** Returns a {@code sha-256-global} {@link IcebergFunction} for string, int, long and binary. */
+  public static IcebergFunction<Object, Object> sha256Global(int fieldId) {
+    return new Sha256Global(fieldId);
+  }
+
+  /** Returns a {@code sha-256-query-local} {@link SaltedFunction}, salted per query. */
+  public static SaltedFunction<Object, Object> sha256QueryLocal(int fieldId) {
+    return new Sha256QueryLocal(fieldId);
   }
 }

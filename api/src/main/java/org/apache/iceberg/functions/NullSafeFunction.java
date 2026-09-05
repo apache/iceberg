@@ -18,39 +18,17 @@
  */
 package org.apache.iceberg.functions;
 
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.types.Type;
 import org.apache.iceberg.util.SerializableFunction;
 
-/** Truncates date or timestamp values to the first instant of their year. */
-public final class TruncateToYear extends BaseFunction<Object, Object> {
-  static final String NAME = "truncate-to-year";
-
-  TruncateToYear(int fieldId) {
-    super(fieldId);
-  }
-
+/**
+ * Base for masking functions where null input must pass through as null unchanged (spec: "For all
+ * actions, if the input column value is NULL, the output MUST be NULL.").
+ */
+abstract class NullSafeFunction<S, T> implements SerializableFunction<S, T> {
   @Override
-  public String name() {
-    return NAME;
+  public final T apply(S value) {
+    return value == null ? null : applyNonNull(value);
   }
 
-  @Override
-  public boolean canBind(Type type) {
-    switch (type.typeId()) {
-      case DATE:
-      case TIMESTAMP:
-      case TIMESTAMP_NANO:
-        return true;
-      default:
-        return false;
-    }
-  }
-
-  @Override
-  public SerializableFunction<Object, Object> bind(Type type) {
-    Preconditions.checkArgument(
-        canBind(type), "truncate-to-year is not supported for type: %s", type);
-    return TruncateTemporal.forType(TruncateTemporal.Unit.YEAR, type);
-  }
+  protected abstract T applyNonNull(S value);
 }

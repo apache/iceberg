@@ -23,14 +23,16 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.util.SerializableFunction;
 
 /** Redacts all but the last 4 code points of a string via mask-alphanum rules. */
-public final class ShowLast4 extends IcebergFunction.BaseFunction<String, String> {
-  public ShowLast4(int fieldId) {
+public final class ShowLast4 extends BaseFunction<String, String> {
+  static final String NAME = "show-last-4";
+
+  ShowLast4(int fieldId) {
     super(fieldId);
   }
 
   @Override
   public String name() {
-    return SHOW_LAST_4;
+    return NAME;
   }
 
   @Override
@@ -44,7 +46,7 @@ public final class ShowLast4 extends IcebergFunction.BaseFunction<String, String
     return ShowLast4Fn.INSTANCE;
   }
 
-  private static final class ShowLast4Fn extends IcebergFunctions.NullSafeFunction<String, String> {
+  private static final class ShowLast4Fn extends NullSafeFunction<String, String> {
     static final ShowLast4Fn INSTANCE = new ShowLast4Fn();
 
     @Override

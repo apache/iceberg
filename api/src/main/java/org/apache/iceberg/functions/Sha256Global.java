@@ -23,14 +23,16 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.util.SerializableFunction;
 
 /** Hashes values with SHA-256 using a fixed (unsalted) digest. Output is deterministic. */
-public final class Sha256Global extends IcebergFunction.BaseFunction<Object, Object> {
-  public Sha256Global(int fieldId) {
+public final class Sha256Global extends BaseFunction<Object, Object> {
+  static final String NAME = "sha-256-global";
+
+  Sha256Global(int fieldId) {
     super(fieldId);
   }
 
   @Override
   public String name() {
-    return SHA_256_GLOBAL;
+    return NAME;
   }
 
   @Override

@@ -23,14 +23,16 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.util.SerializableFunction;
 
 /** Truncates date or timestamp values to the first instant of their month. */
-public final class TruncateToMonth extends IcebergFunction.BaseFunction<Object, Object> {
-  public TruncateToMonth(int fieldId) {
+public final class TruncateToMonth extends BaseFunction<Object, Object> {
+  static final String NAME = "truncate-to-month";
+
+  TruncateToMonth(int fieldId) {
     super(fieldId);
   }
 
   @Override
   public String name() {
-    return TRUNCATE_TO_MONTH;
+    return NAME;
   }
 
   @Override

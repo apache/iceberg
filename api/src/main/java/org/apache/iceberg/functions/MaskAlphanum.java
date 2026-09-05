@@ -23,14 +23,16 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.util.SerializableFunction;
 
 /** Redacts every Unicode code point in a string per the mask-alphanum rules. */
-public final class MaskAlphanum extends IcebergFunction.BaseFunction<String, String> {
-  public MaskAlphanum(int fieldId) {
+public final class MaskAlphanum extends BaseFunction<String, String> {
+  static final String NAME = "mask-alphanum";
+
+  MaskAlphanum(int fieldId) {
     super(fieldId);
   }
 
   @Override
   public String name() {
-    return MASK_ALPHANUM;
+    return NAME;
   }
 
   @Override
@@ -64,8 +66,7 @@ public final class MaskAlphanum extends IcebergFunction.BaseFunction<String, Str
     }
   }
 
-  private static final class MaskAlphanumFn
-      extends IcebergFunctions.NullSafeFunction<String, String> {
+  private static final class MaskAlphanumFn extends NullSafeFunction<String, String> {
     static final MaskAlphanumFn INSTANCE = new MaskAlphanumFn();
 
     @Override

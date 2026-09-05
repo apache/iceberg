@@ -23,14 +23,16 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.util.SerializableFunction;
 
 /** Preserves the first 4 code points of a string, redacts the rest via mask-alphanum rules. */
-public final class ShowFirst4 extends IcebergFunction.BaseFunction<String, String> {
-  public ShowFirst4(int fieldId) {
+public final class ShowFirst4 extends BaseFunction<String, String> {
+  static final String NAME = "show-first-4";
+
+  ShowFirst4(int fieldId) {
     super(fieldId);
   }
 
   @Override
   public String name() {
-    return SHOW_FIRST_4;
+    return NAME;
   }
 
   @Override
@@ -44,8 +46,7 @@ public final class ShowFirst4 extends IcebergFunction.BaseFunction<String, Strin
     return ShowFirst4Fn.INSTANCE;
   }
 
-  private static final class ShowFirst4Fn
-      extends IcebergFunctions.NullSafeFunction<String, String> {
+  private static final class ShowFirst4Fn extends NullSafeFunction<String, String> {
     static final ShowFirst4Fn INSTANCE = new ShowFirst4Fn();
 
     @Override

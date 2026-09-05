@@ -313,4 +313,88 @@ public class TestIcebergFunctions {
     SerializableFunction<Object, Object> fn = new TruncateToYear(1).bind(Types.DateType.get());
     assertThat(fn.apply(null)).isNull();
   }
+
+  @Test
+  public void factoryMethodsUseSpecWireNames() {
+    assertThat(IcebergFunctions.maskAlphanum(1).name()).isEqualTo("mask-alphanum");
+    assertThat(IcebergFunctions.maskToFixedValue(1).name()).isEqualTo("mask-to-fixed-value");
+    assertThat(IcebergFunctions.replaceWithNull(1).name()).isEqualTo("replace-with-null");
+    assertThat(IcebergFunctions.showFirst4(1).name()).isEqualTo("show-first-4");
+    assertThat(IcebergFunctions.showLast4(1).name()).isEqualTo("show-last-4");
+    assertThat(IcebergFunctions.truncateToYear(1).name()).isEqualTo("truncate-to-year");
+    assertThat(IcebergFunctions.truncateToMonth(1).name()).isEqualTo("truncate-to-month");
+    assertThat(IcebergFunctions.sha256Global(1).name()).isEqualTo("sha-256-global");
+    assertThat(IcebergFunctions.sha256QueryLocal(1).name()).isEqualTo("sha-256-query-local");
+  }
+
+  @Test
+  public void fromStringRoundTripsEveryFunction() {
+    IcebergFunction<?, ?>[] functions =
+        new IcebergFunction<?, ?>[] {
+          IcebergFunctions.maskAlphanum(1),
+          IcebergFunctions.maskToFixedValue(1),
+          IcebergFunctions.replaceWithNull(1),
+          IcebergFunctions.showFirst4(1),
+          IcebergFunctions.showLast4(1),
+          IcebergFunctions.truncateToYear(1),
+          IcebergFunctions.truncateToMonth(1),
+          IcebergFunctions.sha256Global(1),
+          IcebergFunctions.sha256QueryLocal(1)
+        };
+
+    for (IcebergFunction<?, ?> expected : functions) {
+      assertThat(IcebergFunctions.fromString(expected.name(), 1)).isEqualTo(expected);
+    }
+  }
+
+  @Test
+  public void fromStringPreservesUnknownFunction() {
+    IcebergFunction<?, ?> function = IcebergFunctions.fromString("future-mask-v2", 3);
+    assertThat(function).isInstanceOf(UnknownFunction.class);
+    assertThat(function.name()).isEqualTo("future-mask-v2");
+    assertThat(function.fieldId()).isEqualTo(3);
+    assertThat(function.canBind(Types.StringType.get())).isFalse();
+  }
+
+  @Test
+  public void fromStringReturnsSaltedFunctionForQueryLocalSha256() {
+    assertThat(IcebergFunctions.fromString("sha-256-query-local", 1))
+        .isInstanceOf(SaltedFunction.class);
+    assertThat(IcebergFunctions.fromString("sha-256-global", 1))
+        .isNotInstanceOf(SaltedFunction.class);
+  }
+
+  @Test
+  public void equalIfSameFunctionAndFieldId() {
+    assertThat(IcebergFunctions.maskAlphanum(1))
+        .isEqualTo(IcebergFunctions.maskAlphanum(1))
+        .hasSameHashCodeAs(IcebergFunctions.maskAlphanum(1));
+  }
+
+  @Test
+  public void notEqualIfFieldIdDiffers() {
+    assertThat(IcebergFunctions.maskAlphanum(1)).isNotEqualTo(IcebergFunctions.maskAlphanum(2));
+  }
+
+  @Test
+  public void notEqualIfFunctionDiffers() {
+    assertThat(IcebergFunctions.maskAlphanum(1)).isNotEqualTo(IcebergFunctions.showLast4(1));
+  }
+
+  @Test
+  public void equalsIsSymmetricAcrossFunctionTypes() {
+    // An unknown function reporting a known name must not compare equal to that known function in
+    // either direction: equality is by class, not by the reported name.
+    IcebergFunction<?, ?> known = IcebergFunctions.maskAlphanum(1);
+    IcebergFunction<?, ?> spoofed = new UnknownFunction(1, known.name());
+    assertThat(spoofed.name()).isEqualTo(known.name());
+    assertThat(spoofed).isNotEqualTo(known);
+    assertThat(known).isNotEqualTo(spoofed);
+  }
+
+  @Test
+  public void unknownFunctionsDifferByName() {
+    assertThat(IcebergFunctions.fromString("future-a", 1))
+        .isNotEqualTo(IcebergFunctions.fromString("future-b", 1));
+  }
 }
