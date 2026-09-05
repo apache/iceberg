@@ -114,6 +114,7 @@ AWS:
     - any-glob-to-any-file:
       - 'aws/**/*'
       - 'aws-bundle/**/*'
+      - 'aws-s3-bundle/**/*'
 
 NESSIE:
   - changed-files:
