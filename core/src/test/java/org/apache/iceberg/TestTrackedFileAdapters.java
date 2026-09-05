@@ -33,6 +33,7 @@ import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.mockito.Mockito;
 
 class TestTrackedFileAdapters {
 
@@ -40,9 +41,11 @@ class TestTrackedFileAdapters {
   private static final String MANIFEST_LOCATION = "s3://bucket/table/manifest.parquet";
   private static final String DATA_FILE_LOCATION = "s3://bucket/data/file.parquet";
   private static final String DV_LOCATION = "s3://bucket/puffin/dv-file.bin";
+  private static final long MANIFEST_FILE_SIZE = 2048L;
 
   // Tracking values that the delegation tests validate.
   private static final long MANIFEST_POS = 3L;
+  private static final long SNAPSHOT_ID = 42L;
   private static final long DATA_SEQUENCE_NUMBER = 10L;
   private static final long FILE_SEQUENCE_NUMBER = 11L;
   private static final long FIRST_ROW_ID = 1000L;
@@ -90,6 +93,36 @@ class TestTrackedFileAdapters {
     CONTENT_STATS.setStats(2, SCORE_STATS);
     CONTENT_STATS.setStats(3, GEOM_STATS);
   }
+
+  private static final Tracking MANIFEST_TRACKING =
+      new TrackingStruct(
+          EntryStatus.ADDED,
+          SNAPSHOT_ID,
+          DATA_SEQUENCE_NUMBER,
+          FILE_SEQUENCE_NUMBER,
+          null, // dvSnapshotId
+          FIRST_ROW_ID,
+          null, // deletedPositions
+          null); // replacedPositions
+
+  private static final byte[] MANIFEST_DV = new byte[] {1, 2, 3};
+
+  private static final ByteBuffer MANIFEST_KEY_METADATA = ByteBuffer.wrap(new byte[] {7, 8, 9});
+
+  private static final ManifestInfo MANIFEST_INFO =
+      ManifestInfoStruct.builder()
+          .addedFilesCount(3)
+          .existingFilesCount(5)
+          .deletedFilesCount(2)
+          .replacedFilesCount(0)
+          .addedRowsCount(300L)
+          .existingRowsCount(500L)
+          .deletedRowsCount(200L)
+          .replacedRowsCount(0L)
+          .minSequenceNumber(7L)
+          .dv(ByteBuffer.wrap(MANIFEST_DV))
+          .dvCardinality(4L)
+          .build();
 
   @Test
   void dataFileAdapterDelegation() {
@@ -348,6 +381,83 @@ class TestTrackedFileAdapters {
     assertThatThrownBy(() -> TrackedFileAdapters.asDVDeleteFile(file, UNPARTITIONED))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot create DV delete file: no deletion vector");
+  }
+
+  @ParameterizedTest
+  @EnumSource(
+      value = FileContent.class,
+      names = {"DATA_MANIFEST", "DELETE_MANIFEST"})
+  void manifestFileAdapterDelegation(FileContent contentType) {
+    TrackedFile file =
+        new TrackedFileStruct(
+            MANIFEST_TRACKING,
+            contentType,
+            FORMAT_VERSION_V4,
+            MANIFEST_LOCATION,
+            FileFormat.PARQUET,
+            10L, // recordCount
+            MANIFEST_FILE_SIZE,
+            null, // specId
+            null, // partition
+            null, // contentStats
+            null, // sortOrderId
+            null, // deletionVector
+            MANIFEST_INFO,
+            MANIFEST_KEY_METADATA,
+            null, // splitOffsets
+            null); // equalityIds
+
+    ManifestFile manifest = TrackedFileAdapters.asManifestFile(file);
+
+    ManifestContent expectedContent =
+        contentType == FileContent.DATA_MANIFEST ? ManifestContent.DATA : ManifestContent.DELETES;
+    assertThat(manifest.path()).isEqualTo(MANIFEST_LOCATION);
+    assertThat(manifest.length()).isEqualTo(MANIFEST_FILE_SIZE);
+    assertThat(manifest.content()).isEqualTo(expectedContent);
+    assertThat(manifest.sequenceNumber()).isEqualTo(DATA_SEQUENCE_NUMBER);
+    assertThat(manifest.minSequenceNumber()).isEqualTo(MANIFEST_INFO.minSequenceNumber());
+    assertThat(manifest.snapshotId()).isEqualTo(SNAPSHOT_ID);
+    assertThat(manifest.addedFilesCount()).isEqualTo(MANIFEST_INFO.addedFilesCount());
+    assertThat(manifest.addedRowsCount()).isEqualTo(MANIFEST_INFO.addedRowsCount());
+    assertThat(manifest.existingFilesCount()).isEqualTo(MANIFEST_INFO.existingFilesCount());
+    assertThat(manifest.existingRowsCount()).isEqualTo(MANIFEST_INFO.existingRowsCount());
+    assertThat(manifest.deletedFilesCount()).isEqualTo(MANIFEST_INFO.deletedFilesCount());
+    assertThat(manifest.deletedRowsCount()).isEqualTo(MANIFEST_INFO.deletedRowsCount());
+    assertThat(manifest.firstRowId()).isEqualTo(FIRST_ROW_ID);
+    assertThat(manifest.keyMetadata()).isEqualTo(MANIFEST_KEY_METADATA);
+    assertThat(manifest.manifestDeletionVector().buffer()).isEqualTo(ByteBuffer.wrap(MANIFEST_DV));
+    assertThat(manifest.partitions()).isNull();
+    assertThatThrownBy(manifest::partitionSpecId)
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage("v4 manifests are not bound to a single partition spec");
+  }
+
+  @Test
+  void manifestFileAdapterCopy() {
+    TrackedFile file = Mockito.mock(TrackedFile.class);
+    TrackedFile fileCopy = Mockito.mock(TrackedFile.class);
+    Mockito.when(file.contentType()).thenReturn(FileContent.DATA_MANIFEST);
+    Mockito.when(file.copy()).thenReturn(fileCopy);
+    Mockito.when(fileCopy.location()).thenReturn(MANIFEST_LOCATION);
+
+    ManifestFile copy = TrackedFileAdapters.asManifestFile(file).copy();
+
+    // copy() delegates to the tracked file's copy(), which deep-copies the nested structs.
+    Mockito.verify(file).copy();
+    assertThat(copy.path()).isEqualTo(MANIFEST_LOCATION);
+  }
+
+  @ParameterizedTest
+  @EnumSource(
+      value = FileContent.class,
+      mode = EnumSource.Mode.EXCLUDE,
+      names = {"DATA_MANIFEST", "DELETE_MANIFEST"})
+  void manifestFileAdapterRejectsNonManifestContent(FileContent contentType) {
+    TrackedFileStruct file = dummyTrackedFile(contentType);
+
+    assertThatThrownBy(() -> TrackedFileAdapters.asManifestFile(file))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid content type for ManifestFile: %s", contentType);
   }
 
   @Test
