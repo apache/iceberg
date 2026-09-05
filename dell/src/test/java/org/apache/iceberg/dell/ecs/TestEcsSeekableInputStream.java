@@ -23,12 +23,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.emc.object.s3.request.PutObjectRequest;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import org.apache.iceberg.dell.mock.ecs.EcsS3MockRule;
 import org.apache.iceberg.metrics.MetricsContext;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 
 public class TestEcsSeekableInputStream {
+  private static final int EOF = -1;
 
   @RegisterExtension public static EcsS3MockRule rule = EcsS3MockRule.create();
 
@@ -88,6 +90,39 @@ public class TestEcsSeekableInputStream {
       assertThat(new String(buffer, StandardCharsets.UTF_8))
           .as("The first 3 bytes should be 012")
           .isEqualTo("012");
+    }
+  }
+
+  @Test
+  public void testReadSingleEOF() throws IOException {
+    String objectName = rule.randomObjectName();
+    rule.client().putObject(new PutObjectRequest(rule.bucket(), objectName, "01".getBytes()));
+
+    try (EcsSeekableInputStream input =
+        new EcsSeekableInputStream(
+            rule.client(), new EcsURI(rule.bucket(), objectName), MetricsContext.nullMetrics())) {
+      assertThat(input.read()).isEqualTo('0');
+      assertThat(input.read()).isEqualTo('1');
+      assertThat(input.read()).isEqualTo(EOF);
+    }
+  }
+
+  @Test
+  public void testReadBufferedEOF() throws IOException {
+    String objectName = rule.randomObjectName();
+    byte[] data = "0123456789".getBytes(StandardCharsets.UTF_8);
+    rule.client().putObject(new PutObjectRequest(rule.bucket(), objectName, data));
+
+    try (EcsSeekableInputStream input =
+        new EcsSeekableInputStream(
+            rule.client(), new EcsURI(rule.bucket(), objectName), MetricsContext.nullMetrics())) {
+      byte[] actual = new byte[data.length + 1];
+      int bytesRead = input.read(actual, 0, actual.length);
+      assertThat(bytesRead).isEqualTo(data.length);
+      assertThat(Arrays.copyOfRange(actual, 0, bytesRead)).isEqualTo(data);
+
+      assertThat(input.read(actual, 0, actual.length)).isEqualTo(EOF);
+      assertThat(input.getPos()).isEqualTo(data.length);
     }
   }
 }

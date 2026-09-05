@@ -31,6 +31,8 @@ import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
 import org.junit.jupiter.api.Test;
 
 public class TestOSSInputStream extends AliyunOSSTestBase {
+  private static final int EOF = -1;
+
   private final Random random = ThreadLocalRandom.current();
 
   @Test
@@ -90,6 +92,39 @@ public class TestOSSInputStream extends AliyunOSSTestBase {
     assertThat(actual)
         .as("Should have expected range data")
         .isEqualTo(Arrays.copyOfRange(original, (int) rangeStart, (int) rangeEnd));
+  }
+
+  @Test
+  public void testReadSingleEOF() throws Exception {
+    OSSURI uri = new OSSURI(location("read-single-eof.dat"));
+    byte[] data = new byte[] {1, 2};
+
+    writeOSSData(uri, data);
+
+    try (SeekableInputStream in = new OSSInputStream(ossClient().get(), uri)) {
+      assertThat(in.read()).isEqualTo(1);
+      assertThat(in.read()).isEqualTo(2);
+      assertThat(in.read()).isEqualTo(EOF);
+    }
+  }
+
+  @Test
+  public void testReadBufferedEOF() throws Exception {
+    OSSURI uri = new OSSURI(location("read-buffered-eof.dat"));
+    int dataSize = 8;
+    byte[] expected = randomData(dataSize);
+    byte[] actual = new byte[dataSize + 1];
+
+    writeOSSData(uri, expected);
+
+    try (SeekableInputStream in = new OSSInputStream(ossClient().get(), uri)) {
+      int bytesRead = in.read(actual, 0, dataSize + 1);
+      assertThat(bytesRead).isEqualTo(dataSize);
+      assertThat(Arrays.copyOfRange(actual, 0, bytesRead)).isEqualTo(expected);
+
+      assertThat(in.read(actual, 0, 10)).isEqualTo(EOF);
+      assertThat(in.getPos()).isEqualTo(dataSize);
+    }
   }
 
   @Test
