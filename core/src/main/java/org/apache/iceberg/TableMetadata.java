@@ -1451,6 +1451,7 @@ public class TableMetadata implements Serializable {
           }
           removeStatistics(snapshotId);
           removePartitionStatistics(snapshotId);
+          removeEncryptionKey(snapshot.keyId());
         } else {
           retainedSnapshots.add(snapshot);
         }
