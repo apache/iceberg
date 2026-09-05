@@ -393,9 +393,8 @@ SET table.exec.iceberg.use-v2-sink = true;
 
 To use SinkV2 based implementation, replace `FlinkSink` with `IcebergSink` in the provided snippets.
 !!! warning
-    There are some slight differences between these implementations:
+    There is a slight difference between these implementations:
 
-     - The `RANGE` distribution mode is not yet available for the `IcebergSink`
      - When using `IcebergSink` use `uidSuffix` instead of the `uidPrefix`
 
 ### Post-commit table maintenance
