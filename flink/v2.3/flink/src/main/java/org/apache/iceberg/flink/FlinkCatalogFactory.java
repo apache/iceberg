@@ -74,6 +74,8 @@ public class FlinkCatalogFactory implements CatalogFactory {
   public static final String DEFAULT_DATABASE_NAME = "default";
   public static final String DEFAULT_CATALOG_NAME = "default_catalog";
   public static final String BASE_NAMESPACE = "base-namespace";
+  public static final String VIEW_DIALECT_STRICT = "view-dialect-strict";
+  public static final boolean VIEW_DIALECT_STRICT_DEFAULT = false;
 
   /**
    * Create an Iceberg {@link org.apache.iceberg.catalog.Catalog} loader to be used by this Flink
@@ -165,13 +167,18 @@ public class FlinkCatalogFactory implements CatalogFactory {
         "%s is not allowed to be 0.",
         CatalogProperties.CACHE_EXPIRATION_INTERVAL_MS);
 
+    boolean viewDialectStrict =
+        PropertyUtil.propertyAsBoolean(
+            properties, VIEW_DIALECT_STRICT, VIEW_DIALECT_STRICT_DEFAULT);
+
     return new FlinkCatalog(
         name,
         defaultDatabase,
         baseNamespace,
         catalogLoader,
         cacheEnabled,
-        cacheExpirationIntervalMs);
+        cacheExpirationIntervalMs,
+        viewDialectStrict);
   }
 
   private static Configuration mergeHiveConf(
