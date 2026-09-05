@@ -28,6 +28,7 @@ import static org.mockito.Mockito.when;
 
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.DataFile;
@@ -53,8 +54,11 @@ import org.apache.iceberg.connect.events.TopicPartitionOffset;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types.StructType;
+import org.apache.kafka.clients.admin.MemberAssignment;
+import org.apache.kafka.clients.admin.MemberDescription;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.sink.SinkTaskContext;
@@ -127,6 +131,138 @@ public class TestCoordinator extends ChannelTestBase {
     assertCommitComplete(1, commitId, ts);
 
     assertThat(table.snapshots()).isEmpty();
+  }
+
+  @Test
+  public void testControlPartitionsRevokedResetsInFlightCommit() {
+    when(config.commitIntervalMs()).thenReturn(0);
+    when(config.commitTimeoutMs()).thenReturn(Integer.MAX_VALUE);
+
+    SinkTaskContext context = mock(SinkTaskContext.class);
+    Coordinator coordinator =
+        new Coordinator(catalog, config, ImmutableList.of(), clientFactory, context);
+    coordinator.start();
+    initConsumer();
+
+    // begin a commit and buffer a worker response, but withhold DATA_COMPLETE so the commit
+    // stays in flight
+    coordinator.process();
+    assertThat(producer.history()).hasSize(1);
+    UUID commitId =
+        ((StartCommit) AvroUtil.decode(producer.history().get(0).value()).payload()).commitId();
+
+    Event commitResponse =
+        new Event(
+            config.connectGroupId(),
+            new DataWritten(
+                StructType.of(),
+                commitId,
+                TableReference.of("catalog", TableIdentifier.of("db", "tbl"), null),
+                ImmutableList.of(EventTestUtil.createDataFile()),
+                ImmutableList.of()));
+    consumer.addRecord(
+        new ConsumerRecord<>(CTL_TOPIC_NAME, 0, 1, "key", AvroUtil.encode(commitResponse)));
+    coordinator.process();
+
+    // still mid-commit: no further event emitted
+    assertThat(producer.history()).hasSize(1);
+
+    // a control-topic rebalance revokes the partition; the in-flight commit must be discarded
+    consumer.rebalance(ImmutableList.of());
+
+    // with the in-flight commit reset, the coordinator is free to start a brand new commit on the
+    // next cycle. Without the reset it would still consider commit `commitId` in progress and emit
+    // nothing here.
+    coordinator.process();
+
+    assertThat(producer.history()).hasSize(2);
+    Event newStart = AvroUtil.decode(producer.history().get(1).value());
+    assertThat(newStart.type()).isEqualTo(PayloadType.START_COMMIT);
+    assertThat(((StartCommit) newStart.payload()).commitId()).isNotEqualTo(commitId);
+  }
+
+  /**
+   * A control-topic rebalance revokes the coordinator's assignment and, because the coordinator's
+   * consumer resumes from its last <em>committed</em> offset, the coordinator re-reads every
+   * control-topic record it had already consumed. This test models that rewind: after a rebalance,
+   * the same {@code DataWritten}/{@code DataComplete} pair for a commit is delivered again.
+   *
+   * <p>The coordinator expects responses from {@code totalPartitionCount} partitions (two here).
+   * Before the rebalance it has heard from exactly one (partition 0), so the commit is in flight
+   * with a readiness count of one. With the in-flight commit state reset (the fix), the re-read
+   * {@code DataComplete} is a stale event for a commit that no longer exists, so {@link
+   * CommitState#addReady} ignores it and the coordinator never concludes it has heard from both
+   * partitions. Without the reset, the stale {@code DataComplete} carries the same commit id as the
+   * still-in-flight commit, so it is counted a second time and the coordinator fires a commit that
+   * is missing half its data and stamps a watermark the table does not yet satisfy.
+   */
+  @Test
+  public void testControlPartitionsRevokedRewindDoesNotDoubleCount() {
+    when(config.commitIntervalMs()).thenReturn(0);
+    when(config.commitTimeoutMs()).thenReturn(Integer.MAX_VALUE);
+
+    // two source partitions, so a commit is only ready once both have reported
+    MemberAssignment assignment =
+        new MemberAssignment(
+            ImmutableSet.of(
+                new TopicPartition(SRC_TOPIC_NAME, 0), new TopicPartition(SRC_TOPIC_NAME, 1)));
+    MemberDescription member =
+        new MemberDescription(null, Optional.empty(), null, null, assignment);
+
+    SinkTaskContext context = mock(SinkTaskContext.class);
+    Coordinator coordinator =
+        new Coordinator(catalog, config, ImmutableList.of(member), clientFactory, context);
+    coordinator.start();
+    initConsumer();
+
+    // begin a commit and deliver partition 0's DataWritten + DataComplete, so the commit is in
+    // flight with a readiness count of one (of two)
+    coordinator.process();
+    assertThat(producer.history()).hasSize(1);
+    UUID commitId =
+        ((StartCommit) AvroUtil.decode(producer.history().get(0).value()).payload()).commitId();
+
+    OffsetDateTime ts = EventTestUtil.now();
+    Event dataWritten =
+        new Event(
+            config.connectGroupId(),
+            new DataWritten(
+                StructType.of(),
+                commitId,
+                TableReference.of("catalog", TableIdentifier.of("db", "tbl"), null),
+                ImmutableList.of(EventTestUtil.createDataFile()),
+                ImmutableList.of()));
+    Event dataComplete =
+        new Event(
+            config.connectGroupId(),
+            new DataComplete(
+                commitId, ImmutableList.of(new TopicPartitionOffset(SRC_TOPIC_NAME, 0, 3L, ts))));
+    consumer.addRecord(
+        new ConsumerRecord<>(CTL_TOPIC_NAME, 0, 1, "key", AvroUtil.encode(dataWritten)));
+    consumer.addRecord(
+        new ConsumerRecord<>(CTL_TOPIC_NAME, 0, 2, "key", AvroUtil.encode(dataComplete)));
+    coordinator.process();
+
+    // still mid-commit: only the StartCommit has been emitted
+    assertThat(producer.history()).hasSize(1);
+
+    // a control-topic rebalance revokes the partition; the in-flight commit must be discarded
+    consumer.rebalance(ImmutableList.of());
+
+    // the consumer rewinds and re-delivers the same DataWritten + DataComplete pair
+    consumer.rebalance(ImmutableList.of(new TopicPartition(CTL_TOPIC_NAME, 0)));
+    consumer.addRecord(
+        new ConsumerRecord<>(CTL_TOPIC_NAME, 0, 1, "key", AvroUtil.encode(dataWritten)));
+    consumer.addRecord(
+        new ConsumerRecord<>(CTL_TOPIC_NAME, 0, 2, "key", AvroUtil.encode(dataComplete)));
+    coordinator.process();
+
+    // The coordinator has heard from exactly one partition (partition 0), delivered twice. With the
+    // reset, the re-read pair is stale and ignored, so no CommitToTable is emitted. Without the
+    // reset, the stale DataComplete would push the readiness count to 2 and a CommitToTable (and
+    // CommitComplete) would appear here.
+    assertThat(producer.history())
+        .noneMatch(record -> AvroUtil.decode(record.value()).type() == PayloadType.COMMIT_TO_TABLE);
   }
 
   @Test

@@ -102,6 +102,21 @@ class CommitState {
     commitBuffer.clear();
   }
 
+  /**
+   * Discard all in-flight commit state -- buffered responses, buffered ready events, the readiness
+   * counter, and the current commit id. Used when a control-topic rebalance invalidates the commit
+   * this coordinator was assembling; the underlying events remain on the control topic and are
+   * re-read by whichever coordinator takes over.
+   *
+   * <p>{@code startTime} is deliberately left alone, so the coordinator re-drives the abandoned
+   * commit on its next cycle rather than waiting out another full commit interval. That is what we
+   * want when a rebalance interrupted a commit that was already due.
+   */
+  void reset() {
+    clearResponses();
+    endCurrentCommit();
+  }
+
   boolean isCommitTimedOut() {
     if (!isCommitInProgress()) {
       return false;

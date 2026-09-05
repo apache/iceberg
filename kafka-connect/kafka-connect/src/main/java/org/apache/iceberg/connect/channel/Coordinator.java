@@ -62,6 +62,7 @@ import org.apache.iceberg.relocated.com.google.common.util.concurrent.ThreadFact
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.Tasks;
 import org.apache.kafka.clients.admin.MemberDescription;
+import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.sink.SinkTaskContext;
 import org.slf4j.Logger;
@@ -149,6 +150,22 @@ class Coordinator extends Channel {
         return true;
     }
     return false;
+  }
+
+  @Override
+  protected void onControlPartitionsRevoked(Collection<TopicPartition> partitions) {
+    // A control-topic rebalance means this coordinator is losing (part of) its assignment. Any
+    // commit it had in flight will be re-driven by whichever coordinator picks the partitions up
+    // -- that coordinator re-reads the buffered events from the last committed control-topic
+    // offset -- so discard the partial in-flight state here rather than let stale buffers and an
+    // inflated readiness count feed a premature or torn commit.
+    if (commitState.isCommitInProgress()) {
+      LOG.info(
+          "Coordinator {} lost control-topic partitions mid-commit {}, resetting in-flight commit state",
+          taskId,
+          commitState.currentCommitId());
+    }
+    commitState.reset();
   }
 
   private void commit(boolean partialCommit) {
