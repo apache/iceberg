@@ -44,6 +44,7 @@ import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -1082,6 +1083,37 @@ public class TestAddFilesProcedure extends ExtensionsTestBase {
             "SELECT * FROM (SELECT * FROM %s UNION ALL " + "SELECT * from %s) ORDER BY id",
             sourceTableName, sourceTableName),
         sql("SELECT * FROM %s ORDER BY id", tableName));
+  }
+
+  @TestTemplate
+  public void violateNotNullConstraintFromTable() {
+    sql("CREATE TABLE %s STORED AS parquet AS SELECT CAST(NULL AS INT) AS id", sourceTableName);
+    createIcebergTable("id Integer NOT NULL");
+
+    assertThatThrownBy(
+            () ->
+                sql(
+                    "CALL %s.system.add_files('%s', '%s')",
+                    catalogName, tableName, sourceTableName))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageStartingWith("Column 'id' is required but contains 1 null value(s)");
+  }
+
+  @TestTemplate
+  public void violateNotNullConstraintFromFileTable() {
+    String createParquet =
+        "CREATE TABLE %s USING parquet LOCATION '%s' AS SELECT CAST(NULL AS INT) AS id";
+    sql(createParquet, sourceTableName, fileTableDir.getAbsolutePath());
+    createIcebergTable("id Integer NOT NULL");
+
+    assertThatThrownBy(
+            () ->
+                sql(
+                    "CALL %s.system.add_files('%s', '`parquet`.`%s`')",
+                    catalogName, tableName, fileTableDir.getAbsolutePath()))
+        .cause()
+        .isInstanceOf(ValidationException.class)
+        .hasMessageStartingWith("Column 'id' is required but contains 1 null value(s)");
   }
 
   @TestTemplate
