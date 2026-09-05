@@ -18,16 +18,13 @@
  */
 package org.apache.iceberg.flink.source;
 
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.stream.Collectors;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.configuration.ReadableConfig;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.apache.flink.table.catalog.Column;
 import org.apache.flink.table.catalog.ResolvedSchema;
 import org.apache.flink.table.connector.ChangelogMode;
 import org.apache.flink.table.connector.ProviderContext;
@@ -43,10 +40,12 @@ import org.apache.flink.table.expressions.ResolvedExpression;
 import org.apache.flink.table.factories.FactoryUtil;
 import org.apache.flink.table.legacy.api.TableSchema;
 import org.apache.flink.table.types.DataType;
+import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.flink.FlinkConfigOptions;
 import org.apache.iceberg.flink.FlinkFilters;
 import org.apache.iceberg.flink.FlinkReadOptions;
+import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.source.assigner.SplitAssignerType;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -63,7 +62,7 @@ public class IcebergTableSource
         SupportsLimitPushDown,
         SupportsSourceWatermark {
 
-  private int[] projectedFields;
+  private Projector projector;
   private Long limit;
   private List<Expression> filters;
 
@@ -77,7 +76,7 @@ public class IcebergTableSource
     this.loader = toCopy.loader;
     this.schema = toCopy.schema;
     this.properties = toCopy.properties;
-    this.projectedFields = toCopy.projectedFields;
+    this.projector = toCopy.projector;
     this.isLimitPushDown = toCopy.isLimitPushDown;
     this.limit = toCopy.limit;
     this.filters = toCopy.filters;
@@ -96,7 +95,7 @@ public class IcebergTableSource
       TableLoader loader,
       ResolvedSchema schema,
       Map<String, String> properties,
-      int[] projectedFields,
+      Projector projector,
       boolean isLimitPushDown,
       Long limit,
       List<Expression> filters,
@@ -104,7 +103,7 @@ public class IcebergTableSource
     this.loader = loader;
     this.schema = schema;
     this.properties = properties;
-    this.projectedFields = projectedFields;
+    this.projector = projector;
     this.isLimitPushDown = isLimitPushDown;
     this.limit = limit;
     this.filters = filters;
@@ -112,13 +111,10 @@ public class IcebergTableSource
   }
 
   @Override
-  public void applyProjection(int[][] projectFields, DataType producedDataType) {
-    this.projectedFields = new int[projectFields.length];
-    for (int i = 0; i < projectFields.length; i++) {
-      Preconditions.checkArgument(
-          projectFields[i].length == 1, "Don't support nested projection in iceberg source now.");
-      this.projectedFields[i] = projectFields[i][0];
-    }
+  public void applyProjection(int[][] projectFields, DataType newProducedDataType) {
+    RowType originalRowType = (RowType) schema.toPhysicalRowDataType().getLogicalType();
+    RowType producedRowType = (RowType) newProducedDataType.getLogicalType();
+    this.projector = Projector.of(originalRowType, projectFields, producedRowType);
   }
 
   @SuppressWarnings("deprecation")
@@ -149,12 +145,10 @@ public class IcebergTableSource
   }
 
   private ResolvedSchema getProjectedSchema() {
-    if (projectedFields == null) {
+    if (projector == null) {
       return schema;
     } else {
-      List<Column> fullColumns = schema.getColumns();
-      return ResolvedSchema.of(
-          Arrays.stream(projectedFields).mapToObj(fullColumns::get).collect(Collectors.toList()));
+      return FlinkSchemaUtil.toResolvedSchema(projector.readSchema());
     }
   }
 
@@ -193,8 +187,7 @@ public class IcebergTableSource
 
   @Override
   public boolean supportsNestedProjection() {
-    // TODO: support nested projection
-    return false;
+    return true;
   }
 
   @Override
@@ -208,11 +201,18 @@ public class IcebergTableSource
       @Override
       public DataStream<RowData> produceDataStream(
           ProviderContext providerContext, StreamExecutionEnvironment execEnv) {
+        DataStream<RowData> stream;
         if (readableConfig.get(FlinkConfigOptions.TABLE_EXEC_ICEBERG_USE_FLIP27_SOURCE)) {
-          return createFLIP27Stream(execEnv);
+          stream = createFLIP27Stream(execEnv);
         } else {
-          return createDataStream(execEnv);
+          stream = createDataStream(execEnv);
         }
+
+        if (projector != null) {
+          stream = projector.project(stream);
+        }
+
+        return stream;
       }
 
       @Override
