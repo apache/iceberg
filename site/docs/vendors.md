@@ -1,5 +1,5 @@
 ---
-title: "Vendors"
+title: "Third-party ecosystem"
 ---
 <!--
  - Licensed to the Apache Software Foundation (ASF) under one or more
@@ -18,233 +18,74 @@ title: "Vendors"
  - limitations under the License.
  -->
 
-## Vendors Supporting Iceberg Tables
-
-This page contains some of the vendors who are shipping and supporting Apache Iceberg in their products
-
-### [Amazon Web Services (AWS)](https://aws.com)
-
-AWS provides a [comprehensive suite of services](https://aws.amazon.com/what-is/apache-iceberg/#seo-faq-pairs#what-aws-services-support-iceberg) to support Apache Iceberg as part of its modern data architecture. [Amazon S3](https://aws.amazon.com/s3/) offers virtually unlimited, highly durable storage for data lakes, while [Amazon S3 Tables](https://aws.amazon.com/s3/features/tables/) deliver fully managed Iceberg tables with automated maintenance, optimization, and cost management. [Amazon Athena](https://aws.amazon.com/athena/) offers a serverless, interactive query engine with native Iceberg support, enabling fast and cost-efficient querying of large-scale datasets. [Amazon EMR](https://aws.amazon.com/emr/) integrates Iceberg with Apache Spark, Apache Flink, Apache Hive, Presto, and Trino, making it easy to process and analyze data at scale. [AWS Glue](https://aws.amazon.com/glue/) provides fully managed data integration capabilities, including schema evolution, maintenance, optimizations, and partition management for Iceberg tables. Together, these AWS services enable a high-performance and cost-effective data lakehouse solution powered by Iceberg.
-
-### [BladePipe](https://bladepipe.com)
-
-BladePipe is a real-time end-to-end data integration tool, offering 40+ out-of-the-box connectors. It provides a one-stop data movement solution, including schema evolution, data migration and sync, verification and correction, monitoring and alerting. With sub-second latency, BladePipe captures change data from MySQL, Oracle, PostgreSQL and other sources and streams it to Iceberg and more, all without writing a single line of code. It offers [on-premise and BYOC deployment options](https://www.bladepipe.com/pricing). Learn more about how to build a pipeline with BladePipe [here](https://doc.bladepipe.com/quick/quick_start_byoc).
-
-### [Bodo](https://bodo.ai)
-
-Bodo is a high performance SQL & Python compute engine that brings HPC and supercomputing techniques to data analytics.
-Bodo supports Apache Iceberg tables as a first-class table format and storage, enabling users to read and write Iceberg
-tables with Bodo's high-performance data processing engine. Bodo is available as a cloud service on
-AWS and Azure, and as well as an on-premises solution.
-
-### [CelerData](https://celerdata.com)
-
-CelerData provides commercial offerings for [StarRocks](https://www.starrocks.io/), a distributed MPP SQL engine for enterprise analytics on Iceberg. With its fully vectorized technology, local caching, and intelligent materialized view, StarRocks delivers sub-second query latency for both batch and real-time analytics. CelerData offers both an [enterprise deployment](https://celerdata.com/celerdata-enterprise) and a [cloud service](https://celerdata.com/celerdata-cloud) to help customers use StarRocks more smoothly. Learn more about how to query Iceberg with StarRocks [here](https://docs.starrocks.io/en-us/latest/data_source/catalog/iceberg_catalog).
-
-### [ClickHouse](https://clickhouse.com/)
-ClickHouse is a column-oriented database that enables its users to generate powerful analytics, using SQL queries, in real-time. ClickHouse integrates well with Iceberg and offers two options to work with it:
-1. Via Iceberg [table function](https://clickhouse.com/docs/en/sql-reference/table-functions/iceberg): Provides a read-only table-like interface to Apache Iceberg tables in Amazon S3.
-2. Via the Iceberg [table engine](https://clickhouse.com/docs/en/engines/table-engines/integrations/iceberg): An engine that provides a read-only integration with existing Apache Iceberg tables in Amazon S3.
-
-### [Cloudera](http://cloudera.com)
-
-[Cloudera's data lakehouse](https://www.cloudera.com/products/open-data-lakehouse.html)
-enables customers to store and manage their data in open table
-formats like Apache Iceberg for running large scale multi-function analytics and AI.
-Organizations rely on Cloudera's Iceberg support because it is easy to use, easy
-to integrate into any data ecosystem and easy to run multiple engines - both Cloudera
-and non-Cloudera, regardless of where the data resides.
-It provides a common standard for all data with unified security, governance, metadata
-management, and fine-grained access control across the data.
-
-[Cloudera](https://www.cloudera.com/) provides an integrated end to end open data lakehouse with the ability
-to ingest batch and streaming data using NiFi, Flink and Kafka, then process
-the same copy of data using Spark and run analytics or AI with our
-[Data Visualization](https://www.cloudera.com/products/cloudera-data-platform/data-visualization.html),
-[Data warehouse](https://www.cloudera.com/products/data-warehouse.html) and
-[Machine Learning](https://www.cloudera.com/products/machine-learning.html) tools on private
-or any public cloud.
-
-### [Collate](https://www.getcollate.io/)
-
-Collate is an AI-native data catalog and governance platform built on [OpenMetadata](https://open-metadata.org/), the open-source (Apache 2.0) context layer. It brings together every Apache Iceberg table into a single source of governed context — with column-level lineage, data profiling, and no-code data quality tests — by connecting through the engines that already query Iceberg (e.g., Trino, Snowflake, BigQuery).
-
-### [Confluent](https://confluent.io)
-
-[Confluent](https://www.confluent.io/) provides [Tableflow](https://www.confluent.io/product/tableflow/), a managed service for streaming data from Apache Kafka topics into Apache Iceberg tables. Tableflow automates schema evolution through Schema Registry integration and handles table maintenance tasks including compaction automatically.
-
-### [Crunchy Data](https://www.crunchydata.com/)
-
-[Crunchy Data Warehouse](https://www.crunchydata.com/products/warehouse) is a modern data warehouse built on PostgreSQL. Crunchy Data Warehouse extends unmodified PostgreSQL to provide support for fully transactional Iceberg tables and high performance analytics. Crunchy Data Warehouse is available as a managed service on AWS via [Crunchy Bridge](https://www.crunchydata.com/products/crunchy-bridge), fully managed PostgreSQL as a service. Crunchy Data Warehouse can create Iceberg tables directly from a PostgreSQL database or external URLs and can read, query, and update Iceberg tables using PostgreSQL syntax. Using a hybrid query engine that combines PostgreSQL and DuckDB, Crunchy Data Warehouse enables high performance analytical queries of Iceberg tables.
-
-### [Databricks](https://www.databricks.com/)
-
-[Databricks](https://www.databricks.com/) uses an open lakehouse architecture to power its Data Intelligence Platform and provide a unified foundation for all data and governance, combined with AI models tuned to an organization’s unique characteristics. Through [Unity Catalog](https://www.databricks.com/product/unity-catalog), users can manage and govern all structured data, unstructured data, business metrics and AI models across open data formats like Delta Lake, Apache Iceberg, Hudi, Parquet and more.
-
-### [Dataddo](https://www.dataddo.com/)
-
-[Dataddo](https://www.dataddo.com/) is a fully managed data integration platform for moving enterprise data across cloud, on-prem, and hybrid environments, with first-class support for open table formats including Apache Iceberg.
-* **Architecture** - Dataddo runs a single control plane that orchestrates data planes on AWS, Azure, GCP, sovereign clouds or on-premises Kubernetes and OpenShift, so sensitive data never leaves your network.
-* **Transport patterns** - Dataddo supports ETL/ELT, CDC, streaming, reverse ETL, and batch delivery from hundreds of fully maintained connectors.
-* **Iceberg support** - Dataddo writes to Apache Iceberg via catalogs such as AWS Glue, REST and others, and automatically detects source schema drift so downstream tables don't silently break.
-See the [Dataddo Platform](https://dataddo.com/platform) for details.
-
-### [dltHub](https://dlthub.com/)
-
-[dlt](https://dlthub.com/docs/intro) is an open-source Python library for building production-grade extract & load pipelines. It automates the tedious parts of ELT, letting you load any data source into Apache Iceberg with minimal code. dlt eliminates boilerplate and makes data ingestion robust against evolving and unpredictable data sources.
-
-* [Pythonic pipelines](https://dlthub.com/docs/tutorial/load-data-from-an-api): Define Iceberg ingestion with simple Python functions that are testable and CI/CD-friendly.
-* [Automated schema management](https://dlthub.com/docs/general-usage/schema-contracts): Infers and evolves Iceberg table schemas on the fly, adapting automatically to source changes.
-* [Catalog support](https://dlthub.com/docs/plus/ecosystem/iceberg#configuration): Works with SQL-based (SQLite, PostgreSQL), REST (Lakekeeper, Polaris), and cloud-native options like AWS Glue, Databricks Unity Catalog and Snowflake Open Catalog.  
-* [Flexible deployment](https://dlthub.com/docs/walkthroughs/share-a-dataset): Run Iceberg pipelines anywhere - local, Docker, Airflow, or serverless.  
-
-Go from an API to a versioned Iceberg table in minutes [here](https://dlthub.com/docs/dlt-ecosystem/destinations/iceberg).
-
-### [Dremio](https://www.dremio.com/)
-
-With Dremio, an organization can easily build and manage a data lakehouse in which data is stored in open formats like Apache Iceberg and can be processed with Dremio’s interactive SQL query engine and non-Dremio processing engines. [Dremio Cloud](https://www.dremio.com/get-started/) provides these capabilities in a fully managed offering.
-
-* [Dremio Sonar](https://www.dremio.com/platform/sonar/) is a lakehouse query engine that provides interactive performance and DML on Apache Iceberg, as well as other formats and data sources.
-* [Dremio Arctic](https://www.dremio.com/platform/arctic/) is a lakehouse catalog and optimization service for Apache Iceberg. Arctic automatically optimizes tables in the background to ensure high-performance access for any engine. Arctic also simplifies experimentation, data engineering, and data governance by providing Git concepts like branches and tags on Apache Iceberg tables.
-
-### [DuckDB](https://duckdb.org/)
-
-DuckDB is an open-source, in-process SQL database optimized for fast analytical queries. DuckDB is not only lightweight &mdash;just a small binary&mdash;, but also extensible. One of the core extensions supported by DuckDB is the [`duckdb-iceberg` extension](https://duckdb.org/docs/stable/core_extensions/iceberg/overview), which allows DuckDB users to attach to an Iceberg catalog, query data and write to Iceberg tables. This functionality is all natively implemented in DuckDB with no external dependencies.
-
-### [Estuary](https://estuary.dev)
-
-A low-latency, high-fidelity data movement platform, Estuary lets developers quickly set up pipelines to connect their entire data architecture. Intelligent schema inference and evolution determines field data types based on usage and keeps pipelines running when fields change. Flexible [deployment options](https://estuary.dev/deployment-options/) include public, private, and BYOC (Bring Your Own Cloud) for a range of compliance and privacy-oriented use cases.
-
-Estuary's catalog of pre-built data connectors provides integrations with databases, APIs, event logs, and more. [Apache Iceberg](https://estuary.dev/solutions/technology/apache-iceberg/) is a primary destination option with two configurable materializations: one that [merges](https://docs.estuary.dev/reference/Connectors/materialization-connectors/apache-iceberg/) new updates and one that simply [appends](https://docs.estuary.dev/reference/Connectors/materialization-connectors/amazon-s3-iceberg/) them.
-
-### [Firebolt](https://www.firebolt.io)
-
-[Firebolt](https://www.firebolt.io) is a cloud data warehouse built to power data-intensive applications that demand low latency and high concurrency. It is optimized for reading Apache Iceberg tables with sub-second performance and integrates seamlessly with major Iceberg catalogs.
-
-Firebolt is also available as [Firebolt Core](https://docs.firebolt.io/firebolt-core), a free, self-hosted edition of its distributed query engine.
-
-Learn more about querying Iceberg with Firebolt [here](https://www.firebolt.io/blog/querying-apache-iceberg-with-sub-second-performance).
-
-### [Fivetran](https://www.fivetran.com)
-[Fivetran](https://www.fivetran.com), the global leader in data movement, is trusted by Enterprises to centralize data from SaaS applications and databases into cloud destinations, including [Managed Data Lakes](https://fivetran.com/docs/managed-data-lake-service). Fivetran Managed Data Lakes provides a fully managed Iceberg Data Lake for users. Users can connect any of the 700+ connections that Fivetran supports and write them directly into a Storage Location of their choice. Fivetran Managed Data Lake Service handles the ingestion and maintenance of their Iceberg tables and hosts a Iceberg Rest Complaint catalog endpoint for downstream consumption.
-
-### [Google Cloud](https://cloud.google.com)
-Google Cloud offers first class support for Apache Iceberg through BigLake to
-help you build an open, managed and high-performance Iceberg lakehouse so you
-can enable advanced analytics and data science with automated data management
-and built-in governance. [BigLake metastore](https://cloud.google.com/biglake?hl=en) is a serverless metastore for all
-your Iceberg tables that works across engines like Apache Spark, BigQuery and
-third party platforms to create and manage tables, giving you a consistent view
-of your data and unified access controls. BigLake metastore supports the Apache
-Iceberg REST Catalog for easy integration with OSS and third party engines.
-[BigLake tables for Apache Iceberg](https://cloud.google.com/biglake?hl=en) offer an enterprise-ready, fully managed
-Iceberg experience when used with BigQuery.
-
-### [IBM watsonx.data](https://www.ibm.com/products/watsonx-data)
-
-[IBM watsonx.data](https://www.ibm.com/products/watsonx-data) is an open data lakehouse for AI and analytics. It uses Apache Iceberg as a core table format, providing features like schema evolution, time travel, and partitioning. This allows developers to easily work with large, complex data sets while ensuring efficient performance and flexibility. watsonx.data simplifies the integration of Iceberg tables, making it easy to manage data across different environments and query historical data without disruption.
-
-Developers can leverage the benefits of Iceberg tables and take advantage of high performance compute capabilities like [Velox](https://velox-lib.io/), [Presto](https://prestodb.io/), [Apache Gluten](https://gluten.apache.org/), which are part of the watsonx.data ecosystem.
-
-### [IOMETE](https://iomete.com/)
-
-IOMETE is a fully-managed ready to use, batteries included Data Platform. IOMETE optimizes clustering, compaction, and access control to Apache Iceberg tables. Customer data remains on customer's account to prevent vendor lock-in. The core of IOMETE platform is a serverless Lakehouse that leverages Apache Iceberg as its core table format. IOMETE platform also includes Serverless Spark, an SQL Editor, A Data Catalog, and granular data access control. IOMETE supports Hybrid-multi-cloud setups.
-
-### [Microsoft OneLake](https://learn.microsoft.com/en-us/fabric/onelake/)
-[Microsoft OneLake](https://learn.microsoft.com/en-us/fabric/onelake/) is a single unified data lake that brings together your entire data estate into an open, secure foundation for analytics across the organization. Built into Microsoft Fabric, OneLake delivers two powerful APIs: the Tables API and the Files API. The [OneLake Tables API](https://aka.ms/onelakeircdocs) supports the Apache Iceberg REST Catalog (IRC) specification, making it simple to create, manage, and integrate Iceberg tables with existing tools and workflows. The OneLake Files API offers full Azure Data Lake Storage (ADLS) compatibility, enabling seamless file operations and interoperability with familiar ADLS tools. Together, these APIs make OneLake a truly open and interoperable data lake, delivering flexibility and connectivity for modern analytics and AI-driven pipelines.
-
-### [MinIO AIStor](https://www.min.io/product/aistor)
-
-[MinIO AIStor](https://www.min.io/product/aistor/structured-data-store) is a software-defined object store, deployable on-premises or in any cloud, that implements the Apache Iceberg REST Catalog specification inside the storage layer itself — tables need no Nessie, Hive Metastore, Glue, or relational database, and the same deployment serves S3 objects and Iceberg tables under one identity, policy, and encryption model. AIStor supports the V3 table format, including row lineage and deletion vectors, as well as views, table registration, multi-table atomic transactions, and optional server-side scan planning. Clients authenticate with SigV4 or the spec's OAuth2 client-credentials flow, and may request vended credentials to receive short-lived, table-scoped storage credentials instead of configuring their own. Built-in maintenance handles compaction, snapshot expiration, and unreferenced-file removal, and catalog metadata can be replicated to a second site for failover. Engines connect over the standard REST catalog protocol, including Apache Spark, Trino, PyIceberg, DuckDB, Starburst, Dremio, and PuppyGraph. Learn more in the [AIStor Tables documentation](https://docs.min.io/aistor/administration/aistor-tables/) and the [query engine guide](https://docs.min.io/aistor/developers/aistor-tables/connect-query-engines/).
-
-### [Oracle](https://oracle.com/)
-
-As a fully-managed Oracle AI Database service, Oracle [Autonomous AI Lakehouse](https://www.oracle.com/autonomous-database/autonomous-ai-lakehouse/) combines the openness of Apache Iceberg with the performance, automation, and security of Oracle Autonomous Database and Oracle Exadata. Available across Oracle Cloud Infrastructure (OCI), Microsoft Azure, Google Cloud, AWS, and on-premises, Oracle AI Database provides a multicloud and hybrid open lakehouse architecture with high-performance access to Iceberg tables through integration with existing catalogs and support for the Apache Iceberg REST Catalog specification. Oracle enables interoperability across engines such as Apache Spark, Trino, and Apache Flink while minimizing data movement and preserving vendor independence. Built-in AI, vector search, graph analytics, and JSON-relational capabilities allow organizations to run advanced analytics and AI workloads directly on Iceberg data with enterprise-grade governance, availability, and serverless scalability.
-
-### [PuppyGraph](https://puppygraph.com)
-
-PuppyGraph is a cloud-native graph analytics engine that enables users to query one or more relational data stores as a unified graph model. This eliminates the overhead of deploying and maintaining a siloed graph database system, with no ETL required. [PuppyGraph’s native Apache Iceberg integration](https://docs.puppygraph.com/user-manual/getting-started/iceberg) adds native graph capabilities to your existing data lake in an easy and performant way.
-
-### [Redpanda](https://redpanda.com)
-
-Redpanda is both a cloud-native and self-hosted streaming platform whose [Iceberg topics](https://www.redpanda.com/use-case/streaming-iceberg-tables) automatically transform Kafka messages into Iceberg tables in real-time. This allows users to query their Kafka data as part of an established Iceberg deployment, no connectors or additional technology required. Redpanda Iceberg integrates with an expanding list of Iceberg catalogs and query engines, including many listed here.
-
-### [RisingWave](https://risingwave.com/)
-
-[RisingWave](https://risingwave.com/) is a cloud-native streaming database for real-time data ingestion, processing, and management. It integrates with Iceberg to [read from](https://docs.risingwave.com/integrations/sources/apache-iceberg) and [write to](https://docs.risingwave.com/integrations/destinations/apache-iceberg) Iceberg tables, enabling efficient file compaction across sources like message queues, databases (via Change Data Capture), data lakes, and files. RisingWave is available as [open source](https://github.com/risingwavelabs/risingwave), a managed cloud service ([RisingWave Cloud](https://cloud.risingwave.com/auth/signin/)) with BYOC support, and an enterprise on-premises edition ([RisingWave Premium](https://docs.risingwave.com/get-started/rw-premium-edition-intro)).
-
-### [Ryft](https://ryft.io/)
-
-[Ryft](https://ryft.io/) is a fully automated Iceberg management platform. Ryft helps data teams create an open, automated and cost-effective Iceberg lakehouse, by maintaining and optimizing Iceberg tables in real time, based on actual usage patterns. The Ryft engine runs compaction intelligently, adapting to different use cases like streaming, batch jobs, CDC, and more. Ryft also automates compliance, disaster recovery and data lifecycle management for Iceberg tables, to ensure your lakehouse stays secure and compliant. It directly integrates with your existing catalog, storage and query engines, allowing for a very simple deployment.
-
-### [Sail](https://lakesail.com/)
-
-[Sail](https://github.com/lakehq/sail) is an open-source multimodal distributed compute framework, built in Rust, unifying batch, streaming, and AI workloads. For seamless adoption, Sail offers a drop-in replacement for the Spark SQL and DataFrame APIs in both single-host and distributed settings. Learn more about using Sail with Iceberg in the [Sail Iceberg guide](https://docs.lakesail.com/sail/latest/guide/sources/iceberg).
-
-### [SingleStore](https://singlestore.com/)
-
-SingleStore is a high‑performance, scalable, distributed SQL platform that makes real‑time analytics and transactional processing available at scale. Its native Apache Iceberg integration removes costly ETL steps and powers intelligent, millisecond‑response applications.
-
-By directly reading and [managing](https://docs.singlestore.com/cloud/load-data/data-sources/iceberg-ingest/) data from Iceberg tables, SingleStore unlocks enterprises' dormant data, boost generative AI development, and ensure seamless schema evolution with low‑latency queries. Available [self-managed](https://docs.singlestore.com/db/v8.9/) or in the cloud, it bridges the gap between traditional data lakes and real‑time analytics.
-
-<!-- markdown-link-check-disable-next-line -->
-### [Snowflake](https://snowflake.com/)
-
-<!-- markdown-link-check-disable-next-line -->
-[Snowflake](https://www.snowflake.com/) is a single, cross-cloud platform that enables every organization to mobilize their data with Snowflake’s Data Cloud. [Snowflake Horizon Catalog](https://docs.snowflake.com/en/user-guide/snowflake-horizon) is the universal catalog built into every Snowflake account, providing governance, metadata, and interoperability for Apache Iceberg across engines and clouds. Snowflake supports [Snowflake-managed Iceberg Tables](https://docs.snowflake.com/en/user-guide/tables-iceberg#use-snowflake-as-the-iceberg-catalog) with full DDL and DML support and an [Iceberg REST API endpoint](https://docs.snowflake.com/en/user-guide/tables-iceberg-access-using-external-query-engine-snowflake-horizon) that lets external query engines such as Apache Spark, Trino, and Apache Flink read and write those tables directly. For federation, [catalog-linked databases](https://docs.snowflake.com/en/user-guide/tables-iceberg-catalog-linked-database) provide automatic table discovery and synchronization with remote Iceberg REST catalogs, and read and write access through [catalog integrations for externally managed Iceberg Tables](https://docs.snowflake.com/en/user-guide/tables-iceberg#use-an-external-catalog).
-
-### [Stackable](https://stackable.tech)
-
-Stackable is the provider of the Stackable Data Platform - a modular, open source data platform for innovative data applications.
-
-True to the philosophy of 'your data, your platform', Stackable enables the creation of flexible, scalable data architectures for data meshes, data lakehouses, event streaming, machine learning, and with the seamless integration of Apache Iceberg via [Trino](https://trino.io), [Apache NiFi](https://nifi.apache.org) and [Apache Spark](https://spark.apache.org)
-
-The Stackable Data Platform is completely open source, providing maximum portability without vendor lock-in. It also enables true data sovereignty - whether in the private or public cloud. With 24/7 support and strict SLAs, Stackable guarantees stability and efficiency - modern, flexible and secure.
-
-### [Starburst](https://starburst.io)
-
-Starburst is a commercial offering for the [Trino query engine](https://trino.io). Trino is a distributed MPP SQL query engine that can query data in Iceberg at interactive speeds. Trino also enables you to join Iceberg tables with an [array of other systems](https://trino.io/docs/current/connector.html). Starburst offers both an [enterprise deployment](https://www.starburst.io/platform/starburst-enterprise/) and a [fully managed service](https://www.starburst.io/platform/starburst-galaxy/) to make managing and scaling Trino a flawless experience. Starburst also provides customer support and houses many of the original contributors to the open-source project that know Trino best. Learn more about [the Starburst Iceberg connector](https://docs.starburst.io/latest/connector/iceberg.html).
-
-### [StarTree](https://startree.ai/)
-
-StarTree is a real-time analytics platform that is able to deliver consistently fast, highly concurrent queries on data stored in Apache Iceberg. Built on the indexing capabilities of Apache Pinot, StarTree can precisely fetch page-level data from Parquet files, reducing unnecessary scanning and data transfer.
-
-This makes it practical and cost-effective to support [SLA-driven analytics on the lakehouse](https://startree.ai/resources/5-sla-driven-analytics-use-cases-now-possible-with-iceberg/). StarTree can power observability, customer-facing analytics, anomaly detection, and interactive business intelligence workloads without requiring data to be duplicated, pre-aggregated, or materialized into a separate serving system. StarTree is available as a managed cloud service or can be deployed within an [enterprise cloud environment](https://startree.ai/resources/byoc-beyond-the-checkbox/). Learn more in the [StarTree Docs]([https://docs.startree.ai/corecapabilities/external-table/overview).
-
-### [StreamNative](https://streamnative.io)
-
-StreamNative provides a data streaming platform powered by [Ursa](https://streamnative.io/products/ursa), a Kafka‑compatible, leaderless, lakehouse‑native streaming engine. Ursa writes directly to Apache Iceberg tables on cloud object storage—removing the need for bespoke connectors—and automatically compacts and commits data, so it’s immediately queryable by engines such as Spark, Trino, and Flink. Learn more in the [Ursa VLDB paper](https://www.vldb.org/pvldb/vol18/p5184-guo.pdf).
-
-### [Teradata](https://www.teradata.com/)
-
-Teradata delivers enterprise-grade Open Table Format support for Apache Iceberg and Delta Lake with full freedom to choose storage, catalogs, and query engines, and no proprietary lock-in.
-
-Full OTF compatibility spans all major clouds, on-premises, and hybrid environments, backed by centralized security and governance. Teradata's AMPs, Cost-Based Optimizer, and Intelligent Workload Management deliver cross-lake-format, cross-catalog, and cross-deployment query performance at scale.
-
-### [Tinybird](https://tinybird.co)
-
-[Tinybird](https://tinybird.co) is a real-time data platform that lets developers and data teams build fast APIs on top of analytical data using SQL. It now offers native support for Apache Iceberg through ClickHouse’s [iceberg() table function](https://www.tinybird.co/docs/forward/get-data-in/table-functions/iceberg), allowing seamless querying of Iceberg tables stored in S3.
-
-This integration enables low-latency, high-concurrency access to Iceberg data, with Tinybird handling ingestion, transformation, and API publishing. Developers can now leverage Iceberg for open storage and governance, while using Tinybird for blazing-fast query performance and real-time delivery.
-
-Learn more in the [Tinybird documentation](https://www.tinybird.co/docs/forward/get-data-in/table-functions/iceberg).
-
-### [Upsolver](https://upsolver.com)
-
-[Upsolver](https://upsolver.com) is a streaming data ingestion and table management solution for Apache Iceberg. With Upsolver, users can easily ingest batch and streaming data from files, streams and databases (CDC) into [Iceberg tables](https://docs.upsolver.com/content/reference-1/sql-commands/iceberg-tables/upsolver-managed-tables). In addition, Upsolver connects to your existing REST and Hive catalogs, and [analyzes the health](https://docs.upsolver.com/content/how-to-guides-1/apache-iceberg/optimize-your-iceberg-tables) of your tables. Use Upsolver to continuously optimize tables by compacting small files, sorting and compressing, repartitioning, and cleaning up dangling files and expired manifests. Upsolver is available from the [Upsolver Cloud](https://www.upsolver.com/sqlake-signup-wp) or can be deployed in your AWS VPC.
-
-### [VeloDB](https://velodb.io)
-
-[VeloDB](https://www.velodb.io/) is a commercial data warehouse powered by [Apache Doris](https://doris.apache.org/), an open-source, real-time data warehouse. It also provides powerful [query acceleration for Iceberg tables and efficient data writeback](https://doris.apache.org/docs/dev/lakehouse/catalogs/iceberg-catalog). VeloDB offers [enterprise version](https://www.velodb.io/enterprise) and [cloud service](https://www.velodb.io/cloud), which are fully compatible with open-source Apache Doris. Quick start with Apache Doris and Apache Iceberg [here](https://doris.apache.org/docs/lakehouse/lakehouse-best-practices/doris-iceberg).
-
-### [OLake](https://olake.io/)
-
-[OLake](https://olake.io/) is an open-source ELT tool to facilitate the replication of databases into Apache Iceberg™ data lakehouses. It offers native integration with PostgreSQL, MySQL, MongoDB, Oracle, and Kafka, enabling real-time data ingestion without the need for intermediary layers like Debezium, Kafka or Spark. The platform's modular architecture supports full-load operations, continuous Change Data Capture (CDC), and incremental synchronization with bookmark/cursor column support, with resumable syncs and schema evolution handling. By employing a parallelized chunking strategy, OLake accelerates initial syncs, while CDC cursor preservation ensures that incremental updates capture all events.
-
-Learn more in the [OLake documentation](https://olake.io/docs) and explore the [Github repository](https://github.com/datazip-inc/olake).
-
-### [OptimaFlo](https://optimaflo.io)
-
-[OptimaFlo](https://optimaflo.io) is an AI data team that runs a company's data stack end to end, from raw ingestion to clean, query-ready tables, inside the customer's own AWS or GCP account (BYOC). Apache Iceberg is the storage layer for every table OptimaFlo manages, giving customers ACID transactions, schema evolution, and time travel, all under an Apache Polaris catalog. OptimaFlo's control plane never stores customer data; it only builds and runs the pipelines. Queries route across DuckDB or the customer's cloud warehouse depending on table size, and OptimaFlo's LLM agents generate the SQL that builds and maintains the Iceberg tables.
-
-Learn more about running Iceberg without a data team [here](https://optimaflo.io/blog/apache-iceberg-without-a-data-team).
+## Disclaimer
+
+The organizations and projects below provide products, services, or integrations related to Apache Iceberg.
+
+This non-exhaustive list is provided for convenience. Inclusion does not constitute endorsement,
+certification, affiliation, or sponsorship by the Apache Software Foundation or the Apache Iceberg project.
+
+PMC review determines only whether an entry satisfies the listing criteria below. The Apache Iceberg
+project does not verify or endorse linked projects or services, including their claims, quality,
+licensing, security, compatibility, or continued availability.
+
+## Third-party projects and services
+
+* [Amazon Web Services (AWS)](https://aws.amazon.com/what-is/apache-iceberg/#seo-faq-pairs#what-aws-services-support-iceberg)
+* [BladePipe](https://doc.bladepipe.com/quick/quick_start_byoc)
+* [Bodo](https://bodo.ai)
+* [CelerData](https://docs.starrocks.io/docs/data_source/catalog/icebergtutorial/)
+* [ClickHouse](https://clickhouse.com/docs/en/engines/table-engines/integrations/iceberg)
+* [Cloudera](https://www.cloudera.com/products/open-data-lakehouse.html)
+* [Collate](https://www.getcollate.io/)
+* [Confluent](https://www.confluent.io/product/tableflow/)
+* [Crunchy Data](https://www.crunchydata.com/products/warehouse)
+* [Databricks](https://www.databricks.com/product/unity-catalog)
+* [Dataddo](https://dataddo.com/platform)
+* [dltHub](https://dlthub.com/docs/dlt-ecosystem/destinations/iceberg)
+* [Dremio](https://www.dremio.com/platform/sonar/)
+* [DuckDB](https://duckdb.org/docs/stable/core_extensions/iceberg/overview)
+* [Estuary](https://docs.estuary.dev/reference/Connectors/materialization-connectors/apache-iceberg/)
+* [Firebolt](https://www.firebolt.io/blog/querying-apache-iceberg-with-sub-second-performance)
+* [Fivetran](https://fivetran.com/docs/managed-data-lake-service)
+* [Google Cloud](https://cloud.google.com/biglake?hl=en)
+* [IBM watsonx.data](https://www.ibm.com/products/watsonx-data)
+* [IOMETE](https://iomete.com/)
+* [Microsoft OneLake](https://aka.ms/onelakeircdocs)
+* [MinIO AIStor](https://docs.min.io/aistor/administration/aistor-tables/)
+* [OLake](https://olake.io/docs)
+* [OptimaFlo](https://optimaflo.io/blog/apache-iceberg-without-a-data-team)
+* [Oracle](https://www.oracle.com/autonomous-database/autonomous-ai-lakehouse/)
+* [PuppyGraph](https://docs.puppygraph.com/user-manual/getting-started/iceberg)
+* [Redpanda](https://www.redpanda.com/use-case/streaming-iceberg-tables)
+* [RisingWave](https://docs.risingwave.com/iceberg/ingest-from-iceberg)
+* [Ryft](https://ryft.io/)
+* [Sail](https://docs.lakesail.com/sail/latest/guide/sources/iceberg)
+* [SingleStore](https://docs.singlestore.com/cloud/load-data/data-sources/iceberg-ingest/) <!-- markdown-link-check-disable-next-line -->
+* [Snowflake](https://docs.snowflake.com/en/user-guide/tables-iceberg#use-snowflake-as-the-iceberg-catalog)
+* [Stackable](https://stackable.tech)
+* [Starburst](https://docs.starburst.io/latest/connector/iceberg.html)
+* [StarTree](https://docs.startree.ai/corecapabilities/external-table/overview)
+* [StreamNative](https://streamnative.io/products/ursa)
+* [Teradata](https://www.teradata.com/)
+* [Tinybird](https://www.tinybird.co/docs/forward/get-data-in/table-functions/iceberg)
+* [Upsolver](https://docs.upsolver.com/content/reference-1/sql-commands/iceberg-tables/upsolver-managed-tables)
+* [VeloDB](https://doris.apache.org/docs/dev/lakehouse/catalogs/iceberg-catalog)
+
+## Listing policy
+
+Listings are alphabetical and include one name and one external link. They may also include a brief
+sentence describing their relationship to Apache Iceberg. Descriptions should be written in neutral,
+non-promotional language. Links should point to current technical documentation or a relevant project or
+product page that demonstrates the relationship to Apache Iceberg.
+
+Listings do not include logos, rankings, paid placement, or designations such as preferred, official, or
+certified. The PMC may edit descriptions for clarity and consistency. Requests to add, update, or remove a
+listing should be submitted as public pull requests and are reviewed under PMC oversight.
+
+**Listed projects and services must respect the Apache Iceberg name and trademarks and comply with the
+[ASF Trademark Policy](https://www.apache.org/foundation/marks/).**
+
+Listings may be removed if the link becomes unavailable, the linked page no longer demonstrates a
+concrete Apache Iceberg connection, or the linked organization or project does not comply with applicable
+ASF branding and trademark policies.
