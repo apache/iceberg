@@ -212,6 +212,15 @@ public class TestS3OutputStream {
         .allSatisfy(
             request ->
                 assertThat(request.checksumAlgorithm()).isEqualTo(ChecksumAlgorithm.CRC64_NVME));
+
+    // the checksum each part upload returns has to reach CompleteMultipartUpload, otherwise S3
+    // rejects the completion with InvalidPart
+    ArgumentCaptor<CompleteMultipartUploadRequest> completeCaptor =
+        ArgumentCaptor.forClass(CompleteMultipartUploadRequest.class);
+    verify(s3mock).completeMultipartUpload(completeCaptor.capture());
+    assertThat(completeCaptor.getValue().multipartUpload().parts())
+        .hasSize(2)
+        .allSatisfy(part -> assertThat(part.checksumCRC64NVME()).isNotNull());
   }
 
   @Test
