@@ -84,8 +84,7 @@ class TestSparkChangelog extends TestBaseWithCatalog {
                     + "FROM %s CHANGES FROM VERSION %d TO VERSION %d "
                     + "ORDER BY _change_type, id",
                 tableName, deleteVersion, deleteVersion))
-        .containsExactly(
-            row(1L, "a", "delete", deleteVersion));
+        .containsExactly(row(1L, "a", "delete", deleteVersion));
 
     assertThat(
             sql(
@@ -132,8 +131,7 @@ class TestSparkChangelog extends TestBaseWithCatalog {
     sql("INSERT INTO %s VALUES (1, 'a')", tableName);
     Table table = validationCatalog.loadTable(tableIdent);
     long availableSnapshotId = table.currentSnapshot().snapshotId();
-    SparkReadConf readConf =
-        new SparkReadConf(spark, table, CaseInsensitiveStringMap.empty());
+    SparkReadConf readConf = new SparkReadConf(spark, table, CaseInsensitiveStringMap.empty());
     SparkChangelogMicroBatchStream stream =
         new SparkChangelogMicroBatchStream(
             JavaSparkContext.fromSparkContext(spark.sparkContext()),

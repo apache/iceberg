@@ -49,8 +49,7 @@ import org.apache.spark.sql.connector.read.streaming.SupportsTriggerAvailableNow
  * <p>Each planned range contains complete snapshots, ensuring that all rows from a commit remain in
  * the same Spark micro-batch.
  */
-class SparkChangelogMicroBatchStream
-    implements MicroBatchStream, SupportsTriggerAvailableNow {
+class SparkChangelogMicroBatchStream implements MicroBatchStream, SupportsTriggerAvailableNow {
 
   private static final Types.StructType EMPTY_GROUPING_KEY_TYPE = Types.StructType.of();
 
