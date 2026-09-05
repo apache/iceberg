@@ -556,6 +556,33 @@ public class TestFlinkTableSource extends TableSourceTestBase {
 
   @TestTemplate
   public void testSqlParseNaN() {
-    // todo add some test case to test NaN
+    sql("INSERT INTO %s VALUES (4, 'nan_row', CAST('NaN' AS DOUBLE))", TABLE_NAME);
+    this.scanEventCount = 0;
+    this.lastScanEvent = null;
+
+    // Row-level results for a NaN literal comparison are not asserted here: Flink always
+    // re-applies the original filter downstream after pushdown (IcebergTableSource.applyFilters
+    // reports every filter as "remaining", not just the unconverted ones), and standard IEEE754
+    // double equality against NaN is always false (and always true for <>), regardless of what
+    // Iceberg's scan itself resolved. Only the pushed-down filter expression is verifiable here.
+    String sqlEqual =
+        String.format("SELECT * FROM %s WHERE d = CAST('NaN' AS DOUBLE) ", TABLE_NAME);
+    String expectedFilterEqual = "is_nan(ref(name=\"d\"))";
+
+    sql(sqlEqual);
+    assertThat(lastScanEvent.filter())
+        .as("Should contain the pushed down NaN filter")
+        .asString()
+        .isEqualTo(expectedFilterEqual);
+
+    String sqlNotEqual =
+        String.format("SELECT * FROM %s WHERE d <> CAST('NaN' AS DOUBLE) ", TABLE_NAME);
+    String expectedFilterNotEqual = "not_nan(ref(name=\"d\"))";
+
+    sql(sqlNotEqual);
+    assertThat(lastScanEvent.filter())
+        .as("Should contain the pushed down not-NaN filter")
+        .asString()
+        .isEqualTo(expectedFilterNotEqual);
   }
 }
