@@ -2099,6 +2099,31 @@ class LoadFunctionResult(BaseModel):
     metadata: FunctionMetadata
 
 
+class CreateFunctionRequest(BaseModel):
+    """
+    Request to create a function with all of its definitions.
+
+
+    The server assigns `function-uuid`, `format-version`, and `definition-log`, so those fields
+    are not part of this request.
+
+    """
+
+    name: str
+    location: str | None = Field(
+        None,
+        description="The function's base location. This is used to store function metadata files.",
+    )
+    definitions: list[FunctionDefinition] = Field(
+        ..., description='List of function definition entities.'
+    )
+    properties: dict[str, str] | None = Field(
+        None, description='A string-to-string map of properties.'
+    )
+    secure: bool | None = Field(False, description='Whether it is a secure function.')
+    doc: str | None = Field(None, description='Documentation string.')
+
+
 class FunctionMetadata(BaseModel):
     """
     Portable UDF metadata format.
@@ -2500,6 +2525,7 @@ CreateTableRequest.model_rebuild()
 CreateViewRequest.model_rebuild()
 ScanReport.model_rebuild()
 LoadFunctionResult.model_rebuild()
+CreateFunctionRequest.model_rebuild()
 FunctionMetadata.model_rebuild()
 FunctionDefinition.model_rebuild()
 FunctionParameter.model_rebuild()
