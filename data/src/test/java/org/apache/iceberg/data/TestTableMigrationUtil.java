@@ -94,6 +94,21 @@ class TestTableMigrationUtil {
         .hasRootCauseInstanceOf(FileNotFoundException.class);
   }
 
+  @Test
+  void testListPartitionSkipsEmptyFiles() throws IOException {
+    Path partitionPath = tempTableLocation.resolve("id=1");
+    String partitionUri = partitionPath.toUri().toString();
+    java.nio.file.Files.createDirectories(partitionPath);
+    writePartitionFile(partitionPath.toFile());
+    java.nio.file.Files.write(partitionPath.resolve("empty"), new byte[0]);
+
+    List<DataFile> dataFiles =
+        TableMigrationUtil.listPartition(
+            PARTITION, partitionUri, FORMAT, SPEC, CONF, MetricsConfig.getDefault(), null);
+
+    assertThat(dataFiles).as("Zero-length files should be skipped").hasSize(1);
+  }
+
   private static void writePartitionFile(File outputDir) throws IOException {
     Iterable<GenericData.Record> records = RandomAvroData.generate(SCHEMA, 1000, 54310);
     File testFile = new File(outputDir, "junit" + System.nanoTime() + ".parquet");
