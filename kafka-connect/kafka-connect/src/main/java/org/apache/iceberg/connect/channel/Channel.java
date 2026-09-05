@@ -22,7 +22,6 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.stream.Collectors;
 import org.apache.iceberg.connect.IcebergSinkConfig;
 import org.apache.iceberg.connect.data.Offset;
 import org.apache.iceberg.connect.events.AvroUtil;
@@ -32,11 +31,13 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.consumer.Consumer;
+import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.common.utils.Utils;
 import org.apache.kafka.connect.sink.SinkTaskContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -53,6 +54,7 @@ abstract class Channel {
   private final Admin admin;
   private final Map<Integer, Long> controlTopicOffsets = Maps.newHashMap();
   private final String producerId;
+  private final String channelId;
 
   Channel(
       String name,
@@ -60,13 +62,21 @@ abstract class Channel {
       IcebergSinkConfig config,
       KafkaClientFactory clientFactory,
       SinkTaskContext context) {
+    this.channelId = config.connectorName() + "-" + config.taskId() + "-" + name;
     this.controlTopic = config.controlTopic();
     this.connectGroupId = config.connectGroupId();
     this.context = context;
 
-    String transactionalId = config.transactionalPrefix() + name + config.transactionalSuffix();
+    String transactionalId =
+        "worker".equalsIgnoreCase(name)
+            ? config.transactionalPrefix() + name + config.transactionalSuffix()
+            : connectGroupId + "-" + config.connectorName() + "-coord";
+
     this.producer = clientFactory.createProducer(transactionalId);
-    this.consumer = clientFactory.createConsumer(consumerGroupId);
+    this.consumer =
+        "coordinator".equalsIgnoreCase(name)
+            ? clientFactory.createConsumer(consumerGroupId, "earliest")
+            : clientFactory.createConsumer(consumerGroupId);
     this.admin = clientFactory.createAdmin();
 
     this.producerId = UUID.randomUUID().toString();
@@ -85,12 +95,12 @@ abstract class Channel {
         events.stream()
             .map(
                 event -> {
-                  LOG.info("Sending event of type: {}", event.type().name());
+                  LOG.info("Channel {} sending event of type: {}", channelId, event.type().name());
                   byte[] data = AvroUtil.encode(event);
                   // key by producer ID to keep event order
                   return new ProducerRecord<>(controlTopic, producerId, data);
                 })
-            .collect(Collectors.toList());
+            .toList();
 
     synchronized (producer) {
       producer.beginTransaction();
@@ -107,7 +117,7 @@ abstract class Channel {
         try {
           producer.abortTransaction();
         } catch (Exception ex) {
-          LOG.warn("Error aborting producer transaction", ex);
+          LOG.warn("Channel {} got error while aborting producer transaction", channelId, ex);
         }
         throw e;
       }
@@ -119,21 +129,27 @@ abstract class Channel {
   protected void consumeAvailable(Duration pollDuration) {
     ConsumerRecords<String, byte[]> records = consumer.poll(pollDuration);
     while (!records.isEmpty()) {
-      records.forEach(
-          record -> {
-            // the consumer stores the offsets that corresponds to the next record to consume,
-            // so increment the record offset by one
-            controlTopicOffsets.put(record.partition(), record.offset() + 1);
+      for (ConsumerRecord<String, byte[]> record : records) {
+        if (record.offset() < controlTopicOffsets.getOrDefault(record.partition(), 0L)) {
+          LOG.debug(
+              "Channel {} skipping already-consumed control-topic record at offset {} for partition {}",
+              channelId,
+              record.offset(),
+              record.partition());
+          continue;
+        }
+        // the consumer stores the offset of the next record to consume, so increment by one
+        controlTopicOffsets.put(record.partition(), record.offset() + 1);
 
-            Event event = AvroUtil.decode(record.value());
+        Event event = AvroUtil.decode(record.value());
 
-            if (event.groupId().equals(connectGroupId)) {
-              LOG.debug("Received event of type: {}", event.type().name());
-              if (receive(new Envelope(event, record.partition(), record.offset()))) {
-                LOG.info("Handled event of type: {}", event.type().name());
-              }
-            }
-          });
+        if (event.groupId().equals(connectGroupId)) {
+          LOG.debug("Channel {} received event of type: {}", channelId, event.type().name());
+          if (receive(new Envelope(event, record.partition(), record.offset()))) {
+            LOG.info("Channel {} handled event of type: {}", channelId, event.type().name());
+          }
+        }
+      }
       records = consumer.poll(pollDuration);
     }
   }
@@ -159,9 +175,9 @@ abstract class Channel {
   }
 
   void stop() {
-    LOG.info("Channel stopping");
-    producer.close();
-    consumer.close();
-    admin.close();
+    LOG.info("Channel {} stopping", channelId);
+    Utils.closeQuietly(producer, channelId + "-producer");
+    Utils.closeQuietly(consumer, channelId + "-consumer");
+    Utils.closeQuietly(admin, channelId + "-admin");
   }
 }
