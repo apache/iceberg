@@ -28,24 +28,29 @@ import static org.apache.iceberg.TableProperties.PARQUET_DICT_ENCODING_ENABLED_C
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_CHECK_MAX_RECORD_COUNT;
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_CHECK_MIN_RECORD_COUNT;
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES;
+import static org.apache.iceberg.expressions.Expressions.equal;
 import static org.apache.iceberg.expressions.Expressions.greaterThan;
 import static org.apache.iceberg.expressions.Expressions.greaterThanOrEqual;
+import static org.apache.iceberg.expressions.Expressions.lessThan;
 import static org.apache.iceberg.parquet.ParquetWritingTestUtils.createTempFile;
 import static org.apache.iceberg.parquet.ParquetWritingTestUtils.write;
 import static org.apache.iceberg.relocated.com.google.common.collect.Iterables.getOnlyElement;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.apache.parquet.schema.Types.buildMessage;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.util.Collections;
 import java.util.List;
+import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Stream;
 import org.apache.avro.generic.GenericData;
@@ -76,11 +81,16 @@ import org.apache.iceberg.variants.Variant;
 import org.apache.parquet.avro.AvroParquetWriter;
 import org.apache.parquet.column.Encoding;
 import org.apache.parquet.column.statistics.Statistics;
+import org.apache.parquet.example.data.Group;
+import org.apache.parquet.example.data.simple.SimpleGroupFactory;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.ParquetWriter;
+import org.apache.parquet.hadoop.example.ExampleParquetWriter;
+import org.apache.parquet.hadoop.example.GroupReadSupport;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
 import org.apache.parquet.io.LocalOutputFile;
+import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName;
@@ -718,7 +728,7 @@ public class TestParquet {
                 ImmutableMap.of(
                     "id", 5L, "ts", LocalDateTime.parse("2024-01-01T00:00:00.000003000"))));
 
-    File file = writeNanoRecords(schema, records);
+    File file = writeRecords(schema, records);
 
     // Boundary at 500 ns: only ids 3 (750 ns), 4 (1500 ns), 5 (3000 ns) qualify.
     List<Long> ids =
@@ -756,7 +766,7 @@ public class TestParquet {
                 ImmutableMap.of(
                     "id", 5L, "ts", OffsetDateTime.parse("2024-01-01T00:00:00.000003000+00:00"))));
 
-    File file = writeNanoRecords(schema, records);
+    File file = writeRecords(schema, records);
 
     // Boundary == 2024-01-01T00:00:00.000000500Z, expressed in +04:00. id2 is that same instant
     // (written in +05:00); a strict greaterThan excludes it, leaving ids 3/4/5.
@@ -765,7 +775,111 @@ public class TestParquet {
     assertThat(ids).containsExactlyInAnyOrder(3L, 4L, 5L);
   }
 
-  private File writeNanoRecords(Schema schema, List<Record> records) throws IOException {
+  @Test
+  public void decimalAndUuidFiltersUsePhysicalParquetValues() throws IOException {
+    UUID firstUuid = UUID.fromString("00000000-0000-0000-0000-000000000001");
+    UUID secondUuid = UUID.fromString("80000000-0000-0000-0000-000000000000");
+    UUID thirdUuid = UUID.fromString("00000000-0000-0000-0000-000000000003");
+
+    Schema schema =
+        new Schema(
+            required(1, "id", Types.LongType.get()),
+            required(2, "decimal_int", Types.DecimalType.of(9, 2)),
+            required(3, "decimal_fixed", Types.DecimalType.of(20, 10)),
+            required(4, "uuid_col", Types.UUIDType.get()));
+
+    Record template = org.apache.iceberg.data.GenericRecord.create(schema);
+    List<Record> records =
+        Lists.newArrayList(
+            template.copy(
+                ImmutableMap.of(
+                    "id",
+                    1L,
+                    "decimal_int",
+                    new BigDecimal("-12.34"),
+                    "decimal_fixed",
+                    new BigDecimal("-1234567890.1234567890"),
+                    "uuid_col",
+                    firstUuid)),
+            template.copy(
+                ImmutableMap.of(
+                    "id",
+                    2L,
+                    "decimal_int",
+                    new BigDecimal("0.00"),
+                    "decimal_fixed",
+                    new BigDecimal("0.0000000000"),
+                    "uuid_col",
+                    secondUuid)),
+            template.copy(
+                ImmutableMap.of(
+                    "id",
+                    3L,
+                    "decimal_int",
+                    new BigDecimal("56.78"),
+                    "decimal_fixed",
+                    new BigDecimal("1234567890.1234567890"),
+                    "uuid_col",
+                    thirdUuid)));
+
+    File file = writeRecords(schema, records);
+
+    assertThat(filterGroupIds(schema, file, equal("decimal_int", new BigDecimal("-12.34"))))
+        .containsExactlyInAnyOrder(1L);
+    assertThat(
+            filterGroupIds(schema, file, lessThan("decimal_fixed", new BigDecimal("0.0000000000"))))
+        .containsExactlyInAnyOrder(1L);
+    assertThat(
+            filterGroupIds(
+                schema, file, greaterThan("decimal_fixed", new BigDecimal("0.0000000000"))))
+        .containsExactlyInAnyOrder(3L);
+    assertThat(filterGroupIds(schema, file, equal("uuid_col", secondUuid)))
+        .containsExactlyInAnyOrder(2L);
+  }
+
+  @Test
+  public void binaryDecimalFilterUsesPhysicalParquetValues() throws IOException {
+    Schema schema =
+        new Schema(
+            required(1, "id", Types.LongType.get()),
+            required(2, "decimal_binary", Types.DecimalType.of(9, 2)));
+    MessageType parquetSchema =
+        buildMessage()
+            .required(PrimitiveTypeName.INT64)
+            .id(1)
+            .named("id")
+            .required(PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.decimalType(2, 9))
+            .id(2)
+            .named("decimal_binary")
+            .named("table");
+
+    File file = createTempFile(temp);
+    SimpleGroupFactory factory = new SimpleGroupFactory(parquetSchema);
+    try (ParquetWriter<Group> writer =
+        ExampleParquetWriter.builder(ParquetIO.file(Files.localOutput(file)))
+            .withType(parquetSchema)
+            .build()) {
+      writer.write(binaryDecimalRecord(factory, 1L, new BigDecimal("-12.34")));
+      writer.write(binaryDecimalRecord(factory, 2L, new BigDecimal("0.00")));
+      writer.write(binaryDecimalRecord(factory, 3L, new BigDecimal("56.78")));
+    }
+
+    assertThat(filterGroupIds(schema, file, lessThan("decimal_binary", new BigDecimal("0.00"))))
+        .containsExactlyInAnyOrder(1L);
+    assertThat(filterGroupIds(schema, file, greaterThan("decimal_binary", new BigDecimal("0.00"))))
+        .containsExactlyInAnyOrder(3L);
+  }
+
+  private Group binaryDecimalRecord(SimpleGroupFactory factory, long id, BigDecimal decimal) {
+    return factory
+        .newGroup()
+        .append("id", id)
+        .append(
+            "decimal_binary", Binary.fromConstantByteArray(decimal.unscaledValue().toByteArray()));
+  }
+
+  private File writeRecords(Schema schema, List<Record> records) throws IOException {
     File file = createTempFile(temp);
     try (FileAppender<Record> appender =
         Parquet.write(Files.localOutput(file))
@@ -788,6 +902,25 @@ public class TestParquet {
         Parquet.read(localInput(file)).project(schema).callInit().filter(filter).build()) {
       for (GenericData.Record record : reader) {
         ids.add((Long) record.get("id"));
+      }
+    }
+
+    return ids;
+  }
+
+  private List<Long> filterGroupIds(Schema schema, File file, Expression filter)
+      throws IOException {
+    List<Long> ids = Lists.newArrayList();
+    // GroupReadSupport keeps the same callInit path but avoids Avro decimal materialization.
+    try (CloseableIterable<Group> reader =
+        Parquet.read(localInput(file))
+            .project(schema)
+            .readSupport(new GroupReadSupport())
+            .callInit()
+            .filter(filter)
+            .build()) {
+      for (Group record : reader) {
+        ids.add(record.getLong("id", 0));
       }
     }
 
