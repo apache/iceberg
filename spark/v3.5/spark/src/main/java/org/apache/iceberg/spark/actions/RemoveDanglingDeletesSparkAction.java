@@ -18,56 +18,48 @@
  */
 package org.apache.iceberg.spark.actions;
 
-import static org.apache.spark.sql.functions.col;
-import static org.apache.spark.sql.functions.min;
-
-import java.util.Collections;
+import java.io.Closeable;
+import java.io.IOException;
+import java.io.Serializable;
+import java.util.Iterator;
 import java.util.List;
-import java.util.stream.Collectors;
-import org.apache.iceberg.DataFile;
+import java.util.Objects;
+import java.util.stream.StreamSupport;
 import org.apache.iceberg.DeleteFile;
-import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.MetadataTableType;
-import org.apache.iceberg.Partitioning;
-import org.apache.iceberg.RewriteFiles;
+import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.ManifestFiles;
+import org.apache.iceberg.ManifestReader;
+import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.actions.ImmutableRemoveDanglingDeleteFiles;
+import org.apache.iceberg.TableScan;
 import org.apache.iceberg.actions.RemoveDanglingDeleteFiles;
-import org.apache.iceberg.spark.JobGroupInfo;
-import org.apache.iceberg.spark.SparkDeleteFile;
-import org.apache.iceberg.types.Types;
+import org.apache.iceberg.actions.RemoveDanglingDeleteFilesAction;
+import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.CloseableIterator;
+import org.apache.iceberg.io.ClosingIterator;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.spark.source.SerializableTableWithSize;
 import org.apache.iceberg.util.DeleteFileSet;
-import org.apache.spark.sql.Column;
-import org.apache.spark.sql.Dataset;
-import org.apache.spark.sql.Row;
+import org.apache.spark.api.java.JavaPairRDD;
+import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.sql.SparkSession;
-import org.apache.spark.sql.types.StructType;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import scala.Tuple2;
 
 /**
  * An action that removes dangling delete files from the current snapshot. A delete file is dangling
  * if its deletes no longer applies to any live data files.
- *
- * <p>The following dangling delete files are removed:
- *
- * <ul>
- *   <li>Position delete files with a data sequence number less than that of any data file in the
- *       same partition
- *   <li>Equality delete files with a data sequence number less than or equal to that of any data
- *       file in the same partition
- * </ul>
  */
 class RemoveDanglingDeletesSparkAction
     extends BaseSnapshotUpdateSparkAction<RemoveDanglingDeletesSparkAction>
     implements RemoveDanglingDeleteFiles {
 
-  private static final Logger LOG = LoggerFactory.getLogger(RemoveDanglingDeletesSparkAction.class);
   private final Table table;
+  private final RemoveDanglingDeleteFilesAction action;
 
   protected RemoveDanglingDeletesSparkAction(SparkSession spark, Table table) {
     super(spark);
     this.table = table;
+    this.action = new RemoveDanglingDeleteFilesAction(table, this::findDanglingDeletes);
   }
 
   @Override
@@ -75,132 +67,114 @@ class RemoveDanglingDeletesSparkAction
     return this;
   }
 
+  public RemoveDanglingDeletesSparkAction toBranch(String targetBranch) {
+    action.toBranch(targetBranch);
+    return this;
+  }
+
   @Override
   public Result execute() {
-    if (table.specs().size() == 1 && table.spec().isUnpartitioned()) {
-      // ManifestFilterManager already performs this table-wide delete on each commit
-      return ImmutableRemoveDanglingDeleteFiles.Result.builder()
-          .removedDeleteFiles(Collections.emptyList())
-          .build();
-    }
-
+    commitSummary().forEach(action::set);
     String desc = String.format("Removing dangling delete files in %s", table.name());
-    JobGroupInfo info = newJobGroupInfo("REMOVE-DELETES", desc);
-    return withJobGroupInfo(info, this::doExecute);
+    return withJobGroupInfo(newJobGroupInfo("REMOVE-DELETES", desc), action::execute);
   }
 
-  Result doExecute() {
-    RewriteFiles rewriteFiles = table.newRewrite();
+  private DeleteFileSet findDanglingDeletes(Snapshot snapshot) {
+    Broadcast<Table> tableBroadcast =
+        sparkContext().broadcast(SerializableTableWithSize.copyOf(table));
+
+    JavaPairRDD<DeleteFileKey, Void> referencedDeletes =
+        sparkContext()
+            .parallelize(ImmutableList.of(snapshot.snapshotId()), 1)
+            .flatMap(
+                snapshotId -> {
+                  TableScan scan = tableBroadcast.value().newScan().useSnapshot(snapshotId);
+                  return new ClosingIterator<>(new DeleteFileKeyIterator(scan.planFiles()));
+                })
+            .mapToPair(key -> new Tuple2<>(key, (Void) null));
+
+    List<ManifestFileBean> deleteManifests =
+        snapshot.deleteManifests(table.io()).stream().map(ManifestFileBean::fromManifest).toList();
+    JavaPairRDD<DeleteFileKey, DeleteFile> allDeletes =
+        sparkContext()
+            .parallelize(deleteManifests, deleteManifests.size())
+            .flatMap(
+                manifest -> {
+                  ManifestReader<DeleteFile> reader =
+                      ManifestFiles.readDeleteManifest(
+                          manifest, tableBroadcast.value().io(), tableBroadcast.value().specs());
+                  return new ClosingIterator<>(reader.iterator());
+                })
+            .mapToPair(file -> new Tuple2<>(new DeleteFileKey(file), file.copyWithoutStats()));
+
     DeleteFileSet danglingDeletes = DeleteFileSet.create();
-    danglingDeletes.addAll(findDanglingDeletes());
-    danglingDeletes.addAll(findDanglingDvs());
+    allDeletes
+        .subtractByKey(referencedDeletes)
+        .values()
+        .toLocalIterator()
+        .forEachRemaining(danglingDeletes::add);
+    return danglingDeletes;
+  }
 
-    for (DeleteFile deleteFile : danglingDeletes) {
-      LOG.debug("Removing dangling delete file {}", deleteFile.location());
-      rewriteFiles.deleteFile(deleteFile);
+  private static class DeleteFileKeyIterator implements CloseableIterator<DeleteFileKey> {
+    private final Closeable closeable;
+    private final Iterator<DeleteFileKey> iterator;
+
+    DeleteFileKeyIterator(CloseableIterable<FileScanTask> tasks) {
+      this.closeable = tasks;
+      this.iterator =
+          StreamSupport.stream(tasks.spliterator(), false)
+              .flatMap(task -> task.deletes().stream())
+              .map(DeleteFileKey::new)
+              .distinct()
+              .iterator();
     }
 
-    if (!danglingDeletes.isEmpty()) {
-      commit(rewriteFiles);
+    @Override
+    public void close() throws IOException {
+      closeable.close();
     }
 
-    return ImmutableRemoveDanglingDeleteFiles.Result.builder()
-        .removedDeleteFiles(danglingDeletes)
-        .build();
+    @Override
+    public boolean hasNext() {
+      return iterator.hasNext();
+    }
+
+    @Override
+    public DeleteFileKey next() {
+      return iterator.next();
+    }
   }
 
-  /**
-   * Dangling delete files can be identified with following steps
-   *
-   * <ol>
-   *   <li>Group data files by partition keys and find the minimum data sequence number in each
-   *       group.
-   *   <li>Left outer join delete files with partition-grouped data files on partition keys.
-   *   <li>Find dangling deletes by comparing each delete file's sequence number to its partition's
-   *       minimum data sequence number.
-   *   <li>Collect results row to driver and use {@link SparkDeleteFile SparkDeleteFile} to wrap
-   *       rows to valid delete files
-   * </ol>
-   */
-  private List<DeleteFile> findDanglingDeletes() {
-    Dataset<Row> minSequenceNumberByPartition =
-        loadMetadataTable(table, MetadataTableType.ENTRIES)
-            // find live data files
-            .filter("data_file.content == 0 AND status < 2")
-            .selectExpr(
-                "data_file.partition as partition",
-                "data_file.spec_id as spec_id",
-                "sequence_number")
-            .groupBy("partition", "spec_id")
-            .agg(min("sequence_number"))
-            .toDF("grouped_partition", "grouped_spec_id", "min_data_sequence_number");
+  private static final class DeleteFileKey implements Serializable {
+    private final String location;
+    private final Long contentOffset;
+    private final Long contentSizeInBytes;
 
-    Dataset<Row> deleteEntries =
-        loadMetadataTable(table, MetadataTableType.ENTRIES)
-            // find live delete files
-            .filter("data_file.content != 0 AND status < 2");
+    DeleteFileKey(DeleteFile file) {
+      this.location = file.location();
+      this.contentOffset = file.contentOffset();
+      this.contentSizeInBytes = file.contentSizeInBytes();
+    }
 
-    Column joinOnPartition =
-        deleteEntries
-            .col("data_file.spec_id")
-            .equalTo(minSequenceNumberByPartition.col("grouped_spec_id"))
-            .and(
-                deleteEntries
-                    .col("data_file.partition")
-                    .equalTo(minSequenceNumberByPartition.col("grouped_partition")));
+    @Override
+    public boolean equals(Object other) {
+      if (this == other) {
+        return true;
+      }
 
-    Column filterOnDanglingDeletes =
-        col("min_data_sequence_number")
-            // delete files without any data files in partition
-            .isNull()
-            // position delete files without any applicable data files in partition
-            .or(
-                col("data_file.content")
-                    .equalTo("1")
-                    .and(col("sequence_number").$less(col("min_data_sequence_number"))))
-            // equality delete files without any applicable data files in the partition
-            .or(
-                col("data_file.content")
-                    .equalTo("2")
-                    .and(col("sequence_number").$less$eq(col("min_data_sequence_number"))));
+      if (other instanceof DeleteFileKey that) {
+        return Objects.equals(location, that.location)
+            && Objects.equals(contentOffset, that.contentOffset)
+            && Objects.equals(contentSizeInBytes, that.contentSizeInBytes);
+      }
 
-    Dataset<Row> danglingDeletes =
-        deleteEntries
-            .join(minSequenceNumberByPartition, joinOnPartition, "left")
-            .filter(filterOnDanglingDeletes)
-            .select("data_file.*");
-    return danglingDeletes.collectAsList().stream()
-        // map on driver because SparkDeleteFile is not serializable
-        .map(row -> deleteFileWrapper(danglingDeletes.schema(), row))
-        .collect(Collectors.toList());
-  }
+      return false;
+    }
 
-  private List<DeleteFile> findDanglingDvs() {
-    Dataset<Row> dvs =
-        loadMetadataTable(table, MetadataTableType.DELETE_FILES)
-            .where(col("file_format").equalTo(FileFormat.PUFFIN.name()));
-    Dataset<Row> dataFiles = loadMetadataTable(table, MetadataTableType.DATA_FILES);
-
-    // a DV not pointing to a valid data file path is implicitly a dangling delete
-    List<Row> danglingDvs =
-        dvs.join(
-                dataFiles,
-                dvs.col("referenced_data_file").equalTo(dataFiles.col("file_path")),
-                "leftouter")
-            .filter(dataFiles.col("file_path").isNull())
-            .select(dvs.col("*"))
-            .collectAsList();
-    return danglingDvs.stream()
-        // map on driver because SparkDeleteFile is not serializable
-        .map(row -> deleteFileWrapper(dvs.schema(), row))
-        .collect(Collectors.toList());
-  }
-
-  private DeleteFile deleteFileWrapper(StructType sparkFileType, Row row) {
-    int specId = row.getInt(row.fieldIndex("spec_id"));
-    Types.StructType combinedFileType = DataFile.getType(Partitioning.partitionType(table));
-    // Set correct spec id
-    Types.StructType projection = DataFile.getType(table.specs().get(specId).partitionType());
-    return new SparkDeleteFile(combinedFileType, projection, sparkFileType).wrap(row);
+    @Override
+    public int hashCode() {
+      return Objects.hash(location, contentOffset, contentSizeInBytes);
+    }
   }
 }
