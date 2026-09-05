@@ -45,6 +45,7 @@ public class SnapshotChanges {
   private final FileIO io;
   private final Map<Integer, PartitionSpec> specsById;
   private final ExecutorService executorService;
+  private final boolean columnStats;
 
   private List<DataFile> addedDataFiles = null;
   private List<DataFile> removedDataFiles = null;
@@ -55,7 +56,8 @@ public class SnapshotChanges {
       Snapshot snapshot,
       FileIO io,
       Map<Integer, PartitionSpec> specsById,
-      ExecutorService executorService) {
+      ExecutorService executorService,
+      boolean columnStats) {
     Preconditions.checkArgument(snapshot != null, "Snapshot cannot be null");
     Preconditions.checkArgument(io != null, "FileIO cannot be null");
     Preconditions.checkArgument(specsById != null, "Partition specs cannot be null");
@@ -63,6 +65,7 @@ public class SnapshotChanges {
     this.io = io;
     this.specsById = specsById;
     this.executorService = executorService;
+    this.columnStats = columnStats;
   }
 
   /**
@@ -155,10 +158,14 @@ public class SnapshotChanges {
     this.removedDataFiles = deletes.build();
   }
 
+  private List<String> manifestColumns(ManifestFile manifest) {
+    return columnStats ? ManifestReader.ALL_COLUMNS : BaseScan.scanColumns(manifest.content());
+  }
+
   private CloseableIterable<Pair<ManifestEntry.Status, DataFile>> readDataManifest(
       ManifestFile manifest) {
     CloseableIterable<ManifestEntry<DataFile>> entries =
-        ManifestFiles.read(manifest, io, specsById).entries();
+        ManifestFiles.read(manifest, io, specsById).select(manifestColumns(manifest)).entries();
 
     CloseableIterable<ManifestEntry<DataFile>> relevant =
         CloseableIterable.filter(entries, e -> e.status() != ManifestEntry.Status.EXISTING);
@@ -167,7 +174,7 @@ public class SnapshotChanges {
         relevant,
         entry -> {
           if (entry.status() == ManifestEntry.Status.ADDED) {
-            return Pair.of(ManifestEntry.Status.ADDED, entry.file().copy());
+            return Pair.of(ManifestEntry.Status.ADDED, entry.file().copy(columnStats));
           } else {
             return Pair.of(ManifestEntry.Status.DELETED, entry.file().copyWithoutStats());
           }
@@ -209,7 +216,9 @@ public class SnapshotChanges {
   private CloseableIterable<Pair<ManifestEntry.Status, DeleteFile>> readDeleteManifest(
       ManifestFile manifest) {
     CloseableIterable<ManifestEntry<DeleteFile>> entries =
-        ManifestFiles.readDeleteManifest(manifest, io, specsById).entries();
+        ManifestFiles.readDeleteManifest(manifest, io, specsById)
+            .select(manifestColumns(manifest))
+            .entries();
 
     CloseableIterable<ManifestEntry<DeleteFile>> relevant =
         CloseableIterable.filter(entries, e -> e.status() != ManifestEntry.Status.EXISTING);
@@ -218,7 +227,7 @@ public class SnapshotChanges {
         relevant,
         entry -> {
           if (entry.status() == ManifestEntry.Status.ADDED) {
-            return Pair.of(ManifestEntry.Status.ADDED, entry.file().copy());
+            return Pair.of(ManifestEntry.Status.ADDED, entry.file().copy(columnStats));
           } else {
             return Pair.of(ManifestEntry.Status.DELETED, entry.file().copyWithoutStats());
           }
@@ -230,6 +239,7 @@ public class SnapshotChanges {
     private final FileIO io;
     private final Map<Integer, PartitionSpec> specsById;
     private ExecutorService executorService = null;
+    private boolean columnStats = true;
 
     private Builder(Snapshot snapshot, FileIO io, Map<Integer, PartitionSpec> specsById) {
       this.snapshot = snapshot;
@@ -260,12 +270,23 @@ public class SnapshotChanges {
     }
 
     /**
+     * Configure whether to read column-level statistics for added files, defaults to true.
+     *
+     * @param include whether to read column-level statistics
+     * @return this builder for method chaining
+     */
+    public Builder includeColumnStats(boolean include) {
+      this.columnStats = include;
+      return this;
+    }
+
+    /**
      * Build the SnapshotChanges instance.
      *
      * @return a new SnapshotChanges instance
      */
     public SnapshotChanges build() {
-      return new SnapshotChanges(snapshot, io, specsById, executorService);
+      return new SnapshotChanges(snapshot, io, specsById, executorService, columnStats);
     }
   }
 }
