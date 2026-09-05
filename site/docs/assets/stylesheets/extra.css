@@ -448,3 +448,11 @@ p {
 .footer-icons img {
   max-width: 100%;
 }
+
+.md-typeset table:not([class]) strong {
+  white-space: nowrap;
+}
+
+.md-main__inner.md-grid {
+  max-width: 72rem;
+}
