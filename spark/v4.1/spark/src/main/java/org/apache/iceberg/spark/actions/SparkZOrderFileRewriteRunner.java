@@ -198,7 +198,8 @@ class SparkZOrderFileRewriteRunner extends SparkShufflingFileRewriteRunner {
       if (identityPartitionFieldIds.contains(field.fieldId())) {
         LOG.warn("Ignoring '{}' as such values are constant within a partition", colName);
       } else {
-        validZOrderColNames.add(colName);
+        // use the resolved name so a case-insensitive match is not carried through as-is
+        validZOrderColNames.add(field.name());
       }
     }
 
