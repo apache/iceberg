@@ -33,6 +33,7 @@ public class DynConstructors {
 
   private DynConstructors() {}
 
+  /** A wrapper around a {@link Constructor} that can be invoked to create new instances. */
   public static class Ctor<C> extends DynMethods.UnboundMethod {
     private final Constructor<C> ctor;
     private final Class<? extends C> constructed;
@@ -43,6 +44,13 @@ public class DynConstructors {
       this.constructed = constructed;
     }
 
+    /**
+     * Invokes the constructor with the given arguments.
+     *
+     * @param args the arguments to pass to the constructor
+     * @return a new instance
+     * @throws Exception if the constructor throws a checked exception
+     */
     public C newInstanceChecked(Object... args) throws Exception {
       try {
         if (args.length > ctor.getParameterCount()) {
@@ -59,6 +67,13 @@ public class DynConstructors {
       }
     }
 
+    /**
+     * Invokes the constructor with the given arguments, wrapping checked exceptions in a
+     * RuntimeException.
+     *
+     * @param args the arguments to pass to the constructor
+     * @return a new instance
+     */
     public C newInstance(Object... args) {
       try {
         return newInstanceChecked(args);
@@ -100,24 +115,42 @@ public class DynConstructors {
     }
   }
 
+  /**
+   * Constructs a new builder for finding a constructor dynamically.
+   *
+   * @return a Builder for finding a constructor
+   */
   public static Builder builder() {
     return new Builder();
   }
 
+  /**
+   * Constructs a new builder for finding a constructor dynamically.
+   *
+   * @param baseClass the base class used in error messages when no constructor is found
+   * @return a Builder for finding a constructor
+   */
   public static Builder builder(Class<?> baseClass) {
     return new Builder(baseClass);
   }
 
+  /** Builder for resolving a constructor from candidate implementations. */
   public static class Builder {
     private final Class<?> baseClass;
     private ClassLoader loader = Thread.currentThread().getContextClassLoader();
     private Ctor<?> ctor = null;
     private final Map<String, Throwable> problems = Maps.newHashMap();
 
+    /**
+     * Constructs a builder for the given base class.
+     *
+     * @param baseClass the base class used in error messages when no constructor is found
+     */
     public Builder(Class<?> baseClass) {
       this.baseClass = baseClass;
     }
 
+    /** Constructs a builder with no base class. */
     public Builder() {
       this.baseClass = null;
     }
@@ -135,6 +168,13 @@ public class DynConstructors {
       return this;
     }
 
+    /**
+     * Checks for an implementation, first finding the class by name.
+     *
+     * @param className name of a class
+     * @param types the constructor argument types
+     * @return this Builder for method chaining
+     */
     public Builder impl(String className, Class<?>... types) {
       // don't do any work if an implementation has been found
       if (ctor != null) {
@@ -151,6 +191,14 @@ public class DynConstructors {
       return this;
     }
 
+    /**
+     * Checks for an implementation.
+     *
+     * @param <T> the type of the target class
+     * @param targetClass a class instance
+     * @param types the constructor argument types
+     * @return this Builder for method chaining
+     */
     public <T> Builder impl(Class<T> targetClass, Class<?>... types) {
       // don't do any work if an implementation has been found
       if (ctor != null) {
@@ -166,6 +214,13 @@ public class DynConstructors {
       return this;
     }
 
+    /**
+     * Checks for a hidden implementation, first finding the class by name.
+     *
+     * @param className name of a class
+     * @param types the constructor argument types
+     * @return this Builder for method chaining
+     */
     public Builder hiddenImpl(String className, Class<?>... types) {
       // don't do any work if an implementation has been found
       if (ctor != null) {
@@ -182,6 +237,14 @@ public class DynConstructors {
       return this;
     }
 
+    /**
+     * Checks for a hidden implementation.
+     *
+     * @param <T> the type of the target class
+     * @param targetClass a class instance
+     * @param types the constructor argument types
+     * @return this Builder for method chaining
+     */
     @SuppressWarnings("removal")
     public <T> Builder hiddenImpl(Class<T> targetClass, Class<?>... types) {
       // don't do any work if an implementation has been found
@@ -203,6 +266,14 @@ public class DynConstructors {
       return this;
     }
 
+    /**
+     * Returns the first valid constructor as a {@link Ctor} or throws a NoSuchMethodException if
+     * there is none.
+     *
+     * @param <C> Java class constructed by the constructor
+     * @return a {@link Ctor} with a valid implementation
+     * @throws NoSuchMethodException if no implementation was found
+     */
     @SuppressWarnings("unchecked")
     public <C> Ctor<C> buildChecked() throws NoSuchMethodException {
       if (ctor != null) {
@@ -211,6 +282,14 @@ public class DynConstructors {
       throw buildCheckedException(baseClass, problems);
     }
 
+    /**
+     * Returns the first valid constructor as a {@link Ctor} or throws a RuntimeException if there
+     * is none.
+     *
+     * @param <C> Java class constructed by the constructor
+     * @return a {@link Ctor} with a valid implementation
+     * @throws RuntimeException if no implementation was found
+     */
     @SuppressWarnings("unchecked")
     public <C> Ctor<C> build() {
       if (ctor != null) {
