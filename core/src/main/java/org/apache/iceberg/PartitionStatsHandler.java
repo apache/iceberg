@@ -34,6 +34,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 import org.apache.iceberg.data.GenericRecord;
+import org.apache.iceberg.encryption.StandardEncryptionManager;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.OutputFile;
@@ -98,6 +99,10 @@ public class PartitionStatsHandler {
   public static PartitionStatisticsFile computeAndWriteStatsFile(Table table, long snapshotId)
       throws IOException {
     Preconditions.checkArgument(table != null, "Invalid table: null");
+    Preconditions.checkArgument(
+        !(table.encryption() instanceof StandardEncryptionManager),
+        "Cannot compute partition statistics for an encrypted table: %s",
+        table.name());
     Preconditions.checkArgument(Partitioning.isPartitioned(table), "Table must be partitioned");
     Snapshot snapshot = table.snapshot(snapshotId);
     Preconditions.checkArgument(snapshot != null, "Snapshot not found: %s", snapshotId);

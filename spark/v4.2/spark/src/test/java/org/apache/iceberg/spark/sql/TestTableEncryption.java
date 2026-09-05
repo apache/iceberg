@@ -54,6 +54,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.spark.CatalogTestBase;
 import org.apache.iceberg.spark.SparkCatalogConfig;
+import org.apache.iceberg.spark.actions.SparkActions;
 import org.apache.iceberg.types.Types;
 import org.apache.parquet.crypto.ParquetCryptoRuntimeException;
 import org.apache.spark.SparkException;
@@ -103,6 +104,16 @@ public class TestTableEncryption extends CatalogTestBase {
         ImmutableList.of(row(1L, "a", 1.0F), row(2L, "b", 2.0F), row(3L, "c", Float.NaN));
 
     assertEquals("Should return all expected rows", expected, sql("SELECT * FROM %s", tableName));
+  }
+
+  @TestTemplate
+  public void testRejectsComputePartitionStats() {
+    validationCatalog.initialize(catalogName, catalogConfig);
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    assertThatThrownBy(() -> SparkActions.get().computePartitionStats(table).execute())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot compute partition statistics for an encrypted table: %s", table.name());
   }
 
   private static List<DataFile> currentDataFiles(Table table) {
