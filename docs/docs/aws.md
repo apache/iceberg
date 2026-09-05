@@ -457,9 +457,10 @@ spark-sql --conf spark.sql.catalog.my_catalog=org.apache.iceberg.spark.SparkCata
     --conf spark.sql.catalog.my_catalog.warehouse=s3://my-bucket/my/key/prefix \
     --conf spark.sql.catalog.my_catalog.type=glue \
     --conf spark.sql.catalog.my_catalog.io-impl=org.apache.iceberg.aws.s3.S3FileIO \
-    --conf spark.sql.catalog.my_catalog.s3.request-checksum-calculation=when_required \
-    --conf spark.sql.catalog.my_catalog.s3.response-checksum-validation=when_required
+    --conf spark.sql.catalog.my_catalog.s3.request-checksum-calculation=when_required
 ```
+
+Response checksum validation is a separate concern and is left at the SDK default above, since checksums that the service returns do not cause uploads to be rejected. Set `s3.response-checksum-validation` to `when_required` as well only if the service also returns checksums that the SDK cannot validate.
 
 ### S3 Tags
 
