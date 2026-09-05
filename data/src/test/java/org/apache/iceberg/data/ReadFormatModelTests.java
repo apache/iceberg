@@ -917,6 +917,291 @@ public abstract class ReadFormatModelTests<T> {
 
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
+  void testNestedDefaultValueWhenParentStructIsNull(FileFormat fileFormat) throws IOException {
+    assumeSupports(fileFormat, FEATURE_READER_DEFAULT);
+
+    // write two leaves under the struct so the probe leaf is one of several, not the only column
+    Types.NestedField idField = Types.NestedField.required(1, "id", Types.LongType.get());
+    Types.StructType writeNested =
+        Types.StructType.of(
+            Types.NestedField.required(3, "a", Types.StringType.get()),
+            Types.NestedField.required(4, "b", Types.StringType.get()));
+    Types.NestedField nestedField =
+        Types.NestedField.optional("nested").withId(2).ofType(writeNested).build();
+    Schema writeSchema = new Schema(idField, nestedField);
+
+    Record presentNested = GenericRecord.create(writeNested);
+    presentNested.setField("a", "x");
+    presentNested.setField("b", "y");
+    Record present = GenericRecord.create(writeSchema);
+    present.setField("id", 1L);
+    present.setField("nested", presentNested);
+
+    Record nullNested = GenericRecord.create(writeSchema);
+    nullNested.setField("id", 2L);
+    nullNested.setField("nested", null);
+
+    List<Record> genericRecords = List.of(present, nullNested);
+    writeGenericRecords(fileFormat, writeSchema, genericRecords);
+
+    // read drops both a and b, projecting only the defaulted field
+    Types.StructType readNested =
+        Types.StructType.of(
+            Types.NestedField.optional("added")
+                .withId(5)
+                .ofType(Types.StringType.get())
+                .withInitialDefault(Literal.of("US"))
+                .build());
+    Schema expectedSchema =
+        new Schema(
+            idField, Types.NestedField.optional("nested").withId(2).ofType(readNested).build());
+
+    readAndAssertEngineRecords(
+        fileFormat,
+        expectedSchema,
+        genericRecords,
+        record -> {
+          Record expected = GenericRecord.create(expectedSchema);
+          expected.setField("id", record.getField("id"));
+          // present struct reads the default, null struct stays null
+          if (record.getField("nested") != null) {
+            Record expectedNested = GenericRecord.create(readNested);
+            expectedNested.setField("added", "US");
+            expected.setField("nested", expectedNested);
+          } else {
+            expected.setField("nested", null);
+          }
+
+          return expected;
+        });
+  }
+
+  @ParameterizedTest
+  @FieldSource("FILE_FORMATS")
+  void testArrayElementDefault(FileFormat fileFormat) throws IOException {
+    assumeSupports(fileFormat, FEATURE_READER_DEFAULT);
+
+    Types.NestedField idField = Types.NestedField.required(1, "id", Types.LongType.get());
+    Types.StructType writeElement =
+        Types.StructType.of(Types.NestedField.required(4, "inner", Types.StringType.get()));
+    Schema writeSchema =
+        new Schema(
+            idField,
+            Types.NestedField.optional("arr")
+                .withId(2)
+                .ofType(Types.ListType.ofOptional(3, writeElement))
+                .build());
+
+    Record present = GenericRecord.create(writeElement);
+    present.setField("inner", "a");
+    Record row = GenericRecord.create(writeSchema);
+    row.setField("id", 1L);
+    row.setField("arr", Lists.newArrayList(present, null));
+    List<Record> genericRecords = List.of(row);
+    writeGenericRecords(fileFormat, writeSchema, genericRecords);
+
+    // element struct drops "inner" and projects only the added defaulted field
+    Types.StructType readElement =
+        Types.StructType.of(
+            Types.NestedField.optional("added")
+                .withId(5)
+                .ofType(Types.StringType.get())
+                .withInitialDefault(Literal.of("US"))
+                .build());
+    Schema expectedSchema =
+        new Schema(
+            idField,
+            Types.NestedField.optional("arr")
+                .withId(2)
+                .ofType(Types.ListType.ofOptional(3, readElement))
+                .build());
+
+    readAndAssertEngineRecords(
+        fileFormat,
+        expectedSchema,
+        genericRecords,
+        record -> {
+          Record withDefault = GenericRecord.create(readElement);
+          withDefault.setField("added", "US");
+          Record expected = GenericRecord.create(expectedSchema);
+          expected.setField("id", record.getField("id"));
+          // present element reads the default, null element stays null
+          expected.setField("arr", Lists.newArrayList(withDefault, null));
+          return expected;
+        });
+  }
+
+  @ParameterizedTest
+  @FieldSource("FILE_FORMATS")
+  void testArrayNullAndEmpty(FileFormat fileFormat) throws IOException {
+    assumeSupports(fileFormat, FEATURE_READER_DEFAULT);
+
+    Types.NestedField idField = Types.NestedField.required(1, "id", Types.LongType.get());
+    Types.StructType writeElement =
+        Types.StructType.of(Types.NestedField.required(4, "inner", Types.StringType.get()));
+    Schema writeSchema =
+        new Schema(
+            idField,
+            Types.NestedField.optional("arr")
+                .withId(2)
+                .ofType(Types.ListType.ofOptional(3, writeElement))
+                .build());
+
+    Record nullList = GenericRecord.create(writeSchema);
+    nullList.setField("id", 1L);
+    nullList.setField("arr", null);
+    Record emptyList = GenericRecord.create(writeSchema);
+    emptyList.setField("id", 2L);
+    emptyList.setField("arr", Lists.newArrayList());
+    List<Record> genericRecords = List.of(nullList, emptyList);
+    writeGenericRecords(fileFormat, writeSchema, genericRecords);
+
+    // element struct projects only a default, so the list reads through the injected probe leaf
+    Types.StructType readElement =
+        Types.StructType.of(
+            Types.NestedField.optional("added")
+                .withId(5)
+                .ofType(Types.StringType.get())
+                .withInitialDefault(Literal.of("US"))
+                .build());
+    Schema expectedSchema =
+        new Schema(
+            idField,
+            Types.NestedField.optional("arr")
+                .withId(2)
+                .ofType(Types.ListType.ofOptional(3, readElement))
+                .build());
+
+    readAndAssertEngineRecords(
+        fileFormat,
+        expectedSchema,
+        genericRecords,
+        record -> {
+          Record expected = GenericRecord.create(expectedSchema);
+          expected.setField("id", record.getField("id"));
+          // a null list stays null and an empty list stays empty
+          expected.setField("arr", record.getField("arr"));
+          return expected;
+        });
+  }
+
+  @ParameterizedTest
+  @FieldSource("FILE_FORMATS")
+  void testMapValueDefault(FileFormat fileFormat) throws IOException {
+    assumeSupports(fileFormat, FEATURE_READER_DEFAULT);
+
+    Types.NestedField idField = Types.NestedField.required(1, "id", Types.LongType.get());
+    Types.StructType writeValue =
+        Types.StructType.of(Types.NestedField.required(5, "inner", Types.StringType.get()));
+    Schema writeSchema =
+        new Schema(
+            idField,
+            Types.NestedField.optional("map")
+                .withId(2)
+                .ofType(Types.MapType.ofOptional(3, 4, Types.StringType.get(), writeValue))
+                .build());
+
+    Record present = GenericRecord.create(writeValue);
+    present.setField("inner", "a");
+    Map<String, Record> writtenMap = Maps.newLinkedHashMap();
+    writtenMap.put("k1", present);
+    writtenMap.put("k2", null);
+    Record row = GenericRecord.create(writeSchema);
+    row.setField("id", 1L);
+    row.setField("map", writtenMap);
+    List<Record> genericRecords = List.of(row);
+    writeGenericRecords(fileFormat, writeSchema, genericRecords);
+
+    // value struct drops "inner" and projects only the added defaulted field
+    Types.StructType readValue =
+        Types.StructType.of(
+            Types.NestedField.optional("added")
+                .withId(6)
+                .ofType(Types.StringType.get())
+                .withInitialDefault(Literal.of("US"))
+                .build());
+    Schema expectedSchema =
+        new Schema(
+            idField,
+            Types.NestedField.optional("map")
+                .withId(2)
+                .ofType(Types.MapType.ofOptional(3, 4, Types.StringType.get(), readValue))
+                .build());
+
+    readAndAssertEngineRecords(
+        fileFormat,
+        expectedSchema,
+        genericRecords,
+        record -> {
+          Record withDefault = GenericRecord.create(readValue);
+          withDefault.setField("added", "US");
+          Map<String, Record> expectedMap = Maps.newLinkedHashMap();
+          // present value reads the default, null value stays null
+          expectedMap.put("k1", withDefault);
+          expectedMap.put("k2", null);
+          Record expected = GenericRecord.create(expectedSchema);
+          expected.setField("id", record.getField("id"));
+          expected.setField("map", expectedMap);
+          return expected;
+        });
+  }
+
+  @ParameterizedTest
+  @FieldSource("FILE_FORMATS")
+  void testMapNullAndEmpty(FileFormat fileFormat) throws IOException {
+    assumeSupports(fileFormat, FEATURE_READER_DEFAULT);
+
+    Types.NestedField idField = Types.NestedField.required(1, "id", Types.LongType.get());
+    Types.StructType writeValue =
+        Types.StructType.of(Types.NestedField.required(5, "inner", Types.StringType.get()));
+    Schema writeSchema =
+        new Schema(
+            idField,
+            Types.NestedField.optional("map")
+                .withId(2)
+                .ofType(Types.MapType.ofOptional(3, 4, Types.StringType.get(), writeValue))
+                .build());
+
+    Record nullMap = GenericRecord.create(writeSchema);
+    nullMap.setField("id", 1L);
+    nullMap.setField("map", null);
+    Record emptyMap = GenericRecord.create(writeSchema);
+    emptyMap.setField("id", 2L);
+    emptyMap.setField("map", Maps.newLinkedHashMap());
+    List<Record> genericRecords = List.of(nullMap, emptyMap);
+    writeGenericRecords(fileFormat, writeSchema, genericRecords);
+
+    // value struct projects only a default, so the map reads through the injected probe leaf
+    Types.StructType readValue =
+        Types.StructType.of(
+            Types.NestedField.optional("added")
+                .withId(6)
+                .ofType(Types.StringType.get())
+                .withInitialDefault(Literal.of("US"))
+                .build());
+    Schema expectedSchema =
+        new Schema(
+            idField,
+            Types.NestedField.optional("map")
+                .withId(2)
+                .ofType(Types.MapType.ofOptional(3, 4, Types.StringType.get(), readValue))
+                .build());
+
+    readAndAssertEngineRecords(
+        fileFormat,
+        expectedSchema,
+        genericRecords,
+        record -> {
+          Record expected = GenericRecord.create(expectedSchema);
+          expected.setField("id", record.getField("id"));
+          // a null map stays null and an empty map stays empty
+          expected.setField("map", record.getField("map"));
+          return expected;
+        });
+  }
+
+  @ParameterizedTest
+  @FieldSource("FILE_FORMATS")
   void testMissingRequiredWithoutDefault(FileFormat fileFormat) throws IOException {
     assumeSupports(fileFormat, FEATURE_READER_DEFAULT);
 
