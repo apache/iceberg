@@ -218,8 +218,11 @@ For more complex row-level updates based on incoming data, see the section on `M
 
 ## Writing to Branches
 
-The branch must exist before performing write. Operations do **not** create the branch if it does not exist.
-A branch can be created using [Spark DDL](spark-ddl.md#branching-and-tagging-ddl).
+A branch can be created during a write if it does not already exist.
+
+A branch can also be created using [Spark DDL](spark-ddl.md#branching-and-tagging-ddl).
+
+When writing to a branch, the branch specified in the table identifier and the `branch` write option must match if both are specified. Since Spark 4.1, an explicit branch takes precedence over the session WAP branch configured with `spark.wap.branch`. If no explicit branch is specified and WAP is enabled, the session WAP branch is used.
 
 !!! info
     Note: When writing to a branch, the current schema of the table will be used for validation.
