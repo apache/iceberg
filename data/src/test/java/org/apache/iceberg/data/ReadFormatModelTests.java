@@ -978,6 +978,82 @@ public abstract class ReadFormatModelTests<T> {
 
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
+  void testNestedDefaultValueWhenParentStructWithListIsNull(FileFormat fileFormat)
+      throws IOException {
+    assumeSupports(fileFormat, FEATURE_READER_DEFAULT);
+
+    Types.NestedField idField = Types.NestedField.required(1, "id", Types.LongType.get());
+    Types.NestedField nestedField =
+        Types.NestedField.optional("nested")
+            .withId(2)
+            .ofType(
+                Types.StructType.of(
+                    Types.NestedField.optional(
+                        3, "tags", Types.ListType.ofRequired(4, Types.StringType.get())),
+                    Types.NestedField.required(5, "inner", Types.StringType.get())))
+            .build();
+    Schema writeSchema = new Schema(idField, nestedField);
+    Types.StructType nestedType = nestedField.type().asStructType();
+
+    // alternate present and null structs, with a different number of list elements per row so
+    // that a reader tracking the list column would fall behind by more than one value per row
+    List<Record> genericRecords = Lists.newArrayList();
+    for (int i = 0; i < 5; i += 1) {
+      Record record = GenericRecord.create(writeSchema);
+      record.setField("id", (long) i);
+      if (i % 2 == 0) {
+        Record nested = GenericRecord.create(nestedType);
+        nested.setField("tags", IntStream.range(0, i).mapToObj(j -> "tag-" + j).toList());
+        nested.setField("inner", "inner-" + i);
+        record.setField("nested", nested);
+      }
+
+      genericRecords.add(record);
+    }
+
+    writeGenericRecords(fileFormat, writeSchema, genericRecords);
+
+    Schema expectedSchema = schemaWithOnlyDefaultedNestedField();
+
+    readAndAssertEngineRecords(
+        fileFormat, expectedSchema, genericRecords, defaultedNestedRecord(expectedSchema));
+  }
+
+  /**
+   * Projects "nested" with a single added field that is missing from the file but has a default.
+   */
+  private static Schema schemaWithOnlyDefaultedNestedField() {
+    return new Schema(
+        Types.NestedField.required(1, "id", Types.LongType.get()),
+        Types.NestedField.optional("nested")
+            .withId(2)
+            .ofType(
+                Types.StructType.of(
+                    Types.NestedField.optional("added")
+                        .withId(100)
+                        .ofType(Types.StringType.get())
+                        .withInitialDefault(Literal.of("US"))
+                        .build()))
+            .build());
+  }
+
+  private static Function<Record, Record> defaultedNestedRecord(Schema expectedSchema) {
+    Types.StructType nestedType = expectedSchema.findField("nested").type().asStructType();
+    return record -> {
+      Record expected = GenericRecord.create(expectedSchema);
+      expected.setField("id", record.getField("id"));
+      if (record.getField("nested") != null) {
+        Record expectedNested = GenericRecord.create(nestedType);
+        expectedNested.setField("added", "US");
+        expected.setField("nested", expectedNested);
+      }
+
+      return expected;
+    };
+  }
+
+  @ParameterizedTest
+  @FieldSource("FILE_FORMATS")
   void testArrayElementDefault(FileFormat fileFormat) throws IOException {
     assumeSupports(fileFormat, FEATURE_READER_DEFAULT);
 

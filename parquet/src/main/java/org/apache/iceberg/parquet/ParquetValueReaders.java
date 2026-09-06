@@ -26,6 +26,7 @@ import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -255,7 +256,7 @@ public class ParquetValueReaders {
    * Builds readers for a struct's expected fields, in field order. A field present in the file uses
    * its column reader; a field missing from the file uses a metadata or partition constant, or its
    * initial default. When no expected field reads a file column, one default reader is given a
-   * probe column so its definition level tracks the struct's null-ness.
+   * probe column so its definition level tracks whether the struct is null.
    */
   public static List<ParquetValueReader<?>> structFieldReaders(
       MessageType fileSchema,
@@ -301,10 +302,6 @@ public class ParquetValueReaders {
     throw new IllegalArgumentException(String.format("Missing required field: %s", field.name()));
   }
 
-  /**
-   * Returns the first leaf column under the struct, or null if an expected field already reads a
-   * file column or the struct has no leaf columns.
-   */
   private static ColumnDescriptor definitionLevelProbe(
       MessageType fileSchema,
       String[] structPath,
@@ -317,8 +314,12 @@ public class ParquetValueReaders {
       return null;
     }
 
-    List<ColumnDescriptor> leaves = ParquetSchemaUtil.leafColumns(fileSchema, structPath);
-    return leaves.isEmpty() ? null : leaves.get(0);
+    ColumnDescriptor probe = ParquetSchemaUtil.selectNullnessProbeLeaf(fileSchema, structPath);
+    Preconditions.checkState(
+        probe != null || firstInitialDefaultFieldId(expectedFields) == null,
+        "Cannot apply initial default, no leaf column tracks whether struct at %s is null",
+        Arrays.toString(structPath));
+    return probe;
   }
 
   /** Returns the id of the first field with an initial default, or null if none has one. */

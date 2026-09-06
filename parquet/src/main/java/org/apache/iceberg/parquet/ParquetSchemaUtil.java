@@ -18,12 +18,14 @@
  */
 package org.apache.iceberg.parquet;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.mapping.NameMapping;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
@@ -164,16 +166,16 @@ public class ParquetSchemaUtil {
         return null;
       }
 
-      // a struct that can never be null needs no probe
-      if (fileSchema.getMaxDefinitionLevel(currentPath()) <= 0) {
-        return null;
-      }
-
-      List<ColumnDescriptor> leaves = leafColumns(fileSchema, currentPath());
+      String[] path = currentPath();
       // add a probe leaf only if no real leaf under the struct is already read
-      boolean readsRealLeaf = leaves.stream().anyMatch(leaf -> selectedIds.contains(leafId(leaf)));
-      if (!readsRealLeaf && !leaves.isEmpty()) {
-        selectedIds.add(leafId(leaves.get(0)));
+      boolean readsRealLeaf =
+          leafColumns(fileSchema, path).stream()
+              .anyMatch(leaf -> selectedIds.contains(leafId(leaf)));
+      if (!readsRealLeaf) {
+        ColumnDescriptor probe = selectNullnessProbeLeaf(fileSchema, path);
+        if (probe != null) {
+          selectedIds.add(leafId(probe));
+        }
       }
 
       return null;
@@ -183,6 +185,28 @@ public class ParquetSchemaUtil {
     public Void variant(Types.VariantType expected, GroupType variantGroup, Void result) {
       return null;
     }
+  }
+
+  /**
+   * First leaf under path with one value per occurrence of the struct at path (no LIST/MAP in
+   * between).
+   */
+  static ColumnDescriptor selectNullnessProbeLeaf(MessageType fileSchema, String[] path) {
+    if (fileSchema.getMaxDefinitionLevel(path) <= 0) {
+      return null;
+    }
+
+    int structRepetitionLevel = fileSchema.getMaxRepetitionLevel(path);
+    ColumnDescriptor probe =
+        leafColumns(fileSchema, path).stream()
+            .filter(leaf -> leaf.getMaxRepetitionLevel() == structRepetitionLevel)
+            .findFirst()
+            .orElse(null);
+    Preconditions.checkArgument(
+        probe == null || probe.getMaxRepetitionLevel() == structRepetitionLevel,
+        "Invalid probe, repetition level does not match struct at %s",
+        Arrays.toString(path));
+    return probe;
   }
 
   /** Returns the leaf columns with ids under the given path. */
