@@ -469,7 +469,9 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     LoadTableResponse response;
     TableIdentifier loadedIdent;
 
-    Map<String, String> responseHeaders = Maps.newHashMap();
+    // Case-insensitive because the ETag below is read back by its traditional spelling, while a
+    // server may hand the header over in any case and HTTP/2 requires lowercase.
+    Map<String, String> responseHeaders = Maps.newTreeMap(String.CASE_INSENSITIVE_ORDER);
     TableWithETag cachedTable = tableCache.getIfPresent(context.sessionId(), identifier);
 
     try {
