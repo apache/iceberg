@@ -41,6 +41,7 @@ import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
@@ -58,6 +59,9 @@ import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.UpdateSchema;
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.metrics.CommitReport;
+import org.apache.iceberg.metrics.MetricsContext;
+import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -507,5 +511,68 @@ public class TestHadoopCommits extends HadoopTableTestBase {
 
     @Override
     public void initialize(Map<String, String> properties) {}
+  }
+
+  @Test
+  public void commitReportContainsMetadataFileSizeInBytes() {
+    BaseTable baseTable = (BaseTable) table;
+    HadoopTableOperations ops = (HadoopTableOperations) baseTable.operations();
+
+    AtomicReference<CommitReport> capturedReport = new AtomicReference<>();
+    MetricsReporter reporter =
+        report -> {
+          if (report instanceof CommitReport) {
+            capturedReport.set((CommitReport) report);
+          }
+        };
+
+    Table tableWithReporter = new BaseTable(ops, baseTable.name(), reporter);
+    tableWithReporter.newFastAppend().appendFile(FILE_A).commit();
+
+    CommitReport commitReport = capturedReport.get();
+    assertThat(commitReport).isNotNull();
+    assertThat(reportedMetadataFileSize(commitReport)).isEqualTo(metadataFileSize(ops));
+  }
+
+  @Test
+  public void eachCommitReportsTheMetadataFileSizeItWrote() {
+    BaseTable baseTable = (BaseTable) table;
+    HadoopTableOperations ops = (HadoopTableOperations) baseTable.operations();
+
+    List<CommitReport> capturedReports = Lists.newArrayList();
+    MetricsReporter reporter =
+        report -> {
+          if (report instanceof CommitReport) {
+            capturedReports.add((CommitReport) report);
+          }
+        };
+
+    Table tableWithReporter = new BaseTable(ops, baseTable.name(), reporter);
+
+    tableWithReporter.newFastAppend().appendFile(FILE_A).commit();
+    long firstMetadataFileSize = metadataFileSize(ops);
+
+    tableWithReporter.newFastAppend().appendFile(FILE_B).commit();
+    long secondMetadataFileSize = metadataFileSize(ops);
+
+    assertThat(secondMetadataFileSize)
+        .as(
+            "Each commit must write a differently sized metadata file for this test to be meaningful")
+        .isNotEqualTo(firstMetadataFileSize);
+
+    assertThat(capturedReports).hasSize(2);
+    assertThat(reportedMetadataFileSize(capturedReports.get(0))).isEqualTo(firstMetadataFileSize);
+    assertThat(reportedMetadataFileSize(capturedReports.get(1))).isEqualTo(secondMetadataFileSize);
+  }
+
+  private long reportedMetadataFileSize(CommitReport report) {
+    assertThat(report.commitMetrics().metadataFileSizeInBytes()).isNotNull();
+    assertThat(report.commitMetrics().metadataFileSizeInBytes().unit())
+        .isEqualTo(MetricsContext.Unit.BYTES);
+    return report.commitMetrics().metadataFileSizeInBytes().value();
+  }
+
+  private long metadataFileSize(TableOperations ops) {
+    return ops.io().newInputFile(ops.current().metadataFileLocation()).getLength();
   }
 }

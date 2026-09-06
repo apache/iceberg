@@ -55,6 +55,7 @@ public abstract class BaseMetastoreTableOperations extends BaseMetastoreOperatio
   private String currentMetadataLocation = null;
   private boolean shouldRefresh = true;
   private int version = -1;
+  private volatile Long metadataFileSizeInBytes;
 
   protected BaseMetastoreTableOperations() {}
 
@@ -147,9 +148,11 @@ public abstract class BaseMetastoreTableOperations extends BaseMetastoreOperatio
   }
 
   protected String writeNewMetadataIfRequired(boolean newTable, TableMetadata metadata) {
-    return newTable && metadata.metadataFileLocation() != null
-        ? metadata.metadataFileLocation()
-        : writeNewMetadata(metadata, currentVersion() + 1);
+    if (newTable && metadata.metadataFileLocation() != null) {
+      this.metadataFileSizeInBytes = null;
+      return metadata.metadataFileLocation();
+    }
+    return writeNewMetadata(metadata, currentVersion() + 1);
   }
 
   protected String writeNewMetadata(TableMetadata metadata, int newVersion) {
@@ -159,7 +162,8 @@ public abstract class BaseMetastoreTableOperations extends BaseMetastoreOperatio
     // write the new metadata
     // use overwrite to avoid negative caching in S3. this is safe because the metadata location is
     // always unique because it includes a UUID.
-    TableMetadataParser.overwrite(metadata, newMetadataLocation);
+    this.metadataFileSizeInBytes =
+        TableMetadataParser.overwriteAndReturnLength(metadata, newMetadataLocation);
 
     return newMetadataLocation.location();
   }
@@ -370,5 +374,10 @@ public abstract class BaseMetastoreTableOperations extends BaseMetastoreOperatio
       LOG.warn("Unable to parse version from metadata location: {}", metadataLocation, e);
       return -1;
     }
+  }
+
+  @Override
+  public Long metadataFileSizeInBytes() {
+    return metadataFileSizeInBytes;
   }
 }
