@@ -54,6 +54,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.spark.CatalogTestBase;
 import org.apache.iceberg.spark.SparkCatalogConfig;
+import org.apache.iceberg.spark.actions.SparkActions;
 import org.apache.iceberg.types.Types;
 import org.apache.parquet.crypto.ParquetCryptoRuntimeException;
 import org.apache.spark.SparkException;
@@ -103,6 +104,24 @@ public class TestTableEncryption extends CatalogTestBase {
         ImmutableList.of(row(1L, "a", 1.0F), row(2L, "b", 2.0F), row(3L, "c", Float.NaN));
 
     assertEquals("Should return all expected rows", expected, sql("SELECT * FROM %s", tableName));
+  }
+
+  @TestTemplate
+  public void testRejectsRewriteTablePath() {
+    validationCatalog.initialize(catalogName, catalogConfig);
+    Table table = validationCatalog.loadTable(tableIdent);
+    File stagingDir = temp.resolve("rewrite-table-path-staging").toFile();
+
+    assertThatThrownBy(
+            () ->
+                SparkActions.get()
+                    .rewriteTablePath(table)
+                    .rewriteLocationPrefix(table.location(), table.location() + "-rewritten")
+                    .stagingLocation(stagingDir.getAbsolutePath())
+                    .execute())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot rewrite table paths for encrypted tables");
+    assertThat(stagingDir).doesNotExist();
   }
 
   private static List<DataFile> currentDataFiles(Table table) {
