@@ -19,6 +19,7 @@
 package org.apache.iceberg.expressions;
 
 import static org.apache.iceberg.expressions.Expressions.and;
+import static org.apache.iceberg.expressions.Expressions.contains;
 import static org.apache.iceberg.expressions.Expressions.equal;
 import static org.apache.iceberg.expressions.Expressions.greaterThan;
 import static org.apache.iceberg.expressions.Expressions.greaterThanOrEqual;
@@ -28,6 +29,7 @@ import static org.apache.iceberg.expressions.Expressions.isNull;
 import static org.apache.iceberg.expressions.Expressions.lessThan;
 import static org.apache.iceberg.expressions.Expressions.lessThanOrEqual;
 import static org.apache.iceberg.expressions.Expressions.not;
+import static org.apache.iceberg.expressions.Expressions.notContains;
 import static org.apache.iceberg.expressions.Expressions.notEqual;
 import static org.apache.iceberg.expressions.Expressions.notIn;
 import static org.apache.iceberg.expressions.Expressions.notNaN;
@@ -661,6 +663,49 @@ public class TestInclusiveManifestEvaluator {
         ManifestEvaluator.forRowFilter(notStartsWith("no_nulls_same_value_a", "a"), SPEC, false)
             .eval(FILE);
     assertThat(shouldRead).as("Should not read: all values start with the prefix").isFalse();
+  }
+
+  @Test
+  public void testStringContains() {
+    boolean shouldRead =
+        ManifestEvaluator.forRowFilter(contains("some_nulls", "a"), SPEC, false).eval(FILE);
+    assertThat(shouldRead).as("Should read: contains never skips").isTrue();
+
+    shouldRead =
+        ManifestEvaluator.forRowFilter(contains("some_nulls", "dddd"), SPEC, false).eval(FILE);
+    assertThat(shouldRead).as("Should read: contains never skips").isTrue();
+
+    shouldRead = ManifestEvaluator.forRowFilter(contains("no_nulls", "a"), SPEC, false).eval(FILE);
+    assertThat(shouldRead).as("Should read: contains never skips").isTrue();
+
+    shouldRead =
+        ManifestEvaluator.forRowFilter(contains("some_nulls", "zzzz"), SPEC, false).eval(FILE);
+    assertThat(shouldRead).as("Should read: contains never skips").isTrue();
+
+    shouldRead =
+        ManifestEvaluator.forRowFilter(contains("some_nulls", "1"), SPEC, false).eval(FILE);
+    assertThat(shouldRead).as("Should read: contains never skips").isTrue();
+  }
+
+  @Test
+  public void testStringNotContains() {
+    boolean shouldRead =
+        ManifestEvaluator.forRowFilter(notContains("some_nulls", "a"), SPEC, false).eval(FILE);
+    assertThat(shouldRead).as("Should read: notContains never skips").isTrue();
+
+    shouldRead =
+        ManifestEvaluator.forRowFilter(notContains("some_nulls", "zzzz"), SPEC, false).eval(FILE);
+    assertThat(shouldRead).as("Should read: notContains never skips").isTrue();
+
+    shouldRead =
+        ManifestEvaluator.forRowFilter(notContains("all_nulls_missing_nan", "A"), SPEC, false)
+            .eval(FILE);
+    assertThat(shouldRead).as("Should read: notContains never skips").isTrue();
+
+    shouldRead =
+        ManifestEvaluator.forRowFilter(notContains("no_nulls_same_value_a", "a"), SPEC, false)
+            .eval(FILE);
+    assertThat(shouldRead).as("Should read: notContains never skips").isTrue();
   }
 
   @Test
