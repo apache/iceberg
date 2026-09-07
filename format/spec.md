@@ -745,7 +745,7 @@ A snapshot's `constraint-statuses` records, for each status, the IDs of the cons
 | _optional_ | **`invalid`**     | `list<int>` | IDs of constraints that are `invalid` for the snapshot |
 | _optional_ | **`unvalidated`** | `list<int>` | IDs of constraints that are `unvalidated` for the snapshot |
 
-Each list contains the `constraint-id` of every constraint that has that status for the snapshot. A `constraint-id` must appear in at most one list. A list with no constraints may be omitted. A constraint whose ID is not present in any list makes no claim for the snapshot and is treated as `unvalidated`.
+Each list contains the `constraint-id` of every constraint that has that status for the snapshot. Every constraint that exists when the snapshot is created must be listed in exactly one of the four lists, and a `constraint-id` must not appear in more than one list. A list with no constraints may be omitted. A constraint whose ID is not present in any list did not exist when the snapshot was created, so the snapshot makes no claim about it.
 
 This is an explicit representation: each constraint's status is recorded independently, so the size of `constraint-statuses` grows with the number of constraints in a table. This keeps the encoding simple; more compact representations may be added in a later version if it becomes a problem.
 
@@ -753,9 +753,9 @@ Readers must determine the status of a constraint for a snapshot as follows:
 
 1. If the snapshot has no `constraint-statuses`, the snapshot makes no claim about any constraint
 2. If the constraint's `constraint-id` is listed in `validated`, `valid`, `invalid`, or `unvalidated`, that is its status
-3. Otherwise, the snapshot makes no claim about the constraint and its status is treated as `unvalidated`
+3. Otherwise, the constraint did not exist when the snapshot was created and the snapshot makes no claim about it
 
-Writers must record `constraint-statuses` in every snapshot of a table that has constraints, and must place each constraint's ID in the list for a status that follows these rules:
+Writers must record `constraint-statuses` in every snapshot of a table that has constraints, and must place every constraint that exists when the snapshot is created into exactly one status list, following these rules:
 
 * A constraint must not be listed as `validated` unless it was checked for every row in the snapshot
 * A constraint must not be listed as `valid` unless it was enforced for the commit and the parent snapshot's status for the constraint is `validated` or `valid`
