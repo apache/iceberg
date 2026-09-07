@@ -21,6 +21,7 @@ package org.apache.iceberg.connect;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -72,7 +73,7 @@ public class KafkaConnectUtils {
                   Locale.ROOT, "http://localhost:%d/connectors", TestContext.CONNECT_PORT));
       String body = TestContext.MAPPER.writeValueAsString(config);
       request.setHeader("Content-Type", "application/json");
-      request.setEntity(new StringEntity(body));
+      request.setEntity(new StringEntity(body, StandardCharsets.UTF_8));
       HTTP.execute(request, response -> null);
     } catch (IOException e) {
       throw new RuntimeException(e);

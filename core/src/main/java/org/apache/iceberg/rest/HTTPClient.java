@@ -313,7 +313,7 @@ public class HTTPClient extends BaseHTTPClient {
 
     String encodedBody = req.encodedBody();
     if (encodedBody != null) {
-      request.setEntity(new StringEntity(encodedBody));
+      request.setEntity(new StringEntity(encodedBody, StandardCharsets.UTF_8));
     }
 
     HttpContext context = HttpClientContext.create();
