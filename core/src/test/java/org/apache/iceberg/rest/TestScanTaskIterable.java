@@ -52,6 +52,7 @@ import org.apache.iceberg.rest.responses.FetchScanTasksResponse;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 
 public class TestScanTaskIterable {
 
@@ -601,5 +602,48 @@ public class TestScanTaskIterable {
     assertThat(terminated)
         .as("Executor should terminate - workers should have exited gracefully")
         .isTrue();
+  }
+
+  @Test
+  @Timeout(10)
+  void closeIterableStopsWorkers() throws InterruptedException {
+    CountDownLatch initialRequestStarted = new CountDownLatch(1);
+    CountDownLatch allowInitialRequestToComplete = new CountDownLatch(1);
+    AtomicInteger callCount = new AtomicInteger(0);
+
+    mockClientPostAnswer(
+        invocation -> {
+          int count = callCount.incrementAndGet();
+
+          if (count == 1) {
+            initialRequestStarted.countDown();
+            allowInitialRequestToComplete.await();
+            return FetchScanTasksResponse.builder().withPlanTasks(planTasks(1)).build();
+          }
+
+          return FetchScanTasksResponse.builder().build();
+        });
+
+    ScanTaskIterable iterable = createIterable(planTasks(1), Collections.emptyList());
+
+    try {
+      assertThat(initialRequestStarted.await(5, TimeUnit.SECONDS))
+          .as("Initial request should start")
+          .isTrue();
+
+      iterable.close();
+      allowInitialRequestToComplete.countDown();
+
+      executorService.shutdown();
+      assertThat(executorService.awaitTermination(2, TimeUnit.SECONDS))
+          .as("Workers should exit after the iterable is closed")
+          .isTrue();
+
+      assertThat(callCount.get())
+          .as("Workers should not fetch additional plan tasks after close")
+          .isEqualTo(1);
+    } finally {
+      allowInitialRequestToComplete.countDown();
+    }
   }
 }
