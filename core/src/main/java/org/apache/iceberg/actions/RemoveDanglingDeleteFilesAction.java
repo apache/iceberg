@@ -20,6 +20,7 @@ package org.apache.iceberg.actions;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.ManifestFile;
@@ -34,7 +35,8 @@ import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.util.DeleteFileSet;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -43,11 +45,9 @@ public class RemoveDanglingDeleteFilesAction
     implements RemoveDanglingDeleteFiles {
 
   private static final Logger LOG = LoggerFactory.getLogger(RemoveDanglingDeleteFilesAction.class);
-  private static final List<String> DELETE_COLUMNS =
-      ImmutableList.of("file_path", "content_offset", "content_size_in_bytes");
   private static final Result EMPTY_RESULT =
       ImmutableRemoveDanglingDeleteFiles.Result.builder()
-          .removedDeleteFiles(DeleteFileSet.create())
+          .removedDeleteFiles(ImmutableList.of())
           .build();
 
   private final Table table;
@@ -84,7 +84,7 @@ public class RemoveDanglingDeleteFilesAction
       return EMPTY_RESULT;
     }
 
-    DeleteFileSet danglingDeletes = findDanglingDeletes(table, snapshot);
+    List<DeleteFile> danglingDeletes = findDanglingDeletes(table, snapshot);
     if (danglingDeletes.isEmpty()) {
       return EMPTY_RESULT;
     }
@@ -110,25 +110,26 @@ public class RemoveDanglingDeleteFilesAction
    *   <li>Collect all delete file entries skipping files from the previous step.
    * </ol>
    */
-  private static DeleteFileSet findDanglingDeletes(Table table, Snapshot snapshot) {
-    DeleteFileSet deletes = DeleteFileSet.create();
+  private static List<DeleteFile> findDanglingDeletes(Table table, Snapshot snapshot) {
+    Set<DeleteFileKey> referencedKeys = Sets.newHashSet();
     TableScan scan = table.newScan().useSnapshot(snapshot.snapshotId());
     try (CloseableIterable<FileScanTask> tasks = scan.planFiles()) {
       for (FileScanTask task : tasks) {
-        deletes.addAll(task.deletes());
+        for (DeleteFile deleteFile : task.deletes()) {
+          referencedKeys.add(new DeleteFileKey(deleteFile));
+        }
       }
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to scan: %s", scan);
     }
 
-    DeleteFileSet danglingDeletes = DeleteFileSet.create();
+    List<DeleteFile> danglingDeletes = Lists.newArrayList();
     for (ManifestFile manifest : snapshot.deleteManifests(table.io())) {
       try (ManifestReader<DeleteFile> reader =
-          ManifestFiles.readDeleteManifest(manifest, table.io(), table.specs())
-              .select(DELETE_COLUMNS)) {
+          ManifestFiles.readDeleteManifest(manifest, table.io(), table.specs())) {
         for (DeleteFile deleteFile : reader) {
-          if (!deletes.contains(deleteFile)) {
-            danglingDeletes.add(deleteFile);
+          if (!referencedKeys.contains(new DeleteFileKey(deleteFile))) {
+            danglingDeletes.add(deleteFile.copyWithoutStats());
           }
         }
       } catch (IOException e) {
@@ -137,5 +138,11 @@ public class RemoveDanglingDeleteFilesAction
     }
 
     return danglingDeletes;
+  }
+
+  public record DeleteFileKey(String location, Long contentOffset, Long contentSizeInBytes) {
+    public DeleteFileKey(DeleteFile file) {
+      this(file.location(), file.contentOffset(), file.contentSizeInBytes());
+    }
   }
 }
