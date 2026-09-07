@@ -22,7 +22,7 @@ import java.util.List;
 import org.apache.iceberg.Schema;
 
 /** Interface for generating test data with different schema types. */
-interface DataGenerator {
+public interface DataGenerator {
 
   /** Returns the Iceberg schema for this test data. */
   Schema schema();
