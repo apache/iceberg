@@ -29,9 +29,6 @@ import org.apache.iceberg.types.Types;
 public interface ManifestFile {
   int PARTITION_SUMMARIES_ELEMENT_ID = 508;
 
-  /** Format version for pre-v4 manifest files. */
-  int LEGACY_FORMAT_VERSION = 0;
-
   Types.NestedField PATH =
       required(500, "manifest_path", Types.StringType.get(), "Location URI with FS scheme");
   Types.NestedField LENGTH =
@@ -189,20 +186,14 @@ public interface ManifestFile {
   /** Returns the total number of rows in all files with status DELETED in the manifest file. */
   Long deletedRowsCount();
 
-  /**
-   * Returns the number of files with status REPLACED in the manifest file, or null for pre-v4
-   * manifests.
-   */
+  /** Returns the number of files with status REPLACED in the manifest file. */
   default Integer replacedFilesCount() {
-    return null;
+    return 0;
   }
 
-  /**
-   * Returns the total number of rows in all files with status REPLACED in the manifest file, or
-   * null for pre-v4 manifests.
-   */
+  /** Returns the total number of rows in all files with status REPLACED in the manifest file. */
   default Long replacedRowsCount() {
-    return null;
+    return 0L;
   }
 
   /**
@@ -234,14 +225,9 @@ public interface ManifestFile {
     return null;
   }
 
-  /** Returns the number of entries in the manifest file, or null for pre-v4 manifests. */
-  default Long recordCount() {
-    return null;
-  }
-
   /** Returns the format version of the manifest file, or 0 for pre-v4 manifests. */
   default int formatVersion() {
-    return LEGACY_FORMAT_VERSION;
+    return 0;
   }
 
   /**

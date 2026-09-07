@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.StructProjection;
 
@@ -75,36 +76,20 @@ class TrackedFileAdapters {
   /**
    * Returns a reusable wrapper that presents a {@link DataFile} as a {@link TrackedFile} row.
    *
-   * @param formatVersion the target table's format version (must be 4+)
-   * @param tableSchema table schema used to build {@link ContentStats} from the file's stats
-   * @param metricsConfig metrics config used to prune the content stats schema
-   * @param partitionType target partition struct type; use one spec's partition type for a
-   *     single-spec manifest, or the union across live specs for a multi-spec manifest
+   * @param writeSchema the TrackedFile writer schema, including partition and content-stats types
    */
-  static DataTrackedFile forDataFile(
-      int formatVersion,
-      Schema tableSchema,
-      MetricsConfig metricsConfig,
-      Types.StructType partitionType) {
-    return new DataTrackedFile(formatVersion, tableSchema, metricsConfig, partitionType);
+  static DataTrackedFile forDataFile(Schema writeSchema) {
+    return new DataTrackedFile(writeSchema);
   }
 
   /**
    * Returns a reusable wrapper that presents an equality {@link DeleteFile} as a {@link
    * TrackedFile} row.
    *
-   * @param formatVersion the target table's format version (must be 4+)
-   * @param tableSchema table schema used to build {@link ContentStats} from the file's stats
-   * @param metricsConfig metrics config used to prune the content stats schema
-   * @param partitionType target partition struct type; use one spec's partition type for a
-   *     single-spec manifest, or the union across live specs for a multi-spec manifest
+   * @param writeSchema the TrackedFile writer schema, including partition and content-stats types
    */
-  static EqualityDeleteTrackedFile forEqualityDeleteFile(
-      int formatVersion,
-      Schema tableSchema,
-      MetricsConfig metricsConfig,
-      Types.StructType partitionType) {
-    return new EqualityDeleteTrackedFile(formatVersion, tableSchema, metricsConfig, partitionType);
+  static EqualityDeleteTrackedFile forEqualityDeleteFile(Schema writeSchema) {
+    return new EqualityDeleteTrackedFile(writeSchema);
   }
 
   /**
@@ -485,6 +470,10 @@ class TrackedFileAdapters {
       this.file = file;
     }
 
+    private TrackedFile file() {
+      return file;
+    }
+
     @Override
     public String path() {
       return file.location();
@@ -608,7 +597,6 @@ class TrackedFileAdapters {
   /** Shared base for content-file (DATA / EQUALITY_DELETES) write-direction wrappers. */
   abstract static class ContentTrackedFile<F extends ContentFile<F>>
       implements TrackedFile, StructLike {
-    private final int formatVersion;
     private final Types.StructType partitionType;
     private final MapBackedContentStats statsWrapper;
 
@@ -617,33 +605,27 @@ class TrackedFileAdapters {
     private StructProjection partition;
     private ContentStats stats;
 
-    ContentTrackedFile(
-        int formatVersion,
-        Schema tableSchema,
-        MetricsConfig metricsConfig,
-        Types.StructType partitionType) {
-      Preconditions.checkArgument(
-          formatVersion >= TableMetadata.MIN_FORMAT_VERSION_ADAPTIVE_MANIFEST_TREE,
-          "Invalid format version for adaptive manifest tree: %s (must be >= %s)",
-          formatVersion,
-          TableMetadata.MIN_FORMAT_VERSION_ADAPTIVE_MANIFEST_TREE);
-      Preconditions.checkArgument(tableSchema != null, "Invalid table schema: null");
-      Preconditions.checkArgument(metricsConfig != null, "Invalid metrics config: null");
-      Preconditions.checkArgument(partitionType != null, "Invalid partition type: null");
-      this.formatVersion = formatVersion;
-      this.partitionType = partitionType;
-      this.statsWrapper = new MapBackedContentStats(tableSchema, metricsConfig);
+    ContentTrackedFile(Schema writeSchema) {
+      Preconditions.checkArgument(writeSchema != null, "Invalid write schema: null");
+      Types.StructType statsType = nestedStruct(writeSchema, TrackedFile.CONTENT_STATS_ID);
+      this.partitionType = nestedStruct(writeSchema, TrackedFile.PARTITION_ID);
+      this.statsWrapper = statsType != null ? new MapBackedContentStats(statsType) : null;
     }
 
-    void wrapWithTracking(F newFile, Tracking newTracking) {
+    TrackedFile wrapWithTracking(F newFile, Tracking newTracking) {
       Preconditions.checkArgument(newFile != null, "Invalid file: null");
       Preconditions.checkArgument(newTracking != null, "Invalid tracking: null");
       validateContent(newFile);
 
+      if (newFile instanceof TrackedContentFile) {
+        return ((TrackedContentFile<?>) newFile).file();
+      }
+
       this.file = newFile;
-      this.partition = projectPartition(newFile, partitionType);
-      this.stats = statsWrapper.wrap(newFile);
+      this.partition = partitionType != null ? projectPartition(newFile, partitionType) : null;
+      this.stats = statsWrapper != null ? statsWrapper.wrap(newFile) : null;
       this.tracking = newTracking;
+      return this;
     }
 
     /** Content-type-specific validation of the wrapped file. */
@@ -660,7 +642,7 @@ class TrackedFileAdapters {
 
     @Override
     public int formatVersion() {
-      return formatVersion;
+      return TableMetadata.MIN_FORMAT_VERSION_PARQUET_MANIFESTS;
     }
 
     @Override
@@ -759,18 +741,13 @@ class TrackedFileAdapters {
 
   /** Wraps a {@link DataFile} as a {@link TrackedFile} row. */
   static class DataTrackedFile extends ContentTrackedFile<DataFile> {
-    DataTrackedFile(
-        int formatVersion,
-        Schema tableSchema,
-        MetricsConfig metricsConfig,
-        Types.StructType partitionType) {
-      super(formatVersion, tableSchema, metricsConfig, partitionType);
+    DataTrackedFile(Schema writeSchema) {
+      super(writeSchema);
     }
 
     /** Re-points this wrapper at {@code newFile} in place. */
-    public DataTrackedFile wrap(DataFile newFile, Tracking tracking) {
-      wrapWithTracking(newFile, tracking);
-      return this;
+    public TrackedFile wrap(DataFile newFile, Tracking tracking) {
+      return wrapWithTracking(newFile, tracking);
     }
 
     @Override
@@ -794,18 +771,13 @@ class TrackedFileAdapters {
 
   /** Wraps an equality {@link DeleteFile} as a {@link TrackedFile} row. */
   static class EqualityDeleteTrackedFile extends ContentTrackedFile<DeleteFile> {
-    EqualityDeleteTrackedFile(
-        int formatVersion,
-        Schema tableSchema,
-        MetricsConfig metricsConfig,
-        Types.StructType partitionType) {
-      super(formatVersion, tableSchema, metricsConfig, partitionType);
+    EqualityDeleteTrackedFile(Schema writeSchema) {
+      super(writeSchema);
     }
 
     /** Re-points this wrapper at {@code newFile} in place. */
-    public EqualityDeleteTrackedFile wrap(DeleteFile newFile, Tracking tracking) {
-      wrapWithTracking(newFile, tracking);
-      return this;
+    public TrackedFile wrap(DeleteFile newFile, Tracking tracking) {
+      return wrapWithTracking(newFile, tracking);
     }
 
     @Override
@@ -845,18 +817,17 @@ class TrackedFileAdapters {
      * @param status entry status for the reference
      * @param firstRowId first-row-id resolved by the caller for a DATA manifest reference, or null
      *     for a DELETE manifest reference
+     * @return this wrapper, or the original {@link TrackedFile} if {@code newManifest} is already
+     *     adapted from a tracked file
      */
-    public ManifestTrackedFile wrap(ManifestFile newManifest, EntryStatus status, Long firstRowId) {
+    public TrackedFile wrap(ManifestFile newManifest, EntryStatus status, Long firstRowId) {
       Preconditions.checkArgument(newManifest != null, "Invalid manifest file: null");
       Preconditions.checkArgument(status != null, "Invalid status: null");
-      int formatVersion = newManifest.formatVersion();
-      Preconditions.checkArgument(
-          formatVersion == ManifestFile.LEGACY_FORMAT_VERSION
-              || formatVersion >= TableMetadata.MIN_FORMAT_VERSION_ADAPTIVE_MANIFEST_TREE,
-          "Invalid manifest format_version: %s (must be %s for pre-v4 or >= %s for v4+)",
-          formatVersion,
-          ManifestFile.LEGACY_FORMAT_VERSION,
-          TableMetadata.MIN_FORMAT_VERSION_ADAPTIVE_MANIFEST_TREE);
+
+      if (newManifest instanceof TrackedManifestFile) {
+        return ((TrackedManifestFile) newManifest).file();
+      }
+
       Long manifestSnapshotId = newManifest.snapshotId();
       Preconditions.checkArgument(manifestSnapshotId != null, "Invalid manifest snapshot id: null");
       long manifestSeq = newManifest.sequenceNumber();
@@ -898,7 +869,9 @@ class TrackedFileAdapters {
 
     @Override
     public int formatVersion() {
-      return manifest.formatVersion();
+      // newly written ManifestFile instances have no persisted version; carry-over rows keep
+      // theirs via unwrap of TrackedManifestFile
+      return TableMetadata.MIN_FORMAT_VERSION_PARQUET_MANIFESTS;
     }
 
     @Override
@@ -1018,9 +991,6 @@ class TrackedFileAdapters {
       return zeroIfNull(manifest.deletedFilesCount());
     }
 
-    // TODO: GenericManifestFile doesn't yet plumb REPLACED aggregates, so replacedFilesCount() and
-    // replacedRowsCount() resolve to 0 today. Wire the aggregation from leaf-manifest writers up to
-    // the manifest_list entry in a follow-up.
     @Override
     public int replacedFilesCount() {
       return zeroIfNull(manifest.replacedFilesCount());
@@ -1107,6 +1077,28 @@ class TrackedFileAdapters {
     }
   }
 
+  /**
+   * Returns the struct type of a nested field in a write schema, or null if the schema projects no
+   * fields for it. A field with no fields to write is unknown in the schema and is reported as
+   * missing rather than empty, matching {@link TrackedFileStruct}.
+   */
+  private static Types.StructType nestedStruct(Schema writeSchema, int fieldId) {
+    Type type = writeSchema.findType(fieldId);
+    Preconditions.checkArgument(type != null, "Invalid write schema: missing field ID %s", fieldId);
+    if (type.typeId() == Type.TypeID.UNKNOWN) {
+      return null;
+    }
+
+    Preconditions.checkArgument(
+        type.isStructType(),
+        "Invalid write schema field %s: expected struct or unknown, got %s",
+        fieldId,
+        type);
+
+    Types.StructType struct = type.asStructType();
+    return struct.fields().isEmpty() ? null : struct;
+  }
+
   private static PartitionSpec resolveSpec(
       TrackedFile file, Map<Integer, PartitionSpec> specsById) {
     Integer specId = file.specId();
@@ -1150,20 +1142,8 @@ class TrackedFileAdapters {
     return StructProjection.createAllowMissing(sourceType, partitionType).wrap(partition);
   }
 
-  /**
-   * Resolves record_count for a manifest-reference row. v4+ manifests carry a persisted
-   * record_count; pre-v4 manifests sum the per-status file counts.
-   */
+  /** Resolves record_count for a manifest-reference row from its per-status file counts. */
   private static long resolveRecordCount(ManifestFile manifest) {
-    if (manifest.formatVersion() >= TableMetadata.MIN_FORMAT_VERSION_ADAPTIVE_MANIFEST_TREE) {
-      Long persisted = manifest.recordCount();
-      Preconditions.checkArgument(
-          persisted != null,
-          "Invalid v4 manifest reference for %s: record_count must be set by the writer",
-          manifest.path());
-      return persisted;
-    }
-
     long total = 0L;
     if (manifest.addedFilesCount() != null) {
       total += manifest.addedFilesCount();
@@ -1175,6 +1155,10 @@ class TrackedFileAdapters {
 
     if (manifest.deletedFilesCount() != null) {
       total += manifest.deletedFilesCount();
+    }
+
+    if (manifest.replacedFilesCount() != null) {
+      total += manifest.replacedFilesCount();
     }
 
     return total;

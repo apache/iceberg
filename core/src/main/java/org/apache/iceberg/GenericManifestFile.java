@@ -60,8 +60,6 @@ public class GenericManifestFile extends SupportsIndexProjection
   private PartitionFieldSummary[] partitions = null;
   private byte[] keyMetadata = null;
   private Long firstRowId = null;
-  private Long recordCount = null;
-  private int formatVersion = LEGACY_FORMAT_VERSION;
 
   /** Used by Avro reflection to instantiate this class when reading manifest files. */
   public GenericManifestFile(Schema avroSchema) {
@@ -96,7 +94,7 @@ public class GenericManifestFile extends SupportsIndexProjection
     this.firstRowId = null;
   }
 
-  /** Pre-v4 constructor. */
+  /** Adjust the arg order to avoid conflict with the public constructor below */
   GenericManifestFile(
       String path,
       long length,
@@ -132,50 +130,6 @@ public class GenericManifestFile extends SupportsIndexProjection
     this.partitions = partitions == null ? null : partitions.toArray(new PartitionFieldSummary[0]);
     this.keyMetadata = ByteBuffers.toByteArray(keyMetadata);
     this.firstRowId = firstRowId;
-    this.recordCount = null;
-    this.formatVersion = LEGACY_FORMAT_VERSION;
-  }
-
-  /** v4+ constructor variant that accepts recordCount and formatVersion. */
-  GenericManifestFile(
-      String path,
-      long length,
-      int specId,
-      ManifestContent content,
-      long sequenceNumber,
-      long minSequenceNumber,
-      Long snapshotId,
-      List<PartitionFieldSummary> partitions,
-      ByteBuffer keyMetadata,
-      Integer addedFilesCount,
-      Long addedRowsCount,
-      Integer existingFilesCount,
-      Long existingRowsCount,
-      Integer deletedFilesCount,
-      Long deletedRowsCount,
-      Long firstRowId,
-      Long recordCount,
-      int formatVersion) {
-    super(ManifestFile.schema().columns().size());
-    this.avroSchema = AVRO_SCHEMA;
-    this.manifestPath = path;
-    this.length = length;
-    this.specId = specId;
-    this.content = content;
-    this.sequenceNumber = sequenceNumber;
-    this.minSequenceNumber = minSequenceNumber;
-    this.snapshotId = snapshotId;
-    this.addedFilesCount = addedFilesCount;
-    this.addedRowsCount = addedRowsCount;
-    this.existingFilesCount = existingFilesCount;
-    this.existingRowsCount = existingRowsCount;
-    this.deletedFilesCount = deletedFilesCount;
-    this.deletedRowsCount = deletedRowsCount;
-    this.partitions = partitions == null ? null : partitions.toArray(new PartitionFieldSummary[0]);
-    this.keyMetadata = ByteBuffers.toByteArray(keyMetadata);
-    this.firstRowId = firstRowId;
-    this.recordCount = recordCount;
-    this.formatVersion = formatVersion;
   }
 
   /**
@@ -218,8 +172,6 @@ public class GenericManifestFile extends SupportsIndexProjection
             ? null
             : Arrays.copyOf(toCopy.keyMetadata, toCopy.keyMetadata.length);
     this.firstRowId = toCopy.firstRowId;
-    this.recordCount = toCopy.recordCount;
-    this.formatVersion = toCopy.formatVersion;
   }
 
   /** Constructor for Java serialization. */
@@ -318,16 +270,6 @@ public class GenericManifestFile extends SupportsIndexProjection
   @Override
   public Long firstRowId() {
     return firstRowId;
-  }
-
-  @Override
-  public Long recordCount() {
-    return recordCount;
-  }
-
-  @Override
-  public int formatVersion() {
-    return formatVersion;
   }
 
   @Override
@@ -526,9 +468,7 @@ public class GenericManifestFile extends SupportsIndexProjection
                 toCopy.existingRowsCount(),
                 toCopy.deletedFilesCount(),
                 toCopy.deletedRowsCount(),
-                toCopy.firstRowId(),
-                toCopy.recordCount(),
-                toCopy.formatVersion());
+                toCopy.firstRowId());
       }
     }
 
