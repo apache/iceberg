@@ -493,6 +493,7 @@ class AsyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner implements 
     }
   }
 
+  @VisibleForTesting
   static boolean shouldContinueInitialPreload(
       long queuedRows, long queuedFiles, long targetRows, long targetFiles) {
     return queuedRows < targetRows && queuedFiles < targetFiles;
