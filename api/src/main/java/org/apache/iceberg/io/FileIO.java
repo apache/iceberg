@@ -23,7 +23,7 @@ import java.io.Serializable;
 import java.util.Map;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
-import org.apache.iceberg.FileWithEncryptedKey;
+import org.apache.iceberg.FileWithKeyId;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.ManifestListFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -73,8 +73,8 @@ public interface FileIO extends Serializable, Closeable {
   }
 
   /**
-   * @deprecated since 1.12.0. Will be removed in 2.0.0; use {@link
-   *     #newInputFile(FileWithEncryptedKey)} instead.
+   * @deprecated since 1.12.0. Will be removed in 2.0.0; use {@link #newInputFile(FileWithKeyId)}
+   *     instead.
    */
   @Deprecated
   default InputFile newInputFile(ManifestListFile manifestList) {
@@ -86,7 +86,7 @@ public interface FileIO extends Serializable, Closeable {
     return newInputFile(manifestList.location());
   }
 
-  default InputFile newInputFile(FileWithEncryptedKey file) {
+  default InputFile newInputFile(FileWithKeyId file) {
     Preconditions.checkArgument(
         file.keyId() == null, "Cannot decrypt file: %s (use EncryptingFileIO)", file.location());
     // cannot pass length because it is not tracked outside of key metadata

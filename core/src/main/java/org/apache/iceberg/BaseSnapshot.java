@@ -185,7 +185,7 @@ class BaseSnapshot implements Snapshot {
       this.allManifests =
           ManifestLists.read(
               ManifestLists.newInputFile(
-                  fileIO, new BaseEncryptedFile(manifestListLocation, keyId)));
+                  fileIO, new BaseManifestListFile(manifestListLocation, keyId)));
     }
 
     if (dataManifests == null || deleteManifests == null) {

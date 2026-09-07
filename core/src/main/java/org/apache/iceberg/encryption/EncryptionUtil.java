@@ -25,7 +25,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.CatalogProperties;
-import org.apache.iceberg.FileWithEncryptedKey;
+import org.apache.iceberg.FileWithKeyId;
 import org.apache.iceberg.ManifestListFile;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.common.DynConstructors;
@@ -142,7 +142,7 @@ public class EncryptionUtil {
    * @param em the table's EncryptionManager
    * @return a decrypted key metadata buffer
    * @deprecated since 1.12.0. Will be removed in 2.0.0; use {@link
-   *     #decryptKeyMetadata(FileWithEncryptedKey, EncryptionManager)} instead.
+   *     #decryptKeyMetadata(FileWithKeyId, EncryptionManager)} instead.
    */
   @Deprecated
   public static ByteBuffer decryptManifestListKeyMetadata(
@@ -153,15 +153,15 @@ public class EncryptionUtil {
   /**
    * Decrypt the key metadata of an encryptable file.
    *
-   * @param file a FileWithEncryptedKey
+   * @param file a FileWithKeyId
    * @param em the table's EncryptionManager
    * @return a decrypted key metadata buffer
    */
-  public static ByteBuffer decryptKeyMetadata(FileWithEncryptedKey file, EncryptionManager em) {
+  public static ByteBuffer decryptKeyMetadata(FileWithKeyId file, EncryptionManager em) {
     return decryptKeyMetadata(file.keyId(), em);
   }
 
-  private static ByteBuffer decryptKeyMetadata(String encryptionKeyId, EncryptionManager em) {
+  static ByteBuffer decryptKeyMetadata(String encryptionKeyId, EncryptionManager em) {
     Preconditions.checkState(
         em instanceof StandardEncryptionManager,
         "Snapshot key metadata encryption requires a StandardEncryptionManager");

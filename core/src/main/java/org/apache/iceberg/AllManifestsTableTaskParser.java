@@ -105,7 +105,7 @@ class AllManifestsTableTaskParser {
         fileIO,
         schema,
         specsById,
-        new BaseEncryptedFile(manifestListLocation, manifestListKeyId),
+        new BaseManifestListFile(manifestListLocation, manifestListKeyId),
         residualFilter,
         referenceSnapshotId);
   }

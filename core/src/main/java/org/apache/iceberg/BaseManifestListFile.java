@@ -20,19 +20,25 @@ package org.apache.iceberg;
 
 import java.nio.ByteBuffer;
 import org.apache.iceberg.encryption.EncryptionManager;
+import org.apache.iceberg.encryption.EncryptionUtil;
 
 /**
- * A file that may be encrypted. If it is encrypted, its encrypted key metadata is tracked in the
- * table metadata encryption keys and is referenced by a key ID.
+ * @deprecated since 1.12.0. Will be removed in 2.0.0; use {@link BaseFileWithKeyId} instead.
  */
-public interface FileWithEncryptedKey {
+@Deprecated
+class BaseManifestListFile extends BaseFileWithKeyId implements ManifestListFile {
 
-  /** Location of the file. */
-  String location();
+  BaseManifestListFile(String location, String encryptionKeyID) {
+    super(location, encryptionKeyID);
+  }
 
-  /** Returns the encryption key ID for this file, or null if the file is not encrypted. */
-  String keyId();
+  @Override
+  public String encryptionKeyID() {
+    return keyId();
+  }
 
-  /** Decrypt and return the file key metadata */
-  ByteBuffer decryptKeyMetadata(EncryptionManager em);
+  @Override
+  public ByteBuffer decryptKeyMetadata(EncryptionManager em) {
+    return EncryptionUtil.decryptManifestListKeyMetadata(this, em);
+  }
 }

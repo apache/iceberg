@@ -18,32 +18,15 @@
  */
 package org.apache.iceberg;
 
-import java.io.Serializable;
-import java.nio.ByteBuffer;
-import org.apache.iceberg.encryption.EncryptionManager;
-import org.apache.iceberg.encryption.EncryptionUtil;
+/**
+ * A file that may be encrypted. If it is encrypted, its encrypted key metadata is tracked in the
+ * table metadata encryption keys and is referenced by a key ID.
+ */
+public interface FileWithKeyId {
 
-class BaseEncryptedFile implements FileWithEncryptedKey, Serializable {
-  private final String location;
-  private final String keyId;
+  /** Location of the file. */
+  String location();
 
-  BaseEncryptedFile(String location, String encryptionKeyID) {
-    this.location = location;
-    this.keyId = encryptionKeyID;
-  }
-
-  @Override
-  public String location() {
-    return location;
-  }
-
-  @Override
-  public String keyId() {
-    return keyId;
-  }
-
-  @Override
-  public ByteBuffer decryptKeyMetadata(EncryptionManager em) {
-    return EncryptionUtil.decryptKeyMetadata(this, em);
-  }
+  /** Returns the encryption key ID for this file, or null if the file is not encrypted. */
+  String keyId();
 }
