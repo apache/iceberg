@@ -26,7 +26,9 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
+import java.util.Map;
 import org.apache.iceberg.Files;
+import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.GenericRecord;
@@ -115,6 +117,12 @@ public class TestVectorizedOrcDataReader {
     assertThat(rowCount).isEqualTo(5);
   }
 
+  private void assertRow(InternalRow row, long expectedId, long expectedRowId, long expectedSeq) {
+    assertThat(row.getLong(0)).isEqualTo(expectedId);
+    assertThat(row.getLong(1)).isEqualTo(expectedRowId);
+    assertThat(row.getLong(2)).isEqualTo(expectedSeq);
+  }
+
   @Test
   public void testReader() throws IOException {
     try (CloseableIterable<ColumnarBatch> reader =
@@ -161,6 +169,68 @@ public class TestVectorizedOrcDataReader {
       assertThat(row.getLong(0)).isEqualTo(3L);
       assertThat(row.getString(1)).isEqualTo("c");
       assertThat(row.getArray(3).toIntArray()).isEqualTo(new int[] {3, 4, 5});
+      assertThat(rows).isExhausted();
+    }
+  }
+
+  @Test
+  public void testRowLineage() throws IOException {
+    Schema dataSchema = new Schema(Types.NestedField.required(1, "id", Types.LongType.get()));
+    Schema writeSchema = MetadataColumns.schemaWithRowLineage(dataSchema);
+
+    GenericRecord record = GenericRecord.create(writeSchema);
+    ImmutableList.Builder<Record> builder = ImmutableList.builder();
+    for (int i = 0; i < 4; i++) {
+      builder.add(
+          i % 2 == 0
+              ? record.copy(
+                  ImmutableMap.of(
+                      "id",
+                      (long) i,
+                      MetadataColumns.ROW_ID.name(),
+                      555L + i,
+                      MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.name(),
+                      7L))
+              : record.copy(ImmutableMap.of("id", (long) i)));
+    }
+
+    OutputFile lineageFile =
+        Files.localOutput(File.createTempFile("lineage", ".orc", temp.toFile()));
+    try (DataWriter<Record> dataWriter =
+        ORC.writeData(lineageFile)
+            .schema(writeSchema)
+            .createWriterFunc(GenericOrcWriter::buildWriter)
+            .overwrite()
+            .withSpec(PartitionSpec.unpartitioned())
+            .build()) {
+      for (Record rec : builder.build()) {
+        dataWriter.write(rec);
+      }
+    }
+
+    Schema projection =
+        new Schema(
+            Types.NestedField.required(1, "id", Types.LongType.get()),
+            MetadataColumns.ROW_ID,
+            MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER);
+    Map<Integer, ?> idToConstant =
+        ImmutableMap.of(
+            MetadataColumns.ROW_ID.fieldId(), 100L,
+            MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.fieldId(), 5L);
+
+    try (CloseableIterable<ColumnarBatch> reader =
+        ORC.read(lineageFile.toInputFile())
+            .project(projection)
+            .createBatchedReaderFunc(
+                readOrcSchema ->
+                    VectorizedSparkOrcReaders.buildReader(projection, readOrcSchema, idToConstant))
+            .build()) {
+      Iterator<InternalRow> rows = batchesToRows(reader.iterator());
+
+      assertRow(rows.next(), 0L, 555L, 7L);
+      assertRow(rows.next(), 1L, 101L, 5L);
+      assertRow(rows.next(), 2L, 557L, 7L);
+      assertRow(rows.next(), 3L, 103L, 5L);
       assertThat(rows).isExhausted();
     }
   }
