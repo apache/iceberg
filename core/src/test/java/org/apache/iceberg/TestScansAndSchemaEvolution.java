@@ -323,7 +323,7 @@ public class TestScansAndSchemaEvolution {
     Table table = TestTables.create(temp, "test", SCHEMA, SPEC, formatVersion);
 
     table.newAppend().appendFile(createDataFile("one")).toBranch("branch").commit();
-    long snapshotId = table.snapshot("branch").snapshotId();
+    long branchSnapshotId = table.snapshot("branch").snapshotId();
     assertThat(table.currentSnapshot()).isNull();
 
     table.updateSchema().deleteColumn("data").commit();
@@ -331,7 +331,7 @@ public class TestScansAndSchemaEvolution {
     try (CloseableIterable<FileScanTask> tasks =
         table
             .newScan()
-            .useSnapshot(snapshotId)
+            .useSnapshot(branchSnapshotId)
             .filter(Expressions.equal("data", "xyz"))
             .planFiles()) {
       assertThat(tasks).hasSize(1);
