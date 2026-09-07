@@ -510,6 +510,25 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
   }
 
   @TestTemplate
+  public void allManifestsTableDoesNotOverPruneWhenIgnoringResiduals() throws IOException {
+    // Snapshots 1,2,3,4
+    preparePartitionedTableData();
+
+    Table allManifestsTable = new AllManifestsTable(table);
+    TableScan scan =
+        allManifestsTable
+            .newScan()
+            .filter(Expressions.equal("content", ManifestContent.DELETES.id()))
+            .ignoreResiduals();
+
+    assertThat(scannedPaths(scan))
+        .as("A non-snapshot filter must not prune snapshots when residuals are ignored")
+        .isEqualTo(expectedManifestListPaths(table.snapshots(), 1L, 2L, 3L, 4L));
+
+    validateTaskScanResiduals(scan, true);
+  }
+
+  @TestTemplate
   public void allManifestsTableNegatedPredicateOnNonSnapshotColumn() {
     // Snapshots 1,2,3,4
     preparePartitionedTableData();
