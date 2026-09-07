@@ -19,8 +19,11 @@
 package org.apache.iceberg.actions;
 
 import java.io.IOException;
+import java.io.Serializable;
+import java.util.Collection;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Function;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.ManifestFile;
@@ -51,10 +54,18 @@ public class RemoveDanglingDeleteFilesAction
           .build();
 
   private final Table table;
+  private final Function<Snapshot, Collection<DeleteFile>> findDanglingDeletes;
   private String branch = SnapshotRef.MAIN_BRANCH;
 
   public RemoveDanglingDeleteFilesAction(Table table) {
     this.table = table;
+    this.findDanglingDeletes = this::findDanglingDeletes;
+  }
+
+  public RemoveDanglingDeleteFilesAction(
+      Table table, Function<Snapshot, Collection<DeleteFile>> findDanglingDeletes) {
+    this.table = table;
+    this.findDanglingDeletes = findDanglingDeletes;
   }
 
   @Override
@@ -84,7 +95,7 @@ public class RemoveDanglingDeleteFilesAction
       return EMPTY_RESULT;
     }
 
-    List<DeleteFile> danglingDeletes = findDanglingDeletes(table, snapshot);
+    Collection<DeleteFile> danglingDeletes = findDanglingDeletes.apply(snapshot);
     if (danglingDeletes.isEmpty()) {
       return EMPTY_RESULT;
     }
@@ -110,7 +121,7 @@ public class RemoveDanglingDeleteFilesAction
    *   <li>Collect all delete file entries skipping files from the previous step.
    * </ol>
    */
-  private static List<DeleteFile> findDanglingDeletes(Table table, Snapshot snapshot) {
+  private List<DeleteFile> findDanglingDeletes(Snapshot snapshot) {
     Set<DeleteFileKey> referencedKeys = Sets.newHashSet();
     TableScan scan = table.newScan().useSnapshot(snapshot.snapshotId());
     try (CloseableIterable<FileScanTask> tasks = scan.planFiles()) {
@@ -140,7 +151,8 @@ public class RemoveDanglingDeleteFilesAction
     return danglingDeletes;
   }
 
-  public record DeleteFileKey(String location, Long contentOffset, Long contentSizeInBytes) {
+  public record DeleteFileKey(String location, Long contentOffset, Long contentSizeInBytes)
+      implements Serializable {
     public DeleteFileKey(DeleteFile file) {
       this(file.location(), file.contentOffset(), file.contentSizeInBytes());
     }
