@@ -76,7 +76,8 @@ class TestMapBackedContentStats {
   @Test
   void boundDecodingPerType() {
     MapBackedContentStats stats =
-        new MapBackedContentStats(SCHEMA, METRICS_CONFIG).wrap(FILE_WITH_STATS);
+        new MapBackedContentStats(StatsUtil.statsWriteSchema(SCHEMA, METRICS_CONFIG))
+            .wrap(FILE_WITH_STATS);
 
     FieldStats<?> id = stats.statsFor(1);
     assertThat(id.lowerBound()).isInstanceOf(Integer.class).isEqualTo(1);
@@ -107,7 +108,8 @@ class TestMapBackedContentStats {
             ImmutableMap.of(),
             ImmutableMap.of(),
             ImmutableMap.of());
-    MapBackedContentStats stats = new MapBackedContentStats(SCHEMA, METRICS_CONFIG).wrap(file);
+    MapBackedContentStats stats =
+        new MapBackedContentStats(StatsUtil.statsWriteSchema(SCHEMA, METRICS_CONFIG)).wrap(file);
 
     FieldStats<?> id = stats.statsFor(1);
     assertThat(id.lowerBound()).isNull();
@@ -118,7 +120,8 @@ class TestMapBackedContentStats {
   @Test
   void countsAndDefaults() {
     MapBackedContentStats stats =
-        new MapBackedContentStats(SCHEMA, METRICS_CONFIG).wrap(FILE_WITH_STATS);
+        new MapBackedContentStats(StatsUtil.statsWriteSchema(SCHEMA, METRICS_CONFIG))
+            .wrap(FILE_WITH_STATS);
 
     FieldStats<?> id = stats.statsFor(1);
     assertThat(id.hasValueCount()).isTrue();
@@ -163,7 +166,8 @@ class TestMapBackedContentStats {
             SCHEMA,
             SortOrder.unsorted());
     MapBackedContentStats stats =
-        new MapBackedContentStats(SCHEMA, countsConfig).wrap(FILE_WITH_STATS);
+        new MapBackedContentStats(StatsUtil.statsWriteSchema(SCHEMA, countsConfig))
+            .wrap(FILE_WITH_STATS);
 
     // counts mode drops lower_bound/upper_bound/tight_bounds; only the counts remain
     FieldStats<?> score = stats.statsFor(2);
@@ -186,7 +190,8 @@ class TestMapBackedContentStats {
             SCHEMA,
             SortOrder.unsorted());
     MapBackedContentStats stats =
-        new MapBackedContentStats(SCHEMA, countsConfig).wrap(FILE_WITH_STATS);
+        new MapBackedContentStats(StatsUtil.statsWriteSchema(SCHEMA, countsConfig))
+            .wrap(FILE_WITH_STATS);
 
     FieldStats<?> score = stats.statsFor(2);
     // struct order: value_count, null_value_count, nan_value_count (bounds pruned in counts mode)
@@ -198,7 +203,8 @@ class TestMapBackedContentStats {
   @Test
   void absentFieldHasNoStats() {
     MapBackedContentStats stats =
-        new MapBackedContentStats(SCHEMA, METRICS_CONFIG).wrap(FILE_WITH_STATS);
+        new MapBackedContentStats(StatsUtil.statsWriteSchema(SCHEMA, METRICS_CONFIG))
+            .wrap(FILE_WITH_STATS);
 
     // field 5 (flag) has no entry in any stat map
     assertThat(stats.statsFor(5)).isNull();
@@ -209,7 +215,8 @@ class TestMapBackedContentStats {
 
   @Test
   void typeMatchesStatsReadSchema() {
-    MapBackedContentStats stats = new MapBackedContentStats(SCHEMA, METRICS_CONFIG);
+    MapBackedContentStats stats =
+        new MapBackedContentStats(StatsUtil.statsWriteSchema(SCHEMA, METRICS_CONFIG));
     assertThat(stats.type())
         .isEqualTo(StatsUtil.statsReadSchema(SCHEMA, ImmutableList.of(1, 2, 3, 4, 5)));
   }
@@ -219,7 +226,8 @@ class TestMapBackedContentStats {
     // the default (bound-bearing) struct for an optional float exposes all six fields via
     // StructLike
     MapBackedContentStats stats =
-        new MapBackedContentStats(SCHEMA, METRICS_CONFIG).wrap(FILE_WITH_STATS);
+        new MapBackedContentStats(StatsUtil.statsWriteSchema(SCHEMA, METRICS_CONFIG))
+            .wrap(FILE_WITH_STATS);
 
     FieldStats<?> score = stats.statsFor(2);
     // struct order: lower_bound, upper_bound, tight_bounds, value_count, null_value_count,
@@ -232,7 +240,8 @@ class TestMapBackedContentStats {
   @Test
   void contentStructLikeGetReturnsChildrenOrNull() {
     MapBackedContentStats stats =
-        new MapBackedContentStats(SCHEMA, METRICS_CONFIG).wrap(FILE_WITH_STATS);
+        new MapBackedContentStats(StatsUtil.statsWriteSchema(SCHEMA, METRICS_CONFIG))
+            .wrap(FILE_WITH_STATS);
 
     Set<Integer> nullFieldIds = Sets.newHashSet();
     for (int pos = 0; pos < stats.size(); pos += 1) {
@@ -253,7 +262,8 @@ class TestMapBackedContentStats {
   @Test
   void copyNotSupported() {
     MapBackedContentStats stats =
-        new MapBackedContentStats(SCHEMA, METRICS_CONFIG).wrap(FILE_WITH_STATS);
+        new MapBackedContentStats(StatsUtil.statsWriteSchema(SCHEMA, METRICS_CONFIG))
+            .wrap(FILE_WITH_STATS);
 
     // the reusable wrapper is serialized directly; snapshots must be materialized via a writer
     assertThatThrownBy(stats::copy)
@@ -268,7 +278,8 @@ class TestMapBackedContentStats {
   @Test
   void setNotSupported() {
     MapBackedContentStats stats =
-        new MapBackedContentStats(SCHEMA, METRICS_CONFIG).wrap(FILE_WITH_STATS);
+        new MapBackedContentStats(StatsUtil.statsWriteSchema(SCHEMA, METRICS_CONFIG))
+            .wrap(FILE_WITH_STATS);
 
     assertThatThrownBy(() -> stats.set(0, null))
         .isInstanceOf(UnsupportedOperationException.class)
@@ -280,7 +291,8 @@ class TestMapBackedContentStats {
     // the reusable field wrapper is serialized directly; snapshots must be materialized via a
     // writer
     MapBackedContentStats stats =
-        new MapBackedContentStats(SCHEMA, METRICS_CONFIG).wrap(FILE_WITH_STATS);
+        new MapBackedContentStats(StatsUtil.statsWriteSchema(SCHEMA, METRICS_CONFIG))
+            .wrap(FILE_WITH_STATS);
 
     assertThatThrownBy(stats.statsFor(1)::copy)
         .isInstanceOf(UnsupportedOperationException.class)
@@ -290,7 +302,8 @@ class TestMapBackedContentStats {
   @Test
   void fieldStatsSetNotSupported() {
     MapBackedContentStats stats =
-        new MapBackedContentStats(SCHEMA, METRICS_CONFIG).wrap(FILE_WITH_STATS);
+        new MapBackedContentStats(StatsUtil.statsWriteSchema(SCHEMA, METRICS_CONFIG))
+            .wrap(FILE_WITH_STATS);
 
     assertThatThrownBy(() -> ((StructLike) stats.statsFor(1)).set(0, 5))
         .isInstanceOf(UnsupportedOperationException.class)
@@ -299,7 +312,8 @@ class TestMapBackedContentStats {
 
   @Test
   void reuseRebindsBounds() {
-    MapBackedContentStats stats = new MapBackedContentStats(SCHEMA, METRICS_CONFIG);
+    MapBackedContentStats stats =
+        new MapBackedContentStats(StatsUtil.statsWriteSchema(SCHEMA, METRICS_CONFIG));
 
     stats.wrap(FILE_WITH_STATS);
     assertThat(stats.statsFor(1).lowerBound()).isEqualTo(1);
