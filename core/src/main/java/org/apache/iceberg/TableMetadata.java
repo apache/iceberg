@@ -353,7 +353,7 @@ public class TableMetadata implements Serializable {
     this.snapshotsLoaded = snapshotsSupplier == null;
     this.snapshotLog = snapshotLog;
     this.previousFiles = previousFiles;
-    this.encryptionKeys = ImmutableList.copyOf(encryptionKeys);
+    this.encryptionKeys = encryptionKeys;
 
     // changes are carried through until metadata is read from a file
     this.changes = changes;
@@ -1607,7 +1607,7 @@ public class TableMetadata implements Serializable {
               .flatMap(List::stream)
               .collect(Collectors.toList()),
           nextRowId,
-          encryptionKeys,
+          ImmutableList.copyOf(encryptionKeys),
           discardChanges ? ImmutableList.of() : ImmutableList.copyOf(changes));
     }
 
