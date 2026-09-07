@@ -49,14 +49,18 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.mapping.NameMappingParser;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.SparkExecutorCache;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkUtil;
+import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.PartitionUtil;
 import org.apache.spark.rdd.InputFileBlockHolder;
 import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -196,6 +200,43 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
       return PartitionUtil.constantsMap(task, partitionType, SparkUtil::internalToSpark);
     } else {
       return PartitionUtil.constantsMap(task, SparkUtil::internalToSpark);
+    }
+  }
+
+  protected Map<Integer, Object> findMoreCompoundConstants(
+      Schema tableSchema, Map<Integer, ?> idToConstant) {
+    Map<Integer, Object> constantMap = Maps.newHashMap(idToConstant);
+    TypeUtil.visit(tableSchema, new CompoundConstantFinder(constantMap));
+    return constantMap;
+  }
+
+  private static class CompoundConstantFinder extends TypeUtil.SchemaVisitor<Void> {
+    private final Map<Integer, Object> idToConstant;
+
+    CompoundConstantFinder(Map<Integer, Object> idToConstant) {
+      this.idToConstant = idToConstant;
+    }
+
+    @Override
+    public Void field(Types.NestedField field, Void fieldResult) {
+      if (field.type().typeId() == Type.TypeID.STRUCT) {
+        List<Types.NestedField> childFields = field.type().asStructType().fields();
+        List<Integer> childFieldIds =
+            childFields.stream().map(Types.NestedField::fieldId).collect(Collectors.toList());
+        if (!childFieldIds.isEmpty() && idToConstant.keySet().containsAll(childFieldIds)) {
+          Object[] values = new Object[childFieldIds.size()];
+          for (int i = 0; i < values.length; i++) {
+            values[i] = idToConstant.get(childFieldIds.get(i));
+          }
+          idToConstant.put(field.fieldId(), new GenericInternalRow(values));
+        }
+      }
+      return null;
+    }
+
+    @Override
+    public Void variant(Types.VariantType variant) {
+      return null;
     }
   }
 
