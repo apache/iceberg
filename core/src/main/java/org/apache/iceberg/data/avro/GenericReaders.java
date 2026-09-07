@@ -45,6 +45,10 @@ class GenericReaders {
     return TimeReader.INSTANCE;
   }
 
+  static ValueReader<LocalTime> timesFromMillis() {
+    return TimeMillisReader.INSTANCE;
+  }
+
   static ValueReader<LocalDateTime> timestamps() {
     return TimestampReader.INSTANCE;
   }
@@ -98,6 +102,17 @@ class GenericReaders {
     @Override
     public LocalTime read(Decoder decoder, Object reuse) throws IOException {
       return DateTimeUtil.timeFromMicros(decoder.readLong());
+    }
+  }
+
+  private static class TimeMillisReader implements ValueReader<LocalTime> {
+    private static final TimeMillisReader INSTANCE = new TimeMillisReader();
+
+    private TimeMillisReader() {}
+
+    @Override
+    public LocalTime read(Decoder decoder, Object reuse) throws IOException {
+      return DateTimeUtil.timeFromMicros((long) decoder.readInt() * 1000L);
     }
   }
 

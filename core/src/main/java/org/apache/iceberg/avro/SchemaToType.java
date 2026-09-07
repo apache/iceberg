@@ -191,23 +191,30 @@ class SchemaToType extends AvroSchemaVisitor<Type> {
         || logical instanceof LogicalTypes.TimeMicros) {
       return Types.TimeType.get();
 
-    } else if (logical instanceof LogicalTypes.TimestampMillis
-        || logical instanceof LogicalTypes.TimestampMicros) {
-      if (AvroSchemaUtil.isTimestamptz(primitive)) {
-        return Types.TimestampType.withZone();
-      } else {
-        return Types.TimestampType.withoutZone();
-      }
-
-    } else if (logical instanceof LogicalTypes.TimestampNanos) {
-      if (AvroSchemaUtil.isTimestamptz(primitive)) {
-        return Types.TimestampNanoType.withZone();
-      } else {
-        return Types.TimestampNanoType.withoutZone();
-      }
-
     } else if (LogicalTypes.uuid().getName().equals(name)) {
       return Types.UUIDType.get();
+    }
+
+    return timestampType(primitive, logical);
+  }
+
+  private Type timestampType(Schema primitive, LogicalType logical) {
+    boolean adjustToUtc = AvroSchemaUtil.isTimestamptz(primitive);
+    if (logical instanceof LogicalTypes.TimestampMillis
+        || logical instanceof LogicalTypes.TimestampMicros) {
+      return adjustToUtc ? Types.TimestampType.withZone() : Types.TimestampType.withoutZone();
+
+    } else if (logical instanceof LogicalTypes.TimestampNanos) {
+      return adjustToUtc
+          ? Types.TimestampNanoType.withZone()
+          : Types.TimestampNanoType.withoutZone();
+
+    } else if (logical instanceof LogicalTypes.LocalTimestampMillis
+        || logical instanceof LogicalTypes.LocalTimestampMicros) {
+      return Types.TimestampType.withoutZone();
+
+    } else if (logical instanceof LogicalTypes.LocalTimestampNanos) {
+      return Types.TimestampNanoType.withoutZone();
     }
 
     return null;
