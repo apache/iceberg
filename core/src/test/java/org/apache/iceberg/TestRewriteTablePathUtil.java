@@ -24,6 +24,7 @@ import static org.assertj.core.api.Assertions.entry;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -37,6 +38,8 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.types.Conversions;
+import org.apache.iceberg.util.ContentFileUtil;
 import org.apache.iceberg.util.Pair;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestTemplate;
@@ -220,6 +223,72 @@ public class TestRewriteTablePathUtil extends TestBase {
 
     assertThat(RewriteTablePathUtil.replacePaths(metadata, sourcePrefix, targetPrefix).location())
         .isEqualTo(targetPrefix);
+  }
+
+  @Test
+  void replacePathBoundsDropsRewrittenPathAvgValueSize() {
+    int pathID = MetadataColumns.DELETE_FILE_PATH.fieldId();
+    int dataID = SCHEMA.findField("data").fieldId();
+    ByteBuffer path =
+        Conversions.toByteBuffer(
+            MetadataColumns.DELETE_FILE_PATH.type(), "/source/table/data/file.parquet");
+    Metrics metrics =
+        new Metrics(
+            1L,
+            null,
+            null,
+            null,
+            null,
+            ImmutableMap.of(pathID, path),
+            ImmutableMap.of(pathID, path),
+            ImmutableMap.of(pathID, 40, dataID, 8),
+            null /* originalTypes */);
+    DeleteFile deleteFile =
+        FileMetadata.deleteFileBuilder(PartitionSpec.unpartitioned())
+            .ofPositionDeletes()
+            .withPath("/source/table/delete/file.parquet")
+            .withFileSizeInBytes(10)
+            .withMetrics(metrics)
+            .build();
+
+    Metrics rewritten =
+        ContentFileUtil.replacePathBounds(deleteFile, "/source/table", "/target/table");
+
+    assertThat(rewritten.avgValueSizes()).containsExactly(entry(dataID, 8));
+  }
+
+  @Test
+  void replacePathBoundsNormalizesEmptyAvgValueSizes() {
+    int pathID = MetadataColumns.DELETE_FILE_PATH.fieldId();
+    ByteBuffer lowerPath =
+        Conversions.toByteBuffer(
+            MetadataColumns.DELETE_FILE_PATH.type(), "/source/table/data/a.parquet");
+    ByteBuffer upperPath =
+        Conversions.toByteBuffer(
+            MetadataColumns.DELETE_FILE_PATH.type(), "/source/table/data/b.parquet");
+    Metrics metrics =
+        new Metrics(
+            2L,
+            null,
+            null,
+            null,
+            null,
+            ImmutableMap.of(pathID, lowerPath),
+            ImmutableMap.of(pathID, upperPath),
+            ImmutableMap.of(pathID, 40),
+            null /* originalTypes */);
+    DeleteFile deleteFile =
+        FileMetadata.deleteFileBuilder(PartitionSpec.unpartitioned())
+            .ofPositionDeletes()
+            .withPath("/source/table/delete/file.parquet")
+            .withFileSizeInBytes(10)
+            .withMetrics(metrics)
+            .build();
+
+    Metrics rewritten =
+        ContentFileUtil.replacePathBounds(deleteFile, "/source/table", "/target/table");
+
+    assertThat(rewritten.avgValueSizes()).isNull();
   }
 
   @Test
