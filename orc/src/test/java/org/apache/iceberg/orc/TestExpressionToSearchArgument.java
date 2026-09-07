@@ -222,6 +222,24 @@ public class TestExpressionToSearchArgument {
   }
 
   @Test
+  public void testVariantType() {
+    Schema schema =
+        new Schema(
+            required(1, "long", Types.LongType.get()),
+            optional(2, "variant", Types.VariantType.get()));
+
+    // predicates on other columns are still pushed down when the schema contains a variant column
+    Expression expr = equal("long", 1);
+    Expression boundFilter = Binder.bind(schema.asStruct(), expr, true);
+    SearchArgument expected =
+        SearchArgumentFactory.newBuilder().startAnd().equals("`long`", Type.LONG, 1L).end().build();
+
+    SearchArgument actual =
+        ExpressionToSearchArgument.convert(boundFilter, ORCSchemaUtil.convert(schema));
+    assertThat(actual.toString()).isEqualTo(expected.toString());
+  }
+
+  @Test
   public void testNestedPrimitives() {
     Schema schema =
         new Schema(
