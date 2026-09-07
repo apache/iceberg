@@ -314,10 +314,17 @@ public class RewriteManifestsSparkAction
           partitionFieldClustering);
 
       // Map the top level partition column names to the column name referenced within the manifest
-      // entry dataframe
+      // entry dataframe. Backtick-quote the partition field name (escaping any embedded backtick)
+      // because it may itself contain a literal '.' (e.g. when partitioning on a nested source
+      // column) - the partition struct is always flat, so unquoted, col() would misparse that dot
+      // as a further level of nesting instead of treating the whole name as one field.
       Column[] partitionColumns =
           partitionFieldClustering.stream()
-              .map(p -> col(DATA_FILE_PARTITION_COLUMN_NAME + "." + p))
+              .map(
+                  p ->
+                      col(
+                          String.format(
+                              "%s.`%s`", DATA_FILE_PARTITION_COLUMN_NAME, p.replace("`", "``"))))
               .toArray(Column[]::new);
 
       // Form a new temporary column to cluster manifests on, based on the custom clustering columns
