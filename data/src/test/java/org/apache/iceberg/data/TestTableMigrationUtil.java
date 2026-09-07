@@ -82,6 +82,21 @@ class TestTableMigrationUtil {
   }
 
   @Test
+  void testListPartitionWithOnlyEmptyFile() throws IOException {
+    Path partitionPath = tempTableLocation.resolve("id=1");
+    String partitionUri = partitionPath.toUri().toString();
+    java.nio.file.Files.createDirectories(partitionPath);
+    java.nio.file.Files.write(partitionPath.resolve("empty.parquet"), new byte[0]);
+
+    List<DataFile> dataFiles =
+        TableMigrationUtil.listPartition(
+            PARTITION, partitionUri, FORMAT, SPEC, CONF, MetricsConfig.getDefault(), null);
+    assertThat(dataFiles)
+        .as("List partition with only a zero-length file should return 0 DataFile")
+        .isEmpty();
+  }
+
+  @Test
   void testListPartitionMissingFilesFailure() {
     String partitionUri = tempTableLocation.resolve("id=1").toUri().toString();
 
@@ -92,21 +107,6 @@ class TestTableMigrationUtil {
         .hasMessageContaining("Unable to list files in partition: " + partitionUri)
         .isInstanceOf(RuntimeException.class)
         .hasRootCauseInstanceOf(FileNotFoundException.class);
-  }
-
-  @Test
-  void testListPartitionSkipsEmptyFiles() throws IOException {
-    Path partitionPath = tempTableLocation.resolve("id=1");
-    String partitionUri = partitionPath.toUri().toString();
-    java.nio.file.Files.createDirectories(partitionPath);
-    writePartitionFile(partitionPath.toFile());
-    java.nio.file.Files.write(partitionPath.resolve("empty"), new byte[0]);
-
-    List<DataFile> dataFiles =
-        TableMigrationUtil.listPartition(
-            PARTITION, partitionUri, FORMAT, SPEC, CONF, MetricsConfig.getDefault(), null);
-
-    assertThat(dataFiles).as("Zero-length files should be skipped").hasSize(1);
   }
 
   private static void writePartitionFile(File outputDir) throws IOException {

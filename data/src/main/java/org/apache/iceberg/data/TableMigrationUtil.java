@@ -23,7 +23,6 @@ import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
@@ -46,11 +45,8 @@ import org.apache.iceberg.orc.OrcMetrics;
 import org.apache.iceberg.parquet.ParquetUtil;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public class TableMigrationUtil {
-  private static final Logger LOG = LoggerFactory.getLogger(TableMigrationUtil.class);
   private static final PathFilter HIDDEN_PATH_FILTER =
       p -> !p.getName().startsWith("_") && !p.getName().startsWith(".");
 
@@ -61,9 +57,6 @@ public class TableMigrationUtil {
    *
    * <p>For Parquet and ORC partitions, this will read metrics from the file footer. For Avro
    * partitions, metrics other than row count are set to null.
-   *
-   * <p>Zero-length files are skipped. Hive often leaves such files in a table location after empty
-   * reducer output; they contain no rows.
    *
    * <p>Note: certain metrics, like NaN counts, that are only supported by Iceberg file writers but
    * not file footers, will not be populated.
@@ -94,9 +87,6 @@ public class TableMigrationUtil {
    *
    * <p>For Parquet and ORC partitions, this will read metrics from the file footer. For Avro
    * partitions, metrics other than row count are set to null.
-   *
-   * <p>Zero-length files are skipped. Hive often leaves such files in a table location after empty
-   * reducer output; they contain no rows.
    *
    * <p>Note: certain metrics, like NaN counts, that are only supported by Iceberg file writers but
    * not file footers, will not be populated.
@@ -140,9 +130,6 @@ public class TableMigrationUtil {
    * <p>For Parquet and ORC partitions, this will read metrics from the file footer. For Avro
    * partitions, metrics other than row count are set to null.
    *
-   * <p>Zero-length files are skipped. Hive often leaves such files in a table location after empty
-   * reducer output; they contain no rows.
-   *
    * <p>Note: certain metrics, like NaN counts, that are only supported by Iceberg file writers but
    * not file footers, will not be populated.
    *
@@ -178,7 +165,7 @@ public class TableMigrationUtil {
       FileSystem fs = partitionDir.getFileSystem(conf);
       List<FileStatus> fileStatus =
           Arrays.stream(fs.listStatus(partitionDir, HIDDEN_PATH_FILTER))
-              .filter(FileStatus::isFile)
+              .filter(status -> status.isFile() && status.getLen() > 0)
               .collect(Collectors.toList());
       DataFile[] datafiles = new DataFile[fileStatus.size()];
       Tasks.Builder<Integer> task =
@@ -198,27 +185,23 @@ public class TableMigrationUtil {
       } else if (format.contains("parquet")) {
         task.run(
             index -> {
-              FileStatus status = fileStatus.get(index);
-              if (skipEmptyFile(status)) {
-                return;
-              }
-              Metrics metrics = getParquetMetrics(status.getPath(), conf, metricsSpec, mapping);
-              datafiles[index] = buildDataFile(status, partitionValues, spec, metrics, "parquet");
+              Metrics metrics =
+                  getParquetMetrics(fileStatus.get(index).getPath(), conf, metricsSpec, mapping);
+              datafiles[index] =
+                  buildDataFile(fileStatus.get(index), partitionValues, spec, metrics, "parquet");
             });
       } else if (format.contains("orc")) {
         task.run(
             index -> {
-              FileStatus status = fileStatus.get(index);
-              if (skipEmptyFile(status)) {
-                return;
-              }
-              Metrics metrics = getOrcMetrics(status.getPath(), conf, metricsSpec, mapping);
-              datafiles[index] = buildDataFile(status, partitionValues, spec, metrics, "orc");
+              Metrics metrics =
+                  getOrcMetrics(fileStatus.get(index).getPath(), conf, metricsSpec, mapping);
+              datafiles[index] =
+                  buildDataFile(fileStatus.get(index), partitionValues, spec, metrics, "orc");
             });
       } else {
         throw new UnsupportedOperationException("Unknown partition format: " + format);
       }
-      return Arrays.stream(datafiles).filter(Objects::nonNull).collect(Collectors.toList());
+      return Arrays.asList(datafiles);
     } catch (IOException e) {
       throw new UncheckedIOException("Unable to list files in partition: " + partitionUri, e);
     } finally {
@@ -226,14 +209,6 @@ public class TableMigrationUtil {
         service.shutdown();
       }
     }
-  }
-
-  private static boolean skipEmptyFile(FileStatus status) {
-    if (status.getLen() == 0) {
-      LOG.warn("Skipping empty file during table migration: {}", status.getPath());
-      return true;
-    }
-    return false;
   }
 
   private static Metrics getAvroMetrics(Path path, Configuration conf) {
