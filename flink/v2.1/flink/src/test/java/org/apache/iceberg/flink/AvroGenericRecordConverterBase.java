@@ -21,11 +21,21 @@ package org.apache.iceberg.flink;
 import org.junit.jupiter.api.Test;
 
 public abstract class AvroGenericRecordConverterBase {
-  protected abstract void testConverter(DataGenerator dataGenerator) throws Exception;
+  protected void testConverter(DataGenerator dataGenerator) throws Exception {
+    testConverter(dataGenerator, true);
+  }
+
+  protected abstract void testConverter(DataGenerator dataGenerator, boolean legacyTimestampMapping)
+      throws Exception;
 
   @Test
   public void testPrimitiveTypes() throws Exception {
     testConverter(new DataGenerators.Primitives());
+  }
+
+  @Test
+  public void testPrimitiveTypesWithLegacyTimestampMappingDisabled() throws Exception {
+    testConverter(new DataGenerators.Primitives(false), false);
   }
 
   @Test

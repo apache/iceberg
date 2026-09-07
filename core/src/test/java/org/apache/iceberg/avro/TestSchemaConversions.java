@@ -112,6 +112,36 @@ public class TestSchemaConversions {
     assertThat(AvroSchemaUtil.convert(avroType)).isEqualTo(expectedIcebergType);
   }
 
+  @Test
+  public void testTimestampTypesWithLegacyMappingDisabled() {
+    String name = "timestamps";
+    Schema ts = LogicalTypes.localTimestampMicros().addToSchema(Schema.create(Schema.Type.LONG));
+    Schema tsTz = LogicalTypes.timestampMicros().addToSchema(Schema.create(Schema.Type.LONG));
+    Schema tsNs = LogicalTypes.localTimestampNanos().addToSchema(Schema.create(Schema.Type.LONG));
+    Schema tsTzNs = LogicalTypes.timestampNanos().addToSchema(Schema.create(Schema.Type.LONG));
+    Schema avroSchema =
+        record(
+            name,
+            requiredField(0, "ts", ts),
+            requiredField(1, "ts_tz", addAdjustToUtc(tsTz, true)),
+            requiredField(2, "ts_ns", tsNs),
+            requiredField(3, "ts_tz_ns", addAdjustToUtc(tsTzNs, true)));
+
+    Types.StructType icebergSchema =
+        Types.StructType.of(
+            required(0, "ts", Types.TimestampType.withoutZone()),
+            required(1, "ts_tz", Types.TimestampType.withZone()),
+            required(2, "ts_ns", Types.TimestampNanoType.withoutZone()),
+            required(3, "ts_tz_ns", Types.TimestampNanoType.withZone()));
+
+    assertThat(AvroSchemaUtil.convert(avroSchema, false))
+        .as("Test conversion from Avro schema")
+        .isEqualTo(icebergSchema);
+    assertThat(AvroSchemaUtil.convert(icebergSchema, name, false))
+        .as("Test conversion to Avro schema")
+        .isEqualTo(avroSchema);
+  }
+
   private Schema addAdjustToUtc(Schema schema, boolean adjustToUTC) {
     schema.addProp(AvroSchemaUtil.ADJUST_TO_UTC_PROP, adjustToUTC);
     return schema;

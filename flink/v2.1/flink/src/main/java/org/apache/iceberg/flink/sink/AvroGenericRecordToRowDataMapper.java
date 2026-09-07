@@ -42,8 +42,8 @@ public class AvroGenericRecordToRowDataMapper implements MapFunction<GenericReco
 
   private final AvroToRowDataConverters.AvroToRowDataConverter converter;
 
-  AvroGenericRecordToRowDataMapper(RowType rowType) {
-    this.converter = AvroToRowDataConverters.createRowConverter(rowType);
+  AvroGenericRecordToRowDataMapper(RowType rowType, boolean legacyTimestampMapping) {
+    this.converter = AvroToRowDataConverters.createRowConverter(rowType, legacyTimestampMapping);
   }
 
   @Override
@@ -51,11 +51,17 @@ public class AvroGenericRecordToRowDataMapper implements MapFunction<GenericReco
     return (RowData) converter.convert(genericRecord);
   }
 
-  /** Create a mapper based on Avro schema. */
   public static AvroGenericRecordToRowDataMapper forAvroSchema(Schema avroSchema) {
-    DataType dataType = AvroSchemaConverter.convertToDataType(avroSchema.toString());
+    return forAvroSchema(avroSchema, true);
+  }
+
+  /** Create a mapper based on Avro schema. */
+  public static AvroGenericRecordToRowDataMapper forAvroSchema(
+      Schema avroSchema, boolean legacyTimestampMapping) {
+    DataType dataType =
+        AvroSchemaConverter.convertToDataType(avroSchema.toString(), legacyTimestampMapping);
     LogicalType logicalType = TypeConversions.fromDataToLogicalType(dataType);
     RowType rowType = RowType.of(logicalType.getChildren().toArray(new LogicalType[0]));
-    return new AvroGenericRecordToRowDataMapper(rowType);
+    return new AvroGenericRecordToRowDataMapper(rowType, legacyTimestampMapping);
   }
 }
