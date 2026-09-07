@@ -20,7 +20,10 @@ package org.apache.iceberg.connect.data;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
@@ -48,6 +51,8 @@ class IcebergWriterFactory {
 
   private final Catalog catalog;
   private final IcebergSinkConfig config;
+  private final Set<String> warnedMissingTables = ConcurrentHashMap.newKeySet();
+  private final AtomicLong droppedRecordCount = new AtomicLong();
 
   IcebergWriterFactory(Catalog catalog, IcebergSinkConfig config) {
     this.catalog = catalog;
@@ -63,7 +68,17 @@ class IcebergWriterFactory {
       if (config.autoCreateEnabled()) {
         table = autoCreateTable(tableName, sample);
       } else if (ignoreMissingTable) {
-        return new NoOpWriter();
+        if (warnedMissingTables.add(tableName)) {
+          LOG.warn(
+              "Table {} does not exist in catalog {} and auto-create is disabled; "
+                  + "records routed to it will be silently discarded. "
+                  + "Set iceberg.tables.auto-create-enabled=true or pre-create the table "
+                  + "in the catalog.",
+              tableName,
+              catalog.name(),
+              nst);
+        }
+        return new NoOpWriter(droppedRecordCount);
       } else {
         throw nst;
       }
@@ -78,6 +93,21 @@ class IcebergWriterFactory {
     TableReference tableReference = TableReference.of(catalog.name(), identifier, tableUuid);
 
     return new IcebergWriter(table, tableReference, config);
+  }
+
+  /**
+   * Returns the number of records discarded by {@link NoOpWriter} instances created by this
+   * factory. A non-zero value indicates that dynamic routing encountered a table that does not
+   * exist in the catalog while auto-create was disabled.
+   */
+  @VisibleForTesting
+  long droppedRecordCount() {
+    return droppedRecordCount.get();
+  }
+
+  @VisibleForTesting
+  Set<String> warnedMissingTables() {
+    return warnedMissingTables;
   }
 
   @VisibleForTesting

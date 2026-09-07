@@ -19,6 +19,7 @@
 package org.apache.iceberg.connect.data;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -42,6 +43,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types.LongType;
 import org.apache.iceberg.types.Types.StringType;
 import org.apache.kafka.connect.sink.SinkRecord;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
@@ -95,5 +97,117 @@ public class TestIcebergWriterFactory {
     assertThat(capturedArguments.get(0)).isEqualTo(Namespace.of("foo1"));
     assertThat(capturedArguments.get(1)).isEqualTo(Namespace.of("foo1", "foo2"));
     assertThat(capturedArguments.get(2)).isEqualTo(Namespace.of("foo1", "foo2", "foo3"));
+  }
+
+  @Test
+  public void missingTableWithIgnoreFlagReturnsNoOpWriterAndTracksTable() {
+    Catalog catalog = mock(Catalog.class);
+    when(catalog.name()).thenReturn("test-catalog");
+    when(catalog.loadTable(any())).thenThrow(new NoSuchTableException("no such table"));
+
+    IcebergSinkConfig config = mock(IcebergSinkConfig.class);
+    when(config.autoCreateEnabled()).thenReturn(false);
+
+    IcebergWriterFactory factory = new IcebergWriterFactory(catalog, config);
+
+    RecordWriter writer = factory.createWriter("db.missing", mock(SinkRecord.class), true);
+    assertThat(writer).isInstanceOf(NoOpWriter.class);
+    assertThat(factory.warnedMissingTables()).containsExactly("db.missing");
+  }
+
+  @Test
+  public void missingTableRecordsWarnAtMostOncePerTable() {
+    Catalog catalog = mock(Catalog.class);
+    when(catalog.name()).thenReturn("test-catalog");
+    when(catalog.loadTable(any())).thenThrow(new NoSuchTableException("no such table"));
+
+    IcebergSinkConfig config = mock(IcebergSinkConfig.class);
+    when(config.autoCreateEnabled()).thenReturn(false);
+
+    IcebergWriterFactory factory = new IcebergWriterFactory(catalog, config);
+
+    // two calls for the same missing table
+    factory.createWriter("db.missing", mock(SinkRecord.class), true);
+    factory.createWriter("db.missing", mock(SinkRecord.class), true);
+
+    // the same table appears only once in the warned-set (proxy for "WARN logged once")
+    assertThat(factory.warnedMissingTables()).containsExactly("db.missing");
+  }
+
+  @Test
+  public void missingTablesEachRecordSeparateWarn() {
+    Catalog catalog = mock(Catalog.class);
+    when(catalog.name()).thenReturn("test-catalog");
+    when(catalog.loadTable(any())).thenThrow(new NoSuchTableException("no such table"));
+
+    IcebergSinkConfig config = mock(IcebergSinkConfig.class);
+    when(config.autoCreateEnabled()).thenReturn(false);
+
+    IcebergWriterFactory factory = new IcebergWriterFactory(catalog, config);
+
+    factory.createWriter("db.missing_a", mock(SinkRecord.class), true);
+    factory.createWriter("db.missing_b", mock(SinkRecord.class), true);
+
+    assertThat(factory.warnedMissingTables())
+        .containsExactlyInAnyOrder("db.missing_a", "db.missing_b");
+  }
+
+  @Test
+  public void noOpWriterIncrementsDroppedRecordCountPerWrite() {
+    Catalog catalog = mock(Catalog.class);
+    when(catalog.name()).thenReturn("test-catalog");
+    when(catalog.loadTable(any())).thenThrow(new NoSuchTableException("no such table"));
+
+    IcebergSinkConfig config = mock(IcebergSinkConfig.class);
+    when(config.autoCreateEnabled()).thenReturn(false);
+
+    IcebergWriterFactory factory = new IcebergWriterFactory(catalog, config);
+    RecordWriter writer = factory.createWriter("db.missing", mock(SinkRecord.class), true);
+
+    for (int i = 0; i < 5; i++) {
+      writer.write(mock(SinkRecord.class));
+    }
+
+    assertThat(factory.droppedRecordCount()).isEqualTo(5L);
+  }
+
+  @Test
+  public void droppedRecordCountAccumulatesAcrossTables() {
+    Catalog catalog = mock(Catalog.class);
+    when(catalog.name()).thenReturn("test-catalog");
+    when(catalog.loadTable(any())).thenThrow(new NoSuchTableException("no such table"));
+
+    IcebergSinkConfig config = mock(IcebergSinkConfig.class);
+    when(config.autoCreateEnabled()).thenReturn(false);
+
+    IcebergWriterFactory factory = new IcebergWriterFactory(catalog, config);
+    RecordWriter writerA = factory.createWriter("db.missing_a", mock(SinkRecord.class), true);
+    RecordWriter writerB = factory.createWriter("db.missing_b", mock(SinkRecord.class), true);
+
+    writerA.write(mock(SinkRecord.class));
+    writerA.write(mock(SinkRecord.class));
+    writerB.write(mock(SinkRecord.class));
+
+    assertThat(factory.droppedRecordCount()).isEqualTo(3L);
+  }
+
+  @Test
+  public void missingTableWithoutIgnoreFlagRethrows() {
+    Catalog catalog = mock(Catalog.class);
+    when(catalog.name()).thenReturn("test-catalog");
+    when(catalog.loadTable(any())).thenThrow(new NoSuchTableException("no such table"));
+
+    IcebergSinkConfig config = mock(IcebergSinkConfig.class);
+    when(config.autoCreateEnabled()).thenReturn(false);
+
+    IcebergWriterFactory factory = new IcebergWriterFactory(catalog, config);
+
+    assertThatThrownBy(() -> factory.createWriter("db.missing", mock(SinkRecord.class), false))
+        .isInstanceOf(NoSuchTableException.class);
+
+    // no warn, no counter increment, because the record was never dropped — the caller got the
+    // error
+    assertThat(factory.warnedMissingTables()).isEmpty();
+    assertThat(factory.droppedRecordCount()).isZero();
   }
 }

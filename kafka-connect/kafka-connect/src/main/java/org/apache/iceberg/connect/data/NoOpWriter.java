@@ -19,23 +19,33 @@
 package org.apache.iceberg.connect.data;
 
 import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.kafka.connect.sink.SinkRecord;
 
+/**
+ * Placeholder writer used when dynamic routing encounters a table that does not exist in the
+ * catalog and auto-create is disabled. Every record written through this writer is discarded and
+ * counted in a shared, factory-scoped counter so operators can distinguish "no records dropped"
+ * from "records silently dropped".
+ */
 class NoOpWriter implements RecordWriter {
+  private final AtomicLong droppedRecordCount;
+
+  NoOpWriter(AtomicLong droppedRecordCount) {
+    this.droppedRecordCount = droppedRecordCount;
+  }
+
   @Override
   public void write(SinkRecord record) {
-    // NO-OP
+    droppedRecordCount.incrementAndGet();
   }
 
   @Override
   public List<IcebergWriterResult> complete() {
-    // NO-OP
     return ImmutableList.of();
   }
 
   @Override
-  public void close() {
-    // NO-OP
-  }
+  public void close() {}
 }
