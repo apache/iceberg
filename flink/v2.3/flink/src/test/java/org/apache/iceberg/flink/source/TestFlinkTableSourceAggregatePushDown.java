@@ -20,79 +20,29 @@ package org.apache.iceberg.flink.source;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.io.File;
 import java.io.IOException;
 import java.util.List;
-import org.apache.flink.configuration.CoreOptions;
-import org.apache.flink.table.api.TableEnvironment;
 import org.apache.flink.types.Row;
 import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.Parameter;
-import org.apache.iceberg.ParameterizedTestExtension;
-import org.apache.iceberg.Parameters;
 import org.apache.iceberg.flink.FlinkConfigOptions;
-import org.apache.iceberg.flink.TestBase;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
-import org.junit.jupiter.api.extension.ExtendWith;
 
-@ExtendWith(ParameterizedTestExtension.class)
-public class TestFlinkTableSourceAggregatePushDown extends TestBase {
-
-  @Parameters(name = "useFlip27Source = {0}")
-  private static Object[][] parameters() {
-    return new Object[][] {
-      {false}, {true},
-    };
-  }
-
-  @Parameter(index = 0)
-  private boolean useFlip27Source;
-
-  private static final String CATALOG_NAME = "test_catalog";
-  private static final String DATABASE_NAME = "test_db";
-  private static final String TABLE_NAME = "test_table";
+public class TestFlinkTableSourceAggregatePushDown extends TableSourceTestBase {
 
   @Override
-  protected TableEnvironment getTableEnv() {
-    super.getTableEnv().getConfig().getConfiguration().set(CoreOptions.DEFAULT_PARALLELISM, 1);
-    super.getTableEnv()
-        .getConfig()
-        .getConfiguration()
-        .set(FlinkConfigOptions.TABLE_EXEC_ICEBERG_USE_FLIP27_SOURCE, useFlip27Source);
-    return super.getTableEnv();
+  protected FileFormat format() {
+    return FileFormat.PARQUET;
   }
 
   @BeforeEach
+  @Override
   public void before() throws IOException {
+    super.before();
     getTableEnv()
         .getConfig()
         .getConfiguration()
         .removeConfig(FlinkConfigOptions.TABLE_EXEC_ICEBERG_AGGREGATE_PUSH_DOWN_ENABLED);
-    File warehouseFile = File.createTempFile("junit", null, temporaryDirectory.toFile());
-    assertThat(warehouseFile.delete()).isTrue();
-    String warehouse = String.format("file:%s", warehouseFile);
-
-    sql(
-        "CREATE CATALOG %s WITH ('type'='iceberg', 'catalog-type'='hadoop', 'warehouse'='%s')",
-        CATALOG_NAME, warehouse);
-    sql("USE CATALOG %s", CATALOG_NAME);
-    sql("CREATE DATABASE %s", DATABASE_NAME);
-    sql("USE %s", DATABASE_NAME);
-    sql(
-        "CREATE TABLE %s (id INT, data VARCHAR, d DOUBLE) WITH ('write.format.default'='%s')",
-        TABLE_NAME, FileFormat.PARQUET.name());
-    sql(
-        "INSERT INTO %s VALUES (1,'iceberg',10),(2,'b',20),(3,CAST(NULL AS VARCHAR),30)",
-        TABLE_NAME);
-  }
-
-  @AfterEach
-  public void clean() {
-    sql("DROP TABLE IF EXISTS %s.%s", DATABASE_NAME, TABLE_NAME);
-    dropDatabase(DATABASE_NAME, true);
-    dropCatalog(CATALOG_NAME, true);
   }
 
   @TestTemplate
@@ -132,6 +82,75 @@ public class TestFlinkTableSourceAggregatePushDown extends TestBase {
 
     List<Row> result = sql(query);
     assertThat(result).hasSize(1).containsExactly(Row.of(3, 1));
+  }
+
+  @TestTemplate
+  public void maxOnStringIsNotPushedDown() {
+    enableAggregatePushDown();
+
+    String query = String.format("SELECT MAX(data) FROM %s", TABLE_NAME);
+    assertThat(explain(query))
+        .as("MIN/MAX on a string column must not be pushed into the scan")
+        .doesNotContain("aggregates=[");
+
+    List<Row> result = sql(query);
+    assertThat(result).hasSize(1).containsExactly(Row.of("iceberg"));
+  }
+
+  @TestTemplate
+  public void maxOnDoublePushDown() {
+    enableAggregatePushDown();
+
+    String query = String.format("SELECT MAX(d) FROM %s", TABLE_NAME);
+    assertThat(explain(query))
+        .as("MIN/MAX on a non-integer column should be pushed into the scan")
+        .contains("aggregates=[");
+
+    List<Row> result = sql(query);
+    assertThat(result).hasSize(1).containsExactly(Row.of(30.0));
+  }
+
+  @TestTemplate
+  public void aggregatePushDownSkippedWithCountsMetricsMode() {
+    enableAggregatePushDown();
+
+    String countsTable = "counts_table";
+    sql(
+        "CREATE TABLE %s (id INT, data VARCHAR) "
+            + "WITH ('write.format.default'='%s', 'write.metadata.metrics.default'='counts')",
+        countsTable, format().name());
+    try {
+      sql("INSERT INTO %s VALUES (1,'a'),(2,'b'),(3,'c')", countsTable);
+
+      String query = String.format("SELECT MAX(id) FROM %s", countsTable);
+      assertThat(explain(query))
+          .as("MIN/MAX cannot be answered from counts-only metrics")
+          .doesNotContain("aggregates=[");
+
+      assertThat(sql(query)).hasSize(1).containsExactly(Row.of(3));
+    } finally {
+      sql("DROP TABLE IF EXISTS %s.%s", DATABASE_NAME, countsTable);
+    }
+  }
+
+  @TestTemplate
+  public void aggregatePushDownSkippedForAvroTable() {
+    enableAggregatePushDown();
+
+    String avroTable = "avro_table";
+    sql("CREATE TABLE %s (id INT, data VARCHAR) WITH ('write.format.default'='avro')", avroTable);
+    try {
+      sql("INSERT INTO %s VALUES (1,'a'),(2,'b'),(3,'c')", avroTable);
+
+      String query = String.format("SELECT MAX(id) FROM %s", avroTable);
+      assertThat(explain(query))
+          .as("Avro files carry no column metrics, so MIN/MAX cannot be pushed down")
+          .doesNotContain("aggregates=[");
+
+      assertThat(sql(query)).hasSize(1).containsExactly(Row.of(3));
+    } finally {
+      sql("DROP TABLE IF EXISTS %s.%s", DATABASE_NAME, avroTable);
+    }
   }
 
   @TestTemplate
@@ -181,7 +200,7 @@ public class TestFlinkTableSourceAggregatePushDown extends TestBase {
     sql(
         "CREATE TABLE %s (id INT, data VARCHAR, d DOUBLE) PARTITIONED BY (data) "
             + "WITH ('write.format.default'='%s')",
-        partitionedTable, FileFormat.PARQUET.name());
+        partitionedTable, format().name());
     try {
       sql("INSERT INTO %s VALUES (1,'a',10),(2,'a',20),(3,'b',30),(4,'b',40)", partitionedTable);
 
@@ -208,14 +227,20 @@ public class TestFlinkTableSourceAggregatePushDown extends TestBase {
     sql(
         "CREATE TABLE %s (id INT, data VARCHAR, d DOUBLE) PARTITIONED BY (data) "
             + "WITH ('write.format.default'='%s')",
-        partitionedTable, FileFormat.PARQUET.name());
+        partitionedTable, format().name());
     try {
       sql("INSERT INTO %s VALUES (1,'a',10),(2,'a',20),(3,'b',30),(4,'b',40)", partitionedTable);
 
-      String query = String.format("SELECT id FROM %s WHERE data = 'a'", partitionedTable);
-      assertThat(sql(query)).containsExactlyInAnyOrder(Row.of(1), Row.of(2));
+      String alignedQuery = String.format("SELECT id FROM %s WHERE data = 'a'", partitionedTable);
+      assertThat(explain(alignedQuery))
+          .as("A partition-aligned filter should be fully handled by the scan, not re-applied")
+          .doesNotContain("Calc");
+      assertThat(sql(alignedQuery)).containsExactlyInAnyOrder(Row.of(1), Row.of(2));
 
       String nonAligned = String.format("SELECT id FROM %s WHERE id > 2", partitionedTable);
+      assertThat(explain(nonAligned))
+          .as("A non-aligned filter should be re-applied above the scan")
+          .contains("Calc");
       assertThat(sql(nonAligned)).containsExactlyInAnyOrder(Row.of(3), Row.of(4));
     } finally {
       sql("DROP TABLE IF EXISTS %s.%s", DATABASE_NAME, partitionedTable);

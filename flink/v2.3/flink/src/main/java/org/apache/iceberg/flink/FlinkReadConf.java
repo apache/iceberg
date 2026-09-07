@@ -65,6 +65,16 @@ public class FlinkReadConf {
         .parse();
   }
 
+  public boolean aggregatePushDownEnabled() {
+    return confParser
+        .booleanConf()
+        .option(FlinkReadOptions.AGGREGATE_PUSH_DOWN_ENABLED)
+        .flinkConfig(FlinkConfigOptions.TABLE_EXEC_ICEBERG_AGGREGATE_PUSH_DOWN_ENABLED)
+        .defaultValue(
+            FlinkConfigOptions.TABLE_EXEC_ICEBERG_AGGREGATE_PUSH_DOWN_ENABLED.defaultValue())
+        .parse();
+  }
+
   public Long asOfTimestamp() {
     return confParser.longConf().option(FlinkReadOptions.AS_OF_TIMESTAMP.key()).parseOptional();
   }

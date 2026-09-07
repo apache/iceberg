@@ -27,6 +27,7 @@ import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.BatchScan;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.IncrementalAppendScan;
+import org.apache.iceberg.MetricsUtil;
 import org.apache.iceberg.ScanTask;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
@@ -46,7 +47,6 @@ import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.TimeTravel;
 import org.apache.iceberg.types.Types;
-import org.apache.iceberg.util.AggregatePushDownUtil;
 import org.apache.iceberg.util.Pair;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.InternalRow;
@@ -153,7 +153,7 @@ public class SparkScanBuilder extends BaseSparkScanBuilder
 
     aggregateEvaluator = AggregateEvaluator.create(expressions);
 
-    if (!AggregatePushDownUtil.metricsModeSupportsAggregatePushDown(
+    if (!MetricsUtil.metricsModeSupportsAggregatePushDown(
         table(), aggregateEvaluator.aggregates())) {
       return false;
     }

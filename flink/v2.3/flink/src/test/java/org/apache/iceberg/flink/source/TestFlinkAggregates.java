@@ -24,16 +24,17 @@ import java.util.List;
 import org.apache.flink.table.api.DataTypes;
 import org.apache.flink.table.expressions.AggregateExpression;
 import org.apache.flink.table.expressions.FieldReferenceExpression;
-import org.apache.flink.table.functions.BuiltInFunctionDefinitions;
 import org.apache.flink.table.functions.FunctionDefinition;
 import org.apache.flink.table.planner.functions.aggfunctions.Count1AggFunction;
 import org.apache.flink.table.planner.functions.aggfunctions.CountAggFunction;
 import org.apache.flink.table.planner.functions.aggfunctions.MaxAggFunction;
 import org.apache.flink.table.planner.functions.aggfunctions.MinAggFunction;
+import org.apache.flink.table.planner.functions.aggfunctions.SumAggFunction;
 import org.apache.flink.table.types.DataType;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expression.Operation;
 import org.apache.iceberg.expressions.UnboundAggregate;
+import org.apache.iceberg.flink.FlinkAggregates;
 import org.junit.jupiter.api.Test;
 
 public class TestFlinkAggregates {
@@ -108,7 +109,7 @@ public class TestFlinkAggregates {
   public void unsupportedFunctionIsNotPushedDown() {
     Expression converted =
         FlinkAggregates.convert(
-            aggregate(BuiltInFunctionDefinitions.SUM, List.of(field("amount"))));
+            aggregate(new SumAggFunction.IntSumAggFunction(), List.of(field("amount"))));
     assertThat(converted).isNull();
   }
 

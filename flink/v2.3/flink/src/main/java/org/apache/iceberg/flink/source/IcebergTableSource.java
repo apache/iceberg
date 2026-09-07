@@ -42,6 +42,7 @@ import org.apache.flink.table.connector.source.abilities.SupportsFilterPushDown;
 import org.apache.flink.table.connector.source.abilities.SupportsLimitPushDown;
 import org.apache.flink.table.connector.source.abilities.SupportsProjectionPushDown;
 import org.apache.flink.table.connector.source.abilities.SupportsSourceWatermark;
+import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.expressions.AggregateExpression;
 import org.apache.flink.table.expressions.ResolvedExpression;
@@ -51,24 +52,28 @@ import org.apache.flink.table.types.DataType;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.BaseMetadataTable;
 import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.MetricsUtil;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableScan;
 import org.apache.iceberg.expressions.AggregateEvaluator;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ExpressionUtil;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.flink.FlinkAggregates;
 import org.apache.iceberg.flink.FlinkConfigOptions;
 import org.apache.iceberg.flink.FlinkFilters;
+import org.apache.iceberg.flink.FlinkReadConf;
 import org.apache.iceberg.flink.FlinkReadOptions;
 import org.apache.iceberg.flink.TableLoader;
-import org.apache.iceberg.flink.data.StructRowData;
+import org.apache.iceberg.flink.data.RowDataUtil;
 import org.apache.iceberg.flink.source.assigner.SplitAssignerType;
 import org.apache.iceberg.flink.util.FlinkCompatibilityUtil;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.util.AggregatePushDownUtil;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.PropertyUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -91,12 +96,14 @@ public class IcebergTableSource
   private AggregateEvaluator pushedAggregate;
   private DataType pushedAggregateProducedDataType;
 
+  private transient Table cachedTable;
+  private transient FlinkReadConf readConf;
+
   private final TableLoader loader;
   private final ResolvedSchema schema;
   private final Map<String, String> properties;
   private final boolean isLimitPushDown;
   private final ReadableConfig readableConfig;
-  private final boolean caseSensitive;
 
   private IcebergTableSource(IcebergTableSource toCopy) {
     this.loader = toCopy.loader;
@@ -107,7 +114,6 @@ public class IcebergTableSource
     this.limit = toCopy.limit;
     this.filters = toCopy.filters;
     this.readableConfig = toCopy.readableConfig;
-    this.caseSensitive = toCopy.caseSensitive;
     this.pushedAggregate = toCopy.pushedAggregate;
     this.pushedAggregateProducedDataType = toCopy.pushedAggregateProducedDataType;
   }
@@ -137,11 +143,6 @@ public class IcebergTableSource
     this.limit = limit;
     this.filters = filters;
     this.readableConfig = readableConfig;
-    this.caseSensitive =
-        PropertyUtil.propertyAsBoolean(
-            properties,
-            FlinkReadOptions.CASE_SENSITIVE,
-            FlinkReadOptions.CASE_SENSITIVE_OPTION.defaultValue());
   }
 
   @Override
@@ -216,10 +217,10 @@ public class IcebergTableSource
       acceptedFilters.add(resolvedExpression);
 
       if (table == null) {
-        table = loadTable();
+        table = table();
       }
 
-      if (ExpressionUtil.selectsPartitions(expression, table, caseSensitive)) {
+      if (ExpressionUtil.selectsPartitions(expression, table, readConf().caseSensitive())) {
         LOG.info("Evaluating {} entirely on the Iceberg side", expression);
       } else {
         remainingFilters.add(resolvedExpression);
@@ -246,9 +247,8 @@ public class IcebergTableSource
       List<int[]> groupingSets,
       List<AggregateExpression> aggregateExpressions,
       DataType producedDataType) {
-    if (!readableConfig.get(FlinkConfigOptions.TABLE_EXEC_ICEBERG_AGGREGATE_PUSH_DOWN_ENABLED)) {
-      LOG.info(
-          "Skipping aggregate pushdown: table.exec.iceberg.aggregate-push-down-enabled is not enabled");
+    if (!readConf().aggregatePushDownEnabled()) {
+      LOG.info("Skipping aggregate pushdown: aggregate push down is not enabled");
       return false;
     }
 
@@ -267,12 +267,17 @@ public class IcebergTableSource
       return false;
     }
 
+    if (hasTimeTravelOrRefOptions()) {
+      LOG.info("Skipping aggregate pushdown: time travel or ref read options are set");
+      return false;
+    }
+
     List<Expression> icebergAggregates = convertAggregates(aggregateExpressions);
     if (icebergAggregates == null) {
       return false;
     }
 
-    Table table = loadTable();
+    Table table = table();
     if (table instanceof BaseMetadataTable) {
       LOG.info("Skipping aggregate pushdown: metadata tables are not supported");
       return false;
@@ -319,15 +324,14 @@ public class IcebergTableSource
       return null;
     }
 
-    if (!AggregatePushDownUtil.metricsModeSupportsAggregatePushDown(
-        table, evaluator.aggregates())) {
+    if (!MetricsUtil.metricsModeSupportsAggregatePushDown(table, evaluator.aggregates())) {
       return null;
     }
 
     TableScan scan =
         table
             .newScan()
-            .caseSensitive(caseSensitive)
+            .caseSensitive(readConf().caseSensitive())
             .includeColumnStats()
             .filter(filterExpression());
 
@@ -420,13 +424,25 @@ public class IcebergTableSource
     return "Iceberg table source";
   }
 
-  private Table loadTable() {
-    try (TableLoader tableLoader = loader.clone()) {
-      tableLoader.open();
-      return tableLoader.loadTable();
-    } catch (IOException e) {
-      throw new UncheckedIOException(e);
+  private Table table() {
+    if (cachedTable == null) {
+      try (TableLoader tableLoader = loader.clone()) {
+        tableLoader.open();
+        cachedTable = tableLoader.loadTable();
+      } catch (IOException e) {
+        throw new UncheckedIOException(e);
+      }
     }
+
+    return cachedTable;
+  }
+
+  private FlinkReadConf readConf() {
+    if (readConf == null) {
+      readConf = new FlinkReadConf(table(), properties, readableConfig);
+    }
+
+    return readConf;
   }
 
   private boolean filtersSelectWholePartitions(Table table) {
@@ -435,7 +451,7 @@ public class IcebergTableSource
     }
 
     for (Expression filter : filters) {
-      if (!ExpressionUtil.selectsPartitions(filter, table, caseSensitive)) {
+      if (!ExpressionUtil.selectsPartitions(filter, table, readConf().caseSensitive())) {
         return false;
       }
     }
@@ -452,15 +468,37 @@ public class IcebergTableSource
   }
 
   private DataStream<RowData> createAggregateDataStream(StreamExecutionEnvironment execEnv) {
-    RowData row =
-        new StructRowData(pushedAggregate.resultType()).setStruct(pushedAggregate.result());
+    Types.StructType resultType = pushedAggregate.resultType();
+    StructLike result = pushedAggregate.result();
+    // Aggregate results hold Iceberg's internal representations (e.g. TIME bound as long micros),
+    // which Flink accessors do not accept. Convert each field to Flink's runtime representation.
+    GenericRowData row = new GenericRowData(resultType.fields().size());
+    for (int i = 0; i < row.getArity(); i++) {
+      row.setField(
+          i,
+          RowDataUtil.convertConstant(
+              resultType.fields().get(i).type(), result.get(i, Object.class)));
+    }
+
     RowType rowType = (RowType) pushedAggregateProducedDataType.getLogicalType();
     return execEnv
         .fromData(Collections.singletonList(row), FlinkCompatibilityUtil.toTypeInfo(rowType))
         .setParallelism(1);
   }
 
-  public static boolean isBounded(Map<String, String> properties) {
+  private static boolean isBounded(Map<String, String> properties) {
     return !PropertyUtil.propertyAsBoolean(properties, FlinkReadOptions.STREAMING, false);
+  }
+
+  private boolean hasTimeTravelOrRefOptions() {
+    FlinkReadConf conf = readConf();
+    return conf.snapshotId() != null
+        || conf.asOfTimestamp() != null
+        || conf.branch() != null
+        || conf.tag() != null
+        || conf.startSnapshotId() != null
+        || conf.endSnapshotId() != null
+        || conf.startTag() != null
+        || conf.endTag() != null;
   }
 }

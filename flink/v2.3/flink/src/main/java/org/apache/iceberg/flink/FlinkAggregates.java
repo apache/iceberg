@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.flink.source;
+package org.apache.iceberg.flink;
 
 import java.util.List;
 import org.apache.flink.table.expressions.AggregateExpression;
