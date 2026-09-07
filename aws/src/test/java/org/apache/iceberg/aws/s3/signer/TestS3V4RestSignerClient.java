@@ -35,6 +35,7 @@ import org.apache.iceberg.rest.responses.OAuthTokenResponse;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -232,5 +233,32 @@ class TestS3V4RestSignerClient {
                 "v1/legacy/sign"),
             "https://legacy-signer.com",
             "https://legacy-signer.com/v1/legacy/sign"));
+  }
+
+  @Test
+  void doesNotReuseSignedComponentAcrossSignerClients() throws Exception {
+    Map<String, String> properties1 =
+        Map.of(
+            CatalogProperties.URI,
+            "https://signer.com",
+            RESTCatalogProperties.REMOTE_SIGNING_ENDPOINT,
+            "v1/sign",
+            OAuth2Properties.CREDENTIAL,
+            "user1:secret1");
+    Map<String, String> properties2 =
+        Map.of(
+            CatalogProperties.URI,
+            "https://signer.com",
+            RESTCatalogProperties.REMOTE_SIGNING_ENDPOINT,
+            "v1/sign",
+            OAuth2Properties.CREDENTIAL,
+            "user2:secret2");
+
+    try (S3V4RestSignerClient client1 =
+            ImmutableS3V4RestSignerClient.builder().properties(properties1).build();
+        S3V4RestSignerClient client2 =
+            ImmutableS3V4RestSignerClient.builder().properties(properties2).build()) {
+      assertThat(client1.signedComponentCache()).isNotSameAs(client2.signedComponentCache());
+    }
   }
 }
