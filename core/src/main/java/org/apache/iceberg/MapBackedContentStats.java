@@ -22,6 +22,7 @@ import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Conversions;
@@ -40,19 +41,19 @@ class MapBackedContentStats implements ContentStats, StructLike {
   private Map<Integer, ByteBuffer> lowerBounds;
   private Map<Integer, ByteBuffer> upperBounds;
 
-  MapBackedContentStats(Schema tableSchema, MetricsConfig metricsConfig) {
-    this.struct = StatsUtil.statsWriteSchema(tableSchema, metricsConfig);
+  MapBackedContentStats(Types.StructType contentStatsType) {
+    Preconditions.checkArgument(contentStatsType != null, "Invalid content stats type: null");
+    this.struct = contentStatsType;
     List<Types.NestedField> fields = struct.fields();
     this.posToId = new int[fields.size()];
     this.statsById = Maps.newHashMapWithExpectedSize(fields.size());
     for (int i = 0; i < fields.size(); i += 1) {
       Types.NestedField field = fields.get(i);
       int fieldId = StatsUtil.toFieldId(field.fieldId());
+      Types.StructType fieldStatsType = field.type().asStructType();
       posToId[i] = fieldId;
       statsById.put(
-          fieldId,
-          new MapBackedFieldStats<>(
-              field.type().asStructType(), fieldId, tableSchema.findType(fieldId)));
+          fieldId, new MapBackedFieldStats<>(fieldStatsType, fieldId, boundType(fieldStatsType)));
     }
   }
 
@@ -93,6 +94,16 @@ class MapBackedContentStats implements ContentStats, StructLike {
   @Override
   public Types.StructType type() {
     return struct;
+  }
+
+  private static Type boundType(Types.StructType fieldStats) {
+    for (Types.NestedField field : fieldStats.fields()) {
+      if (StatsUtil.statOffset(field.fieldId()) == StatsUtil.LOWER_BOUND_OFFSET) {
+        return field.type();
+      }
+    }
+
+    return null;
   }
 
   @Override
@@ -151,6 +162,10 @@ class MapBackedContentStats implements ContentStats, StructLike {
     @Override
     @SuppressWarnings("unchecked")
     public T lowerBound() {
+      if (boundType == null) {
+        return null;
+      }
+
       ByteBuffer buf = lowerBounds == null ? null : lowerBounds.get(fieldId);
       return buf == null ? null : (T) Conversions.fromByteBuffer(boundType, buf);
     }
@@ -158,6 +173,10 @@ class MapBackedContentStats implements ContentStats, StructLike {
     @Override
     @SuppressWarnings("unchecked")
     public T upperBound() {
+      if (boundType == null) {
+        return null;
+      }
+
       ByteBuffer buf = upperBounds == null ? null : upperBounds.get(fieldId);
       return buf == null ? null : (T) Conversions.fromByteBuffer(boundType, buf);
     }
