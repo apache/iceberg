@@ -154,17 +154,22 @@ public class GCPProperties implements Serializable {
     gcsUserProject = properties.get(GCS_USER_PROJECT);
 
     if (properties.containsKey(GCS_CHANNEL_READ_CHUNK_SIZE)) {
-      gcsChannelReadChunkSize = Integer.parseInt(properties.get(GCS_CHANNEL_READ_CHUNK_SIZE));
+      gcsChannelReadChunkSize =
+          PropertyUtil.propertyAsNullableInt(properties, GCS_CHANNEL_READ_CHUNK_SIZE);
     }
 
     if (properties.containsKey(GCS_CHANNEL_WRITE_CHUNK_SIZE)) {
-      gcsChannelWriteChunkSize = Integer.parseInt(properties.get(GCS_CHANNEL_WRITE_CHUNK_SIZE));
+      gcsChannelWriteChunkSize =
+          PropertyUtil.propertyAsNullableInt(properties, GCS_CHANNEL_WRITE_CHUNK_SIZE);
     }
 
     gcsOAuth2Token = properties.get(GCS_OAUTH2_TOKEN);
     if (properties.containsKey(GCS_OAUTH2_TOKEN_EXPIRES_AT)) {
-      gcsOAuth2TokenExpiresAt =
-          new Date(Long.parseLong(properties.get(GCS_OAUTH2_TOKEN_EXPIRES_AT)));
+      Long tokenExpiresAt =
+          PropertyUtil.propertyAsNullableLong(properties, GCS_OAUTH2_TOKEN_EXPIRES_AT);
+      if (tokenExpiresAt != null) {
+        gcsOAuth2TokenExpiresAt = new Date(tokenExpiresAt);
+      }
     }
 
     gcsOauth2RefreshCredentialsEndpoint =
