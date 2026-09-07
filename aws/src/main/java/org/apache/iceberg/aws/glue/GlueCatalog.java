@@ -289,7 +289,6 @@ public class GlueCatalog extends BaseMetastoreCatalog
     GetDatabaseResponse response =
         glue.getDatabase(
             GetDatabaseRequest.builder()
-                .catalogId(awsProperties.glueCatalogId())
                 .name(
                     IcebergToGlueConverter.getDatabaseName(
                         tableIdentifier, awsProperties.glueCatalogSkipNameValidation()))
@@ -323,7 +322,6 @@ public class GlueCatalog extends BaseMetastoreCatalog
       GetTablesResponse response =
           glue.getTables(
               GetTablesRequest.builder()
-                  .catalogId(awsProperties.glueCatalogId())
                   .databaseName(
                       IcebergToGlueConverter.toDatabaseName(
                           namespace, awsProperties.glueCatalogSkipNameValidation()))
@@ -366,7 +364,6 @@ public class GlueCatalog extends BaseMetastoreCatalog
       }
       glue.deleteTable(
           DeleteTableRequest.builder()
-              .catalogId(awsProperties.glueCatalogId())
               .databaseName(
                   IcebergToGlueConverter.getDatabaseName(
                       identifier, awsProperties.glueCatalogSkipNameValidation()))
@@ -415,11 +412,7 @@ public class GlueCatalog extends BaseMetastoreCatalog
     try {
       GetTableResponse response =
           glue.getTable(
-              GetTableRequest.builder()
-                  .catalogId(awsProperties.glueCatalogId())
-                  .databaseName(fromTableDbName)
-                  .name(fromTableName)
-                  .build());
+              GetTableRequest.builder().databaseName(fromTableDbName).name(fromTableName).build());
       fromTable = response.table();
     } catch (EntityNotFoundException e) {
       throw new NoSuchTableException(
@@ -436,7 +429,6 @@ public class GlueCatalog extends BaseMetastoreCatalog
 
     glue.createTable(
         CreateTableRequest.builder()
-            .catalogId(awsProperties.glueCatalogId())
             .databaseName(toTableDbName)
             .tableInput(tableInputBuilder.name(toTableName).build())
             .build());
@@ -452,11 +444,7 @@ public class GlueCatalog extends BaseMetastoreCatalog
           to,
           e);
       glue.deleteTable(
-          DeleteTableRequest.builder()
-              .catalogId(awsProperties.glueCatalogId())
-              .databaseName(toTableDbName)
-              .name(toTableName)
-              .build());
+          DeleteTableRequest.builder().databaseName(toTableDbName).name(toTableName).build());
       throw e;
     }
 
@@ -468,7 +456,6 @@ public class GlueCatalog extends BaseMetastoreCatalog
     try {
       glue.createDatabase(
           CreateDatabaseRequest.builder()
-              .catalogId(awsProperties.glueCatalogId())
               .databaseInput(
                   IcebergToGlueConverter.toDatabaseInput(
                       namespace, metadata, awsProperties.glueCatalogSkipNameValidation()))
@@ -496,11 +483,7 @@ public class GlueCatalog extends BaseMetastoreCatalog
     List<Namespace> results = Lists.newArrayList();
     do {
       GetDatabasesResponse response =
-          glue.getDatabases(
-              GetDatabasesRequest.builder()
-                  .catalogId(awsProperties.glueCatalogId())
-                  .nextToken(nextToken)
-                  .build());
+          glue.getDatabases(GetDatabasesRequest.builder().nextToken(nextToken).build());
       nextToken = response.nextToken();
       if (response.hasDatabaseList()) {
         results.addAll(
@@ -522,12 +505,7 @@ public class GlueCatalog extends BaseMetastoreCatalog
             namespace, awsProperties.glueCatalogSkipNameValidation());
     try {
       Database database =
-          glue.getDatabase(
-                  GetDatabaseRequest.builder()
-                      .catalogId(awsProperties.glueCatalogId())
-                      .name(databaseName)
-                      .build())
-              .database();
+          glue.getDatabase(GetDatabaseRequest.builder().name(databaseName).build()).database();
       Map<String, String> result = Maps.newHashMap(database.parameters());
 
       if (database.locationUri() != null) {
@@ -559,7 +537,6 @@ public class GlueCatalog extends BaseMetastoreCatalog
     GetTablesResponse response =
         glue.getTables(
             GetTablesRequest.builder()
-                .catalogId(awsProperties.glueCatalogId())
                 .databaseName(
                     IcebergToGlueConverter.toDatabaseName(
                         namespace, awsProperties.glueCatalogSkipNameValidation()))
@@ -578,7 +555,6 @@ public class GlueCatalog extends BaseMetastoreCatalog
 
     glue.deleteDatabase(
         DeleteDatabaseRequest.builder()
-            .catalogId(awsProperties.glueCatalogId())
             .name(
                 IcebergToGlueConverter.toDatabaseName(
                     namespace, awsProperties.glueCatalogSkipNameValidation()))
@@ -596,7 +572,6 @@ public class GlueCatalog extends BaseMetastoreCatalog
     newProperties.putAll(properties);
     glue.updateDatabase(
         UpdateDatabaseRequest.builder()
-            .catalogId(awsProperties.glueCatalogId())
             .name(
                 IcebergToGlueConverter.toDatabaseName(
                     namespace, awsProperties.glueCatalogSkipNameValidation()))
@@ -619,7 +594,6 @@ public class GlueCatalog extends BaseMetastoreCatalog
 
     glue.updateDatabase(
         UpdateDatabaseRequest.builder()
-            .catalogId(awsProperties.glueCatalogId())
             .name(
                 IcebergToGlueConverter.toDatabaseName(
                     namespace, awsProperties.glueCatalogSkipNameValidation()))

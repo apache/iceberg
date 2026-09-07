@@ -147,6 +147,7 @@ public class AwsClientFactories {
           .applyMutation(awsClientProperties::applyClientRegionConfiguration)
           .applyMutation(httpClientProperties::applyHttpClientConfigurations)
           .applyMutation(awsProperties::applyGlueEndpointConfigurations)
+          .applyMutation(awsProperties::applyGlueCatalogIdConfigurations)
           .applyMutation(awsClientProperties::applyClientCredentialConfigurations)
           .applyMutation(awsClientProperties::applyRetryConfigurations)
           .build();
