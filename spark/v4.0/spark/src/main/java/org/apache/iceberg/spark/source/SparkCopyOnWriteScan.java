@@ -103,7 +103,11 @@ class SparkCopyOnWriteScan extends SparkPartitioningAwareScan<FileScanTask>
   }
 
   @Override
-  public void filter(Predicate[] predicates) {
+  // synchronized on the scan monitor (same monitor as tasks()/taskGroups()/resetTasks) so the
+  // non-atomic check-then-act (publish filteredLocations -> narrow tasks -> resetTasks) is not
+  // observed half-applied by a concurrent branch. A COW UPDATE with a subquery is rewritten as a
+  // UNION whose two branches share this one scan and, under AQE, prepare their stages concurrently.
+  public synchronized void filter(Predicate[] predicates) {
     Preconditions.checkState(
         Objects.equals(snapshotId(), currentSnapshotId()),
         "Runtime file filtering is not possible: the table has been concurrently modified. "
