@@ -91,8 +91,13 @@ class SparkCopyOnWriteScan extends SparkPartitioningAwareScan<FileScanTask>
     return new NamedReference[] {SparkMetadataColumns.FILE_PATH.asRef()};
   }
 
+  // synchronized because a single scan instance is shared across both branches of the UNION plan
+  // produced when rewriting UPDATEs with subqueries, so Spark may invoke this runtime file-filter
+  // callback concurrently; the check-then-act below (and its terminal resetTasks) must be atomic
+  // to keep every branch from observing the pre-narrowing (full) task set. filter() runs at
+  // planning time only, so synchronization adds no per-row cost.
   @Override
-  public void filter(Predicate[] predicates) {
+  public synchronized void filter(Predicate[] predicates) {
     for (Predicate predicate : predicates) {
       // Spark can only pass IN predicates at the moment
       if (isFilePathInPredicate(predicate)) {

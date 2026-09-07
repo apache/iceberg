@@ -105,8 +105,11 @@ abstract class SparkRuntimeFilterableScan extends SparkPartitioningAwareScan<Par
         .toArray(NamedReference[]::new);
   }
 
+  // synchronized because this non-atomic check-then-act spans tasks() and resetTasks(); it must
+  // hold the same monitor as the tasks()/taskGroups()/resetTasks() accessors so concurrent runtime
+  // filtering (e.g. AQE preparing multiple stages) can never observe the full planning-time tasks.
   @Override
-  public void filter(Predicate[] predicates) {
+  public synchronized void filter(Predicate[] predicates) {
     Expression runtimeFilter = convertRuntimePredicates(predicates);
 
     if (runtimeFilter != Expressions.alwaysTrue()) {

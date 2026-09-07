@@ -244,7 +244,7 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
 
   // only task groups can be reset while resetting tasks
   // the set of scanned specs and grouping key type must never change
-  protected void resetTasks(List<T> filteredTasks) {
+  protected synchronized void resetTasks(List<T> filteredTasks) {
     this.taskGroups = null;
     this.tasks = filteredTasks;
   }
