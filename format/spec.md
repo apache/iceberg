@@ -691,8 +691,6 @@ The fields that define what a constraint requires are embedded directly in the c
 
 The `field-ids` of a `unique` or `primary-key` constraint must reference primitive fields that are either top-level fields or nested in required structs, and must not reference fields within a `list` or a `map`. These are the same restrictions that apply to [identifier fields](#identifier-field-ids).
 
-A field referenced by a constraint must not be dropped. A writer must reject a schema change that removes a field referenced by a `check` constraint's `expression` or by a `unique` or `primary-key` constraint's `field-ids` unless the constraint is removed in the same change.
-
 When a constraint is `enforced`, writers must verify that the rows they add satisfy the constraint and must fail the write if they do not. A writer that cannot verify an enforced constraint must reject writes to the table rather than add rows that have not been verified. When a constraint is not enforced, writers are not required to verify the rows they add.
 
 Whether to trust a constraint that is not enforced is left to engines and is not tracked in table metadata.
@@ -714,6 +712,16 @@ A check expression is evaluated for each row over the values of that row. Expres
 Iceberg predicates use two-valued logic: a predicate always produces true or false and never produces null, so a comparison with a null operand produces false. This differs from SQL `CHECK`, where a row satisfies a constraint unless the predicate produces false and a null value therefore satisfies the constraint.
 
 To express SQL `CHECK` semantics for an optional field, the stored expression must make the null case explicit. For example, SQL `CHECK (price >= 0)` for an optional `price` field is stored as the expression for `price >= 0 OR price IS NULL`. This is unnecessary for required fields, which can never be null.
+
+#### Constraints and Schema Evolution
+
+A constraint references fields by ID, so schema changes interact with constraints as follows. The referenced fields of a `check` constraint are the field IDs in its `expression`; the referenced fields of a `unique` or `primary-key` constraint are its `field-ids`.
+
+* Renaming or reordering a referenced field is allowed; the constraint continues to apply to the same fields.
+* If a dropped field is referenced only by single-column constraints, the drop is allowed and those constraints are removed automatically. If a dropped field is referenced by a multi-column constraint, the writer must reject the drop unless that constraint is removed in the same change.
+* The type of a referenced field must not be changed, even for type promotions that are otherwise allowed. This restriction may be relaxed in a later version.
+
+Changing a constraint's own definition is governed by the mutability rule above: only `name` and `enforced` may be changed in place; changing an `expression` or `field-ids` requires a new constraint.
 
 #### Constraint Validation
 
