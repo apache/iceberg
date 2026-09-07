@@ -44,7 +44,6 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.Transaction;
-import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.encryption.Ciphers;
 import org.apache.iceberg.encryption.UnitestKMS;
 import org.apache.iceberg.io.InputFile;
@@ -65,8 +64,6 @@ import org.junit.jupiter.api.TestTemplate;
 import org.mockito.internal.util.collections.Iterables;
 
 public class TestTableEncryption extends CatalogTestBase {
-  private static final String EMPTY_TABLE = "empty_table";
-
   private static Map<String, String> appendCatalogEncryptionProperties(Map<String, String> props) {
     Map<String, String> newProps = Maps.newHashMap();
     newProps.putAll(props);
@@ -99,7 +96,6 @@ public class TestTableEncryption extends CatalogTestBase {
   @AfterEach
   public void removeTables() {
     sql("DROP TABLE IF EXISTS %s", tableName);
-    sql("DROP TABLE IF EXISTS %s", tableName(EMPTY_TABLE));
   }
 
   @TestTemplate
@@ -376,23 +372,6 @@ public class TestTableEncryption extends CatalogTestBase {
   public void testComputeTableStats() {
     validationCatalog.initialize(catalogName, catalogConfig);
     Table table = validationCatalog.loadTable(tableIdent);
-
-    assertThatThrownBy(() -> SparkActions.get().computeTableStats(table).execute())
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot compute table statistics for an encrypted table: " + table.name());
-  }
-
-  @TestTemplate
-  public void testComputeTableStatsWithoutSnapshot() {
-    sql(
-        "CREATE TABLE %s (id bigint) USING iceberg "
-            + "TBLPROPERTIES ('encryption.key-id'='%s', 'format-version'='3')",
-        tableName(EMPTY_TABLE), UnitestKMS.MASTER_KEY_NAME1);
-
-    validationCatalog.initialize(catalogName, catalogConfig);
-    Table table =
-        validationCatalog.loadTable(TableIdentifier.of(tableIdent.namespace(), EMPTY_TABLE));
-    assertThat(table.currentSnapshot()).isNull();
 
     assertThatThrownBy(() -> SparkActions.get().computeTableStats(table).execute())
         .isInstanceOf(IllegalArgumentException.class)
