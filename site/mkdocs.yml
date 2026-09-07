@@ -115,7 +115,7 @@ extra:
   nessieVersion: '0.105.3'
   flinkVersion: '2.3.0'
   flinkVersionMajor: '2.3'
-  sparkVersionMajor: '4.1_2.13'
+  sparkVersionMajor: '4.2_2.13'
   slackInviteUrl: &slackInviteUrl 'https://s.apache.org/iceberg-slack'
   social:
     - icon: fontawesome/regular/comments

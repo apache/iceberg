@@ -76,6 +76,7 @@ Each engine version undergoes the following lifecycle stages:
 | 3.5        | Maintained         | 1.4.0                   | {{ icebergVersion }}   | [iceberg-spark-runtime-3.5_2.12](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-spark-runtime-3.5_2.12/{{ icebergVersion }}/iceberg-spark-runtime-3.5_2.12-{{ icebergVersion }}.jar), [iceberg-spark-runtime-3.5_2.13](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-spark-runtime-3.5_2.13/{{ icebergVersion }}/iceberg-spark-runtime-3.5_2.13-{{ icebergVersion }}.jar) |
 | 4.0        | Maintained         | 1.10.0                  | {{ icebergVersion }}   | [iceberg-spark-runtime-4.0_2.13](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-spark-runtime-4.0_2.13/{{ icebergVersion }}/iceberg-spark-runtime-4.0_2.13-{{ icebergVersion }}.jar) |
 | 4.1        | Maintained         | 1.11.0                  | {{ icebergVersion }}   | [iceberg-spark-runtime-4.1_2.13](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-spark-runtime-4.1_2.13/{{ icebergVersion }}/iceberg-spark-runtime-4.1_2.13-{{ icebergVersion }}.jar) |
+| 4.2        | Maintained         | 1.12.0                  | {{ icebergVersion }}   | [iceberg-spark-runtime-4.2_2.13](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-spark-runtime-4.2_2.13/{{ icebergVersion }}/iceberg-spark-runtime-4.2_2.13-{{ icebergVersion }}.jar) |
 
 <!-- markdown-link-check-enable -->
 
