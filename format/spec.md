@@ -768,7 +768,9 @@ When a constraint becomes enforced, either by being added with `enforced` set to
 
 A snapshot's `constraint-statuses` must not be modified after the snapshot is created. Recording a different status for a constraint requires a new snapshot. A snapshot that changes only constraint statuses may reuse its parent's manifest list.
 
-A constraint that a snapshot states holds may later be found not to hold for that snapshot, because `valid` relies on writers rather than on checking data. Writers should then commit a snapshot that records `invalid` and should expire the snapshots that state that the constraint holds, because queries against those snapshots would otherwise continue to rely on a constraint that does not hold.
+A constraint that a snapshot reports as `valid` may later be found not to hold for that snapshot. A `valid` status depends on every commit in the snapshot's history having correctly enforced the constraint, and Iceberg records the status a writer reports without re-checking the data. So if any of those writers was buggy or non-compliant, the `valid` status can be wrong even though nothing detected it at commit time. A `validated` status, which reflects an actual scan of all rows, does not depend on that chain. Writers should then commit a snapshot that records `invalid` and should expire the snapshots that state that the constraint holds, because queries against those snapshots would otherwise continue to rely on a constraint that does not hold.
+
+Iceberg does not detect violations on its own. A constraint is only found to be `invalid` when an engine scans the data and checks the constraint, for example during an explicit validation or when validating a newly enforced constraint, and then records `invalid`. Until such a scan runs, a `valid` status that does not actually hold is not detected.
 
 Only `validated` and `valid` state that a constraint holds. They are distinguished so that readers can tell whether that conclusion was reached by checking data or by relying on writers to enforce the constraint, and so that the most recent `validated` snapshot can be found if a constraint is later found to be `invalid`.
 
