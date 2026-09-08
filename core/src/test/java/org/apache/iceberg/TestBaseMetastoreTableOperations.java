@@ -43,12 +43,7 @@ class TestBaseMetastoreTableOperations {
               TableProperties.COMMIT_STATUS_CHECKS_MAX_WAIT_MS, "10",
               TableProperties.COMMIT_STATUS_CHECKS_TOTAL_WAIT_MS, "100"));
 
-  /**
-   * Mimics metastore-backed table operations for a table that was never persisted to the catalog,
-   * e.g. when a CREATE TABLE commit fails before the table is stored in the metastore. Like {@code
-   * HiveTableOperations#doRefresh()}, a missing table is not an error when no metadata location is
-   * known, and refreshing from a null metadata location leaves the current metadata null.
-   */
+  /** Table operations for a table that was never persisted, so refresh yields null metadata. */
   private static class NeverPersistedTableOperations extends BaseMetastoreTableOperations {
 
     @Override
@@ -65,27 +60,20 @@ class TestBaseMetastoreTableOperations {
     protected void doRefresh() {
       refreshFromMetadataLocation(null, 1);
     }
-
-    private CommitStatus strictStatus(String newMetadataLocation, TableMetadata config) {
-      return checkCommitStatusStrict(newMetadataLocation, config);
-    }
-
-    private CommitStatus status(String newMetadataLocation, TableMetadata config) {
-      return checkCommitStatus(newMetadataLocation, config);
-    }
   }
 
   @Test
   void strictStatusCheckIsFailureWhenTableWasNeverPersisted() {
     NeverPersistedTableOperations ops = new NeverPersistedTableOperations();
 
-    assertThat(ops.strictStatus(METADATA_LOCATION, METADATA)).isEqualTo(CommitStatus.FAILURE);
+    assertThat(ops.checkCommitStatusStrict(METADATA_LOCATION, METADATA))
+        .isEqualTo(CommitStatus.FAILURE);
   }
 
   @Test
   void statusCheckIsUnknownWhenTableWasNeverPersisted() {
     NeverPersistedTableOperations ops = new NeverPersistedTableOperations();
 
-    assertThat(ops.status(METADATA_LOCATION, METADATA)).isEqualTo(CommitStatus.UNKNOWN);
+    assertThat(ops.checkCommitStatus(METADATA_LOCATION, METADATA)).isEqualTo(CommitStatus.UNKNOWN);
   }
 }

@@ -220,17 +220,10 @@ public class TestHiveViewCommits {
         .isEqualTo(2);
   }
 
-  /**
-   * Pretends we throw an unclear error while persisting a create-view commit, for a view that was
-   * never stored in the metastore. The commit status check must resolve cleanly instead of NPE-ing:
-   * the view-specific {@code doRefresh} treats a missing view as non-fatal when no metadata
-   * location is known and refreshes from a null location, so the status-check supplier observes
-   * null current metadata and resolves to false (a new metadata location cannot be current for a
-   * view that does not exist). The relaxed check then maps that to UNKNOWN.
-   */
+  /** Pretends we throw an unclear error while persisting a create-view commit for a new view. */
   @Test
   public void testThriftExceptionUnknownStateOnCreateCommitWhenViewNeverPersisted()
-      throws TException, InterruptedException, IOException {
+      throws TException, InterruptedException {
     TableIdentifier createIdentifier = TableIdentifier.of(NS, "create_commit_failed_view");
     HiveViewOperations ops = (HiveViewOperations) catalog.newViewOps(createIdentifier);
     HiveViewOperations spyOps = spy(ops);
@@ -263,23 +256,17 @@ public class TestHiveViewCommits {
                 SCHEMA)
             .build();
 
-    try {
-      assertThatThrownBy(() -> spyOps.commit(null, metadata))
-          .isInstanceOf(CommitStateUnknownException.class)
-          .hasMessageStartingWith("Datacenter on fire");
+    assertThatThrownBy(() -> spyOps.commit(null, metadata))
+        .isInstanceOf(CommitStateUnknownException.class)
+        .hasMessageStartingWith("Datacenter on fire");
 
-      assertThat(catalog.viewExists(createIdentifier))
-          .as("The view should not have been created")
-          .isFalse();
+    assertThat(catalog.viewExists(createIdentifier))
+        .as("The view should not have been created")
+        .isFalse();
 
-      // the configured status check must run to completion: once from current(), once from
-      // inside checkCurrentMetadataLocation, which resolves the null metadata instead of throwing
-      verify(spyOps, times(2)).refresh();
-    } finally {
-      createLocation
-          .getFileSystem(HIVE_METASTORE_EXTENSION.hiveConf())
-          .delete(createLocation, true);
-    }
+    // the configured status check must run to completion: once from current(), once from
+    // inside checkCurrentMetadataLocation, which resolves the null metadata instead of throwing
+    verify(spyOps, times(2)).refresh();
   }
 
   /** Pretends we throw an error while persisting that actually does commit serverside. */

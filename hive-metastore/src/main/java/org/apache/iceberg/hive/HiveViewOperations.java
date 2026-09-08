@@ -277,7 +277,7 @@ final class HiveViewOperations extends BaseViewOperations implements HiveOperati
   private boolean checkCurrentMetadataLocation(String newMetadataLocation) {
     ViewMetadata metadata = refresh();
     if (metadata == null) {
-      // Table creation may not have registered metadata yet.
+      // View creation may not have registered metadata yet.
       return false;
     }
 
