@@ -98,6 +98,10 @@ class CommitState {
     currentCommitId = null;
   }
 
+  int bufferedResponseCount() {
+    return commitBuffer.size();
+  }
+
   void clearResponses() {
     commitBuffer.clear();
   }
