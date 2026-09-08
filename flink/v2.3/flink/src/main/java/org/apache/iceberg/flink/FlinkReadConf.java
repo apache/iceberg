@@ -36,6 +36,10 @@ public class FlinkReadConf {
     this.confParser = new FlinkConfParser(table, readOptions, readableConfig);
   }
 
+  public FlinkReadConf(Map<String, String> readOptions, ReadableConfig readableConfig) {
+    this.confParser = new FlinkConfParser(readOptions, readableConfig);
+  }
+
   public Long snapshotId() {
     return confParser.longConf().option(FlinkReadOptions.SNAPSHOT_ID.key()).parseOptional();
   }

@@ -262,7 +262,7 @@ public class IcebergTableSource
       return false;
     }
 
-    if (limit != null) {
+    if (limit != null || readConf().limit() > 0) {
       LOG.info("Skipping aggregate pushdown: a limit is present");
       return false;
     }
@@ -439,7 +439,7 @@ public class IcebergTableSource
 
   private FlinkReadConf readConf() {
     if (readConf == null) {
-      readConf = new FlinkReadConf(table(), properties, readableConfig);
+      readConf = new FlinkReadConf(properties, readableConfig);
     }
 
     return readConf;
