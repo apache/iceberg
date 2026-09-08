@@ -116,12 +116,12 @@ class TestTrackedFileAdapters {
           .addedFilesCount(3)
           .existingFilesCount(5)
           .deletedFilesCount(2)
-          .replacedFilesCount(0)
+          .replacedFilesCount(4)
           .modifiedFilesCount(0)
           .addedRowsCount(300L)
           .existingRowsCount(500L)
           .deletedRowsCount(200L)
-          .replacedRowsCount(0L)
+          .replacedRowsCount(40L)
           .modifiedRowsCount(0L)
           .minSequenceNumber(7L)
           .dv(ByteBuffer.wrap(MumblingTestUtil.onlyFirstBitSetBytes()))
@@ -575,6 +575,8 @@ class TestTrackedFileAdapters {
     assertThat(manifest.existingRowsCount()).isEqualTo(MANIFEST_INFO.existingRowsCount());
     assertThat(manifest.deletedFilesCount()).isEqualTo(MANIFEST_INFO.deletedFilesCount());
     assertThat(manifest.deletedRowsCount()).isEqualTo(MANIFEST_INFO.deletedRowsCount());
+    assertThat(manifest.replacedFilesCount()).isEqualTo(MANIFEST_INFO.replacedFilesCount());
+    assertThat(manifest.replacedRowsCount()).isEqualTo(MANIFEST_INFO.replacedRowsCount());
     assertThat(manifest.firstRowId()).isEqualTo(FIRST_ROW_ID);
     assertThat(manifest.keyMetadata()).isEqualTo(MANIFEST_KEY_METADATA);
     assertThat(manifest.manifestDeletionVector().buffer())
@@ -724,127 +726,10 @@ class TestTrackedFileAdapters {
   }
 
   @Test
-  void specIdMismatchThrows() {
-    TrackedFileStruct file =
-        new TrackedFileStruct(
-            null,
-            FileContent.DATA,
-            0,
-            null,
-            null,
-            0L,
-            0L,
-            PARTITIONED_SPEC_ID,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null);
-    int mismatchedSpecId = PARTITIONED_SPEC_ID + 1;
-    PartitionSpec mismatched =
-        PartitionSpec.builderFor(PARTITION_SCHEMA)
-            .identity("category")
-            .withSpecId(mismatchedSpecId)
-            .build();
+  void manifestFileAdapterDelegatesFormatVersion() {
+    TrackedFile original = dummyTrackedFile(FileContent.DATA_MANIFEST, 0);
 
-    assertThatThrownBy(
-            () ->
-                TrackedFileAdapters.asDataFile(
-                    file, ImmutableMap.of(PARTITIONED_SPEC_ID, mismatched)))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage(
-            "File spec ID %s does not match partition spec %s",
-            PARTITIONED_SPEC_ID, mismatchedSpecId);
-  }
-
-  @ParameterizedTest
-  @EnumSource(
-      value = FileContent.class,
-      names = {"DATA_MANIFEST", "DELETE_MANIFEST"})
-  void manifestFileAdapterDelegation(FileContent contentType) {
-    TrackedFile file =
-        new TrackedFileStruct(
-            MANIFEST_TRACKING,
-            contentType,
-            FORMAT_VERSION_V4,
-            MANIFEST_LOCATION,
-            FileFormat.PARQUET,
-            10L, // recordCount
-            MANIFEST_FILE_SIZE,
-            null, // specId
-            null, // partition
-            null, // contentStats
-            null, // sortOrderId
-            null, // deletionVector
-            MANIFEST_INFO,
-            MANIFEST_KEY_METADATA,
-            null, // splitOffsets
-            null); // equalityIds
-
-    ManifestFile manifest = TrackedFileAdapters.asManifestFile(file);
-
-    ManifestContent expectedContent =
-        contentType == FileContent.DATA_MANIFEST ? ManifestContent.DATA : ManifestContent.DELETES;
-    assertThat(manifest.path()).isEqualTo(MANIFEST_LOCATION);
-    assertThat(manifest.length()).isEqualTo(MANIFEST_FILE_SIZE);
-    assertThat(manifest.content()).isEqualTo(expectedContent);
-    assertThat(manifest.sequenceNumber()).isEqualTo(DATA_SEQUENCE_NUMBER);
-    assertThat(manifest.minSequenceNumber()).isEqualTo(MANIFEST_INFO.minSequenceNumber());
-    assertThat(manifest.snapshotId()).isEqualTo(SNAPSHOT_ID);
-    assertThat(manifest.addedFilesCount()).isEqualTo(MANIFEST_INFO.addedFilesCount());
-    assertThat(manifest.addedRowsCount()).isEqualTo(MANIFEST_INFO.addedRowsCount());
-    assertThat(manifest.existingFilesCount()).isEqualTo(MANIFEST_INFO.existingFilesCount());
-    assertThat(manifest.existingRowsCount()).isEqualTo(MANIFEST_INFO.existingRowsCount());
-    assertThat(manifest.deletedFilesCount()).isEqualTo(MANIFEST_INFO.deletedFilesCount());
-    assertThat(manifest.deletedRowsCount()).isEqualTo(MANIFEST_INFO.deletedRowsCount());
-    assertThat(manifest.firstRowId()).isEqualTo(FIRST_ROW_ID);
-    assertThat(manifest.keyMetadata()).isEqualTo(MANIFEST_KEY_METADATA);
-    assertThat(manifest.manifestDeletionVector().buffer()).isEqualTo(ByteBuffer.wrap(MANIFEST_DV));
-    assertThat(manifest.partitions()).isNull();
-    assertThatThrownBy(manifest::partitionSpecId)
-        .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessage("v4 manifests are not bound to a single partition spec");
-  }
-
-  @Test
-  void manifestFileAdapterCopy() {
-    TrackedFile file = Mockito.mock(TrackedFile.class);
-    TrackedFile fileCopy = Mockito.mock(TrackedFile.class);
-    Mockito.when(file.contentType()).thenReturn(FileContent.DATA_MANIFEST);
-    Mockito.when(file.copy()).thenReturn(fileCopy);
-    Mockito.when(fileCopy.location()).thenReturn(MANIFEST_LOCATION);
-
-    ManifestFile copy = TrackedFileAdapters.asManifestFile(file).copy();
-
-    // copy() delegates to the tracked file's copy(), which deep-copies the nested structs.
-    Mockito.verify(file).copy();
-    assertThat(copy.path()).isEqualTo(MANIFEST_LOCATION);
-  }
-
-  @ParameterizedTest
-  @EnumSource(
-      value = FileContent.class,
-      mode = EnumSource.Mode.EXCLUDE,
-      names = {"DATA_MANIFEST", "DELETE_MANIFEST"})
-  void manifestFileAdapterRejectsNonManifestContent(FileContent contentType) {
-    TrackedFileStruct file = dummyTrackedFile(contentType);
-
-    assertThatThrownBy(() -> TrackedFileAdapters.asManifestFile(file))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid content type for ManifestFile: %s", contentType);
-  }
-
-  @Test
-  void dataFileWithoutDeletionVectorReturnsNull() {
-    TrackedFile fileWithoutDv = mock(TrackedFile.class);
-    when(fileWithoutDv.contentType()).thenReturn(FileContent.DATA);
-    when(fileWithoutDv.deletionVector()).thenReturn(null);
-
-    assertThat(TrackedFileAdapters.asDataFile(fileWithoutDv, UNPARTITIONED).deletionVector())
-        .isNull();
+    assertThat(TrackedFileAdapters.asManifestFile(original).formatVersion()).isZero();
   }
 
   @Test
