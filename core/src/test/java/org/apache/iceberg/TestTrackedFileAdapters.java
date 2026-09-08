@@ -392,7 +392,7 @@ class TestTrackedFileAdapters {
         new TrackedFileStruct(
             MANIFEST_TRACKING,
             contentType,
-            FORMAT_VERSION_V4,
+            3, // formatVersion; distinct from 4 so the adapter's delegation is exercised
             MANIFEST_LOCATION,
             FileFormat.PARQUET,
             10L, // recordCount
@@ -426,7 +426,7 @@ class TestTrackedFileAdapters {
     assertThat(manifest.firstRowId()).isEqualTo(FIRST_ROW_ID);
     assertThat(manifest.keyMetadata()).isEqualTo(MANIFEST_KEY_METADATA);
     assertThat(manifest.manifestDeletionVector().buffer()).isEqualTo(ByteBuffer.wrap(MANIFEST_DV));
-    assertThat(manifest.formatVersion()).isEqualTo(FORMAT_VERSION_V4);
+    assertThat(manifest.formatVersion()).isEqualTo(3);
     assertThat(manifest.partitions()).isNull();
     assertThatThrownBy(manifest::partitionSpecId)
         .isInstanceOf(UnsupportedOperationException.class)

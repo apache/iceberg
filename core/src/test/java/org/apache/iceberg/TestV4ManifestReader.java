@@ -323,8 +323,8 @@ class TestV4ManifestReader {
   }
 
   @Test
-  public void projectionModesAreMutuallyExclusive() throws IOException {
-    ManifestFile manifest = writeManifest(FileFormat.AVRO, EMPTY_PARTITION, ImmutableList.of());
+  public void projectionModesAreMutuallyExclusive() {
+    ManifestFile manifest = v4Manifest("s3://bucket/manifest.parquet");
 
     assertThatThrownBy(
             () ->
@@ -573,6 +573,17 @@ class TestV4ManifestReader {
         .hasMessage("Cannot read manifest with format version 3: only 4 is supported");
   }
 
+  @Test
+  public void manifestDeletionVectorIsUnsupported() {
+    ManifestFile manifest = v4Manifest("s3://bucket/manifest.parquet");
+    when(manifest.manifestDeletionVector()).thenReturn(mock(ManifestBitmap.class));
+
+    assertThatThrownBy(
+            () -> V4ManifestReader.builder(manifest, io, UNPARTITIONED_SPECS, TABLE_LOCATION))
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage("Cannot read manifest with a deletion vector: s3://bucket/manifest.parquet");
+  }
+
   @ParameterizedTest
   @FieldSource("MANIFEST_FORMATS")
   public void rowFilterKeepsFilesWithoutStats(FileFormat format) throws IOException {
@@ -741,9 +752,7 @@ class TestV4ManifestReader {
   public void unknownManifestFormatThrows() throws IOException {
     String badLocation = "manifest-" + System.nanoTime() + ".txt";
     io.addFile(badLocation, new byte[0]);
-    ManifestFile badFile = mock(ManifestFile.class);
-    when(badFile.path()).thenReturn(badLocation);
-    when(badFile.formatVersion()).thenReturn(FORMAT_VERSION_V4);
+    ManifestFile badFile = v4Manifest(badLocation);
 
     try (V4ManifestReader reader =
         V4ManifestReader.builder(badFile, io, UNPARTITIONED_SPECS, TABLE_LOCATION).build()) {
@@ -846,8 +855,8 @@ class TestV4ManifestReader {
   }
 
   @Test
-  public void invalidBuilderArguments() throws IOException {
-    ManifestFile manifest = writeManifest(FileFormat.AVRO, EMPTY_PARTITION, ImmutableList.of());
+  public void invalidBuilderArguments() {
+    ManifestFile manifest = v4Manifest("s3://bucket/manifest.parquet");
 
     assertThatThrownBy(
             () ->
@@ -1047,9 +1056,14 @@ class TestV4ManifestReader {
       }
     }
 
+    return v4Manifest(out.location());
+  }
+
+  private static ManifestFile v4Manifest(String path) {
     ManifestFile manifest = mock(ManifestFile.class);
-    when(manifest.path()).thenReturn(out.location());
+    when(manifest.path()).thenReturn(path);
     when(manifest.formatVersion()).thenReturn(FORMAT_VERSION_V4);
+    when(manifest.content()).thenReturn(ManifestContent.DATA);
     return manifest;
   }
 
