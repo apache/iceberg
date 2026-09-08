@@ -267,27 +267,31 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
 
   @Override
   protected <T> T internalGet(int pos, Class<T> javaClass) {
-    return javaClass.cast(getByPos(pos));
+    return javaClass.cast(getByPos(this, pos));
   }
 
-  private Object getByPos(int pos) {
+  /**
+   * Returns the value at the given position in TrackedFile schema field order, shared with the
+   * write-direction wrappers so that the position-to-field mapping is defined in one place.
+   */
+  static Object getByPos(TrackedFile file, int pos) {
     return switch (pos) {
-      case 0 -> tracking;
-      case 1 -> contentType != null ? contentType.id() : null;
-      case 2 -> formatVersion;
-      case 3 -> location;
-      case 4 -> fileFormat != null ? fileFormat.toString() : null;
-      case 5 -> recordCount;
-      case 6 -> fileSizeInBytes;
-      case 7 -> specId;
-      case 8 -> partitionData;
-      case 9 -> contentStats;
-      case 10 -> sortOrderId;
-      case 11 -> deletionVector;
-      case 12 -> manifestInfo;
-      case 13 -> keyMetadata();
-      case 14 -> splitOffsets();
-      case 15 -> equalityIds();
+      case 0 -> file.tracking();
+      case 1 -> file.contentType() != null ? file.contentType().id() : null;
+      case 2 -> file.formatVersion();
+      case 3 -> file.location();
+      case 4 -> file.fileFormat() != null ? file.fileFormat().toString() : null;
+      case 5 -> file.recordCount();
+      case 6 -> file.fileSizeInBytes();
+      case 7 -> file.specId();
+      case 8 -> file.partition();
+      case 9 -> file.contentStats();
+      case 10 -> file.sortOrderId();
+      case 11 -> file.deletionVector();
+      case 12 -> file.manifestInfo();
+      case 13 -> file.keyMetadata();
+      case 14 -> file.splitOffsets();
+      case 15 -> file.equalityIds();
       default -> throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
     };
   }
