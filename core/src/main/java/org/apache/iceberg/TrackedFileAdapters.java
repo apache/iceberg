@@ -547,6 +547,11 @@ class TrackedFileAdapters {
     }
 
     @Override
+    public int formatVersion() {
+      return file.formatVersion();
+    }
+
+    @Override
     public ManifestFile copy() {
       return new TrackedManifestFile(file.copy());
     }

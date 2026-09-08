@@ -29,6 +29,7 @@ import org.apache.iceberg.expressions.Projections;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.metrics.ScanMetrics;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -41,8 +42,10 @@ import org.apache.iceberg.util.LocationUtil;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.StructProjection;
 
-/** Reader that reads a v4+ manifest file as {@link TrackedFile}s. */
+/** Reader that reads a v4 manifest file as {@link TrackedFile}s. */
 class V4ManifestReader extends CloseableGroup implements CloseableIterable<TrackedFile> {
+  private static final int SUPPORTED_FORMAT_VERSION = 4;
+
   private final InputFile file;
   private final Schema readSchema;
   private final boolean includeAll;
@@ -68,8 +71,11 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
   }
 
   static Builder builder(
-      InputFile file, Map<Integer, PartitionSpec> specsById, String tableLocation) {
-    return new Builder(file, specsById, tableLocation);
+      ManifestFile manifest,
+      FileIO io,
+      Map<Integer, PartitionSpec> specsById,
+      String tableLocation) {
+    return new Builder(manifest, io, specsById, tableLocation);
   }
 
   /** Returns copies of the tracked files that match this reader's configured filters. */
@@ -127,6 +133,8 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
     Preconditions.checkArgument(
         format != null, "Cannot determine format of manifest: %s", file.location());
 
+    scanMetrics.scannedDataManifests().increment();
+
     CloseableIterable<TrackedFile> reader =
         InternalData.read(format, file)
             .project(readSchema)
@@ -173,7 +181,8 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
   }
 
   static class Builder {
-    private final InputFile file;
+    private final ManifestFile manifest;
+    private final FileIO io;
     private final Types.StructType unionPartitionType;
     private final Map<Integer, PartitionSpec> specsById;
     private final Schema fullSchema;
@@ -186,9 +195,24 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
     private Schema requestedProjection = null;
     private ScanMetrics scanMetrics = ScanMetrics.noop();
 
-    private Builder(InputFile file, Map<Integer, PartitionSpec> specsById, String tableLocation) {
+    private Builder(
+        ManifestFile manifest,
+        FileIO io,
+        Map<Integer, PartitionSpec> specsById,
+        String tableLocation) {
       Preconditions.checkArgument(tableLocation != null, "Invalid table location: null");
-      this.file = file;
+      Preconditions.checkArgument(
+          manifest.formatVersion() == SUPPORTED_FORMAT_VERSION,
+          "Cannot read manifest with format version %s: only %s is supported",
+          manifest.formatVersion(),
+          SUPPORTED_FORMAT_VERSION);
+      if (manifest.manifestDeletionVector() != null) {
+        throw new UnsupportedOperationException(
+            "Cannot apply manifest deletion vector: " + manifest.path());
+      }
+
+      this.manifest = manifest;
+      this.io = io;
       this.specsById = specsById;
       this.tableLocation = tableLocation;
       this.unionPartitionType = Partitioning.unionPartitionTypes(specsById.values());
@@ -259,6 +283,8 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
     }
 
     V4ManifestReader build() {
+      InputFile file = ManifestFiles.newInputFile(io, manifest);
+
       Map<Integer, Pair<Evaluator, StructProjection>> partitionFilters = Maps.newHashMap();
       if (rowFilter != Expressions.alwaysTrue() && !unionPartitionType.fields().isEmpty()) {
         for (PartitionSpec spec : specsById.values()) {
