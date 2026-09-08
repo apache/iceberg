@@ -54,13 +54,13 @@ public class TestFieldStatsStruct {
   private static final int BASE_ID = 30_000;
 
   private static final Types.StructType STRING_STATS =
-      StatsUtil.fieldStatsStruct(true, Types.StringType.get(), BASE_ID, MetricsModes.Full.get());
+      StatsUtil.fieldStatsStruct(Types.StringType.get(), BASE_ID, MetricsModes.Full.get());
 
   private static final Types.StructType DOUBLE_STATS =
-      StatsUtil.fieldStatsStruct(true, Types.DoubleType.get(), BASE_ID, MetricsModes.Full.get());
+      StatsUtil.fieldStatsStruct(Types.DoubleType.get(), BASE_ID, MetricsModes.Full.get());
 
   @Test
-  public void testFieldAccess() {
+  public void fieldAccess() {
     FieldStats<String> stats = new FieldStatsStruct<>(STRING_STATS, "a", "z", true, 28, 2, 0, 1);
 
     assertThat(stats.fieldId()).isEqualTo(100);
@@ -74,7 +74,7 @@ public class TestFieldStatsStruct {
   }
 
   @Test
-  public void testStringGetByPosition() {
+  public void stringGetByPosition() {
     FieldStatsStruct<String> stats =
         new FieldStatsStruct<>(STRING_STATS, "a", "z", true, 28, 2, 0, 1);
 
@@ -87,7 +87,7 @@ public class TestFieldStatsStruct {
   }
 
   @Test
-  public void testStringSetByPosition() {
+  public void stringSetByPosition() {
     FieldStatsStruct<String> stats = new FieldStatsStruct<>(STRING_STATS);
 
     stats.set(pos(STRING_STATS, "lower_bound"), "a");
@@ -106,7 +106,7 @@ public class TestFieldStatsStruct {
   }
 
   @Test
-  public void testDoubleGetByPosition() {
+  public void doubleGetByPosition() {
     FieldStatsStruct<Double> stats =
         new FieldStatsStruct<>(DOUBLE_STATS, 0.0d, 25.0d, true, 34, 2, 6, 0);
 
@@ -119,7 +119,7 @@ public class TestFieldStatsStruct {
   }
 
   @Test
-  public void testDoubleSetByPosition() {
+  public void doubleSetByPosition() {
     FieldStatsStruct<Double> stats = new FieldStatsStruct<>(DOUBLE_STATS);
 
     stats.set(pos(DOUBLE_STATS, "lower_bound"), 0.0d);
@@ -139,7 +139,7 @@ public class TestFieldStatsStruct {
   }
 
   @Test
-  public void testFromFieldMetricsWrongField() {
+  public void fromFieldMetricsWrongField() {
     FieldStatsStruct<String> stats = new FieldStatsStruct<>(STRING_STATS);
     assertThatThrownBy(() -> stats.fromFieldMetrics(new FieldMetrics<>(21, 50, 0)))
         .isInstanceOf(IllegalArgumentException.class)
@@ -147,21 +147,21 @@ public class TestFieldStatsStruct {
   }
 
   @Test
-  public void testFromFieldMetricsString() {
+  public void fromFieldMetricsString() {
     FieldStatsStruct<String> stats = new FieldStatsStruct<>(STRING_STATS);
 
-    stats.fromFieldMetrics(new FieldMetrics<>(100, 28, 2, "a", "z"));
+    stats.fromFieldMetrics(new FieldMetrics<>(100, 28, 2, -1, "a", "z", null, 4));
 
     assertThat(stats.lowerBound()).isEqualTo("a");
     assertThat(stats.upperBound()).isEqualTo("z");
     assertThat(stats.tightBounds()).isFalse();
     assertThat(stats.valueCount()).isEqualTo(28L);
     assertThat(stats.nullValueCount()).isEqualTo(2L);
-    assertThat(stats.avgValueSizeInBytes()).isNull(); // unknown
+    assertThat(stats.avgValueSizeInBytes()).isEqualTo(4);
   }
 
   @Test
-  public void testFromFieldMetricsDouble() {
+  public void fromFieldMetricsDouble() {
     FieldStatsStruct<Double> stats = new FieldStatsStruct<>(DOUBLE_STATS);
 
     stats.fromFieldMetrics(new FieldMetrics<>(100, 34, 2, 6, 0.0d, 25.0d));
@@ -176,7 +176,7 @@ public class TestFieldStatsStruct {
   }
 
   @Test
-  public void testFieldStatsProjection() {
+  public void fieldStatsProjection() {
     Types.StructType projection =
         Types.StructType.of(
             optional(BASE_ID + StatsUtil.VALUE_COUNT_OFFSET, "count", Types.StringType.get()),
@@ -249,14 +249,14 @@ public class TestFieldStatsStruct {
 
   @ParameterizedTest
   @MethodSource("serializationCases")
-  public void testSerializationAndCopy(
+  public void serializationAndCopy(
       Type type,
       Object lowerBound,
       Object upperBound,
       RoundTripSerializer<FieldStatsStruct<?>> serializer)
       throws Exception {
     Types.StructType statsStruct =
-        StatsUtil.fieldStatsStruct(true, type, BASE_ID, MetricsModes.Full.get());
+        StatsUtil.fieldStatsStruct(type, BASE_ID, MetricsModes.Full.get());
 
     boolean isFloatingPoint =
         type.typeId() == Type.TypeID.FLOAT || type.typeId() == Type.TypeID.DOUBLE;
@@ -289,10 +289,10 @@ public class TestFieldStatsStruct {
 
   @ParameterizedTest
   @MethodSource("geoCases")
-  public void testGeoSerialization(
-      Type geoType, RoundTripSerializer<FieldStatsStruct<?>> serializer) throws Exception {
+  public void geoSerialization(Type geoType, RoundTripSerializer<FieldStatsStruct<?>> serializer)
+      throws Exception {
     Types.StructType statsStruct =
-        StatsUtil.fieldStatsStruct(true, geoType, BASE_ID, MetricsModes.Full.get());
+        StatsUtil.fieldStatsStruct(geoType, BASE_ID, MetricsModes.Full.get());
 
     // geometry and geography use bounding-box structs (x, y, z, m) for their bounds
     PartitionData lowerBound =
@@ -328,10 +328,10 @@ public class TestFieldStatsStruct {
 
   @ParameterizedTest
   @FieldSource("VARIANT_SERIALIZERS")
-  public void testVariantSerialization(RoundTripSerializer<FieldStatsStruct<?>> serializer)
+  public void variantSerialization(RoundTripSerializer<FieldStatsStruct<?>> serializer)
       throws Exception {
     Types.StructType statsStruct =
-        StatsUtil.fieldStatsStruct(true, Types.VariantType.get(), BASE_ID, MetricsModes.Full.get());
+        StatsUtil.fieldStatsStruct(Types.VariantType.get(), BASE_ID, MetricsModes.Full.get());
 
     // variant bounds are variants keyed by JSON path expression that hold the bounds of fields
     // within the variant; here the field "$['x']" ranges from 1 to 10

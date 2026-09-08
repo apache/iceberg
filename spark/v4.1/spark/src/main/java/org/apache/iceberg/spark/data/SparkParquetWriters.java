@@ -31,6 +31,7 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.apache.iceberg.FieldMetrics;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.ValueSizeFieldMetrics;
 import org.apache.iceberg.parquet.ParquetValueReaders.ReusableEntry;
 import org.apache.iceberg.parquet.ParquetValueWriter;
 import org.apache.iceberg.parquet.ParquetValueWriters;
@@ -488,29 +489,53 @@ public class SparkParquetWriters {
     }
   }
 
+  private abstract static class GeospatialWriter<T> extends PrimitiveWriter<T> {
+    private final ValueSizeFieldMetrics.Builder metricsBuilder;
+
+    private GeospatialWriter(ColumnDescriptor desc) {
+      super(desc);
+      this.metricsBuilder =
+          new ValueSizeFieldMetrics.Builder(desc.getPrimitiveType().getId().intValue());
+    }
+
+    @Override
+    public void write(int repetitionLevel, T value) {
+      byte[] wkb = toWkb(value);
+      metricsBuilder.addValueSize(wkb.length);
+      column.writeBinary(repetitionLevel, Binary.fromReusedByteArray(wkb));
+    }
+
+    @Override
+    public Stream<FieldMetrics<?>> metrics() {
+      return Stream.of(metricsBuilder.build());
+    }
+
+    protected abstract byte[] toWkb(T value);
+  }
+
   /** Writes a Spark {@link GeometryVal} as its WKB bytes into a BINARY column. */
-  private static class GeometryWriter extends PrimitiveWriter<GeometryVal> {
+  private static class GeometryWriter extends GeospatialWriter<GeometryVal> {
     private GeometryWriter(ColumnDescriptor desc) {
       super(desc);
     }
 
     @Override
-    public void write(int repetitionLevel, GeometryVal value) {
+    protected byte[] toWkb(GeometryVal value) {
       // Spark stores geometry as [SRID | WKB]; Iceberg stores pure WKB, so strip the SRID header.
-      column.writeBinary(repetitionLevel, Binary.fromReusedByteArray(STUtils.stAsBinary(value)));
+      return STUtils.stAsBinary(value);
     }
   }
 
   /** Writes a Spark {@link GeographyVal} as its WKB bytes into a BINARY column. */
-  private static class GeographyWriter extends PrimitiveWriter<GeographyVal> {
+  private static class GeographyWriter extends GeospatialWriter<GeographyVal> {
     private GeographyWriter(ColumnDescriptor desc) {
       super(desc);
     }
 
     @Override
-    public void write(int repetitionLevel, GeographyVal value) {
+    protected byte[] toWkb(GeographyVal value) {
       // Spark stores geography as [SRID | WKB]; Iceberg stores pure WKB, so strip the SRID header.
-      column.writeBinary(repetitionLevel, Binary.fromReusedByteArray(STUtils.stAsBinary(value)));
+      return STUtils.stAsBinary(value);
     }
   }
 

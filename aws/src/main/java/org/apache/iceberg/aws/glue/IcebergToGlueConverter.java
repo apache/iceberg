@@ -339,7 +339,7 @@ class IcebergToGlueConverter {
         return String.format(
             "map<%s,%s>", toTypeString(mapType.keyType()), toTypeString(mapType.valueType()));
       default:
-        return type.typeId().name().toLowerCase(Locale.ENGLISH);
+        return type.typeId().name().toLowerCase(Locale.ROOT);
     }
   }
 

@@ -115,6 +115,7 @@ public final class MetricsConfig implements Serializable {
    * Creates a metrics config from a table.
    *
    * @param table iceberg table
+   * @return a metrics config for the given table
    */
   public static MetricsConfig forTable(Table table) {
     return from(table.properties(), table.schema(), table.sortOrder());

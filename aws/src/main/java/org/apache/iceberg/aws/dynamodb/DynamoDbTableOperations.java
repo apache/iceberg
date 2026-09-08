@@ -180,7 +180,7 @@ class DynamoDbTableOperations extends BaseMetastoreTableOperations {
       GetItemResponse response, String newMetadataLocation) {
     Map<String, String> properties =
         response.hasItem() ? getProperties(response) : Maps.newHashMap();
-    properties.put(TABLE_TYPE_PROP, ICEBERG_TABLE_TYPE_VALUE.toUpperCase(Locale.ENGLISH));
+    properties.put(TABLE_TYPE_PROP, ICEBERG_TABLE_TYPE_VALUE.toUpperCase(Locale.ROOT));
     properties.put(METADATA_LOCATION_PROP, newMetadataLocation);
     if (currentMetadataLocation() != null && !currentMetadataLocation().isEmpty()) {
       properties.put(PREVIOUS_METADATA_LOCATION_PROP, currentMetadataLocation());

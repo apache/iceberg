@@ -33,22 +33,62 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.rest.RESTCatalog;
+import org.apache.iceberg.rest.RESTCatalogServer;
+import org.apache.iceberg.rest.RESTServerExtension;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.extension.RegisterExtension;
 import org.junit.jupiter.api.io.TempDir;
 
 @ExtendWith(ParameterizedTestExtension.class)
 public abstract class CatalogTestBase extends TestBase {
 
+  /** Catalog implementations that SQL test suites can run against. */
+  public enum CatalogType {
+    HIVE("testhive"),
+    HADOOP("testhadoop"),
+    REST("testrest");
+
+    private final String catalogNamePrefix;
+
+    CatalogType(String catalogNamePrefix) {
+      this.catalogNamePrefix = catalogNamePrefix;
+    }
+
+    String catalogName(Namespace namespace) {
+      return namespace.isEmpty()
+          ? catalogNamePrefix
+          : catalogNamePrefix + "_" + Joiner.on('_').join(namespace.levels());
+    }
+  }
+
   protected static final String DATABASE = "db";
   @TempDir protected File hiveWarehouse;
   @TempDir protected File hadoopWarehouse;
 
+  @RegisterExtension
+  private static final RESTServerExtension REST_SERVER_EXTENSION =
+      new RESTServerExtension(
+          ImmutableMap.of(
+              RESTCatalogServer.REST_PORT,
+              RESTServerExtension.FREE_PORT,
+              // In-memory sqlite database by default is private to the connection that created
+              // it. If more than 1 jdbc connection backs the catalog, the connections can see
+              // different database states, so limit the backend JdbcCatalog to a single
+              // connection.
+              CatalogProperties.CLIENT_POOL_SIZE,
+              "1"));
+
+  protected static RESTCatalog restCatalog;
+
   @Parameter(index = 0)
-  protected String catalogName;
+  protected CatalogType catalogType;
 
   @Parameter(index = 1)
   protected Namespace baseNamespace;
@@ -57,25 +97,37 @@ public abstract class CatalogTestBase extends TestBase {
   protected SupportsNamespaces validationNamespaceCatalog;
   protected Map<String, String> config = Maps.newHashMap();
 
+  protected String catalogName;
   protected String flinkDatabase;
   protected Namespace icebergNamespace;
   protected boolean isHadoopCatalog;
+  protected boolean isRestCatalog;
 
-  @Parameters(name = "catalogName={0}, baseNamespace={1}")
+  @Parameters(name = "catalogType={0}, baseNamespace={1}")
   protected static List<Object[]> parameters() {
     return Arrays.asList(
-        new Object[] {"testhive", Namespace.empty()},
-        new Object[] {"testhadoop", Namespace.empty()},
-        new Object[] {"testhadoop_basenamespace", Namespace.of("l0", "l1")});
+        new Object[] {CatalogType.HIVE, Namespace.empty()},
+        new Object[] {CatalogType.HADOOP, Namespace.empty()},
+        new Object[] {CatalogType.HADOOP, Namespace.of("l0", "l1")});
+  }
+
+  @BeforeAll
+  public static void initRestCatalog() {
+    restCatalog = REST_SERVER_EXTENSION.client();
   }
 
   @BeforeEach
   public void before() {
-    this.isHadoopCatalog = catalogName.startsWith("testhadoop");
-    this.validationCatalog =
-        isHadoopCatalog
-            ? new HadoopCatalog(hiveConf, "file:" + hadoopWarehouse.getPath())
-            : catalog;
+    this.catalogName = catalogType.catalogName(baseNamespace);
+    this.isHadoopCatalog = catalogType == CatalogType.HADOOP;
+    this.isRestCatalog = catalogType == CatalogType.REST;
+    if (isHadoopCatalog) {
+      this.validationCatalog = new HadoopCatalog(hiveConf, "file:" + hadoopWarehouse.getPath());
+    } else if (isRestCatalog) {
+      this.validationCatalog = restCatalog;
+    } else {
+      this.validationCatalog = catalog;
+    }
     this.validationNamespaceCatalog = (SupportsNamespaces) validationCatalog;
 
     config.put("type", "iceberg");
@@ -84,6 +136,12 @@ public abstract class CatalogTestBase extends TestBase {
     }
     if (isHadoopCatalog) {
       config.put(FlinkCatalogFactory.ICEBERG_CATALOG_TYPE, "hadoop");
+    } else if (isRestCatalog) {
+      config.put(FlinkCatalogFactory.ICEBERG_CATALOG_TYPE, "rest");
+      config.put(CatalogProperties.URI, restCatalog.properties().get(CatalogProperties.URI));
+      // disable Flink-side catalog caching so validations that write directly through
+      // restCatalog observe fresh metadata
+      config.put(CatalogProperties.CACHE_ENABLED, "false");
     } else {
       config.put(FlinkCatalogFactory.ICEBERG_CATALOG_TYPE, "hive");
       config.put(CatalogProperties.URI, getURI(hiveConf));

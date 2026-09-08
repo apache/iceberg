@@ -21,20 +21,14 @@ package org.apache.iceberg.util;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
-import java.util.Objects;
 import java.util.function.Function;
 import org.apache.iceberg.BaseMetadataTable;
-import org.apache.iceberg.DataFile;
 import org.apache.iceberg.HistoryEntry;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
-import org.apache.iceberg.SnapshotChanges;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
-import org.apache.iceberg.exceptions.ValidationException;
-import org.apache.iceberg.io.CloseableIterable;
-import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -285,66 +279,6 @@ public class SnapshotUtil {
   }
 
   /**
-   * @deprecated will be removed in 1.12.0, use {@link SnapshotChanges} with {@link
-   *     #ancestorsBetween(long, Long, Function)} instead.
-   */
-  @Deprecated
-  public static List<DataFile> newFiles(
-      Long baseSnapshotId, long latestSnapshotId, Function<Long, Snapshot> lookup, FileIO io) {
-    List<DataFile> newFiles = Lists.newArrayList();
-    Snapshot lastSnapshot = null;
-    for (Snapshot currentSnapshot : ancestorsOf(latestSnapshotId, lookup)) {
-      lastSnapshot = currentSnapshot;
-      if (Objects.equals(currentSnapshot.snapshotId(), baseSnapshotId)) {
-        return newFiles;
-      }
-
-      Iterables.addAll(newFiles, currentSnapshot.addedDataFiles(io));
-    }
-
-    ValidationException.check(
-        Objects.equals(lastSnapshot.parentId(), baseSnapshotId),
-        "Cannot determine history between read snapshot %s and the last known ancestor %s",
-        baseSnapshotId,
-        lastSnapshot.snapshotId());
-
-    return newFiles;
-  }
-
-  /**
-   * @deprecated will be removed in 1.12.0, use {@link SnapshotChanges} with {@link
-   *     #ancestorsBetween(long, Long, Function)} instead.
-   */
-  @Deprecated
-  public static CloseableIterable<DataFile> newFilesBetween(
-      Long startSnapshotId, long endSnapshotId, Function<Long, Snapshot> lookup, FileIO io) {
-
-    List<Snapshot> snapshots = Lists.newArrayList();
-    Snapshot lastSnapshot = null;
-    for (Snapshot currentSnapshot : ancestorsOf(endSnapshotId, lookup)) {
-      lastSnapshot = currentSnapshot;
-      if (Objects.equals(currentSnapshot.snapshotId(), startSnapshotId)) {
-        break;
-      }
-
-      snapshots.add(currentSnapshot);
-    }
-
-    if (lastSnapshot != null) {
-      ValidationException.check(
-          Objects.equals(lastSnapshot.snapshotId(), startSnapshotId)
-              || Objects.equals(lastSnapshot.parentId(), startSnapshotId),
-          "Cannot determine history between read snapshot %s and the last known ancestor %s",
-          startSnapshotId,
-          lastSnapshot.snapshotId());
-    }
-
-    return new ParallelIterable<>(
-        Iterables.transform(snapshots, snapshot -> snapshot.addedDataFiles(io)),
-        ThreadPools.getWorkerPool());
-  }
-
-  /**
    * Traverses the history of the table's current snapshot and finds the snapshot with the given
    * snapshot id as its parent.
    *
@@ -390,9 +324,12 @@ public class SnapshotUtil {
 
   public static Long nullableSnapshotIdAsOfTime(Table table, long timestampMillis) {
     Long snapshotId = null;
+    long bestTimestamp = Long.MIN_VALUE;
     for (HistoryEntry logEntry : table.history()) {
-      if (logEntry.timestampMillis() <= timestampMillis) {
+      if (logEntry.timestampMillis() <= timestampMillis
+          && logEntry.timestampMillis() > bestTimestamp) {
         snapshotId = logEntry.snapshotId();
+        bestTimestamp = logEntry.timestampMillis();
       }
     }
 

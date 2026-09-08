@@ -29,7 +29,7 @@ import org.junit.jupiter.api.Test;
 class TestManifestInfoStruct {
 
   @Test
-  void testFieldAccess() {
+  void fieldAccess() {
     ManifestInfoStruct info =
         new ManifestInfoStruct(10, 20, 3, 2, 1000L, 2000L, 300L, 200L, 5L, new byte[] {0xF}, 1L);
 
@@ -47,7 +47,7 @@ class TestManifestInfoStruct {
   }
 
   @Test
-  void testCopy() {
+  void copy() {
     ManifestInfoStruct info =
         ManifestInfoStruct.builder()
             .addedFilesCount(10)
@@ -81,7 +81,7 @@ class TestManifestInfoStruct {
   }
 
   @Test
-  void testNullableFields() {
+  void nullableFields() {
     ManifestInfoStruct info =
         ManifestInfoStruct.builder()
             .addedFilesCount(0)
@@ -100,7 +100,7 @@ class TestManifestInfoStruct {
   }
 
   @Test
-  void testProjectedStructLike() {
+  void projectedStructLike() {
     // project only added_files_count (field ID 504) and min_sequence_number (field ID 516)
     Types.StructType projection =
         Types.StructType.of(ManifestInfo.ADDED_FILES_COUNT, ManifestInfo.MIN_SEQUENCE_NUMBER);
@@ -120,7 +120,7 @@ class TestManifestInfoStruct {
   }
 
   @Test
-  void testInternalSetIgnoresUnknownOrdinal() {
+  void internalSetIgnoresUnknownOrdinal() {
     ManifestInfoStruct info =
         ManifestInfoStruct.builder()
             .addedFilesCount(10)
@@ -154,7 +154,7 @@ class TestManifestInfoStruct {
   }
 
   @Test
-  void testJavaSerializationRoundTrip() throws IOException, ClassNotFoundException {
+  void javaSerializationRoundTrip() throws IOException, ClassNotFoundException {
     ManifestInfoStruct info =
         ManifestInfoStruct.builder()
             .addedFilesCount(10)
@@ -186,7 +186,7 @@ class TestManifestInfoStruct {
   }
 
   @Test
-  void testBuilderMissingAddedFilesCount() {
+  void builderMissingAddedFilesCount() {
     assertThatThrownBy(
             () ->
                 ManifestInfoStruct.builder()
@@ -204,7 +204,7 @@ class TestManifestInfoStruct {
   }
 
   @Test
-  void testBuilderMissingExistingFilesCount() {
+  void builderMissingExistingFilesCount() {
     assertThatThrownBy(
             () ->
                 ManifestInfoStruct.builder()
@@ -222,7 +222,7 @@ class TestManifestInfoStruct {
   }
 
   @Test
-  void testBuilderMissingDeletedFilesCount() {
+  void builderMissingDeletedFilesCount() {
     assertThatThrownBy(
             () ->
                 ManifestInfoStruct.builder()
@@ -240,7 +240,7 @@ class TestManifestInfoStruct {
   }
 
   @Test
-  void testBuilderMissingReplacedFilesCount() {
+  void builderMissingReplacedFilesCount() {
     assertThatThrownBy(
             () ->
                 ManifestInfoStruct.builder()
@@ -258,7 +258,7 @@ class TestManifestInfoStruct {
   }
 
   @Test
-  void testBuilderMissingAddedRowsCount() {
+  void builderMissingAddedRowsCount() {
     assertThatThrownBy(
             () ->
                 ManifestInfoStruct.builder()
@@ -276,7 +276,7 @@ class TestManifestInfoStruct {
   }
 
   @Test
-  void testBuilderMissingExistingRowsCount() {
+  void builderMissingExistingRowsCount() {
     assertThatThrownBy(
             () ->
                 ManifestInfoStruct.builder()
@@ -294,7 +294,7 @@ class TestManifestInfoStruct {
   }
 
   @Test
-  void testBuilderMissingDeletedRowsCount() {
+  void builderMissingDeletedRowsCount() {
     assertThatThrownBy(
             () ->
                 ManifestInfoStruct.builder()
@@ -312,7 +312,7 @@ class TestManifestInfoStruct {
   }
 
   @Test
-  void testBuilderMissingReplacedRowsCount() {
+  void builderMissingReplacedRowsCount() {
     assertThatThrownBy(
             () ->
                 ManifestInfoStruct.builder()
@@ -330,7 +330,7 @@ class TestManifestInfoStruct {
   }
 
   @Test
-  void testBuilderMissingMinSequenceNumber() {
+  void builderMissingMinSequenceNumber() {
     assertThatThrownBy(
             () ->
                 ManifestInfoStruct.builder()
@@ -348,77 +348,77 @@ class TestManifestInfoStruct {
   }
 
   @Test
-  void testBuilderRejectsNegativeAddedFilesCount() {
+  void builderRejectsNegativeAddedFilesCount() {
     assertThatThrownBy(() -> ManifestInfoStruct.builder().addedFilesCount(-1))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid added files count: -1 (must be >= 0)");
   }
 
   @Test
-  void testBuilderRejectsNegativeExistingFilesCount() {
+  void builderRejectsNegativeExistingFilesCount() {
     assertThatThrownBy(() -> ManifestInfoStruct.builder().existingFilesCount(-1))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid existing files count: -1 (must be >= 0)");
   }
 
   @Test
-  void testBuilderRejectsNegativeDeletedFilesCount() {
+  void builderRejectsNegativeDeletedFilesCount() {
     assertThatThrownBy(() -> ManifestInfoStruct.builder().deletedFilesCount(-1))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid deleted files count: -1 (must be >= 0)");
   }
 
   @Test
-  void testBuilderRejectsNegativeReplacedFilesCount() {
+  void builderRejectsNegativeReplacedFilesCount() {
     assertThatThrownBy(() -> ManifestInfoStruct.builder().replacedFilesCount(-1))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid replaced files count: -1 (must be >= 0)");
   }
 
   @Test
-  void testBuilderRejectsNegativeAddedRowsCount() {
+  void builderRejectsNegativeAddedRowsCount() {
     assertThatThrownBy(() -> ManifestInfoStruct.builder().addedRowsCount(-1L))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid added rows count: -1 (must be >= 0)");
   }
 
   @Test
-  void testBuilderRejectsNegativeExistingRowsCount() {
+  void builderRejectsNegativeExistingRowsCount() {
     assertThatThrownBy(() -> ManifestInfoStruct.builder().existingRowsCount(-1L))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid existing rows count: -1 (must be >= 0)");
   }
 
   @Test
-  void testBuilderRejectsNegativeDeletedRowsCount() {
+  void builderRejectsNegativeDeletedRowsCount() {
     assertThatThrownBy(() -> ManifestInfoStruct.builder().deletedRowsCount(-1L))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid deleted rows count: -1 (must be >= 0)");
   }
 
   @Test
-  void testBuilderRejectsNegativeReplacedRowsCount() {
+  void builderRejectsNegativeReplacedRowsCount() {
     assertThatThrownBy(() -> ManifestInfoStruct.builder().replacedRowsCount(-1L))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid replaced rows count: -1 (must be >= 0)");
   }
 
   @Test
-  void testBuilderRejectsNegativeMinSequenceNumber() {
+  void builderRejectsNegativeMinSequenceNumber() {
     assertThatThrownBy(() -> ManifestInfoStruct.builder().minSequenceNumber(-1L))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid min sequence number: -1 (must be >= 0)");
   }
 
   @Test
-  void testBuilderRejectsNegativeDvCardinality() {
+  void builderRejectsNegativeDvCardinality() {
     assertThatThrownBy(() -> ManifestInfoStruct.builder().dvCardinality(-1L))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid DV cardinality: -1 (must be >= 0)");
   }
 
   @Test
-  void testBuilderRejectsRowsWithoutFiles() {
+  void builderRejectsRowsWithoutFiles() {
     assertThatThrownBy(
             () ->
                 ManifestInfoStruct.builder()
@@ -485,7 +485,7 @@ class TestManifestInfoStruct {
   }
 
   @Test
-  void testBuilderAllowsFilesWithoutRows() {
+  void builderAllowsFilesWithoutRows() {
     ManifestInfoStruct info =
         ManifestInfoStruct.builder()
             .addedFilesCount(5)
@@ -510,7 +510,7 @@ class TestManifestInfoStruct {
   }
 
   @Test
-  void testBuilderDvPairingValidation() {
+  void builderDvPairingValidation() {
     assertThatThrownBy(
             () ->
                 ManifestInfoStruct.builder()
@@ -547,7 +547,7 @@ class TestManifestInfoStruct {
   }
 
   @Test
-  void testKryoSerializationRoundTrip() throws IOException {
+  void kryoSerializationRoundTrip() throws IOException {
     ManifestInfoStruct info =
         ManifestInfoStruct.builder()
             .addedFilesCount(10)

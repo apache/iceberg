@@ -83,7 +83,7 @@ This table format tracks individual data files in a table instead of directories
 
 Table state is maintained in metadata files. All changes to table state create a new metadata file and replace the old metadata with an atomic swap. The table metadata file tracks the table schema, partitioning config, custom properties, and snapshots of the table contents. A snapshot represents the state of a table at some time and is used to access the complete set of data files in the table.
 
-Data files in snapshots are tracked by one or more manifest files that contain a row for each data file in the table, the file's partition data, and its metrics. The data in a snapshot is the union of all files in its manifests. Manifest files are reused across snapshots to avoid rewriting metadata that is slow-changing. Manifests can track data files with any subset of a table and are not associated with partitions.
+Data files in snapshots are tracked by one or more manifest files that contain a row for each data file in the table, the file's partition data, and its metrics. The data in a snapshot is the union of all live files in its manifests; each live file may only appear once (see [Content file uniqueness](#content-file-uniqueness)). Manifest files are reused across snapshots to avoid rewriting metadata that is slow-changing. Manifests can track data files with any subset of a table and are not associated with partitions.
 
 The manifests that make up a snapshot are stored in a manifest list file. Each manifest list stores metadata about manifests, including partition stats and data file counts. These stats are used to avoid reading manifests that are not required for an operation.
 
@@ -228,7 +228,7 @@ When the `location` field is present in table metadata, it is used directly as t
 
 ### Schemas and Data Types
 
-A table's **schema** is a list of named columns. All data types are either primitives or nested types, which are maps, lists, or structs. A table schema is also a struct type.
+A table's **schema** is a list of named columns. Data types are primitive, nested, or semi-structured. Nested types are maps, lists, or structs. A table schema is also a struct type.
 
 For the representations of these types in Avro, ORC, and Parquet file formats, see Appendix A.
 
@@ -243,6 +243,8 @@ A **`map`** is a collection of key-value pairs with a key type and a value type.
 #### Semi-structured Types
 
 A **`variant`** is a value that stores semi-structured data. The structure and data types in a variant are not necessarily consistent across rows in a table or data file. The variant type and binary encoding are defined in the [Parquet project](https://github.com/apache/parquet-format/blob/master/VariantEncoding.md), with support currently available for V1. Support for Variant is added in Iceberg v3.
+
+As a semi-structured type, `variant` is neither a primitive type nor a nested type.
 
 Variants are similar to JSON with a wider set of primitive values including date, timestamp, timestamptz, binary, and decimals.
 
@@ -567,7 +569,7 @@ Partition field IDs must be reused if an existing partition spec contains an equ
 
 | Transform name    | Description                                                  | Source types                                                                                              | Result type |
 |-------------------|--------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------|-------------|
-| **`identity`**    | Source value, unmodified                                     | Any except for `geometry`, `geography`, and `variant`                                                     | Source type |
+| **`identity`**    | Source value, unmodified                                     | Any primitive except for `geometry` and `geography` | Source type |
 | **`bucket[N]`**   | Hash of value, mod `N` (see below)                           | `int`, `long`, `decimal`, `date`, `time`, `timestamp`, `timestamptz`, `timestamp_ns`, `timestamptz_ns`, `string`, `uuid`, `fixed`, `binary` | `int`       |
 | **`truncate[W]`** | Value truncated to width `W` (see below)                     | `int`, `long`, `decimal`, `string`, `binary`                                                              | Source type |
 | **`year`**        | Extract a date or timestamp year, as years from 1970         | `date`, `timestamp`, `timestamptz`, `timestamp_ns`, `timestamptz_ns`                                      | `int`       |
@@ -674,11 +676,13 @@ A manifest file must store the partition spec and other metadata as properties i
     | _optional_ | _required_ | `format-version`    | Table format version number of the manifest as a string                                                                                     |
     |            | _required_ | `content`           | Type of content files tracked by the manifest: "data" or "deletes"                                                                          |
 
-The schema of a manifest file is defined by the `manifest_entry` struct, described in the following section.
+#### Content file uniqueness
+
+Within a snapshot, each content file must be referenced by at most one live manifest entry across all manifests; otherwise, the snapshot has undefined behavior. Writers should not produce multiple manifest entries for the same content file in a snapshot (for example, both ADDED and DELETED entries for the same file). Writers are not required to validate uniqueness at commit time.
 
 #### Manifest Entry Fields
 
-The `manifest_entry` struct consists of the following fields:
+The schema of a manifest file is defined by the `manifest_entry` struct, which consists of the following fields:
 
 === "v1 - v3"
     | v1         | v2 and v3  | Field id, name                | Type                                                      | Description |
@@ -818,11 +822,11 @@ Each stats struct holds statistics for one table field. It may contain the follo
 |-------------|--------|---------------------------|---------------------------|-----------------------------------------------|-------------|
 | _optional_  | 1      | `lower_bound`             | Field type or `geo_lower` | all primitives or `variant`                   | Lower bound stored as the field's type, or `geo_lower` for geo types |
 | _optional_  | 2      | `upper_bound`             | Field type or `geo_upper` | all primitives or `variant`                   | Upper bound stored as the field's type, or `geo_upper` for geo types |
-| _optional_  | 3      | `tight_bounds`            | `boolean`                 | all except `geometry`, `geography`, `variant` | When true, `lower_bound` and `upper_bound` must be equal to the min and max values |
+| _optional_  | 3      | `tight_bounds`            | `boolean`                 | all primitives except for `geometry` and `geography` | When true, `lower_bound` and `upper_bound` must be equal to the min and max values |
 | _optional_  | 4      | `value_count`             | `long`                    | all                                           | Number of values in the column (including null and NaN values) |
 | _optional_  | 5      | `null_value_count`        | `long`                    | optional fields                               | Number of null values in the column |
 | _optional_  | 6      | `nan_value_count`         | `long`                    | `float`, `double`                             | Number of NaN values in the column |
-| _optional_  | 7      | `avg_value_size_in_bytes` | `int`                     | `string`, `binary`, `variant`                 | Avg value size in memory (uncompressed) in bytes over non-null values to estimate memory consumption |
+| _optional_  | 7      | `avg_value_size_in_bytes` | `int`                     | `string`, `binary`, `variant`, `geometry`, `geography` | Avg value size in memory (uncompressed) in bytes over non-null values to estimate memory consumption |
 
 For example, stats for a `required` `int` field named `id` with field-id `2` are stored using:
 
@@ -879,7 +883,8 @@ For example, stats for an optional `geometry` field named `location` with field-
   }
   10_804: optional long value_count;
   10_805: optional long null_value_count;
-  // tight_bounds, nan_value_count, avg_value_size_in_bytes are omitted for geo types
+  10_807: optional int avg_value_size_in_bytes;
+  // tight_bounds and nan_value_count are omitted for geo types
 }
 ```
 
@@ -1062,7 +1067,7 @@ Scan predicates are also used to filter data and delete files using column bound
 
 Data files that match the query filter must be read by the scan.
 
-Note that for any snapshot, all file paths marked with "ADDED" or "EXISTING" may appear at most once across all manifest files in the snapshot. If a file path appears more than once, the results of the scan are undefined. Reader implementations may raise an error in this case, but are not required to do so.
+Duplicate live manifest entries for the same content file violate [content file uniqueness](#content-file-uniqueness). When duplicate live entries are present, table behavior (including scan results) is undefined. Reader implementations may raise an error but are not required to do so.
 
 Delete files and deletion vector metadata that match the filters must be applied to data files at read time, limited by the following scope rules.
 
@@ -1686,6 +1691,8 @@ Types are serialized according to this table:
 | **`variant`**| `JSON string: "variant"`|`"variant"`|
 | **`geometry(C)`** |`JSON string: "geometry(<C>)"`|`"geometry(srid:4326)"`|
 | **`geography(C, A)`** |`JSON string: "geography(<C>, <A>)"`|`"geography(srid:4326, spherical)"`|
+
+The schema JSON type strings in this table are the canonical serialized forms. Readers should accept optional whitespace around parameters and separators in parameterized type strings.
 
 Note that default values are serialized using the JSON single-value serialization in [Appendix D](#appendix-d-single-value-serialization).
 

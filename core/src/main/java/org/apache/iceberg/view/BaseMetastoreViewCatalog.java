@@ -60,7 +60,7 @@ public abstract class BaseMetastoreViewCatalog extends BaseMetastoreCatalog impl
       if (ops.current() == null) {
         throw new NoSuchViewException("View does not exist: %s", identifier);
       } else {
-        return new BaseView(newViewOps(identifier), ViewUtil.fullViewName(name(), identifier));
+        return new BaseView(ops, ViewUtil.fullViewName(name(), identifier));
       }
     }
 

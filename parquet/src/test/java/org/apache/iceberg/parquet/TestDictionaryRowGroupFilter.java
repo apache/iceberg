@@ -462,12 +462,17 @@ public class TestDictionaryRowGroupFilter {
     shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, notStartsWith("some_nulls", "some"))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    assertThat(shouldRead).as("Should skip: no match in dictionary").isFalse();
+    assertThat(shouldRead).as("Should read: null values do not start with the prefix").isTrue();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, notStartsWith("no_nulls", "xxx"))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
     assertThat(shouldRead).as("Should read: dictionary contains a matching entry").isTrue();
+
+    shouldRead =
+        new ParquetDictionaryRowGroupFilter(SCHEMA, notStartsWith("no_nulls", ""))
+            .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
+    assertThat(shouldRead).as("Should skip: no match in dictionary and no nulls").isFalse();
   }
 
   @TestTemplate
@@ -484,10 +489,15 @@ public class TestDictionaryRowGroupFilter {
   public void testColumnNotInFile() {
     Expression[] exprs =
         new Expression[] {
-          lessThan("not_in_file", 1.0f), lessThanOrEqual("not_in_file", 1.0f),
-          equal("not_in_file", 1.0f), greaterThan("not_in_file", 1.0f),
-          greaterThanOrEqual("not_in_file", 1.0f), notNull("not_in_file"),
-          isNull("not_in_file"), notEqual("not_in_file", 1.0f)
+          lessThan("not_in_file", 1.0f),
+          lessThanOrEqual("not_in_file", 1.0f),
+          equal("not_in_file", 1.0f),
+          greaterThan("not_in_file", 1.0f),
+          greaterThanOrEqual("not_in_file", 1.0f),
+          notNull("not_in_file"),
+          isNull("not_in_file"),
+          notEqual("not_in_file", 1.0f),
+          notNaN("not_in_file")
         };
 
     for (Expression expr : exprs) {

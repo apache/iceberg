@@ -72,11 +72,38 @@ public class TestContentFileParser {
     // ensure nan counts are present and null counts are not emitted
     assertThat(jsonStr).contains("\"nan-value-counts\"");
     assertThat(jsonStr).doesNotContain("\"null-value-counts\"");
+    assertThat(jsonStr).doesNotContain("\"content-stats\"");
     JsonNode jsonNode = JsonUtil.mapper().readTree(jsonStr);
     ContentFile<?> deserialized =
         ContentFileParser.fromJson(jsonNode, Map.of(TestBase.SPEC.specId(), spec));
     assertThat(deserialized).isInstanceOf(DataFile.class);
     assertContentFileEquals(dataFile, deserialized, spec);
+  }
+
+  @Test
+  void nullContentStatsIsAbsent() throws Exception {
+    String jsonStr =
+        "{\"spec-id\":0,\"content\":\"data\",\"file-path\":\"/path/to/data.parquet\","
+            + "\"file-format\":\"parquet\",\"partition\":[],\"file-size-in-bytes\":10,"
+            + "\"record-count\":1,\"content-stats\":null}";
+    JsonNode jsonNode = JsonUtil.mapper().readTree(jsonStr);
+    ContentFile<?> contentFile =
+        ContentFileParser.fromJson(jsonNode, Map.of(0, PartitionSpec.unpartitioned()));
+    assertThat(contentFile).isInstanceOf(DataFile.class);
+    assertThat(contentFile.avgValueSizes()).isNull();
+  }
+
+  @Test
+  void invalidContentStatsFieldId() throws Exception {
+    String jsonStr =
+        "{\"spec-id\":0,\"content\":\"data\",\"file-path\":\"/path/to/data.parquet\","
+            + "\"file-format\":\"parquet\",\"partition\":[],\"file-size-in-bytes\":10,"
+            + "\"record-count\":1,\"content-stats\":{\"abc\":{\"avg-value-size-in-bytes\":8}}}";
+    JsonNode jsonNode = JsonUtil.mapper().readTree(jsonStr);
+    assertThatThrownBy(
+            () -> ContentFileParser.fromJson(jsonNode, Map.of(0, PartitionSpec.unpartitioned())))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid field ID for content stats: abc");
   }
 
   @ParameterizedTest
@@ -357,6 +384,7 @@ public class TestContentFileParser {
           + "\"nan-value-counts\":{\"keys\":[3,4],\"values\":[0,0]},"
           + "\"lower-bounds\":{\"keys\":[3,4],\"values\":[\"01000000\",\"02000000\"]},"
           + "\"upper-bounds\":{\"keys\":[3,4],\"values\":[\"05000000\",\"0A000000\"]},"
+          + "\"content-stats\":{\"3\":{\"avg-value-size-in-bytes\":8},\"4\":{\"avg-value-size-in-bytes\":16}},"
           + "\"key-metadata\":\"00000000000000000000000000000000\","
           + "\"split-offsets\":[128,256],\"sort-order-id\":1}";
     } else {
@@ -368,6 +396,7 @@ public class TestContentFileParser {
           + "\"nan-value-counts\":{\"keys\":[3,4],\"values\":[0,0]},"
           + "\"lower-bounds\":{\"keys\":[3,4],\"values\":[\"01000000\",\"02000000\"]},"
           + "\"upper-bounds\":{\"keys\":[3,4],\"values\":[\"05000000\",\"0A000000\"]},"
+          + "\"content-stats\":{\"3\":{\"avg-value-size-in-bytes\":8},\"4\":{\"avg-value-size-in-bytes\":16}},"
           + "\"key-metadata\":\"00000000000000000000000000000000\","
           + "\"split-offsets\":[128,256],\"sort-order-id\":1}";
     }
@@ -393,8 +422,9 @@ public class TestContentFileParser {
                         3,
                         Conversions.toByteBuffer(Types.IntegerType.get(), 5),
                         4,
-                        Conversions.toByteBuffer(Types.IntegerType.get(), 10)) // upperbounds
-                    ))
+                        Conversions.toByteBuffer(Types.IntegerType.get(), 10)), // upper bounds
+                    ImmutableMap.of(3, 8, 4, 16), // avg value sizes
+                    null /* originalTypes */))
             .withFileSizeInBytes(350)
             .withSplitOffsets(Arrays.asList(128L, 256L))
             .withEncryptionKeyMetadata(ByteBuffer.wrap(new byte[16]))
@@ -533,8 +563,9 @@ public class TestContentFileParser {
                 3,
                 Conversions.toByteBuffer(Types.IntegerType.get(), 5),
                 4,
-                Conversions.toByteBuffer(Types.IntegerType.get(), 10)) // upperbounds
-            );
+                Conversions.toByteBuffer(Types.IntegerType.get(), 10)), // upper bounds
+            ImmutableMap.of(3, 8, 4, 16), // avg value sizes
+            null /* originalTypes */);
 
     return new GenericDeleteFile(
         spec.specId(),
@@ -573,6 +604,7 @@ public class TestContentFileParser {
           + "\"nan-value-counts\":{\"keys\":[3,4],\"values\":[0,0]},"
           + "\"lower-bounds\":{\"keys\":[3,4],\"values\":[\"01000000\",\"02000000\"]},"
           + "\"upper-bounds\":{\"keys\":[3,4],\"values\":[\"05000000\",\"0A000000\"]},"
+          + "\"content-stats\":{\"3\":{\"avg-value-size-in-bytes\":8},\"4\":{\"avg-value-size-in-bytes\":16}},"
           + "\"key-metadata\":\"00000000000000000000000000000000\","
           + "\"split-offsets\":[128],\"equality-ids\":[3],\"sort-order-id\":1}";
     } else {
@@ -584,6 +616,7 @@ public class TestContentFileParser {
           + "\"nan-value-counts\":{\"keys\":[3,4],\"values\":[0,0]},"
           + "\"lower-bounds\":{\"keys\":[3,4],\"values\":[\"01000000\",\"02000000\"]},"
           + "\"upper-bounds\":{\"keys\":[3,4],\"values\":[\"05000000\",\"0A000000\"]},"
+          + "\"content-stats\":{\"3\":{\"avg-value-size-in-bytes\":8},\"4\":{\"avg-value-size-in-bytes\":16}},"
           + "\"key-metadata\":\"00000000000000000000000000000000\","
           + "\"split-offsets\":[128],\"equality-ids\":[3],\"sort-order-id\":1}";
     }
@@ -607,6 +640,7 @@ public class TestContentFileParser {
     assertThat(actual.nanValueCounts()).isEqualTo(expected.nanValueCounts());
     assertThat(actual.lowerBounds()).isEqualTo(expected.lowerBounds());
     assertThat(actual.upperBounds()).isEqualTo(expected.upperBounds());
+    assertThat(actual.avgValueSizes()).isEqualTo(expected.avgValueSizes());
     assertThat(actual.keyMetadata()).isEqualTo(expected.keyMetadata());
     assertThat(actual.splitOffsets()).isEqualTo(expected.splitOffsets());
     assertThat(actual.equalityFieldIds()).isEqualTo(expected.equalityFieldIds());

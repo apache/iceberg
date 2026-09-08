@@ -176,6 +176,41 @@ class TestBinPackRewriteFilePlanner {
   }
 
   @Test
+  void testMaxFileGroupInputFiles() {
+    addFiles();
+    // First, establish baseline without the constraint
+    BinPackRewriteFilePlanner baselinePlanner = new BinPackRewriteFilePlanner(table);
+    baselinePlanner.init(REWRITE_ALL);
+    FileRewritePlan<FileGroupInfo, FileScanTask, DataFile, RewriteFileGroup> baselinePlan =
+        baselinePlanner.plan();
+    int baselineGroupCount = baselinePlan.totalGroupCount();
+    int baselineGroupsInPartition0 = baselinePlan.groupsInPartition(FILE_1.partition());
+
+    // Now test with max-file-group-input-files set to 2, which limits each group to 2 files
+    // Partition 0 has 3 files (FILE_1, FILE_2, FILE_3), so it should be split into 2 groups
+    // Partition 1 has 2 files (FILE_4, FILE_5), so it should be 1 group
+    // Partition 2 has 1 file (FILE_6), so it should be 1 group
+    BinPackRewriteFilePlanner constrainedPlanner = new BinPackRewriteFilePlanner(table);
+    constrainedPlanner.init(
+        ImmutableMap.of(
+            BinPackRewriteFilePlanner.REWRITE_ALL,
+            "true",
+            BinPackRewriteFilePlanner.MAX_FILE_GROUP_INPUT_FILES,
+            "2"));
+
+    FileRewritePlan<FileGroupInfo, FileScanTask, DataFile, RewriteFileGroup> constrainedPlan =
+        constrainedPlanner.plan();
+
+    // Verify the constraint is honored: should have MORE groups when input files are limited
+    assertThat(constrainedPlan.totalGroupCount()).isGreaterThan(baselineGroupCount).isEqualTo(4);
+    assertThat(constrainedPlan.groupsInPartition(FILE_1.partition()))
+        .isGreaterThan(baselineGroupsInPartition0)
+        .isEqualTo(2);
+    assertThat(constrainedPlan.groupsInPartition(FILE_4.partition())).isEqualTo(1);
+    assertThat(constrainedPlan.groupsInPartition(FILE_6.partition())).isEqualTo(1);
+  }
+
+  @Test
   void testFilter() {
     addFiles();
     BinPackRewriteFilePlanner planner =
@@ -289,6 +324,7 @@ class TestBinPackRewriteFilePlanner {
                 BinPackRewriteFilePlanner.MIN_INPUT_FILES,
                 BinPackRewriteFilePlanner.REWRITE_ALL,
                 BinPackRewriteFilePlanner.MAX_FILE_GROUP_SIZE_BYTES,
+                BinPackRewriteFilePlanner.MAX_FILE_GROUP_INPUT_FILES,
                 BinPackRewriteFilePlanner.DELETE_FILE_THRESHOLD,
                 BinPackRewriteFilePlanner.DELETE_RATIO_THRESHOLD,
                 RewriteDataFiles.REWRITE_JOB_ORDER,
