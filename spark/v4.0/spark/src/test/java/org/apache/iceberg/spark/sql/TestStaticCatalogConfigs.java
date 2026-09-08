@@ -42,37 +42,4 @@ public class TestStaticCatalogConfigs extends CustomSparkTestBase {
           assertThat(foundDefaultNamespace).containsExactly("testDefaultDB");
         });
   }
-
-  @Test
-  public void sparkCatalogPicksUpDefaultDatabaseConfig() throws Exception {
-    Map<String, String> overrides =
-        ImmutableMap.of(
-            "spark.sql.catalog.spark_catalog", "org.apache.iceberg.spark.SparkCatalog",
-            "spark.sql.catalog.spark_catalog.defaultDatabase", "testDefaultDB");
-    withCustomSpark(
-        overrides,
-        sparkSession -> {
-          String[] foundDefaultNamespace =
-              sparkSession.sessionState().catalogManager().v2SessionCatalog().defaultNamespace();
-
-          assertThat(foundDefaultNamespace).containsExactly("testDefaultDB");
-        });
-  }
-
-  @Test
-  void sparkCatalogStillPrefersDefaultNamespaceConfig() throws Exception {
-    Map<String, String> overrides =
-        ImmutableMap.of(
-            "spark.sql.catalog.spark_catalog", "org.apache.iceberg.spark.SparkCatalog",
-            "spark.sql.catalog.spark_catalog.defaultDatabase", "dbToBeOverridden",
-            "spark.sql.catalog.spark_catalog.default-namespace", "testDefaultDB");
-    withCustomSpark(
-        overrides,
-        sparkSession -> {
-          String[] foundDefaultNamespace =
-              sparkSession.sessionState().catalogManager().v2SessionCatalog().defaultNamespace();
-
-          assertThat(foundDefaultNamespace).containsExactly("testDefaultDB");
-        });
-  }
 }

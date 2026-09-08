@@ -69,7 +69,8 @@ Both catalogs are configured using properties nested under the catalog name. Com
 | spark.sql.catalog._catalog-name_.catalog-impl                 |                               | The custom Iceberg catalog implementation. If `type` is null, `catalog-impl` must not be null. |
 | spark.sql.catalog._catalog-name_.io-impl                      |                               | The custom FileIO implementation. |
 | spark.sql.catalog._catalog-name_.metrics-reporter-impl        |                               | The custom MetricsReporter implementation.  |
-| spark.sql.catalog._catalog-name_.defaultDatabase              | default                       | The default current namespace for the catalog |
+| spark.sql.catalog._catalog-name_.default-namespace            | default                       | The default current namespace for the `SparkCatalog`. |
+| spark.sql.catalog._catalog-name_.defaultDatabase              | default                       | The default current namespace for the `SparkSessionCatalog`. |
 | spark.sql.catalog._catalog-name_.uri                          | thrift://host:port            | Hive metastore URL for hive typed catalog, REST URL for REST typed catalog |
 | spark.sql.catalog._catalog-name_.warehouse                    | hdfs://nn:8020/warehouse/path | Base path for the warehouse directory |
 | spark.sql.catalog._catalog-name_.cache-enabled                | `true` or `false`             | Whether to enable catalog cache, default value is `true` |
