@@ -668,7 +668,6 @@ public class TestHiveViewCommits {
         .thenThrow(new RuntimeException("Still on fire")); // Failure on commit check
   }
 
-
   private boolean metadataFileExists(ViewMetadata metadata) {
     return new File(metadata.metadataFileLocation().replace("file:", "")).exists();
   }

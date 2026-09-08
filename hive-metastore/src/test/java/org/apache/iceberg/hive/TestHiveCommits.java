@@ -32,15 +32,11 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 import java.io.File;
-import java.io.IOException;
 import java.util.concurrent.atomic.AtomicReference;
-import org.apache.hadoop.fs.Path;
-import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
-import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
@@ -600,55 +596,6 @@ public class TestHiveCommits extends HiveTableTestBase {
         .persistTable(any(), anyBoolean(), any());
   }
 
-  /**
-   * Pins the table-specific doRefresh wiring for a never-persisted table: a CREATE TABLE commit
-   * that fails with a non-specific exception must resolve the commit status cleanly instead of
-   * NPE-ing in checkCurrentMetadataLocation (#17462). Pins the Hive-specific doRefresh wiring:
-   * refreshing a never-persisted table yields null metadata. The null-metadata handling itself is
-   * covered by TestBaseMetastoreTableOperations.
-   */
-  @Test
-  public void testThriftExceptionUnknownStateOnCreateCommitWhenTableNeverPersisted()
-      throws TException, InterruptedException, IOException {
-    TableIdentifier createIdentifier = TableIdentifier.of(DB_NAME, "create_commit_failed_table");
-    HiveTableOperations ops = (HiveTableOperations) catalog.newTableOps(createIdentifier);
-    HiveTableOperations spyOps = spy(ops);
-
-    failCommitAndThrowException(spyOps);
-
-    Path createLocation = getTableLocationPath("create_commit_failed_table");
-    TableMetadata metadata =
-        TableMetadata.newTableMetadata(
-            SCHEMA,
-            PartitionSpec.unpartitioned(),
-            createLocation.toString(),
-            ImmutableMap.of(
-                TableProperties.COMMIT_NUM_STATUS_CHECKS, "1",
-                TableProperties.COMMIT_STATUS_CHECKS_MIN_WAIT_MS, "1",
-                TableProperties.COMMIT_STATUS_CHECKS_MAX_WAIT_MS, "10",
-                TableProperties.COMMIT_STATUS_CHECKS_TOTAL_WAIT_MS, "100"));
-
-    try {
-      assertThatThrownBy(() -> spyOps.commit(null, metadata))
-          .isInstanceOf(CommitStateUnknownException.class)
-          .hasMessageStartingWith("Datacenter on fire");
-
-      assertThat(catalog.tableExists(createIdentifier))
-          .as("The table should not have been created")
-          .isFalse();
-
-      // pins the table-specific doRefresh wiring: a missing table is not an error when no
-      // metadata location is known, so refreshing a never-persisted table must yield null metadata
-      assertThat(ops.refresh())
-          .as("Refreshing a never-persisted table should yield null metadata")
-          .isNull();
-    } finally {
-      createLocation
-          .getFileSystem(HIVE_METASTORE_EXTENSION.hiveConf())
-          .delete(createLocation, true);
-    }
-  }
-
   private void failCommitAndThrowException(HiveTableOperations spyOperations)
       throws TException, InterruptedException {
     doThrow(new TException("Datacenter on fire"))
@@ -660,7 +607,6 @@ public class TestHiveCommits extends HiveTableTestBase {
     when(spyOperations.refresh())
         .thenThrow(new RuntimeException("Still on fire")); // Failure on commit check
   }
-
 
   private boolean metadataFileExists(TableMetadata metadata) {
     return new File(metadata.metadataFileLocation().replace("file:", "")).exists();

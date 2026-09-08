@@ -20,7 +20,6 @@ package org.apache.iceberg;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.util.Map;
 import org.apache.iceberg.BaseMetastoreOperations.CommitStatus;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -80,15 +79,13 @@ class TestBaseMetastoreTableOperations {
   void strictStatusCheckIsFailureWhenTableWasNeverPersisted() {
     NeverPersistedTableOperations ops = new NeverPersistedTableOperations();
 
-    assertThat(ops.strictStatus(METADATA_LOCATION, METADATA))
-        .isEqualTo(CommitStatus.FAILURE);
+    assertThat(ops.strictStatus(METADATA_LOCATION, METADATA)).isEqualTo(CommitStatus.FAILURE);
   }
 
   @Test
   void statusCheckIsUnknownWhenTableWasNeverPersisted() {
     NeverPersistedTableOperations ops = new NeverPersistedTableOperations();
 
-    assertThat(ops.status(METADATA_LOCATION, METADATA))
-        .isEqualTo(CommitStatus.UNKNOWN);
+    assertThat(ops.status(METADATA_LOCATION, METADATA)).isEqualTo(CommitStatus.UNKNOWN);
   }
 }
