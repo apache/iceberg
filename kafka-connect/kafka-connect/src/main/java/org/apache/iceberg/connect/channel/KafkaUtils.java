@@ -19,12 +19,7 @@
 package org.apache.iceberg.connect.channel;
 
 import java.util.Map;
-import java.util.concurrent.ExecutionException;
 import org.apache.iceberg.common.DynFields;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.kafka.clients.admin.Admin;
-import org.apache.kafka.clients.admin.ConsumerGroupDescription;
-import org.apache.kafka.clients.admin.DescribeConsumerGroupsResult;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerGroupMetadata;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
@@ -41,30 +36,17 @@ class KafkaUtils {
   private static final String CONTEXT_CLASS_NAME =
       "org.apache.kafka.connect.runtime.WorkerSinkTaskContext";
 
-  static ConsumerGroupDescription consumerGroupDescription(String consumerGroupId, Admin admin) {
-    try {
-      DescribeConsumerGroupsResult result =
-          admin.describeConsumerGroups(ImmutableList.of(consumerGroupId));
-      return result.describedGroups().get(consumerGroupId).get();
-
-    } catch (InterruptedException | ExecutionException e) {
-      throw new ConnectException(
-          "Cannot retrieve members for consumer group: " + consumerGroupId, e);
-    }
-  }
-
   static ConsumerGroupMetadata consumerGroupMetadata(SinkTaskContext context) {
     return kafkaConsumer(context).groupMetadata();
   }
 
-  static void seekToLastCommittedOffsets(SinkTaskContext context) {
-    Consumer<byte[], byte[]> consumer = kafkaConsumer(context);
-    if (consumer == null) {
+  static void seekToLastCommittedOffsets(Consumer<byte[], byte[]> kafkaConsumer) {
+    if (kafkaConsumer == null) {
       return;
     }
 
     Map<TopicPartition, OffsetAndMetadata> committedOffsets =
-        consumer.committed(consumer.assignment());
+        kafkaConsumer.committed(kafkaConsumer.assignment());
     if (committedOffsets == null || committedOffsets.isEmpty()) {
       return;
     }
@@ -73,7 +55,7 @@ class KafkaUtils {
         (topicPartition, offsetAndMetadata) -> {
           if (offsetAndMetadata != null) {
             try {
-              consumer.seek(topicPartition, offsetAndMetadata.offset());
+              kafkaConsumer.seek(topicPartition, offsetAndMetadata.offset());
             } catch (IllegalStateException e) {
               LOG.warn(
                   "Rebalance may have occurred, partition {} lost before seeking",
@@ -85,7 +67,7 @@ class KafkaUtils {
   }
 
   @SuppressWarnings("unchecked")
-  private static Consumer<byte[], byte[]> kafkaConsumer(SinkTaskContext context) {
+  static Consumer<byte[], byte[]> kafkaConsumer(SinkTaskContext context) {
     String contextClassName = context.getClass().getName();
     try {
       return ((Consumer<byte[], byte[]>)
