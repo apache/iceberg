@@ -1390,7 +1390,7 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
   }
 
   @Test
-  public void replaceViewVersionAppendsDialect() {
+  public void replaceViewVersionRetainsOtherDialects() {
     TableIdentifier identifier = TableIdentifier.of("ns", "view");
 
     if (requiresNamespaceCreate()) {
@@ -1417,30 +1417,46 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
             .withSchema(SCHEMA)
             .withDefaultNamespace(identifier.namespace())
             .withQuery(trino.dialect(), trino.sql())
-            .withProperty(ViewProperties.REPLACE_APPEND_DIALECT_ALLOWED, "true")
             .create();
 
     assertThat(view.currentVersion().representations()).containsExactly(trino);
 
     // replacing the version with a different dialect retains trino
     view.replaceVersion()
-        .withSchema(SCHEMA)
+        .withSchema(OTHER_SCHEMA)
         .withDefaultNamespace(identifier.namespace())
         .withQuery(spark.dialect(), spark.sql())
         .commit();
 
     View updatedView = catalog().loadView(identifier);
     assertThat(updatedView.currentVersion().representations()).containsExactly(spark, trino);
-    assertThat(updatedView.sqlFor("trino")).isEqualTo(trino);
     assertThat(updatedView.sqlFor("spark")).isEqualTo(spark);
+    assertThat(updatedView.sqlFor("trino")).isEqualTo(trino);
+    assertThat(updatedView.schema().asStruct()).isEqualTo(OTHER_SCHEMA.asStruct());
+
+    SQLViewRepresentation updatedTrino =
+        ImmutableSQLViewRepresentation.builder()
+            .sql("select count(*) from ns.tbl")
+            .dialect("TRINO")
+            .build();
+
+    // the dialect comparison is case-insensitive, so trino is replaced rather than retained
+    updatedView
+        .replaceVersion()
+        .withSchema(OTHER_SCHEMA)
+        .withDefaultNamespace(identifier.namespace())
+        .withQuery(updatedTrino.dialect(), updatedTrino.sql())
+        .commit();
+
+    assertThat(catalog().loadView(identifier).currentVersion().representations())
+        .containsExactly(updatedTrino, spark);
 
     assertThat(catalog().dropView(identifier)).isTrue();
     assertThat(catalog().viewExists(identifier)).as("View should not exist").isFalse();
   }
 
-  @ParameterizedTest(name = "appendDialect with .createOrReplace() = {arguments}")
-  @ValueSource(booleans = {false, true})
-  public void replaceViewAppendsDialect(boolean useCreateOrReplace) {
+  @Test
+  public void replaceViewVersionDropsOtherDialectsWhenAllowed() {
     TableIdentifier identifier = TableIdentifier.of("ns", "view");
 
     if (requiresNamespaceCreate()) {
@@ -1449,37 +1465,71 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
 
     assertThat(catalog().viewExists(identifier)).as("View should not exist").isFalse();
 
-    SQLViewRepresentation trino =
-        ImmutableSQLViewRepresentation.builder()
-            .sql("select * from ns.tbl")
-            .dialect("trino")
-            .build();
-
     SQLViewRepresentation spark =
         ImmutableSQLViewRepresentation.builder()
             .sql("select count(*) from ns.tbl")
             .dialect("spark")
             .build();
 
+    View view =
+        catalog()
+            .buildView(identifier)
+            .withSchema(SCHEMA)
+            .withDefaultNamespace(identifier.namespace())
+            .withQuery("trino", "select * from ns.tbl")
+            .withProperty(ViewProperties.REPLACE_DROP_DIALECT_ALLOWED, "true")
+            .create();
+
+    view.replaceVersion()
+        .withSchema(SCHEMA)
+        .withDefaultNamespace(identifier.namespace())
+        .withQuery(spark.dialect(), spark.sql())
+        .commit();
+
+    assertThat(catalog().loadView(identifier).currentVersion().representations())
+        .containsExactly(spark);
+
+    assertThat(catalog().dropView(identifier)).isTrue();
+    assertThat(catalog().viewExists(identifier)).as("View should not exist").isFalse();
+  }
+
+  @ParameterizedTest(name = "replaceView with .createOrReplace() = {arguments}")
+  @ValueSource(booleans = {false, true})
+  public void replaceViewDoesNotRetainOtherDialects(boolean useCreateOrReplace) {
+    TableIdentifier identifier = TableIdentifier.of("ns", "view");
+
+    if (requiresNamespaceCreate()) {
+      catalog().createNamespace(identifier.namespace());
+    }
+
+    assertThat(catalog().viewExists(identifier)).as("View should not exist").isFalse();
+
     catalog()
         .buildView(identifier)
         .withSchema(SCHEMA)
         .withDefaultNamespace(identifier.namespace())
-        .withQuery(trino.dialect(), trino.sql())
+        .withQuery("trino", "select * from ns.tbl")
         .create();
 
-    // enabling appending as part of the replace operation retains trino
+    // replacing the entire view definition still requires the dialect to be dropped explicitly
     ViewBuilder viewBuilder =
         catalog()
             .buildView(identifier)
             .withSchema(OTHER_SCHEMA)
             .withDefaultNamespace(identifier.namespace())
-            .withQuery(spark.dialect(), spark.sql())
-            .withProperty(ViewProperties.REPLACE_APPEND_DIALECT_ALLOWED, "true");
-    View replacedView = useCreateOrReplace ? viewBuilder.createOrReplace() : viewBuilder.replace();
+            .withQuery("spark", "select count(*) from ns.tbl");
 
-    assertThat(replacedView.currentVersion().representations()).containsExactly(spark, trino);
-    assertThat(replacedView.schema().asStruct()).isEqualTo(OTHER_SCHEMA.asStruct());
+    assertThatThrownBy(
+            () -> {
+              if (useCreateOrReplace) {
+                viewBuilder.createOrReplace();
+              } else {
+                viewBuilder.replace();
+              }
+            })
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageStartingWith(
+            "Cannot replace view due to loss of view dialects (replace.drop-dialect.allowed=false)");
 
     assertThat(catalog().dropView(identifier)).isTrue();
     assertThat(catalog().viewExists(identifier)).as("View should not exist").isFalse();
