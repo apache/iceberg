@@ -27,10 +27,14 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 
-public class TestBaseMetastoreTableOperations {
+class TestBaseMetastoreTableOperations {
 
   private static final Schema SCHEMA =
       new Schema(Types.NestedField.required(1, "id", Types.IntegerType.get()));
+
+  private static final String TABLE_LOCATION = "file:/tmp/db/never_persisted";
+  private static final String METADATA_LOCATION =
+      TABLE_LOCATION + "/metadata/00000-uuid.metadata.json";
 
   private static final Map<String, String> FAST_STATUS_CHECKS =
       ImmutableMap.of(
@@ -72,33 +76,33 @@ public class TestBaseMetastoreTableOperations {
   }
 
   @Test
-  public void strictStatusCheckIsFailureWhenTableWasNeverPersisted() {
+  void strictStatusCheckIsFailureWhenTableWasNeverPersisted() {
     NeverPersistedTableOperations ops = new NeverPersistedTableOperations();
     TableMetadata metadata =
         TableMetadata.newTableMetadata(
             SCHEMA,
             PartitionSpec.unpartitioned(),
-            "file:/tmp/db/never_persisted",
+            TABLE_LOCATION,
             FAST_STATUS_CHECKS);
 
     assertThat(
             ops.strictStatus(
-                "file:/tmp/db/never_persisted/metadata/00000-uuid.metadata.json", metadata))
+                METADATA_LOCATION, metadata))
         .isEqualTo(CommitStatus.FAILURE);
   }
 
   @Test
-  public void statusCheckIsUnknownWhenTableWasNeverPersisted() {
+  void statusCheckIsUnknownWhenTableWasNeverPersisted() {
     NeverPersistedTableOperations ops = new NeverPersistedTableOperations();
     TableMetadata metadata =
         TableMetadata.newTableMetadata(
             SCHEMA,
             PartitionSpec.unpartitioned(),
-            "file:/tmp/db/never_persisted",
+            TABLE_LOCATION,
             FAST_STATUS_CHECKS);
 
     assertThat(
-            ops.status("file:/tmp/db/never_persisted/metadata/00000-uuid.metadata.json", metadata))
+            ops.status(METADATA_LOCATION, metadata))
         .isEqualTo(CommitStatus.UNKNOWN);
   }
 }
