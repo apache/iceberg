@@ -334,9 +334,7 @@ public abstract class BaseMetastoreTableOperations extends BaseMetastoreOperatio
   private boolean checkCurrentMetadataLocation(String newMetadataLocation) {
     TableMetadata metadata = refresh();
     if (metadata == null) {
-      // the table does not exist in the catalog. this happens when a create-table commit fails
-      // before the table is persisted, in which case the new metadata location cannot be the
-      // current one or part of the table's history
+      // Table creation may not have registered metadata yet.
       return false;
     }
 
