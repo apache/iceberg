@@ -48,6 +48,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -167,8 +168,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     private final java.util.concurrent.ConcurrentMap<String, RuntimeException>
         simulateFailureOnFirstSuccessByKey = new java.util.concurrent.ConcurrentHashMap<>();
     // Records the Idempotency-Key value seen on every mutation request, in arrival order.
-    private final List<String> observedMutationIdempotencyKeys =
-        new java.util.concurrent.CopyOnWriteArrayList<>();
+    private final List<String> observedMutationIdempotencyKeys = new CopyOnWriteArrayList<>();
 
     HeaderValidatingAdapter(
         Catalog catalog, HTTPHeaders catalogHeaders, HTTPHeaders contextHeaders) {
@@ -3530,7 +3530,6 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             .filter(k -> k.equals(key))
             .collect(Collectors.toList());
     assertThat(observedKeys).hasSize(2);
-    assertThat(observedKeys.get(0)).isNotNull().isEqualTo(observedKeys.get(1));
   }
 
   @Test
