@@ -22,6 +22,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import org.apache.iceberg.BatchScan;
@@ -52,7 +53,10 @@ class SparkCopyOnWriteScan extends SparkPartitioningAwareScan<FileScanTask>
   private static final Logger LOG = LoggerFactory.getLogger(SparkCopyOnWriteScan.class);
 
   private final Snapshot snapshot;
-  private Set<String> filteredLocations = null;
+  // The locations are held in an AtomicReference because Spark may call filter() concurrently
+  // for UPDATEs with subqueries, as such cases are rewritten using UNION with the same scan on
+  // both sides. A non-atomic read-then-write of the field can reset the tasks using a stale set.
+  private final AtomicReference<Set<String>> filteredLocations = new AtomicReference<>();
 
   SparkCopyOnWriteScan(
       SparkSession spark,
@@ -78,7 +82,7 @@ class SparkCopyOnWriteScan extends SparkPartitioningAwareScan<FileScanTask>
     this.snapshot = snapshot;
 
     if (scan == null) {
-      this.filteredLocations = Collections.emptySet();
+      this.filteredLocations.set(Collections.emptySet());
     }
   }
 
@@ -121,8 +125,14 @@ class SparkCopyOnWriteScan extends SparkPartitioningAwareScan<FileScanTask>
         // Spark may call this multiple times for UPDATEs with subqueries
         // as such cases are rewritten using UNION and the same scan on both sides
         // so filter files only if it is beneficial
-        if (filteredLocations == null || fileLocations.size() < filteredLocations.size()) {
-          this.filteredLocations = fileLocations;
+        Set<String> currentLocations = filteredLocations.get();
+        if (currentLocations == null || fileLocations.size() < currentLocations.size()) {
+          // Use CAS to prevent concurrent calls from resetting tasks with a stale set of
+          // locations. If another branch already set the same or a smaller set, skip this one.
+          if (!filteredLocations.compareAndSet(currentLocations, fileLocations)) {
+            continue;
+          }
+
           List<FileScanTask> filteredTasks =
               tasks().stream()
                   .filter(file -> fileLocations.contains(file.file().location()))
@@ -158,7 +168,7 @@ class SparkCopyOnWriteScan extends SparkPartitioningAwareScan<FileScanTask>
         && readSchema().equals(that.readSchema()) // compare Spark schemas to ignore field ids
         && filterExpressions().toString().equals(that.filterExpressions().toString())
         && Objects.equals(snapshotId(), that.snapshotId())
-        && Objects.equals(filteredLocations, that.filteredLocations);
+        && Objects.equals(filteredLocations.get(), that.filteredLocations.get());
   }
 
   @Override
@@ -168,7 +178,7 @@ class SparkCopyOnWriteScan extends SparkPartitioningAwareScan<FileScanTask>
         readSchema(),
         filterExpressions().toString(),
         snapshotId(),
-        filteredLocations);
+        filteredLocations.get());
   }
 
   @Override
