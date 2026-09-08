@@ -29,19 +29,20 @@ import org.junit.jupiter.api.Test;
 
 class TestBaseMetastoreTableOperations {
 
-  private static final Schema SCHEMA =
-      new Schema(Types.NestedField.required(1, "id", Types.IntegerType.get()));
-
   private static final String TABLE_LOCATION = "file:/tmp/db/never_persisted";
   private static final String METADATA_LOCATION =
       TABLE_LOCATION + "/metadata/00000-uuid.metadata.json";
 
-  private static final Map<String, String> FAST_STATUS_CHECKS =
-      ImmutableMap.of(
-          TableProperties.COMMIT_NUM_STATUS_CHECKS, "1",
-          TableProperties.COMMIT_STATUS_CHECKS_MIN_WAIT_MS, "1",
-          TableProperties.COMMIT_STATUS_CHECKS_MAX_WAIT_MS, "10",
-          TableProperties.COMMIT_STATUS_CHECKS_TOTAL_WAIT_MS, "100");
+  private static final TableMetadata METADATA =
+      TableMetadata.newTableMetadata(
+          new Schema(Types.NestedField.required(1, "id", Types.IntegerType.get())),
+          PartitionSpec.unpartitioned(),
+          TABLE_LOCATION,
+          ImmutableMap.of(
+              TableProperties.COMMIT_NUM_STATUS_CHECKS, "1",
+              TableProperties.COMMIT_STATUS_CHECKS_MIN_WAIT_MS, "1",
+              TableProperties.COMMIT_STATUS_CHECKS_MAX_WAIT_MS, "10",
+              TableProperties.COMMIT_STATUS_CHECKS_TOTAL_WAIT_MS, "100"));
 
   /**
    * Mimics metastore-backed table operations for a table that was never persisted to the catalog,
@@ -78,31 +79,16 @@ class TestBaseMetastoreTableOperations {
   @Test
   void strictStatusCheckIsFailureWhenTableWasNeverPersisted() {
     NeverPersistedTableOperations ops = new NeverPersistedTableOperations();
-    TableMetadata metadata =
-        TableMetadata.newTableMetadata(
-            SCHEMA,
-            PartitionSpec.unpartitioned(),
-            TABLE_LOCATION,
-            FAST_STATUS_CHECKS);
 
-    assertThat(
-            ops.strictStatus(
-                METADATA_LOCATION, metadata))
+    assertThat(ops.strictStatus(METADATA_LOCATION, METADATA))
         .isEqualTo(CommitStatus.FAILURE);
   }
 
   @Test
   void statusCheckIsUnknownWhenTableWasNeverPersisted() {
     NeverPersistedTableOperations ops = new NeverPersistedTableOperations();
-    TableMetadata metadata =
-        TableMetadata.newTableMetadata(
-            SCHEMA,
-            PartitionSpec.unpartitioned(),
-            TABLE_LOCATION,
-            FAST_STATUS_CHECKS);
 
-    assertThat(
-            ops.status(METADATA_LOCATION, metadata))
+    assertThat(ops.status(METADATA_LOCATION, METADATA))
         .isEqualTo(CommitStatus.UNKNOWN);
   }
 }
