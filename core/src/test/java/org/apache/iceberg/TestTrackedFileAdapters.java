@@ -115,11 +115,11 @@ class TestTrackedFileAdapters {
           .addedFilesCount(3)
           .existingFilesCount(5)
           .deletedFilesCount(2)
-          .replacedFilesCount(0)
+          .replacedFilesCount(4)
           .addedRowsCount(300L)
           .existingRowsCount(500L)
           .deletedRowsCount(200L)
-          .replacedRowsCount(0L)
+          .replacedRowsCount(40L)
           .minSequenceNumber(7L)
           .dv(ByteBuffer.wrap(MANIFEST_DV))
           .dvCardinality(4L)
@@ -626,7 +626,10 @@ class TestTrackedFileAdapters {
     assertThat(manifest.existingRowsCount()).isEqualTo(MANIFEST_INFO.existingRowsCount());
     assertThat(manifest.deletedFilesCount()).isEqualTo(MANIFEST_INFO.deletedFilesCount());
     assertThat(manifest.deletedRowsCount()).isEqualTo(MANIFEST_INFO.deletedRowsCount());
+    assertThat(manifest.replacedFilesCount()).isEqualTo(MANIFEST_INFO.replacedFilesCount());
+    assertThat(manifest.replacedRowsCount()).isEqualTo(MANIFEST_INFO.replacedRowsCount());
     assertThat(manifest.firstRowId()).isEqualTo(FIRST_ROW_ID);
+    assertThat(manifest.formatVersion()).isEqualTo(FORMAT_VERSION_V4);
     assertThat(manifest.keyMetadata()).isEqualTo(MANIFEST_KEY_METADATA);
     assertThat(manifest.manifestDeletionVector().buffer()).isEqualTo(ByteBuffer.wrap(MANIFEST_DV));
     assertThat(manifest.partitions()).isNull();
@@ -661,6 +664,13 @@ class TestTrackedFileAdapters {
     assertThatThrownBy(() -> TrackedFileAdapters.asManifestFile(file))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid content type for ManifestFile: %s", contentType);
+  }
+
+  @Test
+  void manifestFileAdapterDelegatesFormatVersion() {
+    TrackedFile original = dummyTrackedFile(FileContent.DATA_MANIFEST, 0);
+
+    assertThat(TrackedFileAdapters.asManifestFile(original).formatVersion()).isZero();
   }
 
   @Test
