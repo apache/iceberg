@@ -36,6 +36,7 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.FileInfo;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.io.PrefixListing;
 import org.apache.iceberg.io.SupportsPrefixOperations;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -249,6 +250,16 @@ public class EncryptingFileIO implements FileIO, Serializable {
     }
 
     @Override
+    public boolean supportsPrefixListingWithDelimiter(String prefix, String delimiter) {
+      return prefixIo.supportsPrefixListingWithDelimiter(prefix, delimiter);
+    }
+
+    @Override
+    public PrefixListing listPrefix(String prefix, String delimiter) {
+      return prefixIo.listPrefix(prefix, delimiter);
+    }
+
+    @Override
     public void deletePrefix(String prefix) {
       prefixIo.deletePrefix(prefix);
     }
@@ -270,6 +281,16 @@ public class EncryptingFileIO implements FileIO, Serializable {
     @Override
     public Iterable<FileInfo> listPrefix(String prefix) {
       return delegateFileIO.listPrefix(prefix);
+    }
+
+    @Override
+    public boolean supportsPrefixListingWithDelimiter(String prefix, String delimiter) {
+      return delegateFileIO.supportsPrefixListingWithDelimiter(prefix, delimiter);
+    }
+
+    @Override
+    public PrefixListing listPrefix(String prefix, String delimiter) {
+      return delegateFileIO.listPrefix(prefix, delimiter);
     }
 
     @Override
