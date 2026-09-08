@@ -21,6 +21,7 @@ package org.apache.iceberg.rest;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -56,6 +57,7 @@ import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.NoSuchViewException;
+import org.apache.iceberg.exceptions.RESTException;
 import org.apache.iceberg.hadoop.Configurable;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.FileIO;
@@ -321,6 +323,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     Map<String, String> queryParams = Maps.newHashMap();
     ImmutableList.Builder<TableIdentifier> tables = ImmutableList.builder();
     String pageToken = "";
+    Set<String> seenPageTokens = new HashSet<>();
     if (pageSize != null) {
       queryParams.put("pageSize", String.valueOf(pageSize));
     }
@@ -339,6 +342,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
                   ErrorHandlers.namespaceErrorHandler());
       pageToken = response.nextPageToken();
       tables.addAll(response.identifiers());
+      checkPageTokenNotRepeated(pageToken, seenPageTokens, "listTables");
     } while (pageToken != null);
 
     return tables.build();
@@ -784,6 +788,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
     ImmutableList.Builder<Namespace> namespaces = ImmutableList.builder();
     String pageToken = "";
+    Set<String> seenPageTokens = new HashSet<>();
     if (pageSize != null) {
       queryParams.put("pageSize", String.valueOf(pageSize));
     }
@@ -802,6 +807,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
                   ErrorHandlers.namespaceErrorHandler());
       pageToken = response.nextPageToken();
       namespaces.addAll(response.namespaces());
+      checkPageTokenNotRepeated(pageToken, seenPageTokens, "listNamespaces");
     } while (pageToken != null);
 
     return namespaces.build();
@@ -1419,6 +1425,22 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     }
   }
 
+  /**
+   * Guards a paginated listing loop against a REST server that returns a page token it has already
+   * returned earlier in the same call. The REST spec requires the final page to have a null
+   * next-page-token; a server that repeats a token would otherwise cause the client to request
+   * pages indefinitely and accumulate duplicated results.
+   */
+  private static void checkPageTokenNotRepeated(
+      String nextPageToken, Set<String> seenPageTokens, String operation) {
+    if (nextPageToken != null && !seenPageTokens.add(nextPageToken)) {
+      throw new RESTException(
+          "Detected repeated page token '%s' returned by REST server during %s; "
+              + "refusing to loop indefinitely",
+          nextPageToken, operation);
+    }
+  }
+
   public void commitTransaction(SessionContext context, List<TableCommit> commits) {
     Endpoint.check(endpoints, Endpoint.V1_COMMIT_TRANSACTION);
     List<UpdateTableRequest> tableChanges = Lists.newArrayListWithCapacity(commits.size());
@@ -1449,6 +1471,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     Map<String, String> queryParams = Maps.newHashMap();
     ImmutableList.Builder<TableIdentifier> views = ImmutableList.builder();
     String pageToken = "";
+    Set<String> seenPageTokens = new HashSet<>();
     if (pageSize != null) {
       queryParams.put("pageSize", String.valueOf(pageSize));
     }
@@ -1467,6 +1490,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
                   ErrorHandlers.namespaceErrorHandler());
       pageToken = response.nextPageToken();
       views.addAll(response.identifiers());
+      checkPageTokenNotRepeated(pageToken, seenPageTokens, "listViews");
     } while (pageToken != null);
 
     return views.build();
