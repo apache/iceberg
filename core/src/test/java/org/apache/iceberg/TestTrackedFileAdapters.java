@@ -21,6 +21,8 @@ package org.apache.iceberg;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import java.nio.ByteBuffer;
 import java.util.Map;
@@ -31,6 +33,7 @@ import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.mockito.Mockito;
 
 class TestTrackedFileAdapters {
 
@@ -38,9 +41,11 @@ class TestTrackedFileAdapters {
   private static final String MANIFEST_LOCATION = "s3://bucket/table/manifest.parquet";
   private static final String DATA_FILE_LOCATION = "s3://bucket/data/file.parquet";
   private static final String DV_LOCATION = "s3://bucket/puffin/dv-file.bin";
+  private static final long MANIFEST_FILE_SIZE = 2048L;
 
   // Tracking values that the delegation tests validate.
   private static final long MANIFEST_POS = 3L;
+  private static final long SNAPSHOT_ID = 42L;
   private static final long DATA_SEQUENCE_NUMBER = 10L;
   private static final long FILE_SEQUENCE_NUMBER = 11L;
   private static final long FIRST_ROW_ID = 1000L;
@@ -48,6 +53,8 @@ class TestTrackedFileAdapters {
   private static final int UNPARTITIONED_SPEC_ID = PartitionSpec.unpartitioned().specId();
   private static final Map<Integer, PartitionSpec> UNPARTITIONED =
       ImmutableMap.of(UNPARTITIONED_SPEC_ID, PartitionSpec.unpartitioned());
+
+  private static final ByteBuffer KEY_METADATA = ByteBuffer.wrap(new byte[] {1, 2, 3});
 
   private static final Schema PARTITION_SCHEMA =
       new Schema(Types.NestedField.required(1, "category", Types.StringType.get()));
@@ -64,22 +71,58 @@ class TestTrackedFileAdapters {
 
   private static final Schema TABLE_SCHEMA =
       new Schema(
-          optional(1, "id", Types.IntegerType.get()), optional(2, "score", Types.FloatType.get()));
+          optional(1, "id", Types.IntegerType.get()),
+          optional(2, "score", Types.FloatType.get()),
+          optional(3, "geom", Types.GeometryType.crs84()));
   private static final Types.StructType CONTENT_STATS_TYPE =
-      StatsUtil.statsReadSchema(TABLE_SCHEMA, ImmutableList.of(1, 2));
+      StatsUtil.statsReadSchema(TABLE_SCHEMA, ImmutableList.of(1, 2, 3));
   private static final FieldStats<?> ID_STATS =
       StatsTestUtil.mockFieldStats(
           CONTENT_STATS_TYPE.fieldType("id").asStructType(), 1, 1, 1000, 100L, 5L, null);
   private static final FieldStats<?> SCORE_STATS =
       StatsTestUtil.mockFieldStats(
           CONTENT_STATS_TYPE.fieldType("score").asStructType(), 2, 1.0f, 100.0f, 100L, 10L, 3L);
+  private static final FieldStats<?> GEOM_STATS =
+      StatsTestUtil.mockFieldStats(
+          CONTENT_STATS_TYPE.fieldType("geom").asStructType(), 3, null, null, 100L, 20L, null, 12);
   private static final ContentStatsStruct CONTENT_STATS =
       new ContentStatsStruct(CONTENT_STATS_TYPE);
 
   static {
     CONTENT_STATS.setStats(1, ID_STATS);
     CONTENT_STATS.setStats(2, SCORE_STATS);
+    CONTENT_STATS.setStats(3, GEOM_STATS);
   }
+
+  private static final Tracking MANIFEST_TRACKING =
+      new TrackingStruct(
+          EntryStatus.ADDED,
+          SNAPSHOT_ID,
+          DATA_SEQUENCE_NUMBER,
+          FILE_SEQUENCE_NUMBER,
+          null, // dvSnapshotId
+          FIRST_ROW_ID,
+          null, // deletedPositions
+          null); // replacedPositions
+
+  private static final byte[] MANIFEST_DV = new byte[] {1, 2, 3};
+
+  private static final ByteBuffer MANIFEST_KEY_METADATA = ByteBuffer.wrap(new byte[] {7, 8, 9});
+
+  private static final ManifestInfo MANIFEST_INFO =
+      ManifestInfoStruct.builder()
+          .addedFilesCount(3)
+          .existingFilesCount(5)
+          .deletedFilesCount(2)
+          .replacedFilesCount(0)
+          .addedRowsCount(300L)
+          .existingRowsCount(500L)
+          .deletedRowsCount(200L)
+          .replacedRowsCount(0L)
+          .minSequenceNumber(7L)
+          .dv(ByteBuffer.wrap(MANIFEST_DV))
+          .dvCardinality(4L)
+          .build();
 
   @Test
   void dataFileAdapterDelegation() {
@@ -96,6 +139,7 @@ class TestTrackedFileAdapters {
     tracking.setManifestLocation(MANIFEST_LOCATION);
     tracking.set(MANIFEST_POS_ORDINAL, MANIFEST_POS);
 
+    DeletionVector dv = mock(DeletionVector.class);
     TrackedFile file =
         new TrackedFileStruct(
             tracking,
@@ -109,7 +153,7 @@ class TestTrackedFileAdapters {
             PARTITION,
             CONTENT_STATS,
             3,
-            null,
+            dv,
             null,
             ByteBuffer.wrap(new byte[] {1, 2, 3}),
             ImmutableList.of(50L, 100L),
@@ -132,11 +176,15 @@ class TestTrackedFileAdapters {
     assertThat(dataFile.keyMetadata()).isEqualTo(ByteBuffer.wrap(new byte[] {1, 2, 3}));
     assertThat(dataFile.splitOffsets()).containsExactly(50L, 100L);
     assertThat(dataFile.manifestLocation()).isEqualTo(MANIFEST_LOCATION);
+    assertThat(dataFile.deletionVector()).isSameAs(dv);
     assertThat(dataFile.equalityFieldIds()).isNull();
     assertThat(dataFile.columnSizes()).isNull();
-    assertThat(dataFile.valueCounts()).containsOnly(Map.entry(1, 100L), Map.entry(2, 100L));
-    assertThat(dataFile.nullValueCounts()).containsOnly(Map.entry(1, 5L), Map.entry(2, 10L));
+    assertThat(dataFile.valueCounts())
+        .containsOnly(Map.entry(1, 100L), Map.entry(2, 100L), Map.entry(3, 100L));
+    assertThat(dataFile.nullValueCounts())
+        .containsOnly(Map.entry(1, 5L), Map.entry(2, 10L), Map.entry(3, 20L));
     assertThat(dataFile.nanValueCounts()).containsOnly(Map.entry(2, 3L));
+    assertThat(dataFile.avgValueSizes()).containsOnly(Map.entry(3, 12));
     assertThat(dataFile.lowerBounds())
         .containsOnly(
             Map.entry(1, Conversions.toByteBuffer(Types.IntegerType.get(), 1)),
@@ -211,9 +259,12 @@ class TestTrackedFileAdapters {
     assertThat(deleteFile.manifestLocation()).isEqualTo(MANIFEST_LOCATION);
     assertThat(deleteFile.equalityFieldIds()).containsExactly(1, 2, 3);
     assertThat(deleteFile.columnSizes()).isNull();
-    assertThat(deleteFile.valueCounts()).containsOnly(Map.entry(1, 100L), Map.entry(2, 100L));
-    assertThat(deleteFile.nullValueCounts()).containsOnly(Map.entry(1, 5L), Map.entry(2, 10L));
+    assertThat(deleteFile.valueCounts())
+        .containsOnly(Map.entry(1, 100L), Map.entry(2, 100L), Map.entry(3, 100L));
+    assertThat(deleteFile.nullValueCounts())
+        .containsOnly(Map.entry(1, 5L), Map.entry(2, 10L), Map.entry(3, 20L));
     assertThat(deleteFile.nanValueCounts()).containsOnly(Map.entry(2, 3L));
+    assertThat(deleteFile.avgValueSizes()).containsOnly(Map.entry(3, 12));
     assertThat(deleteFile.lowerBounds())
         .containsOnly(
             Map.entry(1, Conversions.toByteBuffer(Types.IntegerType.get(), 1)),
@@ -242,6 +293,7 @@ class TestTrackedFileAdapters {
             .offset(128L)
             .sizeInBytes(256L)
             .cardinality(10L)
+            .keyMetadata(KEY_METADATA)
             .build();
 
     TrackingStruct tracking =
@@ -285,6 +337,7 @@ class TestTrackedFileAdapters {
     assertThat(dvFile.recordCount()).isEqualTo(dv.cardinality());
     assertThat(dvFile.contentOffset()).isEqualTo(dv.offset());
     assertThat(dvFile.contentSizeInBytes()).isEqualTo(dv.sizeInBytes());
+    assertThat(dvFile.keyMetadata()).isEqualTo(KEY_METADATA);
     // fileSizeInBytes reports the DV blob size, not the full Puffin file size.
     assertThat(dvFile.fileSizeInBytes()).isEqualTo(dv.sizeInBytes());
     // referencedDataFile is delegated to the tracked data file's location.
@@ -301,7 +354,6 @@ class TestTrackedFileAdapters {
     // fields that are null for DVs
     assertThat(dvFile.sortOrderId()).isNull();
     assertThat(dvFile.firstRowId()).isNull();
-    assertThat(dvFile.keyMetadata()).isNull();
     assertThat(dvFile.splitOffsets()).isNull();
     assertThat(dvFile.equalityFieldIds()).isNull();
     assertThat(dvFile.columnSizes()).isNull();
@@ -329,6 +381,93 @@ class TestTrackedFileAdapters {
     assertThatThrownBy(() -> TrackedFileAdapters.asDVDeleteFile(file, UNPARTITIONED))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot create DV delete file: no deletion vector");
+  }
+
+  @ParameterizedTest
+  @EnumSource(
+      value = FileContent.class,
+      names = {"DATA_MANIFEST", "DELETE_MANIFEST"})
+  void manifestFileAdapterDelegation(FileContent contentType) {
+    TrackedFile file =
+        new TrackedFileStruct(
+            MANIFEST_TRACKING,
+            contentType,
+            FORMAT_VERSION_V4,
+            MANIFEST_LOCATION,
+            FileFormat.PARQUET,
+            10L, // recordCount
+            MANIFEST_FILE_SIZE,
+            null, // specId
+            null, // partition
+            null, // contentStats
+            null, // sortOrderId
+            null, // deletionVector
+            MANIFEST_INFO,
+            MANIFEST_KEY_METADATA,
+            null, // splitOffsets
+            null); // equalityIds
+
+    ManifestFile manifest = TrackedFileAdapters.asManifestFile(file);
+
+    ManifestContent expectedContent =
+        contentType == FileContent.DATA_MANIFEST ? ManifestContent.DATA : ManifestContent.DELETES;
+    assertThat(manifest.path()).isEqualTo(MANIFEST_LOCATION);
+    assertThat(manifest.length()).isEqualTo(MANIFEST_FILE_SIZE);
+    assertThat(manifest.content()).isEqualTo(expectedContent);
+    assertThat(manifest.sequenceNumber()).isEqualTo(DATA_SEQUENCE_NUMBER);
+    assertThat(manifest.minSequenceNumber()).isEqualTo(MANIFEST_INFO.minSequenceNumber());
+    assertThat(manifest.snapshotId()).isEqualTo(SNAPSHOT_ID);
+    assertThat(manifest.addedFilesCount()).isEqualTo(MANIFEST_INFO.addedFilesCount());
+    assertThat(manifest.addedRowsCount()).isEqualTo(MANIFEST_INFO.addedRowsCount());
+    assertThat(manifest.existingFilesCount()).isEqualTo(MANIFEST_INFO.existingFilesCount());
+    assertThat(manifest.existingRowsCount()).isEqualTo(MANIFEST_INFO.existingRowsCount());
+    assertThat(manifest.deletedFilesCount()).isEqualTo(MANIFEST_INFO.deletedFilesCount());
+    assertThat(manifest.deletedRowsCount()).isEqualTo(MANIFEST_INFO.deletedRowsCount());
+    assertThat(manifest.firstRowId()).isEqualTo(FIRST_ROW_ID);
+    assertThat(manifest.keyMetadata()).isEqualTo(MANIFEST_KEY_METADATA);
+    assertThat(manifest.manifestDeletionVector().buffer()).isEqualTo(ByteBuffer.wrap(MANIFEST_DV));
+    assertThat(manifest.partitions()).isNull();
+    assertThatThrownBy(manifest::partitionSpecId)
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage("v4 manifests are not bound to a single partition spec");
+  }
+
+  @Test
+  void manifestFileAdapterCopy() {
+    TrackedFile file = Mockito.mock(TrackedFile.class);
+    TrackedFile fileCopy = Mockito.mock(TrackedFile.class);
+    Mockito.when(file.contentType()).thenReturn(FileContent.DATA_MANIFEST);
+    Mockito.when(file.copy()).thenReturn(fileCopy);
+    Mockito.when(fileCopy.location()).thenReturn(MANIFEST_LOCATION);
+
+    ManifestFile copy = TrackedFileAdapters.asManifestFile(file).copy();
+
+    // copy() delegates to the tracked file's copy(), which deep-copies the nested structs.
+    Mockito.verify(file).copy();
+    assertThat(copy.path()).isEqualTo(MANIFEST_LOCATION);
+  }
+
+  @ParameterizedTest
+  @EnumSource(
+      value = FileContent.class,
+      mode = EnumSource.Mode.EXCLUDE,
+      names = {"DATA_MANIFEST", "DELETE_MANIFEST"})
+  void manifestFileAdapterRejectsNonManifestContent(FileContent contentType) {
+    TrackedFileStruct file = dummyTrackedFile(contentType);
+
+    assertThatThrownBy(() -> TrackedFileAdapters.asManifestFile(file))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid content type for ManifestFile: %s", contentType);
+  }
+
+  @Test
+  void dataFileWithoutDeletionVectorReturnsNull() {
+    TrackedFile fileWithoutDv = mock(TrackedFile.class);
+    when(fileWithoutDv.contentType()).thenReturn(FileContent.DATA);
+    when(fileWithoutDv.deletionVector()).thenReturn(null);
+
+    assertThat(TrackedFileAdapters.asDataFile(fileWithoutDv, UNPARTITIONED).deletionVector())
+        .isNull();
   }
 
   @Test

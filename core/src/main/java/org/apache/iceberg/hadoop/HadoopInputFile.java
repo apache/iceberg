@@ -22,6 +22,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Function;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.BlockLocation;
 import org.apache.hadoop.fs.FileStatus;
@@ -35,13 +36,14 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.util.SerializableSupplier;
 
 /**
  * {@link InputFile} implementation using the Hadoop {@link FileSystem} API.
  *
  * <p>This class is based on Parquet's HadoopInputFile.
  */
-public class HadoopInputFile implements InputFile, NativelyEncryptedFile {
+public class HadoopInputFile implements InputFile, NativelyEncryptedFile, HadoopConfigurable {
   public static final String[] NO_LOCATION_PREFERENCE = new String[0];
 
   private final String location;
@@ -188,8 +190,15 @@ public class HadoopInputFile implements InputFile, NativelyEncryptedFile {
     }
   }
 
+  @Override
   public Configuration getConf() {
     return conf;
+  }
+
+  @Override
+  public void serializeConfWith(
+      Function<Configuration, SerializableSupplier<Configuration>> confSerializer) {
+    throw new UnsupportedOperationException("Cannot serialize a Hadoop input file: " + location());
   }
 
   public FileSystem getFileSystem() {

@@ -239,6 +239,7 @@ class TestBinPackRewritePositionDeletePlanner {
                 BinPackRewritePositionDeletePlanner.MIN_INPUT_FILES,
                 BinPackRewritePositionDeletePlanner.REWRITE_ALL,
                 BinPackRewritePositionDeletePlanner.MAX_FILE_GROUP_SIZE_BYTES,
+                BinPackRewritePositionDeletePlanner.MAX_FILE_GROUP_INPUT_FILES,
                 RewriteDataFiles.REWRITE_JOB_ORDER));
   }
 

@@ -42,6 +42,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkCatalogConfig;
+import org.apache.iceberg.spark.SparkSQLProperties;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.source.SimpleRecord;
 import org.apache.iceberg.types.Types;
@@ -57,6 +58,7 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.catalyst.catalog.SessionCatalog;
+import org.apache.spark.sql.types.DataTypes;
 import org.assertj.core.api.InstanceOfAssertFactories;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -2118,6 +2120,62 @@ public class TestViews extends ExtensionsTestBase {
 
     String location = viewCatalog().loadView(TableIdentifier.of(NAMESPACE, viewName)).location();
     assertThat(location).isEqualTo(customMetadataLocation);
+  }
+
+  @TestTemplate
+  public void readFromViewWithNarrowedSchemaFailsUnderBinding() throws NoSuchTableException {
+    insertRows(3);
+    String viewName = viewName("narrowedSchemaView");
+    createViewWithNarrowedSchema(viewName);
+
+    assertThatThrownBy(() -> sql("SELECT * FROM %s", viewName))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining("Cannot up cast id from \"DOUBLE\" to \"BIGINT\"");
+  }
+
+  @TestTemplate
+  public void readFromViewWithNarrowedSchemaUnderCompensation() throws NoSuchTableException {
+    insertRows(3);
+    String viewName = viewName("compensatedSchemaView");
+    createViewWithNarrowedSchema(viewName);
+
+    withSQLConf(
+        ImmutableMap.of(
+            SparkSQLProperties.VIEW_SCHEMA_BINDING_MODE,
+            SparkSQLProperties.VIEW_SCHEMA_MODE_COMPENSATION),
+        () -> {
+          assertThat(spark.table(viewName).schema().fields()[0].dataType())
+              .isEqualTo(DataTypes.LongType);
+          assertThat(sql("SELECT * FROM %s ORDER BY id", viewName))
+              .containsExactly(row(1L), row(2L), row(3L));
+        });
+  }
+
+  @TestTemplate
+  public void readFromViewWithInvalidSchemaBindingMode() throws NoSuchTableException {
+    insertRows(3);
+    String viewName = viewName("invalidModeSchemaView");
+    createViewWithNarrowedSchema(viewName);
+
+    withSQLConf(
+        ImmutableMap.of(SparkSQLProperties.VIEW_SCHEMA_BINDING_MODE, "evolution"),
+        () ->
+            assertThatThrownBy(() -> sql("SELECT * FROM %s", viewName))
+                .hasMessageContaining(
+                    "Invalid value for spark.sql.iceberg.view.schema-binding-mode: evolution"));
+  }
+
+  private void createViewWithNarrowedSchema(String viewName) {
+    String storedSchemaSQL = String.format("SELECT CAST(id AS bigint) AS id FROM %s", tableName);
+    String viewSQL = String.format("SELECT CAST(id AS double) AS id FROM %s", tableName);
+
+    viewCatalog()
+        .buildView(TableIdentifier.of(NAMESPACE, viewName))
+        .withQuery("spark", viewSQL)
+        .withDefaultNamespace(NAMESPACE)
+        .withDefaultCatalog(catalogName)
+        .withSchema(schema(storedSchemaSQL))
+        .create();
   }
 
   private void insertRows(int numRows) throws NoSuchTableException {

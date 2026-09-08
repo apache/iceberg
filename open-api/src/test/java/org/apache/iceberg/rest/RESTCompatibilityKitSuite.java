@@ -41,6 +41,7 @@ public class RESTCompatibilityKitSuite {
   static final String RCK_SUPPORTS_SERVERSIDE_RETRY = "rck.supports-serverside-retry";
   static final String RCK_OVERRIDES_REQUESTED_LOCATION = "rck.overrides-requested-location";
   static final String RCK_SUPPORTS_NAMES_WITH_DOT = "rck.supports-names-with-dot";
+  static final String RCK_SUPPORTS_VARIANT = "rck.supports-variant";
 
   protected RESTCompatibilityKitSuite() {}
 }

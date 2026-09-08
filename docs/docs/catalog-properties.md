@@ -94,6 +94,12 @@ Required and optional properties to include while using `oauth2` authentication
 | `audience`              | null              | Optional param to specify token `audience`                                                                                                                            |
 | `resource`              | null              | Optional param to specify `resource`                                                                                                                                  |
 
+!!! warning
+    `credential` and `token` are secrets. Engines may expose catalog configuration in their UIs and logs —
+    Apache Spark, for example, lists it in the Environment tab and writes it to event logs. Confirm that your engine
+    redacts these values; for Spark, check that they are covered by `spark.redaction.regex` and add them to
+    the pattern if they are not.
+
 #### SigV4 auth properties
 Required and optional properties to include while using `sigv4` authentication
 
