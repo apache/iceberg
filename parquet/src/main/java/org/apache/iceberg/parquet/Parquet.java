@@ -1145,6 +1145,7 @@ public class Parquet {
       Preconditions.checkArgument(
           spec.isUnpartitioned() || partition != null,
           "Partition must not be null for partitioned writes");
+      DeleteSchemaUtil.validateEqualityFieldIds(equalityFieldIds, rowSchema);
 
       meta("delete-type", "equality");
       meta(

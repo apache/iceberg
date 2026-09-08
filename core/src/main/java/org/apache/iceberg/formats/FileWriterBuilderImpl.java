@@ -36,6 +36,7 @@ import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.encryption.EncryptionKeyMetadata;
 import org.apache.iceberg.io.DataWriter;
+import org.apache.iceberg.io.DeleteSchemaUtil;
 import org.apache.iceberg.io.FileWriter;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
@@ -213,6 +214,9 @@ abstract class FileWriterBuilderImpl<W extends FileWriter<D, ?>, D, S>
         spec.isUnpartitioned() || partition != null,
         "Invalid partition, does not match spec: %s",
         spec);
+    if (content == FileContent.EQUALITY_DELETES) {
+      DeleteSchemaUtil.validateEqualityFieldIds(equalityFieldIds, schema);
+    }
   }
 
   /** Builder for creating {@link DataWriter} instances for writing data files. */
