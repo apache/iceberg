@@ -779,6 +779,7 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
       sqlErrorHandler.accept(e);
       throw new UncheckedSQLException(e, "Failed to execute: %s", sql);
     } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
       throw new UncheckedInterruptedException(e, "Interrupted in SQL command");
     }
   }
