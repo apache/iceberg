@@ -61,7 +61,7 @@ Index Metadata
 
 * **Index** -- A structure that accelerates retrieval of rows from a source table.
 * **Index snapshot** -- The state of an index for a single snapshot of the source table.
-* **Index entry** -- The values produced by evaluating the index fields for one indexed row of the source table.
+* **Index entry** -- The values produced by the index fields for one indexed row of the source table.
 * **Clustering key** -- The tuple of values that determines the position of an index entry within an index snapshot.
 * **Tracking file** -- A file that lists the range files of an index snapshot; one per index snapshot.
 * **Range file** -- A file that stores the index entries for a range of clustering keys; a subset of an index snapshot.
@@ -74,10 +74,10 @@ index `location`, which must be an absolute path.
 
 ### Index Definition
 
-An index is defined by a source table, an index type, materialized fields, non-materialized fields, a cluster spec, and
-optional index properties. The definition is fixed when the index is created and must not change for the lifetime of
-the index, so range files remain readable through every index snapshot that references them. A different definition
-requires a new index.
+An index is defined by a source table, an index type, identity fields, materialized fields, non-materialized fields, a
+cluster spec, and optional index properties. The definition is fixed when the index is created and must not change for
+the lifetime of the index, so range files remain readable through every index snapshot that references them. A different
+definition requires a new index.
 
 A table may have multiple indexes of the same index type.
 
@@ -95,60 +95,65 @@ index type must ignore the index and read the source table directly; it must not
 
 #### Index Fields
 
-Each index field is produced by evaluating an [Iceberg value expression](expressions-spec.md#value-expressions) for an
-indexed row of the source table. An index field has the following fields:
+An index field defines one value of an index entry, produced for an indexed row of the source table. An index declares
+three lists of index fields: [identity fields](#identity-fields) and [materialized fields](#materialized-fields), whose
+values are stored in [range files](#range-files), and [non-materialized fields](#non-materialized-fields), which are
+represented only by statistics in [tracking file entries](#tracking-file-entry). Every index field has a field ID that
+must be unique across the three lists.
+
+#### Expression Fields
+
+The value of an expression field is produced by evaluating an
+[Iceberg value expression](expressions-spec.md#value-expressions) for an indexed row of the source table.
+An expression field has the following fields:
 
 | Requirement | Field name    | Type              | Description                                                  |
 |-------------|---------------|-------------------|--------------------------------------------------------------|
 | _required_  | `field-id`    | `int`             | ID that uniquely identifies the index field                  |
-| _required_  | `type`        | `string`          | Index field representation; must be `expr-value`             |
+| _required_  | `type`        | `string`          | Expression field representation; must be `expr-value`        |
 | _required_  | `data-type`   | Iceberg type      | Type produced by the expression                              |
 | _required_  | `expr`        | JSON expression   | Value expression that produces the field, serialized as JSON |
 
-Each index field must satisfy the following requirements:
+Each expression field must satisfy the following requirements:
 
 - `expr` must contain only ID references to source table fields or
   [metadata columns](spec.md#reserved-field-ids). Named references must not be used. The `_deleted`, `_change_type`,
   `_change_ordinal`, and `_commit_snapshot_id` metadata columns must not be referenced, and neither must the
   `file_path`, `pos`, and `row` columns of delete files.
 - `expr` must be deterministic and must produce the declared `data-type`.
-- `field-id` must be unique across both `materialized-fields` and `non-materialized-fields`.
-- `field-id` must be a regular column ID, not a [reserved field ID](spec.md#reserved-field-ids).
-
-An expression that consists of a single field reference, or of an `identity` function applied to a single field
-reference, is an **identity expression** of the referenced source field. The `field-id` of an identity expression of a
-source table field must be the field ID of that field.
+- `field-id` must not be a [reserved field ID](spec.md#reserved-field-ids) and must not be a field ID in the source
+  table schema.
 
 Expressions are serialized using the [JSON serialization](expressions-spec.md#appendix-b-json-serialization) defined by
 the expressions specification. Types are serialized using the [type serialization](spec.md#schemas) defined by the table
 specification.
 
+#### Identity Fields
+
+`identity-fields` is a non-empty list of unique source table field IDs. Each entry must reference a data field.
+[Metadata columns](spec.md#reserved-field-ids) are not allowed. Each listed field is stored in the
+[range files](#range-files) under its own field ID and takes its type from the schema of the source table snapshot that
+an index snapshot references.
+
+Every source table field referenced by an expression field in the [cluster spec](#cluster-spec) must be an identity
+field.
+
 #### Materialized Fields
 
-`materialized-fields` is a list of index fields whose values are stored in the [range files](#range-files). The list
-must not be empty. Evaluating the list for one indexed row produces one range file row.
-
-The materialized fields must allow a reader to identify matching range file rows. For each field in the
-[cluster spec](#cluster-spec), the list must contain an identity expression for every source table field that the
-cluster field expression references. For example, clustering on `bucket(256, user_id)` requires materializing
-`user_id`, because rows with different `user_id` values can share a bucket.
+`materialized-fields` is a list of expression fields whose values are stored in the [range files](#range-files).
+Evaluating the identity fields and the materialized fields for one indexed row produces one range file row.
 
 #### Non-Materialized Fields
 
-`non-materialized-fields` is a list of index fields whose row values are not stored in range files. Their values are
-stored only as field statistics in tracking file entries. This suits a clustering expression whose result is as large
-as its source, such as `lower(name)` over a materialized `name`, where storing the result would nearly double the
-stored bytes and a reader can recompute it from `name` while searching.
+`non-materialized-fields` is a list of expression fields whose row values are not stored in range files. Only their
+field statistics are stored, in [tracking file entries](#tracking-file-entry).
 
 #### Cluster Spec
 
-`cluster-spec` is a list of field IDs from `materialized-fields` and `non-materialized-fields`. The values of the
-referenced fields, in list order, form the clustering key of an indexed row and determine the row's position in the
-index, as defined in [Clustering and Ordering](#clustering-and-ordering). The list must not be empty. Every referenced
-field must have a primitive `data-type`.
-
-For example, a cluster spec of `[ 104, 1 ]`, where field `104` is `bucket(256, user_id)` and field `1` is `user_id`,
-clusters entries by hash bucket and then by user ID.
+`cluster-spec` is a list of field IDs from `identity-fields`, `materialized-fields`, and `non-materialized-fields`. The
+values of the referenced fields, in list order, form the clustering key of an indexed row and determine the row's
+position in the index, as defined in [Clustering and Ordering](#clustering-and-ordering). The list must not be empty.
+Every referenced field must have a primitive type.
 
 ### Index Metadata
 
@@ -166,8 +171,9 @@ The index metadata file has the following fields:
 | _required_  | `location`                | `string`                   | Index root location                                                                                |
 | _required_  | `last-updated-ms`         | `long`                     | Timestamp when the index was last updated (ms from epoch) [1]                                      |
 | _required_  | `type`                    | `string`                   | Logical index type                                                                                 |
-| _required_  | `materialized-fields`     | `list<index-field>`        | Fields stored in range files, see [Materialized Fields](#materialized-fields)                      |
-| _optional_  | `non-materialized-fields` | `list<index-field>`        | Fields stored only in tracking statistics, see [Non-Materialized Fields](#non-materialized-fields) |
+| _required_  | `identity-fields`         | `list<int>`                | Source table fields stored in range files, see [Identity Fields](#identity-fields)                 |
+| _optional_  | `materialized-fields`     | `list<expression-field>`   | Expression fields stored in range files, see [Materialized Fields](#materialized-fields)           |
+| _optional_  | `non-materialized-fields` | `list<expression-field>`   | Fields stored only in tracking statistics, see [Non-Materialized Fields](#non-materialized-fields) |
 | _required_  | `cluster-spec`            | `list<int>`                | Field IDs that define clustering, see [Cluster Spec](#cluster-spec)                                |
 | _optional_  | `properties`              | `map<string, string>`      | Index properties applicable for every snapshot                                                     |
 | _optional_  | `snapshots`               | `list<index-snapshot>`     | Index snapshots [2]                                                                                |
@@ -305,8 +311,8 @@ describe, which is the ascending order of the `group_max_value` statistics recor
 ##### Content Statistics
 
 The `content_stats` structure stores field statistics following the [content stats](spec.md#content-stats) rules of the
-table specification. Each stored struct derives its ID and metric types from the index field's `field-id` and
-`data-type` and contains the metrics supported for that type.
+table specification. Each stored struct derives its ID and metric types from the index field's ID and type and contains
+the metrics supported for that type.
 
 The following metrics are required:
 
@@ -322,7 +328,7 @@ not values stored in it.
 ###### Group Max Value
 
 The field statistics struct for each field in `cluster-spec` must contain a `group_max_value` metric at offset `8` from
-the field's stats `base-id`. It has the index field's `data-type` and is optional so that it can represent a null
+the field's stats `base-id`. It has the index field's data type and is optional so that it can represent a null
 clustering value. Unlike other metrics, a null `group_max_value` is a null clustering value, not an unknown statistic.
 
 The `group_max_value` metrics, read in `cluster-spec` order, must be the exact clustering key of the last index entry in
@@ -336,18 +342,20 @@ Range files must be valid Iceberg data files stored in Parquet, Avro, or ORC, fo
 [format-specific requirements](spec.md#appendix-a-format-specific-requirements) of the table specification. Those
 requirements define how each type is encoded and where a column's field ID is recorded in the file.
 
-Each range file row is one index entry and contains the result of evaluating the
-[materialized fields](#materialized-fields) for one indexed row. Index entries within a range file must be stored in the
-[clustering order](#clustering-and-ordering). Index entries that share a clustering key may be stored in any order.
+Each range file row is one index entry and holds the [identity field](#identity-fields) and
+[materialized field](#materialized-fields) values of one indexed row. Index entries within a range file must be stored
+in the [clustering order](#clustering-and-ordering). Index entries that share a clustering key may be stored in any
+order.
 
 ##### Range Schema
 
-The range schema is constructed from `materialized-fields`. The result is a struct containing one field for each index
-field in the list, with fields appearing in the same order as the list. Each field takes its ID from `field-id` and its
-type from `data-type`.
+The range schema is constructed from `identity-fields` followed by `materialized-fields`. The result is a struct
+containing one field for each index field in those lists, with fields appearing in that order. An identity field takes
+its ID and type from the source table field it names; a materialized field takes its ID from `field-id` and its type
+from `data-type`.
 
-Names of materialized fields in the range schema are generated by the writer and are not defined by this specification.
-Users of the index must not rely on them; readers must match range file columns by field ID.
+Names of range schema fields are generated by the writer and are not defined by this specification. Users of the index
+must not rely on them; readers must match range file columns by field ID.
 
 ## Appendix A: Rationale
 
@@ -358,16 +366,16 @@ class of index, so an engine can skip a type it does not implement without inspe
 
 ### Expression-based Definitions
 
-An index is defined by expressions rather than by a fixed list of columns and a closed set of transforms. This keeps
-the index definition open ended, but expressions must be deterministic for the same reason clustering must be stable:
-an expression that depends on `random` or on the evaluation time would place entries at positions that cannot be
-reproduced.
+Beyond the source columns it indexes directly, an index is defined by expressions, which keeps the definition open
+ended. Expressions must be deterministic for the same reason clustering must be stable: an expression that depends on
+`random` or on the evaluation time would place entries at positions that cannot be reproduced.
 
-Each index field contains the expression that produces its value. Materialized field values are stored in range files,
-while non-materialized field values are represented only by tracking statistics. The cluster spec lists field IDs in
-comparison order without repeating their expressions. Engines match query expressions to index fields to determine
-whether the index applies and which materialized field contains a result. Because expressions reference only fields and
-metadata columns of the source table, each index field can be evaluated directly from a source row.
+Each expression field contains the expression that produces its value. A field that indexes a source table field as is
+carries no expression: it is declared by its ID in `identity-fields`. Materialized field values are stored in range
+files, while non-materialized field values are represented only by tracking statistics. The cluster spec lists field
+IDs in comparison order without repeating their expressions. Engines match query expressions to index fields to
+determine whether the index applies and which stored field contains a result. Because expressions reference only fields
+and metadata columns of the source table, each index field can be evaluated directly from a source row.
 
 That is also why only some metadata columns can be referenced. An index snapshot indexes the live rows of a single
 table snapshot, so a row has one position and one file, and the value of a column such as `_deleted` is fixed for every
@@ -399,41 +407,47 @@ bound has to be exact, because a bound rounded up would place the next range fil
 actually contains, so a lookup would prune to the wrong file and miss rows.
 
 Ordinary lower and upper bounds are required for clustered and non-materialized fields because they support pruning on
-partial clustering keys, which the `group_max_value` keys alone cannot do. Bounds for other materialized fields are
-optional and, when present, extend pruning to fields outside the cluster spec.
+partial clustering keys, which the `group_max_value` keys alone cannot do. Bounds for the other fields stored in range
+files are optional and, when present, extend pruning to fields outside the cluster spec.
 
 Within a range file, the entries that match a lookup are contiguous, so a reader can locate them with the structures the
 file format provides for stored columns, such as Parquet page indexes, instead of examining every entry. Those
-structures work on a materialized field that clustering keeps sorted, or a value from which the clustering expression
-is order preserving: a file clustered on `day(ts)` is also ordered by a materialized `ts` field. Clustering on
-`bucket(256, user_id)` leaves a materialized `user_id` field unsorted unless the bucket field is also materialized, so a
-reader may need to evaluate the clustering expression over range file rows.
+structures work on a stored field that clustering keeps sorted, or a value from which the clustering expression is order
+preserving: a file clustered on `day(ts)` is also ordered by a stored `ts` field. Clustering on `bucket(256, user_id)`
+leaves a stored `user_id` field unsorted unless the bucket field is also stored, so a reader may need to evaluate the
+clustering expression over range file rows.
 
 ### Range Schema Derivation
 
-The range schema is derived from the materialized fields, so the index definition and the physical layout of the index
-cannot drift apart and the schema does not have to be maintained as a second, redundant copy of the definition.
+The range schema is derived from the identity fields and the materialized fields, so the index definition and the
+physical layout of the index cannot drift apart and the schema does not have to be maintained as a second, redundant
+copy of the definition.
 
-Requiring materialized fields to identify matching rows is what keeps a range file useful on its own. A clustering value
-alone cannot distinguish the entries that share it, so the source values behind each cluster field have to be
-materialized. Materializing the transformed result as well is a performance choice, because a reader can search it
-directly.
+Requiring the stored fields to identify matching rows is what keeps a range file useful on its own. A clustering value
+alone cannot distinguish the entries that share it, so the source values behind each cluster field have to be indexed
+as identity fields. Clustering on `bucket(256, user_id)`, for example, requires `user_id` to be an identity field,
+because rows with different `user_id` values can share a bucket. Storing the expression result as well is a
+performance choice, because a reader can search it directly.
 
-The declared `data-type` fixes the physical and statistics types for the lifetime of the index. It also allows a reader
-to construct those schemas without binding expressions against a possibly evolved source schema. A source schema
-change that makes an expression incompatible with its declared type requires a new index definition. Fields outside
-`cluster-spec` may use any Iceberg type, and a nested `data-type` includes IDs for the fields in its subtree, allowing
-a covering index to materialize lists, maps, or structs.
+The `data-type` declared by an expression field fixes the physical and statistics types for the lifetime of the index.
+It also allows a reader to construct those schemas without binding the expression against a possibly evolved source
+schema. A source schema change that makes an expression incompatible with its declared type requires a new index
+definition. Fields outside `cluster-spec` may use any Iceberg type, and a nested `data-type` includes IDs for the fields
+in its subtree, allowing a covering index to store lists, maps, or structs.
 
-Fields produced by identity expressions keep the field ID of the source column, which preserves column identity through
-renames and makes the relationship between source and materialized fields explicit. Expressions still reference the
-source field IDs, so they are not rewritten when a column is renamed.
+An identity field declares only a source field ID, and its type is resolved from the source table schema rather than
+repeated in index metadata, where the two could disagree. Resolving it needs no new rules: a range file stores the field
+under the source field ID, so a reader reads it exactly as it reads the same column of a data file, including the type
+promotions the table specification allows. Keeping the source field ID also preserves column identity through renames
+and makes the relationship between source and stored fields explicit. Expressions reference source field IDs for the
+same reason, so they are not rewritten when a column is renamed.
 
-That does not extend to metadata columns, whose names and IDs are fixed by the table specification, so there is no
-identity to preserve. The range schema is the schema of an Iceberg data file, and metadata column IDs are reserved. For
-example, an Iceberg reader synthesizes `_pos` from the position of a row in the file it is reading, which is the range
-file rather than the source data file, so storing a range schema field under that ID would collide. An index field that
-references a metadata column therefore takes an ordinary field ID, and a reader recognizes it from its expression.
+A metadata column cannot be an identity field. Its name and ID are fixed by the table specification, so there is no
+column identity to preserve. The range schema is the schema of an Iceberg data file, and metadata column IDs are
+reserved. For example, an Iceberg reader synthesizes `_pos` from the position of a row in the file it is reading, which
+is the range file rather than the source data file, so storing a range schema field under that ID would collide. A
+metadata column is therefore indexed with a materialized field that takes an ordinary field ID, and a reader recognizes
+it from its expression.
 
 ### Atomic Commits
 
@@ -477,6 +491,12 @@ An index that only has to eliminate data files can materialize `_file` alone. Re
 An index that materializes none of these can still prune range files by clustering key, but it cannot return source
 rows.
 
+### Choosing Non-Materialized Fields
+
+Leaving a field non-materialized suits a clustering expression whose result is as large as its source, such as
+`lower(name)` over an identity field `name`. Storing the result would nearly double the stored bytes, and a reader can
+recompute it from `name` while searching.
+
 ### Choosing a Cluster Spec
 
 A range file cannot hold fewer entries than a single clustering key produces, because a range boundary falls only where
@@ -502,16 +522,16 @@ index snapshot. Range file boundaries follow the clustering, so a range file hol
 range of `user_id` values within a single bucket. The tracking file describes each range file with its location,
 format, record count, and size, together with the statistics used for pruning.
 
-The materialized fields are `user_id` and the source row location. `user_id` keeps the field ID of the source column
-because it is an identity expression, while the location fields reference metadata columns and so take ordinary field
-IDs. The bucket is field `104`; it is evaluated for clustering and tracking statistics but is not materialized in range
-files. The resulting range schema is:
+The index stores `user_id` and the source row location. `user_id` is an identity field, so it keeps the field ID and the
+type of the source column, while the location fields are materialized fields that reference metadata columns and so
+take ordinary field IDs. The bucket is field `104`; it is evaluated for clustering and tracking statistics but is not
+stored in range files. The resulting range schema is:
 
-| Field id, name  | Type     | Description                                                  |
-|-----------------|----------|--------------------------------------------------------------|
-| **`1  user_id`**  | `long`   | The indexed source column, keeping its source table field ID |
-| **`105  file`**   | `string` | The source data file that contains the row, from `_file`     |
-| **`106  pos`**    | `long`   | The row position within that data file, from `_pos`          |
+| Field id, name    | Type     | Description                                              |
+|-------------------|----------|----------------------------------------------------------|
+| **`1  user_id`**  | `long`   | The identity field on the indexed source column          |
+| **`105  file`**   | `string` | The source data file that contains the row, from `_file` |
+| **`106  pos`**    | `long`   | The row position within that data file, from `_pos`      |
 
 The location fields are not part of the clustering key, so entries that fall in the same bucket with the same `user_id`
 are ordered by source location only because the writer chose to store them that way.
@@ -529,12 +549,8 @@ s3://bucket/warehouse/default.db/events/index/bucket_index/metadata/00001-(uuid)
   "location" : "s3://bucket/warehouse/default.db/events/index/bucket_index",
   "last-updated-ms" : 1573518431292,
   "type" : "SCALAR",
+  "identity-fields" : [ 1 ],
   "materialized-fields" : [ {
-    "field-id" : 1,
-    "type" : "expr-value",
-    "data-type" : "long",
-    "expr" : { "type" : "reference", "id" : 1 }
-  }, {
     "field-id" : 105,
     "type" : "expr-value",
     "data-type" : "string",
@@ -576,7 +592,7 @@ two range files:
 
 Each tracking file entry also carries a `content_stats` struct. The location fields are materialized fields outside
 `cluster-spec`, so no statistics are required for them and this writer stores none. The struct holds field statistics
-for the materialized `user_id` and the non-materialized bucket. Both fields participate in `cluster-spec`, so both
+for the identity field `user_id` and the non-materialized bucket. Both fields participate in `cluster-spec`, so both
 stats structs include `group_max_value`:
 
 ```
@@ -610,8 +626,9 @@ A lookup for `user_id = 55310` evaluates the clustering expressions for that val
 `{ bucket: 88, user_id: 55310 }`. That key is not greater than the upper bound of `range-00001.parquet`, the first
 tracking file entry, so only the first range file is read.
 
-The rows of `range-00001.parquet` follow the range schema constructed from the materialized fields. They are stored in
-clustering order. The non-materialized bucket is shown here to make the complete clustering key visible:
+The rows of `range-00001.parquet` follow the range schema constructed from the identity field and the materialized
+fields. They are stored in clustering order. The non-materialized bucket is shown here to make the complete clustering
+key visible:
 
 | user_id | file                            | pos | (clustering key) |
 |---------|---------------------------------|-----|------------------|
