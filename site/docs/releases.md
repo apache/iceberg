@@ -77,7 +77,7 @@ The 1.11.0 release contains bug fixes and new features. For full release notes v
     - Drop support for Java 11 ([\#14400](https://github.com/apache/iceberg/pull/14400))
     - Spark 3.4: Deprecate support ([\#14099](https://github.com/apache/iceberg/pull/14099))
     - Flink: Remove Flink 1.19 support ([\#13714](https://github.com/apache/iceberg/pull/13714))
-    - Flink: Do not ship optional `flink-metrics-dropwizard` dependency in the `iceberg-flink-runtime` fat jar. Without it the `dataFilesSizeHistogram` and `deleteFilesSizeHistogram` histogram metrics are no longer published; add the dependency manually to keep publishing them ([\#16155](https://github.com/apache/iceberg/pull/16155))
+    - Flink: Do not ship optional `flink-metrics-dropwizard` dependency in the `iceberg-flink-runtime` fat jar. Without it, the `dataFilesSizeHistogram` and `deleteFilesSizeHistogram` histogram metrics are no longer published; add the dependency manually to keep publishing them ([\#16155](https://github.com/apache/iceberg/pull/16155))
     - AWS, Core, Data, Spark: Remove deprecations for 1.11.0 ([\#14059](https://github.com/apache/iceberg/pull/14059))
 * Spec
     - Introduce SQL UDF specification ([\#14117](https://github.com/apache/iceberg/pull/14117))
