@@ -2488,6 +2488,23 @@ public class TestSchemaUpdate {
   }
 
   @Test
+  public void testUpdateUnknownToInteger() {
+    Schema schema =
+        new Schema(
+            required(1, "id", Types.LongType.get()), optional(2, "unk", Types.UnknownType.get()));
+    Schema expected =
+        new Schema(
+            required(1, "id", Types.LongType.get()), optional(2, "unk", Types.IntegerType.get()));
+
+    Schema actual =
+        new SchemaUpdate(schema, schema.highestFieldId())
+            .updateColumn("unk", Types.IntegerType.get())
+            .apply();
+
+    assertThat(actual.asStruct()).isEqualTo(expected.asStruct());
+  }
+
+  @Test
   public void testAddUnknownNonNullDefault() {
     Schema schema = new Schema(required(1, "id", Types.LongType.get()));
 
