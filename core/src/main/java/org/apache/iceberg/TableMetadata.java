@@ -1608,7 +1608,7 @@ public class TableMetadata implements Serializable {
               .flatMap(List::stream)
               .collect(Collectors.toList()),
           nextRowId,
-          encryptionKeys,
+          ImmutableList.copyOf(encryptionKeys),
           discardChanges ? ImmutableList.of() : ImmutableList.copyOf(changes));
     }
 

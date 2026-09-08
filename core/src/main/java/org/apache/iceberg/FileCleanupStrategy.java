@@ -84,6 +84,7 @@ abstract class FileCleanupStrategy {
           ManifestFile.schema(),
           ImmutableSet.of(
               ManifestFile.PATH.fieldId(),
+              ManifestFile.MANIFEST_CONTENT.fieldId(),
               ManifestFile.LENGTH.fieldId(),
               ManifestFile.SPEC_ID.fieldId(),
               ManifestFile.SNAPSHOT_ID.fieldId(),
