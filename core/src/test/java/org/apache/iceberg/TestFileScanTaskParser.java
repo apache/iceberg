@@ -82,8 +82,13 @@ public class TestFileScanTaskParser {
       residualEvaluator = ResidualEvaluator.of(spec, Expressions.equal("id", 1), caseSensitive);
     }
 
+    DataFile dataFile = TestBase.FILE_A.copy();
+    ((BaseFile<?>) dataFile).setDataSequenceNumber(17L);
+    ((BaseFile<?>) dataFile).setFileSequenceNumber(23L);
+    ((BaseFile<?>) dataFile).setFirstRowId(34L);
+
     return new BaseFileScanTask(
-        TestBase.FILE_A,
+        dataFile,
         new DeleteFile[] {TestBase.FILE_A_DELETES, TestBase.FILE_A2_DELETES},
         SchemaParser.toJson(TestBase.SCHEMA),
         PartitionSpecParser.toJson(spec),
@@ -98,7 +103,8 @@ public class TestFileScanTaskParser {
         + "\"transform\":\"bucket[16]\",\"source-id\":4,\"field-id\":1000}]},"
         + "\"data-file\":{\"spec-id\":0,\"content\":\"data\",\"file-path\":\"/path/to/data-a.parquet\","
         + "\"file-format\":\"parquet\",\"partition\":[0],"
-        + "\"file-size-in-bytes\":10,\"record-count\":1,\"sort-order-id\":0},"
+        + "\"file-size-in-bytes\":10,\"record-count\":1,\"sort-order-id\":0,\"first-row-id\":34,"
+        + "\"data-sequence-number\":17},"
         + "\"start\":0,\"length\":10,"
         + "\"delete-files\":[{\"spec-id\":0,\"content\":\"position-deletes\","
         + "\"file-path\":\"/path/to/data-a-deletes.parquet\",\"file-format\":\"parquet\","
@@ -118,7 +124,8 @@ public class TestFileScanTaskParser {
         + "\"transform\":\"bucket[16]\",\"source-id\":4,\"field-id\":1000}]},"
         + "\"data-file\":{\"spec-id\":0,\"content\":\"data\",\"file-path\":\"/path/to/data-a.parquet\","
         + "\"file-format\":\"parquet\",\"partition\":[0],"
-        + "\"file-size-in-bytes\":10,\"record-count\":1,\"sort-order-id\":0},"
+        + "\"file-size-in-bytes\":10,\"record-count\":1,\"sort-order-id\":0,\"first-row-id\":34,"
+        + "\"data-sequence-number\":17},"
         + "\"start\":0,\"length\":10,"
         + "\"delete-files\":[{\"spec-id\":0,\"content\":\"position-deletes\","
         + "\"file-path\":\"/path/to/data-a-deletes.parquet\",\"file-format\":\"parquet\","
@@ -138,7 +145,8 @@ public class TestFileScanTaskParser {
         + "\"transform\":\"bucket[16]\",\"source-id\":4,\"field-id\":1000}]},"
         + "\"data-file\":{\"spec-id\":0,\"content\":\"data\",\"file-path\":\"/path/to/data-a.parquet\","
         + "\"file-format\":\"parquet\",\"partition\":{\"1000\":0},"
-        + "\"file-size-in-bytes\":10,\"record-count\":1,\"sort-order-id\":0},"
+        + "\"file-size-in-bytes\":10,\"record-count\":1,\"sort-order-id\":0,\"first-row-id\":34,"
+        + "\"data-sequence-number\":17},"
         + "\"start\":0,\"length\":10,"
         + "\"delete-files\":[{\"spec-id\":0,\"content\":\"position-deletes\","
         + "\"file-path\":\"/path/to/data-a-deletes.parquet\",\"file-format\":\"parquet\","
