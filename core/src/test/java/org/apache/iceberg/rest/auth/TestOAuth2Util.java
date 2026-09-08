@@ -30,12 +30,14 @@ import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.PlainJWT;
 import java.io.IOException;
 import java.util.Map;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.rest.RESTClient;
 import org.apache.iceberg.rest.auth.OAuth2Util.AuthSession;
 import org.apache.iceberg.rest.responses.OAuthTokenResponse;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
 public class TestOAuth2Util {
@@ -264,6 +266,102 @@ public class TestOAuth2Util {
     AuthSession parent = new AuthSession(Map.of(), parentConfig);
     assertThat(parent.expiresAtMillis()).isEqualTo(TimeUnit.SECONDS.toMillis(expSeconds));
     return parent;
+  }
+
+  /** A keep-refreshing parent session used to exercise the scheduled refresh chain. */
+  private static AuthSession refreshingParentSession() {
+    AuthConfig parentConfig =
+        AuthConfig.builder()
+            .token("parent_token")
+            .tokenType(OAuth2Properties.ACCESS_TOKEN_TYPE)
+            .keepRefreshed(true)
+            .credential("testClientId:testClientSecret")
+            .oauth2ServerUri("/v1/token")
+            .build();
+    return new AuthSession(Map.of(), parentConfig);
+  }
+
+  @Test
+  void failedRefreshSchedulesBoundedRetryWhileSessionStaysActive() throws IOException {
+    AuthSession parent = refreshingParentSession();
+    String childToken =
+        tokenWithExp(
+            TimeUnit.MILLISECONDS.toSeconds(System.currentTimeMillis()) + 3600); // not yet expired
+
+    RESTClient client = Mockito.mock(RESTClient.class);
+    // token endpoint is temporarily unavailable: refresh fails after retries
+    Mockito.when(client.postForm(any(), anyMap(), any(), anyMap(), any()))
+        .thenAnswer(inv -> { throw new RuntimeException("token endpoint unavailable"); });
+
+    ScheduledExecutorService executor = Mockito.mock(ScheduledExecutorService.class);
+
+    // a non-expired token is scheduled for refresh without attempting a refresh now
+    AuthSession.fromAccessToken(client, executor, childToken, null, parent);
+
+    ArgumentCaptor<Runnable> taskCaptor = ArgumentCaptor.forClass(Runnable.class);
+    Mockito.verify(executor, Mockito.times(1))
+        .schedule(taskCaptor.capture(), Mockito.anyLong(), Mockito.eq(TimeUnit.MILLISECONDS));
+
+    // run the scheduled refresh: it fails, but the session is still active, so a bounded
+    // retry must be scheduled instead of silently stopping the refresh chain
+    taskCaptor.getValue().run();
+
+    ArgumentCaptor<Long> retryDelay = ArgumentCaptor.forClass(Long.class);
+    Mockito.verify(executor, Mockito.times(2))
+        .schedule(Mockito.any(Runnable.class), retryDelay.capture(), Mockito.eq(TimeUnit.MILLISECONDS));
+
+    assertThat(retryDelay.getValue())
+        .as("failed refresh should schedule a bounded retry")
+        .isBetween(50_000L, 60_000L);
+  }
+
+  @Test
+  void closedSessionDoesNotRescheduleAfterFailedRefresh() throws IOException {
+    AuthSession parent = refreshingParentSession();
+    String childToken =
+        tokenWithExp(
+            TimeUnit.MILLISECONDS.toSeconds(System.currentTimeMillis()) + 3600); // not yet expired
+
+    RESTClient client = Mockito.mock(RESTClient.class);
+    Mockito.when(client.postForm(any(), anyMap(), any(), anyMap(), any()))
+        .thenAnswer(inv -> { throw new RuntimeException("token endpoint unavailable"); });
+
+    ScheduledExecutorService executor = Mockito.mock(ScheduledExecutorService.class);
+
+    AuthSession child = AuthSession.fromAccessToken(client, executor, childToken, null, parent);
+
+    ArgumentCaptor<Runnable> taskCaptor = ArgumentCaptor.forClass(Runnable.class);
+    Mockito.verify(executor, Mockito.times(1))
+        .schedule(taskCaptor.capture(), Mockito.anyLong(), Mockito.eq(TimeUnit.MILLISECONDS));
+
+    // close the session before the scheduled refresh runs: the refresh chain must stop
+    child.close();
+
+    taskCaptor.getValue().run();
+
+    Mockito.verify(executor, Mockito.times(1))
+        .schedule(Mockito.any(Runnable.class), Mockito.anyLong(), Mockito.eq(TimeUnit.MILLISECONDS));
+  }
+
+  @Test
+  void initialRefreshFailureSchedulesBoundedRetryWhenSessionStaysActive() {
+    AuthSession parent = refreshingParentSession();
+    String expiredToken =
+        tokenWithExp(
+            TimeUnit.MILLISECONDS.toSeconds(System.currentTimeMillis()) - 3600); // already expired
+
+    RESTClient client = Mockito.mock(RESTClient.class);
+    Mockito.when(client.postForm(any(), anyMap(), any(), anyMap(), any()))
+        .thenAnswer(inv -> { throw new RuntimeException("token endpoint unavailable"); });
+
+    ScheduledExecutorService executor = Mockito.mock(ScheduledExecutorService.class);
+
+    // the expired token is refreshed immediately in fromAccessToken; when that fails and
+    // the session is still active, a bounded retry must be scheduled rather than dropped
+    AuthSession.fromAccessToken(client, executor, expiredToken, null, parent);
+
+    Mockito.verify(executor, Mockito.times(1))
+        .schedule(Mockito.any(Runnable.class), Mockito.anyLong(), Mockito.eq(TimeUnit.MILLISECONDS));
   }
 
   private static OAuthTokenResponse childTokenResponse(String token, int expiresInSeconds) {
