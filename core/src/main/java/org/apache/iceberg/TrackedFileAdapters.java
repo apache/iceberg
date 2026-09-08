@@ -541,6 +541,16 @@ class TrackedFileAdapters {
     }
 
     @Override
+    public Integer replacedFilesCount() {
+      return file.manifestInfo().replacedFilesCount();
+    }
+
+    @Override
+    public Long replacedRowsCount() {
+      return file.manifestInfo().replacedRowsCount();
+    }
+
+    @Override
     public List<PartitionFieldSummary> partitions() {
       return null;
     }
