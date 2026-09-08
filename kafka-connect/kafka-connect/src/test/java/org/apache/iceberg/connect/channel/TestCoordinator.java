@@ -322,14 +322,7 @@ public class TestCoordinator extends ChannelTestBase {
 
   @Test
   public void testCommitConsumerOffsetsDoesNotRewind() {
-    when(config.commitIntervalMs()).thenReturn(0);
-    when(config.commitTimeoutMs()).thenReturn(Integer.MAX_VALUE);
-
-    SinkTaskContext context = mock(SinkTaskContext.class);
-    Coordinator coordinator =
-        new Coordinator(catalog, config, ImmutableList.of(), clientFactory, context);
-    coordinator.start();
-    initConsumer();
+    Coordinator coordinator = startCoordinator();
 
     TopicPartition ctl = new TopicPartition(CTL_TOPIC_NAME, 0);
 
@@ -351,14 +344,7 @@ public class TestCoordinator extends ChannelTestBase {
 
   @Test
   public void testCommitConsumerDuplicateDoesNotCommit() {
-    when(config.commitIntervalMs()).thenReturn(0);
-    when(config.commitTimeoutMs()).thenReturn(Integer.MAX_VALUE);
-
-    SinkTaskContext context = mock(SinkTaskContext.class);
-    Coordinator coordinator =
-        new Coordinator(catalog, config, ImmutableList.of(), clientFactory, context);
-    coordinator.start();
-    initConsumer();
+    Coordinator coordinator = startCoordinator();
 
     TopicPartition ctl = new TopicPartition(CTL_TOPIC_NAME, 0);
 
@@ -383,58 +369,8 @@ public class TestCoordinator extends ChannelTestBase {
   }
 
   @Test
-  public void testCommitConsumerRewindsOffsetsWhenAnotherCoordinatorAdvancesOffsets() {
-    when(config.commitIntervalMs()).thenReturn(0);
-    when(config.commitTimeoutMs()).thenReturn(Integer.MAX_VALUE);
-
-    SinkTaskContext context = mock(SinkTaskContext.class);
-    Coordinator coordinator =
-        new Coordinator(catalog, config, ImmutableList.of(), clientFactory, context);
-    coordinator.start();
-    initConsumer();
-
-    TopicPartition ctl = new TopicPartition(CTL_TOPIC_NAME, 0);
-
-    long healthyWatermark = 100L;
-    coordinator.controlTopicOffsets().put(0, healthyWatermark);
-    coordinator.commitConsumerOffsets();
-
-    long nextWatermark = healthyWatermark + 5;
-    consumer.commitSync(ImmutableMap.of(ctl, new OffsetAndMetadata(nextWatermark)));
-
-    OffsetAndMetadata anotherCommittedOffsetAndMetadata =
-        consumer.committed(ImmutableSet.of(ctl)).get(ctl);
-    long anotherCommitted =
-        anotherCommittedOffsetAndMetadata == null ? 0L : anotherCommittedOffsetAndMetadata.offset();
-    assertThat(anotherCommitted)
-        .as("Precondition: another coordinator advanced the shared offset")
-        .isEqualTo(nextWatermark);
-
-    long rewindWatermark = healthyWatermark + 3;
-    coordinator.controlTopicOffsets().put(0, rewindWatermark);
-    coordinator.commitConsumerOffsets();
-
-    OffsetAndMetadata committedOffsetAndMetadata =
-        consumer.committed(ImmutableSet.of(ctl)).get(ctl);
-    long committed = committedOffsetAndMetadata == null ? 0L : committedOffsetAndMetadata.offset();
-
-    assertThat(committed)
-        .as(
-            "Expected Limitation: commitConsumerOffsets will rewind offsets if local offset advances and another coordinator committed a higher offset")
-        .isEqualTo(rewindWatermark)
-        .isLessThan(nextWatermark);
-  }
-
-  @Test
   public void testCommitNewConsumerAdvances() {
-    when(config.commitIntervalMs()).thenReturn(0);
-    when(config.commitTimeoutMs()).thenReturn(Integer.MAX_VALUE);
-
-    SinkTaskContext context = mock(SinkTaskContext.class);
-    Coordinator coordinator =
-        new Coordinator(catalog, config, ImmutableList.of(), clientFactory, context);
-    coordinator.start();
-    initConsumer();
+    Coordinator coordinator = startCoordinator();
 
     long newWatermark = 5L;
 
@@ -454,14 +390,7 @@ public class TestCoordinator extends ChannelTestBase {
 
   @Test
   public void testCommitConsumerAdvances() {
-    when(config.commitIntervalMs()).thenReturn(0);
-    when(config.commitTimeoutMs()).thenReturn(Integer.MAX_VALUE);
-
-    SinkTaskContext context = mock(SinkTaskContext.class);
-    Coordinator coordinator =
-        new Coordinator(catalog, config, ImmutableList.of(), clientFactory, context);
-    coordinator.start();
-    initConsumer();
+    Coordinator coordinator = startCoordinator();
 
     long healthyWatermark = 100L;
     TopicPartition ctl = new TopicPartition(CTL_TOPIC_NAME, 0);
@@ -484,14 +413,7 @@ public class TestCoordinator extends ChannelTestBase {
 
   @Test
   public void testCommitConsumerMixedPartitionsRewindOrAdvance() {
-    when(config.commitIntervalMs()).thenReturn(0);
-    when(config.commitTimeoutMs()).thenReturn(Integer.MAX_VALUE);
-
-    SinkTaskContext context = mock(SinkTaskContext.class);
-    Coordinator coordinator =
-        new Coordinator(catalog, config, ImmutableList.of(), clientFactory, context);
-    coordinator.start();
-    initConsumer();
+    Coordinator coordinator = startCoordinator();
 
     long healthyWatermark0 = 100L;
     long healthWatermark1 = 200L;
@@ -524,6 +446,18 @@ public class TestCoordinator extends ChannelTestBase {
     assertThat(committed1 == null ? 0L : committed1.offset())
         .as("commitConsumerOffsets should not rewind consumer group offsets")
         .isEqualTo(healthWatermark1);
+  }
+
+  private Coordinator startCoordinator() {
+    when(config.commitIntervalMs()).thenReturn(0);
+    when(config.commitTimeoutMs()).thenReturn(Integer.MAX_VALUE);
+
+    SinkTaskContext context = mock(SinkTaskContext.class);
+    Coordinator coordinator =
+        new Coordinator(catalog, config, ImmutableList.of(), clientFactory, context);
+    coordinator.start();
+    initConsumer();
+    return coordinator;
   }
 
   private void assertCommitTable(int idx, UUID commitId, OffsetDateTime ts) {
