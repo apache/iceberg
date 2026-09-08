@@ -26,10 +26,13 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DataFiles;
+import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.connect.data.SinkWriter;
 import org.apache.iceberg.connect.events.AvroUtil;
@@ -39,6 +42,7 @@ import org.apache.iceberg.connect.events.Event;
 import org.apache.iceberg.connect.events.StartCommit;
 import org.apache.iceberg.connect.events.TableReference;
 import org.apache.iceberg.connect.events.TopicPartitionOffset;
+import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
@@ -53,7 +57,7 @@ import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.sink.SinkTaskContext;
 import org.junit.jupiter.api.Test;
 
-public class TestCoordinatorOffsetReset extends ChannelTestBase {
+class TestCoordinatorOffsetReset extends ChannelTestBase {
 
   private static final TopicPartition CTL_PARTITION = new TopicPartition(CTL_TOPIC_NAME, 0);
 
@@ -78,14 +82,14 @@ public class TestCoordinatorOffsetReset extends ChannelTestBase {
   // The -coord group only gets a committed offset inside doCommit, so a coordinator that starts
   // before the first successful commit has none. It must read from the beginning.
   @Test
-  public void coordinatorConsumerReadsFromEarliest() {
+  void coordinatorConsumerReadsFromEarliest() {
     newCoordinator();
     verify(clientFactory).createConsumer(config.connectGroupId() + "-coord", "earliest");
   }
 
   // The worker's group is transient and never committed to, so it must not replay history.
   @Test
-  public void workerConsumerReadsFromLatest() {
+  void workerConsumerReadsFromLatest() {
     new Worker(config, clientFactory, mock(SinkWriter.class), mock(SinkTaskContext.class));
     verify(clientFactory).createConsumer(anyString(), eq("latest"));
   }
@@ -94,7 +98,7 @@ public class TestCoordinatorOffsetReset extends ChannelTestBase {
   // announced to its predecessor. Without an earliest reset it resumes at the log end and the
   // worker's source offsets are already committed, so those records never come back.
   @Test
-  public void replacementCoordinatorRecoversFilesBufferedByItsPredecessor() {
+  void replacementCoordinatorRecoversFilesBufferedByItsPredecessor() {
     when(config.commitIntervalMs()).thenReturn(0);
     when(config.commitTimeoutMs()).thenReturn(Integer.MAX_VALUE);
 
@@ -154,11 +158,17 @@ public class TestCoordinatorOffsetReset extends ChannelTestBase {
         .containsExactly(file.location());
   }
 
-  // Reading history from the beginning is only safe because the per-table offsets in the snapshot
-  // summary filter responses that were already committed. Replaying a committed response must not
-  // append its file a second time.
   @Test
-  public void replayedResponsesAlreadyCoveredBySnapshotOffsetsAreNotCommittedTwice() {
+  void replayedResponsesAlreadyCoveredBySnapshotOffsetsAreNotCommittedTwice() throws IOException {
+    assertReplayRecovery(false);
+  }
+
+  @Test
+  void recoversPendingFilesWhileSkippingCommittedFiles() throws IOException {
+    assertReplayRecovery(true);
+  }
+
+  private void assertReplayRecovery(boolean hasPendingFiles) throws IOException {
     when(config.commitIntervalMs()).thenReturn(0);
     when(config.commitTimeoutMs()).thenReturn(Integer.MAX_VALUE);
 
@@ -195,6 +205,26 @@ public class TestCoordinatorOffsetReset extends ChannelTestBase {
     table.refresh();
     assertThat(table.snapshots()).hasSize(1);
     Snapshot committed = table.currentSnapshot();
+    List<String> expectedFiles = Lists.newArrayList(file.location());
+    long nextOffset = 2L;
+    DataFile pendingFile =
+        DataFiles.builder(table.spec()).copy(file).withPath("pending.parquet").build();
+    Event pendingAnnouncement = dataWritten(startCommit(first), pendingFile);
+
+    if (hasPendingFiles) {
+      firstConsumer.addRecord(
+          new ConsumerRecord<>(
+              CTL_TOPIC_NAME, 0, nextOffset, "key", AvroUtil.encode(pendingAnnouncement)));
+      first.process();
+      nextOffset++;
+      expectedFiles.add(pendingFile.location());
+    }
+
+    table.refresh();
+    assertThat(table.currentSnapshot().snapshotId()).isEqualTo(committed.snapshotId());
+    assertThat(firstConsumer.committed(ImmutableSet.of(CTL_PARTITION)).get(CTL_PARTITION).offset())
+        .isEqualTo(2L);
+    first.terminate();
 
     // a replacement reads the same history from the beginning
     Coordinator second = newCoordinator();
@@ -202,23 +232,73 @@ public class TestCoordinatorOffsetReset extends ChannelTestBase {
     second.start();
     secondConsumer.rebalance(ImmutableList.of(CTL_PARTITION));
     secondConsumer.updateBeginningOffsets(ImmutableMap.of(CTL_PARTITION, 0L));
-    secondConsumer.updateEndOffsets(ImmutableMap.of(CTL_PARTITION, 2L));
+    secondConsumer.updateEndOffsets(ImmutableMap.of(CTL_PARTITION, nextOffset));
 
     UUID nextCommitId = startCommit(second);
+    assertThat(secondConsumer.position(CTL_PARTITION)).isZero();
+    assertThat(secondConsumer.committed(ImmutableSet.of(CTL_PARTITION)).get(CTL_PARTITION))
+        .isNull();
     secondConsumer.addRecord(
         new ConsumerRecord<>(CTL_TOPIC_NAME, 0, 0L, "key", AvroUtil.encode(announcement)));
     secondConsumer.addRecord(
         new ConsumerRecord<>(CTL_TOPIC_NAME, 0, 1L, "key", AvroUtil.encode(completion)));
+    if (hasPendingFiles) {
+      secondConsumer.addRecord(
+          new ConsumerRecord<>(CTL_TOPIC_NAME, 0, 2L, "key", AvroUtil.encode(pendingAnnouncement)));
+    }
+
     secondConsumer.addRecord(
         new ConsumerRecord<>(
-            CTL_TOPIC_NAME, 0, 2L, "key", AvroUtil.encode(dataComplete(nextCommitId))));
+            CTL_TOPIC_NAME, 0, nextOffset, "key", AvroUtil.encode(dataComplete(nextCommitId))));
     second.process();
 
     table.refresh();
+    try (CloseableIterable<FileScanTask> files = table.newScan().planFiles()) {
+      assertThat(files)
+          .extracting(task -> task.file().location())
+          .containsExactlyInAnyOrderElementsOf(expectedFiles);
+    }
+
     assertThat(table.snapshots())
         .as("a response already covered by the snapshot offsets must not be appended again")
-        .hasSize(1);
-    assertThat(table.currentSnapshot().snapshotId()).isEqualTo(committed.snapshotId());
+        .hasSize(hasPendingFiles ? 2 : 1);
+    assertThat(secondConsumer.committed(ImmutableSet.of(CTL_PARTITION)).get(CTL_PARTITION).offset())
+        .isEqualTo(nextOffset + 1);
+    if (hasPendingFiles) {
+      assertThat(table.currentSnapshot().addedDataFiles(table.io()))
+          .extracting(DataFile::location)
+          .containsExactly(pendingFile.location());
+    } else {
+      assertThat(table.currentSnapshot().snapshotId()).isEqualTo(committed.snapshotId());
+    }
+
+    long snapshotIdAfterRecovery = table.currentSnapshot().snapshotId();
+    UUID replayCommitId = startCommit(second);
+    secondConsumer.seek(CTL_PARTITION, 0L);
+    secondConsumer.addRecord(
+        new ConsumerRecord<>(CTL_TOPIC_NAME, 0, 0L, "key", AvroUtil.encode(announcement)));
+    secondConsumer.addRecord(
+        new ConsumerRecord<>(CTL_TOPIC_NAME, 0, 1L, "key", AvroUtil.encode(completion)));
+    if (hasPendingFiles) {
+      secondConsumer.addRecord(
+          new ConsumerRecord<>(CTL_TOPIC_NAME, 0, 2L, "key", AvroUtil.encode(pendingAnnouncement)));
+    }
+
+    secondConsumer.addRecord(
+        new ConsumerRecord<>(
+            CTL_TOPIC_NAME,
+            0,
+            nextOffset + 1,
+            "key",
+            AvroUtil.encode(dataComplete(replayCommitId))));
+    second.process();
+
+    table.refresh();
+    assertThat(table.currentSnapshot().snapshotId()).isEqualTo(snapshotIdAfterRecovery);
+    assertThat(table.snapshots()).hasSize(hasPendingFiles ? 2 : 1);
+    assertThat(secondConsumer.committed(ImmutableSet.of(CTL_PARTITION)).get(CTL_PARTITION).offset())
+        .isEqualTo(nextOffset + 2);
+    second.terminate();
   }
 
   private Event dataWritten(UUID commitId, DataFile file) {
