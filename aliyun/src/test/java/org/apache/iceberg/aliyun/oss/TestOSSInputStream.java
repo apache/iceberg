@@ -105,6 +105,7 @@ public class TestOSSInputStream extends AliyunOSSTestBase {
       assertThat(in.read()).isEqualTo(1);
       assertThat(in.read()).isEqualTo(2);
       assertThat(in.read()).isEqualTo(EOF);
+      assertThat(in.getPos()).isEqualTo(data.length);
     }
   }
 

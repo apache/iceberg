@@ -96,7 +96,8 @@ public class TestEcsSeekableInputStream {
   @Test
   public void testReadSingleEOF() throws IOException {
     String objectName = rule.randomObjectName();
-    rule.client().putObject(new PutObjectRequest(rule.bucket(), objectName, "01".getBytes()));
+    byte[] data = "01".getBytes(StandardCharsets.UTF_8);
+    rule.client().putObject(new PutObjectRequest(rule.bucket(), objectName, data));
 
     try (EcsSeekableInputStream input =
         new EcsSeekableInputStream(
@@ -104,6 +105,7 @@ public class TestEcsSeekableInputStream {
       assertThat(input.read()).isEqualTo('0');
       assertThat(input.read()).isEqualTo('1');
       assertThat(input.read()).isEqualTo(EOF);
+      assertThat(input.getPos()).isEqualTo(data.length);
     }
   }
 
