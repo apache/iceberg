@@ -160,10 +160,20 @@ public class FileSystemWalker {
     PrefixListing listing = io.listPrefix(listPath, "/");
 
     List<String> subDirs = Lists.newArrayList();
+    boolean maxDirectSubDirsExceeded = false;
     for (PrefixListingPage page : listing.pages()) {
       for (String subPrefix : page.subPrefixes()) {
         if (!isHiddenPath(baseDir, new Path(subPrefix), pathFilter)) {
-          subDirs.add(subPrefix);
+          if (maxDirectSubDirsExceeded) {
+            directoryConsumer.accept(subPrefix);
+          } else if (subDirs.size() >= maxDirectSubDirs) {
+            maxDirectSubDirsExceeded = true;
+            subDirs.forEach(directoryConsumer);
+            subDirs.clear();
+            directoryConsumer.accept(subPrefix);
+          } else {
+            subDirs.add(subPrefix);
+          }
         }
       }
 
@@ -175,8 +185,7 @@ public class FileSystemWalker {
       }
     }
 
-    if (subDirs.size() > maxDirectSubDirs) {
-      subDirs.forEach(directoryConsumer);
+    if (maxDirectSubDirsExceeded) {
       return;
     }
 

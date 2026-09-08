@@ -25,6 +25,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
@@ -329,6 +330,53 @@ public class TestFileSystemWalker {
   }
 
   @Test
+  void streamsSubPrefixesAfterMaxDirectSubDirsExceeded() {
+    List<String> remainingDirs = Lists.newArrayList();
+    PrefixListingPage firstPage =
+        PrefixListingPage.of(
+            ImmutableList.of(), ImmutableList.of("s3://bucket/table/a/", "s3://bucket/table/b/"));
+    PrefixListingPage secondPage =
+        PrefixListingPage.of(ImmutableList.of(), ImmutableList.of("s3://bucket/table/c/"));
+    Iterable<PrefixListingPage> pages =
+        () ->
+            new Iterator<PrefixListingPage>() {
+              private final Iterator<PrefixListingPage> delegate =
+                  ImmutableList.of(firstPage, secondPage).iterator();
+              private boolean first = true;
+
+              @Override
+              public boolean hasNext() {
+                return delegate.hasNext();
+              }
+
+              @Override
+              public PrefixListingPage next() {
+                if (!first) {
+                  assertThat(remainingDirs)
+                      .containsExactly("s3://bucket/table/a/", "s3://bucket/table/b/");
+                }
+
+                first = false;
+                return delegate.next();
+              }
+            };
+    RecordingPrefixFileIO recordingIO = new RecordingPrefixFileIO(PrefixListing.of(pages));
+
+    FileSystemWalker.listDirRecursivelyWithFileIO(
+        recordingIO,
+        "s3://bucket/table/",
+        null,
+        fileInfo -> true,
+        1,
+        1,
+        remainingDirs::add,
+        file -> {});
+
+    assertThat(remainingDirs)
+        .containsExactly("s3://bucket/table/a/", "s3://bucket/table/b/", "s3://bucket/table/c/");
+  }
+
+  @Test
   void delimitedListDirRecursivelyWithFileIONormalizesTrailingSlash() {
     RecordingPrefixFileIO recordingIO = new RecordingPrefixFileIO();
     FileSystemWalker.listDirRecursivelyWithFileIO(
@@ -428,6 +476,17 @@ public class TestFileSystemWalker {
 
   private static class RecordingPrefixFileIO implements SupportsPrefixOperations {
     private final List<String> calls = Lists.newArrayList();
+    private final PrefixListing listing;
+
+    private RecordingPrefixFileIO() {
+      this(
+          PrefixListing.of(
+              ImmutableList.of(PrefixListingPage.of(ImmutableList.of(), ImmutableList.of()))));
+    }
+
+    private RecordingPrefixFileIO(PrefixListing listing) {
+      this.listing = listing;
+    }
 
     @Override
     public boolean supportsPrefixListingWithDelimiter(String prefix, String delimiter) {
@@ -437,8 +496,7 @@ public class TestFileSystemWalker {
     @Override
     public PrefixListing listPrefix(String prefix, String delimiter) {
       calls.add(prefix);
-      return PrefixListing.of(
-          ImmutableList.of(PrefixListingPage.of(ImmutableList.of(), ImmutableList.of())));
+      return listing;
     }
 
     @Override
