@@ -28,6 +28,7 @@ import static org.apache.iceberg.relocated.com.google.common.collect.ImmutableMa
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.io.IOException;
 import java.util.Map;
 import javax.annotation.Nullable;
 import org.apache.iceberg.inmemory.InMemoryInputFile;
@@ -153,5 +154,94 @@ public class TestPuffinReader {
       assertThat(reader.fileMetadata().properties())
           .isEqualTo(ImmutableMap.of("created-by", "Test 1234"));
     }
+  }
+
+  @Test
+  public void testReadAllRejectsBlobOffsetBeyondFile() throws Exception {
+    InMemoryInputFile inputFile =
+        new InMemoryInputFile(readTestResource("v1/empty-puffin-uncompressed.bin"));
+    assertBlobReadRejected(inputFile, blobAt(inputFile.getLength() + 1, 1), "out of bounds");
+  }
+
+  @Test
+  public void testReadAllRejectsBlobLengthBeyondFile() throws Exception {
+    InMemoryInputFile inputFile =
+        new InMemoryInputFile(readTestResource("v1/empty-puffin-uncompressed.bin"));
+    assertBlobReadRejected(inputFile, blobAt(0, inputFile.getLength() + 1), "out of bounds");
+  }
+
+  @Test
+  public void testReadAllRejectsNegativeBlobOffset() throws Exception {
+    InMemoryInputFile inputFile =
+        new InMemoryInputFile(readTestResource("v1/empty-puffin-uncompressed.bin"));
+    assertBlobReadRejected(inputFile, blobAt(-1, 1), "Invalid blob offset");
+  }
+
+  @Test
+  public void testReadAllRejectsNegativeBlobLength() throws Exception {
+    InMemoryInputFile inputFile =
+        new InMemoryInputFile(readTestResource("v1/empty-puffin-uncompressed.bin"));
+    assertBlobReadRejected(inputFile, blobAt(0, -1), "Invalid blob length");
+  }
+
+  private static BlobMetadata blobAt(long offset, long length) {
+    return new BlobMetadata(
+        "some-blob", ImmutableList.of(1), 0L, 0L, offset, length, null, ImmutableMap.of());
+  }
+
+  /**
+   * Assert that a blob read is rejected with an IllegalArgumentException.
+   *
+   * @param inputFile input file
+   * @param blob blob to read
+   * @param message content within the exception message
+   * @throws IOException any IOException raised during the read.
+   */
+  private static void assertBlobReadRejected(
+      final InMemoryInputFile inputFile, final BlobMetadata blob, final String message)
+      throws IOException {
+    try (PuffinReader reader = Puffin.read(inputFile).build()) {
+      assertThatThrownBy(() -> reader.readAll(ImmutableList.of(blob)).forEach(pair -> {}))
+          .isInstanceOf(IllegalArgumentException.class)
+          .hasMessageContaining(message);
+    }
+  }
+
+  @Test
+  public void testReadRejectsFooterPayloadSizeLargerThanFile() throws Exception {
+    InMemoryInputFile inputFile = new InMemoryInputFile(footerStructWithPayloadSize(1_000_000));
+    try (PuffinReader reader = Puffin.read(inputFile).build()) {
+      assertThatThrownBy(reader::fileMetadata)
+          .isInstanceOf(IllegalStateException.class)
+          .hasMessageContaining("Invalid footer size");
+    }
+  }
+
+  @Test
+  public void testReadRejectsNegativeFooterPayloadSize() throws Exception {
+    InMemoryInputFile inputFile =
+        new InMemoryInputFile(footerStructWithPayloadSize(Integer.MIN_VALUE));
+    try (PuffinReader reader = Puffin.read(inputFile).build()) {
+      assertThatThrownBy(reader::fileMetadata)
+          .isInstanceOf(IllegalStateException.class)
+          .hasMessageContaining("Invalid footer payload size");
+    }
+  }
+
+  /**
+   * Build a bare 12-byte footer tail [payload size, flags, trailing magic].
+   *
+   * @param payloadSize declared payload size.
+   * @return the footer.
+   */
+  private static byte[] footerStructWithPayloadSize(int payloadSize) {
+    byte[] footerStruct = new byte[PuffinFormat.FOOTER_STRUCT_LENGTH];
+    footerStruct[0] = (byte) (payloadSize & 0xFF);
+    footerStruct[1] = (byte) ((payloadSize >> 8) & 0xFF);
+    footerStruct[2] = (byte) ((payloadSize >> 16) & 0xFF);
+    footerStruct[3] = (byte) ((payloadSize >> 24) & 0xFF);
+    byte[] magic = PuffinFormat.getMagic();
+    System.arraycopy(magic, 0, footerStruct, PuffinFormat.FOOTER_STRUCT_MAGIC_OFFSET, magic.length);
+    return footerStruct;
   }
 }

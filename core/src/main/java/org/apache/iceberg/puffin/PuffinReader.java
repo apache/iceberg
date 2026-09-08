@@ -133,8 +133,18 @@ public class PuffinReader implements Closeable {
             .map(
                 (BlobMetadata blobMetadata) -> {
                   try {
-                    input.seek(blobMetadata.offset());
-                    byte[] bytes = new byte[Math.toIntExact(blobMetadata.length())];
+                    long offset = blobMetadata.offset();
+                    long length = blobMetadata.length();
+                    Preconditions.checkArgument(offset >= 0, "Invalid blob offset: %s", offset);
+                    Preconditions.checkArgument(length >= 0, "Invalid blob length: %s", length);
+                    Preconditions.checkArgument(
+                        offset <= fileSize && length <= fileSize - offset,
+                        "Blob offset %s and length %s are out of bounds for file size %s",
+                        offset,
+                        length,
+                        fileSize);
+                    input.seek(offset);
+                    byte[] bytes = new byte[Math.toIntExact(length)];
                     ByteStreams.readFully(input, bytes);
                     ByteBuffer rawData = ByteBuffer.wrap(bytes);
                     PuffinCompressionCodec codec =
@@ -173,10 +183,21 @@ public class PuffinReader implements Closeable {
       int footerPayloadSize =
           PuffinFormat.readIntegerLittleEndian(
               footerStruct, PuffinFormat.FOOTER_STRUCT_PAYLOAD_SIZE_OFFSET);
-      knownFooterSize =
-          PuffinFormat.FOOTER_START_MAGIC_LENGTH
+      // the payload size is read as a signed little-endian int; reject a negative value and keep
+      // the
+      // footer within the file so the footer buffer is never sized beyond the file itself
+      Preconditions.checkState(
+          footerPayloadSize >= 0, "Invalid footer payload size: %s", footerPayloadSize);
+      long footerSize =
+          (long) PuffinFormat.FOOTER_START_MAGIC_LENGTH
               + footerPayloadSize
               + PuffinFormat.FOOTER_STRUCT_LENGTH;
+      Preconditions.checkState(
+          footerSize <= fileSize,
+          "Invalid footer size %s is larger than the file size %s",
+          footerSize,
+          fileSize);
+      knownFooterSize = Math.toIntExact(footerSize);
     }
     return knownFooterSize;
   }
