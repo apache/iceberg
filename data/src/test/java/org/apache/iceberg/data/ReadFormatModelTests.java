@@ -920,7 +920,7 @@ public abstract class ReadFormatModelTests<T> {
   void testNestedDefaultValueWhenParentStructIsNull(FileFormat fileFormat) throws IOException {
     assumeSupports(fileFormat, FEATURE_READER_DEFAULT);
 
-    // write two leaves under the struct so the probe leaf is one of several, not the only column
+    // write two leaves under the struct so the presence column is one of several, not the only one
     Types.NestedField idField = Types.NestedField.required(1, "id", Types.LongType.get());
     Types.StructType writeNested =
         Types.StructType.of(
@@ -1054,6 +1054,61 @@ public abstract class ReadFormatModelTests<T> {
 
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
+  void testNestedProjectionWithoutDefaultWhenParentStructIsNull(FileFormat fileFormat)
+      throws IOException {
+    assumeSupports(fileFormat, FEATURE_READER_DEFAULT);
+
+    Types.NestedField idField = Types.NestedField.required(1, "id", Types.LongType.get());
+    Types.NestedField nestedField =
+        Types.NestedField.optional(
+            2,
+            "nested",
+            Types.StructType.of(Types.NestedField.required(3, "inner", Types.StringType.get())));
+    Schema writeSchema = new Schema(idField, nestedField);
+
+    Record present = GenericRecord.create(writeSchema);
+    present.setField("id", 1L);
+    Record presentNested = GenericRecord.create(nestedField.type().asStructType());
+    presentNested.setField("inner", "a");
+    present.setField("nested", presentNested);
+
+    Record nullNested = GenericRecord.create(writeSchema);
+    nullNested.setField("id", 2L);
+    nullNested.setField("nested", null);
+
+    List<Record> genericRecords = List.of(present, nullNested);
+    writeGenericRecords(fileFormat, writeSchema, genericRecords);
+
+    // the only projected field of "nested" is missing from the file and has no initial default, so
+    // a present struct must still be read as a struct with a null field, not as a null struct
+    Schema expectedSchema =
+        new Schema(
+            idField,
+            Types.NestedField.optional(
+                2,
+                "nested",
+                Types.StructType.of(
+                    Types.NestedField.optional(4, "added", Types.StringType.get()))));
+
+    Types.StructType expectedNestedType = expectedSchema.findField("nested").type().asStructType();
+
+    readAndAssertEngineRecords(
+        fileFormat,
+        expectedSchema,
+        genericRecords,
+        record -> {
+          Record expected = GenericRecord.create(expectedSchema);
+          expected.setField("id", record.getField("id"));
+          if (record.getField("nested") != null) {
+            expected.setField("nested", GenericRecord.create(expectedNestedType));
+          }
+
+          return expected;
+        });
+  }
+
+  @ParameterizedTest
+  @FieldSource("FILE_FORMATS")
   void testArrayElementDefault(FileFormat fileFormat) throws IOException {
     assumeSupports(fileFormat, FEATURE_READER_DEFAULT);
 
@@ -1132,7 +1187,7 @@ public abstract class ReadFormatModelTests<T> {
     List<Record> genericRecords = List.of(nullList, emptyList);
     writeGenericRecords(fileFormat, writeSchema, genericRecords);
 
-    // element struct projects only a default, so the list reads through the injected probe leaf
+    // element struct projects only a default, so the list reads through the presence column
     Types.StructType readElement =
         Types.StructType.of(
             Types.NestedField.optional("added")
@@ -1247,7 +1302,7 @@ public abstract class ReadFormatModelTests<T> {
     List<Record> genericRecords = List.of(nullMap, emptyMap);
     writeGenericRecords(fileFormat, writeSchema, genericRecords);
 
-    // value struct projects only a default, so the map reads through the injected probe leaf
+    // value struct projects only a default, so the map reads through the presence column
     Types.StructType readValue =
         Types.StructType.of(
             Types.NestedField.optional("added")

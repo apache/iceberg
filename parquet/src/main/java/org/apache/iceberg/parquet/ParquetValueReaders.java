@@ -35,6 +35,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.function.BiFunction;
+import java.util.function.Function;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.common.DynConstructors;
@@ -167,24 +168,6 @@ public class ParquetValueReaders {
     return new ConstantReader<>(value, definitionLevel);
   }
 
-  /**
-   * Returns a reader that always produces {@code value}, but derives its per-row definition level
-   * from a real leaf column in the file rather than a fixed constant.
-   *
-   * <p>This is used when every projected field of a struct is a constant (an initial default,
-   * metadata column, or partition value) that is absent from the file. In that case the struct has
-   * no real column to signal whether an ancestor struct is null on a given row, so a constant
-   * definition level would incorrectly report the struct as always present. This reader reads (and
-   * discards) the value of {@code probe}, exposing its real definition level so that an enclosing
-   * {@link #option(Type, int, ParquetValueReader) option} reader can detect a null ancestor.
-   *
-   * @param value the constant value to produce for every row where the ancestor struct is present
-   * @param probe a descriptor for a real leaf column that exists under the struct in the file
-   */
-  public static <C> ParquetValueReader<C> constant(C value, ColumnDescriptor probe) {
-    return new ConstantReader<>(value, probe);
-  }
-
   public static ParquetValueReader<Long> position() {
     return new PositionReader();
   }
@@ -253,48 +236,47 @@ public class ParquetValueReaders {
   }
 
   /**
-   * Builds readers for a struct's expected fields, in field order. A field present in the file uses
-   * its column reader; a field missing from the file uses a metadata or partition constant, or its
-   * initial default. When no expected field reads a file column, one default reader is given a
-   * probe column so its definition level tracks whether the struct is null.
+   * Builds a struct reader from the expected fields, in field order. A field present in the file
+   * uses its column reader; a field missing from the file uses a metadata or partition constant, or
+   * its initial default. When no expected field reads a file column, the struct reader is wrapped
+   * so a presence column supplies the definition level.
    */
-  public static List<ParquetValueReader<?>> structFieldReaders(
+  public static <T> ParquetValueReader<T> structReader(
       MessageType fileSchema,
       String[] structPath,
       List<Types.NestedField> expectedFields,
       Map<Integer, ParquetValueReader<?>> readersById,
       Map<Integer, ?> idToConstant,
-      BiFunction<org.apache.iceberg.types.Type, Object, Object> convertConstant) {
+      BiFunction<org.apache.iceberg.types.Type, Object, Object> convertConstant,
+      Function<List<ParquetValueReader<?>>, ParquetValueReader<T>> newStructReader) {
     int constantDefinitionLevel = fileSchema.getMaxDefinitionLevel(structPath);
-    ColumnDescriptor probe =
-        definitionLevelProbe(
-            fileSchema, structPath, constantDefinitionLevel, expectedFields, readersById);
-    Integer probeHostId = probe == null ? null : firstInitialDefaultFieldId(expectedFields);
 
     List<ParquetValueReader<?>> readers = Lists.newArrayListWithExpectedSize(expectedFields.size());
     for (Types.NestedField field : expectedFields) {
       int id = field.fieldId();
       ParquetValueReader<?> reader =
           replaceWithMetadataReader(id, readersById.get(id), idToConstant, constantDefinitionLevel);
-      ColumnDescriptor fieldProbe = probeHostId != null && id == probeHostId ? probe : null;
-      readers.add(
-          defaultReader(field, reader, constantDefinitionLevel, fieldProbe, convertConstant));
+      readers.add(defaultReader(field, reader, constantDefinitionLevel, convertConstant));
     }
 
-    return readers;
+    ParquetValueReader<T> reader = newStructReader.apply(readers);
+    ColumnDescriptor presence =
+        presenceColumn(
+            fileSchema, structPath, constantDefinitionLevel, expectedFields, readersById);
+
+    return presence == null ? reader : withPresence(reader, presence);
   }
 
   private static ParquetValueReader<?> defaultReader(
       Types.NestedField field,
       ParquetValueReader<?> reader,
       int constantDefinitionLevel,
-      ColumnDescriptor probe,
       BiFunction<org.apache.iceberg.types.Type, Object, Object> convertConstant) {
     if (reader != null) {
       return reader;
     } else if (field.initialDefault() != null) {
       Object value = convertConstant.apply(field.type(), field.initialDefault());
-      return probe != null ? constant(value, probe) : constant(value, constantDefinitionLevel);
+      return constant(value, constantDefinitionLevel);
     } else if (field.isOptional()) {
       return nulls();
     }
@@ -302,7 +284,11 @@ public class ParquetValueReaders {
     throw new IllegalArgumentException(String.format("Missing required field: %s", field.name()));
   }
 
-  private static ColumnDescriptor definitionLevelProbe(
+  /**
+   * Returns the column whose definition level shows whether the struct is present on each row, or
+   * null if a field reader already reads one or the struct can never be null.
+   */
+  private static ColumnDescriptor presenceColumn(
       MessageType fileSchema,
       String[] structPath,
       int structDefinitionLevel,
@@ -314,23 +300,21 @@ public class ParquetValueReaders {
       return null;
     }
 
-    ColumnDescriptor probe = ParquetSchemaUtil.selectNullnessProbeLeaf(fileSchema, structPath);
+    ColumnDescriptor presence = ParquetSchemaUtil.selectPresenceColumn(fileSchema, structPath);
     Preconditions.checkState(
-        probe != null || firstInitialDefaultFieldId(expectedFields) == null,
-        "Cannot apply initial default, no leaf column tracks whether struct at %s is null",
+        presence != null || !hasInitialDefault(expectedFields),
+        "Cannot apply initial default, no leaf column tracks whether struct at %s is present",
         Arrays.toString(structPath));
-    return probe;
+    return presence;
   }
 
-  /** Returns the id of the first field with an initial default, or null if none has one. */
-  private static Integer firstInitialDefaultFieldId(List<Types.NestedField> fields) {
-    for (Types.NestedField field : fields) {
-      if (field.initialDefault() != null) {
-        return field.fieldId();
-      }
-    }
+  private static boolean hasInitialDefault(List<Types.NestedField> fields) {
+    return fields.stream().anyMatch(field -> field.initialDefault() != null);
+  }
 
-    return null;
+  private static <T> ParquetValueReader<T> withPresence(
+      ParquetValueReader<T> reader, ColumnDescriptor presence) {
+    return new PresenceReader<>(reader, presence);
   }
 
   private static class NullReader<T> implements ParquetValueReader<T> {
@@ -385,46 +369,67 @@ public class ParquetValueReaders {
     public void setPageSource(PageReadStore pageStore) {}
   }
 
+  /**
+   * Wraps a struct reader whose fields all read constants, so the struct still has a real column to
+   * report its definition level from. Values come from the wrapped reader.
+   */
+  private static class PresenceReader<T> implements ParquetValueReader<T> {
+    private final ParquetValueReader<T> reader;
+    private final ColumnDescriptor desc;
+    private final ColumnIterator<?> presence;
+    private final List<TripleIterator<?>> children;
+
+    private PresenceReader(ParquetValueReader<T> reader, ColumnDescriptor desc) {
+      this.reader = reader;
+      this.desc = desc;
+      this.presence = ColumnIterator.newIterator(desc, "");
+      this.children =
+          ImmutableList.<TripleIterator<?>>builder().add(presence).addAll(reader.columns()).build();
+    }
+
+    @Override
+    public T read(T reuse) {
+      // only the definition level is used, so the value is skipped
+      presence.nextNull();
+      return reader.read(reuse);
+    }
+
+    @Override
+    public TripleIterator<?> column() {
+      return presence;
+    }
+
+    @Override
+    public List<TripleIterator<?>> columns() {
+      return children;
+    }
+
+    @Override
+    public void setPageSource(PageReadStore pageStore) {
+      presence.setPageSource(pageStore.getPageReader(desc));
+      reader.setPageSource(pageStore);
+    }
+  }
+
   private static class ConstantReader<C> implements ParquetValueReader<C> {
     private final C constantValue;
     private final TripleIterator<?> column;
     private final List<TripleIterator<?>> children;
-    // non-null when the definition level comes from a real leaf column instead of a constant
-    private final ColumnIterator<?> probe;
-    private final ColumnDescriptor probeDesc;
 
     ConstantReader(C constantValue) {
       this.constantValue = constantValue;
       this.column = NullReader.NULL_COLUMN;
       this.children = NullReader.COLUMNS;
-      this.probe = null;
-      this.probeDesc = null;
     }
 
     ConstantReader(C constantValue, int parentDl) {
       this.constantValue = constantValue;
       this.column = new ConstantDLColumn<>(parentDl);
       this.children = ImmutableList.of(column);
-      this.probe = null;
-      this.probeDesc = null;
-    }
-
-    ConstantReader(C constantValue, ColumnDescriptor probeColumn) {
-      this.constantValue = constantValue;
-      this.probeDesc = probeColumn;
-      this.probe = ColumnIterator.newIterator(probeColumn, "");
-      this.column = probe;
-      this.children = ImmutableList.of(column);
     }
 
     @Override
     public C read(C reuse) {
-      if (probe != null) {
-        // advance the probe column so its definition level tracks the current row; the value
-        // itself is unused because this reader always produces the constant
-        probe.nextNull();
-      }
-
       return constantValue;
     }
 
@@ -439,11 +444,7 @@ public class ParquetValueReaders {
     }
 
     @Override
-    public void setPageSource(PageReadStore pageStore) {
-      if (probe != null) {
-        probe.setPageSource(pageStore.getPageReader(probeDesc));
-      }
-    }
+    public void setPageSource(PageReadStore pageStore) {}
 
     private static class ConstantDLColumn<T> implements TripleIterator<T> {
       private final int definitionLevel;

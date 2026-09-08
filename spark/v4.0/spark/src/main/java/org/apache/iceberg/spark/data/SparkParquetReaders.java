@@ -156,16 +156,14 @@ public class SparkParquetReaders {
         }
       }
 
-      List<ParquetValueReader<?>> reorderedFields =
-          ParquetValueReaders.structFieldReaders(
-              type,
-              currentPath(),
-              expected.fields(),
-              readersById,
-              idToConstant,
-              SparkUtil::internalToSpark);
-
-      return new InternalRowReader(reorderedFields);
+      return ParquetValueReaders.structReader(
+          type,
+          currentPath(),
+          expected.fields(),
+          readersById,
+          idToConstant,
+          SparkUtil::internalToSpark,
+          InternalRowReader::new);
     }
 
     @Override

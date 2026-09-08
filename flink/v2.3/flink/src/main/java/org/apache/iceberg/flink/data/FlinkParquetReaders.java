@@ -113,16 +113,14 @@ public class FlinkParquetReaders {
         }
       }
 
-      List<ParquetValueReader<?>> reorderedFields =
-          ParquetValueReaders.structFieldReaders(
-              type,
-              currentPath(),
-              expected.fields(),
-              readersById,
-              idToConstant,
-              RowDataUtil::convertConstant);
-
-      return new RowDataReader(reorderedFields);
+      return ParquetValueReaders.structReader(
+          type,
+          currentPath(),
+          expected.fields(),
+          readersById,
+          idToConstant,
+          RowDataUtil::convertConstant,
+          RowDataReader::new);
     }
 
     @Override

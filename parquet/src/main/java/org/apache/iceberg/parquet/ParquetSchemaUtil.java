@@ -135,11 +135,9 @@ public class ParquetSchemaUtil {
     // column order must match the incoming type, so it doesn't matter that the ids are unordered
     Set<Integer> selectedIds = Sets.newHashSet(TypeUtil.getProjectedIds(expectedSchema));
     // retain one real leaf under each struct that projects only constants like default values,
-    // so its definition level still shows whether the struct is null
+    // so its definition level still shows whether the struct is present
     TypeWithSchemaVisitor.visit(
-        expectedSchema.asStruct(),
-        fileSchema,
-        new DefinitionLevelProbeSelector(fileSchema, selectedIds));
+        expectedSchema.asStruct(), fileSchema, new PresenceColumnSelector(fileSchema, selectedIds));
     return (MessageType)
         TypeWithSchemaVisitor.visit(
             expectedSchema.asStruct(), fileSchema, new PruneColumns(selectedIds));
@@ -148,33 +146,33 @@ public class ParquetSchemaUtil {
   /**
    * Adds one leaf id under each projected struct whose fields are all constants and would otherwise
    * retain no file leaf. That leaf's definition level is what still shows whether the struct is
-   * null.
+   * present.
    */
-  private static class DefinitionLevelProbeSelector extends TypeWithSchemaVisitor<Void> {
+  private static class PresenceColumnSelector extends TypeWithSchemaVisitor<Void> {
     private final MessageType fileSchema;
     private final Set<Integer> selectedIds;
 
-    private DefinitionLevelProbeSelector(MessageType fileSchema, Set<Integer> selectedIds) {
+    private PresenceColumnSelector(MessageType fileSchema, Set<Integer> selectedIds) {
       this.fileSchema = fileSchema;
       this.selectedIds = selectedIds;
     }
 
     @Override
     public Void struct(Types.StructType expected, GroupType struct, List<Void> fields) {
-      // nothing projected under this struct, so there is nothing to probe for
+      // nothing projected under this struct, so there is nothing to track
       if (expected == null || expected.fields().isEmpty()) {
         return null;
       }
 
       String[] path = currentPath();
-      // add a probe leaf only if no real leaf under the struct is already read
+      // add a presence column only if no real leaf under the struct is already read
       boolean readsRealLeaf =
           leafColumns(fileSchema, path).stream()
               .anyMatch(leaf -> selectedIds.contains(leafId(leaf)));
       if (!readsRealLeaf) {
-        ColumnDescriptor probe = selectNullnessProbeLeaf(fileSchema, path);
-        if (probe != null) {
-          selectedIds.add(leafId(probe));
+        ColumnDescriptor presence = selectPresenceColumn(fileSchema, path);
+        if (presence != null) {
+          selectedIds.add(leafId(presence));
         }
       }
 
@@ -191,29 +189,29 @@ public class ParquetSchemaUtil {
    * First leaf under path with one value per occurrence of the struct at path (no LIST/MAP in
    * between).
    */
-  static ColumnDescriptor selectNullnessProbeLeaf(MessageType fileSchema, String[] path) {
+  static ColumnDescriptor selectPresenceColumn(MessageType fileSchema, String[] path) {
     if (fileSchema.getMaxDefinitionLevel(path) <= 0) {
       return null;
     }
 
     int structRepetitionLevel = fileSchema.getMaxRepetitionLevel(path);
-    ColumnDescriptor probe =
+    ColumnDescriptor presence =
         leafColumns(fileSchema, path).stream()
             .filter(leaf -> leaf.getMaxRepetitionLevel() == structRepetitionLevel)
             .findFirst()
             .orElse(null);
     Preconditions.checkArgument(
-        probe == null || probe.getMaxRepetitionLevel() == structRepetitionLevel,
-        "Invalid probe, repetition level does not match struct at %s",
+        presence == null || presence.getMaxRepetitionLevel() == structRepetitionLevel,
+        "Invalid presence column, repetition level does not match struct at %s",
         Arrays.toString(path));
-    return probe;
+    return presence;
   }
 
   /** Returns the leaf columns with ids under the given path. */
   static List<ColumnDescriptor> leafColumns(MessageType fileSchema, String[] path) {
     List<ColumnDescriptor> columns = Lists.newArrayList();
     for (ColumnDescriptor column : fileSchema.getColumns()) {
-      // a probe leaf is kept in the read set by id, so a leaf without one cannot be a probe
+      // a presence column is kept in the read set by id, so a leaf without one cannot be used
       if (column.getPrimitiveType().getId() == null) {
         continue;
       }

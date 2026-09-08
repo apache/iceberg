@@ -262,16 +262,14 @@ abstract class BaseParquetReaders<T> {
         }
       }
 
-      List<ParquetValueReader<?>> reorderedFields =
-          ParquetValueReaders.structFieldReaders(
-              type,
-              currentPath(),
-              expected.fields(),
-              readersById,
-              idToConstant,
-              BaseParquetReaders.this::convertConstant);
-
-      return createStructReader(reorderedFields, expected, fieldId(struct));
+      return ParquetValueReaders.structReader(
+          type,
+          currentPath(),
+          expected.fields(),
+          readersById,
+          idToConstant,
+          BaseParquetReaders.this::convertConstant,
+          readers -> createStructReader(readers, expected, fieldId(struct)));
     }
 
     @Override
