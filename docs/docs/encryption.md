@@ -27,8 +27,7 @@ The `metadata.json` file does not contain data or stats, and is therefore not en
 Currently, encryption is supported in the Hive and REST catalogs for tables with Parquet and Avro data formats.
 
 !!! warning
-    Coverage across engines and operations is still incomplete, so evaluate table encryption
-    carefully before relying on it in production.
+    Coverage across engines and operations is still incomplete, so evaluate table encryption carefully before relying on it in production.
 
 Two parameters are required to activate encryption of a table:
 
