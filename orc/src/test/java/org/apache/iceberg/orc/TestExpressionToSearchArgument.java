@@ -226,13 +226,21 @@ public class TestExpressionToSearchArgument {
     Schema schema =
         new Schema(
             required(1, "long", Types.LongType.get()),
+            // use an optional field for the isNull check because Iceberg itself resolves it for
+            // required fields
             optional(2, "variant", Types.VariantType.get()));
 
-    // predicates on other columns are still pushed down when the schema contains a variant column
-    Expression expr = equal("long", 1);
+    // predicates on other columns are still pushed down when the schema contains a variant column,
+    // while predicates on the variant itself resolve to YES_NO_NULL
+    Expression expr = and(equal("long", 1), isNull("variant"));
     Expression boundFilter = Binder.bind(schema.asStruct(), expr, true);
     SearchArgument expected =
-        SearchArgumentFactory.newBuilder().startAnd().equals("`long`", Type.LONG, 1L).end().build();
+        SearchArgumentFactory.newBuilder()
+            .startAnd()
+            .equals("`long`", Type.LONG, 1L)
+            .literal(TruthValue.YES_NO_NULL)
+            .end()
+            .build();
 
     SearchArgument actual =
         ExpressionToSearchArgument.convert(boundFilter, ORCSchemaUtil.convert(schema));
