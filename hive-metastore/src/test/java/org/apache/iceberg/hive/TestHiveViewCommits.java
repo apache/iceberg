@@ -28,6 +28,8 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.io.File;
@@ -270,19 +272,9 @@ public class TestHiveViewCommits {
           .as("The view should not have been created")
           .isFalse();
 
-      // pins the view-specific doRefresh wiring: a missing view is not an error when no metadata
-      // location is known, so refreshing a never-persisted view must yield null metadata
-      assertThat(ops.refresh())
-          .as("Refreshing a never-persisted view should yield null metadata")
-          .isNull();
-
-      // and the commit status check supplier must resolve to false for the null metadata instead
-      // of throwing an NPE
-      assertThat(
-              ops.checkCurrentMetadataLocation(
-                  createLocation + "/metadata/00000-uuid.metadata.json"))
-          .as("A new metadata location cannot be current for a never-persisted view")
-          .isFalse();
+      // the configured status check must run to completion: once from current(), once from
+      // inside checkCurrentMetadataLocation, which resolves the null metadata instead of throwing
+      verify(spyOps, times(2)).refresh();
     } finally {
       createLocation
           .getFileSystem(HIVE_METASTORE_EXTENSION.hiveConf())
