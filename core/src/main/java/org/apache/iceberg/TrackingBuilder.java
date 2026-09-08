@@ -25,13 +25,14 @@ import org.apache.iceberg.util.ByteBuffers;
 class TrackingBuilder {
   private final long newSnapshotId;
   private final Long snapshotId;
-  private final Long dataSequenceNumber;
   private final Long fileSequenceNumber;
   private final Long firstRowId;
   private EntryStatus status;
+  private Long dataSequenceNumber;
   private Long dvSnapshotId;
   private byte[] deletedPositions;
   private byte[] replacedPositions;
+  private Long latestColumnFileSnapshotId;
 
   /**
    * Creates a builder for a newly added file.
@@ -86,6 +87,7 @@ class TrackingBuilder {
     this.dvSnapshotId = null;
     this.deletedPositions = null;
     this.replacedPositions = null;
+    this.latestColumnFileSnapshotId = null;
   }
 
   private TrackingBuilder(Tracking source, long newSnapshotId) {
@@ -100,6 +102,7 @@ class TrackingBuilder {
     this.dvSnapshotId = source.dvSnapshotId();
     this.deletedPositions = null;
     this.replacedPositions = null;
+    this.latestColumnFileSnapshotId = source.latestColumnFileSnapshotId();
   }
 
   /** Indicates that the DV has been updated for the new Tracking. */
@@ -112,6 +115,19 @@ class TrackingBuilder {
       this.status = EntryStatus.MODIFIED;
     }
 
+    return this;
+  }
+
+  /** Indicates that the column files list has been updated for the new Tracking. */
+  TrackingBuilder columnFilesUpdated() {
+    this.latestColumnFileSnapshotId = newSnapshotId;
+    if (status == EntryStatus.EXISTING) {
+      this.status = EntryStatus.MODIFIED;
+    }
+    // Reset to null to inherit from the new snapshot sequence number. It is safe to bump up the
+    // dataSequenceNumber as writers are required to rewrite v2 equality and position deletes to DVs
+    // when applying column update.
+    this.dataSequenceNumber = null;
     return this;
   }
 
@@ -144,7 +160,8 @@ class TrackingBuilder {
         dvSnapshotId,
         firstRowId,
         deletedPositions,
-        replacedPositions);
+        replacedPositions,
+        latestColumnFileSnapshotId);
   }
 
   private static Tracking terminal(EntryStatus to, Tracking source, long newSnapshotId) {
@@ -158,7 +175,8 @@ class TrackingBuilder {
         source.dvSnapshotId(),
         source.firstRowId(),
         null,
-        null);
+        null,
+        source.latestColumnFileSnapshotId());
   }
 
   private static void validateSource(Tracking source) {

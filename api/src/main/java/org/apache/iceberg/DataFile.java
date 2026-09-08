@@ -174,4 +174,8 @@ public interface DataFile extends ContentFile<DataFile> {
   default DeletionVector deletionVector() {
     return null;
   }
+
+  default List<ColumnFile> columnFiles() {
+    return null;
+  }
 }
