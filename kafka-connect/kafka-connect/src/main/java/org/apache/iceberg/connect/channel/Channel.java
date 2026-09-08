@@ -122,8 +122,11 @@ abstract class Channel {
       records.forEach(
           record -> {
             // the consumer stores the offsets that corresponds to the next record to consume,
-            // so increment the record offset by one
-            controlTopicOffsets.put(record.partition(), record.offset() + 1);
+            // so increment the record offset by one. Keep the highest position seen for the
+            // partition: a re-read of the control topic, e.g. after a rebalance resumes from the
+            // last committed offsets, would otherwise move the tracked position backwards and
+            // commit a consumer offset behind records that were already handled.
+            controlTopicOffsets.merge(record.partition(), record.offset() + 1, Long::max);
 
             Event event = AvroUtil.decode(record.value());
 
