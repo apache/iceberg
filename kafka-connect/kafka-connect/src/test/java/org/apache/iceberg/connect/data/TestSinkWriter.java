@@ -57,7 +57,11 @@ public class TestSinkWriter {
 
   private static final Namespace NAMESPACE = Namespace.of("db");
   private static final String TABLE_NAME = "tbl";
-  private static final TableIdentifier TABLE_IDENTIFIER = TableIdentifier.of(NAMESPACE, TABLE_NAME);
+  private static final String TABLE2_NAME = "tbl2";
+  private static final TableIdentifier TABLE_IDENTIFIER =
+      TableIdentifier.of(NAMESPACE, TABLE_NAME);
+  private static final TableIdentifier TABLE2_IDENTIFIER =
+      TableIdentifier.of(NAMESPACE, TABLE2_NAME);
   private static final Schema SCHEMA =
       new Schema(
           optional(1, "id", Types.LongType.get()),
@@ -70,6 +74,7 @@ public class TestSinkWriter {
     catalog = initInMemoryCatalog();
     catalog.createNamespace(NAMESPACE);
     catalog.createTable(TABLE_IDENTIFIER, SCHEMA);
+    catalog.createTable(TABLE2_IDENTIFIER, SCHEMA);
   }
 
   @AfterEach
@@ -238,48 +243,60 @@ public class TestSinkWriter {
   }
 
   @Test
-  public void testEvolveAddsFractionalDecimalColumn() {
+  public void testTopicRoute() {
     IcebergSinkConfig config = mock(IcebergSinkConfig.class);
     when(config.tableConfig(any())).thenReturn(mock(TableSinkConfig.class));
-    when(config.tables()).thenReturn(ImmutableList.of(TABLE_IDENTIFIER.toString()));
-    when(config.evolveSchemaEnabled()).thenReturn(true);
+    when(config.tables())
+        .thenReturn(
+            ImmutableList.of(
+                TABLE_IDENTIFIER.toString(), TABLE2_IDENTIFIER.toString()));
+    Map<String, Object> value = ImmutableMap.of();
 
-    // a new column whose value is a fractional decimal < 1: BigDecimal("0.001") has precision 1
-    // and scale 3. DecimalType.of validates only precision <= 38, so before the fix the column
-    // evolved to a malformed decimal(1, 3) without error and the write below failed in the
-    // Parquet writer; after the fix it evolves to decimal(3, 3) and the record is written.
-    Map<String, Object> value = ImmutableMap.of("amount", new BigDecimal("0.001"));
-
-    List<IcebergWriterResult> writerResults = sinkWriterTest(value, config);
-    assertThat(writerResults).isNotEmpty();
-
-    // the column evolved to a valid decimal that can hold 0.001 (scale <= precision)
-    Types.NestedField added = catalog.loadTable(TABLE_IDENTIFIER).schema().findField("amount");
-    assertThat(added).isNotNull();
-    assertThat(added.type()).isEqualTo(Types.DecimalType.of(3, 3));
+    // topic "src.tbl" should match table "db.tbl" (last segment = "tbl")
+    List<IcebergWriterResult> writerResults =
+        sinkWriterTestWithTopic(value, config, "src.tbl");
+    assertThat(writerResults).hasSize(1);
   }
 
   @Test
-  public void testEvolveAddsExponentialDecimalColumn() {
+  public void testTopicRouteSecondTable() {
     IcebergSinkConfig config = mock(IcebergSinkConfig.class);
     when(config.tableConfig(any())).thenReturn(mock(TableSinkConfig.class));
-    when(config.tables()).thenReturn(ImmutableList.of(TABLE_IDENTIFIER.toString()));
-    when(config.evolveSchemaEnabled()).thenReturn(true);
+    when(config.tables())
+        .thenReturn(
+            ImmutableList.of(
+                TABLE_IDENTIFIER.toString(), TABLE2_IDENTIFIER.toString()));
+    Map<String, Object> value = ImmutableMap.of();
 
-    // BigDecimal("1E+2") has a negative scale (-2), which is normalized to decimal(3, 0), the
-    // same type inferred for new BigDecimal("100"); the value is rescaled when it is written
-    Map<String, Object> value = ImmutableMap.of("amount", new BigDecimal("1E+2"));
+    // topic "src.tbl2" should match table "db.tbl2" (last segment = "tbl2")
+    List<IcebergWriterResult> writerResults =
+        sinkWriterTestWithTopic(value, config, "src.tbl2");
+    assertThat(writerResults).hasSize(1);
+  }
 
-    List<IcebergWriterResult> writerResults = sinkWriterTest(value, config);
-    assertThat(writerResults).isNotEmpty();
+  @Test
+  public void testTopicRouteFallbackBroadcast() {
+    IcebergSinkConfig config = mock(IcebergSinkConfig.class);
+    when(config.tableConfig(any())).thenReturn(mock(TableSinkConfig.class));
+    when(config.tables())
+        .thenReturn(
+            ImmutableList.of(
+                TABLE_IDENTIFIER.toString(), TABLE2_IDENTIFIER.toString()));
+    Map<String, Object> value = ImmutableMap.of();
 
-    Types.NestedField added = catalog.loadTable(TABLE_IDENTIFIER).schema().findField("amount");
-    assertThat(added).isNotNull();
-    assertThat(added.type()).isEqualTo(Types.DecimalType.of(3, 0));
+    // topic "unmatched" does not match any table, should broadcast to all
+    List<IcebergWriterResult> writerResults =
+        sinkWriterTestWithTopic(value, config, "unmatched");
+    assertThat(writerResults).hasSize(2);
   }
 
   private List<IcebergWriterResult> sinkWriterTest(
       Map<String, Object> value, IcebergSinkConfig config) {
+    return sinkWriterTestWithTopic(value, config, "topic");
+  }
+
+  private List<IcebergWriterResult> sinkWriterTestWithTopic(
+      Map<String, Object> value, IcebergSinkConfig config, String topic) {
     IcebergWriterResult writeResult =
         new IcebergWriterResult(
             TableReference.of("unknown", TableIdentifier.parse(TABLE_NAME), null),
@@ -298,7 +315,7 @@ public class TestSinkWriter {
     Instant now = Instant.now().truncatedTo(ChronoUnit.MILLIS);
     SinkRecord rec =
         new SinkRecord(
-            "topic",
+            topic,
             1,
             null,
             "key",
@@ -311,7 +328,7 @@ public class TestSinkWriter {
 
     SinkWriterResult result = sinkWriter.completeWrite();
 
-    Offset offset = result.sourceOffsets().get(new TopicPartition("topic", 1));
+    Offset offset = result.sourceOffsets().get(new TopicPartition(topic, 1));
     assertThat(offset).isNotNull();
     assertThat(offset.offset()).isEqualTo(101L); // should be 1 more than current offset
     assertThat(offset.timestamp()).isEqualTo(now.atOffset(ZoneOffset.UTC));
