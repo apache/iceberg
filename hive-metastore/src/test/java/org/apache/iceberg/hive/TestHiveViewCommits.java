@@ -279,8 +279,8 @@ public class TestHiveViewCommits {
       // and the commit status check supplier must resolve to false for the null metadata instead
       // of throwing an NPE
       assertThat(
-              checkCurrentMetadataLocation(
-                  ops, createLocation + "/metadata/00000-uuid.metadata.json"))
+              ops.checkCurrentMetadataLocation(
+                  createLocation + "/metadata/00000-uuid.metadata.json"))
           .as("A new metadata location cannot be current for a never-persisted view")
           .isFalse();
     } finally {
@@ -668,19 +668,6 @@ public class TestHiveViewCommits {
         .thenThrow(new RuntimeException("Still on fire")); // Failure on commit check
   }
 
-  private static boolean checkCurrentMetadataLocation(
-      HiveViewOperations ops, String newMetadataLocation) {
-    try {
-      return (Boolean)
-          ReflectionSupport.invokeMethod(
-              HiveViewOperations.class.getDeclaredMethod(
-                  "checkCurrentMetadataLocation", String.class),
-              ops,
-              newMetadataLocation);
-    } catch (NoSuchMethodException e) {
-      throw new RuntimeException(e);
-    }
-  }
 
   private boolean metadataFileExists(ViewMetadata metadata) {
     return new File(metadata.metadataFileLocation().replace("file:", "")).exists();

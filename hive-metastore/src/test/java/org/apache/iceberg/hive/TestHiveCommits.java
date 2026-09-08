@@ -603,9 +603,9 @@ public class TestHiveCommits extends HiveTableTestBase {
   /**
    * Pins the table-specific doRefresh wiring for a never-persisted table: a CREATE TABLE commit
    * that fails with a non-specific exception must resolve the commit status cleanly instead of
-   * NPE-ing in checkCurrentMetadataLocation (#17462). refresh() yields null current metadata and
-   * the status check supplier resolves to false (a new metadata location cannot be current for a
-   * table that does not exist). The relaxed check then maps that to UNKNOWN.
+   * NPE-ing in checkCurrentMetadataLocation (#17462). Pins the Hive-specific doRefresh wiring:
+   * refreshing a never-persisted table yields null metadata. The null-metadata handling itself is
+   * covered by TestBaseMetastoreTableOperations.
    */
   @Test
   public void testThriftExceptionUnknownStateOnCreateCommitWhenTableNeverPersisted()
@@ -642,14 +642,6 @@ public class TestHiveCommits extends HiveTableTestBase {
       assertThat(ops.refresh())
           .as("Refreshing a never-persisted table should yield null metadata")
           .isNull();
-
-      // and the commit status check supplier must resolve to false for the null metadata instead
-      // of throwing an NPE
-      assertThat(
-              checkCurrentMetadataLocation(
-                  ops, createLocation + "/metadata/00000-uuid.metadata.json"))
-          .as("A new metadata location cannot be current for a never-persisted table")
-          .isFalse();
     } finally {
       createLocation
           .getFileSystem(HIVE_METASTORE_EXTENSION.hiveConf())
@@ -669,19 +661,6 @@ public class TestHiveCommits extends HiveTableTestBase {
         .thenThrow(new RuntimeException("Still on fire")); // Failure on commit check
   }
 
-  private static boolean checkCurrentMetadataLocation(
-      HiveTableOperations ops, String newMetadataLocation) {
-    try {
-      return (Boolean)
-          ReflectionSupport.invokeMethod(
-              BaseMetastoreTableOperations.class.getDeclaredMethod(
-                  "checkCurrentMetadataLocation", String.class),
-              ops,
-              newMetadataLocation);
-    } catch (NoSuchMethodException e) {
-      throw new RuntimeException(e);
-    }
-  }
 
   private boolean metadataFileExists(TableMetadata metadata) {
     return new File(metadata.metadataFileLocation().replace("file:", "")).exists();

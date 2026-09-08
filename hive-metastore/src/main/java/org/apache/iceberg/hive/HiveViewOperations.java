@@ -274,7 +274,8 @@ final class HiveViewOperations extends BaseViewOperations implements HiveOperati
    * @param newMetadataLocation newly written metadata location
    * @return true if the new metadata location is the current metadata location
    */
-  private boolean checkCurrentMetadataLocation(String newMetadataLocation) {
+  @VisibleForTesting
+  boolean checkCurrentMetadataLocation(String newMetadataLocation) {
     ViewMetadata metadata = refresh();
     if (metadata == null) {
       // Table creation may not have registered metadata yet.
