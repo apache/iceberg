@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.connect.channel;
 
+import java.util.concurrent.atomic.AtomicReference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -27,6 +28,7 @@ class CoordinatorThread extends Thread {
 
   private final Coordinator coordinator;
   private volatile boolean terminated;
+  private final AtomicReference<Throwable> exception = new AtomicReference<>();
 
   CoordinatorThread(Coordinator coordinator) {
     super(THREAD_NAME);
@@ -39,6 +41,7 @@ class CoordinatorThread extends Thread {
       coordinator.start();
     } catch (Exception e) {
       LOG.error("Coordinator error during start, exiting thread", e);
+      exception.set(e);
       this.terminated = true;
     }
 
@@ -47,6 +50,7 @@ class CoordinatorThread extends Thread {
         coordinator.process();
       } catch (Exception e) {
         LOG.error("Coordinator error during process, exiting thread", e);
+        exception.set(e);
         this.terminated = true;
       }
     }
@@ -65,5 +69,9 @@ class CoordinatorThread extends Thread {
   void terminate() {
     this.terminated = true;
     coordinator.terminate();
+  }
+
+  Throwable exception() {
+    return exception.get();
   }
 }
