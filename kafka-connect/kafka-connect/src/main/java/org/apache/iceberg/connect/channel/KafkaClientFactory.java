@@ -58,9 +58,8 @@ class KafkaClientFactory {
   /**
    * Creates a control-topic consumer.
    *
-   * @param autoOffsetReset applied only when the group has no committed offset. A group whose
-   *     progress is durable must use {@code earliest}, so that a member starting without a
-   *     committed offset re-reads records an earlier member consumed but never committed.
+   * @param autoOffsetReset default reset policy for partitions with no committed offset or an
+   *     offset that is out of range; an explicitly configured reset policy takes precedence
    */
   Consumer<String, byte[]> createConsumer(String consumerGroupId, String autoOffsetReset) {
     return new KafkaConsumer<>(
