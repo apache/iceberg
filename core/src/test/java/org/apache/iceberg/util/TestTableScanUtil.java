@@ -151,26 +151,9 @@ public class TestTableScanUtil {
 
   @Test
   public void testTaskGroupPlanningCorruptedOffset() {
-    DataFile dataFile =
-        DataFiles.builder(TestBase.SPEC)
-            .withPath("/path/to/data-a.parquet")
-            .withFileSizeInBytes(10)
-            .withPartitionPath("data_bucket=0")
-            .withRecordCount(1)
-            .withSplitOffsets(
-                ImmutableList.of(2L, 12L)) // the last offset is beyond the end of the file
-            .build();
-
-    ResidualEvaluator residualEvaluator =
-        ResidualEvaluator.of(TestBase.SPEC, Expressions.equal("id", 1), false);
-
+    // the last offset is beyond the end of the file
     BaseFileScanTask baseFileScanTask =
-        new BaseFileScanTask(
-            dataFile,
-            null,
-            SchemaParser.toJson(TestBase.SCHEMA),
-            PartitionSpecParser.toJson(TestBase.SPEC),
-            residualEvaluator);
+        newScanTask(FileFormat.PARQUET, 10L, ImmutableList.of(2L, 12L));
 
     List<BaseFileScanTask> baseFileScanTasks = ImmutableList.of(baseFileScanTask);
 
@@ -330,6 +313,97 @@ public class TestTableScanUtil {
     assertThatThrownBy(() -> TableScanUtil.adjustSplitSize(scanSize, 0, largeDefaultSplitSize))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageStartingWith("Parallelism must be > 0: 0");
+  }
+
+  @Test
+  public void testSplitSkipsWrapWhenFileFitsSingleSplit() {
+    // A small splittable file (no offsets) smaller than the target split size must not be wrapped
+    // in a redundant 1:1 SplitScanTask; split() should return the task itself.
+    BaseFileScanTask task = newScanTask(FileFormat.PARQUET, 64L, null);
+
+    List<FileScanTask> splits = ImmutableList.copyOf(task.split(128L));
+
+    assertThat(splits).hasSize(1);
+    assertThat(splits.get(0)).isSameAs(task);
+    // behavior must be identical to the wrapper it replaces: whole file from offset 0
+    assertThat(splits.get(0).start()).isEqualTo(0L);
+    assertThat(splits.get(0).length()).isEqualTo(64L);
+    assertThat(splits.get(0).estimatedRowsCount()).isEqualTo(1L);
+  }
+
+  @Test
+  public void testSplitSkipsWrapWhenFileSizeEqualsTargetSplitSize() {
+    // length() == targetSplitSize is still "fits in a single split" and must not be wrapped
+    BaseFileScanTask task = newScanTask(FileFormat.PARQUET, 128L, null);
+
+    List<FileScanTask> splits = ImmutableList.copyOf(task.split(128L));
+
+    assertThat(splits).hasSize(1);
+    assertThat(splits.get(0)).isSameAs(task);
+  }
+
+  @Test
+  public void testSplitSkipsOffsetsWhenFileFitsSingleSplit() {
+    // Even when a file has valid row-group/stripe offsets, there is no reason to split it into
+    // per-offset tasks if the whole file already fits within the target split size.
+    BaseFileScanTask task = newScanTask(FileFormat.PARQUET, 64L, ImmutableList.of(0L, 32L));
+
+    List<FileScanTask> splits = ImmutableList.copyOf(task.split(128L));
+
+    assertThat(splits).hasSize(1);
+    assertThat(splits.get(0)).isSameAs(task);
+  }
+
+  @Test
+  public void testSplitPreservesOldBehaviorForEmptyFile() {
+    // A zero-length file is not short-circuited; it falls through to the existing splittable
+    // path. With no split offsets, FixedSizeSplitScanTaskIterator yields zero splits, matching
+    // the behavior before this change (hasNext() == remainingLength > 0).
+    BaseFileScanTask task = newScanTask(FileFormat.PARQUET, 0L, null);
+
+    List<FileScanTask> splits = ImmutableList.copyOf(task.split(128L));
+
+    assertThat(splits).isEmpty();
+  }
+
+  @Test
+  public void testSplitFallsThroughWhenFileExceedsTargetSplitSize() {
+    // A splittable file larger than the target split size must not be short-circuited; it falls
+    // through to FixedSizeSplitScanTaskIterator and is split into multiple fixed-size tasks.
+    BaseFileScanTask task = newScanTask(FileFormat.PARQUET, 256L, null);
+
+    List<FileScanTask> splits = ImmutableList.copyOf(task.split(128L));
+
+    assertThat(splits).hasSize(2);
+    assertThat(splits.get(0).start()).isEqualTo(0L);
+    assertThat(splits.get(0).length()).isEqualTo(128L);
+    assertThat(splits.get(1).start()).isEqualTo(128L);
+    assertThat(splits.get(1).length()).isEqualTo(128L);
+  }
+
+  private BaseFileScanTask newScanTask(
+      FileFormat format, long sizeInBytes, List<Long> splitOffsets) {
+    DataFiles.Builder builder =
+        DataFiles.builder(TestBase.SPEC)
+            .withPath("/path/to/" + format.addExtension("data-a"))
+            .withFormat(format)
+            .withFileSizeInBytes(sizeInBytes)
+            .withPartitionPath("data_bucket=0")
+            .withRecordCount(1);
+
+    if (splitOffsets != null) {
+      builder.withSplitOffsets(splitOffsets);
+    }
+
+    ResidualEvaluator residualEvaluator =
+        ResidualEvaluator.of(TestBase.SPEC, Expressions.alwaysTrue(), false);
+
+    return new BaseFileScanTask(
+        builder.build(),
+        null,
+        SchemaParser.toJson(TestBase.SCHEMA),
+        PartitionSpecParser.toJson(TestBase.SPEC),
+        residualEvaluator);
   }
 
   private PartitionScanTask taskWithPartition(

@@ -98,6 +98,10 @@ abstract class BaseContentScanTask<ThisT extends ContentScanTask<F>, F extends C
 
   @Override
   public Iterable<ThisT> split(long targetSplitSize) {
+    if (length() <= targetSplitSize && length() > 0) {
+      return ImmutableList.of(self());
+    }
+
     if (file.format().isSplittable()) {
       long[] splitOffsets = splitOffsets(file);
       if (splitOffsets != null && ArrayUtil.isStrictlyAscending(splitOffsets)) {
