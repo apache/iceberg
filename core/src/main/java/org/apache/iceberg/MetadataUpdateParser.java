@@ -70,7 +70,6 @@ public class MetadataUpdateParser {
 
   // AddSchema
   private static final String SCHEMA = "schema";
-  private static final String LAST_COLUMN_ID = "last-column-id";
 
   // SetCurrentSchema
   private static final String SCHEMA_ID = "schema-id";
@@ -370,7 +369,6 @@ public class MetadataUpdateParser {
       throws IOException {
     gen.writeFieldName(SCHEMA);
     SchemaParser.toJson(update.schema(), gen);
-    gen.writeNumberField(LAST_COLUMN_ID, update.lastColumnId());
   }
 
   private static void writeSetCurrentSchema(
