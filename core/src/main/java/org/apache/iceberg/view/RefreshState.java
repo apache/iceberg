@@ -29,6 +29,9 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 public class RefreshState {
   public static final String REFRESH_STATE_SUMMARY_KEY = "refresh-state";
 
+  /** Recorded as the snapshot id of a source table that had no snapshot when it was read. */
+  public static final long NO_SNAPSHOT_ID = -1L;
+
   private final int viewVersionId;
   private final List<SourceState> sourceStates;
   private final long refreshStartTimestampMs;

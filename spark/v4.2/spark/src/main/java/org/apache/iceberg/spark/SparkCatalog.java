@@ -36,6 +36,7 @@ import org.apache.iceberg.EnvironmentContext;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
@@ -56,12 +57,19 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.rest.RESTCatalog;
 import org.apache.iceberg.spark.actions.SparkActions;
+import org.apache.iceberg.spark.source.HasIcebergCatalog;
 import org.apache.iceberg.spark.source.SparkChangelogTable;
+import org.apache.iceberg.spark.source.SparkMaterializedView;
 import org.apache.iceberg.spark.source.SparkTable;
 import org.apache.iceberg.spark.source.SparkView;
 import org.apache.iceberg.spark.source.StagedSparkTable;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.PropertyUtil;
+import org.apache.iceberg.view.RefreshState;
+import org.apache.iceberg.view.RefreshStateParser;
+import org.apache.iceberg.view.SourceState;
+import org.apache.iceberg.view.SourceTableState;
+import org.apache.iceberg.view.SourceViewState;
 import org.apache.iceberg.view.UpdateViewProperties;
 import org.apache.iceberg.view.ViewBuilder;
 import org.apache.iceberg.view.ViewProperties;
@@ -73,8 +81,10 @@ import org.apache.spark.sql.catalyst.analysis.NoSuchViewException;
 import org.apache.spark.sql.catalyst.analysis.TableAlreadyExistsException;
 import org.apache.spark.sql.catalyst.analysis.ViewAlreadyExistsException;
 import org.apache.spark.sql.catalyst.analysis.ViewUtil;
+import org.apache.spark.sql.connector.catalog.CatalogPlugin;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.NamespaceChange;
+import org.apache.spark.sql.connector.catalog.Relation;
 import org.apache.spark.sql.connector.catalog.StagedTable;
 import org.apache.spark.sql.connector.catalog.Table;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
@@ -564,15 +574,183 @@ public class SparkCatalog extends BaseCatalog {
   @Override
   public View loadView(Identifier ident) throws NoSuchViewException {
     if (null != asViewCatalog) {
-      try {
-        org.apache.iceberg.view.View icebergView = asViewCatalog.loadView(buildIdentifier(ident));
-        return SparkView.toView(catalogName, icebergView);
-      } catch (org.apache.iceberg.exceptions.NoSuchViewException e) {
-        throw new NoSuchViewException(ident);
+      org.apache.iceberg.view.View view = findIcebergView(ident);
+      if (null != view) {
+        return SparkView.toView(catalogName, view);
       }
+
+      throw new NoSuchViewException(ident);
     }
 
     throw new NoSuchViewException(ident);
+  }
+
+  /**
+   * Loads the Iceberg view for an identifier, or returns null when no such view exists.
+   *
+   * <p>Materialized view routing is decided by {@link #loadRelation(Identifier)}, which prefers the
+   * storage table for a fresh view, so this lookup reports absence instead of signalling control
+   * flow through exceptions.
+   */
+  private org.apache.iceberg.view.View findIcebergView(Identifier ident) {
+    if (null == asViewCatalog) {
+      return null;
+    }
+
+    try {
+      return asViewCatalog.loadView(buildIdentifier(ident));
+    } catch (org.apache.iceberg.exceptions.NoSuchViewException e) {
+      return null;
+    }
+  }
+
+  /**
+   * Resolves an identifier that may name either a table or a view.
+   *
+   * <p>A materialized view is served from its storage table while it is fresh, and from its view
+   * definition otherwise, so the choice is made here rather than by having {@code loadView} signal
+   * the engine to retry with {@code loadTable}.
+   */
+  @Override
+  public Relation loadRelation(Identifier ident) throws NoSuchTableException {
+    if (!isPathIdentifier(ident)) {
+      org.apache.iceberg.view.View view = findIcebergView(ident);
+      if (null != view && isMaterializedView(view)) {
+        return isFresh(view)
+            ? new SparkMaterializedView(catalogName, view, loadStorageTable(view))
+            : SparkView.toView(catalogName, view);
+      }
+    }
+
+    return super.loadRelation(ident);
+  }
+
+  private boolean isMaterializedView(org.apache.iceberg.view.View view) {
+    return view.currentVersion().storageTable() != null;
+  }
+
+  private org.apache.iceberg.catalog.TableIdentifier getStorageTableId(
+      org.apache.iceberg.view.View view) {
+    org.apache.iceberg.catalog.TableIdentifier storageTable = view.currentVersion().storageTable();
+    Preconditions.checkState(
+        storageTable != null, "Storage table identifier is not set for materialized view.");
+    return storageTable;
+  }
+
+  private Table loadStorageTable(org.apache.iceberg.view.View view) {
+    org.apache.iceberg.catalog.TableIdentifier storageTableId = getStorageTableId(view);
+    try {
+      Identifier sparkIdent =
+          Identifier.of(storageTableId.namespace().levels(), storageTableId.name());
+      return loadTable(sparkIdent);
+    } catch (NoSuchTableException e) {
+      throw new IllegalStateException("Unable to load storage table for materialized view.", e);
+    }
+  }
+
+  private boolean isFresh(org.apache.iceberg.view.View view) {
+    Table sparkStorageTable = loadStorageTable(view);
+    org.apache.iceberg.Table storageTable = ((SparkTable) sparkStorageTable).table();
+    if (storageTable.currentSnapshot() == null) {
+      return false;
+    }
+
+    String refreshStateJson =
+        storageTable.currentSnapshot().summary().get(RefreshState.REFRESH_STATE_SUMMARY_KEY);
+    if (refreshStateJson == null) {
+      return false;
+    }
+
+    RefreshState refreshState = RefreshStateParser.fromJson(refreshStateJson);
+
+    if (refreshState.viewVersionId() != view.currentVersion().versionId()) {
+      return false;
+    }
+
+    for (SourceState sourceState : refreshState.sourceStates()) {
+      if (sourceState instanceof SourceTableState) {
+        if (!isSourceFresh((SourceTableState) sourceState)) {
+          return false;
+        }
+      } else if (sourceState instanceof SourceViewState) {
+        if (!isSourceFresh((SourceViewState) sourceState)) {
+          return false;
+        }
+      }
+    }
+
+    return true;
+  }
+
+  /**
+   * Returns whether a source table still matches the state captured by the last refresh.
+   *
+   * <p>A source is identified by its UUID as well as by its name because a table that was dropped
+   * and recreated, or replaced by an unrelated table with the same name, is not the table that was
+   * read. Snapshot ids alone cannot detect that: a recreated table restarts its history and an
+   * empty table records {@link RefreshState#NO_SNAPSHOT_ID} both before and after.
+   */
+  private boolean isSourceFresh(SourceTableState tableState) {
+    try {
+      org.apache.iceberg.Table sourceTable =
+          sourceCatalog(tableState).loadTable(sourceIdentifier(tableState));
+      if (!sourceTable.uuid().toString().equals(tableState.uuid())) {
+        return false;
+      }
+
+      Snapshot snapshot =
+          tableState.ref() == null
+              ? sourceTable.currentSnapshot()
+              : sourceTable.snapshot(tableState.ref());
+      long snapshotId = snapshot == null ? RefreshState.NO_SNAPSHOT_ID : snapshot.snapshotId();
+      return snapshotId == tableState.snapshotId();
+    } catch (Exception e) {
+      return false;
+    }
+  }
+
+  /**
+   * Returns whether a source view still matches the state captured by the last refresh.
+   *
+   * <p>The UUID check is essential here: view version ids restart at 1, so a view that was dropped
+   * and recreated with an unrelated definition would otherwise report the recorded version.
+   */
+  private boolean isSourceFresh(SourceViewState viewState) {
+    try {
+      org.apache.iceberg.view.View sourceView =
+          ((ViewCatalog) sourceCatalog(viewState)).loadView(sourceIdentifier(viewState));
+      return sourceView.uuid().toString().equals(viewState.uuid())
+          && sourceView.currentVersion().versionId() == viewState.versionId();
+    } catch (Exception e) {
+      return false;
+    }
+  }
+
+  /**
+   * Returns the Iceberg catalog that holds a source object.
+   *
+   * <p>A materialized view may read sources from a catalog other than its own, so a recorded
+   * catalog name is resolved through Spark's catalog manager rather than assumed to be this
+   * catalog. Callers treat a failure to resolve as "not fresh", since a source that cannot be
+   * reached cannot be shown to be unchanged.
+   */
+  private Catalog sourceCatalog(SourceState sourceState) {
+    if (sourceState.catalog() == null) {
+      return icebergCatalog();
+    }
+
+    CatalogPlugin plugin =
+        SparkSession.active().sessionState().catalogManager().catalog(sourceState.catalog());
+    Preconditions.checkArgument(
+        plugin instanceof HasIcebergCatalog,
+        "Cannot resolve source catalog %s: not an Iceberg catalog",
+        sourceState.catalog());
+    return ((HasIcebergCatalog) plugin).icebergCatalog();
+  }
+
+  private TableIdentifier sourceIdentifier(SourceState sourceState) {
+    return TableIdentifier.of(
+        Namespace.of(sourceState.namespace().toArray(new String[0])), sourceState.name());
   }
 
   @Override
@@ -636,6 +814,8 @@ public class SparkCatalog extends BaseCatalog {
     Map<String, String> props = ViewUtil.createProperties(view);
     TableIdentifier viewIdentifier = buildIdentifier(ident);
 
+    checkNotMaterializedView(viewIdentifier, viewCommit);
+
     try {
       ViewBuilder builder =
           asViewCatalog
@@ -686,6 +866,28 @@ public class SparkCatalog extends BaseCatalog {
       throw new ViewAlreadyExistsException(ident);
     } catch (org.apache.iceberg.exceptions.NoSuchViewException e) {
       throw new NoSuchViewException(ident);
+    }
+  }
+
+  private void checkNotMaterializedView(TableIdentifier viewIdentifier, ViewCommit viewCommit) {
+    if (viewCommit == ViewCommit.CREATE) {
+      return;
+    }
+
+    org.apache.iceberg.view.View existingView;
+    try {
+      existingView = asViewCatalog.loadView(viewIdentifier);
+    } catch (org.apache.iceberg.exceptions.NoSuchViewException e) {
+      // there is nothing to replace, so the commit is a plain create
+      return;
+    }
+
+    if (existingView.currentVersion().storageTable() != null) {
+      throw new UnsupportedOperationException(
+          String.format(
+              "Cannot replace materialized view %s with a view: "
+                  + "drop the materialized view and create it again",
+              viewIdentifier));
     }
   }
 
@@ -930,6 +1132,12 @@ public class SparkCatalog extends BaseCatalog {
   private Table load(Identifier ident, TimeTravel timeTravel) throws NoSuchTableException {
     if (isPathIdentifier(ident)) {
       return loadPath((PathIdentifier) ident, timeTravel);
+    }
+
+    // A fresh materialized view is readable as its storage table.
+    org.apache.iceberg.view.View view = findIcebergView(ident);
+    if (null != view && isMaterializedView(view) && isFresh(view)) {
+      return new SparkMaterializedView(catalogName, view, loadStorageTable(view));
     }
 
     try {
