@@ -352,7 +352,7 @@ public class TestTableEncryption extends CatalogTestBase {
   }
 
   @TestTemplate
-  public void testRewriteManifestsEncryption() throws IOException {
+  public void rewriteManifestsOnEncryptedTables() throws IOException {
     // append a second time, so that there is more than one manifest to rewrite
     sql("INSERT INTO %s VALUES (4, 'd', 4.0), (5, 'e', 5.0), (6, 'f', float('NaN'))", tableName);
 

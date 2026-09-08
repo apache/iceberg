@@ -50,10 +50,10 @@ import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.actions.ImmutableRewriteManifests;
 import org.apache.iceberg.actions.RewriteManifests;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
-import org.apache.iceberg.encryption.EncryptingFileIO;
 import org.apache.iceberg.exceptions.CleanableFailure;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.SupportsBulkOperations;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -591,8 +591,9 @@ public class RewriteManifestsSparkAction
     }
 
     private EncryptedOutputFile newOutputFile() {
-      return EncryptingFileIO.combine(table().io(), table().encryption())
-          .newEncryptingOutputFile(newManifestLocation());
+      Table table = table();
+      OutputFile rawOutputFile = table.io().newOutputFile(newManifestLocation());
+      return table.encryption().encrypt(rawOutputFile);
     }
 
     private String newManifestLocation() {
