@@ -114,6 +114,8 @@ public class IcebergTableSource
     this.limit = toCopy.limit;
     this.filters = toCopy.filters;
     this.readableConfig = toCopy.readableConfig;
+    this.cachedTable = toCopy.cachedTable;
+    this.readConf = toCopy.readConf;
     this.pushedAggregate = toCopy.pushedAggregate;
     this.pushedAggregateProducedDataType = toCopy.pushedAggregateProducedDataType;
   }

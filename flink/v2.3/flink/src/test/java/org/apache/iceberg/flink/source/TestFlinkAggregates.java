@@ -22,15 +22,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
 import org.apache.flink.table.api.DataTypes;
+import org.apache.flink.table.catalog.DataTypeFactory;
 import org.apache.flink.table.expressions.AggregateExpression;
 import org.apache.flink.table.expressions.FieldReferenceExpression;
 import org.apache.flink.table.functions.FunctionDefinition;
-import org.apache.flink.table.planner.functions.aggfunctions.Count1AggFunction;
-import org.apache.flink.table.planner.functions.aggfunctions.CountAggFunction;
-import org.apache.flink.table.planner.functions.aggfunctions.MaxAggFunction;
-import org.apache.flink.table.planner.functions.aggfunctions.MinAggFunction;
-import org.apache.flink.table.planner.functions.aggfunctions.SumAggFunction;
+import org.apache.flink.table.functions.FunctionKind;
+import org.apache.flink.table.functions.UserDefinedFunction;
 import org.apache.flink.table.types.DataType;
+import org.apache.flink.table.types.inference.TypeInference;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expression.Operation;
 import org.apache.iceberg.expressions.UnboundAggregate;
@@ -70,8 +69,7 @@ public class TestFlinkAggregates {
   @Test
   public void max() {
     Expression converted =
-        FlinkAggregates.convert(
-            aggregate(new MaxAggFunction.IntMaxAggFunction(), List.of(field("id"))));
+        FlinkAggregates.convert(aggregate(new IntMaxAggFunction(), List.of(field("id"))));
     assertThat(converted).isInstanceOf(UnboundAggregate.class);
     UnboundAggregate<?> aggregate = (UnboundAggregate<?>) converted;
     assertThat(aggregate.op()).isEqualTo(Operation.MAX);
@@ -81,8 +79,7 @@ public class TestFlinkAggregates {
   @Test
   public void min() {
     Expression converted =
-        FlinkAggregates.convert(
-            aggregate(new MinAggFunction.IntMinAggFunction(), List.of(field("id"))));
+        FlinkAggregates.convert(aggregate(new IntMinAggFunction(), List.of(field("id"))));
     assertThat(converted).isInstanceOf(UnboundAggregate.class);
     UnboundAggregate<?> aggregate = (UnboundAggregate<?>) converted;
     assertThat(aggregate.op()).isEqualTo(Operation.MIN);
@@ -108,8 +105,7 @@ public class TestFlinkAggregates {
   @Test
   public void unsupportedFunctionIsNotPushedDown() {
     Expression converted =
-        FlinkAggregates.convert(
-            aggregate(new SumAggFunction.IntSumAggFunction(), List.of(field("amount"))));
+        FlinkAggregates.convert(aggregate(new IntSumAggFunction(), List.of(field("amount"))));
     assertThat(converted).isNull();
   }
 
@@ -117,4 +113,30 @@ public class TestFlinkAggregates {
   public void countColumnWithoutArgIsNotPushedDown() {
     assertThat(FlinkAggregates.convert(aggregate(new CountAggFunction(), List.of()))).isNull();
   }
+
+  // These fixtures mirror the simple class names of Flink's instantiated aggregate function
+  // implementations (e.g. MaxAggFunction.IntMaxAggFunction). The real classes live in
+  // flink-table-planner and are hidden from connector code, so the conversion is exercised against
+  // public-API stand-ins instead of planner internals.
+  private abstract static class TestAggregateFunction extends UserDefinedFunction {
+    @Override
+    public FunctionKind getKind() {
+      return FunctionKind.AGGREGATE;
+    }
+
+    @Override
+    public TypeInference getTypeInference(DataTypeFactory typeFactory) {
+      return null;
+    }
+  }
+
+  private static class Count1AggFunction extends TestAggregateFunction {}
+
+  private static class CountAggFunction extends TestAggregateFunction {}
+
+  private static class IntMaxAggFunction extends TestAggregateFunction {}
+
+  private static class IntMinAggFunction extends TestAggregateFunction {}
+
+  private static class IntSumAggFunction extends TestAggregateFunction {}
 }

@@ -22,10 +22,6 @@ import java.util.List;
 import org.apache.flink.table.expressions.AggregateExpression;
 import org.apache.flink.table.expressions.FieldReferenceExpression;
 import org.apache.flink.table.functions.FunctionDefinition;
-import org.apache.flink.table.planner.functions.aggfunctions.Count1AggFunction;
-import org.apache.flink.table.planner.functions.aggfunctions.CountAggFunction;
-import org.apache.flink.table.planner.functions.aggfunctions.MaxAggFunction;
-import org.apache.flink.table.planner.functions.aggfunctions.MinAggFunction;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 
@@ -51,13 +47,20 @@ public class FlinkAggregates {
     FunctionDefinition function = aggregate.getFunctionDefinition();
     List<FieldReferenceExpression> args = aggregate.getArgs();
 
-    if (function instanceof Count1AggFunction) {
+    // The planner hands over the instantiated aggregate function implementation (e.g.
+    // MaxAggFunction.IntMaxAggFunction). Those classes live in flink-table-planner and are hidden
+    // from connector code behind flink-table-planner-loader, so an instanceof check would throw
+    // NoClassDefFoundError in a stock distribution. Match on the class name instead, which only
+    // reflects on the runtime class already loaded by the planner and never resolves it here.
+    String functionName = function.getClass().getSimpleName();
+
+    if ("Count1AggFunction".equals(functionName)) {
       return Expressions.countStar();
-    } else if (function instanceof CountAggFunction) {
+    } else if ("CountAggFunction".equals(functionName)) {
       return args.size() == 1 ? Expressions.count(args.get(0).getName()) : null;
-    } else if (function instanceof MaxAggFunction) {
+    } else if (functionName.endsWith("MaxAggFunction")) {
       return args.size() == 1 ? Expressions.max(args.get(0).getName()) : null;
-    } else if (function instanceof MinAggFunction) {
+    } else if (functionName.endsWith("MinAggFunction")) {
       return args.size() == 1 ? Expressions.min(args.get(0).getName()) : null;
     }
 
