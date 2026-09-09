@@ -48,6 +48,7 @@ import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.CharSequenceMap;
 import org.apache.iceberg.util.ContentFileUtil;
 import org.apache.iceberg.util.StructLikeSet;
+import org.apache.iceberg.util.StructLikeUtil;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
 import org.slf4j.Logger;
@@ -125,7 +126,9 @@ public class BaseDeleteLoader implements DeleteLoader {
   private CloseableIterable<StructLike> toStructs(
       CloseableIterable<Record> records, Schema schema) {
     InternalRecordWrapper wrapper = new InternalRecordWrapper(schema.asStruct());
-    return CloseableIterable.transform(records, wrapper::copyFor);
+    // Materialize nested values so cached rows do not share mutable conversion wrappers.
+    return CloseableIterable.transform(
+        records, record -> StructLikeUtil.copy(wrapper.wrap(record)));
   }
 
   // materializes the iterable and releases resources so that the result can be cached
