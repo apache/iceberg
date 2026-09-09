@@ -592,7 +592,9 @@ class TestV4ManifestReader {
     assertThatThrownBy(
             () -> V4ManifestReader.builder(manifest, io, UNPARTITIONED_SPECS, TABLE_LOCATION))
         .isInstanceOf(IllegalStateException.class)
-        .hasMessage("Invalid manifest with delete content: s3://bucket/manifest.parquet");
+        .hasMessage(
+            "Cannot read manifest with content DELETES: only data manifests are supported: "
+                + "s3://bucket/manifest.parquet");
   }
 
   @ParameterizedTest

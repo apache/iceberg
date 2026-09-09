@@ -213,7 +213,8 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
           SUPPORTED_FORMAT_VERSION);
       Preconditions.checkState(
           manifest.content() == ManifestContent.DATA,
-          "Invalid manifest with delete content: %s",
+          "Cannot read manifest with content %s: only data manifests are supported: %s",
+          manifest.content(),
           manifest.path());
 
       if (manifest.manifestDeletionVector() != null) {
