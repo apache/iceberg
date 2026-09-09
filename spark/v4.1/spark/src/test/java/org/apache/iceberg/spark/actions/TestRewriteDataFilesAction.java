@@ -2293,22 +2293,22 @@ public class TestRewriteDataFilesAction extends TestBase {
 
   @TestTemplate
   public void zOrderSortWithMismatchedColumnCase() {
-    assertThat(spark.conf().get("spark.sql.caseSensitive"))
-        .as("This test covers the case-insensitive column resolution path")
-        .isEqualTo("false");
+    withSQLConf(
+        ImmutableMap.of(SQLConf.CASE_SENSITIVE().key(), "false"),
+        () -> {
+          Table table = createTable(4);
+          long dataSizeBefore = testDataSize(table);
 
-    Table table = createTable(4);
-    long dataSizeBefore = testDataSize(table);
+          // 'C2' and 'C3' resolve case-insensitively to 'c2' and 'c3'
+          RewriteDataFiles.Result result =
+              basicRewrite(table)
+                  .zOrder("C2", "C3")
+                  .option(SizeBasedFileRewritePlanner.MIN_INPUT_FILES, "1")
+                  .execute();
 
-    // 'C2' and 'C3' resolve case-insensitively to 'c2' and 'c3'
-    RewriteDataFiles.Result result =
-        basicRewrite(table)
-            .zOrder("C2", "C3")
-            .option(SizeBasedFileRewritePlanner.MIN_INPUT_FILES, "1")
-            .execute();
-
-    assertThat(result.rewrittenBytesCount()).isEqualTo(dataSizeBefore);
-    assertThat(result.rewrittenDataFilesCount()).isGreaterThan(0);
+          assertThat(result.rewrittenBytesCount()).isEqualTo(dataSizeBefore);
+          assertThat(result.rewrittenDataFilesCount()).isGreaterThan(0);
+        });
   }
 
   protected void shouldRewriteDataFilesWithPartitionSpec(Table table, int outputSpecId) {
