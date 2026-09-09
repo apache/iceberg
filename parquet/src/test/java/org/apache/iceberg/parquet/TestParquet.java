@@ -41,6 +41,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
@@ -80,9 +81,14 @@ import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.ParquetWriter;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
+import org.apache.parquet.hadoop.metadata.ColumnPath;
+import org.apache.parquet.hadoop.metadata.CompressionCodecName;
+import org.apache.parquet.hadoop.metadata.FileMetaData;
+import org.apache.parquet.hadoop.metadata.ParquetMetadata;
 import org.apache.parquet.io.LocalOutputFile;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
+import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -792,5 +798,116 @@ public class TestParquet {
     }
 
     return ids;
+  }
+
+  private static final MessageType MISSING_NULL_COUNT_SCHEMA =
+      org.apache.parquet.schema.Types.buildMessage()
+          .addField(
+              org.apache.parquet.schema.Types.primitive(
+                      PrimitiveTypeName.INT32, org.apache.parquet.schema.Type.Repetition.OPTIONAL)
+                  .id(1)
+                  .named("id"))
+          .named("table");
+
+  private static final PrimitiveType MISSING_NULL_COUNT_ID_TYPE =
+      MISSING_NULL_COUNT_SCHEMA.getType("id").asPrimitiveType();
+
+  @Test
+  public void missingNullCountInSingleRowGroup() {
+    // Parquet reports a missing null_count as -1 from Statistics.getNumNulls(), which must not be
+    // stored as a count. The metric is dropped instead, so the null count is left unknown.
+    Metrics metrics = missingNullCountMetrics(block(statsWithoutNullCount(1, 10), 10));
+
+    assertThat(metrics.nullValueCounts()).doesNotContainKey(1);
+    assertThat(metrics.valueCounts()).containsEntry(1, 10L);
+    // a missing null count does not invalidate the bounds
+    assertThat(metrics.lowerBounds()).containsKey(1);
+    assertThat(metrics.upperBounds()).containsKey(1);
+  }
+
+  @Test
+  public void missingNullCountInOneOfTwoRowGroups() {
+    // without accounting for the -1 sentinel, this sums to an incorrect null count of 0
+    Metrics metrics =
+        missingNullCountMetrics(
+            block(statsWithoutNullCount(1, 10), 10), block(statsWithNullCount(20, 30, 1), 10));
+
+    assertThat(metrics.nullValueCounts()).doesNotContainKey(1);
+    assertThat(metrics.valueCounts()).containsEntry(1, 20L);
+  }
+
+  @Test
+  public void missingNullCountAfterKnownNullCount() {
+    // the -1 sentinel must also be detected when it is not the first row group
+    Metrics metrics =
+        missingNullCountMetrics(
+            block(statsWithNullCount(20, 30, 5), 10), block(statsWithoutNullCount(1, 10), 10));
+
+    assertThat(metrics.nullValueCounts()).doesNotContainKey(1);
+  }
+
+  @Test
+  public void missingNullCountWithCountsMode() {
+    Metrics metrics =
+        missingNullCountMetrics(
+            MetricsConfig.fromProperties(
+                Collections.singletonMap("write.metadata.metrics.default", "counts")),
+            block(statsWithoutNullCount(1, 10), 10),
+            block(statsWithNullCount(20, 30, 1), 10));
+
+    assertThat(metrics.nullValueCounts()).doesNotContainKey(1);
+    assertThat(metrics.valueCounts()).containsEntry(1, 20L);
+  }
+
+  private static Statistics<?> statsWithoutNullCount(int min, int max) {
+    return Statistics.getBuilderForReading(MISSING_NULL_COUNT_ID_TYPE)
+        .withMin(intToLittleEndian(min))
+        .withMax(intToLittleEndian(max))
+        .build();
+  }
+
+  private static Statistics<?> statsWithNullCount(int min, int max, long numNulls) {
+    return Statistics.getBuilderForReading(MISSING_NULL_COUNT_ID_TYPE)
+        .withMin(intToLittleEndian(min))
+        .withMax(intToLittleEndian(max))
+        .withNumNulls(numNulls)
+        .build();
+  }
+
+  private static byte[] intToLittleEndian(int value) {
+    return ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt(value).array();
+  }
+
+  private static BlockMetaData block(Statistics<?> stats, long valueCount) {
+    ColumnChunkMetaData column =
+        ColumnChunkMetaData.get(
+            ColumnPath.get("id"),
+            MISSING_NULL_COUNT_ID_TYPE,
+            CompressionCodecName.UNCOMPRESSED,
+            null /* encodingStats */,
+            Collections.singleton(Encoding.PLAIN),
+            stats,
+            4L /* firstDataPage */,
+            0L /* dictionaryPageOffset */,
+            valueCount,
+            100L /* totalSize */,
+            100L /* totalUncompressedSize */);
+
+    BlockMetaData block = new BlockMetaData();
+    block.setRowCount(valueCount);
+    block.setTotalByteSize(100L);
+    block.addColumn(column);
+    return block;
+  }
+
+  private static Metrics missingNullCountMetrics(BlockMetaData... blocks) {
+    return missingNullCountMetrics(MetricsConfig.getDefault(), blocks);
+  }
+
+  private static Metrics missingNullCountMetrics(MetricsConfig config, BlockMetaData... blocks) {
+    FileMetaData fileMetaData =
+        new FileMetaData(MISSING_NULL_COUNT_SCHEMA, Collections.emptyMap(), "test-writer");
+    return ParquetUtil.footerMetrics(
+        new ParquetMetadata(fileMetaData, Lists.newArrayList(blocks)), Stream.empty(), config);
   }
 }
