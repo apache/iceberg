@@ -32,7 +32,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
 import org.apache.iceberg.BaseFileScanTask;
+import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.FileMetadata;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.PartitionSpecParser;
 import org.apache.iceberg.SchemaParser;
@@ -196,17 +199,6 @@ public class TestPlanTableScanResponseParser {
 
   @Test
   public void roundTripSerdeWithInvalidPlanStatusSubmittedWithDeleteFilesNoFileScanTasksPresent() {
-    assertThatThrownBy(
-            () ->
-                PlanTableScanResponse.builder()
-                    .withPlanStatus(PlanStatus.SUBMITTED)
-                    .withPlanId("somePlanId")
-                    .withDeleteFiles(List.of(FILE_A_DELETES))
-                    .build())
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage(
-            "Invalid response: deleteFiles should only be returned with fileScanTasks that reference them");
-
     String invalidJson =
         "{\"status\":\"submitted\","
             + "\"plan-id\":\"somePlanId\","
@@ -264,7 +256,6 @@ public class TestPlanTableScanResponseParser {
             .withPlanStatus(fromResponse.planStatus())
             .withPlanId(fromResponse.planId())
             .withPlanTasks(fromResponse.planTasks())
-            .withDeleteFiles(fromResponse.deleteFiles())
             .withFileScanTasks(fromResponse.fileScanTasks())
             .withSpecsById(PARTITION_SPECS_BY_ID)
             .build();
@@ -384,6 +375,123 @@ public class TestPlanTableScanResponseParser {
             + "}";
     String json = PlanTableScanResponseParser.toJson(response, true);
     assertThat(json).isEqualTo(expectedJson);
+  }
+
+  @Test
+  public void deleteFileReferencesDistinguishDVsInTheSamePuffinFile() {
+    DataFile dataFile1 =
+        DataFiles.builder(SPEC)
+            .withPath("/path/to/data-1.parquet")
+            .withFileSizeInBytes(10)
+            .withPartitionPath("data_bucket=0")
+            .withRecordCount(1)
+            .build();
+
+    DataFile dataFile2 =
+        DataFiles.builder(SPEC)
+            .withPath("/path/to/data-2.parquet")
+            .withFileSizeInBytes(10)
+            .withPartitionPath("data_bucket=0")
+            .withRecordCount(1)
+            .build();
+
+    // A single Puffin file holds a DV for each data file, distinguished only by content range
+    DeleteFile dv1 =
+        FileMetadata.deleteFileBuilder(SPEC)
+            .ofPositionDeletes()
+            .withPath("/path/to/deletes.puffin")
+            .withFileSizeInBytes(100)
+            .withPartitionPath("data_bucket=0")
+            .withRecordCount(1)
+            .withReferencedDataFile(dataFile1.location())
+            .withContentOffset(4)
+            .withContentSizeInBytes(40)
+            .build();
+
+    DeleteFile dv2 =
+        FileMetadata.deleteFileBuilder(SPEC)
+            .ofPositionDeletes()
+            .withPath("/path/to/deletes.puffin")
+            .withFileSizeInBytes(100)
+            .withPartitionPath("data_bucket=0")
+            .withRecordCount(1)
+            .withReferencedDataFile(dataFile2.location())
+            .withContentOffset(44)
+            .withContentSizeInBytes(30)
+            .build();
+
+    ResidualEvaluator residualEvaluator =
+        ResidualEvaluator.of(SPEC, Expressions.alwaysTrue(), true);
+    FileScanTask task1 =
+        new BaseFileScanTask(
+            dataFile1,
+            new DeleteFile[] {dv1},
+            SchemaParser.toJson(SCHEMA),
+            PartitionSpecParser.toJson(SPEC),
+            residualEvaluator);
+    FileScanTask task2 =
+        new BaseFileScanTask(
+            dataFile2,
+            new DeleteFile[] {dv2},
+            SchemaParser.toJson(SCHEMA),
+            PartitionSpecParser.toJson(SPEC),
+            residualEvaluator);
+
+    PlanTableScanResponse response =
+        PlanTableScanResponse.builder()
+            .withPlanStatus(PlanStatus.COMPLETED)
+            .withFileScanTasks(List.of(task1, task2))
+            .withSpecsById(PARTITION_SPECS_BY_ID)
+            .build();
+
+    String json = PlanTableScanResponseParser.toJson(response);
+    PlanTableScanResponse fromResponse =
+        PlanTableScanResponseParser.fromJson(json, PARTITION_SPECS_BY_ID, false);
+
+    assertThat(fromResponse.deleteFiles()).hasSize(2);
+
+    List<FileScanTask> tasks = fromResponse.fileScanTasks();
+    assertThat(tasks).hasSize(2);
+
+    // each task must resolve back to the DV covering its own data file
+    for (FileScanTask task : tasks) {
+      assertThat(task.deletes()).hasSize(1);
+      DeleteFile taskDelete = task.deletes().get(0);
+      assertThat(taskDelete.referencedDataFile()).isEqualTo(task.file().location());
+
+      DeleteFile expected = task.file().location().equals(dataFile1.location()) ? dv1 : dv2;
+      assertThat(taskDelete.contentOffset()).isEqualTo(expected.contentOffset());
+      assertThat(taskDelete.contentSizeInBytes()).isEqualTo(expected.contentSizeInBytes());
+    }
+  }
+
+  @Test
+  public void toBuilderClearsDeleteFilesWhenClearingFileScanTasks() {
+    ResidualEvaluator residualEvaluator =
+        ResidualEvaluator.of(SPEC, Expressions.alwaysTrue(), true);
+    FileScanTask task =
+        new BaseFileScanTask(
+            FILE_A,
+            new DeleteFile[] {FILE_A_DELETES},
+            SchemaParser.toJson(SCHEMA),
+            PartitionSpecParser.toJson(SPEC),
+            residualEvaluator);
+
+    PlanTableScanResponse completed =
+        PlanTableScanResponse.builder()
+            .withPlanStatus(PlanStatus.COMPLETED)
+            .withFileScanTasks(List.of(task))
+            .withSpecsById(PARTITION_SPECS_BY_ID)
+            .build();
+    assertThat(completed.deleteFiles()).containsExactly(FILE_A_DELETES);
+
+    // clearing the tasks must clear the delete files derived from them, otherwise validate()
+    // rejects the copy because the retained delete files reference tasks that are no longer present
+    PlanTableScanResponse failed =
+        completed.toBuilder().withPlanStatus(PlanStatus.FAILED).withFileScanTasks(null).build();
+
+    assertThat(failed.fileScanTasks()).isNull();
+    assertThat(failed.deleteFiles()).isNull();
   }
 
   @Test

@@ -54,7 +54,7 @@ project(':iceberg-kafka-connect:iceberg-kafka-connect') {
     compileOnly libs.kafka.connect.json
 
     testImplementation libs.hadoop3.client
-    testRuntimeOnly project(':iceberg-parquet')
+    testImplementation(testFixtures(project(':iceberg-parquet')))
     testRuntimeOnly project(':iceberg-orc')
   }
 

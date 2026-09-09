@@ -64,8 +64,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
-import org.apache.iceberg.types.Types;
-import org.apache.iceberg.util.StructLikeSet;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -1020,7 +1018,7 @@ class TestConvertEqualityDeletes extends MaintenanceTaskTestBase {
     assertThat(file.delete()).isTrue();
 
     PositionDelete<Record> delete = PositionDelete.create();
-    delete.set(dataFilePath, position, null);
+    delete.set(dataFilePath, position);
     return FileHelpers.writePosDeleteFile(
         table,
         Files.localOutput(file),
@@ -1342,6 +1340,139 @@ class TestConvertEqualityDeletes extends MaintenanceTaskTestBase {
     }
   }
 
+  @Test
+  void testDeleteResolvedBeforeFailureIsRetained() throws Exception {
+    Table table = createTableWithDelete(3);
+    insert(table, 1, "a");
+    insert(table, 2, "b");
+
+    // Two eq deletes with their re-inserts, the usual upsert shape. id=1's delete file stays
+    // readable so it resolves; id=2's is removed so the cycle aborts after id=1 is resolved.
+    DataFile reinsertA = writeDataFile(table, createRecord(1, "a"));
+    DataFile reinsertB = writeDataFile(table, createRecord(2, "b"));
+    DeleteFile readableDelete = writeEqualityDelete(table, 1, "a");
+    DeleteFile missingDelete = writeEqualityDelete(table, 2, "b");
+    table
+        .newRowDelta()
+        .addRows(reinsertA)
+        .addRows(reinsertB)
+        .addDeletes(readableDelete)
+        .addDeletes(missingDelete)
+        .commit();
+    table.refresh();
+
+    // The eq deletes hide the original rows, but not the re-inserts.
+    assertRecords(table, ImmutableList.of(createRecord(1, "a"), createRecord(2, "b")));
+
+    long mainSnapshotBeforeConversion = table.currentSnapshot().snapshotId();
+    File missingDeleteLocalFile = new File(missingDelete.location().replace("file:", ""));
+    assertThat(missingDeleteLocalFile.delete()).isTrue();
+
+    appendConvertTask(SnapshotRef.MAIN_BRANCH);
+
+    JobClient jobClient = null;
+    try {
+      jobClient = infra.env().executeAsync();
+
+      long time1 = System.currentTimeMillis();
+      infra.source().sendRecord(Trigger.create(time1, 0), time1);
+      TaskResult result1 = infra.sink().poll(Duration.ofSeconds(10));
+
+      assertThat(result1.success()).isFalse();
+      table.refresh();
+      assertThat(table.currentSnapshot().snapshotId()).isEqualTo(mainSnapshotBeforeConversion);
+
+      // Rewrite an identical delete file and retry. The cursor did not advance, so the planner
+      // re-processes the same snapshot.
+      DeleteFile recreated =
+          FileHelpers.writeDeleteFile(
+              table,
+              Files.localOutput(missingDeleteLocalFile),
+              new PartitionData(PartitionSpec.unpartitioned().partitionType()),
+              Lists.newArrayList(createRecord(2, "b")),
+              table.schema());
+      assertThat(recreated.location()).isEqualTo(missingDelete.location());
+
+      long time2 = time1 + 1;
+      infra.source().sendRecord(Trigger.create(time2, 0), time2);
+      TaskResult result2 = infra.sink().poll(Duration.ofSeconds(10));
+
+      assertThat(result2.exceptions()).isEmpty();
+      assertThat(result2.success()).isTrue();
+
+      table.refresh();
+      // The retried cycle converted both eq deletes, so only the re-inserts remain visible.
+      assertNoEqualityDeletesOnMain(table, 0);
+      assertRecords(table, ImmutableList.of(createRecord(1, "a"), createRecord(2, "b")));
+    } finally {
+      closeJobClient(jobClient);
+    }
+  }
+
+  @Test
+  void testDeleteResolvedBeforeFailureIsRetainedOnSeparateStagingBranch() throws Exception {
+    Table table = createTableWithDelete(3);
+    insert(table, 1, "a");
+    insert(table, 2, "b");
+
+    table.manageSnapshots().createBranch(STAGING_BRANCH).commit();
+    table.refresh();
+
+    long targetSnapshotBeforeConversion = table.currentSnapshot().snapshotId();
+
+    // Same shape as the in-place case, but the eq deletes live on a separate staging branch. The
+    // target only advances when the converter commits, so nothing else can rebuild the index.
+    DeleteFile readableDelete = writeEqualityDelete(table, 1, "a");
+    DeleteFile missingDelete = writeEqualityDelete(table, 2, "b");
+    table
+        .newRowDelta()
+        .addDeletes(readableDelete)
+        .addDeletes(missingDelete)
+        .toBranch(STAGING_BRANCH)
+        .commit();
+    table.refresh();
+
+    File missingDeleteLocalFile = new File(missingDelete.location().replace("file:", ""));
+    assertThat(missingDeleteLocalFile.delete()).isTrue();
+
+    appendConvertTask(STAGING_BRANCH);
+
+    JobClient jobClient = null;
+    try {
+      jobClient = infra.env().executeAsync();
+
+      long time1 = System.currentTimeMillis();
+      infra.source().sendRecord(Trigger.create(time1, 0), time1);
+      TaskResult result1 = infra.sink().poll(Duration.ofSeconds(10));
+
+      assertThat(result1.success()).isFalse();
+      table.refresh();
+      assertThat(table.currentSnapshot().snapshotId()).isEqualTo(targetSnapshotBeforeConversion);
+
+      DeleteFile recreated =
+          FileHelpers.writeDeleteFile(
+              table,
+              Files.localOutput(missingDeleteLocalFile),
+              new PartitionData(PartitionSpec.unpartitioned().partitionType()),
+              Lists.newArrayList(createRecord(2, "b")),
+              table.schema());
+      assertThat(recreated.location()).isEqualTo(missingDelete.location());
+
+      long time2 = time1 + 1;
+      infra.source().sendRecord(Trigger.create(time2, 0), time2);
+      TaskResult result2 = infra.sink().poll(Duration.ofSeconds(10));
+
+      assertThat(result2.exceptions()).isEmpty();
+      assertThat(result2.success()).isTrue();
+
+      table.refresh();
+      // Both deletes converted to DVs on the target, so neither row is visible there.
+      assertRecords(table, ImmutableList.of());
+    } finally {
+      closeJobClient(jobClient);
+    }
+  }
+
   private void appendConvertTask() {
     appendConvertTask(STAGING_BRANCH);
   }
@@ -1365,22 +1496,16 @@ class TestConvertEqualityDeletes extends MaintenanceTaskTestBase {
 
   private static void assertRecords(Table table, List<Record> expected) throws IOException {
     table.refresh();
-    Types.StructType type = SimpleDataUtil.SCHEMA.asStruct();
-
-    StructLikeSet expectedSet = StructLikeSet.create(type);
-    expectedSet.addAll(expected);
 
     try (CloseableIterable<Record> iterable =
         IcebergGenerics.read(table)
             .useSnapshot(table.currentSnapshot().snapshotId())
             .project(SimpleDataUtil.SCHEMA)
             .build()) {
-      StructLikeSet actualSet = StructLikeSet.create(type);
-      for (Record record : iterable) {
-        actualSet.add(record);
-      }
-
-      assertThat(actualSet).isEqualTo(expectedSet);
+      // rows from files with deletes applied carry an extra _pos field
+      assertThat(Lists.newArrayList(iterable))
+          .map(r -> createRecord((Integer) r.getField("id"), (String) r.getField("data")))
+          .containsExactlyInAnyOrderElementsOf(expected);
     }
   }
 

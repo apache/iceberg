@@ -296,8 +296,8 @@ public class HMSTablePropertyHelper {
   }
 
   private static byte[] hashOf(TableMetadata tableMetadata) {
-    try (HashWriter hashWriter = new HashWriter("SHA-256", StandardCharsets.UTF_8)) {
-      JsonGenerator generator = JsonUtil.factory().createGenerator(hashWriter);
+    try (HashWriter hashWriter = new HashWriter("SHA-256", StandardCharsets.UTF_8);
+        JsonGenerator generator = JsonUtil.factory().createGenerator(hashWriter)) {
       TableMetadataParser.toJson(tableMetadata, generator);
       generator.flush();
       return hashWriter.getHash();

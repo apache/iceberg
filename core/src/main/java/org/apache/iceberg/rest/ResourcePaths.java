@@ -73,15 +73,6 @@ public class ResourcePaths {
   private final String prefix;
   private final String namespaceSeparator;
 
-  /**
-   * @deprecated since 1.11.0, will be made private in 1.12.0; use {@link
-   *     ResourcePaths#forCatalogProperties(Map)} instead.
-   */
-  @Deprecated
-  public ResourcePaths(String prefix) {
-    this(prefix, RESTUtil.NAMESPACE_SEPARATOR_URLENCODED_UTF_8);
-  }
-
   private ResourcePaths(String prefix, String namespaceSeparator) {
     this.prefix = prefix;
     this.namespaceSeparator = namespaceSeparator;

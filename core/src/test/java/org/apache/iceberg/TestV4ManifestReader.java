@@ -748,6 +748,20 @@ class TestV4ManifestReader {
 
   @ParameterizedTest
   @FieldSource("MANIFEST_FORMATS")
+  public void usesTableLocationVerbatim(FileFormat format) throws IOException {
+    TrackedFile file = dataFile("data/00000-0.parquet", EMPTY_PARTITION_DATA);
+
+    InputFile manifest = writeManifest(format, EMPTY_PARTITION, ImmutableList.of(file));
+
+    try (V4ManifestReader reader =
+        V4ManifestReader.builder(manifest, UNPARTITIONED_SPECS, "s3://bucket/db/table/").build()) {
+      TrackedFile actual = Iterables.getOnlyElement(reader);
+      assertThat(actual.location()).isEqualTo("s3://bucket/db/table//data/00000-0.parquet");
+    }
+  }
+
+  @ParameterizedTest
+  @FieldSource("MANIFEST_FORMATS")
   public void resolvesRelativeDeletionVectorLocation(FileFormat format) throws IOException {
     TrackedFile file =
         dataFile(format.addExtension("data/00000-0"), EMPTY_PARTITION_DATA, dv("data/dv.puffin"));
