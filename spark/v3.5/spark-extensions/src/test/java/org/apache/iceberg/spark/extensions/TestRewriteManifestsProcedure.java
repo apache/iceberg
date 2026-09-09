@@ -387,7 +387,7 @@ public class TestRewriteManifestsProcedure extends ExtensionsTestBase {
         sql(
             "CALL %s.system.rewrite_manifests(table => '%s', spec_id => 0)",
             catalogName, tableIdent);
-    assertEquals("There should be 2 manifests rewriten", ImmutableList.of(row(2, 1)), output);
+    assertEquals("There should be 2 manifests rewritten", ImmutableList.of(row(2, 1)), output);
     assertEquals(
         "Should have 2 manifests and their partition spec id should be 0 and 1",
         ImmutableList.of(row(0), row(1)),

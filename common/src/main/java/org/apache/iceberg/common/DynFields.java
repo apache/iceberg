@@ -319,7 +319,7 @@ public class DynFields {
     }
 
     /**
-     * Returns the first valid implementation as a UnboundField or throws a NoSuchFieldException if
+     * Returns the first valid implementation as an UnboundField or throws a NoSuchFieldException if
      * there is none.
      *
      * @param <T> Java class stored in the field
@@ -354,7 +354,7 @@ public class DynFields {
     }
 
     /**
-     * Returns the first valid implementation as a UnboundField or throws a NoSuchFieldException if
+     * Returns the first valid implementation as an UnboundField or throws a NoSuchFieldException if
      * there is none.
      *
      * @param <T> Java class stored in the field

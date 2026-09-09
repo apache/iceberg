@@ -399,7 +399,7 @@ public class DynMethods {
     }
 
     /**
-     * Returns the first valid implementation as a UnboundMethod or throws a RuntimeError if there
+     * Returns the first valid implementation as an UnboundMethod or throws a RuntimeError if there
      * is none.
      *
      * @return a {@link UnboundMethod} with a valid implementation
@@ -428,7 +428,7 @@ public class DynMethods {
     }
 
     /**
-     * Returns the first valid implementation as a UnboundMethod or throws a NoSuchMethodException
+     * Returns the first valid implementation as an UnboundMethod or throws a NoSuchMethodException
      * if there is none.
      *
      * @return a {@link UnboundMethod} with a valid implementation
