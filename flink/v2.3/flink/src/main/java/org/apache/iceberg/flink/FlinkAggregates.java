@@ -35,6 +35,10 @@ import org.apache.iceberg.expressions.Expressions;
  * are never converted.
  */
 public class FlinkAggregates {
+
+  private static final String FLINK_AGG_FUNCTIONS_PACKAGE =
+      "org.apache.flink.table.planner.functions.aggfunctions.";
+
   private FlinkAggregates() {}
 
   public static Expression convert(AggregateExpression aggregate) {
@@ -50,10 +54,15 @@ public class FlinkAggregates {
     // The planner hands over the instantiated aggregate function implementation (e.g.
     // MaxAggFunction.IntMaxAggFunction). Those classes live in flink-table-planner and are hidden
     // from connector code behind flink-table-planner-loader, so an instanceof check would throw
-    // NoClassDefFoundError in a stock distribution. Match on the class name instead, which only
-    // reflects on the runtime class already loaded by the planner and never resolves it here.
-    String functionName = function.getClass().getSimpleName();
+    // NoClassDefFoundError in a stock distribution. Reflect on the runtime class already loaded by
+    // the planner instead of resolving it here, and gate on the declaring package so a user-defined
+    // aggregate whose name resembles a built-in one is not mistaken for it.
+    Class<?> functionClass = function.getClass();
+    if (!functionClass.getName().startsWith(FLINK_AGG_FUNCTIONS_PACKAGE)) {
+      return null;
+    }
 
+    String functionName = functionClass.getSimpleName();
     if ("Count1AggFunction".equals(functionName)) {
       return Expressions.countStar();
     } else if ("CountAggFunction".equals(functionName)) {

@@ -36,6 +36,11 @@ public class FlinkReadConf {
     this.confParser = new FlinkConfParser(table, readOptions, readableConfig);
   }
 
+  /**
+   * Creates a read conf without a table, so table properties are not available. The {@link
+   * #splitSize()}, {@link #splitLookback()} and {@link #splitFileOpenCost()} getters fall back to
+   * their global defaults instead of the table's {@code read.split.*} properties.
+   */
   public FlinkReadConf(Map<String, String> readOptions, ReadableConfig readableConfig) {
     this.confParser = new FlinkConfParser(readOptions, readableConfig);
   }
