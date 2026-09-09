@@ -207,9 +207,9 @@ abstract class Channel {
 
   /**
    * Subscribes this channel's consumer to the control topic. Coordinator relies on real
-   * consumer-group membership (a stable, shared group id) so the broker's rebalance protocol
-   * can help detect/evict a stale coordinator. Worker overrides this with manual assignment
-   * instead, since its group is single-member and never reused -- see the override for why.
+   * consumer-group membership (a stable, shared group id) so the broker's rebalance protocol can
+   * help detect/evict a stale coordinator. Worker overrides this with manual assignment instead,
+   * since its group is single-member and never reused -- see the override for why.
    */
   protected void subscribeToControlTopic() {
     consumer.subscribe(ImmutableList.of(controlTopic));

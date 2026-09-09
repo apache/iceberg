@@ -87,8 +87,7 @@ public class TestWorker extends ChannelTestBase {
       // post-hoc rebalance() simulation.
       TopicPartition tp = new TopicPartition(CTL_TOPIC_NAME, 0);
       consumer.updatePartitions(
-          CTL_TOPIC_NAME,
-          ImmutableList.of(new PartitionInfo(CTL_TOPIC_NAME, 0, null, null, null)));
+          CTL_TOPIC_NAME, ImmutableList.of(new PartitionInfo(CTL_TOPIC_NAME, 0, null, null, null)));
       consumer.updateBeginningOffsets(ImmutableMap.of(tp, 0L));
 
       Worker worker = new Worker(config, clientFactory, sinkWriter, context);
