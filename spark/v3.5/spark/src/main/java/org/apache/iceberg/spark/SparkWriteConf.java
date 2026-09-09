@@ -497,8 +497,9 @@ public class SparkWriteConf {
             + "got [%s] in identifier and [%s] in options",
         branch,
         optionBranch);
-    if (optionBranch != null) {
-      return optionBranch;
+    String inputBranch = branch != null ? branch : optionBranch;
+    if (inputBranch != null) {
+      return inputBranch;
     }
 
     if (wapEnabled()) {
@@ -513,12 +514,6 @@ public class SparkWriteConf {
           wapBranch);
 
       if (wapBranch != null) {
-        ValidationException.check(
-            branch == null,
-            "Cannot write to both branch and WAP branch, but got branch [%s] and WAP branch [%s]",
-            branch,
-            wapBranch);
-
         return wapBranch;
       }
     }

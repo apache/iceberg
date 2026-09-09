@@ -1375,15 +1375,17 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     append(tableName, new Employee(0, "hr"), new Employee(1, "hr"), new Employee(2, "hr"));
     createBranchIfNeeded();
 
+    // writing to explicit branch should succeed even with WAP branch set
     withSQLConf(
         ImmutableMap.of(SparkSQLProperties.WAP_BRANCH, "wap"),
-        () ->
-            assertThatThrownBy(() -> sql("DELETE FROM %s t WHERE id=0", commitTarget()))
-                .isInstanceOf(ValidationException.class)
-                .hasMessage(
-                    String.format(
-                        "Cannot write to both branch and WAP branch, but got branch [%s] and WAP branch [wap]",
-                        branch)));
+        () -> {
+          sql("DELETE FROM %s t WHERE id=0", commitTarget());
+
+          assertEquals(
+              "Should have deleted row in explicit branch",
+              ImmutableList.of(row(1, "hr"), row(2, "hr")),
+              sql("SELECT * FROM %s ORDER BY id", commitTarget()));
+        });
   }
 
   @TestTemplate

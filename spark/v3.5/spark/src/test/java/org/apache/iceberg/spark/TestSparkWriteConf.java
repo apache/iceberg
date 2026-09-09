@@ -135,6 +135,21 @@ public class TestSparkWriteConf extends TestBaseWithCatalog {
   }
 
   @TestTemplate
+  public void writeIdentifierBranchTakesPrecedenceOverWapBranch() {
+    Table table = validationCatalog.loadTable(tableIdent);
+    table.updateProperties().set(TableProperties.WRITE_AUDIT_PUBLISH_ENABLED, "true").commit();
+
+    withSQLConf(
+        ImmutableMap.of(SparkSQLProperties.WAP_BRANCH, "wapBranch"),
+        () -> {
+          // The identifier branch takes precedence over the session WAP branch.
+          SparkWriteConf identifierConf =
+              new SparkWriteConf(spark, table, "branchA", ImmutableMap.of());
+          assertThat(identifierConf.branch()).isEqualTo("branchA");
+        });
+  }
+
+  @TestTemplate
   public void testOptionCaseInsensitive() {
     Table table = validationCatalog.loadTable(tableIdent);
     Map<String, String> options = ImmutableMap.of("option", "value");
