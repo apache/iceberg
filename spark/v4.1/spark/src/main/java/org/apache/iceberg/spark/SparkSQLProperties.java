@@ -45,6 +45,14 @@ public class SparkSQLProperties {
       "spark.sql.iceberg.aggregate-push-down.enabled";
   public static final boolean AGGREGATE_PUSH_DOWN_ENABLED_DEFAULT = true;
 
+  // Controls whether Iceberg accepts variant field extractions
+  // (SupportsPushDownVariantExtractions).
+  // Enabled by default. Set to false to keep the scan schema as VariantType when Spark pushes
+  // variant_get into the scan.
+  public static final String VARIANT_EXTRACTION_PUSH_DOWN_ENABLED =
+      "spark.sql.iceberg.variant-extraction-push-down.enabled";
+  public static final boolean VARIANT_EXTRACTION_PUSH_DOWN_ENABLED_DEFAULT = true;
+
   // Controls write distribution mode
   public static final String DISTRIBUTION_MODE = "spark.sql.iceberg.distribution-mode";
 

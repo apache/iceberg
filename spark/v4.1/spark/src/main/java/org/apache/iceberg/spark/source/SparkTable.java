@@ -55,6 +55,7 @@ import org.apache.iceberg.spark.SparkV2Filters;
 import org.apache.iceberg.spark.TimeTravel;
 import org.apache.iceberg.spark.TimeTravel.AsOfTimestamp;
 import org.apache.iceberg.spark.TimeTravel.AsOfVersion;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.sql.connector.catalog.SupportsDeleteV2;
@@ -179,7 +180,17 @@ public class SparkTable extends BaseSparkTable
 
   @Override
   public ScanBuilder newScanBuilder(CaseInsensitiveStringMap options) {
+    if (hasAnyTopLevelVariantColumn(schema)) {
+      return new SparkVariantExtractionScanBuilder(
+          spark(), table(), schema, snapshot, branch, timeTravel, options);
+    }
+
     return new SparkScanBuilder(spark(), table(), schema, snapshot, branch, timeTravel, options);
+  }
+
+  private static boolean hasAnyTopLevelVariantColumn(Schema tableSchema) {
+    return tableSchema.columns().stream()
+        .anyMatch(field -> field.type().typeId() == Type.TypeID.VARIANT);
   }
 
   @Override
