@@ -23,6 +23,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import org.apache.iceberg.connect.IcebergSinkConfig;
@@ -31,6 +32,8 @@ import org.apache.iceberg.connect.events.DataWritten;
 import org.apache.iceberg.connect.events.TableReference;
 import org.apache.iceberg.connect.events.TopicPartitionOffset;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.kafka.common.TopicPartition;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -39,7 +42,7 @@ class CommitState {
 
   private final List<Envelope> commitBuffer = Lists.newArrayList();
   private final List<DataComplete> readyBuffer = Lists.newArrayList();
-  private int receivedPartitionCount = 0;
+  private final Set<TopicPartition> reportedPartitions = Sets.newHashSet();
   private long startTime;
   private UUID currentCommitId;
   private final IcebergSinkConfig config;
@@ -66,7 +69,16 @@ class CommitState {
           "Received commit ready when no commit in progress, this can happen during recovery. Commit ID: {}",
           dataComplete.commitId());
     } else if (Objects.equals(currentCommitId, dataComplete.commitId())) {
-      receivedPartitionCount += dataComplete.assignments().size();
+      // Track which source partitions reported rather than how many responses arrived. The same
+      // partition can be reported more than once for one commit: a control-topic replay redelivers
+      // a DataComplete, and two workers can transiently claim a partition across a rebalance.
+      // Counting those again would satisfy the quorum before every partition has reported.
+      dataComplete
+          .assignments()
+          .forEach(
+              assignment ->
+                  reportedPartitions.add(
+                      new TopicPartition(assignment.topic(), assignment.partition())));
     }
   }
 
@@ -94,7 +106,7 @@ class CommitState {
 
   void endCurrentCommit() {
     readyBuffer.clear();
-    receivedPartitionCount = 0;
+    reportedPartitions.clear();
     currentCommitId = null;
   }
 
@@ -119,18 +131,18 @@ class CommitState {
       return false;
     }
 
-    if (receivedPartitionCount >= expectedPartitionCount) {
+    if (reportedPartitions.size() >= expectedPartitionCount) {
       LOG.info(
           "Commit {} ready, received responses for all {} partitions",
           currentCommitId,
-          receivedPartitionCount);
+          reportedPartitions.size());
       return true;
     }
 
     LOG.info(
         "Commit {} not ready, received responses for {} of {} partitions, waiting for more",
         currentCommitId,
-        receivedPartitionCount,
+        reportedPartitions.size(),
         expectedPartitionCount);
 
     return false;

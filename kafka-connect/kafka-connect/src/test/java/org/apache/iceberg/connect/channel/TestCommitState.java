@@ -33,24 +33,33 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.junit.jupiter.api.Test;
 
 public class TestCommitState {
+  private static TopicPartitionOffset partition(int partition) {
+    TopicPartitionOffset tp = mock(TopicPartitionOffset.class);
+    when(tp.topic()).thenReturn("src-topic");
+    when(tp.partition()).thenReturn(partition);
+    return tp;
+  }
+
   @Test
   public void testIsCommitReady() {
-    TopicPartitionOffset tp = mock(TopicPartitionOffset.class);
-
     CommitState commitState = new CommitState(mock(IcebergSinkConfig.class));
     commitState.startNewCommit();
 
     DataComplete payload1 = mock(DataComplete.class);
     when(payload1.commitId()).thenReturn(commitState.currentCommitId());
-    when(payload1.assignments()).thenReturn(ImmutableList.of(tp, tp));
+    TopicPartitionOffset tp0 = partition(0);
+    TopicPartitionOffset tp1 = partition(1);
+    when(payload1.assignments()).thenReturn(ImmutableList.of(tp0, tp1));
 
     DataComplete payload2 = mock(DataComplete.class);
     when(payload2.commitId()).thenReturn(commitState.currentCommitId());
-    when(payload2.assignments()).thenReturn(ImmutableList.of(tp));
+    TopicPartitionOffset tp2 = partition(2);
+    when(payload2.assignments()).thenReturn(ImmutableList.of(tp2));
 
     DataComplete payload3 = mock(DataComplete.class);
     when(payload3.commitId()).thenReturn(UUID.randomUUID());
-    when(payload3.assignments()).thenReturn(ImmutableList.of(tp));
+    TopicPartitionOffset tp3 = partition(3);
+    when(payload3.assignments()).thenReturn(ImmutableList.of(tp3));
 
     commitState.addReady(wrapInEnvelope(payload1));
     commitState.addReady(wrapInEnvelope(payload2));
@@ -61,15 +70,69 @@ public class TestCommitState {
   }
 
   @Test
+  public void testReplayedReadyDoesNotSatisfyQuorumTwice() {
+    CommitState commitState = new CommitState(mock(IcebergSinkConfig.class));
+    commitState.startNewCommit();
+
+    // one worker owning source partition 0 reports; a control-topic replay redelivers it
+    TopicPartitionOffset tp0 = partition(0);
+    DataComplete payload = mock(DataComplete.class);
+    when(payload.commitId()).thenReturn(commitState.currentCommitId());
+    when(payload.assignments()).thenReturn(ImmutableList.of(tp0));
+
+    commitState.addReady(wrapInEnvelope(payload));
+    commitState.addReady(wrapInEnvelope(payload));
+
+    assertThat(commitState.isCommitReady(2))
+        .as("a redelivered response must not stand in for a partition that never reported")
+        .isFalse();
+
+    // the partition that was actually missing reports
+    TopicPartitionOffset tp1 = partition(1);
+    DataComplete second = mock(DataComplete.class);
+    when(second.commitId()).thenReturn(commitState.currentCommitId());
+    when(second.assignments()).thenReturn(ImmutableList.of(tp1));
+    commitState.addReady(wrapInEnvelope(second));
+
+    assertThat(commitState.isCommitReady(2)).isTrue();
+  }
+
+  @Test
+  public void testOverlappingAssignmentsDoNotSatisfyQuorumTwice() {
+    CommitState commitState = new CommitState(mock(IcebergSinkConfig.class));
+    commitState.startNewCommit();
+
+    // during a rebalance two workers can transiently claim the same source partition
+    TopicPartitionOffset tp0 = partition(0);
+    TopicPartitionOffset alsoTp0 = partition(0);
+
+    DataComplete leaving = mock(DataComplete.class);
+    when(leaving.commitId()).thenReturn(commitState.currentCommitId());
+    when(leaving.assignments()).thenReturn(ImmutableList.of(tp0));
+
+    DataComplete arriving = mock(DataComplete.class);
+    when(arriving.commitId()).thenReturn(commitState.currentCommitId());
+    when(arriving.assignments()).thenReturn(ImmutableList.of(alsoTp0));
+
+    commitState.addReady(wrapInEnvelope(leaving));
+    commitState.addReady(wrapInEnvelope(arriving));
+
+    assertThat(commitState.isCommitReady(2))
+        .as("two claims on one partition cover one partition, not two")
+        .isFalse();
+  }
+
+  @Test
   public void testIsCommitReadyResetsBetweenCommits() {
-    TopicPartitionOffset tp = mock(TopicPartitionOffset.class);
+    TopicPartitionOffset tp = partition(0);
+    TopicPartitionOffset other = partition(1);
 
     CommitState commitState = new CommitState(mock(IcebergSinkConfig.class));
     commitState.startNewCommit();
 
     DataComplete firstPayload = mock(DataComplete.class);
     when(firstPayload.commitId()).thenReturn(commitState.currentCommitId());
-    when(firstPayload.assignments()).thenReturn(ImmutableList.of(tp, tp));
+    when(firstPayload.assignments()).thenReturn(ImmutableList.of(tp, other));
     commitState.addReady(wrapInEnvelope(firstPayload));
     assertThat(commitState.isCommitReady(2)).isTrue();
 
@@ -89,7 +152,7 @@ public class TestCommitState {
 
   @Test
   public void testIsCommitReadyIgnoresZombieCoordinatorPayloads() {
-    TopicPartitionOffset tp = mock(TopicPartitionOffset.class);
+    TopicPartitionOffset tp = partition(0);
 
     CommitState commitState = new CommitState(mock(IcebergSinkConfig.class));
     commitState.startNewCommit();
@@ -114,17 +177,17 @@ public class TestCommitState {
   @Test
   public void testGetValidThroughTs() {
     DataComplete payload1 = mock(DataComplete.class);
-    TopicPartitionOffset tp1 = mock(TopicPartitionOffset.class);
+    TopicPartitionOffset tp1 = partition(0);
     OffsetDateTime ts1 = EventTestUtil.now();
     when(tp1.timestamp()).thenReturn(ts1);
 
-    TopicPartitionOffset tp2 = mock(TopicPartitionOffset.class);
+    TopicPartitionOffset tp2 = partition(1);
     OffsetDateTime ts2 = ts1.plusSeconds(1);
     when(tp2.timestamp()).thenReturn(ts2);
     when(payload1.assignments()).thenReturn(ImmutableList.of(tp1, tp2));
 
     DataComplete payload2 = mock(DataComplete.class);
-    TopicPartitionOffset tp3 = mock(TopicPartitionOffset.class);
+    TopicPartitionOffset tp3 = partition(2);
     OffsetDateTime ts3 = ts1.plusSeconds(2);
     when(tp3.timestamp()).thenReturn(ts3);
     when(payload2.assignments()).thenReturn(ImmutableList.of(tp3));
@@ -140,7 +203,7 @@ public class TestCommitState {
 
     // null timestamp for one, so should not set a valid-through timestamp
     DataComplete payload3 = mock(DataComplete.class);
-    TopicPartitionOffset tp4 = mock(TopicPartitionOffset.class);
+    TopicPartitionOffset tp4 = partition(3);
     when(tp4.timestamp()).thenReturn(null);
     when(payload3.assignments()).thenReturn(ImmutableList.of(tp4));
 
